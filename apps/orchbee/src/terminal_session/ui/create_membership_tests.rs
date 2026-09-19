@@ -44,7 +44,7 @@ fn timely_create_candidate_reserve_cleans_without_install_and_total_expiry_never
                 .publish_event_before(
                     WorkerEvent::MembershipDetached {
                         cleanup: cleanup.clone(),
-                        detached: old,
+                        detached: old.anchor().clone(),
                     },
                     EventDeadline::TotalCleanup(cleanup.deadlines().total()),
                     &clock,
@@ -161,7 +161,7 @@ fn actual_create_candidate_installs_reserved_survivor_fresh_fallback_or_empty() 
         let wait = mailbox
             .publish_event_before(
                 WorkerEvent::MembershipDetached {
-                    detached: old.clone(),
+                    detached: old.anchor().clone(),
                     cleanup: cleanup.clone(),
                 },
                 EventDeadline::TotalCleanup(cleanup.deadlines().total()),
@@ -354,11 +354,11 @@ fn ready_create_ui_at(
     mailbox.take_deposited_reply(&wait).unwrap();
     let state = ui.state.as_mut().unwrap();
     let old = state.desired().unwrap().clone();
-    assert!(state.install_projection(&old));
-    assert!(state.record_setup_configuration(&old, ControllerMode::ReadOnly, None));
-    assert!(state.stage_drawn_frame(&old, FrameIdentity::new(1)));
-    assert!(state.mark_feedback_accepted(&old, FrameIdentity::new(1)));
-    assert!(state.publish_ready(&old, FrameIdentity::new(1), ControllerMode::ReadOnly, None));
+    assert!(state.install_projection_t(&old));
+    assert!(state.record_setup_configuration_t(&old, ControllerMode::ReadOnly, None));
+    assert!(state.stage_drawn_frame_t(&old, FrameIdentity::new(1)));
+    assert!(state.mark_feedback_accepted_t(&old, FrameIdentity::new(1)));
+    assert!(state.publish_ready_t(&old, FrameIdentity::new(1), ControllerMode::ReadOnly, None));
     (ui, mailbox, clock)
 }
 

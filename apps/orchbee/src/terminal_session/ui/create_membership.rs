@@ -20,7 +20,7 @@ impl NativeUi {
             if transaction.observed_at() >= deadlines.forward_cutoff() {
                 return Err(CarrierFailure::Deadline);
             }
-            if state.attached_key().is_some() {
+            if state.has_attachments() {
                 let cleanup = state
                     .stage_create_refresh_cleanup(generation, &operation, prepared, deadlines)?;
                 return Ok(UiReply::Refresh(RefreshSettlement::new(
@@ -33,11 +33,21 @@ impl NativeUi {
                 .ok_or(CarrierFailure::Protocol)?;
             let install = match prepared.selected_tab_id() {
                 Some(tab) if tab == committed.committed_key().tab_id() => {
-                    super::super::mailbox::DesiredInstall::ReuseReserved(
-                        committed.committed_key().clone(),
-                    )
+                    super::super::mailbox::DesiredInstall::ReuseReserved {
+                        key: committed.committed_key().clone(),
+                        panel: prepared
+                            .focus_panel_id()
+                            .cloned()
+                            .ok_or(CarrierFailure::Protocol)?,
+                    }
                 }
-                Some(tab) => super::super::mailbox::DesiredInstall::Fresh(tab.clone()),
+                Some(tab) => match prepared.focus_panel_id() {
+                    Some(panel) => super::super::mailbox::DesiredInstall::Fresh {
+                        tab_id: tab.clone(),
+                        panel: panel.clone(),
+                    },
+                    None => super::super::mailbox::DesiredInstall::Empty,
+                },
                 None => super::super::mailbox::DesiredInstall::Empty,
             };
             let desired = transaction.prepare_desired_install(install)?;
@@ -45,7 +55,7 @@ impl NativeUi {
                 generation,
                 &operation,
                 prepared,
-                desired.desired().cloned(),
+                desired.desired().map(|key| key.anchor().clone()),
                 deadlines,
             )?;
             let decision = plan.commit();
@@ -71,7 +81,7 @@ impl NativeUi {
         match result {
             Ok(MutationResult::Applied) => {
                 if installed {
-                    self.clear_projection();
+                    self.clear_projections();
                 }
                 self.validate_state()
             }
@@ -113,7 +123,7 @@ impl NativeUi {
                 if transaction.observed_at() >= deadlines.total() {
                     return Err(CarrierFailure::Deadline);
                 }
-                if state.attached_key().is_some() {
+                if state.has_attachments() {
                     let cleanup =
                         state.stage_create_membership_cleanup(&operation, candidate, deadlines)?;
                     return Ok(UiReply::CreateProjection(
@@ -125,18 +135,28 @@ impl NativeUi {
                 }
                 let install = match candidate.selected_tab_id() {
                     Some(tab) if tab == committed.committed_key().tab_id() => {
-                        super::super::mailbox::DesiredInstall::ReuseReserved(
-                            committed.committed_key().clone(),
-                        )
+                        super::super::mailbox::DesiredInstall::ReuseReserved {
+                            key: committed.committed_key().clone(),
+                            panel: candidate
+                                .focus_panel_id()
+                                .cloned()
+                                .ok_or(CarrierFailure::Protocol)?,
+                        }
                     }
-                    Some(tab) => super::super::mailbox::DesiredInstall::Fresh(tab.clone()),
+                    Some(tab) => match candidate.focus_panel_id() {
+                        Some(panel) => super::super::mailbox::DesiredInstall::Fresh {
+                            tab_id: tab.clone(),
+                            panel: panel.clone(),
+                        },
+                        None => super::super::mailbox::DesiredInstall::Empty,
+                    },
                     None => super::super::mailbox::DesiredInstall::Empty,
                 };
                 let desired = transaction.prepare_desired_install(install)?;
                 let plan = state.prepare_create_membership_install(
                     &operation,
                     candidate,
-                    desired.desired().cloned(),
+                    desired.desired().map(|key| key.anchor().clone()),
                     deadlines,
                 )?;
                 let decision = plan.commit();
@@ -158,7 +178,7 @@ impl NativeUi {
             return match result {
                 Ok(MutationResult::Applied) => {
                     if installed {
-                        self.clear_projection();
+                        self.clear_projections();
                     }
                     self.validate_state()
                 }

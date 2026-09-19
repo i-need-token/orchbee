@@ -342,6 +342,23 @@ fn fixed_outputs_are_far_below_the_bound() {
             body.len()
         );
     }
+    // The terminal family help must name the accepted optional history
+    // spelling and explain it separately — the bound alone would let the
+    // new grammar drift out of family help silently.
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let body = super::text::help(HelpTopic::Family(Family::Terminal), locale);
+        assert!(
+            body.contains("[--history --rows <n>]"),
+            "{locale:?} terminal family help lost the history spelling"
+        );
+        assert!(
+            body.contains(match locale {
+                Locale::EnUs => "retained history",
+                Locale::ZhCn => "保留历史",
+            }),
+            "{locale:?} terminal family help lost the history explanation"
+        );
+    }
 }
 
 #[test]

@@ -310,11 +310,11 @@ fn real_native_state_opens_confirmation_without_changing_selection() {
 fn readonly_attachment_can_request_close_without_controller_authority() {
     let mut state = super::state(2);
     let key = state.desired().unwrap().clone();
-    assert!(state.install_projection(&key));
-    assert!(state.record_setup_configuration(&key, super::ControllerMode::ReadOnly, None));
-    assert!(state.stage_drawn_frame(&key, super::FrameIdentity::new(1)));
-    assert!(state.mark_feedback_accepted(&key, super::FrameIdentity::new(1)));
-    assert!(state.publish_ready(
+    assert!(state.install_projection_t(&key));
+    assert!(state.record_setup_configuration_t(&key, super::ControllerMode::ReadOnly, None));
+    assert!(state.stage_drawn_frame_t(&key, super::FrameIdentity::new(1)));
+    assert!(state.mark_feedback_accepted_t(&key, super::FrameIdentity::new(1)));
+    assert!(state.publish_ready_t(
         &key,
         super::FrameIdentity::new(1),
         super::ControllerMode::ReadOnly,
@@ -364,27 +364,11 @@ fn split_close_uses_the_attached_leaf_binding_for_confirmation_and_submission() 
     };
     let mut state =
         super::ready_with_cache(super::project_native_standalone_tabs(&source).unwrap());
-    let deadlines = super::OperationDeadlines::from_sample(Instant::now()).unwrap();
-    let target = state
-        .plan_panel_focus(PanelDirection::Right, 2, deadlines)
-        .unwrap();
-    assert!(state.begin_switch(target));
-    let marker = state.desired().unwrap().clone();
-    let fresh = super::install_switch_candidate(&mut state, &marker);
-    assert!(state.install_projection(&fresh));
-    assert!(state.record_setup_configuration(
-        &fresh,
-        super::controlling(),
-        Some(super::geometry(80))
-    ));
-    assert!(state.stage_drawn_frame(&fresh, super::FrameIdentity::new(2)));
-    assert!(state.mark_feedback_accepted(&fresh, super::FrameIdentity::new(2)));
-    assert!(state.publish_ready(
-        &fresh,
-        super::FrameIdentity::new(2),
-        super::controlling(),
-        Some(super::geometry(80)),
-    ));
+    let fresh = super::attach_nonfirst_leaf(&mut state);
+    assert!(state.stage_drawn_frame_t(&fresh, super::FrameIdentity::new(2)));
+    assert!(state.mark_feedback_accepted_t(&fresh, super::FrameIdentity::new(2)));
+    let pane = state.plan_panel_focus_local(PanelDirection::Right).unwrap();
+    assert!(state.move_panel_focus_local(pane));
     assert_eq!(state.active().unwrap().panel_index(), 1);
 
     state.open_close_confirmation().unwrap();
@@ -538,7 +522,7 @@ fn known_operation_not_closing_is_authority_divergence_and_keeps_receipt() {
         ),
         Err(CloseStateError::FactRegression)
     );
-    assert!(state.close_suppresses_attachment(state.desired().unwrap()));
+    assert!(state.close_suppresses_attachment(state.desired().unwrap().anchor()));
 }
 
 #[test]
@@ -578,7 +562,7 @@ fn drifted_close_confirmation_settles_as_cancelled_with_notice() {
             snapshot: snapshot(2, 2, None),
         },
     );
-    state.apply_prepared_refresh(prepared);
+    state.apply_prepared_refresh(prepared, std::time::Instant::now());
 
     assert!(state.settle_stale_close_confirmations());
     assert!(state.view().close_confirmation().is_none());

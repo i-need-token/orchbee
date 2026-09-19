@@ -99,13 +99,20 @@ fn rejected_close_install_plan_preserves_both_owners_and_the_unconsumed_origin()
         observed_at: now,
     };
     let first = transaction
-        .prepare_desired_install(DesiredInstall::Fresh(key(1, 999).tab_id().clone()))
+        .prepare_desired_install(DesiredInstall::Fresh {
+            tab_id: key(1, 999).tab_id().clone(),
+            panel: panel(),
+        })
         .unwrap();
     let candidate = state
         .prepare_cleaned_membership_candidate(&cleanup, cleanup.old())
         .unwrap();
     assert!(matches!(
-        state.prepare_cleaned_membership_install(&cleanup, candidate, first.desired().cloned()),
+        state.prepare_cleaned_membership_install(
+            &cleanup,
+            candidate,
+            first.desired().map(|pane| pane.anchor().clone())
+        ),
         Err(CarrierFailure::Protocol)
     ));
     drop(first);
@@ -125,7 +132,11 @@ fn rejected_close_install_plan_preserves_both_owners_and_the_unconsumed_origin()
         .prepare_cleaned_membership_candidate(&cleanup, cleanup.old())
         .unwrap();
     let second = state
-        .prepare_cleaned_membership_install(&cleanup, candidate, first.desired().cloned())
+        .prepare_cleaned_membership_install(
+            &cleanup,
+            candidate,
+            first.desired().map(|pane| pane.anchor().clone()),
+        )
         .unwrap();
     second.commit();
     first.commit();
@@ -151,7 +162,7 @@ fn full_close_reconciliation_admission_keeps_the_initial_intent_and_all_allocato
     for _ in 0..COMMAND_CAPACITY {
         mailbox
             .try_enqueue(QueuedCommand::Input(Tagged::new(
-                key(1, 1),
+                pane_ref(&key(1, 1)),
                 ControlInput::new(b"a".to_vec()).unwrap(),
             )))
             .unwrap();

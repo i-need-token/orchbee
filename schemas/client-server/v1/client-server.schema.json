@@ -86,7 +86,12 @@
 		"geometry": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["columns", "rows", "cellPixelWidth", "cellPixelHeight"],
+			"required": [
+				"columns",
+				"rows",
+				"cellPixelWidth",
+				"cellPixelHeight"
+			],
 			"properties": {
 				"columns": {
 					"type": "integer",
@@ -114,7 +119,10 @@
 		"workerConstraint": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "workerId"],
+			"required": [
+				"kind",
+				"workerId"
+			],
 			"properties": {
 				"kind": {
 					"const": "exact"
@@ -127,7 +135,10 @@
 		"immediateStartMode": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "geometry"],
+			"required": [
+				"kind",
+				"geometry"
+			],
 			"properties": {
 				"kind": {
 					"const": "immediate"
@@ -140,7 +151,9 @@
 		"deferredStartMode": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind"],
+			"required": [
+				"kind"
+			],
 			"properties": {
 				"kind": {
 					"const": "deferred"
@@ -160,7 +173,14 @@
 		"terminalCreate": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "protocolVersion", "requestId", "workerConstraint", "cwd", "startMode"],
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"workerConstraint",
+				"cwd",
+				"startMode"
+			],
 			"properties": {
 				"kind": {
 					"const": "terminal.create"
@@ -199,7 +219,13 @@
 		"terminalStart": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "protocolVersion", "requestId", "terminalCreateRequestId", "geometry"],
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"terminalCreateRequestId",
+				"geometry"
+			],
 			"properties": {
 				"kind": {
 					"const": "terminal.start"
@@ -224,7 +250,9 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind"],
+					"required": [
+						"kind"
+					],
 					"properties": {
 						"kind": {
 							"const": "awaiting-start"
@@ -234,7 +262,10 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "geometry"],
+					"required": [
+						"kind",
+						"geometry"
+					],
 					"properties": {
 						"kind": {
 							"const": "started"
@@ -247,17 +278,28 @@
 			]
 		},
 		"createRejectedReason": {
-			"enum": ["not-authorized", "worker-constraint-unsatisfied", "cwd-not-accepted"]
+			"enum": [
+				"not-authorized",
+				"worker-constraint-unsatisfied",
+				"cwd-not-accepted"
+			]
 		},
 		"createUnavailableReason": {
-			"enum": ["no-compatible-worker", "terminal-runtime-unavailable", "server-busy"]
+			"enum": [
+				"no-compatible-worker",
+				"terminal-runtime-unavailable",
+				"server-busy"
+			]
 		},
 		"createOutcome": {
 			"oneOf": [
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "state"],
+					"required": [
+						"kind",
+						"state"
+					],
 					"properties": {
 						"kind": {
 							"const": "accepted"
@@ -270,7 +312,10 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "reason"],
+					"required": [
+						"kind",
+						"reason"
+					],
 					"properties": {
 						"kind": {
 							"const": "rejected"
@@ -283,7 +328,10 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "reason"],
+					"required": [
+						"kind",
+						"reason"
+					],
 					"properties": {
 						"kind": {
 							"const": "unavailable"
@@ -296,7 +344,10 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "reason"],
+					"required": [
+						"kind",
+						"reason"
+					],
 					"properties": {
 						"kind": {
 							"const": "failed"
@@ -309,7 +360,9 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind"],
+					"required": [
+						"kind"
+					],
 					"properties": {
 						"kind": {
 							"const": "outcome-unknown"
@@ -321,7 +374,12 @@
 		"terminalCreateResult": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "protocolVersion", "requestId", "outcome"],
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"outcome"
+			],
 			"properties": {
 				"kind": {
 					"const": "terminal.create.result"
@@ -338,7 +396,10 @@
 			}
 		},
 		"startTransition": {
-			"enum": ["started", "already-started"]
+			"enum": [
+				"started",
+				"already-started"
+			]
 		},
 		"startRejectedReason": {
 			"enum": [
@@ -349,14 +410,21 @@
 			]
 		},
 		"startUnavailableReason": {
-			"enum": ["terminal-runtime-unavailable", "server-busy"]
+			"enum": [
+				"terminal-runtime-unavailable",
+				"server-busy"
+			]
 		},
 		"startOutcome": {
 			"oneOf": [
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "geometry", "transition"],
+					"required": [
+						"kind",
+						"geometry",
+						"transition"
+					],
 					"properties": {
 						"kind": {
 							"const": "accepted"
@@ -372,7 +440,10 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "reason"],
+					"required": [
+						"kind",
+						"reason"
+					],
 					"properties": {
 						"kind": {
 							"const": "rejected"
@@ -385,7 +456,10 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "reason"],
+					"required": [
+						"kind",
+						"reason"
+					],
 					"properties": {
 						"kind": {
 							"const": "unavailable"
@@ -398,7 +472,10 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "reason"],
+					"required": [
+						"kind",
+						"reason"
+					],
 					"properties": {
 						"kind": {
 							"const": "failed"
@@ -411,7 +488,9 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind"],
+					"required": [
+						"kind"
+					],
 					"properties": {
 						"kind": {
 							"const": "outcome-unknown"
@@ -423,7 +502,12 @@
 		"terminalStartResult": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "protocolVersion", "requestId", "outcome"],
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"outcome"
+			],
 			"properties": {
 				"kind": {
 					"const": "terminal.start.result"
@@ -454,7 +538,10 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "terminalCreateRequestId"],
+					"required": [
+						"kind",
+						"terminalCreateRequestId"
+					],
 					"properties": {
 						"kind": {
 							"const": "attach"
@@ -467,7 +554,12 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "siteId", "workerId", "terminalId"],
+					"required": [
+						"kind",
+						"siteId",
+						"workerId",
+						"terminalId"
+					],
 					"properties": {
 						"kind": {
 							"const": "attach-binding"
@@ -486,7 +578,10 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "attachmentId"],
+					"required": [
+						"kind",
+						"attachmentId"
+					],
 					"properties": {
 						"kind": {
 							"const": "poll"
@@ -499,7 +594,13 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "attachmentId", "sequence", "generation", "revision"],
+					"required": [
+						"kind",
+						"attachmentId",
+						"sequence",
+						"generation",
+						"revision"
+					],
 					"properties": {
 						"kind": {
 							"const": "frame-applied"
@@ -521,7 +622,12 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "attachmentId", "sequence", "reason"],
+					"required": [
+						"kind",
+						"attachmentId",
+						"sequence",
+						"reason"
+					],
 					"properties": {
 						"kind": {
 							"const": "need-snapshot"
@@ -610,7 +716,11 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "attachmentId", "hostEpoch"],
+					"required": [
+						"kind",
+						"attachmentId",
+						"hostEpoch"
+					],
 					"properties": {
 						"kind": {
 							"const": "attached"
@@ -626,7 +736,9 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind"],
+					"required": [
+						"kind"
+					],
 					"properties": {
 						"kind": {
 							"const": "empty"
@@ -636,7 +748,9 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind"],
+					"required": [
+						"kind"
+					],
 					"properties": {
 						"kind": {
 							"const": "feedback-accepted"
@@ -646,7 +760,9 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind"],
+					"required": [
+						"kind"
+					],
 					"properties": {
 						"kind": {
 							"const": "detached"
@@ -656,26 +772,66 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "reason"],
+					"required": [
+						"kind",
+						"reason"
+					],
 					"properties": {
 						"kind": {
 							"const": "rejected"
 						},
 						"reason": {
-							"enum": ["already-attached", "terminal-unavailable", "feedback-mismatch"]
+							"enum": [
+								"already-attached",
+								"terminal-unavailable",
+								"feedback-mismatch"
+							]
 						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "reason"],
+					"required": [
+						"kind",
+						"reason"
+					],
 					"properties": {
 						"kind": {
 							"const": "unavailable"
 						},
 						"reason": {
-							"enum": ["server-busy", "terminal-runtime-unavailable", "workbench-unavailable"]
+							"enum": [
+								"server-busy",
+								"terminal-runtime-unavailable",
+								"workbench-unavailable"
+							]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"reason"
+					],
+					"properties": {
+						"kind": {
+							"const": "rows-rejected"
+						},
+						"reason": {
+							"enum": [
+								"stale-revision",
+								"stale-generation",
+								"history-evicted",
+								"missing-resource",
+								"invalid-field",
+								"invalid-acknowledgement",
+								"limit-exceeded",
+								"resource-exhausted",
+								"invalid-phase"
+							]
 						}
 					}
 				},
@@ -707,7 +863,12 @@
 		"terminalViewer": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "protocolVersion", "requestId", "action"],
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"action"
+			],
 			"properties": {
 				"kind": {
 					"const": "terminal.viewer"
@@ -726,7 +887,12 @@
 		"terminalViewerResult": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "protocolVersion", "requestId", "outcome"],
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"outcome"
+			],
 			"properties": {
 				"kind": {
 					"const": "terminal.viewer.result"
@@ -753,7 +919,10 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "attachmentId"],
+					"required": [
+						"kind",
+						"attachmentId"
+					],
 					"properties": {
 						"kind": {
 							"const": "acquire"
@@ -766,7 +935,13 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "attachmentId", "controllerId", "sequence", "bytes"],
+					"required": [
+						"kind",
+						"attachmentId",
+						"controllerId",
+						"sequence",
+						"bytes"
+					],
 					"properties": {
 						"kind": {
 							"const": "input"
@@ -788,7 +963,13 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "attachmentId", "controllerId", "sequence", "geometry"],
+					"required": [
+						"kind",
+						"attachmentId",
+						"controllerId",
+						"sequence",
+						"geometry"
+					],
 					"properties": {
 						"kind": {
 							"const": "resize"
@@ -814,7 +995,10 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "controllerId"],
+					"required": [
+						"kind",
+						"controllerId"
+					],
 					"properties": {
 						"kind": {
 							"const": "acquired"
@@ -827,7 +1011,9 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind"],
+					"required": [
+						"kind"
+					],
 					"properties": {
 						"kind": {
 							"const": "input-accepted"
@@ -837,7 +1023,10 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "geometry"],
+					"required": [
+						"kind",
+						"geometry"
+					],
 					"properties": {
 						"kind": {
 							"const": "resized"
@@ -850,7 +1039,10 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "acceptedBytes"],
+					"required": [
+						"kind",
+						"acceptedBytes"
+					],
 					"properties": {
 						"kind": {
 							"const": "pasted"
@@ -865,7 +1057,10 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "reason"],
+					"required": [
+						"kind",
+						"reason"
+					],
 					"properties": {
 						"kind": {
 							"const": "rejected"
@@ -888,20 +1083,28 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "reason"],
+					"required": [
+						"kind",
+						"reason"
+					],
 					"properties": {
 						"kind": {
 							"const": "unavailable"
 						},
 						"reason": {
-							"enum": ["server-busy", "terminal-runtime-unavailable"]
+							"enum": [
+								"server-busy",
+								"terminal-runtime-unavailable"
+							]
 						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind"],
+					"required": [
+						"kind"
+					],
 					"properties": {
 						"kind": {
 							"const": "outcome-unknown"
@@ -913,7 +1116,12 @@
 		"terminalControl": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "protocolVersion", "requestId", "action"],
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"action"
+			],
 			"properties": {
 				"kind": {
 					"const": "terminal.control"
@@ -932,7 +1140,12 @@
 		"terminalControlResult": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "protocolVersion", "requestId", "outcome"],
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"outcome"
+			],
 			"properties": {
 				"kind": {
 					"const": "terminal.control.result"
@@ -953,7 +1166,10 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "terminalCreateRequestId"],
+					"required": [
+						"kind",
+						"terminalCreateRequestId"
+					],
 					"properties": {
 						"kind": {
 							"const": "opened"
@@ -966,20 +1182,30 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "reason"],
+					"required": [
+						"kind",
+						"reason"
+					],
 					"properties": {
 						"kind": {
 							"const": "unavailable"
 						},
 						"reason": {
-							"enum": ["no-compatible-worker", "terminal-runtime-unavailable", "server-busy"]
+							"enum": [
+								"no-compatible-worker",
+								"terminal-runtime-unavailable",
+								"server-busy"
+							]
 						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "reason"],
+					"required": [
+						"kind",
+						"reason"
+					],
 					"properties": {
 						"kind": {
 							"const": "failed"
@@ -992,7 +1218,9 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind"],
+					"required": [
+						"kind"
+					],
 					"properties": {
 						"kind": {
 							"const": "outcome-unknown"
@@ -1004,7 +1232,12 @@
 		"terminalOpen": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "protocolVersion", "requestId", "geometry"],
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"geometry"
+			],
 			"properties": {
 				"kind": {
 					"const": "terminal.open"
@@ -1023,7 +1256,12 @@
 		"terminalOpenResult": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["kind", "protocolVersion", "requestId", "outcome"],
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"outcome"
+			],
 			"properties": {
 				"kind": {
 					"const": "terminal.open.result"

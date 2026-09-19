@@ -38,7 +38,10 @@ fn fixture_viewer_id() -> ViewerId {
 #[test]
 fn live_empty_mailbox_admits_and_dispatches_refresh_without_rebootstrapping() {
     let mailbox = bootstrapped_mailbox(7, 9);
-    mailbox.lock().desired = MailboxMembership::Live { desired: None };
+    mailbox.lock().desired = MailboxMembership::Live {
+        desired: None,
+        panes: Vec::new(),
+    };
     let deadline = Instant::now() + Duration::from_secs(10);
     assert_eq!(
         mailbox.try_enqueue_refresh(deadline, |_generation| Ok::<_, ()>(())),
@@ -60,9 +63,12 @@ fn live_empty_mailbox_admits_and_dispatches_refresh_without_rebootstrapping() {
 #[test]
 fn live_empty_mailbox_rejects_old_attachment_commands_and_second_bootstrap() {
     let mailbox = bootstrapped_mailbox(7, 9);
-    mailbox.lock().desired = MailboxMembership::Live { desired: None };
+    mailbox.lock().desired = MailboxMembership::Live {
+        desired: None,
+        panes: Vec::new(),
+    };
     assert!(matches!(
-        mailbox.try_enqueue(QueuedCommand::Poll(Tagged::new(key(7, 1), ()))),
+        mailbox.try_enqueue(QueuedCommand::Poll(Tagged::new(pane_ref(&key(7, 1)), ()))),
         Err(AdmissionError::StaleAttachment)
     ));
     let base = Instant::now();
@@ -246,7 +252,7 @@ fn bootstrap_uses_latest_geometry_and_publishes_first_desired_key_with_its_reply
     let latest = Geometry::new(90, 24, 8, 16).unwrap();
     let mailbox = CommandMailbox::new(10, initial);
     assert!(matches!(
-        mailbox.try_enqueue(QueuedCommand::Poll(Tagged::new(key(1, 1), ()))),
+        mailbox.try_enqueue(QueuedCommand::Poll(Tagged::new(pane_ref(&key(1, 1)), ()))),
         Err(AdmissionError::BootstrapPending)
     ));
     mailbox.observe_geometry(latest).unwrap();
@@ -289,7 +295,7 @@ fn bootstrap_uses_latest_geometry_and_publishes_first_desired_key_with_its_reply
     let newer = mailbox
         .publish_event_before_using(
             WorkerEvent::SetupConfigured {
-                key: state.desired().unwrap().clone(),
+                key: state.focus_pane_ref().unwrap(),
                 mode: ControllerMode::ReadOnly,
                 applied_geometry: None,
             },
@@ -549,7 +555,7 @@ fn genuinely_current_ui_key_mismatch_closes_as_protocol_failure() {
         .unwrap();
     mailbox.take_event_before_using(&clock).unwrap().unwrap();
     let mut mismatched = wait_key.clone();
-    mismatched.correlation = UiCorrelation::Attachment(key(1, 99));
+    mismatched.correlation = UiCorrelation::Attachment(pane_ref(&key(1, 99)));
     assert_eq!(
         mailbox
             .deposit_ui_reply_before_using(&mismatched, &clock, |_| {
@@ -718,7 +724,7 @@ fn exact_forward_expiry_receipt_survives_ui_settlement_until_worker_observes_it(
     let wait = mailbox
         .publish_event_before_using(
             WorkerEvent::SetupConfigured {
-                key: key(1, 1),
+                key: pane_ref(&key(1, 1)),
                 mode: ControllerMode::Controlling(ControllerId::parse(&id(8)).unwrap()),
                 applied_geometry: Some(geometry(80)),
             },
@@ -769,7 +775,7 @@ fn exact_forward_expiry_receipt_survives_ui_settlement_until_worker_observes_it(
     let wait = mismatched
         .publish_event_before_using(
             WorkerEvent::SetupConfigured {
-                key: key(1, 1),
+                key: pane_ref(&key(1, 1)),
                 mode: ControllerMode::Controlling(ControllerId::parse(&id(8)).unwrap()),
                 applied_geometry: Some(geometry(80)),
             },
@@ -790,7 +796,7 @@ fn exact_forward_expiry_receipt_survives_ui_settlement_until_worker_observes_it(
         EventError::ForwardExpired
     );
     let mut wrong = wait.clone();
-    wrong.correlation = UiCorrelation::Attachment(key(1, 99));
+    wrong.correlation = UiCorrelation::Attachment(pane_ref(&key(1, 99)));
     assert_eq!(
         mismatched
             .await_ui_reply_before_using(&wrong, cutoff, &clock)
@@ -924,7 +930,7 @@ fn superseded_poll_result_is_stale_and_does_not_publish_or_retire() {
     let lease = mailbox.try_recv().unwrap().unwrap();
     let poll_key = lease.poll_key().unwrap();
     mailbox.lock().attachment_generation = 2;
-    mailbox.publish_desired(key(2, 2)).unwrap();
+    mailbox.publish_desired(pane_key(&key(2, 2))).unwrap();
     assert_eq!(
         mailbox
             .publish_poll_result_before_using(
@@ -1051,7 +1057,7 @@ fn generic_forward_events_clamp_placement_take_and_ui_settlement_to_later_barrie
         let desired = mailbox.lock().desired.key().unwrap().clone();
         mailbox
             .try_enqueue(QueuedCommand::Resize(Tagged::new(
-                desired.clone(),
+                pane_ref(desired.anchor()),
                 geometry(81),
             )))
             .unwrap();
@@ -1059,12 +1065,12 @@ fn generic_forward_events_clamp_placement_take_and_ui_settlement_to_later_barrie
         let event = || {
             if stage == 2 {
                 WorkerEvent::FeedbackAccepted {
-                    key: desired.clone(),
+                    key: pane_ref(desired.anchor()),
                     frame: FrameIdentity::new(7),
                 }
             } else {
                 WorkerEvent::SetupConfigured {
-                    key: desired.clone(),
+                    key: pane_ref(desired.anchor()),
                     mode: ControllerMode::Controlling(ControllerId::parse(&id(8)).unwrap()),
                     applied_geometry: Some(geometry(81)),
                 }
@@ -1197,7 +1203,7 @@ fn same_serial_wrong_ui_proof_is_protocol_failure_in_every_current_cell() {
                 .unwrap();
         }
         let mut wrong = wait.clone();
-        wrong.correlation = UiCorrelation::Attachment(key(1, 99));
+        wrong.correlation = UiCorrelation::Attachment(pane_ref(&key(1, 99)));
         assert_eq!(
             mailbox.take_deposited_reply(&wrong).unwrap_err().failure(),
             CarrierFailure::Protocol
@@ -1258,7 +1264,7 @@ fn stale_after_draw_settlement_is_inert_after_desired_generation_changes() {
         .unwrap();
     mailbox.take_event_before_using(&clock).unwrap().unwrap();
     mailbox.lock().attachment_generation = 2;
-    mailbox.publish_desired(key(2, 2)).unwrap();
+    mailbox.publish_desired(pane_key(&key(2, 2))).unwrap();
     assert_eq!(mailbox.cells(), ("empty", "empty"));
     assert_eq!(
         mailbox
@@ -1336,7 +1342,10 @@ fn execution_fence_dynamically_observes_earliest_later_barrier() {
     assert_eq!(barrier.kind(), BarrierKind::Refresh);
     assert_eq!(barrier.forward_cutoff(), refresh_deadline);
     assert_eq!(barrier.total(), refresh_deadline);
-    assert_eq!(fence.desired().key(), Some(&key(1, 1)));
+    assert_eq!(
+        fence.desired().key().map(|pane| pane.anchor()),
+        Some(&key(1, 1))
+    );
     assert!(fence.lease_current());
     let waited = mailbox
         .await_execution_change_before_using(&lease, base, &clock)
@@ -1350,8 +1359,12 @@ fn startup_and_setup_polls_reserve_fresh_serials_without_replacing_the_parent_le
     let base = Instant::now();
     let startup = bootstrapped_mailbox(1, 5);
     let desired = key(1, 1);
-    let first = startup.allocate_startup_poll_key(&desired).unwrap();
-    let second = startup.allocate_startup_poll_key(&desired).unwrap();
+    let first = startup
+        .allocate_startup_poll_key(&pane_ref(&desired))
+        .unwrap();
+    let second = startup
+        .allocate_startup_poll_key(&pane_ref(&desired))
+        .unwrap();
     assert_eq!(first.serial(), 1);
     assert_eq!(second.serial(), 2);
     assert_eq!(first.attachment(), &desired);
@@ -1364,11 +1377,15 @@ fn startup_and_setup_polls_reserve_fresh_serials_without_replacing_the_parent_le
         })
         .unwrap();
     let lease = setup.try_recv().unwrap().unwrap();
-    let SetupPollKey::Allocated(first) = setup.allocate_setup_poll_key(&lease, &desired).unwrap()
+    let SetupPollKey::Allocated(first) = setup
+        .allocate_setup_poll_key(&lease, &pane_ref(&desired))
+        .unwrap()
     else {
         panic!("current setup must allocate a Poll key")
     };
-    let SetupPollKey::Allocated(second) = setup.allocate_setup_poll_key(&lease, &desired).unwrap()
+    let SetupPollKey::Allocated(second) = setup
+        .allocate_setup_poll_key(&lease, &pane_ref(&desired))
+        .unwrap()
     else {
         panic!("current setup must allocate a Poll key")
     };
@@ -1381,7 +1398,7 @@ fn startup_and_setup_polls_reserve_fresh_serials_without_replacing_the_parent_le
     exhausted.lock().next_command_serial = u64::MAX;
     assert_eq!(
         exhausted
-            .allocate_startup_poll_key(&desired)
+            .allocate_startup_poll_key(&pane_ref(&desired))
             .unwrap_err()
             .failure(),
         CarrierFailure::IdentityExhausted
@@ -1408,7 +1425,7 @@ fn startup_and_setup_polls_reserve_fresh_serials_without_replacing_the_parent_le
         .unwrap();
     let before = superseded.cursors();
     let SetupPollKey::Superseded(desired) = superseded
-        .allocate_setup_poll_key(&parent, &key(1, 1))
+        .allocate_setup_poll_key(&parent, &pane_ref(&key(1, 1)))
         .unwrap()
     else {
         panic!("newer desired generation must supersede setup Poll allocation")
@@ -1427,7 +1444,7 @@ fn startup_change_wait_has_a_strict_cutoff_and_wakes_on_close() {
     let equality = bootstrapped_mailbox(1, 5);
     assert_eq!(
         equality
-            .await_startup_change_before_using(&key(1, 1), cutoff, &equality_clock)
+            .await_startup_change_before_using(&pane_ref(&key(1, 1)), cutoff, &equality_clock)
             .unwrap_err()
             .closed_failure(),
         Some(CarrierFailure::Deadline)
@@ -1440,7 +1457,7 @@ fn startup_change_wait_has_a_strict_cutoff_and_wakes_on_close() {
     let task_clock = Arc::clone(&clock);
     let waiter = std::thread::spawn(move || {
         task_mailbox.await_startup_change_before_using(
-            &key(1, 1),
+            &pane_ref(&key(1, 1)),
             base + Duration::from_secs(60),
             task_clock.as_ref(),
         )
@@ -1507,7 +1524,7 @@ fn busy_backoffs_ignore_ordinary_and_spurious_notifications_until_the_fixed_cap(
         let task_clock = &startup_clock;
         let waiter = scope.spawn(move || {
             let result = task_mailbox.await_startup_change_before_using(
-                &key(1, 1),
+                &pane_ref(&key(1, 1)),
                 cutoff,
                 task_clock.as_ref(),
             );
@@ -1526,7 +1543,8 @@ fn busy_backoffs_ignore_ordinary_and_spurious_notifications_until_the_fixed_cap(
                 .recv_timeout(Duration::from_secs(1))
                 .unwrap()
                 .unwrap()
-                .key(),
+                .key()
+                .map(|pane| pane.anchor()),
             Some(&key(1, 1))
         );
         waiter.join().unwrap();
@@ -1583,7 +1601,7 @@ fn refresh_generation_is_single_pending_and_moves_through_three_exact_stages() {
             .deposit_ui_reply_before_using(&wait, &clock, |_| {
                 Ok(UiReply::Refresh(RefreshSettlement::new(
                     RefreshDecision::SettledWithoutAttachment,
-                    key(1, 1),
+                    pane_key(&key(1, 1)),
                 )))
             })
             .unwrap(),
@@ -1594,7 +1612,7 @@ fn refresh_generation_is_single_pending_and_moves_through_three_exact_stages() {
         mailbox.take_deposited_reply(&wait).unwrap(),
         Some(UiReply::Refresh(settlement))
             if settlement.decision() == &RefreshDecision::SettledWithoutAttachment
-                && settlement.desired() == Some(&key(1, 1))
+                && settlement.desired().map(|pane| pane.anchor()) == Some(&key(1, 1))
     ));
     mailbox.finish_lease(lease).unwrap();
 
@@ -1658,7 +1676,8 @@ fn deposited_refresh_reply_can_be_superseded_before_worker_reacquires_mailbox() 
         assert_eq!(
             mailbox
                 .deposit_ui_reply_before_using(&wait, &clock, |_| {
-                    let decision = session.apply_prepared_refresh(prepared);
+                    let decision =
+                        session.apply_prepared_refresh(prepared, std::time::Instant::now());
                     assert_eq!(decision, RefreshDecision::Continue);
                     Ok(UiReply::Refresh(RefreshSettlement::new(
                         decision,
@@ -1786,7 +1805,7 @@ fn pending_refresh_blocks_retryable_selection_at_all_three_stages_until_ui_settl
     assert_eq!(
         mailbox
             .deposit_ui_reply_before_using(&wait, &clock, |_| {
-                let decision = session.apply_prepared_refresh(prepared);
+                let decision = session.apply_prepared_refresh(prepared, std::time::Instant::now());
                 Ok(UiReply::Refresh(RefreshSettlement::new(
                     decision,
                     session.desired().unwrap().clone(),
@@ -1829,7 +1848,7 @@ fn same_geometry_observation_retries_after_full_fifo_without_clearing_precommit_
     for byte in 0..COMMAND_CAPACITY {
         mailbox
             .try_enqueue(QueuedCommand::Input(Tagged::new(
-                desired.clone(),
+                pane_ref(desired.anchor()),
                 ControlInput::new(vec![u8::try_from(byte).unwrap()]).unwrap(),
             )))
             .unwrap();
@@ -1839,23 +1858,27 @@ fn same_geometry_observation_retries_after_full_fifo_without_clearing_precommit_
     mailbox.observe_geometry(resized).unwrap();
     assert_eq!(mailbox.latest_geometry().unwrap(), resized);
     assert!(matches!(
-        mailbox.try_enqueue(QueuedCommand::Resize(
-            Tagged::new(desired.clone(), resized,)
-        )),
+        mailbox.try_enqueue(QueuedCommand::Resize(Tagged::new(
+            pane_ref(desired.anchor()),
+            resized,
+        ))),
         Err(AdmissionError::Full)
     ));
-    assert_eq!(session.last_admitted_geometry(&desired), None);
+    assert_eq!(session.last_admitted_geometry_t(&desired), None);
     assert_eq!(session.notice(), Some(SessionNotice::CreateNotCreated));
 
     let first = mailbox.try_recv().unwrap().unwrap();
     mailbox.finish_lease(first).unwrap();
     session.observe_geometry(resized);
     mailbox.observe_geometry(resized).unwrap();
-    assert_ne!(session.last_admitted_geometry(&desired), Some(resized));
+    assert_ne!(session.last_admitted_geometry_t(&desired), Some(resized));
     mailbox
-        .try_enqueue(QueuedCommand::Resize(Tagged::new(desired.clone(), resized)))
+        .try_enqueue(QueuedCommand::Resize(Tagged::new(
+            pane_ref(desired.anchor()),
+            resized,
+        )))
         .unwrap();
-    assert!(session.record_admitted_geometry(&desired, resized));
+    assert!(session.record_admitted_geometry_t(&desired, resized));
 
     for _ in 1..COMMAND_CAPACITY {
         let lease = mailbox.try_recv().unwrap().unwrap();
@@ -1869,7 +1892,7 @@ fn same_geometry_observation_retries_after_full_fifo_without_clearing_precommit_
             if tagged.key() == &desired && *tagged.value() == resized
     ));
     mailbox.finish_lease(resize).unwrap();
-    assert_eq!(session.last_admitted_geometry(&desired), Some(resized));
+    assert_eq!(session.last_admitted_geometry_t(&desired), Some(resized));
     assert_eq!(session.notice(), Some(SessionNotice::CreateNotCreated));
 }
 
@@ -1879,7 +1902,7 @@ fn completed_client_action_updates_notice_inside_the_admission_lock_on_success_a
     let mut session = ready_state(1);
     session.set_notice(SessionNotice::CreateNotCreated);
     let desired = session.desired().unwrap().clone();
-    let mailbox = mailbox_for_desired(desired, 5);
+    let mailbox = mailbox_for_desired(desired.clone(), 5);
     for byte in 0..COMMAND_CAPACITY {
         mailbox
             .try_enqueue(input(&mailbox, u8::try_from(byte).unwrap()))
@@ -1980,7 +2003,8 @@ fn publication_hint_latch_survives_stale_publish_and_captures_once() {
     // The desired moved after the poll leased: the publish is Stale, but the
     // latch was registered before the stale branch and must survive it.
     mailbox.lock().desired = MailboxMembership::Live {
-        desired: Some(key(8, 1)),
+        desired: Some(pane_key(&key(8, 1))),
+        panes: vec![pane_ref(&key(8, 1))],
     };
     assert_eq!(
         mailbox
@@ -2100,7 +2124,7 @@ fn setup_poll_key_is_not_an_ordinary_poll_obligation() {
         .try_enqueue_refresh(deadline, |_generation| Ok::<_, ()>(()))
         .expect("refresh admission");
     let lease = mailbox.try_recv().unwrap().expect("queued Refresh");
-    let desired = mailbox.lock().desired.key().cloned().unwrap();
+    let desired = mailbox.lock().desired.focus_pane_ref().unwrap();
     let SetupPollKey::Allocated(setup_key) = mailbox
         .allocate_setup_poll_key(&lease, &desired)
         .expect("setup poll key")
@@ -2124,19 +2148,21 @@ fn bootstrapped_mailbox(generation: u64, identity: u128) -> CommandMailbox {
         let mut state = mailbox.lock();
         state.attachment_generation = generation;
         state.desired = MailboxMembership::Live {
-            desired: Some(key(generation, 1)),
+            desired: Some(pane_key(&key(generation, 1))),
+            panes: vec![pane_ref(&key(generation, 1))],
         };
     }
     mailbox
 }
 
-fn mailbox_for_desired(desired: AttachmentKey, identity: u128) -> CommandMailbox {
+fn mailbox_for_desired(desired: PaneKey, identity: u128) -> CommandMailbox {
     let mailbox = CommandMailbox::new(identity, geometry(80));
     {
         let mut state = mailbox.lock();
-        state.attachment_generation = desired.generation();
+        state.attachment_generation = desired.anchor().generation();
         state.desired = MailboxMembership::Live {
-            desired: Some(desired),
+            desired: Some(desired.clone()),
+            panes: vec![PaneRef::new(desired, 1)],
         };
     }
     mailbox
@@ -2146,15 +2172,15 @@ fn ready_state(tab_count: usize) -> NativeSessionState {
     let (mut state, _target) =
         NativeSessionState::starting(projected_tabs(tab_count), 1, geometry(80)).unwrap();
     let key = state.desired().unwrap().clone();
-    assert!(state.install_projection(&key));
-    assert!(state.record_setup_configuration(
+    assert!(state.install_projection_t(&key));
+    assert!(state.record_setup_configuration_t(
         &key,
         ControllerMode::Controlling(ControllerId::parse(&id(8)).unwrap()),
         Some(geometry(80)),
     ));
-    assert!(state.stage_drawn_frame(&key, FrameIdentity::new(1)));
-    assert!(state.mark_feedback_accepted(&key, FrameIdentity::new(1)));
-    assert!(state.publish_ready(
+    assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(1)));
+    assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(1)));
+    assert!(state.publish_ready_t(
         &key,
         FrameIdentity::new(1),
         ControllerMode::Controlling(ControllerId::parse(&id(8)).unwrap()),
@@ -2183,7 +2209,7 @@ fn retryable_two_tab_state(base: Instant) -> NativeSessionState {
         )
         .unwrap();
     let cleanup = state
-        .stage_switch_membership_cleanup(&target_key, prepared, target.deadlines())
+        .stage_switch_membership_cleanup_k(&target_key, prepared, target.deadlines())
         .unwrap();
     let prepared = state
         .prepare_cleaned_membership_candidate(&cleanup, cleanup.old())
@@ -2197,7 +2223,7 @@ fn retryable_two_tab_state(base: Instant) -> NativeSessionState {
         crate::terminal_session::state::MembershipInstallDecision::Attach(_)
     ));
     assert_eq!(
-        state.settle_unattached_setup(&target_key, 1, &CreateTerminalProvenance::BindingOnly,),
+        state.settle_unattached_setup_t(&target_key, 1, &CreateTerminalProvenance::BindingOnly,),
         Some(CleanupContinuation::Stable)
     );
     assert_eq!(
@@ -2228,21 +2254,21 @@ fn assert_refresh_selection_blocked(
 
 fn poll(mailbox: &CommandMailbox) -> QueuedCommand {
     QueuedCommand::Poll(Tagged::new(
-        mailbox.lock().desired.key().cloned().unwrap(),
+        mailbox.lock().desired.focus_pane_ref().unwrap(),
         (),
     ))
 }
 
 fn input(mailbox: &CommandMailbox, byte: u8) -> QueuedCommand {
     QueuedCommand::Input(Tagged::new(
-        mailbox.lock().desired.key().cloned().unwrap(),
+        mailbox.lock().desired.focus_pane_ref().unwrap(),
         ControlInput::new(vec![byte]).unwrap(),
     ))
 }
 
 fn cleanup_event(key: AttachmentKey) -> WorkerEvent {
     WorkerEvent::CleanupSettled {
-        key,
+        key: pane_ref(&key),
         target_index: 0,
         target_provenance: CreateTerminalProvenance::BindingOnly,
     }
@@ -2281,6 +2307,26 @@ fn key(generation: u64, tab: u128) -> AttachmentKey {
     AttachmentKey::new(generation, WorkbenchTabId::parse(&id(tab)).unwrap())
 }
 
+/// Mailbox fixtures fabricate one panel identity per anchor — the mailbox only
+/// needs a consistent logical pane, never a real workbench panel. `id(5)`
+/// matches the `projected_tabs` fixture's first leaf so mailbox-seeded
+/// desired keys agree with state fixtures built on it.
+fn pane_key(anchor: &AttachmentKey) -> PaneKey {
+    PaneKey::new(anchor.clone(), WorkbenchPanelId::parse(&id(5)).unwrap())
+}
+
+fn pane_ref(anchor: &AttachmentKey) -> PaneRef {
+    PaneRef::new(pane_key(anchor), 1)
+}
+/// The fixture panel identity used when a `DesiredInstall` needs one —
+/// matches `projected_tabs`' first leaf.
+fn panel() -> WorkbenchPanelId {
+    WorkbenchPanelId::parse(&id(5)).unwrap()
+}
+
+/// The `PaneKey`/`PaneRef` a real state minted for `anchor` — preferred over
+/// the fabricated helpers whenever a session exists so panel identity matches
+/// the actual workbench leaf.
 fn projected_one_tab() -> NativeContextTabs {
     projected_tabs(1)
 }

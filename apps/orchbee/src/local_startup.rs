@@ -42,7 +42,7 @@ pub(crate) enum StartupFailure {
     Interface,
 }
 
-pub(crate) fn run(locale: Locale) -> Result<(), StartupFailure> {
+pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
     let deadline = Instant::now() + Duration::from_secs(20);
     let inherited = InheritedTerminal::admit().map_err(|_| StartupFailure::Terminal)?;
     // A temporary zero-cell report is not drawable yet but is not a fault
@@ -102,7 +102,7 @@ pub(crate) fn run(locale: Locale) -> Result<(), StartupFailure> {
         }
     }
     drop(progress);
-    tui_shell::run_prepared(locale, inherited, dimensions, session)
+    tui_shell::run_prepared(locale, inherited, dimensions, session, mouse)
         .map_err(|_| StartupFailure::Interface)
 }
 

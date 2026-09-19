@@ -1863,9 +1863,9 @@ mod tests {
         use crate::invocation::{QueryCommand, Target};
         use crate::localization::Locale;
         use orchbee_terminal_protocol::{
-            AttachmentId, HostEpoch, ProtocolErrorCode, TerminalFrameRoute, TerminalPixelGeometry,
-            TerminalTextCell, TerminalTextCursor, TerminalTextFrame, TerminalTextRow,
-            TerminalTextStyle, decode_terminal_text_frame,
+            AttachmentId, HostEpoch, ProtocolErrorCode, TerminalFrameRoute, TerminalInteraction,
+            TerminalPixelGeometry, TerminalTextCell, TerminalTextCursor, TerminalTextFrame,
+            TerminalTextRow, TerminalTextStyle, decode_terminal_text_frame,
         };
         use std::num::NonZeroU64;
         use std::sync::Arc;
@@ -1927,6 +1927,7 @@ mod tests {
                     visible: true,
                 },
                 alternate_screen: false,
+                interaction: TerminalInteraction::default(),
                 foreground: 0,
                 background: 0,
                 theme_revision: 1,

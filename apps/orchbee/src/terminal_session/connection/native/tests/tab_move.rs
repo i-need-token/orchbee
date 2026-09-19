@@ -88,7 +88,10 @@ fn drive_move_membership_with_queued_old_controls(neighbor: bool, resize: bool) 
         UiEvent::Move(MoveDecision::Cleanup(_))
     ));
     assert_eq!(harness.ui.state().cache(), &baseline);
-    assert_eq!(harness.ui.state().attached_key(), Some(&old));
+    assert_eq!(
+        harness.ui.state().attached_key().map(|pane| pane.anchor()),
+        Some(&old)
+    );
     let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
         return Err(test_error("exact old Detach"));
     };
@@ -161,7 +164,10 @@ fn drive_queued_control_before_switch(resize: bool) -> TestResult {
         drive_controlling_ready_from_snapshot(&mut harness, snapshot(2, 1), geometry)?;
     harness
         .mailbox
-        .try_enqueue(QueuedCommand::Poll(Tagged::new(old.clone(), ())))
+        .try_enqueue(QueuedCommand::Poll(Tagged::new(
+            harness.ui.pane_ref(&old)?,
+            (),
+        )))
         .map_err(|error| test_error(&format!("Poll admission: {error:?}")))?;
     let ClientMessage::TerminalViewer(poll) = harness.carrier.take_obcs()? else {
         return Err(test_error("blocked old Poll"));
@@ -187,7 +193,10 @@ fn drive_queued_control_before_switch(resize: bool) -> TestResult {
     }
     let next = harness.ui.admit_switch(1)?;
     assert_ne!(next.key, old);
-    assert_eq!(harness.ui.state().attached_key(), Some(&old));
+    assert_eq!(
+        harness.ui.state().attached_key().map(|pane| pane.anchor()),
+        Some(&old)
+    );
     harness
         .carrier
         .respond_obcs(ServerMessage::TerminalViewerResult(
@@ -244,7 +253,10 @@ fn explicit_move_recovery_reads_snapshot_only_and_retains_commit_through_empty_c
         harness.ui.state().phase_kind(),
         SessionPhaseKind::MoveProjectionUnavailable
     );
-    assert_eq!(harness.ui.state().attached_key(), Some(&old));
+    assert_eq!(
+        harness.ui.state().attached_key().map(|pane| pane.anchor()),
+        Some(&old)
+    );
     harness.ui.admit_refresh()?;
     respond_snapshot(
         &harness,
@@ -539,7 +551,10 @@ fn move_tab_unavailable_reads_one_snapshot_without_retaining_a_commit() -> TestR
     assert!(matches!(outcome, MoveResult::TabUnavailable {
         revision, outcome: WorkbenchSnapshotOutcome::Denied {},
     } if revision == WorkbenchRevision::new(3)));
-    assert_eq!(harness.ui.state().desired(), Some(&key));
+    assert_eq!(
+        harness.ui.state().desired().map(|pane| pane.anchor()),
+        Some(&key)
+    );
     let moved = harness.close_with_pending_move()?;
     assert!(
         moved.is_none(),
@@ -804,7 +819,7 @@ fn committed_move_whose_superseding_snapshot_drops_the_selected_leaf_repairs_mem
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::Attached { key } if key == installed
     ));
-    drive_controlling_after_attach(&mut harness, &installed, geometry)?;
+    drive_controlling_after_attach(&mut harness, installed.anchor(), geometry)?;
     let state = harness.ui.state();
     assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
     assert_eq!(state.cache().revision(), WorkbenchRevision::new(3));
@@ -1040,7 +1055,7 @@ fn committed_move_after_reorder_dropping_the_selected_leaf_repairs_membership() 
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::Attached { key } if key == installed
     ));
-    drive_controlling_after_attach(&mut harness, &installed, geometry)?;
+    drive_controlling_after_attach(&mut harness, installed.anchor(), geometry)?;
     let state = harness.ui.state();
     assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
     assert_eq!(state.cache().revision(), WorkbenchRevision::new(4));

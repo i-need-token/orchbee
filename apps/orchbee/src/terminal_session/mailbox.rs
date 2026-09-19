@@ -4,8 +4,9 @@ use super::{
         CloseFlightKey, CloseLeaseAcknowledgement, CloseOperation, CloseReconciliationMarker,
         CloseResult, ControllerMode, CreateOperation, CreateOperationKey, CreateProjectionDecision,
         CreateTerminalProvenance, FrameIdentity, MembershipCleanup, MembershipResultKey,
-        MoveDecision, MoveOperation, MoveResult, OperationDeadlines, PendingRefreshStage,
-        ReadyDecision, RefreshDecision, SetupEventDisposition,
+        MoveDecision, MoveOperation, MoveResult, OperationDeadlines, PaneKey, PaneRef,
+        PendingRefreshStage, ReadyDecision, ReconcileStep, ReconcileTarget, RefreshDecision,
+        SetupEventDisposition,
     },
     workbench_projection::NativeContextTabs,
 };
@@ -76,16 +77,16 @@ impl MailboxClock for LocalOperationClock {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct Tagged<Value> {
-    key: AttachmentKey,
+    key: PaneRef,
     value: Value,
 }
 
 impl<Value> Tagged<Value> {
-    pub(super) const fn new(key: AttachmentKey, value: Value) -> Self {
+    pub(super) const fn new(key: PaneRef, value: Value) -> Self {
         Self { key, value }
     }
 
-    pub(super) const fn key(&self) -> &AttachmentKey {
+    pub(super) const fn key(&self) -> &PaneRef {
         &self.key
     }
 
@@ -183,6 +184,10 @@ pub(super) enum QueuedCommand {
     Input(Tagged<ControlInput>),
     Resize(Tagged<Geometry>),
     Poll(Tagged<()>),
+    /// Set-level pane reconciliation: the executor attaches the listed pane
+    /// incarnations and canonically disposes every attachment of the anchor it
+    /// holds that the list does not name — one absolute deadline, bounded steps.
+    ReconcilePanes(ReconcileMarker),
     Switch(SwitchMarker),
     Create(CreateMarker),
     Refresh(RefreshMarker),
@@ -192,6 +197,63 @@ pub(super) enum QueuedCommand {
     WorkspaceSetup(WorkspaceSetupMarker),
     Close(CloseMarker),
     ReconcileClose(CloseReconciliationMarker),
+}
+
+/// The desired pane set for one epoch, as the state last reported it. The
+/// executor re-diffs this snapshot against its live attachments; panes already
+/// live at the right incarnation are free, everything else is attached or
+/// detached in bounded steps under `deadlines`. `pending` is the executor's
+/// private plan cursor: `None` until the first execution plans the stale
+/// disposals and pending attaches, then the remaining steps travel with the
+/// marker across requeues so one lease execution never performs more than
+/// one pane-progress action and a deferred step rotates behind the rest.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct ReconcileMarker {
+    anchor: AttachmentKey,
+    targets: Vec<ReconcileTarget>,
+    deadlines: OperationDeadlines,
+    pending: Option<VecDeque<ReconcileStep>>,
+}
+
+impl ReconcileMarker {
+    pub(super) const fn new(
+        anchor: AttachmentKey,
+        targets: Vec<ReconcileTarget>,
+        deadlines: OperationDeadlines,
+    ) -> Self {
+        Self {
+            anchor,
+            targets,
+            deadlines,
+            pending: None,
+        }
+    }
+
+    pub(super) const fn anchor(&self) -> &AttachmentKey {
+        &self.anchor
+    }
+
+    pub(super) fn targets(&self) -> &[ReconcileTarget] {
+        &self.targets
+    }
+
+    pub(super) const fn deadlines(&self) -> OperationDeadlines {
+        self.deadlines
+    }
+
+    /// The executor-owned remaining plan: `None` until the first execution
+    /// derives it from the live attachment view.
+    pub(super) const fn pending(&self) -> Option<&VecDeque<ReconcileStep>> {
+        self.pending.as_ref()
+    }
+
+    pub(super) fn set_pending(&mut self, pending: VecDeque<ReconcileStep>) {
+        self.pending = Some(pending);
+    }
+
+    pub(super) fn take_pending(&mut self) -> Option<VecDeque<ReconcileStep>> {
+        self.pending.take()
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -226,6 +288,7 @@ impl QueuedCommand {
             Self::Rename(marker) => Some(marker.barrier()),
             Self::WorkspaceSetup(marker) => Some(marker.barrier()),
             Self::Close(marker) => Some(marker.barrier()),
+            Self::ReconcilePanes(_) => None,
             Self::ReconcileClose(marker) => Some(BarrierFence {
                 kind: BarrierKind::Close,
                 forward_cutoff: marker.deadline(),
@@ -239,6 +302,12 @@ impl QueuedCommand {
 struct QueuedRecord {
     serial: u64,
     command: QueuedCommand,
+    /// Wall-clock instant before which the record must not be leased.
+    /// Background work that met a `ServerBusy` re-enters the queue deferred
+    /// instead of holding the executor lease through the retry window, so
+    /// live commands behind it keep progressing; the wait itself is the
+    /// condvar's timed sleep, interruptible by any admission.
+    retry_at: Option<Instant>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -285,27 +354,90 @@ impl BarrierFence {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct DesiredFence {
-    key: Option<AttachmentKey>,
+    key: Option<PaneKey>,
+    /// The pane incarnations admitted by the latest reconcile snapshot: the
+    /// executor's "still desired" probe for background-pane setup and polls.
+    panes: Vec<PaneRef>,
 }
 
 impl DesiredFence {
-    pub(super) const fn key(&self) -> Option<&AttachmentKey> {
+    /// The focus pane the mailbox currently admits commands for. Anchor-level
+    /// staleness for pane-scoped work goes through `key().map(PaneKey::anchor)`;
+    /// exact incarnation fencing lives in the session state's pane records.
+    pub(super) const fn key(&self) -> Option<&PaneKey> {
         self.key.as_ref()
+    }
+
+    /// Whether `key` may carry work under this fence — same rule as
+    /// `MailboxMembership::admits`: the focus pane matches logically, every
+    /// other pane needs exact-incarnation membership.
+    pub(super) fn admits(&self, key: &PaneRef) -> bool {
+        self.key.as_ref() == Some(key.pane()) || self.panes.contains(key)
+    }
+
+    /// Whether the newest reconcile snapshot names this exact incarnation —
+    /// the executor's "still a live target" probe when choosing a disposal
+    /// notice. The focus pane's logical admission is deliberately not enough:
+    /// a departing focus record still satisfies it.
+    pub(super) fn contains(&self, key: &PaneRef) -> bool {
+        self.panes.contains(key)
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum MailboxMembership {
     AwaitingBootstrap,
-    Live { desired: Option<AttachmentKey> },
+    Live {
+        /// The focus pane — Input/Resize/setup fencing is exact against it.
+        desired: Option<PaneKey>,
+        /// The pane incarnations the last reconcile snapshot desired. Ordinary
+        /// polls are admitted only for exact members; a reconcile replaces this
+        /// set atomically with the command that carries it.
+        panes: Vec<PaneRef>,
+    },
 }
 
 impl MailboxMembership {
-    const fn key(&self) -> Option<&AttachmentKey> {
+    const fn key(&self) -> Option<&PaneKey> {
         match self {
             Self::AwaitingBootstrap => None,
-            Self::Live { desired } => desired.as_ref(),
+            Self::Live { desired, .. } => desired.as_ref(),
         }
+    }
+
+    fn panes(&self) -> &[PaneRef] {
+        match self {
+            Self::AwaitingBootstrap => &[],
+            Self::Live { panes, .. } => panes,
+        }
+    }
+
+    /// Whether `key` may carry work under this membership. The focus pane is
+    /// admitted by logical key — the session state mints its incarnation, so
+    /// the mailbox never sees it before the next reconcile snapshot; every
+    /// other pane needs exact-incarnation membership from that snapshot.
+    fn admits(&self, key: &PaneRef) -> bool {
+        self.key() == Some(key.pane()) || self.panes().contains(key)
+    }
+
+    /// Any admitted incarnation of the pane under `anchor` — test fixtures
+    /// tag commands with the exact reference the real state minted.
+    #[cfg(test)]
+    fn pane_ref_for_anchor(&self, anchor: &AttachmentKey) -> Option<PaneRef> {
+        self.panes()
+            .iter()
+            .find(|pane| pane.pane().anchor() == anchor)
+            .cloned()
+    }
+
+    /// The focus pane's exact incarnation — test fixtures tag commands with it.
+    #[cfg(test)]
+    fn focus_pane_ref(&self) -> Option<PaneRef> {
+        let desired = self.key()?;
+        self.panes()
+            .iter()
+            .find(|pane| pane.pane() == desired)
+            .cloned()
     }
 
     const fn awaiting_bootstrap(&self) -> bool {
@@ -315,6 +447,7 @@ impl MailboxMembership {
     fn fence(&self) -> DesiredFence {
         DesiredFence {
             key: self.key().cloned(),
+            panes: self.panes().to_vec(),
         }
     }
 }
@@ -377,7 +510,7 @@ impl CommandLease {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct PollKey {
     serial: u64,
-    key: AttachmentKey,
+    key: PaneRef,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -391,8 +524,20 @@ impl PollKey {
         self.serial
     }
 
-    pub(super) const fn attachment(&self) -> &AttachmentKey {
+    /// The exact pane incarnation this poll was issued for.
+    pub(super) const fn pane_ref(&self) -> &PaneRef {
         &self.key
+    }
+
+    /// The logical pane of this poll.
+    pub(super) const fn pane(&self) -> &PaneKey {
+        self.key.pane()
+    }
+
+    /// The poll's attachment anchor — legacy tests key expectations by it.
+    #[cfg(test)]
+    pub(super) const fn attachment(&self) -> &AttachmentKey {
+        self.key.anchor()
     }
 }
 
@@ -435,10 +580,10 @@ impl EventDeadline {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum UiCorrelation {
-    Switch(AttachmentKey),
+    Switch(PaneKey),
     Membership(MembershipResultKey, AttachmentKey),
     Bootstrap,
-    Attachment(AttachmentKey),
+    Attachment(PaneRef),
     Create(CreateOperationKey),
     Refresh(u64),
     Move(WorkbenchRequestId),
@@ -507,7 +652,7 @@ pub(super) enum WorkerEvent {
         permit: SwitchExpiryPermit,
     },
     SwitchSnapshotResult {
-        marker: AttachmentKey,
+        marker: PaneKey,
         outcome: WorkbenchSnapshotOutcome,
     },
     MembershipCleanupSkipped {
@@ -533,17 +678,17 @@ pub(super) enum WorkerEvent {
         cache: NativeContextTabs,
     },
     SetupConfigured {
-        key: AttachmentKey,
+        key: PaneRef,
         mode: ControllerMode,
         applied_geometry: Option<Geometry>,
     },
     SwitchEntryExpired {
-        key: AttachmentKey,
+        key: PaneRef,
         target_index: usize,
         target_provenance: CreateTerminalProvenance,
     },
     SetupWithoutAttachment {
-        key: AttachmentKey,
+        key: PaneRef,
         target_index: usize,
         target_provenance: CreateTerminalProvenance,
     },
@@ -565,23 +710,34 @@ pub(super) enum WorkerEvent {
         outcome: WorkbenchSnapshotOutcome,
     },
     Attached {
-        key: AttachmentKey,
+        key: PaneRef,
         projection: TerminalProjection,
     },
     FeedbackAccepted {
-        key: AttachmentKey,
+        key: PaneRef,
         frame: FrameIdentity,
     },
     ReadyCandidate {
-        key: AttachmentKey,
+        key: PaneRef,
         mode: ControllerMode,
         last_accepted_geometry: Option<Geometry>,
         frame: FrameIdentity,
     },
     CleanupSettled {
-        key: AttachmentKey,
+        key: PaneRef,
         target_index: usize,
         target_provenance: CreateTerminalProvenance,
+    },
+    /// One pane incarnation was canonically disposed on the worker side — the
+    /// proof that retires a departing `PaneRecord`.
+    PaneDetached {
+        key: PaneRef,
+    },
+    /// A pane-local failure: the viewer or its control path is gone for this
+    /// incarnation. The state layer decides retryable vs definite handling.
+    PaneFailed {
+        key: PaneRef,
+        fault: super::state::PaneFault,
     },
     PollResult {
         poll_key: PollKey,
@@ -708,7 +864,9 @@ impl WorkerEvent {
                 UiCorrelation::Attachment(key.clone()),
                 UiReplyKind::CleanupApplied,
             ),
-            Self::PollResult { .. } => return None,
+            Self::PaneDetached { .. } | Self::PaneFailed { .. } | Self::PollResult { .. } => {
+                return None;
+            }
         };
         Some(UiWaitKey {
             serial,
@@ -745,11 +903,11 @@ pub(super) enum UiReply {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct MoveSettlement {
     decision: MoveDecision,
-    desired: Option<AttachmentKey>,
+    desired: Option<PaneKey>,
 }
 
 impl MoveSettlement {
-    pub(super) fn new(decision: MoveDecision, desired: impl Into<Option<AttachmentKey>>) -> Self {
+    pub(super) fn new(decision: MoveDecision, desired: impl Into<Option<PaneKey>>) -> Self {
         Self {
             decision,
             desired: desired.into(),
@@ -758,7 +916,7 @@ impl MoveSettlement {
     pub(super) const fn decision(&self) -> &MoveDecision {
         &self.decision
     }
-    pub(super) const fn desired(&self) -> Option<&AttachmentKey> {
+    pub(super) const fn desired(&self) -> Option<&PaneKey> {
         self.desired.as_ref()
     }
 }
@@ -766,14 +924,11 @@ impl MoveSettlement {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct RefreshSettlement {
     decision: RefreshDecision,
-    desired: Option<AttachmentKey>,
+    desired: Option<PaneKey>,
 }
 
 impl RefreshSettlement {
-    pub(super) fn new(
-        decision: RefreshDecision,
-        desired: impl Into<Option<AttachmentKey>>,
-    ) -> Self {
+    pub(super) fn new(decision: RefreshDecision, desired: impl Into<Option<PaneKey>>) -> Self {
         Self {
             decision,
             desired: desired.into(),
@@ -784,7 +939,7 @@ impl RefreshSettlement {
         &self.decision
     }
 
-    pub(super) const fn desired(&self) -> Option<&AttachmentKey> {
+    pub(super) const fn desired(&self) -> Option<&PaneKey> {
         self.desired.as_ref()
     }
 }
@@ -825,6 +980,11 @@ impl TakenEvent {
     #[cfg(test)]
     pub(super) const fn wait_key(&self) -> Option<&UiWaitKey> {
         self.wait_key.as_ref()
+    }
+
+    #[cfg(test)]
+    pub(super) const fn event(&self) -> &WorkerEvent {
+        &self.event
     }
 
     #[cfg(test)]
@@ -1019,10 +1179,10 @@ impl UiReplyTransaction<'_> {
 
     pub(super) fn enqueue_catch_up_resize(
         &mut self,
-        key: AttachmentKey,
+        key: PaneRef,
         geometry: Geometry,
     ) -> Result<(), CarrierFailure> {
-        if self.state.desired.key() != Some(&key)
+        if self.state.desired.key() != Some(key.pane())
             || !self.state.queue.is_empty()
             || self.state.queue.len() == COMMAND_CAPACITY
         {
@@ -1037,6 +1197,7 @@ impl UiReplyTransaction<'_> {
         self.state.queue.push_back(QueuedRecord {
             serial,
             command: QueuedCommand::Resize(Tagged::new(key, geometry)),
+            retry_at: None,
         });
         Ok(())
     }
@@ -1183,10 +1344,13 @@ impl CommandMailbox {
             }
         };
         let command = build().map_err(AdmissionError::Build)?;
-        let tagged_key = match &command {
-            QueuedCommand::Input(tagged) => tagged.key(),
-            QueuedCommand::Resize(tagged) => tagged.key(),
-            QueuedCommand::Poll(tagged) => tagged.key(),
+        let current = match &command {
+            // Focus-scoped input is admitted only for the focus pane itself.
+            QueuedCommand::Input(tagged) => state.desired.key() == Some(tagged.key().pane()),
+            QueuedCommand::Resize(tagged) => state.desired.key() == Some(tagged.key().pane()),
+            // Ordinary polls may serve any pane in the last reconciled set —
+            // exact incarnation membership, so background viewers keep polling.
+            QueuedCommand::Poll(tagged) => state.desired.admits(tagged.key()),
             QueuedCommand::Switch(_)
             | QueuedCommand::Create(_)
             | QueuedCommand::Refresh(_)
@@ -1195,11 +1359,12 @@ impl CommandMailbox {
             | QueuedCommand::Rename(_)
             | QueuedCommand::WorkspaceSetup(_)
             | QueuedCommand::Close(_)
+            | QueuedCommand::ReconcilePanes(_)
             | QueuedCommand::ReconcileClose(_) => {
                 return Err(self.close_admission(&mut state, CarrierFailure::Protocol));
             }
         };
-        if state.desired.key() != Some(tagged_key) {
+        if !current {
             return Err(AdmissionError::StaleAttachment);
         }
         if matches!(command, QueuedCommand::Poll(_))
@@ -1208,9 +1373,131 @@ impl CommandMailbox {
             return Err(AdmissionError::Busy);
         }
         state.next_command_serial = serial;
-        state.queue.push_back(QueuedRecord { serial, command });
+        state.queue.push_back(QueuedRecord {
+            serial,
+            command,
+            retry_at: None,
+        });
         self.changed.notify_all();
         Ok(serial)
+    }
+
+    /// Enqueue the desired-pane-set snapshot the state layer computed. The
+    /// admitted pane set is replaced atomically with the command so polling
+    /// follows exactly the snapshot the executor will install. A queued
+    /// reconcile for the same anchor is replaced in place: an older snapshot
+    /// could only over-detach or re-attach incarnations the newer one dropped.
+    /// Returns the command serial and any in-flight poll the shrink abandoned.
+    pub(super) fn try_enqueue_reconcile(
+        &self,
+        anchor: AttachmentKey,
+        targets: Vec<ReconcileTarget>,
+        deadlines: OperationDeadlines,
+    ) -> Result<(u64, Option<PaneKey>), AdmissionError<std::convert::Infallible>> {
+        let mut state = self.lock();
+        Self::ensure_open_for_admission(&state)?;
+        Self::ensure_bootstrapped_for_admission(&state)?;
+        if state.desired.key().map(PaneKey::anchor) != Some(&anchor) {
+            return Err(AdmissionError::StaleAttachment);
+        }
+        let marker = ReconcileMarker::new(anchor, targets, deadlines);
+        if let Some(record) = state.queue.iter_mut().find(|record| {
+            matches!(
+                &record.command,
+                QueuedCommand::ReconcilePanes(queued) if queued.anchor() == marker.anchor()
+            )
+        }) {
+            let serial = record.serial;
+            record.command = QueuedCommand::ReconcilePanes(marker);
+            let QueuedCommand::ReconcilePanes(queued) = &record.command else {
+                return Err(self.close_admission(&mut state, CarrierFailure::Protocol));
+            };
+            let admitted: Vec<PaneRef> = queued
+                .targets()
+                .iter()
+                .map(|target| target.pane_ref().clone())
+                .collect();
+            if let MailboxMembership::Live { panes, .. } = &mut state.desired {
+                *panes = admitted;
+            }
+            let discarded = self
+                .abandon_stale_poll_locked(&mut state)
+                .map_err(|failure| self.close_admission(&mut state, failure))?;
+            self.changed.notify_all();
+            return Ok((serial, discarded));
+        }
+        if state.queue.len() == COMMAND_CAPACITY {
+            return Err(AdmissionError::Full);
+        }
+        let serial = match state.next_command_serial.checked_add(1) {
+            Some(serial) => serial,
+            None => {
+                return Err(self.close_admission(&mut state, CarrierFailure::IdentityExhausted));
+            }
+        };
+        state.next_command_serial = serial;
+        if let MailboxMembership::Live { panes, .. } = &mut state.desired {
+            *panes = marker
+                .targets()
+                .iter()
+                .map(|target| target.pane_ref().clone())
+                .collect();
+        }
+        state.queue.push_back(QueuedRecord {
+            serial,
+            command: QueuedCommand::ReconcilePanes(marker),
+            retry_at: None,
+        });
+        let discarded = self
+            .abandon_stale_poll_locked(&mut state)
+            .map_err(|failure| self.close_admission(&mut state, failure))?;
+        self.changed.notify_all();
+        Ok((serial, discarded))
+    }
+
+    /// Re-enqueues the reconcile the executor just ran after a bounded step
+    /// yielded on `ServerBusy`: the lease is already being returned, so the
+    /// marker re-enters deferred at `retry_at` — queued live work runs first
+    /// and the retry keeps the original shared deadline. A reconcile already
+    /// queued for the anchor is a newer snapshot and wins; the stale marker
+    /// is dropped. Admission fences are untouched — the marker's targets were
+    /// admitted with it and a newer admission would already be queued.
+    pub(super) fn requeue_reconcile(
+        &self,
+        marker: ReconcileMarker,
+        retry_at: Instant,
+    ) -> Result<(), AdmissionError<std::convert::Infallible>> {
+        let mut state = self.lock();
+        Self::ensure_open_for_admission(&state)?;
+        Self::ensure_bootstrapped_for_admission(&state)?;
+        if state.desired.key().map(PaneKey::anchor) != Some(marker.anchor()) {
+            return Err(AdmissionError::StaleAttachment);
+        }
+        if state.queue.iter().any(|record| {
+            matches!(
+                &record.command,
+                QueuedCommand::ReconcilePanes(queued) if queued.anchor() == marker.anchor()
+            )
+        }) {
+            return Ok(());
+        }
+        if state.queue.len() == COMMAND_CAPACITY {
+            return Err(AdmissionError::Full);
+        }
+        let serial = match state.next_command_serial.checked_add(1) {
+            Some(serial) => serial,
+            None => {
+                return Err(self.close_admission(&mut state, CarrierFailure::IdentityExhausted));
+            }
+        };
+        state.next_command_serial = serial;
+        state.queue.push_back(QueuedRecord {
+            serial,
+            command: QueuedCommand::ReconcilePanes(marker),
+            retry_at: Some(retry_at),
+        });
+        self.changed.notify_all();
+        Ok(())
     }
 
     /// Whether an ordinary Poll is queued or executing. Setup and bootstrap polls never
@@ -1311,7 +1598,7 @@ impl CommandMailbox {
                 }
             };
             let marker = build(canonical, generation).map_err(AdmissionError::Build)?;
-            if marker.target().selected().key().generation() != generation {
+            if marker.target().selected().key().anchor().generation() != generation {
                 return Err(self.close_admission(&mut state, CarrierFailure::Protocol));
             }
             if state
@@ -1327,6 +1614,7 @@ impl CommandMailbox {
             state.next_command_serial = serial;
             state.desired = MailboxMembership::Live {
                 desired: Some(marker.target().selected().key().clone()),
+                panes: vec![marker.target().pane_ref()],
             };
             abandoned_causal = self
                 .abandon_stale_poll_locked(&mut state)
@@ -1334,6 +1622,7 @@ impl CommandMailbox {
             state.queue.push_back(QueuedRecord {
                 serial,
                 command: QueuedCommand::Switch(marker),
+                retry_at: None,
             });
             inherited_abandon = state
                 .switch_anchor_invalidation
@@ -1417,6 +1706,7 @@ impl CommandMailbox {
             state.queue.push_back(QueuedRecord {
                 serial,
                 command: QueuedCommand::Create(marker),
+                retry_at: None,
             });
             self.changed.notify_all();
             Ok(operation_key)
@@ -1526,6 +1816,7 @@ impl CommandMailbox {
             state.queue.push_back(QueuedRecord {
                 serial,
                 command: QueuedCommand::Refresh(marker),
+                retry_at: None,
             });
             self.changed.notify_all();
             Ok(generation)
@@ -1580,7 +1871,7 @@ impl CommandMailbox {
         let operation = build(canonical, request_id.clone()).map_err(MoveAdmissionError::Build)?;
         if operation.request_id() != &request_id
             || operation.deadline() != deadline
-            || state.desired.key() != Some(operation.target())
+            || state.desired.key().map(PaneKey::anchor) != Some(operation.target())
             || operation
                 .baseline()
                 .tab_index(operation.target().tab_id())
@@ -1600,6 +1891,7 @@ impl CommandMailbox {
         state.queue.push_back(QueuedRecord {
             serial,
             command: QueuedCommand::Move(MoveMarker::new(operation.clone())),
+            retry_at: None,
         });
         self.changed.notify_all();
         Ok(operation)
@@ -1640,6 +1932,15 @@ impl CommandMailbox {
         )
     }
 
+    /// The position of the first queue record whose deferral has expired —
+    /// deferred background work never blocks ready live work behind it.
+    fn ready_position(state: &MailboxState, now: Instant) -> Option<usize> {
+        state
+            .queue
+            .iter()
+            .position(|record| record.retry_at.is_none_or(|retry_at| retry_at <= now))
+    }
+
     pub(super) fn recv(&self) -> Result<CommandLease, MailboxClosed> {
         let mut state = self.lock();
         loop {
@@ -1648,14 +1949,30 @@ impl CommandMailbox {
                 state = self.wait(state);
                 continue;
             }
-            if state.active_lease.is_none()
-                && let Some(record) = state.queue.pop_front()
-            {
-                state.active_lease = Some(ActiveLease::of(record.serial, &record.command));
-                return Ok(CommandLease {
-                    serial: record.serial,
-                    record: record.command,
-                });
+            if state.active_lease.is_none() {
+                let now = Instant::now();
+                if let Some(position) = Self::ready_position(&state, now)
+                    && let Some(record) = state.queue.remove(position)
+                {
+                    state.active_lease = Some(ActiveLease::of(record.serial, &record.command));
+                    return Ok(CommandLease {
+                        serial: record.serial,
+                        record: record.command,
+                    });
+                }
+                // Only deferred background work remains: sleep until the
+                // earliest retry; any admission wakes the wait early.
+                if let Some(earliest) = state
+                    .queue
+                    .iter()
+                    .filter_map(|record| record.retry_at)
+                    .min()
+                {
+                    let remaining = earliest.saturating_duration_since(now);
+                    let (next, _timed_out) = self.wait_timeout(state, remaining);
+                    state = next;
+                    continue;
+                }
             }
             state = self.wait(state);
         }
@@ -1671,7 +1988,10 @@ impl CommandMailbox {
         if state.active_lease.is_some() {
             return Ok(None);
         }
-        let Some(record) = state.queue.pop_front() else {
+        let Some(position) = Self::ready_position(&state, Instant::now()) else {
+            return Ok(None);
+        };
+        let Some(record) = state.queue.remove(position) else {
             return Ok(None);
         };
         state.active_lease = Some(ActiveLease::of(record.serial, &record.command));
@@ -1710,11 +2030,11 @@ impl CommandMailbox {
 
     pub(super) fn allocate_startup_poll_key(
         &self,
-        key: &AttachmentKey,
+        key: &PaneRef,
     ) -> Result<PollKey, MailboxClosed> {
         let mut state = self.lock();
         Self::ensure_open(&state)?;
-        if state.desired.key() != Some(key)
+        if state.desired.key() != Some(key.pane())
             || state.active_lease.is_some()
             || !state.queue.is_empty()
         {
@@ -1726,7 +2046,7 @@ impl CommandMailbox {
     pub(super) fn allocate_setup_poll_key(
         &self,
         parent: &CommandLease,
-        key: &AttachmentKey,
+        key: &PaneRef,
     ) -> Result<SetupPollKey, MailboxClosed> {
         let mut state = self.lock();
         Self::ensure_open(&state)?;
@@ -1736,6 +2056,7 @@ impl CommandMailbox {
                 | QueuedCommand::Create(_)
                 | QueuedCommand::Refresh(_)
                 | QueuedCommand::ReconcileClose(_)
+                | QueuedCommand::ReconcilePanes(_)
                 | QueuedCommand::Move(_)
                 | QueuedCommand::Panel(_)
                 | QueuedCommand::Rename(_)
@@ -1744,7 +2065,10 @@ impl CommandMailbox {
         if !marker_parent || state.active_lease != Some(parent.active_lease()) {
             return Err(self.close_locked(&mut state, CarrierFailure::Protocol));
         }
-        if state.desired.key() != Some(key) {
+        // Setup polls serve the focus pane (logical fencing — its incarnation
+        // is minted by the state, not the mailbox) or any exact incarnation the
+        // last reconcile snapshot admitted (background-pane attach pipelines).
+        if !state.desired.admits(key) {
             return Ok(SetupPollKey::Superseded(state.desired.fence()));
         }
         self.allocate_poll_key_locked(&mut state, key.clone())
@@ -1753,7 +2077,7 @@ impl CommandMailbox {
 
     pub(super) fn await_startup_change_before(
         &self,
-        key: &AttachmentKey,
+        key: &PaneRef,
         cutoff: Instant,
         clock: &LocalOperationClock,
     ) -> Result<DesiredFence, EventError> {
@@ -1762,13 +2086,13 @@ impl CommandMailbox {
 
     fn await_startup_change_before_using(
         &self,
-        key: &AttachmentKey,
+        key: &PaneRef,
         cutoff: Instant,
         clock: &dyn MailboxClock,
     ) -> Result<DesiredFence, EventError> {
         let (mut state, mut observed_at) = self.lock_with_fresh_sample(clock);
         Self::ensure_open(&state).map_err(EventError::Closed)?;
-        if state.desired.key() != Some(key) {
+        if state.desired.key() != Some(key.pane()) {
             return Ok(state.desired.fence());
         }
         if observed_at >= cutoff {
@@ -1784,8 +2108,8 @@ impl CommandMailbox {
             let sampled;
             (state, sampled) = self.lock_with_fresh_sample(clock);
             Self::ensure_open(&state).map_err(EventError::Closed)?;
-            if state.desired.key() != Some(key) || sampled >= backoff_end {
-                if state.desired.key() == Some(key) && sampled >= cutoff {
+            if state.desired.key() != Some(key.pane()) || sampled >= backoff_end {
+                if state.desired.key() == Some(key.pane()) && sampled >= cutoff {
                     return Err(self.close_deadline(&mut state));
                 }
                 return Ok(state.desired.fence());
@@ -1860,8 +2184,10 @@ impl CommandMailbox {
         Ok(request_id)
     }
 
-    #[cfg(test)]
-    pub(super) fn publish_desired(&self, key: AttachmentKey) -> Result<(), MailboxClosed> {
+    /// Republishes the focus pane after a local panel focus move: the anchor
+    /// generation is unchanged, so admission is proven against the admitted
+    /// pane set rather than a fresh membership install.
+    pub(super) fn publish_desired(&self, key: PaneKey) -> Result<(), MailboxClosed> {
         let mut state = self.lock();
         Self::ensure_open(&state)?;
         if let Err(failure) = Self::publish_desired_locked(&mut state, key) {
@@ -1996,6 +2322,55 @@ impl CommandMailbox {
         Ok(wait_key)
     }
 
+    /// Deposits a fire-and-forget pane notice (`PaneDetached`/`PaneFailed`):
+    /// no wait key is minted and no UI reply is expected — the UI settles the
+    /// notice straight into the state on take. Stale notices are still
+    /// delivered; the state's settle functions discard non-matching
+    /// incarnations, so the worker never has to guess whether the UI raced
+    /// ahead of the reconcile that produced the notice.
+    pub(super) fn publish_notice_before(
+        &self,
+        event: WorkerEvent,
+        cutoff: Instant,
+        clock: &LocalOperationClock,
+    ) -> Result<MutationResult, EventError> {
+        debug_assert!(matches!(
+            event,
+            WorkerEvent::PaneDetached { .. } | WorkerEvent::PaneFailed { .. }
+        ));
+        let (mut state, mut observed_at) = self.lock_with_fresh_sample(clock);
+        if state.desired.awaiting_bootstrap() {
+            return Err(self.close_protocol(&mut state));
+        }
+        let anchor_serial = state.active_lease.map(|lease| lease.serial);
+        loop {
+            Self::ensure_open(&state).map_err(EventError::Closed)?;
+            if matches!(state.event, EventCell::Empty) {
+                break;
+            }
+            let effective = Self::forward_event_deadline_locked(
+                &state,
+                EventDeadline::Forward(cutoff),
+                anchor_serial,
+            );
+            state = self.wait_for_event_deadline_observed(state, effective, observed_at)?;
+            drop(state);
+            (state, observed_at) = self.lock_with_fresh_sample(clock);
+        }
+        let effective = Self::forward_event_deadline_locked(
+            &state,
+            EventDeadline::Forward(cutoff),
+            anchor_serial,
+        );
+        self.ensure_event_before_locked(&mut state, effective, observed_at, false)?;
+        state.event_wait_key = None;
+        state.event_deadline = effective;
+        state.event_anchor_serial = anchor_serial;
+        state.event = EventCell::Event(Box::new(event));
+        self.changed.notify_all();
+        Ok(MutationResult::Applied)
+    }
+
     pub(super) fn publish_refresh_result_before(
         &self,
         generation: u64,
@@ -2022,6 +2397,13 @@ impl CommandMailbox {
         clock: &LocalOperationClock,
     ) -> Result<MutationResult, EventError> {
         self.publish_poll_result_with_hint_using(poll_key, record, publication_hint, cutoff, clock)
+    }
+
+    /// The admitted incarnation of the pane under `anchor` — UI tests tag
+    /// commands with the exact reference the real session minted.
+    #[cfg(test)]
+    pub(super) fn pane_ref_for_anchor(&self, anchor: &AttachmentKey) -> Option<PaneRef> {
+        self.lock().desired.pane_ref_for_anchor(anchor)
     }
 
     #[cfg(test)]
@@ -2064,8 +2446,8 @@ impl CommandMailbox {
         }
         loop {
             Self::ensure_open(&state).map_err(EventError::Closed)?;
-            if state.desired.key() != Some(poll_key.attachment()) {
-                Self::record_switch_discard_locked(&mut state, poll_key.attachment())
+            if !state.desired.admits(poll_key.pane_ref()) {
+                Self::record_switch_discard_locked(&mut state, poll_key.pane())
                     .map_err(|failure| self.close_failure(&mut state, failure))?;
                 return Ok(MutationResult::Stale);
             }
@@ -2176,7 +2558,21 @@ impl CommandMailbox {
             }));
         }
         let Some(wait_key) = state.event_wait_key.clone() else {
-            return Err(self.close_protocol(&mut state));
+            // Fire-and-forget pane notices carry no wait key: the UI settles
+            // them directly and no reply exists.
+            if !matches!(
+                &*event,
+                WorkerEvent::PaneDetached { .. } | WorkerEvent::PaneFailed { .. }
+            ) {
+                return Err(self.close_protocol(&mut state));
+            }
+            state.event_deadline = EventDeadline::Unbounded;
+            state.event_anchor_serial = None;
+            self.changed.notify_all();
+            return Ok(Some(TakenEvent {
+                wait_key: None,
+                event: *event,
+            }));
         };
         state.event = EventCell::AwaitingUi(wait_key.clone());
         self.changed.notify_all();
@@ -2271,7 +2667,8 @@ impl CommandMailbox {
                         && flight.stage == PendingRefreshStage::AwaitingUi
                         && state.active_lease.map(|lease| lease.serial) == Some(flight.serial)
                         && state.event_anchor_serial == Some(flight.serial)
-                        && state.desired.key() == Some(flight.operation.target())
+                        && state.desired.key().map(PaneKey::anchor)
+                            == Some(flight.operation.target())
                         && old.is_none_or(|old| old == flight.operation.target())
                 })
         {
@@ -2340,8 +2737,16 @@ impl CommandMailbox {
                 if matches!(&state.structural_mutation_pending, Some(StructuralMutationFlight::Panel(flight))
                     if flight.operation.request_id() == request_id
                         && flight.stage == PendingRefreshStage::AwaitingUi));
-                if !valid || state.desired.key() != settlement.desired() {
+                // A committed panel move legitimately relocates the focus to a
+                // different panel of the same anchor — compare anchors (the
+                // single-attachment check) and then track the settled pane.
+                let anchor_matches = state.desired.key().map(PaneKey::anchor)
+                    == settlement.desired().map(PaneKey::anchor);
+                if !valid || !anchor_matches {
                     return Err(self.close_protocol(state));
+                }
+                if let MailboxMembership::Live { desired, .. } = &mut state.desired {
+                    *desired = settlement.desired().cloned();
                 }
                 if !matches!(
                     settlement.decision(),
@@ -2527,12 +2932,13 @@ impl CommandMailbox {
                 return Err(self.close_failure(&mut state, failure));
             }
         };
-        if target.selected().key().generation() != generation {
+        if target.selected().key().anchor().generation() != generation {
             return Err(self.close_protocol(&mut state));
         }
         state.attachment_generation = generation;
         state.desired = MailboxMembership::Live {
             desired: Some(target.selected().key().clone()),
+            panes: vec![target.pane_ref()],
         };
         state.event = EventCell::Reply(
             wait_key.clone(),
@@ -2725,10 +3131,10 @@ impl CommandMailbox {
         let (mut state, mut observed_at) = self.lock_with_fresh_sample(clock);
         loop {
             Self::ensure_open(&state).map_err(EventError::Closed)?;
-            if state.desired.key() != Some(&poll_key.key) {
+            if !state.desired.admits(poll_key.pane_ref()) {
                 if matches!(&state.causal, CausalCell::Awaiting(current) | CausalCell::Settled(current, _) if current == poll_key)
                 {
-                    Self::record_switch_discard_locked(&mut state, poll_key.attachment())
+                    Self::record_switch_discard_locked(&mut state, poll_key.pane())
                         .map_err(|failure| self.close_failure(&mut state, failure))?;
                     state.causal = CausalCell::Empty;
                     self.changed.notify_all();
@@ -2873,7 +3279,7 @@ impl CommandMailbox {
     fn allocate_poll_key_locked(
         &self,
         state: &mut MailboxState,
-        key: AttachmentKey,
+        key: PaneRef,
     ) -> Result<PollKey, MailboxClosed> {
         let Some(serial) = state.next_command_serial.checked_add(1) else {
             return Err(self.close_locked(state, CarrierFailure::IdentityExhausted));
@@ -2885,7 +3291,7 @@ impl CommandMailbox {
     fn abandon_stale_poll_locked(
         &self,
         state: &mut MailboxState,
-    ) -> Result<Option<AttachmentKey>, CarrierFailure> {
+    ) -> Result<Option<PaneKey>, CarrierFailure> {
         let event = match &state.event {
             EventCell::Event(event) => match &**event {
                 WorkerEvent::PollResult { poll_key, .. } => Some(poll_key),
@@ -2902,8 +3308,8 @@ impl CommandMailbox {
         }
         let discarded = event
             .or(causal)
-            .filter(|poll| state.desired.key() != Some(poll.attachment()))
-            .map(|poll| poll.attachment().clone());
+            .filter(|poll| !state.desired.admits(poll.pane_ref()))
+            .map(|poll| poll.pane().clone());
         if discarded.is_some() {
             if event.is_some() {
                 Self::clear_event_locked(state);
@@ -2913,28 +3319,52 @@ impl CommandMailbox {
         Ok(discarded)
     }
 
-    #[cfg(test)]
     fn publish_desired_locked(
         state: &mut MailboxState,
-        key: AttachmentKey,
+        key: PaneKey,
     ) -> Result<(), CarrierFailure> {
         let Some(current) = state.desired.key() else {
             return Err(CarrierFailure::Protocol);
         };
-        if key.generation() < current.generation() {
+        if &key == current {
             return Ok(());
         }
-        if key.generation() == current.generation() {
-            return if &key == current {
-                Ok(())
-            } else {
-                Err(CarrierFailure::Protocol)
-            };
+        if key.anchor().generation() < current.anchor().generation() {
+            return Ok(());
         }
-        if key.generation() > state.attachment_generation {
+        if key.anchor() == current.anchor() {
+            // Local panel focus move inside one epoch: only an admitted live
+            // pane incarnation may become the focus.
+            let admitted = match &state.desired {
+                MailboxMembership::Live { panes, .. } => {
+                    panes.iter().any(|pane| pane.pane() == &key)
+                }
+                MailboxMembership::AwaitingBootstrap => false,
+            };
+            if !admitted {
+                return Err(CarrierFailure::Protocol);
+            }
+        } else if key.anchor().generation() == current.anchor().generation()
+            || key.anchor().generation() > state.attachment_generation
+        {
             return Err(CarrierFailure::Protocol);
         }
-        state.desired = MailboxMembership::Live { desired: Some(key) };
+        // The pane set belongs to the anchor's epoch: a same-anchor focus move
+        // keeps the admitted incarnations, while a generation change retires
+        // them — the next reconcile snapshot rebuilds the set.
+        let same_anchor = key.anchor() == current.anchor();
+        let panes = if same_anchor {
+            match &state.desired {
+                MailboxMembership::Live { panes, .. } => panes.clone(),
+                MailboxMembership::AwaitingBootstrap => Vec::new(),
+            }
+        } else {
+            Vec::new()
+        };
+        state.desired = MailboxMembership::Live {
+            desired: Some(key),
+            panes,
+        };
         Ok(())
     }
 
@@ -3382,10 +3812,12 @@ impl CommandMailbox {
     pub(super) fn switch_anchor_invalidation_for_test(
         &self,
     ) -> Option<(AttachmentKey, AttachmentKey)> {
-        self.lock()
-            .switch_anchor_invalidation
-            .as_ref()
-            .map(|fact| (fact.marker.clone(), fact.discarded.clone()))
+        self.lock().switch_anchor_invalidation.as_ref().map(|fact| {
+            (
+                fact.marker.anchor().clone(),
+                fact.discarded.anchor().clone(),
+            )
+        })
     }
 
     #[cfg(test)]

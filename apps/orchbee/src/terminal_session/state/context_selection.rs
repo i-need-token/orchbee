@@ -49,7 +49,7 @@ impl NativeSessionState {
                 .iter()
                 .all(|retained| retained.tabs.len() == retained.provenance.len())
             && self.context_selection.as_ref().is_none_or(|intent| {
-                self.pending_refresh_generation == Some(intent.generation)
+                self.pending_refresh_generation() == Some(intent.generation)
                     && &intent.target != self.cache.location()
             })
     }
@@ -62,7 +62,7 @@ impl NativeSessionState {
     ) -> bool {
         if generation == 0
             || !self.invariant_holds()
-            || self.pending_refresh_generation.is_some()
+            || self.pending_refresh.is_some()
             || self.pending_mutation.is_some()
             || self.setup_blocks_structure()
             || self.pending_membership.is_some()
@@ -109,7 +109,67 @@ impl NativeSessionState {
             target: navigation[target_index].location.clone(),
             deadlines,
         });
-        self.pending_refresh_generation = Some(generation);
+        self.pending_refresh = Some(super::PendingRefreshFlight::recovery(generation));
+        self.adopt_publication_debt();
+        self.refresh_status = Some(super::NavigatorRefreshStatus::Refreshing);
+        self.notice = None;
+        true
+    }
+
+    /// Pointer variant of `start_context_selection`: the pointer resolved
+    /// a concrete navigation row, so the target is the entry at `index`
+    /// instead of a next/previous step. Identical guards and settlement.
+    /// Selecting the already-active location or an out-of-range index is a
+    /// no-op.
+    pub(in crate::terminal_session) fn start_context_selection_at(
+        &mut self,
+        generation: u64,
+        index: usize,
+        deadlines: OperationDeadlines,
+    ) -> bool {
+        if generation == 0
+            || !self.invariant_holds()
+            || self.pending_refresh.is_some()
+            || self.pending_mutation.is_some()
+            || self.setup_blocks_structure()
+            || self.pending_membership.is_some()
+            || self.move_recovery.is_some()
+            || self.rename_recovery.is_some()
+            || self.rename_uncertain.is_some()
+            || self.rename_draft_blocks_structure()
+            || !self.close.permits_retired_membership()
+            || !matches!(
+                self.phase,
+                SessionPhase::Empty
+                    | SessionPhase::Ready(_)
+                    | SessionPhase::SelectedWithoutAttachment(_)
+                    | SessionPhase::RetryableAttachUnavailable(_)
+            )
+        {
+            return false;
+        }
+        let navigation = self.cache.navigation();
+        let Some(target) = navigation.get(index) else {
+            return false;
+        };
+        if &target.location == self.cache.location() {
+            return false;
+        }
+        if self.retained_contexts.len() >= MAXIMUM_TERMINAL_CONTEXTS
+            && !self
+                .retained_contexts
+                .iter()
+                .any(|retained| &retained.location == self.cache.location())
+        {
+            return false;
+        }
+        let target = target.location.clone();
+        self.context_selection = Some(ContextSelection {
+            generation,
+            target,
+            deadlines,
+        });
+        self.pending_refresh = Some(super::PendingRefreshFlight::recovery(generation));
         self.adopt_publication_debt();
         self.refresh_status = Some(super::NavigatorRefreshStatus::Refreshing);
         self.notice = None;
@@ -173,7 +233,7 @@ impl NativeSessionState {
             }));
         }
         if self.context_selection.as_ref().is_none_or(|intent| {
-            self.pending_refresh_generation != Some(intent.generation)
+            self.pending_refresh_generation() != Some(intent.generation)
                 || &intent.target != candidate.location()
         }) && !self.setup_target_matches(candidate.location())
             || candidate.site_id() != self.cache.site_id()
@@ -262,6 +322,12 @@ impl<'a> NativeContextView<'a> {
             .workspace_label
             .as_ref()
             .map(|label| label.as_str())
+    }
+
+    /// The row's stable navigation identity — what a pointer hit region
+    /// records so a later click resolves against current state.
+    pub(crate) const fn location(&self) -> &'a NativeContextLocation {
+        &self.entry.location
     }
 }
 

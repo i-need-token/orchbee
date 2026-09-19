@@ -1,15 +1,15 @@
 use super::*;
 
 pub(in crate::terminal_session) struct SwitchAdmissionFacts {
-    discarded: Option<AttachmentKey>,
-    inherited: Option<AttachmentKey>,
+    discarded: Option<PaneKey>,
+    inherited: Option<PaneKey>,
     authorized_cleanup: bool,
 }
 
 impl SwitchAdmissionFacts {
     pub(super) const fn new(
-        discarded: Option<AttachmentKey>,
-        inherited: Option<AttachmentKey>,
+        discarded: Option<PaneKey>,
+        inherited: Option<PaneKey>,
         authorized_cleanup: bool,
     ) -> Self {
         Self {
@@ -18,10 +18,10 @@ impl SwitchAdmissionFacts {
             authorized_cleanup,
         }
     }
-    pub(in crate::terminal_session) const fn discarded(&self) -> Option<&AttachmentKey> {
+    pub(in crate::terminal_session) const fn discarded(&self) -> Option<&PaneKey> {
         self.discarded.as_ref()
     }
-    pub(in crate::terminal_session) const fn inherited(&self) -> Option<&AttachmentKey> {
+    pub(in crate::terminal_session) const fn inherited(&self) -> Option<&PaneKey> {
         self.inherited.as_ref()
     }
     pub(in crate::terminal_session) const fn authorized_cleanup(&self) -> bool {
@@ -30,15 +30,15 @@ impl SwitchAdmissionFacts {
 }
 
 pub(super) struct SwitchAnchorInvalidation {
-    pub(super) marker: AttachmentKey,
-    pub(super) discarded: AttachmentKey,
+    pub(super) marker: PaneKey,
+    pub(super) discarded: PaneKey,
 }
 
 impl UiReplyTransaction<'_> {
     pub(in crate::terminal_session) fn take_switch_anchor_invalidation(
         &mut self,
-        marker: &AttachmentKey,
-    ) -> Option<AttachmentKey> {
+        marker: &PaneKey,
+    ) -> Option<PaneKey> {
         if self.state.desired.key() != Some(marker)
             || self
                 .state
@@ -58,7 +58,7 @@ impl UiReplyTransaction<'_> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum SwitchCall {
     Snapshot {
-        marker: AttachmentKey,
+        marker: PaneKey,
         request: WorkbenchRequestId,
         cutoff: Instant,
     },
@@ -116,19 +116,10 @@ impl SwitchSnapshotPermit {
         request
     }
 }
-impl SwitchCleanupPermit {
-    pub(in crate::terminal_session) fn request_id(&self) -> &RequestId {
-        let SwitchCall::Cleanup { request, .. } = &self.0.call else {
-            unreachable!("cleanup permit always carries the cleanup call")
-        };
-        request
-    }
-}
-
 impl CommandMailbox {
     pub(super) fn record_switch_discard_locked(
         state: &mut MailboxState,
-        old: &AttachmentKey,
+        old: &PaneKey,
     ) -> Result<(), CarrierFailure> {
         let Some(marker) = state.queue.iter().find_map(|record| match &record.command {
             QueuedCommand::Switch(marker)
@@ -140,7 +131,7 @@ impl CommandMailbox {
         }) else {
             return Ok(());
         };
-        if old.generation() >= marker.generation() {
+        if old.anchor().generation() >= marker.anchor().generation() {
             return Err(CarrierFailure::Protocol);
         }
         if let Some(fact) = &state.switch_anchor_invalidation {
@@ -171,10 +162,10 @@ impl CommandMailbox {
         {
             return Err(CarrierFailure::Protocol);
         }
-        if state.desired.key() == Some(poll.attachment()) {
+        if state.desired.panes().contains(poll.pane_ref()) {
             return Ok(());
         }
-        Self::record_switch_discard_locked(&mut state, poll.attachment())
+        Self::record_switch_discard_locked(&mut state, poll.pane())
     }
     pub(in crate::terminal_session) fn authorize_switch_expiry(
         &self,
@@ -204,7 +195,7 @@ impl CommandMailbox {
     fn switch_call_current(
         state: &MailboxState,
         lease: &CommandLease,
-        marker: &AttachmentKey,
+        marker: &PaneKey,
     ) -> Result<bool, CarrierFailure> {
         if state.closed.is_some()
             || !state

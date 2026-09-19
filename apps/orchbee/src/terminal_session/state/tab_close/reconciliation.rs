@@ -265,7 +265,7 @@ impl NativeSessionState {
         marker.membership_recovery()
             && matches!(&self.close.carrier, CloseCarrier::MembershipRecoveryPending(origin) if origin.as_ref() == marker.origin())
             && matches!(self.phase, super::super::SessionPhase::Retired(_))
-            && self.attached_key.is_none()
+            && self.panes.iter().all(|record| !record.attached)
     }
 
     pub(in crate::terminal_session) fn close_reconciliation_requested_origin(
@@ -301,7 +301,7 @@ impl NativeSessionState {
                 })
             })
             || matches!(self.close.carrier, CloseCarrier::StatusOnly)
-            || self.pending_refresh_generation.is_some()
+            || self.pending_refresh.is_some()
             || self.mutation_blocks_structure()
             || !(matches!(
                 self.phase,

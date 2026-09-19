@@ -20,7 +20,7 @@ use crate::{
             CreateOperation, CreateOperationKey, CreateProjectionDecision,
             CreateTerminalProvenance, FrameIdentity, MembershipCleanup, MembershipInstallDecision,
             MembershipResultKey, NativeSessionState, NavigatorRefreshStatus, OperationDeadlines,
-            PanelCommit, PanelDecision, PanelIntent, PanelOperation, PanelPrecommit,
+            PaneRef, PanelCommit, PanelDecision, PanelIntent, PanelOperation, PanelPrecommit,
             PanelRequestKind, PanelResult, PendingCreateCommit, PendingRefreshStage, ReadyDecision,
             RefreshDecision, SessionNotice, SessionPhaseKind, SetupEventDisposition,
         },
@@ -758,23 +758,23 @@ impl Trace {
             .ok_or_else(|| violation_error("initial state was rejected"))?;
         let desired = session.desired().unwrap().clone();
         require(
-            session.install_projection(&desired),
+            session.install_projection_t(&desired),
             "initial projection install",
         )?;
         require(
-            session.record_setup_configuration(&desired, controlling(), Some(geometry())),
+            session.record_setup_configuration_t(&desired, controlling(), Some(geometry())),
             "initial setup configuration",
         )?;
         require(
-            session.stage_drawn_frame(&desired, FrameIdentity::new(1)),
+            session.stage_drawn_frame_t(&desired, FrameIdentity::new(1)),
             "initial frame stage",
         )?;
         require(
-            session.mark_feedback_accepted(&desired, FrameIdentity::new(1)),
+            session.mark_feedback_accepted_t(&desired, FrameIdentity::new(1)),
             "initial frame feedback",
         )?;
         require(
-            session.publish_ready(
+            session.publish_ready_t(
                 &desired,
                 FrameIdentity::new(1),
                 controlling(),
@@ -788,7 +788,8 @@ impl Trace {
             let mut raw = mailbox.lock();
             raw.attachment_generation = desired.generation();
             raw.desired = MailboxMembership::Live {
-                desired: Some(desired),
+                desired: Some(desired.clone()),
+                panes: vec![session.focus_pane_ref().unwrap()],
             };
         }
         Ok(Self {
@@ -1324,8 +1325,8 @@ impl Trace {
         )?;
         let session = &mut self.session;
         require(observed(self.mailbox.deposit_ui_reply_before_using(&wait, &self.clock, |transaction| {
-            let desired = transaction.prepare_desired_install(super::super::membership::DesiredInstall::ReuseReserved(committed.committed_key().clone()))?;
-            let plan = session.prepare_cleaned_membership_install(&cleanup, prepared, desired.desired().cloned())?;
+            let desired = transaction.prepare_desired_install(super::super::membership::DesiredInstall::ReuseReserved { key: committed.committed_key().clone(), panel: prepared.focus_panel_id().cloned().ok_or(CarrierFailure::Protocol)? })?;
+            let plan = session.prepare_cleaned_membership_install(&cleanup, prepared, desired.desired().map(|pane| pane.anchor().clone()))?;
             let installed = plan.commit();
             desired.commit();
             if installed != crate::terminal_session::state::MembershipInstallDecision::SelectedWithoutAttachment { return Err(CarrierFailure::Protocol); }
@@ -1501,7 +1502,8 @@ impl Trace {
             observed(
                 self.mailbox
                     .deposit_ui_reply_before_using(&wait, &self.clock, |_transaction| {
-                        let decision = session.apply_prepared_refresh(prepared);
+                        let decision =
+                            session.apply_prepared_refresh(prepared, std::time::Instant::now());
                         Ok(UiReply::Refresh(RefreshSettlement::new(
                             decision,
                             session.desired().unwrap().clone(),
@@ -1747,16 +1749,17 @@ impl Trace {
             observed_at: self.base,
         };
         let desired = observed(
-            transaction.prepare_desired_install(DesiredInstall::Fresh(
-                marker.selected().key().tab_id().clone(),
-            )),
+            transaction.prepare_desired_install(DesiredInstall::Fresh {
+                tab_id: marker.selected().key().tab_id().clone(),
+                panel: marker.selected().key().panel().clone(),
+            }),
             "prepare fresh Switch successor",
         )?;
         let plan = observed(
-            self.session.prepare_switch_membership_install(
+            self.session.prepare_switch_membership_install_k(
                 marker.selected().key(),
                 prepared,
-                desired.desired().cloned(),
+                desired.desired().map(|pane| pane.anchor().clone()),
             ),
             "prepare canonical Switch install",
         )?;
@@ -1790,7 +1793,7 @@ impl Trace {
             "prepare attached Switch candidate",
         )?;
         let cleanup = observed(
-            self.session.stage_switch_membership_cleanup(
+            self.session.stage_switch_membership_cleanup_k(
                 marker.selected().key(),
                 prepared,
                 marker.deadlines(),
@@ -1872,23 +1875,25 @@ impl Trace {
             observed(
                 self.mailbox
                     .deposit_ui_reply_before_using(&wait, &self.clock, |transaction| {
-                        if !session.switch_marker_is_current(&marker_key) {
+                        if !session.switch_marker_is_current_k(&marker_key) {
                             session.settle_switch_membership_cleanup(&cleanup, true)?;
                             return Ok(UiReply::Switch(RefreshSettlement::new(
                                 RefreshDecision::Continue,
                                 session.desired().cloned(),
                             )));
                         }
-                        let install = prepared
-                            .selected_tab_id()
-                            .map_or(DesiredInstall::Empty, |tab| {
-                                DesiredInstall::Fresh(tab.clone())
-                            });
+                        let install =
+                            prepared
+                                .selected_tab_id()
+                                .map_or(DesiredInstall::Empty, |tab| DesiredInstall::Fresh {
+                                    tab_id: tab.clone(),
+                                    panel: marker_key.panel().clone(),
+                                });
                         let desired = transaction.prepare_desired_install(install)?;
                         let plan = session.prepare_cleaned_membership_install(
                             &cleanup,
                             prepared,
-                            desired.desired().cloned(),
+                            desired.desired().map(|pane| pane.anchor().clone()),
                         )?;
                         let installed = plan.commit();
                         desired.commit();
@@ -1934,7 +1939,7 @@ impl Trace {
         let wait = observed(
             self.mailbox.publish_event_before_using(
                 WorkerEvent::SetupWithoutAttachment {
-                    key: target.selected().key().clone(),
+                    key: target.pane_ref(),
                     target_index: target.selected().index(),
                     target_provenance: target.provenance().clone(),
                 },
@@ -1964,7 +1969,7 @@ impl Trace {
                 self.mailbox
                     .deposit_ui_reply_before_using(&wait, &self.clock, |_transaction| {
                         let continuation = session
-                            .settle_unattached_setup(&key, index, &provenance)
+                            .settle_unattached_setup_t(&key, index, &provenance)
                             .ok_or(CarrierFailure::Protocol)?;
                         Ok(UiReply::SetupWithoutAttachmentApplied(continuation))
                     }),
@@ -1982,26 +1987,26 @@ impl Trace {
     fn drive_switch_ready(&mut self, target: &AttachTarget) -> Result<(), ReplayFailure> {
         let key = target.selected().key();
         require(
-            self.session.install_projection(key),
+            self.session.install_projection_t(key),
             "Switch projection install",
         )?;
         require(
             self.session
-                .record_setup_configuration(key, controlling(), Some(geometry())),
+                .record_setup_configuration_t(key, controlling(), Some(geometry())),
             "Switch setup configuration",
         )?;
         let frame = FrameIdentity::new(2);
         require(
-            self.session.stage_drawn_frame(key, frame),
+            self.session.stage_drawn_frame_t(key, frame),
             "Switch frame stage",
         )?;
         require(
-            self.session.mark_feedback_accepted(key, frame),
+            self.session.mark_feedback_accepted_t(key, frame),
             "Switch frame feedback",
         )?;
         require(
             self.session
-                .publish_ready(key, frame, controlling(), Some(geometry())),
+                .publish_ready_t(key, frame, controlling(), Some(geometry())),
             "Switch Ready publication",
         )
     }
@@ -2444,23 +2449,28 @@ impl Trace {
                             if transaction.observed_at() >= deadlines.forward_cutoff() {
                                 return Err(CarrierFailure::Deadline);
                             }
-                            if session.attached_key().is_some() {
+                            if session.has_attachments() {
                                 PanelDecision::Cleanup(session.stage_panel_membership_cleanup(
                                     operation.request_id(),
                                     prepared,
                                     deadlines,
                                 )?)
                             } else {
-                                let install = prepared
-                                    .selected_tab_id()
-                                    .map_or(DesiredInstall::Empty, |tab| {
-                                        DesiredInstall::Fresh(tab.clone())
-                                    });
+                                let install = prepared.selected_tab_id().map_or(
+                                    DesiredInstall::Empty,
+                                    |tab| DesiredInstall::Fresh {
+                                        tab_id: tab.clone(),
+                                        panel: prepared
+                                            .focus_panel_id()
+                                            .cloned()
+                                            .unwrap_or_else(panel),
+                                    },
+                                );
                                 let desired = transaction.prepare_desired_install(install)?;
                                 let plan = session.prepare_panel_membership_install(
                                     operation.request_id(),
                                     prepared,
-                                    desired.desired().cloned(),
+                                    desired.desired().map(|pane| pane.anchor().clone()),
                                     Some(deadlines),
                                 )?;
                                 let installed = plan.commit();
@@ -2762,9 +2772,17 @@ impl Trace {
                                         (committed.committed_key().tab_id() == tab)
                                             .then(|| committed.committed_key().clone())
                                     });
+                                let focus_panel =
+                                    prepared.focus_panel_id().cloned().unwrap_or_else(panel);
                                 reserved.map_or(
-                                    DesiredInstall::Fresh(tab.clone()),
-                                    DesiredInstall::ReuseReserved,
+                                    DesiredInstall::Fresh {
+                                        tab_id: tab.clone(),
+                                        panel: focus_panel.clone(),
+                                    },
+                                    |key| DesiredInstall::ReuseReserved {
+                                        key,
+                                        panel: focus_panel,
+                                    },
                                 )
                             }
                             None => DesiredInstall::Empty,
@@ -2773,7 +2791,7 @@ impl Trace {
                         let plan = session.prepare_cleaned_membership_install(
                             &detached_cleanup,
                             prepared,
-                            desired.desired().cloned(),
+                            desired.desired().map(|pane| pane.anchor().clone()),
                         )?;
                         let installed = plan.commit();
                         desired.commit();
@@ -2829,7 +2847,7 @@ impl Trace {
         let wait = observed(
             self.mailbox.publish_event_before_using(
                 WorkerEvent::Attached {
-                    key: key.clone(),
+                    key: target.pane_ref(),
                     projection: TerminalProjection::new(
                         AttachmentId::parse(&id(self.authority.fresh()))
                             .expect("attachment fixture"),
@@ -2854,7 +2872,7 @@ impl Trace {
                 self.mailbox
                     .deposit_ui_reply_before_using(&wait, &self.clock, |_transaction| {
                         session
-                            .settle_attached_event(&settled_key)
+                            .settle_attached_event_t(&settled_key)
                             .map(UiReply::AttachedSettled)
                             .ok_or(CarrierFailure::Protocol)
                     }),
@@ -2873,7 +2891,7 @@ impl Trace {
         let wait = observed(
             self.mailbox.publish_event_before_using(
                 WorkerEvent::SetupConfigured {
-                    key: key.clone(),
+                    key: target.pane_ref(),
                     mode: controlling(),
                     applied_geometry: Some(geometry()),
                 },
@@ -2896,7 +2914,7 @@ impl Trace {
                 self.mailbox
                     .deposit_ui_reply_before_using(&wait, &self.clock, |_transaction| {
                         session
-                            .settle_setup_configuration_event(
+                            .settle_setup_configuration_event_t(
                                 &settled_key,
                                 controlling(),
                                 Some(geometry()),
@@ -2917,13 +2935,13 @@ impl Trace {
         )?;
 
         require(
-            self.session.stage_drawn_frame(&key, frame),
+            self.session.stage_drawn_frame_t(&key, frame),
             "attach frame did not stage",
         )?;
         let wait = observed(
             self.mailbox.publish_event_before_using(
                 WorkerEvent::FeedbackAccepted {
-                    key: key.clone(),
+                    key: target.pane_ref(),
                     frame,
                 },
                 EventDeadline::Forward(cutoff),
@@ -2945,7 +2963,7 @@ impl Trace {
                 self.mailbox
                     .deposit_ui_reply_before_using(&wait, &self.clock, |_transaction| {
                         session
-                            .settle_feedback_event(&settled_key, frame)
+                            .settle_feedback_event_t(&settled_key, frame)
                             .map(UiReply::FeedbackSettled)
                             .ok_or(CarrierFailure::Protocol)
                     }),
@@ -2964,7 +2982,7 @@ impl Trace {
         let wait = observed(
             self.mailbox.publish_event_before_using(
                 WorkerEvent::ReadyCandidate {
-                    key: key.clone(),
+                    key: target.pane_ref(),
                     mode: controlling(),
                     last_accepted_geometry: Some(geometry()),
                     frame,
@@ -2988,7 +3006,7 @@ impl Trace {
                 self.mailbox
                     .deposit_ui_reply_before_using(&wait, &self.clock, |_transaction| {
                         session
-                            .settle_ready_candidate(
+                            .settle_ready_candidate_t(
                                 &settled_key,
                                 frame,
                                 controlling(),
@@ -3103,9 +3121,7 @@ impl Trace {
                                 }) {
                                     return Err(CarrierFailure::Deadline);
                                 }
-                                if session.attached_key().is_some()
-                                    && !prepared.preserves_selection()
-                                {
+                                if session.has_attachments() && !prepared.preserves_selection() {
                                     let cleanup = session.stage_refresh_membership_cleanup(
                                         generation,
                                         prepared,
@@ -3116,17 +3132,22 @@ impl Trace {
                                     let install = if prepared.preserves_selection() {
                                         DesiredInstall::Preserve
                                     } else {
-                                        prepared
-                                            .selected_tab_id()
-                                            .map_or(DesiredInstall::Empty, |tab| {
-                                                DesiredInstall::Fresh(tab.clone())
-                                            })
+                                        prepared.selected_tab_id().map_or(
+                                            DesiredInstall::Empty,
+                                            |tab| DesiredInstall::Fresh {
+                                                tab_id: tab.clone(),
+                                                panel: prepared
+                                                    .focus_panel_id()
+                                                    .cloned()
+                                                    .unwrap_or_else(panel),
+                                            },
+                                        )
                                     };
                                     let desired = transaction.prepare_desired_install(install)?;
                                     let plan = session.prepare_refresh_membership_install(
                                         generation,
                                         prepared,
-                                        desired.desired().cloned(),
+                                        desired.desired().map(|pane| pane.anchor().clone()),
                                         recovery_deadlines,
                                     )?;
                                     let installed = plan.commit();
@@ -3145,7 +3166,7 @@ impl Trace {
                                     }
                                 }
                             } else {
-                                session.apply_prepared_refresh(prepared)
+                                session.apply_prepared_refresh(prepared, std::time::Instant::now())
                             };
                         Ok(UiReply::Refresh(RefreshSettlement::new(
                             decision,
@@ -3290,7 +3311,7 @@ impl Trace {
         // never fired.
         let supported = |candidate: OutcomeClass| table.contains(&candidate) && legal(candidate);
         let mut steered = None;
-        if self.session.attached_key().is_some() {
+        if self.session.has_attachments() {
             if self.coverage.panel_decisions[1] == 0 {
                 steered = [OutcomeClass::CommittedDrop, OutcomeClass::CommittedTabGone]
                     .into_iter()
@@ -3364,7 +3385,7 @@ impl Trace {
         // provenance allows it.
         let expected_decision = match class {
             OutcomeClass::CommittedDrop | OutcomeClass::CommittedTabGone => {
-                if self.session.attached_key().is_some() {
+                if self.session.has_attachments() {
                     1
                 } else {
                     let attachable = if class == OutcomeClass::CommittedDrop {
@@ -4237,7 +4258,7 @@ fn input_command(mailbox: &CommandMailbox, byte: u8) -> QueuedCommand {
         .cloned()
         .expect("test mailbox is bootstrapped");
     QueuedCommand::Input(Tagged::new(
-        desired,
+        PaneRef::new(desired, 1),
         ControlInput::new(vec![byte]).expect("one-byte input is valid"),
     ))
 }
@@ -4249,7 +4270,7 @@ fn poll_command(mailbox: &CommandMailbox) -> QueuedCommand {
         .key()
         .cloned()
         .expect("test mailbox is bootstrapped");
-    QueuedCommand::Poll(Tagged::new(desired, ()))
+    QueuedCommand::Poll(Tagged::new(PaneRef::new(desired, 1), ()))
 }
 
 fn controlling() -> ControllerMode {
@@ -4298,6 +4319,12 @@ fn terminal_id(value: u128) -> TerminalId {
 
 fn id(value: u128) -> String {
     format!("{value:032x}")
+}
+
+/// Mailbox fixtures fabricate one panel identity per anchor — the mailbox only
+/// needs a consistent logical pane, never a real workbench panel.
+fn panel() -> WorkbenchPanelId {
+    WorkbenchPanelId::parse(&id(0xF1)).unwrap()
 }
 
 fn cursor_snapshot(mailbox: &CommandMailbox) -> (u64, u64, u64, u128) {
@@ -5197,23 +5224,23 @@ impl PanelSandbox {
             .ok_or_else(|| violation_error("sandbox state was rejected"))?;
         let desired = session.desired().unwrap().clone();
         require(
-            session.install_projection(&desired),
+            session.install_projection_t(&desired),
             "sandbox projection install",
         )?;
         require(
-            session.record_setup_configuration(&desired, controlling(), Some(geometry())),
+            session.record_setup_configuration_t(&desired, controlling(), Some(geometry())),
             "sandbox setup configuration",
         )?;
         require(
-            session.stage_drawn_frame(&desired, FrameIdentity::new(1)),
+            session.stage_drawn_frame_t(&desired, FrameIdentity::new(1)),
             "sandbox frame stage",
         )?;
         require(
-            session.mark_feedback_accepted(&desired, FrameIdentity::new(1)),
+            session.mark_feedback_accepted_t(&desired, FrameIdentity::new(1)),
             "sandbox frame feedback",
         )?;
         require(
-            session.publish_ready(
+            session.publish_ready_t(
                 &desired,
                 FrameIdentity::new(1),
                 controlling(),
@@ -5226,7 +5253,8 @@ impl PanelSandbox {
             let mut raw = mailbox.lock();
             raw.attachment_generation = desired.generation();
             raw.desired = MailboxMembership::Live {
-                desired: Some(desired),
+                desired: Some(desired.clone()),
+                panes: vec![session.focus_pane_ref().unwrap()],
             };
         }
         Ok(Self {

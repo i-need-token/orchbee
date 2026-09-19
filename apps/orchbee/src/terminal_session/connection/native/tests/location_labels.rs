@@ -173,7 +173,10 @@ fn location_rename_and_noop_recover_by_snapshot_only_without_replacing_terminal_
                 })
             );
             assert_eq!(harness.ui.state().cache(), &baseline);
-            assert_eq!(harness.ui.state().attached_key(), Some(&old));
+            assert_eq!(
+                harness.ui.state().attached_key().map(|pane| pane.anchor()),
+                Some(&old)
+            );
             harness.elapsed_millis.store(60_000, Ordering::SeqCst);
             harness.ui.refresh_known_setup()?;
             let mut recovered = initial.clone();
@@ -210,7 +213,10 @@ fn location_rename_and_noop_recover_by_snapshot_only_without_replacing_terminal_
                 recovered.navigation.projects.as_slice()
             );
             assert_eq!(harness.ui.state().cache().tabs(), baseline.tabs());
-            assert_eq!(harness.ui.state().attached_key(), Some(&old));
+            assert_eq!(
+                harness.ui.state().attached_key().map(|pane| pane.anchor()),
+                Some(&old)
+            );
             assert_eq!(
                 harness.ui.state().view().controller_mode(),
                 controller.as_ref()

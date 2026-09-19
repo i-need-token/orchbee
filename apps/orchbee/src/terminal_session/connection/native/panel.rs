@@ -17,7 +17,7 @@ use crate::{
     terminal_session::{
         mailbox::{CommandLease, MutationResult, UiReply},
         state::{
-            CarrierFailure, MembershipResultKey, PanelCommit, PanelDecision, PanelIntent,
+            CarrierFailure, MembershipResultKey, PaneKey, PanelCommit, PanelDecision, PanelIntent,
             PanelOperation, PanelResult, PendingPanelCommit,
         },
     },
@@ -203,7 +203,7 @@ impl NativeExecutor {
         }
         let result = match settlement.decision() {
             PanelDecision::Continue => {
-                if settlement.desired() != Some(operation.target()) {
+                if settlement.desired().map(PaneKey::anchor) != Some(operation.target()) {
                     return Err(CarrierFailure::Protocol);
                 }
                 Ok(())
@@ -212,7 +212,7 @@ impl NativeExecutor {
                 if cleanup.old() != operation.target()
                     || cleanup.result()
                         != &MembershipResultKey::Panel(operation.request_id().clone())
-                    || settlement.desired() != Some(operation.target())
+                    || settlement.desired().map(PaneKey::anchor) != Some(operation.target())
                 {
                     return Err(CarrierFailure::Protocol);
                 }
@@ -220,7 +220,7 @@ impl NativeExecutor {
             }
             PanelDecision::AttachRecovered(target) => {
                 if settlement.desired() != Some(target.selected().key())
-                    || self.attached_key().is_some()
+                    || !self.attachments.is_empty()
                 {
                     return Err(CarrierFailure::Protocol);
                 }
@@ -231,7 +231,7 @@ impl NativeExecutor {
                 )
                 .map(|_| ())
             }
-            PanelDecision::SettledWithoutAttachment if self.attached_key().is_none() => Ok(()),
+            PanelDecision::SettledWithoutAttachment if self.attachments.is_empty() => Ok(()),
             PanelDecision::SettledWithoutAttachment => Err(CarrierFailure::Protocol),
             PanelDecision::Retire => Err(CarrierFailure::AuthorityDivergence),
         };

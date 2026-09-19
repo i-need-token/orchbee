@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
 use super::*;
+use crate::terminal_input::{MouseAction, MouseButton};
 
 fn decode(bytes: &[u8]) -> Vec<DecodedItem> {
     let mut decoder = LegacyDecoder::default();
@@ -486,4 +487,205 @@ fn an_owned_frame_consumed_in_a_captured_packet_stays_owned_across_reads() {
     let items = decoder.push(b'z', now, false);
     assert_eq!(items.len(), 1);
     assert!(!items[0].owned);
+}
+
+// ---- Host mouse reports: SGR and X10 at the decoder layer ----
+
+#[test]
+fn a_valid_sgr_report_decodes_to_one_atomic_mouse_item() {
+    let items = decode(b"\x1b[<0;5;9M");
+    assert_eq!(items.len(), 1);
+    let DecodedKind::Mouse(event) = items[0].kind else {
+        panic!("expected a mouse item, got {:?}", items[0].kind)
+    };
+    assert_eq!(event.action, MouseAction::Press);
+    assert_eq!(event.button, MouseButton::Left);
+    // Wire coordinates are 1-based; decoded cells are 0-based.
+    assert_eq!((event.column, event.row), (4, 8));
+    assert_eq!(items[0].raw.as_ref(), b"\x1b[<0;5;9M");
+}
+
+#[test]
+fn a_valid_x10_report_decodes_atomically_across_split_feeds() {
+    let mut decoder = LegacyDecoder::default();
+    let now = Instant::now();
+    // Head and body arrive split; mid-frame pushes emit nothing.
+    for byte in [0x1b, b'[', b'M', 0x20] {
+        assert!(decoder.push(byte, now, false).is_empty());
+    }
+    let mut items = decoder.push(0x25, now, false);
+    items.extend(decoder.push(0x29, now, false));
+    assert_eq!(items.len(), 1);
+    let DecodedKind::Mouse(event) = items[0].kind else {
+        panic!("expected a mouse item, got {:?}", items[0].kind)
+    };
+    assert_eq!(event.action, MouseAction::Press);
+    assert_eq!(event.button, MouseButton::Left);
+    assert_eq!((event.column, event.row), (4, 8));
+    assert_eq!(items[0].raw.as_ref(), &[0x1b, b'[', b'M', 0x20, 0x25, 0x29]);
+}
+
+#[test]
+fn a_timed_out_x10_frame_drops_and_drains_its_bounded_tail() {
+    let mut decoder = LegacyDecoder::default();
+    let start = Instant::now();
+    for byte in [0x1b, b'[', b'M', 0x20] {
+        assert!(decoder.push(byte, start, false).is_empty());
+    }
+    // Nothing resolves before the frame's deadline.
+    assert!(decoder.tick(start + Duration::from_millis(49)).is_empty());
+    // At the deadline the partial frame is dropped pointer protocol.
+    let items = decoder.tick(start + Duration::from_millis(50));
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].kind, DecodedKind::Ignored);
+    assert_eq!(items[0].raw.as_ref(), &[0x1b, b'[', b'M', 0x20]);
+    // The frame's two remaining body bytes drain owned — never fresh keys.
+    assert!(
+        decoder
+            .push(b'x', start + Duration::from_millis(60), false)
+            .is_empty()
+    );
+    let items = decoder.push(b'y', start + Duration::from_millis(60), false);
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].kind, DecodedKind::Ignored);
+    assert_eq!(items[0].raw.as_ref(), b"xy");
+    // And the decoder is live for real keys again.
+    let items = decoder.push(b'z', start + Duration::from_millis(60), false);
+    assert_eq!(items[0].kind, press(KeyCode::Char('z')));
+}
+
+#[test]
+fn an_esc_aborts_an_x10_frame_and_refeeds_as_fresh_input() {
+    let items = decode(&[0x1b, b'[', b'M', 0x20, 0x1b, b'[', b'A']);
+    assert_eq!(items.len(), 2);
+    assert_eq!(items[0].kind, DecodedKind::Ignored);
+    assert_eq!(items[0].raw.as_ref(), &[0x1b, b'[', b'M', 0x20]);
+    assert_eq!(items[1].kind, press(KeyCode::Up));
+}
+
+#[test]
+fn a_c1_lead_aborts_an_x10_frame_and_refeeds() {
+    let items = decode(&[0x1b, b'[', b'M', 0x20, 0x9b, b'A']);
+    assert_eq!(items.len(), 2);
+    assert_eq!(items[0].kind, DecodedKind::Ignored);
+    assert_eq!(items[1].kind, press(KeyCode::Up));
+}
+
+#[test]
+fn a_malformed_x10_body_is_ignored_not_keys() {
+    // A coordinate byte under the 1-based wire offset fails the body.
+    let items = decode(&[0x1b, b'[', b'M', 0x20, 0x20, 0x29]);
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].kind, DecodedKind::Ignored);
+    assert_eq!(items[0].raw.as_ref(), &[0x1b, b'[', b'M', 0x20, 0x20, 0x29]);
+}
+
+#[test]
+fn malformed_sgr_reports_are_ignored_atomically() {
+    // Coordinate zero is outside the 1-based domain.
+    let items = decode(b"\x1b[<0;0;1M");
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].kind, DecodedKind::Ignored);
+    assert_eq!(items[0].raw.as_ref(), b"\x1b[<0;0;1M");
+    // A parameter field over the five-digit bound.
+    let items = decode(b"\x1b[<0;111111;1M");
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].kind, DecodedKind::Ignored);
+    assert_eq!(items[0].raw.as_ref(), b"\x1b[<0;111111;1M");
+    // A parameter-range non-digit field and an empty field.
+    let items = decode(b"\x1b[<0;?;1M");
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].kind, DecodedKind::Ignored);
+    let items = decode(b"\x1b[<0;;1M");
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].kind, DecodedKind::Ignored);
+    // An overlong field on the release final.
+    let items = decode(b"\x1b[<999999;1;1m");
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].kind, DecodedKind::Ignored);
+}
+
+#[test]
+fn an_aborted_sgr_mouse_partial_is_dropped_and_the_abort_refeeds() {
+    let items = decode(b"\x1b[<0;\x1b[A");
+    assert_eq!(items.len(), 2);
+    assert_eq!(items[0].kind, DecodedKind::Ignored);
+    assert_eq!(items[0].raw.as_ref(), b"\x1b[<0;");
+    assert_eq!(items[1].kind, press(KeyCode::Up));
+}
+
+#[test]
+fn a_timed_out_sgr_mouse_partial_drains_as_ignored() {
+    let mut decoder = LegacyDecoder::default();
+    let start = Instant::now();
+    for byte in b"\x1b[<0;" {
+        assert!(decoder.push(*byte, start, false).is_empty());
+    }
+    let items = decoder.tick(start + Duration::from_millis(50));
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].kind, DecodedKind::Ignored);
+    assert_eq!(items[0].raw.as_ref(), b"\x1b[<0;");
+    // The late remainder drains under pointer ownership until a final byte.
+    assert!(
+        decoder
+            .push(b'0', start + Duration::from_millis(60), false)
+            .is_empty()
+    );
+    let items = decoder.push(b'M', start + Duration::from_millis(60), false);
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].kind, DecodedKind::Ignored);
+    assert_eq!(items[0].raw.as_ref(), b"0M");
+    let items = decoder.push(b'z', start + Duration::from_millis(60), false);
+    assert_eq!(items[0].kind, press(KeyCode::Char('z')));
+}
+
+#[test]
+fn an_overbound_mouse_shaped_run_drains_as_ignored_but_plain_csi_passes() {
+    let now = Instant::now();
+    // `\x1b[<` + 61 digits reaches the 64-byte run bound mid-field.
+    let mut decoder = LegacyDecoder::default();
+    let mut run = b"\x1b[<".to_vec();
+    run.extend(std::iter::repeat_n(b'9', 61));
+    let mut items = Vec::new();
+    for byte in &run {
+        items.extend(decoder.push(*byte, now, false));
+    }
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].kind, DecodedKind::Ignored);
+    assert_eq!(items[0].raw.len(), 64);
+    // The tail keeps draining as pointer protocol until a final byte.
+    assert!(decoder.push(b'9', now, false).is_empty());
+    let items = decoder.push(b'~', now, false);
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].kind, DecodedKind::Ignored);
+    assert_eq!(items[0].raw.as_ref(), b"9~");
+
+    // A plain over-bound CSI stays a passthrough non-decision — the drain
+    // is identical, only the emitted kind differs.
+    let mut decoder = LegacyDecoder::default();
+    let mut run = b"\x1b[".to_vec();
+    run.extend(std::iter::repeat_n(b'9', 62));
+    let mut items = Vec::new();
+    for byte in &run {
+        items.extend(decoder.push(*byte, now, false));
+    }
+    assert_eq!(items[0].kind, DecodedKind::Nondecision);
+    assert_eq!(items[0].raw.len(), 64);
+    let items = decoder.push(b'~', now, false);
+    assert_eq!(items[0].kind, DecodedKind::Nondecision);
+}
+
+#[test]
+fn malformed_mouse_bytes_never_swallow_neighboring_keys_or_paste() {
+    let items = decode(b"a\x1b[<0;0;1Mb\x1b[200~hi\x1b[201~c");
+    assert_eq!(items.len(), 5);
+    assert_eq!(items[0].kind, press(KeyCode::Char('a')));
+    assert_eq!(items[1].kind, DecodedKind::Ignored);
+    assert_eq!(items[1].raw.as_ref(), b"\x1b[<0;0;1M");
+    assert_eq!(items[2].kind, press(KeyCode::Char('b')));
+    let DecodedKind::Paste { text } = &items[3].kind else {
+        panic!("expected a paste item, got {:?}", items[3].kind)
+    };
+    assert_eq!(text.as_deref(), Some("hi"));
+    assert_eq!(items[4].kind, press(KeyCode::Char('c')));
 }

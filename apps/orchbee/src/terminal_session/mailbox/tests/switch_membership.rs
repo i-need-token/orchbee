@@ -28,7 +28,7 @@ fn admit(
             },
         )
         .unwrap();
-    state.desired().unwrap().clone()
+    state.desired().unwrap().anchor().clone()
 }
 
 fn take_fact(
@@ -37,11 +37,17 @@ fn take_fact(
     base: Instant,
 ) -> Option<AttachmentKey> {
     let mut locked = mailbox.lock();
+    let pane = locked
+        .desired
+        .key()
+        .filter(|key| key.anchor() == marker)
+        .cloned()?;
     UiReplyTransaction {
         state: &mut locked,
         observed_at: base,
     }
-    .take_switch_anchor_invalidation(marker)
+    .take_switch_anchor_invalidation(&pane)
+    .map(|pane| pane.anchor().clone())
 }
 
 #[test]
@@ -85,7 +91,9 @@ fn admission_invalidates_only_actual_old_event_or_causal_cell_and_missing_callba
         assert_eq!(mailbox.switch_anchor_invalidation_for_test(), None);
         assert_eq!(mailbox.cursors(), cursors);
         assert_eq!(
-            state.prepare_switch_restore(&marker, Some(&old)).is_ok(),
+            state
+                .prepare_switch_restore_k(&marker, Some(old.anchor()))
+                .is_ok(),
             cell == "missing"
         );
         mailbox.finish_lease(lease).unwrap();
@@ -142,12 +150,15 @@ fn late_fact_survives_build_and_full_refusal_and_queued_marker_becoming_active()
     assert!(matches!(refused, Err(AdmissionError::Full)));
     assert_eq!(
         mailbox.switch_anchor_invalidation_for_test(),
-        Some((marker.clone(), old.clone()))
+        Some((marker.clone(), old.anchor().clone()))
     );
     mailbox.finish_lease(lease).unwrap();
     let current = mailbox.try_recv().unwrap().unwrap();
     assert!(matches!(current.record(), QueuedCommand::Switch(_)));
-    assert_eq!(take_fact(&mailbox, &marker, base), Some(old));
+    assert_eq!(
+        take_fact(&mailbox, &marker, base),
+        Some(old.anchor().clone())
+    );
     assert_eq!(take_fact(&mailbox, &marker, base), None);
     assert_eq!(mailbox.cursors(), cursors);
 }
@@ -168,13 +179,21 @@ fn successful_successor_admission_transfers_only_matching_anchor_lineage() {
     let second = admit(&mailbox, &mut state, 0, base);
     assert_eq!(mailbox.switch_anchor_invalidation_for_test(), None);
     assert_eq!(take_fact(&mailbox, &first, base), None);
-    assert!(state.prepare_switch_restore(&second, Some(&old)).is_err());
-    assert_eq!(state.desired(), Some(&second));
+    assert!(
+        state
+            .prepare_switch_restore_k(&second, Some(old.anchor()))
+            .is_err()
+    );
+    assert_eq!(state.desired().map(|pane| pane.anchor()), Some(&second));
     mailbox.finish_lease(lease).unwrap();
 
     let mut fresh = ready_state(2);
     let mailbox = mailbox_for_desired(old.clone(), 5);
     let marker = admit(&mailbox, &mut fresh, 1, base);
-    fresh.invalidate_switch_anchor_for(&key(99, 99));
-    assert!(fresh.prepare_switch_restore(&marker, Some(&old)).is_ok());
+    fresh.invalidate_switch_anchor_for_k(&key(99, 99));
+    assert!(
+        fresh
+            .prepare_switch_restore_k(&marker, Some(old.anchor()))
+            .is_ok()
+    );
 }

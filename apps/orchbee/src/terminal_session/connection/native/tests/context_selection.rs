@@ -74,13 +74,19 @@ fn actual_context_selection_reads_snapshot_then_detaches_exact_viewer_before_wor
                 matches!(event, UiEvent::Refresh { generation, decision: RefreshDecision::Continue } if generation == selected)
             );
             assert_eq!(harness.ui.state().cache(), &baseline);
-            assert_eq!(harness.ui.state().attached_key(), Some(&old));
+            assert_eq!(
+                harness.ui.state().attached_key().map(|pane| pane.anchor()),
+                Some(&old)
+            );
         } else {
             assert!(
                 matches!(event, UiEvent::Refresh { generation, decision: RefreshDecision::Cleanup(_) } if generation == selected)
             );
             assert_eq!(harness.ui.state().cache(), &baseline);
-            assert_eq!(harness.ui.state().attached_key(), Some(&old));
+            assert_eq!(
+                harness.ui.state().attached_key().map(|pane| pane.anchor()),
+                Some(&old)
+            );
             let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
                 return Err(test_error("exact old Detach"));
             };

@@ -14,12 +14,14 @@ use orchbee_client_server_protocol::{
 };
 use orchbee_workbench_protocol::{
     Delta, DeltaChange, PanelNode, PanelOrientation, ProtocolVersion, TerminalContext,
-    WorkbenchAction, WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchPublicationDocument,
-    WorkbenchPublicationOutcome, WorkbenchPublicationResult, WorkbenchRejectionReason,
-    WorkbenchRequest, WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotOutcome,
-    WorkbenchTerminalFailureReason, WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason,
+    WorkbenchAction, WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchPanelId,
+    WorkbenchPublicationDocument, WorkbenchPublicationOutcome, WorkbenchPublicationResult,
+    WorkbenchRejectionReason, WorkbenchRequest, WorkbenchResponse, WorkbenchRevision,
+    WorkbenchSnapshotOutcome, WorkbenchTerminalFailureReason, WorkbenchTerminalOutcome,
+    WorkbenchTerminalUnavailableReason,
 };
 use std::sync::atomic::Ordering;
+use std::time::Instant;
 
 #[test]
 fn empty_create_started_reads_candidate_without_detach_then_attaches_reserved_generation()
@@ -129,7 +131,10 @@ fn empty_create_started_reads_candidate_without_detach_then_attaches_reserved_ge
     assert_eq!(drive_attach(&mut harness, 1)?, expected);
     drive_controlling_after_attach(&mut harness, &expected, geometry)?;
     assert!(harness.ui.state().ready().is_some());
-    assert_eq!(harness.ui.state().desired(), Some(&expected));
+    assert_eq!(
+        harness.ui.state().desired().map(|pane| pane.anchor()),
+        Some(&expected)
+    );
     assert_eq!(
         harness
             .ui
@@ -211,8 +216,18 @@ fn candidate_first_create_unavailable_never_detaches_or_publishes_the_reserved_t
         }
     ));
     assert_eq!(harness.ui.state().cache(), &baseline);
-    assert_eq!(harness.ui.state().desired(), Some(&old));
-    assert_eq!(harness.ui.state().projection_key(), Some(&old));
+    assert_eq!(
+        harness.ui.state().desired().map(|pane| pane.anchor()),
+        Some(&old)
+    );
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .projection_key()
+            .map(|pane| pane.anchor()),
+        Some(&old)
+    );
     assert!(harness.ui.state().ready().is_none());
     assert!(harness.ui.state().committed_target().is_some());
     harness.finish()
@@ -263,7 +278,10 @@ fn attached_refresh_membership_runs_real_detach_before_empty_or_successor_ready(
             matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::Refresh { generation: actual, decision: RefreshDecision::Cleanup(_) } if actual == generation)
         );
         assert_eq!(harness.ui.state().cache(), &baseline);
-        assert_eq!(harness.ui.state().desired(), Some(&old));
+        assert_eq!(
+            harness.ui.state().desired().map(|pane| pane.anchor()),
+            Some(&old)
+        );
         assert!(harness.ui.state().ready().is_none());
         let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
             return Err(test_error("exact old Detach before installation"));
@@ -400,7 +418,7 @@ fn create_drains_busy_input_resize_and_drawn_feedback_before_one_submission() ->
     harness
         .mailbox
         .try_enqueue(QueuedCommand::Input(Tagged::new(
-            old_key.clone(),
+            harness.ui.pane_ref(&old_key)?,
             input.clone(),
         )))
         .map_err(|error| test_error(&format!("failed to enqueue Input: {error:?}")))?;
@@ -413,7 +431,10 @@ fn create_drains_busy_input_resize_and_drawn_feedback_before_one_submission() ->
     harness.ui.admit_resize(resized)?;
     harness
         .mailbox
-        .try_enqueue(QueuedCommand::Poll(Tagged::new(old_key.clone(), ())))
+        .try_enqueue(QueuedCommand::Poll(Tagged::new(
+            harness.ui.pane_ref(&old_key)?,
+            (),
+        )))
         .map_err(|error| test_error(&format!("failed to enqueue Poll: {error:?}")))?;
     let create = harness.ui.admit_create()?;
     assert_eq!(create.reserved_generation(), 2);
@@ -571,11 +592,18 @@ fn create_drains_busy_input_resize_and_drawn_feedback_before_one_submission() ->
     ));
     assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Ready);
     assert_eq!(
-        harness.ui.state().active().map(|tab| tab.key()),
+        harness.ui.state().active().map(|tab| tab.key().anchor()),
         Some(&old_key)
     );
     assert_eq!(harness.ui.state().desired().unwrap(), &old_key);
-    assert_eq!(harness.ui.state().projection_key(), Some(&old_key));
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .projection_key()
+            .map(|pane| pane.anchor()),
+        Some(&old_key)
+    );
     assert_eq!(
         harness.ui.state().notice(),
         Some(SessionNotice::CreateNotCreated)
@@ -608,7 +636,10 @@ fn historical_ready_allows_create_after_blocked_frame_and_drains_a_second_blocke
 
     harness
         .mailbox
-        .try_enqueue(QueuedCommand::Poll(Tagged::new(old_key.clone(), ())))
+        .try_enqueue(QueuedCommand::Poll(Tagged::new(
+            harness.ui.pane_ref(&old_key)?,
+            (),
+        )))
         .map_err(|error| test_error(&format!("failed to enqueue first blocked Poll: {error:?}")))?;
     let ClientMessage::TerminalViewer(first_poll) = harness.carrier.take_obcs()? else {
         return Err(test_error("first ordinary Poll must reach the carrier"));
@@ -645,10 +676,10 @@ fn historical_ready_allows_create_after_blocked_frame_and_drains_a_second_blocke
     // admissible once the executor has finished the first lease.
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
     loop {
-        match harness
-            .mailbox
-            .try_enqueue(QueuedCommand::Poll(Tagged::new(old_key.clone(), ())))
-        {
+        match harness.mailbox.try_enqueue(QueuedCommand::Poll(Tagged::new(
+            harness.ui.pane_ref(&old_key)?,
+            (),
+        ))) {
             Ok(_) => break,
             Err(crate::terminal_session::mailbox::AdmissionError::Busy)
                 if std::time::Instant::now() < deadline =>
@@ -722,7 +753,14 @@ fn historical_ready_allows_create_after_blocked_frame_and_drains_a_second_blocke
     ));
     assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Ready);
     assert_eq!(harness.ui.state().desired().unwrap(), &old_key);
-    assert_eq!(harness.ui.state().projection_key(), Some(&old_key));
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .projection_key()
+            .map(|pane| pane.anchor()),
+        Some(&old_key)
+    );
     assert!(!harness.ui.state().feedback_accepted());
     assert_eq!(harness.mailbox.is_closed(), None);
 
@@ -750,7 +788,10 @@ fn create_barrier_expiring_held_poll_retires_deadline_before_create_or_detach() 
     let (active, _controller) = drive_controlling_ready(&mut harness, geometry)?;
     harness
         .mailbox
-        .try_enqueue(QueuedCommand::Poll(Tagged::new(active.clone(), ())))
+        .try_enqueue(QueuedCommand::Poll(Tagged::new(
+            harness.ui.pane_ref(&active)?,
+            (),
+        )))
         .map_err(|error| test_error(&format!("failed to enqueue held Poll: {error:?}")))?;
     let ClientMessage::TerminalViewer(poll) = harness.carrier.take_obcs()? else {
         return Err(test_error("held Poll must reach the carrier"));
@@ -771,7 +812,14 @@ fn create_barrier_expiring_held_poll_retires_deadline_before_create_or_detach() 
     assert!(harness.ui.take_next().is_err());
     assert_eq!(harness.mailbox.is_closed(), Some(CarrierFailure::Deadline));
     assert_eq!(harness.ui.state().desired().unwrap(), &active);
-    assert_eq!(harness.ui.state().projection_key(), Some(&active));
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .projection_key()
+            .map(|pane| pane.anchor()),
+        Some(&active)
+    );
     assert_eq!(create.reserved_generation(), 2);
 
     // Exact scripted exhaustion proves that expiry did not advance to tab.create or Detach.
@@ -904,7 +952,14 @@ fn run_non_attachable_commit(case: NonAttachableCommit) -> TestResult {
     let retained = harness.ui.take_next()?;
     assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Creating);
     assert_eq!(harness.ui.state().desired().unwrap(), &old_key);
-    assert_eq!(harness.ui.state().projection_key(), Some(&old_key));
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .projection_key()
+            .map(|pane| pane.anchor()),
+        Some(&old_key)
+    );
     assert!(matches!(
         harness.ui.settle_taken(retained, FrameCut::None)?,
         UiEvent::CreateCommittedKnown { operation: ref actual } if actual == &operation
@@ -940,8 +995,18 @@ fn run_non_attachable_commit(case: NonAttachableCommit) -> TestResult {
             decision: CreateProjectionDecision::Cleanup(_),
         } if actual == &operation
     ));
-    assert_eq!(harness.ui.state().desired(), Some(&old_key));
-    assert_eq!(harness.ui.state().projection_key(), Some(&old_key));
+    assert_eq!(
+        harness.ui.state().desired().map(|pane| pane.anchor()),
+        Some(&old_key)
+    );
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .projection_key()
+            .map(|pane| pane.anchor()),
+        Some(&old_key)
+    );
     assert!(harness.ui.state().ready().is_none());
 
     let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
@@ -1022,12 +1087,12 @@ fn superseded_non_attachable_switch_skips_unattached_settlement_and_newest_gets_
         }
     };
     assert_eq!(drive_attach(&mut harness, 0)?, restored_successor);
-    drive_controlling_after_attach(&mut harness, &restored_successor, geometry)?;
+    drive_controlling_after_attach(&mut harness, restored_successor.anchor(), geometry)?;
 
     harness
         .mailbox
         .try_enqueue(QueuedCommand::Poll(Tagged::new(
-            restored_successor.clone(),
+            harness.ui.pane_ref(restored_successor.anchor())?,
             (),
         )))
         .map_err(|error| test_error(&format!("failed to enqueue held Poll: {error:?}")))?;
@@ -1110,11 +1175,11 @@ fn superseded_non_attachable_switch_skips_unattached_settlement_and_newest_gets_
     harness.elapsed_millis.store(46_000, Ordering::SeqCst);
     harness.mailbox.wake_waiters();
     assert_eq!(drive_attach(&mut harness, 0)?, successor);
-    drive_controlling_after_attach(&mut harness, &successor, geometry)?;
+    drive_controlling_after_attach(&mut harness, successor.anchor(), geometry)?;
     assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Ready);
     assert_eq!(
-        harness.ui.state().active().map(|tab| tab.key()),
-        Some(&successor)
+        harness.ui.state().active().map(|tab| tab.key().anchor()),
+        Some(successor.anchor())
     );
     assert_eq!(
         harness.ui.state().provenance(1),
@@ -1456,7 +1521,14 @@ fn late_known_create_without_candidate_retains_commit_but_never_detaches() -> Te
         SessionPhaseKind::CreateCommittedNeedDetach
     );
     assert_eq!(harness.ui.state().desired().unwrap(), &old_key);
-    assert_eq!(harness.ui.state().projection_key(), Some(&old_key));
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .projection_key()
+            .map(|pane| pane.anchor()),
+        Some(&old_key)
+    );
     assert_eq!(
         harness
             .ui
@@ -1535,10 +1607,17 @@ fn refresh_uses_one_pending_generation_and_ui_settles_after_transport_deadline()
     );
     assert_eq!(harness.ui.state().desired().unwrap(), &active);
     assert_eq!(
-        harness.ui.state().active().map(|tab| tab.key()),
+        harness.ui.state().active().map(|tab| tab.key().anchor()),
         Some(&active)
     );
-    assert_eq!(harness.ui.state().projection_key(), Some(&active));
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .projection_key()
+            .map(|pane| pane.anchor()),
+        Some(&active)
+    );
     assert_eq!(
         harness.ui.state().refresh_status(),
         Some(NavigatorRefreshStatus::Success(WorkbenchRevision::new(2)))
@@ -1727,10 +1806,17 @@ fn denied_refresh_preserves_cache_viewer_and_reports_baseline_failure() -> TestR
     );
     assert_eq!(harness.ui.state().desired().unwrap(), &active);
     assert_eq!(
-        harness.ui.state().active().map(|tab| tab.key()),
+        harness.ui.state().active().map(|tab| tab.key().anchor()),
         Some(&active)
     );
-    assert_eq!(harness.ui.state().projection_key(), Some(&active));
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .projection_key()
+            .map(|pane| pane.anchor()),
+        Some(&active)
+    );
     assert!(harness.ui.projection_is_some());
     assert_eq!(harness.mailbox.is_closed(), None);
 
@@ -1804,7 +1890,10 @@ fn settled_refresh_reply_can_be_superseded_before_worker_resume_and_then_runs_ex
     );
     assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Switching);
     assert_eq!(harness.ui.state().desired().unwrap(), &superseding.key);
-    assert_eq!(harness.ui.state().attached_key(), Some(&old_key));
+    assert_eq!(
+        harness.ui.state().attached_key().map(|pane| pane.anchor()),
+        Some(&old_key)
+    );
 
     assert!(matches!(
         drive_switch_snapshot(&mut harness)?,
@@ -1851,11 +1940,15 @@ fn settled_refresh_reply_can_be_superseded_before_worker_resume_and_then_runs_ex
     };
 
     assert_eq!(drive_attach(&mut harness, 1)?, successor);
-    let controller = drive_controlling_after_attach(&mut harness, &successor, geometry)?;
+    let controller = drive_controlling_after_attach(&mut harness, successor.anchor(), geometry)?;
     assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Ready);
     assert_eq!(
-        harness.ui.state().active().map(|selected| selected.key()),
-        Some(&successor)
+        harness
+            .ui
+            .state()
+            .active()
+            .map(|selected| selected.key().anchor()),
+        Some(successor.anchor())
     );
     assert_eq!(
         harness.ui.state().controller_mode(),
@@ -1908,10 +2001,17 @@ fn refresh_deadline_overflow_changes_no_cache_viewer_or_refresh_facts() -> TestR
     );
     assert_eq!(harness.ui.state().desired().unwrap(), &active);
     assert_eq!(
-        harness.ui.state().active().map(|tab| tab.key()),
+        harness.ui.state().active().map(|tab| tab.key().anchor()),
         Some(&active)
     );
-    assert_eq!(harness.ui.state().projection_key(), Some(&active));
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .projection_key()
+            .map(|pane| pane.anchor()),
+        Some(&active)
+    );
     assert_eq!(
         harness.ui.state().controller_mode(),
         Some(&ControllerMode::Controlling(controller))
@@ -1950,7 +2050,10 @@ fn refresh_barrier_expiring_held_poll_retires_deadline_before_snapshot() -> Test
     let (active, _controller) = drive_controlling_ready(&mut harness, geometry)?;
     harness
         .mailbox
-        .try_enqueue(QueuedCommand::Poll(Tagged::new(active.clone(), ())))
+        .try_enqueue(QueuedCommand::Poll(Tagged::new(
+            harness.ui.pane_ref(&active)?,
+            (),
+        )))
         .map_err(|error| test_error(&format!("failed to enqueue held Poll: {error:?}")))?;
     let ClientMessage::TerminalViewer(poll) = harness.carrier.take_obcs()? else {
         return Err(test_error("held Poll must reach the carrier"));
@@ -1983,7 +2086,14 @@ fn refresh_barrier_expiring_held_poll_retires_deadline_before_snapshot() -> Test
         WorkbenchRevision::new(1)
     );
     assert_eq!(harness.ui.state().desired().unwrap(), &active);
-    assert_eq!(harness.ui.state().projection_key(), Some(&active));
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .projection_key()
+            .map(|pane| pane.anchor()),
+        Some(&active)
+    );
 
     // Exact scripted exhaustion proves that expiry did not advance to SnapshotRead or Detach.
     harness.finish_after_worker_failure(CarrierFailure::Deadline)
@@ -2154,7 +2264,7 @@ fn refresh_folds_a_multi_revision_publication_batch_into_one_validated_snapshot(
         .ok_or_else(|| test_error("folded refresh must retain the second tab"))?;
     assert_eq!(caught_up.panel_count(), 3);
     assert_eq!(
-        harness.ui.state().active().map(|tab| tab.key()),
+        harness.ui.state().active().map(|tab| tab.key().anchor()),
         Some(&active)
     );
     assert_eq!(harness.mailbox.is_closed(), None);
@@ -2227,7 +2337,7 @@ fn refresh_validates_a_journal_gap_snapshot_fallback_against_the_retained_baseli
         .ok_or_else(|| test_error("snapshot fallback must retain the second tab"))?;
     assert_eq!(caught_up.panel_count(), 3);
     assert_eq!(
-        harness.ui.state().active().map(|tab| tab.key()),
+        harness.ui.state().active().map(|tab| tab.key().anchor()),
         Some(&active)
     );
     assert_eq!(harness.mailbox.is_closed(), None);
@@ -2386,7 +2496,14 @@ fn action_incompatible_create_result_retires_unknown_without_detach_or_replay() 
     );
     assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Creating);
     assert_eq!(harness.ui.state().desired().unwrap(), &old_key);
-    assert_eq!(harness.ui.state().projection_key(), Some(&old_key));
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .projection_key()
+            .map(|pane| pane.anchor()),
+        Some(&old_key)
+    );
 
     // The scripted Server rejects trailing bytes, so finish establishes that the executor neither
     // detached the old viewer nor replayed the ambiguous Create.
@@ -2442,7 +2559,14 @@ fn run_create_wire_failure(failure: CreateWireFailure) -> TestResult {
     );
     assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Creating);
     assert_eq!(harness.ui.state().desired().unwrap(), &old_key);
-    assert_eq!(harness.ui.state().projection_key(), Some(&old_key));
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .projection_key()
+            .map(|pane| pane.anchor()),
+        Some(&old_key)
+    );
     assert!(harness.ui.projection_is_some());
 
     // The one-step carrier either closes after the accepted request or rejects trailing bytes;
@@ -2565,7 +2689,14 @@ fn ambiguous_input_retires_unknown_without_replay() -> TestResult {
     );
     assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Ready);
     assert_eq!(harness.ui.state().desired().unwrap(), &active);
-    assert_eq!(harness.ui.state().projection_key(), Some(&active));
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .projection_key()
+            .map(|pane| pane.anchor()),
+        Some(&active)
+    );
 
     // A second Input would be an unscripted trailing request and make finish fail.
     harness.finish_after_worker_failure(CarrierFailure::OutcomeUnknown)
@@ -2634,7 +2765,14 @@ fn definite_precommit_keeps_viewer_and_runs_one_catch_up_resize_before_poll() ->
     ));
     assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Ready);
     assert_eq!(harness.ui.state().desired().unwrap(), &active);
-    assert_eq!(harness.ui.state().projection_key(), Some(&active));
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .projection_key()
+            .map(|pane| pane.anchor()),
+        Some(&active)
+    );
 
     let ClientMessage::TerminalControl(resize) = harness.carrier.take_obcs()? else {
         return Err(test_error(
@@ -2673,7 +2811,10 @@ fn definite_precommit_keeps_viewer_and_runs_one_catch_up_resize_before_poll() ->
 
     harness
         .mailbox
-        .try_enqueue(QueuedCommand::Poll(Tagged::new(active.clone(), ())))
+        .try_enqueue(QueuedCommand::Poll(Tagged::new(
+            harness.ui.pane_ref(&active)?,
+            (),
+        )))
         .map_err(|error| test_error(&format!("failed to enqueue resumed Poll: {error:?}")))?;
     let ClientMessage::TerminalViewer(poll) = harness.carrier.take_obcs()? else {
         return Err(test_error(
@@ -2796,7 +2937,11 @@ fn drive_started_create_to_projection_unavailable(
         WorkbenchRevision::new(1)
     );
     assert_eq!(
-        harness.ui.state().active().map(|selected| selected.key()),
+        harness
+            .ui
+            .state()
+            .active()
+            .map(|selected| selected.key().anchor()),
         Some(&old_key)
     );
     assert_eq!(harness.ui.state().desired().unwrap(), &old_key);
@@ -2808,7 +2953,14 @@ fn drive_started_create_to_projection_unavailable(
             .map(|committed| committed.provenance()),
         Some(&CreateTerminalProvenance::Started)
     );
-    assert_eq!(harness.ui.state().projection_key(), Some(&old_key));
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .projection_key()
+            .map(|pane| pane.anchor()),
+        Some(&old_key)
+    );
     assert!(harness.ui.projection_is_some());
     assert!(harness.ui.state().ready().is_none());
     Ok((operation, candidate, committed_key))
@@ -2851,14 +3003,10 @@ fn set_tab_labels(
     Ok(())
 }
 
-pub(super) fn drive_controlling_ready_from_snapshot(
+pub(super) fn drive_bootstrap_from_snapshot(
     harness: &mut Harness,
     initial: orchbee_workbench_protocol::Snapshot,
-    geometry: Geometry,
-) -> TestResult<(
-    crate::terminal_session::state::AttachmentKey,
-    orchbee_client_server_protocol::ControllerId,
-)> {
+) -> TestResult<crate::terminal_session::state::AttachmentKey> {
     let ClientMessage::TerminalOpen(request) = harness.carrier.take_obcs()? else {
         return Err(test_error("startup must begin with terminal.open"));
     };
@@ -2877,10 +3025,21 @@ pub(super) fn drive_controlling_ready_from_snapshot(
         &request,
         WorkbenchSnapshotOutcome::Available { snapshot: initial },
     )?;
-    let key = match harness.ui.settle_next(FrameCut::None)? {
-        UiEvent::Bootstrap { key } => key,
-        _ => return Err(test_error("custom snapshot must publish Bootstrap")),
-    };
+    match harness.ui.settle_next(FrameCut::None)? {
+        UiEvent::Bootstrap { key } => Ok(key),
+        _ => Err(test_error("custom snapshot must publish Bootstrap")),
+    }
+}
+
+pub(super) fn drive_controlling_ready_from_snapshot(
+    harness: &mut Harness,
+    initial: orchbee_workbench_protocol::Snapshot,
+    geometry: Geometry,
+) -> TestResult<(
+    crate::terminal_session::state::AttachmentKey,
+    orchbee_client_server_protocol::ControllerId,
+)> {
+    let key = drive_bootstrap_from_snapshot(harness, initial)?;
     assert_eq!(drive_attach(harness, 0)?, key);
     let controller = drive_controlling_after_attach(harness, &key, geometry)?;
     Ok((key, controller))
@@ -3012,6 +3171,856 @@ fn assert_control_input(
     assert_eq!(sequence.get(), expected_sequence);
     assert_eq!(bytes, expected_input);
     Ok(())
+}
+
+/// B2 counterexample: a `Rejected`/`Unavailable` Detach is not canonical
+/// disposal proof. The worker's own detach path proves it — a genuinely
+/// unknown viewer answers `Rejected`, while a previously disposed one answers
+/// `Detached`. The executor must keep the attachment and the departing record
+/// must survive until real proof lands; the next reconcile re-issues the same
+/// Detach.
+#[test]
+fn reconcile_detach_rejected_keeps_attachment_until_canonical_proof() -> TestResult {
+    let geometry = fixture_geometry()?;
+    // 6 startup steps + Detach + deferred Detach retry — exact.
+    let mut kinds = vec![WireKind::Obcs, WireKind::Workbench];
+    kinds.extend([WireKind::Obcs; 7]);
+    let mut harness = Harness::start(kinds, geometry)?;
+    let (_key, _controller) = drive_controlling_ready(&mut harness, geometry)?;
+    let pane_a = harness.ui.state().desired().cloned().unwrap();
+
+    // A transient zero-leaf report marks the focus pane departing; the
+    // reconcile snapshot converges its attachment to disposal.
+    harness.ui.observe_panes(&[])?;
+    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
+        return Err(test_error("reconcile must Detach the departed pane"));
+    };
+    let TerminalViewerAction::Detach { attachment_id } = detach.action() else {
+        return Err(test_error("reconcile must issue a Detach"));
+    };
+    assert_eq!(attachment_id, &attached_viewer_id()?);
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                detach.request_id().clone(),
+                TerminalViewerOutcome::Rejected {
+                    reason:
+                        orchbee_client_server_protocol::ViewerRejectedReason::TerminalUnavailable,
+                },
+            ),
+        ))?;
+
+    // Rejected is not proof: no PaneDetached settles and the record stays
+    // departing, so the deferred reconcile retry re-issues the exact same
+    // Detach — and a fresh observation re-arms the marker in place.
+    harness.ui.observe_panes(&[])?;
+    let ClientMessage::TerminalViewer(retry) = harness.carrier.take_obcs()? else {
+        return Err(test_error(
+            "a rejected Detach must be retried by the next reconcile",
+        ));
+    };
+    assert_eq!(retry.action(), detach.action());
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                retry.request_id().clone(),
+                TerminalViewerOutcome::Detached {},
+            ),
+        ))?;
+    let taken = harness.ui.take_next()?;
+    assert!(matches!(
+        harness.ui.settle_taken(taken, FrameCut::None)?,
+        UiEvent::PaneDetached
+    ));
+    assert!(harness.ui.state().pane_record(&pane_a).is_none());
+    assert!(!harness.ui.state().has_attachments());
+    harness.finish()
+}
+
+/// B1 counterexample: a background reconcile's attach that meets ServerBusy
+/// must not hold the command lease through the retry window — queued live
+/// input for the ready pane has to reach the wire while the busy pane waits.
+#[test]
+fn busy_reconcile_attach_yields_lease_for_live_input() -> TestResult {
+    let geometry = fixture_geometry()?;
+    let mut initial = snapshot(1, 1);
+    let first = initial.terminal_contexts[0].tabs[0].root.clone();
+    initial.terminal_contexts[0].tabs[0].root = split_node(
+        first,
+        3_001,
+        panel_node(3_010, 3_013, 3_011, 3_012, "peer"),
+        3_014,
+        PanelOrientation::Horizontal,
+        3_020,
+    );
+    // 6 startup steps + the first-observation focus Resize + busy Attach +
+    // live Input + one Attach retry — exact; the deferred retry order is
+    // fixed (live work precedes it).
+    let mut kinds = vec![WireKind::Obcs, WireKind::Workbench];
+    kinds.extend([WireKind::Obcs; 9]);
+    let mut harness = Harness::start(kinds, geometry)?;
+    let (_key, controller) =
+        drive_controlling_ready_from_snapshot(&mut harness, initial, geometry)?;
+
+    // The second leaf registers a peer record and queues the reconcile that
+    // attaches it; the focus pane is already attached, so only the peer is
+    // new work. The live Input is admitted up front — the busy reconcile
+    // must not keep it pinned behind the lease.
+    let focus_panel = harness.ui.state().focus_panel_id().unwrap().clone();
+    let peer_panel = WorkbenchPanelId::parse(&identity(3_010)).unwrap();
+    harness
+        .ui
+        .observe_panes(&[(focus_panel, 0, geometry), (peer_panel, 1, geometry)])?;
+    let input = ControlInput::new(vec![b'k'])?;
+    harness.ui.admit_input(input.clone())?;
+    assert!(
+        harness.ui.state().reconcile_pending(),
+        "observing a second leaf must leave reconcile pending"
+    );
+
+    // The first observation admits one catch-up Resize for the controlling
+    // focus pane; then the reconcile's peer AttachBinding meets a busy
+    // server. The bounded step must return the lease, so the queued Input
+    // reaches the wire before the deferred reconcile retries the attach.
+    let resize_wire = harness.carrier.take_obcs().map_err(|error| {
+        test_error(&format!(
+            "focus resize never arrived: {error:?}; closed as {:?}",
+            harness.mailbox.is_closed()
+        ))
+    })?;
+    let ClientMessage::TerminalControl(resize) = resize_wire else {
+        return Err(test_error("first observation must Resize the focus pane"));
+    };
+    let TerminalControlAction::Resize {
+        attachment_id,
+        controller_id,
+        sequence,
+        geometry: requested,
+    } = resize.action()
+    else {
+        return Err(test_error("first observation must Resize the focus pane"));
+    };
+    assert_eq!(attachment_id, &attached_viewer_id()?);
+    assert_eq!(controller_id, &controller);
+    assert_eq!(sequence.get(), 2);
+    assert_eq!(*requested, geometry);
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalControlResult(
+            TerminalControlResult::new(
+                resize.request_id().clone(),
+                TerminalControlOutcome::Resized { geometry },
+            ),
+        ))?;
+    // The resize's SetupConfigured publication awaits its UI reply; settle it
+    // so the worker returns to the queue and the reconcile can run.
+    let taken = harness.ui.take_next()?;
+    assert!(matches!(
+        harness.ui.settle_taken(taken, FrameCut::None)?,
+        UiEvent::SetupConfigured { .. }
+    ));
+
+    let attach_wire = harness.carrier.take_obcs().map_err(|error| {
+        test_error(&format!(
+            "peer attach never arrived: {error:?}; closed as {:?}",
+            harness.mailbox.is_closed()
+        ))
+    })?;
+    let ClientMessage::TerminalViewer(busy_attach) = attach_wire else {
+        return Err(test_error("reconcile must attach the observed peer"));
+    };
+    if !matches!(
+        busy_attach.action(),
+        TerminalViewerAction::AttachBinding { .. }
+    ) {
+        return Err(test_error("reconcile must AttachBinding the peer"));
+    }
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                busy_attach.request_id().clone(),
+                TerminalViewerOutcome::Unavailable {
+                    reason: orchbee_client_server_protocol::ViewerUnavailableReason::ServerBusy,
+                },
+            ),
+        ))?;
+
+    let input_wire = harness.carrier.take_obcs().map_err(|error| {
+        test_error(&format!(
+            "live input starved behind the busy reconcile lease: {error:?}; closed as {:?}",
+            harness.mailbox.is_closed()
+        ))
+    })?;
+    let ClientMessage::TerminalControl(request) = input_wire else {
+        return Err(test_error(
+            "live input starved behind the busy reconcile lease",
+        ));
+    };
+    assert_control_input(&request, &controller, 3, &input)?;
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalControlResult(
+            TerminalControlResult::new(
+                request.request_id().clone(),
+                TerminalControlOutcome::InputAccepted {},
+            ),
+        ))?;
+
+    // The deferred retry re-issues the same AttachBinding; a definite
+    // refusal parks the peer as a non-retryable fault and converges the
+    // reconcile — no further requests follow.
+    let retried_wire = match harness.carrier.take_obcs() {
+        Ok(wire) => wire,
+        Err(error) => {
+            return Err(test_error(&format!(
+                "the deferred reconcile must retry the attach: {error:?}; mailbox closed as {:?}",
+                harness.mailbox.is_closed()
+            )));
+        }
+    };
+    let ClientMessage::TerminalViewer(retried_attach) = retried_wire else {
+        return Err(test_error(
+            "the deferred reconcile must retry AttachBinding",
+        ));
+    };
+    if !matches!(
+        retried_attach.action(),
+        TerminalViewerAction::AttachBinding { .. }
+    ) {
+        return Err(test_error(
+            "the deferred reconcile must retry AttachBinding",
+        ));
+    }
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                retried_attach.request_id().clone(),
+                TerminalViewerOutcome::Rejected {
+                    reason:
+                        orchbee_client_server_protocol::ViewerRejectedReason::TerminalUnavailable,
+                },
+            ),
+        ))?;
+    let taken = harness.ui.take_next()?;
+    assert!(matches!(
+        harness.ui.settle_taken(taken, FrameCut::None)?,
+        UiEvent::PaneFailed
+    ));
+    harness.finish()
+}
+
+/// B4 counterexample: one reconcile execution performs at most one
+/// pane-progress action. Two healthy pending panes behind one live focus
+/// pane: the first attach attempt that yields on ServerBusy must rotate
+/// behind the second pane's attempt — and live input queued meanwhile must
+/// reach the wire before the second pane's setup starts. Under the old
+/// whole-diff lease both attach attempts ran inside one execution and the
+/// input waited behind both.
+#[test]
+fn reconcile_steps_rotate_busy_targets_and_release_lease_for_live_input() -> TestResult {
+    let geometry = fixture_geometry()?;
+    let mut initial = snapshot(1, 1);
+    let focus = initial.terminal_contexts[0].tabs[0].root.clone();
+    let left = split_node(
+        focus,
+        3_001,
+        panel_node(3_010, 3_013, 3_011, 3_012, "peer-a"),
+        3_014,
+        PanelOrientation::Horizontal,
+        3_020,
+    );
+    initial.terminal_contexts[0].tabs[0].root = split_node(
+        left,
+        3_021,
+        panel_node(3_030, 3_033, 3_031, 3_032, "peer-b"),
+        3_034,
+        PanelOrientation::Vertical,
+        3_040,
+    );
+    // 6 startup steps + focus Resize + peer-a busy Attach + live Input +
+    // peer-b busy Attach + two rejected retries — exact.
+    let mut kinds = vec![WireKind::Obcs, WireKind::Workbench];
+    kinds.extend([WireKind::Obcs; 11]);
+    let mut harness = Harness::start(kinds, geometry)?;
+    let (_key, controller) =
+        drive_controlling_ready_from_snapshot(&mut harness, initial, geometry)?;
+
+    let focus_panel = harness.ui.state().focus_panel_id().unwrap().clone();
+    let peer_a = WorkbenchPanelId::parse(&identity(3_010))?;
+    let peer_b = WorkbenchPanelId::parse(&identity(3_030))?;
+    harness.ui.observe_panes(&[
+        (focus_panel, 0, geometry),
+        (peer_a.clone(), 1, geometry),
+        (peer_b.clone(), 2, geometry),
+    ])?;
+    assert!(harness.ui.state().reconcile_pending());
+
+    // First observation admits one catch-up Resize for the focus pane.
+    let resize_wire = harness.carrier.take_obcs()?;
+    let ClientMessage::TerminalControl(resize) = resize_wire else {
+        return Err(test_error("first observation must Resize the focus pane"));
+    };
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalControlResult(
+            TerminalControlResult::new(
+                resize.request_id().clone(),
+                TerminalControlOutcome::Resized { geometry },
+            ),
+        ))?;
+    let taken = harness.ui.take_next()?;
+    assert!(matches!(
+        harness.ui.settle_taken(taken, FrameCut::None)?,
+        UiEvent::SetupConfigured { .. }
+    ));
+
+    // First reconcile execution: one step only — peer-a's AttachBinding. The
+    // input is admitted while the worker holds the lease awaiting the busy
+    // reply, so it must run before the remaining background steps.
+    let attach_wire = harness.carrier.take_obcs()?;
+    let ClientMessage::TerminalViewer(first_attach) = attach_wire else {
+        return Err(test_error("reconcile must attach a pending peer"));
+    };
+    let TerminalViewerAction::AttachBinding {
+        terminal_id: first_terminal,
+        ..
+    } = first_attach.action()
+    else {
+        return Err(test_error("reconcile must AttachBinding a pending peer"));
+    };
+    assert_eq!(
+        first_terminal,
+        &orchbee_client_server_protocol::TerminalId::parse(&identity(3_012))?,
+        "first reconcile step must be the first pending peer's attach",
+    );
+    let input = ControlInput::new(vec![b'k'])?;
+    harness.ui.admit_input(input.clone())?;
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                first_attach.request_id().clone(),
+                TerminalViewerOutcome::Unavailable {
+                    reason: orchbee_client_server_protocol::ViewerUnavailableReason::ServerBusy,
+                },
+            ),
+        ))?;
+
+    // Live work runs before the second pane's setup — the lease came back
+    // after a single background action.
+    let input_wire = harness.carrier.take_obcs()?;
+    let ClientMessage::TerminalControl(request) = input_wire else {
+        return Err(test_error(
+            "live input starved behind background reconcile steps",
+        ));
+    };
+    assert_control_input(&request, &controller, 3, &input)?;
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalControlResult(
+            TerminalControlResult::new(
+                request.request_id().clone(),
+                TerminalControlOutcome::InputAccepted {},
+            ),
+        ))?;
+
+    // The next reconcile execution picks the *other* pending pane — a busy
+    // first target rotates behind it instead of starving it.
+    let second_wire = harness.carrier.take_obcs()?;
+    let ClientMessage::TerminalViewer(second_attach) = second_wire else {
+        return Err(test_error(
+            "the busy first target must rotate behind the second peer",
+        ));
+    };
+    let TerminalViewerAction::AttachBinding {
+        terminal_id: second_terminal,
+        ..
+    } = second_attach.action()
+    else {
+        return Err(test_error("reconcile must AttachBinding the second peer"));
+    };
+    assert_eq!(
+        second_terminal,
+        &orchbee_client_server_protocol::TerminalId::parse(&identity(3_032))?,
+        "the busy first target must not be retried ahead of the second peer",
+    );
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                second_attach.request_id().clone(),
+                TerminalViewerOutcome::Unavailable {
+                    reason: orchbee_client_server_protocol::ViewerUnavailableReason::ServerBusy,
+                },
+            ),
+        ))?;
+
+    // Both rotated retries then settle as definite pane-local faults.
+    for terminal in [3_012u128, 3_032u128] {
+        let retry_wire = harness.carrier.take_obcs()?;
+        let ClientMessage::TerminalViewer(retry) = retry_wire else {
+            return Err(test_error("each busy peer attach must retry once"));
+        };
+        let TerminalViewerAction::AttachBinding { terminal_id, .. } = retry.action() else {
+            return Err(test_error("the deferred retry must AttachBinding"));
+        };
+        assert_eq!(
+            terminal_id,
+            &orchbee_client_server_protocol::TerminalId::parse(&identity(terminal))?,
+        );
+        harness
+            .carrier
+            .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                retry.request_id().clone(),
+                TerminalViewerOutcome::Rejected {
+                    reason:
+                        orchbee_client_server_protocol::ViewerRejectedReason::TerminalUnavailable,
+                },
+            ),
+        ))?;
+        let taken = harness.ui.take_next()?;
+        assert!(matches!(
+            harness.ui.settle_taken(taken, FrameCut::None)?,
+            UiEvent::PaneFailed
+        ));
+    }
+    harness.finish()
+}
+
+/// A second-leaf geometry report landing while the session is still
+/// Starting records the peer record and mints the divergence budget, but
+/// queues no ordinary Resize/Reconcile — the startup pipeline's poll-key
+/// allocation still finds the queue empty and the focus leaf's own setup
+/// completes to Ready undisturbed. The deferred work is then delivered on
+/// the first post-Ready observation: the focus catch-up Resize and the
+/// reconcile's peer AttachBinding, under the original episode deadline.
+#[test]
+fn mid_starting_pane_observation_defers_ordinary_work_until_ready() -> TestResult {
+    let geometry = fixture_geometry()?;
+    let mut initial = snapshot(1, 1);
+    let first = initial.terminal_contexts[0].tabs[0].root.clone();
+    initial.terminal_contexts[0].tabs[0].root = split_node(
+        first,
+        3_001,
+        panel_node(3_010, 3_013, 3_011, 3_012, "peer"),
+        3_014,
+        PanelOrientation::Horizontal,
+        3_020,
+    );
+    // 6 startup steps + post-Ready focus Resize + rejected peer Attach —
+    // exact; the mid-Starting observation queues nothing.
+    let mut kinds = vec![WireKind::Obcs, WireKind::Workbench];
+    kinds.extend([WireKind::Obcs; 7]);
+    let mut harness = Harness::start(kinds, geometry)?;
+    let key = drive_bootstrap_from_snapshot(&mut harness, initial)?;
+    assert_eq!(drive_attach(&mut harness, 0)?, key);
+
+    // Mid-Starting the second leaf's report registers the peer record and
+    // the convergence debt, but the ordinary queue must stay empty.
+    assert_eq!(
+        harness.ui.state().phase_kind(),
+        crate::terminal_session::state::SessionPhaseKind::Starting
+    );
+    let focus_panel = harness.ui.state().focus_panel_id().unwrap().clone();
+    let peer_panel = WorkbenchPanelId::parse(&identity(3_010))?;
+    harness.ui.observe_panes(&[
+        (focus_panel.clone(), 0, geometry),
+        (peer_panel.clone(), 1, geometry),
+    ])?;
+    assert!(harness.ui.state().reconcile_pending());
+    assert!(matches!(harness.mailbox.try_recv(), Ok(None)));
+
+    // The focus leaf's own setup completes to Ready: the startup Poll was
+    // allocated against the queue the deferral kept empty.
+    let _controller = drive_controlling_after_attach(&mut harness, &key, geometry)?;
+
+    // The first post-Ready observation delivers the deferred work once:
+    // the focus catch-up Resize, then the reconcile's peer AttachBinding.
+    harness.ui.observe_panes(&[
+        (focus_panel.clone(), 0, geometry),
+        (peer_panel.clone(), 1, geometry),
+    ])?;
+    let ClientMessage::TerminalControl(resize) = harness.carrier.take_obcs()? else {
+        return Err(test_error(
+            "post-Ready observation must Resize the focus pane",
+        ));
+    };
+    let TerminalControlAction::Resize { sequence, .. } = resize.action() else {
+        return Err(test_error(
+            "post-Ready observation must Resize the focus pane",
+        ));
+    };
+    assert_eq!(sequence.get(), 2);
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalControlResult(
+            TerminalControlResult::new(
+                resize.request_id().clone(),
+                TerminalControlOutcome::Resized { geometry },
+            ),
+        ))?;
+    let taken = harness.ui.take_next()?;
+    assert!(matches!(
+        harness.ui.settle_taken(taken, FrameCut::None)?,
+        UiEvent::SetupConfigured { .. }
+    ));
+
+    let ClientMessage::TerminalViewer(attach) = harness.carrier.take_obcs()? else {
+        return Err(test_error("the deferred reconcile must attach the peer"));
+    };
+    assert!(matches!(
+        attach.action(),
+        TerminalViewerAction::AttachBinding { .. }
+    ));
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                attach.request_id().clone(),
+                TerminalViewerOutcome::Rejected {
+                    reason:
+                        orchbee_client_server_protocol::ViewerRejectedReason::TerminalUnavailable,
+                },
+            ),
+        ))?;
+    let taken = harness.ui.take_next()?;
+    assert!(matches!(
+        harness.ui.settle_taken(taken, FrameCut::None)?,
+        UiEvent::PaneFailed
+    ));
+    harness.finish()
+}
+
+/// B5 counterexample (attach side): the shared reconcile deadline expiring
+/// is the episode's terminal state, not another retryable busy. Once spent:
+/// identical re-observations mint no fresh budget and send no new attach,
+/// the unconverged pane parks as `ConvergenceExpired`, and the live focus
+/// pane keeps accepting input. Only genuinely new membership opens the next
+/// episode — which then retries the parked pane.
+#[test]
+fn reconcile_deadline_expiry_parks_pending_panes_until_new_membership() -> TestResult {
+    let geometry = fixture_geometry()?;
+    let mut initial = snapshot(1, 1);
+    let focus = initial.terminal_contexts[0].tabs[0].root.clone();
+    let left = split_node(
+        focus,
+        3_001,
+        panel_node(3_010, 3_013, 3_011, 3_012, "peer-a"),
+        3_014,
+        PanelOrientation::Horizontal,
+        3_020,
+    );
+    initial.terminal_contexts[0].tabs[0].root = split_node(
+        left,
+        3_021,
+        panel_node(3_030, 3_033, 3_031, 3_032, "peer-b"),
+        3_034,
+        PanelOrientation::Vertical,
+        3_040,
+    );
+    // 6 startup steps + focus Resize + peer-a busy Attach + live Input +
+    // the new episode's two rejected attaches — exact.
+    let mut kinds = vec![WireKind::Obcs, WireKind::Workbench];
+    kinds.extend([WireKind::Obcs; 10]);
+    let mut harness = Harness::start(kinds, geometry)?;
+    let (_key, controller) =
+        drive_controlling_ready_from_snapshot(&mut harness, initial, geometry)?;
+
+    let focus_panel = harness.ui.state().focus_panel_id().unwrap().clone();
+    let peer_a = WorkbenchPanelId::parse(&identity(3_010))?;
+    let peer_b = WorkbenchPanelId::parse(&identity(3_030))?;
+    harness.ui.observe_panes(&[
+        (focus_panel.clone(), 0, geometry),
+        (peer_a.clone(), 1, geometry),
+    ])?;
+    assert!(harness.ui.state().reconcile_pending());
+
+    let resize_wire = harness.carrier.take_obcs()?;
+    let ClientMessage::TerminalControl(resize) = resize_wire else {
+        return Err(test_error("first observation must Resize the focus pane"));
+    };
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalControlResult(
+            TerminalControlResult::new(
+                resize.request_id().clone(),
+                TerminalControlOutcome::Resized { geometry },
+            ),
+        ))?;
+    let taken = harness.ui.take_next()?;
+    assert!(matches!(
+        harness.ui.settle_taken(taken, FrameCut::None)?,
+        UiEvent::SetupConfigured { .. }
+    ));
+
+    // The episode's one in-flight action is peer-a's attach. Exhausting the
+    // shared budget before answering it turns the ServerBusy yield into the
+    // terminal expiry — the marker is dropped, never requeued.
+    let attach_wire = harness.carrier.take_obcs()?;
+    let ClientMessage::TerminalViewer(busy_attach) = attach_wire else {
+        return Err(test_error("reconcile must attempt the pending peer"));
+    };
+    if !matches!(
+        busy_attach.action(),
+        TerminalViewerAction::AttachBinding { .. }
+    ) {
+        return Err(test_error("reconcile must AttachBinding the peer"));
+    }
+    // A busy attach yields after its request completes. Once the worker is
+    // parked in the deferred retry wait there is no in-flight request, so the
+    // episode clock can be advanced deterministically: the next execution sees
+    // real expiry, parks the pending record, and retires the episode instead
+    // of minting a fresh deadline.
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                busy_attach.request_id().clone(),
+                TerminalViewerOutcome::Unavailable {
+                    reason: orchbee_client_server_protocol::ViewerUnavailableReason::ServerBusy,
+                },
+            ),
+        ))?;
+    assert!(
+        harness
+            .mailbox
+            .await_condition_waiter_before(Instant::now() + WALL_GUARD)
+    );
+    harness.elapsed_millis.store(51_000, Ordering::SeqCst);
+
+    // Identical re-observations cannot renew the dead episode: the pending
+    // record parks terminally and nothing new is sent.
+    harness.ui.observe_panes(&[
+        (focus_panel.clone(), 0, geometry),
+        (peer_a.clone(), 1, geometry),
+    ])?;
+    harness.ui.observe_panes(&[
+        (focus_panel.clone(), 0, geometry),
+        (peer_a.clone(), 1, geometry),
+    ])?;
+    let record = harness
+        .ui
+        .state()
+        .pane_by_panel(&peer_a)
+        .ok_or_else(|| test_error("expired peer record must survive as terminal state"))?;
+    assert_eq!(
+        record.fault(),
+        Some(crate::terminal_session::state::PaneFault::ConvergenceExpired),
+        "the expired pane must park with the explainable terminal fault",
+    );
+    assert!(!harness.ui.state().reconcile_pending());
+
+    // The session is not poisoned: the live focus pane's input still reaches
+    // the wire — and no attach for the parked pane precedes it.
+    let input = ControlInput::new(vec![b'k'])?;
+    harness.ui.admit_input(input.clone())?;
+    let input_wire = harness.carrier.take_obcs()?;
+    let ClientMessage::TerminalControl(request) = input_wire else {
+        return Err(test_error(
+            "expired reconcile must not starve or corrupt live input",
+        ));
+    };
+    assert_control_input(&request, &controller, 3, &input)?;
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalControlResult(
+            TerminalControlResult::new(
+                request.request_id().clone(),
+                TerminalControlOutcome::InputAccepted {},
+            ),
+        ))?;
+
+    // Genuinely new membership — peer-b's leaf appears — mints a fresh
+    // episode and revives the parked pane: both attaches run, one bounded
+    // step each.
+    harness.ui.observe_panes(&[
+        (focus_panel, 0, geometry),
+        (peer_a.clone(), 1, geometry),
+        (peer_b.clone(), 2, geometry),
+    ])?;
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .pane_by_panel(&peer_a)
+            .and_then(|record| record.fault()),
+        None,
+        "new membership must revive the expired park",
+    );
+    for terminal in [3_012u128, 3_032u128] {
+        let attach_wire = harness.carrier.take_obcs()?;
+        let ClientMessage::TerminalViewer(attach) = attach_wire else {
+            return Err(test_error("the new episode must retry the parked pane"));
+        };
+        let TerminalViewerAction::AttachBinding { terminal_id, .. } = attach.action() else {
+            return Err(test_error("the new episode must AttachBinding"));
+        };
+        assert_eq!(
+            terminal_id,
+            &orchbee_client_server_protocol::TerminalId::parse(&identity(terminal))?,
+        );
+        harness
+            .carrier
+            .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                attach.request_id().clone(),
+                TerminalViewerOutcome::Rejected {
+                    reason:
+                        orchbee_client_server_protocol::ViewerRejectedReason::TerminalUnavailable,
+                },
+            ),
+        ))?;
+        let taken = harness.ui.take_next()?;
+        assert!(matches!(
+            harness.ui.settle_taken(taken, FrameCut::None)?,
+            UiEvent::PaneFailed
+        ));
+    }
+    harness.finish()
+}
+
+/// B5 counterexample (detach side): a reconcile that expires before its
+/// disposal step proves `Detached` must not fabricate the release — the
+/// departing record survives and the worker keeps real ownership of the
+/// viewer. Identical re-observations stay quiet; a leaf that reappears
+/// revives the *same* attachment (no re-attach is sent, and the retained
+/// viewer still accepts input); a later genuine departure opens a new
+/// episode and re-issues the Detach.
+#[test]
+fn reconcile_deadline_expiry_retains_unproven_detach_ownership() -> TestResult {
+    let geometry = fixture_geometry()?;
+    // 6 startup steps + refused Detach + revival Resize + live Input +
+    // the new episode's canonical Detach — exact.
+    let mut kinds = vec![WireKind::Obcs, WireKind::Workbench];
+    kinds.extend([WireKind::Obcs; 9]);
+    let mut harness = Harness::start(kinds, geometry)?;
+    let (_key, controller) = drive_controlling_ready(&mut harness, geometry)?;
+    let pane = harness.ui.state().desired().cloned().unwrap();
+    let focus_panel = harness.ui.state().focus_panel_id().unwrap().clone();
+
+    // The pane departs; the reconcile's one step is the disposal, which the
+    // server refuses. The step retains the same absolute deadline and requeues
+    // deferred — while the worker is parked in that wait there is no in-flight
+    // request, so advancing the shared clock makes the next execution hit the
+    // terminal expiry before a second Detach is ever issued.
+    harness.ui.observe_panes(&[])?;
+    let detach_wire = harness.carrier.take_obcs()?;
+    let ClientMessage::TerminalViewer(detach) = detach_wire else {
+        return Err(test_error("reconcile must Detach the departed pane"));
+    };
+    assert_eq!(
+        detach.action(),
+        &TerminalViewerAction::Detach {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                detach.request_id().clone(),
+                TerminalViewerOutcome::Rejected {
+                    reason:
+                        orchbee_client_server_protocol::ViewerRejectedReason::TerminalUnavailable,
+                },
+            ),
+        ))?;
+    assert!(
+        harness
+            .mailbox
+            .await_condition_waiter_before(Instant::now() + WALL_GUARD)
+    );
+    harness.elapsed_millis.store(51_000, Ordering::SeqCst);
+
+    // The episode is dead: identical empty reports mint nothing, drop no
+    // record, and send no further Detach — the unproven viewer's ownership
+    // is retained, not fabricated away.
+    harness.ui.observe_panes(&[])?;
+    harness.ui.observe_panes(&[])?;
+    let record = harness
+        .ui
+        .state()
+        .pane_record(&pane)
+        .ok_or_else(|| test_error("an unproven Detach must not drop the record"))?;
+    assert!(
+        record.attached(),
+        "the departing record must retain the attachment fact — no disposal was proven",
+    );
+    assert!(harness.ui.state().has_attachments());
+
+    // The leaf reappears: the record un-departs and the retained attachment
+    // already converges the new episode — nothing is re-attached on the wire.
+    harness
+        .ui
+        .observe_panes(&[(focus_panel.clone(), 0, geometry)])?;
+    assert!(
+        harness.ui.state().pane_by_panel(&focus_panel).is_some(),
+        "the reappeared leaf must revive the departing record",
+    );
+    let resize_wire = harness.carrier.take_obcs()?;
+    let ClientMessage::TerminalControl(resize) = resize_wire else {
+        return Err(test_error(
+            "the revived focus pane's geometry admission must Resize",
+        ));
+    };
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalControlResult(
+            TerminalControlResult::new(
+                resize.request_id().clone(),
+                TerminalControlOutcome::Resized { geometry },
+            ),
+        ))?;
+    let taken = harness.ui.take_next()?;
+    assert!(matches!(
+        harness.ui.settle_taken(taken, FrameCut::None)?,
+        UiEvent::SetupConfigured { .. }
+    ));
+
+    let input = ControlInput::new(vec![b'k'])?;
+    harness.ui.admit_input(input.clone())?;
+    let input_wire = harness.carrier.take_obcs()?;
+    let ClientMessage::TerminalControl(request) = input_wire else {
+        return Err(test_error("the retained viewer must still accept input"));
+    };
+    assert_control_input(&request, &controller, 3, &input)?;
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalControlResult(
+            TerminalControlResult::new(
+                request.request_id().clone(),
+                TerminalControlOutcome::InputAccepted {},
+            ),
+        ))?;
+
+    // A later genuine departure opens a new episode: the Detach is re-issued
+    // and the canonical proof finally retires the record.
+    harness.ui.observe_panes(&[])?;
+    let final_wire = harness.carrier.take_obcs()?;
+    let ClientMessage::TerminalViewer(final_detach) = final_wire else {
+        return Err(test_error("the new episode must re-issue the Detach"));
+    };
+    assert_eq!(final_detach.action(), detach.action());
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                final_detach.request_id().clone(),
+                TerminalViewerOutcome::Detached {},
+            ),
+        ))?;
+    let taken = harness.ui.take_next()?;
+    assert!(matches!(
+        harness.ui.settle_taken(taken, FrameCut::None)?,
+        UiEvent::PaneDetached
+    ));
+    assert!(harness.ui.state().pane_record(&pane).is_none());
+    harness.finish()
 }
 
 fn identity(value: u128) -> String {

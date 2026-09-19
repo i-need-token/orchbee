@@ -36,11 +36,11 @@ fn ready() -> (
     mailbox.take_deposited_reply(&wait).unwrap().unwrap();
     let state = ui.state.as_mut().unwrap();
     let key = state.desired().unwrap().clone();
-    assert!(state.install_projection(&key));
-    assert!(state.record_setup_configuration(&key, ControllerMode::ReadOnly, None));
-    assert!(state.stage_drawn_frame(&key, FrameIdentity::new(1)));
-    assert!(state.mark_feedback_accepted(&key, FrameIdentity::new(1)));
-    assert!(state.publish_ready(&key, FrameIdentity::new(1), ControllerMode::ReadOnly, None));
+    assert!(state.install_projection_t(&key));
+    assert!(state.record_setup_configuration_t(&key, ControllerMode::ReadOnly, None));
+    assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(1)));
+    assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(1)));
+    assert!(state.publish_ready_t(&key, FrameIdentity::new(1), ControllerMode::ReadOnly, None));
     (ui, mailbox, clock, elapsed)
 }
 
@@ -183,7 +183,11 @@ fn superseded_busy_waits_for_typed_ui_settlement_and_preserves_viewer() {
         .unwrap();
     ui.tick();
     assert_eq!(
-        ui.state.as_ref().unwrap().attached_key(),
+        ui.state
+            .as_ref()
+            .unwrap()
+            .attached_key()
+            .map(|pane| pane.anchor()),
         Some(cleanup.old())
     );
     assert!(ui.state.as_ref().unwrap().invariant_holds());
@@ -211,7 +215,11 @@ fn new_marker_before_cleanup_authorization_has_no_request_cursor_effect() {
     );
     assert_eq!(mailbox.cursors(), cursors);
     assert_eq!(
-        ui.state.as_ref().unwrap().attached_key(),
+        ui.state
+            .as_ref()
+            .unwrap()
+            .attached_key()
+            .map(|pane| pane.anchor()),
         Some(cleanup.old())
     );
     mailbox.finish_lease(lease).unwrap();
@@ -289,7 +297,7 @@ fn expiry_permit_rejects_new_target_on_old_lease_and_settles_superseded_original
                 .unwrap()
                 .unwrap()
         });
-        let state = ui.state.as_ref().unwrap();
+        let state = ui.state.as_mut().unwrap();
         let current_target = state
             .target_for_switch(
                 0,

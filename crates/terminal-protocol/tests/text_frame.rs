@@ -1,4 +1,4 @@
-use orchbee_terminal_protocol::decode_terminal_text_frame;
+use orchbee_terminal_protocol::{MouseFormat, MouseTracking, decode_terminal_text_frame};
 use std::{error::Error, io};
 const FRAME: &[u8] =
     include_bytes!("../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin");
@@ -71,6 +71,51 @@ fn malformed_owner_corpus_and_every_truncation_reject_without_partial_rows()
     }
     Ok(())
 }
+/// The `captured_interaction` word survives validated decode and exposes the
+/// mutually exclusive tracking/format facts through narrow queries; invalid
+/// combinations keep failing at the boundary.
+#[test]
+fn interaction_facts_survive_validated_decode() -> Result<(), Box<dyn Error>> {
+    // Wire offset: 88-byte fixed prefix + columns/rows/cursor/screen fields.
+    const INTERACTION: std::ops::Range<usize> = 100..104;
+    let with_interaction = |bits: u32| {
+        let mut bytes = FRAME.to_vec();
+        bytes[INTERACTION].copy_from_slice(&bits.to_le_bytes());
+        decode_terminal_text_frame(&bytes)
+    };
+    for (bits, tracking, format, cursor) in [
+        (0x0, MouseTracking::None, MouseFormat::Default, false),
+        (0x1, MouseTracking::None, MouseFormat::Default, true),
+        (0x10, MouseTracking::X10, MouseFormat::Default, false),
+        (0x20, MouseTracking::Normal, MouseFormat::Default, false),
+        (0x40, MouseTracking::Button, MouseFormat::Default, false),
+        (0x80, MouseTracking::Any, MouseFormat::Default, false),
+        (0x100, MouseTracking::None, MouseFormat::Utf8, false),
+        (0x200, MouseTracking::None, MouseFormat::Sgr, false),
+        (0x400, MouseTracking::None, MouseFormat::Urxvt, false),
+        (0x800, MouseTracking::None, MouseFormat::SgrPixels, false),
+        (0x221, MouseTracking::Normal, MouseFormat::Sgr, true),
+    ] {
+        let frame = with_interaction(bits)?;
+        assert_eq!(
+            frame.interaction.mouse_tracking(),
+            tracking,
+            "bits {bits:#x}"
+        );
+        assert_eq!(frame.interaction.mouse_format(), format, "bits {bits:#x}");
+        assert_eq!(
+            frame.interaction.application_cursor_keys(),
+            cursor,
+            "bits {bits:#x}"
+        );
+    }
+    // Multiple bits in one exclusive group, and unknown bits, still reject.
+    for bits in [0x30, 0x300, 0x40000] {
+        assert!(with_interaction(bits).is_err(), "bits {bits:#x} accepted");
+    }
+    Ok(())
+}
+
 fn base64(value: &str) -> io::Result<Vec<u8>> {
     let alphabet = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut bits = 0_u32;

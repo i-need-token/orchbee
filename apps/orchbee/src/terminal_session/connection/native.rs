@@ -11,15 +11,16 @@ use crate::{
     terminal_projection::TerminalProjection,
     terminal_session::{
         mailbox::{
-            BarrierKind, CausalSettlement, CommandLease, CommandMailbox, CreatePrecommitOutcome,
-            EventDeadline, EventError, MailboxClosed, MutationResult, PollKey, QueuedCommand,
-            SetupPollKey, Tagged, UiReply, WorkerEvent,
+            AdmissionError, BarrierKind, CausalSettlement, CommandLease, CommandMailbox,
+            CreatePrecommitOutcome, EventDeadline, EventError, MailboxClosed, MutationResult,
+            PollKey, QueuedCommand, ReconcileMarker, SetupPollKey, Tagged, UiReply, WorkerEvent,
         },
         state::{
-            AttachTarget, AttachmentKey, BootstrapTarget, CarrierFailure, CleanupContinuation,
-            ControllerMode, CreateOperation, CreateProjectionDecision, CreateTerminalProvenance,
-            FrameIdentity, OperationDeadlines, PendingCloseResult, PendingCreateCommit,
-            PendingMoveCommit, ReadyDecision, RefreshDecision, SetupEventDisposition,
+            AttachTarget, BootstrapTarget, CarrierFailure, CleanupContinuation, ControllerMode,
+            CreateOperation, CreateProjectionDecision, CreateTerminalProvenance, FrameIdentity,
+            OperationDeadlines, PaneFault, PaneKey, PaneRef, PendingCloseResult,
+            PendingCreateCommit, PendingMoveCommit, ReadyDecision, ReconcileStep, ReconcileTarget,
+            RefreshDecision, SetupEventDisposition,
         },
         workbench_projection::project_native_standalone_tabs,
     },
@@ -27,7 +28,7 @@ use crate::{
 use orchbee_client_server_protocol::{
     ControlRejectedReason, ControlUnavailableReason, Geometry, OpenOutcome, TerminalControlAction,
     TerminalControlOutcome, TerminalControlRequest, TerminalOpenRequest, TerminalViewerAction,
-    TerminalViewerOutcome, TerminalViewerRequest, ViewerUnavailableReason,
+    TerminalViewerOutcome, TerminalViewerRequest, ViewerRejectedReason, ViewerUnavailableReason,
 };
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch};
 use orchbee_workbench_protocol::{
@@ -35,6 +36,7 @@ use orchbee_workbench_protocol::{
     WorkbenchPublicationOutcome, WorkbenchSnapshotOutcome, apply_workbench_publication,
 };
 use std::{
+    collections::VecDeque,
     num::NonZeroU64,
     sync::Arc,
     time::{Duration, Instant},
@@ -74,7 +76,8 @@ pub(super) fn run(
 ) -> NativeWorkerExit {
     let mut exit = WorkerExit::new(Arc::clone(&mailbox));
     let mut executor = NativeExecutor::new(client, mailbox);
-    let failure = executor.run(initial_geometry).err();
+    let result = executor.run(initial_geometry);
+    let failure = result.err();
     if let Some(failure) = failure {
         exit.failure = failure;
     }
@@ -120,7 +123,10 @@ struct NativeExecutor {
     client: LocalClient,
     clock: LocalOperationClock,
     mailbox: Arc<CommandMailbox>,
-    attached: Option<AttachedTerminal>,
+    /// Live viewer attachments keyed by exact pane incarnation. The shared
+    /// server-side HostViewers budget (8 slots) bounds this collection; the
+    /// reconcile command is the only writer that installs new entries.
+    attachments: Vec<AttachedTerminal>,
     workbench_baseline: Option<Snapshot>,
     last_publication_probe: Option<Instant>,
     pending_create: Option<PendingCreateCommit>,
@@ -134,43 +140,82 @@ struct NativeExecutor {
 /// Minimum interval between publication probes piggybacked on ordinary polls.
 const PUBLICATION_PROBE_INTERVAL: Duration = Duration::from_millis(250);
 
+/// The wall-clock backoff before a reconcile that yielded on `ServerBusy`
+/// re-enters the queue — the same slice the in-lease retry wait used, now
+/// spent off the lease so queued live work runs first.
+const RECONCILE_BUSY_RETRY: Duration = Duration::from_millis(10);
+
 #[derive(Clone)]
 struct SetupTarget {
-    key: AttachmentKey,
+    key: PaneRef,
     index: usize,
     provenance: CreateTerminalProvenance,
     attach: TerminalViewerAction,
     deadlines: Option<OperationDeadlines>,
+    /// The geometry this pane converges to during setup. The focus pane uses
+    /// the mailbox's latest observed geometry; reconcile targets carry their
+    /// own recorded geometry.
+    geometry: Option<Geometry>,
+    /// Reconcile targets settle attach failures as pane-local `PaneFailed`
+    /// notices; operation targets use the focus-scoped `SetupWithoutAttachment`
+    /// settlement, which only the Switching phase can consume.
+    fault_on_failure: bool,
 }
 
 impl SetupTarget {
     fn bootstrap(target: BootstrapTarget) -> Result<Self> {
         Ok(Self {
-            key: target.selected().key().clone(),
+            key: target.pane_ref(),
             index: target.selected().index(),
             provenance: CreateTerminalProvenance::BindingOnly,
             attach: attach_binding(target.site_id(), target.binding())
                 .map_err(|_status| CarrierFailure::Protocol)?,
             deadlines: None,
+            geometry: None,
+            fault_on_failure: false,
         })
     }
 
     fn operation(target: AttachTarget) -> Result<Self> {
         Ok(Self {
-            key: target.selected().key().clone(),
+            key: target.pane_ref(),
             index: target.selected().index(),
             provenance: target.provenance().clone(),
             attach: attach_binding(target.site_id(), target.binding())
                 .map_err(|_status| CarrierFailure::Protocol)?,
             deadlines: Some(target.deadlines()),
+            geometry: None,
+            fault_on_failure: false,
+        })
+    }
+
+    /// A reconcile-minted attach target: the pane's own binding and recorded
+    /// geometry, with the reconcile's single absolute deadline.
+    fn reconcile(target: &ReconcileTarget, deadlines: OperationDeadlines) -> Result<Self> {
+        Ok(Self {
+            key: target.pane_ref().clone(),
+            index: target.index(),
+            provenance: target.provenance().clone(),
+            attach: attach_binding(target.site_id(), target.binding())
+                .map_err(|_status| CarrierFailure::Protocol)?,
+            deadlines: Some(deadlines),
+            geometry: Some(target.geometry()),
+            fault_on_failure: true,
         })
     }
 }
 
 struct AttachedTerminal {
-    key: AttachmentKey,
+    key: PaneRef,
     attachment_id: orchbee_client_server_protocol::ViewerId,
+    /// `Some` while the setup pipeline is unfinished — including a reconcile
+    /// setup that yielded on `ServerBusy`, which leaves the half-installed
+    /// viewer parked for the next reconcile pass to dispose and re-attach.
     setup: Option<SetupTarget>,
+    /// Whether the `Attached` event settled `Applied` — the record learned
+    /// the attachment. Disposing an announced half-setup owes the pane a
+    /// `ViewerLost` notice; an unannounced one is silent.
+    announced: bool,
     mode: Option<ControllerMode>,
     next_sequence: u64,
     accepted_geometry: Option<Geometry>,
@@ -178,15 +223,32 @@ struct AttachedTerminal {
 
 #[derive(Clone, Copy)]
 enum SetupOwner<'lease> {
-    Startup { cutoff: Instant },
+    Startup {
+        cutoff: Instant,
+    },
     Lease(&'lease CommandLease),
+    /// Reconcile-owned setup: identical lease fencing to `Lease`, except a
+    /// `ServerBusy` retry wait yields `Deadline` instead of holding the
+    /// command lease — `run_reconcile` requeues the marker deferred so queued
+    /// live work proceeds while the busy pane backs off.
+    Reconcile(&'lease CommandLease),
+}
+
+/// The outcome of one bounded reconcile step. `Done` consumes the step;
+/// `Retry` rotates it behind the remaining plan for a deferred retry; and
+/// `Expired` ends the episode — the shared deadline is spent, so the marker
+/// is dropped without requeue or a fresh budget.
+enum ReconcileProgress {
+    Done,
+    Retry,
+    Expired,
 }
 
 impl SetupOwner<'_> {
     fn forward_cutoff(self, target: &SetupTarget) -> Result<Instant> {
         match self {
             Self::Startup { cutoff } => Ok(cutoff),
-            Self::Lease(_) => target
+            Self::Lease(_) | Self::Reconcile(_) => target
                 .deadlines
                 .map(OperationDeadlines::forward_cutoff)
                 .ok_or(CarrierFailure::Protocol),
@@ -225,7 +287,7 @@ impl NativeExecutor {
             unavailable_poll: None,
             clock,
             mailbox,
-            attached: None,
+            attachments: Vec::new(),
             workbench_baseline: None,
             // Prime the probe clock so the first probe only leaves once the session has been
             // alive for a full interval; a just-bootstrapped baseline is definitionally current.
@@ -310,7 +372,8 @@ impl NativeExecutor {
         owner: SetupOwner<'_>,
         entry_expiry: SetupEntryExpiry,
     ) -> Result<SetupCompletion> {
-        if self.attached.is_some() {
+        // Exactly one live attachment per pane incarnation; other panes coexist.
+        if self.attached_ref(&target.key).is_ok() {
             return Err(CarrierFailure::Protocol);
         }
         let forward_cutoff = owner.forward_cutoff(&target)?;
@@ -344,10 +407,12 @@ impl NativeExecutor {
                 | TerminalViewerOutcome::Unavailable { .. } => {
                     if matches!(owner, SetupOwner::Startup { .. }) {
                         Err(CarrierFailure::Transport)
-                    } else if self.setup_is_current(owner, &target.key)? {
-                        self.settle_without_attachment(&target, forward_cutoff)
-                    } else {
+                    } else if !self.setup_is_current(owner, &target.key)? {
                         Ok(SetupCompletion::Superseded)
+                    } else if target.fault_on_failure {
+                        self.settle_attach_fault(&target, &outcome, forward_cutoff)
+                    } else {
+                        self.settle_without_attachment(&target, forward_cutoff)
                     }
                 }
                 TerminalViewerOutcome::Empty {}
@@ -358,10 +423,11 @@ impl NativeExecutor {
                 TerminalViewerOutcome::Attached { .. } => unreachable!("matched attached outcome"),
             };
         };
-        self.attached = Some(AttachedTerminal {
+        self.attachments.push(AttachedTerminal {
             key: target.key.clone(),
             attachment_id: attachment_id.clone(),
             setup: Some(target.clone()),
+            announced: false,
             mode: None,
             next_sequence: 0,
             accepted_geometry: None,
@@ -392,11 +458,22 @@ impl NativeExecutor {
                 self.cleanup_startup_setup(owner, &target.key)?;
                 Err(failure)
             }
-            Err(_failure) => self.cleanup_after_setup_failure(owner),
+            Err(_failure) => self.cleanup_after_setup_failure(owner, &target),
         }
     }
 
     fn finish_attached_setup(
+        &mut self,
+        target: &SetupTarget,
+        owner: SetupOwner<'_>,
+        forward_cutoff: Instant,
+        attachment_id: &str,
+        host_epoch: &str,
+    ) -> Result<SetupCompletion> {
+        self.finish_attached_setup_inner(target, owner, forward_cutoff, attachment_id, host_epoch)
+    }
+
+    fn finish_attached_setup_inner(
         &mut self,
         target: &SetupTarget,
         owner: SetupOwner<'_>,
@@ -426,6 +503,7 @@ impl NativeExecutor {
             }
             _ => return Err(CarrierFailure::Protocol),
         }
+        self.attached_mut(&target.key)?.announced = true;
         if !self.setup_is_current(owner, &target.key)? {
             return Err(CarrierFailure::Deadline);
         }
@@ -465,7 +543,10 @@ impl NativeExecutor {
         }
         self.set_attached_mode(&target.key, mode.clone())?;
         if let ControllerMode::Controlling(controller_id) = &mode {
-            let geometry = self.mailbox.latest_geometry().map_err(closed)?;
+            let geometry = match target.geometry {
+                Some(geometry) => geometry,
+                None => self.mailbox.latest_geometry().map_err(closed)?,
+            };
             if !self.resize_for_setup(
                 owner,
                 &target.key,
@@ -569,6 +650,12 @@ impl NativeExecutor {
                 }
                 _ => return Err(CarrierFailure::Protocol),
             }
+            if !self.owns_global_ready(owner, &target.key)? {
+                // A background pane's staged frame already converges its
+                // record; the Ready phase belongs to the focus pane alone.
+                self.attached_mut(&target.key)?.setup = None;
+                return Ok(SetupCompletion::Ready);
+            }
             let (mode, accepted_geometry) = self.attached_setup_facts(&target.key)?;
             let reply = self.publish_and_wait(
                 WorkerEvent::ReadyCandidate {
@@ -634,48 +721,54 @@ impl NativeExecutor {
             if let Some((request, operation)) = create {
                 self.run_create(&lease, request, operation)?;
             } else {
-                match lease.record() {
+                let step = match lease.record() {
                     QueuedCommand::Input(tagged) => {
                         let deadline = self.client.next_operation_deadline();
-                        settle_ready_flow(self.run_input(&lease, tagged, deadline))?;
+                        settle_ready_flow(self.run_input(&lease, tagged, deadline))
                     }
                     QueuedCommand::Resize(tagged) => {
                         let deadline = self.client.next_operation_deadline();
-                        settle_ready_flow(self.run_resize(&lease, tagged, deadline))?;
+                        settle_ready_flow(self.run_resize(&lease, tagged, deadline))
                     }
                     QueuedCommand::Poll(_) => {
                         let deadline = self.client.next_operation_deadline();
-                        settle_ready_flow(self.run_poll(&lease, deadline))?;
+                        settle_ready_flow(self.run_poll(&lease, deadline))
                     }
                     QueuedCommand::Switch(marker) => {
-                        self.run_switch(&lease, marker.target().clone())?
+                        self.run_switch(&lease, marker.target().clone())
                     }
-                    QueuedCommand::Create(_) => return Err(CarrierFailure::Protocol),
-                    QueuedCommand::Refresh(marker) => self.run_refresh(&lease, *marker)?,
+                    QueuedCommand::Create(_) => Err(CarrierFailure::Protocol),
+                    QueuedCommand::Refresh(marker) => self.run_refresh(&lease, *marker),
                     QueuedCommand::Move(marker) => {
-                        self.run_move(&lease, marker.operation().clone())?
+                        self.run_move(&lease, marker.operation().clone())
                     }
                     QueuedCommand::Panel(marker) => {
-                        self.run_panel(&lease, marker.operation().clone())?
+                        self.run_panel(&lease, marker.operation().clone())
                     }
                     QueuedCommand::WorkspaceSetup(marker) => {
-                        self.run_workspace_setup(&lease, marker.0.clone())?
+                        self.run_workspace_setup(&lease, marker.0.clone())
                     }
                     QueuedCommand::Rename(marker) => {
-                        self.run_rename(&lease, marker.operation().clone())?
+                        self.run_rename(&lease, marker.operation().clone())
                     }
                     QueuedCommand::Close(marker) => {
-                        self.run_close(&lease, marker.operation().clone())?
+                        self.run_close(&lease, marker.operation().clone())
                     }
                     QueuedCommand::ReconcileClose(marker) => {
-                        self.run_close_reconciliation(&lease, marker)?
+                        self.run_close_reconciliation(&lease, marker)
                     }
-                }
+                    QueuedCommand::ReconcilePanes(marker) => self.run_reconcile(&lease, marker),
+                };
+                step?;
             }
             self.mailbox.finish_lease(lease).map_err(closed)?;
         }
     }
 
+    /// Input and resize serve the focus pane alone; the pane must still hold a
+    /// controlling lease. A focus-scoped command that arrives for a degraded
+    /// or detached pane is dropped — pane-local failure never kills the
+    /// session carrying unrelated panes.
     fn run_input(
         &mut self,
         lease: &CommandLease,
@@ -683,11 +776,16 @@ impl NativeExecutor {
         deadline: Instant,
     ) -> ReadyResult<()> {
         let (key, input) = (tagged.key(), tagged.value().clone());
-        let desired = self.execution_desired(lease)?;
-        if self.attached_key() != Some(key) && desired.as_ref() != Some(key) {
+        self.execution_desired(lease)?;
+        // A queued input binds the exact attachment incarnation: once the pane
+        // detached and re-bound, the fence drops the stale command instead of
+        // replaying it against the new attachment.
+        if self.attached_ref(key).is_err() {
             return Ok(());
         }
-        let controller = self.controller_for(key)?;
+        let Some(controller) = self.controller_for(key)? else {
+            return Ok(());
+        };
         let sequence = self.next_control_sequence(key)?;
         let outcome = self.control_for_lease(
             lease,
@@ -705,10 +803,18 @@ impl NativeExecutor {
             TerminalControlOutcome::OutcomeUnknown {} => {
                 Err(ReadyFlowError::Carrier(CarrierFailure::OutcomeUnknown))
             }
+            TerminalControlOutcome::Rejected {
+                reason: ControlRejectedReason::NotController,
+            } => self.settle_pane_control_lost(lease, key, deadline),
+            TerminalControlOutcome::Rejected { .. } => {
+                Err(ReadyFlowError::Carrier(CarrierFailure::Protocol))
+            }
+            TerminalControlOutcome::Unavailable {
+                reason: ControlUnavailableReason::TerminalRuntimeUnavailable,
+            } => self.settle_pane_viewer_lost(lease, key, deadline),
             TerminalControlOutcome::Acquired { .. }
             | TerminalControlOutcome::Resized { .. }
             | TerminalControlOutcome::Pasted { .. }
-            | TerminalControlOutcome::Rejected { .. }
             | TerminalControlOutcome::Unavailable { .. } => {
                 Err(ReadyFlowError::Carrier(CarrierFailure::Protocol))
             }
@@ -723,11 +829,15 @@ impl NativeExecutor {
     ) -> ReadyResult<()> {
         let key = tagged.key().clone();
         let geometry = *tagged.value();
-        let desired = self.execution_desired(lease)?;
-        if self.attached_key() != Some(&key) && desired.as_ref() != Some(&key) {
+        self.execution_desired(lease)?;
+        // Same incarnation fence as input: a queued resize that outlived its
+        // attachment is dropped, never replayed to a re-bound viewer.
+        if self.attached_ref(&key).is_err() {
             return Ok(());
         }
-        let controller = self.controller_for(&key)?;
+        let Some(controller) = self.controller_for(&key)? else {
+            return Ok(());
+        };
         let sequence = self.next_control_sequence(&key)?;
         let outcome = self.control_for_lease(
             lease,
@@ -745,11 +855,23 @@ impl NativeExecutor {
             TerminalControlOutcome::OutcomeUnknown {} => {
                 return Err(ReadyFlowError::Carrier(CarrierFailure::OutcomeUnknown));
             }
+            TerminalControlOutcome::Rejected {
+                reason: ControlRejectedReason::NotController,
+            } => {
+                return self.settle_pane_control_lost(lease, &key, deadline);
+            }
+            TerminalControlOutcome::Rejected { .. } => {
+                return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
+            }
+            TerminalControlOutcome::Unavailable {
+                reason: ControlUnavailableReason::TerminalRuntimeUnavailable,
+            } => {
+                return self.settle_pane_viewer_lost(lease, &key, deadline);
+            }
             TerminalControlOutcome::Acquired { .. }
             | TerminalControlOutcome::InputAccepted {}
             | TerminalControlOutcome::Resized { .. }
             | TerminalControlOutcome::Pasted { .. }
-            | TerminalControlOutcome::Rejected { .. }
             | TerminalControlOutcome::Unavailable { .. } => {
                 return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
             }
@@ -759,11 +881,15 @@ impl NativeExecutor {
         self.publish_ready_setup_configuration(lease, &key, deadline, cutoff)
     }
 
+    /// Polls run per pane incarnation: any exact member of the reconciled set
+    /// polls continuously, focused or not. A definite rejection or carrier
+    /// loss on a still-current pane is a pane-local `ViewerLost` — the pane is
+    /// disposed locally, the notice parks its record, and unrelated panes
+    /// keep polling.
     fn run_poll(&mut self, lease: &CommandLease, deadline: Instant) -> ReadyResult<()> {
         let poll_key = lease.poll_key().ok_or(CarrierFailure::Protocol)?;
-        let key = poll_key.attachment().clone();
-        if self.attached_key() != Some(&key) || self.execution_desired(lease)? != Some(key.clone())
-        {
+        let key = poll_key.pane_ref().clone();
+        if self.attached_ref(&key).is_err() || !self.pane_admitted(lease, &key)? {
             return Ok(());
         }
         let Some((request_id, outcome)) = self.viewer_for_ready_lease(
@@ -777,7 +903,7 @@ impl NativeExecutor {
         else {
             return Ok(());
         };
-        let current = self.execution_desired(lease)? == Some(key.clone());
+        let current = self.pane_admitted(lease, &key)?;
         #[cfg(target_os = "linux")]
         if current
             && matches!(
@@ -804,9 +930,10 @@ impl NativeExecutor {
             {
                 return Ok(());
             }
-            TerminalViewerOutcome::Rejected { .. }
-            | TerminalViewerOutcome::Unavailable { .. }
-            | TerminalViewerOutcome::Attached { .. }
+            TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. } => {
+                return self.settle_pane_viewer_lost(lease, &key, deadline);
+            }
+            TerminalViewerOutcome::Attached { .. }
             | TerminalViewerOutcome::FeedbackAccepted {}
             | TerminalViewerOutcome::Detached {}
             | TerminalViewerOutcome::RowsRejected { .. } => {
@@ -837,7 +964,7 @@ impl NativeExecutor {
         let CausalSettlement::Feedback(feedback) = causal else {
             return Ok(());
         };
-        if self.execution_desired(lease)? != Some(key.clone()) {
+        if !self.pane_admitted(lease, &key)? {
             self.mailbox.discard_taken_switch_causal(lease, &poll_key)?;
             return Ok(());
         }
@@ -848,7 +975,7 @@ impl NativeExecutor {
             self.mailbox.discard_taken_switch_causal(lease, &poll_key)?;
             return Ok(());
         };
-        let current = self.execution_desired(lease)? == Some(key.clone());
+        let current = self.pane_admitted(lease, &key)?;
         match result {
             TerminalViewerOutcome::FeedbackAccepted {} => {}
             TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. }
@@ -857,9 +984,11 @@ impl NativeExecutor {
                 self.mailbox.discard_taken_switch_causal(lease, &poll_key)?;
                 return Ok(());
             }
-            TerminalViewerOutcome::Rejected { .. }
-            | TerminalViewerOutcome::Unavailable { .. }
-            | TerminalViewerOutcome::Attached { .. }
+            TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. } => {
+                self.mailbox.discard_taken_switch_causal(lease, &poll_key)?;
+                return self.settle_pane_viewer_lost(lease, &key, deadline);
+            }
+            TerminalViewerOutcome::Attached { .. }
             | TerminalViewerOutcome::Detached {}
             | TerminalViewerOutcome::Empty {}
             | TerminalViewerOutcome::Record(_)
@@ -903,7 +1032,8 @@ impl NativeExecutor {
         target: AttachTarget,
     ) -> Result<()> {
         let target_key = target.selected().key().clone();
-        if self.execution_desired(lease)? != Some(target_key.clone()) {
+        let actual_desired = self.execution_desired(lease)?;
+        if actual_desired != Some(target_key.clone()) {
             return Ok(());
         }
         if self.clock.now() >= target.deadlines().forward_cutoff() {
@@ -929,7 +1059,7 @@ impl NativeExecutor {
         }
         self.settle_switch_entry_expired_parts(
             lease,
-            target.selected().key(),
+            &target.pane_ref(),
             target.selected().index(),
             target.provenance(),
             total,
@@ -961,12 +1091,12 @@ impl NativeExecutor {
     fn settle_switch_entry_expired_parts(
         &self,
         lease: &CommandLease,
-        target_key: &AttachmentKey,
+        target_key: &PaneRef,
         target_index: usize,
         target_provenance: &CreateTerminalProvenance,
         total: Instant,
     ) -> Result<SetupCompletion> {
-        if self.execution_desired(lease)?.as_ref() != Some(target_key) {
+        if self.execution_desired(lease)?.as_ref() != Some(target_key.pane()) {
             return Ok(SetupCompletion::Superseded);
         }
         let reply = self.publish_and_wait(
@@ -1037,12 +1167,23 @@ impl NativeExecutor {
         operation: &CreateOperation,
         outcome: CreatePrecommitOutcome,
     ) -> Result<()> {
-        let applied_geometry = match (operation.origin(), self.attached.as_ref()) {
-            (crate::terminal_session::state::CreateOriginKind::Ready, Some(attached)) => {
-                attached.accepted_geometry
+        let applied_geometry = match operation.origin() {
+            crate::terminal_session::state::CreateOriginKind::Ready => {
+                let focus = self
+                    .execution_desired(lease)?
+                    .ok_or(CarrierFailure::Protocol)?;
+                self.attachments
+                    .iter()
+                    .find(|attached| attached.key.pane() == &focus)
+                    .ok_or(CarrierFailure::Protocol)?
+                    .accepted_geometry
             }
-            (crate::terminal_session::state::CreateOriginKind::Empty, None) => None,
-            _ => return Err(CarrierFailure::Protocol),
+            crate::terminal_session::state::CreateOriginKind::Empty => {
+                if !self.attachments.is_empty() {
+                    return Err(CarrierFailure::Protocol);
+                }
+                None
+            }
         };
         let cutoff = self.effective_lease_cutoff(lease, operation.deadlines().forward_cutoff())?;
         let reply = self.publish_and_wait(
@@ -1310,7 +1451,7 @@ impl NativeExecutor {
         }
     }
 
-    fn publish_setup_configuration(&mut self, key: &AttachmentKey, cutoff: Instant) -> Result<()> {
+    fn publish_setup_configuration(&mut self, key: &PaneRef, cutoff: Instant) -> Result<()> {
         let (mode, applied_geometry) = self.attached_setup_facts(key)?;
         let reply = self.publish_and_wait(
             WorkerEvent::SetupConfigured {
@@ -1333,7 +1474,7 @@ impl NativeExecutor {
     fn publish_ready_setup_configuration(
         &mut self,
         lease: &CommandLease,
-        key: &AttachmentKey,
+        key: &PaneRef,
         deadline: Instant,
         cutoff: Instant,
     ) -> ReadyResult<()> {
@@ -1381,7 +1522,7 @@ impl NativeExecutor {
     fn publish_and_wait_ready(
         &self,
         lease: &CommandLease,
-        key: &AttachmentKey,
+        key: &PaneRef,
         deadline: Instant,
         event_value: WorkerEvent,
         cutoff: Instant,
@@ -1425,14 +1566,56 @@ impl NativeExecutor {
         }
     }
 
-    fn cleanup_after_setup_failure(&mut self, owner: SetupOwner<'_>) -> Result<SetupCompletion> {
-        let Some(attached) = self.attached.as_ref() else {
-            return Err(CarrierFailure::Deadline);
+    /// A definite attach refusal or carrier loss before any viewer existed:
+    /// pane-local fault, published as a notice — never a session error.
+    fn settle_attach_fault(
+        &self,
+        target: &SetupTarget,
+        outcome: &TerminalViewerOutcome,
+        cutoff: Instant,
+    ) -> Result<SetupCompletion> {
+        let fault = match outcome {
+            TerminalViewerOutcome::Rejected { reason } => match reason {
+                // The binding is occupied by another attachment — definite,
+                // parked until the selection changes.
+                ViewerRejectedReason::AlreadyAttached => PaneFault::CapacityExceeded,
+                ViewerRejectedReason::TerminalUnavailable
+                | ViewerRejectedReason::FeedbackMismatch => PaneFault::AttachRejected,
+            },
+            TerminalViewerOutcome::Unavailable { .. } => PaneFault::AttachUnavailable,
+            TerminalViewerOutcome::Attached { .. }
+            | TerminalViewerOutcome::Empty {}
+            | TerminalViewerOutcome::FeedbackAccepted {}
+            | TerminalViewerOutcome::Detached {}
+            | TerminalViewerOutcome::Record(_)
+            | TerminalViewerOutcome::RowsRejected { .. } => {
+                return Err(CarrierFailure::Protocol);
+            }
         };
-        let target = attached.setup.clone().ok_or(CarrierFailure::Protocol)?;
+        self.mailbox
+            .publish_notice_before(
+                WorkerEvent::PaneFailed {
+                    key: target.key.clone(),
+                    fault,
+                },
+                cutoff,
+                &self.clock,
+            )
+            .map_err(event)?;
+        Ok(SetupCompletion::StableWithoutViewer)
+    }
+
+    fn cleanup_after_setup_failure(
+        &mut self,
+        owner: SetupOwner<'_>,
+        target: &SetupTarget,
+    ) -> Result<SetupCompletion> {
         let Some(deadlines) = target.deadlines else {
             return Err(CarrierFailure::Deadline);
         };
+        if self.attached_ref(&target.key).is_err() {
+            return Err(CarrierFailure::Deadline);
+        }
         let outcome = self.viewer_for_cleanup(
             owner,
             TerminalViewerAction::Detach {
@@ -1443,7 +1626,23 @@ impl NativeExecutor {
         if !matches!(outcome, TerminalViewerOutcome::Detached {}) {
             return Err(CarrierFailure::Protocol);
         }
-        self.attached = None;
+        self.remove_attachment(&target.key)?;
+        if target.fault_on_failure {
+            // The pane's attach pipeline died mid-way; the viewer is disposed
+            // and the pane parks with a transient fault the next reconcile
+            // may retry.
+            self.mailbox
+                .publish_notice_before(
+                    WorkerEvent::PaneFailed {
+                        key: target.key.clone(),
+                        fault: PaneFault::ViewerLost,
+                    },
+                    deadlines.total(),
+                    &self.clock,
+                )
+                .map_err(event)?;
+            return Ok(SetupCompletion::StableWithoutViewer);
+        }
         let wait = self
             .mailbox
             .publish_event_before(
@@ -1472,11 +1671,11 @@ impl NativeExecutor {
         }
     }
 
-    fn cleanup_startup_setup(&mut self, owner: SetupOwner<'_>, key: &AttachmentKey) -> Result<()> {
+    fn cleanup_startup_setup(&mut self, owner: SetupOwner<'_>, key: &PaneRef) -> Result<()> {
         let SetupOwner::Startup { cutoff } = owner else {
             return Err(CarrierFailure::Protocol);
         };
-        if self.attached_key() != Some(key) {
+        if self.attached_ref(key).is_err() {
             return Err(CarrierFailure::Protocol);
         }
         let outcome = self.viewer_for_cleanup(
@@ -1489,14 +1688,14 @@ impl NativeExecutor {
         if !matches!(outcome, TerminalViewerOutcome::Detached {}) {
             return Err(CarrierFailure::Protocol);
         }
-        self.attached = None;
+        self.remove_attachment(key)?;
         Ok(())
     }
 
     fn viewer_for_initial_attach(
         &mut self,
         owner: SetupOwner<'_>,
-        key: &AttachmentKey,
+        key: &PaneRef,
         action: TerminalViewerAction,
         cutoff: Instant,
         entry_expiry: SetupEntryExpiry,
@@ -1549,7 +1748,7 @@ impl NativeExecutor {
     fn viewer_for_setup(
         &mut self,
         owner: SetupOwner<'_>,
-        key: &AttachmentKey,
+        key: &PaneRef,
         action: TerminalViewerAction,
         cutoff: Instant,
     ) -> Result<Option<TerminalViewerOutcome>> {
@@ -1574,7 +1773,7 @@ impl NativeExecutor {
     fn control_for_setup(
         &mut self,
         owner: SetupOwner<'_>,
-        key: &AttachmentKey,
+        key: &PaneRef,
         action: TerminalControlAction,
         cutoff: Instant,
     ) -> Result<Option<TerminalControlOutcome>> {
@@ -1604,7 +1803,7 @@ impl NativeExecutor {
     fn resize_for_setup(
         &mut self,
         owner: SetupOwner<'_>,
-        key: &AttachmentKey,
+        key: &PaneRef,
         controller_id: orchbee_client_server_protocol::ControllerId,
         geometry: Geometry,
         cutoff: Instant,
@@ -1643,7 +1842,7 @@ impl NativeExecutor {
     fn control_for_lease(
         &mut self,
         lease: &CommandLease,
-        key: &AttachmentKey,
+        key: &PaneRef,
         action: TerminalControlAction,
         deadline: Instant,
     ) -> ReadyResult<TerminalControlOutcome> {
@@ -1687,8 +1886,9 @@ impl NativeExecutor {
             match owner {
                 SetupOwner::Startup { .. } => {
                     let key = self
-                        .attached_key()
-                        .cloned()
+                        .attachments
+                        .first()
+                        .map(|attached| attached.key.clone())
                         .ok_or(CarrierFailure::Protocol)?;
                     self.mailbox
                         .await_startup_change_before(&key, total, &self.clock)
@@ -1699,14 +1899,22 @@ impl NativeExecutor {
                         .await_execution_change_before(lease, total, &self.clock)
                         .map_err(closed)?;
                 }
+                // Same yield contract as `await_setup_retry`: background
+                // cleanup never sleeps on the lease. The half-disposed
+                // attachment keeps `setup.is_some()`, so the requeued
+                // reconcile picks it up as stale and retries the Detach.
+                SetupOwner::Reconcile(_) => return Err(CarrierFailure::Deadline),
             }
         }
     }
 
+    /// Viewer work for a live pane: admitted while the pane stays in the
+    /// reconciled set — focus is irrelevant here, so background viewers keep
+    /// polling and applying frames.
     fn viewer_for_ready_lease(
         &mut self,
         lease: &CommandLease,
-        key: &AttachmentKey,
+        key: &PaneRef,
         action: TerminalViewerAction,
         deadline: Instant,
     ) -> ReadyResult<
@@ -1716,7 +1924,7 @@ impl NativeExecutor {
         )>,
     > {
         loop {
-            if self.execution_desired(lease)?.as_ref() != Some(key) {
+            if !self.pane_admitted(lease, key)? {
                 return Ok(None);
             }
             let cutoff = self.effective_lease_cutoff(lease, deadline)?;
@@ -1734,7 +1942,7 @@ impl NativeExecutor {
             ) {
                 return Ok(Some((request_id, outcome)));
             }
-            if self.execution_desired(lease)?.as_ref() != Some(key) {
+            if !self.pane_admitted(lease, key)? {
                 return Ok(None);
             }
             let fence = self
@@ -1744,7 +1952,7 @@ impl NativeExecutor {
             if !fence.lease_current() {
                 return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
             }
-            if fence.desired().key() != Some(key) {
+            if !fence.desired().admits(key) {
                 return Ok(None);
             }
         }
@@ -1753,7 +1961,7 @@ impl NativeExecutor {
     fn viewer_once_ready(
         &mut self,
         lease: &CommandLease,
-        key: &AttachmentKey,
+        key: &PaneRef,
         action: TerminalViewerAction,
         deadline: Instant,
         cutoff: Instant,
@@ -1772,9 +1980,7 @@ impl NativeExecutor {
             cutoff,
         ) {
             Ok(result) => Ok(Some((request_id, result.into_outcome()))),
-            Err(SubmissionError::RequestNotSubmitted(_))
-                if self.execution_desired(lease)?.as_ref() != Some(key) =>
-            {
+            Err(SubmissionError::RequestNotSubmitted(_)) if !self.pane_admitted(lease, key)? => {
                 Ok(None)
             }
             Err(error) => Err(self.ready_submission_error(lease, key, deadline, error)),
@@ -1784,7 +1990,7 @@ impl NativeExecutor {
     fn control_once_ready(
         &mut self,
         lease: &CommandLease,
-        key: &AttachmentKey,
+        key: &PaneRef,
         action: TerminalControlAction,
         deadline: Instant,
         cutoff: Instant,
@@ -1802,7 +2008,7 @@ impl NativeExecutor {
     fn ensure_ready_before(
         &self,
         lease: &CommandLease,
-        key: &AttachmentKey,
+        key: &PaneRef,
         deadline: Instant,
         cutoff: Instant,
     ) -> ReadyResult<()> {
@@ -1816,7 +2022,7 @@ impl NativeExecutor {
     fn ready_submission_error(
         &self,
         lease: &CommandLease,
-        key: &AttachmentKey,
+        key: &PaneRef,
         deadline: Instant,
         error: SubmissionError,
     ) -> ReadyFlowError {
@@ -1833,7 +2039,7 @@ impl NativeExecutor {
     fn ready_event_error(
         &self,
         lease: &CommandLease,
-        key: &AttachmentKey,
+        key: &PaneRef,
         deadline: Instant,
         error: EventError,
     ) -> ReadyFlowError {
@@ -1846,7 +2052,7 @@ impl NativeExecutor {
     fn ready_missing_reply(
         &self,
         lease: &CommandLease,
-        key: &AttachmentKey,
+        key: &PaneRef,
         deadline: Instant,
     ) -> ReadyFlowError {
         match self.effective_lease_cutoff(lease, deadline) {
@@ -1861,7 +2067,7 @@ impl NativeExecutor {
     fn ready_deadline_error(
         &self,
         lease: &CommandLease,
-        key: &AttachmentKey,
+        key: &PaneRef,
         deadline: Instant,
     ) -> ReadyFlowError {
         if let Some(failure) = self.mailbox.is_closed() {
@@ -1874,7 +2080,7 @@ impl NativeExecutor {
         let switch_cutoff = fence.barrier().filter(|barrier| {
             barrier.kind() == BarrierKind::Switch && barrier.forward_cutoff() <= deadline
         });
-        if self.attached_key() == Some(key)
+        if self.attached_ref(key).is_ok()
             && switch_cutoff.is_some_and(|barrier| self.clock.now() >= barrier.forward_cutoff())
         {
             ReadyFlowError::ForwardDrainExpired
@@ -1911,17 +2117,20 @@ impl NativeExecutor {
             .map_err(submission)
     }
 
-    fn setup_is_current(&self, owner: SetupOwner<'_>, key: &AttachmentKey) -> Result<bool> {
+    /// Whether the mailbox still admits setup work for this exact pane
+    /// incarnation: the focus pane (logical fencing — its incarnation is
+    /// minted state-side) or any member of the latest reconcile snapshot.
+    fn setup_is_current(&self, owner: SetupOwner<'_>, key: &PaneRef) -> Result<bool> {
         match owner {
             // Native admission remains closed throughout Starting. The startup-specific poll
             // allocator and Busy wait validate the exact desired key under the mailbox gate.
             SetupOwner::Startup { .. } => Ok(true),
-            SetupOwner::Lease(lease) => {
+            SetupOwner::Lease(lease) | SetupOwner::Reconcile(lease) => {
                 let fence = self.mailbox.execution_fence(lease);
                 if !fence.lease_current() {
                     return Err(CarrierFailure::Protocol);
                 }
-                Ok(fence.desired().key() == Some(key))
+                Ok(fence.desired().admits(key))
             }
         }
     }
@@ -1929,7 +2138,7 @@ impl NativeExecutor {
     fn await_setup_retry(
         &self,
         owner: SetupOwner<'_>,
-        key: &AttachmentKey,
+        key: &PaneRef,
         cutoff: Instant,
     ) -> Result<()> {
         match owner {
@@ -1938,7 +2147,7 @@ impl NativeExecutor {
                     .mailbox
                     .await_startup_change_before(key, cutoff, &self.clock)
                     .map_err(event)?;
-                if desired.key() != Some(key) {
+                if desired.key() != Some(key.pane()) {
                     return Err(CarrierFailure::Protocol);
                 }
             }
@@ -1947,22 +2156,23 @@ impl NativeExecutor {
                     .await_execution_change_before(lease, cutoff, &self.clock)
                     .map_err(closed)?;
             }
+            // A reconcile-owned step is background work: its ServerBusy wait
+            // must not pin the command lease, so the retry wait reports as a
+            // step yield. `attach_reconcile_pane` turns it into a deferred
+            // requeue instead of an in-lease sleep.
+            SetupOwner::Reconcile(_) => return Err(CarrierFailure::Deadline),
         }
         Ok(())
     }
 
-    fn allocate_setup_poll(
-        &self,
-        owner: SetupOwner<'_>,
-        key: &AttachmentKey,
-    ) -> Result<Option<PollKey>> {
+    fn allocate_setup_poll(&self, owner: SetupOwner<'_>, key: &PaneRef) -> Result<Option<PollKey>> {
         match owner {
             SetupOwner::Startup { .. } => self
                 .mailbox
                 .allocate_startup_poll_key(key)
                 .map(Some)
                 .map_err(closed),
-            SetupOwner::Lease(lease) => match self
+            SetupOwner::Lease(lease) | SetupOwner::Reconcile(lease) => match self
                 .mailbox
                 .allocate_setup_poll_key(lease, key)
                 .map_err(closed)?
@@ -1983,12 +2193,39 @@ impl NativeExecutor {
             .map_or(deadline, |barrier| deadline.min(barrier.forward_cutoff())))
     }
 
-    fn execution_desired(&self, lease: &CommandLease) -> Result<Option<AttachmentKey>> {
+    /// The mailbox's admitted-pane snapshot for `lease` — exact incarnation
+    /// membership for background-pane work.
+    fn pane_admitted(&self, lease: &CommandLease, key: &PaneRef) -> ReadyResult<bool> {
+        let fence = self.mailbox.execution_fence(lease);
+        if !fence.lease_current() {
+            return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
+        }
+        Ok(fence.desired().admits(key))
+    }
+
+    /// The focus pane the mailbox admits, if any.
+    fn execution_desired(&self, lease: &CommandLease) -> Result<Option<PaneKey>> {
         let fence = self.mailbox.execution_fence(lease);
         if !fence.lease_current() {
             return Err(CarrierFailure::Protocol);
         }
         Ok(fence.desired().key().cloned())
+    }
+
+    /// Whether this setup completion may publish the session's global
+    /// `ReadyCandidate`: Startup and operation-Lease setups whose target
+    /// still holds focus own the Ready phase. A Reconcile setup is background
+    /// convergence — it completes its own record's chain and returns, never
+    /// publishing the global candidate even when its target currently holds
+    /// focus, so an already-Ready session is not pushed into a second Ready.
+    fn owns_global_ready(&self, owner: SetupOwner<'_>, key: &PaneRef) -> Result<bool> {
+        match owner {
+            SetupOwner::Startup { .. } => Ok(true),
+            SetupOwner::Reconcile(_) => Ok(false),
+            SetupOwner::Lease(lease) => {
+                Ok(self.execution_desired(lease)?.as_ref() == Some(key.pane()))
+            }
+        }
     }
 
     fn ensure_before(&self, cutoff: Instant) -> Result<()> {
@@ -1999,14 +2236,7 @@ impl NativeExecutor {
         }
     }
 
-    fn attached_key(&self) -> Option<&AttachmentKey> {
-        self.attached.as_ref().map(|attached| &attached.key)
-    }
-
-    fn viewer_id_for(
-        &self,
-        key: &AttachmentKey,
-    ) -> Result<orchbee_client_server_protocol::ViewerId> {
+    fn viewer_id_for(&self, key: &PaneRef) -> Result<orchbee_client_server_protocol::ViewerId> {
         Ok(self.attached_ref(key)?.attachment_id.clone())
     }
 
@@ -2014,33 +2244,29 @@ impl NativeExecutor {
         &self,
         attachment_id: &orchbee_client_server_protocol::ViewerId,
     ) -> Result<()> {
-        if self
-            .attached
-            .as_ref()
-            .map(|attached| &attached.attachment_id)
-            != Some(attachment_id)
+        if !self
+            .attachments
+            .iter()
+            .any(|attached| &attached.attachment_id == attachment_id)
         {
             return Err(CarrierFailure::Protocol);
         }
         Ok(())
     }
 
-    fn set_attached_mode(&mut self, key: &AttachmentKey, mode: ControllerMode) -> Result<()> {
+    fn set_attached_mode(&mut self, key: &PaneRef, mode: ControllerMode) -> Result<()> {
         let attached = self.attached_mut(key)?;
         attached.mode = Some(mode);
         Ok(())
     }
 
-    fn set_accepted_geometry(&mut self, key: &AttachmentKey, geometry: Geometry) -> Result<()> {
+    fn set_accepted_geometry(&mut self, key: &PaneRef, geometry: Geometry) -> Result<()> {
         let attached = self.attached_mut(key)?;
         attached.accepted_geometry = Some(geometry);
         Ok(())
     }
 
-    fn attached_setup_facts(
-        &self,
-        key: &AttachmentKey,
-    ) -> Result<(ControllerMode, Option<Geometry>)> {
+    fn attached_setup_facts(&self, key: &PaneRef) -> Result<(ControllerMode, Option<Geometry>)> {
         let attached = self.attached_ref(key)?;
         let mode = attached.mode.clone().ok_or(CarrierFailure::Protocol)?;
         let geometry = match mode {
@@ -2052,22 +2278,21 @@ impl NativeExecutor {
         Ok((mode, geometry))
     }
 
+    /// The pane's live controller id, or `None` when the pane is degraded
+    /// (view-only or not attached): focus-scoped commands to a degraded pane
+    /// are dropped rather than retired the session.
     fn controller_for(
         &self,
-        key: &AttachmentKey,
-    ) -> Result<orchbee_client_server_protocol::ControllerId> {
-        let ControllerMode::Controlling(controller) = self
-            .attached_ref(key)?
-            .mode
-            .as_ref()
-            .ok_or(CarrierFailure::Protocol)?
+        key: &PaneRef,
+    ) -> Result<Option<orchbee_client_server_protocol::ControllerId>> {
+        let Some(ControllerMode::Controlling(controller)) = self.attached_ref(key)?.mode.as_ref()
         else {
-            return Err(CarrierFailure::Protocol);
+            return Ok(None);
         };
-        Ok(controller.clone())
+        Ok(Some(controller.clone()))
     }
 
-    fn next_control_sequence(&mut self, key: &AttachmentKey) -> Result<NonZeroU64> {
+    fn next_control_sequence(&mut self, key: &PaneRef) -> Result<NonZeroU64> {
         let attached = self.attached_mut(key)?;
         attached.next_sequence = attached
             .next_sequence
@@ -2078,7 +2303,7 @@ impl NativeExecutor {
 
     fn refresh_control_sequence(
         &mut self,
-        key: &AttachmentKey,
+        key: &PaneRef,
         action: TerminalControlAction,
     ) -> Result<TerminalControlAction> {
         match action {
@@ -2119,18 +2344,338 @@ impl NativeExecutor {
         }
     }
 
-    fn attached_ref(&self, key: &AttachmentKey) -> Result<&AttachedTerminal> {
-        self.attached
-            .as_ref()
-            .filter(|attached| &attached.key == key)
+    /// The pane's controller grant ended or was refused: the viewer stays
+    /// live but the pane is parked view-only. `ControlLost` is a definite
+    /// fact — no automatic re-acquire — so the local mode is pinned ReadOnly
+    /// and the notice parks the record.
+    fn settle_pane_control_lost(
+        &mut self,
+        lease: &CommandLease,
+        key: &PaneRef,
+        deadline: Instant,
+    ) -> ReadyResult<()> {
+        if let Ok(attached) = self.attached_mut(key) {
+            attached.mode = Some(ControllerMode::ReadOnly);
+        }
+        self.publish_pane_fault(lease, key, PaneFault::ControlLost, deadline)
+    }
+
+    /// The pane's viewer carrier is gone: local removal plus a `ViewerLost`
+    /// notice parks the pane until the next reconcile re-arms it — the dead
+    /// carrier makes any wire detach meaningless, so disposal is canonical
+    /// here. The focus pane is the session's terminal: its loss retires the
+    /// session exactly like a protocol failure.
+    fn settle_pane_viewer_lost(
+        &mut self,
+        lease: &CommandLease,
+        key: &PaneRef,
+        deadline: Instant,
+    ) -> ReadyResult<()> {
+        if self.execution_desired(lease)?.as_ref() == Some(key.pane()) {
+            return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
+        }
+        if self.attached_ref(key).is_ok() {
+            self.remove_attachment(key)?;
+        }
+        self.publish_pane_fault(lease, key, PaneFault::ViewerLost, deadline)
+    }
+
+    fn publish_pane_fault(
+        &self,
+        lease: &CommandLease,
+        key: &PaneRef,
+        fault: PaneFault,
+        deadline: Instant,
+    ) -> ReadyResult<()> {
+        let cutoff = self.effective_lease_cutoff(lease, deadline)?;
+        self.mailbox
+            .publish_notice_before(
+                WorkerEvent::PaneFailed {
+                    key: key.clone(),
+                    fault,
+                },
+                cutoff,
+                &self.clock,
+            )
+            .map_err(|error| self.ready_event_error(lease, key, deadline, error))?;
+        Ok(())
+    }
+
+    /// One reconcile execution performs at most one pane-progress action —
+    /// a single stale disposal or a single target setup — then returns the
+    /// lease and requeues the remaining plan under the marker's unchanged
+    /// absolute deadline. The plan is computed once (the first execution
+    /// diffs live attachments against the snapshot) and travels with the
+    /// marker: a step that cannot finish rotates to the back so a busy or
+    /// refused first target never starves the steps behind it, and queued
+    /// live work always runs after at most one bounded background action.
+    /// Reaching the shared deadline ends the episode: the marker is dropped
+    /// without requeue and the state side settles the expiry as the terminal
+    /// fact — no fresh budget is minted here.
+    fn run_reconcile(&mut self, lease: &CommandLease, marker: &ReconcileMarker) -> Result<()> {
+        let desired = self.execution_desired(lease)?;
+        if desired.as_ref().map(PaneKey::anchor) != Some(marker.anchor()) {
+            return Ok(());
+        }
+        if self.clock.now() >= marker.deadlines().total() {
+            return Ok(());
+        }
+        let mut marker = marker.clone();
+        if marker.pending().is_none() {
+            let plan = self.plan_reconcile_steps(&marker);
+            marker.set_pending(plan);
+        }
+        let mut pending = marker.take_pending().unwrap_or_default();
+        let Some(step) = pending.pop_front() else {
+            return Ok(());
+        };
+        let progress = self.run_reconcile_step(lease, &marker, &step)?;
+        let deferred = match progress {
+            ReconcileProgress::Done => false,
+            ReconcileProgress::Retry => {
+                pending.push_back(step);
+                true
+            }
+            ReconcileProgress::Expired => return Ok(()),
+        };
+        if pending.is_empty() {
+            return Ok(());
+        }
+        marker.set_pending(pending);
+        let retry_at = if deferred {
+            Instant::now() + RECONCILE_BUSY_RETRY
+        } else {
+            Instant::now()
+        };
+        match self.mailbox.requeue_reconcile(marker, retry_at) {
+            // A full queue keeps the pending marker in state — the next
+            // observation re-derives and re-admits it — and a superseded
+            // anchor means a newer reconcile already owns the diff.
+            Ok(()) | Err(AdmissionError::Full | AdmissionError::StaleAttachment) => {}
+            Err(AdmissionError::Closed(closed)) => return Err(closed.failure()),
+            Err(_) => return Err(CarrierFailure::Protocol),
+        }
+        Ok(())
+    }
+
+    /// Plans the reconcile once from the live attachment view: every held
+    /// attachment the snapshot does not name — plus a named target whose
+    /// setup was abandoned mid-way (`setup.is_some()`), which is disposed and
+    /// re-attached rather than resumed — becomes a `Detach` step, followed by
+    /// an `Attach` step for every target not already fully installed.
+    fn plan_reconcile_steps(&self, marker: &ReconcileMarker) -> VecDeque<ReconcileStep> {
+        let mut steps: VecDeque<ReconcileStep> = self
+            .attachments
+            .iter()
+            .filter(|attached| attached.key.anchor() == marker.anchor())
+            .filter_map(|attached| {
+                let targeted = marker
+                    .targets()
+                    .iter()
+                    .any(|target| target.pane_ref() == &attached.key);
+                if targeted && attached.setup.is_none() {
+                    return None;
+                }
+                Some(ReconcileStep::Detach {
+                    key: attached.key.clone(),
+                    announced: attached.announced,
+                })
+            })
+            .collect();
+        for (index, target) in marker.targets().iter().enumerate() {
+            let converged = self
+                .attachments
+                .iter()
+                .any(|attached| &attached.key == target.pane_ref() && attached.setup.is_none());
+            if !converged {
+                steps.push_back(ReconcileStep::Attach(index));
+            }
+        }
+        steps
+    }
+
+    /// Executes one planned step. Every step re-validates against live
+    /// attachments so interleaved changes between executions stay correct:
+    /// an evaporated disposal or an already-converged target is consumed
+    /// without a wire action; an attach blocked by a half-installed zombie
+    /// rotates behind the disposal step that still owns it.
+    fn run_reconcile_step(
+        &mut self,
+        lease: &CommandLease,
+        marker: &ReconcileMarker,
+        step: &ReconcileStep,
+    ) -> Result<ReconcileProgress> {
+        let total = marker.deadlines().total();
+        match step {
+            ReconcileStep::Detach { key, announced } => {
+                if self.attachments.iter().all(|held| &held.key != key) {
+                    return Ok(ReconcileProgress::Done);
+                }
+                match self.detach_pane(key, total) {
+                    Ok(true) => {}
+                    Ok(false) => return Ok(ReconcileProgress::Retry),
+                    Err(CarrierFailure::Deadline) => {
+                        return Ok(self.reconcile_deadline_progress(total));
+                    }
+                    Err(failure) => return Err(failure),
+                }
+                // The disposal notice follows the *newest* snapshot
+                // membership, not this marker's targets: a pane re-admitted
+                // by a fresher reconcile is live, so its disposal is a
+                // `ViewerLost` the record survives — `PaneDetached` on a
+                // non-departing record is a protocol violation. A pane the
+                // newest snapshot dropped is departing and retired by the
+                // canonical proof. A half-setup the record never learned is
+                // silent either way.
+                let fence = self.mailbox.execution_fence(lease);
+                if !fence.lease_current() {
+                    return Ok(ReconcileProgress::Done);
+                }
+                match (fence.desired().contains(key), *announced) {
+                    (true, true) => {
+                        self.mailbox
+                            .publish_notice_before(
+                                WorkerEvent::PaneFailed {
+                                    key: key.clone(),
+                                    fault: PaneFault::ViewerLost,
+                                },
+                                total,
+                                &self.clock,
+                            )
+                            .map_err(event)?;
+                    }
+                    (true, false) => {}
+                    (false, _) => self.publish_pane_detached(key, total)?,
+                }
+                Ok(ReconcileProgress::Done)
+            }
+            ReconcileStep::Attach(index) => {
+                let Some(target) = marker.targets().get(*index) else {
+                    return Ok(ReconcileProgress::Done);
+                };
+                if let Some(attached) = self
+                    .attachments
+                    .iter()
+                    .find(|held| &held.key == target.pane_ref())
+                {
+                    return if attached.setup.is_none() {
+                        Ok(ReconcileProgress::Done)
+                    } else {
+                        // A half-installed zombie still occupies the pane:
+                        // its Detach step owns the disposal — rotate.
+                        Ok(ReconcileProgress::Retry)
+                    };
+                }
+                match self.attach_reconcile_pane(lease, marker, target) {
+                    Ok(()) => Ok(ReconcileProgress::Done),
+                    Err(CarrierFailure::Deadline) => Ok(self.reconcile_deadline_progress(total)),
+                    Err(failure) => Err(failure),
+                }
+            }
+        }
+    }
+
+    /// `Deadline` from a bounded step is overloaded: before the shared total
+    /// it is a `ServerBusy` yield or a submission that timed out unsent —
+    /// the step rotates and retries deferred; at or past the total it is the
+    /// episode's real expiry — terminal, no requeue, no fresh budget.
+    fn reconcile_deadline_progress(&self, total: Instant) -> ReconcileProgress {
+        if self.clock.now() >= total {
+            ReconcileProgress::Expired
+        } else {
+            ReconcileProgress::Retry
+        }
+    }
+
+    /// One bounded disposal step for one pane attachment: `Detached` is the
+    /// only canonical proof — the wire protocol already answers `Detached`
+    /// for a previously disposed viewer, so `Rejected` means the request was
+    /// genuinely refused and `Unavailable` means the server never decided.
+    /// Neither releases local state: the attachment survives and the caller
+    /// marks the reconcile for a deferred retry.
+    fn detach_pane(&mut self, key: &PaneRef, total: Instant) -> Result<bool> {
+        let viewer_id = self.viewer_id_for(key)?;
+        let outcome = self.viewer_once(
+            TerminalViewerAction::Detach {
+                attachment_id: viewer_id,
+            },
+            total,
+        )?;
+        match outcome {
+            TerminalViewerOutcome::Detached {} => {}
+            TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. } => {
+                return Ok(false);
+            }
+            TerminalViewerOutcome::Attached { .. }
+            | TerminalViewerOutcome::Empty {}
+            | TerminalViewerOutcome::FeedbackAccepted {}
+            | TerminalViewerOutcome::Record(_)
+            | TerminalViewerOutcome::RowsRejected { .. } => {
+                return Err(CarrierFailure::Protocol);
+            }
+        }
+        self.remove_attachment(key)?;
+        Ok(true)
+    }
+
+    /// Publishes the canonical disposal proof for one pane incarnation — the
+    /// fire-and-forget notice that retires the departing `PaneRecord`.
+    fn publish_pane_detached(&self, key: &PaneRef, cutoff: Instant) -> Result<()> {
+        self.mailbox
+            .publish_notice_before(
+                WorkerEvent::PaneDetached { key: key.clone() },
+                cutoff,
+                &self.clock,
+            )
+            .map_err(event)?;
+        Ok(())
+    }
+
+    /// Attaches one reconcile target through the ordinary setup pipeline —
+    /// one bounded step under the shared deadline. A `ServerBusy` wait yields
+    /// the lease instead of sleeping on it: it surfaces as `Deadline` and the
+    /// caller decides whether that is a pre-total retry or the episode's real
+    /// expiry. Definite attach failures (`Rejected`, non-`ServerBusy`
+    /// `Unavailable`) are pane-local faults reported by notice; unknown or
+    /// submitted-but-uncertain outcomes stay carrier failures.
+    fn attach_reconcile_pane(
+        &mut self,
+        lease: &CommandLease,
+        marker: &ReconcileMarker,
+        target: &ReconcileTarget,
+    ) -> Result<()> {
+        let setup = SetupTarget::reconcile(target, marker.deadlines())?;
+        self.setup_target(
+            setup,
+            SetupOwner::Reconcile(lease),
+            SetupEntryExpiry::Retire,
+        )
+        .map(|_| ())
+    }
+
+    fn attached_ref(&self, key: &PaneRef) -> Result<&AttachedTerminal> {
+        self.attachments
+            .iter()
+            .find(|attached| &attached.key == key)
             .ok_or(CarrierFailure::Protocol)
     }
 
-    fn attached_mut(&mut self, key: &AttachmentKey) -> Result<&mut AttachedTerminal> {
-        self.attached
-            .as_mut()
-            .filter(|attached| &attached.key == key)
+    fn attached_mut(&mut self, key: &PaneRef) -> Result<&mut AttachedTerminal> {
+        self.attachments
+            .iter_mut()
+            .find(|attached| &attached.key == key)
             .ok_or(CarrierFailure::Protocol)
+    }
+
+    /// Removes the attachment slot for `key`; canonical worker-side disposal
+    /// — the caller publishes `PaneDetached`/`PaneFailed` as the proof.
+    fn remove_attachment(&mut self, key: &PaneRef) -> Result<AttachedTerminal> {
+        let position = self
+            .attachments
+            .iter()
+            .position(|attached| &attached.key == key)
+            .ok_or(CarrierFailure::Protocol)?;
+        Ok(self.attachments.remove(position))
     }
 }
 

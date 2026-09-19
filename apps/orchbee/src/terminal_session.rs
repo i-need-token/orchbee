@@ -22,13 +22,13 @@ use std::sync::mpsc::{self, Receiver, SyncSender, TryRecvError};
 
 mod connection;
 mod mailbox;
-mod state;
+pub(crate) mod state;
 #[cfg(target_os = "linux")]
 mod status_recovery;
 mod ui;
 mod workbench_projection;
 
-pub(crate) use workbench_projection::{NativePanel, NativePanelTree};
+pub(crate) use workbench_projection::{NativeContextLocation, NativePanel, NativePanelTree};
 
 pub(crate) use ui::{
     ModalPresentation, NativeCloseConfirmationKind, NativeCloseConfirmationToken,
@@ -393,6 +393,26 @@ impl TerminalSession {
         // Geometry observation can finalize retirement before the shell asks tick for a redraw.
         self.retirement_redraw_pending = true;
     }
+
+    /// Reports every visible leaf's `(panel_id, panel_index, geometry)` so the
+    /// native backend synchronizes its per-pane viewer membership. Only the
+    /// Native backend tracks panes; the test Legacy backend keeps its single
+    /// resize channel through `observe_geometry`.
+    pub(crate) fn observe_panes(
+        &mut self,
+        panes: &[(
+            orchbee_workbench_protocol::WorkbenchPanelId,
+            usize,
+            Geometry,
+        )],
+    ) {
+        match &mut self.backend {
+            SessionBackend::Native(native) => native.observe_panes(panes),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => {}
+        }
+        self.finalize_native_retirement();
+    }
 }
 
 impl TerminalInputPort for TerminalSession {
@@ -497,6 +517,14 @@ impl TerminalInputPort for TerminalSession {
         };
         self.finalize_native_retirement();
         accepted.then_some(()).ok_or(TerminalInputUnavailable)
+    }
+
+    fn pointer_probe(&mut self) -> crate::terminal_input::PointerProbe {
+        match &mut self.backend {
+            SessionBackend::Native(native) => native.pointer_probe(),
+            #[cfg(test)]
+            SessionBackend::Legacy(legacy) => legacy.pointer_probe(),
+        }
     }
 
     fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
@@ -641,6 +669,51 @@ impl LegacySession {
         }
         let input = ControlInput::new(input.to_vec()).map_err(|_| TerminalInputUnavailable)?;
         self.send(LegacyCommand::Input(input))
+    }
+
+    /// The single attached pane's pointer facts: one sentinel tab/panel
+    /// pair the renderer's hit region re-resolves against, the session's
+    /// controller mode, and the current frame's interaction contract.
+    /// The pane is always the focused target — a legacy session has no
+    /// workbench membership, so no focus switch is ever in flight.
+    fn pointer_probe(&self) -> crate::terminal_input::PointerProbe {
+        use crate::terminal_input::{PointerFrameFacts, PointerPane, PointerTab};
+        let sentinel = crate::terminal_input::legacy_pane_ref();
+        let controlling = match self.status {
+            TerminalStatus::Controlling => Some(true),
+            TerminalStatus::ReadOnly => Some(false),
+            _ => None,
+        };
+        let mut probe = crate::terminal_input::PointerProbe {
+            input_ready: self.status == TerminalStatus::Controlling,
+            ..Default::default()
+        };
+        let Some(frame) = self.projection.as_ref().and_then(TerminalProjection::frame) else {
+            return probe;
+        };
+        probe.focus = Some(sentinel.clone());
+        probe.desired = Some(sentinel.pane().clone());
+        probe.panes = vec![PointerPane {
+            record: sentinel,
+            attached: true,
+            controlling,
+            frame_available: true,
+        }];
+        probe.tabs = vec![PointerTab {
+            id: crate::terminal_input::legacy_pane_tab(),
+            position: 1,
+        }];
+        probe.frame = Some(PointerFrameFacts {
+            tracking: frame.interaction.mouse_tracking(),
+            format: frame.interaction.mouse_format(),
+            cell_pixel: (
+                frame.geometry.cell_pixel_width,
+                frame.geometry.cell_pixel_height,
+            ),
+            alternate_screen: frame.alternate_screen,
+            application_cursor: frame.interaction.application_cursor_keys(),
+        });
+        probe
     }
 
     fn send(&self, command: LegacyCommand) -> Result<(), TerminalInputUnavailable> {

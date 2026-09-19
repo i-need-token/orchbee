@@ -22,6 +22,9 @@ pub(super) struct ContextDisplay<'a> {
     pub(super) standalone_label: &'a str,
 }
 
+/// Paints the navigator's context column and reports each painted row's
+/// `(context index, row offset)` to `on_row` in the same pass, so a
+/// recorded hit region can never disagree with what was drawn.
 pub(super) fn render_navigator<'a>(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -29,6 +32,7 @@ pub(super) fn render_navigator<'a>(
     active_position: Option<usize>,
     context_at: impl Fn(usize) -> Option<ContextDisplay<'a>>,
     theme: &Theme,
+    on_row: &mut impl FnMut(usize, u16),
 ) {
     let lines = navigator_lines(
         usize::from(area.width),
@@ -37,6 +41,7 @@ pub(super) fn render_navigator<'a>(
         active_position,
         &context_at,
         theme,
+        on_row,
     );
     frame.render_widget(Paragraph::new(lines), area);
 }
@@ -52,6 +57,7 @@ fn navigator_lines<'a>(
     active_position: Option<usize>,
     context_at: &impl Fn(usize) -> Option<ContextDisplay<'a>>,
     theme: &Theme,
+    on_row: &mut impl FnMut(usize, u16),
 ) -> Vec<Line<'static>> {
     let visible = height.min(MAX_VISIBLE_CONTEXTS).min(context_count);
     if visible == 0 || width == 0 {
@@ -75,15 +81,17 @@ fn navigator_lines<'a>(
         .min(max_start);
     let end = start.saturating_add(item_rows).min(context_count);
 
-    let mut lines: Vec<Line<'static>> = (start..end)
-        .map_while(context_at)
-        .map(|context| {
-            Line::from(Span::styled(
-                context_row(context, width, theme),
-                navigator_style(context.active, theme),
-            ))
-        })
-        .collect();
+    let mut lines = Vec::new();
+    for (offset, index) in (start..end).enumerate() {
+        let Some(context) = context_at(index) else {
+            break;
+        };
+        lines.push(Line::from(Span::styled(
+            context_row(context, width, theme),
+            navigator_style(context.active, theme),
+        )));
+        on_row(index, u16::try_from(offset).unwrap_or(u16::MAX));
+    }
     if context_count > visible {
         let current = active_index.map_or(end, |index| index.saturating_add(1));
         lines.push(Line::styled(

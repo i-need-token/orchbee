@@ -13,7 +13,7 @@ pub(crate) const PREFIX_CHORD: Binding = Binding::new(KeyCode::Char('b'), Modifi
 /// What one member key resolves to when matched under an armed prefix.
 /// `Client` actions map one-to-one to `ClientAction`; the toggle intents own
 /// their local view effects inside `ClientView::decide_prefix`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PrefixAction {
     Client(ClientAction),
     SelectTabDigit,
@@ -54,7 +54,7 @@ impl KeySet {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct PrefixMember {
     pub(crate) keys: KeySet,
     pub(crate) action: PrefixAction,
@@ -84,6 +84,7 @@ pub(crate) enum PrefixDesc {
     NavigatorToggle,
     ShowHelp,
     HelpPage,
+    PointerCapture,
     Exit,
     LiteralPrefix,
     DismissPrefix,
@@ -276,6 +277,13 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
             shell: ShellCommand::None,
         }],
         desc: PrefixDesc::ShowHelp,
+    },
+    PrefixGroup {
+        members: &[member(
+            key(KeyCode::Char('m')),
+            ClientAction::TogglePointerCapture,
+        )],
+        desc: PrefixDesc::PointerCapture,
     },
     // Pages an open help overlay; with help closed the chord is inert
     // (same unknown-prefix outcome as any unbound member key).

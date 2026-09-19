@@ -10,6 +10,7 @@
 
 use std::time::{Duration, Instant};
 
+use super::mouse::{self, MouseEvent};
 use crate::client_view::{KeyCode, KeyEvent, KeyKind, Modifiers};
 
 /// One decoded input item with its owned source bytes. `owned` marks an
@@ -38,6 +39,14 @@ impl DecodedItem {
             owned,
         }
     }
+
+    fn ignored(raw: &[u8], owned: bool) -> Self {
+        Self {
+            kind: DecodedKind::Ignored,
+            raw: raw.into(),
+            owned,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -49,8 +58,21 @@ pub(crate) enum DecodedKind {
     Paste {
         text: Option<String>,
     },
+    /// A complete, well-formed host mouse report (SGR `ESC[<…M/m`, or the
+    /// defensive X10 `ESC[M`+3 form). Mouse reports are host→client data:
+    /// the dispatcher routes them to hit-testing or pane passthrough and
+    /// never forwards their raw bytes as pending input.
+    Mouse(MouseEvent),
+    /// A mouse-shaped sequence that failed validation or never completed —
+    /// malformed SGR parameters, an X10 body aborted or timed out, an
+    /// over-bound `<`-prefixed run. These bytes are the host's pointer
+    /// protocol: consumed atomically and dropped, never reinterpreted as
+    /// keys and never forwarded raw to the pane.
+    Ignored,
     /// A complete sequence that is not a key event (unknown CSI/SS3, stray
-    /// paste terminator, malformed UTF-8 run). Consumed atomically.
+    /// paste terminator, malformed UTF-8 run). Consumed atomically and kept
+    /// in pending order — input the client does not claim still reaches the
+    /// pane.
     Nondecision,
 }
 
@@ -116,8 +138,18 @@ impl PasteEnd {
 #[derive(Debug)]
 enum Drain {
     Csi,
+    /// Same terminator boundary as `Csi`, but the run opened with the SGR
+    /// mouse marker `<`: the bytes are pointer protocol — drained and
+    /// dropped, never surfaced as pending input.
+    CsiMouse,
     Ss3,
     Paste(PasteEnd),
+    /// An X10 frame whose bounded wait expired mid-body: exactly
+    /// `remaining` more body bytes stay owned so a late tail can never
+    /// surface as fresh keys.
+    X10 {
+        remaining: u8,
+    },
 }
 
 #[derive(Debug)]
@@ -168,6 +200,15 @@ enum State {
     Paste {
         raw: Vec<u8>,
         end: PasteEnd,
+        deadline: Instant,
+        owned: bool,
+    },
+    /// Inside an X10 mouse report: the `ESC[M`/`9b M` head already sits in
+    /// `raw`, and exactly `remaining` body bytes (always ≤ 3) complete the
+    /// frame atomically across reads.
+    X10 {
+        raw: Vec<u8>,
+        remaining: u8,
         deadline: Instant,
         owned: bool,
     },
@@ -234,10 +275,18 @@ impl LegacyDecoder {
                 deadline,
                 owned,
             } if now >= deadline => {
-                items.push(DecodedItem::nondecision(&raw, owned));
+                // A `<`-bodied run that never terminated was an in-progress
+                // mouse report — the head drains as pointer protocol and
+                // the remainder stays owned by the CsiMouse drain.
+                let mouse = csi_mouse_shaped(&raw);
+                items.push(if mouse {
+                    DecodedItem::ignored(&raw, owned)
+                } else {
+                    DecodedItem::nondecision(&raw, owned)
+                });
                 self.state = State::Discard {
                     raw: Vec::new(),
-                    drain: Drain::Csi,
+                    drain: if mouse { Drain::CsiMouse } else { Drain::Csi },
                     owned,
                 };
             }
@@ -288,6 +337,22 @@ impl LegacyDecoder {
                     owned,
                 };
             }
+            // An X10 body that never completed is pointer protocol —
+            // the partial frame is dropped and its exact remainder drains
+            // bounded to three bytes like the frame itself.
+            State::X10 {
+                raw,
+                remaining,
+                deadline,
+                owned,
+            } if now >= deadline => {
+                items.push(DecodedItem::ignored(&raw, owned));
+                self.state = State::Discard {
+                    raw: Vec::new(),
+                    drain: Drain::X10 { remaining },
+                    owned,
+                };
+            }
             state => self.state = state,
         }
         items
@@ -304,18 +369,29 @@ impl LegacyDecoder {
                 State::Csi { mut raw, owned, .. } => {
                     if matches!(byte, 0x1b | 0x9b | 0x8f) {
                         // ESC/C1 aborts the sequence; the abort byte is
-                        // reprocessed as fresh input.
-                        items.push(DecodedItem::nondecision(&raw, owned));
+                        // reprocessed as fresh input. A `<`-bodied run was
+                        // an in-progress mouse report — pointer protocol,
+                        // dropped rather than forwarded.
+                        items.push(if csi_mouse_shaped(&raw) {
+                            DecodedItem::ignored(&raw, owned)
+                        } else {
+                            DecodedItem::nondecision(&raw, owned)
+                        });
                         pending = Some(byte);
                     } else {
                         raw.push(byte);
                         if (0x40..=0x7e).contains(&byte) {
                             self.finish_csi(&raw, now, owned, items);
                         } else if raw.len() >= CSI_BOUND {
-                            items.push(DecodedItem::nondecision(&raw, owned));
+                            let mouse = csi_mouse_shaped(&raw);
+                            items.push(if mouse {
+                                DecodedItem::ignored(&raw, owned)
+                            } else {
+                                DecodedItem::nondecision(&raw, owned)
+                            });
                             self.state = State::Discard {
                                 raw: Vec::new(),
-                                drain: Drain::Csi,
+                                drain: if mouse { Drain::CsiMouse } else { Drain::Csi },
                                 owned,
                             };
                         } else {
@@ -437,24 +513,62 @@ impl LegacyDecoder {
                         };
                     }
                 }
+                State::X10 {
+                    mut raw,
+                    remaining,
+                    owned,
+                    ..
+                } => {
+                    if matches!(byte, 0x1b | 0x9b | 0x8f) {
+                        // ESC/C1 aborts the report — the partial frame is
+                        // pointer protocol, dropped; the abort byte is
+                        // reprocessed as fresh input.
+                        items.push(DecodedItem::ignored(&raw, owned));
+                        pending = Some(byte);
+                    } else {
+                        raw.push(byte);
+                        let remaining = remaining - 1;
+                        if remaining == 0 {
+                            // Three body bytes complete the report
+                            // atomically: a well-formed one decodes to a
+                            // mouse item, a malformed one is consumed and
+                            // dropped as ignored — never keys.
+                            match mouse::decode_x10(&raw[csi_prefix_len(&raw) + 1..]) {
+                                Some(event) => items.push(DecodedItem {
+                                    kind: DecodedKind::Mouse(event),
+                                    raw: raw.into(),
+                                    owned,
+                                }),
+                                None => items.push(DecodedItem::ignored(&raw, owned)),
+                            }
+                        } else {
+                            self.state = State::X10 {
+                                raw,
+                                remaining,
+                                deadline: now + self.wait,
+                                owned,
+                            };
+                        }
+                    }
+                }
                 State::Discard {
                     mut raw,
                     drain,
                     owned,
                 } => match drain {
-                    Drain::Csi | Drain::Ss3 => {
+                    Drain::Csi | Drain::CsiMouse | Drain::Ss3 => {
                         if matches!(byte, 0x1b | 0x9b | 0x8f) {
-                            items.push(DecodedItem::nondecision(&raw, owned));
+                            items.push(drain_emit(&drain, &raw, owned));
                             pending = Some(byte);
                         } else {
                             raw.push(byte);
                             let done = match drain {
-                                Drain::Csi => (0x40..=0x7e).contains(&byte),
+                                Drain::Csi | Drain::CsiMouse => (0x40..=0x7e).contains(&byte),
                                 Drain::Ss3 => byte.is_ascii_alphabetic(),
-                                Drain::Paste(_) => unreachable!(),
+                                Drain::Paste(_) | Drain::X10 { .. } => unreachable!(),
                             };
                             if done {
-                                items.push(DecodedItem::nondecision(&raw, owned));
+                                items.push(drain_emit(&drain, &raw, owned));
                             } else {
                                 Self::drain_chunk(&mut self.state, raw, drain, owned, items);
                             }
@@ -477,6 +591,27 @@ impl LegacyDecoder {
                             );
                         }
                     }
+                    Drain::X10 { remaining } => {
+                        if matches!(byte, 0x1b | 0x9b | 0x8f) {
+                            items.push(DecodedItem::ignored(&raw, owned));
+                            pending = Some(byte);
+                        } else {
+                            raw.push(byte);
+                            if remaining == 1 {
+                                // The last expected body byte ends the
+                                // drain — the frame's ownership ends with it.
+                                items.push(DecodedItem::ignored(&raw, owned));
+                            } else {
+                                self.state = State::Discard {
+                                    raw,
+                                    drain: Drain::X10 {
+                                        remaining: remaining - 1,
+                                    },
+                                    owned,
+                                };
+                            }
+                        }
+                    }
                 },
             }
         }
@@ -494,7 +629,11 @@ impl LegacyDecoder {
         items: &mut Vec<DecodedItem>,
     ) {
         if raw.len() >= DISCARD_CHUNK + DISCARD_TAIL {
-            items.push(DecodedItem::nondecision(&raw[..DISCARD_CHUNK], owned));
+            items.push(if matches!(drain, Drain::CsiMouse) {
+                DecodedItem::ignored(&raw[..DISCARD_CHUNK], owned)
+            } else {
+                DecodedItem::nondecision(&raw[..DISCARD_CHUNK], owned)
+            });
             raw.drain(..DISCARD_CHUNK);
         }
         *state = State::Discard { raw, drain, owned };
@@ -636,6 +775,17 @@ impl LegacyDecoder {
 
     fn finish_csi(&mut self, raw: &[u8], now: Instant, owned: bool, items: &mut Vec<DecodedItem>) {
         let body = &raw[csi_prefix_len(raw)..];
+        if body == b"M" {
+            // X10 report head (`ESC[M` or `9b M`): exactly three body
+            // bytes complete the frame — the head alone never emits.
+            self.state = State::X10 {
+                raw: raw.to_vec(),
+                remaining: 3,
+                deadline: now + self.wait,
+                owned,
+            };
+            return;
+        }
         match parse_csi(body) {
             Csi::Paste => {
                 self.state = State::Paste {
@@ -646,6 +796,12 @@ impl LegacyDecoder {
                 };
             }
             Csi::Key(event) => items.push(DecodedItem::key(event, raw, owned)),
+            Csi::Mouse(event) => items.push(DecodedItem {
+                kind: DecodedKind::Mouse(event),
+                raw: raw.into(),
+                owned,
+            }),
+            Csi::Ignored => items.push(DecodedItem::ignored(raw, owned)),
             Csi::Nondecision => items.push(DecodedItem::nondecision(raw, owned)),
         }
     }
@@ -727,6 +883,24 @@ fn csi_prefix_len(raw: &[u8]) -> usize {
     }
 }
 
+/// Whether a CSI run's body opens with the SGR mouse marker `<` — the run
+/// is pointer protocol even when malformed, over-bound, or aborted before
+/// its final byte.
+fn csi_mouse_shaped(raw: &[u8]) -> bool {
+    raw.get(csi_prefix_len(raw)) == Some(&b'<')
+}
+
+/// Emits a drained run's residue: mouse-shaped drains (`CsiMouse`, `X10`)
+/// are dropped pointer protocol; every other run stays a passthrough
+/// non-decision.
+fn drain_emit(drain: &Drain, raw: &[u8], owned: bool) -> DecodedItem {
+    if matches!(drain, Drain::CsiMouse | Drain::X10 { .. }) {
+        DecodedItem::ignored(raw, owned)
+    } else {
+        DecodedItem::nondecision(raw, owned)
+    }
+}
+
 fn ss3_prefix_len(raw: &[u8]) -> usize {
     match raw.first() {
         Some(0x8f) => 1,
@@ -761,10 +935,21 @@ fn c0_event(byte: u8, mods: Modifiers) -> KeyEvent {
 enum Csi {
     Paste,
     Key(KeyEvent),
+    Mouse(MouseEvent),
+    /// A complete but malformed mouse report — pointer protocol, dropped.
+    Ignored,
     Nondecision,
 }
 
 fn parse_csi(body: &[u8]) -> Csi {
+    // SGR mouse reports (`<Cb;Cx;CyM`/`m`) decode atomically: malformed
+    // forms are consumed and dropped, never reinterpreted as keys.
+    if body.first() == Some(&b'<') && matches!(body.last(), Some(b'M' | b'm')) {
+        return match mouse::decode_sgr(&body[1..]) {
+            Some(event) => Csi::Mouse(event),
+            None => Csi::Ignored,
+        };
+    }
     match body {
         b"A" => return Csi::Key(KeyEvent::press(KeyCode::Up, Modifiers::NONE)),
         b"B" => return Csi::Key(KeyEvent::press(KeyCode::Down, Modifiers::NONE)),

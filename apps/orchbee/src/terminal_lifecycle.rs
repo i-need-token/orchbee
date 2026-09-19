@@ -34,6 +34,22 @@ impl crossterm::Command for BracketedPaste {
     }
 }
 
+/// Pointer reporting: button-event tracking plus SGR coordinates
+/// (`?1002` + `?1006`). Never `?1003` (any-event) — hover traffic is not
+/// consumed — and never crossterm's bundled `EnableMouseCapture`, which
+/// would also claim `?1003`/`?1015`. Disable restores in reverse order.
+struct PointerCapture(bool);
+
+impl crossterm::Command for PointerCapture {
+    fn write_ansi(&self, output: &mut impl fmt::Write) -> fmt::Result {
+        output.write_str(if self.0 {
+            "\x1b[?1002h\x1b[?1006h"
+        } else {
+            "\x1b[?1006l\x1b[?1002l"
+        })
+    }
+}
+
 struct SynchronizedUpdateEnd;
 
 impl crossterm::Command for SynchronizedUpdateEnd {
@@ -45,6 +61,8 @@ impl crossterm::Command for SynchronizedUpdateEnd {
 pub(crate) trait TerminalModes: Send + Sync + 'static {
     fn disable_bracketed_paste(&self) -> io::Result<()>;
     fn enable_bracketed_paste(&self) -> io::Result<()>;
+    fn disable_pointer_capture(&self) -> io::Result<()>;
+    fn enable_pointer_capture(&self) -> io::Result<()>;
     fn disable_raw_mode(&self) -> io::Result<()>;
     fn enable_raw_mode(&self) -> io::Result<()>;
     fn end_synchronized_update(&self) -> io::Result<()>;
@@ -57,6 +75,7 @@ pub(crate) trait TerminalModes: Send + Sync + 'static {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RestorationStep {
     DisableBracketedPaste,
+    DisablePointerCapture,
     DisableRaw,
     EndSynchronizedUpdate,
     LeaveAlternate,
@@ -67,6 +86,7 @@ impl fmt::Display for RestorationStep {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::DisableBracketedPaste => formatter.write_str("disable bracketed paste"),
+            Self::DisablePointerCapture => formatter.write_str("disable pointer capture"),
             Self::DisableRaw => formatter.write_str("disable raw mode"),
             Self::EndSynchronizedUpdate => formatter.write_str("end synchronized update"),
             Self::LeaveAlternate => formatter.write_str("leave alternate screen"),
@@ -190,6 +210,7 @@ impl SynchronizedUpdateLease {
 #[derive(Debug)]
 struct TerminalModeState {
     bracketed_paste: ModeLease,
+    pointer_capture: ModeLease,
     alternate_screen: ModeLease,
     cursor: ModeLease,
     raw_mode: ModeLease,
@@ -200,6 +221,7 @@ impl TerminalModeState {
     fn new() -> Self {
         Self {
             bracketed_paste: ModeLease::new(),
+            pointer_capture: ModeLease::new(),
             alternate_screen: ModeLease::new(),
             cursor: ModeLease::new(),
             raw_mode: ModeLease::new(),
@@ -210,6 +232,7 @@ impl TerminalModeState {
 
 pub(crate) struct TerminalModeGuard<C: TerminalModes> {
     bracketed_paste_enabled: bool,
+    pointer_capture_enabled: bool,
     control: Arc<C>,
     _owner_thread_only: PhantomData<Rc<()>>,
     _panic_registration: Option<PanicRestorationRegistration>,
@@ -240,6 +263,7 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
         };
         let mut guard = Self {
             bracketed_paste_enabled: false,
+            pointer_capture_enabled: false,
             _owner_thread_only: PhantomData,
             _panic_registration: panic_registration,
             control,
@@ -273,6 +297,7 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
 
     pub(crate) fn restore(&mut self) -> Result<(), TerminalRestoreError> {
         self.bracketed_paste_enabled = false;
+        self.pointer_capture_enabled = false;
         restore_modes(self.control.as_ref(), &self.state)
     }
 
@@ -301,6 +326,40 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
             &self.state.bracketed_paste,
             RestorationStep::DisableBracketedPaste,
             || self.control.disable_bracketed_paste(),
+            &mut failures,
+        );
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(io::Error::other(TerminalRestoreError { failures }))
+        }
+    }
+
+    /// Arms or releases host pointer reporting (`?1002` + `?1006`). Same
+    /// lease discipline as bracketed paste: enabling marks the
+    /// restoration obligation before the write; releasing runs the
+    /// bounded restore and only clears the flag when it succeeds.
+    pub(crate) fn set_pointer_capture(&mut self, enabled: bool) -> io::Result<()> {
+        if enabled {
+            if self.pointer_capture_enabled {
+                return Ok(());
+            }
+            if self.state.pointer_capture.restoration_required() {
+                return Err(io::Error::other(
+                    "pointer capture still requires restoration",
+                ));
+            }
+            self.state.pointer_capture.mark_operation_started();
+            self.control.enable_pointer_capture()?;
+            self.pointer_capture_enabled = true;
+            return Ok(());
+        }
+        self.pointer_capture_enabled = false;
+        let mut failures = Vec::new();
+        restore_mode(
+            &self.state.pointer_capture,
+            RestorationStep::DisablePointerCapture,
+            || self.control.disable_pointer_capture(),
             &mut failures,
         );
         if failures.is_empty() {
@@ -346,6 +405,12 @@ fn restore_modes<C: TerminalModes>(
         &state.bracketed_paste,
         RestorationStep::DisableBracketedPaste,
         || control.disable_bracketed_paste(),
+        &mut failures,
+    );
+    restore_mode(
+        &state.pointer_capture,
+        RestorationStep::DisablePointerCapture,
+        || control.disable_pointer_capture(),
         &mut failures,
     );
     restore_mode(
@@ -426,6 +491,14 @@ impl TerminalModes for InheritedTerminalModes {
 
     fn enable_bracketed_paste(&self) -> io::Result<()> {
         self.write_command(BracketedPaste(true))
+    }
+
+    fn disable_pointer_capture(&self) -> io::Result<()> {
+        self.write_command(PointerCapture(false))
+    }
+
+    fn enable_pointer_capture(&self) -> io::Result<()> {
+        self.write_command(PointerCapture(true))
     }
 
     fn disable_raw_mode(&self) -> io::Result<()> {

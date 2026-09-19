@@ -4,9 +4,12 @@
 
 本地 Client 对每个被接受的操作最多放行一次结构性面板变更——拆分、移动或关闭选中叶子——经由本地
 carrier 传输，并通过 UI 信箱结算其类型化结果。本规范管辖
-[native Tab Session](native-tab-session.zh-CN.md) 的面板操作扩展。维护时请与
+[native Tab Session](native-tab-session.zh-CN.md) 的面板操作扩展，以及为每个可见叶子持有一条
+附着 incarnation 的 pane 成员集合。维护时请与
 `terminal_session/state/panel.rs`、`terminal_session/mailbox/panel.rs`、
-`terminal_session/ui/panel.rs`、`terminal_session/workbench_projection.rs` 中的投影验证器、
+`terminal_session/ui/panel.rs`、`terminal_session/state.rs` 与
+`terminal_session/state/membership.rs` 中的 pane 记录与调和机制、
+`terminal_session/workbench_projection.rs` 中的投影验证器、
 `terminal_session/connection/native/panel.rs` 中的本地执行器以及 local-client workbench 面板
 模块保持一致。
 
@@ -65,28 +68,105 @@ Client 绝不合并无法关联的面板结果。放行要求 Session 稳定、�
 （`AttachUnavailableNeverRetires`、`RejectedAttachNeverRetires`）且总会被消费
 （`AttachReplyEventuallyConsumed`）；驻留的 Session 只能经由新一轮成员关系安装或退休离开——
 绝不自动重新附着或重放（`ParkedSettlesViaMembership`）；被拒绝的过期输入保留阶段、
-请求/序号关联、提交事实、附着、选中与缓存修订（`StaleRejectionPreservesState`）。
+请求/序号关联、提交事实、附着、选中与缓存修订（`StaleRejectionPreservesState`）。这些主张仍是
+单 pane 特化：它们管辖的面板在途仍作用于单个叶子，而围绕其外的活 pane 附着集合由下文管辖。
+
+## Pane 成员集合
+
+在一个选中 Tab 内，Session 为每个可见叶子持有一条 pane 记录，而非单个附着。逻辑 pane 是
+`PaneKey {anchor, WorkbenchPanelId}`；其物理附着是 `PaneRef {pane, incarnation}`，在每次签发
+该记录的挂接目标时铸造。`sync_pane_set` 在一个绝对截止时间内调和观测到的叶子集合：缺失的叶子
+铸造记录，重新出现的当前 anchor departing 记录原地愈合，消失的叶子离场——departing 记录在
+等待仅由自身 `PaneRef` 结算的处置证明（`settle_pane_detached`）期间清空投影与帧簿记。
+anchor 级拆除（`drop_anchor_panes`）经由 `PreparedDesiredInstall` 原子替换整个代次，而同 Tab
+焦点移动是本地的，绝不令记录离场或重铸。
+
+在首个 `Starting` 相位，叶子几何观测仍执行 `sync_pane_set`——记录、panel 索引、最新
+观测几何与分歧的期限预算全部写入——但普通收敛工作延后：`schedule_pane_reconcile`
+不入队 `ReconcilePanes`，观测也不放行普通 `Resize`，从而在 `reconcile_pending` 持续
+可见欠账的同时保留启动 poll-key 分配器的队列空/lease 空守卫。Ready 安装后，下一次
+普通 tick 或观测以同一 `PaneRef`、同一已铸期限与最新已记几何交付该延后工作——相同
+membership 绝不续期该期限，`last_admitted_geometry` 仅在 `Resize` 实际入队成功时
+记录。setup 自有的 Acquire/Resize/专用 Poll/FrameApplied/ReadyCandidate 全程保持
+原序，`Starting` 之外的相位照原样放行普通工作。
+
+信箱准入按命令作用域分划：input 与 resize 仅放行逻辑焦点 pane；poll 放行期望集合中每条精确
+非 departing incarnation。携带已退 incarnation 到达的命令或 worker 事件——重绑前已排队或
+迟到结算——在精确 `PaneRef` 处被丢弃或拒绝，绝不迁移到焦点 pane，也不重放到重新绑定的
+附着上。`FrameApplied` 只提交到 stage 该帧的记录本身；就绪仅由焦点 pane 决定，后台 pane 独立
+挂接与渲染。共享 HostViewers 容量上限 8 对所有可见 pane 生效，只读 pane 绝不获取控制或
+resize。
+
+在 `Attached` 与 `SetupConfigured` 之间，pane 记录没有已结算的控制器 mode。普通轮询轮换只
+放行已挂接、已投影、非 departing 且 mode 已解析的记录——仍在配置中的 leaf 被排除在外，其
+自身 setup 管线对它的轮询不受影响。本地焦点移动——无论按方向还是按直接面板身份规划——
+适用同一边界：未配置的 leaf 在规划阶段即被拒绝，获准的移动安装该 leaf 自己被授予的
+mode，绝不虚构 `ReadOnly`。`ReadOnly` 配置的 leaf 是一等的已结算 mode：它显示内容、加入
+普通轮询轮换、获得焦点，但绝不获取输入控制或 resize。
+
+会话全局 `ReadyCandidate` 的发布权属于拥有 Ready 相位的 setup：目标仍持焦点的 `Startup`
+与操作 `Lease` setup。`Reconcile` 持有的 setup 是后台收敛——它只完成自身记录的
+attach/configure/draw/feedback 链，然后经纯记录尾返回，即使其目标在 feedback 结算窗口内
+获得焦点也不发布全局候选，因此已 `Ready` 的会话绝不被推入第二次 Ready。在该窗口之前、
+之中或之后的焦点移动都不会改写已记录的 incarnation、controller 或 sequence，已接受的
+输入仍路由到其原本的精确 `PaneRef`。
+
+`NativeClientPaneMembership` 是集合的有界见证。在两个 pane、两个 anchor 与每 pane 两个
+incarnation 上，它强制：活记录始终属于当前 anchor（`LiveRecordsShareCurrentAnchor`）；departing
+记录不携带帧工作（`DepartingCarriesNoFrameWork`）；accepted 帧总是该记录自身 stage 的帧
+（`AcceptedFrameIsOwnStaged`）且只落在活的已挂接已投影记录上
+（`AcceptedImpliesAttachedLiveProjected`）；host viewer 始终等于其记录的精确 incarnation
+（`ViewerIsExactLiveIncarnation`）并在共享预算内（`ViewerBudget`）；已交付 input 总是到达其
+标记的精确挂接 incarnation 且该 pane 当时持有焦点（`InputsDeliverOnlyToTaggedLiveFocus`）。
+在处置与重现的弱公平下，离场 pane 最终结算（`DepartedEventuallyDisposesOrReappears`）。
+
+### 收敛到期后的显式刷新
+
+未附着且标为 `ConvergenceExpired` 的 pane，在重复几何观测和自动 publication drain 下保持
+驻留。用户刷新是独立且绑定 generation 的意图：仅获准请求并不产生另一轮挂接资格。只有该
+flight 成功 `Append` 安装当前权威快照之后，才可为当前 anchor 中可附着、非 departing、
+未附着且已到期的 pane 开启一个新的有界收敛 episode。内部 workspace 或 context 恢复不算
+用户刷新。
+
+refresh flight 将来源与 generation 一起保存。准入前拒绝不产生 flight；明确失败、退休、
+过期或被替代的结果不能重开 episode。成功安装使用现有 `LocalOperationClock` 在应答事务中
+的观测点铸造唯一预算。活 episode 绝不延长，重复结果不能再铸预算；再次到期后仍为终态，
+直到新的已接受证据到达。其他故障、健康附着、控制授权、已排队输入、帧身份，以及等待精确
+处置证明的 departing viewer 均保持不变。
+
+丢失 viewer 时也清除该附着的已接受几何，包括后台 pane；无附着记录不能保留失效 viewer 的
+已接受 resize。pane 身份、观测到的叶子几何与 `ViewerLost` 故障保留，不自动重新附着。
+
+这个来源/generation/安装/到期转移组由确定性 state 与应答事务测试覆盖。
+`NativeClientPaneMembership` 抽象掉时间和刷新原因，其有界模型结果不证明这项恢复策略。
 
 ## 源码对应关系
 
-| 生产接口                                                                                                    | 模型对应                                                                                                                                                                         |
-| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PanelMarker::barrier`、放行窗口（`terminal_session/state/panel.rs`）                                       | `SamplePanel`、`RefusePanelAdmission`、`RefusePanelAfterLockExpiry`、`RefuseMoveNoNeighbor`                                                                                      |
-| `try_enqueue_panel_for_using` 放行与结构排斥                                                                | `AdmitPanel`、`StructuralExclusion`、`OtherStructuralExcludesPanel`                                                                                                              |
-| 信箱在途排队/飞行阶段（`terminal_session/mailbox/panel.rs`）                                                | `stage = "queued"/"in-flight"`、`SubmitPanel`、`ExpirePanelFlight`                                                                                                               |
-| `run_panel` 结果分类（明确的预提交否决/未变更、关闭回执、已提交、未知）                                     | `Receive*` 动作、`ReceiveAmbiguousOutcome`、`NoReplayAfterAmbiguous`                                                                                                             |
-| `place_panel_result` 身份/序号/截止时间关联                                                                 | `PlaceResult`、`OnlyCurrentResultPlaced`、`DepositCorrelatesCurrent`、`RejectStaleResultDeposit`                                                                                 |
-| `panel_reply_current` 过期请求/序号/目标拒绝                                                                | 所有 `Consume*` 动作的 `ResultCurrent` 门控、`RejectStaleResultDeposit`、`RejectStaleMembershipReply`、`RejectStaleRefreshConsume`、`StaleRejectionPreservesState`               |
-| `prepare_panel`、`prepare_panel_candidate` 精确与取代验证                                                   | `ReadCommitSnapshot*`、`ConsumeCommittedMerge`、`ConsumeCommittedUnavailable`、`ConsumeCommittedDivergent`                                                                       |
-| `prepare_panel` Tab 不可用快照分类（更旧/分歧、Tab 消失、更新的规范 Tab）                                   | `ReadTabUnavailableSnapshot`、`ConsumeTabUnavailableMembership`/`Divergent`/`NotApplied`/`Refused`                                                                               |
-| `validate_split_panel`、`validate_moved_panel` 精确 `r+1` 嫁接与放宽的取代                                  | `ReceiveCommitted` 有效性、`ConsumeInvalidGraftCommit`、`ReadCommitSnapshotExact`/`Superseding`                                                                                  |
-| `merge_projection` 要求先前选中叶子                                                                         | `ConsumeCommittedMerge` 与 `ConsumeCommittedLeaflessRepair` 的分划                                                                                                               |
-| `apply_prepared_panel`、`retain_prepared_panel_membership` 提交保留                                         | `commitHeld`/`commitExpected`、`EnterMembership`、`RecoveryRetainsCommit`                                                                                                        |
-| `stage_panel_membership_cleanup`、`prepare_panel_membership_install` 先释放后安装次序                       | `ReleaseOldAttachment`、`InstallMembership*`、`AttachRequiresReleasedOld`                                                                                                        |
-| `retain_pending_panel`、`PanelProjectionUnavailable` 恢复                                                   | `ConsumeCommittedUnavailable`、`stage = "recovery"`、`AdmitRefresh`、`ApplyRefresh*`                                                                                             |
-| `apply_panel_event` UI 结算（含无附着与 Empty 安装）                                                        | `InstallMembershipAttach`、`InstallMembershipSelect`、`InstallMembershipEmpty`、`CompleteAttach`                                                                                 |
-| `setup_target` 附着结果分类与 `settle_without_attachment`（`SessionPhaseKind::RetryableAttachUnavailable`） | `OfferAttachReply`、`CompleteAttach`、`ParkAttachUnavailable`、`FailAttach`、`ExpireAttach`、`ParkedHasNoAttachment`、`RejectedAttachNeverRetires`、`ParkedSettlesViaMembership` |
-| 关闭 `Accepted` 回执与后续发布/移除                                                                         | `ReceiveCloseAccepted`、`ConsumeCloseAccepted`、`PeerCloseLeaf`、`CloseReceiptKeepsSelection`                                                                                    |
+| 生产接口                                                                                                                                                                 | 模型对应                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PanelMarker::barrier`、放行窗口（`terminal_session/state/panel.rs`）                                                                                                    | `SamplePanel`、`RefusePanelAdmission`、`RefusePanelAfterLockExpiry`、`RefuseMoveNoNeighbor`                                                                                      |
+| `try_enqueue_panel_for_using` 放行与结构排斥                                                                                                                             | `AdmitPanel`、`StructuralExclusion`、`OtherStructuralExcludesPanel`                                                                                                              |
+| 信箱在途排队/飞行阶段（`terminal_session/mailbox/panel.rs`）                                                                                                             | `stage = "queued"/"in-flight"`、`SubmitPanel`、`ExpirePanelFlight`                                                                                                               |
+| `run_panel` 结果分类（明确的预提交否决/未变更、关闭回执、已提交、未知）                                                                                                  | `Receive*` 动作、`ReceiveAmbiguousOutcome`、`NoReplayAfterAmbiguous`                                                                                                             |
+| `place_panel_result` 身份/序号/截止时间关联                                                                                                                              | `PlaceResult`、`OnlyCurrentResultPlaced`、`DepositCorrelatesCurrent`、`RejectStaleResultDeposit`                                                                                 |
+| `panel_reply_current` 过期请求/序号/目标拒绝                                                                                                                             | 所有 `Consume*` 动作的 `ResultCurrent` 门控、`RejectStaleResultDeposit`、`RejectStaleMembershipReply`、`RejectStaleRefreshConsume`、`StaleRejectionPreservesState`               |
+| `prepare_panel`、`prepare_panel_candidate` 精确与取代验证                                                                                                                | `ReadCommitSnapshot*`、`ConsumeCommittedMerge`、`ConsumeCommittedUnavailable`、`ConsumeCommittedDivergent`                                                                       |
+| `prepare_panel` Tab 不可用快照分类（更旧/分歧、Tab 消失、更新的规范 Tab）                                                                                                | `ReadTabUnavailableSnapshot`、`ConsumeTabUnavailableMembership`/`Divergent`/`NotApplied`/`Refused`                                                                               |
+| `validate_split_panel`、`validate_moved_panel` 精确 `r+1` 嫁接与放宽的取代                                                                                               | `ReceiveCommitted` 有效性、`ConsumeInvalidGraftCommit`、`ReadCommitSnapshotExact`/`Superseding`                                                                                  |
+| `merge_projection` 要求先前选中叶子                                                                                                                                      | `ConsumeCommittedMerge` 与 `ConsumeCommittedLeaflessRepair` 的分划                                                                                                               |
+| `apply_prepared_panel`、`retain_prepared_panel_membership` 提交保留                                                                                                      | `commitHeld`/`commitExpected`、`EnterMembership`、`RecoveryRetainsCommit`                                                                                                        |
+| `stage_panel_membership_cleanup`、`prepare_panel_membership_install` 先释放后安装次序                                                                                    | `ReleaseOldAttachment`、`InstallMembership*`、`AttachRequiresReleasedOld`                                                                                                        |
+| `retain_pending_panel`、`PanelProjectionUnavailable` 恢复                                                                                                                | `ConsumeCommittedUnavailable`、`stage = "recovery"`、`AdmitRefresh`、`ApplyRefresh*`                                                                                             |
+| `apply_panel_event` UI 结算（含无附着与 Empty 安装）                                                                                                                     | `InstallMembershipAttach`、`InstallMembershipSelect`、`InstallMembershipEmpty`、`CompleteAttach`                                                                                 |
+| `setup_target` 附着结果分类与 `settle_without_attachment`（`SessionPhaseKind::RetryableAttachUnavailable`）                                                              | `OfferAttachReply`、`CompleteAttach`、`ParkAttachUnavailable`、`FailAttach`、`ExpireAttach`、`ParkedHasNoAttachment`、`RejectedAttachNeverRetires`、`ParkedSettlesViaMembership` |
+| 关闭 `Accepted` 回执与后续发布/移除                                                                                                                                      | `ReceiveCloseAccepted`、`ConsumeCloseAccepted`、`PeerCloseLeaf`、`CloseReceiptKeepsSelection`                                                                                    |
+| `PaneKey`/`PaneRef`/`PaneRecord`、`sync_pane_set`、`depart_all_panes`、`drop_anchor_panes`、`settle_pane_detached`（`terminal_session/state.rs`、`state/membership.rs`） | `rec[p]`、`MintPane`、`VanishLeaf`、`ReappearLeaf`、`SettleDetachProof`、`AdvanceAnchorEpoch`、`LiveRecordsShareCurrentAnchor`、`DepartingCarriesNoFrameWork`                    |
+| 信箱准入分划——input/resize 走逻辑焦点、poll 走精确 incarnation（`terminal_session/mailbox.rs` 的 `admits`）                                                              | `Admitted`、`EnqueueFocusControl`、`EnqueuePoll`、`EnqueueStaleCommand`、`DequeueAdmit`、`DropStaleQueueCommand`                                                                 |
+| `run_input`/`run_resize`/`run_poll` 中的执行器精确 incarnation 栅栏（`terminal_session/connection/native.rs`）                                                           | `ExecuteControl` 交付门、`ExecutePoll` stage 门、`ExpireInflight`                                                                                                                |
+| 逐记录 `stage_drawn_frame`/`mark_feedback_accepted`/`invalidate_projection_frame`                                                                                        | `SettleFrameAck`、`AcceptedFrameIsOwnStaged`、`AcceptedImpliesAttachedLiveProjected`                                                                                             |
+| `settle_pane_fault` 已知拒绝驻留；`settle_attached_event`/`record_setup_configuration` 精确 `PaneRef` 结算                                                               | `SettlePaneFault`、`RejectStalePaneFault`、`RejectStaleDetachProof`、`RejectStaleFrameAck`                                                                                       |
+| `plan_panel_focus_local` 同 Tab 焦点移动                                                                                                                                 | `MoveFocusLocal`                                                                                                                                                                 |
+| 共享 `host_viewers` 容量准入（上限 8）                                                                                                                                   | `ViewerBudget`、`AttachPane` 容量门                                                                                                                                              |
 
 模型抽象掉字节级传输、具体 OS/PTY 行为、渲染、worker 接合、真实终端身份分配以及移动方向/几何。
 现有真实测试覆盖具体接缝：`terminal_session/connection/native/tests/panel.rs` 中的本地执行器
@@ -115,6 +195,25 @@ Client 绝不合并无法关联的面板结果。放行要求 Session 稳定、�
 | `close-attached`   | 关闭，已附着，双叶（回执 + 发布）           | —                  | —                 |
 | `split-unattached` | 拆分，无附着来源（直接安装路径）            | —                  | —                 |
 | `move-singleton`   | 移动，已附着，单叶（无邻居拒绝）            | —                  | —                 |
+
+`NativeClientPaneMembership` 是集合的有界设计见证，不是对无界系统的证明。它覆盖两个 pane
+`{p0, p1}`、两个选中 anchor（一次代次切换）、每 pane 两个挂接 incarnation、`MaxQueue = 2`、
+`MaxFrame = 2`、`MaxReject = 4`、`MaxViewers = 2` 与 `MaxLog = 3`。对抗性入队命令与 worker
+事件按构造可携带任意陈旧或交叉接线的 incarnation 标记，因此拒绝路径是可达见证而非假定守卫。
+以固定的 TLA+ tools 1.7.4、单 worker 运行
+`node scripts/tla/run-models.mjs --models native-client-pane-membership --jobs 1`；唯一的
+`default` 配置必须完成且队列清空、全部 22 个注册动作覆盖为正。
+
+| 配置      | 有穷角色                                     | 生成 / 去重 / 深度 | 模型/配置 SHA-256 |
+| --------- | -------------------------------------------- | ------------------ | ----------------- |
+| `default` | 两 pane、两 anchor、两 incarnation，对抗栅栏 | —                  | —                 |
+
+生成的 Rust 状态模型（`terminal_session/state/tests/generated.rs`）对真实 reducer 演练同一
+契约：其 `ReincarnationFence` 对抗类为一个逻辑 pane 铸造第二个 incarnation，并验证携带已退
+附着标记的工作在精确 `PaneRef` 处被拒；`state/tests.rs` 中的
+`reincarnated_pane_fences_late_work_from_the_retired_attachment_incarnation` 与
+`same_anchor_panes_fence_cross_pane_and_fabricated_incarnation_refs` 直接对生产结算 API 固定
+错 incarnation 与错 pane 负向对照。
 
 ### 负向对照
 

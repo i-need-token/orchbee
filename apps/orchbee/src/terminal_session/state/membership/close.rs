@@ -22,7 +22,7 @@ impl NativeSessionState {
             .map_err(|_| CarrierFailure::AuthorityDivergence)?;
         let candidate = validate_closed_tab(&self.cache, marker.origin().expectation(), candidate)
             .map_err(|_| CarrierFailure::AuthorityDivergence)?;
-        let selected = self.desired.as_ref().map(AttachmentKey::tab_id);
+        let selected = self.desired.as_ref().map(|key| key.anchor().tab_id());
         let ordinal = selected.and_then(|tab| self.cache.tab_index(tab));
         self.prepare_membership_candidate(candidate, selected, ordinal, None)
             .map(Some)
@@ -46,9 +46,13 @@ impl NativeSessionState {
         {
             return Err(CarrierFailure::Protocol);
         }
-        let old = self.attached_key.clone().ok_or(CarrierFailure::Protocol)?;
+        let old = self
+            .desired
+            .as_ref()
+            .map(|key| key.anchor().clone())
+            .ok_or(CarrierFailure::Protocol)?;
         let selected = self.active().cloned().ok_or(CarrierFailure::Protocol)?;
-        if selected.key() != &old {
+        if selected.key().anchor() != &old {
             return Err(CarrierFailure::Protocol);
         }
         let binding = self

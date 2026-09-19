@@ -44,14 +44,31 @@ const ZERO: &str = "00000000000000000000000000000000";
 
 #[test]
 fn accepts_legacy_root_forms() {
-    assert_eq!(parse(&[]), Ok(Request::Tui));
-    assert_eq!(parse(&["tui"]), Ok(Request::Tui));
-    assert_eq!(parse(&["--"]), Ok(Request::Tui));
-    assert_eq!(parse(&["--", "tui"]), Ok(Request::Tui));
+    assert_eq!(parse(&[]), Ok(Request::Tui { mouse: true }));
+    assert_eq!(parse(&["tui"]), Ok(Request::Tui { mouse: true }));
+    assert_eq!(parse(&["--"]), Ok(Request::Tui { mouse: true }));
+    assert_eq!(parse(&["--", "tui"]), Ok(Request::Tui { mouse: true }));
     assert_eq!(parse(&["--help"]), Ok(Request::RootHelp));
     assert_eq!(parse(&["-h"]), Ok(Request::RootHelp));
     assert_eq!(parse(&["help"]), Ok(Request::RootHelp));
     assert_eq!(parse(&["--version"]), Ok(Request::Version));
+}
+
+#[test]
+fn tui_mouse_option_parses_on_the_explicit_route() {
+    assert_eq!(
+        parse(&["tui", "--mouse", "off"]),
+        Ok(Request::Tui { mouse: false })
+    );
+    assert_eq!(
+        parse(&["tui", "--mouse", "on"]),
+        Ok(Request::Tui { mouse: true })
+    );
+    // The option scan is positional-agnostic: the flag may precede `tui`.
+    assert_eq!(
+        parse(&["--mouse", "off", "tui"]),
+        Ok(Request::Tui { mouse: false })
+    );
 }
 
 #[test]
@@ -232,6 +249,10 @@ fn valid_json_selection_turns_later_syntax_failure_into_json() {
         // the earlier valid selection still shapes the failure.
         &["--format=json", "--", "status", "--format=yaml"],
         &["--format=json", "--", "bogus"],
+        // A valid `--format` selection still shapes the failure when the
+        // `tui` route then rejects it or `--mouse` is malformed.
+        &["--mouse", "off", "--format=json", "tui"],
+        &["--mouse", "bogus", "--format=json"],
     ];
     for arguments in cases {
         assert_eq!(
@@ -269,6 +290,27 @@ fn text_and_unselected_syntax_failures_stay_silent() {
         &["--version", "status"],
         &["--version", "--help"],
         &["tui", "--format", "text"],
+        // `--mouse` belongs to the explicit `tui` route alone: the bare
+        // invocation and every other family reject it, the equals form is
+        // not part of the grammar, duplicates and unknown values are usage,
+        // and `--` never rescues it.
+        &["--mouse", "off"],
+        &["--mouse=off"],
+        &["tui", "--mouse=off"],
+        &["tui", "--mouse=on"],
+        &["--mouse=off", "tui"],
+        &["status", "--mouse", "off"],
+        &["--mouse", "off", "status"],
+        &["help", "--mouse", "off"],
+        &["completion", "bash", "--mouse", "off"],
+        &["workspace", "list", "--mouse", "off"],
+        &["--version", "--mouse", "off"],
+        &["tui", "--mouse"],
+        &["tui", "--mouse=bogus"],
+        &["tui", "--mouse", "bogus"],
+        &["tui", "--mouse", "off", "--mouse", "on"],
+        &["tui", "--mouse", "off", "--help"],
+        &["tui", "--", "--mouse", "off"],
         &["completion"],
         &["completion", "powershell"],
         &["completion", "bash", "extra"],

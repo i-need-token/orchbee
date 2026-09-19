@@ -291,7 +291,7 @@ impl NativeUi {
                     return Err(CarrierFailure::Deadline);
                 }
                 changed_selection = !preserve;
-                if !preserve && state.attached_key().is_some() {
+                if !preserve && state.has_attachments() {
                     RefreshDecision::Cleanup(state.stage_rename_membership_cleanup(
                         operation.request_id(),
                         candidate,
@@ -302,7 +302,13 @@ impl NativeUi {
                         DesiredInstall::Preserve
                     } else {
                         match candidate.selected_tab_id() {
-                            Some(tab) => DesiredInstall::Fresh(tab.clone()),
+                            Some(tab) => match candidate.focus_panel_id() {
+                                Some(panel) => DesiredInstall::Fresh {
+                                    tab_id: tab.clone(),
+                                    panel: panel.clone(),
+                                },
+                                None => DesiredInstall::Empty,
+                            },
                             None => DesiredInstall::Empty,
                         }
                     };
@@ -310,7 +316,7 @@ impl NativeUi {
                     let canonical = state.prepare_rename_membership_install(
                         operation.request_id(),
                         candidate,
-                        desired.desired().cloned(),
+                        desired.desired().map(|key| key.anchor().clone()),
                         deadlines,
                     )?;
                     let decision = canonical.commit();
@@ -339,7 +345,7 @@ impl NativeUi {
         match result {
             Ok(MutationResult::Applied) => {
                 if changed_selection {
-                    self.clear_projection();
+                    self.clear_projections();
                 }
                 self.validate_state()
             }

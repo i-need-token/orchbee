@@ -16,10 +16,17 @@ fn rejected_second_plan_leaves_both_ready_state_and_mailbox_cursor_unchanged() {
         observed_at: Instant::now(),
     };
     let first = transaction
-        .prepare_desired_install(DesiredInstall::Fresh(key(1, 999).tab_id().clone()))
+        .prepare_desired_install(DesiredInstall::Fresh {
+            tab_id: key(1, 999).tab_id().clone(),
+            panel: panel(),
+        })
         .unwrap();
     assert!(matches!(
-        canonical.prepare_membership_install(prepared, first.desired().cloned(), None),
+        canonical.prepare_membership_install(
+            prepared,
+            first.desired().map(|pane| pane.anchor().clone()),
+            None
+        ),
         Err(CarrierFailure::Protocol)
     ));
     drop(first);
@@ -41,12 +48,18 @@ fn dropping_prepared_desired_or_exhausted_allocation_cannot_split_cursor_and_key
             observed_at: Instant::now(),
         };
         let plan: PreparedDesiredInstall<'_> = transaction
-            .prepare_desired_install(DesiredInstall::Fresh(key(1, 2).tab_id().clone()))
+            .prepare_desired_install(DesiredInstall::Fresh {
+                tab_id: key(1, 2).tab_id().clone(),
+                panel: panel(),
+            })
             .unwrap();
-        assert_eq!(plan.desired(), Some(&key(8, 2)));
+        assert_eq!(plan.desired().map(|pane| pane.anchor()), Some(&key(8, 2)));
         drop(plan);
     }
-    assert_eq!(locked.desired.key(), Some(&key(7, 1)));
+    assert_eq!(
+        locked.desired.key().map(|pane| pane.anchor()),
+        Some(&key(7, 1))
+    );
     assert_eq!(locked.attachment_generation, 7);
     locked.attachment_generation = u64::MAX;
     let mut transaction = UiReplyTransaction {
@@ -54,10 +67,16 @@ fn dropping_prepared_desired_or_exhausted_allocation_cannot_split_cursor_and_key
         observed_at: Instant::now(),
     };
     assert!(matches!(
-        transaction.prepare_desired_install(DesiredInstall::Fresh(key(1, 2).tab_id().clone())),
+        transaction.prepare_desired_install(DesiredInstall::Fresh {
+            tab_id: key(1, 2).tab_id().clone(),
+            panel: panel()
+        }),
         Err(CarrierFailure::IdentityExhausted)
     ));
-    assert_eq!(locked.desired.key(), Some(&key(7, 1)));
+    assert_eq!(
+        locked.desired.key().map(|pane| pane.anchor()),
+        Some(&key(7, 1))
+    );
     assert_eq!(locked.attachment_generation, u64::MAX);
 }
 
@@ -80,12 +99,18 @@ fn empty_preserves_burned_cursor_and_next_selection_uses_its_checked_successor()
         .unwrap()
         .commit();
     let fresh = transaction
-        .prepare_desired_install(DesiredInstall::Fresh(key(1, 2).tab_id().clone()))
+        .prepare_desired_install(DesiredInstall::Fresh {
+            tab_id: key(1, 2).tab_id().clone(),
+            panel: panel(),
+        })
         .unwrap();
-    assert_eq!(fresh.desired(), Some(&key(8, 2)));
+    assert_eq!(fresh.desired().map(|pane| pane.anchor()), Some(&key(8, 2)));
     fresh.commit();
     assert_eq!(transaction.state.attachment_generation, 8);
-    assert_eq!(transaction.state.desired.key(), Some(&key(8, 2)));
+    assert_eq!(
+        transaction.state.desired.key().map(|pane| pane.anchor()),
+        Some(&key(8, 2))
+    );
 }
 
 #[test]
@@ -98,14 +123,23 @@ fn reserved_selection_reuses_only_the_current_nonzero_reservation() {
     };
     for generation in [0, 6, 8] {
         assert!(matches!(
-            transaction.prepare_desired_install(DesiredInstall::ReuseReserved(key(generation, 2))),
+            transaction.prepare_desired_install(DesiredInstall::ReuseReserved {
+                key: key(generation, 2),
+                panel: panel()
+            }),
             Err(CarrierFailure::Protocol)
         ));
     }
     transaction
-        .prepare_desired_install(DesiredInstall::ReuseReserved(key(7, 2)))
+        .prepare_desired_install(DesiredInstall::ReuseReserved {
+            key: key(7, 2),
+            panel: panel(),
+        })
         .unwrap()
         .commit();
     assert_eq!(transaction.state.attachment_generation, 7);
-    assert_eq!(transaction.state.desired.key(), Some(&key(7, 2)));
+    assert_eq!(
+        transaction.state.desired.key().map(|pane| pane.anchor()),
+        Some(&key(7, 2))
+    );
 }

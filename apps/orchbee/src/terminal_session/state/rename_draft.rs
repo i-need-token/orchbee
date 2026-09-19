@@ -1,6 +1,8 @@
 use super::field_window::{NativeFieldWindow, field_window};
 use super::line_editor::{LengthLimit, LineEditor};
-use super::{AttachmentKey, NativeContextTabs, NativeSessionState, SessionNotice, SessionPhase};
+use super::{
+    AttachmentKey, NativeContextTabs, NativeSessionState, PaneKey, SessionNotice, SessionPhase,
+};
 use orchbee_workbench_protocol::{MAXIMUM_LABEL_LENGTH, WorkbenchLabel};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -98,7 +100,7 @@ impl RenameDraftIntent {
 
 impl NativeSessionState {
     fn rename_authority_available(&self) -> bool {
-        self.pending_refresh_generation.is_none()
+        self.pending_refresh.is_none()
             && !self.mutation_blocks_structure()
             && self.pending_membership.is_none()
             && self.close.confirmation().is_none()
@@ -115,10 +117,10 @@ impl NativeSessionState {
         let draft = self.rename.draft.as_ref()?;
         (self.rename_authority_available()
             && self.cache == draft.baseline
-            && self.desired.as_ref() == Some(&draft.target)
+            && self.desired.as_ref().map(PaneKey::anchor) == Some(&draft.target)
             && self
                 .active()
-                .is_some_and(|selected| selected.key() == &draft.target))
+                .is_some_and(|selected| selected.key().anchor() == &draft.target))
         .then_some(draft)
     }
 
@@ -138,7 +140,7 @@ impl NativeSessionState {
         {
             return None;
         }
-        let target = self.desired.clone()?;
+        let target = self.desired.as_ref()?.anchor().clone();
         let target_index = self.active()?.index();
         let tab = self.cache.tabs().get(target_index)?;
         if tab.tab_id() != target.tab_id() {

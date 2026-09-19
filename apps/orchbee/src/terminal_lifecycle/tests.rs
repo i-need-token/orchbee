@@ -15,6 +15,8 @@ use super::{RestorationStep, TerminalModeGuard, TerminalModes};
 enum Operation {
     DisablePaste,
     EnablePaste,
+    DisablePointer,
+    EnablePointer,
     DisableRaw,
     EnableRaw,
     EndSynchronizedUpdate,
@@ -77,6 +79,14 @@ impl TerminalModes for FakeTerminalModes {
         self.perform(Operation::EnablePaste)
     }
 
+    fn disable_pointer_capture(&self) -> io::Result<()> {
+        self.perform(Operation::DisablePointer)
+    }
+
+    fn enable_pointer_capture(&self) -> io::Result<()> {
+        self.perform(Operation::EnablePointer)
+    }
+
     fn disable_raw_mode(&self) -> io::Result<()> {
         self.perform(Operation::DisableRaw)
     }
@@ -120,6 +130,14 @@ impl TerminalModes for SetupBarrierTerminalModes {
 
     fn enable_bracketed_paste(&self) -> io::Result<()> {
         self.control.enable_bracketed_paste()
+    }
+
+    fn disable_pointer_capture(&self) -> io::Result<()> {
+        self.control.disable_pointer_capture()
+    }
+
+    fn enable_pointer_capture(&self) -> io::Result<()> {
+        self.control.enable_pointer_capture()
     }
 
     fn disable_raw_mode(&self) -> io::Result<()> {
@@ -646,6 +664,14 @@ impl TerminalModes for OrderedWireModes {
     }
     fn enable_bracketed_paste(&self) -> io::Result<()> {
         self.wire.record("enable-bracketed-paste");
+        Ok(())
+    }
+    fn disable_pointer_capture(&self) -> io::Result<()> {
+        self.wire.record("disable-pointer-capture");
+        Ok(())
+    }
+    fn enable_pointer_capture(&self) -> io::Result<()> {
+        self.wire.record("enable-pointer-capture");
         Ok(())
     }
     fn disable_raw_mode(&self) -> io::Result<()> {

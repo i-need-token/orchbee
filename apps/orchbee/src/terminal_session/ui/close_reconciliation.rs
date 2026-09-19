@@ -68,7 +68,7 @@ impl NativeUi {
                 {
                     return Err(CarrierFailure::Deadline);
                 }
-                if !prepared.preserves_selection() && state.attached_key().is_some() {
+                if !prepared.preserves_selection() && state.has_attachments() {
                     RefreshDecision::Cleanup(state.stage_close_membership_cleanup(
                         &marker,
                         prepared,
@@ -79,7 +79,13 @@ impl NativeUi {
                     {
                         DesiredInstall::Preserve
                     } else if let Some(tab) = prepared.selected_tab_id() {
-                        DesiredInstall::Fresh(tab.clone())
+                        match prepared.focus_panel_id() {
+                            Some(panel) => DesiredInstall::Fresh {
+                                tab_id: tab.clone(),
+                                panel: panel.clone(),
+                            },
+                            None => DesiredInstall::Empty,
+                        }
                     } else {
                         DesiredInstall::Empty
                     };
@@ -87,7 +93,7 @@ impl NativeUi {
                     let state_plan = state.prepare_close_membership_install(
                         &marker,
                         prepared,
-                        desired_plan.desired().cloned(),
+                        desired_plan.desired().map(|key| key.anchor().clone()),
                         deadlines,
                     )?;
                     let decision = state_plan.commit();
@@ -118,7 +124,7 @@ impl NativeUi {
         match result {
             Ok(MutationResult::Applied) => {
                 if clear {
-                    self.clear_projection();
+                    self.clear_projections();
                 }
                 self.validate_state()
             }

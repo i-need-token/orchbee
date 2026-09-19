@@ -38,23 +38,28 @@ impl NativeUi {
                 if transaction.observed_at() >= deadlines.forward_cutoff() {
                     return Err(CarrierFailure::Deadline);
                 }
-                if state.attached_key().is_some() {
+                if state.has_attachments() {
                     MoveDecision::Cleanup(state.stage_move_membership_cleanup(
                         operation.request_id(),
                         prepared,
                         deadlines,
                     )?)
                 } else {
-                    let install = prepared
-                        .selected_tab_id()
-                        .map_or(DesiredInstall::Empty, |tab| {
-                            DesiredInstall::Fresh(tab.clone())
-                        });
+                    let install = match prepared.selected_tab_id() {
+                        Some(tab) => match prepared.focus_panel_id() {
+                            Some(panel) => DesiredInstall::Fresh {
+                                tab_id: tab.clone(),
+                                panel: panel.clone(),
+                            },
+                            None => DesiredInstall::Empty,
+                        },
+                        None => DesiredInstall::Empty,
+                    };
                     let desired = transaction.prepare_desired_install(install)?;
                     let state_plan = state.prepare_move_membership_install(
                         operation.request_id(),
                         prepared,
-                        desired.desired().cloned(),
+                        desired.desired().map(|key| key.anchor().clone()),
                         Some(deadlines),
                     )?;
                     let installed = state_plan.commit();
@@ -85,7 +90,7 @@ impl NativeUi {
         match result {
             Ok(MutationResult::Applied) => {
                 if clear_projection {
-                    self.clear_projection();
+                    self.clear_projections();
                 }
                 if let Some(failure) = retirement {
                     self.retire(failure);

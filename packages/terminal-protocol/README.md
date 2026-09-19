@@ -52,9 +52,10 @@ IPC, or Worker behavior.
 It validates the routing/header, geometry, strict UTF-8 string bounds, styles, sorted row/cell tables,
 wide-cell and adjacent-wrap relationships, exact length, and bounded optional extension envelopes
 before returning `TerminalTextFrame`. The output carries rows of shared `Arc<str>` graphemes and
-text styles, cursor position/visibility, complete geometry, screen, colors, theme revision, and
-routing facts. Sharing strings prevents repeated cell references from expanding one wire string
-into one allocation per cell.
+text styles, cursor position/visibility, complete geometry, screen, colors, theme revision,
+routing facts, and the validated `captured_interaction` modes word — exposed through the narrow
+`TerminalInteraction` tracking/format/cursor-mode queries rather than raw bits. Sharing strings
+prevents repeated cell references from expanding one wire string into one allocation per cell.
 
 This is a text-table decoder, not a full graphics/extension decoder or a Client state machine.
 Optional extension contents are skipped without interpretation or retention; every required

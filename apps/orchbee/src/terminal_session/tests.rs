@@ -606,6 +606,7 @@ fn render_native_session(
             Locale::EnUs,
             Some(session.view()),
             &crate::tui_theme::Theme::terminal_native(),
+            &mut crate::tui_pointer::HitMapBuilder::new(),
         );
     })?;
     let buffer = terminal.backend().buffer();

@@ -62,7 +62,7 @@ fn admit(harness: &mut Harness, family: Family) -> TestResult<CloseOperation> {
         ),
         tab.tab_label().clone(),
         tab.binding().clone(),
-        Some(selected.key().clone()),
+        Some(selected.key().anchor().clone().clone()),
         state.cache().revision(),
     );
     let kind = match family {

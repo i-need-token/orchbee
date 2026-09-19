@@ -492,24 +492,24 @@ fn an_asynchronous_step_reacquires_bracketed_paste_after_the_packet_boundary() {
     let mut dispatcher = InputDispatcher::default();
     let mut modes = Vec::new();
     dispatcher
-        .synchronize(&mut ClientView::new(120), &mut port, now, &mut |enabled| {
-            modes.push(enabled);
+        .synchronize(&mut ClientView::new(120), &mut port, now, &mut |request| {
+            modes.push(request);
             Ok::<_, io::Error>(())
         })
         .unwrap();
     for _ in 0..3 {
         dispatcher
-            .synchronize(&mut ClientView::new(120), &mut port, now, &mut |enabled| {
-                modes.push(enabled);
+            .synchronize(&mut ClientView::new(120), &mut port, now, &mut |request| {
+                modes.push(request);
                 Ok::<_, io::Error>(())
             })
             .unwrap();
     }
-    assert_eq!(modes, [true]);
+    assert_eq!(modes, [ModeRequest::BracketedPaste(true)]);
     port.active = false;
     dispatcher
-        .synchronize(&mut ClientView::new(120), &mut port, now, &mut |enabled| {
-            modes.push(enabled);
+        .synchronize(&mut ClientView::new(120), &mut port, now, &mut |request| {
+            modes.push(request);
             Ok::<_, io::Error>(())
         })
         .unwrap();
@@ -521,8 +521,8 @@ fn an_asynchronous_step_reacquires_bracketed_paste_after_the_packet_boundary() {
             &mut ClientView::new(120),
             &mut port,
             later,
-            &mut |enabled| {
-                modes.push(enabled);
+            &mut |request| {
+                modes.push(request);
                 Ok::<_, io::Error>(())
             },
         )
@@ -534,13 +534,20 @@ fn an_asynchronous_step_reacquires_bracketed_paste_after_the_packet_boundary() {
             &mut ClientView::new(120),
             &mut port,
             later,
-            &mut |enabled| {
-                modes.push(enabled);
+            &mut |request| {
+                modes.push(request);
                 Ok::<_, io::Error>(())
             },
         )
         .unwrap();
-    assert_eq!(modes, [true, false, true]);
+    assert_eq!(
+        modes,
+        [
+            ModeRequest::BracketedPaste(true),
+            ModeRequest::BracketedPaste(false),
+            ModeRequest::BracketedPaste(true)
+        ]
+    );
     assert_eq!(dispatcher.epoch, Some(ModalEpoch::Setup(port.token())));
 }
 

@@ -21,9 +21,9 @@ use crate::{
             AttachmentKey, CarrierFailure, CleanupContinuation, CreateOperation,
             CreateOperationKey, CreateProjectionDecision, FrameIdentity, MoveDecision,
             MoveOperation, MoveResult, NativeSessionState, OPERATION_TOTAL, OperationDeadlines,
-            PanelDecision, PanelOperation, PanelRequestKind, PanelResult, PendingCreateCommit,
-            PendingMoveCommit, PendingPanelCommit, ReadyDecision, RefreshDecision,
-            SetupEventDisposition,
+            PaneKey, PaneRef, PanelDecision, PanelOperation, PanelRequestKind, PanelResult,
+            PendingCreateCommit, PendingMoveCommit, PendingPanelCommit, ReadyDecision,
+            RefreshDecision, SetupEventDisposition,
         },
     },
 };
@@ -72,6 +72,9 @@ pub(super) use switch_membership::drive_switch_snapshot;
 const COHORT: &str = "native-scripted-test";
 pub(super) const WALL_GUARD: Duration = Duration::from_secs(2);
 const VIEWER_ID: &str = "22222222222222222222222222222222";
+/// A second physical viewer identity: a legitimate Server mints a distinct
+/// attachment per pane, so multi-pane tests must not reuse `VIEWER_ID`.
+pub(super) const PEER_VIEWER_ID: &str = "44444444444444444444444444444444";
 const HOST_EPOCH: &str = "11111111111111111111111111111111";
 const CONTROLLER_ID: &str = "33333333333333333333333333333333";
 const FRAME: &[u8] = include_bytes!(concat!(
@@ -159,115 +162,126 @@ impl ScriptedCarrier {
         let (responses, response_receiver) = mpsc::sync_channel(0);
         let (response_written_sender, response_written) = mpsc::sync_channel(0);
         let server = FakeServer::start(move |mut stream| {
-            admit(&mut stream)?;
-            for step in steps {
-                let request = loop {
-                    let mut magic = [0; 4];
-                    stream.read_exact(&mut magic)?;
-                    let mut reader = io::Cursor::new(magic).chain(&mut stream);
-                    match step {
-                        WireKind::Obcs => {
-                            if magic == *b"OBWP" {
-                                match read_workbench_request(&mut reader)
-                                    .map_err(io::Error::other)?
-                                {
-                                    // A publication probe may interleave with scripted OBCS
-                                    // traffic; answer it like an idle journal without
-                                    // consuming the scripted step.
-                                    WorkbenchRequest::PublicationRead(intent) => {
-                                        write_workbench_response(
-                                            &mut stream,
-                                            &WorkbenchResponse::Publication(
-                                                WorkbenchPublicationResult {
-                                                    protocol_version: ProtocolVersion,
-                                                    request_id: intent.request_id,
-                                                    outcome: WorkbenchPublicationOutcome::Current {
-                                                        revision: intent.known_revision,
+            let inner = |stream: &mut std::os::unix::net::UnixStream| -> io::Result<()> {
+                admit(&mut *stream)?;
+                for step in steps {
+                    let request = loop {
+                        let mut magic = [0; 4];
+                        (*stream).read_exact(&mut magic)?;
+                        let mut reader = io::Cursor::new(magic).chain(&mut *stream);
+                        match step {
+                            WireKind::Obcs => {
+                                if magic == *b"OBWP" {
+                                    match read_workbench_request(&mut reader)
+                                        .map_err(io::Error::other)?
+                                    {
+                                        // A publication probe may interleave with scripted OBCS
+                                        // traffic; answer it like an idle journal without
+                                        // consuming the scripted step.
+                                        WorkbenchRequest::PublicationRead(intent) => {
+                                            write_workbench_response(
+                                                &mut *stream,
+                                                &WorkbenchResponse::Publication(
+                                                    WorkbenchPublicationResult {
+                                                        protocol_version: ProtocolVersion,
+                                                        request_id: intent.request_id,
+                                                        outcome:
+                                                            WorkbenchPublicationOutcome::Current {
+                                                                revision: intent.known_revision,
+                                                            },
                                                     },
-                                                },
-                                            ),
-                                        )
-                                        .map_err(io::Error::other)?;
-                                        continue;
-                                    }
-                                    _ => {
-                                        return Err(io::Error::other(
-                                            "unscripted Workbench request during an OBCS step",
-                                        ));
+                                                ),
+                                            )
+                                            .map_err(io::Error::other)?;
+                                            continue;
+                                        }
+                                        _ => {
+                                            return Err(io::Error::other(
+                                                "unscripted Workbench request during an OBCS step",
+                                            ));
+                                        }
                                     }
                                 }
+                                break ObservedRequest::Obcs(
+                                    read_client_message(&mut reader).map_err(io::Error::other)?,
+                                );
                             }
-                            break ObservedRequest::Obcs(
-                                read_client_message(&mut reader).map_err(io::Error::other)?,
-                            );
+                            WireKind::Workbench => {
+                                break ObservedRequest::Workbench(
+                                    read_workbench_request(&mut reader)
+                                        .map_err(io::Error::other)?,
+                                );
+                            }
                         }
-                        WireKind::Workbench => {
-                            break ObservedRequest::Workbench(
-                                read_workbench_request(&mut reader).map_err(io::Error::other)?,
-                            );
+                    };
+                    request_sender.send(request).map_err(io::Error::other)?;
+                    match response_receiver.recv().map_err(io::Error::other)? {
+                        ScriptResponse::Obcs(response) if matches!(step, WireKind::Obcs) => {
+                            write_server_message(&mut *stream, &response)
+                                .map_err(io::Error::other)?;
+                            response_written_sender.send(()).map_err(io::Error::other)?;
+                        }
+                        ScriptResponse::Workbench(response)
+                            if matches!(step, WireKind::Workbench) =>
+                        {
+                            write_workbench_response(&mut *stream, &response)
+                                .map_err(io::Error::other)?;
+                            response_written_sender.send(()).map_err(io::Error::other)?;
+                        }
+                        ScriptResponse::MalformedWorkbench
+                            if matches!(step, WireKind::Workbench) =>
+                        {
+                            (*stream)
+                                .write_all(&[b'X', b'X', b'X', b'X', 0, 1, 0, 4, 0, 0, 0, 0])?;
+                            response_written_sender.send(()).map_err(io::Error::other)?;
+                        }
+                        ScriptResponse::Abort => {
+                            let _closed = (*stream).shutdown(Shutdown::Both);
+                            return Ok(());
+                        }
+                        ScriptResponse::Obcs(_)
+                        | ScriptResponse::Workbench(_)
+                        | ScriptResponse::MalformedWorkbench => {
+                            return Err(io::Error::other(
+                                "script response used the wrong wire family",
+                            ));
                         }
                     }
-                };
-                request_sender.send(request).map_err(io::Error::other)?;
-                match response_receiver.recv().map_err(io::Error::other)? {
-                    ScriptResponse::Obcs(response) if matches!(step, WireKind::Obcs) => {
-                        write_server_message(&mut stream, &response).map_err(io::Error::other)?;
-                        response_written_sender.send(()).map_err(io::Error::other)?;
+                }
+                // After the script ends the session may still emit publication probes from idle
+                // polls; answer them like an idle journal and fail on anything else.
+                loop {
+                    let mut magic = [0; 4];
+                    match (*stream).read_exact(&mut magic) {
+                        Ok(()) => {}
+                        Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => return Ok(()),
+                        Err(error) => return Err(error),
                     }
-                    ScriptResponse::Workbench(response) if matches!(step, WireKind::Workbench) => {
-                        write_workbench_response(&mut stream, &response)
+                    if magic == *b"OBWP" {
+                        let mut reader = io::Cursor::new(magic).chain(&mut *stream);
+                        if let WorkbenchRequest::PublicationRead(intent) =
+                            read_workbench_request(&mut reader).map_err(io::Error::other)?
+                        {
+                            write_workbench_response(
+                                &mut *stream,
+                                &WorkbenchResponse::Publication(WorkbenchPublicationResult {
+                                    protocol_version: ProtocolVersion,
+                                    request_id: intent.request_id,
+                                    outcome: WorkbenchPublicationOutcome::Current {
+                                        revision: intent.known_revision,
+                                    },
+                                }),
+                            )
                             .map_err(io::Error::other)?;
-                        response_written_sender.send(()).map_err(io::Error::other)?;
+                            continue;
+                        }
                     }
-                    ScriptResponse::MalformedWorkbench if matches!(step, WireKind::Workbench) => {
-                        stream.write_all(&[b'X', b'X', b'X', b'X', 0, 1, 0, 4, 0, 0, 0, 0])?;
-                        response_written_sender.send(()).map_err(io::Error::other)?;
-                    }
-                    ScriptResponse::Abort => {
-                        let _closed = stream.shutdown(Shutdown::Both);
-                        return Ok(());
-                    }
-                    ScriptResponse::Obcs(_)
-                    | ScriptResponse::Workbench(_)
-                    | ScriptResponse::MalformedWorkbench => {
-                        return Err(io::Error::other(
-                            "script response used the wrong wire family",
-                        ));
-                    }
+                    return Err(io::Error::other(
+                        "executor sent an unscripted trailing request",
+                    ));
                 }
-            }
-            // After the script ends the session may still emit publication probes from idle
-            // polls; answer them like an idle journal and fail on anything else.
-            loop {
-                let mut magic = [0; 4];
-                match stream.read_exact(&mut magic) {
-                    Ok(()) => {}
-                    Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => return Ok(()),
-                    Err(error) => return Err(error),
-                }
-                if magic == *b"OBWP" {
-                    let mut reader = io::Cursor::new(magic).chain(&mut stream);
-                    if let WorkbenchRequest::PublicationRead(intent) =
-                        read_workbench_request(&mut reader).map_err(io::Error::other)?
-                    {
-                        write_workbench_response(
-                            &mut stream,
-                            &WorkbenchResponse::Publication(WorkbenchPublicationResult {
-                                protocol_version: ProtocolVersion,
-                                request_id: intent.request_id,
-                                outcome: WorkbenchPublicationOutcome::Current {
-                                    revision: intent.known_revision,
-                                },
-                            }),
-                        )
-                        .map_err(io::Error::other)?;
-                        continue;
-                    }
-                }
-                return Err(io::Error::other(
-                    "executor sent an unscripted trailing request",
-                ));
-            }
+            };
+            inner(&mut stream)
         })?;
         Ok(Self {
             server: Some(server),
@@ -661,6 +675,7 @@ pub(super) enum SwitchDetachContinuation {
     Superseded { desired: AttachmentKey },
 }
 
+#[derive(Debug)]
 pub(super) enum UiEvent {
     SwitchSnapshot {
         work: AttachmentKey,
@@ -738,6 +753,8 @@ pub(super) enum UiEvent {
     Move(MoveDecision),
     Panel(PanelDecision),
     Membership(RefreshDecision),
+    PaneDetached,
+    PaneFailed,
 }
 
 pub(super) struct UiDriver {
@@ -745,6 +762,12 @@ pub(super) struct UiDriver {
     clock: LocalOperationClock,
     state: Option<NativeSessionState>,
     projection: Option<TerminalProjection>,
+    /// Which live incarnation `projection` belongs to. `NativeUi` keeps one
+    /// projection per pane (`self.projections`, keyed by `PaneRef`), so a
+    /// background pane's setup poll draws into its own renderer; the driver
+    /// keeps the most recently installed one and routes polls to it by exact
+    /// `PaneRef`, not by focus or anchor.
+    projection_pane: Option<PaneRef>,
     drawn_frames: usize,
     no_frame_redraws: usize,
 }
@@ -756,6 +779,7 @@ impl UiDriver {
             clock,
             state: None,
             projection: None,
+            projection_pane: None,
             drawn_frames: 0,
             no_frame_redraws: 0,
         }
@@ -763,6 +787,17 @@ impl UiDriver {
 
     pub(super) fn state(&self) -> &NativeSessionState {
         self.state.as_ref().expect("Bootstrap must install state")
+    }
+
+    /// The live incarnation of the pane carrying `anchor` — tests name panes
+    /// by their attachment key while commands require the exact `PaneRef`.
+    pub(super) fn pane_ref(
+        &self,
+        anchor: &AttachmentKey,
+    ) -> TestResult<crate::terminal_session::state::PaneRef> {
+        self.state()
+            .pane_ref_for_anchor(anchor)
+            .ok_or_else(|| test_error("no live pane for attachment anchor"))
     }
 
     fn state_mut(&mut self) -> &mut NativeSessionState {
@@ -834,7 +869,7 @@ impl UiDriver {
                 },
             )
             .map_err(|error| test_error(&format!("Switch admission failed: {error:?}")))?;
-        let key = self.state().desired().unwrap().clone();
+        let key = self.state().desired().unwrap().anchor().clone();
         if key.generation() != generation {
             return Err(test_error("Switch generation and desired key diverged"));
         }
@@ -843,7 +878,7 @@ impl UiDriver {
             .as_ref()
             .is_some_and(|projection| projection.frame().is_some())
         {
-            // Admission hides the renderer through state.projection_key; keep exact anchor pixels.
+            // Admission hides the renderer through state.projection_key(); keep exact anchor pixels.
             self.no_frame_redraws += 1;
         }
         Ok(AdmittedSwitch { key, deadlines })
@@ -1032,7 +1067,7 @@ impl UiDriver {
                 |state, request_id| {
                     Ok::<_, &'static str>(MoveOperation::new(
                         request_id,
-                        state.desired().unwrap().clone(),
+                        state.desired().unwrap().anchor().clone(),
                         state.cache().clone(),
                         direction,
                         deadline,
@@ -1072,7 +1107,7 @@ impl UiDriver {
             |_transaction| {
                 Ok(UiReply::Move(MoveSettlement::new(
                     decision,
-                    operation.target().clone(),
+                    self.state().desired().cloned(),
                 )))
             },
         ))?;
@@ -1148,15 +1183,96 @@ impl UiDriver {
             |_transaction| {
                 Ok(UiReply::Panel(PanelSettlement::new(
                     decision,
-                    operation.target().clone(),
+                    self.state().desired().cloned(),
                 )))
             },
         ))?;
         Ok((operation, outcome))
     }
 
+    /// Mirrors `NativeUi::observe_panes`: the leaf-geometry report syncs the
+    /// pane set, queues focus-pane resizes, and schedules the reconcile
+    /// snapshot the executor converges its attachments against.
+    pub(super) fn observe_panes(
+        &mut self,
+        observed: &[(WorkbenchPanelId, usize, Geometry)],
+    ) -> TestResult {
+        let clock = self.clock.clone();
+        let sampled_at = clock.now();
+        let resizes = {
+            let state = self.state_mut();
+            state.sync_pane_set(observed, sampled_at);
+            if state.phase_kind() == crate::terminal_session::state::SessionPhaseKind::Starting {
+                Vec::new()
+            } else {
+                state.admit_observed_geometries(observed)
+            }
+        };
+        let mailbox = Arc::clone(&self.mailbox);
+        for (key, geometry) in resizes {
+            let state = self.state_mut();
+            if state.close_suppresses_attachment(key.pane().anchor()) {
+                continue;
+            }
+            match mailbox.try_enqueue(QueuedCommand::Resize(Tagged::new(key.clone(), geometry))) {
+                Ok(_serial) => {
+                    if !state.record_admitted_geometry(&key, geometry) {
+                        return Err(test_error("resize admission bookkeeping rejected"));
+                    }
+                }
+                Err(
+                    crate::terminal_session::mailbox::AdmissionError::Full
+                    | crate::terminal_session::mailbox::AdmissionError::Busy,
+                ) => {}
+                Err(error) => {
+                    return Err(test_error(&format!("resize admission failed: {error:?}")));
+                }
+            }
+        }
+        if self.state().phase_kind() == crate::terminal_session::state::SessionPhaseKind::Starting {
+            return Ok(());
+        }
+        let Some((anchor, targets, deadlines)) = self.state_mut().reconcile_targets(clock.now())
+        else {
+            return Ok(());
+        };
+        match mailbox.try_enqueue_reconcile(anchor, targets, deadlines) {
+            Ok(_)
+            | Err(
+                crate::terminal_session::mailbox::AdmissionError::Full
+                | crate::terminal_session::mailbox::AdmissionError::Busy,
+            ) => Ok(()),
+            Err(error) => Err(test_error(&format!(
+                "reconcile admission failed: {error:?}"
+            ))),
+        }
+    }
+
+    /// Mirrors `NativeUi::move_panel_focus_to`: a purely local focus move plans
+    /// through the live record, installs the same desired/mode swap, and
+    /// republishes the mailbox's desired key so focus-scoped admission (and
+    /// the executor's focus re-check) follows the move.
+    pub(super) fn move_panel_focus_to_pane(
+        &mut self,
+        panel: &WorkbenchPanelId,
+    ) -> TestResult<PaneKey> {
+        let Some(pane) = self.state().plan_panel_focus_local_at(panel) else {
+            return Err(test_error("local focus plan rejected the target panel"));
+        };
+        if !self.state_mut().move_panel_focus_local(pane.clone()) {
+            return Err(test_error("local focus move was refused"));
+        }
+        self.mailbox
+            .publish_desired(pane.clone())
+            .map_err(|closed| test_error(&format!("mailbox closed: {:?}", closed.failure())))?;
+        Ok(pane)
+    }
+
     pub(super) fn admit_input(&mut self, input: ControlInput) -> TestResult<u64> {
-        let key = self.state().desired().unwrap().clone();
+        let key = self
+            .state()
+            .focus_pane_ref()
+            .ok_or_else(|| test_error("Input admission needs a live focus pane"))?;
         self.mailbox
             .try_enqueue(QueuedCommand::Input(Tagged::new(key, input)))
             .map_err(|error| test_error(&format!("Input admission failed: {error:?}")))
@@ -1171,8 +1287,10 @@ impl UiDriver {
         state.observe_geometry(geometry);
         mailbox
             .try_enqueue_with(|| {
-                let key = state.desired().unwrap().clone();
-                if !state.record_admitted_geometry(&key, geometry) {
+                let key = state
+                    .focus_pane_ref()
+                    .ok_or("Resize admission needs a live focus pane")?;
+                if !state.record_admitted_geometry_t(&key, geometry) {
                     return Err("Resize reducer rejected admission");
                 }
                 Ok(QueuedCommand::Resize(Tagged::new(key, geometry)))
@@ -1221,7 +1339,7 @@ impl UiDriver {
             mailbox.deposit_ui_reply_before(&wait_key, &clock, |_transaction| {
                 Ok(UiReply::SetupConfigurationSettled(
                     state
-                        .settle_setup_configuration_event(&key, mode.clone(), applied_geometry)
+                        .settle_setup_configuration_event_t(&key, mode.clone(), applied_geometry)
                         .ok_or(CarrierFailure::Protocol)?,
                 ))
             }),
@@ -1261,8 +1379,16 @@ impl UiDriver {
     }
 
     pub(super) fn settle_next(&mut self, frame_cut: FrameCut) -> TestResult<UiEvent> {
-        let taken = self.take_next()?;
-        self.settle(taken, frame_cut, None)
+        // Notice events are canonical pane-fact publications: apply them to
+        // state like the real UI, then continue to the next causal event.
+        loop {
+            let taken = self.take_next()?;
+            let settled = self.settle(taken, frame_cut, None)?;
+            if matches!(settled, UiEvent::PaneDetached | UiEvent::PaneFailed) {
+                continue;
+            }
+            return Ok(settled);
+        }
     }
 
     fn settle(
@@ -1273,12 +1399,24 @@ impl UiDriver {
     ) -> TestResult<UiEvent> {
         let (wait_key, event) = taken.into_parts();
         match event {
+            WorkerEvent::PaneDetached { key } => {
+                if let Some(state) = self.state.as_mut() {
+                    assert!(state.settle_pane_detached(&key));
+                }
+                Ok(UiEvent::PaneDetached)
+            }
+            WorkerEvent::PaneFailed { key, fault } => {
+                if let Some(state) = self.state.as_mut() {
+                    assert!(state.settle_pane_fault(&key, fault));
+                }
+                Ok(UiEvent::PaneFailed)
+            }
             WorkerEvent::WorkspaceSetupResult { .. } | WorkerEvent::RenameResult { .. } => {
                 Err(test_error("Rename requires the actual NativeUi consumer"))
             }
             WorkerEvent::SwitchSnapshotResult { marker, outcome } => self.settle_switch_snapshot(
                 wait_key.ok_or_else(|| test_error("Switch Snapshot wait"))?,
-                marker,
+                marker.anchor().clone(),
                 outcome,
             ),
             WorkerEvent::SwitchForwardExpired { permit } => self.settle_switch_forward_expired(
@@ -1329,9 +1467,21 @@ impl UiDriver {
                                 |tab| {
                                     if let Some(committed) = state.create_membership_commit()
                                         && committed.committed_key().tab_id() == tab {
-                                        crate::terminal_session::mailbox::DesiredInstall::ReuseReserved(committed.committed_key().clone())
+                                        crate::terminal_session::mailbox::DesiredInstall::ReuseReserved {
+                                            key: committed.committed_key().clone(),
+                                            panel: committed
+                                                .expectation()
+                                                .panel_id()
+                                                .clone(),
+                                        }
                                     } else {
-                                        crate::terminal_session::mailbox::DesiredInstall::Fresh(tab.clone())
+                                        match prepared.focus_panel_id() {
+                                            Some(panel) => crate::terminal_session::mailbox::DesiredInstall::Fresh {
+                                                tab_id: tab.clone(),
+                                                panel: panel.clone(),
+                                            },
+                                            None => crate::terminal_session::mailbox::DesiredInstall::Empty,
+                                        }
                                     }
                                 },
                             );
@@ -1339,7 +1489,7 @@ impl UiDriver {
                             let state_plan = state.prepare_cleaned_membership_install(
                                 &cleanup,
                                 prepared,
-                                desired.desired().cloned(),
+                                desired.desired().map(|pane| pane.anchor().clone()),
                             )?;
                             let installed = state_plan.commit();
                             desired.commit();
@@ -1363,6 +1513,7 @@ impl UiDriver {
                     },
                 ))?;
                 self.projection = None;
+                self.projection_pane = None;
                 let decision = decision.ok_or_else(|| test_error("membership decision"))?;
                 match result_key {
                     crate::terminal_session::state::MembershipResultKey::Rename(_) => Err(
@@ -1422,13 +1573,19 @@ impl UiDriver {
                         let (operation, prepared) = state.retain_prepared_move_membership(prepared)?;
                         let deadlines = deadlines.ok_or(CarrierFailure::Deadline)?;
                         if transaction.observed_at() >= deadlines.forward_cutoff() { return Err(CarrierFailure::Deadline); }
-                        if state.attached_key().is_some() {
+                        if state.has_attachments() {
                             MoveDecision::Cleanup(state.stage_move_membership_cleanup(operation.request_id(), prepared, deadlines)?)
                         } else {
                             let install = prepared.selected_tab_id().map_or(crate::terminal_session::mailbox::DesiredInstall::Empty,
-                                |tab| crate::terminal_session::mailbox::DesiredInstall::Fresh(tab.clone()));
+                                |tab| match prepared.focus_panel_id() {
+                                    Some(panel) => crate::terminal_session::mailbox::DesiredInstall::Fresh {
+                                        tab_id: tab.clone(),
+                                        panel: panel.clone(),
+                                    },
+                                    None => crate::terminal_session::mailbox::DesiredInstall::Empty,
+                                });
                             let desired = transaction.prepare_desired_install(install)?;
-                            let plan = state.prepare_move_membership_install(operation.request_id(), prepared, desired.desired().cloned(), Some(deadlines))?;
+                            let plan = state.prepare_move_membership_install(operation.request_id(), prepared, desired.desired().map(|pane| pane.anchor().clone()), Some(deadlines))?;
                             let installed = plan.commit();
                             desired.commit();
                             match installed {
@@ -1461,13 +1618,19 @@ impl UiDriver {
                         let (operation, prepared) = state.retain_prepared_panel_membership(prepared)?;
                         let deadlines = deadlines.ok_or(CarrierFailure::Deadline)?;
                         if transaction.observed_at() >= deadlines.forward_cutoff() { return Err(CarrierFailure::Deadline); }
-                        if state.attached_key().is_some() {
+                        if state.has_attachments() {
                             PanelDecision::Cleanup(state.stage_panel_membership_cleanup(operation.request_id(), prepared, deadlines)?)
                         } else {
                             let install = prepared.selected_tab_id().map_or(crate::terminal_session::mailbox::DesiredInstall::Empty,
-                                |tab| crate::terminal_session::mailbox::DesiredInstall::Fresh(tab.clone()));
+                                |tab| match prepared.focus_panel_id() {
+                                    Some(panel) => crate::terminal_session::mailbox::DesiredInstall::Fresh {
+                                        tab_id: tab.clone(),
+                                        panel: panel.clone(),
+                                    },
+                                    None => crate::terminal_session::mailbox::DesiredInstall::Empty,
+                                });
                             let desired = transaction.prepare_desired_install(install)?;
-                            let plan = state.prepare_panel_membership_install(operation.request_id(), prepared, desired.desired().cloned(), Some(deadlines))?;
+                            let plan = state.prepare_panel_membership_install(operation.request_id(), prepared, desired.desired().map(|pane| pane.anchor().clone()), Some(deadlines))?;
                             let installed = plan.commit();
                             desired.commit();
                             match installed {
@@ -1501,7 +1664,7 @@ impl UiDriver {
                 require_applied(result)?;
                 self.state = installed;
                 Ok(UiEvent::Bootstrap {
-                    key: self.state().desired().unwrap().clone(),
+                    key: self.state().desired().unwrap().anchor().clone(),
                 })
             }
             WorkerEvent::Attached { key, projection } => {
@@ -1515,7 +1678,7 @@ impl UiDriver {
                     &clock,
                     |_transaction| {
                         let settled = state
-                            .settle_attached_event(&key)
+                            .settle_attached_event_t(&key)
                             .ok_or(CarrierFailure::Protocol)?;
                         disposition = Some(settled.clone());
                         Ok(UiReply::AttachedSettled(settled))
@@ -1526,10 +1689,16 @@ impl UiDriver {
                 {
                     SetupEventDisposition::Applied => {
                         self.projection = Some(projection);
-                        Ok(UiEvent::Attached { key })
+                        self.projection_pane = Some(key.clone());
+                        Ok(UiEvent::Attached {
+                            key: key.anchor().clone(),
+                        })
                     }
                     SetupEventDisposition::Superseded { desired } => {
-                        Ok(UiEvent::AttachedSuperseded { key, desired })
+                        Ok(UiEvent::AttachedSuperseded {
+                            key: key.anchor().clone(),
+                            desired: desired.anchor().clone(),
+                        })
                     }
                 }
             }
@@ -1548,7 +1717,11 @@ impl UiDriver {
                     &clock,
                     |_transaction| {
                         let settled = state
-                            .settle_setup_configuration_event(&key, mode.clone(), applied_geometry)
+                            .settle_setup_configuration_event_t(
+                                &key,
+                                mode.clone(),
+                                applied_geometry,
+                            )
                             .ok_or(CarrierFailure::Protocol)?;
                         disposition = Some(settled.clone());
                         Ok(UiReply::SetupConfigurationSettled(settled))
@@ -1566,13 +1739,16 @@ impl UiDriver {
                             self.no_frame_redraws += 1;
                         }
                         Ok(UiEvent::SetupConfigured {
-                            key,
+                            key: key.anchor().clone(),
                             mode,
                             applied_geometry,
                         })
                     }
                     SetupEventDisposition::Superseded { desired } => {
-                        Ok(UiEvent::SetupConfigurationSuperseded { key, desired })
+                        Ok(UiEvent::SetupConfigurationSuperseded {
+                            key: key.anchor().clone(),
+                            desired: desired.anchor().clone(),
+                        })
                     }
                 }
             }
@@ -1594,7 +1770,7 @@ impl UiDriver {
                     &clock,
                     |_transaction| {
                         let settled = state
-                            .settle_feedback_event(&key, frame)
+                            .settle_feedback_event_t(&key, frame)
                             .ok_or(CarrierFailure::Protocol)?;
                         disposition = Some(settled.clone());
                         Ok(UiReply::FeedbackSettled(settled))
@@ -1603,9 +1779,14 @@ impl UiDriver {
                 match disposition
                     .ok_or_else(|| test_error("feedback disposition was not deposited"))?
                 {
-                    SetupEventDisposition::Applied => Ok(UiEvent::FeedbackAccepted { key }),
+                    SetupEventDisposition::Applied => Ok(UiEvent::FeedbackAccepted {
+                        key: key.anchor().clone(),
+                    }),
                     SetupEventDisposition::Superseded { desired } => {
-                        Ok(UiEvent::FeedbackSuperseded { key, desired })
+                        Ok(UiEvent::FeedbackSuperseded {
+                            key: key.anchor().clone(),
+                            desired: desired.anchor().clone(),
+                        })
                     }
                 }
             }
@@ -1624,7 +1805,7 @@ impl UiDriver {
                     &wait_key,
                     &clock,
                     |_transaction| {
-                        let settled = state.settle_ready_candidate(
+                        let settled = state.settle_ready_candidate_t(
                             &key,
                             frame,
                             mode,
@@ -1653,7 +1834,7 @@ impl UiDriver {
                     &clock,
                     |transaction| {
                         let settled = state
-                            .settle_switch_entry_expired(
+                            .settle_switch_entry_expired_t(
                                 &key,
                                 target_index,
                                 &target_provenance,
@@ -1665,7 +1846,7 @@ impl UiDriver {
                     },
                 ))?;
                 Ok(UiEvent::SwitchEntryExpired {
-                    key,
+                    key: key.anchor().clone(),
                     continuation: continuation.ok_or_else(|| {
                         test_error("Switch entry expiry continuation was not deposited")
                     })?,
@@ -1687,15 +1868,16 @@ impl UiDriver {
                     &clock,
                     |_transaction| {
                         let settled = state
-                            .settle_unattached_setup(&key, target_index, &target_provenance)
+                            .settle_unattached_setup_t(&key, target_index, &target_provenance)
                             .ok_or(CarrierFailure::Protocol)?;
                         continuation = Some(settled.clone());
                         Ok(UiReply::SetupWithoutAttachmentApplied(settled))
                     },
                 ))?;
                 self.projection = None;
+                self.projection_pane = None;
                 Ok(UiEvent::SetupWithoutAttachment {
-                    key,
+                    key: key.anchor().clone(),
                     continuation: continuation.ok_or_else(|| {
                         test_error("unattached setup continuation was not deposited")
                     })?,
@@ -1716,7 +1898,7 @@ impl UiDriver {
                     &clock,
                     |_transaction| {
                         let settled = state
-                            .settle_cleanup(&key, target_index, &target_provenance)
+                            .settle_cleanup_t(&key, target_index, &target_provenance)
                             .ok_or(CarrierFailure::Protocol)?;
                         continuation = Some(settled.clone());
                         if let Some((elapsed_millis, next_millis)) = cleanup_deposit_advance {
@@ -1726,8 +1908,9 @@ impl UiDriver {
                     },
                 ))?;
                 self.projection = None;
+                self.projection_pane = None;
                 Ok(UiEvent::CleanupSettled {
-                    key,
+                    key: key.anchor().clone(),
                     continuation: continuation
                         .ok_or_else(|| test_error("cleanup continuation was not deposited"))?,
                 })
@@ -1754,9 +1937,9 @@ impl UiDriver {
                             return Err(CarrierFailure::Protocol);
                         }
                         if applied_geometry.is_some_and(|applied| applied != latest) {
-                            let key = state.desired().unwrap().clone();
+                            let key = state.focus_pane_ref().ok_or(CarrierFailure::Protocol)?;
                             transaction.enqueue_catch_up_resize(key.clone(), latest)?;
-                            if !state.record_admitted_geometry(&key, latest) {
+                            if !state.record_admitted_geometry_t(&key, latest) {
                                 return Err(CarrierFailure::Protocol);
                             }
                         }
@@ -1802,17 +1985,26 @@ impl UiDriver {
                         .map_err(|_| test_error("prepared Create candidate"))?;
                     require_applied(mailbox.deposit_ui_reply_before(&wait_key, &clock, |transaction| {
                         let deadlines = committed.operation().deadlines();
-                        let settled = if state.attached_key().is_some() {
+                        let settled = if state.has_attachments() {
                             CreateProjectionDecision::Cleanup(state.stage_create_membership_cleanup(&operation, prepared, deadlines)?)
                         } else {
                             if transaction.observed_at() >= deadlines.forward_cutoff() { return Err(CarrierFailure::Deadline); }
                             let install = match prepared.selected_tab_id() {
-                                Some(tab) if tab == committed.committed_key().tab_id() => crate::terminal_session::mailbox::DesiredInstall::ReuseReserved(committed.committed_key().clone()),
-                                Some(tab) => crate::terminal_session::mailbox::DesiredInstall::Fresh(tab.clone()),
+                                Some(tab) if tab == committed.committed_key().tab_id() => crate::terminal_session::mailbox::DesiredInstall::ReuseReserved {
+                                    key: committed.committed_key().clone(),
+                                    panel: committed.expectation().panel_id().clone(),
+                                },
+                                Some(tab) => match prepared.focus_panel_id() {
+                                    Some(panel) => crate::terminal_session::mailbox::DesiredInstall::Fresh {
+                                        tab_id: tab.clone(),
+                                        panel: panel.clone(),
+                                    },
+                                    None => crate::terminal_session::mailbox::DesiredInstall::Empty,
+                                },
                                 None => crate::terminal_session::mailbox::DesiredInstall::Empty,
                             };
                             let desired = transaction.prepare_desired_install(install)?;
-                            let plan = state.prepare_create_membership_install(&operation, prepared, desired.desired().cloned(), deadlines)?;
+                            let plan = state.prepare_create_membership_install(&operation, prepared, desired.desired().map(|pane| pane.anchor().clone()), deadlines)?;
                             let installed = plan.commit();
                             desired.commit();
                             match installed {
@@ -1882,7 +2074,7 @@ impl UiDriver {
                                     recovery_deadlines.ok_or(CarrierFailure::Deadline)?,
                                 )?)
                             } else {
-                                state.apply_prepared_refresh(prepared)
+                                state.apply_prepared_refresh(prepared, _transaction.observed_at())
                             };
                         let desired = state.desired().cloned();
                         decision = Some(settled.clone());
@@ -1905,7 +2097,7 @@ impl UiDriver {
         frame_cut: FrameCut,
     ) -> TestResult<UiEvent> {
         let key = poll_key.attachment().clone();
-        if self.state().projection_key() != Some(&key) {
+        if self.projection_pane.as_ref() != Some(poll_key.pane_ref()) {
             match self
                 .mailbox
                 .deposit_causal(&poll_key, CausalSettlement::NoFeedback)
@@ -1925,7 +2117,7 @@ impl UiDriver {
             }
             return Ok(UiEvent::EmptyPoll { key });
         };
-        let expected_geometry = self.state().expected_frame_geometry(&key);
+        let expected_geometry = self.state().expected_frame_geometry_t(poll_key.pane_ref());
         let outcome = self
             .projection
             .as_mut()
@@ -1946,8 +2138,23 @@ impl UiDriver {
                     self.observe_geometry(geometry)?;
                 }
                 let frame = FrameIdentity::new(poll_key.serial());
-                if !self.state_mut().stage_drawn_frame(&key, frame) {
-                    return Err(test_error("actual draw checkpoint rejected current frame"));
+                if !self
+                    .state_mut()
+                    .stage_drawn_frame_t(poll_key.pane_ref(), frame)
+                {
+                    // Mirrors `NativeUi::after_draw`: a frame that never staged
+                    // into a live, non-departing leaf settles as `NoFeedback`,
+                    // never a draw; a superseded causal slot may already be
+                    // stale.
+                    match self
+                        .mailbox
+                        .deposit_causal(&poll_key, CausalSettlement::NoFeedback)
+                        .map_err(|closed| {
+                            test_error(&format!("mailbox closed: {:?}", closed.failure()))
+                        })? {
+                        MutationResult::Applied | MutationResult::Stale => {}
+                    }
+                    return Ok(UiEvent::EmptyPoll { key });
                 }
                 self.drawn_frames += 1;
                 if let FrameCut::AfterDraw(geometry) = frame_cut {
@@ -1972,7 +2179,10 @@ impl UiDriver {
                 Ok(UiEvent::FrameDrawn { key, feedback })
             }
             Some(feedback @ TerminalViewerAction::NeedSnapshot { .. }) => {
-                if !self.state_mut().invalidate_projection_frame(&key) {
+                if !self
+                    .state_mut()
+                    .invalidate_projection_frame_t(poll_key.pane_ref())
+                {
                     return Err(test_error(
                         "NeedSnapshot no-frame redraw rejected current key",
                     ));
@@ -1988,7 +2198,10 @@ impl UiDriver {
                 })
             }
             None => {
-                if !self.state_mut().invalidate_projection_frame(&key) {
+                if !self
+                    .state_mut()
+                    .invalidate_projection_frame_t(poll_key.pane_ref())
+                {
                     return Err(test_error("blocked no-frame redraw rejected current key"));
                 }
                 self.no_frame_redraws += 1;
@@ -2067,7 +2280,21 @@ pub(super) fn full_frame_record(
     revision: u64,
     geometry: Geometry,
 ) -> TestResult<Vec<u8>> {
+    full_frame_record_for(VIEWER_ID, sequence, revision, geometry)
+}
+
+/// `full_frame_record` for the attachment `viewer_id` identifies: the OBTF
+/// routing prefix carries the attachment at bytes 32..48, and the receiving
+/// projection rejects any other identity.
+pub(super) fn full_frame_record_for(
+    viewer_id: &str,
+    sequence: u64,
+    revision: u64,
+    geometry: Geometry,
+) -> TestResult<Vec<u8>> {
+    let attachment = AttachmentId::parse(viewer_id)?;
     let mut frame = FRAME.to_vec();
+    frame[32..48].copy_from_slice(attachment.as_bytes());
     frame[48..56].copy_from_slice(&sequence.to_le_bytes());
     frame[56..64].copy_from_slice(&u64::MAX.to_le_bytes());
     frame[64..72].copy_from_slice(&revision.to_le_bytes());
@@ -2190,14 +2417,23 @@ pub(super) fn attach_action(index: usize) -> TestResult<TerminalViewerAction> {
 }
 
 pub(super) fn attached_outcome() -> TestResult<TerminalViewerOutcome> {
+    attached_outcome_for(VIEWER_ID)
+}
+
+pub(super) fn attached_outcome_for(viewer_id: &str) -> TestResult<TerminalViewerOutcome> {
     Ok(TerminalViewerOutcome::Attached {
-        attachment_id: ViewerId::parse(VIEWER_ID)?,
+        attachment_id: ViewerId::parse(viewer_id)?,
         host_epoch: ObcsHostEpoch::parse(HOST_EPOCH)?,
     })
 }
 
 pub(super) fn attached_viewer_id() -> TestResult<ViewerId> {
-    let TerminalViewerOutcome::Attached { attachment_id, .. } = attached_outcome()? else {
+    attached_viewer_id_for(VIEWER_ID)
+}
+
+pub(super) fn attached_viewer_id_for(viewer_id: &str) -> TestResult<ViewerId> {
+    let TerminalViewerOutcome::Attached { attachment_id, .. } = attached_outcome_for(viewer_id)?
+    else {
         return Err(test_error("attached fixture did not contain a ViewerId"));
     };
     Ok(attachment_id)
@@ -2225,6 +2461,16 @@ fn workbench_context_id(value: u128) -> TestResult<WorkbenchTerminalContextId> {
 
 fn id(value: u128) -> String {
     format!("{value:032x}")
+}
+
+/// The fixture panel identity used when a `DesiredInstall` needs one.
+fn panel() -> WorkbenchPanelId {
+    WorkbenchPanelId::parse(&id(0xF1)).unwrap()
+}
+
+/// The fabricated pane key the mailbox fixtures admit for `anchor`.
+fn pane_key(anchor: &AttachmentKey) -> crate::terminal_session::state::PaneKey {
+    crate::terminal_session::state::PaneKey::new(anchor.clone(), panel())
 }
 
 pub(super) fn assert_strictly_sequential_ids(ids: &[String], seed: u128) -> TestResult {

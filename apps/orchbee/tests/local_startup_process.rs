@@ -16,10 +16,16 @@ mod native_endpoint_budget;
 mod native_history;
 #[path = "local_startup_process/native_location_labels.rs"]
 mod native_location_labels;
+#[path = "local_startup_process/native_multiview.rs"]
+mod native_multiview;
+#[path = "local_startup_process/native_pointer.rs"]
+mod native_pointer;
 #[path = "local_startup_process/native_project_create.rs"]
 mod native_project_create;
 #[path = "local_startup_process/native_send.rs"]
 mod native_send;
+#[path = "local_startup_process/native_viewer_capacity.rs"]
+mod native_viewer_capacity;
 #[path = "local_startup_process/native_wait.rs"]
 mod native_wait;
 #[path = "local_startup_process/native_workspace_accept_directory.rs"]

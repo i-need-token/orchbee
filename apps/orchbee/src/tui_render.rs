@@ -19,6 +19,7 @@ use crate::{
         ShellAreas, SidebarArea, SidebarLayer, ViewportTier, overlay_area, place_overlay,
         project_shell_areas, terminal_area,
     },
+    tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
     tui_theme::{Role, Theme},
 };
 
@@ -39,15 +40,20 @@ pub(crate) fn render_shell(
     locale: Locale,
     theme: &Theme,
 ) {
-    render_terminal_shell(frame, view, locale, None, theme);
+    render_terminal_shell(frame, view, locale, None, theme, &mut HitMapBuilder::new());
 }
 
+/// Paints the shell and records the pointer hit map in the same pass:
+/// every painter reports the exact rect it drew, so a recorded region
+/// can never disagree with the frame on screen. The shell publishes the
+/// staged map only when the whole draw completes.
 pub(crate) fn render_terminal_shell(
     frame: &mut Frame<'_>,
     view: &ClientView,
     locale: Locale,
     session: Option<TerminalSessionView<'_>>,
     theme: &Theme,
+    hits: &mut HitMapBuilder,
 ) -> NativeDrawReceipt {
     let area = frame.area();
     let text = locale.shell();
@@ -103,6 +109,7 @@ pub(crate) fn render_terminal_shell(
                     *projection,
                     *status,
                     theme,
+                    hits,
                 );
             }
         }
@@ -117,7 +124,16 @@ pub(crate) fn render_terminal_shell(
             sidebar_status = phase_status.to_owned();
             status_text = status;
             if tier != ViewportTier::TooSmall {
-                render_native_workbench(frame, &areas, view, locale, native, &phase_status, theme);
+                render_native_workbench(
+                    frame,
+                    &areas,
+                    view,
+                    locale,
+                    native,
+                    &phase_status,
+                    theme,
+                    hits,
+                );
             }
         }
     }
@@ -154,6 +170,7 @@ pub(crate) fn render_terminal_shell(
                     locale,
                     native,
                     theme,
+                    hits,
                 ),
                 #[cfg(test)]
                 Some(TerminalSessionView::Legacy { .. }) => {
@@ -168,6 +185,13 @@ pub(crate) fn render_terminal_shell(
         };
         if let Some(None) = overlay {
             overlay_refused = true;
+        }
+        if let Some(Some(area)) = overlay {
+            // A presented chrome overlay owns the pointer: clicks on its
+            // body die on the surface, and an outside click resolves as
+            // the backdrop that dismisses it.
+            hits.mark_overlay_active();
+            hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
         }
 
         if let Some(TerminalSessionView::Native(native)) = session.as_ref()
@@ -352,6 +376,7 @@ fn render_unavailable_workbench(
 }
 
 #[cfg(test)]
+#[expect(clippy::too_many_arguments)]
 fn render_legacy_terminal(
     frame: &mut Frame<'_>,
     panel: Rect,
@@ -360,6 +385,7 @@ fn render_legacy_terminal(
     projection: Option<&crate::terminal_projection::TerminalProjection>,
     status: TerminalStatus,
     theme: &Theme,
+    hits: &mut HitMapBuilder,
 ) {
     let area = terminal_area(panel, true);
     frame.render_widget(Clear, area);
@@ -367,6 +393,17 @@ fn render_legacy_terminal(
         projection.and_then(crate::terminal_projection::TerminalProjection::frame)
     {
         terminal_cells::render(frame, area, terminal, view.overlay().is_none());
+        // The legacy session owns one terminal and no workbench: its pane
+        // records the fixed sentinel incarnation the probe resolves
+        // identically.
+        hits.record(
+            HitLayer::Foreground,
+            area,
+            HitTarget::Pane {
+                pane: crate::terminal_input::legacy_pane_ref(),
+                content: area,
+            },
+        );
     } else {
         frame.render_widget(
             Paragraph::new(locale.terminal_status(status))
@@ -377,6 +414,7 @@ fn render_legacy_terminal(
     }
 }
 
+#[expect(clippy::too_many_arguments)]
 fn render_native_workbench(
     frame: &mut Frame<'_>,
     areas: &ShellAreas,
@@ -385,11 +423,20 @@ fn render_native_workbench(
     native: &NativeSessionView<'_>,
     phase_status: &str,
     theme: &Theme,
+    hits: &mut HitMapBuilder,
 ) {
     let text = locale.shell();
     let panel_area = areas.panel;
     let location = native_location_label(native, text.standalone);
-    render_tab_strip(frame, areas.tabs, native, location.as_deref(), text, theme);
+    render_tab_strip(
+        frame,
+        areas.tabs,
+        native,
+        location.as_deref(),
+        text,
+        theme,
+        hits,
+    );
 
     let framed = areas.tier.shows_panel_frame();
     let content_area = terminal_area(panel_area, framed);
@@ -404,13 +451,6 @@ fn render_native_workbench(
             ));
         frame.render_widget(panel_block, panel_area);
     }
-    let terminal = if native.projection_status() == NativeProjectionStatus::FrameAvailable {
-        native
-            .projection()
-            .and_then(crate::terminal_projection::TerminalProjection::frame)
-    } else {
-        None
-    };
     let active_tab = native
         .active_position()
         .and_then(|position| position.checked_sub(1))
@@ -426,7 +466,6 @@ fn render_native_workbench(
                 frame,
                 leaf,
                 tab,
-                terminal,
                 client_view.overlay().is_none()
                     && native.close_confirmation().is_none()
                     && native.rename_draft().is_none()
@@ -437,46 +476,87 @@ fn render_native_workbench(
                 native,
                 theme,
             );
+            // The recorded region carries the pane's exact live
+            // incarnation — a press resolves it bit for bit, so it can
+            // never migrate onto a re-minted record of the same panel.
+            if let Some(pane) = tab
+                .panel(leaf.panel_index)
+                .and_then(|panel| native.pane_ref_for_panel(panel.panel_id()))
+            {
+                hits.record(
+                    HitLayer::Foreground,
+                    leaf.leaf,
+                    HitTarget::Pane {
+                        pane,
+                        content: leaf.content,
+                    },
+                );
+            }
         }
         render_dividers(frame, &projection.dividers, theme);
-    } else if let Some(terminal) = terminal {
-        terminal_cells::render(
-            frame,
-            content_area,
-            terminal,
-            client_view.overlay().is_none()
-                && native.close_confirmation().is_none()
-                && native.rename_draft().is_none()
-                && native.setup_draft().is_none(),
-        );
     } else {
-        let panel_status = if matches!(
-            native.phase(),
-            NativeDisplayPhase::Ready
-                | NativeDisplayPhase::MoveProjectionUnavailable
-                | NativeDisplayPhase::PanelProjectionUnavailable
-                | NativeDisplayPhase::RenameProjectionUnavailable
-        ) && native.projection_status()
-            != NativeProjectionStatus::FrameAvailable
-        {
-            locale.terminal_status(TerminalStatus::Blocked)
+        let terminal = if native.projection_status() == NativeProjectionStatus::FrameAvailable {
+            native
+                .projection()
+                .and_then(crate::terminal_projection::TerminalProjection::frame)
         } else {
-            phase_status
+            None
         };
-        let panel_status = workspace_setup::directory_guidance(
-            locale,
-            native.phase(),
-            native.retirement().is_some(),
-            native.workspace_directory_path(),
-            native.workspace_directory_unconfigured(),
-        )
-        .unwrap_or_else(|| panel_status.to_owned());
-        frame.render_widget(
-            Paragraph::new(panel_status)
-                .style(theme.style(Role::TextSecondary))
-                .wrap(Wrap { trim: true }),
-            content_area,
-        );
+        if let Some(terminal) = terminal {
+            terminal_cells::render(
+                frame,
+                content_area,
+                terminal,
+                client_view.overlay().is_none()
+                    && native.close_confirmation().is_none()
+                    && native.rename_draft().is_none()
+                    && native.setup_draft().is_none(),
+            );
+            // The single-pane paint covers the whole content area; the frame
+            // border around it stays Client chrome and records nothing. The
+            // recorded region carries the pane's exact live incarnation.
+            if let Some(pane) = active_tab
+                .and_then(|tab| tab.active_panel().and_then(|index| tab.panel(index)))
+                .and_then(|panel| native.pane_ref_for_panel(panel.panel_id()))
+            {
+                hits.record(
+                    HitLayer::Foreground,
+                    content_area,
+                    HitTarget::Pane {
+                        pane,
+                        content: content_area,
+                    },
+                );
+            }
+        } else {
+            let panel_status = if matches!(
+                native.phase(),
+                NativeDisplayPhase::Ready
+                    | NativeDisplayPhase::MoveProjectionUnavailable
+                    | NativeDisplayPhase::PanelProjectionUnavailable
+                    | NativeDisplayPhase::RenameProjectionUnavailable
+            ) && native.projection_status()
+                != NativeProjectionStatus::FrameAvailable
+            {
+                locale.terminal_status(TerminalStatus::Blocked)
+            } else {
+                phase_status
+            };
+            let panel_status = workspace_setup::directory_guidance(
+                locale,
+                native.phase(),
+                native.retirement().is_some(),
+                native.workspace_directory_path(),
+                native.workspace_directory_unconfigured(),
+            )
+            .unwrap_or_else(|| panel_status.to_owned());
+            frame.render_widget(
+                Paragraph::new(panel_status)
+                    .style(theme.style(Role::TextSecondary))
+                    .wrap(Wrap { trim: true }),
+                content_area,
+            );
+        }
     }
 }
 
@@ -487,6 +567,7 @@ fn render_tab_strip(
     location: Option<&str>,
     text: ShellText,
     theme: &Theme,
+    hits: &mut HitMapBuilder,
 ) {
     if tabs_area.is_empty() {
         return;
@@ -526,6 +607,20 @@ fn render_tab_strip(
         native.active_position(),
         |index| native_tab(native, index),
         theme,
+        &mut |index, x, width| {
+            if let Some(tab) = native.tab(index) {
+                hits.record(
+                    HitLayer::Foreground,
+                    Rect::new(
+                        strip.x.saturating_add(u16::try_from(x).unwrap_or(u16::MAX)),
+                        strip.y,
+                        u16::try_from(width).unwrap_or(u16::MAX),
+                        strip.height,
+                    ),
+                    HitTarget::Tab(tab.tab_id().clone()),
+                );
+            }
+        },
     );
     if let Some(title_area) = title_area {
         frame.render_widget(
@@ -537,12 +632,15 @@ fn render_tab_strip(
     }
 }
 
+/// Paints one projected leaf: its own pane's latest frame when the pane's
+/// viewer has delivered one, otherwise the pane-local status. Background
+/// panes keep their real terminal content — focus only changes which pane
+/// accepts input and shows the focused title chrome.
 #[allow(clippy::too_many_arguments)]
 fn render_leaf(
     frame: &mut Frame<'_>,
     leaf: &crate::tui_layout::LeafArea,
     tab: NativeTabView<'_>,
-    terminal: Option<&orchbee_terminal_protocol::TerminalTextFrame>,
     input_enabled: bool,
     text: ShellText,
     phase_status: &str,
@@ -582,32 +680,38 @@ fn render_leaf(
         title_area,
     );
     let content = leaf.content;
-    if active {
-        if let Some(terminal) = terminal {
-            terminal_cells::render(frame, content, terminal, input_enabled);
-        } else {
-            let status = if matches!(
-                native.phase(),
-                NativeDisplayPhase::Ready
-                    | NativeDisplayPhase::MoveProjectionUnavailable
-                    | NativeDisplayPhase::PanelProjectionUnavailable
-                    | NativeDisplayPhase::RenameProjectionUnavailable
-            ) {
-                locale.terminal_status(TerminalStatus::Blocked)
-            } else {
-                phase_status
-            };
-            frame.render_widget(
-                Paragraph::new(status)
-                    .style(theme.style(Role::TextSecondary))
-                    .wrap(Wrap { trim: true }),
-                content,
-            );
-        }
-    } else {
+    if !active {
         frame.render_widget(
-            Paragraph::new(text.inactive_pane)
-                .style(theme.style(Role::SurfaceInactive))
+            Block::new().style(theme.style(Role::SurfaceInactive)),
+            content,
+        );
+    }
+    let terminal = panel.map(|panel| panel.panel_id()).and_then(|panel_id| {
+        (native.pane_projection_status(panel_id) == NativeProjectionStatus::FrameAvailable)
+            .then(|| {
+                native
+                    .pane_projection(panel_id)
+                    .and_then(crate::terminal_projection::TerminalProjection::frame)
+            })
+            .flatten()
+    });
+    if let Some(terminal) = terminal {
+        terminal_cells::render(frame, content, terminal, input_enabled && active);
+    } else {
+        let status = if matches!(
+            native.phase(),
+            NativeDisplayPhase::Ready
+                | NativeDisplayPhase::MoveProjectionUnavailable
+                | NativeDisplayPhase::PanelProjectionUnavailable
+                | NativeDisplayPhase::RenameProjectionUnavailable
+        ) {
+            locale.terminal_status(TerminalStatus::Blocked)
+        } else {
+            phase_status
+        };
+        frame.render_widget(
+            Paragraph::new(status)
+                .style(theme.style(Role::TextSecondary))
                 .wrap(Wrap { trim: true }),
             content,
         );
@@ -708,6 +812,15 @@ fn render_status(
         || status.to_owned(),
         |notice| locale.shell_notice(Some(notice)).to_owned(),
     );
+    // A released pointer is a persistent mode, not a transient notice: it
+    // rides the status label on every draw until capture re-arms.
+    let status_label = if view.pointer_released() {
+        format!("{status_label} · {}", text.pointer_released)
+    } else {
+        status_label
+    };
+    let fits =
+        view.notice().is_none() && tab_close::unwrapped_text_fits(&status_label, status_area);
     frame.render_widget(
         Paragraph::new(status_label).style(theme.style(Role::TextSecondary)),
         status_area,
@@ -718,8 +831,7 @@ fn render_status(
             .style(style),
         right,
     );
-    (view.notice().is_none() && tab_close::unwrapped_text_fits(status, status_area))
-        .then_some(status_area)
+    fits.then_some(status_area)
 }
 
 fn render_sidebar(
@@ -1005,6 +1117,7 @@ fn render_native_workbench_navigator(
     locale: Locale,
     native: &NativeSessionView<'_>,
     theme: &Theme,
+    hits: &mut HitMapBuilder,
 ) -> Option<Rect> {
     let area = place_overlay(area, 88, 12)?;
     frame.render_widget(Clear, area);
@@ -1040,6 +1153,20 @@ fn render_native_workbench_navigator(
         native.active_context_position(),
         context_at,
         theme,
+        &mut |index, offset| {
+            if let Some(context) = native.context_at(index) {
+                hits.record(
+                    HitLayer::Overlay,
+                    Rect::new(
+                        contexts_area.x,
+                        contexts_area.y.saturating_add(offset),
+                        contexts_area.width,
+                        1,
+                    ),
+                    HitTarget::Context(context.location().clone()),
+                );
+            }
+        },
     );
     tabs::render_navigator(
         frame,
@@ -1048,6 +1175,20 @@ fn render_native_workbench_navigator(
         native.active_position(),
         |index| native_tab(native, index),
         theme,
+        &mut |index, offset| {
+            if let Some(tab) = native.tab(index) {
+                hits.record(
+                    HitLayer::Overlay,
+                    Rect::new(
+                        tabs_area.x,
+                        tabs_area.y.saturating_add(offset),
+                        tabs_area.width,
+                        1,
+                    ),
+                    HitTarget::Tab(tab.tab_id().clone()),
+                );
+            }
+        },
     );
     if let (Some(refresh), Some(status_area)) = (refresh, refresh_area) {
         let style = match refresh {

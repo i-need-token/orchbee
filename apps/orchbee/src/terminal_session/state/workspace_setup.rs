@@ -3,9 +3,8 @@ mod labels;
 mod projection;
 use super::line_editor::{LengthLimit, LineEditor};
 use super::{
-    AttachmentKey, NativeContextTabs, NativeSessionState, NavigatorRefreshStatus,
-    OperationDeadlines, PreparedRefresh, SelectedTab, SessionNotice, SessionPhase,
-    validate_canonical_refresh,
+    NativeContextTabs, NativeSessionState, NavigatorRefreshStatus, OperationDeadlines,
+    PreparedRefresh, SelectedTab, SessionNotice, SessionPhase, validate_canonical_refresh,
 };
 use crate::local_client::workbench::workspace_setup::{
     WorkbenchSetupCommit, WorkbenchSetupRequest,
@@ -139,7 +138,7 @@ impl NativeSessionState {
             })
     }
     fn setup_authority_available(&self) -> bool {
-        self.pending_refresh_generation.is_none()
+        self.pending_refresh.is_none()
             && self.pending_mutation.is_none()
             && self.pending_membership.is_none()
             && self.move_recovery.is_none()
@@ -260,7 +259,7 @@ impl NativeSessionState {
     pub(in crate::terminal_session) fn begin_setup(&mut self, operation: SetupOperation) {
         self.setup.draft = None;
         self.setup.deadlines = Some(operation.deadlines);
-        self.pending_refresh_generation = Some(operation.generation);
+        self.pending_refresh = Some(super::PendingRefreshFlight::recovery(operation.generation));
         self.adopt_publication_debt();
         self.refresh_status = Some(NavigatorRefreshStatus::Refreshing);
         self.setup.pending = Some(operation);
@@ -342,7 +341,7 @@ impl NativeSessionState {
                 let same = candidate.location() == self.cache.location();
                 self.prepare_membership_candidate(
                     candidate,
-                    same.then(|| self.desired.as_ref().map(AttachmentKey::tab_id))
+                    same.then(|| self.desired.as_ref().map(|key| key.anchor().tab_id()))
                         .flatten(),
                     self.active().filter(|_| same).map(SelectedTab::index),
                     None,

@@ -86,15 +86,15 @@ fn split_ready_state() -> NativeSessionState {
     )
     .unwrap();
     let key = state.desired().unwrap().clone();
-    assert!(state.install_projection(&key));
-    assert!(state.record_setup_configuration(
+    assert!(state.install_projection_t(&key));
+    assert!(state.record_setup_configuration_t(
         &key,
         ControllerMode::Controlling(ControllerId::parse(&id(8)).unwrap()),
         Some(geometry(80)),
     ));
-    assert!(state.stage_drawn_frame(&key, FrameIdentity::new(1)));
-    assert!(state.mark_feedback_accepted(&key, FrameIdentity::new(1)));
-    assert!(state.publish_ready(
+    assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(1)));
+    assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(1)));
+    assert!(state.publish_ready_t(
         &key,
         FrameIdentity::new(1),
         ControllerMode::Controlling(ControllerId::parse(&id(8)).unwrap()),
@@ -554,7 +554,7 @@ fn panel_reply_mismatches_close_protocol_without_running_the_settlement() {
         settled.store(true, Ordering::SeqCst);
         Ok(UiReply::Panel(PanelSettlement::new(
             PanelDecision::Continue,
-            key(1, 1),
+            pane_key(&key(1, 1)),
         )))
     });
     assert_eq!(
@@ -589,7 +589,7 @@ fn panel_reply_mismatches_close_protocol_without_running_the_settlement() {
         settled.store(true, Ordering::SeqCst);
         Ok(UiReply::Panel(PanelSettlement::new(
             PanelDecision::Continue,
-            key(1, 1),
+            pane_key(&key(1, 1)),
         )))
     });
     assert_eq!(
@@ -615,7 +615,7 @@ fn panel_reply_mismatches_close_protocol_without_running_the_settlement() {
         settled.store(true, Ordering::SeqCst);
         Ok(UiReply::Panel(PanelSettlement::new(
             PanelDecision::Continue,
-            key(1, 1),
+            pane_key(&key(1, 1)),
         )))
     });
     assert_eq!(
@@ -705,9 +705,10 @@ fn panel_membership_cleanup_holds_flight_until_exact_install() {
                     panic!("a surviving attachable leaf must produce a re-attach plan");
                 };
                 let install = transaction
-                    .prepare_desired_install(DesiredInstall::Fresh(
-                        WorkbenchTabId::parse(&id(1)).unwrap(),
-                    ))
+                    .prepare_desired_install(DesiredInstall::Fresh {
+                        tab_id: WorkbenchTabId::parse(&id(1)).unwrap(),
+                        panel: target.selected().key().panel().clone(),
+                    })
                     .unwrap();
                 let desired = install.desired().cloned();
                 install.commit();
@@ -722,10 +723,13 @@ fn panel_membership_cleanup_holds_flight_until_exact_install() {
     assert!(settled.load(Ordering::SeqCst));
     // Old-lease cleanup and the new install settle atomically: the desired attachment advanced
     // to the fresh generation and the flight was consumed exactly once.
-    assert_eq!(mailbox.lock().desired.key(), Some(&key(2, 1)));
+    assert_eq!(
+        mailbox.lock().desired.key().map(|pane| pane.anchor()),
+        Some(&key(2, 1))
+    );
     assert!(mailbox.lock().structural_mutation_pending.is_none());
     assert_eq!(state.cache().revision(), WorkbenchRevision::new(3));
-    assert_eq!(state.desired(), Some(&key(2, 1)));
+    assert_eq!(state.desired().map(|pane| pane.anchor()), Some(&key(2, 1)));
     assert!(state.attached_key().is_none());
     assert_eq!(state.phase_kind(), SessionPhaseKind::Switching);
     assert!(state.invariant_holds());
@@ -781,7 +785,7 @@ fn panel_membership_reply_rejects_a_foreign_detached_lease() {
         settled.store(true, Ordering::SeqCst);
         Ok(UiReply::Membership(RefreshSettlement::new(
             RefreshDecision::Continue,
-            key(1, 1),
+            pane_key(&key(1, 1)),
         )))
     });
     assert_eq!(

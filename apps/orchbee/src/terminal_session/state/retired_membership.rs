@@ -30,7 +30,7 @@ impl NativeSessionState {
         };
         if !self.invariant_holds()
             || !self.close.permits_retired_membership()
-            || self.pending_refresh_generation.is_some()
+            || self.pending_refresh.is_some()
             || self.pending_mutation.is_some()
             || self.setup_blocks_structure()
             || self.move_recovery.is_some()
@@ -38,9 +38,9 @@ impl NativeSessionState {
             || self.rename_uncertain.is_some()
             || self.pending_membership.is_some()
             || self.rename_draft_blocks_structure()
-            || self.desired.as_ref() != Some(evidence.poll.attachment())
-            || self.attached_key.as_ref() != Some(evidence.poll.attachment())
-            || ready.selected.key() != evidence.poll.attachment()
+            || self.desired.as_ref() != Some(evidence.poll.pane())
+            || !self.pane_attached(evidence.poll.pane_ref())
+            || ready.selected.key() != evidence.poll.pane()
         {
             return None;
         }
@@ -58,11 +58,13 @@ impl NativeSessionState {
         matches!(self.phase, SessionPhase::Retired(_))
             && self.invariant_holds()
             && self.cache == origin.baseline
-            && self.desired.as_ref() == Some(origin.evidence.poll.attachment())
-            && self.attached_key.is_none()
-            && self.projection_key.is_none()
-            && self.staged_frame.is_none()
-            && self.accepted_frame.is_none()
+            && self.desired.as_ref() == Some(origin.evidence.poll.pane())
+            && self.panes.iter().all(|record| {
+                !record.attached
+                    && !record.projected
+                    && record.staged_frame.is_none()
+                    && record.accepted_frame.is_none()
+            })
             && self.close.permits_retired_membership()
             && self.pending_mutation.is_none()
             && !self.setup_blocks_structure()
@@ -78,9 +80,7 @@ impl NativeSessionState {
         origin: &RetiredMembershipOrigin,
         generation: u64,
     ) -> Result<(), CarrierFailure> {
-        if !self.retired_membership_origin_matches(origin)
-            || self.pending_refresh_generation.is_some()
-        {
+        if !self.retired_membership_origin_matches(origin) || self.pending_refresh.is_some() {
             return Err(CarrierFailure::Protocol);
         }
         if generation == 0 {
@@ -96,7 +96,7 @@ impl NativeSessionState {
     ) -> Result<PreparedMembershipCandidate, CarrierFailure> {
         if !self.retired_membership_origin_matches(origin)
             || candidate
-                .tab_index(origin.evidence.poll.attachment().tab_id())
+                .tab_index(origin.evidence.poll.pane().anchor().tab_id())
                 .is_some()
         {
             return Err(CarrierFailure::AuthorityDivergence);

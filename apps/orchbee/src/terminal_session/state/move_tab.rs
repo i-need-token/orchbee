@@ -1,6 +1,5 @@
-use super::AttachmentKey;
 use super::{
-    AttachTarget, CarrierFailure, MembershipCleanup, NativeSessionState,
+    AttachTarget, AttachmentKey, CarrierFailure, MembershipCleanup, NativeSessionState, PaneKey,
     PreparedMembershipCandidate, SessionNotice, SessionPhase,
 };
 use crate::terminal_session::workbench_projection::{
@@ -196,7 +195,7 @@ impl NativeSessionState {
     ) -> Option<MoveOperation> {
         if self.mutation_blocks_structure()
             || self.rename_draft_blocks_structure()
-            || self.pending_refresh_generation.is_some()
+            || self.pending_refresh.is_some()
             || !self.invariant_holds()
             || !matches!(
                 &self.phase,
@@ -217,7 +216,7 @@ impl NativeSessionState {
         };
         Some(MoveOperation::new(
             request_id,
-            self.desired.clone()?,
+            self.desired.as_ref()?.anchor().clone(),
             self.cache.clone(),
             direction,
             deadline,
@@ -405,7 +404,7 @@ impl NativeSessionState {
     fn move_result_is_current(&self, operation: &MoveOperation) -> bool {
         self.pending_move() == Some(operation)
             && self.cache == operation.baseline
-            && self.desired.as_ref() == Some(&operation.target)
+            && self.desired.as_ref().map(PaneKey::anchor) == Some(&operation.target)
             && self.invariant_holds()
             && matches!(
                 self.phase,
@@ -443,7 +442,7 @@ impl NativeSessionState {
         self.pending_move().is_some_and(|operation| {
             operation.request_id() == request_id
                 && operation.baseline() == &self.cache
-                && self.desired.as_ref() == Some(operation.target())
+                && self.desired.as_ref().map(PaneKey::anchor) == Some(operation.target())
                 && (self
                     .settled_move
                     .as_ref()
@@ -488,16 +487,17 @@ impl NativeSessionState {
                     | SessionPhase::RetryableAttachUnavailable(_)
             )
             && !(matches!(self.phase, SessionPhase::ReconcilingMembership(_))
-                && ((self.move_recovery.is_some() && self.pending_refresh_generation.is_some())
+                && ((self.move_recovery.is_some() && self.pending_refresh.is_some())
                     || self.pending_move().is_some())
                 && self.pending_membership.is_some())
         {
             return false;
         }
         self.pending_move().is_none_or(|operation| {
-            Some(&operation.target) == self.desired.as_ref() && operation.baseline == self.cache
+            Some(&operation.target) == self.desired.as_ref().map(PaneKey::anchor)
+                && operation.baseline == self.cache
         }) && self.move_recovery.as_ref().is_none_or(|pending| {
-            Some(&pending.operation.target) == self.desired.as_ref()
+            Some(&pending.operation.target) == self.desired.as_ref().map(PaneKey::anchor)
                 && pending.operation.baseline == self.cache
         })
     }

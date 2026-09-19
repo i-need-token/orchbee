@@ -18,7 +18,7 @@ fn inactive_closed_removal_preserves_the_survivor_attachment_and_consumes_only_i
         .unwrap();
     assert!(state.begin_switch(target));
     let prepared = state
-        .prepare_switch_candidate(
+        .prepare_switch_candidate_k(
             &switch_marker,
             orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available {
                 snapshot: super::super::snapshot(2, 2, Some("2")),
@@ -26,10 +26,10 @@ fn inactive_closed_removal_preserves_the_survivor_attachment_and_consumes_only_i
         )
         .unwrap();
     let cleanup = state
-        .stage_switch_membership_cleanup(&switch_marker, prepared, deadlines)
+        .stage_switch_membership_cleanup_k(&switch_marker, prepared, deadlines)
         .unwrap();
     let prepared = state
-        .prepare_cleaned_membership_candidate(&cleanup, &old)
+        .prepare_cleaned_membership_candidate(&cleanup, old.anchor())
         .unwrap();
     assert!(matches!(
         state
@@ -38,11 +38,11 @@ fn inactive_closed_removal_preserves_the_survivor_attachment_and_consumes_only_i
             .commit(),
         MembershipInstallDecision::Attach(_)
     ));
-    assert!(state.install_projection(&current));
-    assert!(state.record_setup_configuration(&current, ControllerMode::ReadOnly, None));
-    assert!(state.stage_drawn_frame(&current, FrameIdentity::new(2)));
-    assert!(state.mark_feedback_accepted(&current, FrameIdentity::new(2)));
-    assert!(state.publish_ready(
+    assert!(state.install_projection_t(&current));
+    assert!(state.record_setup_configuration_t(&current, ControllerMode::ReadOnly, None));
+    assert!(state.stage_drawn_frame_t(&current, FrameIdentity::new(2)));
+    assert!(state.mark_feedback_accepted_t(&current, FrameIdentity::new(2)));
+    assert!(state.publish_ready_t(
         &current,
         FrameIdentity::new(2),
         ControllerMode::ReadOnly,
@@ -69,9 +69,15 @@ fn inactive_closed_removal_preserves_the_survivor_attachment_and_consumes_only_i
             .commit(),
         MembershipInstallDecision::Preserved
     );
-    assert_eq!(state.desired(), Some(&current));
-    assert_eq!(state.attached_key(), Some(&current));
-    assert_eq!(state.projection_key(), Some(&current));
+    assert_eq!(state.desired().map(|pane| pane.anchor()), Some(&current));
+    assert_eq!(
+        state.attached_key().map(|pane| pane.anchor()),
+        Some(&current)
+    );
+    assert_eq!(
+        state.projection_key().map(|pane| pane.anchor()),
+        Some(&current)
+    );
     assert!(state.feedback_accepted());
     assert_eq!(state.cache().tabs().len(), 1);
     assert!(state.invariant_holds());
@@ -80,7 +86,7 @@ fn inactive_closed_removal_preserves_the_survivor_attachment_and_consumes_only_i
     state.acknowledge_close_lease(CloseLeaseAcknowledgement::Exchange(read.key().clone()));
     state.acknowledge_close_lease(CloseLeaseAcknowledgement::Reconciliation(Box::new(marker)));
     assert!(!state.has_retained_close_records());
-    assert_eq!(state.desired(), Some(&current));
+    assert_eq!(state.desired().map(|pane| pane.anchor()), Some(&current));
 }
 
 #[test]

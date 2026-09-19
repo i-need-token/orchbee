@@ -345,6 +345,7 @@ fn draw(
             locale,
             Some(session.view()),
             &crate::tui_theme::Theme::terminal_native(),
+            &mut crate::tui_pointer::HitMapBuilder::new(),
         )
     })?;
     // A presented text field places the terminal cursor inside the modal; every

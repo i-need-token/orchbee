@@ -41,12 +41,24 @@ fn rendered(
         let area = Rect::new(0, 0, width, height);
         let theme = crate::tui_theme::Theme::rgb_test_dark();
         match surface {
-            Surface::Compact => {
-                render_compact(frame, area, tabs.len(), active_position, tab_at, &theme)
-            }
-            Surface::Navigator => {
-                render_navigator(frame, area, tabs.len(), active_position, tab_at, &theme)
-            }
+            Surface::Compact => render_compact(
+                frame,
+                area,
+                tabs.len(),
+                active_position,
+                tab_at,
+                &theme,
+                &mut |_, _, _| {},
+            ),
+            Surface::Navigator => render_navigator(
+                frame,
+                area,
+                tabs.len(),
+                active_position,
+                tab_at,
+                &theme,
+                &mut |_, _| {},
+            ),
         }
     }));
     let buffer = terminal.backend().buffer().clone();
@@ -241,6 +253,7 @@ fn rendering_is_bounded_by_its_rect_and_marks_the_active_token_style() {
             Some(2),
             tab_at,
             &crate::tui_theme::Theme::rgb_test_dark(),
+            &mut |_, _, _| {},
         );
     }));
     let bounded = terminal.backend().buffer();

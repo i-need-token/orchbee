@@ -46,6 +46,7 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::NavigatorToggle => "Toggle Workbench navigator",
         PrefixDesc::ShowHelp => "Open or close this shortcut help",
         PrefixDesc::HelpPage => "Page this shortcut help while it is open",
+        PrefixDesc::PointerCapture => "Release or restore mouse capture",
         PrefixDesc::Exit => "Close this shell",
         PrefixDesc::LiteralPrefix => "Send literal Ctrl+B to the terminal input port",
         PrefixDesc::DismissPrefix => "Dismiss the prefix without an action",
@@ -74,6 +75,7 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::NavigatorToggle => "切换 Workbench 导航器",
         PrefixDesc::ShowHelp => "打开或关闭此快捷键帮助",
         PrefixDesc::HelpPage => "在帮助打开时翻看此快捷键帮助的页面",
+        PrefixDesc::PointerCapture => "释放或恢复鼠标捕获",
         PrefixDesc::Exit => "关闭此 shell",
         PrefixDesc::LiteralPrefix => "向终端输入端口发送字面 Ctrl+B",
         PrefixDesc::DismissPrefix => "取消前缀而不执行动作",
@@ -113,7 +115,6 @@ pub(crate) struct ShellText {
     pub(crate) business_section: &'static str,
     pub(crate) exit_hint: &'static str,
     pub(crate) hint_short: &'static str,
-    pub(crate) inactive_pane: &'static str,
     pub(crate) other_keys_label: &'static str,
     pub(crate) overlay_input_hint: &'static str,
     pub(crate) help_dismiss_hint: &'static str,
@@ -124,6 +125,7 @@ pub(crate) struct ShellText {
     pub(crate) navigator_title: &'static str,
     pub(crate) no_client_session: &'static str,
     pub(crate) panel_title: &'static str,
+    pub(crate) pointer_released: &'static str,
     pub(crate) prefix_active: &'static str,
     pub(crate) prefix_desc: fn(PrefixDesc) -> &'static str,
     pub(crate) prefix_idle: &'static str,
@@ -179,7 +181,6 @@ const EN_US_SHELL: ShellText = ShellText {
     business_section: "BUSINESS",
     exit_hint: "Ctrl+B q · exit",
     hint_short: "Ctrl+B ? · help",
-    inactive_pane: "Terminal retained · focus with Ctrl+B h/j/k/l",
     overlay_refused: "Not enough room to show this view · resize the terminal",
     navigator_detail: "A Site connection is required before Workbench locations can be shown.",
     navigator_title: "Workbench navigator",
@@ -190,6 +191,7 @@ const EN_US_SHELL: ShellText = ShellText {
     help_dismiss_hint_short: "Ctrl+B ? closes · typing continues",
     help_paging_hint: "Ctrl+B PgUp/PgDn turns pages",
     panel_title: "Panel · Terminal",
+    pointer_released: "mouse released · Ctrl+B m restores",
     prefix_active: "PREFIX Ctrl+B",
     prefix_desc: en_us_prefix_desc,
     prefix_idle: "Ctrl+B · shortcuts",
@@ -213,7 +215,6 @@ const ZH_CN_SHELL: ShellText = ShellText {
     business_section: "业务",
     exit_hint: "Ctrl+B q · 退出",
     hint_short: "Ctrl+B ? · 帮助",
-    inactive_pane: "终端已保留 · 用 Ctrl+B h/j/k/l 聚焦",
     overlay_refused: "空间不足，无法显示此视图 · 请调整终端大小",
     navigator_detail: "连接 Site 后才能显示 Workbench 位置。",
     navigator_title: "Workbench 导航器",
@@ -224,6 +225,7 @@ const ZH_CN_SHELL: ShellText = ShellText {
     help_dismiss_hint_short: "Ctrl+B ? 关闭 · 输入仍传递到终端",
     help_paging_hint: "Ctrl+B PgUp/PgDn 翻页",
     panel_title: "Panel · 终端",
+    pointer_released: "鼠标已释放 · Ctrl+B m 恢复",
     prefix_active: "前缀 Ctrl+B",
     prefix_desc: zh_cn_prefix_desc,
     prefix_idle: "Ctrl+B · 快捷键",
@@ -302,6 +304,18 @@ impl Locale {
                 "Terminal input unavailable · input was not sent"
             }
             (Self::ZhCn, Some(Notice::TerminalInputUnavailable)) => "终端输入不可用 · 未发送输入",
+            (Self::EnUs, Some(Notice::PointerInputDropped)) => {
+                "Pointer input dropped · focus switch did not settle in time"
+            }
+            (Self::ZhCn, Some(Notice::PointerInputDropped)) => {
+                "指针输入被丢弃 · 焦点切换未及时就绪"
+            }
+            (Self::EnUs, Some(Notice::PointerPixelsUnsupported)) => {
+                "Pane requested pixel mouse reports · unsupported, input dropped"
+            }
+            (Self::ZhCn, Some(Notice::PointerPixelsUnsupported)) => {
+                "面板请求像素鼠标上报 · 不支持，输入已丢弃"
+            }
             (Self::EnUs, Some(Notice::UnknownPrefix)) => {
                 "Unknown prefix key · press Ctrl+B then ? for shortcuts"
             }

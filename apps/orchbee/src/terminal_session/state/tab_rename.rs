@@ -45,7 +45,7 @@ impl super::NativeSessionState {
         });
         operation.is_none_or(|operation| {
             self.cache == *operation.baseline()
-                && self.desired.as_ref() == Some(operation.target())
+                && self.desired.as_ref().map(super::PaneKey::anchor) == Some(operation.target())
                 && (matches!(
                     self.phase,
                     super::SessionPhase::Ready(_)
@@ -128,7 +128,7 @@ impl super::NativeSessionState {
     ) -> bool {
         self.pending_rename() == Some(operation)
             && &self.cache == operation.baseline()
-            && self.desired.as_ref() == Some(operation.target())
+            && self.desired.as_ref().map(super::PaneKey::anchor) == Some(operation.target())
     }
 
     pub(in crate::terminal_session) fn retain_pending_rename(

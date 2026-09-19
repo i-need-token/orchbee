@@ -35,6 +35,8 @@ mod tui_backend;
 #[cfg(unix)]
 mod tui_layout;
 #[cfg(unix)]
+mod tui_pointer;
+#[cfg(unix)]
 mod tui_render;
 #[cfg(unix)]
 mod tui_shell;
@@ -53,14 +55,14 @@ use presentation::{ProcessResult, present};
 
 // Keep the additive shell integration seam type-checked without making it an invocation route.
 #[cfg(unix)]
-const _: fn(localization::Locale) -> Result<(), tui_shell::TuiFailure> = tui_shell::run;
+const _: fn(localization::Locale, bool) -> Result<(), tui_shell::TuiFailure> = tui_shell::run;
 
 fn main() -> ExitCode {
     let locale = select_locale(|name| env::var_os(name));
     let parsed = parse_request(env::args_os().skip(1));
     #[cfg(target_os = "linux")]
-    if let Ok(invocation::Request::Tui) = &parsed {
-        return match local_startup::run(locale) {
+    if let Ok(invocation::Request::Tui { mouse }) = &parsed {
+        return match local_startup::run(locale, *mouse) {
             Ok(()) => ExitCode::SUCCESS,
             Err(failure) => emit(
                 cli::process_result(
@@ -78,7 +80,7 @@ fn main() -> ExitCode {
     emit(
         match parsed {
             Err(failure) => cli::parse_failure(failure, locale),
-            Ok(invocation::Request::Tui) => {
+            Ok(invocation::Request::Tui { .. }) => {
                 cli::process_result(present(Ok(Invocation::Tui), locale), locale)
             }
             Ok(invocation::Request::Version) => {

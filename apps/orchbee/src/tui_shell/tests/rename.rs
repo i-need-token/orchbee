@@ -59,14 +59,17 @@ pub(crate) fn run_native_rename_resize(
             locale: Locale::EnUs,
             theme: &crate::tui_theme::Theme::terminal_native(),
         },
-        (&mut inputs, &mut |enabled| {
-            leases.push(enabled);
+        (&mut inputs, &mut |request| {
+            if let ModeRequest::BracketedPaste(enabled) = request {
+                leases.push(enabled);
+            }
             Ok(())
         }),
         session,
         &FixedTermination(false),
         &viewport,
         initial,
+        true,
     ) {
         Ok(LoopExit::User) => Ok(leases),
         Ok(other) => Err(io::Error::other(format!(

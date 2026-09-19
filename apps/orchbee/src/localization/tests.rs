@@ -73,7 +73,7 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
     let english = Locale::EnUs.shell();
     let chinese = Locale::ZhCn.shell();
 
-    assert_eq!(english.shortcut_rows().len(), 23);
+    assert_eq!(english.shortcut_rows().len(), 24);
     assert_eq!(chinese.shortcut_rows().len(), english.shortcut_rows().len());
     assert_ne!(english.backend_status, chinese.backend_status);
     assert_ne!(english.terminal_unavailable, chinese.terminal_unavailable);
@@ -91,6 +91,7 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
         "Ctrl+B [ / ]",
         "Ctrl+B 1..9",
         "Ctrl+B w",
+        "Ctrl+B m",
         "Ctrl+B PageUp / PageDown",
     ] {
         assert!(
@@ -131,7 +132,7 @@ fn help_page_row_matches_the_registry_bindings_in_both_locales() {
     };
     fn press(view: &mut ClientView, input: KeyCode, mods: Modifiers) -> ClientTransition {
         let transition = view.decide(PrefixInput::Key(KeyEvent::press(input, mods)));
-        view.commit(transition, SessionActionDisposition::KeepNavigator);
+        view.commit(transition.clone(), SessionActionDisposition::KeepNavigator);
         transition
     }
 
@@ -276,7 +277,11 @@ fn panel_shortcut_rows_match_their_client_actions_in_both_locales() {
             let prefix = view.decide(key(KeyCode::Char('b'), Modifiers::CTRL));
             view.commit(prefix, SessionActionDisposition::KeepNavigator);
             let transition = view.decide(key(*code, Modifiers::NONE));
-            assert_eq!(transition.action(), Some(*expected), "Ctrl+B {code:?}");
+            assert_eq!(
+                transition.action(),
+                Some(expected.clone()),
+                "Ctrl+B {code:?}"
+            );
         }
     }
 

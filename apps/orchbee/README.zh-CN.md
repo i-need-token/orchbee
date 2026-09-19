@@ -183,10 +183,13 @@ Session 丢失后的 cleanup 可超出单次提交 deadline。
 Poll、控制、projection feedback 和 cleanup 都使用这个已捕获的身份；有界 busy 重试保留它，
 只更新契约允许刷新的 request identity 和 control sequence。提交前验证 projection feedback
 属于其 attachment，绝不重新指定目标。`LocalClient` 不保存隐式的当前 viewer。
-原生 UI 仍一次附着一个 viewer；分屏 Tab 保留每个经过验证的叶子 binding，并在本地通过
-`h`/`j`/`k`/`l` 沿规范树移动焦点，当前叶子显示实时帧。非活动叶子保留布局和身份，但不会
-保留第二个实时 viewer 帧。因此 Server 的多 viewer 路由基础尚未在一个原生 Client 内提供同时
-组合多个 viewer 的能力。
+已连接的原生 Session 中，活动 Tab 规范 Panel 树的每个可见叶子都拥有自己的 viewer 附着
+——逻辑 `PaneKey`（{选中 anchor、`WorkbenchPanelId`}）保持稳定，其物理附着携带按记录铸造的
+`PaneRef` incarnation。Input 与 resize 仅放行焦点 pane 的精确 incarnation；poll 对每个已
+放行 pane incarnation 持续进行，后台叶子持续渲染自己的帧。同 Tab 的 `h`/`j`/`k`/`l` 焦点
+移动是本地选中变更——绝不 detach、重新附着或重编已被接受的工作；跨 Tab 选中仍走既有的
+switch 清理/附着链。已 detach 并重新绑定的 pane 会栅栏所有携带其已退 incarnation 的迟到
+input、帧、feedback 与结算。viewer 容量仍受共享 HostViewers 上限（8）约束。
 
 ### 提交正确性记录
 
@@ -257,6 +260,7 @@ Application-private shell adapter 拥有以下终端与呈现边界。裸 Linux 
 | Prefix + `PageUp` 或 `PageDown`                | 离开 Prefix，并且仅当 shortcut-help overlay 打开时翻页；页码属于 Client-local state、以 registry 行数为界、帮助关闭再打开时归零，并由 UI loop 按 renderer 每次绘制回执的有效页码结算（例如 resize 后）。帮助未打开时该组合无效，报告与未绑定键相同的 unknown-prefix notice；无 Prefix 时这些键原样到达 terminal port。 |
 | Prefix + 其他完整键或完整序列                  | 离开 Prefix 并报告 unknown-prefix notice；一个完整的未知序列（CSI 尾巴、UTF-8 标量、带修饰键）恰为一个未绑定事件，绝不会把字节留在 pane 中。                                                                                                                                                                           |
 | Prefix + `c`、`n`、`p`、`1` … `9` 或 `h/j/k/l` | 离开 Prefix；已连接 Session 执行对应的 Tab 或本地 Panel 焦点操作，未连接 fallback 保持共享状态不变并显示不可用；不由 shell fallback 提交 command。                                                                                                                                                                     |
+| Prefix + `m`                                   | 离开 Prefix，并通过租约模式对释放或恢复宿主指针捕获；released 期间状态行显示持久指示，宿主原生选择与滚动不受影响。鼠标捕获、命中测试、pane 透传与滚轮回退由[原生鼠标输入](docs/native-mouse-input.zh-CN.md)治理。                                                                                                      |
 | Prefix + `Ctrl+B`                              | 离开 Prefix，并向 terminal-input port 提供一个 literal `Ctrl+B` event。                                                                                                                                                                                                                                                |
 | Prefix + `q` 或 `d`                            | 离开 Prefix，并关闭此 Client shell。                                                                                                                                                                                                                                                                                   |
 | Prefix + `Esc`                                 | 取消 Prefix，且不改变 overlay。在 Prefix 外，`Esc` 及其后续 byte 都是普通 terminal input。                                                                                                                                                                                                                             |

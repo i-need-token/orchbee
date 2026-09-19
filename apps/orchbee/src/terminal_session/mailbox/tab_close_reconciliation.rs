@@ -16,7 +16,7 @@ impl CloseReconciliationSettlement {
     pub(in crate::terminal_session) fn new(
         marker: CloseReconciliationMarker,
         decision: RefreshDecision,
-        desired: Option<AttachmentKey>,
+        desired: Option<PaneKey>,
     ) -> Self {
         Self {
             marker,
@@ -154,6 +154,7 @@ impl CommandMailbox {
         state.queue.push_back(QueuedRecord {
             serial,
             command: QueuedCommand::ReconcileClose(marker.clone()),
+            retry_at: None,
         });
         self.changed.notify_all();
         Ok(marker)

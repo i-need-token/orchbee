@@ -43,6 +43,255 @@ fn split_ready() -> NativeSessionState {
     ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap())
 }
 
+fn expired_refresh_pane(now: Instant) -> (NativeSessionState, WorkbenchPanelId) {
+    let mut state = split_ready();
+    let leaves: Vec<_> = state
+        .tab(0)
+        .unwrap()
+        .leaf_panel_ids()
+        .into_iter()
+        .enumerate()
+        .map(|(index, panel)| (panel, index, geometry(80)))
+        .collect();
+    let peer = leaves[1].0.clone();
+    assert!(state.sync_pane_set(&leaves, now));
+    assert!(state.reconcile_targets(now + OPERATION_TOTAL).is_none());
+    assert_eq!(
+        state.pane_by_panel(&peer).unwrap().fault,
+        Some(PaneFault::ConvergenceExpired)
+    );
+    assert!(state.invariant_holds());
+    (state, peer)
+}
+
+fn refresh_same_panels(
+    state: &NativeSessionState,
+    generation: u64,
+    revision: u64,
+) -> PreparedRefresh {
+    let mut candidate = split_panel_baseline();
+    candidate.revision = WorkbenchRevision::new(revision);
+    state.prepare_refresh(
+        generation,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: candidate,
+        },
+    )
+}
+
+#[test]
+fn explicit_refresh_install_reopens_expired_pane_without_membership_change() {
+    let now = Instant::now();
+    let installed_at = now + OPERATION_TOTAL + Duration::from_millis(1);
+    let (mut state, peer) = expired_refresh_pane(now);
+    let focus = state.desired().unwrap().clone();
+    let before = state.pane_record(&focus).unwrap().clone();
+    assert!(state.start_pending_refresh(41));
+    assert_eq!(
+        state.pane_by_panel(&peer).unwrap().fault,
+        Some(PaneFault::ConvergenceExpired)
+    );
+    let prepared = refresh_same_panels(&state, 41, 1);
+    assert!(matches!(prepared, PreparedRefresh::Append { .. }));
+    assert_eq!(
+        state.apply_prepared_refresh(prepared, installed_at),
+        RefreshDecision::Continue
+    );
+    assert_eq!(state.pane_by_panel(&peer).unwrap().fault, None);
+    let after = state.pane_record(&focus).unwrap();
+    assert_eq!(before.pane_ref(), after.pane_ref());
+    assert_eq!(before.mode, after.mode);
+    assert_eq!(before.accepted_frame, after.accepted_frame);
+    assert_eq!(before.last_accepted_geometry, after.last_accepted_geometry);
+    assert!(state.pending_refresh_generation().is_none());
+    assert!(state.invariant_holds());
+}
+
+#[test]
+fn failed_and_automatic_refreshes_keep_expired_panes_parked() {
+    let now = Instant::now();
+    let installed_at = now + OPERATION_TOTAL + Duration::from_millis(1);
+    let (mut state, peer) = expired_refresh_pane(now);
+    assert!(state.start_pending_refresh(41));
+    let failed = state.prepare_refresh(41, WorkbenchSnapshotOutcome::Denied {});
+    assert_eq!(
+        state.apply_prepared_refresh(failed, installed_at),
+        RefreshDecision::Continue
+    );
+    assert_eq!(
+        state.pane_by_panel(&peer).unwrap().fault,
+        Some(PaneFault::ConvergenceExpired)
+    );
+    state.note_publication_hint();
+    assert!(state.start_publication_drain(42));
+    let automatic = refresh_same_panels(&state, 42, 2);
+    assert_eq!(
+        state.apply_prepared_refresh(automatic, installed_at),
+        RefreshDecision::Continue
+    );
+    assert_eq!(
+        state.pane_by_panel(&peer).unwrap().fault,
+        Some(PaneFault::ConvergenceExpired)
+    );
+    assert!(state.invariant_holds());
+}
+
+#[test]
+fn explicit_refresh_result_reopens_once_and_live_episode_is_not_extended() {
+    let now = Instant::now();
+    let installed_at = now + OPERATION_TOTAL + Duration::from_millis(1);
+    let (mut state, peer) = expired_refresh_pane(now);
+    assert!(state.start_pending_refresh(41));
+    let first = refresh_same_panels(&state, 41, 2);
+    let duplicate = refresh_same_panels(&state, 41, 2);
+    assert_eq!(
+        state.apply_prepared_refresh(first, installed_at),
+        RefreshDecision::Continue
+    );
+    let (_, _, budget) = state.reconcile_targets(installed_at).unwrap();
+    assert_eq!(budget.total(), installed_at + OPERATION_TOTAL);
+
+    // Another genuine successful user refresh is not an extension of live work.
+    assert!(state.start_pending_refresh(42));
+    let fresh = refresh_same_panels(&state, 42, 3);
+    assert_eq!(
+        state.apply_prepared_refresh(fresh, installed_at + Duration::from_secs(1)),
+        RefreshDecision::Continue
+    );
+    assert_eq!(
+        state.reconcile_targets(installed_at).unwrap().2.total(),
+        budget.total()
+    );
+
+    assert!(state.reconcile_targets(budget.total()).is_none());
+    assert_eq!(
+        state.pane_by_panel(&peer).unwrap().fault,
+        Some(PaneFault::ConvergenceExpired)
+    );
+    assert_eq!(
+        state.apply_prepared_refresh(duplicate, budget.total() + Duration::from_secs(1)),
+        RefreshDecision::Continue
+    );
+    assert_eq!(
+        state.pane_by_panel(&peer).unwrap().fault,
+        Some(PaneFault::ConvergenceExpired)
+    );
+    assert!(state.invariant_holds());
+}
+
+#[test]
+fn stale_user_result_cannot_reopen_an_automatic_flight_or_retired_session() {
+    let now = Instant::now();
+    let installed_at = now + OPERATION_TOTAL + Duration::from_millis(1);
+    let (mut state, peer) = expired_refresh_pane(now);
+    assert!(state.start_pending_refresh(41));
+    let late_success = refresh_same_panels(&state, 41, 2);
+    let failed = state.prepare_refresh(41, WorkbenchSnapshotOutcome::Denied {});
+    assert_eq!(
+        state.apply_prepared_refresh(failed, installed_at),
+        RefreshDecision::Continue
+    );
+    state.note_publication_hint();
+    assert!(state.start_publication_drain(42));
+    assert_eq!(
+        state.apply_prepared_refresh(late_success, installed_at),
+        RefreshDecision::Continue
+    );
+    assert_eq!(state.pending_refresh_generation(), Some(42));
+    assert_eq!(
+        state.pane_by_panel(&peer).unwrap().fault,
+        Some(PaneFault::ConvergenceExpired)
+    );
+    let automatic = refresh_same_panels(&state, 42, 2);
+    state.retire(CarrierFailure::Transport);
+    assert_eq!(
+        state.apply_prepared_refresh(automatic, installed_at),
+        RefreshDecision::Continue
+    );
+    assert!(state.pending_refresh_generation().is_none());
+    assert_eq!(state.phase_kind(), SessionPhaseKind::Retired);
+    assert!(state.invariant_holds());
+}
+
+#[test]
+fn user_refresh_preserves_definite_faults_and_departing_viewer_ownership() {
+    let now = Instant::now();
+    let installed_at = now + OPERATION_TOTAL + Duration::from_millis(1);
+    for fault in [
+        PaneFault::AttachRejected,
+        PaneFault::CapacityExceeded,
+        PaneFault::ViewerLost,
+        PaneFault::ControlLost,
+    ] {
+        let (mut state, peer) = expired_refresh_pane(now);
+        let reference = state.pane_by_panel(&peer).unwrap().pane_ref();
+        // Loss is a result about an existing attachment, unlike an attach
+        // rejection. Establish that real precondition through the setup path.
+        if matches!(fault, PaneFault::ViewerLost | PaneFault::ControlLost) {
+            state
+                .panes
+                .iter_mut()
+                .find(|record| record.key.panel() == &peer)
+                .unwrap()
+                .fault = None;
+            assert!(state.settle_attached_event_t(&reference).is_some());
+            assert!(state.record_setup_configuration_t(
+                &reference,
+                controlling(),
+                Some(geometry(80))
+            ));
+        }
+        assert!(state.settle_pane_fault(&reference, fault));
+        assert!(
+            state.invariant_holds(),
+            "fault {fault:?} must preserve the record shape before refresh"
+        );
+        assert!(state.reconcile_targets(installed_at).is_none());
+        assert_eq!(
+            state.pane_by_panel(&peer).unwrap().fault,
+            Some(fault),
+            "a fair tick cannot turn a known fault into an expired attach"
+        );
+        assert!(state.start_pending_refresh(41));
+        let prepared = refresh_same_panels(&state, 41, 2);
+        assert_eq!(
+            state.apply_prepared_refresh(prepared, installed_at),
+            RefreshDecision::Continue
+        );
+        assert_eq!(state.pane_by_panel(&peer).unwrap().fault, Some(fault));
+        assert!(state.invariant_holds());
+    }
+
+    let (mut state, peer) = expired_refresh_pane(now);
+    let reference = state.pane_by_panel(&peer).unwrap().pane_ref();
+    state
+        .panes
+        .iter_mut()
+        .find(|record| record.key.panel() == &peer)
+        .unwrap()
+        .fault = None;
+    assert!(state.settle_attached_event_t(&reference).is_some());
+    assert!(state.record_setup_configuration_t(&reference, controlling(), Some(geometry(80))));
+    // No disposal proof exists: an in-flight departure is never a free slot.
+    let record = state
+        .panes
+        .iter_mut()
+        .find(|record| record.key.panel() == &peer)
+        .unwrap();
+    record.mark_departing();
+    assert!(state.start_pending_refresh(41));
+    let prepared = refresh_same_panels(&state, 41, 2);
+    assert_eq!(
+        state.apply_prepared_refresh(prepared, installed_at),
+        RefreshDecision::Continue
+    );
+    let record = state.pane_record(reference.pane()).unwrap();
+    assert_eq!(record.pane_ref(), reference);
+    assert!(record.attached && record.departing);
+    assert_eq!(record.fault, None);
+    assert!(state.invariant_holds());
+}
+
 fn split_two_tab_baseline() -> Snapshot {
     let mut baseline = snapshot(2, 1, None);
     baseline.terminal_contexts[0].tabs[0].root = PanelNode::Split {
@@ -92,9 +341,8 @@ fn split_ready_two_tabs() -> NativeSessionState {
 /// leaf (panel 3010): the switch was admitted, installed, and settled unattached.
 fn split_retryable() -> NativeSessionState {
     let (mut state, marker, provenance) = switching_to_nonfirst_panel();
-    let fresh = install_switch_candidate(&mut state, &marker);
     assert_eq!(
-        state.settle_unattached_setup(&fresh, 0, &provenance),
+        state.settle_unattached_setup_t(&marker, 0, &provenance),
         Some(CleanupContinuation::Stable)
     );
     state
@@ -612,7 +860,9 @@ fn panel_planning_is_refused_while_any_structure_guard_is_active() {
 
     // A broken invariant refuses planning fail-closed.
     let mut state = ready(1);
-    state.attached_key = None;
+    if let Some(record) = state.focus_record_mut() {
+        record.attached = false;
+    }
     assert!(!state.invariant_holds());
     assert!(
         state
@@ -830,7 +1080,11 @@ fn committed_split_merges_the_exact_projection_in_place() {
     );
     assert_eq!(
         state.active(),
-        Some(&SelectedTab::new_panel(operation.target().clone(), 0, 0))
+        Some(&SelectedTab::new_panel(
+            state.pane_key_for_anchor(operation.target()).unwrap(),
+            0,
+            0
+        ))
     );
     assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
     assert!(state.pending_panel().is_none());
@@ -867,7 +1121,11 @@ fn committed_move_merges_the_exact_projection_and_retargets_the_selection() {
     assert_eq!(state.cache().tabs()[0].panel_count(), 2);
     assert_eq!(
         state.active(),
-        Some(&SelectedTab::new_panel(operation.target().clone(), 0, 1)),
+        Some(&SelectedTab::new_panel(
+            state.pane_key_for_anchor(operation.target()).unwrap(),
+            0,
+            1
+        )),
         "the selected leaf follows its new geometric position"
     );
     assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
@@ -1003,7 +1261,7 @@ fn committed_membership_for_a_removed_tab_walks_cleanup_and_install() {
     assert_eq!(target.selected().index(), 0);
     assert_eq!(target.selected().panel_index(), 0);
     assert_eq!(state.phase_kind(), SessionPhaseKind::Switching);
-    assert_eq!(state.desired(), Some(&fresh));
+    assert_eq!(state.desired().map(|pane| pane.anchor()), Some(&fresh));
     assert_eq!(state.attached_key(), None);
     assert!(state.pending_panel().is_none());
     assert_eq!(state.retained_panel_for_test(), Some(&known));
@@ -1062,7 +1320,7 @@ fn tab_unavailable_membership_installs_without_cleanup_when_unattached() {
     assert_eq!(target.selected().index(), 0);
     assert_eq!(target.selected().panel_index(), 0);
     assert_eq!(state.phase_kind(), SessionPhaseKind::Switching);
-    assert_eq!(state.desired(), Some(&fresh));
+    assert_eq!(state.desired().map(|pane| pane.anchor()), Some(&fresh));
     assert!(state.pending_panel().is_none());
     assert!(state.invariant_holds());
 }
@@ -1124,7 +1382,7 @@ fn superseding_snapshot_missing_the_selected_leaf_repairs_through_paired_members
         &panel_id(3_010)
     );
     assert_eq!(state.phase_kind(), SessionPhaseKind::Switching);
-    assert_eq!(state.desired(), Some(&fresh));
+    assert_eq!(state.desired().map(|pane| pane.anchor()), Some(&fresh));
     assert!(state.pending_panel().is_none());
     assert!(state.invariant_holds());
 }
@@ -1186,7 +1444,7 @@ fn superseding_leaf_loss_installs_fresh_attachment_without_cleanup_when_unattach
     assert_eq!(target.selected().index(), 0);
     assert_eq!(target.selected().panel_index(), 0);
     assert_eq!(state.phase_kind(), SessionPhaseKind::Switching);
-    assert_eq!(state.desired(), Some(&fresh));
+    assert_eq!(state.desired().map(|pane| pane.anchor()), Some(&fresh));
     assert!(state.invariant_holds());
 }
 
@@ -1786,20 +2044,12 @@ fn moved_panel_selection_stales_a_drawn_close_confirmation() {
     let token = state.view().panel_close_confirmation().unwrap().token();
     state.acknowledge_panel_close_draw(Some(token));
 
-    // The real focus switch the UI drives: the selected leaf moves to the
-    // second panel under a fresh desired generation.
-    let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
-    let target = state
-        .plan_panel_focus(PanelDirection::Right, 2, deadlines)
-        .unwrap();
-    let marker = target.selected().key().clone();
-    let provenance = target.provenance().clone();
-    assert!(state.begin_switch(target));
-    let fresh = install_switch_candidate(&mut state, &marker);
-    assert_eq!(
-        state.settle_unattached_setup(&fresh, 0, &provenance),
-        Some(CleanupContinuation::Stable)
-    );
+    // The real focus move the UI drives: the selected leaf moves to the
+    // second panel without any membership change.
+    super::attach_nonfirst_leaf(&mut state);
+    let pane = state.plan_panel_focus_local(PanelDirection::Right).unwrap();
+    assert!(state.move_panel_focus_local(pane));
+    assert_eq!(state.active().unwrap().panel_index(), 1);
 
     // The frozen leaf is no longer the selection: the drawn token cannot execute.
     assert!(matches!(
@@ -1811,6 +2061,186 @@ fn moved_panel_selection_stales_a_drawn_close_confirmation() {
     ));
     state.cancel_panel_close_confirmation();
     assert!(state.view().panel_close_confirmation().is_none());
+    assert!(state.invariant_holds());
+}
+
+/// A local focus move or ordinary poll may only land on a leaf whose own
+/// setup has fully converged: between `Attached` and `SetupConfigured` the
+/// record carries no controller mode yet, and focusing it would write a
+/// guessed `ReadOnly` into Ready that the real `Controlling` configuration
+/// then contradicts — the receipt's `ready.mode == mode` check rejects it as
+/// a protocol violation. Polling it would draw the leaf's shell while that
+/// same unconfigured leaf still refuses a single chord. The leaf is refused
+/// as a poll slot and focus target in both windows — before the record
+/// exists and while it is attached but unconfigured — and admitted once the
+/// leaf is live.
+#[test]
+fn panel_focus_move_and_poll_wait_for_the_target_setup_configuration() {
+    let mut state = split_ready();
+    let active = state.active().unwrap();
+    let panel_id = state
+        .tab(active.index())
+        .unwrap()
+        .leaf_panel_ids()
+        .into_iter()
+        .nth(1)
+        .unwrap();
+    let pane = PaneKey::new(state.desired().unwrap().anchor().clone(), panel_id);
+    state.install_unattached_pane(&SelectedTab::new_panel(pane.clone(), 0, 1));
+
+    // The record exists but nothing has attached yet: no focus target and no
+    // ordinary-poll slot.
+    assert!(
+        state
+            .plan_panel_focus_local(PanelDirection::Right)
+            .is_none()
+    );
+    assert!(state.pollable_panes().iter().all(|key| key.pane() != &pane));
+    let pane_ref = state.pane_ref_for(&pane).unwrap();
+    assert!(state.settle_attached_event_t(&pane_ref).is_some());
+
+    // Attached but still unconfigured: polling it would draw a shell the
+    // user still cannot reach, and the move would have to invent a mode for
+    // Ready — both refused, and the state stays valid.
+    assert!(state.pollable_panes().iter().all(|key| key != &pane_ref));
+    assert!(
+        state
+            .plan_panel_focus_local(PanelDirection::Right)
+            .is_none()
+    );
+    assert!(!state.move_panel_focus_local(pane.clone()));
+    assert!(state.invariant_holds());
+
+    // Once the real configuration lands, the same `PaneRef` becomes pollable
+    // and the same move succeeds carrying the leaf's own mode — nothing for
+    // the receipt to contradict, and the focus pane's identity is unchanged.
+    assert!(state.record_setup_configuration_t(&pane_ref, controlling(), Some(geometry(80))));
+    assert!(state.pollable_panes().iter().any(|key| key == &pane_ref));
+    let pane = state.plan_panel_focus_local(PanelDirection::Right).unwrap();
+    assert!(state.move_panel_focus_local(pane.clone()));
+    assert_eq!(state.active().unwrap().panel_index(), 1);
+    assert_eq!(state.focus_pane_ref().unwrap().pane(), &pane);
+    assert!(state.invariant_holds());
+}
+
+/// A leaf the server configured `ReadOnly` is not refused from the ordinary
+/// poll rotation or from focus: it displays its shell and takes focus
+/// without ever claiming input control — `ready.mode` carries the granted
+/// `ReadOnly`, never an invented `Controlling`.
+#[test]
+fn readonly_leaf_polls_and_focuses_without_claiming_control() {
+    let mut state = split_ready();
+    let active = state.active().unwrap();
+    let panel_id = state
+        .tab(active.index())
+        .unwrap()
+        .leaf_panel_ids()
+        .into_iter()
+        .nth(1)
+        .unwrap();
+    let pane = PaneKey::new(state.desired().unwrap().anchor().clone(), panel_id);
+    state.install_unattached_pane(&SelectedTab::new_panel(pane.clone(), 0, 1));
+    let pane_ref = state.pane_ref_for(&pane).unwrap();
+    assert!(state.settle_attached_event_t(&pane_ref).is_some());
+    assert!(state.record_setup_configuration_t(&pane_ref, ControllerMode::ReadOnly, None));
+
+    assert!(state.pollable_panes().iter().any(|key| key == &pane_ref));
+    let pane = state.plan_panel_focus_local(PanelDirection::Right).unwrap();
+    assert!(state.move_panel_focus_local(pane));
+    assert_eq!(state.controller_mode(), Some(&ControllerMode::ReadOnly));
+    assert!(state.invariant_holds());
+}
+
+/// The pointer's direct-click planner [`plan_panel_focus_local_at`] resolves a
+/// stable `WorkbenchPanelId` instead of a direction, so it must apply the same
+/// readiness boundary as [`plan_panel_focus_local`]: a still-configuring leaf
+/// (attached but not yet `SetupConfigured`, no settled mode) is refused at
+/// plan time — never a `Some` whose matching move then has to fail or invent
+/// a mode.
+#[test]
+fn direct_panel_click_refuses_an_unconfigured_leaf() {
+    let mut state = split_ready();
+    let active = state.active().unwrap();
+    let panel_id = state
+        .tab(active.index())
+        .unwrap()
+        .leaf_panel_ids()
+        .into_iter()
+        .nth(1)
+        .unwrap();
+    let pane = PaneKey::new(state.desired().unwrap().anchor().clone(), panel_id.clone());
+    state.install_unattached_pane(&SelectedTab::new_panel(pane.clone(), 0, 1));
+
+    assert!(state.plan_panel_focus_local_at(&panel_id).is_none());
+    let pane_ref = state.pane_ref_for(&pane).unwrap();
+    assert!(state.settle_attached_event_t(&pane_ref).is_some());
+
+    // Attached but still unconfigured: the direct click is refused the same
+    // way, and no guessed mode reaches Ready.
+    assert!(state.plan_panel_focus_local_at(&panel_id).is_none());
+    assert!(!state.move_panel_focus_local(pane));
+    assert!(state.invariant_holds());
+}
+
+/// A `ReadOnly`-configured leaf may be focused by direct click: it displays
+/// and takes focus under its real `PaneRef` while `ready.mode` carries the
+/// granted `ReadOnly` — never an invented `Controlling`.
+#[test]
+fn direct_panel_click_focuses_a_readonly_leaf_without_claiming_control() {
+    let mut state = split_ready();
+    let active = state.active().unwrap();
+    let panel_id = state
+        .tab(active.index())
+        .unwrap()
+        .leaf_panel_ids()
+        .into_iter()
+        .nth(1)
+        .unwrap();
+    let pane = PaneKey::new(state.desired().unwrap().anchor().clone(), panel_id.clone());
+    state.install_unattached_pane(&SelectedTab::new_panel(pane.clone(), 0, 1));
+    let pane_ref = state.pane_ref_for(&pane).unwrap();
+    assert!(state.settle_attached_event_t(&pane_ref).is_some());
+    assert!(state.record_setup_configuration_t(&pane_ref, ControllerMode::ReadOnly, None));
+
+    assert_eq!(
+        state.plan_panel_focus_local_at(&panel_id),
+        Some(pane.clone())
+    );
+    assert!(state.move_panel_focus_local(pane));
+    assert_eq!(state.focus_pane_ref(), Some(pane_ref));
+    assert_eq!(state.controller_mode(), Some(&ControllerMode::ReadOnly));
+    assert!(state.invariant_holds());
+}
+
+/// A normally configured leaf takes a direct-click focus move by its exact
+/// `PaneRef` incarnation: the plan names the same pane, the move carries the
+/// leaf's own `Controlling` mode, and the settled focus identity is the real
+/// reference — not an anchor-level match that a reincarnated pane could also
+/// satisfy.
+#[test]
+fn direct_panel_click_focuses_a_controlling_leaf_by_exact_pane_ref() {
+    let mut state = split_ready();
+    let active = state.active().unwrap();
+    let panel_id = state
+        .tab(active.index())
+        .unwrap()
+        .leaf_panel_ids()
+        .into_iter()
+        .nth(1)
+        .unwrap();
+    let pane = PaneKey::new(state.desired().unwrap().anchor().clone(), panel_id.clone());
+    state.install_unattached_pane(&SelectedTab::new_panel(pane.clone(), 0, 1));
+    let pane_ref = state.pane_ref_for(&pane).unwrap();
+    assert!(state.settle_attached_event_t(&pane_ref).is_some());
+    assert!(state.record_setup_configuration_t(&pane_ref, controlling(), Some(geometry(80))));
+
+    assert_eq!(
+        state.plan_panel_focus_local_at(&panel_id),
+        Some(pane.clone())
+    );
+    assert!(state.move_panel_focus_local(pane));
+    assert_eq!(state.active().unwrap().panel_index(), 1);
+    assert_eq!(state.focus_pane_ref(), Some(pane_ref));
     assert!(state.invariant_holds());
 }
 
@@ -1847,7 +2277,7 @@ fn drifted_panel_close_confirmation_settles_as_cancelled_with_notice() {
             snapshot: snapshot(2, 2, None),
         },
     );
-    state.apply_prepared_refresh(prepared);
+    state.apply_prepared_refresh(prepared, std::time::Instant::now());
 
     assert!(state.settle_stale_close_confirmations());
     assert!(state.view().panel_close_confirmation().is_none());
@@ -1873,7 +2303,7 @@ fn last_leaf_nature_change_stales_the_armed_panel_close() {
     assert!(state.start_pending_refresh(2));
     let prepared =
         state.prepare_refresh(2, WorkbenchSnapshotOutcome::Available { snapshot: refresh });
-    state.apply_prepared_refresh(prepared);
+    state.apply_prepared_refresh(prepared, std::time::Instant::now());
 
     assert!(state.settle_stale_close_confirmations());
     assert!(state.view().panel_close_confirmation().is_none());

@@ -83,7 +83,7 @@ fn location_rename_prefills_canonical_text_and_cancel_does_not_change_target_or_
         let mut state = live(1, 1);
         let baseline = state.cache().clone();
         let desired = state.desired().cloned();
-        let frame = state.accepted_frame.clone();
+        let frame = state.focus_accepted_frame().clone();
         let token = state
             .open_setup_draft(NativeSetupIntent::RenameLocation(target))
             .unwrap();
@@ -106,7 +106,7 @@ fn location_rename_prefills_canonical_text_and_cancel_does_not_change_target_or_
         state.cancel_setup_draft(token);
         assert_eq!(state.cache(), &baseline);
         assert_eq!(state.desired(), desired.as_ref());
-        assert_eq!(state.accepted_frame, frame);
+        assert_eq!(state.focus_accepted_frame(), frame);
         assert!(!state.setup_blocks_structure());
     }
 }
@@ -201,7 +201,7 @@ fn exact_location_label_snapshot_changes_only_the_named_label_and_preserves_read
         for changed in [false, true] {
             let mut state = live(1, 1);
             let old = state.desired().cloned();
-            let frame = state.accepted_frame.clone();
+            let frame = state.focus_accepted_frame().clone();
             let operation = operation(&mut state, target, changed.then_some("  renamed 雪  "), 1);
             let known = operation
                 .known_commit(receipt(target, if changed { 2 } else { 1 }, !changed))
@@ -218,7 +218,7 @@ fn exact_location_label_snapshot_changes_only_the_named_label_and_preserves_read
             );
             assert_eq!(state.desired(), old.as_ref());
             assert_eq!(state.attached_key(), old.as_ref());
-            assert_eq!(state.accepted_frame, frame);
+            assert_eq!(state.focus_accepted_frame(), frame);
             assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
             assert_eq!(
                 state.setup_status(),
@@ -268,7 +268,7 @@ fn exact_location_label_snapshot_rejects_other_project_workspace_and_terminal_ch
                 state.prepare_refresh(1, WorkbenchSnapshotOutcome::Available { snapshot }),
                 PreparedRefresh::Divergent { .. }
             ));
-            assert!(state.attached_key().is_some());
+            assert!(state.has_attachments());
             assert_eq!(state.cache().revision(), WorkbenchRevision::new(1));
         }
     }
@@ -310,7 +310,7 @@ fn noop_result_unavailable_keeps_known_authority_and_explicit_refresh_never_open
                 reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
             },
         );
-        state.apply_prepared_refresh(prepared);
+        state.apply_prepared_refresh(prepared, std::time::Instant::now());
         state.clear_settled_setup_status();
         assert_eq!(
             state.setup_status(),

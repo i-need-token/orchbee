@@ -13,8 +13,10 @@ impl NativeExecutor {
         ) {
             return self.run_switch_membership_cleanup(lease, cleanup);
         }
-        if self.attached_key() != Some(cleanup.old())
-            || self.execution_desired(lease)?.as_ref() != Some(cleanup.old())
+        // Epoch teardown: every live attachment must sit under the retiring
+        // anchor, and the focus pane must still name that anchor.
+        if !self.attachments_under(cleanup.old())
+            || self.execution_desired(lease)?.as_ref().map(PaneKey::anchor) != Some(cleanup.old())
         {
             return Err(CarrierFailure::Protocol);
         }
@@ -23,7 +25,7 @@ impl NativeExecutor {
             if cleanup.close_marker().is_none() || proof.attachment_key() != cleanup.old() {
                 return Err(CarrierFailure::Protocol);
             }
-            self.attached = None;
+            self.dispose_anchor_panes(lease, cleanup.old(), total)?;
             let marker = cleanup
                 .close_marker()
                 .cloned()
@@ -35,19 +37,7 @@ impl NativeExecutor {
             )?;
             return self.finish_close_membership_cleanup(lease, &marker, reply);
         }
-        let response = self.viewer_for_cleanup(
-            SetupOwner::Lease(lease),
-            TerminalViewerAction::Detach {
-                attachment_id: self.viewer_id_for(cleanup.old())?,
-            },
-            total,
-        )?;
-        if !matches!(response, TerminalViewerOutcome::Detached {})
-            || self.attached_key() != Some(cleanup.old())
-        {
-            return Err(CarrierFailure::Protocol);
-        }
-        self.attached = None;
+        self.detach_anchor_panes(lease, cleanup.old(), total)?;
         let detached = cleanup.old().clone();
         let close_marker = cleanup.close_marker().cloned();
         let origin = cleanup.result().clone();
@@ -79,6 +69,72 @@ impl NativeExecutor {
             RefreshDecision::Retire => Err(CarrierFailure::Deadline),
             RefreshDecision::Cleanup(_) => Err(CarrierFailure::Protocol),
         }
+    }
+
+    /// True when every live attachment sits under `anchor` — the multi-pane
+    /// form of the old "the attached key is the retiring one" gate.
+    pub(super) fn attachments_under(
+        &self,
+        anchor: &crate::terminal_session::state::AttachmentKey,
+    ) -> bool {
+        !self.attachments.is_empty()
+            && self
+                .attachments
+                .iter()
+                .all(|attached| attached.key.pane().anchor() == anchor)
+    }
+
+    /// Detaches and canonically disposes every pane under `anchor`, publishing
+    /// one `PaneDetached` proof per incarnation before the caller emits the
+    /// anchor-level settlement event.
+    fn detach_anchor_panes(
+        &mut self,
+        lease: &CommandLease,
+        anchor: &crate::terminal_session::state::AttachmentKey,
+        total: Instant,
+    ) -> Result<()> {
+        loop {
+            let Some(pane) = self
+                .attachments
+                .iter()
+                .find(|attached| attached.key.pane().anchor() == anchor)
+                .map(|attached| attached.key.clone())
+            else {
+                return Ok(());
+            };
+            let response = self.viewer_for_cleanup(
+                SetupOwner::Lease(lease),
+                TerminalViewerAction::Detach {
+                    attachment_id: self.viewer_id_for(&pane)?,
+                },
+                total,
+            )?;
+            if !matches!(response, TerminalViewerOutcome::Detached {}) {
+                return Err(CarrierFailure::Protocol);
+            }
+            self.remove_attachment(&pane)?;
+        }
+    }
+
+    /// Drops every pane under `anchor` without a wire Detach — used when a
+    /// definitive closed-attachment proof already settled the viewers. The
+    /// anchor-level settlement event is the canonical disposal proof for the
+    /// whole epoch, so no per-pane notice is published.
+    fn dispose_anchor_panes(
+        &mut self,
+        _lease: &CommandLease,
+        anchor: &crate::terminal_session::state::AttachmentKey,
+        _total: Instant,
+    ) -> Result<()> {
+        while let Some(pane) = self
+            .attachments
+            .iter()
+            .find(|attached| attached.key.pane().anchor() == anchor)
+            .map(|attached| attached.key.clone())
+        {
+            self.remove_attachment(&pane)?;
+        }
+        Ok(())
     }
 
     fn finish_close_membership_cleanup(

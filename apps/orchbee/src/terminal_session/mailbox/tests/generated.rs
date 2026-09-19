@@ -873,7 +873,7 @@ fn exercise_refresh_ui_fence(coverage: &mut Coverage) -> Result<(), &'static str
         .deposit_ui_reply_before_using(&wait, &clock, |_| {
             Ok(UiReply::Refresh(RefreshSettlement::new(
                 RefreshDecision::Continue,
-                desired,
+                pane_key(&desired),
             )))
         })
         .map_err(|_| "refresh reply")?;
@@ -1132,12 +1132,12 @@ fn exercise_forward_barrier(
     let lease = mailbox.try_recv().map_err(|_| "recv")?.ok_or("lease")?;
     let worker_event = || match event {
         ForwardEventKind::SetupConfigured => WorkerEvent::SetupConfigured {
-            key: key(1, 1),
+            key: pane_ref(&key(1, 1)),
             mode: ControllerMode::ReadOnly,
             applied_geometry: None,
         },
         ForwardEventKind::FeedbackAccepted => WorkerEvent::FeedbackAccepted {
-            key: key(1, 1),
+            key: pane_ref(&key(1, 1)),
             frame: FrameIdentity::new(7),
         },
     };
@@ -1272,7 +1272,10 @@ fn exercise_geometry_retry(columns: u8, coverage: &mut Coverage) -> Result<(), &
     }
     mailbox.observe_geometry(observed).map_err(|_| "observe")?;
     if !matches!(
-        mailbox.try_enqueue(QueuedCommand::Resize(Tagged::new(key(1, 1), observed))),
+        mailbox.try_enqueue(QueuedCommand::Resize(Tagged::new(
+            pane_ref(&key(1, 1)),
+            observed
+        ))),
         Err(AdmissionError::Full)
     ) {
         return Err("full geometry admission");
@@ -1286,7 +1289,10 @@ fn exercise_geometry_retry(columns: u8, coverage: &mut Coverage) -> Result<(), &
         .observe_geometry(observed)
         .map_err(|_| "repeat observe")?;
     mailbox
-        .try_enqueue(QueuedCommand::Resize(Tagged::new(key(1, 1), observed)))
+        .try_enqueue(QueuedCommand::Resize(Tagged::new(
+            pane_ref(&key(1, 1)),
+            observed,
+        )))
         .map_err(|_| "retry resize")?;
     for _ in 1..COMMAND_CAPACITY {
         let lease = mailbox
@@ -1334,7 +1340,7 @@ fn enqueue_switch(
     mailbox: &CommandMailbox,
     sampled_at: Instant,
 ) -> Result<u64, AdmissionError<()>> {
-    let state = ready_state(2);
+    let mut state = ready_state(2);
     mailbox.try_enqueue_switch(|generation| {
         let target_key = AttachmentKey::new(generation, state.tab(1).unwrap().tab_id().clone());
         let target = state

@@ -2272,6 +2272,87 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
         0,
         "{engine} tui rejects format selectors"
     );
+    // `tui` owns `--mouse`: the leaf offers it until consumed, the value
+    // completes `off`/`on`, and a consumed `--mouse` leaves nothing legal.
+    // The two-token form is the whole grammar — an equals prefix completes
+    // to nothing.
+    assert_eq!(
+        sorted(complete(&["tui", ""])),
+        sorted(vec!["--help".to_owned(), "--mouse".to_owned()]),
+        "{engine} tui leaf"
+    );
+    assert_eq!(
+        sorted(complete(&["tui", "--mouse", ""])),
+        sorted(vec!["off".to_owned(), "on".to_owned()]),
+        "{engine} tui --mouse values"
+    );
+    assert_eq!(
+        complete(&["tui", "--mouse="]).len(),
+        0,
+        "{engine} tui --mouse= is not a form"
+    );
+    assert_eq!(
+        complete(&["tui", "--mouse", "off", ""]).len(),
+        0,
+        "{engine} tui consumed --mouse"
+    );
+    assert_eq!(
+        complete(&["tui", "--mouse=bogus"]).len(),
+        0,
+        "{engine} tui invalid --mouse= value"
+    );
+    assert_eq!(
+        complete(&["tui", "--mouse", "bogus", ""]).len(),
+        0,
+        "{engine} tui invalid --mouse value"
+    );
+    assert_eq!(
+        complete(&["tui", "--mouse", "off", "--mouse"]).len(),
+        0,
+        "{engine} tui duplicate --mouse"
+    );
+    // `--mouse` before the command word parses, but only `tui` stays viable.
+    assert_eq!(
+        sorted(complete(&["--mouse", "off", ""])),
+        vec!["tui".to_owned()],
+        "{engine} --mouse narrows the roots to tui"
+    );
+    assert_eq!(
+        complete(&["--mouse="]).len(),
+        0,
+        "{engine} root --mouse= is not a form"
+    );
+    assert_eq!(
+        complete(&["--mouse", "off", "status", ""]).len(),
+        0,
+        "{engine} status after --mouse"
+    );
+    assert_eq!(
+        complete(&["--mouse", "off", "workspace", ""]).len(),
+        0,
+        "{engine} family after --mouse"
+    );
+    assert_eq!(
+        complete(&["--format=json", "--mouse", "off", ""]).len(),
+        0,
+        "{engine} --mouse plus --format leaves no legal root"
+    );
+    // Everywhere else `--mouse` is out of scope.
+    assert_eq!(
+        complete(&["status", "--mouse", ""]).len(),
+        0,
+        "{engine} status rejects --mouse"
+    );
+    assert_eq!(
+        complete(&["workspace", "list", "--mouse", ""]).len(),
+        0,
+        "{engine} command path rejects --mouse"
+    );
+    assert_eq!(
+        complete(&["help", "--mouse", ""]).len(),
+        0,
+        "{engine} help rejects --mouse"
+    );
     assert_eq!(
         complete(&["help", "status", "--format="]).len(),
         0,
@@ -2432,6 +2513,7 @@ fn completion_scripts_execute_in_bash_and_zsh() -> TestResult {
         "commandline -opc",
         "--format=text",
         "--format=json",
+        "case '--mouse'",
         "set ended 1",
         "workspace:list",
         "tab:list",

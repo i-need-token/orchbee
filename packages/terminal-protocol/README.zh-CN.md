@@ -48,8 +48,9 @@ configuration mutation 与 persistence、terminal output、IPC 或 Worker 行为
 `TerminalTextFrame` 前，它验证 routing/header、geometry、严格 UTF-8 string bound、style、
 排序后的 row/cell table、wide cell 和相邻 wrap 关系、精确长度，以及有界 optional extension
 envelope。输出携带共享 `Arc<str>` grapheme 与文本 style 的行、cursor 位置／可见性、完整
-geometry、screen、color、theme revision 和 routing fact。共享 string 防止同一个 wire string
-因多个 cell 引用而放大为每 cell 一次分配。
+geometry、screen、color、theme revision、routing fact，以及已验证的 `captured_interaction`
+模式字——经 `TerminalInteraction` 的窄 tracking/format/cursor-mode 查询暴露，而非原始位。
+共享 string 防止同一个 wire string 因多个 cell 引用而放大为每 cell 一次分配。
 
 这是 text table decoder，不是完整 graphics/extension decoder 或 Client 状态机。Optional
 extension 内容跳过且不解释、不保留；任何 required extension 仍拒绝。它不执行 VT、激活

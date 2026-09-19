@@ -40,12 +40,84 @@ pub struct TerminalTextFrame {
     pub geometry: TerminalPixelGeometry,
     pub cursor: TerminalTextCursor,
     pub alternate_screen: bool,
+    /// The validated `captured_interaction` bitfield carried by this frame.
+    /// Delta frames replace the whole value, so it always describes the
+    /// terminal modes in force at this frame — never a merged history.
+    pub interaction: TerminalInteraction,
     pub foreground: u32,
     pub background: u32,
     pub theme_revision: u64,
     /// Retained scrollback row count captured at frame time; zero means no history.
     pub scrollback_rows: u64,
     pub rows: Vec<TerminalTextRow>,
+}
+
+/// The wire `captured_interaction` word after the decoder's own validation
+/// (unknown bits rejected, tracking and format groups each exclusive). The
+/// bit layout stays private; consumers use the named queries.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct TerminalInteraction(u32);
+
+impl TerminalInteraction {
+    /// Mutually exclusive mouse-tracking mode (wire bits 4-7).
+    pub const fn mouse_tracking(self) -> MouseTracking {
+        match (self.0 >> 4) & 15 {
+            1 => MouseTracking::X10,
+            2 => MouseTracking::Normal,
+            4 => MouseTracking::Button,
+            8 => MouseTracking::Any,
+            _ => MouseTracking::None,
+        }
+    }
+
+    /// Mutually exclusive mouse report encoding (wire bits 8-11). `Default`
+    /// is the traditional three-byte `ESC[M` form — no format bit set.
+    pub const fn mouse_format(self) -> MouseFormat {
+        match (self.0 >> 8) & 15 {
+            1 => MouseFormat::Utf8,
+            2 => MouseFormat::Sgr,
+            4 => MouseFormat::Urxvt,
+            8 => MouseFormat::SgrPixels,
+            _ => MouseFormat::Default,
+        }
+    }
+
+    /// Application cursor keys (wire bit 0): when set, cursor-key output
+    /// uses SS3 (`ESC O`) instead of CSI (`ESC [`).
+    pub const fn application_cursor_keys(self) -> bool {
+        self.0 & 1 != 0
+    }
+}
+
+/// Mutually exclusive DEC mouse-tracking modes (wire bits 4-7).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MouseTracking {
+    /// No mouse tracking: the pane never receives mouse reports.
+    None,
+    /// X10: button presses only.
+    X10,
+    /// Normal tracking: presses and releases, no motion.
+    Normal,
+    /// Button-event tracking: presses, releases, and drags while a button
+    /// is held.
+    Button,
+    /// Any-event tracking: all motion, with or without a button.
+    Any,
+}
+
+/// Mutually exclusive mouse report encodings (wire bits 8-11).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MouseFormat {
+    /// Traditional three-byte `ESC[M` report (no format bit set).
+    Default,
+    /// Extended three-byte report with UTF-8 encoded values.
+    Utf8,
+    /// SGR `ESC[<Cb;Cx;Cy` report (`M`/`m` final).
+    Sgr,
+    /// URXVT `ESC[Cb;Cx;CyM` numeric report.
+    Urxvt,
+    /// SGR report in pixel coordinates.
+    SgrPixels,
 }
 
 /// Decode text tables, validating their complete structure before returning any row.
@@ -193,6 +265,7 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
             visible: cursor_flags & 1 != 0,
         },
         alternate_screen: screen == 2,
+        interaction: TerminalInteraction(interaction),
         foreground,
         background,
         theme_revision,

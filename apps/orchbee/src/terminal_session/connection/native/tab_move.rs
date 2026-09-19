@@ -6,7 +6,9 @@ use crate::{
     },
     terminal_session::{
         mailbox::{CommandLease, MutationResult, UiReply},
-        state::{CarrierFailure, MoveDecision, MoveOperation, MoveResult, PendingMoveCommit},
+        state::{
+            CarrierFailure, MoveDecision, MoveOperation, MoveResult, PaneKey, PendingMoveCommit,
+        },
     },
 };
 use orchbee_workbench_protocol::{
@@ -101,7 +103,7 @@ impl NativeExecutor {
         }
         let result = match settlement.decision() {
             MoveDecision::Continue => {
-                if settlement.desired() != Some(operation.target()) {
+                if settlement.desired().map(PaneKey::anchor) != Some(operation.target()) {
                     return Err(CarrierFailure::Protocol);
                 }
                 Ok(())
@@ -112,7 +114,7 @@ impl NativeExecutor {
                         != &crate::terminal_session::state::MembershipResultKey::Move(
                             operation.request_id().clone(),
                         )
-                    || settlement.desired() != Some(operation.target())
+                    || settlement.desired().map(PaneKey::anchor) != Some(operation.target())
                 {
                     return Err(CarrierFailure::Protocol);
                 }
@@ -120,7 +122,7 @@ impl NativeExecutor {
             }
             MoveDecision::AttachRecovered(target) => {
                 if settlement.desired() != Some(target.selected().key())
-                    || self.attached_key().is_some()
+                    || !self.attachments.is_empty()
                 {
                     return Err(CarrierFailure::Protocol);
                 }
@@ -131,7 +133,7 @@ impl NativeExecutor {
                 )
                 .map(|_| ())
             }
-            MoveDecision::SettledWithoutAttachment if self.attached_key().is_none() => Ok(()),
+            MoveDecision::SettledWithoutAttachment if self.attachments.is_empty() => Ok(()),
             MoveDecision::SettledWithoutAttachment => Err(CarrierFailure::Protocol),
             MoveDecision::Retire => Err(CarrierFailure::AuthorityDivergence),
         };

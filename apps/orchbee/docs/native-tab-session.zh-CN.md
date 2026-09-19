@@ -746,16 +746,21 @@ split、close 与 move 的总和；同一基线到最终快照的比较即可接
 
 已接受的 `NativePanelTree` 是规范 PanelNode 的严格深度优先表示。叶子顺序就是挂接状态使用的
 顺序；树保留分屏方向和两侧 slot identity，因此后续快照不能静默替换叶子或改变 Tab 形状。
-分屏不会创建第二个 viewer：Client 在缓存中保留所有经过验证的叶子 binding，但只有当前叶子
-拥有已附着的 viewer 和终端帧。
+每个可见叶子都在共享的单 Client HostViewers 预算（8）内拥有自己的 viewer 挂接：Session 为
+每个叶子保存一条 pane 记录，其稳定 `PaneKey` 由原始选中 anchor 与叶子的 `WorkbenchPanelId`
+组成，每条记录的物理挂接是签发挂接目标时铸造的 `PaneRef` incarnation。poll 对每个已放行
+pane incarnation 持续进行，非活动叶子持续渲染自己的实时帧；input 与 resize 仅放行焦点 pane
+的精确 incarnation。
 
 在已连接 Native Session 中，`Ctrl+B h`、`j`、`k` 和 `l` 是 Client 本地焦点操作。当方向上存在
-相邻叶子时，Client 为同一个 Tab 分配新的挂接代次，选择该叶子的精确 binding 与保留的来源状态，
-并运行既有的 Switch 清理和 Attach 生命周期。焦点操作绝不写入 Workbench 修订，也绝不提交
+相邻叶子时，Session 把焦点 pane 选中移到该叶子的既有记录上，不 detach、不重新挂接、也不重编
+任何已被接受的工作——同 Tab 移动不运行 switch 清理、快照或挂接链。焦点操作绝不写入
+Workbench 修订，也绝不提交
 `panel.split`、`panel.close` 或 `panel.move`。
-单个 Panel 或边界处没有相邻叶子时，本地空操作。渲染器按规范树划分区域、标记所选叶子，并只在
-该处绘制当前实时帧；非活动叶子保留标签、身份和几何，但在获得焦点前不显示第二个实时帧。
-一个 Client 内的同时多 viewer 组合仍不在本切片范围内。对端创建的单叶子 split 会被普通刷新路径
+单个 Panel 或边界处没有相邻叶子时，本地空操作。渲染器按规范树划分区域并为每个叶子绘制各自的
+实时帧；焦点叶子独占控制输入。叶子消失时其 pane 记录离场并收敛到规范处置，重新出现的叶子铸造
+新的 incarnation——携带已退 incarnation 的迟到 input、帧、feedback 与结算在精确 `PaneRef`
+处被栅栏，绝不落到重新绑定的挂接上。对端创建的单叶子 split 会被普通刷新路径
 接受；Session 按身份保留所选 Panel，同时重排缓存树和保留的来源记录
 （`peer_panel_split_refresh_preserves_active_panel_identity`）。
 

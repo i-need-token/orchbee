@@ -114,7 +114,10 @@ impl CommandMailbox {
         let mailbox = Self::new(seed.identity_cursor, geometry);
         {
             let mut state = mailbox.lock();
-            state.desired = MailboxMembership::Live { desired: None };
+            state.desired = MailboxMembership::Live {
+                desired: None,
+                panes: Vec::new(),
+            };
             state.attachment_generation = seed.attachment_generation;
             state.refresh_generation = seed.refresh_generation;
             state.next_command_serial = seed.next_command_serial;
@@ -193,6 +196,7 @@ impl CommandMailbox {
             command: QueuedCommand::Close(CloseMarker {
                 operation: operation.clone(),
             }),
+            retry_at: None,
         });
         self.changed.notify_all();
         Ok(operation)

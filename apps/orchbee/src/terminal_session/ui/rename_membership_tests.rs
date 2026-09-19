@@ -68,9 +68,9 @@ fn rename_removed_candidate_samples_one_posttransport_pair_and_never_renews_at_c
             clock.now() + Duration::from_secs(50)
         );
         let detached = if wrong_key {
-            AttachmentKey::new(old.generation() + 1, old.tab_id().clone())
+            AttachmentKey::new(old.anchor().generation() + 1, old.tab_id().clone())
         } else {
-            old.clone()
+            old.anchor().clone()
         };
         let wait = mailbox
             .publish_event_before(

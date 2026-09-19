@@ -39,11 +39,11 @@ fn close_snapshot_waiting_ui(
     mailbox.take_deposited_reply(&wait).unwrap().unwrap();
     let state = ui.state.as_mut().unwrap();
     let old = state.desired().unwrap().clone();
-    assert!(state.install_projection(&old));
-    assert!(state.record_setup_configuration(&old, ControllerMode::ReadOnly, None));
-    assert!(state.stage_drawn_frame(&old, FrameIdentity::new(1)));
-    assert!(state.mark_feedback_accepted(&old, FrameIdentity::new(1)));
-    assert!(state.publish_ready(&old, FrameIdentity::new(1), ControllerMode::ReadOnly, None));
+    assert!(state.install_projection_t(&old));
+    assert!(state.record_setup_configuration_t(&old, ControllerMode::ReadOnly, None));
+    assert!(state.stage_drawn_frame_t(&old, FrameIdentity::new(1)));
+    assert!(state.mark_feedback_accepted_t(&old, FrameIdentity::new(1)));
+    assert!(state.publish_ready_t(&old, FrameIdentity::new(1), ControllerMode::ReadOnly, None));
     state.open_close_confirmation().unwrap();
     let token = state.view().close_confirmation().unwrap().token();
     state.acknowledge_close_draw(Some(token), None);
@@ -237,11 +237,11 @@ fn actual_attached_refresh_freezes_until_exact_cleanup_and_never_installs_after_
         mailbox.take_deposited_reply(&wait).unwrap().unwrap();
         let state = ui.state.as_mut().unwrap();
         let old = state.desired().unwrap().clone();
-        assert!(state.install_projection(&old));
-        assert!(state.record_setup_configuration(&old, ControllerMode::ReadOnly, None));
-        assert!(state.stage_drawn_frame(&old, FrameIdentity::new(1)));
-        assert!(state.mark_feedback_accepted(&old, FrameIdentity::new(1)));
-        assert!(state.publish_ready(&old, FrameIdentity::new(1), ControllerMode::ReadOnly, None));
+        assert!(state.install_projection_t(&old));
+        assert!(state.record_setup_configuration_t(&old, ControllerMode::ReadOnly, None));
+        assert!(state.stage_drawn_frame_t(&old, FrameIdentity::new(1)));
+        assert!(state.mark_feedback_accepted_t(&old, FrameIdentity::new(1)));
+        assert!(state.publish_ready_t(&old, FrameIdentity::new(1), ControllerMode::ReadOnly, None));
         let baseline = state.cache().clone();
         let cursors = mailbox.cursors();
         let (lease, wait) = place_refresh(&mut ui, &mailbox, &clock, snapshot(0, 2));
@@ -262,9 +262,9 @@ fn actual_attached_refresh_freezes_until_exact_cleanup_and_never_installs_after_
         assert!(state.invariant_holds());
         assert_eq!(mailbox.cursors().0, cursors.0);
         let detached = if wrong_generation {
-            AttachmentKey::new(old.generation() + 1, old.tab_id().clone())
+            AttachmentKey::new(old.anchor().generation() + 1, old.tab_id().clone())
         } else {
-            old.clone()
+            old.anchor().clone()
         };
         let wait = mailbox
             .publish_event_before(
@@ -319,11 +319,11 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
     ));
     let state = ui.state.as_mut().unwrap();
     let old = state.desired().unwrap().clone();
-    assert!(state.install_projection(&old));
-    assert!(state.record_setup_configuration(&old, ControllerMode::ReadOnly, None));
-    assert!(state.stage_drawn_frame(&old, FrameIdentity::new(1)));
-    assert!(state.mark_feedback_accepted(&old, FrameIdentity::new(1)));
-    assert!(state.publish_ready(&old, FrameIdentity::new(1), ControllerMode::ReadOnly, None));
+    assert!(state.install_projection_t(&old));
+    assert!(state.record_setup_configuration_t(&old, ControllerMode::ReadOnly, None));
+    assert!(state.stage_drawn_frame_t(&old, FrameIdentity::new(1)));
+    assert!(state.mark_feedback_accepted_t(&old, FrameIdentity::new(1)));
+    assert!(state.publish_ready_t(&old, FrameIdentity::new(1), ControllerMode::ReadOnly, None));
     let deadlines = OperationDeadlines::from_sample(clock.now()).unwrap();
     mailbox
         .try_enqueue_switch_for(
@@ -374,7 +374,7 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
         panic!("old viewer cleanup")
     };
     let permit = mailbox
-        .authorize_switch_cleanup(&lease, cleanup, &old, &clock)
+        .authorize_switch_cleanup(&lease, cleanup, old.anchor(), &clock)
         .unwrap()
         .unwrap();
     mailbox.answer_switch_cleanup(permit, true).unwrap();
@@ -382,7 +382,7 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
         .publish_event_before(
             WorkerEvent::MembershipDetached {
                 cleanup: cleanup.clone(),
-                detached: old,
+                detached: old.anchor().clone(),
             },
             EventDeadline::TotalCleanup(deadlines.total()),
             &clock,
@@ -398,7 +398,7 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
     let selected = target.selected().key().clone();
     let state = ui.state.as_mut().unwrap();
     assert_eq!(
-        state.settle_unattached_setup(&selected, target.selected().index(), target.provenance()),
+        state.settle_unattached_setup_t(&selected, target.selected().index(), target.provenance()),
         Some(CleanupContinuation::Stable)
     );
     mailbox.finish_lease(lease).unwrap();

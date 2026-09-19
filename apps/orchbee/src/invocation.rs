@@ -362,7 +362,12 @@ pub(crate) enum MutationCommand {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
-    Tui,
+    /// `mouse` is the `--mouse off|on` selection: whether host pointer
+    /// reporting is armed for the session. Only the explicit `tui` path
+    /// admits the option; a bare `orchbee` always runs with it on.
+    Tui {
+        mouse: bool,
+    },
     Version,
     RootHelp,
     Help(HelpTopic),
@@ -421,6 +426,7 @@ pub(crate) enum ExpectedValue {
     WaitTimeout,
     SendText,
     SendKey,
+    MouseMode,
 }
 
 /// Why an `invalid-usage` failure was reached. Carried for the localized
@@ -543,6 +549,7 @@ struct Options {
     text: Option<String>,
     enter: bool,
     key: Option<String>,
+    mouse: Option<bool>,
 }
 
 /// Every named option that owns the next argv token as its value, used by
@@ -557,6 +564,7 @@ const VALUE_FLAGS: &[&str] = &[
     "--label",
     "--path",
     "--match",
+    "--mouse",
     "--project",
     "--rows",
     "--tab",
@@ -755,6 +763,40 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
             // unique; the option walk only applies token ownership.
             "--format" => index += 2,
             _ if token.starts_with("--format=") => index += 1,
+            // `--mouse` is a TUI-scoped on/off switch; it parses eagerly so a
+            // malformed value fails here rather than at command resolution.
+            // The accepted form is the two-token `--mouse off|on` only — an
+            // equals form is not part of the grammar and falls through to the
+            // unknown-option rejection like any other `-*` token.
+            "--mouse" => {
+                let value = match tokens.get(index + 1) {
+                    Some(value) if value != "--" => value.as_str(),
+                    _ => {
+                        return Err(usage_with(
+                            UsageReason::MissingValue { option: "--mouse" },
+                            envelope,
+                        ));
+                    }
+                };
+                let Some(selected) = mouse_option(value) else {
+                    return Err(usage_with(
+                        UsageReason::InvalidValue {
+                            context: UsageContext::Root,
+                            option: "--mouse",
+                            value: value.to_owned(),
+                            expected: ExpectedValue::MouseMode,
+                        },
+                        envelope,
+                    ));
+                };
+                if options.mouse.replace(selected).is_some() {
+                    return Err(usage_with(
+                        UsageReason::DuplicateOption { option: "--mouse" },
+                        envelope,
+                    ));
+                }
+                index += 2;
+            }
             _ if VALUE_FLAGS.contains(&token.as_str()) => {
                 // The guard admitted this spelling, so the static name exists.
                 let option = VALUE_FLAGS
@@ -942,21 +984,25 @@ fn resolve_words(
 ) -> Result<Request, ParseFailure> {
     match words {
         [] => {
-            // Bare invocation keeps TUI; a selected format or any option is usage.
+            // Bare invocation keeps TUI; a selected format or any option
+            // (including `--mouse`) is usage — the flag exists only on the
+            // explicit `tui` path.
             if options.format.is_some()
                 || options.project.is_some()
                 || options.workspace.is_some()
                 || options.tab.is_some()
                 || options.standalone
+                || options.mouse.is_some()
                 || business_options(options)
             {
                 return Err(missing_command(UsageContext::Root, envelope));
             }
-            Ok(Request::Tui)
+            Ok(Request::Tui { mouse: true })
         }
-        ["tui"] => {
-            reject_extras(options, UsageContext::Path("tui"), envelope).map(|()| Request::Tui)
-        }
+        ["tui"] => reject_extras_scope(options, TUI_SCOPE, UsageContext::Path("tui"), envelope)
+            .map(|()| Request::Tui {
+                mouse: options.mouse.unwrap_or(true),
+            }),
         ["help", rest @ ..] => resolve_help_path(rest, options, envelope),
         ["status"] => {
             reject_filters(options, UsageContext::Path("status"), envelope)?;
@@ -1797,6 +1843,8 @@ struct Scope {
     enter: bool,
     /// `terminal send --key <name>`: the semantic-key value option.
     key: bool,
+    /// `tui --mouse off|on`: admits the TUI-only pointer-capture switch.
+    mouse: bool,
 }
 
 const NO_OPTIONS: Scope = Scope {
@@ -1815,6 +1863,14 @@ const NO_OPTIONS: Scope = Scope {
     text: false,
     enter: false,
     key: false,
+    mouse: false,
+};
+
+/// The explicit `tui` route: only `--mouse` is admitted on top of the
+/// shared option grammar.
+const TUI_SCOPE: Scope = Scope {
+    mouse: true,
+    ..NO_OPTIONS
 };
 
 const WORKSPACE_LIST_SCOPE: Scope = Scope {
@@ -1979,6 +2035,9 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     if options.key.is_some() && !scope.key {
         return Some("--key");
     }
+    if options.mouse.is_some() && !scope.mouse {
+        return Some("--mouse");
+    }
     None
 }
 
@@ -2007,6 +2066,17 @@ fn required(
 ) -> Result<String, ParseFailure> {
     slot.clone()
         .ok_or_else(|| missing_required(context, requirement, envelope))
+}
+
+/// `--mouse` accepts exactly `off`/`on` as a separate token; anything else —
+/// including the `--mouse=<value>` equals form — is a usage failure, never a
+/// guessed default.
+fn mouse_option(value: &str) -> Option<bool> {
+    match value {
+        "on" => Some(true),
+        "off" => Some(false),
+        _ => None,
+    }
 }
 
 /// `--label` carries a wire-ready Workbench label: non-empty and at most the
@@ -2380,7 +2450,19 @@ fn reject_extras(
     context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<(), ParseFailure> {
-    match first_out_of_scope(options, NO_OPTIONS)
+    reject_extras_scope(options, NO_OPTIONS, context, envelope)
+}
+
+/// `reject_extras` against an explicit admitted set: `--format` stays
+/// rejected while the scope's own flags (today only `tui`'s `--mouse`)
+/// pass through.
+fn reject_extras_scope(
+    options: &Options,
+    scope: Scope,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<(), ParseFailure> {
+    match first_out_of_scope(options, scope)
         .or_else(|| options.format.is_some().then_some("--format"))
     {
         Some(option) => Err(usage_with(

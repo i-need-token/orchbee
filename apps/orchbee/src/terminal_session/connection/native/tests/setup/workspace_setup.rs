@@ -159,7 +159,7 @@ impl UiDriver {
                     let plan = state.prepare_refresh_membership_install(
                         generation,
                         prepared,
-                        desired.desired().cloned(),
+                        desired.desired().map(|pane| pane.anchor().clone()),
                         deadlines,
                     )?;
                     assert!(matches!(
@@ -169,7 +169,7 @@ impl UiDriver {
                     desired.commit();
                     RefreshDecision::Continue
                 } else {
-                    state.apply_prepared_refresh(prepared)
+                    state.apply_prepared_refresh(prepared, transaction.observed_at())
                 };
                 Ok(UiReply::Refresh(RefreshSettlement::new(
                     decision,

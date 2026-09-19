@@ -1,7 +1,7 @@
 use super::{
-    AttachmentKey, BarrierFence, BarrierKind, COMMAND_CAPACITY, CommandMailbox, EventDeadline,
-    EventError, MailboxClock, MailboxClosed, MailboxState, MembershipResultKey, MoveAdmissionError,
-    MutationResult, QueuedCommand, QueuedRecord, RefreshFlight, StructuralMutationFlight,
+    BarrierFence, BarrierKind, COMMAND_CAPACITY, CommandMailbox, EventDeadline, EventError,
+    MailboxClock, MailboxClosed, MailboxState, MembershipResultKey, MoveAdmissionError,
+    MutationResult, PaneKey, QueuedCommand, QueuedRecord, RefreshFlight, StructuralMutationFlight,
     UiCorrelation, UiWaitKey, WorkerEvent, workbench_identity_candidate,
 };
 use crate::local_client::LocalOperationClock;
@@ -15,7 +15,7 @@ use crate::terminal_session::state::{OperationDeadlines, PendingRefreshStage};
 
 pub(super) struct SetupFlight {
     serial: u64,
-    desired: Option<AttachmentKey>,
+    desired: Option<PaneKey>,
     operation: SetupOperation,
     stage: PendingRefreshStage,
     not_applied: bool,
@@ -126,6 +126,7 @@ impl CommandMailbox {
         state.queue.push_back(QueuedRecord {
             serial,
             command: QueuedCommand::WorkspaceSetup(marker),
+            retry_at: None,
         });
         self.changed.notify_all();
         Ok(())

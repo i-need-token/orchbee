@@ -127,10 +127,11 @@ enum PanelAnchorClass {
     ApplyMembershipRetires,
     RefreshMembershipRetires,
     RetireWithPending,
+    ReincarnationFence,
 }
 
 impl PanelAnchorClass {
-    const COUNT: usize = 7;
+    const COUNT: usize = 8;
 
     const fn index(self) -> usize {
         match self {
@@ -141,6 +142,7 @@ impl PanelAnchorClass {
             Self::ApplyMembershipRetires => 4,
             Self::RefreshMembershipRetires => 5,
             Self::RetireWithPending => 6,
+            Self::ReincarnationFence => 7,
         }
     }
 }
@@ -773,6 +775,9 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             TraceAction::PanelAnchor {
                 class: PanelAnchorClass::RetireWithPending,
             },
+            TraceAction::PanelAnchor {
+                class: PanelAnchorClass::ReincarnationFence,
+            },
         ];
         let mandatory_count = actions.len();
         for _ in 0..GENERATED_STEPS_PER_SEED {
@@ -868,14 +873,15 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
                     generation_step: byte,
                 },
                 _ => TraceAction::PanelAnchor {
-                    class: match byte % 7 {
+                    class: match byte % 8 {
                         0 => PanelAnchorClass::DivergentCommit,
                         1 => PanelAnchorClass::StaleOperation,
                         2 => PanelAnchorClass::ForeignRetain,
                         3 => PanelAnchorClass::MembershipGates,
                         4 => PanelAnchorClass::ApplyMembershipRetires,
                         5 => PanelAnchorClass::RefreshMembershipRetires,
-                        _ => PanelAnchorClass::RetireWithPending,
+                        6 => PanelAnchorClass::RetireWithPending,
+                        _ => PanelAnchorClass::ReincarnationFence,
                     },
                 },
             });
@@ -1170,8 +1176,8 @@ fn switch_to_attachable(
     let key = prepare_and_install_switch_candidate(&mut trace.session, &key)
         .map_err(|_| "Switch candidate install")?;
     trace.generation = key.generation();
-    if !trace.session.install_projection(&key)
-        || !trace.session.record_setup_configuration(
+    if !trace.session.install_projection_t(&key)
+        || !trace.session.record_setup_configuration_t(
             &key,
             controlling(),
             Some(trace.session.latest_geometry()),
@@ -1181,11 +1187,11 @@ fn switch_to_attachable(
     }
     trace.frame = trace.frame.checked_add(1).ok_or("frame")?;
     let frame = FrameIdentity::new(trace.frame);
-    if !trace.session.stage_drawn_frame(&key, frame)
-        || !trace.session.mark_feedback_accepted(&key, frame)
+    if !trace.session.stage_drawn_frame_t(&key, frame)
+        || !trace.session.mark_feedback_accepted_t(&key, frame)
         || trace
             .session
-            .settle_ready_candidate(
+            .settle_ready_candidate_t(
                 &key,
                 frame,
                 controlling(),
@@ -1254,7 +1260,7 @@ fn settle_switch_unavailable(
     trace.generation = key.generation();
     if trace
         .session
-        .settle_unattached_setup(&key, target_index, &provenance)
+        .settle_unattached_setup_t(&key, target_index, &provenance)
         != Some(CleanupContinuation::Stable)
     {
         return Err("unavailable settlement");
@@ -1284,7 +1290,7 @@ fn create_precommit(trace: &mut TraceState, generation_step: u8) -> Result<(), &
     let key = operation.key().clone();
     let applied = trace
         .session
-        .last_accepted_geometry(trace.session.desired().unwrap());
+        .last_accepted_geometry_t(trace.session.desired().unwrap());
     if !trace.session.begin_create(operation) || !trace.session.restore_precommit(&key, applied) {
         return Err("precommit");
     }
@@ -1439,8 +1445,8 @@ fn create_committed_then_reselect(
             return Err("started create did not attach");
         }
         let key = trace.session.desired().unwrap().clone();
-        if !trace.session.install_projection(&key)
-            || !trace.session.record_setup_configuration(
+        if !trace.session.install_projection_t(&key)
+            || !trace.session.record_setup_configuration_t(
                 &key,
                 controlling(),
                 Some(trace.session.latest_geometry()),
@@ -1450,11 +1456,11 @@ fn create_committed_then_reselect(
         }
         trace.frame = trace.frame.checked_add(1).ok_or("frame")?;
         let frame = FrameIdentity::new(trace.frame);
-        if !trace.session.stage_drawn_frame(&key, frame)
-            || !trace.session.mark_feedback_accepted(&key, frame)
+        if !trace.session.stage_drawn_frame_t(&key, frame)
+            || !trace.session.mark_feedback_accepted_t(&key, frame)
             || trace
                 .session
-                .settle_ready_candidate(
+                .settle_ready_candidate_t(
                     &key,
                     frame,
                     controlling(),
@@ -1520,15 +1526,15 @@ fn reject_reused_committed_tuple(trace: &mut TraceState) -> Result<(), &'static 
     }
     let first_created_key = session.desired().unwrap().clone();
     let first_frame = FrameIdentity::new(2);
-    if !session.install_projection(&first_created_key)
-        || !session.record_setup_configuration(
+    if !session.install_projection_t(&first_created_key)
+        || !session.record_setup_configuration_t(
             &first_created_key,
             controlling(),
             Some(session.latest_geometry()),
         )
-        || !session.stage_drawn_frame(&first_created_key, first_frame)
-        || !session.mark_feedback_accepted(&first_created_key, first_frame)
-        || !session.publish_ready(
+        || !session.stage_drawn_frame_t(&first_created_key, first_frame)
+        || !session.mark_feedback_accepted_t(&first_created_key, first_frame)
+        || !session.publish_ready_t(
             &first_created_key,
             first_frame,
             controlling(),
@@ -1631,7 +1637,9 @@ fn refresh(
         WorkbenchSnapshotOutcome::Denied {}
     };
     let prepared = trace.session.prepare_refresh(trace.refresh, outcome);
-    let decision = trace.session.apply_prepared_refresh(prepared);
+    let decision = trace
+        .session
+        .apply_prepared_refresh(prepared, std::time::Instant::now());
     if decision != RefreshDecision::Continue {
         return Err("refresh settlement");
     }
@@ -1687,7 +1695,10 @@ fn refresh_stale_then_current(
     let prepared = trace
         .session
         .prepare_refresh(stale, WorkbenchSnapshotOutcome::Denied {});
-    if trace.session.apply_prepared_refresh(prepared) != RefreshDecision::Continue
+    if trace
+        .session
+        .apply_prepared_refresh(prepared, std::time::Instant::now())
+        != RefreshDecision::Continue
         || trace.session.pending_refresh_generation() != Some(current)
     {
         return Err("stale refresh changed current");
@@ -1707,7 +1718,10 @@ fn refresh_stale_then_current(
     );
     // Unobserved peer commits (stale-rejection paths) may already sit in
     // `server_tabs`; adoption is checked against the delivered Server state.
-    if trace.session.apply_prepared_refresh(prepared) != RefreshDecision::Continue
+    if trace
+        .session
+        .apply_prepared_refresh(prepared, std::time::Instant::now())
+        != RefreshDecision::Continue
         || trace.session.cache().tabs().len() != trace.server_tabs.len()
         || trace.session.provenance(count) != Some(&CreateTerminalProvenance::BindingOnly)
         || trace
@@ -1751,14 +1765,14 @@ fn historical_ready_create(trace: &mut TraceState, cut: ReadyFrameCut) -> Result
             trace.frame = trace.frame.checked_add(1).ok_or("frame")?;
             if !trace
                 .session
-                .stage_drawn_frame(&key, FrameIdentity::new(trace.frame))
+                .stage_drawn_frame_t(&key, FrameIdentity::new(trace.frame))
             {
                 return Err("stage newer frame");
             }
             trace.coverage.staged_frame_creates += 1;
         }
         ReadyFrameCut::ProjectionProofInvalidated => {
-            if !trace.session.invalidate_projection_frame(&key) {
+            if !trace.session.invalidate_projection_frame_t(&key) {
                 return Err("invalidate projection proof");
             }
             trace.coverage.invalidated_frame_creates += 1;
@@ -1771,7 +1785,7 @@ fn historical_ready_create(trace: &mut TraceState, cut: ReadyFrameCut) -> Result
     trace.request = trace.request.checked_add(1).ok_or("request")?;
     let operation = create_operation(&trace.session, generation, trace.request, "probe");
     let operation_key = operation.key().clone();
-    let applied_geometry = trace.session.last_accepted_geometry(&key);
+    let applied_geometry = trace.session.last_accepted_geometry_t(&key);
     if !trace.session.begin_create(operation)
         || trace.session.phase_kind() != SessionPhaseKind::Creating
         || trace.session.active() != Some(&active)
@@ -1788,8 +1802,8 @@ fn historical_ready_create(trace: &mut TraceState, cut: ReadyFrameCut) -> Result
     trace.coverage.precommit_restores += 1;
     trace.frame = trace.frame.checked_add(1).ok_or("frame")?;
     let frame = FrameIdentity::new(trace.frame);
-    if !trace.session.stage_drawn_frame(&key, frame)
-        || !trace.session.mark_feedback_accepted(&key, frame)
+    if !trace.session.stage_drawn_frame_t(&key, frame)
+        || !trace.session.mark_feedback_accepted_t(&key, frame)
     {
         return Err("recover frame");
     }
@@ -1813,12 +1827,12 @@ fn exercise_controller_busy_read_only(trace: &mut TraceState) -> Result<(), &'st
     let mut session = state(2);
     let key = session.desired().unwrap().clone();
     let frame = FrameIdentity::new(trace.frame.checked_add(1).ok_or("frame")?);
-    if !session.install_projection(&key)
-        || !session.record_setup_configuration(&key, ControllerMode::ReadOnly, None)
-        || !session.stage_drawn_frame(&key, frame)
-        || !session.mark_feedback_accepted(&key, frame)
-        || !session.publish_ready(&key, frame, ControllerMode::ReadOnly, None)
-        || session.record_admitted_geometry(&key, geometry(99))
+    if !session.install_projection_t(&key)
+        || !session.record_setup_configuration_t(&key, ControllerMode::ReadOnly, None)
+        || !session.stage_drawn_frame_t(&key, frame)
+        || !session.mark_feedback_accepted_t(&key, frame)
+        || !session.publish_ready_t(&key, frame, ControllerMode::ReadOnly, None)
+        || session.record_admitted_geometry_t(&key, geometry(99))
         || !session.invariant_holds()
     {
         return Err("controller-busy read-only");
@@ -1841,16 +1855,16 @@ fn exercise_cleanup(trace: &mut TraceState, class: CleanupClass) -> Result<(), &
         .map_err(|_| "cleanup Switch candidate install")?;
     let continuation = match class {
         CleanupClass::CurrentInstalled => {
-            if !session.install_projection(&old_key) {
+            if !session.install_projection_t(&old_key) {
                 return Err("cleanup install");
             }
-            session.settle_cleanup(&old_key, 1, &CreateTerminalProvenance::BindingOnly)
+            session.settle_cleanup_t(&old_key, 1, &CreateTerminalProvenance::BindingOnly)
         }
         CleanupClass::CurrentBeforeUiInstall => {
-            session.settle_cleanup(&old_key, 1, &CreateTerminalProvenance::BindingOnly)
+            session.settle_cleanup_t(&old_key, 1, &CreateTerminalProvenance::BindingOnly)
         }
         CleanupClass::Superseded => {
-            if !session.install_projection(&old_key) {
+            if !session.install_projection_t(&old_key) {
                 return Err("superseded install");
             }
             let newer_key = AttachmentKey::new(
@@ -1864,8 +1878,12 @@ fn exercise_cleanup(trace: &mut TraceState, class: CleanupClass) -> Result<(), &
                 return Err("newer switch");
             }
             let continuation =
-                session.settle_cleanup(&old_key, 1, &CreateTerminalProvenance::BindingOnly);
-            if continuation != Some(CleanupContinuation::Superseded { desired: newer_key }) {
+                session.settle_cleanup_t(&old_key, 1, &CreateTerminalProvenance::BindingOnly);
+            if continuation
+                != Some(CleanupContinuation::Superseded {
+                    desired: session.pane_key_for_anchor(&newer_key).unwrap(),
+                })
+            {
                 return Err("superseded cleanup");
             }
             continuation
@@ -1904,7 +1922,7 @@ fn exercise_retirement(trace: &mut TraceState, class: RetirementClass) -> Result
         || session.active() != diagnostic_active.as_ref()
         || session.retired_failure() != Some(failure)
         || session.committed_target().is_some()
-        || session.attached_key().is_some()
+        || session.has_attachments()
         || session.projection_key().is_some()
         || !session.invariant_holds()
     {
@@ -2374,7 +2392,6 @@ fn panel_settle(
     }
     // While a panel operation is in flight every other structural admission must refuse:
     // this is the pending-op/refresh/switch/panel interleave the witness must reach.
-    let deadlines = OperationDeadlines::from_sample(Instant::now()).ok_or("deadline")?;
     if trace
         .session
         .plan_panel(
@@ -2387,11 +2404,7 @@ fn panel_settle(
         || trace.session.phase_allows_refresh()
         || trace
             .session
-            .plan_panel_focus(
-                PanelDirection::Left,
-                trace.generation.saturating_add(1),
-                deadlines,
-            )
+            .plan_panel_focus_local(PanelDirection::Left)
             .is_some()
         || !matches!(
             trace.session.plan_selection(ClientAction::SelectTab(1)),
@@ -2836,7 +2849,7 @@ fn install_panel_membership(
             tab.clone(),
         )
     });
-    let decision = if trace.session.attached_key().is_some() {
+    let decision = if trace.session.has_attachments() {
         let cleanup = trace
             .session
             .stage_panel_membership_cleanup(operation.request_id(), candidate, deadlines)
@@ -2869,7 +2882,7 @@ fn install_panel_membership(
         MembershipInstallDecision::Attach(target) => {
             let key = target.selected().key().clone();
             trace.generation = trace.generation.max(key.generation());
-            settle_attached_ready(&mut trace.session, &key, &mut trace.frame)?;
+            settle_attached_ready(&mut trace.session, key.anchor(), &mut trace.frame)?;
         }
         MembershipInstallDecision::SelectedWithoutAttachment => {
             if trace.session.phase_kind() != SessionPhaseKind::SelectedWithoutAttachment {
@@ -2939,7 +2952,11 @@ fn panel_recovery_refresh(trace: &mut TraceState, generation_step: u8) -> Result
     if !matches!(&prepared, PreparedRefresh::Append { .. }) {
         return Err("recovery refresh did not classify as append");
     }
-    if trace.session.apply_prepared_refresh(prepared) != RefreshDecision::Continue {
+    if trace
+        .session
+        .apply_prepared_refresh(prepared, std::time::Instant::now())
+        != RefreshDecision::Continue
+    {
         return Err("recovery refresh settlement");
     }
     if trace.session.panel_recovery_for_test().is_some()
@@ -3022,7 +3039,7 @@ fn refresh_leaf_repair(trace: &mut TraceState, generation_step: u8) -> Result<()
     let fresh = prepared
         .selected_tab_id()
         .map(|tab| AttachmentKey::new(fresh_generation, tab.clone()));
-    let decision = if trace.session.attached_key().is_some() {
+    let decision = if trace.session.has_attachments() {
         let cleanup = trace
             .session
             .stage_refresh_membership_cleanup(generation, prepared, deadlines)
@@ -3051,7 +3068,7 @@ fn refresh_leaf_repair(trace: &mut TraceState, generation_step: u8) -> Result<()
         MembershipInstallDecision::Attach(target) => {
             let key = target.selected().key().clone();
             trace.generation = trace.generation.max(key.generation());
-            settle_attached_ready(&mut trace.session, &key, &mut trace.frame)?;
+            settle_attached_ready(&mut trace.session, key.anchor(), &mut trace.frame)?;
         }
         MembershipInstallDecision::SelectedWithoutAttachment => {
             if trace.session.phase_kind() != SessionPhaseKind::SelectedWithoutAttachment {
@@ -3093,26 +3110,21 @@ fn panel_focus(
         .session
         .tab(active.index())
         .and_then(|tab| tab.panel_focus_target(active.panel_index(), direction));
-    let generation = advance_generation(trace, generation_step)?;
-    let deadlines = OperationDeadlines::from_sample(Instant::now()).ok_or("deadline")?;
-    let Some(target) = trace
-        .session
-        .plan_panel_focus(direction, generation, deadlines)
-    else {
+    let _ = advance_generation(trace, generation_step)?;
+    // Mirror the UI install pipeline: every leaf the workbench renders carries an
+    // attached viewer, so leaves the last commit introduced are installed and
+    // attached before a local focus move is planned.
+    attach_missing_leaves(&mut trace.session);
+    let Some(pane) = trace.session.plan_panel_focus_local(direction) else {
         trace.coverage.panel_plan_refusals += 1;
         return Ok(());
     };
     if expected.is_none() {
         return Err("focus planned without a neighbor");
     }
-    let marker = target.selected().key().clone();
-    if !trace.session.begin_switch(target) {
-        return Err("focus begin");
+    if !trace.session.move_panel_focus_local(pane) {
+        return Err("focus move");
     }
-    let fresh = prepare_and_install_switch_candidate(&mut trace.session, &marker)
-        .map_err(|_| "focus install")?;
-    trace.generation = fresh.generation();
-    settle_attached_ready(&mut trace.session, &fresh, &mut trace.frame)?;
     if trace.session.active().map(SelectedTab::panel_index) != expected {
         return Err("focus landed on wrong leaf");
     }
@@ -3127,23 +3139,63 @@ fn settle_attached_ready(
     key: &AttachmentKey,
     frame: &mut u64,
 ) -> Result<(), &'static str> {
-    if !session.install_projection(key)
-        || !session.record_setup_configuration(key, controlling(), Some(session.latest_geometry()))
+    if !session.install_projection_t(key)
+        || !session.record_setup_configuration_t(
+            key,
+            controlling(),
+            Some(session.latest_geometry()),
+        )
     {
         return Err("setup");
     }
     *frame = frame.checked_add(1).ok_or("frame")?;
     let frame = FrameIdentity::new(*frame);
-    if !session.stage_drawn_frame(key, frame)
-        || !session.mark_feedback_accepted(key, frame)
+    if !session.stage_drawn_frame_t(key, frame)
+        || !session.mark_feedback_accepted_t(key, frame)
         || session
-            .settle_ready_candidate(key, frame, controlling(), Some(session.latest_geometry()))
+            .settle_ready_candidate_t(key, frame, controlling(), Some(session.latest_geometry()))
             .map_err(|_| "ready")?
             != ReadyDecision::Ready
     {
         return Err("ready");
     }
     Ok(())
+}
+
+/// Installs and attaches a pane for every leaf of the active tab that has no
+/// live record — the state-side mirror of the UI's observe→install→attach
+/// pipeline after a commit introduced new leaves.
+fn attach_missing_leaves(session: &mut NativeSessionState) {
+    let Some(active) = session.active().cloned() else {
+        return;
+    };
+    let Some(anchor) = session.desired().map(PaneKey::anchor).cloned() else {
+        return;
+    };
+    let Some(leaf_ids) = session.tab(active.index()).map(|tab| tab.leaf_panel_ids()) else {
+        return;
+    };
+    for (panel_index, panel_id) in leaf_ids.into_iter().enumerate() {
+        let pane = PaneKey::new(anchor.clone(), panel_id);
+        if session.pane_record(&pane).is_some() {
+            continue;
+        }
+        session.install_unattached_pane(&SelectedTab::new_panel(
+            pane.clone(),
+            active.index(),
+            panel_index,
+        ));
+        let Some(pane_ref) = session.pane_ref_for(&pane) else {
+            continue;
+        };
+        if session.settle_attached_event(&pane_ref).is_some() {
+            session.record_setup_configuration(
+                &pane_ref,
+                controlling(),
+                Some(session.latest_geometry()),
+            );
+        }
+    }
 }
 
 fn panel_anchor(trace: &mut TraceState, class: PanelAnchorClass) -> Result<(), &'static str> {
@@ -3155,6 +3207,7 @@ fn panel_anchor(trace: &mut TraceState, class: PanelAnchorClass) -> Result<(), &
         PanelAnchorClass::ApplyMembershipRetires => anchor_apply_membership_retires()?,
         PanelAnchorClass::RefreshMembershipRetires => anchor_refresh_membership_retires()?,
         PanelAnchorClass::RetireWithPending => anchor_retire_with_pending()?,
+        PanelAnchorClass::ReincarnationFence => anchor_reincarnation_fence()?,
     }
     trace.coverage.panel_anchor_witnesses[class.index()] += 1;
     Ok(())
@@ -3196,16 +3249,15 @@ fn anchor_pending_move()
     if session.apply_prepared_panel(prepared) != PanelDecision::Continue {
         return Err("anchor split merge");
     }
-    let target = session
-        .plan_panel_focus(PanelDirection::Right, 2, deadlines)
+    attach_nonfirst_leaf(&mut session);
+    let pane = session
+        .plan_panel_focus_local(PanelDirection::Right)
         .ok_or("anchor focus")?;
-    let marker = target.selected().key().clone();
-    if !session.begin_switch(target) {
-        return Err("anchor focus begin");
+    if !session.move_panel_focus_local(pane) {
+        return Err("anchor focus move");
     }
-    let fresh = prepare_and_install_switch_candidate(&mut session, &marker)
-        .map_err(|_| "anchor focus install")?;
-    settle_attached_ready(&mut session, &fresh, &mut frame)?;
+    let _ = &deadlines;
+    let _ = &mut frame;
     let operation = session
         .plan_panel(
             workbench_request_id(next_identity(&mut identity)),
@@ -3526,7 +3578,8 @@ fn anchor_refresh_membership_retires() -> Result<(), &'static str> {
     if !matches!(prepared, PreparedRefresh::Membership { .. }) {
         return Err("refresh leaf-loss did not route to membership");
     }
-    if session.apply_prepared_refresh(prepared) != RefreshDecision::Retire
+    if session.apply_prepared_refresh(prepared, std::time::Instant::now())
+        != RefreshDecision::Retire
         || session.retired_failure() != Some(CarrierFailure::Protocol)
         || !session.invariant_holds()
     {
@@ -3554,6 +3607,76 @@ fn anchor_retire_with_pending() -> Result<(), &'static str> {
         || !session.invariant_holds()
     {
         return Err("pending panel did not survive retirement as diagnostic");
+    }
+    Ok(())
+}
+
+/// Two attachment incarnations of one logical pane: the background leaf's
+/// record departs and is dropped on the worker's disposal proof, then the leaf
+/// reappears and reconcile mints a fresh incarnation. Every settlement tagged
+/// with the retired incarnation must refuse while the live record settles.
+fn anchor_reincarnation_fence() -> Result<(), &'static str> {
+    let mut session =
+        ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap());
+    let retired = attach_nonfirst_leaf(&mut session);
+    let pane = retired.pane().clone();
+    let active = session.active().ok_or("active")?.index();
+    let leaf_ids = session.tab(active).ok_or("tab")?.leaf_panel_ids();
+    if leaf_ids.len() != 2 {
+        return Err("split baseline leaves");
+    }
+    let leaf = |index: usize| (leaf_ids[index].clone(), index, geometry(80));
+
+    if !session.sync_pane_set(&[leaf(0)], Instant::now())
+        || !session.settle_pane_detached(&retired)
+        || session.pane_ref_for(&pane).is_some()
+    {
+        return Err("depart did not dispose the record");
+    }
+    if !session.sync_pane_set(&[leaf(0), leaf(1)], Instant::now()) {
+        return Err("reappearance minted no record");
+    }
+    let rebound = session.pane_ref_for(&pane).ok_or("rebound record")?;
+    if rebound.incarnation() == retired.incarnation() {
+        return Err("reincarnation kept the retired incarnation");
+    }
+    if !matches!(
+        session.settle_attached_event(&rebound),
+        Some(SetupEventDisposition::Applied)
+    ) || !session.pane_attached(&rebound)
+    {
+        return Err("rebound attach");
+    }
+
+    // Late work from the retired incarnation fences at the exact PaneRef.
+    if session.settle_pane_detached(&retired)
+        || session.stage_drawn_frame(&retired, FrameIdentity::new(7))
+        || session.invalidate_projection_frame(&retired)
+        || session.mark_feedback_accepted(&retired, FrameIdentity::new(7))
+        || session.record_setup_configuration(&retired, controlling(), Some(geometry(80)))
+        || session.settle_pane_fault(&retired, PaneFault::AttachUnavailable)
+        || session.record_admitted_geometry(&retired, geometry(40))
+        || session.settle_attached_event(&retired).is_some()
+        || session.last_admitted_geometry(&retired).is_some()
+        || session.last_accepted_geometry(&retired).is_some()
+        || session.expected_frame_geometry(&retired).is_some()
+        || !matches!(
+            session.settle_ready_candidate(
+                &retired,
+                FrameIdentity::new(7),
+                controlling(),
+                Some(geometry(80))
+            ),
+            Ok(ReadyDecision::Superseded)
+        )
+    {
+        return Err("retired incarnation leaked onto the live record");
+    }
+    if !session.stage_drawn_frame(&rebound, FrameIdentity::new(9))
+        || !session.mark_feedback_accepted(&rebound, FrameIdentity::new(9))
+        || !session.invariant_holds()
+    {
+        return Err("live incarnation did not settle");
     }
     Ok(())
 }
@@ -3894,6 +4017,7 @@ const fn panel_anchor_class_token(class: PanelAnchorClass) -> &'static str {
         PanelAnchorClass::ApplyMembershipRetires => "m",
         PanelAnchorClass::RefreshMembershipRetires => "r",
         PanelAnchorClass::RetireWithPending => "p",
+        PanelAnchorClass::ReincarnationFence => "i",
     }
 }
 
@@ -3906,6 +4030,7 @@ fn parse_panel_anchor_class(token: &str) -> Result<PanelAnchorClass, &'static st
         "m" => Ok(PanelAnchorClass::ApplyMembershipRetires),
         "r" => Ok(PanelAnchorClass::RefreshMembershipRetires),
         "p" => Ok(PanelAnchorClass::RetireWithPending),
+        "i" => Ok(PanelAnchorClass::ReincarnationFence),
         _ => Err("invalid panel anchor class"),
     }
 }

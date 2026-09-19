@@ -12,32 +12,36 @@
 //!   terminal): no candidates
 //! - `ended` — `--` was seen: option termination, and `--` is never consumed
 //!   as a flag value (checked before value ownership)
-//! - `value` — a declared flag owns the next word: `format` | `direction` |
-//!   `key` (`terminal send --key`) | `filter` (every other value-owning
-//!   flag)
-//! - `seen_*` — one consumed bit per `--format` and per business flag;
-//!   duplicates are usage
+//! - `value` — a declared flag owns the next word: `format` | `mouse` |
+//!   `direction` | `key` (`terminal send --key`) | `filter` (every other
+//!   value-owning flag)
+//! - `seen_*` — one consumed bit per `--format`, per `--mouse`, and per
+//!   business flag; duplicates are usage
 //!
 //! Walk precedence per completed word (mirrors `format_envelope` + `scan`):
 //! 1. `--` → ended, always (the parser never takes it as a value)
 //! 2. done | ended → ignore (nothing more is legal)
 //! 3. value set → the word is the flag's value; a `--format` value outside
-//!    {text,json} makes the parse fail
+//!    {text,json} or a `--mouse` value outside {off,on} makes the parse fail
 //! 4. `--format*` → legal only where options may still appear
 //!    (verb/sub/after/operand, leaf `status`); a second selector or an
 //!    invalid value is usage
-//! 5. business flags → legal iff a command reachable here admits the flag:
+//! 5. `--mouse*` → the `tui`-scoped option: legal at verb (only `tui` stays
+//!    viable afterward) or on the `tui` leaf; a second `--mouse` or an
+//!    invalid value is usage
+//! 6. business flags → legal iff a command reachable here admits the flag:
 //!    verb records it (checked when the command lands), sub requires the
 //!    flag's owning family, after/operand require membership in the resolved
 //!    command's flag scope (`--workspace`/`--standalone` stay exclusive);
 //!    operand-taking paths consume one positional first; leaf/help/
 //!    completion reject all options
-//! 6. `--help`/`--version` → terminal flags: nothing may follow → done
-//! 7. unknown `-x` → usage → done
-//! 8. other word → positional dispatch:
-//!    - verb: family→sub | `status`→leaf (fails if a business flag was seen) |
-//!      `tui`→leaf (fails if any option was seen) | `help`→help /
-//!      `completion`→completion (both fail if any option was seen)
+//! 7. `--help`/`--version` → terminal flags: nothing may follow → done
+//! 8. unknown `-x` → usage → done
+//! 9. other word → positional dispatch:
+//!    - verb: family→sub | `status`→leaf (fails if a business flag or
+//!      `--mouse` was seen) | `tui`→leaf (fails if a business flag or
+//!      `--format` was seen) | `help`→help / `completion`→completion (both
+//!      fail if any option was seen); families fail if `--mouse` was seen
 //!    - sub: family:verb → after; the verb's declared flag scope must cover
 //!      everything already seen
 //!    - after: operand-taking paths → operand; anything else → done
@@ -52,6 +56,7 @@
 //!   complete nothing
 //! - done | ended → nothing
 //! - value == format → text json
+//! - value == mouse → off on
 //! - value == direction → the resolved command's direction words
 //! - value == key → the closed `terminal send --key` vocabulary
 //! - value == filter → nothing (no resource enumeration)
@@ -62,7 +67,9 @@
 //!   flags + `--help`/`--version` only when nothing was consumed
 //! - sub → verbs whose flag scope covers the seen flags + format flags
 //! - leaf → `status`: format flags + `--help` when nothing was seen; `tui`:
-//!   `--help` (options already fail)
+//!   `--help` and `--mouse` only while `--mouse` is unconsumed — a consumed
+//!   `--mouse` makes every further token usage; `--mouse` admits no equals
+//!   form so nothing completes a `--mouse=` prefix
 //! - after → format flags + the command's unused business flags + `--help`
 //!   on every command path with no option seen; the operand-taking `get`/
 //!   `api schema`/mutation paths take a legal suffix help before their
@@ -565,7 +572,7 @@ fn direction_cases_bash() -> String {
 /// The bash/zsh "no option was consumed" condition that keeps `--help`
 /// offers legal.
 fn no_options_bash() -> String {
-    let mut bits = vec!["seen_format"];
+    let mut bits = vec!["seen_format", "seen_mouse"];
     bits.extend(BUSINESS_FLAGS.iter().map(|flag| flag_bit(flag)));
     bits.iter()
         .map(|bit| format!("!{bit}"))
@@ -581,7 +588,7 @@ fn bash() -> String {
             "_orchbee() {{\n",
             "    local cur candidates=\"\" extras=\"\" verbs=\"\" possible=\"\"\n",
             "    local state=verb help_a=\"\" help_b=\"\" family=\"\" sub=\"\" leaf=\"\"\n",
-            "    local seen_format=0 {seen_decls}\n",
+            "    local seen_format=0 seen_mouse=0 {seen_decls}\n",
             "    local ended=0 done=0 dead=0 value=\"\"\n",
             "    local i word\n",
             "    # Each consumed business flag narrows the viable root words to the\n",
@@ -602,6 +609,7 @@ fn bash() -> String {
             "        # A declared flag owns the next word whole — even one spelled like a flag.\n",
             "        if [[ -n $value ]]; then\n",
             "            if [[ $value == format && $word != text && $word != json ]]; then done=1; fi\n",
+            "            if [[ $value == mouse && $word != off && $word != on ]]; then done=1; fi\n",
             "            value=\"\"\n",
             "            continue\n",
             "        fi\n",
@@ -620,6 +628,19 @@ fn bash() -> String {
             "                            if ((seen_format)); then done=1; else seen_format=1; fi ;;\n",
             "                        *) done=1 ;;\n",
             "                    esac\n",
+            "                fi ;;\n",
+            "            --mouse)\n",
+            "                # `--mouse` is the TUI leaf's own option: legal before the\n",
+            "                # command word (only `tui` stays viable) or on that leaf.\n",
+            "                # The grammar admits the two-token form only — a `--mouse=`\n",
+            "                # token is not this arm and reads as an unknown word.\n",
+            "                case \"$state\" in\n",
+            "                    verb) ;;\n",
+            "                    leaf) [[ $leaf == tui ]] || done=1 ;;\n",
+            "                    *) done=1 ;;\n",
+            "                esac\n",
+            "                if ((!done)); then\n",
+            "                    if ((seen_mouse)); then done=1; else seen_mouse=1; value=mouse; fi\n",
             "                fi ;;\n",
             "            {flag_patterns})\n",
             "                case \"$state\" in\n",
@@ -648,12 +669,12 @@ fn bash() -> String {
             "                    verb)\n",
             "                        case \"$word\" in\n",
             "                            status)\n",
-            "                                if (({business_bits})); then done=1; else leaf=status; state=leaf; fi ;;\n",
-            "                            tui|help|completion)\n",
-            "                                if ((seen_format || {business_bits})); then done=1; else\n",
-            "                                    [[ $word == tui ]] && leaf=tui && state=leaf || state=$word\n",
-            "                                fi ;;\n",
-            "                            {families}) family=$word; state=sub ;;\n",
+            "                                if (({business_bits} || seen_mouse)); then done=1; else leaf=status; state=leaf; fi ;;\n",
+            "                            tui)\n",
+            "                                if ((seen_format || {business_bits})); then done=1; else leaf=tui; state=leaf; fi ;;\n",
+            "                            help|completion)\n",
+            "                                if ((seen_format || {business_bits} || seen_mouse)); then done=1; else state=$word; fi ;;\n",
+            "                            {families}) if ((seen_mouse)); then done=1; else family=$word; state=sub; fi ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
             "                    sub)\n",
@@ -694,9 +715,8 @@ fn bash() -> String {
             "    if [[ $state == verb ]]; then\n",
             "        possible=\"{roots}\"\n",
             "{narrow_lines}\n",
-            "        if ((seen_format)) && [[ $possible == *help* ]]; then\n",
-            "            possible=\"{format_roots}\"\n",
-            "        fi\n",
+            "        ((seen_mouse)) && narrow \"tui\"\n",
+            "        ((seen_format)) && narrow \"{format_roots}\"\n",
             "        [[ -z $possible ]] && dead=1\n",
             "    elif [[ $state == sub ]]; then\n",
             "        case \"$family\" in\n",
@@ -706,6 +726,7 @@ fn bash() -> String {
             "    fi\n",
             "    if ((done || ended || dead)); then candidates=\"\"\n",
             "    elif [[ $value == format ]]; then candidates=\"{format_values}\"\n",
+            "    elif [[ $value == mouse ]]; then candidates=\"off on\"\n",
             "    elif [[ $value == direction ]]; then\n",
             "        case \"$family:$sub\" in\n",
             "{direction_cases}\n",
@@ -715,13 +736,15 @@ fn bash() -> String {
             "    elif [[ $cur == --format=* ]]; then\n",
             "        if ((!seen_format)); then\n",
             "            case \"$state\" in\n",
-            "                verb|sub|after|operand) candidates=\"--format=text --format=json\" ;;\n",
+            "                verb) ((!seen_mouse)) && candidates=\"--format=text --format=json\" ;;\n",
+            "                sub|after|operand) candidates=\"--format=text --format=json\" ;;\n",
             "                leaf) [[ $leaf == status ]] && candidates=\"--format=text --format=json\" ;;\n",
             "            esac\n",
             "        fi\n",
             "    elif [[ $state == verb ]]; then\n",
             "        candidates=\"$possible\"\n",
-            "        ((seen_format)) || candidates=\"$candidates --format --format=\"\n",
+            "        ((seen_format || seen_mouse)) || candidates=\"$candidates --format --format=\"\n",
+            "        [[ \" $possible \" == *\" tui \"* ]] && ((!seen_mouse)) && candidates=\"$candidates --mouse\"\n",
             "        if (({no_options})); then\n",
             "            candidates=\"$candidates --help --version\"\n",
             "        fi\n",
@@ -729,7 +752,7 @@ fn bash() -> String {
             "        candidates=\"$verbs\"\n",
             "        ((seen_format)) || candidates=\"$candidates --format --format=\"\n",
             "    elif [[ $state == leaf ]]; then\n",
-            "        if [[ $leaf == tui ]]; then candidates=\"--help\"\n",
+            "        if [[ $leaf == tui ]]; then ((!seen_mouse)) && candidates=\"--help --mouse\"\n",
             "        elif ((!seen_format)); then candidates=\"--format --format= --help\"; fi\n",
             "    elif [[ $state == after ]]; then\n",
             "        ((seen_format)) || candidates=\"--format --format=\"\n",
@@ -819,7 +842,7 @@ fn zsh() -> String {
             "_orchbee() {{\n",
             "    local candidates=\"\" extras=\"\" verbs=\"\" possible=\"\"\n",
             "    local state=verb help_a=\"\" help_b=\"\" family=\"\" sub=\"\" leaf=\"\"\n",
-            "    local seen_format=0 {seen_decls}\n",
+            "    local seen_format=0 seen_mouse=0 {seen_decls}\n",
             "    local ended=0 done=0 dead=0 value=\"\"\n",
             "    local i word cur\n",
             "    narrow() {{\n",
@@ -836,6 +859,7 @@ fn zsh() -> String {
             "        if ((ended || done)); then continue; fi\n",
             "        if [[ -n $value ]]; then\n",
             "            if [[ $value == format && $word != text && $word != json ]]; then done=1; fi\n",
+            "            if [[ $value == mouse && $word != off && $word != on ]]; then done=1; fi\n",
             "            value=\"\"\n",
             "            continue\n",
             "        fi\n",
@@ -854,6 +878,19 @@ fn zsh() -> String {
             "                            if ((seen_format)); then done=1; else seen_format=1; fi ;;\n",
             "                        *) done=1 ;;\n",
             "                    esac\n",
+            "                fi ;;\n",
+            "            --mouse)\n",
+            "                # `--mouse` is the TUI leaf's own option: legal before the\n",
+            "                # command word (only `tui` stays viable) or on that leaf.\n",
+            "                # The grammar admits the two-token form only — a `--mouse=`\n",
+            "                # token is not this arm and reads as an unknown word.\n",
+            "                case \"$state\" in\n",
+            "                    verb) ;;\n",
+            "                    leaf) [[ $leaf == tui ]] || done=1 ;;\n",
+            "                    *) done=1 ;;\n",
+            "                esac\n",
+            "                if ((!done)); then\n",
+            "                    if ((seen_mouse)); then done=1; else seen_mouse=1; value=mouse; fi\n",
             "                fi ;;\n",
             "            {flag_patterns})\n",
             "                case \"$state\" in\n",
@@ -882,12 +919,12 @@ fn zsh() -> String {
             "                    verb)\n",
             "                        case \"$word\" in\n",
             "                            status)\n",
-            "                                if (({business_bits})); then done=1; else leaf=status; state=leaf; fi ;;\n",
-            "                            tui|help|completion)\n",
-            "                                if ((seen_format || {business_bits})); then done=1; else\n",
-            "                                    [[ $word == tui ]] && leaf=tui && state=leaf || state=$word\n",
-            "                                fi ;;\n",
-            "                            {families}) family=$word; state=sub ;;\n",
+            "                                if (({business_bits} || seen_mouse)); then done=1; else leaf=status; state=leaf; fi ;;\n",
+            "                            tui)\n",
+            "                                if ((seen_format || {business_bits})); then done=1; else leaf=tui; state=leaf; fi ;;\n",
+            "                            help|completion)\n",
+            "                                if ((seen_format || {business_bits} || seen_mouse)); then done=1; else state=$word; fi ;;\n",
+            "                            {families}) if ((seen_mouse)); then done=1; else family=$word; state=sub; fi ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
             "                    sub)\n",
@@ -923,9 +960,8 @@ fn zsh() -> String {
             "    if [[ $state == verb ]]; then\n",
             "        possible=\"{roots}\"\n",
             "{narrow_lines}\n",
-            "        if ((seen_format)) && [[ $possible == *help* ]]; then\n",
-            "            possible=\"{format_roots}\"\n",
-            "        fi\n",
+            "        ((seen_mouse)) && narrow \"tui\"\n",
+            "        ((seen_format)) && narrow \"{format_roots}\"\n",
             "        [[ -z $possible ]] && dead=1\n",
             "    elif [[ $state == sub ]]; then\n",
             "        case \"$family\" in\n",
@@ -935,6 +971,7 @@ fn zsh() -> String {
             "    fi\n",
             "    if ((done || ended || dead)); then candidates=\"\"\n",
             "    elif [[ $value == format ]]; then candidates=\"{format_values}\"\n",
+            "    elif [[ $value == mouse ]]; then candidates=\"off on\"\n",
             "    elif [[ $value == direction ]]; then\n",
             "        case \"$family:$sub\" in\n",
             "{direction_cases}\n",
@@ -944,13 +981,15 @@ fn zsh() -> String {
             "    elif [[ $cur == --format=* ]]; then\n",
             "        if ((!seen_format)); then\n",
             "            case \"$state\" in\n",
-            "                verb|sub|after|operand) candidates=\"--format=text --format=json\" ;;\n",
+            "                verb) ((!seen_mouse)) && candidates=\"--format=text --format=json\" ;;\n",
+            "                sub|after|operand) candidates=\"--format=text --format=json\" ;;\n",
             "                leaf) [[ $leaf == status ]] && candidates=\"--format=text --format=json\" ;;\n",
             "            esac\n",
             "        fi\n",
             "    elif [[ $state == verb ]]; then\n",
             "        candidates=\"$possible\"\n",
-            "        ((seen_format)) || candidates=\"$candidates --format --format=\"\n",
+            "        ((seen_format || seen_mouse)) || candidates=\"$candidates --format --format=\"\n",
+            "        [[ \" $possible \" == *\" tui \"* ]] && ((!seen_mouse)) && candidates=\"$candidates --mouse\"\n",
             "        if (({no_options})); then\n",
             "            candidates=\"$candidates --help --version\"\n",
             "        fi\n",
@@ -958,7 +997,7 @@ fn zsh() -> String {
             "        candidates=\"$verbs\"\n",
             "        ((seen_format)) || candidates=\"$candidates --format --format=\"\n",
             "    elif [[ $state == leaf ]]; then\n",
-            "        if [[ $leaf == tui ]]; then candidates=\"--help\"\n",
+            "        if [[ $leaf == tui ]]; then ((!seen_mouse)) && candidates=\"--help --mouse\"\n",
             "        elif ((!seen_format)); then candidates=\"--format --format= --help\"; fi\n",
             "    elif [[ $state == after ]]; then\n",
             "        ((seen_format)) || candidates=\"--format --format=\"\n",
@@ -1233,7 +1272,7 @@ fn direction_cases_fish() -> String {
 
 /// The fish "no option was consumed" condition.
 fn no_options_fish() -> String {
-    let mut bits = vec!["seen_format"];
+    let mut bits = vec!["seen_format", "seen_mouse"];
     bits.extend(BUSINESS_FLAGS.iter().map(|flag| flag_bit(flag)));
     bits.iter()
         .map(|bit| format!("${bit} -eq 0"))
@@ -1257,13 +1296,14 @@ fn fish() -> String {
             "    set -e words[1]\n",
             "    set -l state verb; set -l help_a \"\"; set -l help_b \"\"\n",
             "    set -l family \"\"; set -l sub \"\"; set -l leaf \"\"\n",
-            "    set -l seen_format 0; {seen_decls}\n",
+            "    set -l seen_format 0; set -l seen_mouse 0; {seen_decls}\n",
             "    set -l ended 0; set -l done 0; set -l value \"\"\n",
             "    for word in $words\n",
             "        if string match -q -- \"--\" \"$word\"; set ended 1; continue; end\n",
             "        if test $ended -eq 1 -o $done -eq 1; continue; end\n",
             "        if test -n \"$value\"\n",
             "            if test \"$value\" = format -a \"$word\" != text -a \"$word\" != json; set done 1; end\n",
+            "            if test \"$value\" = mouse -a \"$word\" != off -a \"$word\" != on; set done 1; end\n",
             "            set value \"\"\n",
             "            continue\n",
             "        end\n",
@@ -1282,6 +1322,15 @@ fn fish() -> String {
             "                            if test $seen_format -eq 1; set done 1; else; set seen_format 1; end\n",
             "                        case '*'; set done 1\n",
             "                    end\n",
+            "                end\n",
+            "            case '--mouse'\n",
+            "                switch \"$state\"\n",
+            "                    case verb\n",
+            "                    case leaf; if test \"$leaf\" != tui; set done 1; end\n",
+            "                    case '*'; set done 1\n",
+            "                end\n",
+            "                if test $done -eq 0\n",
+            "                    if test $seen_mouse -eq 1; set done 1; else; set seen_mouse 1; set value mouse; end\n",
             "                end\n",
             "            case {flag_patterns}\n",
             "                switch \"$state\"\n",
@@ -1310,15 +1359,18 @@ fn fish() -> String {
             "                    case verb\n",
             "                        switch \"$word\"\n",
             "                            case status\n",
-            "                                if test {business_bits}\n",
+            "                                if test {business_bits} -o $seen_mouse -eq 1\n",
             "                                    set done 1\n",
             "                                else; set leaf status; set state leaf; end\n",
-            "                            case tui help completion\n",
+            "                            case tui\n",
             "                                if test $seen_format -eq 1 -o {business_bits}\n",
             "                                    set done 1\n",
-            "                                else if test \"$word\" = tui; set leaf tui; set state leaf\n",
+            "                                else; set leaf tui; set state leaf; end\n",
+            "                            case help completion\n",
+            "                                if test $seen_format -eq 1 -o {business_bits} -o $seen_mouse -eq 1\n",
+            "                                    set done 1\n",
             "                                else; set state $word; end\n",
-            "                            case {families}; set family $word; set state sub\n",
+            "                            case {families}; if test $seen_mouse -eq 1; set done 1; else; set family $word; set state sub; end\n",
             "                            case '*'; set done 1\n",
             "                        end\n",
             "                    case sub\n",
@@ -1355,11 +1407,8 @@ fn fish() -> String {
             "    if test \"$state\" = verb\n",
             "        set possible {roots}\n",
             "{narrow_lines}\n",
-            "        if test $seen_format -eq 1\n",
-            "            if contains help $possible; or contains completion $possible; or contains tui $possible\n",
-            "                set possible {format_roots}\n",
-            "            end\n",
-            "        end\n",
+            "        if test $seen_mouse -eq 1; set possible (__orchbee_narrow \"tui\" $possible); end\n",
+            "        if test $seen_format -eq 1; set possible (__orchbee_narrow \"{format_roots}\" $possible); end\n",
             "        if test (count $possible) -eq 0; set dead 1; end\n",
             "    else if test \"$state\" = sub\n",
             "        switch \"$family\"\n",
@@ -1370,6 +1419,7 @@ fn fish() -> String {
             "    set -l candidates\n",
             "    if test $done -eq 1 -o $ended -eq 1 -o $dead -eq 1; set candidates\n",
             "    else if test \"$value\" = format; set candidates {format_values}\n",
+            "    else if test \"$value\" = mouse; set candidates off on\n",
             "    else if test \"$value\" = direction\n",
             "        switch \"$family:$sub\"\n",
             "{direction_cases}\n",
@@ -1379,13 +1429,15 @@ fn fish() -> String {
             "    else if string match -q -- '--format=*' $cur\n",
             "        if test $seen_format -eq 0\n",
             "            switch \"$state\"\n",
-            "                case verb sub after operand; set candidates --format=text --format=json\n",
+            "                case verb; if test $seen_mouse -eq 0; set candidates --format=text --format=json; end\n",
+            "                case sub after operand; set candidates --format=text --format=json\n",
             "                case leaf; if test \"$leaf\" = status; set candidates --format=text --format=json; end\n",
             "            end\n",
             "        end\n",
             "    else if test \"$state\" = verb\n",
             "        set candidates $possible\n",
-            "        if test $seen_format -eq 0; set -a candidates --format --format=; end\n",
+            "        if test $seen_format -eq 0 -a $seen_mouse -eq 0; set -a candidates --format --format=; end\n",
+            "        if contains -- tui $possible; and test $seen_mouse -eq 0; set -a candidates --mouse; end\n",
             "        if test {no_options}\n",
             "            set -a candidates --help --version\n",
             "        end\n",
@@ -1393,7 +1445,7 @@ fn fish() -> String {
             "        set candidates $verbs\n",
             "        if test $seen_format -eq 0; set -a candidates --format --format=; end\n",
             "    else if test \"$state\" = leaf\n",
-            "        if test \"$leaf\" = tui; set candidates --help\n",
+            "        if test \"$leaf\" = tui -a $seen_mouse -eq 0; set candidates --help --mouse\n",
             "        else if test $seen_format -eq 0; set candidates --format --format= --help; end\n",
             "    else if test \"$state\" = after\n",
             "        if test $seen_format -eq 0; set candidates --format --format=; end\n",
@@ -1498,9 +1550,11 @@ mod tests {
                 assert!(script.contains(flag), "{shell:?} lacks {flag}");
             }
             assert!(script.contains("--format"));
+            assert!(script.contains("--mouse"), "{shell:?} lacks --mouse");
             for value in FORMAT_VALUES {
                 assert!(script.contains(value), "{shell:?} lacks {value}");
             }
+            assert!(script.contains("off"), "{shell:?} lacks --mouse values");
             assert!(script.contains("bash"));
             assert!(script.contains("zsh"));
             assert!(script.contains("fish"));

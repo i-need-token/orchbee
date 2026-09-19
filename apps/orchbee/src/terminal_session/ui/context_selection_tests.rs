@@ -63,11 +63,11 @@ fn ready(
     mailbox.take_deposited_reply(&wait).unwrap().unwrap();
     let state = ui.state.as_mut().unwrap();
     let key = state.desired().unwrap().clone();
-    assert!(state.install_projection(&key));
-    assert!(state.record_setup_configuration(&key, ControllerMode::ReadOnly, None));
-    assert!(state.stage_drawn_frame(&key, FrameIdentity::new(1)));
-    assert!(state.mark_feedback_accepted(&key, FrameIdentity::new(1)));
-    assert!(state.publish_ready(&key, FrameIdentity::new(1), ControllerMode::ReadOnly, None));
+    assert!(state.install_projection_t(&key));
+    assert!(state.record_setup_configuration_t(&key, ControllerMode::ReadOnly, None));
+    assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(1)));
+    assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(1)));
+    assert!(state.publish_ready_t(&key, FrameIdentity::new(1), ControllerMode::ReadOnly, None));
     (ui, mailbox, clock, elapsed)
 }
 
@@ -125,9 +125,9 @@ fn context_ui_requires_exact_cleanup_and_installs_empty_without_burning_a_tab_ge
         assert_eq!(ui.view().phase(), NativeDisplayPhase::Switching);
         assert_eq!(mailbox.cursors().0, cursors.0);
         let detached = if wrong_key {
-            AttachmentKey::new(old.generation() + 1, old.tab_id().clone())
+            AttachmentKey::new(old.anchor().generation() + 1, old.tab_id().clone())
         } else {
-            old
+            old.anchor().clone()
         };
         let wait = mailbox
             .publish_event_before(

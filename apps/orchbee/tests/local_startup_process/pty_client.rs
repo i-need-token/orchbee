@@ -44,6 +44,7 @@ pub(super) struct Client {
     stderr: ChildStderr,
     stderr_bytes: Vec<u8>,
     screen: Screen,
+    pixels: bool,
 }
 
 impl Client {
@@ -62,7 +63,7 @@ impl Client {
         columns: u16,
         rows: u16,
     ) -> Self {
-        Self::spawn_geometry(fixture, locale, base, columns, rows, true)
+        Self::spawn_full(fixture, locale, base, columns, rows, &[], true)
     }
 
     /// `pixels_known == false` leaves the PTY's reported pixel extents at zero —
@@ -75,10 +76,56 @@ impl Client {
         rows: u16,
         pixels_known: bool,
     ) -> Self {
+        Self::spawn_full(fixture, locale, base, columns, rows, &[], pixels_known)
+    }
+
+    /// A full-canvas client whose PTY reports zero pixel geometry — the
+    /// pixel-less report real hosts can produce.
+    pub(super) fn spawn_zeropixel(fixture: &Fixture, locale: &str) -> Self {
+        Self::spawn_unknown_pixel(fixture, locale)
+    }
+
+    pub(super) fn spawn_args(fixture: &Fixture, locale: &str, args: &[&str]) -> Self {
+        Self::spawn_full(
+            fixture,
+            locale,
+            &fixture.base,
+            COLUMNS as u16,
+            ROWS as u16,
+            args,
+            true,
+        )
+    }
+
+    /// A host whose PTY reports zero pixel geometry — real terminals that
+    /// never fill `ws_xpixel`/`ws_ypixel`. Cell-addressed pointer input
+    /// must still work: the encoder needs cells, never pixels.
+    pub(super) fn spawn_unknown_pixel(fixture: &Fixture, locale: &str) -> Self {
+        Self::spawn_full(
+            fixture,
+            locale,
+            &fixture.base,
+            COLUMNS as u16,
+            ROWS as u16,
+            &[],
+            false,
+        )
+    }
+
+    fn spawn_full(
+        fixture: &Fixture,
+        locale: &str,
+        base: &Path,
+        columns: u16,
+        rows: u16,
+        args: &[&str],
+        pixels_known: bool,
+    ) -> Self {
         fixture.register_runtime_base(base);
         let pty = open_outer_pty(columns, rows, pixels_known).unwrap();
         let original = tcgetattr(&pty.slave).unwrap();
         let mut child = Command::new(fixture.cohort.join("orchbee"))
+            .args(args)
             .env("ORCHBEE_RUNTIME_BASE", base)
             .env("LC_ALL", locale)
             .env("TERM", "xterm-256color")
@@ -101,6 +148,7 @@ impl Client {
             // spawn winsize, so a zero or undersized initial report still
             // stores every cell the product draws.
             screen: Screen::new(COLUMNS, ROWS),
+            pixels: pixels_known,
         }
     }
 
@@ -153,6 +201,39 @@ impl Client {
                 .latest_frame()
                 .is_some_and(|frame| frame.text().contains(text))
         }
+    }
+
+    /// Cumulative-raw search scoped to output written after `checkpoint` —
+    /// used for mode bytes that legitimately appear earlier in the stream.
+    pub(super) fn raw_contains_after(&self, checkpoint: usize, needle: &[u8]) -> bool {
+        self.screen.raw_contains_after(checkpoint, needle)
+    }
+
+    /// Latest completed frame's cell position of `needle` — the same frame
+    /// the published hit map was derived from, so clicks land deterministically.
+    pub(super) fn cell_position(&mut self, needle: &str) -> (u16, u16) {
+        self.collect();
+        self.screen
+            .latest_frame()
+            .and_then(|frame| frame.cell_position(needle))
+            .unwrap_or_else(|| panic!("no cell contains {needle:?}; {}", self.diagnostic(0)))
+    }
+
+    #[track_caller]
+    pub(super) fn wait_any_text_after(
+        &mut self,
+        checkpoint: usize,
+        deadline: Instant,
+        description: &str,
+        any_of: &[&str],
+    ) {
+        self.observe_after(checkpoint, deadline, description, |frame| {
+            let text = frame.text();
+            any_of
+                .iter()
+                .any(|needle| text.contains(needle))
+                .then_some(())
+        });
     }
 
     #[track_caller]
@@ -375,6 +456,19 @@ impl Client {
         });
     }
 
+    // A completed frame strictly newer than `checkpoint`, evaluated by the caller's
+    // predicate; peer Clients are not pumped (single-Client observation windows).
+    #[track_caller]
+    pub(super) fn wait_completed_frame_after<T>(
+        &mut self,
+        checkpoint: usize,
+        deadline: Instant,
+        description: &str,
+        predicate: impl FnMut(&CompletedFrame) -> Option<T>,
+    ) -> T {
+        self.observe_after_pumping(checkpoint, deadline, description, &mut [], predicate)
+    }
+
     // Keep the observer's fixed 120x32 capacity; this witness only shrinks the viewport.
     pub(super) fn resize_rows(&mut self, rows: u16) {
         self.resize(COLUMNS as u16, rows)
@@ -383,19 +477,25 @@ impl Client {
     /// Apply an explicit winsize on the slave. Any axis beyond the observer's
     /// fixed canvas is refused: a witness must never report a frame it could
     /// not have stored. Zero axes stay legal so callers can drive zero-cell
-    /// transitions; recovery still has to name a real nonzero size.
+    /// transitions; recovery still has to name a real nonzero size. A client
+    /// spawned without pixel geometry keeps reporting zero pixels afterwards.
     pub(super) fn resize(&mut self, columns: u16, rows: u16) {
         assert!(
             usize::from(columns) <= COLUMNS && usize::from(rows) <= ROWS,
             "resize {columns}x{rows} exceeds the observer canvas {COLUMNS}x{ROWS}"
         );
+        let (ws_xpixel, ws_ypixel) = if self.pixels {
+            (columns.saturating_mul(8), rows.saturating_mul(20))
+        } else {
+            (0, 0)
+        };
         rustix::termios::tcsetwinsize(
             &self.slave,
             rustix::termios::Winsize {
                 ws_col: columns,
                 ws_row: rows,
-                ws_xpixel: columns.saturating_mul(8),
-                ws_ypixel: rows.saturating_mul(20),
+                ws_xpixel,
+                ws_ypixel,
             },
         )
         .unwrap();
@@ -558,7 +658,7 @@ impl Client {
         }
     }
 
-    fn diagnostic(&self, checkpoint: usize) -> String {
+    pub(super) fn diagnostic(&self, checkpoint: usize) -> String {
         format!(
             "latest completed screen:\n{}\nworking screen:\n{}\nstderr: {:?}\nraw since checkpoint: {}",
             self.screen
@@ -607,7 +707,9 @@ fn open_outer_pty(columns: u16, rows: u16, pixels_known: bool) -> io::Result<Out
         Mode::empty(),
     )
     .map_err(io::Error::from)?;
-    let (pixel_width, pixel_height) = if pixels_known {
+    // `pixels_known = false` models hosts that report zero pixel geometry —
+    // the cell-addressed pointer path must not depend on them.
+    let (ws_xpixel, ws_ypixel) = if pixels_known {
         (columns.saturating_mul(8), rows.saturating_mul(20))
     } else {
         (0, 0)
@@ -617,8 +719,8 @@ fn open_outer_pty(columns: u16, rows: u16, pixels_known: bool) -> io::Result<Out
         rustix::termios::Winsize {
             ws_col: columns,
             ws_row: rows,
-            ws_xpixel: pixel_width,
-            ws_ypixel: pixel_height,
+            ws_xpixel,
+            ws_ypixel,
         },
     )?;
     Ok(OuterPty {
@@ -665,6 +767,46 @@ fn nonempty_file_before(path: &Path, deadline: Instant) -> Option<String> {
     (!value.is_empty() && Instant::now() < deadline).then_some(value)
 }
 
+/// `wait_file` for a needle that is not the first bytes — pane-side recorders
+/// accumulate, so witnesses wait on a marker substring, not on nonemptiness.
+pub(super) fn wait_file_containing(
+    path: &Path,
+    needle: &str,
+    clients: &mut [&mut Client],
+    deadline: Instant,
+) -> String {
+    loop {
+        for client in clients.iter_mut() {
+            client.collect();
+            if let Some(status) = client.status() {
+                panic!(
+                    "Client exited {status} before shell evidence {}; {}",
+                    path.display(),
+                    client.diagnostic(0)
+                );
+            }
+        }
+        if fs::read_to_string(path)
+            .ok()
+            .is_some_and(|value| value.contains(needle))
+            && Instant::now() < deadline
+        {
+            return fs::read_to_string(path).unwrap();
+        }
+        assert!(
+            Instant::now() < deadline,
+            "missing {needle:?} in shell evidence {}; {}",
+            path.display(),
+            clients
+                .iter()
+                .map(|client| client.diagnostic(0))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+        thread::yield_now();
+    }
+}
+
 // A test-only observer for this backend's absolute cursor writes and CSI modes, not a product VT.
 struct Screen {
     cells: Vec<Vec<String>>,
@@ -677,7 +819,7 @@ struct Screen {
     latest_completed: Option<CompletedFrame>,
 }
 
-struct CompletedFrame {
+pub(super) struct CompletedFrame {
     cells: Vec<Vec<String>>,
     marker_offset: usize,
 }
@@ -892,6 +1034,12 @@ impl Screen {
         self.raw.windows(value.len()).any(|part| part == value)
     }
 
+    fn raw_contains_after(&self, checkpoint: usize, value: &[u8]) -> bool {
+        self.raw
+            .get(checkpoint.min(self.raw.len())..)
+            .is_some_and(|tail| tail.windows(value.len()).any(|part| part == value))
+    }
+
     fn raw_since(&self, checkpoint: usize) -> String {
         let start = checkpoint.min(self.raw.len());
         let start = start.max(self.raw.len().saturating_sub(4096));
@@ -983,12 +1131,25 @@ impl CompletedFrame {
             .find(|mode| text.contains(&mode.footer(1)))
     }
 
+    /// First `(column, row)` cell whose row tail starts with `needle`.
+    fn cell_position(&self, needle: &str) -> Option<(u16, u16)> {
+        self.cells.iter().enumerate().find_map(|(row, cells)| {
+            (0..cells.len())
+                .find(|column| cells[*column..].concat().starts_with(needle))
+                .map(|column| (column as u16, row as u16))
+        })
+    }
+
     fn rows(&self) -> Vec<String> {
         rows(&self.cells)
     }
 
     fn text(&self) -> String {
         self.rows().join("\n")
+    }
+
+    pub(super) fn cells(&self) -> &[Vec<String>] {
+        &self.cells
     }
 }
 

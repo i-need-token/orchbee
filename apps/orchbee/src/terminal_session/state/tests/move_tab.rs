@@ -29,9 +29,10 @@ fn move_keeps_historical_ready_and_read_only_viewer_through_recovery() {
                 unreachable!()
             };
             ready.mode = ControllerMode::ReadOnly;
+            state.focus_record_mut().unwrap().mode = Some(ControllerMode::ReadOnly);
         }
         let key = state.desired().unwrap().clone();
-        assert!(state.invalidate_projection_frame(&key));
+        assert!(state.invalidate_projection_frame_t(&key));
         let original_mode = state.controller_mode().cloned();
         let operation = operation(&state, 100);
         assert!(state.begin_move(operation.clone()));
@@ -298,7 +299,7 @@ fn move_recovery_keeps_exact_commit_through_common_cleanup_and_empty_install() {
         "known Move recovery must remain exact while cleanup is pending"
     );
     assert_eq!(state.cache(), &baseline);
-    assert_eq!(state.attached_key(), Some(&old));
+    assert_eq!(state.attached_key().map(|pane| pane.anchor()), Some(&old));
     assert_eq!(state.retained_move_for_test(), Some(&pending));
     let candidate = state
         .prepare_cleaned_membership_candidate(&cleanup, &old)

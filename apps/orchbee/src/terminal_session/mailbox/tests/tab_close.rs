@@ -12,14 +12,23 @@ fn recovery_copies_burned_allocator_cursors_without_copying_live_mailbox_work() 
         state.refresh_generation = 11;
         state.next_command_serial = 15;
         state.next_ui_wait_serial = 19;
-        state.desired = MailboxMembership::Live { desired: None };
+        state.desired = MailboxMembership::Live {
+            desired: None,
+            panes: Vec::new(),
+        };
     }
     old.close(CarrierFailure::Closed);
     let seed = old.retired_seed();
     let fresh = CommandMailbox::for_status_recovery(seed, geometry);
     assert_eq!(fresh.retired_seed(), seed);
     let state = fresh.lock();
-    assert_eq!(state.desired, MailboxMembership::Live { desired: None });
+    assert_eq!(
+        state.desired,
+        MailboxMembership::Live {
+            desired: None,
+            panes: Vec::new(),
+        }
+    );
     assert!(state.closed.is_none());
     assert!(state.queue.is_empty());
     assert!(state.active_lease.is_none());
@@ -130,7 +139,7 @@ fn timely_typed_close_deposit_survives_mailbox_retirement_without_a_worker_retur
         state.view().close_status().unwrap().status(),
         CloseStatusKind::AwaitingStatus
     );
-    assert!(state.close_suppresses_attachment(state.desired().unwrap()));
+    assert!(state.close_suppresses_attachment(state.desired().unwrap().anchor()));
     assert_eq!(
         state.open_close_confirmation(),
         Err(CloseStateError::NotResumable)
@@ -256,8 +265,10 @@ fn retired_recovery_seed_never_resets_any_exhausted_allocator() {
                 observed_at: clock.now(),
             };
             assert!(matches!(
-                transaction
-                    .prepare_desired_install(DesiredInstall::Fresh(key(1, 2).tab_id().clone())),
+                transaction.prepare_desired_install(DesiredInstall::Fresh {
+                    tab_id: key(1, 2).tab_id().clone(),
+                    panel: panel()
+                }),
                 Err(CarrierFailure::IdentityExhausted)
             ));
             assert!(transaction.state.desired.key().is_none());

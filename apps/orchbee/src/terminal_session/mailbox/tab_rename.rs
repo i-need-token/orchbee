@@ -31,13 +31,13 @@ impl RenameMarker {
 pub(in crate::terminal_session) struct RenameSettlement {
     request_id: WorkbenchRequestId,
     decision: RefreshDecision,
-    desired: Option<AttachmentKey>,
+    desired: Option<PaneKey>,
 }
 impl RenameSettlement {
     pub(in crate::terminal_session) fn new(
         request_id: WorkbenchRequestId,
         decision: RefreshDecision,
-        desired: Option<AttachmentKey>,
+        desired: Option<PaneKey>,
     ) -> Self {
         Self {
             request_id,
@@ -51,7 +51,7 @@ impl RenameSettlement {
     pub(in crate::terminal_session) fn decision(&self) -> &RefreshDecision {
         &self.decision
     }
-    pub(in crate::terminal_session) fn desired(&self) -> Option<&AttachmentKey> {
+    pub(in crate::terminal_session) fn desired(&self) -> Option<&PaneKey> {
         self.desired.as_ref()
     }
 }
@@ -126,7 +126,7 @@ impl CommandMailbox {
         let operation = canonical
             .plan_rename(token, request_id, deadline)
             .ok_or(MoveAdmissionError::Build(()))?;
-        if state.desired.key() != Some(operation.target()) {
+        if state.desired.key().map(PaneKey::anchor) != Some(operation.target()) {
             return Err(MoveAdmissionError::InvalidTarget);
         }
         let flight = Box::new(RenameFlight {
@@ -145,6 +145,7 @@ impl CommandMailbox {
         state.queue.push_back(QueuedRecord {
             serial,
             command: QueuedCommand::Rename(marker),
+            retry_at: None,
         });
         self.changed.notify_all();
         Ok(operation)
@@ -219,7 +220,7 @@ impl MailboxState {
             && flight.stage == PendingRefreshStage::AwaitingUi
             && self.active_lease.map(|lease| lease.serial) == Some(flight.serial)
             && self.event_anchor_serial == Some(flight.serial)
-            && self.desired.key() == Some(flight.operation.target())
+            && self.desired.key().map(PaneKey::anchor) == Some(flight.operation.target())
             && old.is_none_or(|old| old == flight.operation.target()))
     }
 }

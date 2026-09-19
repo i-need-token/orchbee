@@ -94,70 +94,89 @@ impl NativeExecutor {
     ) -> Result<()> {
         let total = cleanup.deadlines().total();
         loop {
-            let attached = self.attached_key().ok_or(CarrierFailure::Protocol)?;
-            let attachment_id = self.viewer_id_for(cleanup.old())?;
-            let Some(permit) =
-                self.mailbox
-                    .authorize_switch_cleanup(lease, &cleanup, attached, &self.clock)?
+            // The cleanup retires the whole anchor: every live attachment must
+            // sit under it, exactly as the old single-attachment gate required.
+            if !self.attachments_under(cleanup.old()) {
+                return Err(CarrierFailure::Protocol);
+            }
+            let Some(permit) = self.mailbox.authorize_switch_cleanup(
+                lease,
+                &cleanup,
+                cleanup.old(),
+                &self.clock,
+            )?
             else {
                 // A newer marker already discarded this unsubmitted candidate under the same gate.
                 return Ok(());
             };
-            let response = self.client.submit_terminal_viewer_before(
-                TerminalViewerRequest::new(
-                    permit.request_id().clone(),
-                    TerminalViewerAction::Detach { attachment_id },
-                ),
-                total,
-            );
-            let outcome = match response {
-                Ok(result) => result.into_outcome(),
-                Err(
-                    error @ (SubmissionError::RequestNotSubmitted(_)
-                    | SubmissionError::SessionUnavailable
-                    | SubmissionError::RequestEncoding(_)),
-                ) => {
-                    if self.mailbox.answer_switch_cleanup(permit, false)? {
-                        return self.settle_switch_cleanup_skipped(lease, cleanup);
+            let pending: Vec<crate::terminal_session::state::PaneRef> = self
+                .attachments
+                .iter()
+                .filter(|attached| attached.key.pane().anchor() == cleanup.old())
+                .map(|attached| attached.key.clone())
+                .collect();
+            let mut busy = false;
+            for pane in pending {
+                let attachment_id = self.viewer_id_for(&pane)?;
+                let request_id = self.mailbox.allocate_obcs_request_id().map_err(closed)?;
+                let response = self.client.submit_terminal_viewer_before(
+                    TerminalViewerRequest::new(
+                        request_id,
+                        TerminalViewerAction::Detach { attachment_id },
+                    ),
+                    total,
+                );
+                let outcome = match response {
+                    Ok(result) => result.into_outcome(),
+                    Err(
+                        error @ (SubmissionError::RequestNotSubmitted(_)
+                        | SubmissionError::SessionUnavailable
+                        | SubmissionError::RequestEncoding(_)),
+                    ) => {
+                        if self.mailbox.answer_switch_cleanup(permit, false)? {
+                            return self.settle_switch_cleanup_skipped(lease, cleanup);
+                        }
+                        return Err(submission(error));
                     }
-                    return Err(submission(error));
-                }
-                Err(error) => return Err(submission(error)),
-            };
-            match outcome {
-                TerminalViewerOutcome::Detached {} => {
-                    if self.attached_key() != Some(cleanup.old()) {
+                    Err(error) => return Err(submission(error)),
+                };
+                match outcome {
+                    TerminalViewerOutcome::Detached {} => {
+                        self.remove_attachment(&pane)?;
+                    }
+                    TerminalViewerOutcome::Unavailable {
+                        reason: ViewerUnavailableReason::ServerBusy,
+                    } => {
+                        busy = true;
+                        break;
+                    }
+                    // This compatible response settles the invocation, but it never proves Detached.
+                    _ => {
+                        self.mailbox.answer_switch_cleanup(permit, false)?;
                         return Err(CarrierFailure::Protocol);
                     }
-                    self.mailbox.answer_switch_cleanup(permit, true)?;
-                    self.attached = None;
-                    let detached = cleanup.old().clone();
-                    let reply = self.publish_and_wait(
-                        WorkerEvent::MembershipDetached { cleanup, detached },
-                        EventDeadline::TotalCleanup(total),
-                        total,
-                    )?;
-                    let UiReply::Switch(settlement) = reply else {
-                        return Err(CarrierFailure::Protocol);
-                    };
-                    return self.continue_switch_membership(lease, settlement.decision());
-                }
-                TerminalViewerOutcome::Unavailable {
-                    reason: ViewerUnavailableReason::ServerBusy,
-                } => {
-                    if self.mailbox.answer_switch_cleanup(permit, false)? {
-                        return self.settle_switch_cleanup_skipped(lease, cleanup);
-                    }
-                    self.mailbox
-                        .await_execution_change_before(lease, total, &self.clock)
-                        .map_err(closed)?;
-                }
-                // This compatible response settles the invocation, but it never proves Detached.
-                _ => {
-                    self.mailbox.answer_switch_cleanup(permit, false)?;
-                    return Err(CarrierFailure::Protocol);
                 }
             }
+            if busy {
+                if self.mailbox.answer_switch_cleanup(permit, false)? {
+                    return self.settle_switch_cleanup_skipped(lease, cleanup);
+                }
+                self.mailbox
+                    .await_execution_change_before(lease, total, &self.clock)
+                    .map_err(closed)?;
+                continue;
+            }
+            self.mailbox.answer_switch_cleanup(permit, true)?;
+            let detached = cleanup.old().clone();
+            let reply = self.publish_and_wait(
+                WorkerEvent::MembershipDetached { cleanup, detached },
+                EventDeadline::TotalCleanup(total),
+                total,
+            )?;
+            let UiReply::Switch(settlement) = reply else {
+                return Err(CarrierFailure::Protocol);
+            };
+            return self.continue_switch_membership(lease, settlement.decision());
         }
     }
 

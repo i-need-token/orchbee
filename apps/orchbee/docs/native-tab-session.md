@@ -906,19 +906,25 @@ and every active-session refresh separately require the state-specific active-me
 
 The accepted `NativePanelTree` is a strict, depth-first representation of the canonical PanelNode.
 Leaf order is the order used by attachment state; the tree retains split orientation and both slot
-identities so a later snapshot cannot silently replace a leaf or reshape a Tab. A split does not
-create a second viewer: the Client keeps all validated leaf bindings in its cache, while the current
-leaf alone owns the attached viewer and terminal frame.
+identities so a later snapshot cannot silently replace a leaf or reshape a Tab. Every visible leaf
+owns its own viewer attachment inside the shared per-Client HostViewers budget (8): the Session
+keeps one pane record per leaf under a stable `PaneKey` — the original selection anchor plus the
+leaf's `WorkbenchPanelId` — and each record's physical attachment is a `PaneRef` incarnation minted
+when its attach target was issued. Polls continue for every admitted pane incarnation, so inactive
+leaves keep rendering their own live frames; input and resize admit only the focused pane's exact
+incarnation.
 
 In a connected Native Session, `Ctrl+B h`, `j`, `k`, and `l` are Client-local focus actions. When a
-direction has a neighboring leaf, the Client allocates a fresh attachment generation for the same
-Tab, selects that leaf's exact binding and retained provenance, and runs the existing Switch cleanup
-and Attach lifecycle. A focus action never writes a Workbench revision and never submits
+direction has a neighboring leaf, the Session moves the focused-pane selection to that leaf's
+existing record without detaching, re-attaching, or re-tagging any already accepted work — no
+switch cleanup, snapshot, or attach chain runs for a same-Tab move. A focus action never writes a
+Workbench revision and never submits
 `panel.split`, `panel.close`, or `panel.move`. A single
-Panel or an edge with no neighbor is a local no-op. The renderer divides the canonical tree, marks
-the selected leaf, and draws the current live frame only there; inactive leaves retain their labels,
-identity, and geometry but show no second live frame until focused. Simultaneous multi-viewer
-composition remains outside this slice. A peer-created single-leaf split is accepted by the ordinary
+Panel or an edge with no neighbor is a local no-op. The renderer divides the canonical tree and
+draws each leaf's own live frame; the focused leaf owns control input. When a leaf vanishes its
+pane record departs and converges to canonical disposal, and a re-observed leaf mints a fresh
+incarnation — late input, frames, feedback, and settlements tagged with the retired incarnation
+are fenced at the exact `PaneRef` and never land on the re-bound attachment. A peer-created single-leaf split is accepted by the ordinary
 refresh path; the session preserves the selected Panel by identity while reindexing the cached tree
 and retained provenance (`peer_panel_split_refresh_preserves_active_panel_identity`).
 

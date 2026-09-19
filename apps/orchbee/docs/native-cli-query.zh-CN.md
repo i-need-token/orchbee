@@ -75,6 +75,13 @@ Agent、Worker、进程或 PTY 状态，也不要求 TTY。这是未发布的本
   `1000`），把最近的可见行与历史行作为同一范围覆盖——与同名的几何 flag 无关。
 - `--target-panel <target>`：带值 flag，单次使用，`panel move` 上必填；按 `panel` 的
   target 规则解析（仅完整 typed ID），并在被移动 panel 自身所在 tab 内解析。
+- `--history`：无值 flag，仅 `terminal read` 受理，且必须与 `--rows <n>` 成对——
+  在 `terminal read` 上 `--rows` 拼写携带 `1..=1000` 的保留行数，替代其几何含义，
+  该含义在 `tab create` 与 `panel split` 上不变。两者缺一、重复、非数值或越界
+  计数、或 `--history` 出现在其他命令上，均在任何运行时访问之前报 `invalid-usage`。
+- `--mouse off|on`：带值 flag，单次使用，仅显式 `tui` 路由受理——宿主机指针捕获
+  用于面板命中，默认开启。语法仅两 token 形式；`--mouse=<value>`、缺失或未知值、
+  重复、出现在其他命令路由或裸调用，均为 `invalid-usage`。
 - `--version`：仅在独占根调用时合法；其他位置或与其他参数并存都是 usage。
 - `-h`/`--help`：根级独占 token，或已识别帮助路径（family 或完整命令路径）的单一后缀。
 - `--` 之后的位置参数：`--` 之后的 token 只作位置参数，故 `orchbee -- status` 查询 status，
@@ -84,7 +91,7 @@ Agent、Worker、进程或 PTY 状态，也不要求 TTY。这是未发布的本
 
 ```
 orchbee                         # 裸调用 → TUI（不变）
-orchbee tui                     # TUI（不变）
+orchbee tui [--mouse off|on]    # TUI
 orchbee --version               # 版本行（不变）
 orchbee -h|--help | orchbee help   # 根帮助
 orchbee status
@@ -379,12 +386,12 @@ source?}`；不存在英文 `message` 字段。`source` 只取自已可信来源
 
 ### Config 检查
 
-| 检查项              | 规则                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `runtime-base`      | 解析并观测 `ORCHBEE_RUNTIME_BASE`/默认值：存在且为目录则 pass；路径非法、缺失、不安全项或 I/O 错误则 fail。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `runtime-directory` | 基座失败、或合法基座下 scope 目录不存在时为 `not-applicable`（Site 未运行不是配置错误）；既有目录通过校验为 pass；属主/模式/类型不安全或 I/O 错误为 fail。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `cohort`            | `NativeCohort::current` 在其 5 秒预算内验证通过则 pass（`verified:true`）；缺失、非法、散列不符（`invalid-cohort`）或超时（`deadline`）为 fail。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `locale`            | 信息性 pass，携带 `locale`（`en-US`/`zh-CN`）与 `source`（`LC_ALL`/`LC_MESSAGES`/`LANG`/`default`）。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 检查项              | 规则                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `runtime-base`      | 解析并观测 `ORCHBEE_RUNTIME_BASE`/默认值：存在且为目录则 pass；路径非法、缺失、不安全项或 I/O 错误则 fail。                                                                                                                                                                                                                                                                                                            |
+| `runtime-directory` | 基座失败、或合法基座下 scope 目录不存在时为 `not-applicable`（Site 未运行不是配置错误）；既有目录通过校验为 pass；属主/模式/类型不安全或 I/O 错误为 fail。                                                                                                                                                                                                                                                             |
+| `cohort`            | `NativeCohort::current` 在其 5 秒预算内验证通过则 pass（`verified:true`）；缺失、非法、散列不符（`invalid-cohort`）或超时（`deadline`）为 fail。                                                                                                                                                                                                                                                                       |
+| `locale`            | 信息性 pass，携带 `locale`（`en-US`/`zh-CN`）与 `source`（`LC_ALL`/`LC_MESSAGES`/`LANG`/`default`）。                                                                                                                                                                                                                                                                                                                  |
 | `sockets`           | `client`/`worker` 在运行目录可安全检查后报告 `presence` 为 `present`/`absent`/`unchecked`，沿用既有 类型+属主+`0600`+no-follow 规则。`clientPending`/`host` 是仅派生路径预算条目：`presence` 恒为 `unchecked`，地址可容纳时为 `not-applicable`/`presence-not-inspected`，超预算时为 `fail`/`address-too-long`；两者始终携带 `path`/`pathBytesHex` 与 `addressBytes`/`addressCapacityBytes`。任一条目 `fail` 则整体 fail；否则至少一个合规存在的 `client`/`worker` 为 pass；其余为 `not-applicable`。存在绝不宣称服务或 Worker 活性，预算可容纳也绝不宣称端点存在——此处的 `not-applicable` 指刻意未检查 presence，而非预算未知。派生 socket 路径的字节长度超出本平台 `sockaddr_un` 容量时，无论 presence 如何都以 `address-too-long` fail——该地址永远无法 bind 或 connect。 |
 
 details 一律类型化：`runtime-base`/`runtime-directory` 携带 `path`（UTF-8）或 `pathBytesHex`
@@ -550,7 +557,7 @@ send 阶段对其单条输入记录遵循同一规则：`RequestNotSubmitted` �
   该命令不接受的选项或参数、重复选项、冲突选项、缺少选项值、缺少必需选项或操作数、缺少
   命令、未知帮助路径、错位的 help/version 标志、非法选项值或几何参数组合、非 Unicode 或
   超限参数表——并以帮助提示结尾。提示对可识别的命令或族上下文给出 `orchbee <path>
---help`，否则回落到 `orchbee --help`；每条发出的提示都是无需 Site 即可退出 0 的真实
+  --help`，否则回落到 `orchbee --help`；每条发出的提示都是无需 Site 即可退出 0 的真实
   路径。回显的不可信 token 复用下述带引号转义渲染，并先截到 256 个 Unicode 标量前缀、
   仍有剩余标量时显式追加省略号；非 Unicode 或超限参数表绝不回显。机器 envelope 不变——
   诊断只存在于 stderr。

@@ -5,14 +5,18 @@ use super::{
     },
     setup::*,
 };
-use crate::terminal_session::state::{
-    CarrierFailure, PanelDecision, PanelIntent, PanelOperation, PanelRequestKind, PanelResult,
-    RefreshDecision, SessionNotice, SessionPhaseKind,
+use crate::terminal_session::{
+    mailbox::WorkerEvent,
+    state::{
+        CarrierFailure, ControllerMode, PaneRef, PanelDecision, PanelIntent, PanelOperation,
+        PanelRequestKind, PanelResult, RefreshDecision, SessionNotice, SessionPhaseKind,
+    },
 };
 use orchbee_client_server_protocol::{
-    ClientMessage, ServerMessage, SiteId as ObcsSiteId, TerminalId as ObcsTerminalId,
-    TerminalViewerAction, TerminalViewerOutcome, TerminalViewerResult, ViewerUnavailableReason,
-    WorkerId as ObcsWorkerId,
+    ClientMessage, ControlInput, ControllerId, Geometry, ServerMessage, SiteId as ObcsSiteId,
+    TerminalControlAction, TerminalControlOutcome, TerminalControlResult,
+    TerminalId as ObcsTerminalId, TerminalViewerAction, TerminalViewerOutcome,
+    TerminalViewerResult, ViewerUnavailableReason, WorkerId as ObcsWorkerId,
 };
 use orchbee_workbench_protocol::{
     PanelNode, PanelOrientation, ProtocolVersion, Snapshot, TerminalPresentationId,
@@ -22,6 +26,7 @@ use orchbee_workbench_protocol::{
     WorkbenchRevision, WorkbenchSnapshotOutcome, WorkbenchSnapshotUnavailableReason,
     WorkbenchSplitId, WorkbenchTerminalGeometry,
 };
+use std::{sync::Arc, time::Instant};
 
 fn steps(after: &[WireKind]) -> Vec<WireKind> {
     let mut steps = vec![
@@ -414,7 +419,7 @@ fn panel_close_of_the_attached_leaf_repairs_membership_to_the_survivor() -> Test
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::Attached { key } if key == installed
     ));
-    drive_controlling_after_attach(&mut harness, &installed, geometry)?;
+    drive_controlling_after_attach(&mut harness, installed.anchor(), geometry)?;
     let state = harness.ui.state();
     assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
     assert_eq!(state.cache().revision(), WorkbenchRevision::new(2));
@@ -873,7 +878,7 @@ fn committed_move_whose_superseding_snapshot_drops_the_selected_leaf_repairs_mem
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::Attached { key } if key == installed
     ));
-    drive_controlling_after_attach(&mut harness, &installed, geometry)?;
+    drive_controlling_after_attach(&mut harness, installed.anchor(), geometry)?;
     let state = harness.ui.state();
     assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
     assert_eq!(state.cache().revision(), WorkbenchRevision::new(3));
@@ -988,7 +993,7 @@ fn committed_split_whose_superseding_snapshot_drops_the_source_leaf_repairs_memb
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::Attached { key } if key == installed
     ));
-    drive_controlling_after_attach(&mut harness, &installed, geometry)?;
+    drive_controlling_after_attach(&mut harness, installed.anchor(), geometry)?;
     let state = harness.ui.state();
     assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
     assert_eq!(state.cache().revision(), WorkbenchRevision::new(3));
@@ -1350,7 +1355,7 @@ fn committed_split_after_reorder_dropping_the_selected_leaf_repairs_membership()
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::Attached { key } if key == installed
     ));
-    drive_controlling_after_attach(&mut harness, &installed, geometry)?;
+    drive_controlling_after_attach(&mut harness, installed.anchor(), geometry)?;
     let state = harness.ui.state();
     assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
     assert_eq!(state.cache().revision(), WorkbenchRevision::new(4));
@@ -1766,7 +1771,7 @@ fn refused_move_whose_superseding_snapshot_drops_the_tab_repairs_membership_to_s
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::Attached { key } if key == installed
     ));
-    drive_controlling_after_attach(&mut harness, &installed, geometry)?;
+    drive_controlling_after_attach(&mut harness, installed.anchor(), geometry)?;
     let state = harness.ui.state();
     assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
     assert_eq!(state.cache().revision(), WorkbenchRevision::new(3));
@@ -1927,7 +1932,7 @@ fn committed_move_whose_superseding_snapshot_clamps_the_selection_down_to_a_surv
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::Attached { key } if key == installed
     ));
-    drive_controlling_after_attach(&mut harness, &installed, geometry)?;
+    drive_controlling_after_attach(&mut harness, installed.anchor(), geometry)?;
     let state = harness.ui.state();
     assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
     assert_eq!(state.cache().revision(), WorkbenchRevision::new(6));
@@ -2096,7 +2101,7 @@ fn refused_move_superseding_tab_loss_while_unattached_reattaches_without_cleanup
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::Attached { key } if key == installed
     ));
-    drive_controlling_after_attach(&mut harness, &installed, geometry)?;
+    drive_controlling_after_attach(&mut harness, installed.anchor(), geometry)?;
     let state = harness.ui.state();
     assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
     assert!(state.selected_has_viewer());
@@ -2164,5 +2169,550 @@ fn refused_move_rejected_panel_unavailable_settles_without_a_read() -> TestResul
         "a refused operation has no commit to retain"
     );
     assert!(state.invariant_holds());
+    harness.finish()
+}
+
+/// How the reconcile-owned peer's `Acquire` settles: a real request that
+/// either wins a controller or is refused busy and converges read-only.
+enum PeerAcquire {
+    Controlling,
+    BusyReadOnly,
+}
+
+/// Shared reconcile prelude: the second leaf is observed, the focus pane's
+/// first-observation Resize runs first, then the reconcile lease drives the
+/// peer's real first-frame setup chain — Attach, Acquire, (controlling only:
+/// setup Resize + `SetupConfigured`; busy: read-only `SetupConfigured`), the
+/// setup Poll, the actual first draw, and the feedback response. Returns the
+/// peer panel id, its distinct viewer id, and its controller when acquired.
+fn drive_reconcile_peer_first_frame(
+    harness: &mut Harness,
+    geometry: Geometry,
+    acquire: PeerAcquire,
+) -> TestResult<(
+    WorkbenchPanelId,
+    orchbee_client_server_protocol::ViewerId,
+    Option<ControllerId>,
+)> {
+    let focus_panel = harness.ui.state().focus_panel_id().unwrap().clone();
+    let peer_panel = WorkbenchPanelId::parse(&id(3_010))?;
+    harness.ui.observe_panes(&[
+        (focus_panel, 0, geometry),
+        (peer_panel.clone(), 1, geometry),
+    ])?;
+    let ClientMessage::TerminalControl(resize) = harness.carrier.take_obcs()? else {
+        return Err(test_error("first observation must Resize the focus pane"));
+    };
+    let TerminalControlAction::Resize {
+        attachment_id,
+        controller_id: resize_controller,
+        sequence,
+        geometry: requested,
+    } = resize.action()
+    else {
+        return Err(test_error("first observation must Resize the focus pane"));
+    };
+    assert_eq!(attachment_id, &attached_viewer_id()?);
+    assert_eq!(resize_controller, &controller_id()?);
+    assert_eq!(sequence.get(), 2);
+    assert_eq!(*requested, geometry);
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalControlResult(
+            TerminalControlResult::new(
+                resize.request_id().clone(),
+                TerminalControlOutcome::Resized { geometry },
+            ),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::SetupConfigured {
+            mode: ControllerMode::Controlling(_),
+            applied_geometry: Some(actual),
+            ..
+        } if actual == geometry
+    ));
+
+    // The reconcile lease attaches the peer under its snapshot binding and
+    // runs the same setup wire sequence as a focus attach.
+    let ClientMessage::TerminalViewer(attach) = harness.carrier.take_obcs()? else {
+        return Err(test_error("reconcile must AttachBinding the peer"));
+    };
+    assert_eq!(
+        attach.action(),
+        &TerminalViewerAction::AttachBinding {
+            site_id: ObcsSiteId::parse(&id(100))?,
+            worker_id: ObcsWorkerId::parse(&id(3_011))?,
+            terminal_id: ObcsTerminalId::parse(&id(3_012))?,
+        }
+    );
+    // A legitimate Server mints a distinct attachment for a distinct pane:
+    // the peer attaches under its own viewer identity, on the same host epoch.
+    let peer_viewer_id = attached_viewer_id_for(PEER_VIEWER_ID)?;
+    assert_ne!(peer_viewer_id, attached_viewer_id()?);
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                attach.request_id().clone(),
+                attached_outcome_for(PEER_VIEWER_ID)?,
+            ),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Attached { .. }
+    ));
+
+    let ClientMessage::TerminalControl(acquire_request) = harness.carrier.take_obcs()? else {
+        return Err(test_error("peer attach must be followed by Acquire"));
+    };
+    assert_eq!(
+        acquire_request.action(),
+        &TerminalControlAction::Acquire {
+            attachment_id: peer_viewer_id.clone(),
+        }
+    );
+    let peer_controller = match acquire {
+        PeerAcquire::Controlling => Some(ControllerId::parse(&id(3_015))?),
+        PeerAcquire::BusyReadOnly => None,
+    };
+    let acquire_outcome = match &peer_controller {
+        Some(controller) => TerminalControlOutcome::Acquired {
+            controller_id: controller.clone(),
+        },
+        None => TerminalControlOutcome::Rejected {
+            reason: orchbee_client_server_protocol::ControlRejectedReason::ControllerBusy,
+        },
+    };
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalControlResult(
+            TerminalControlResult::new(acquire_request.request_id().clone(), acquire_outcome),
+        ))?;
+    if let Some(controller) = &peer_controller {
+        let ClientMessage::TerminalControl(resize) = harness.carrier.take_obcs()? else {
+            return Err(test_error("controlling peer setup must Resize"));
+        };
+        let TerminalControlAction::Resize {
+            attachment_id,
+            controller_id: resize_controller,
+            sequence,
+            geometry: requested,
+        } = resize.action()
+        else {
+            return Err(test_error("controlling peer setup must Resize"));
+        };
+        assert_eq!(attachment_id, &peer_viewer_id);
+        assert_eq!(resize_controller, controller);
+        assert_eq!(sequence.get(), 1);
+        assert_eq!(*requested, geometry);
+        harness
+            .carrier
+            .respond_obcs(ServerMessage::TerminalControlResult(
+                TerminalControlResult::new(
+                    resize.request_id().clone(),
+                    TerminalControlOutcome::Resized { geometry },
+                ),
+            ))?;
+        assert!(matches!(
+            harness.ui.settle_next(FrameCut::None)?,
+            UiEvent::SetupConfigured {
+                mode: ControllerMode::Controlling(ref actual),
+                applied_geometry: Some(actual_geometry),
+                ..
+            } if actual == controller && actual_geometry == geometry
+        ));
+    } else {
+        assert!(matches!(
+            harness.ui.settle_next(FrameCut::None)?,
+            UiEvent::SetupConfigured {
+                mode: ControllerMode::ReadOnly,
+                applied_geometry: None,
+                ..
+            }
+        ));
+    }
+
+    // The peer's setup poll produces its actual first frame draw while still
+    // the background pane; the driver's latest-installed projection routes
+    // the record by exact `PaneRef`, the same routing `NativeUi::after_draw`
+    // applies for a non-focus leaf.
+    let ClientMessage::TerminalViewer(poll) = harness.carrier.take_obcs()? else {
+        return Err(test_error("peer setup must Poll"));
+    };
+    assert_eq!(
+        poll.action(),
+        &TerminalViewerAction::Poll {
+            attachment_id: peer_viewer_id.clone(),
+        }
+    );
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                poll.request_id().clone(),
+                TerminalViewerOutcome::Record(full_frame_record_for(
+                    PEER_VIEWER_ID,
+                    1,
+                    1,
+                    geometry,
+                )?),
+            ),
+        ))?;
+    let feedback = match harness.ui.settle_next(FrameCut::None)? {
+        UiEvent::FrameDrawn {
+            feedback: feedback @ TerminalViewerAction::FrameApplied { .. },
+            ..
+        } => feedback,
+        _ => return Err(test_error("peer setup first frame must draw")),
+    };
+    let ClientMessage::TerminalViewer(feedback_request) = harness.carrier.take_obcs()? else {
+        return Err(test_error("peer setup draw must send feedback"));
+    };
+    assert_eq!(feedback_request.action(), &feedback);
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                feedback_request.request_id().clone(),
+                TerminalViewerOutcome::FeedbackAccepted {},
+            ),
+        ))?;
+    Ok((peer_panel, peer_viewer_id, peer_controller))
+}
+
+/// The interleave window the ReadyCandidate defect needed: the executor is
+/// parked between the deposited `FeedbackSettled` reply and its own Ready
+/// publication check while the caller's in-window actions land. A correct
+/// executor then treats the reconcile setup as record-only completion — no
+/// `ReadyCandidate` — and moves on to ordinary command work.
+fn settle_peer_feedback_with_window(
+    harness: &mut Harness,
+    pane_b_ref: &PaneRef,
+    in_window: impl FnOnce(&mut Harness) -> TestResult,
+) -> TestResult {
+    let mailbox = Arc::clone(&harness.mailbox);
+    let checkpoint = mailbox.pause_next_ui_reply_resume_for_test();
+    let taken = harness.ui.take_next()?;
+    let WorkerEvent::FeedbackAccepted { key, .. } = taken.event() else {
+        return Err(test_error("peer setup must publish FeedbackAccepted"));
+    };
+    assert_eq!(key, pane_b_ref);
+    assert!(matches!(
+        harness.ui.settle_taken(taken, FrameCut::None)?,
+        UiEvent::FeedbackAccepted { .. }
+    ));
+    if !checkpoint.await_reached_before(Instant::now() + WALL_GUARD) {
+        return Err(test_error(
+            "worker did not pause after receiving the FeedbackSettled reply",
+        ));
+    }
+    in_window(harness)?;
+    drop(checkpoint);
+    Ok(())
+}
+
+/// Asserts the admitted input reaches the carrier as a terminal `Input` on
+/// exactly `viewer_id`/`controller`/`sequence` — the routing proof that a
+/// surviving executor delivered it to the right incarnation.
+fn assert_wire_input(
+    request: &orchbee_client_server_protocol::TerminalControlRequest,
+    viewer_id: &orchbee_client_server_protocol::ViewerId,
+    controller: &ControllerId,
+    expected_sequence: u64,
+    expected_input: &ControlInput,
+) -> TestResult {
+    let TerminalControlAction::Input {
+        attachment_id,
+        controller_id,
+        sequence,
+        bytes,
+    } = request.action()
+    else {
+        return Err(test_error("expected terminal Input"));
+    };
+    assert_eq!(attachment_id, viewer_id);
+    assert_eq!(controller_id, controller);
+    assert_eq!(sequence.get(), expected_sequence);
+    assert_eq!(bytes, expected_input);
+    Ok(())
+}
+
+fn respond_input_accepted(
+    harness: &Harness,
+    request: &orchbee_client_server_protocol::TerminalControlRequest,
+) -> TestResult {
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalControlResult(
+            TerminalControlResult::new(
+                request.request_id().clone(),
+                TerminalControlOutcome::InputAccepted {},
+            ),
+        ))
+}
+
+/// A focus move to a converged reconcile peer inside the feedback window
+/// must not push a second `ReadyCandidate` into the already-`Ready` phase:
+/// the reconcile setup completes its own record silently, and the very next
+/// wire request is the queued input on the peer's own attachment. Under the
+/// defect the executor parked on the doomed `ReadyCandidate` publish and the
+/// input could never reach the carrier.
+#[test]
+fn reconcile_setup_focus_move_during_ready_check_completes_without_ready() -> TestResult {
+    let geometry = fixture_geometry()?;
+    // 7 post-Ready steps: focus Resize + the peer's
+    // Attach/Acquire/Resize/Poll/feedback + the queued Input.
+    let mut harness = Harness::start(steps(&[WireKind::Obcs; 7]), geometry)?;
+    let (_anchor_a, controller_a) =
+        drive_controlling_ready_from_snapshot(&mut harness, split_snapshot(1), geometry)?;
+    let pane_a = harness.ui.state().desired().cloned().unwrap();
+    let pane_a_ref = harness
+        .ui
+        .state()
+        .pane_ref_for(&pane_a)
+        .ok_or_else(|| test_error("focus pane record must be live"))?;
+    let (peer_panel, peer_viewer_id, peer_controller) =
+        drive_reconcile_peer_first_frame(&mut harness, geometry, PeerAcquire::Controlling)?;
+    let peer_controller = peer_controller.ok_or_else(|| test_error("controlling peer"))?;
+    let pane_b = harness
+        .ui
+        .state()
+        .plan_panel_focus_local_at(&peer_panel)
+        .ok_or_else(|| test_error("configured peer must pass the local focus plan"))?;
+    let pane_b_ref = harness
+        .ui
+        .state()
+        .pane_ref_for(&pane_b)
+        .ok_or_else(|| test_error("peer pane record must be live"))?;
+
+    let input = ControlInput::new(vec![b'x'])?;
+    settle_peer_feedback_with_window(&mut harness, &pane_b_ref, |harness| {
+        // A real local focus move to the peer — plan, install, and desired
+        // republish — plus the queued input land inside the window.
+        let moved = harness.ui.move_panel_focus_to_pane(&peer_panel)?;
+        assert_eq!(moved, pane_b);
+        assert_eq!(harness.ui.state().desired(), Some(&pane_b));
+        assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Ready);
+        harness.ui.admit_input(input.clone())?;
+        Ok(())
+    })?;
+
+    // Survival is proven by the wire, not by probing an empty event queue:
+    // the next actual request must be the admitted Input on the peer's own
+    // attachment and controller — impossible had a doomed `ReadyCandidate`
+    // publish parked the worker first.
+    let ClientMessage::TerminalControl(request) = harness.carrier.take_obcs()? else {
+        return Err(test_error("queued input must reach the carrier"));
+    };
+    assert_wire_input(&request, &peer_viewer_id, &peer_controller, 2, &input)?;
+    respond_input_accepted(&harness, &request)?;
+
+    assert_eq!(harness.mailbox.is_closed(), None);
+    assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Ready);
+    assert!(harness.ui.state().pane_attached(&pane_b_ref));
+    assert!(harness.ui.state().pollable_panes().contains(&pane_b_ref));
+    // Pane A kept its exact live incarnation and attachment.
+    assert_eq!(
+        harness.ui.state().pane_ref_for(&pane_a).as_ref(),
+        Some(&pane_a_ref)
+    );
+    assert!(harness.ui.state().pane_attached(&pane_a_ref));
+    let _ = controller_a;
+    harness.finish()
+}
+
+/// The same reconcile setup completes with focus never leaving pane A: no
+/// `ReadyCandidate` is published and ordinary input to pane A flows on its
+/// own attachment afterwards.
+#[test]
+fn reconcile_setup_focus_stays_completes_without_ready() -> TestResult {
+    let geometry = fixture_geometry()?;
+    let mut harness = Harness::start(steps(&[WireKind::Obcs; 7]), geometry)?;
+    let (_anchor_a, controller_a) =
+        drive_controlling_ready_from_snapshot(&mut harness, split_snapshot(1), geometry)?;
+    let pane_a = harness.ui.state().desired().cloned().unwrap();
+    let pane_a_ref = harness
+        .ui
+        .state()
+        .pane_ref_for(&pane_a)
+        .ok_or_else(|| test_error("focus pane record must be live"))?;
+    let (peer_panel, _peer_viewer_id, _peer_controller) =
+        drive_reconcile_peer_first_frame(&mut harness, geometry, PeerAcquire::Controlling)?;
+    let pane_b = harness
+        .ui
+        .state()
+        .plan_panel_focus_local_at(&peer_panel)
+        .ok_or_else(|| test_error("configured peer must pass the local focus plan"))?;
+    let pane_b_ref = harness
+        .ui
+        .state()
+        .pane_ref_for(&pane_b)
+        .ok_or_else(|| test_error("peer pane record must be live"))?;
+
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::FeedbackAccepted { .. }
+    ));
+    assert_eq!(harness.ui.state().desired(), Some(&pane_a));
+    assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Ready);
+
+    let input = ControlInput::new(vec![b'x'])?;
+    harness.ui.admit_input(input.clone())?;
+    let ClientMessage::TerminalControl(request) = harness.carrier.take_obcs()? else {
+        return Err(test_error("queued input must reach the carrier"));
+    };
+    assert_wire_input(&request, &attached_viewer_id()?, &controller_a, 3, &input)?;
+    respond_input_accepted(&harness, &request)?;
+
+    assert_eq!(harness.mailbox.is_closed(), None);
+    assert!(harness.ui.state().pane_attached(&pane_b_ref));
+    assert!(harness.ui.state().pollable_panes().contains(&pane_b_ref));
+    assert_eq!(
+        harness.ui.state().pane_ref_for(&pane_a).as_ref(),
+        Some(&pane_a_ref)
+    );
+    harness.finish()
+}
+
+/// Focus may move A→B inside the window and back B→A afterwards: the
+/// reconcile setup still completes record-only, the phase stays `Ready`,
+/// and pane A's control and exact incarnation keep working.
+#[test]
+fn reconcile_setup_focus_round_trip_completes_without_ready() -> TestResult {
+    let geometry = fixture_geometry()?;
+    // 8 post-Ready steps: focus Resize + peer Attach/Acquire/Resize/Poll/
+    // feedback + Input to B + Input back to A.
+    let mut harness = Harness::start(steps(&[WireKind::Obcs; 8]), geometry)?;
+    let (_anchor_a, controller_a) =
+        drive_controlling_ready_from_snapshot(&mut harness, split_snapshot(1), geometry)?;
+    let pane_a = harness.ui.state().desired().cloned().unwrap();
+    let pane_a_ref = harness
+        .ui
+        .state()
+        .pane_ref_for(&pane_a)
+        .ok_or_else(|| test_error("focus pane record must be live"))?;
+    let focus_panel = harness.ui.state().focus_panel_id().unwrap().clone();
+    let (peer_panel, peer_viewer_id, peer_controller) =
+        drive_reconcile_peer_first_frame(&mut harness, geometry, PeerAcquire::Controlling)?;
+    let peer_controller = peer_controller.ok_or_else(|| test_error("controlling peer"))?;
+    let pane_b = harness
+        .ui
+        .state()
+        .plan_panel_focus_local_at(&peer_panel)
+        .ok_or_else(|| test_error("configured peer must pass the local focus plan"))?;
+    let pane_b_ref = harness
+        .ui
+        .state()
+        .pane_ref_for(&pane_b)
+        .ok_or_else(|| test_error("peer pane record must be live"))?;
+
+    let input_b = ControlInput::new(vec![b'b'])?;
+    settle_peer_feedback_with_window(&mut harness, &pane_b_ref, |harness| {
+        let moved = harness.ui.move_panel_focus_to_pane(&peer_panel)?;
+        assert_eq!(moved, pane_b);
+        harness.ui.admit_input(input_b.clone())?;
+        Ok(())
+    })?;
+    let ClientMessage::TerminalControl(request) = harness.carrier.take_obcs()? else {
+        return Err(test_error("queued input to B must reach the carrier"));
+    };
+    assert_wire_input(&request, &peer_viewer_id, &peer_controller, 2, &input_b)?;
+    respond_input_accepted(&harness, &request)?;
+
+    // The return leg moves focus back to A by direct panel identity and an
+    // input lands on A's own attachment — its incarnation and controller
+    // were preserved through the round trip.
+    let input_a = ControlInput::new(vec![b'a'])?;
+    let moved = harness.ui.move_panel_focus_to_pane(&focus_panel)?;
+    assert_eq!(moved, pane_a);
+    assert_eq!(harness.ui.state().desired(), Some(&pane_a));
+    harness.ui.admit_input(input_a.clone())?;
+    let ClientMessage::TerminalControl(request) = harness.carrier.take_obcs()? else {
+        return Err(test_error("queued input back to A must reach the carrier"));
+    };
+    assert_wire_input(&request, &attached_viewer_id()?, &controller_a, 3, &input_a)?;
+    respond_input_accepted(&harness, &request)?;
+
+    assert_eq!(harness.mailbox.is_closed(), None);
+    assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Ready);
+    assert_eq!(
+        harness.ui.state().pane_ref_for(&pane_a).as_ref(),
+        Some(&pane_a_ref)
+    );
+    assert!(harness.ui.state().pane_attached(&pane_a_ref));
+    assert!(harness.ui.state().pane_attached(&pane_b_ref));
+    harness.finish()
+}
+
+/// A peer whose `Acquire` is refused `ControllerBusy` converges read-only:
+/// its record still completes the same first-frame chain without a second
+/// `ReadyCandidate`, joins the ordinary poll rotation, and never takes
+/// control — an admitted input to it is consumed without a wire request,
+/// while pane A keeps working on its own attachment.
+#[test]
+fn reconcile_readonly_setup_focus_move_completes_without_ready() -> TestResult {
+    let geometry = fixture_geometry()?;
+    // 6 post-Ready steps: focus Resize + peer Attach/Acquire(busy)/Poll/
+    // feedback + Input back to A. An input to the read-only B produces no
+    // wire request, so the carrier's next observed request must be A's.
+    let mut harness = Harness::start(steps(&[WireKind::Obcs; 6]), geometry)?;
+    let (_anchor_a, controller_a) =
+        drive_controlling_ready_from_snapshot(&mut harness, split_snapshot(1), geometry)?;
+    let pane_a = harness.ui.state().desired().cloned().unwrap();
+    let pane_a_ref = harness
+        .ui
+        .state()
+        .pane_ref_for(&pane_a)
+        .ok_or_else(|| test_error("focus pane record must be live"))?;
+    let focus_panel = harness.ui.state().focus_panel_id().unwrap().clone();
+    let (peer_panel, _peer_viewer_id, peer_controller) =
+        drive_reconcile_peer_first_frame(&mut harness, geometry, PeerAcquire::BusyReadOnly)?;
+    assert!(peer_controller.is_none());
+    let pane_b = harness
+        .ui
+        .state()
+        .plan_panel_focus_local_at(&peer_panel)
+        .ok_or_else(|| test_error("configured read-only peer must pass the focus plan"))?;
+    let pane_b_ref = harness
+        .ui
+        .state()
+        .pane_ref_for(&pane_b)
+        .ok_or_else(|| test_error("peer pane record must be live"))?;
+
+    let input_b = ControlInput::new(vec![b'b'])?;
+    let input_a = ControlInput::new(vec![b'a'])?;
+    settle_peer_feedback_with_window(&mut harness, &pane_b_ref, |harness| {
+        // Focus may land on the read-only peer — it is a settled mode — but
+        // it never gains control, so its admitted input is consumed with no
+        // wire request; the return leg queues A's input behind it.
+        let moved = harness.ui.move_panel_focus_to_pane(&peer_panel)?;
+        assert_eq!(moved, pane_b);
+        harness.ui.admit_input(input_b.clone())?;
+        let moved = harness.ui.move_panel_focus_to_pane(&focus_panel)?;
+        assert_eq!(moved, pane_a);
+        harness.ui.admit_input(input_a.clone())?;
+        Ok(())
+    })?;
+
+    // Command order is deterministic: the carrier's next observed request is
+    // A's Input — had the read-only peer's input wrongly reached the wire it
+    // would arrive first on the peer attachment and fail this assertion.
+    let ClientMessage::TerminalControl(request) = harness.carrier.take_obcs()? else {
+        return Err(test_error("queued input back to A must reach the carrier"));
+    };
+    assert_wire_input(&request, &attached_viewer_id()?, &controller_a, 3, &input_a)?;
+    respond_input_accepted(&harness, &request)?;
+
+    assert_eq!(harness.mailbox.is_closed(), None);
+    assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Ready);
+    // The read-only peer is a settled record: attached, projected, and
+    // inside the ordinary poll admission without ever taking control.
+    assert!(harness.ui.state().pane_attached(&pane_b_ref));
+    assert!(harness.ui.state().pollable_panes().contains(&pane_b_ref));
+    assert_eq!(
+        harness.ui.state().pane_ref_for(&pane_a).as_ref(),
+        Some(&pane_a_ref)
+    );
     harness.finish()
 }

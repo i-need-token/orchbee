@@ -61,7 +61,8 @@ pub(crate) enum BackendAction {
 }
 
 // This value is shared with the native Session reducer while remaining protocol-free.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+// Not `Copy`: `FocusPanel` carries a `WorkbenchPanelId` (heap identity).
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ClientAction {
     RequestWorkspaceCreate,
     RequestWorkspaceDirectory,
@@ -85,10 +86,16 @@ pub(crate) enum ClientAction {
     SelectTab(u8),
     SelectPreviousContext,
     SelectNextContext,
+    /// Pointer gesture: select the navigation entry at this 0-based index.
+    SelectContextAt(usize),
     MovePanelFocus(PanelDirection),
+    /// Pointer gesture: focus the panel with this stable identity in the
+    /// active tab.
+    FocusPanel(orchbee_workbench_protocol::WorkbenchPanelId),
     SplitPanel(PanelDirection),
     ClosePanel,
     MovePanel(PanelDirection),
+    TogglePointerCapture,
     ForwardLiteralPrefix,
     DismissPrefix,
     UnknownPrefix,
@@ -100,6 +107,13 @@ pub(crate) enum Notice {
     BackendUnavailable(BackendAction),
     TerminalInputUnavailable,
     UnknownPrefix,
+    /// A pointer gesture's queued input was dropped: the pending-focus
+    /// queue overflowed or its bounded wait expired.
+    PointerInputDropped,
+    /// The focused pane requested SGR pixel reports (`?1016`), which this
+    /// client does not encode — the event was dropped rather than
+    /// fabricating cell coordinates as pixels.
+    PointerPixelsUnsupported,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -132,7 +146,7 @@ pub(crate) enum SessionActionDisposition {
     DismissNavigator,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ClientTransition {
     next: ClientView,
     action: Option<ClientAction>,
@@ -141,21 +155,21 @@ pub(crate) struct ClientTransition {
 }
 
 impl ClientTransition {
-    pub(crate) const fn action(self) -> Option<ClientAction> {
-        self.action
+    pub(crate) fn action(&self) -> Option<ClientAction> {
+        self.action.clone()
     }
 
-    pub(crate) const fn shell(self) -> ShellCommand {
+    pub(crate) fn shell(&self) -> ShellCommand {
         self.shell
     }
 
-    pub(crate) const fn layout_changed(self) -> bool {
+    pub(crate) fn layout_changed(&self) -> bool {
         self.layout_changed
     }
 }
 
 impl ClientAction {
-    pub(crate) const fn backend_action(self) -> Option<BackendAction> {
+    pub(crate) fn backend_action(&self) -> Option<BackendAction> {
         match self {
             Self::RequestWorkspaceCreate => Some(BackendAction::CreateWorkspace),
             Self::RequestWorkspaceDirectory => Some(BackendAction::ConfigureWorkspaceDirectory),
@@ -168,10 +182,10 @@ impl ClientAction {
             Self::MoveNextTab => Some(BackendAction::MoveNextTab),
             Self::SelectNextTab => Some(BackendAction::SelectNextTab),
             Self::SelectPreviousTab => Some(BackendAction::SelectPreviousTab),
-            Self::SelectTab(position) => Some(BackendAction::SelectTab(position)),
+            Self::SelectTab(position) => Some(BackendAction::SelectTab(*position)),
             Self::SelectPreviousContext => Some(BackendAction::SelectPreviousContext),
             Self::SelectNextContext => Some(BackendAction::SelectNextContext),
-            Self::MovePanelFocus(_) => None,
+            Self::MovePanelFocus(_) | Self::FocusPanel(_) | Self::SelectContextAt(_) => None,
             Self::SplitPanel(_) => Some(BackendAction::SplitPanel),
             Self::ClosePanel => Some(BackendAction::ClosePanel),
             Self::MovePanel(_) => Some(BackendAction::MovePanel),
@@ -183,6 +197,7 @@ impl ClientAction {
             | Self::PageShortcutHelp
             | Self::OpenWorkbenchNavigator
             | Self::CloseWorkbenchNavigator
+            | Self::TogglePointerCapture
             | Self::ForwardLiteralPrefix
             | Self::DismissPrefix
             | Self::UnknownPrefix
@@ -211,6 +226,12 @@ pub(crate) struct ClientView {
     /// page count on every draw and the UI loop writes the effective page
     /// back through `settle_help_page`; render never mutates it.
     help_page: usize,
+    /// The pointer-capture release flag: `Ctrl+B m` and `--mouse off`
+    /// release host mouse reporting; while released the status line carries
+    /// the persistent indicator and every Client pointer gesture is inert.
+    /// The dispatcher settles it only after the terminal mode write
+    /// succeeded, so it always mirrors the armed state.
+    pointer_released: bool,
 }
 
 impl ClientView {
@@ -228,6 +249,7 @@ impl ClientView {
             viewport: ViewportClass::from_width(width),
             wide_sidebar_visible: true,
             help_page: 0,
+            pointer_released: false,
         }
     }
 
@@ -281,6 +303,46 @@ impl ClientView {
 
     pub(crate) fn report_terminal_input_unavailable(&mut self) {
         self.notice = Some(Notice::TerminalInputUnavailable);
+    }
+
+    /// The pending-focus queue overflowed or expired — the queued pointer
+    /// input was dropped and the user sees why.
+    pub(crate) fn report_pointer_input_dropped(&mut self) {
+        self.notice = Some(Notice::PointerInputDropped);
+    }
+
+    /// The pane requested pixel-format reports this client cannot encode;
+    /// reported once per gesture owner so the notice stays bounded.
+    pub(crate) fn report_pointer_pixels_unsupported(&mut self) {
+        self.notice = Some(Notice::PointerPixelsUnsupported);
+    }
+
+    /// Whether host pointer reporting is currently released (`Ctrl+B m` or
+    /// `--mouse off`). Read by the status line's persistent indicator.
+    pub(crate) const fn pointer_released(self) -> bool {
+        self.pointer_released
+    }
+
+    /// Settles the released flag after the terminal mode write succeeded.
+    pub(crate) fn settle_pointer_released(&mut self, released: bool) {
+        self.pointer_released = released;
+    }
+
+    /// An outside click on an open overlay dismisses it without producing a
+    /// semantic action — the gesture is consumed, never forwarded beneath.
+    pub(crate) fn dismiss_overlay(&mut self) {
+        self.overlay = None;
+    }
+
+    /// Applies the navigator settlement of a pointer-issued action. Pointer
+    /// intents carry no `ClientTransition`; this is the same disposition
+    /// effect `commit` applies for keyboard-issued actions.
+    pub(crate) fn commit_pointer(&mut self, disposition: SessionActionDisposition) {
+        if disposition == SessionActionDisposition::DismissNavigator
+            && self.overlay == Some(Overlay::WorkbenchNavigator)
+        {
+            self.overlay = None;
+        }
     }
 
     pub(crate) fn decide(&self, input: PrefixInput) -> ClientTransition {
@@ -342,8 +404,8 @@ impl ClientView {
             self.notice = Some(Notice::UnknownPrefix);
             return (ClientAction::UnknownPrefix, ShellCommand::None);
         };
-        match member.action {
-            PrefixAction::Client(action) => (action, member.shell),
+        match &member.action {
+            PrefixAction::Client(action) => (action.clone(), member.shell),
             PrefixAction::SelectTabDigit => {
                 let number = match input {
                     PrefixInput::Key(event) => match event.normalized() {

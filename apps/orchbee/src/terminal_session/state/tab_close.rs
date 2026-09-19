@@ -1,4 +1,4 @@
-use super::{AttachmentKey, SessionNotice};
+use super::{AttachmentKey, PaneKey, SessionNotice};
 use crate::{
     local_client::workbench::WorkbenchTabCloseAccepted,
     terminal_session::workbench_projection::NativeTerminalBinding,
@@ -692,7 +692,7 @@ impl super::NativeSessionState {
                 .ok_or(CloseStateError::NotDisplayed)?;
             return self.close.open_confirmation(selection);
         }
-        if self.pending_refresh_generation.is_some()
+        if self.pending_refresh.is_some()
             || self.rename_draft_blocks_structure()
             || self.mutation_blocks_structure()
             || self.move_recovery.is_some()
@@ -724,7 +724,7 @@ impl super::NativeSessionState {
             target,
             tab.tab_label().clone(),
             panel.binding().clone(),
-            self.attached_key.clone(),
+            self.desired.as_ref().map(|key| key.anchor().clone()),
             self.cache.revision(),
         );
         self.close.open_confirmation(selection)
@@ -781,7 +781,7 @@ impl super::NativeSessionState {
                 || self.cache.revision() != selection.base_revision()
                 || tab.tab_id() != selection.target().tab_id()
                 || panel.binding() != selection.binding()
-                || self.attached_key.as_ref() != selection.attachment();
+                || self.desired.as_ref().map(PaneKey::anchor) != selection.attachment();
         }
         false
     }
@@ -834,7 +834,7 @@ impl<'a> super::NativeSessionView<'a> {
             let target = CloseTarget::new(
                 self.state.cache.site_id().clone(),
                 self.state.cache.terminal_context_id().clone(),
-                selected.key().tab_id().clone(),
+                selected.key().anchor().tab_id().clone(),
             );
             if let Some(status) = self.state.close.status(&target) {
                 return Some(status);

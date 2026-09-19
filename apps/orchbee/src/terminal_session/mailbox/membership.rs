@@ -1,29 +1,51 @@
-use super::{AttachmentKey, CarrierFailure, MailboxMembership, MailboxState, UiReplyTransaction};
-use orchbee_workbench_protocol::WorkbenchTabId;
+use super::{
+    AttachmentKey, CarrierFailure, MailboxMembership, MailboxState, PaneKey, UiReplyTransaction,
+};
+use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId};
 
 pub(in crate::terminal_session) enum DesiredInstall {
     Preserve,
-    ReuseReserved(AttachmentKey),
+    ReuseReserved {
+        key: AttachmentKey,
+        panel: WorkbenchPanelId,
+    },
     RestoreSwitch(crate::terminal_session::state::SwitchRestoreKey),
-    Fresh(WorkbenchTabId),
+    Fresh {
+        tab_id: WorkbenchTabId,
+        panel: WorkbenchPanelId,
+    },
     Empty,
 }
 
 /// Holding this plan keeps the mailbox mutex's state exclusively borrowed until commit or drop.
 pub(in crate::terminal_session) struct PreparedDesiredInstall<'a> {
     state: &'a mut MailboxState,
-    desired: Option<AttachmentKey>,
+    desired: Option<PaneKey>,
     generation: u64,
+    preserve: bool,
 }
 
 impl PreparedDesiredInstall<'_> {
-    pub(in crate::terminal_session) const fn desired(&self) -> Option<&AttachmentKey> {
+    /// The focus pane the caller-side state install should resolve against.
+    pub(in crate::terminal_session) const fn desired(&self) -> Option<&PaneKey> {
         self.desired.as_ref()
     }
 
     pub(in crate::terminal_session) fn commit(self) {
+        // A preserved epoch keeps its admitted pane set; any other install
+        // changes the anchor, so no pane is admitted until the next reconcile
+        // snapshot names the incarnations the state minted for it.
+        let panes = if self.preserve {
+            match &self.state.desired {
+                MailboxMembership::Live { panes, .. } => panes.clone(),
+                MailboxMembership::AwaitingBootstrap => Vec::new(),
+            }
+        } else {
+            Vec::new()
+        };
         self.state.desired = MailboxMembership::Live {
             desired: self.desired,
+            panes,
         };
         self.state.attachment_generation = self.generation;
     }
@@ -38,28 +60,29 @@ impl UiReplyTransaction<'_> {
             return Err(CarrierFailure::Protocol);
         }
         let mut generation = self.state.attachment_generation;
+        let preserve = matches!(install, DesiredInstall::Preserve);
         let desired = match install {
             DesiredInstall::Preserve => self.state.desired.key().cloned(),
-            DesiredInstall::ReuseReserved(key) => {
+            DesiredInstall::ReuseReserved { key, panel } => {
                 if key.generation() == 0 || key.generation() != generation {
                     return Err(CarrierFailure::Protocol);
                 }
-                Some(key)
+                Some(PaneKey::new(key, panel))
             }
             DesiredInstall::RestoreSwitch(proof) => {
                 if self.state.desired.key() != Some(proof.marker())
-                    || generation != proof.marker().generation()
-                    || proof.restored().generation() >= generation
+                    || generation != proof.marker().anchor().generation()
+                    || proof.restored().anchor().generation() >= generation
                 {
                     return Err(CarrierFailure::Protocol);
                 }
                 Some(proof.restored().clone())
             }
-            DesiredInstall::Fresh(tab_id) => {
+            DesiredInstall::Fresh { tab_id, panel } => {
                 generation = generation
                     .checked_add(1)
                     .ok_or(CarrierFailure::IdentityExhausted)?;
-                Some(AttachmentKey::new(generation, tab_id))
+                Some(PaneKey::new(AttachmentKey::new(generation, tab_id), panel))
             }
             DesiredInstall::Empty => None,
         };
@@ -67,6 +90,7 @@ impl UiReplyTransaction<'_> {
             state: self.state,
             desired,
             generation,
+            preserve,
         })
     }
 }

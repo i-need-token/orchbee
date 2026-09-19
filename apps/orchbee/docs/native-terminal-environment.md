@@ -3,11 +3,11 @@
 ## Scope and ownership
 
 This reference governs the parts of the host-terminal contract that the native Client owns at
-runtime: viewport observation against transient zero geometry, and synchronized-update framing of
-each drawn frame. Maintain it with `terminal_device.rs`, `terminal_lifecycle.rs`,
-`tui_backend.rs`, and `tui_shell.rs`. Admission verifies TTY identity and descriptor safety
-(interactive TTY on both streams, one shared terminal identity, a working geometry query);
-obtaining a drawable cell geometry is a separate readiness concern governed by
+runtime: viewport observation against transient zero geometry, synchronized-update framing of
+each drawn frame, and the pointer-capture mode pair. Maintain it with `terminal_device.rs`,
+`terminal_lifecycle.rs`, `tui_backend.rs`, and `tui_shell.rs`. Admission verifies TTY identity
+and descriptor safety (interactive TTY on both streams, one shared terminal identity, a working
+geometry query); obtaining a drawable cell geometry is a separate readiness concern governed by
 [`native-startup-wait.md`](native-startup-wait.md). Host-reported pixel geometry that arrives
 as zero is reported honestly as "pixels unknown" — a normal state, never a fabricated one.
 
@@ -30,6 +30,17 @@ zero is likewise never resolved by reusing the previous pixel values — old pix
 measure of a new size. Known → unknown → known transitions ride the same geometry path; every
 state is reported as measured, and downstream pixel-dependent features gate on the pair being
 known rather than on any estimate.
+
+## Pointer capture pair
+
+Pointer reporting is one leased mode pair: button-event tracking (`?1002h`) together with SGR
+encoding (`?1006h`), armed at startup unless `tui --mouse off` declined it, and released by the
+matching `?1002l`/`?1006l`. The pair rides the same `ModeLease` machinery as bracketed paste —
+a successful arm registers the restoration obligation, and a failed arm owes nothing. Runtime
+release and re-arm through `Ctrl+B m` and startup arming share the identical lease, so the
+settled client flag and the status indicator always describe a mode write that actually
+succeeded. Gesture routing, hit testing, and passthrough semantics live in
+[native mouse input](native-mouse-input.md); this section owns only the mode lifecycle.
 
 ## Synchronized frame output
 
@@ -59,8 +70,8 @@ the control channel at restoration.
 
 Restoration is lifecycle-owned and runs in a fixed order: it first blocks further frame output,
 then ends a still-open pair through the terminal control path inside the same bounded retry
-budget as every other mode, and only then disables bracketed paste, shows the cursor, leaves the
-alternate screen, and restores raw mode. The frame writer is restoration-gated: once restoration
+budget as every other mode, and only then disables bracketed paste, disables pointer capture,
+shows the cursor, leaves the alternate screen, and restores raw mode. The frame writer is restoration-gated: once restoration
 begins, buffered frame bytes are discarded instead of reaching a terminal that is already being
 restored, which also covers a panic-path unwind flush. After an output failure the same fence
 is applied before the frame writer is dropped, so the writer's drop-time retry cannot emit

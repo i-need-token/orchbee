@@ -58,6 +58,7 @@ fn draw_close(
             locale,
             Some(session.view()),
             &crate::tui_theme::Theme::terminal_native(),
+            &mut crate::tui_pointer::HitMapBuilder::new(),
         );
     })?;
     if matches!(session.view(), TerminalSessionView::Native(view) if view.close_confirmation().is_some())

@@ -8,9 +8,9 @@ use super::{
         AttachmentKey, CarrierFailure, ControllerMode, CreateOperation, CreateOperationKey,
         CreateProjectionDecision, CreateTerminalProvenance, FrameIdentity, NativeSessionState,
         NativeSessionView as StateSessionView, NativeTabView as StateTabView,
-        NavigatorRefreshStatus, OperationDeadlines, PanelRequestKind, PendingCreateCommit,
-        PendingMoveCommit, PendingPanelCommit, RefreshDecision, SelectionPlan, SessionNotice,
-        SessionPhaseKind, SetupEventDisposition,
+        NavigatorRefreshStatus, OperationDeadlines, PaneKey, PaneRef, PanelRequestKind,
+        PendingCreateCommit, PendingMoveCommit, PendingPanelCommit, RefreshDecision, SelectionPlan,
+        SessionNotice, SessionPhaseKind, SetupEventDisposition,
     },
 };
 use crate::{
@@ -23,8 +23,8 @@ use crate::{
 };
 use orchbee_client_server_protocol::{ControlInput, Geometry, TerminalViewerAction};
 use orchbee_workbench_protocol::{
-    ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchLabel, WorkbenchTabMoveDirection,
-    WorkbenchTerminalGeometry,
+    ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchLabel, WorkbenchPanelId,
+    WorkbenchTabId, WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
 };
 use std::sync::Arc;
 
@@ -154,11 +154,18 @@ impl<'a> NativeTabView<'a> {
     pub(crate) fn panel(&self, index: usize) -> Option<&'a super::NativePanel> {
         self.inner.panel(index)
     }
+
+    /// The tab's stable identity — recorded into pointer hit regions so a
+    /// click resolves the entry, never a stale position.
+    pub(crate) fn tab_id(&self) -> &'a WorkbenchTabId {
+        self.inner.tab_id()
+    }
 }
 
 pub(crate) struct NativeSessionView<'a> {
     state: Option<StateSessionView<'a>>,
-    projection: Option<&'a TerminalProjection>,
+    panes: &'a [KeyedProjection],
+    focus: Option<&'a WorkbenchPanelId>,
     projection_status: NativeProjectionStatus,
     retirement: Option<NativeDisplayRetirement>,
 }
@@ -285,8 +292,61 @@ impl<'a> NativeSessionView<'a> {
         self.projection_status
     }
 
-    pub(crate) const fn projection(&self) -> Option<&'a TerminalProjection> {
-        self.projection
+    /// The focus pane's projection — kept for single-pane consumers; paned
+    /// rendering uses [`Self::pane_projection`] per leaf.
+    pub(crate) fn projection(&self) -> Option<&'a TerminalProjection> {
+        self.focus.and_then(|panel| self.pane_projection(panel))
+    }
+
+    /// The live projection installed for one panel's exact pane incarnation,
+    /// or `None` while that pane has no viewer content yet.
+    pub(crate) fn pane_projection(
+        &self,
+        panel: &WorkbenchPanelId,
+    ) -> Option<&'a TerminalProjection> {
+        let state = self.state.as_ref()?;
+        let record = state.pane_by_panel(panel)?;
+        self.panes
+            .iter()
+            .find(|projection| projection.key == record.pane_ref())
+            .map(|projection| &projection.value)
+    }
+
+    /// The exact live incarnation bound to one panel — anchor generation,
+    /// stable panel, and incarnation — or `None` while the panel has no
+    /// record. Pane hit regions record this so a click can never migrate
+    /// onto a re-minted record of the same logical pane.
+    pub(crate) fn pane_ref_for_panel(&self, panel: &WorkbenchPanelId) -> Option<PaneRef> {
+        self.state
+            .as_ref()?
+            .pane_by_panel(panel)
+            .map(|record| record.pane_ref())
+    }
+
+    /// The draw status of one panel's projection — `Empty` when the pane has
+    /// no installed projection at all.
+    pub(crate) fn pane_projection_status(
+        &self,
+        panel: &WorkbenchPanelId,
+    ) -> NativeProjectionStatus {
+        let Some(state) = self.state.as_ref() else {
+            return NativeProjectionStatus::Empty;
+        };
+        let Some(record) = state.pane_by_panel(panel) else {
+            return NativeProjectionStatus::Empty;
+        };
+        self.panes
+            .iter()
+            .find(|projection| projection.key == record.pane_ref())
+            .map_or(NativeProjectionStatus::Empty, |projection| {
+                projection.status
+            })
+    }
+
+    /// The panel identity of the focus pane — the leaf that takes input,
+    /// resize and the focused-frame chrome.
+    pub(crate) const fn focus_panel_id(&self) -> Option<&'a WorkbenchPanelId> {
+        self.focus
     }
 
     pub(crate) const fn retirement(&self) -> Option<NativeDisplayRetirement> {
@@ -294,9 +354,12 @@ impl<'a> NativeSessionView<'a> {
     }
 }
 
-struct KeyedProjection {
-    key: AttachmentKey,
+/// One pane's installed projection plus its draw status, keyed by the exact
+/// incarnation the `Attached` event settled.
+pub(crate) struct KeyedProjection {
+    key: PaneRef,
     value: TerminalProjection,
+    status: NativeProjectionStatus,
 }
 
 struct PendingDraw {
@@ -318,9 +381,9 @@ pub(super) struct NativeUi {
     mailbox: Option<Arc<CommandMailbox>>,
     clock: LocalOperationClock,
     state: Option<NativeSessionState>,
-    projection: Option<KeyedProjection>,
-    projection_status: NativeProjectionStatus,
-    pending_draw: Option<PendingDraw>,
+    projections: Vec<KeyedProjection>,
+    pending_draws: Vec<PendingDraw>,
+    poll_cursor: usize,
     ordinary_poll_serial: Option<u64>,
     retirement_failure: Option<CarrierFailure>,
     retirement_finalized: bool,
@@ -354,6 +417,8 @@ mod rename_membership_tests;
 #[cfg(all(test, target_os = "linux"))]
 mod retired_membership_tests;
 #[cfg(all(test, unix))]
+mod startup_queue_tests;
+#[cfg(all(test, unix))]
 mod u7_probe;
 #[cfg(test)]
 mod workspace_setup_tests;
@@ -364,9 +429,9 @@ impl NativeUi {
             mailbox: Some(mailbox),
             clock,
             state: None,
-            projection: None,
-            projection_status: NativeProjectionStatus::Empty,
-            pending_draw: None,
+            projections: Vec::new(),
+            pending_draws: Vec::new(),
+            poll_cursor: 0,
             ordinary_poll_serial: None,
             retirement_failure: None,
             retirement_finalized: false,
@@ -384,17 +449,28 @@ impl NativeUi {
 
     pub(super) fn view(&self) -> NativeSessionView<'_> {
         let state = self.state.as_ref();
-        let projection = self
-            .projection
-            .as_ref()
-            .filter(|projection| {
-                state.is_some_and(|state| state.projection_key() == Some(&projection.key))
+        let focus = state.and_then(NativeSessionState::focus_panel_id);
+        // Drop projections whose exact incarnation no longer exists — the
+        // settle paths normally remove them, this filter is the last fence.
+        let focus_status = focus
+            .and_then(|panel| {
+                state
+                    .and_then(|state| state.pane_by_panel(panel))
+                    .map(|record| record.pane_ref())
             })
-            .map(|projection| &projection.value);
+            .and_then(|key| {
+                self.projections
+                    .iter()
+                    .find(|projection| projection.key == key)
+            })
+            .map_or(NativeProjectionStatus::Empty, |projection| {
+                projection.status
+            });
         NativeSessionView {
             state: state.map(NativeSessionState::view),
-            projection,
-            projection_status: self.projection_status,
+            panes: &self.projections,
+            focus,
+            projection_status: focus_status,
             retirement: self.retirement,
         }
     }
@@ -413,7 +489,7 @@ impl NativeUi {
                 None => TerminalStatus::Connecting,
             };
         };
-        if self.projection_status == NativeProjectionStatus::Blocked {
+        if self.view().projection_status() == NativeProjectionStatus::Blocked {
             return TerminalStatus::Blocked;
         }
         match (state.phase_kind(), state.controller_mode()) {
@@ -444,7 +520,7 @@ impl NativeUi {
     }
 
     pub(super) fn startup_draw_ready(&self) -> bool {
-        self.pending_draw.is_some()
+        !self.pending_draws.is_empty()
     }
 
     pub(super) const fn retirement_requested(&self) -> bool {
@@ -527,7 +603,7 @@ impl NativeUi {
             .and_then(NativeSessionState::retired_failure)
             .unwrap_or(failure);
         self.retirement_failure = Some(failure);
-        self.clear_projection();
+        self.clear_projections();
         self.retirement_finalized = true;
         self.retirement = Some(if failure == CarrierFailure::OutcomeUnknown {
             NativeDisplayRetirement::OutcomeUnknown
@@ -558,7 +634,9 @@ impl NativeUi {
         }
         let taken = match mailbox.take_event_before(&self.clock) {
             Ok(taken) => taken,
-            Err(EventError::ForwardExpired) => return acknowledged || self.pending_draw.is_some(),
+            Err(EventError::ForwardExpired) => {
+                return acknowledged || !self.pending_draws.is_empty();
+            }
             Err(EventError::Closed(closed)) => {
                 self.retire(closed.failure());
                 return true;
@@ -577,37 +655,47 @@ impl NativeUi {
             self.drain_publication_refresh(&mailbox);
             self.schedule_close_reconciliation(&mailbox);
             self.schedule_close_read(&mailbox);
+            self.schedule_pane_reconcile(&mailbox);
             self.schedule_poll(&mailbox);
         }
-        acknowledged || changed || self.pending_draw.is_some()
+        acknowledged || changed || !self.pending_draws.is_empty()
     }
 
     pub(super) fn after_draw(&mut self) {
-        let Some(pending) = self.pending_draw.take() else {
+        if self.pending_draws.is_empty() {
             return;
-        };
+        }
         let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
             return;
         };
-        if let Some(frame) = pending.frame {
-            let current = self.state.as_ref().is_some_and(|state| {
-                state.desired() == Some(pending.poll_key.attachment())
-                    && state.projection_key() == Some(pending.poll_key.attachment())
-            });
-            if current
-                && self.state.as_mut().is_none_or(|state| {
-                    !state.stage_drawn_frame(pending.poll_key.attachment(), frame)
-                })
-            {
-                self.retire(CarrierFailure::Protocol);
+        // One completed draw settles every staged frame: each pane's poll
+        // keeps its own causal slot, so draining the queue deposits them all.
+        let pending_draws = std::mem::take(&mut self.pending_draws);
+        for pending in pending_draws {
+            // The settlement claims this draw's proof: a frame that was never
+            // staged into a live, non-departing leaf settles as `NoFeedback` —
+            // the poll-time `FrameApplied` is never forwarded for a frame the
+            // screen never showed.
+            let settlement = match pending.frame {
+                Some(frame) => {
+                    let staged = self.state.as_mut().is_some_and(|state| {
+                        state.stage_drawn_frame(pending.poll_key.pane_ref(), frame)
+                    });
+                    if staged {
+                        pending.settlement
+                    } else {
+                        CausalSettlement::NoFeedback
+                    }
+                }
+                None => pending.settlement,
+            };
+            if pending.ordinary && pending.frame.is_none() {
+                self.ordinary_poll_serial = None;
+            }
+            if let Err(closed) = mailbox.deposit_causal(&pending.poll_key, settlement) {
+                self.retire(closed.failure());
                 return;
             }
-        }
-        if pending.ordinary && pending.frame.is_none() {
-            self.ordinary_poll_serial = None;
-        }
-        if let Err(closed) = mailbox.deposit_causal(&pending.poll_key, pending.settlement) {
-            self.retire(closed.failure());
         }
     }
 
@@ -632,49 +720,109 @@ impl NativeUi {
         };
         if let Err(closed) = mailbox.observe_geometry(geometry) {
             self.retire(closed.failure());
+        }
+        // A whole-session observation on a single-leaf tab is exactly that
+        // leaf's geometry — route it through the pane path so the focus
+        // viewer's resize is emitted; multi-leaf tabs own per-leaf geometry
+        // through `observe_panes`.
+        let single_leaf = self.state.as_ref().and_then(|state| {
+            let active = state.active()?;
+            state
+                .cache()
+                .tabs()
+                .get(active.index())
+                .filter(|tab| tab.panel_count() == 1)?;
+            Some((state.focus_panel_id()?.clone(), active.panel_index()))
+        });
+        if let Some((panel_id, panel_index)) = single_leaf {
+            self.observe_panes(&[(panel_id, panel_index, geometry)]);
+        }
+    }
+
+    /// The leaf-geometry report the shell paints with: each `(panel_id,
+    /// panel_index, content geometry)` entry syncs one pane's record. The
+    /// report installs/departs records, resizes the focus pane when its leaf
+    /// moved, and schedules the reconcile snapshot that converges viewers.
+    pub(super) fn observe_panes(&mut self, observed: &[(WorkbenchPanelId, usize, Geometry)]) {
+        if self.retirement_failure.is_some() {
             return;
         }
-        let desired = self.state.as_ref().and_then(|state| {
-            let ready = state.ready()?;
-            matches!(ready.mode(), ControllerMode::Controlling(_))
-                .then(|| ready.selected().key().clone())
-        });
-        let Some(desired) = desired else {
+        let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
             return;
         };
-        if self
-            .state
-            .as_ref()
-            .is_some_and(|state| state.close_suppresses_attachment(&desired))
-        {
-            return;
-        }
-        if self
-            .state
-            .as_ref()
-            .and_then(|state| state.last_admitted_geometry(&desired))
-            == Some(geometry)
-        {
-            return;
-        }
-        match mailbox.try_enqueue(QueuedCommand::Resize(Tagged::new(
-            desired.clone(),
-            geometry,
-        ))) {
-            Ok(_serial) => {
-                if self
-                    .state
-                    .as_mut()
-                    .is_none_or(|state| !state.record_admitted_geometry(&desired, geometry))
-                {
+        let sampled_at = self.clock.now();
+        let resizes = {
+            let Some(state) = self.state.as_mut() else {
+                return;
+            };
+            state.sync_pane_set(observed, sampled_at);
+            // First-Starting records the observation but admits no ordinary
+            // Resize: the focus leaf's setup pipeline owns its geometry
+            // convergence, and the ordinary queue must stay empty for the
+            // startup allocator. Post-Ready observations admit the latest
+            // recorded geometry normally.
+            if state.phase_kind() == SessionPhaseKind::Starting {
+                Vec::new()
+            } else {
+                state.admit_observed_geometries(observed)
+            }
+        };
+        for (key, geometry) in resizes {
+            let Some(state) = self.state.as_mut() else {
+                return;
+            };
+            if state.close_suppresses_attachment(key.pane().anchor()) {
+                continue;
+            }
+            match mailbox.try_enqueue(QueuedCommand::Resize(Tagged::new(key.clone(), geometry))) {
+                Ok(_serial) => {
+                    if !state.record_admitted_geometry(&key, geometry) {
+                        self.retire(CarrierFailure::Protocol);
+                        return;
+                    }
+                }
+                Err(AdmissionError::Full | AdmissionError::Busy) => {}
+                Err(AdmissionError::Closed(closed)) => {
+                    self.retire(closed.failure());
+                    return;
+                }
+                Err(
+                    AdmissionError::BootstrapPending
+                    | AdmissionError::StaleAttachment
+                    | AdmissionError::AttachmentGenerationExhausted
+                    | AdmissionError::RefreshGenerationExhausted
+                    | AdmissionError::Build(_),
+                ) => {
                     self.retire(CarrierFailure::Protocol);
+                    return;
                 }
             }
-            Err(AdmissionError::Full) => {}
+        }
+        self.schedule_pane_reconcile(&mailbox);
+    }
+
+    /// Enqueues the reconcile snapshot the state computed when its desired
+    /// pane set diverged from live attachments. Dedup is the mailbox's.
+    /// The first Starting phase defers this ordinary convergence work: the
+    /// divergence `sync_pane_set` recorded (and its minted episode budget)
+    /// stays visible through `reconcile_pending` while the queue the startup
+    /// allocator requires empty carries nothing. Ready's first schedule
+    /// delivers the same `PaneRef` targets under that original deadline.
+    fn schedule_pane_reconcile(&mut self, mailbox: &Arc<CommandMailbox>) {
+        let Some(state) = self.state.as_mut() else {
+            return;
+        };
+        if state.phase_kind() == SessionPhaseKind::Starting {
+            return;
+        }
+        let Some((anchor, targets, deadlines)) = state.reconcile_targets(self.clock.now()) else {
+            return;
+        };
+        match mailbox.try_enqueue_reconcile(anchor, targets, deadlines) {
+            Ok(_) | Err(AdmissionError::Full | AdmissionError::Busy) => {}
             Err(AdmissionError::Closed(closed)) => self.retire(closed.failure()),
             Err(
                 AdmissionError::BootstrapPending
-                | AdmissionError::Busy
                 | AdmissionError::StaleAttachment
                 | AdmissionError::AttachmentGenerationExhausted
                 | AdmissionError::RefreshGenerationExhausted
@@ -696,8 +844,10 @@ impl NativeUi {
         if !matches!(ready.mode(), ControllerMode::Controlling(_)) {
             return false;
         }
-        let desired = ready.selected().key().clone();
-        if state.close_suppresses_attachment(&desired) {
+        let Some(desired) = state.focus_pane_ref() else {
+            return false;
+        };
+        if state.close_suppresses_attachment(desired.pane().anchor()) {
             return false;
         }
         let Ok(input) = ControlInput::new(input.to_vec()) else {
@@ -725,6 +875,77 @@ impl NativeUi {
                 false
             }
         }
+    }
+
+    /// The pointer-resolution facts the dispatcher probes per event:
+    /// capture state, exact focus/desired pane identities, per-leaf
+    /// incarnation facts, stable identities for hit-region resolution,
+    /// and the focus pane's interaction contract. Everything is read
+    /// fresh so pointer events never resolve against a snapshot taken at
+    /// paint time.
+    pub(super) fn pointer_probe(&mut self) -> crate::terminal_input::PointerProbe {
+        use crate::terminal_input::{PointerFrameFacts, PointerPane, PointerProbe, PointerTab};
+        // Draft probes take `&mut self`, so they run before the shared
+        // view borrow.
+        let input_captured = self.rename_input_context().is_some()
+            || self.setup_input_context().is_some()
+            || self.panel_close_confirmation_armed();
+        let view = self.view();
+        let mut probe = PointerProbe {
+            input_captured: input_captured || view.close_confirmation().is_some(),
+            ..PointerProbe::default()
+        };
+        let Some(state) = self.state.as_ref() else {
+            return probe;
+        };
+        // `input_ready` mirrors `forward`'s own admission gate — Ready
+        // phase, Controlling mode, an exact focus incarnation, and no
+        // close suppression on its anchor. All are live state reads;
+        // nothing is guessed from the pointer's own records.
+        probe.input_ready = self.retirement_failure.is_none()
+            && state
+                .ready()
+                .is_some_and(|ready| matches!(ready.mode(), ControllerMode::Controlling(_)))
+            && state
+                .focus_pane_ref()
+                .is_some_and(|focus| !state.close_suppresses_attachment(focus.pane().anchor()));
+        probe.focus = state.focus_pane_ref();
+        probe.desired = state.desired().cloned();
+        probe.panes = state
+            .pane_facts()
+            .map(|(record, attached, mode)| PointerPane {
+                frame_available: view.pane_projection_status(record.pane().panel())
+                    == NativeProjectionStatus::FrameAvailable,
+                record,
+                attached,
+                controlling: mode.map(|mode| matches!(mode, ControllerMode::Controlling(_))),
+            })
+            .collect();
+        probe.tabs = (0..view.tab_count())
+            .filter_map(|index| view.tab(index))
+            .map(|tab| PointerTab {
+                id: tab.tab_id().clone(),
+                position: tab.position(),
+            })
+            .collect();
+        probe.contexts = (0..view.context_count())
+            .filter_map(|index| view.context_at(index))
+            .map(|context| context.location().clone())
+            .collect();
+        probe.frame = view
+            .projection()
+            .and_then(|projection| projection.frame())
+            .map(|frame| PointerFrameFacts {
+                tracking: frame.interaction.mouse_tracking(),
+                format: frame.interaction.mouse_format(),
+                cell_pixel: (
+                    frame.geometry.cell_pixel_width,
+                    frame.geometry.cell_pixel_height,
+                ),
+                alternate_screen: frame.alternate_screen,
+                application_cursor: frame.interaction.application_cursor_keys(),
+            });
+        probe
     }
 
     pub(super) fn apply_client_action(&mut self, action: ClientAction) -> SessionActionDisposition {
@@ -768,10 +989,12 @@ impl NativeUi {
             ClientAction::MoveNextTab => self.move_tab(WorkbenchTabMoveDirection::Next),
             ClientAction::SelectPreviousContext => self.select_context(false),
             ClientAction::SelectNextContext => self.select_context(true),
+            ClientAction::SelectContextAt(index) => self.select_context_at(index),
             ClientAction::SelectNextTab
             | ClientAction::SelectPreviousTab
             | ClientAction::SelectTab(_) => self.select_tab(action),
             ClientAction::MovePanelFocus(direction) => self.move_panel_focus(direction),
+            ClientAction::FocusPanel(panel) => self.move_panel_focus_to(&panel),
             ClientAction::SplitPanel(direction) => {
                 self.panel_operation(PanelRequestKind::Split { direction })
             }
@@ -785,6 +1008,7 @@ impl NativeUi {
             | ClientAction::CloseShortcutHelp
             | ClientAction::PageShortcutHelp
             | ClientAction::CloseWorkbenchNavigator
+            | ClientAction::TogglePointerCapture
             | ClientAction::ForwardLiteralPrefix
             | ClientAction::DismissPrefix
             | ClientAction::UnknownPrefix
@@ -852,8 +1076,8 @@ impl NativeUi {
         );
         match result {
             Ok(_generation) => {
-                // State hides the old projection while retaining the exact renderer for a proven restore.
-                self.pending_draw = None;
+                // State hides the old projections while retaining the exact renderers for a proven restore.
+                self.pending_draws.clear();
                 self.ordinary_poll_serial = None;
                 SessionActionDisposition::DismissNavigator
             }
@@ -888,6 +1112,69 @@ impl NativeUi {
         );
         if let Err(error) = result {
             self.retire_for_admission(&error);
+        }
+        SessionActionDisposition::KeepNavigator
+    }
+
+    /// Pointer-issued context selection: the row index was resolved from
+    /// the painted navigator, so the same refresh machinery targets it
+    /// directly instead of stepping next/previous.
+    fn select_context_at(&mut self, index: usize) -> SessionActionDisposition {
+        if self
+            .state
+            .as_ref()
+            .is_some_and(|state| state.view().active_context_position() == Some(index + 1))
+        {
+            // Clicking the active row is a no-op, not a busy refusal.
+            return SessionActionDisposition::KeepNavigator;
+        }
+        let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
+            self.retire(CarrierFailure::Deadline);
+            return SessionActionDisposition::KeepNavigator;
+        };
+        let (Some(mailbox), Some(state)) =
+            (self.mailbox.as_ref().map(Arc::clone), self.state.as_mut())
+        else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        let result = mailbox.try_enqueue_context_selection_for(
+            state,
+            deadlines,
+            &self.clock,
+            |state, generation| {
+                state
+                    .start_context_selection_at(generation, index, deadlines)
+                    .then_some(())
+                    .ok_or(ActionBuildError::Busy)
+            },
+            finish_action,
+        );
+        if let Err(error) = result {
+            self.retire_for_admission(&error);
+        }
+        SessionActionDisposition::KeepNavigator
+    }
+
+    /// Pointer-issued panel focus: the pointer resolved a concrete stable
+    /// panel identity in the active tab; the admission path is the same
+    /// purely local transition as the directional `move_panel_focus` — the
+    /// pane's viewer is already live under the same anchor, so no
+    /// detach/attach round trip is minted.
+    fn move_panel_focus_to(&mut self, panel: &WorkbenchPanelId) -> SessionActionDisposition {
+        let (Some(mailbox), Some(state)) =
+            (self.mailbox.as_ref().map(Arc::clone), self.state.as_mut())
+        else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        let Some(pane) = state.plan_panel_focus_local_at(panel) else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        if !state.move_panel_focus_local(pane.clone()) {
+            self.retire(CarrierFailure::Protocol);
+            return SessionActionDisposition::KeepNavigator;
+        }
+        if let Err(closed) = mailbox.publish_desired(pane) {
+            self.retire(closed.failure());
         }
         SessionActionDisposition::KeepNavigator
     }
@@ -969,37 +1256,27 @@ impl NativeUi {
         }
     }
 
+    /// A directional focus move is a pure local transition: the neighbour
+    /// pane's viewer is already live under the same anchor, so no
+    /// detach/attach round trip is minted. The mailbox's desired key is
+    /// republished so focus-scoped admission (input/resize) follows the move.
     fn move_panel_focus(&mut self, direction: PanelDirection) -> SessionActionDisposition {
-        let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
-            return SessionActionDisposition::KeepNavigator;
-        };
         let (Some(mailbox), Some(state)) =
             (self.mailbox.as_ref().map(Arc::clone), self.state.as_mut())
         else {
             return SessionActionDisposition::KeepNavigator;
         };
-        let result = mailbox.try_enqueue_switch_for(
-            state,
-            |state, generation| build_panel_switch(state, generation, direction, deadlines),
-            |state, result, facts| {
-                if result.is_ok() {
-                    state.finish_switch_membership_admission(
-                        facts.discarded(),
-                        facts.inherited(),
-                        facts.authorized_cleanup(),
-                    );
-                }
-                finish_action(state, result);
-            },
-        );
-        match result {
-            Ok(_) => SessionActionDisposition::KeepNavigator,
-            Err(AdmissionError::Closed(closed)) => {
-                self.retire(closed.failure());
-                SessionActionDisposition::KeepNavigator
-            }
-            Err(_) => SessionActionDisposition::KeepNavigator,
+        let Some(pane) = state.plan_panel_focus_local(direction) else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        if !state.move_panel_focus_local(pane.clone()) {
+            self.retire(CarrierFailure::Protocol);
+            return SessionActionDisposition::KeepNavigator;
         }
+        if let Err(closed) = mailbox.publish_desired(pane) {
+            self.retire(closed.failure());
+        }
+        SessionActionDisposition::KeepNavigator
     }
 
     fn open_navigator(&mut self) -> SessionActionDisposition {
@@ -1107,6 +1384,29 @@ impl NativeUi {
             }
             return self.apply_poll_result(mailbox, poll_key, record);
         }
+        if wait_key.is_none() {
+            // Notice events carry no wait key: they are canonical pane-fact
+            // publications that settle state directly instead of depositing a
+            // causal reply.
+            let applied = match event {
+                WorkerEvent::PaneDetached { key } => {
+                    self.clear_pane_projection(&key);
+                    self.state
+                        .as_mut()
+                        .is_some_and(|state| state.settle_pane_detached(&key))
+                }
+                WorkerEvent::PaneFailed { key, fault } => self
+                    .state
+                    .as_mut()
+                    .is_some_and(|state| state.settle_pane_fault(&key, fault)),
+                _ => false,
+            };
+            if !applied {
+                self.retire(CarrierFailure::Protocol);
+                return true;
+            }
+            return self.validate_state();
+        }
         let Some(wait_key) = wait_key else {
             self.retire(CarrierFailure::Protocol);
             return true;
@@ -1192,7 +1492,7 @@ impl NativeUi {
             self.retire(CarrierFailure::Protocol);
             return true;
         };
-        let mut clear_projection = false;
+        let mut clear_pane_key = None;
         let mut install_projection = None;
         let result = mailbox.deposit_ui_reply_before(&wait_key, &self.clock, |transaction| {
             let reply = match event {
@@ -1240,7 +1540,7 @@ impl NativeUi {
                     let continuation = state
                         .settle_unattached_setup(&key, target_index, &target_provenance)
                         .ok_or(CarrierFailure::Protocol)?;
-                    clear_projection = true;
+                    clear_pane_key = Some(key);
                     UiReply::SetupWithoutAttachmentApplied(continuation)
                 }
                 WorkerEvent::CreatePrecommit {
@@ -1260,7 +1560,7 @@ impl NativeUi {
                         Some(ControllerMode::Controlling(_))
                     ) && Some(transaction.latest_geometry()) != applied_geometry
                     {
-                        let desired = state.desired().cloned().ok_or(CarrierFailure::Protocol)?;
+                        let desired = state.focus_pane_ref().ok_or(CarrierFailure::Protocol)?;
                         let geometry = transaction.latest_geometry();
                         transaction.enqueue_catch_up_resize(desired.clone(), geometry)?;
                         if !state.record_admitted_geometry(&desired, geometry) {
@@ -1282,6 +1582,7 @@ impl NativeUi {
                         install_projection = Some(KeyedProjection {
                             key,
                             value: projection,
+                            status: NativeProjectionStatus::Empty,
                         });
                     }
                     UiReply::AttachedSettled(disposition)
@@ -1316,12 +1617,14 @@ impl NativeUi {
                     let continuation = state
                         .settle_cleanup(&key, target_index, &target_provenance)
                         .ok_or(CarrierFailure::Protocol)?;
-                    clear_projection = true;
+                    clear_pane_key = Some(key);
                     UiReply::CleanupApplied(continuation)
                 }
                 WorkerEvent::Bootstrap { .. }
                 | WorkerEvent::RefreshSnapshotResult { .. }
-                | WorkerEvent::PollResult { .. } => {
+                | WorkerEvent::PollResult { .. }
+                | WorkerEvent::PaneDetached { .. }
+                | WorkerEvent::PaneFailed { .. } => {
                     return Err(CarrierFailure::Protocol);
                 }
             };
@@ -1329,12 +1632,13 @@ impl NativeUi {
         });
         match result {
             Ok(MutationResult::Applied) => {
-                if clear_projection {
-                    self.clear_projection();
+                if let Some(key) = clear_pane_key {
+                    self.clear_pane_projection(&key);
                 }
                 if let Some(projection) = install_projection {
-                    self.projection = Some(projection);
-                    self.projection_status = NativeProjectionStatus::Empty;
+                    self.projections
+                        .retain(|existing| existing.key != projection.key);
+                    self.projections.push(projection);
                 }
                 self.validate_state()
             }
@@ -1405,7 +1709,7 @@ impl NativeUi {
                 }) {
                     return Err(CarrierFailure::Deadline);
                 }
-                if state.attached_key().is_some() && !prepared.preserves_selection() {
+                if state.has_attachments() && !prepared.preserves_selection() {
                     let cleanup = state.stage_refresh_membership_cleanup(
                         generation,
                         prepared,
@@ -1419,7 +1723,13 @@ impl NativeUi {
                 let install = if prepared.preserves_selection() {
                     super::mailbox::DesiredInstall::Preserve
                 } else if let Some(tab) = prepared.selected_tab_id() {
-                    super::mailbox::DesiredInstall::Fresh(tab.clone())
+                    match prepared.focus_panel_id() {
+                        Some(panel) => super::mailbox::DesiredInstall::Fresh {
+                            tab_id: tab.clone(),
+                            panel: panel.clone(),
+                        },
+                        None => super::mailbox::DesiredInstall::Empty,
+                    }
                 } else {
                     super::mailbox::DesiredInstall::Empty
                 };
@@ -1427,7 +1737,7 @@ impl NativeUi {
                 let state_plan = state.prepare_refresh_membership_install(
                     generation,
                     prepared,
-                    desired_plan.desired().cloned(),
+                    desired_plan.desired().map(|key| key.anchor().clone()),
                     recovery_deadlines,
                 )?;
                 let decision = state_plan.commit();
@@ -1444,7 +1754,7 @@ impl NativeUi {
                     }
                 }
             } else {
-                state.apply_prepared_refresh(prepared)
+                state.apply_prepared_refresh(prepared, transaction.observed_at())
             };
             if matches!(decision, RefreshDecision::Retire) {
                 clear_projection = true;
@@ -1459,7 +1769,7 @@ impl NativeUi {
         match result {
             Ok(MutationResult::Applied) => {
                 if clear_projection {
-                    self.clear_projection();
+                    self.clear_projections();
                 }
                 if let Some(failure) = retire_after_reply {
                     self.retire(failure);
@@ -1494,65 +1804,78 @@ impl NativeUi {
             };
         };
         let expected = match self.state.as_ref() {
-            Some(state) => state.expected_frame_geometry(poll_key.attachment()),
+            Some(state) => state.expected_frame_geometry(poll_key.pane_ref()),
             None => {
                 self.retire(CarrierFailure::Protocol);
                 return true;
             }
         };
-        let Some(projection) = self
-            .projection
-            .as_mut()
-            .filter(|projection| &projection.key == poll_key.attachment())
+        // The poll's exact incarnation must still own an installed projection;
+        // a detached or re-incarnated pane's late result is dropped, not
+        // applied — the causal settlement below still answers the lease.
+        let Some(index) = self
+            .projections
+            .iter()
+            .position(|projection| &projection.key == poll_key.pane_ref())
         else {
-            self.retire(CarrierFailure::Protocol);
+            self.pending_draws.push(PendingDraw {
+                poll_key,
+                settlement: CausalSettlement::NoFeedback,
+                frame: None,
+                ordinary,
+            });
             return true;
         };
-        let result = projection.value.receive_for_geometry(&record, expected);
-        let (settlement, frame, status) =
-            match result {
-                Ok(Some(feedback @ TerminalViewerAction::FrameApplied { .. })) => (
+        let result = self.projections[index]
+            .value
+            .receive_for_geometry(&record, expected);
+        let (settlement, frame, status) = match result {
+            Ok(Some(feedback @ TerminalViewerAction::FrameApplied { .. })) => (
+                CausalSettlement::Feedback(feedback),
+                Some(FrameIdentity::new(poll_key.serial())),
+                NativeProjectionStatus::FrameAvailable,
+            ),
+            Ok(Some(feedback @ TerminalViewerAction::NeedSnapshot { .. })) => {
+                if self
+                    .state
+                    .as_mut()
+                    .is_none_or(|state| !state.invalidate_projection_frame(poll_key.pane_ref()))
+                {
+                    self.retire(CarrierFailure::Protocol);
+                    return true;
+                }
+                (
                     CausalSettlement::Feedback(feedback),
-                    Some(FrameIdentity::new(poll_key.serial())),
-                    NativeProjectionStatus::FrameAvailable,
-                ),
-                Ok(Some(feedback @ TerminalViewerAction::NeedSnapshot { .. })) => {
-                    if self.state.as_mut().is_none_or(|state| {
-                        !state.invalidate_projection_frame(poll_key.attachment())
-                    }) {
-                        self.retire(CarrierFailure::Protocol);
-                        return true;
-                    }
-                    (
-                        CausalSettlement::Feedback(feedback),
-                        None,
-                        NativeProjectionStatus::WaitingForFullFrame,
-                    )
-                }
-                Ok(None) => {
-                    if self.state.as_mut().is_none_or(|state| {
-                        !state.invalidate_projection_frame(poll_key.attachment())
-                    }) {
-                        self.retire(CarrierFailure::Protocol);
-                        return true;
-                    }
-                    (
-                        CausalSettlement::NoFeedback,
-                        None,
-                        NativeProjectionStatus::Blocked,
-                    )
-                }
-                Err(()) => {
+                    None,
+                    NativeProjectionStatus::WaitingForFullFrame,
+                )
+            }
+            Ok(None) => {
+                if self
+                    .state
+                    .as_mut()
+                    .is_none_or(|state| !state.invalidate_projection_frame(poll_key.pane_ref()))
+                {
                     self.retire(CarrierFailure::Protocol);
                     return true;
                 }
-                Ok(Some(_)) => {
-                    self.retire(CarrierFailure::Protocol);
-                    return true;
-                }
-            };
-        self.projection_status = status;
-        self.pending_draw = Some(PendingDraw {
+                (
+                    CausalSettlement::NoFeedback,
+                    None,
+                    NativeProjectionStatus::Blocked,
+                )
+            }
+            Err(()) => {
+                self.retire(CarrierFailure::Protocol);
+                return true;
+            }
+            Ok(Some(_)) => {
+                self.retire(CarrierFailure::Protocol);
+                return true;
+            }
+        };
+        self.projections[index].status = status;
+        self.pending_draws.push(PendingDraw {
             poll_key,
             settlement,
             frame,
@@ -1611,26 +1934,43 @@ impl NativeUi {
         }
     }
 
+    /// Schedules the next ordinary poll for the next pane in rotation. One
+    /// ordinary poll stays in flight at a time — the single causal cell is
+    /// preserved — while the cursor walks the projected pane set so every
+    /// pane's viewer advances without starving the focus.
     fn schedule_poll(&mut self, mailbox: &Arc<CommandMailbox>) {
-        if self.pending_draw.is_some() || self.ordinary_poll_serial.is_some() {
+        if !self.pending_draws.is_empty() || self.ordinary_poll_serial.is_some() {
             return;
         }
         let Some(state) = self.state.as_ref() else {
             return;
         };
-        if state.ready().is_none()
-            || state.projection_key() != state.desired()
-            || self
-                .projection
-                .as_ref()
-                .is_none_or(|projection| Some(&projection.key) != state.desired())
-        {
+        if state.ready().is_none() {
             return;
         }
-        let Some(key) = state.desired().cloned() else {
+        let pollable = state.pollable_panes();
+        if pollable.is_empty() {
+            self.poll_cursor = 0;
+            return;
+        }
+        // Only panes this UI actually projects are served — a state-side live
+        // pane whose projection was never installed here (or was already
+        // dropped) must not mint a poll it cannot settle.
+        let start = self.poll_cursor % pollable.len();
+        let key = (0..pollable.len())
+            .map(|offset| &pollable[(start + offset) % pollable.len()])
+            .find(|key| {
+                self.projections
+                    .iter()
+                    .any(|projection| projection.key == **key)
+            })
+            .cloned();
+        let Some(key) = key else {
+            self.poll_cursor = 0;
             return;
         };
-        if state.close_suppresses_attachment(&key) {
+        self.poll_cursor = self.poll_cursor.wrapping_add(1);
+        if state.close_suppresses_attachment(key.pane().anchor()) {
             return;
         }
         match mailbox.try_enqueue(QueuedCommand::Poll(Tagged::new(key, ()))) {
@@ -1664,11 +2004,22 @@ impl NativeUi {
         true
     }
 
-    fn clear_projection(&mut self) {
-        self.projection = None;
-        self.projection_status = NativeProjectionStatus::Empty;
-        self.pending_draw = None;
+    /// Drops every projection and staged draw — used on epoch teardown, where
+    /// all panes retire together, and on retirement.
+    fn clear_projections(&mut self) {
+        self.projections.clear();
+        self.pending_draws.clear();
         self.ordinary_poll_serial = None;
+        self.poll_cursor = 0;
+    }
+
+    /// Drops one pane's projection and staged draws — focus-scoped settle
+    /// events (`CleanupSettled`, `SetupWithoutAttachment`) and pane-local
+    /// disposal land here, leaving sibling panes untouched.
+    fn clear_pane_projection(&mut self, key: &PaneRef) {
+        self.projections.retain(|projection| &projection.key != key);
+        self.pending_draws
+            .retain(|pending| pending.poll_key.pane_ref() != key);
     }
 
     fn handle_event_error(&mut self, error: EventError) -> bool {
@@ -1699,7 +2050,7 @@ impl NativeUi {
         if self.retirement_failure.is_none() {
             self.retirement_failure = Some(failure);
         }
-        self.clear_projection();
+        self.clear_projections();
     }
 }
 
@@ -1802,24 +2153,6 @@ fn build_switch(
         return Err(ActionBuildError::Protocol);
     }
     Ok(SwitchMarker::new(target))
-}
-
-fn build_panel_switch(
-    state: &mut NativeSessionState,
-    generation: u64,
-    direction: PanelDirection,
-    deadlines: OperationDeadlines,
-) -> Result<SwitchMarker, ActionBuildError> {
-    if !state.invariant_holds() {
-        return Err(ActionBuildError::Protocol);
-    }
-    let target = state
-        .plan_panel_focus(direction, generation, deadlines)
-        .ok_or(ActionBuildError::NoOp)?;
-    state
-        .begin_switch(target.clone())
-        .then_some(SwitchMarker::new(target))
-        .ok_or(ActionBuildError::Busy)
 }
 
 fn finish_action<Value>(

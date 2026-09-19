@@ -31,13 +31,13 @@ impl PanelMarker {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) struct PanelSettlement {
     decision: PanelDecision,
-    desired: Option<AttachmentKey>,
+    desired: Option<PaneKey>,
 }
 
 impl PanelSettlement {
     pub(in crate::terminal_session) fn new(
         decision: PanelDecision,
-        desired: impl Into<Option<AttachmentKey>>,
+        desired: impl Into<Option<PaneKey>>,
     ) -> Self {
         Self {
             decision,
@@ -47,7 +47,7 @@ impl PanelSettlement {
     pub(in crate::terminal_session) const fn decision(&self) -> &PanelDecision {
         &self.decision
     }
-    pub(in crate::terminal_session) const fn desired(&self) -> Option<&AttachmentKey> {
+    pub(in crate::terminal_session) const fn desired(&self) -> Option<&PaneKey> {
         self.desired.as_ref()
     }
 }
@@ -99,7 +99,7 @@ impl CommandMailbox {
         let operation = build(canonical, request_id.clone()).map_err(MoveAdmissionError::Build)?;
         if operation.request_id() != &request_id
             || operation.deadline() != deadline
-            || state.desired.key() != Some(operation.target())
+            || state.desired.key().map(PaneKey::anchor) != Some(operation.target())
             || operation
                 .baseline()
                 .tab_index(operation.target().tab_id())
@@ -129,6 +129,7 @@ impl CommandMailbox {
         state.queue.push_back(QueuedRecord {
             serial,
             command: QueuedCommand::Panel(PanelMarker::new(operation.clone())),
+            retry_at: None,
         });
         self.changed.notify_all();
         Ok(operation)
@@ -203,7 +204,7 @@ impl MailboxState {
             && flight.stage == PendingRefreshStage::AwaitingUi
             && self.active_lease.map(|lease| lease.serial) == Some(flight.serial)
             && self.event_anchor_serial == Some(flight.serial)
-            && self.desired.key() == Some(flight.operation.target())
+            && self.desired.key().map(PaneKey::anchor) == Some(flight.operation.target())
             && old.is_none_or(|old| old == flight.operation.target()))
     }
 }

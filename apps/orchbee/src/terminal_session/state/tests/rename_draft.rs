@@ -161,9 +161,9 @@ fn rename_draft_rejects_changed_attachment_generation_independently_of_revision(
     let mut state = ready(2);
     let token = state.open_rename_draft().unwrap();
     state.acknowledge_rename_draw(Some(token));
-    state.desired = Some(AttachmentKey::new(
-        2,
-        state.desired().unwrap().tab_id().clone(),
+    state.desired = Some(PaneKey::new(
+        AttachmentKey::new(2, state.desired().unwrap().tab_id().clone()),
+        state.desired().unwrap().panel().clone(),
     ));
     assert!(state.plan_rename_draft(token).is_none());
     assert!(state.rename_draft().is_none());

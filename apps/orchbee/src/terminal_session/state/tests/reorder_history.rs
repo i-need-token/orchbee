@@ -102,17 +102,21 @@ fn replay(phase: u8, actions: &[Action]) -> Result<[usize; 7], Failure> {
         } else {
             SessionPhase::RetryableAttachUnavailable(selected)
         };
-        state.attached_key = None;
-        state.projection_key = None;
-        state.staged_frame = None;
-        state.accepted_frame = None;
+        if let Some(record) = state.focus_record_mut() {
+            record.attached = false;
+            record.projected = false;
+            record.staged_frame = None;
+            record.accepted_frame = None;
+            record.mode = None;
+            record.last_accepted_geometry = None;
+        }
     }
     let active_id = canonical.terminal_contexts[0].tabs[0].tab_id.clone();
     let desired = state.desired().unwrap().clone();
     let attached = state.attached_key().cloned();
     let projection = state.projection_key().cloned();
     let mode = state.controller_mode().cloned();
-    let frame = state.accepted_frame.clone();
+    let frame = state.focus_accepted_frame().clone();
     let stable_phase = state.phase_kind();
     let mut coverage = [0_usize; 7];
     for (step, action) in actions.iter().enumerate() {
@@ -177,7 +181,7 @@ fn replay(phase: u8, actions: &[Action]) -> Result<[usize; 7], Failure> {
             || state.attached_key() != attached.as_ref()
             || state.projection_key() != projection.as_ref()
             || state.controller_mode() != mode.as_ref()
-            || state.accepted_frame != frame
+            || state.focus_accepted_frame() != frame
             || state.phase_kind() != stable_phase
             || !state.invariant_holds()
         {

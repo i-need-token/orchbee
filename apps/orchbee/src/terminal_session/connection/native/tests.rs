@@ -218,7 +218,10 @@ fn startup_controlling_draws_before_exact_feedback_and_clears_its_ceiling() -> T
     harness.elapsed_millis.store(51_000, Ordering::SeqCst);
     harness
         .mailbox
-        .try_enqueue(QueuedCommand::Poll(Tagged::new(key.clone(), ())))
+        .try_enqueue(QueuedCommand::Poll(Tagged::new(
+            harness.ui.pane_ref(&key)?,
+            (),
+        )))
         .map_err(|error| test_error(&format!("failed to enqueue post-Ready Poll: {error:?}")))?;
     let ClientMessage::TerminalViewer(request) = harness.carrier.take_obcs()? else {
         return Err(test_error(
@@ -1318,7 +1321,7 @@ fn run_switch_supersession_cut(cut: SwitchSupersessionCut) -> TestResult {
             ));
             assert_eq!(harness.ui.drawn_frames(), 2);
             AdmittedSwitch {
-                key: harness.ui.state().desired().unwrap().clone(),
+                key: harness.ui.state().desired().unwrap().anchor().clone(),
                 deadlines: first.deadlines,
             }
         }
@@ -1883,7 +1886,7 @@ fn drive_switch_to_pending_unattached(
     ));
 
     let installed = InstalledSwitch {
-        key: harness.ui.state().desired().unwrap().clone(),
+        key: harness.ui.state().desired().unwrap().anchor().clone(),
         deadlines: switch.deadlines,
     };
     assert_eq!(installed.key.generation(), switch.key.generation() + 1);
@@ -2039,7 +2042,10 @@ fn run_ready_zero_write_cut(cut: ReadyZeroWriteCut) -> TestResult {
     }
     harness
         .mailbox
-        .try_enqueue(QueuedCommand::Poll(Tagged::new(old.clone(), ())))
+        .try_enqueue(QueuedCommand::Poll(Tagged::new(
+            harness.ui.pane_ref(&old)?,
+            (),
+        )))
         .map_err(|error| test_error(&format!("failed to enqueue ordinary Poll: {error:?}")))?;
     match cut {
         ReadyZeroWriteCut::Poll => {}
@@ -2561,7 +2567,10 @@ fn run_ready_drain_cut(cut: ReadyDrainCut) -> TestResult {
         ReadyDrainCut::FeedbackSettlement => {
             harness
                 .mailbox
-                .try_enqueue(QueuedCommand::Poll(Tagged::new(old.clone(), ())))
+                .try_enqueue(QueuedCommand::Poll(Tagged::new(
+                    harness.ui.pane_ref(&old)?,
+                    (),
+                )))
                 .map_err(|error| {
                     test_error(&format!("failed to enqueue ordinary Poll: {error:?}"))
                 })?;
@@ -2844,7 +2853,7 @@ fn drive_switch_to_pending_attached(
     ));
 
     let installed = InstalledSwitch {
-        key: harness.ui.state().desired().unwrap().clone(),
+        key: harness.ui.state().desired().unwrap().anchor().clone(),
         deadlines: switch.deadlines,
     };
     assert_eq!(installed.key.generation(), switch.key.generation() + 1);

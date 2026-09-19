@@ -213,7 +213,7 @@ impl NativeUi {
         self.mailbox = Some(Arc::clone(&mailbox));
         self.retirement_failure = None;
         self.retirement_finalized = false;
-        self.pending_draw = None;
+        self.pending_draws.clear();
         self.ordinary_poll_serial = None;
         Some((mailbox, self.clock.clone()))
     }

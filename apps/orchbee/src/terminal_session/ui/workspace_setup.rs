@@ -210,7 +210,7 @@ impl NativeUi {
                 self.apply_refresh_event(mailbox, wait, operation.generation, *outcome)
             }
             SetupResult::NotApplied => {
-                let result = mailbox.deposit_ui_reply_before(&wait, &self.clock, |_| {
+                let result = mailbox.deposit_ui_reply_before(&wait, &self.clock, |transaction| {
                     if !state.settle_setup_not_applied(&operation) {
                         return Err(CarrierFailure::Protocol);
                     }
@@ -218,7 +218,8 @@ impl NativeUi {
                         generation: operation.generation,
                         baseline_revision: state.cache().revision(),
                     };
-                    let decision = state.apply_prepared_refresh(prepared);
+                    let decision =
+                        state.apply_prepared_refresh(prepared, transaction.observed_at());
                     Ok(UiReply::Refresh(RefreshSettlement::new(
                         decision,
                         state.desired().cloned(),

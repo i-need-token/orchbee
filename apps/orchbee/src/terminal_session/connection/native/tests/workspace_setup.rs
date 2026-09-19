@@ -80,7 +80,7 @@ fn earlier_input_consumes_setup_budget_without_any_setup_frame() -> TestResult {
     harness.release_prewrite_gate()?;
     let state = harness.finish_with_setup_not_applied(CarrierFailure::Deadline)?;
     assert_eq!(state.cache(), &baseline);
-    assert_eq!(state.attached_key(), Some(&old));
+    assert_eq!(state.attached_key().map(|pane| pane.anchor()), Some(&old));
     Ok(())
 }
 
@@ -107,7 +107,7 @@ fn definite_setup_refusal_survives_unconsumed_ui_result_deadline() -> TestResult
     harness.elapsed_millis.store(50_000, Ordering::SeqCst);
     let state = harness.finish_with_setup_not_applied(CarrierFailure::Deadline)?;
     assert_eq!(state.cache(), &baseline);
-    assert_eq!(state.attached_key(), Some(&old));
+    assert_eq!(state.attached_key().map(|pane| pane.anchor()), Some(&old));
     Ok(())
 }
 
@@ -141,7 +141,10 @@ fn explicit_setup_recovery_reads_only_and_next_wizard_command_requires_fresh_dra
         Some(NativeSetupStatus::CommittedNeedRefresh)
     );
     assert_eq!(harness.ui.state().cache(), &baseline);
-    assert_eq!(harness.ui.state().attached_key(), Some(&old));
+    assert_eq!(
+        harness.ui.state().attached_key().map(|pane| pane.anchor()),
+        Some(&old)
+    );
     assert!(harness.ui.state().setup_draft().is_none());
 
     // An explicit action receives a new operation budget even after the mutation's original
@@ -170,7 +173,10 @@ fn explicit_setup_recovery_reads_only_and_next_wizard_command_requires_fresh_dra
         harness.ui.state().cache().revision(),
         WorkbenchRevision::new(2)
     );
-    assert_eq!(harness.ui.state().attached_key(), Some(&old));
+    assert_eq!(
+        harness.ui.state().attached_key().map(|pane| pane.anchor()),
+        Some(&old)
+    );
     assert_eq!(
         harness.ui.state().setup_draft().unwrap().stage(),
         NativeSetupStage::WorkspaceLabel

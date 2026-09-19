@@ -18,6 +18,9 @@ pub(super) struct TabDisplay<'a> {
     pub(super) label: &'a str,
 }
 
+/// Paints the compact tab strip and reports each painted token's
+/// `(tab index, x offset, width)` to `on_token` in the same pass, so a
+/// recorded hit region can never disagree with what was drawn.
 pub(super) fn render_compact<'a>(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -25,6 +28,7 @@ pub(super) fn render_compact<'a>(
     active_position: Option<usize>,
     tab_at: impl Fn(usize) -> Option<TabDisplay<'a>>,
     theme: &Theme,
+    on_token: &mut impl FnMut(usize, usize, usize),
 ) {
     let line = compact_line(
         usize::from(area.width),
@@ -32,10 +36,13 @@ pub(super) fn render_compact<'a>(
         active_position,
         &tab_at,
         theme,
+        on_token,
     );
     frame.render_widget(Paragraph::new(line), area);
 }
 
+/// Paints the navigator's tab column and reports each painted row's
+/// `(tab index, row offset)` to `on_row` in the same pass.
 pub(super) fn render_navigator<'a>(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -43,6 +50,7 @@ pub(super) fn render_navigator<'a>(
     active_position: Option<usize>,
     tab_at: impl Fn(usize) -> Option<TabDisplay<'a>>,
     theme: &Theme,
+    on_row: &mut impl FnMut(usize, u16),
 ) {
     let lines = navigator_lines(
         usize::from(area.width),
@@ -51,6 +59,7 @@ pub(super) fn render_navigator<'a>(
         active_position,
         &tab_at,
         theme,
+        on_row,
     );
     frame.render_widget(Paragraph::new(lines), area);
 }
@@ -61,6 +70,7 @@ fn compact_line<'a>(
     active_position: Option<usize>,
     tab_at: &impl Fn(usize) -> Option<TabDisplay<'a>>,
     theme: &Theme,
+    on_token: &mut impl FnMut(usize, usize, usize),
 ) -> Line<'static> {
     if width == 0 || tab_count == 0 {
         return Line::default();
@@ -84,7 +94,9 @@ fn compact_line<'a>(
         let Some((token, token_width)) = compact_token(tab, remaining, theme) else {
             break;
         };
+        let token_x = used;
         spans.push(Span::styled(token, compact_style(tab.active, theme)));
+        on_token(index, token_x, token_width);
         used = used.saturating_add(token_width);
         if used >= width {
             break;
@@ -136,6 +148,7 @@ fn navigator_lines<'a>(
     active_position: Option<usize>,
     tab_at: &impl Fn(usize) -> Option<TabDisplay<'a>>,
     theme: &Theme,
+    on_row: &mut impl FnMut(usize, u16),
 ) -> Vec<Line<'static>> {
     if height == 0 || width == 0 || tab_count == 0 {
         return Vec::new();
@@ -156,15 +169,17 @@ fn navigator_lines<'a>(
         .min(tab_count.saturating_sub(item_rows));
     let end = start.saturating_add(item_rows).min(tab_count);
 
-    let mut lines: Vec<Line<'static>> = (start..end)
-        .map_while(tab_at)
-        .map(|tab| {
-            Line::from(Span::styled(
-                navigator_row(tab, width, theme),
-                navigator_style(tab.active, theme),
-            ))
-        })
-        .collect();
+    let mut lines = Vec::new();
+    for (offset, index) in (start..end).enumerate() {
+        let Some(tab) = tab_at(index) else {
+            break;
+        };
+        lines.push(Line::from(Span::styled(
+            navigator_row(tab, width, theme),
+            navigator_style(tab.active, theme),
+        )));
+        on_row(index, u16::try_from(offset).unwrap_or(u16::MAX));
+    }
     if tab_count > height {
         let current = active_index.map_or(end, |index| index.saturating_add(1));
         lines.push(Line::styled(

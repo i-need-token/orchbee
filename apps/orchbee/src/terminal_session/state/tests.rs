@@ -39,11 +39,11 @@ fn ready_with_cache(cache: NativeContextTabs) -> NativeSessionState {
         .unwrap()
         .0;
     let key = state.desired().unwrap().clone();
-    assert!(state.install_projection(&key));
-    assert!(state.record_setup_configuration(&key, controlling(), Some(geometry(80))));
-    assert!(state.stage_drawn_frame(&key, FrameIdentity::new(1)));
-    assert!(state.mark_feedback_accepted(&key, FrameIdentity::new(1)));
-    assert!(state.publish_ready(
+    assert!(state.install_projection_t(&key));
+    assert!(state.record_setup_configuration_t(&key, controlling(), Some(geometry(80))));
+    assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(1)));
+    assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(1)));
+    assert!(state.publish_ready_t(
         &key,
         FrameIdentity::new(1),
         controlling(),
@@ -62,7 +62,7 @@ fn retryable_state(base: Instant) -> NativeSessionState {
     assert!(state.begin_switch(target));
     let target_key = install_switch_candidate(&mut state, &target_key);
     assert_eq!(
-        state.settle_unattached_setup(&target_key, 1, &CreateTerminalProvenance::BindingOnly),
+        state.settle_unattached_setup_t(&target_key, 1, &CreateTerminalProvenance::BindingOnly),
         Some(CleanupContinuation::Stable)
     );
     assert_eq!(
@@ -77,7 +77,7 @@ fn install_switch_candidate(
     marker: &AttachmentKey,
 ) -> AttachmentKey {
     let fresh = prepare_and_install_switch_candidate(state, marker).unwrap();
-    assert_eq!(state.desired(), Some(&fresh));
+    assert_eq!(state.desired().map(|pane| pane.anchor()), Some(&fresh));
     assert!(state.invariant_holds());
     fresh
 }
@@ -87,7 +87,7 @@ fn prepare_and_install_switch_candidate(
     marker: &AttachmentKey,
 ) -> Result<AttachmentKey, CarrierFailure> {
     let deadlines = state
-        .switch_deadlines(marker)
+        .switch_deadlines_k(marker)
         .ok_or(CarrierFailure::Protocol)?;
     let prepared = state.prepare_membership_candidate(
         state.cache().clone(),
@@ -102,15 +102,15 @@ fn prepare_and_install_switch_candidate(
             .ok_or(CarrierFailure::IdentityExhausted)?,
         marker.tab_id().clone(),
     );
-    if state.attached_key().is_some() {
-        let cleanup = state.stage_switch_membership_cleanup(marker, prepared, deadlines)?;
+    if state.has_attachments() {
+        let cleanup = state.stage_switch_membership_cleanup_k(marker, prepared, deadlines)?;
         let prepared = state.prepare_cleaned_membership_candidate(&cleanup, cleanup.old())?;
         state
             .prepare_cleaned_membership_install(&cleanup, prepared, Some(fresh.clone()))?
             .commit();
     } else {
         state
-            .prepare_switch_membership_install(marker, prepared, Some(fresh.clone()))?
+            .prepare_switch_membership_install_k(marker, prepared, Some(fresh.clone()))?
             .commit();
     }
     Ok(fresh)
@@ -130,8 +130,14 @@ fn bootstrap_uses_the_authoritative_first_tab_and_rejects_zero_generation() {
         target.selected().key().tab_id(),
         state.tab(0).unwrap().tab_id()
     );
-    assert_eq!(state.last_admitted_geometry(state.desired().unwrap()), None);
-    assert_eq!(state.last_accepted_geometry(state.desired().unwrap()), None);
+    assert_eq!(
+        state.last_admitted_geometry_t(state.desired().unwrap()),
+        None
+    );
+    assert_eq!(
+        state.last_accepted_geometry_t(state.desired().unwrap()),
+        None
+    );
     assert!(state.invariant_holds());
 }
 
@@ -139,20 +145,20 @@ fn bootstrap_uses_the_authoritative_first_tab_and_rejects_zero_generation() {
 fn ready_requires_exact_projection_feedback_and_latest_controlling_geometry() {
     let mut state = state(1);
     let key = state.desired().unwrap().clone();
-    assert!(!state.publish_ready(
+    assert!(!state.publish_ready_t(
         &key,
         FrameIdentity::new(1),
         controlling(),
         Some(geometry(80))
     ));
-    assert!(state.install_projection(&key));
-    assert!(state.record_setup_configuration(&key, controlling(), Some(geometry(80))));
+    assert!(state.install_projection_t(&key));
+    assert!(state.record_setup_configuration_t(&key, controlling(), Some(geometry(80))));
     state.observe_geometry(geometry(81));
-    assert!(state.stage_drawn_frame(&key, FrameIdentity::new(1)));
-    assert!(state.mark_feedback_accepted(&key, FrameIdentity::new(1)));
+    assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(1)));
+    assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(1)));
     assert_eq!(
         state
-            .settle_ready_candidate(
+            .settle_ready_candidate_t(
                 &key,
                 FrameIdentity::new(1),
                 controlling(),
@@ -161,17 +167,17 @@ fn ready_requires_exact_projection_feedback_and_latest_controlling_geometry() {
             .unwrap(),
         ReadyDecision::CatchUpResize(geometry(81))
     );
-    assert_eq!(state.expected_frame_geometry(&key), Some(geometry(80)));
-    assert!(state.record_setup_configuration(&key, controlling(), Some(geometry(81))));
-    assert!(!state.publish_ready(
+    assert_eq!(state.expected_frame_geometry_t(&key), Some(geometry(80)));
+    assert!(state.record_setup_configuration_t(&key, controlling(), Some(geometry(81))));
+    assert!(!state.publish_ready_t(
         &key,
         FrameIdentity::new(1),
         controlling(),
         Some(geometry(81))
     ));
-    assert!(state.stage_drawn_frame(&key, FrameIdentity::new(2)));
-    assert!(state.mark_feedback_accepted(&key, FrameIdentity::new(2)));
-    assert!(state.publish_ready(
+    assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(2)));
+    assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(2)));
+    assert!(state.publish_ready_t(
         &key,
         FrameIdentity::new(2),
         controlling(),
@@ -186,16 +192,16 @@ fn accepted_ready_resize_invalidates_the_old_frame_proof() {
     let mut state = ready(1);
     let key = state.desired().unwrap().clone();
     state.observe_geometry(geometry(90));
-    assert!(state.record_setup_configuration(&key, controlling(), Some(geometry(90))));
+    assert!(state.record_setup_configuration_t(&key, controlling(), Some(geometry(90))));
     assert!(!state.feedback_accepted());
-    assert!(!state.publish_ready(
+    assert!(!state.publish_ready_t(
         &key,
         FrameIdentity::new(1),
         controlling(),
         Some(geometry(90))
     ));
-    assert!(state.stage_drawn_frame(&key, FrameIdentity::new(2)));
-    assert!(state.mark_feedback_accepted(&key, FrameIdentity::new(2)));
+    assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(2)));
+    assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(2)));
 }
 
 #[test]
@@ -209,11 +215,11 @@ fn historical_ready_admits_create_across_transient_frame_gaps() {
         let mut state = if mode == ControllerMode::ReadOnly {
             let mut state = state(1);
             let key = state.desired().unwrap().clone();
-            assert!(state.install_projection(&key));
-            assert!(state.record_setup_configuration(&key, mode.clone(), None));
-            assert!(state.stage_drawn_frame(&key, FrameIdentity::new(1)));
-            assert!(state.mark_feedback_accepted(&key, FrameIdentity::new(1)));
-            assert!(state.publish_ready(&key, FrameIdentity::new(1), mode.clone(), None));
+            assert!(state.install_projection_t(&key));
+            assert!(state.record_setup_configuration_t(&key, mode.clone(), None));
+            assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(1)));
+            assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(1)));
+            assert!(state.publish_ready_t(&key, FrameIdentity::new(1), mode.clone(), None));
             state.provenance[0] = CreateTerminalProvenance::Started;
             state
         } else {
@@ -223,9 +229,9 @@ fn historical_ready_admits_create_across_transient_frame_gaps() {
         let active = state.active().unwrap().clone();
         let provenance = state.provenance(0).unwrap().clone();
         if stage_new_frame {
-            assert!(state.stage_drawn_frame(&key, FrameIdentity::new(2)));
+            assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(2)));
         } else {
-            assert!(state.invalidate_projection_frame(&key));
+            assert!(state.invalidate_projection_frame_t(&key));
         }
         assert!(!state.feedback_accepted());
 
@@ -246,19 +252,19 @@ fn historical_ready_admits_create_across_transient_frame_gaps() {
 fn read_only_ready_ignores_geometry_for_frames_and_never_admits_resize() {
     let mut state = state(1);
     let key = state.desired().unwrap().clone();
-    assert!(state.install_projection(&key));
-    assert!(state.record_setup_configuration(&key, ControllerMode::ReadOnly, None));
+    assert!(state.install_projection_t(&key));
+    assert!(state.record_setup_configuration_t(&key, ControllerMode::ReadOnly, None));
     state.observe_geometry(geometry(111));
-    assert_eq!(state.expected_frame_geometry(&key), None);
-    assert!(state.stage_drawn_frame(&key, FrameIdentity::new(1)));
-    assert!(state.mark_feedback_accepted(&key, FrameIdentity::new(1)));
+    assert_eq!(state.expected_frame_geometry_t(&key), None);
+    assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(1)));
+    assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(1)));
     assert_eq!(
         state
-            .settle_ready_candidate(&key, FrameIdentity::new(1), ControllerMode::ReadOnly, None)
+            .settle_ready_candidate_t(&key, FrameIdentity::new(1), ControllerMode::ReadOnly, None)
             .unwrap(),
         ReadyDecision::Ready
     );
-    assert!(!state.record_admitted_geometry(&key, geometry(111)));
+    assert!(!state.record_admitted_geometry_t(&key, geometry(111)));
     assert_eq!(state.controller_mode(), Some(&ControllerMode::ReadOnly));
     assert!(state.invariant_holds());
 }
@@ -314,7 +320,10 @@ fn commit_keeps_old_active_until_validated_cleanup_installs_the_committed_target
     assert!(state.attached_key().is_none());
     assert!(state.projection_key().is_none());
     assert_ne!(state.desired().unwrap(), &old);
-    assert_eq!(state.desired(), Some(&committed_key));
+    assert_eq!(
+        state.desired().map(|pane| pane.anchor()),
+        Some(&committed_key)
+    );
     assert_eq!(state.active().unwrap().key(), &committed_key);
     assert_eq!(
         state.phase_kind(),
@@ -374,8 +383,8 @@ fn retired_committed_create_preserves_old_active_and_known_commit_for_diagnostic
     assert!(!state.begin_create(later_create));
     assert!(!state.phase_allows_refresh());
     assert!(!state.start_pending_refresh(8));
-    assert!(!state.record_admitted_geometry(old_active.key(), geometry(90)));
-    assert!(!state.install_projection(old_active.key()));
+    assert!(!state.record_admitted_geometry_t(old_active.key(), geometry(90)));
+    assert!(!state.install_projection_t(old_active.key()));
     assert_eq!(
         state.settle_create_snapshot(&operation_key, WorkbenchSnapshotOutcome::Denied {}),
         CreateProjectionDecision::Retire
@@ -481,14 +490,14 @@ fn retirement_clears_pending_refresh_and_render_feedback_but_keeps_cache_diagnos
     assert!(state.attached_key().is_none());
     assert!(state.projection_key().is_none());
     assert_eq!(
-        state.apply_prepared_refresh(prepared_refresh),
+        state.apply_prepared_refresh(prepared_refresh, std::time::Instant::now()),
         RefreshDecision::Continue
     );
     assert_eq!(state.phase_kind(), SessionPhaseKind::Retired);
     assert_eq!(state.active(), Some(&active));
     assert!(state.invariant_holds());
 
-    state.pending_refresh_generation = Some(8);
+    state.pending_refresh = Some(PendingRefreshFlight::recovery(8));
     assert!(!state.invariant_holds());
 }
 
@@ -566,11 +575,11 @@ fn committed_create_then_second_human_create_preserves_provenance_and_fresh_curs
         .unwrap();
     assert!(state.begin_switch(select_old));
     let select_old_key = install_switch_candidate(&mut state, &select_old_key);
-    assert!(state.install_projection(&select_old_key));
-    assert!(state.record_setup_configuration(&select_old_key, controlling(), Some(geometry(80))));
-    assert!(state.stage_drawn_frame(&select_old_key, FrameIdentity::new(4)));
-    assert!(state.mark_feedback_accepted(&select_old_key, FrameIdentity::new(4)));
-    assert!(state.publish_ready(
+    assert!(state.install_projection_t(&select_old_key));
+    assert!(state.record_setup_configuration_t(&select_old_key, controlling(), Some(geometry(80))));
+    assert!(state.stage_drawn_frame_t(&select_old_key, FrameIdentity::new(4)));
+    assert!(state.mark_feedback_accepted_t(&select_old_key, FrameIdentity::new(4)));
+    assert!(state.publish_ready_t(
         &select_old_key,
         FrameIdentity::new(4),
         controlling(),
@@ -694,11 +703,11 @@ fn append_only_refresh_preserves_a_nonfirst_active_id_and_known_provenance() {
     let target = state.target_for_switch(1, key.clone(), deadlines).unwrap();
     assert!(state.begin_switch(target));
     let key = install_switch_candidate(&mut state, &key);
-    assert!(state.install_projection(&key));
-    assert!(state.record_setup_configuration(&key, controlling(), Some(geometry(80))));
-    assert!(state.stage_drawn_frame(&key, FrameIdentity::new(2)));
-    assert!(state.mark_feedback_accepted(&key, FrameIdentity::new(2)));
-    assert!(state.publish_ready(
+    assert!(state.install_projection_t(&key));
+    assert!(state.record_setup_configuration_t(&key, controlling(), Some(geometry(80))));
+    assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(2)));
+    assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(2)));
+    assert!(state.publish_ready_t(
         &key,
         FrameIdentity::new(2),
         controlling(),
@@ -896,51 +905,238 @@ fn split_panel_baseline() -> Snapshot {
     baseline
 }
 
-fn switching_to_nonfirst_panel() -> (NativeSessionState, AttachmentKey, CreateTerminalProvenance) {
+/// Brings the split baseline's second leaf to a live projected attachment —
+/// the precondition a local focus move requires on the target pane.
+fn attach_nonfirst_leaf(state: &mut NativeSessionState) -> PaneRef {
+    let active = state.active().unwrap();
+    let panel_id = state
+        .tab(active.index())
+        .unwrap()
+        .leaf_panel_ids()
+        .into_iter()
+        .nth(1)
+        .unwrap();
+    let pane = PaneKey::new(state.desired().unwrap().anchor().clone(), panel_id);
+    state.install_unattached_pane(&SelectedTab::new_panel(pane.clone(), 0, 1));
+    let pane_ref = state.pane_ref_for(&pane).unwrap();
+    assert!(state.settle_attached_event_t(&pane_ref).is_some());
+    assert!(state.record_setup_configuration_t(&pane_ref, controlling(), Some(geometry(80))));
+    pane_ref
+}
+
+/// A stable logical pane outlives its attachment: when the leaf's record is
+/// disposed and reconcile re-mints it, the pane keeps its `PaneKey` but carries
+/// a fresh incarnation. Work tagged with the retired incarnation — late frames,
+/// setup receipts, detach proofs, geometry admissions — must fence at the exact
+/// `PaneRef`, never land on the re-bound record.
+#[test]
+fn reincarnated_pane_fences_late_work_from_the_retired_attachment_incarnation() {
+    let mut state =
+        ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap());
+    let retired = attach_nonfirst_leaf(&mut state);
+    let pane = retired.pane().clone();
+    let active = state.active().unwrap().index();
+    let leaf_ids = state.tab(active).unwrap().leaf_panel_ids();
+    assert_eq!(leaf_ids.len(), 2);
+    let leaf = |index: usize| (leaf_ids[index].clone(), index, geometry(80));
+
+    // The leaf vanishes from the observed set: reconcile marks the record
+    // departing and the worker's disposal proof drops it.
+    assert!(state.sync_pane_set(&[leaf(0)], Instant::now()));
+    assert!(state.settle_pane_detached(&retired));
+    assert!(state.pane_ref_for(&pane).is_none());
+
+    // The leaf reappears (hidden pane re-shown): a fresh record mints the next
+    // incarnation and its own attachment settles on the same logical pane.
+    assert!(state.sync_pane_set(&[leaf(0), leaf(1)], Instant::now()));
+    let rebound = state.pane_ref_for(&pane).unwrap();
+    assert_eq!(rebound.pane(), &pane);
+    assert_ne!(rebound.incarnation(), retired.incarnation());
+    assert!(matches!(
+        state.settle_attached_event(&rebound),
+        Some(SetupEventDisposition::Applied)
+    ));
+    assert!(state.pane_attached(&rebound));
+
+    // Every late settlement tagged with the retired incarnation is refused and
+    // leaves the live record untouched.
+    assert!(!state.settle_pane_detached(&retired));
+    assert!(!state.stage_drawn_frame(&retired, FrameIdentity::new(7)));
+    assert!(!state.invalidate_projection_frame(&retired));
+    assert!(!state.mark_feedback_accepted(&retired, FrameIdentity::new(7)));
+    assert!(!state.record_setup_configuration(&retired, controlling(), Some(geometry(80))));
+    assert!(!state.settle_pane_fault(&retired, PaneFault::AttachUnavailable));
+    assert!(!state.record_admitted_geometry(&retired, geometry(40)));
+    assert_eq!(state.settle_attached_event(&retired), None);
+    assert_eq!(state.last_admitted_geometry(&retired), None);
+    assert_eq!(state.last_accepted_geometry(&retired), None);
+    assert_eq!(state.expected_frame_geometry(&retired), None);
+    assert!(matches!(
+        state.settle_ready_candidate(
+            &retired,
+            FrameIdentity::new(7),
+            controlling(),
+            Some(geometry(80))
+        ),
+        Ok(ReadyDecision::Superseded)
+    ));
+
+    // The live incarnation keeps working: frames stage and accept on the
+    // re-bound record only.
+    assert!(state.stage_drawn_frame(&rebound, FrameIdentity::new(9)));
+    assert!(state.mark_feedback_accepted(&rebound, FrameIdentity::new(9)));
+    assert!(state.invariant_holds());
+}
+
+/// Two live panes under one anchor are fenced from each other, not only from
+/// retired generations: a `PaneRef` that was never minted — one pane's key
+/// wearing another pane's incarnation number — is refused by every settlement
+/// path, a frame staged on one pane cannot be acknowledged with the sibling's
+/// live ref, and one pane's disposal proof never satisfies the sibling's
+/// departing record.
+#[test]
+fn same_anchor_panes_fence_cross_pane_and_fabricated_incarnation_refs() {
+    let mut state =
+        ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap());
+    let second = attach_nonfirst_leaf(&mut state);
+    let focus = state.focus_pane_ref().unwrap();
+    assert_ne!(focus.pane(), second.pane());
+    assert_eq!(focus.pane().anchor(), second.pane().anchor());
+
+    // A cross-wired ref — pane B's key wearing a never-minted incarnation —
+    // is refused by every settlement path and reads no state back.
+    let fabricated = PaneRef::new(second.pane().clone(), focus.incarnation() + 31);
+    assert!(!state.settle_pane_detached(&fabricated));
+    assert!(!state.stage_drawn_frame(&fabricated, FrameIdentity::new(5)));
+    assert!(!state.invalidate_projection_frame(&fabricated));
+    assert!(!state.mark_feedback_accepted(&fabricated, FrameIdentity::new(5)));
+    assert!(!state.record_setup_configuration(&fabricated, controlling(), Some(geometry(80))));
+    assert!(!state.settle_pane_fault(&fabricated, PaneFault::AttachUnavailable));
+    assert!(!state.record_admitted_geometry(&fabricated, geometry(40)));
+    assert_eq!(state.settle_attached_event(&fabricated), None);
+    assert_eq!(state.last_admitted_geometry(&fabricated), None);
+    assert_eq!(state.last_accepted_geometry(&fabricated), None);
+    assert_eq!(state.expected_frame_geometry(&fabricated), None);
+    assert!(matches!(
+        state.settle_ready_candidate(
+            &fabricated,
+            FrameIdentity::new(5),
+            controlling(),
+            Some(geometry(80))
+        ),
+        Ok(ReadyDecision::Superseded)
+    ));
+
+    // Frame acknowledgment is owned by the record that staged the frame: the
+    // sibling's live ref cannot ack a frame staged on the focus pane, while
+    // the focus pane's own ref accepts it.
+    assert!(state.stage_drawn_frame(&focus, FrameIdentity::new(6)));
+    assert!(!state.mark_feedback_accepted(&second, FrameIdentity::new(6)));
+    assert!(state.mark_feedback_accepted(&focus, FrameIdentity::new(6)));
+
+    // With both panes departing, one pane's disposal proof drops only its own
+    // record — the sibling's departing record survives until its own proof.
+    let active = state.active().unwrap().index();
+    let leaf_ids = state.tab(active).unwrap().leaf_panel_ids();
+    let leaf = |index: usize| (leaf_ids[index].clone(), index, geometry(80));
+    assert!(state.sync_pane_set(&[], Instant::now()));
+    assert!(state.settle_pane_detached(&second));
+    assert!(state.pane_ref_for(second.pane()).is_none());
+    assert!(state.pane_ref_for(focus.pane()).is_some());
+    assert!(
+        state
+            .pane_record(focus.pane())
+            .is_some_and(|record| record.departing)
+    );
+
+    // Re-observing the leaves heals the departing focus record in place and
+    // mints a fresh incarnation for the sibling — the session recovers as a
+    // coherent collection.
+    assert!(state.sync_pane_set(&[leaf(0), leaf(1)], Instant::now()));
+    let reminted = state.pane_ref_for(second.pane()).unwrap();
+    assert_ne!(reminted.incarnation(), second.incarnation());
+    assert_eq!(state.pane_ref_for(focus.pane()), Some(focus));
+    assert!(state.invariant_holds());
+}
+
+/// The shape a focus move to a background leaf takes while its attach is still
+/// converging: pane 1 of the split baseline is minted and selected but carries
+/// no viewer yet — the Switching phase holds it as the in-flight target.
+fn switching_to_nonfirst_panel() -> (NativeSessionState, PaneRef, CreateTerminalProvenance) {
     let mut state =
         ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap());
     let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
+    let selected = SelectedTab::new_panel(
+        PaneKey::new(state.desired().unwrap().anchor().clone(), panel_id(3_010)),
+        0,
+        1,
+    );
+    let provenance = state
+        .provenance
+        .first()
+        .cloned()
+        .unwrap_or(CreateTerminalProvenance::BindingOnly);
     let target = state
-        .plan_panel_focus(crate::client_view::PanelDirection::Right, 2, deadlines)
+        .attach_target(selected.clone(), provenance.clone(), deadlines)
         .unwrap();
-    assert_eq!(target.selected().index(), 0);
-    assert_eq!(target.selected().panel_index(), 1);
-    let marker = target.selected().key().clone();
-    let provenance = target.provenance().clone();
-    assert!(state.begin_switch(target));
+    // The focus pane's disposal already settled: only the in-flight target
+    // record remains under the anchor.
+    state.panes.clear();
+    state.panes.push(PaneRecord::new(
+        PaneRef::new(selected.key().clone(), target.incarnation),
+        0,
+        1,
+        state.cache().site_id().clone(),
+        target.binding().clone(),
+        provenance.clone(),
+        state.latest_geometry(),
+    ));
+    let marker = target.pane_ref();
+    state.desired = Some(selected.key().clone());
+    state.phase = SessionPhase::Switching(SwitchSetup {
+        target,
+        previous: None,
+        mode: None,
+        accepted_geometry: None,
+        membership: None,
+    });
     (state, marker, provenance)
 }
 
 #[test]
 fn unattached_setup_settlement_preserves_the_validated_nonfirst_panel_selection() {
     let (mut state, marker, provenance) = switching_to_nonfirst_panel();
-    let fresh = install_switch_candidate(&mut state, &marker);
     assert_eq!(
-        state.settle_unattached_setup(&fresh, 0, &provenance),
+        state.settle_unattached_setup_t(&marker, 0, &provenance),
         Some(CleanupContinuation::Stable)
     );
     assert_eq!(
         state.phase_kind(),
         SessionPhaseKind::RetryableAttachUnavailable
     );
-    assert_eq!(state.active(), Some(&SelectedTab::new_panel(fresh, 0, 1)));
+    assert_eq!(
+        state.active(),
+        Some(&SelectedTab::new_panel(marker.pane().clone(), 0, 1))
+    );
     assert!(state.invariant_holds());
 }
 
 #[test]
 fn cleanup_settlement_preserves_the_validated_nonfirst_panel_selection() {
     let (mut state, marker, provenance) = switching_to_nonfirst_panel();
-    let fresh = install_switch_candidate(&mut state, &marker);
     assert!(state.attached_key().is_none());
     assert_eq!(
-        state.settle_cleanup(&fresh, 0, &provenance),
+        state.settle_cleanup_t(&marker, 0, &provenance),
         Some(CleanupContinuation::Stable)
     );
     assert_eq!(
         state.phase_kind(),
         SessionPhaseKind::RetryableAttachUnavailable
     );
-    assert_eq!(state.active(), Some(&SelectedTab::new_panel(fresh, 0, 1)));
+    assert_eq!(
+        state.active(),
+        Some(&SelectedTab::new_panel(marker.pane().clone(), 0, 1))
+    );
     assert!(state.invariant_holds());
 }
 
@@ -1114,7 +1310,7 @@ fn cleanup_never_publishes_a_stale_generation_and_selects_by_provenance() {
         .unwrap();
     assert!(state.begin_switch(target));
     let old_key = install_switch_candidate(&mut state, &old_key);
-    assert!(state.install_projection(&old_key));
+    assert!(state.install_projection_t(&old_key));
     let newer_key = AttachmentKey::new(
         old_key.generation() + 1,
         state.tab(0).unwrap().tab_id().clone(),
@@ -1124,9 +1320,9 @@ fn cleanup_never_publishes_a_stale_generation_and_selects_by_provenance() {
         .unwrap();
     assert!(state.begin_switch(newer));
     assert_eq!(
-        state.settle_cleanup(&old_key, 1, &CreateTerminalProvenance::BindingOnly),
+        state.settle_cleanup_t(&old_key, 1, &CreateTerminalProvenance::BindingOnly),
         Some(CleanupContinuation::Superseded {
-            desired: newer_key.clone(),
+            desired: state.pane_key_for_anchor(&newer_key).unwrap(),
         })
     );
     assert_eq!(state.phase_kind(), SessionPhaseKind::Switching);
@@ -1134,7 +1330,7 @@ fn cleanup_never_publishes_a_stale_generation_and_selects_by_provenance() {
 
     let newer_key = install_switch_candidate(&mut state, &newer_key);
     assert_eq!(
-        state.settle_unattached_setup(&newer_key, 0, &CreateTerminalProvenance::BindingOnly),
+        state.settle_unattached_setup_t(&newer_key, 0, &CreateTerminalProvenance::BindingOnly),
         Some(CleanupContinuation::Stable)
     );
     assert_eq!(
@@ -1158,7 +1354,7 @@ fn exact_cleanup_settles_a_viewer_attached_on_wire_before_ui_install() {
     let current_key = install_switch_candidate(&mut current, &current_key);
     assert!(current.attached_key().is_none());
     assert_eq!(
-        current.settle_cleanup(&current_key, 1, &CreateTerminalProvenance::BindingOnly),
+        current.settle_cleanup_t(&current_key, 1, &CreateTerminalProvenance::BindingOnly),
         Some(CleanupContinuation::Stable)
     );
     assert_eq!(
@@ -1183,9 +1379,9 @@ fn exact_cleanup_settles_a_viewer_attached_on_wire_before_ui_install() {
         .unwrap();
     assert!(superseded.begin_switch(newer_target));
     assert_eq!(
-        superseded.settle_cleanup(&old_key, 1, &CreateTerminalProvenance::BindingOnly),
+        superseded.settle_cleanup_t(&old_key, 1, &CreateTerminalProvenance::BindingOnly),
         Some(CleanupContinuation::Superseded {
-            desired: newer_key.clone(),
+            desired: superseded.pane_key_for_anchor(&newer_key).unwrap(),
         })
     );
     assert_eq!(superseded.desired().unwrap(), &newer_key);
@@ -1210,14 +1406,14 @@ fn switch_candidate_cleanup_preserves_deadlines_and_superseded_detach_cannot_ins
         let fresh = install_switch_candidate(&mut state, &marker);
         assert_eq!(fresh.generation(), marker.generation() + 1);
         if attachable {
-            assert_eq!(state.switch_deadlines(&fresh), Some(deadlines));
-            assert!(state.install_projection(&fresh));
+            assert_eq!(state.switch_deadlines_k(&fresh), Some(deadlines));
+            assert!(state.install_projection_t(&fresh));
         } else {
             assert_eq!(
                 state.phase_kind(),
                 SessionPhaseKind::SelectedWithoutAttachment
             );
-            assert!(!state.install_projection(&fresh));
+            assert!(!state.install_projection_t(&fresh));
         }
         assert!(state.invariant_holds());
     }
@@ -1225,35 +1421,31 @@ fn switch_candidate_cleanup_preserves_deadlines_and_superseded_detach_cannot_ins
     let mut state = ready(2);
     let old = state.desired().unwrap().clone();
     let marker = AttachmentKey::new(2, state.tab(1).unwrap().tab_id().clone());
-    assert!(
-        state.begin_switch(
-            state
-                .target_for_switch(1, marker.clone(), deadlines)
-                .unwrap()
-        )
-    );
-    let cleanup = state.stage_switch_expiry_cleanup(&marker).unwrap();
+    let target = state
+        .target_for_switch(1, marker.clone(), deadlines)
+        .unwrap();
+    assert!(state.begin_switch(target));
+    let cleanup = state
+        .stage_switch_expiry_cleanup(&state.pane_key_for_anchor(&marker).unwrap())
+        .unwrap();
     assert_eq!(cleanup.deadlines(), deadlines);
     let newest = AttachmentKey::new(3, state.tab(0).unwrap().tab_id().clone());
-    assert!(
-        state.begin_switch(
-            state
-                .target_for_switch(0, newest.clone(), deadlines)
-                .unwrap()
-        )
-    );
+    let newest_target = state
+        .target_for_switch(0, newest.clone(), deadlines)
+        .unwrap();
+    assert!(state.begin_switch(newest_target));
     state.finish_switch_membership_admission(None, None, true);
     assert!(
         state
-            .prepare_cleaned_membership_candidate(&cleanup, &old)
+            .prepare_cleaned_membership_candidate(&cleanup, old.anchor())
             .is_err()
     );
     state
         .settle_switch_membership_cleanup(&cleanup, true)
         .unwrap();
-    assert_eq!(state.desired(), Some(&newest));
+    assert_eq!(state.desired().map(|pane| pane.anchor()), Some(&newest));
     assert_eq!(state.attached_key(), None);
-    assert!(!state.install_projection(&newest));
+    assert!(!state.install_projection_t(&newest));
     assert!(state.invariant_holds());
 }
 
@@ -1267,15 +1459,12 @@ fn switch_entry_expiry_without_a_viewer_requires_an_installed_candidate() {
             state.desired().unwrap().generation() + 1,
             state.tab(0).unwrap().tab_id().clone(),
         );
-        assert!(
-            state.begin_switch(
-                state
-                    .target_for_switch(0, marker.clone(), deadlines)
-                    .unwrap()
-            )
-        );
+        let target = state
+            .target_for_switch(0, marker.clone(), deadlines)
+            .unwrap();
+        assert!(state.begin_switch(target));
         assert_eq!(
-            state.settle_switch_entry_expired(
+            state.settle_switch_entry_expired_t(
                 &marker,
                 0,
                 &CreateTerminalProvenance::BindingOnly,
@@ -1290,7 +1479,7 @@ fn switch_entry_expiry_without_a_viewer_requires_an_installed_candidate() {
             deadlines.forward_cutoff() - Duration::from_nanos(1)
         };
         assert_eq!(
-            state.settle_switch_entry_expired(
+            state.settle_switch_entry_expired_t(
                 &fresh,
                 0,
                 &CreateTerminalProvenance::BindingOnly,
@@ -1314,20 +1503,17 @@ fn switch_entry_expiry_without_a_viewer_requires_an_installed_candidate() {
         state.desired().unwrap().generation() + 1,
         state.tab(1).unwrap().tab_id().clone(),
     );
-    assert!(
-        state.begin_switch(
-            state
-                .target_for_switch(1, marker.clone(), deadlines)
-                .unwrap()
-        )
-    );
+    let target = state
+        .target_for_switch(1, marker.clone(), deadlines)
+        .unwrap();
+    assert!(state.begin_switch(target));
     let fresh = install_switch_candidate(&mut state, &marker);
     assert_eq!(
         state.phase_kind(),
         SessionPhaseKind::SelectedWithoutAttachment
     );
     assert_eq!(
-        state.settle_switch_entry_expired(
+        state.settle_switch_entry_expired_t(
             &fresh,
             1,
             &CreateTerminalProvenance::Pending,
@@ -1358,16 +1544,16 @@ fn exact_attached_and_feedback_events_acknowledge_supersession_without_new_proof
         .unwrap();
     assert!(attached.begin_switch(target));
     assert_eq!(
-        attached.settle_attached_event(&stale_key),
+        attached.settle_attached_event_t(&stale_key),
         Some(SetupEventDisposition::Superseded {
-            desired: desired.clone(),
+            desired: attached.pane_key_for_anchor(&desired).unwrap(),
         })
     );
     assert!(attached.attached_key().is_none());
     assert!(attached.projection_key().is_none());
     assert_eq!(attached.desired().unwrap(), &desired);
     let wrong = AttachmentKey::new(99, tab_id(99));
-    assert!(attached.settle_attached_event(&wrong).is_none());
+    assert!(attached.settle_attached_event_t(&wrong).is_none());
     assert!(attached.invariant_holds());
 
     let mut configured = ready(2);
@@ -1378,7 +1564,7 @@ fn exact_attached_and_feedback_events_acknowledge_supersession_without_new_proof
     assert!(configured.begin_switch(stale_target));
     let stale_key = install_switch_candidate(&mut configured, &stale_key);
     assert_eq!(
-        configured.settle_attached_event(&stale_key),
+        configured.settle_attached_event_t(&stale_key),
         Some(SetupEventDisposition::Applied)
     );
     let desired = AttachmentKey::new(
@@ -1390,13 +1576,17 @@ fn exact_attached_and_feedback_events_acknowledge_supersession_without_new_proof
         .unwrap();
     assert!(configured.begin_switch(target));
     assert_eq!(
-        configured.settle_setup_configuration_event(&stale_key, controlling(), Some(geometry(80)),),
+        configured.settle_setup_configuration_event_t(
+            &stale_key,
+            controlling(),
+            Some(geometry(80)),
+        ),
         Some(SetupEventDisposition::Superseded {
-            desired: desired.clone(),
+            desired: attached.pane_key_for_anchor(&desired).unwrap(),
         })
     );
     assert_eq!(
-        configured.last_accepted_geometry(&stale_key),
+        configured.last_accepted_geometry_t(&stale_key),
         Some(geometry(80))
     );
     assert_eq!(configured.desired().unwrap(), &desired);
@@ -1410,12 +1600,12 @@ fn exact_attached_and_feedback_events_acknowledge_supersession_without_new_proof
     assert!(feedback.begin_switch(stale_target));
     let stale_key = install_switch_candidate(&mut feedback, &stale_key);
     assert_eq!(
-        feedback.settle_attached_event(&stale_key),
+        feedback.settle_attached_event_t(&stale_key),
         Some(SetupEventDisposition::Applied)
     );
-    assert!(feedback.record_setup_configuration(&stale_key, controlling(), Some(geometry(80)),));
+    assert!(feedback.record_setup_configuration_t(&stale_key, controlling(), Some(geometry(80)),));
     let frame = FrameIdentity::new(7);
-    assert!(feedback.stage_drawn_frame(&stale_key, frame));
+    assert!(feedback.stage_drawn_frame_t(&stale_key, frame));
     let desired = AttachmentKey::new(
         stale_key.generation() + 1,
         feedback.tab(0).unwrap().tab_id().clone(),
@@ -1425,15 +1615,15 @@ fn exact_attached_and_feedback_events_acknowledge_supersession_without_new_proof
         .unwrap();
     assert!(feedback.begin_switch(target));
     assert_eq!(
-        feedback.settle_feedback_event(&stale_key, frame),
+        feedback.settle_feedback_event_t(&stale_key, frame),
         Some(SetupEventDisposition::Superseded {
-            desired: desired.clone(),
+            desired: attached.pane_key_for_anchor(&desired).unwrap(),
         })
     );
     assert!(!feedback.feedback_accepted());
     assert_eq!(feedback.desired().unwrap(), &desired);
     let wrong = AttachmentKey::new(99, tab_id(99));
-    assert!(feedback.settle_feedback_event(&wrong, frame).is_none());
+    assert!(feedback.settle_feedback_event_t(&wrong, frame).is_none());
     assert!(feedback.invariant_holds());
 }
 
@@ -1459,7 +1649,7 @@ fn selection_wrap_bounds_and_same_target_retry_are_exact() {
     assert!(state.begin_switch(target));
     let key = install_switch_candidate(&mut state, &key);
     assert_eq!(
-        state.settle_unattached_setup(&key, 1, &CreateTerminalProvenance::BindingOnly),
+        state.settle_unattached_setup_t(&key, 1, &CreateTerminalProvenance::BindingOnly),
         Some(CleanupContinuation::Stable)
     );
     assert_eq!(
@@ -1616,7 +1806,7 @@ fn finish_refresh(
             recovery_deadlines.expect("Create recovery must sample its own budget"),
         )
     } else {
-        state.apply_prepared_refresh(prepared)
+        state.apply_prepared_refresh(prepared, std::time::Instant::now())
     }
 }
 

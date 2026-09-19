@@ -6,7 +6,7 @@ fn candidate_first_create_unavailable_keeps_exact_old_proof_but_is_never_ready()
     let cache = state.cache().clone();
     let desired = state.desired().cloned();
     let projection = state.projection_key().cloned();
-    let frame = state.accepted_frame.clone();
+    let frame = state.focus_accepted_frame().clone();
     let prepared = state.prepare_create_snapshot(
         &operation,
         WorkbenchSnapshotOutcome::Unavailable {
@@ -21,7 +21,7 @@ fn candidate_first_create_unavailable_keeps_exact_old_proof_but_is_never_ready()
     assert_eq!(state.cache(), &cache);
     assert_eq!(state.desired(), desired.as_ref());
     assert_eq!(state.projection_key(), projection.as_ref());
-    assert_eq!(state.accepted_frame, frame);
+    assert_eq!(state.focus_accepted_frame(), frame);
     assert!(state.ready().is_none());
     assert_eq!(
         state.plan_selection(ClientAction::SelectNextTab),
@@ -172,7 +172,7 @@ fn staged_cleanup_rejects_wrong_identity_and_dropped_install_preserves_all_old_f
     let mut state = ready(1);
     let old = state.desired().unwrap().clone();
     let baseline = state.cache().clone();
-    let frame = state.accepted_frame.clone();
+    let frame = state.focus_accepted_frame().clone();
     assert!(state.start_pending_refresh(9));
     let PreparedRefresh::Membership { prepared, .. } = state.prepare_refresh(
         9,
@@ -196,7 +196,7 @@ fn staged_cleanup_rejects_wrong_identity_and_dropped_install_preserves_all_old_f
             .is_err()
     );
     let prepared = state
-        .prepare_cleaned_membership_candidate(&cleanup, &old)
+        .prepare_cleaned_membership_candidate(&cleanup, old.anchor())
         .unwrap();
     drop(
         state
@@ -205,11 +205,11 @@ fn staged_cleanup_rejects_wrong_identity_and_dropped_install_preserves_all_old_f
     );
     assert_eq!(state.cache(), &baseline);
     assert_eq!(state.attached_key(), Some(&old));
-    assert_eq!(state.accepted_frame, frame);
+    assert_eq!(state.focus_accepted_frame(), frame);
     assert!(state.pending_membership.is_some());
     assert!(state.invariant_holds());
     let prepared = state
-        .prepare_cleaned_membership_candidate(&cleanup, &old)
+        .prepare_cleaned_membership_candidate(&cleanup, old.anchor())
         .unwrap();
     assert_eq!(
         state
@@ -268,21 +268,21 @@ fn attached_member_cannot_be_removed_by_an_install_plan_without_cleanup() {
 fn inactive_removal_reindexes_the_exact_ready_member_without_changing_its_proof() {
     let mut state = ready(2);
     let desired = state.desired().unwrap().clone();
-    let frame = state.accepted_frame.clone();
-    let geometry = state.last_accepted_geometry.clone();
+    let frame = state.focus_accepted_frame().clone();
+    let geometry = state.focus_last_accepted_geometry().clone();
     let prepared = state
         .prepare_membership_candidate(projected(1, 2), Some(desired.tab_id()), Some(0), None)
         .unwrap();
     assert_eq!(
         state
-            .prepare_membership_install(prepared, Some(desired.clone()), None)
+            .prepare_membership_install(prepared, Some(desired.anchor().clone()), None)
             .unwrap()
             .commit(),
         MembershipInstallDecision::Preserved
     );
     assert_eq!(state.desired(), Some(&desired));
-    assert_eq!(state.accepted_frame, frame);
-    assert_eq!(state.last_accepted_geometry, geometry);
+    assert_eq!(state.focus_accepted_frame(), frame);
+    assert_eq!(state.focus_last_accepted_geometry(), geometry);
     assert!(state.ready().is_some());
     assert!(state.invariant_holds());
 }
@@ -295,14 +295,18 @@ fn dropping_a_prepared_state_install_leaves_its_entire_visible_baseline_unchange
     let prepared = state
         .prepare_membership_candidate(
             projected(1, 2),
-            desired.as_ref().map(AttachmentKey::tab_id),
+            desired.as_ref().map(|pane| pane.anchor().tab_id()),
             Some(0),
             None,
         )
         .unwrap();
     drop(
         state
-            .prepare_membership_install(prepared, desired.clone(), None)
+            .prepare_membership_install(
+                prepared,
+                desired.as_ref().map(|pane| pane.anchor().clone()),
+                None,
+            )
             .unwrap(),
     );
     assert_eq!(state.cache(), &cache);

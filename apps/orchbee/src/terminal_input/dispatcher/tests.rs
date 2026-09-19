@@ -7,7 +7,7 @@ mod workspace_setup;
 #[derive(Debug, Eq, PartialEq)]
 enum Call {
     Forward(Vec<u8>),
-    Mode(bool),
+    Mode(ModeRequest),
     Action(ClientAction),
 }
 
@@ -71,9 +71,9 @@ fn failed_mode_write_precedes_and_prevents_native_draft_request_and_packet_tail(
         &mut port,
         Instant::now(),
         |_, _| Ok(()),
-        &mut |enabled| {
-            calls.borrow_mut().push(Call::Mode(enabled));
-            if enabled {
+        &mut |request| {
+            calls.borrow_mut().push(Call::Mode(request));
+            if matches!(request, ModeRequest::BracketedPaste(true)) {
                 Err(io::Error::other("partial enable write"))
             } else {
                 Ok(())
@@ -84,9 +84,9 @@ fn failed_mode_write_precedes_and_prevents_native_draft_request_and_packet_tail(
     assert_eq!(
         *calls.borrow(),
         [
-            Call::Mode(false),
+            Call::Mode(ModeRequest::BracketedPaste(false)),
             Call::Forward(b"before".to_vec()),
-            Call::Mode(true)
+            Call::Mode(ModeRequest::BracketedPaste(true))
         ]
     );
 }
@@ -525,8 +525,8 @@ fn unavailable_entry_restores_mode_and_preserves_ordinary_batch_order() {
                 &mut port,
                 Instant::now(),
                 |_, _| Ok::<_, io::Error>(()),
-                &mut |enabled| {
-                    calls.borrow_mut().push(Call::Mode(enabled));
+                &mut |request| {
+                    calls.borrow_mut().push(Call::Mode(request));
                     Ok(())
                 },
             )
@@ -536,14 +536,57 @@ fn unavailable_entry_restores_mode_and_preserves_ordinary_batch_order() {
     assert_eq!(
         *calls.borrow(),
         [
-            Call::Mode(false),
+            Call::Mode(ModeRequest::BracketedPaste(false)),
             Call::Forward(b"before".to_vec()),
-            Call::Mode(true),
+            Call::Mode(ModeRequest::BracketedPaste(true)),
             Call::Action(ClientAction::RequestRenameTab),
-            Call::Mode(false),
+            Call::Mode(ModeRequest::BracketedPaste(false)),
             Call::Forward(b"after".to_vec())
         ]
     );
+}
+
+#[test]
+fn prefixed_m_toggles_pointer_capture_through_the_mode_lease() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    // The shell settles the armed state after its mode write; from here
+    // the binding releases and re-arms through the same lease.
+    dispatcher.set_pointer_capture(&mut view, true);
+    for expected in [false, true] {
+        dispatcher
+            .dispatch(
+                &mut view,
+                b"\x02m",
+                &mut port,
+                Instant::now(),
+                |_, _| Ok::<_, io::Error>(()),
+                &mut |request| {
+                    calls.borrow_mut().push(Call::Mode(request));
+                    Ok(())
+                },
+            )
+            .unwrap();
+        // The prefix arm itself takes the paste lease; the assertion is
+        // that exactly one pointer request of the expected direction ran.
+        assert_eq!(
+            calls
+                .borrow()
+                .iter()
+                .filter(|call| { matches!(call, Call::Mode(ModeRequest::PointerCapture(_))) })
+                .count(),
+            1
+        );
+        assert!(
+            calls
+                .borrow()
+                .contains(&Call::Mode(ModeRequest::PointerCapture(expected)))
+        );
+        assert_eq!(dispatcher.pointer_capture_enabled(), expected);
+        calls.borrow_mut().clear();
+    }
 }
 
 #[test]
@@ -565,8 +608,8 @@ fn workspace_shortcuts_acquire_the_modal_lease_and_leave_exit_bindings_intact() 
                 &mut port,
                 Instant::now(),
                 |_, _| Ok::<_, io::Error>(()),
-                &mut |enabled| {
-                    calls.borrow_mut().push(Call::Mode(enabled));
+                &mut |request| {
+                    calls.borrow_mut().push(Call::Mode(request));
                     Ok(())
                 },
             )
@@ -574,10 +617,10 @@ fn workspace_shortcuts_acquire_the_modal_lease_and_leave_exit_bindings_intact() 
         assert_eq!(
             *calls.borrow(),
             [
-                Call::Mode(false),
-                Call::Mode(true),
+                Call::Mode(ModeRequest::BracketedPaste(false)),
+                Call::Mode(ModeRequest::BracketedPaste(true)),
                 Call::Action(action),
-                Call::Mode(false)
+                Call::Mode(ModeRequest::BracketedPaste(false))
             ]
         );
         for exit in *b"qd" {
@@ -596,4 +639,104 @@ fn workspace_shortcuts_acquire_the_modal_lease_and_leave_exit_bindings_intact() 
             );
         }
     }
+}
+
+fn forwarded_bytes(calls: &Rc<RefCell<Vec<Call>>>) -> Vec<u8> {
+    calls
+        .borrow()
+        .iter()
+        .filter_map(|call| match call {
+            Call::Forward(bytes) => Some(bytes.clone()),
+            _ => None,
+        })
+        .flatten()
+        .collect()
+}
+
+fn dispatch_all(
+    dispatcher: &mut InputDispatcher,
+    view: &mut ClientView,
+    port: &mut UnavailablePort,
+    bytes: &[u8],
+) {
+    dispatcher
+        .dispatch(
+            view,
+            bytes,
+            port,
+            Instant::now(),
+            |_, _| Ok::<(), io::Error>(()),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+}
+
+#[test]
+fn malformed_mouse_reports_are_consumed_and_never_forwarded_to_the_pane() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    // Malformed SGR shape, malformed X10 body, then an ordinary key: the
+    // mouse-shaped bytes are pointer protocol — dropped whole, only the
+    // real key reaches the pane.
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"k\x1b[<0;0;1M\x1b[M\x20\x20\x29z",
+    );
+    assert_eq!(forwarded_bytes(&calls), b"kz".to_vec());
+}
+
+#[test]
+fn aborted_and_overlong_mouse_runs_never_forward_their_bytes() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    // An ESC-aborted SGR partial: `\x1b[<0;` drops, the abort's arrow key
+    // is client input — an unbound CSI, forwarded as one non-decision.
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;\x1b[Ak");
+    assert_eq!(forwarded_bytes(&calls), b"\x1b[Ak".to_vec());
+    // An overlong SGR parameter plus its release-final twin drop whole.
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[<0;111111;1M\x1b[<999999;1;1mz",
+    );
+    assert_eq!(forwarded_bytes(&calls), b"\x1b[Akz".to_vec());
+}
+
+#[test]
+fn an_x10_abort_and_timeout_drop_without_leaking_and_the_decoder_recovers() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    // ESC aborts a two-byte-in X10 body; the reprocessed `ESC[D` is client
+    // input — forwarded — but the partial frame's bytes never are.
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[M\x20\x1b[Dk");
+    assert_eq!(forwarded_bytes(&calls), b"\x1b[Dk".to_vec());
+}
+
+#[test]
+fn unknown_csi_and_paste_keep_their_passthrough_alongside_dropped_mouse() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    // Unknown non-mouse CSI still passes through in order; a bracketed
+    // paste forwards whole; only the malformed mouse bytes vanish.
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"k\x1b[?25h\x1b[<0;0;1M\x1b[200~hi\x1b[201~z",
+    );
+    assert_eq!(
+        forwarded_bytes(&calls),
+        b"k\x1b[?25h\x1b[200~hi\x1b[201~z".to_vec()
+    );
 }

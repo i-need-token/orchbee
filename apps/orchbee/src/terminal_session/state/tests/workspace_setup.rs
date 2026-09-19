@@ -49,7 +49,7 @@ pub(super) fn workspace_state() -> NativeSessionState {
         .stage_refresh_membership_cleanup(1, prepared, deadlines)
         .unwrap();
     let prepared = state
-        .prepare_cleaned_membership_candidate(&cleanup, &old)
+        .prepare_cleaned_membership_candidate(&cleanup, old.anchor())
         .unwrap();
     assert_eq!(
         state
@@ -97,20 +97,20 @@ pub(super) fn finish(
         panic!("validated setup membership");
     };
     let desired = if prepared.preserves_selection() {
-        state.desired().cloned()
+        state.desired().map(|pane| pane.anchor().clone())
     } else {
         prepared
             .selected_tab_id()
             .map(|tab| AttachmentKey::new(generation + 30, tab.clone()))
     };
     let deadlines = state.setup_deadlines().unwrap();
-    if !prepared.preserves_selection() && state.attached_key().is_some() {
+    if !prepared.preserves_selection() && state.has_attachments() {
         let old = state.attached_key().unwrap().clone();
         let cleanup = state
             .stage_refresh_membership_cleanup(generation, prepared, deadlines)
             .unwrap();
         let prepared = state
-            .prepare_cleaned_membership_candidate(&cleanup, &old)
+            .prepare_cleaned_membership_candidate(&cleanup, old.anchor())
             .unwrap();
         state
             .prepare_cleaned_membership_install(&cleanup, prepared, desired)
@@ -177,7 +177,7 @@ fn project_commit_refresh_failure_then_explicit_recovery_advances_fresh_step_and
         },
     );
     assert_eq!(
-        state.apply_prepared_refresh(prepared),
+        state.apply_prepared_refresh(prepared, std::time::Instant::now()),
         RefreshDecision::Continue
     );
     assert_eq!(state.setup_status(), Some(Status::CommittedNeedRefresh));
@@ -300,7 +300,7 @@ fn workspace_exact_commit_rejects_fabricated_nonempty_membership_and_wrong_owner
             ),
             PreparedRefresh::Divergent { .. }
         ));
-        assert!(state.attached_key().is_some());
+        assert!(state.has_attachments());
     }
 }
 #[test]

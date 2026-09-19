@@ -38,11 +38,11 @@ pub(super) fn ready_ui() -> (
     assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
     let state = ui.state.as_mut().unwrap();
     let key = state.desired().unwrap().clone();
-    assert!(state.install_projection(&key));
-    assert!(state.record_setup_configuration(&key, ControllerMode::ReadOnly, None));
-    assert!(state.stage_drawn_frame(&key, FrameIdentity::new(1)));
-    assert!(state.mark_feedback_accepted(&key, FrameIdentity::new(1)));
-    assert!(state.publish_ready(&key, FrameIdentity::new(1), ControllerMode::ReadOnly, None));
+    assert!(state.install_projection_t(&key));
+    assert!(state.record_setup_configuration_t(&key, ControllerMode::ReadOnly, None));
+    assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(1)));
+    assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(1)));
+    assert!(state.publish_ready_t(&key, FrameIdentity::new(1), ControllerMode::ReadOnly, None));
     (ui, mailbox, clock, elapsed)
 }
 
@@ -129,9 +129,9 @@ fn actual_move_ui_stages_later_removal_after_timely_result_without_destroying_ol
             clock.now() + std::time::Duration::from_secs(45)
         );
         let detached = if wrong_key {
-            AttachmentKey::new(old.generation() + 1, old.tab_id().clone())
+            AttachmentKey::new(old.anchor().generation() + 1, old.tab_id().clone())
         } else {
-            old.clone()
+            old.anchor().clone()
         };
         let wait = mailbox
             .publish_event_before(
@@ -284,7 +284,7 @@ fn actual_unattached_move_installs_a_fresh_successor_or_empty_without_cleanup() 
             panic!("old viewer cleanup")
         };
         let permit = mailbox
-            .authorize_switch_cleanup(&lease, cleanup, &old, &clock)
+            .authorize_switch_cleanup(&lease, cleanup, old.anchor(), &clock)
             .unwrap()
             .unwrap();
         mailbox.answer_switch_cleanup(permit, true).unwrap();
@@ -292,7 +292,7 @@ fn actual_unattached_move_installs_a_fresh_successor_or_empty_without_cleanup() 
             .publish_event_before(
                 WorkerEvent::MembershipDetached {
                     cleanup: cleanup.clone(),
-                    detached: old,
+                    detached: old.anchor().clone(),
                 },
                 EventDeadline::TotalCleanup(deadlines.total()),
                 &clock,
@@ -308,7 +308,7 @@ fn actual_unattached_move_installs_a_fresh_successor_or_empty_without_cleanup() 
         let selected = target.selected().key().clone();
         let state = ui.state.as_mut().unwrap();
         assert_eq!(
-            state.settle_unattached_setup(
+            state.settle_unattached_setup_t(
                 &selected,
                 target.selected().index(),
                 target.provenance()

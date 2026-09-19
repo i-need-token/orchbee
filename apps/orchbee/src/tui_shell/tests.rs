@@ -15,7 +15,7 @@ use crate::{
     client_view::{ClientAction, ClientView, SessionActionDisposition},
     localization::Locale,
     terminal_device::WindowDimensions,
-    terminal_input::{TerminalInputPort, TerminalInputUnavailable},
+    terminal_input::{ModeRequest, TerminalInputPort, TerminalInputUnavailable},
     terminal_lifecycle::SynchronizedUpdateLease,
     termination_signal::TerminationSource,
     tui_backend::{FixedViewportBackend, ResizableBackend},
@@ -417,6 +417,7 @@ fn test_loop(
         termination,
         viewport,
         dimensions,
+        true,
     ) {
         Ok(exit) => Ok(exit),
         Err(LoopFailure::Input(error) | LoopFailure::Viewport(error)) => Err(error),
@@ -680,6 +681,7 @@ fn required_terminal_resize_failure_prevents_dispatch_of_an_already_read_batch()
         &FixedTermination(false),
         &viewport,
         initial,
+        true,
     );
     writer_failure.store(false, Ordering::Relaxed);
 
@@ -805,7 +807,8 @@ fn failed_draw_never_acknowledges_the_pending_terminal_frame() {
             &mut surface,
             &FixedTermination(false),
             &viewport,
-            dimensions
+            dimensions,
+            true
         ),
         Err(LoopFailure::Terminal(_))
     ));

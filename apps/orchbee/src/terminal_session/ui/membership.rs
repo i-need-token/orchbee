@@ -85,22 +85,43 @@ impl NativeUi {
                         .create_membership_commit()
                         .is_some_and(|committed| committed.committed_key().tab_id() == tab) =>
                 {
-                    super::super::mailbox::DesiredInstall::ReuseReserved(
-                        state
+                    super::super::mailbox::DesiredInstall::ReuseReserved {
+                        key: state
                             .create_membership_commit()
                             .ok_or(CarrierFailure::Protocol)?
                             .committed_key()
                             .clone(),
-                    )
+                        panel: prepared
+                            .focus_panel_id()
+                            .cloned()
+                            .ok_or(CarrierFailure::Protocol)?,
+                    }
                 }
-                Some(tab) => super::super::mailbox::DesiredInstall::Fresh(tab.clone()),
+                Some(tab) => match cleanup.result() {
+                    // A switch cleanup installs the marker's own pane — the
+                    // candidate's default focus leaf may differ from the pane
+                    // the switch target selected.
+                    MembershipResultKey::Switch(marker) => {
+                        super::super::mailbox::DesiredInstall::Fresh {
+                            tab_id: tab.clone(),
+                            panel: marker.panel().clone(),
+                        }
+                    }
+                    _ => match prepared.focus_panel_id() {
+                        Some(panel) => super::super::mailbox::DesiredInstall::Fresh {
+                            tab_id: tab.clone(),
+                            panel: panel.clone(),
+                        },
+                        None => super::super::mailbox::DesiredInstall::Empty,
+                    },
+                },
                 None => super::super::mailbox::DesiredInstall::Empty,
             };
             let desired_plan = transaction.prepare_desired_install(install)?;
             let state_plan = state.prepare_cleaned_membership_install(
                 &cleanup,
                 prepared,
-                desired_plan.desired().cloned(),
+                desired_plan.desired().map(|key| key.anchor().clone()),
             )?;
             let decision = state_plan.commit();
             desired_plan.commit();
@@ -140,7 +161,7 @@ impl NativeUi {
         });
         match result {
             Ok(MutationResult::Applied) => {
-                self.clear_projection();
+                self.clear_projections();
                 if expired {
                     self.retire(CarrierFailure::Deadline);
                     true

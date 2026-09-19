@@ -66,6 +66,7 @@ fn draw_recovery(session: &mut TerminalSession) -> TestResult {
             Locale::EnUs,
             Some(session.view()),
             &crate::tui_theme::Theme::terminal_native(),
+            &mut crate::tui_pointer::HitMapBuilder::new(),
         );
     })?;
     session.after_close_draw(receipt);

@@ -128,6 +128,13 @@ impl WaitModeGuard for RecordingGuard {
             "disable-bracketed-paste"
         })
     }
+    fn set_pointer_capture(&mut self, enabled: bool) -> io::Result<()> {
+        self.record(if enabled {
+            "enable-pointer-capture"
+        } else {
+            "disable-pointer-capture"
+        })
+    }
     fn restore(&mut self) -> io::Result<()> {
         for op in RESTORE_OPS {
             self.record(op)?;

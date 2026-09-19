@@ -1,6 +1,6 @@
 use super::{
-    AttachTarget, AttachmentKey, CarrierFailure, ControllerMode, ExistingAttachment, FrameIdentity,
-    Geometry, NativeSessionState, PreparedMembershipCandidate, ReadyAttachment, SelectedTab,
+    AttachTarget, CarrierFailure, ControllerMode, ExistingAttachment, FrameIdentity, Geometry,
+    NativeSessionState, PaneKey, PreparedMembershipCandidate, ReadyAttachment, SelectedTab,
     SessionPhase, SwitchSetup, WorkbenchSnapshotOutcome,
 };
 
@@ -42,16 +42,16 @@ impl SwitchMembership {
 /// Mailbox publication changes desired identity without rewinding its allocation cursor.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) struct SwitchRestoreKey {
-    marker: AttachmentKey,
-    restored: AttachmentKey,
+    marker: PaneKey,
+    restored: PaneKey,
 }
 
 impl SwitchRestoreKey {
-    pub(in crate::terminal_session) const fn marker(&self) -> &AttachmentKey {
+    pub(in crate::terminal_session) const fn marker(&self) -> &PaneKey {
         &self.marker
     }
 
-    pub(in crate::terminal_session) const fn restored(&self) -> &AttachmentKey {
+    pub(in crate::terminal_session) const fn restored(&self) -> &PaneKey {
         &self.restored
     }
 }
@@ -59,12 +59,11 @@ impl SwitchRestoreKey {
 pub(in crate::terminal_session) struct PreparedSwitchRestore<'state> {
     state: &'state mut NativeSessionState,
     authority: SwitchRestoreKey,
-    desired: AttachmentKey,
+    desired: PaneKey,
     phase: SessionPhase,
-    projection: Option<AttachmentKey>,
-    staged_frame: Option<(AttachmentKey, FrameIdentity)>,
-    accepted_frame: Option<(AttachmentKey, FrameIdentity)>,
-    accepted_geometry: Option<(AttachmentKey, Geometry)>,
+    observed_geometry: Geometry,
+    frame: Option<FrameIdentity>,
+    accepted_geometry: Option<Geometry>,
 }
 
 impl PreparedSwitchRestore<'_> {
@@ -72,13 +71,36 @@ impl PreparedSwitchRestore<'_> {
         &self.authority
     }
 
+    /// Restores the pre-switch focus and revives every pane record of the
+    /// restored anchor: records are only marked `departing` at switch entry,
+    /// never freed, so the whole old membership returns with its live
+    /// attachments intact; the focus pane's projection and frame facts are
+    /// re-materialized from the stable anchor snapshot the same way the
+    /// single-attachment fields were. Records outside the restored anchor
+    /// (the abandoned switch candidate) converge to disposal.
     pub(in crate::terminal_session) fn commit(self) {
-        self.state.desired = Some(self.desired);
+        self.state.desired = Some(self.desired.clone());
         self.state.phase = self.phase;
-        self.state.projection_key = self.projection;
-        self.state.staged_frame = self.staged_frame;
-        self.state.accepted_frame = self.accepted_frame;
-        self.state.last_accepted_geometry = self.accepted_geometry;
+        self.state.latest_geometry = self.observed_geometry;
+        for record in &mut self.state.panes {
+            if record.key().anchor() == self.desired.anchor() {
+                record.departing = false;
+            } else if !record.departing {
+                record.departing = true;
+                record.projected = false;
+                record.staged_frame = None;
+                record.accepted_frame = None;
+                record.last_accepted_geometry = None;
+            }
+        }
+        if let Some(frame) = self.frame
+            && let Some(record) = self.state.pane_record_mut(&self.desired)
+        {
+            record.projected = true;
+            record.staged_frame = Some(frame);
+            record.accepted_frame = Some(frame);
+            record.last_accepted_geometry = self.accepted_geometry;
+        }
     }
 }
 
@@ -86,16 +108,15 @@ impl NativeSessionState {
     fn stable_switch_anchor(&self) -> Option<StableAnchor> {
         match &self.phase {
             SessionPhase::Ready(ready) => {
-                let key = ready.selected().key();
-                let (frame_key, frame) = self.accepted_frame.as_ref()?;
-                if self.attached_key.as_ref() != Some(key)
-                    || self.projection_key.as_ref() != Some(key)
-                    || frame_key != key
-                    || self.staged_frame.as_ref() != self.accepted_frame.as_ref()
+                let record = self.focus_record()?;
+                let frame = record.accepted_frame?;
+                if !record.attached
+                    || !record.projected
+                    || record.staged_frame != record.accepted_frame
                 {
                     return None;
                 }
-                let accepted_geometry = self.last_accepted_geometry(key);
+                let accepted_geometry = record.last_accepted_geometry;
                 match ready.mode() {
                     ControllerMode::Controlling(_)
                         if accepted_geometry != Some(self.latest_geometry) =>
@@ -107,7 +128,7 @@ impl NativeSessionState {
                 }
                 Some(StableAnchor::Ready {
                     ready: ready.clone(),
-                    frame: *frame,
+                    frame,
                     observed_geometry: self.latest_geometry,
                     accepted_geometry,
                 })
@@ -128,16 +149,16 @@ impl NativeSessionState {
             return false;
         };
         if !self.invariant_holds()
-            || self.pending_refresh_generation.is_some()
+            || self.pending_refresh.is_some()
             || self.mutation_blocks_structure()
-            || target.selected.key.generation <= desired.generation
+            || target.selected.key().anchor().generation() <= desired.anchor().generation()
             || self
                 .cache
                 .tabs()
-                .get(target.selected.index)
-                .is_none_or(|tab| tab.tab_id() != target.selected.key.tab_id())
-            || target.site_id != *self.cache.site_id()
-            || self.provenance.get(target.selected.index) != Some(&target.provenance)
+                .get(target.selected.index())
+                .is_none_or(|tab| tab.tab_id() != target.selected.key().anchor().tab_id())
+            || target.site_id() != self.cache.site_id()
+            || self.provenance.get(target.selected.index()) != Some(target.provenance())
         {
             return false;
         }
@@ -148,22 +169,20 @@ impl NativeSessionState {
                 mode: Some(ready.mode.clone()),
             }),
             SessionPhase::Switching(setup) => setup.previous.clone().or_else(|| {
-                (self.attached_key.as_ref() == Some(&setup.target.selected.key)).then(|| {
-                    ExistingAttachment {
+                self.pane_record(setup.target.selected.key())
+                    .is_some_and(|record| record.attached)
+                    .then(|| ExistingAttachment {
                         selected: setup.target.selected.clone(),
                         mode: setup.mode.clone(),
-                    }
-                })
+                    })
             }),
             SessionPhase::SelectedWithoutAttachment(_)
             | SessionPhase::RetryableAttachUnavailable(_) => None,
             _ => return false,
         };
-        self.desired = Some(target.selected.key.clone());
-        self.projection_key = None;
-        self.staged_frame = None;
-        self.accepted_frame = None;
-        self.last_accepted_geometry = None;
+        self.depart_all_panes();
+        self.desired = Some(target.selected.key().clone());
+        self.install_pane_record(&target);
         self.phase = SessionPhase::Switching(SwitchSetup {
             target,
             previous,
@@ -185,7 +204,7 @@ impl NativeSessionState {
 
     pub(in crate::terminal_session) fn invalidate_switch_anchor_for(
         &mut self,
-        discarded: &AttachmentKey,
+        discarded: &PaneKey,
     ) {
         if let SessionPhase::Switching(setup) = &mut self.phase
             && let Some(membership) = &mut setup.membership
@@ -198,18 +217,85 @@ impl NativeSessionState {
         }
     }
 
-    pub(in crate::terminal_session) fn switch_marker_is_current(
-        &self,
-        marker: &AttachmentKey,
-    ) -> bool {
+    pub(in crate::terminal_session) fn switch_marker_is_current(&self, marker: &PaneKey) -> bool {
         self.desired.as_ref() == Some(marker)
             && matches!(&self.phase, SessionPhase::Switching(setup)
-                if setup.target.selected.key == *marker && setup.membership.is_some())
+                if setup.target.selected.key() == marker && setup.membership.is_some())
+    }
+
+    /// Legacy tests name the marker by attachment anchor; resolve it to the
+    /// live pane key before checking.
+    #[cfg(test)]
+    pub(in crate::terminal_session) fn switch_marker_is_current_k<
+        K: super::TestPaneKey + ?Sized,
+    >(
+        &self,
+        marker: &K,
+    ) -> bool {
+        marker
+            .resolve_pane_key(self)
+            .is_some_and(|resolved| self.switch_marker_is_current(&resolved))
+    }
+
+    #[cfg(test)]
+    pub(in crate::terminal_session) fn switch_deadlines_k<K: super::TestPaneKey + ?Sized>(
+        &self,
+        marker: &K,
+    ) -> Option<super::OperationDeadlines> {
+        marker
+            .resolve_pane_key(self)
+            .and_then(|resolved| self.switch_deadlines(&resolved))
+    }
+
+    #[cfg(test)]
+    pub(in crate::terminal_session) fn prepare_switch_candidate_k<
+        K: super::TestPaneKey + ?Sized,
+    >(
+        &self,
+        marker: &K,
+        outcome: WorkbenchSnapshotOutcome,
+    ) -> Result<PreparedMembershipCandidate, CarrierFailure> {
+        match marker.resolve_pane_key(self) {
+            Some(resolved) => self.prepare_switch_candidate(&resolved, outcome),
+            None => Err(CarrierFailure::Protocol),
+        }
+    }
+
+    #[cfg(test)]
+    pub(in crate::terminal_session) fn invalidate_switch_anchor_for_k<
+        K: super::TestPaneKey + ?Sized,
+    >(
+        &mut self,
+        discarded: &K,
+    ) {
+        if let Some(resolved) = discarded.resolve_pane_key(self) {
+            self.invalidate_switch_anchor_for(&resolved);
+        }
+    }
+
+    /// Legacy single-projection form: `retained` is the old focused attachment.
+    #[cfg(test)]
+    pub(in crate::terminal_session) fn prepare_switch_restore_k<
+        K: super::TestPaneKey + ?Sized,
+        R: super::TestPaneKey + ?Sized,
+    >(
+        &mut self,
+        marker: &K,
+        retained: Option<&R>,
+    ) -> Result<PreparedSwitchRestore<'_>, CarrierFailure> {
+        let Some(resolved) = marker.resolve_pane_key(self) else {
+            return Err(CarrierFailure::Protocol);
+        };
+        let retained: Vec<PaneKey> = retained
+            .and_then(|key| key.resolve_pane_key(self))
+            .into_iter()
+            .collect();
+        self.prepare_switch_restore(&resolved, &retained)
     }
 
     pub(in crate::terminal_session) fn switch_deadlines(
         &self,
-        marker: &AttachmentKey,
+        marker: &PaneKey,
     ) -> Option<super::OperationDeadlines> {
         let SessionPhase::Switching(setup) = &self.phase else {
             return None;
@@ -219,7 +305,7 @@ impl NativeSessionState {
 
     pub(in crate::terminal_session) fn prepare_switch_candidate(
         &self,
-        marker: &AttachmentKey,
+        marker: &PaneKey,
         outcome: WorkbenchSnapshotOutcome,
     ) -> Result<PreparedMembershipCandidate, CarrierFailure> {
         if !self.switch_marker_is_current(marker) {
@@ -237,16 +323,16 @@ impl NativeSessionState {
             .map_err(|_| CarrierFailure::AuthorityDivergence)?;
         self.prepare_membership_candidate(
             candidate,
-            Some(marker.tab_id()),
-            Some(setup.target.selected.index),
+            Some(marker.anchor().tab_id()),
+            Some(setup.target.selected.index()),
             None,
         )
     }
 
     pub(in crate::terminal_session) fn prepare_switch_restore(
         &mut self,
-        marker: &AttachmentKey,
-        retained_projection: Option<&AttachmentKey>,
+        marker: &PaneKey,
+        retained_projections: &[PaneKey],
     ) -> Result<PreparedSwitchRestore<'_>, CarrierFailure> {
         if !self.invariant_holds()
             || !self.switch_marker_is_current(marker)
@@ -262,24 +348,27 @@ impl NativeSessionState {
             .as_ref()
             .and_then(|membership| membership.anchor.as_ref())
             .ok_or(CarrierFailure::Protocol)?;
-        let restored = anchor.selected().key();
-        if restored.generation() >= marker.generation()
+        let restored = anchor.selected().key().clone();
+        if restored.anchor().generation() >= marker.anchor().generation()
             || self
                 .cache
                 .tabs()
                 .get(anchor.selected().index())
-                .is_none_or(|tab| tab.tab_id() != restored.tab_id())
+                .is_none_or(|tab| tab.tab_id() != restored.anchor().tab_id())
         {
             return Err(CarrierFailure::Protocol);
         }
-        match anchor {
+        let observed_geometry = match anchor {
             StableAnchor::Ready {
                 ready,
                 observed_geometry,
                 ..
             } => {
-                if self.attached_key.as_ref() != Some(restored)
-                    || retained_projection != Some(restored)
+                let record = self
+                    .pane_record(&restored)
+                    .ok_or(CarrierFailure::Protocol)?;
+                if !record.attached
+                    || !retained_projections.iter().any(|key| key == &restored)
                     || self.latest_geometry != *observed_geometry
                     || setup.previous.as_ref().is_none_or(|previous| {
                         previous.selected != *ready.selected()
@@ -288,22 +377,28 @@ impl NativeSessionState {
                 {
                     return Err(CarrierFailure::Protocol);
                 }
+                *observed_geometry
             }
             StableAnchor::Selected(_) | StableAnchor::Retryable(_) => {
-                if self.attached_key.is_some()
-                    || retained_projection.is_some()
+                if self
+                    .panes
+                    .iter()
+                    .any(|record| record.key().anchor() == restored.anchor() && record.attached)
+                    || retained_projections
+                        .iter()
+                        .any(|key| key.anchor() == restored.anchor())
                     || setup.previous.is_some()
                 {
                     return Err(CarrierFailure::Protocol);
                 }
+                self.latest_geometry
             }
-        }
+        };
         let authority = SwitchRestoreKey {
             marker: marker.clone(),
             restored: restored.clone(),
         };
-        let desired = restored.clone();
-        let (phase, projection, frame, accepted_geometry) = match anchor {
+        let (phase, frame, accepted_geometry) = match anchor {
             StableAnchor::Ready {
                 ready,
                 frame,
@@ -311,13 +406,11 @@ impl NativeSessionState {
                 ..
             } => (
                 SessionPhase::Ready(ready.clone()),
-                Some(restored.clone()),
-                Some((restored.clone(), *frame)),
-                accepted_geometry.map(|geometry| (restored.clone(), geometry)),
+                Some(*frame),
+                *accepted_geometry,
             ),
             StableAnchor::Selected(selected) => (
                 SessionPhase::SelectedWithoutAttachment(selected.clone()),
-                None,
                 None,
                 None,
             ),
@@ -325,18 +418,15 @@ impl NativeSessionState {
                 SessionPhase::RetryableAttachUnavailable(selected.clone()),
                 None,
                 None,
-                None,
             ),
         };
-        let staged_frame = frame.clone();
         Ok(PreparedSwitchRestore {
             state: self,
             authority,
-            desired,
+            desired: restored,
             phase,
-            projection,
-            staged_frame,
-            accepted_frame: frame,
+            observed_geometry,
+            frame,
             accepted_geometry,
         })
     }

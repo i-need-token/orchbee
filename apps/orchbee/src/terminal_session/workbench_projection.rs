@@ -22,7 +22,7 @@ pub(super) struct NativeContextTabs {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) enum NativeContextLocation {
+pub(crate) enum NativeContextLocation {
     Standalone(WorkbenchTerminalContextId),
     Workspace {
         project_id: WorkbenchProjectId,
@@ -171,6 +171,16 @@ impl NativeSimpleTab {
         &self.tree
     }
 
+    /// The visible leaf panel ids in canonical tree order — the same leaf set
+    /// the layout projection draws and the pane sync reconciles.
+    pub(super) fn leaf_panel_ids(&self) -> Vec<WorkbenchPanelId> {
+        self.tree
+            .leaf_panel_indices()
+            .into_iter()
+            .filter_map(|index| self.panel(index).map(|panel| panel.panel_id().clone()))
+            .collect()
+    }
+
     pub(super) fn panel_focus_target(
         &self,
         panel_index: usize,
@@ -189,7 +199,7 @@ pub(crate) struct NativePanel {
 }
 
 impl NativePanel {
-    pub(super) fn panel_id(&self) -> &WorkbenchPanelId {
+    pub(crate) fn panel_id(&self) -> &WorkbenchPanelId {
         &self.panel_id
     }
 
@@ -232,6 +242,23 @@ struct PanelBounds {
 }
 
 impl NativePanelTree {
+    /// The leaf panel indices in tree order — canonical for layout and sync.
+    pub(super) fn leaf_panel_indices(&self) -> Vec<usize> {
+        let mut leaves = Vec::new();
+        self.collect_leaves(&mut leaves);
+        leaves
+    }
+
+    fn collect_leaves(&self, leaves: &mut Vec<usize>) {
+        match self {
+            Self::Panel { panel_index } => leaves.push(*panel_index),
+            Self::Split { first, second, .. } => {
+                first.collect_leaves(leaves);
+                second.collect_leaves(leaves);
+            }
+        }
+    }
+
     pub(super) fn neighbor(
         &self,
         panel_index: usize,
@@ -412,7 +439,6 @@ impl CreatedTabExpectation {
         &self.tab_id
     }
 
-    #[cfg(test)]
     pub(super) fn panel_id(&self) -> &WorkbenchPanelId {
         &self.panel_id
     }

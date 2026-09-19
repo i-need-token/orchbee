@@ -90,7 +90,8 @@ fn rename_admission_boundary_refusals_leave_all_cursors_and_exact_text_unchanged
         }
         if cut == 4 {
             mailbox.lock().desired = MailboxMembership::Live {
-                desired: Some(key(2, 1)),
+                desired: Some(pane_key(&key(2, 1))),
+                panes: vec![pane_ref(&key(2, 1))],
             };
         }
         let before = mailbox.cursors();

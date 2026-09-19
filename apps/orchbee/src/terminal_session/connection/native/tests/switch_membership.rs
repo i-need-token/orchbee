@@ -44,7 +44,10 @@ fn actual_switch_stages_snapshot_before_detach_and_installs_fresh_survivor_fallb
             matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::SwitchSnapshot { work, decision: RefreshDecision::Cleanup(_) } if work == intent.key)
         );
         assert_eq!(harness.ui.state().cache(), &baseline);
-        assert_eq!(harness.ui.state().attached_key(), Some(&old));
+        assert_eq!(
+            harness.ui.state().attached_key().map(|pane| pane.anchor()),
+            Some(&old)
+        );
         let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
             return Err(test_error("exact old Detach"));
         };
@@ -107,7 +110,10 @@ fn actual_returned_old_poll_after_marker_prevents_unavailable_anchor_restoration
         let old = drive_controlling_startup(&mut harness, geometry, 2)?;
         harness
             .mailbox
-            .try_enqueue(QueuedCommand::Poll(Tagged::new(old.clone(), ())))
+            .try_enqueue(QueuedCommand::Poll(Tagged::new(
+                harness.ui.pane_ref(&old)?,
+                (),
+            )))
             .unwrap();
         let ClientMessage::TerminalViewer(poll) = harness.carrier.take_obcs()? else {
             return Err(test_error("old Poll in flight"));
@@ -142,7 +148,10 @@ fn actual_returned_old_poll_after_marker_prevents_unavailable_anchor_restoration
             matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::SwitchSnapshot { work, decision: RefreshDecision::Retire } if work == intent.key)
         );
         assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Retired);
-        assert_ne!(harness.ui.state().desired(), Some(&old));
+        assert_ne!(
+            harness.ui.state().desired().map(|pane| pane.anchor()),
+            Some(&old)
+        );
         harness.finish_after_worker_failure(CarrierFailure::Deadline)?;
     }
     Ok(())
@@ -158,7 +167,10 @@ fn actual_taken_feedback_discard_records_exact_old_proof_after_causal_cell_is_re
     let old = drive_controlling_startup(&mut harness, geometry, 2)?;
     harness
         .mailbox
-        .try_enqueue(QueuedCommand::Poll(Tagged::new(old.clone(), ())))
+        .try_enqueue(QueuedCommand::Poll(Tagged::new(
+            harness.ui.pane_ref(&old)?,
+            (),
+        )))
         .unwrap();
     let ClientMessage::TerminalViewer(poll) = harness.carrier.take_obcs()? else {
         return Err(test_error("old Poll in flight"));
@@ -219,7 +231,10 @@ fn actual_busy_old_poll_without_frame_preserves_exact_unavailable_restoration() 
     let old = drive_controlling_startup(&mut harness, geometry, 2)?;
     harness
         .mailbox
-        .try_enqueue(QueuedCommand::Poll(Tagged::new(old.clone(), ())))
+        .try_enqueue(QueuedCommand::Poll(Tagged::new(
+            harness.ui.pane_ref(&old)?,
+            (),
+        )))
         .unwrap();
     let ClientMessage::TerminalViewer(poll) = harness.carrier.take_obcs()? else {
         return Err(test_error("old Poll in flight"));
@@ -247,7 +262,10 @@ fn actual_busy_old_poll_without_frame_preserves_exact_unavailable_restoration() 
     assert!(
         matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::SwitchSnapshot { work, decision: RefreshDecision::Continue } if work == intent.key)
     );
-    assert_eq!(harness.ui.state().desired(), Some(&old));
+    assert_eq!(
+        harness.ui.state().desired().map(|pane| pane.anchor()),
+        Some(&old)
+    );
     assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Ready);
     assert_eq!(harness.mailbox.cursors(), before);
     harness.finish()
@@ -284,7 +302,10 @@ fn timely_switch_unavailable_waits_for_exact_ui_restore_after_original_total_dea
     assert!(
         matches!(harness.ui.settle_taken(taken, FrameCut::None)?, UiEvent::SwitchSnapshot { work, decision: RefreshDecision::Continue } if work == intent.key)
     );
-    assert_eq!(harness.ui.state().desired(), Some(&old));
+    assert_eq!(
+        harness.ui.state().desired().map(|pane| pane.anchor()),
+        Some(&old)
+    );
     assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Ready);
     assert_eq!(mailbox.cursors(), cursors);
     harness.finish()

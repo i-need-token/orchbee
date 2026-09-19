@@ -25,7 +25,7 @@ impl NativeUi {
                 RefreshDecision::Continue
             } else if transaction.observed_at() < target.deadlines().forward_cutoff() {
                 return Err(CarrierFailure::Protocol);
-            } else if state.attached_key().is_some() {
+            } else if state.has_attachments() {
                 RefreshDecision::Cleanup(
                     state.stage_switch_expiry_cleanup(target.selected().key())?,
                 )
@@ -57,7 +57,7 @@ impl NativeUi {
         &mut self,
         mailbox: &Arc<CommandMailbox>,
         wait: super::super::mailbox::UiWaitKey,
-        marker: AttachmentKey,
+        marker: PaneKey,
         outcome: WorkbenchSnapshotOutcome,
     ) -> bool {
         let Some(state) = self.state.as_ref() else {
@@ -78,10 +78,11 @@ impl NativeUi {
         } else {
             None
         };
-        let retained_projection = self
-            .projection
-            .as_ref()
-            .map(|projection| projection.key.clone());
+        let retained_projections = self
+            .projections
+            .iter()
+            .map(|projection| projection.key.pane().clone())
+            .collect::<Vec<_>>();
         let Some(state) = self.state.as_mut() else {
             self.retire(CarrierFailure::Protocol);
             return true;
@@ -95,7 +96,7 @@ impl NativeUi {
             let decision = if !state.switch_marker_is_current(&marker) {
                 RefreshDecision::Continue
             } else if let Some(prepared) = prepared {
-                if state.attached_key().is_some() {
+                if state.has_attachments() {
                     let deadlines = state
                         .switch_deadlines(&marker)
                         .ok_or(CarrierFailure::Protocol)?;
@@ -112,16 +113,21 @@ impl NativeUi {
                     failure_after_reply = Some(CarrierFailure::Deadline);
                     RefreshDecision::Retire
                 } else {
-                    let install = prepared
-                        .selected_tab_id()
-                        .map_or(DesiredInstall::Empty, |tab| {
-                            DesiredInstall::Fresh(tab.clone())
-                        });
+                    // The switch's focus pane is the marker's own pane: the
+                    // desired install must name the marker's panel or the
+                    // mailbox's focus would diverge from the state's target.
+                    let install = match prepared.selected_tab_id() {
+                        Some(tab) => DesiredInstall::Fresh {
+                            tab_id: tab.clone(),
+                            panel: marker.panel().clone(),
+                        },
+                        None => DesiredInstall::Empty,
+                    };
                     let desired = transaction.prepare_desired_install(install)?;
                     let canonical = state.prepare_switch_membership_install(
                         &marker,
                         prepared,
-                        desired.desired().cloned(),
+                        desired.desired().map(|key| key.anchor().clone()),
                     )?;
                     let decision = canonical.commit();
                     desired.commit();
@@ -129,7 +135,7 @@ impl NativeUi {
                     membership_decision(decision)
                 }
             } else {
-                match state.prepare_switch_restore(&marker, retained_projection.as_ref()) {
+                match state.prepare_switch_restore(&marker, &retained_projections) {
                     Ok(canonical) => {
                         let desired = transaction.prepare_desired_install(
                             DesiredInstall::RestoreSwitch(canonical.restoration().clone()),
@@ -153,7 +159,7 @@ impl NativeUi {
         match result {
             Ok(MutationResult::Applied) => {
                 if installed {
-                    self.clear_projection();
+                    self.clear_projections();
                 }
                 if let Some(failure) = failure_after_reply {
                     self.retire(failure);

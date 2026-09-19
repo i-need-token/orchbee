@@ -12,12 +12,12 @@ impl UiDriver {
         marker: AttachmentKey,
         outcome: WorkbenchSnapshotOutcome,
     ) -> TestResult<UiEvent> {
-        let prepared = if self.state().switch_marker_is_current(&marker)
+        let prepared = if self.state().switch_marker_is_current_k(&marker)
             && matches!(outcome, WorkbenchSnapshotOutcome::Available { .. })
         {
             Some(
                 self.state()
-                    .prepare_switch_candidate(&marker, outcome)
+                    .prepare_switch_candidate_k(&marker, outcome)
                     .map_err(|_| test_error("Switch candidate validation"))?,
             )
         } else {
@@ -33,18 +33,23 @@ impl UiDriver {
         let mut decision = None;
         require_applied(
             mailbox.deposit_ui_reply_before(&wait, &clock, |transaction| {
-                if let Some(discarded) = transaction.take_switch_anchor_invalidation(&marker) {
-                    state.invalidate_switch_anchor_for(&discarded);
+                if let Some(discarded) = transaction.take_switch_anchor_invalidation(
+                    &state
+                        .pane_key_for_anchor(&marker)
+                        .unwrap_or_else(|| pane_key(&marker)),
+                ) {
+                    state.invalidate_switch_anchor_for_k(&discarded);
                 }
-                let settled = if !state.switch_marker_is_current(&marker) {
+                let settled = if !state.switch_marker_is_current_k(&marker) {
                     RefreshDecision::Continue
                 } else if let Some(prepared) = prepared {
                     let deadlines = state
-                        .switch_deadlines(&marker)
+                        .switch_deadlines_k(&marker)
                         .ok_or(CarrierFailure::Protocol)?;
-                    if state.attached_key().is_some() {
+                    if state.has_attachments() {
                         RefreshDecision::Cleanup(
-                            state.stage_switch_membership_cleanup(&marker, prepared, deadlines)?,
+                            state
+                                .stage_switch_membership_cleanup_k(&marker, prepared, deadlines)?,
                         )
                     } else if transaction.observed_at() >= deadlines.forward_cutoff() {
                         state.retire(CarrierFailure::Deadline);
@@ -53,21 +58,26 @@ impl UiDriver {
                         let desired = transaction.prepare_desired_install(
                             prepared
                                 .selected_tab_id()
-                                .map_or(DesiredInstall::Empty, |tab| {
-                                    DesiredInstall::Fresh(tab.clone())
+                                .map_or(DesiredInstall::Empty, |tab| DesiredInstall::Fresh {
+                                    tab_id: tab.clone(),
+                                    panel: state
+                                        .pane_key_for_anchor(&marker)
+                                        .unwrap_or_else(|| pane_key(&marker))
+                                        .panel()
+                                        .clone(),
                                 }),
                         )?;
-                        let plan = state.prepare_switch_membership_install(
+                        let plan = state.prepare_switch_membership_install_k(
                             &marker,
                             prepared,
-                            desired.desired().cloned(),
+                            desired.desired().map(|pane| pane.anchor().clone()),
                         )?;
                         let installed = plan.commit();
                         desired.commit();
                         install_decision(installed)
                     }
                 } else {
-                    match state.prepare_switch_restore(&marker, retained.as_ref()) {
+                    match state.prepare_switch_restore_k(&marker, retained.as_ref()) {
                         Ok(plan) => {
                             let desired = transaction.prepare_desired_install(
                                 DesiredInstall::RestoreSwitch(plan.restoration().clone()),
@@ -107,11 +117,11 @@ impl UiDriver {
         let mut decision = None;
         require_applied(
             mailbox.deposit_ui_reply_before(&wait, &clock, |transaction| {
-                let settled = if !state.switch_marker_is_current(&marker) {
+                let settled = if !state.switch_marker_is_current_k(&marker) {
                     RefreshDecision::Continue
                 } else if transaction.observed_at() < target.deadlines().forward_cutoff() {
                     return Err(CarrierFailure::Protocol);
-                } else if state.attached_key().is_some() {
+                } else if state.has_attachments() {
                     RefreshDecision::Cleanup(state.stage_switch_expiry_cleanup(&marker)?)
                 } else {
                     state.retire(CarrierFailure::Deadline);
@@ -125,7 +135,7 @@ impl UiDriver {
             }),
         )?;
         Ok(UiEvent::SwitchSnapshot {
-            work: marker,
+            work: marker.anchor().clone(),
             decision: decision.ok_or_else(|| test_error("Switch expiry decision"))?,
         })
     }
@@ -154,7 +164,7 @@ impl UiDriver {
         let mut decision = None;
         require_applied(
             mailbox.deposit_ui_reply_before(&wait, &clock, |transaction| {
-                let settled = if !detached || !state.switch_marker_is_current(&marker) {
+                let settled = if !detached || !state.switch_marker_is_current_k(&marker) {
                     state.settle_switch_membership_cleanup(&cleanup, detached)?;
                     RefreshDecision::Continue
                 } else if transaction.observed_at() >= cleanup.deadlines().forward_cutoff() {
@@ -166,14 +176,15 @@ impl UiDriver {
                     let desired = transaction.prepare_desired_install(
                         prepared
                             .selected_tab_id()
-                            .map_or(DesiredInstall::Empty, |tab| {
-                                DesiredInstall::Fresh(tab.clone())
+                            .map_or(DesiredInstall::Empty, |tab| DesiredInstall::Fresh {
+                                tab_id: tab.clone(),
+                                panel: marker.panel().clone(),
                             }),
                     )?;
                     let plan = state.prepare_cleaned_membership_install(
                         &cleanup,
                         prepared,
-                        desired.desired().cloned(),
+                        desired.desired().map(|pane| pane.anchor().clone()),
                     )?;
                     let installed = plan.commit();
                     desired.commit();
@@ -192,7 +203,7 @@ impl UiDriver {
         let decision = decision.ok_or_else(|| test_error("Switch cleanup decision"))?;
         if !detached {
             return Ok(UiEvent::SwitchSnapshot {
-                work: marker,
+                work: marker.anchor().clone(),
                 decision,
             });
         }
@@ -202,7 +213,7 @@ impl UiDriver {
                 desired: self
                     .state()
                     .desired()
-                    .cloned()
+                    .map(|pane| pane.anchor().clone())
                     .ok_or_else(|| test_error("superseded desired"))?,
             },
             RefreshDecision::SettledWithoutAttachment | RefreshDecision::Retire => {
@@ -211,7 +222,7 @@ impl UiDriver {
             RefreshDecision::Cleanup(_) => return Err(test_error("recursive Switch cleanup")),
         };
         Ok(UiEvent::SwitchOldDetached {
-            work: marker,
+            work: marker.anchor().clone(),
             detached: cleanup.old().clone(),
             continuation,
         })

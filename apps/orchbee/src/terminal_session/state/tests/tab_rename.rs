@@ -26,7 +26,10 @@ fn rename_operation_captures_exact_request_intent_and_original_deadline() {
     assert_eq!(operation.request_id(), &workbench_request_id(100));
     assert_eq!(operation.label().as_str(), " 雪e\u{301}\t ");
     assert_eq!(operation.baseline(), state.cache());
-    assert_eq!(Some(operation.target()), state.desired());
+    assert_eq!(
+        Some(operation.target()),
+        state.desired().map(|pane| pane.anchor())
+    );
     assert_eq!(copy.deadline(), operation.deadline());
     assert_eq!(copy.draft_token(), operation.draft_token());
     let expected = crate::local_client::workbench::tab_rename::WorkbenchTabRenameRequest::try_from(

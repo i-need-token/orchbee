@@ -1,5 +1,5 @@
 use super::{
-    AttachmentKey, NativeSessionState, PanelIntent, PanelOperation, PanelRequestKind,
+    AttachmentKey, NativeSessionState, PaneKey, PanelIntent, PanelOperation, PanelRequestKind,
     SessionNotice, SessionPhase,
 };
 use crate::terminal_session::workbench_projection::NativeTerminalBinding;
@@ -173,7 +173,7 @@ impl NativeSessionState {
     ) -> Result<(), PanelCloseStateError> {
         if self.close.confirmation().is_some()
             || self.close_status_only()
-            || self.pending_refresh_generation.is_some()
+            || self.pending_refresh.is_some()
             || self.rename_draft_blocks_structure()
             || self.mutation_blocks_structure()
             || !self.invariant_holds()
@@ -202,7 +202,10 @@ impl NativeSessionState {
                 tab.tab_id().clone(),
                 panel.panel_id().clone(),
             ),
-            self.desired.clone().ok_or(PanelCloseStateError::Busy)?,
+            self.desired
+                .as_ref()
+                .map(|key| key.anchor().clone())
+                .ok_or(PanelCloseStateError::Busy)?,
             panel.presentation_label().clone(),
             tab.tab_label().clone(),
             panel.binding().clone(),
@@ -243,7 +246,7 @@ impl NativeSessionState {
         self.cache.site_id() == &selection.target.site_id
             && self.cache.terminal_context_id() == &selection.target.terminal_context_id
             && self.cache.revision() == selection.base_revision
-            && self.desired.as_ref() == Some(&selection.desired)
+            && self.desired.as_ref().map(PaneKey::anchor) == Some(&selection.desired)
             && tab.tab_id() == &selection.target.tab_id
             && panel.panel_id() == &selection.target.panel_id
             && panel.binding() == &selection.binding

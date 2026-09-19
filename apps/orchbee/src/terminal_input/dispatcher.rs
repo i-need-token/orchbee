@@ -4,10 +4,11 @@ use crate::client_view::{
     ClientAction, ClientKey, ClientView, KeyCode, KeyKind, Modifiers, PREFIX_CHORD, PrefixInput,
     SessionActionDisposition, ShellCommand,
 };
+use crate::tui_pointer::{FrameHitMap, PointerOutcome, PointerState};
 
 use super::{
-    DispatchOutcome, NativeRenameDraftToken, NativeRenameEdit, NativeSetupEdit, NativeSetupStage,
-    NativeSetupToken, TerminalInputPort,
+    DispatchOutcome, ModeRequest, NativeRenameDraftToken, NativeRenameEdit, NativeSetupEdit,
+    NativeSetupStage, NativeSetupToken, TerminalInputPort,
     decoder::{DecodedItem, DecodedKind, LegacyDecoder},
     forward_or_report,
     modal::{ModalCapacity, ModalDecoder, ModalInputEvent},
@@ -24,6 +25,9 @@ pub(crate) struct InputDispatcher {
     /// An open confirmation captured the current packet whole, so every
     /// later item of the same read stays swallowed.
     confirm_packet: bool,
+    /// Pointer ownership: capture flag, last-drawn hit map, gesture
+    /// lifecycle, and the bounded wheel stream.
+    pointer: PointerState,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -72,12 +76,36 @@ fn literal_chord_byte(item: &DecodedItem) -> Option<u8> {
 }
 
 impl InputDispatcher {
+    /// The shell settles the armed flag after the terminal mode write
+    /// succeeded, so client state never claims a capture the host did not
+    /// actually take.
+    pub(crate) fn set_pointer_capture(&mut self, view: &mut ClientView, enabled: bool) {
+        self.pointer.set_capture(enabled);
+        view.settle_pointer_released(!enabled);
+    }
+
+    /// The renderer's finished frame map becomes the resolution authority.
+    pub(crate) fn publish_hit_map(&mut self, map: FrameHitMap) {
+        self.pointer.publish(map);
+    }
+
+    /// A layout change or pending redraw drops the recorded regions:
+    /// until the next publish, pointer events drop instead of misrouting.
+    pub(crate) fn invalidate_hit_map(&mut self) {
+        self.pointer.invalidate_map();
+    }
+
+    #[cfg(test)]
+    pub(crate) const fn pointer_capture_enabled(&self) -> bool {
+        self.pointer.capture_enabled()
+    }
+
     pub(crate) fn synchronize<Port: TerminalInputPort + ?Sized, Error>(
         &mut self,
         view: &mut ClientView,
         port: &mut Port,
         now: Instant,
-        mode: &mut impl FnMut(bool) -> Result<(), Error>,
+        mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<bool, Error> {
         let owned_input = self.decoder.owns_input();
         // An idle read is a packet boundary too: a `Released` guard left
@@ -95,12 +123,13 @@ impl InputDispatcher {
             self.handle_item(view, port, now, item, &mut |_, _| Ok(()), mode)?;
         }
         self.flush_pending(view, port);
+        changed |= self.pointer.tick(view, port, now);
         changed |= self.reconcile(view, port, now);
         if !self.decoder.owns_input() {
-            mode(false)?;
+            mode(ModeRequest::BracketedPaste(false))?;
         } else if !owned_input {
             // A later wizard step can arrive after the previous decoder released its lease.
-            mode(true)?;
+            mode(ModeRequest::BracketedPaste(true))?;
         }
         Ok(changed)
     }
@@ -112,7 +141,7 @@ impl InputDispatcher {
         port: &mut Port,
         now: Instant,
         mut after_layout: impl FnMut(&mut ClientView, &mut Port) -> Result<(), Error>,
-        mode: &mut impl FnMut(bool) -> Result<(), Error>,
+        mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
         self.synchronize(view, port, now, mode)?;
         // A new read packet begins: the modal's packet-tail guard ends at
@@ -157,6 +186,9 @@ impl InputDispatcher {
             }
         }
         self.flush_pending(view, port);
+        // Queued pointer gestures and the wheel stream advance at the same
+        // packet boundary the modal leases do.
+        let _changed = self.pointer.tick(view, port, now);
         Ok(DispatchOutcome::Continue)
     }
 
@@ -172,7 +204,7 @@ impl InputDispatcher {
         now: Instant,
         item: DecodedItem,
         after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<(), Error>,
-        mode: &mut impl FnMut(bool) -> Result<(), Error>,
+        mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
         if item.owned {
             // The item completes a frame that began inside a captured
@@ -201,6 +233,8 @@ impl InputDispatcher {
                     forward_or_report(view, &item.raw, port);
                     return Ok(DispatchOutcome::Continue);
                 }
+                DecodedKind::Mouse(_) => {}
+                DecodedKind::Ignored => {}
                 DecodedKind::Nondecision => {}
             }
             return self.decide(view, port, now, item, after_layout, mode);
@@ -214,6 +248,30 @@ impl InputDispatcher {
             }
             DecodedKind::Key(event) if event.kind == KeyKind::Release => {
                 // Releases are consumed, never dispatched or forwarded.
+            }
+            DecodedKind::Mouse(event) => {
+                // Pointer reports are semantic input, never raw-forwarded:
+                // pending bytes flush first so pane-bound reports preserve
+                // packet order, then the pointer state resolves the event
+                // against the last drawn frame's hit map. A handled event
+                // syncs the viewport like a keypress; a region-changing one
+                // also stales the map — the gesture that owns the pointer
+                // survives either way.
+                self.flush_pending(view, port);
+                match self.pointer.event(view, port, now, event) {
+                    PointerOutcome::Ignored => {}
+                    outcome => {
+                        after_layout(view, port)?;
+                        if outcome == PointerOutcome::RegionsChanged {
+                            self.pointer.stale_map();
+                        }
+                    }
+                }
+            }
+            DecodedKind::Ignored => {
+                // Mouse-shaped bytes that failed validation or never
+                // completed: pointer protocol consumed whole — never keys,
+                // never pending, never forwarded raw to the pane.
             }
             _ => self.pending.extend_from_slice(&item.raw),
         }
@@ -229,7 +287,7 @@ impl InputDispatcher {
         now: Instant,
         item: DecodedItem,
         after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<(), Error>,
-        mode: &mut impl FnMut(bool) -> Result<(), Error>,
+        mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
         let input = match item.kind {
             DecodedKind::Key(event) if event.kind != KeyKind::Release => PrefixInput::Key(event),
@@ -237,6 +295,8 @@ impl InputDispatcher {
         };
         let transition = view.decide(input);
         let action = transition.action();
+        let layout_changed = transition.layout_changed();
+        let shell = transition.shell();
         let requests_modal = matches!(
             action,
             Some(
@@ -249,26 +309,40 @@ impl InputDispatcher {
         );
         if requests_modal {
             // The terminal lease must exist before the state can capture any draft authority.
-            mode(true)?;
+            mode(ModeRequest::BracketedPaste(true))?;
         }
-        let applied = action.and_then(|action| port.apply_client_action(action));
+        let applied = action
+            .clone()
+            .and_then(|action| port.apply_client_action(action));
         view.commit(
             transition,
             applied.unwrap_or(SessionActionDisposition::KeepNavigator),
         );
+        if action == Some(ClientAction::TogglePointerCapture) {
+            // The client-local release entry: the mode write must succeed
+            // before the settled flag mirrors it, exactly like the modal
+            // leases above.
+            let next = !self.pointer.capture_enabled();
+            mode(ModeRequest::PointerCapture(next))?;
+            self.pointer.set_capture(next);
+            view.settle_pointer_released(!next);
+        }
         if applied.is_none()
-            && let Some(action) = action.and_then(ClientAction::backend_action)
+            && let Some(action) = action.as_ref().and_then(ClientAction::backend_action)
         {
             view.report_backend_unavailable(action);
         }
         self.reconcile(view, port, now);
         if requests_modal && self.epoch.is_none() {
-            mode(false)?;
+            mode(ModeRequest::BracketedPaste(false))?;
         }
-        if transition.layout_changed() {
+        if layout_changed {
             after_layout(view, port)?;
+            // Keyboard-driven layout changes stale the map the same way a
+            // pointer navigation does.
+            self.pointer.invalidate_map();
         }
-        match transition.shell() {
+        match shell {
             ShellCommand::Exit => return Ok(DispatchOutcome::Exit),
             ShellCommand::ForwardTerminal => {
                 // The literal chord forwards its canonical C0 encoding, so a

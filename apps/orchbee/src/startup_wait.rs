@@ -79,12 +79,16 @@ pub(crate) fn standalone_presentable_area(dimensions: WindowDimensions) -> Optio
 /// the lifecycle owner; tests inject a scripted guard through `enter`.
 pub(crate) trait WaitModeGuard {
     fn set_bracketed_paste(&mut self, enabled: bool) -> io::Result<()>;
+    fn set_pointer_capture(&mut self, enabled: bool) -> io::Result<()>;
     fn restore(&mut self) -> io::Result<()>;
 }
 
 impl<M: TerminalModes> WaitModeGuard for TerminalModeGuard<M> {
     fn set_bracketed_paste(&mut self, enabled: bool) -> io::Result<()> {
         TerminalModeGuard::set_bracketed_paste(self, enabled)
+    }
+    fn set_pointer_capture(&mut self, enabled: bool) -> io::Result<()> {
+        TerminalModeGuard::set_pointer_capture(self, enabled)
     }
     fn restore(&mut self) -> io::Result<()> {
         TerminalModeGuard::restore(self).map_err(io::Error::other)
@@ -167,7 +171,14 @@ where
                     &mut port,
                     (deps.clock)(),
                     |_, _| Ok(()),
-                    &mut |enabled| guard.set_bracketed_paste(enabled),
+                    &mut |request| match request {
+                        crate::terminal_input::ModeRequest::BracketedPaste(enabled) => {
+                            guard.set_bracketed_paste(enabled)
+                        }
+                        crate::terminal_input::ModeRequest::PointerCapture(enabled) => {
+                            guard.set_pointer_capture(enabled)
+                        }
+                    },
                 ) {
                     Err(error) => return finish(&mut guard, StartupWait::Fault(error)),
                     Ok(DispatchOutcome::Exit) => {

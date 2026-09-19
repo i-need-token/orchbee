@@ -46,11 +46,11 @@ pub(super) fn ready(
     mailbox.take_deposited_reply(&wait).unwrap().unwrap();
     let state = ui.state.as_mut().unwrap();
     let key = state.desired().unwrap().clone();
-    state.install_projection(&key);
-    state.record_setup_configuration(&key, ControllerMode::ReadOnly, None);
-    state.stage_drawn_frame(&key, FrameIdentity::new(1));
-    state.mark_feedback_accepted(&key, FrameIdentity::new(1));
-    state.publish_ready(&key, FrameIdentity::new(1), ControllerMode::ReadOnly, None);
+    state.install_projection_t(&key);
+    state.record_setup_configuration_t(&key, ControllerMode::ReadOnly, None);
+    state.stage_drawn_frame_t(&key, FrameIdentity::new(1));
+    state.mark_feedback_accepted_t(&key, FrameIdentity::new(1));
+    state.publish_ready_t(&key, FrameIdentity::new(1), ControllerMode::ReadOnly, None);
     (ui, mailbox, clock, snapshot)
 }
 fn submit(ui: &mut NativeUi, mailbox: &CommandMailbox, existing: bool) -> CommandLease {
@@ -184,7 +184,7 @@ fn workspace_ui_result_does_not_publish_new_location_until_exact_old_viewer_is_d
         .publish_event_before(
             WorkerEvent::MembershipDetached {
                 cleanup: cleanup.clone(),
-                detached: old,
+                detached: old.anchor().clone(),
             },
             EventDeadline::TotalCleanup(cleanup.deadlines().total()),
             &clock,

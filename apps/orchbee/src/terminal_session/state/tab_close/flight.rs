@@ -399,7 +399,11 @@ impl NativeSessionState {
                 || self.cache.revision() != selection.base_revision()
                 || tab.tab_id() != selection.target().tab_id()
                 || panel.binding() != selection.binding()
-                || self.attached_key.as_ref() != selection.attachment()
+                || self
+                    .desired
+                    .as_ref()
+                    .map(crate::terminal_session::state::PaneKey::anchor)
+                    != selection.attachment()
             {
                 return Err(CloseStateError::StaleConfirmation);
             }
@@ -433,7 +437,7 @@ impl NativeSessionState {
         deadline: Instant,
         now: Instant,
     ) -> Result<CloseOperation, CloseStateError> {
-        if self.pending_refresh_generation.is_some()
+        if self.pending_refresh.is_some()
             || self.mutation_blocks_structure()
             || !matches!(
                 self.phase,

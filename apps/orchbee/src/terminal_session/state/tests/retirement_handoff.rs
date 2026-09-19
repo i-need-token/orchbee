@@ -101,7 +101,10 @@ fn exact_retained_duplicate_preserves_commit_cleanup_and_unavailable_shapes() {
                         operation.deadlines(),
                     )
                     .unwrap();
-                assert_eq!(state.attached_key(), Some(cleanup.old()));
+                assert_eq!(
+                    state.attached_key().map(|pane| pane.anchor()),
+                    Some(cleanup.old())
+                );
             }
             if cut == "projection unavailable" {
                 assert_eq!(
@@ -479,10 +482,10 @@ fn repeated_finalization_preserves_the_first_cause_and_rejects_post_retirement_e
         );
         assert!(!state.phase_allows_refresh());
         assert!(!state.start_pending_refresh(9));
-        assert!(!state.record_admitted_geometry(active.key(), geometry(90)));
-        assert!(!state.install_projection(active.key()));
-        assert!(!state.stage_drawn_frame(active.key(), FrameIdentity::new(9)));
-        assert!(!state.mark_feedback_accepted(active.key(), FrameIdentity::new(9)));
+        assert!(!state.record_admitted_geometry_t(active.key(), geometry(90)));
+        assert!(!state.install_projection_t(active.key()));
+        assert!(!state.stage_drawn_frame_t(active.key(), FrameIdentity::new(9)));
+        assert!(!state.mark_feedback_accepted_t(active.key(), FrameIdentity::new(9)));
         assert!(state.attached_key().is_none());
         assert!(state.projection_key().is_none());
         assert!(state.controller_mode().is_none());
@@ -516,11 +519,11 @@ fn completed_create() -> (
         panic!("created snapshot must license Attach");
     };
     let key = target.selected().key();
-    assert!(state.install_projection(key));
-    assert!(state.record_setup_configuration(key, controlling(), Some(geometry(80))));
-    assert!(state.stage_drawn_frame(key, FrameIdentity::new(2)));
-    assert!(state.mark_feedback_accepted(key, FrameIdentity::new(2)));
-    assert!(state.publish_ready(
+    assert!(state.install_projection_t(key));
+    assert!(state.record_setup_configuration_t(key, controlling(), Some(geometry(80))));
+    assert!(state.stage_drawn_frame_t(key, FrameIdentity::new(2)));
+    assert!(state.mark_feedback_accepted_t(key, FrameIdentity::new(2)));
+    assert!(state.publish_ready_t(
         key,
         FrameIdentity::new(2),
         controlling(),

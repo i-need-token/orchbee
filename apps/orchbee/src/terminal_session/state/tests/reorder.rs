@@ -15,7 +15,7 @@ fn refresh_remaps_every_historical_provenance_and_preserves_ready_identity() {
     ];
     state.provenance = history.clone();
     let key = state.desired().unwrap().clone();
-    assert!(state.invalidate_projection_frame(&key));
+    assert!(state.invalidate_projection_frame_t(&key));
     let mode = state.controller_mode().cloned();
     let mut candidate = snapshot(7, 2, None);
     candidate.terminal_contexts[0].tabs.reverse();

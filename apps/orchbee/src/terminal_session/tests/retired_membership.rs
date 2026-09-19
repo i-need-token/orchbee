@@ -440,10 +440,11 @@ fn recover_neighbor(mode: u8) -> TestResult {
         .is_none()));
     session.apply_client_action(ClientAction::OpenWorkbenchNavigator);
     if mode == 1 {
-        assert!(spin_with_draw(
+        let ok = spin_with_draw(
             &mut session,
-            |session| matches!(&session.backend, SessionBackend::Native(native) if native.view().phase() == NativeDisplayPhase::Ready)
-        ));
+            |session| matches!(&session.backend, SessionBackend::Native(native) if native.view().phase() == NativeDisplayPhase::Ready),
+        );
+        assert!(ok);
     } else {
         assert!(spin_with_draw(&mut session, |session| session
             .task

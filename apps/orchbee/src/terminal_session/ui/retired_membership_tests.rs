@@ -31,14 +31,15 @@ fn ready(
     mailbox.take_deposited_reply(&wait).unwrap().unwrap();
     let state = ui.state.as_mut().unwrap();
     let old = state.desired().unwrap().clone();
-    assert!(state.install_projection(&old));
-    assert!(state.record_setup_configuration(&old, ControllerMode::ReadOnly, None));
-    assert!(state.stage_drawn_frame(&old, FrameIdentity::new(1)));
-    assert!(state.mark_feedback_accepted(&old, FrameIdentity::new(1)));
-    assert!(state.publish_ready(&old, FrameIdentity::new(1), ControllerMode::ReadOnly, None));
+    assert!(state.install_projection_t(&old));
+    assert!(state.record_setup_configuration_t(&old, ControllerMode::ReadOnly, None));
+    assert!(state.stage_drawn_frame_t(&old, FrameIdentity::new(1)));
+    assert!(state.mark_feedback_accepted_t(&old, FrameIdentity::new(1)));
+    assert!(state.publish_ready_t(&old, FrameIdentity::new(1), ControllerMode::ReadOnly, None));
+    let old_ref = state.pane_ref_for(&old).unwrap();
     ui.ordinary_poll_serial = Some(
         mailbox
-            .try_enqueue(QueuedCommand::Poll(Tagged::new(old, ())))
+            .try_enqueue(QueuedCommand::Poll(Tagged::new(old_ref, ())))
             .unwrap(),
     );
     let lease = mailbox.try_recv().unwrap().unwrap();

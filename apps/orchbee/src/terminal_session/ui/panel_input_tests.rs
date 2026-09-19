@@ -486,7 +486,7 @@ fn read_only_attachment_admits_panel_operations_while_terminal_input_stays_gated
             "ReadOnly keeps terminal input gated"
         );
 
-        let disposition = ui.apply_client_action(action);
+        let disposition = ui.apply_client_action(action.clone());
         if check {
             assert_eq!(disposition, SessionActionDisposition::DismissNavigator);
             if matches!(action, ClientAction::ClosePanel) {
@@ -503,7 +503,7 @@ fn read_only_attachment_admits_panel_operations_while_terminal_input_stays_gated
             let QueuedCommand::Panel(marker) = lease.record() else {
                 panic!("one Panel marker");
             };
-            match action {
+            match &action {
                 ClientAction::SplitPanel(direction) => {
                     let expected = match direction {
                         PanelDirection::Left => WorkbenchPanelSplitDirection::Left,
@@ -543,7 +543,7 @@ fn drifted_panel_close_target_settles_cancelled_before_the_next_key() {
             snapshot: super::membership_tests::snapshot(2, 2),
         },
     );
-    state.apply_prepared_refresh(prepared);
+    state.apply_prepared_refresh(prepared, std::time::Instant::now());
     assert!(ui.capture_panel_confirmation_key(ClientKey::Plain('y')));
     assert!(!panel_confirmation_drawn(&ui));
     assert_eq!(
@@ -573,7 +573,7 @@ fn tick_settles_a_drifted_panel_close_confirmation() {
             snapshot: super::membership_tests::snapshot(2, 2),
         },
     );
-    state.apply_prepared_refresh(prepared);
+    state.apply_prepared_refresh(prepared, std::time::Instant::now());
     ui.tick();
     assert!(!panel_confirmation_drawn(&ui));
     assert_eq!(
@@ -642,7 +642,7 @@ fn drifted_close_target_settles_cancelled_before_the_next_key() {
             snapshot: super::membership_tests::snapshot(2, 2),
         },
     );
-    state.apply_prepared_refresh(prepared);
+    state.apply_prepared_refresh(prepared, std::time::Instant::now());
     dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
     assert!(!confirmation_drawn(&ui));
     assert_eq!(

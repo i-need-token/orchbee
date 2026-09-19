@@ -21,13 +21,13 @@ const CLOSE_TIMEOUT: Duration = Duration::from_secs(45);
 
 // Fixture preparation and canonical observation use the public OBLC/OBWP connection.
 // Only the PTY-driven native Client selects contexts or creates terminal Tabs.
-struct WorkbenchPeer {
+pub(super) struct WorkbenchPeer {
     stream: UnixStream,
     next: u128,
 }
 
 impl WorkbenchPeer {
-    fn connect(fixture: &Fixture, deadline: Instant) -> Result<Self, Box<dyn Error>> {
+    pub(super) fn connect(fixture: &Fixture, deadline: Instant) -> Result<Self, Box<dyn Error>> {
         let cohort = NativeCohort::load(&fixture.cohort, deadline)?;
         let admitted = ClientSessionConnection::connect_before(
             fixture.site().client_socket_path(),
@@ -61,7 +61,7 @@ impl WorkbenchPeer {
         Ok(response)
     }
 
-    fn snapshot(&mut self, deadline: Instant) -> Result<Snapshot, Box<dyn Error>> {
+    pub(super) fn snapshot(&mut self, deadline: Instant) -> Result<Snapshot, Box<dyn Error>> {
         let request_id = self.request_id()?;
         let request = WorkbenchRequest::SnapshotRead(SnapshotReadIntent {
             protocol_version: ProtocolVersion,
@@ -77,7 +77,7 @@ impl WorkbenchPeer {
         Ok(snapshot)
     }
 
-    fn prepare(
+    pub(super) fn prepare(
         &mut self,
         action: WorkbenchAction,
         deadline: Instant,
@@ -285,6 +285,11 @@ fn native_standalone_panel_split_refreshes_and_moves_focus_between_live_leaves()
         &mut [],
     );
 
+    // The projected title and global Ready do not prove the split peer has
+    // converged: the focus chord is only a valid single send once the leaf's
+    // own live prompt renders inside its own region — the settled-mode
+    // witness that admits the focus move.
+    native_multiview::wait_leaf_live(&mut client, "Split peer", Instant::now() + SWITCH_TIMEOUT);
     let checkpoint = client.checkpoint();
     client.send(b"\x02l");
     client.wait_frame_text_after(

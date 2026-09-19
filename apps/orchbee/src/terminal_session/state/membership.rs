@@ -1,16 +1,18 @@
 use super::{
     AttachTarget, AttachmentKey, CarrierFailure, CreateTerminalProvenance, NativeContextTabs,
-    NativeSessionState, OperationDeadlines, SelectedTab, SessionPhase, SwitchSetup, WorkbenchTabId,
+    NativeSessionState, OperationDeadlines, PaneKey, SelectedTab, SessionPhase, SwitchSetup,
+    WorkbenchTabId,
 };
 mod close;
-use orchbee_workbench_protocol::WorkbenchRequestId;
+use crate::terminal_session::NativePanel;
+use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchRequestId};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) enum MembershipResultKey {
     Refresh(u64),
     Create(super::CreateOperationKey),
     Close(super::CloseFlightKey),
-    Switch(AttachmentKey),
+    Switch(PaneKey),
     Move(WorkbenchRequestId),
     Panel(WorkbenchRequestId),
     Rename(WorkbenchRequestId),
@@ -60,7 +62,7 @@ pub(super) struct PendingMembership {
 #[derive(Debug)]
 pub(in crate::terminal_session) struct PreparedMembershipCandidate {
     baseline: NativeContextTabs,
-    baseline_desired: Option<AttachmentKey>,
+    baseline_desired: Option<PaneKey>,
     candidate: NativeContextTabs,
     provenance: Vec<CreateTerminalProvenance>,
     selected_index: Option<usize>,
@@ -73,7 +75,11 @@ impl PreparedMembershipCandidate {
     pub(in crate::terminal_session) fn preserves_selection(&self) -> bool {
         self.selected_panel.is_none()
             && self.candidate.location() == self.baseline.location()
-            && self.selected_tab_id() == self.baseline_desired.as_ref().map(AttachmentKey::tab_id)
+            && self.selected_tab_id()
+                == self
+                    .baseline_desired
+                    .as_ref()
+                    .map(|key| key.anchor().tab_id())
     }
 
     /// The surviving Tab kept its identity but the selected leaf vanished: the membership install
@@ -85,6 +91,19 @@ impl PreparedMembershipCandidate {
     pub(in crate::terminal_session) fn selected_tab_id(&self) -> Option<&WorkbenchTabId> {
         self.selected_index
             .map(|index| self.candidate.tabs()[index].tab_id())
+    }
+
+    /// The panel the install will focus — the same resolution the state-side
+    /// install applies (`selected_panel`, defaulting to the first leaf). The
+    /// mailbox desired-install must name this exact panel or the focus pane
+    /// would diverge from the record the state mints.
+    pub(in crate::terminal_session) fn focus_panel_id(&self) -> Option<&WorkbenchPanelId> {
+        let index = self.selected_index?;
+        self.candidate
+            .tabs()
+            .get(index)?
+            .panel(self.selected_panel.unwrap_or(0))
+            .map(NativePanel::panel_id)
     }
 }
 
@@ -100,14 +119,18 @@ pub(in crate::terminal_session) enum MembershipInstallDecision {
 pub(in crate::terminal_session) struct PreparedMembershipInstall<'a> {
     state: &'a mut NativeSessionState,
     prepared: PreparedMembershipCandidate,
-    desired: Option<AttachmentKey>,
+    desired: Option<PaneKey>,
     replacement_phase: SessionPhase,
-    clear_attachment: bool,
+    preserve: bool,
     decision: MembershipInstallDecision,
     refresh_generation: Option<u64>,
     settled_create: Option<super::CommittedTabCreate>,
     close_consumption: Option<super::tab_close::PreparedCloseConsumption>,
     mutation_completion: MembershipMutationCompletion,
+    /// The anchor whose viewers the cleanup already disposed (wire detach or
+    /// closed proof): its records drop outright at commit — no per-pane
+    /// disposal work remains for them.
+    drop_anchor: Option<AttachmentKey>,
 }
 
 enum MembershipMutationCompletion {
@@ -134,7 +157,7 @@ impl PreparedMembershipInstall<'_> {
             MembershipMutationCompletion::None | MembershipMutationCompletion::Rename(_) => {}
         }
         if self.refresh_generation.is_some() {
-            self.state.pending_refresh_generation = None;
+            self.state.pending_refresh = None;
             self.state.install_publication_debt();
             self.state.refresh_status = Some(super::NavigatorRefreshStatus::Success(
                 self.prepared.candidate.revision(),
@@ -149,9 +172,20 @@ impl PreparedMembershipInstall<'_> {
         if self.refresh_generation.is_some() {
             self.state.context_selection = None;
         }
+        // The candidate's leaf set is computed before the move so the pane sync
+        // can compare the old records against the new membership.
+        let leaf_ids = if self.preserve {
+            std::collections::BTreeSet::new()
+        } else {
+            self.prepared
+                .selected_index
+                .and_then(|index| self.prepared.candidate.tabs().get(index))
+                .map(|tab| tab.leaf_panel_ids().into_iter().collect())
+                .unwrap_or_default()
+        };
         self.state.cache = self.prepared.candidate;
         self.state.provenance = self.prepared.provenance;
-        self.state.desired = self.desired;
+        self.state.desired = self.desired.clone();
         self.state.phase = self.replacement_phase;
         if let Some(completion) = self.prepared.setup_completion {
             self.state.complete_setup_refresh(*completion);
@@ -166,18 +200,54 @@ impl PreparedMembershipInstall<'_> {
             self.state.pending_mutation = None;
             self.state.rename_recovery = None;
         }
-        if self.clear_attachment {
-            self.state.attached_key = None;
-            self.state.projection_key = None;
-            self.state.staged_frame = None;
-            self.state.accepted_frame = None;
-            self.state.last_admitted_geometry = None;
-            self.state.last_accepted_geometry = None;
+        if let Some(anchor) = &self.drop_anchor {
+            self.state.drop_anchor_panes(anchor);
+        }
+        if !self.preserve {
+            Self::sync_membership_panes(
+                self.state,
+                self.desired.as_ref(),
+                &leaf_ids,
+                &self.decision,
+            );
         }
         if let Some(consumption) = self.close_consumption {
             self.state.close.commit_consumption(consumption);
         }
         self.decision
+    }
+
+    /// Installs the new epoch's pane set: records the desired anchor does not
+    /// keep become departing (canonical disposal follows through the epoch
+    /// cleanup or the next reconcile), never-attached departing records drop
+    /// outright, and the focus pane's fresh record is minted. Runs after the
+    /// candidate cache is installed so record installs resolve the new facts.
+    fn sync_membership_panes(
+        state: &mut NativeSessionState,
+        desired: Option<&PaneKey>,
+        leaf_ids: &std::collections::BTreeSet<orchbee_workbench_protocol::WorkbenchPanelId>,
+        decision: &MembershipInstallDecision,
+    ) {
+        for record in &mut state.panes {
+            let survives = desired.is_some_and(|pane| {
+                record.key.anchor() == pane.anchor() && leaf_ids.contains(record.key.panel())
+            });
+            record.departing = !survives;
+        }
+        state
+            .panes
+            .retain(|record| !record.departing || record.attached);
+        match decision {
+            MembershipInstallDecision::Attach(target) => {
+                state.install_pane_record(target);
+            }
+            MembershipInstallDecision::SelectedWithoutAttachment => {
+                if let Some(selected) = state.active().cloned() {
+                    state.install_unattached_pane(&selected);
+                }
+            }
+            MembershipInstallDecision::Preserved | MembershipInstallDecision::Empty => {}
+        }
     }
 }
 
@@ -209,7 +279,7 @@ impl NativeSessionState {
         prepared: PreparedMembershipCandidate,
         deadlines: OperationDeadlines,
     ) -> Result<MembershipCleanup, CarrierFailure> {
-        if self.pending_refresh_generation != Some(generation) {
+        if self.pending_refresh_generation() != Some(generation) {
             return Err(CarrierFailure::Protocol);
         }
         self.stage_create_cleanup_inner(
@@ -228,7 +298,7 @@ impl NativeSessionState {
         desired: Option<AttachmentKey>,
         deadlines: OperationDeadlines,
     ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
-        if self.pending_refresh_generation != Some(generation) {
+        if self.pending_refresh_generation() != Some(generation) {
             return Err(CarrierFailure::Protocol);
         }
         let mut plan = self
@@ -274,11 +344,15 @@ impl NativeSessionState {
         {
             return Err(CarrierFailure::Protocol);
         }
-        let old = self.attached_key.clone().ok_or(CarrierFailure::Protocol)?;
+        let old = self
+            .desired
+            .as_ref()
+            .map(|key| key.anchor().clone())
+            .ok_or(CarrierFailure::Protocol)?;
         if self
             .create_membership_commit()
             .and_then(|committed| committed.anchor.ready())
-            .is_none_or(|ready| ready.selected.key() != &old)
+            .is_none_or(|ready| ready.selected.key().anchor() != &old)
         {
             return Err(CarrierFailure::Protocol);
         }
@@ -406,16 +480,16 @@ impl NativeSessionState {
         let close_recovery =
             close_marker.is_some_and(|marker| self.close_membership_recovery_matches(marker));
         let switch_marker = match cleaned.map(MembershipCleanup::result) {
-            Some(MembershipResultKey::Switch(marker)) => Some(marker),
+            Some(MembershipResultKey::Switch(marker)) => Some(marker.clone()),
             _ => match &self.phase {
                 SessionPhase::Switching(setup) if setup.membership.is_some() => {
-                    Some(setup.target.selected.key())
+                    Some(setup.target.selected.key().clone())
                 }
                 _ => None,
             },
         };
         let current_switch =
-            switch_marker.is_some_and(|marker| self.switch_marker_is_current(marker));
+            switch_marker.is_some_and(|marker| self.switch_marker_is_current(&marker));
         let committed_create = self.create_membership_commit().cloned();
         let current_create = committed_create.is_some();
         if let Some(committed) = &committed_create {
@@ -434,7 +508,10 @@ impl NativeSessionState {
             self.pending_membership
                 .as_ref()
                 .is_some_and(|pending| &pending.cleanup == cleanup)
-                && self.attached_key.as_ref() == Some(cleanup.old())
+                && self
+                    .panes
+                    .iter()
+                    .any(|record| &record.key.anchor == cleanup.old())
                 && (matches!(self.phase, SessionPhase::ReconcilingMembership(_))
                     || current_switch
                     || current_create)
@@ -459,7 +536,7 @@ impl NativeSessionState {
             return Err(CarrierFailure::Protocol);
         }
         let preserve = prepared.preserves_selection()
-            && desired == self.desired
+            && desired.as_ref() == self.desired.as_ref().map(PaneKey::anchor)
             && !current_create
             && !current_switch
             && !close_recovery
@@ -471,16 +548,18 @@ impl NativeSessionState {
             && desired
                 .as_ref()
                 .zip(self.desired.as_ref())
-                .is_some_and(|(next, old)| next.generation() <= old.generation())
+                .is_some_and(|(next, old)| next.generation() <= old.anchor().generation())
         {
             return Err(CarrierFailure::Protocol);
         }
         if !preserve
             && !exact_cleanup
-            && (self.attached_key.is_some()
-                || self.projection_key.is_some()
-                || self.staged_frame.is_some()
-                || self.accepted_frame.is_some())
+            && self.panes.iter().any(|record| {
+                record.attached
+                    || record.projected
+                    || record.staged_frame.is_some()
+                    || record.accepted_frame.is_some()
+            })
         {
             return Err(CarrierFailure::Protocol);
         }
@@ -491,6 +570,25 @@ impl NativeSessionState {
             }
         } else {
             prepared.selected_panel.unwrap_or(0)
+        };
+        let desired_pane = match (&desired, current_switch) {
+            (_, true) => match &self.phase {
+                SessionPhase::Switching(setup) => prepared.selected_index.map(|_| {
+                    PaneKey::new(
+                        desired
+                            .clone()
+                            .unwrap_or_else(|| setup.target.selected.key().anchor().clone()),
+                        setup.target.selected.key().panel().clone(),
+                    )
+                }),
+                _ => return Err(CarrierFailure::Protocol),
+            },
+            (Some(anchor), false) => prepared
+                .selected_index
+                .and_then(|index| prepared.candidate.tabs().get(index))
+                .and_then(|tab| tab.panel(selected_panel_index))
+                .map(|panel| PaneKey::new(anchor.clone(), panel.panel_id().clone())),
+            (None, false) => None,
         };
         let (replacement_phase, decision) = if preserve {
             let mut phase = self.phase.clone();
@@ -507,9 +605,9 @@ impl NativeSessionState {
                 _ => return Err(CarrierFailure::Protocol),
             }
             (phase, MembershipInstallDecision::Preserved)
-        } else if let Some(key) = &desired {
+        } else if let Some(pane) = &desired_pane {
             let index = prepared.selected_index.ok_or(CarrierFailure::Protocol)?;
-            let selected = SelectedTab::new_panel(key.clone(), index, selected_panel_index);
+            let selected = SelectedTab::new_panel(pane.clone(), index, selected_panel_index);
             let provenance = prepared.provenance[index].clone();
             if provenance.attachable() {
                 let tab = &prepared.candidate.tabs()[index];
@@ -518,12 +616,23 @@ impl NativeSessionState {
                     .ok_or(CarrierFailure::Protocol)?
                     .binding()
                     .clone();
+                // A surviving record reuses its incarnation so a live viewer is
+                // never re-attached; a fresh pane mints the next incarnation.
+                let incarnation = match self.pane_record(pane) {
+                    Some(record) => record.incarnation(),
+                    None => {
+                        let incarnation = self.next_incarnation;
+                        self.next_incarnation += 1;
+                        incarnation
+                    }
+                };
                 let target = AttachTarget {
                     selected,
                     site_id: prepared.candidate.site_id().clone(),
                     binding,
                     provenance,
                     deadlines: deadlines.ok_or(CarrierFailure::Deadline)?,
+                    incarnation,
                 };
                 (
                     SessionPhase::Switching(SwitchSetup {
@@ -547,14 +656,15 @@ impl NativeSessionState {
         Ok(PreparedMembershipInstall {
             state: self,
             prepared,
-            desired,
+            desired: desired_pane,
             replacement_phase,
-            clear_attachment: !preserve,
+            preserve,
             decision,
             refresh_generation: None,
             settled_create: committed_create,
             close_consumption,
             mutation_completion: MembershipMutationCompletion::None,
+            drop_anchor: cleaned.map(|cleanup| cleanup.old().clone()),
         })
     }
 
@@ -566,16 +676,20 @@ impl NativeSessionState {
     ) -> Result<MembershipCleanup, CarrierFailure> {
         if !self.invariant_holds()
             || self.pending_membership.is_some()
-            || self.pending_refresh_generation != Some(generation)
+            || self.pending_refresh_generation() != Some(generation)
             || self.cache != prepared.baseline
             || self.desired != prepared.baseline_desired
             || prepared.preserves_selection()
         {
             return Err(CarrierFailure::Protocol);
         }
-        let old = self.attached_key.clone().ok_or(CarrierFailure::Protocol)?;
+        let old = self
+            .desired
+            .as_ref()
+            .map(|key| key.anchor().clone())
+            .ok_or(CarrierFailure::Protocol)?;
         let selected = self.active().cloned().ok_or(CarrierFailure::Protocol)?;
-        if selected.key() != &old || !matches!(self.phase, SessionPhase::Ready(_)) {
+        if selected.key().anchor() != &old || !matches!(self.phase, SessionPhase::Ready(_)) {
             return Err(CarrierFailure::Protocol);
         }
         let cleanup = MembershipCleanup {
@@ -609,9 +723,13 @@ impl NativeSessionState {
         {
             return Err(CarrierFailure::Protocol);
         }
-        let old = self.attached_key.clone().ok_or(CarrierFailure::Protocol)?;
+        let old = self
+            .desired
+            .as_ref()
+            .map(|key| key.anchor().clone())
+            .ok_or(CarrierFailure::Protocol)?;
         let selected = self.active().cloned().ok_or(CarrierFailure::Protocol)?;
-        if selected.key() != &old || !matches!(self.phase, SessionPhase::Ready(_)) {
+        if selected.key().anchor() != &old || !matches!(self.phase, SessionPhase::Ready(_)) {
             return Err(CarrierFailure::Protocol);
         }
         let cleanup = MembershipCleanup {
@@ -703,7 +821,7 @@ impl NativeSessionState {
                 None
             }
             MembershipResultKey::Refresh(generation) => {
-                if self.pending_refresh_generation != Some(*generation) {
+                if self.pending_refresh_generation() != Some(*generation) {
                     return Err(CarrierFailure::Protocol);
                 }
                 Some(*generation)
@@ -763,7 +881,7 @@ impl NativeSessionState {
                 let exact_origin = match &pending.cleanup.result {
                     MembershipResultKey::Create(operation) => operation == &committed.operation.key,
                     MembershipResultKey::Refresh(generation) => {
-                        self.pending_refresh_generation == Some(*generation)
+                        self.pending_refresh_generation() == Some(*generation)
                     }
                     MembershipResultKey::Close(_)
                     | MembershipResultKey::Rename(_)
@@ -775,11 +893,13 @@ impl NativeSessionState {
                     && pending.cleanup.installs_candidate
                     && self.cache == prepared.baseline
                     && self.desired == prepared.baseline_desired
-                    && self.attached_key.as_ref() == Some(pending.cleanup.old())
+                    && self.panes.iter().any(|record| {
+                        &record.key.anchor == pending.cleanup.old() && record.attached
+                    })
                     && committed
                         .anchor
                         .ready()
-                        .is_some_and(|ready| ready.selected.key() == pending.cleanup.old())
+                        .is_some_and(|ready| ready.selected.key().anchor() == pending.cleanup.old())
             }
             (Some(pending), SessionPhase::ReconcilingMembership(selected)) => {
                 let Some(prepared) = &pending.prepared else {
@@ -787,7 +907,7 @@ impl NativeSessionState {
                 };
                 (match &pending.cleanup.result {
                     MembershipResultKey::Refresh(generation) => {
-                        self.pending_refresh_generation == Some(*generation)
+                        self.pending_refresh_generation() == Some(*generation)
                     }
                     MembershipResultKey::Move(request_id) => {
                         self.move_membership_is_current(request_id)
@@ -803,7 +923,7 @@ impl NativeSessionState {
                         .close_marker()
                         .is_some_and(|marker| self.close.prepare_consumption(marker).is_ok()),
                     MembershipResultKey::Create(_) | MembershipResultKey::Switch(_) => false,
-                }) && &pending.cleanup.old == selected.key()
+                }) && selected.key().anchor() == &pending.cleanup.old
                     && pending.cleanup.installs_candidate
                     && self.cache == prepared.baseline
                     && self.desired == prepared.baseline_desired
@@ -812,26 +932,58 @@ impl NativeSessionState {
             (Some(pending), SessionPhase::Switching(setup)) => {
                 matches!(&pending.cleanup.result, MembershipResultKey::Switch(marker)
                     if pending.prepared.as_ref().is_none_or(|prepared| prepared.baseline_desired.as_ref() == Some(marker))
-                        && self.desired.as_ref().is_some_and(|desired| desired.generation() >= marker.generation()))
+                        && self.desired.as_ref().is_some_and(|desired| desired.anchor().generation() >= marker.anchor().generation()))
                     && pending.cleanup.installs_candidate == pending.prepared.is_some()
                     && setup.membership.is_some()
                     && pending
                         .prepared
                         .as_ref()
                         .is_none_or(|prepared| self.cache == prepared.baseline)
-                    && self.attached_key.as_ref() == Some(pending.cleanup.old())
-                    && setup
-                        .previous
-                        .as_ref()
-                        .is_some_and(|previous| previous.selected.key() == pending.cleanup.old())
+                    && self.panes.iter().any(|record| {
+                        &record.key.anchor == pending.cleanup.old() && record.attached
+                    })
+                    && setup.previous.as_ref().is_some_and(|previous| {
+                        previous.selected.key().anchor() == &pending.cleanup.old
+                    })
             }
             (Some(_), _) => false,
         }
     }
 
+    /// Legacy tests name the marker by attachment anchor.
+    #[cfg(test)]
+    pub(in crate::terminal_session) fn stage_switch_membership_cleanup_k<
+        K: super::TestPaneKey + ?Sized,
+    >(
+        &mut self,
+        marker: &K,
+        prepared: PreparedMembershipCandidate,
+        deadlines: OperationDeadlines,
+    ) -> Result<MembershipCleanup, CarrierFailure> {
+        match marker.resolve_pane_key(self) {
+            Some(resolved) => self.stage_switch_membership_cleanup(&resolved, prepared, deadlines),
+            None => Err(CarrierFailure::Protocol),
+        }
+    }
+
+    #[cfg(test)]
+    pub(in crate::terminal_session) fn prepare_switch_membership_install_k<
+        K: super::TestPaneKey + ?Sized,
+    >(
+        &mut self,
+        marker: &K,
+        prepared: PreparedMembershipCandidate,
+        desired: Option<AttachmentKey>,
+    ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
+        match marker.resolve_pane_key(self) {
+            Some(resolved) => self.prepare_switch_membership_install(&resolved, prepared, desired),
+            None => Err(CarrierFailure::Protocol),
+        }
+    }
+
     pub(in crate::terminal_session) fn stage_switch_membership_cleanup(
         &mut self,
-        marker: &AttachmentKey,
+        marker: &PaneKey,
         prepared: PreparedMembershipCandidate,
         deadlines: OperationDeadlines,
     ) -> Result<MembershipCleanup, CarrierFailure> {
@@ -846,12 +998,25 @@ impl NativeSessionState {
         let SessionPhase::Switching(setup) = &self.phase else {
             return Err(CarrierFailure::Protocol);
         };
-        let old = self.attached_key.clone().ok_or(CarrierFailure::Protocol)?;
+        // The cleaned anchor is the outgoing pane's — `desired` already names
+        // the switch target, so the previous selection (or any still-attached
+        // non-desired record) supplies it.
+        let old = setup
+            .previous
+            .as_ref()
+            .map(|previous| previous.selected.key().anchor().clone())
+            .or_else(|| {
+                self.panes
+                    .iter()
+                    .find(|record| record.attached && Some(&record.key) != self.desired.as_ref())
+                    .map(|record| record.key.anchor().clone())
+            })
+            .ok_or(CarrierFailure::Protocol)?;
         if setup.target.deadlines() != deadlines
             || setup
                 .previous
                 .as_ref()
-                .is_none_or(|previous| previous.selected.key() != &old)
+                .is_none_or(|previous| previous.selected.key().anchor() != &old)
         {
             return Err(CarrierFailure::Protocol);
         }
@@ -872,7 +1037,7 @@ impl NativeSessionState {
 
     pub(in crate::terminal_session) fn stage_switch_expiry_cleanup(
         &mut self,
-        marker: &AttachmentKey,
+        marker: &PaneKey,
     ) -> Result<MembershipCleanup, CarrierFailure> {
         if !self.invariant_holds()
             || !self.switch_marker_is_current(marker)
@@ -883,11 +1048,24 @@ impl NativeSessionState {
         let SessionPhase::Switching(setup) = &self.phase else {
             return Err(CarrierFailure::Protocol);
         };
-        let old = self.attached_key.clone().ok_or(CarrierFailure::Protocol)?;
+        // The cleaned anchor is the outgoing pane's — `desired` already names
+        // the switch target, so the previous selection (or any still-attached
+        // non-desired record) supplies it.
+        let old = setup
+            .previous
+            .as_ref()
+            .map(|previous| previous.selected.key().anchor().clone())
+            .or_else(|| {
+                self.panes
+                    .iter()
+                    .find(|record| record.attached && Some(&record.key) != self.desired.as_ref())
+                    .map(|record| record.key.anchor().clone())
+            })
+            .ok_or(CarrierFailure::Protocol)?;
         if setup
             .previous
             .as_ref()
-            .is_none_or(|previous| previous.selected.key() != &old)
+            .is_none_or(|previous| previous.selected.key().anchor() != &old)
         {
             return Err(CarrierFailure::Protocol);
         }
@@ -908,7 +1086,7 @@ impl NativeSessionState {
 
     pub(in crate::terminal_session) fn prepare_switch_membership_install(
         &mut self,
-        marker: &AttachmentKey,
+        marker: &PaneKey,
         prepared: PreparedMembershipCandidate,
         desired: Option<AttachmentKey>,
     ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
@@ -925,8 +1103,8 @@ impl NativeSessionState {
     /// Admission already holds the mailbox gate. Only an authorized old call retains its candidate.
     pub(in crate::terminal_session) fn finish_switch_membership_admission(
         &mut self,
-        discarded: Option<&AttachmentKey>,
-        inherited: Option<&AttachmentKey>,
+        discarded: Option<&PaneKey>,
+        inherited: Option<&PaneKey>,
         authorized_cleanup: bool,
     ) {
         for key in [discarded, inherited].into_iter().flatten() {
@@ -956,31 +1134,34 @@ impl NativeSessionState {
                 .pending_membership
                 .as_ref()
                 .is_none_or(|pending| &pending.cleanup != cleanup)
-            || self.attached_key.as_ref() != Some(cleanup.old())
+            || !self
+                .panes
+                .iter()
+                .any(|record| &record.key.anchor == cleanup.old() && record.attached)
         {
             return Err(CarrierFailure::Protocol);
         }
-        let SessionPhase::Switching(setup) = &mut self.phase else {
-            return Err(CarrierFailure::Protocol);
-        };
-        if setup
-            .previous
-            .as_ref()
-            .is_none_or(|previous| previous.selected.key() != cleanup.old())
         {
-            return Err(CarrierFailure::Protocol);
-        }
-        self.pending_membership = None;
-        if detached {
-            setup.previous = None;
-            if let Some(membership) = &mut setup.membership {
-                membership.invalidate();
+            let SessionPhase::Switching(setup) = &mut self.phase else {
+                return Err(CarrierFailure::Protocol);
+            };
+            if setup
+                .previous
+                .as_ref()
+                .is_none_or(|previous| previous.selected.key().anchor() != cleanup.old())
+            {
+                return Err(CarrierFailure::Protocol);
             }
-            self.attached_key = None;
-            self.projection_key = None;
-            self.staged_frame = None;
-            self.accepted_frame = None;
-            self.last_accepted_geometry = None;
+            self.pending_membership = None;
+            if detached {
+                setup.previous = None;
+                if let Some(membership) = &mut setup.membership {
+                    membership.invalidate();
+                }
+            }
+        }
+        if detached {
+            self.drop_anchor_panes(cleanup.old());
         }
         Ok(())
     }
@@ -992,7 +1173,7 @@ impl NativeSessionState {
         desired: Option<AttachmentKey>,
         deadlines: Option<OperationDeadlines>,
     ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
-        if self.pending_refresh_generation != Some(generation) {
+        if self.pending_refresh_generation() != Some(generation) {
             return Err(CarrierFailure::Protocol);
         }
         let mut plan = self.prepare_membership_install(prepared, desired, deadlines)?;
@@ -1016,9 +1197,13 @@ impl NativeSessionState {
         {
             return Err(CarrierFailure::Protocol);
         }
-        let old = self.attached_key.clone().ok_or(CarrierFailure::Protocol)?;
+        let old = self
+            .desired
+            .as_ref()
+            .map(|key| key.anchor().clone())
+            .ok_or(CarrierFailure::Protocol)?;
         let selected = self.active().cloned().ok_or(CarrierFailure::Protocol)?;
-        if selected.key() != &old {
+        if selected.key().anchor() != &old {
             return Err(CarrierFailure::Protocol);
         }
         let cleanup = MembershipCleanup {
@@ -1068,9 +1253,13 @@ impl NativeSessionState {
         {
             return Err(CarrierFailure::Protocol);
         }
-        let old = self.attached_key.clone().ok_or(CarrierFailure::Protocol)?;
+        let old = self
+            .desired
+            .as_ref()
+            .map(|key| key.anchor().clone())
+            .ok_or(CarrierFailure::Protocol)?;
         let selected = self.active().cloned().ok_or(CarrierFailure::Protocol)?;
-        if selected.key() != &old {
+        if selected.key().anchor() != &old {
             return Err(CarrierFailure::Protocol);
         }
         let cleanup = MembershipCleanup {

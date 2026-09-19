@@ -21,6 +21,8 @@ fn kinds(items: &[DecodedItem]) -> Vec<String> {
         .map(|item| match &item.kind {
             DecodedKind::Key(event) => format!("key:{:?}/{:?}", event.code, event.mods),
             DecodedKind::Paste { text } => format!("paste:{:?}", text),
+            DecodedKind::Mouse(event) => format!("mouse:{:?}", event),
+            DecodedKind::Ignored => format!("ignored:{:?}", &item.raw[..]),
             DecodedKind::Nondecision => format!("nondecision:{:?}", &item.raw[..]),
         })
         .collect()

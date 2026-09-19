@@ -18,7 +18,7 @@ fn ctrl_b() -> PrefixInput {
 
 fn commit(view: &mut ClientView, input: PrefixInput) -> ClientTransition {
     let transition = view.decide(input);
-    view.commit(transition, SessionActionDisposition::KeepNavigator);
+    view.commit(transition.clone(), SessionActionDisposition::KeepNavigator);
     transition
 }
 

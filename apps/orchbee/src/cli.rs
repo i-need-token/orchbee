@@ -291,7 +291,7 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
             Ok((source, projection)) => {
                 success_output(projection, source, &command, format, locale)
             }
-        },
+        }
         _ => network_query(&command, format, locale),
     }
 }

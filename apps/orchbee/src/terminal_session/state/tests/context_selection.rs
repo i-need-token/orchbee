@@ -54,14 +54,14 @@ fn finish_selection(state: &mut NativeSessionState, snapshot: Snapshot, generati
     let desired = prepared
         .selected_tab_id()
         .map(|tab| AttachmentKey::new(generation + 10, tab.clone()));
-    let decision = if state.attached_key().is_some() {
+    let decision = if state.has_attachments() {
         let old = state.attached_key().unwrap().clone();
         let cleanup = state
             .stage_refresh_membership_cleanup(generation, prepared, deadlines)
             .unwrap();
         assert_eq!(cleanup.old(), &old);
         let prepared = state
-            .prepare_cleaned_membership_candidate(&cleanup, &old)
+            .prepare_cleaned_membership_candidate(&cleanup, old.anchor())
             .unwrap();
         state
             .prepare_cleaned_membership_install(&cleanup, prepared, desired)
@@ -76,11 +76,11 @@ fn finish_selection(state: &mut NativeSessionState, snapshot: Snapshot, generati
     if let MembershipInstallDecision::Attach(target) = decision {
         let key = target.selected().key();
         assert_eq!(target.deadlines(), deadlines);
-        assert!(state.install_projection(key));
-        assert!(state.record_setup_configuration(key, ControllerMode::ReadOnly, None));
-        assert!(state.stage_drawn_frame(key, FrameIdentity::new(generation + 30)));
-        assert!(state.mark_feedback_accepted(key, FrameIdentity::new(generation + 30)));
-        assert!(state.publish_ready(
+        assert!(state.install_projection_t(key));
+        assert!(state.record_setup_configuration_t(key, ControllerMode::ReadOnly, None));
+        assert!(state.stage_drawn_frame_t(key, FrameIdentity::new(generation + 30)));
+        assert!(state.mark_feedback_accepted_t(key, FrameIdentity::new(generation + 30)));
+        assert!(state.publish_ready_t(
             key,
             FrameIdentity::new(generation + 30),
             ControllerMode::ReadOnly,
@@ -139,7 +139,7 @@ fn context_selection_retains_every_known_create_provenance_on_reentry() {
         assert!(state.start_context_selection(2, false, deadlines()));
         finish_selection(&mut state, contexts(0, 1), 2);
         assert_eq!(state.provenance(0), Some(&provenance));
-        assert_eq!(state.attached_key().is_some(), provenance.attachable());
+        assert_eq!(state.has_attachments(), provenance.attachable());
     }
 }
 
@@ -155,7 +155,7 @@ fn unsupported_target_is_refused_without_hiding_or_detaching_current_terminal() 
     let prepared = state.prepare_refresh(1, WorkbenchSnapshotOutcome::Available { snapshot });
     assert!(matches!(prepared, PreparedRefresh::DefiniteFailure { .. }));
     assert_eq!(
-        state.apply_prepared_refresh(prepared),
+        state.apply_prepared_refresh(prepared, std::time::Instant::now()),
         RefreshDecision::Continue
     );
     assert_eq!(state.cache(), &cache);
@@ -182,7 +182,7 @@ fn context_selection_rejects_owner_rebinding_and_current_authority_regression() 
         } else {
             assert!(matches!(prepared, PreparedRefresh::Divergent { .. }));
         }
-        state.apply_prepared_refresh(prepared);
+        state.apply_prepared_refresh(prepared, std::time::Instant::now());
         assert_eq!(state.cache(), &old);
     }
 }
@@ -198,7 +198,7 @@ fn workspace_refresh_preserves_context_and_commits_navigation_from_the_same_revi
     assert!(state.start_pending_refresh(2));
     let prepared = state.prepare_refresh(2, WorkbenchSnapshotOutcome::Available { snapshot });
     assert_eq!(
-        state.apply_prepared_refresh(prepared),
+        state.apply_prepared_refresh(prepared, std::time::Instant::now()),
         RefreshDecision::Continue
     );
     assert_eq!(state.cache().terminal_context_id(), &context_id(72));
@@ -242,7 +242,7 @@ fn stale_context_result_cannot_install_and_retirement_clears_intent() {
     );
     assert!(matches!(prepared, PreparedRefresh::Stale));
     assert_eq!(
-        state.apply_prepared_refresh(prepared),
+        state.apply_prepared_refresh(prepared, std::time::Instant::now()),
         RefreshDecision::Continue
     );
     assert!(state.context_selection_deadlines().is_some());

@@ -77,7 +77,7 @@ impl NativeUi {
         self.mailbox = Some(Arc::clone(&mailbox));
         self.retirement_failure = None;
         self.retirement_finalized = false;
-        self.pending_draw = None;
+        self.pending_draws.clear();
         self.ordinary_poll_serial = None;
         Some((mailbox, self.clock.clone(), deadlines.forward_cutoff()))
     }
@@ -133,17 +133,22 @@ impl NativeUi {
                 )));
             }
             let prepared = prepared?;
-            let install = prepared
-                .selected_tab_id()
-                .map_or(DesiredInstall::Empty, |tab| {
-                    DesiredInstall::Fresh(tab.clone())
-                });
+            let install = match prepared.selected_tab_id() {
+                Some(tab) => match prepared.focus_panel_id() {
+                    Some(panel) => DesiredInstall::Fresh {
+                        tab_id: tab.clone(),
+                        panel: panel.clone(),
+                    },
+                    None => DesiredInstall::Empty,
+                },
+                None => DesiredInstall::Empty,
+            };
             let desired_plan = transaction.prepare_desired_install(install)?;
             let state_plan = state.prepare_retired_membership_install(
                 &origin,
                 generation,
                 prepared,
-                desired_plan.desired().cloned(),
+                desired_plan.desired().map(|key| key.anchor().clone()),
                 deadlines,
             )?;
             let decision = state_plan.commit();
@@ -169,7 +174,7 @@ impl NativeUi {
                 self.retired_peer = None;
                 self.retired_peer_attempt = None;
                 self.retirement = None;
-                self.clear_projection();
+                self.clear_projections();
                 self.validate_state()
             }
             Ok(MutationResult::Applied) => {

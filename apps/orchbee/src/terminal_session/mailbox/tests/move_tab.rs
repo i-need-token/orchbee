@@ -36,7 +36,10 @@ fn move_admission_refusals_preserve_identity_and_attachment() {
         ));
         assert_eq!(mailbox.cursors(), before);
         assert!(mailbox.lock().queue.is_empty());
-        assert_eq!(mailbox.lock().desired.key(), Some(&key(1, 1)));
+        assert_eq!(
+            mailbox.lock().desired.key().map(|pane| pane.anchor()),
+            Some(&key(1, 1))
+        );
     }
     let mailbox = bootstrapped_mailbox(1, u128::MAX);
     let before = mailbox.cursors();
@@ -144,7 +147,7 @@ fn move_fence_releases_on_deadline_free_ui_settlement_before_worker_reads_reply(
         .deposit_ui_reply_before_using(&wait, &clock, |_| {
             Ok(UiReply::Move(MoveSettlement::new(
                 MoveDecision::Continue,
-                key(1, 1),
+                pane_key(&key(1, 1)),
             )))
         })
         .unwrap();

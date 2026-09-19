@@ -16,10 +16,11 @@ use crate::{
     client_view::ClientView,
     localization::Locale,
     terminal_device::{InheritedTerminal, TerminalAdmissionError, WindowDimensions},
-    terminal_input::{DispatchOutcome, InputDispatcher, UnavailableTerminalInputPort},
+    terminal_input::{DispatchOutcome, InputDispatcher, ModeRequest, UnavailableTerminalInputPort},
     terminal_lifecycle::{InheritedTerminalModes, TerminalModeGuard},
     termination_signal::{TerminationSignal, TerminationSource},
     tui_backend::{FixedViewportBackend, ResizableBackend, RestorationGatedWriter},
+    tui_pointer::HitMapBuilder,
     tui_render::render_terminal_shell,
 };
 
@@ -147,8 +148,8 @@ impl ViewportSource for InheritedTerminal {
     }
 }
 
-pub(crate) fn run(locale: Locale) -> Result<(), TuiFailure> {
-    run_with_client(locale, None)
+pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), TuiFailure> {
+    run_with_client(locale, None, mouse)
 }
 
 #[cfg(test)]
@@ -156,8 +157,9 @@ pub(crate) fn run_connected(
     locale: Locale,
     client: crate::local_client::LocalClient,
     intent: crate::terminal_session::TerminalIntent,
+    mouse: bool,
 ) -> Result<(), TuiFailure> {
-    run_with_client(locale, Some((client, intent)))
+    run_with_client(locale, Some((client, intent)), mouse)
 }
 
 fn run_with_client(
@@ -166,6 +168,7 @@ fn run_with_client(
         crate::local_client::LocalClient,
         crate::terminal_session::TerminalIntent,
     )>,
+    mouse: bool,
 ) -> Result<(), TuiFailure> {
     let inherited = InheritedTerminal::admit().map_err(TuiFailure::Admission)?;
     let dimensions = inherited.window_dimensions().map_err(TuiFailure::Runtime)?;
@@ -186,7 +189,7 @@ fn run_with_client(
         }
         None => Box::new(UnavailableTerminalInputPort),
     };
-    run_prepared_surface(locale, inherited, dimensions, terminal_input)
+    run_prepared_surface(locale, inherited, dimensions, terminal_input, mouse)
 }
 
 #[cfg(target_os = "linux")]
@@ -195,8 +198,9 @@ pub(crate) fn run_prepared(
     inherited: InheritedTerminal,
     dimensions: WindowDimensions,
     session: crate::terminal_session::TerminalSession,
+    mouse: bool,
 ) -> Result<(), TuiFailure> {
-    run_prepared_surface(locale, inherited, dimensions, Box::new(session))
+    run_prepared_surface(locale, inherited, dimensions, Box::new(session), mouse)
 }
 
 fn run_prepared_surface(
@@ -204,6 +208,7 @@ fn run_prepared_surface(
     inherited: InheritedTerminal,
     dimensions: WindowDimensions,
     mut terminal_input: Box<dyn TerminalSurface>,
+    mouse: bool,
 ) -> Result<(), TuiFailure> {
     let termination = TerminationSignal::install().map_err(TuiFailure::Runtime)?;
     let mut modes = TerminalModeGuard::enter(InheritedTerminalModes::new(inherited.clone()))
@@ -227,6 +232,11 @@ fn run_prepared_surface(
     let input = File::from(inherited.duplicate_input().map_err(TuiFailure::Runtime)?);
     let mut inputs = InheritedInputSource::new(input);
     let theme = crate::tui_theme::Theme::terminal_native();
+    // Pointer reporting is armed (or left released) before the loop so the
+    // first drawn frame already agrees with the dispatcher's settled flag.
+    modes
+        .set_pointer_capture(mouse)
+        .map_err(TuiFailure::Runtime)?;
 
     let run_result = run_event_loop_with_modes(
         &mut terminal,
@@ -234,13 +244,15 @@ fn run_prepared_surface(
             locale,
             theme: &theme,
         },
-        (&mut inputs, &mut |enabled| {
-            modes.set_bracketed_paste(enabled)
+        (&mut inputs, &mut |request| match request {
+            ModeRequest::BracketedPaste(enabled) => modes.set_bracketed_paste(enabled),
+            ModeRequest::PointerCapture(enabled) => modes.set_pointer_capture(enabled),
         }),
         terminal_input.as_mut(),
         &termination,
         &inherited,
         dimensions,
+        mouse,
     )
     .map_err(LoopFailure::into_io_error);
     if run_result.is_err() {
@@ -271,6 +283,7 @@ struct Chrome<'a> {
 }
 
 #[cfg(test)]
+#[expect(clippy::too_many_arguments)]
 fn run_event_loop<B: Backend + ResizableBackend>(
     terminal: &mut Terminal<B>,
     chrome: Chrome<'_>,
@@ -279,33 +292,40 @@ fn run_event_loop<B: Backend + ResizableBackend>(
     termination: &impl TerminationSource,
     viewport: &impl ViewportSource,
     dimensions: WindowDimensions,
+    mouse: bool,
 ) -> Result<LoopExit, LoopFailure<B::Error>> {
     run_event_loop_with_modes(
         terminal,
         chrome,
-        (inputs, &mut |_enabled| Ok(())),
+        (inputs, &mut |_request| Ok(())),
         terminal_input,
         termination,
         viewport,
         dimensions,
+        mouse,
     )
 }
 
+#[expect(clippy::too_many_arguments)]
 fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
     terminal: &mut Terminal<B>,
     chrome: Chrome<'_>,
     input_runtime: (
         &mut impl InputSource,
-        &mut impl FnMut(bool) -> io::Result<()>,
+        &mut impl FnMut(ModeRequest) -> io::Result<()>,
     ),
     terminal_input: &mut (impl TerminalSurface + ?Sized),
     termination: &impl TerminationSource,
     viewport: &impl ViewportSource,
     mut dimensions: WindowDimensions,
+    mouse: bool,
 ) -> Result<LoopExit, LoopFailure<B::Error>> {
     let (inputs, mode) = input_runtime;
     let mut view = ClientView::new(dimensions.columns);
     let mut dispatcher = InputDispatcher::default();
+    // The lifecycle write already armed or released host reporting; the
+    // dispatcher and the status indicator settle to the same truth here.
+    dispatcher.set_pointer_capture(&mut view, mouse);
     if termination.requested() {
         return Ok(LoopExit::Signal);
     }
@@ -317,7 +337,7 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
         &mut dimensions,
     )?;
     let _changed = terminal_input.tick();
-    draw_surface(terminal, &mut view, chrome, terminal_input)?;
+    draw_surface(terminal, &mut view, chrome, terminal_input, &mut dispatcher)?;
     loop {
         if termination.requested() {
             return Ok(LoopExit::Signal);
@@ -334,10 +354,16 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
             terminal_input,
             &mut dimensions,
         )?;
+        if redraw {
+            // Resize discards the recorded regions: until the next
+            // successful draw publishes a fresh map, pointer events drop
+            // instead of resolving against stale geometry.
+            dispatcher.invalidate_hit_map();
+        }
         redraw |= terminal_input.tick();
         let now = inputs.sample_time();
-        redraw |= dispatcher.synchronize(&mut view, terminal_input, now, &mut |enabled| {
-            mode(enabled).map_err(LoopFailure::Input)
+        redraw |= dispatcher.synchronize(&mut view, terminal_input, now, &mut |request| {
+            mode(request).map_err(LoopFailure::Input)
         })?;
         if let Some(input) = input {
             let outcome = dispatcher.dispatch(
@@ -349,7 +375,7 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
                     synchronize_viewport(terminal, viewport, view, terminal_input, &mut dimensions)
                         .map(|_changed| ())
                 },
-                &mut |enabled| mode(enabled).map_err(LoopFailure::Input),
+                &mut |request| mode(request).map_err(LoopFailure::Input),
             )?;
             if outcome == DispatchOutcome::Exit {
                 return Ok(LoopExit::User);
@@ -361,7 +387,7 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
         }
 
         if redraw {
-            draw_surface(terminal, &mut view, chrome, terminal_input)?;
+            draw_surface(terminal, &mut view, chrome, terminal_input, &mut dispatcher)?;
         }
     }
 }
@@ -371,14 +397,27 @@ fn draw_surface<B: Backend>(
     view: &mut ClientView,
     chrome: Chrome<'_>,
     surface: &mut (impl TerminalSurface + ?Sized),
+    dispatcher: &mut InputDispatcher,
 ) -> Result<(), LoopFailure<B::Error>> {
     let mut receipt = crate::terminal_session::NativeDrawReceipt::default();
+    let mut hits = HitMapBuilder::new();
     let drawn = terminal.draw(|frame| {
-        receipt = render_terminal_shell(frame, view, chrome.locale, surface.view(), chrome.theme);
+        receipt = render_terminal_shell(
+            frame,
+            view,
+            chrome.locale,
+            surface.view(),
+            chrome.theme,
+            &mut hits,
+        );
     });
     if let Err(error) = drawn {
+        // A failed draw never publishes: the previous map stays the
+        // authority for the last frame that reached the screen whole.
+        // The failure itself is fatal to the loop.
         return Err(LoopFailure::Terminal(error));
     }
+    dispatcher.publish_hit_map(hits.finish());
     let help_page = receipt.help_page();
     surface.after_close_draw(receipt);
     if let Some(page) = help_page {
@@ -413,10 +452,20 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
         view.resize(next.columns);
         *dimensions = next;
     }
-    let geometry = terminal_geometry(*dimensions, view, terminal_input.view())
-        .map_err(LoopFailure::Viewport)?;
-    if let Some(geometry) = geometry {
-        terminal_input.observe_geometry(geometry);
+    let session_view = terminal_input.view();
+    match session_view {
+        Some(crate::terminal_session::TerminalSessionView::Native(native)) => {
+            let panes =
+                pane_geometries(*dimensions, view, &native).map_err(LoopFailure::Viewport)?;
+            terminal_input.observe_panes(&panes);
+        }
+        _ => {
+            let geometry = terminal_geometry(*dimensions, view, session_view)
+                .map_err(LoopFailure::Viewport)?;
+            if let Some(geometry) = geometry {
+                terminal_input.observe_geometry(geometry);
+            }
+        }
     }
     Ok(changed)
 }
@@ -493,12 +542,96 @@ pub(crate) fn active_pane_area(
     (!area.is_empty()).then_some(area)
 }
 
+/// Every visible leaf's `(panel_id, panel_index, geometry)` for the native
+/// session — the membership observation that gives each pane its own viewer.
+/// The paned path consumes the same `project_panel_tree` leaves the renderer
+/// paints; the single-pane path observes the focus pane on the whole content
+/// rect, matching what the renderer draws there.
+pub(crate) fn pane_geometries(
+    dimensions: WindowDimensions,
+    view: &ClientView,
+    native: &crate::terminal_session::NativeSessionView<'_>,
+) -> io::Result<
+    Vec<(
+        orchbee_workbench_protocol::WorkbenchPanelId,
+        usize,
+        orchbee_client_server_protocol::Geometry,
+    )>,
+> {
+    use crate::tui_layout;
+    let areas = tui_layout::project_shell_areas(to_area(dimensions), view.sidebar_surface());
+    if areas.tier == tui_layout::ViewportTier::TooSmall {
+        return Ok(Vec::new());
+    }
+    let framed = areas.tier.shows_panel_frame();
+    let content = tui_layout::terminal_area(areas.panel, framed);
+    let Some(tab) = native
+        .active_position()
+        .and_then(|position| position.checked_sub(1))
+        .and_then(|index| native.tab(index))
+    else {
+        return Ok(Vec::new());
+    };
+    let (cell_width, cell_height) = match (
+        dimensions
+            .pixel_width
+            .checked_div(dimensions.columns)
+            .unwrap_or(0),
+        dimensions
+            .pixel_height
+            .checked_div(dimensions.rows)
+            .unwrap_or(0),
+    ) {
+        (0, _) | (_, 0) => (0, 0),
+        cell_pixels => cell_pixels,
+    };
+    let leaf_geometry = |rect: Rect| {
+        orchbee_client_server_protocol::Geometry::new(
+            rect.width,
+            rect.height,
+            cell_width,
+            cell_height,
+        )
+        .map_err(io::Error::other)
+    };
+    if framed && tab.panel_count() > 1 {
+        let projection =
+            tui_layout::project_panel_tree(content, tab.panel_tree(), tab.active_panel());
+        let mut panes = Vec::with_capacity(projection.leaves.len());
+        for leaf in &projection.leaves {
+            let Some(panel) = tab.panel(leaf.panel_index) else {
+                continue;
+            };
+            panes.push((
+                panel.panel_id().clone(),
+                leaf.panel_index,
+                leaf_geometry(leaf.content)?,
+            ));
+        }
+        return Ok(panes);
+    }
+    let Some(panel_id) = native.focus_panel_id() else {
+        return Ok(Vec::new());
+    };
+    let index = tab.active_panel().unwrap_or(0);
+    Ok(vec![(panel_id.clone(), index, leaf_geometry(content)?)])
+}
+
 trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     fn tick(&mut self) -> bool {
         false
     }
     fn after_draw(&mut self) {}
     fn after_close_draw(&mut self, _receipt: crate::terminal_session::NativeDrawReceipt) {}
+    fn observe_panes(
+        &mut self,
+        _panes: &[(
+            orchbee_workbench_protocol::WorkbenchPanelId,
+            usize,
+            orchbee_client_server_protocol::Geometry,
+        )],
+    ) {
+    }
     fn view(&self) -> Option<crate::terminal_session::TerminalSessionView<'_>> {
         None
     }
@@ -510,6 +643,16 @@ impl TerminalSurface for crate::terminal_session::TerminalSession {
     }
     fn after_draw(&mut self) {
         self.after_draw()
+    }
+    fn observe_panes(
+        &mut self,
+        panes: &[(
+            orchbee_workbench_protocol::WorkbenchPanelId,
+            usize,
+            orchbee_client_server_protocol::Geometry,
+        )],
+    ) {
+        self.observe_panes(panes)
     }
     fn after_close_draw(&mut self, receipt: crate::terminal_session::NativeDrawReceipt) {
         self.after_close_draw(receipt)

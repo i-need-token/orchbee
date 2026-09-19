@@ -214,11 +214,16 @@ The native executor retains that identity immediately after Attach, before setup
 superseded. Poll, control, projection feedback and cleanup use that captured identity; bounded busy
 retries preserve it while refreshing only the permitted request identity and control sequence.
 Projection feedback is checked against its owning attachment before submission, never retargeted.
-`LocalClient` stores no implicit current viewer. The native UI still attaches one viewer at a time;
-split Tabs retain every validated leaf binding and render the active leaf's live frame while local
-`h`/`j`/`k`/`l` focus moves through the canonical tree. Inactive leaves retain layout and identity,
-but not a second live viewer frame. The Server's multiple-viewer routing foundation therefore does
-not yet provide simultaneous multi-viewer composition inside one native Client.
+`LocalClient` stores no implicit current viewer. In a connected native Session every visible leaf
+of the active Tab's canonical panel tree owns its own viewer attachment — a stable logical
+`PaneKey` ({selection anchor, `WorkbenchPanelId`}) whose physical attachment carries a `PaneRef`
+incarnation minted per record. Input and resize admit only the focused pane's exact incarnation,
+while polls continue for every admitted pane incarnation so background leaves keep rendering their
+own frames. Same-Tab `h`/`j`/`k`/`l` focus movement is a local selection change — it never
+detaches, re-attaches, or re-tags work already accepted — and cross-Tab selection still runs the
+existing switch cleanup/attach chain. A detached-and-rebound pane fences every late input, frame,
+feedback, and settlement tagged with its retired incarnation, and viewer capacity stays bounded by
+the shared HostViewers limit (8).
 
 ### Submission correctness record
 
@@ -291,6 +296,7 @@ The deterministic Client View transition model is:
 | Prefix + `PageUp` or `PageDown`                  | Leave Prefix and, only while the shortcut-help overlay is open, turn its page; the page index is Client-local, bounded by the registry row count, reset to 0 when help closes and reopens, and settled each draw from the renderer's clamped effective page (e.g. after a resize). With help closed the chord is inert and reports the same unknown-prefix notice as any unbound key; without Prefix the keys reach the terminal port unchanged. |
 | Prefix + any other complete key or sequence      | Leave Prefix and report an unknown-prefix notice; a complete unknown sequence (a CSI tail, a UTF-8 scalar, a modified key) is exactly one unbound event and can never leave bytes in the pane.                                                                                                                                                                                                                                                   |
 | Prefix + `c`, `n`, `p`, `1` … `9`, or `h/j/k/l`  | Leave Prefix; a connected Native Session executes the corresponding Tab or local Panel-focus action, while the unconnected fallback preserves shared state and reports the action as unavailable. No shell-fallback command is submitted.                                                                                                                                                                                                        |
+| Prefix + `m`                                     | Leave Prefix and release or restore host pointer capture through the leased mode pair; while released the status line shows a persistent indicator and host-native selection and scrolling are unimpaired. Mouse capture, hit testing, pane passthrough, and the wheel fallback are governed by [native mouse input](docs/native-mouse-input.md).                                                                                                |
 | Prefix + `Ctrl+B`                                | Leave Prefix and offer one literal `Ctrl+B` event to the terminal-input port.                                                                                                                                                                                                                                                                                                                                                                    |
 | Prefix + `q` or `d`                              | Leave Prefix and close this Client shell.                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Prefix + `Esc`                                   | Cancel Prefix without changing an overlay. Outside Prefix, `Esc` and its following bytes are ordinary terminal input.                                                                                                                                                                                                                                                                                                                            |
