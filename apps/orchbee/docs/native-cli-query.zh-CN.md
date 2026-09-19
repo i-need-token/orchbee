@@ -623,6 +623,8 @@ send 阶段对其单条输入记录遵循同一规则：`RequestNotSubmitted` �
 模型义务：本切片不新增 Server 状态机、持久化或重试，复用已注册的 OBLC/OBWP/OBCS/Client
 模型——`terminal read` 复用既有 `terminal.viewer` attach/poll/detach 生命周期，`--history`
 在其中加一次有界 `read-rows`/`rows-rejected` 交换，`terminal wait-output` 则循环同一
-poll 并对每个已应用帧加一次有界 `read-rows`——因此无需新 TLA+ 模型。已注册模型中触发器
-覆盖 `apps/orchbee` 源码、manifest、project scope、README 与测试路径者仍须实际运行；
+poll 并对每个已应用帧加一次有界 `read-rows`——因此无需新 Server 侧协议模型。该命令自身的
+结算门——逐步 flag 采样、cleanup 来源与无条件迟到采样——由
+`formal/tla/NativeCliWaitSettlement` 单独建模；见 `native-cli-wait-model.md`。已注册模型中
+触发器覆盖 `apps/orchbee` 源码、manifest、project scope、README 与测试路径者仍须实际运行；
 清单输出不能替代执行。

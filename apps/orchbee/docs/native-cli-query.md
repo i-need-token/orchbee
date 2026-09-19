@@ -716,6 +716,9 @@ Model obligations: this slice adds no new Server state machine, persistence, or 
 the registered OBLC/OBWP/OBCS/Client models — `terminal read` rides the existing
 `terminal.viewer` attach/poll/detach lifecycle, with `--history` adding one bounded
 `read-rows`/`rows-rejected` exchange inside it, and `terminal wait-output` looping that same
-poll plus one bounded `read-rows` per applied frame — so no new TLA+ model is required.
-Registered models whose triggers cover `apps/orchbee` source, manifest, project scope, README,
-and test paths must still actually run; the inventory output is not a substitute.
+poll plus one bounded `read-rows` per applied frame — so no new Server-side protocol model is
+required. The command's own settlement gate — per-step flag sampling, cleanup provenance, and
+the unconditional late sample — is modeled separately in
+`formal/tla/NativeCliWaitSettlement`; see `native-cli-wait-model.md`. Registered models whose
+triggers cover `apps/orchbee` source, manifest, project scope, README, and test paths must
+still actually run; the inventory output is not a substitute.
