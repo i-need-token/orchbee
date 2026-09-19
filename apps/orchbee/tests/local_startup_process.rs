@@ -2,6 +2,8 @@
 
 #[path = "local_startup_process/native_cli_query.rs"]
 mod native_cli_query;
+#[path = "local_startup_process/native_cli_workflow.rs"]
+mod native_cli_workflow;
 #[path = "local_startup_process/native_close.rs"]
 mod native_close;
 #[path = "local_startup_process/native_cohort.rs"]
