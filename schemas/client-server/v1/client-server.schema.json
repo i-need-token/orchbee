@@ -1077,11 +1077,7 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": [
-						"kind",
-						"text",
-						"enter"
-					],
+					"required": ["kind", "text", "enter"],
 					"properties": {
 						"kind": {
 							"const": "text"
@@ -1097,10 +1093,7 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": [
-						"kind",
-						"key"
-					],
+					"required": ["kind", "key"],
 					"properties": {
 						"kind": {
 							"const": "key"
@@ -1115,11 +1108,7 @@
 		"sendTarget": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": [
-				"workerGeneration",
-				"hostEpoch",
-				"hostTerminalId"
-			],
+			"required": ["workerGeneration", "hostEpoch", "hostTerminalId"],
 			"properties": {
 				"workerGeneration": {
 					"$ref": "#/$defs/projectionPositive"
@@ -1134,11 +1123,7 @@
 			"$comment": "The exact physical incarnation admitted for the send; recorded on the result only after admission resolves a current authorized binding."
 		},
 		"sendCleanupStatus": {
-			"enum": [
-				"not-needed",
-				"confirmed",
-				"unconfirmed"
-			]
+			"enum": ["not-needed", "confirmed", "unconfirmed"]
 		},
 		"sendRejectedReason": {
 			"enum": [
@@ -1166,11 +1151,7 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": [
-						"kind",
-						"acceptedBytes",
-						"cleanup"
-					],
+					"required": ["kind", "acceptedBytes", "cleanup"],
 					"properties": {
 						"kind": {
 							"const": "accepted"
@@ -1181,10 +1162,7 @@
 							"maximum": 1048576
 						},
 						"cleanup": {
-							"enum": [
-								"confirmed",
-								"unconfirmed"
-							]
+							"enum": ["confirmed", "unconfirmed"]
 						}
 					},
 					"$comment": "An accepted input implies a real attachment, so cleanup is never not-needed."
@@ -1192,11 +1170,7 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": [
-						"kind",
-						"reason",
-						"cleanup"
-					],
+					"required": ["kind", "reason", "cleanup"],
 					"properties": {
 						"kind": {
 							"const": "rejected"
@@ -1212,11 +1186,7 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": [
-						"kind",
-						"reason",
-						"cleanup"
-					],
+					"required": ["kind", "reason", "cleanup"],
 					"properties": {
 						"kind": {
 							"const": "unavailable"
@@ -1232,19 +1202,13 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": [
-						"kind",
-						"cleanup"
-					],
+					"required": ["kind", "cleanup"],
 					"properties": {
 						"kind": {
 							"const": "outcome-unknown"
 						},
 						"cleanup": {
-							"enum": [
-								"not-needed",
-								"unconfirmed"
-							]
+							"enum": ["not-needed", "unconfirmed"]
 						}
 					},
 					"$comment": "A confirmed cleanup implies a completed exchange, so it never accompanies an unknown outcome."
@@ -1290,13 +1254,7 @@
 		"terminalSendResult": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": [
-				"kind",
-				"protocolVersion",
-				"requestId",
-				"target",
-				"outcome"
-			],
+			"required": ["kind", "protocolVersion", "requestId", "target", "outcome"],
 			"properties": {
 				"kind": {
 					"const": "terminal.send.result"
@@ -1329,9 +1287,7 @@
 								"type": "null"
 							}
 						},
-						"required": [
-							"target"
-						]
+						"required": ["target"]
 					},
 					"then": {
 						"properties": {
@@ -1339,9 +1295,7 @@
 								"$ref": "#/$defs/sendOutcomeNotNeeded"
 							}
 						},
-						"required": [
-							"outcome"
-						]
+						"required": ["outcome"]
 					}
 				}
 			]
@@ -1351,11 +1305,7 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": [
-						"kind",
-						"reason",
-						"cleanup"
-					],
+					"required": ["kind", "reason", "cleanup"],
 					"properties": {
 						"kind": {
 							"const": "rejected"
@@ -1371,11 +1321,7 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": [
-						"kind",
-						"reason",
-						"cleanup"
-					],
+					"required": ["kind", "reason", "cleanup"],
 					"properties": {
 						"kind": {
 							"const": "unavailable"

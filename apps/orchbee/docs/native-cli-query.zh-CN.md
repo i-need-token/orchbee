@@ -353,7 +353,7 @@ tabId,terminalContextId}}]}`；`terminal get` 在 `terminal` 下返回同一身�
   行——而早于 `startRow` 的行从未被请求，不算遗漏。text 输出与 `terminal read` 一致：每个
   发出的行渲染为一行转义文本加标记。
 - `orchbee.terminal.send` → `{action:"terminal.send",requestId,siteId,workerId,terminalId,
-  payloadKind,recordBytes?,key?,inputStatus,cleanupStatus,reason?,acceptedBytes?,target?}`——
+payloadKind,recordBytes?,key?,inputStatus,cleanupStatus,reason?,acceptedBytes?,target?}`——
   请求自身事实加上 Server 的两轴应答：`payloadKind:"text"` 携带 `recordBytes`（单条输入
   记录的字节长度，含折叠的回车），`payloadKind:"key"` 携带 `key`；`inputStatus`/
   `cleanupStatus` 为逐字结果类别；`reason` 为类型化拒绝/不可用 token；`acceptedBytes`
@@ -521,9 +521,9 @@ HUP/INT/QUIT/TERM）。
 | stdout 写/flush 失败                                                                                                         | `output-failed`                      | 1    | 不追加第二份 stdout 文档                                                                  |
 | `config check` 完成但存在失败项                                                                                              | 成功 schema `ok:false`               | 1    | 五项全部保留                                                                              |
 | 非 Linux 网络查询、mutation 或 `config check`                                                                                | `service-unavailable`/`check-failed` | 4/1  | `{stage:"platform",reason:"unsupported-platform"}`                                        |
-| `terminal wait-output` 期限耗尽未命中                                                                                          | `timeout`                            | 7    | `{stage:"wait",timeoutMs,observed}`                                                        |
-| `terminal wait-output` 期间收到 HUP/INT/QUIT/TERM                                                                                | `cancelled`                          | 130  | `{stage:"wait",cleanup}`                                                                   |
-| `terminal wait-output` 命中但 `Detach` 未确认                                                                                  | 类型化 viewer-stage 失败             | *    | `{stage:"viewer",matchObserved:true,cleanup:"unconfirmed"}`                                |
+| `terminal wait-output` 期限耗尽未命中                                                                                        | `timeout`                            | 7    | `{stage:"wait",timeoutMs,observed}`                                                       |
+| `terminal wait-output` 期间收到 HUP/INT/QUIT/TERM                                                                            | `cancelled`                          | 130  | `{stage:"wait",cleanup}`                                                                  |
+| `terminal wait-output` 命中但 `Detach` 未确认                                                                                | 类型化 viewer-stage 失败             | *    | `{stage:"viewer",matchObserved:true,cleanup:"unconfirmed"}`                               |
 
 `resource` ∈ `project|workspace|tab|panel|terminal|schema`；`stage` ∈
 `cohort|runtime-base|runtime-directory|socket|discovery|admission|snapshot|viewer|command|send|platform|wait`。
@@ -595,30 +595,30 @@ send 阶段对其单条输入记录遵循同一规则：`RequestNotSubmitted` �
 
 ## 场景矩阵与证据
 
-| 场景                                                                                                                       | 预期                                              | 证据                                                      |
-| -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------- |
-| 穷举语法：format、位置、`--`、help 形式、重复、非法                                                                        | 精确 parse/失败类别                               | `src/invocation` 测试                                     |
-| format envelope 次序：任何位置的缺陷即空 stdout；任何位置的合法 json 决定其后失败的 envelope                               | envelope 优先于语法错误                           | `src/invocation` 测试 + `tests/cli_query.rs`              |
-| 过滤器范围：`workspace list` 只接受 `--project`；越界过滤器在任何运行时访问之前即 usage                                    | 完整矩阵，过滤器绝不静默丢弃                      | `src/invocation` 测试 + `tests/cli_query.rs`              |
-| 目标规则：ID/label/全零/超长/歧义优先                                                                                      | resolver 判定                                     | `src/cli` resolver 测试                                   |
-| 已验证快照 → 各结果形状、空集合、null                                                                                      | 精确 JSON/text fixture                            | `src/cli` 输出测试 + JSON Schema 校验（dev `jsonschema`） |
-| Schema 字典 ↔ 实际 envelope                                                                                                | 每个成功/失败 fixture 通过校验；被拒变体不通过    | schema 对比测试                                           |
-| API 失败格式：text/默认失败保持 stdout 为空，`--format json` 产出 envelope                                                 | `api schema`/`api snapshot` 失败遵守调用方 format | `tests/cli_query.rs` + `src/cli` 测试                     |
-| 无 Site 磁盘状态                                                                                                           | `service-unavailable`，零 fs/进程/锁变更          | `tests/cli_query.rs`                                      |
-| 真实 staged-cohort Server：status/list/get/api snapshot、8 个准入加第 9 个被拒加释放、活跃 TUI                             | 成功/`session-capacity`/结构不变                  | `tests/local_startup_process`                             |
-| 脚本化 OBLC/OBWP peer：denied、unavailable、畸形、错误 correlation、超时、断连                                             | 按矩阵 typed kind；绝不冒称真实 Server 证据       | `tests/cli_query.rs`                                      |
-| 脚本化 OBCS viewer peer：attach-binding 字段、`Empty`→`record` 轮询、detach 释放、reject/unavailable/畸形/correlation/断连 | `terminal read` 成功 + typed viewer-stage 失败    | `tests/cli_query.rs`                                      |
-| 脚本化 OBCS viewer peer + 手工 OBRW record：滚动定价、容量/滚动钳制、typed `rows-rejected`、窗口失配、超大 record、无重试   | `terminal read --history` 成功 + typed 失败       | `tests/cli_query.rs`                                      |
-| 脚本化 OBCS send peer：UTF-8 文本与可选折叠回车、语义键均以一条请求到达，target/请求身份，accepted/rejected/unavailable/unknown 应答、停滞应答、无重试 | `terminal send` 退出 0/3/4/5/8 且两轴结果字段齐全 | `tests/cli_send.rs`                                       |
+| 场景                                                                                                                                                                     | 预期                                              | 证据                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- | --------------------------------------------------------- |
+| 穷举语法：format、位置、`--`、help 形式、重复、非法                                                                                                                      | 精确 parse/失败类别                               | `src/invocation` 测试                                     |
+| format envelope 次序：任何位置的缺陷即空 stdout；任何位置的合法 json 决定其后失败的 envelope                                                                             | envelope 优先于语法错误                           | `src/invocation` 测试 + `tests/cli_query.rs`              |
+| 过滤器范围：`workspace list` 只接受 `--project`；越界过滤器在任何运行时访问之前即 usage                                                                                  | 完整矩阵，过滤器绝不静默丢弃                      | `src/invocation` 测试 + `tests/cli_query.rs`              |
+| 目标规则：ID/label/全零/超长/歧义优先                                                                                                                                    | resolver 判定                                     | `src/cli` resolver 测试                                   |
+| 已验证快照 → 各结果形状、空集合、null                                                                                                                                    | 精确 JSON/text fixture                            | `src/cli` 输出测试 + JSON Schema 校验（dev `jsonschema`） |
+| Schema 字典 ↔ 实际 envelope                                                                                                                                              | 每个成功/失败 fixture 通过校验；被拒变体不通过    | schema 对比测试                                           |
+| API 失败格式：text/默认失败保持 stdout 为空，`--format json` 产出 envelope                                                                                               | `api schema`/`api snapshot` 失败遵守调用方 format | `tests/cli_query.rs` + `src/cli` 测试                     |
+| 无 Site 磁盘状态                                                                                                                                                         | `service-unavailable`，零 fs/进程/锁变更          | `tests/cli_query.rs`                                      |
+| 真实 staged-cohort Server：status/list/get/api snapshot、8 个准入加第 9 个被拒加释放、活跃 TUI                                                                           | 成功/`session-capacity`/结构不变                  | `tests/local_startup_process`                             |
+| 脚本化 OBLC/OBWP peer：denied、unavailable、畸形、错误 correlation、超时、断连                                                                                           | 按矩阵 typed kind；绝不冒称真实 Server 证据       | `tests/cli_query.rs`                                      |
+| 脚本化 OBCS viewer peer：attach-binding 字段、`Empty`→`record` 轮询、detach 释放、reject/unavailable/畸形/correlation/断连                                               | `terminal read` 成功 + typed viewer-stage 失败    | `tests/cli_query.rs`                                      |
+| 脚本化 OBCS viewer peer + 手工 OBRW record：滚动定价、容量/滚动钳制、typed `rows-rejected`、窗口失配、超大 record、无重试                                                | `terminal read --history` 成功 + typed 失败       | `tests/cli_query.rs`                                      |
+| 脚本化 OBCS send peer：UTF-8 文本与可选折叠回车、语义键均以一条请求到达，target/请求身份，accepted/rejected/unavailable/unknown 应答、停滞应答、无重试                   | `terminal send` 退出 0/3/4/5/8 且两轴结果字段齐全 | `tests/cli_send.rs`                                       |
 | 脚本化 OBCS viewer peer + 手工 OBTF/OBRW record：递增 `requestSequence`、可见/历史边界窗口、每帧真实 `FrameApplied`、stale 重钉、行尾 excerpt 命中、含 preamble 的总期限 | `terminal wait-output` 成功 + typed 失败          | `tests/cli_query.rs`                                      |
-| 真实 staged-cohort Server + 活跃 TUI 终端：`wait-output` 命中已有/后到/滚出屏/UTF-8 输出，短期限退出 7，取消后槽位可复用       | 公共等待观察与 TUI 自身 viewer 共存               | `tests/local_startup_process`                             |
-| 真实 staged-cohort Server + 活跃 TUI 终端：`terminal read` 返回其网格并通过 schema 校验                                    | 真实只读观察与 TUI 自身 viewer 共存               | `tests/local_startup_process`                             |
-| Mutation 语法：全部命令、target 规则、`--confirm`、几何界限、flag 范围                                                     | 运行时访问前的精确 parse/失败类别                 | `src/invocation` 测试                                     |
-| Mutation 脚本化 peer：全部十条命令、precommit 判定、不可判定与未提交结果                                                   | 每次调用一条命令；`outcome-unknown` 绝不重放      | `tests/cli_mutation.rs`                                   |
-| 非 TTY；stdout 阻塞时 session 已释放；各 format 预备 >8 MiB；真实写失败                                                    | 文档化退出；阻塞前 transport 句柄已 drop          | `tests/local_startup_process` + emit 单元测试             |
-| `config check` 矩阵：每项 pass/fail/not-applicable、`exists` 语义                                                          | 五项 typed 检查齐全                               | `tests/cli_query.rs` + `src/cli/config` 测试              |
-| 补全脚本投影语法（bash/zsh 实执行，fish 结构对齐）                                                                         | 正/负上下文；无运行时枚举                         | `tests/cli_query.rs`                                      |
-| 双语文本/失败输出                                                                                                          | 精确 en-US/zh-CN 字符串                           | `tests/process.rs` + `tests/cli_query.rs`                 |
+| 真实 staged-cohort Server + 活跃 TUI 终端：`wait-output` 命中已有/后到/滚出屏/UTF-8 输出，短期限退出 7，取消后槽位可复用                                                 | 公共等待观察与 TUI 自身 viewer 共存               | `tests/local_startup_process`                             |
+| 真实 staged-cohort Server + 活跃 TUI 终端：`terminal read` 返回其网格并通过 schema 校验                                                                                  | 真实只读观察与 TUI 自身 viewer 共存               | `tests/local_startup_process`                             |
+| Mutation 语法：全部命令、target 规则、`--confirm`、几何界限、flag 范围                                                                                                   | 运行时访问前的精确 parse/失败类别                 | `src/invocation` 测试                                     |
+| Mutation 脚本化 peer：全部十条命令、precommit 判定、不可判定与未提交结果                                                                                                 | 每次调用一条命令；`outcome-unknown` 绝不重放      | `tests/cli_mutation.rs`                                   |
+| 非 TTY；stdout 阻塞时 session 已释放；各 format 预备 >8 MiB；真实写失败                                                                                                  | 文档化退出；阻塞前 transport 句柄已 drop          | `tests/local_startup_process` + emit 单元测试             |
+| `config check` 矩阵：每项 pass/fail/not-applicable、`exists` 语义                                                                                                        | 五项 typed 检查齐全                               | `tests/cli_query.rs` + `src/cli/config` 测试              |
+| 补全脚本投影语法（bash/zsh 实执行，fish 结构对齐）                                                                                                                       | 正/负上下文；无运行时枚举                         | `tests/cli_query.rs`                                      |
+| 双语文本/失败输出                                                                                                                                                        | 精确 en-US/zh-CN 字符串                           | `tests/process.rs` + `tests/cli_query.rs`                 |
 
 模型义务：本切片不新增 Server 状态机、持久化或重试，复用已注册的 OBLC/OBWP/OBCS/Client
 模型——`terminal read` 复用既有 `terminal.viewer` attach/poll/detach 生命周期，`--history`
