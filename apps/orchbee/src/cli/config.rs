@@ -136,6 +136,7 @@ pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
                             status: if failed { 1 } else { 0 },
                             stdout,
                             stderr,
+                            finalization: None,
                         },
                         Err(output::TooLarge) => too_large(),
                     }
@@ -148,6 +149,7 @@ pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
                             status: if failed { 1 } else { 0 },
                             stdout,
                             stderr,
+                            finalization: None,
                         },
                         Err(output::TooLarge) => too_large(),
                     }

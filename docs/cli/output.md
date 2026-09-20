@@ -51,25 +51,30 @@ only when a person is present.
 The code classifies who decided the outcome, not which command ran. The owning application maps
 every failure kind and terminal result to exactly one code, and the mapping is tested to be total.
 
-| Code  | Class           | Meaning                                                                                                                         |
-| ----- | --------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `0`   | Success         | The read completed, including an empty result; the mutation completed or was unchanged; a detached submission was accepted      |
-| `1`   | Local failure   | A local configuration check failed, output could not be prepared or written, or an internal invariant failed before any request |
-| `2`   | Usage           | Invalid grammar, option, value, target syntax, input document, or argument envelope                                             |
-| `3`   | Refused         | The authority definitively declined before applying anything: not found, ambiguous, denied, rejected, blocked, or conflicting   |
-| `4`   | Unavailable     | No reachable service, capacity exhausted, or the current platform cannot serve the request                                      |
-| `5`   | Broken channel  | Transport loss or a protocol violation                                                                                          |
-| `6`   | Incompatible    | Protocol, cohort, or version mismatch                                                                                           |
-| `7`   | Cancelled       | The operation was accepted and ended in a cancelled terminal result                                                             |
-| `8`   | Unknown outcome | An effect may have been applied and cannot be confirmed                                                                         |
-| `9`   | Failed          | The operation was accepted and ended in a failed terminal result                                                                |
-| `130` | Interrupted     | Default `SIGINT` semantics                                                                                                      |
+| Code  | Class           | Meaning                                                                                                                                                                                                         |
+| ----- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`   | Success         | The read completed, including an empty result; the mutation completed or was unchanged; a detached submission was accepted                                                                                      |
+| `1`   | Local failure   | A local configuration check failed, output could not be prepared or written, or an internal invariant failed before any request                                                                                 |
+| `2`   | Usage           | Invalid grammar, option, value, target syntax, input document, or argument envelope                                                                                                                             |
+| `3`   | Refused         | The authority definitively declined before applying anything: not found, ambiguous, denied, rejected, blocked, or conflicting                                                                                   |
+| `4`   | Unavailable     | No reachable service, capacity exhausted, or the current platform cannot serve the request                                                                                                                      |
+| `5`   | Broken channel  | Transport loss or a protocol violation                                                                                                                                                                          |
+| `6`   | Incompatible    | Protocol, cohort, or version mismatch                                                                                                                                                                           |
+| `7`   | Cancelled       | The operation was accepted and ended in a cancelled terminal result, or a declared deadline elapsed — including a `terminal send` input source that exhausted its acquisition budget before any request existed |
+| `8`   | Unknown outcome | An effect may have been applied and cannot be confirmed                                                                                                                                                         |
+| `9`   | Failed          | The operation was accepted and ended in a failed terminal result                                                                                                                                                |
+| `130` | Interrupted     | Default `SIGINT` semantics                                                                                                                                                                                      |
 
 - A refused, unavailable, broken-channel, or incompatible outcome on a mutation means nothing was
   applied. Only unknown outcome admits that an effect may exist.
 - An interrupted wait does not cancel the observed operation; see
   [`process.md`](process.md#signals-and-cancellation).
-- Codes not in the table are reserved and unreachable.
+- Codes not in the table are reserved and unreachable, except the source-stage interruption
+  exits: a declared `terminal send` input source interrupted inside its materialization window
+  exits `128 + signo` — 129, 130, 131, or 143 — on the `orchbee.cli.failure.source` envelope.
+- The `orchbee.cli.failure.source` envelope is a machine document only: it is written to
+  standard output solely under `--format json`. Under `text` a source failure writes nothing
+  to standard output, and the localized diagnostic on standard error carries the cause.
 
 ## Text rendering
 

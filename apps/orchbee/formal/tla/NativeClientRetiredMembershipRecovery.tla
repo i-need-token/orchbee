@@ -1,10 +1,12 @@
 ---------------- MODULE NativeClientRetiredMembershipRecovery ----------------
 EXTENDS Integers, Sequences, FiniteSets
 
-CONSTANTS InitialOrdinal, SeedClass, MaxAttempts, MaxCursor, MaxAllocator, MaxTime, Budget, CleanupReserve
+CONSTANTS InitialOrdinal, SeedClass, MaxAttempts, MaxCursor, MaxAllocator, MaxTime, Budget, CleanupReserve,
+          OrdinaryGate
 ASSUME /\ MaxAttempts = 2 /\ MaxCursor = 3 /\ MaxAllocator = 5 /\ MaxTime = 8
        /\ Budget = 2 /\ CleanupReserve = 1
        /\ InitialOrdinal \in 0..3 /\ SeedClass \in {"normal", "near-limit", "exhausted"}
+       /\ OrdinaryGate \in BOOLEAN
 
 Tabs == {"A", "B", "C"}
 Members(order) == {order[i] : i \in 1..Len(order)}
@@ -51,7 +53,8 @@ Initial(order, conflict, seed, generation) == [
   forward |-> -1, total |-> -1, candidate |-> <<>>,
   candidateRevision |-> 0, fault |-> "none", installed |-> FALSE,
   installTime |-> -1, freshReady |-> FALSE, cancelled |-> FALSE,
-  lastRequest |-> "none", requests |-> 0
+  lastRequest |-> "none", requests |-> 0, ordinaryAdmitted |-> FALSE,
+  observedAdmitted |-> FALSE
 ]
 
 Init == \E order \in {InitialBaseline}, conflict \in {"none", "close-read", "structural"},
@@ -108,7 +111,8 @@ BeginExplicitRecovery ==
               !.alloc.command = @ + 1, !.alloc.refresh = @ + 1,
               !.forward = s.now + Budget, !.total = s.now + Budget + CleanupReserve,
               !.candidate = <<>>, !.candidateRevision = 0, !.typedFlight = 0,
-              !.fault = "none", !.carrier = "connecting"]
+              !.fault = "none", !.carrier = "connecting",
+              !.ordinaryAdmitted = FALSE, !.observedAdmitted = FALSE]
 
 RejectRecoveryAdmission ==
   /\ s.phase = "parked" /\ (~Eligible \/ ~AdmissionCapacity)
@@ -268,6 +272,32 @@ RejectForbiddenObservationRequest ==
   /\ s.phase \in BeforeInstall
   /\ UNCHANGED s
 
+\* The session keeps two ordinary admission channels independent of the typed
+\* request flight tracked in lastRequest/requests: the post-event tick scheduler
+\* block (ordinary poll reconcile, publication refresh, close reconciliation/
+\* read, pane reconcile, poll) and the draw-driven pane observation path that
+\* admits observed-geometry Resize and the same reconcile enqueue. Either may
+\* admit ordinary work whenever the session is not fenced off; during an armed,
+\* not-yet-installed recovery attempt (BeforeInstall) that admission is
+\* interference: the recovery mailbox must carry the Refresh alone.
+\* OrdinaryGate=FALSE keeps both admissions reachable inside the attempt window
+\* (the defect); OrdinaryGate=TRUE is the candidate ordinary-gate fix: one
+\* attempt marker suppresses both channels exactly while the attempt owns the
+\* mailbox. The flags are sticky evidence only — they record that an ordinary
+\* admission occurred, not its downstream settlement, which remains one
+\* refinement step below this model. The model does not enumerate every UI
+\* ingress mode; these two actions cover the tick-scheduled and the
+\* observation-driven admission channels.
+AdmitOrdinaryScheduled ==
+  /\ \/ s.phase \in {"observing", "parked", "live"}
+     \/ (~OrdinaryGate /\ s.phase \in BeforeInstall)
+  /\ s' = [s EXCEPT !.ordinaryAdmitted = TRUE]
+
+AdmitOrdinaryObserved ==
+  /\ \/ s.phase \in {"observing", "parked", "live"}
+     \/ (~OrdinaryGate /\ s.phase \in BeforeInstall)
+  /\ s' = [s EXCEPT !.observedAdmitted = TRUE]
+
 Tick ==
   /\ s.now < MaxTime
   /\ s' = [s EXCEPT !.now = @ + 1]
@@ -283,7 +313,8 @@ Next == ObserveCurrentUnavailable \/ IgnoreStaleUnavailable \/ ObserveTransportA
   \/ FreshSetupUnavailable \/ FreshSetupUnknown \/ FreshSetupNeedsCleanup
   \/ SubmitFreshCleanup \/ CleanupIdentityExhausted \/ CompleteFreshCleanup \/ ExpireBeforeInstall \/ ExpireAfterInstall \/ CancelRecovery
   \/ CloseAttemptTransport \/ RejectLateConnection \/ JoinAttempt \/ IgnoreOldResult
-  \/ RejectForbiddenObservationRequest \/ Tick
+  \/ RejectForbiddenObservationRequest \/ AdmitOrdinaryScheduled
+  \/ AdmitOrdinaryObserved \/ Tick
 
 Spec == Init /\ [][Next]_vars /\ WF_vars(Tick)
         /\ WF_vars(ExpireBeforeInstall) /\ WF_vars(ExpireAfterInstall)
@@ -297,6 +328,7 @@ TypeOK ==
   /\ s.attempt \in 0..MaxAttempts /\ s.now \in 0..MaxTime
   /\ s.carrier \in {"old", "none", "connecting", "fresh"}
   /\ s.desired \in Tabs \cup {"none"} /\ s.localViewer \in Tabs \cup {"none"}
+  /\ s.ordinaryAdmitted \in BOOLEAN /\ s.observedAdmitted \in BOOLEAN
 
 OneCarrier == (s.carrier \in {"connecting", "fresh"} => s.oldClosed /\ s.oldJoined)
 NoOldViewerReactivation == s.oldJoined => ~s.oldLocalViewer /\ s.localViewer # "A"
@@ -313,6 +345,11 @@ EmptyHasNoViewer == s.installed /\ s.cache = <<>> =>
 ReadyHasFreshProof == s.freshReady => s.installed /\ s.localViewer = s.desired
 PreinstallPreservesCanonical == ~s.installed => s.cache = s.baseline /\ s.revision = 1
 ConflictPreservesFacts == s.conflict # "none" => s.attempt = 0 /\ ~s.installed
+\* Declared contract for the armed-not-yet-installed attempt window: only the
+\* recovery SnapshotRead may be outstanding; no ordinary admission through the
+\* tick-scheduled or the observation-driven channel.
+NoOrdinaryAdmissionBeforeInstall ==
+  s.phase \in BeforeInstall => ~s.ordinaryAdmitted /\ ~s.observedAdmitted
 
 NoOldLocalSubmissionAfterJoin == [][s.oldJoined => s'.oldLocalRequests = s.oldLocalRequests]_vars
 AllocatorsNeverRewind == [][s'.cursor >= s.cursor /\

@@ -9,7 +9,6 @@ use orchbee_workbench_protocol::{WorkbenchRevision, WorkbenchTerminalGeometry};
 use serde_json::{Map, Value, json};
 
 use super::Output;
-use super::schema::MUTATION_RESULT_ID;
 #[cfg(not(target_os = "linux"))]
 use super::{Failure, FailureKind, failure_output, stage_reason_details};
 use crate::invocation::{MutationCommand, OutputFormat};
@@ -22,6 +21,7 @@ pub(super) struct Receipt {
     site_id: String,
     request_id: String,
     base_revision: WorkbenchRevision,
+    schema_id: &'static str,
     action: &'static str,
     outcome: &'static str,
     revision: Option<WorkbenchRevision>,
@@ -73,7 +73,7 @@ impl Receipt {
             result.insert("terminal".to_owned(), terminal.document());
         }
         json!({
-            "schema": MUTATION_RESULT_ID,
+            "schema": self.schema_id,
             "version": 1,
             "source": self.source(),
             "result": Value::Object(result),
@@ -82,6 +82,14 @@ impl Receipt {
 
     fn revision(mut self, revision: WorkbenchRevision) -> Self {
         self.revision = Some(revision);
+        self
+    }
+
+    /// The dedicated machine document this receipt reports under — the shared
+    /// mutation envelope by default; a command whose receipt was admitted as
+    /// its own schema names that document instead.
+    fn schema(mut self, schema_id: &'static str) -> Self {
+        self.schema_id = schema_id;
         self
     }
 
@@ -238,6 +246,7 @@ mod linux {
     use serde_json::{Map, json};
 
     use super::super::query::{request_id, snapshot_session};
+    use super::super::schema::{MUTATION_RESULT_ID, PROJECT_RENAME_RESULT_ID};
     use super::super::{
         Failure, FailureKind, Output, failure_output, output, present, results, stage_details,
         stage_reason_details,
@@ -412,6 +421,13 @@ mod linux {
             MutationCommand::ProjectCreate { label } => Ok(WorkbenchAction::ProjectCreate {
                 label: label.clone(),
             }),
+            MutationCommand::ProjectRename { target, label } => {
+                let project = resolve_project(snapshot, target)?;
+                Ok(WorkbenchAction::ProjectRename {
+                    project_id: project.project_id.clone(),
+                    label: label.clone(),
+                })
+            }
             MutationCommand::WorkspaceCreate { project, label } => {
                 let project = resolve_project(snapshot, project)?;
                 Ok(WorkbenchAction::WorkspaceCreate {
@@ -634,6 +650,7 @@ mod linux {
         let internal = || Failure::new(FailureKind::InternalFailure);
         match &resolved.action {
             WorkbenchAction::ProjectCreate { .. }
+            | WorkbenchAction::ProjectRename { .. }
             | WorkbenchAction::WorkspaceCreate { .. }
             | WorkbenchAction::WorkspaceRename { .. }
             | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. } => {
@@ -661,6 +678,21 @@ mod linux {
                             .id("workspaceId", workspace_id.as_str())
                             .id("terminalContextId", terminal_context_id.as_str())
                             .label(resolved_label(&resolved.action)))
+                    }
+                    WorkbenchSetupSubmission::Committed(WorkbenchSetupCommit::ProjectRenamed {
+                        revision,
+                        project_id,
+                        unchanged,
+                    }) if matches!(&resolved.action, WorkbenchAction::ProjectRename { .. }) => {
+                        Ok(receipt(
+                            &resolved,
+                            "project.rename",
+                            if unchanged { "unchanged" } else { "committed" },
+                        )
+                        .schema(PROJECT_RENAME_RESULT_ID)
+                        .revision(revision)
+                        .id("projectId", project_id.as_str())
+                        .label(resolved_label(&resolved.action)))
                     }
                     WorkbenchSetupSubmission::Committed(
                         WorkbenchSetupCommit::WorkspaceRenamed {
@@ -1016,9 +1048,8 @@ mod linux {
                         Err(unknown_failure(request_id, reason.reason()))
                     }
                 }
-            }
-            // The grammar only produces the nine action variants above.
-            _ => Err(internal()),
+            } // The grammar's mutation cohort now exhausts every wire action; a
+              // new variant fails to compile here until it is modeled.
         }
     }
 
@@ -1053,6 +1084,7 @@ mod linux {
     fn resolved_label(action: &WorkbenchAction) -> &str {
         match action {
             WorkbenchAction::ProjectCreate { label, .. }
+            | WorkbenchAction::ProjectRename { label, .. }
             | WorkbenchAction::WorkspaceCreate { label, .. }
             | WorkbenchAction::WorkspaceRename { label, .. }
             | WorkbenchAction::TabCreate { label, .. }
@@ -1067,6 +1099,7 @@ mod linux {
             site_id: resolved.site_id.as_str().to_owned(),
             request_id: resolved.request_id.as_str().to_owned(),
             base_revision: resolved.expected_revision,
+            schema_id: MUTATION_RESULT_ID,
             action,
             outcome,
             revision: None,
@@ -1227,6 +1260,7 @@ mod linux {
                     status: 0,
                     stdout,
                     stderr: String::new(),
+                    finalization: None,
                 },
                 Err(output::TooLarge) => too_large(),
             },
@@ -1235,6 +1269,7 @@ mod linux {
                     status: 0,
                     stdout,
                     stderr: String::new(),
+                    finalization: None,
                 },
                 Err(output::TooLarge) => too_large(),
             },

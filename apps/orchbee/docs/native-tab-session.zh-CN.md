@@ -137,6 +137,19 @@ Create、Start、Attach 或 Viewer 恢复。回复丢失会再次停用此 carri
 精确结果结算后回到状态观察；再次 Resume 需要最新可恢复状态和全新已绘制确认。
 此转换不授予通用 Session 或 authority 改变恢复。
 
+当 close carrier 不是会话时——仅状态恢复，或原子成员安装前的
+MembershipRecoveryPending——普通 pane reconcile 入队保持抑制。该 carrier
+mailbox 的期望锚点不是会话保留锚点，普通准入会铸造 carrier 必须以过期拒绝的
+工作。该谓词是 close carrier 本身而非会话 phase：CloseRead 与 ReconcileClose
+调度保持活跃，另经确认的 Resume 控制不变，carrier 仅在如实退役/结算或回复事务
+内成功的成员消费提交时复位。由于载体切换不动保留的期望锚点，提交清除该谓词后
+普通调度面对一致的 mailbox 恢复。绘制的 pane 观察在窗口内完全留在规范 pane
+集合之外：carrier 的 Retired 相位形状要求 pane 集合为空，而记录同步可能在
+保留期望锚点下铸造未挂接的规范记录——这一事实将毒化 carrier 自身的下一次
+结算。最新 UI 与 mailbox 几何仍由独立的 observe_geometry 路径在记录同步之外
+更新；Resize 因无挂接记录而不可达；reconcile 入队在其自身漏斗被单独抑制，
+因此不准入任何普通工作。
+
 Linux 原生恢复实现在精确停用任务完成 join 后保留原本地 endpoint/cohort，以及 Workbench
 请求、attachment/Refresh generation 与 command/UI-wait 游标。新 mailbox 复制这些分配器
 位置，不复制旧 queue、flight、event 或 Viewer。新的显式状态 Refresh 创建一个新 carrier，只准入 Read 和另经确认的 Resume
@@ -1919,6 +1932,21 @@ revision 下的精确成员，以及所有保留 identity 的不可变元组。�
 缺失属于成员知识，不是清理证据。此观察入口不包含 bootstrap、Open、activation、Create、
 Start 或 Close。
 
+当已武装的尝试持有 mailbox 且尚无候选安装时，会话不针对恢复 mailbox 准入任何普通
+调度工作：事件后 tick 调度块（普通 poll reconcile、publication refresh、close
+reconciliation、close read、pane reconcile 与 poll）、观测 pane 几何的 Resize 准入
+以及 pane reconcile 入队本身，都由精确尝试标记抑制，而不是按会话 phase 判定。
+无准入的簿记照常继续——由独立 observe_geometry 路径在记录同步之外更新的
+最新 UI 与 mailbox 几何、close 确认、事件排空、pending-draw 上报——不为逃离
+窗口而清除任何保留事实或续期 deadline。规范 pane 记录保持不变：绘制的 pane
+观察在窗口内于记录同步之前返回，因为铸造的未挂接 pane 事实将违反安装时来源
+检查必须看到的 Retired 空 pane 形状。落在窗口内的重绘驱动 pane
+观测或 tick 都不能铸造 Resize、reconcile episode 或任何普通命令序列号：队列仅承载
+恢复 Refresh，executor 在收到下一条命令前先处理 Refresh 回复并清除其 membership
+标记。该抑制仅作用于成员尝试标记；独立的 status-only Close 恢复对同一 reconcile
+漏斗保留其自身的 close carrier 抑制。原子候选安装清除标记后，普通调度可在同一
+tick 恢复。
+
 在 reply mutex 外准备候选，然后检查精确退役来源、基线、flight 和 forward deadline，在该
 mutex 下原子提交 state 与 mailbox 计划。按钳制后的历史序号选择邻居或 Empty。邻居仅在
 安装时推进实际已消耗的 attachment cursor 一次；Empty 保留它。保留的 provenance 遵循公共
@@ -1933,12 +1961,13 @@ projector。邻居在新连接上使用剩余 setup 预算，不会自动 Start�
 最大为 5 并覆盖耗尽，以及独立保留或释放的旧远端引用。
 验证是由真实规范 projector 精化的 typed 外部输入。要求检查来源与冲突 guards、单 carrier、
 join 后无旧本地提交、不伪造 cleanup/Close 事实、目标缺失、原子安装、过期结果、固定 deadline、
-cursor 保留，以及不自动重试或 Create。进度仅假设本地 deadline 与 carrier 终止公平性；
+cursor 保留、不自动重试或 Create，以及已武装安装前窗口内无普通调度或观测几何准入。
+进度仅假设本地 deadline 与 carrier 终止公平性；
 它承诺存活结果或如实停放退役，不承诺远端清理或恢复成功。
 
 使用固定版本 TLA+ tools 1.7.4 和一个 worker 运行
 `node scripts/tla/run-models.mjs --models native-client-retired-membership-recovery --jobs 1`。
-下列十二个配置均完成时序检查，状态队列为空。十二个配置合计以生成后继覆盖全部 42 个要求的动作。
+下列十二个配置均完成时序检查，状态队列为空。十二个配置合计以生成后继覆盖全部 44 个要求的动作。
 序号／分配器分区覆盖全部 252 个原始初始状态，不使用对称假设或状态约束。
 此前未分区检查的 180 秒超时不能作为通过结果。
 进度仅适用于已准入的活跃尝试，并依赖本地时钟、到期、关闭和 join 公平性；不承诺初始退役
@@ -1947,21 +1976,23 @@ cursor 保留，以及不自动重试或 Create。进度仅假设本地 deadline
 
 | 配置                   | 生成状态 / 不同状态 / 深度 | 模型/配置 SHA-256                                                  |
 | ---------------------- | -------------------------- | ------------------------------------------------------------------ |
-| `singleton-normal`     | 3,483,814 / 753,054 / 35   | `2d899c099f0863e9552669fd18d90117b3acec6247c7df4691bcede7c7a1b9b9` |
-| `singleton-near-limit` | 4,905,728 / 1,056,996 / 31 | `75aad168a14705a3b05e616813d23b46197fe3589547c333d04b98353765ac25` |
-| `singleton-exhausted`  | 1,333,389 / 287,118 / 26   | `b44fb3da620e88734ab0e53f5252edc31211f128747c0523a4bb26750cc6cfd4` |
-| `first-normal`         | 3,483,814 / 753,054 / 35   | `0d0e7dc31d4e82791958d3f524e5a93580f33eb94b34fb9d438037c7ae743748` |
-| `first-near-limit`     | 4,905,728 / 1,056,996 / 31 | `2d2b70e0c3a363da009907c818f5a1c013346b3aeb0495c450764e11eb982816` |
-| `first-exhausted`      | 1,333,389 / 287,118 / 26   | `5fc6b9a602c6d05e17eec2b3e54e584ea70a35764ee936e9ff66253606ea685c` |
-| `middle-normal`        | 3,483,814 / 753,054 / 35   | `4c53573ce23a1c0c89d3d2585ba1e7fa5316786ab42f54bb7c4bd0aa4a4b2d9b` |
-| `middle-near-limit`    | 4,905,728 / 1,056,996 / 31 | `833d8bdc641cfeedb9bf062fd7bec1b46fe93ca608930c50375ddc4ff0f7baff` |
-| `middle-exhausted`     | 1,333,389 / 287,118 / 26   | `b43fc09461924ce9dff66d4b5a8cd0c41a9001c94e4b01b32e50d87f05f36c09` |
-| `last-normal`          | 3,483,814 / 753,054 / 35   | `47e22a7ca5ee7f94561421d7a7169b301279e7e83440183e658a82b48ca25d2b` |
-| `last-near-limit`      | 4,905,728 / 1,056,996 / 31 | `e04240842241f1401a17b686639c2740e2fd9edd2ee05a01cac522698cf3db62` |
-| `last-exhausted`       | 1,333,389 / 287,118 / 26   | `1b85549eb06c352e37318fe6656dfc3b6a0d96011df498e68e3fe51e547f94ac` |
+| `singleton-normal`     | 5,465,794 / 1,072,122 / 37 | `35f28b0050f8e3fce720933ab21ab7fa3cec05e7e394169723842b15f8915ebb` |
+| `singleton-near-limit` | 7,523,456 / 1,481,436 / 33 | `ddc66d87a8a0a5b4c78197d5b044eb88348e645d691af345749e22719043cd93` |
+| `singleton-exhausted`  | 2,164,224 / 425,844 / 28   | `2414bfd93a03d9234da41860ea74abe0105e30940ccffe125938822b70392547` |
+| `first-normal`         | 5,465,794 / 1,072,122 / 37 | `287b980dbcfc1739ed922e30a84894ab173923375132a18eff351187eb3c5b22` |
+| `first-near-limit`     | 7,523,456 / 1,481,436 / 33 | `f33ee789d7cd0d03fcd8e541c3ad31793f7a2360b7a3b8f1ae8975fcd1a354c0` |
+| `first-exhausted`      | 2,164,224 / 425,844 / 28   | `87691f5664b4c8f05c326ee0097163b944e912f147344ae3c881fdc43f3be6d0` |
+| `middle-normal`        | 5,465,794 / 1,072,122 / 37 | `bba0b70198d0f87b0b86999f2100da1161a1de28d58043d54c4a94c205ab0ba6` |
+| `middle-near-limit`    | 7,523,456 / 1,481,436 / 33 | `46e4664783f55ec5a173f4033b8ae1248853b5b23eea493af874128834afee86` |
+| `middle-exhausted`     | 2,164,224 / 425,844 / 28   | `c8b40fdbe766d1533ee389ecd60cf35552a95c0f2e38adbb4e9372b5b06f88ed` |
+| `last-normal`          | 5,465,794 / 1,072,122 / 37 | `2e0cc7ee67c14a3ba1161dfb12c31eb410a370313e04c29a7cdbd4ec134a8c48` |
+| `last-near-limit`      | 7,523,456 / 1,481,436 / 33 | `b1b778f70bd5ab81b6a60dd8d043bfc5192dfa5c8f147eec6bd06634986cca29` |
+| `last-exhausted`       | 2,164,224 / 425,844 / 28   | `21f158c70ae6b511ee7e9ed12f4fedefbc0c83e7d5046df994f5d9b908bba30b` |
 
 运行时精化复用现有 task owner、重连来源和 shutdown fence。私有 state origin 与 UI attempt
 精化模型中的资格与安装动作；普通 Poll executor 仅通过正常精确 join 返回关联证据。
+已武装尝试标记精化模型中的 ordinary gate；tick 调度块、观测几何 Resize 准入与 pane
+reconcile 入队是它的三个受守卫位置。
 现有 mailbox seed、Snapshot flight、公共 membership transaction 与 setup executor 保留各自所有权。
 
 `terminal_session/tests/retired_membership.rs` 和

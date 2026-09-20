@@ -1,0 +1,79 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.cli.failure.source",
+	"title": "orchbee cli source failure envelope",
+	"type": "object",
+	"required": ["schema", "version", "failure"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.cli.failure.source" },
+		"version": { "const": 1 },
+		"failure": {
+			"type": "object",
+			"required": ["kind", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "enum": ["cancelled", "timeout"] },
+				"details": { "$ref": "#/$defs/inputDetails" }
+			}
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": { "kind": { "const": "timeout" } },
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"details": {
+								"required": ["stage", "inputSource", "timeoutMs"],
+								"properties": { "timeoutMs": { "const": 5000 } }
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": { "kind": { "const": "cancelled" } },
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"details": {
+								"required": ["stage", "inputSource"],
+								"not": { "required": ["timeoutMs"] }
+							}
+						}
+					}
+				}
+			}
+		}
+	],
+	"$defs": {
+		"inputDetails": {
+			"type": "object",
+			"required": ["stage", "inputSource"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": { "const": "input" },
+				"inputSource": { "enum": ["file", "stdin"] },
+				"timeoutMs": { "type": "integer", "minimum": 1 }
+			}
+		}
+	}
+}

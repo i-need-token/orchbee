@@ -646,7 +646,10 @@ impl NativeUi {
             Some(taken) => self.apply_event(&mailbox, taken),
             None => false,
         };
-        if self.retirement_failure.is_none() {
+        // An armed membership-recovery attempt owns the mailbox until its
+        // candidate installs or the attempt settles: suppress the ordinary
+        // post-event scheduler block so the queue carries the Refresh alone.
+        if self.retirement_failure.is_none() && !self.retired_membership_attempt_active() {
             changed |= self
                 .state
                 .as_mut()
@@ -747,6 +750,14 @@ impl NativeUi {
         if self.retirement_failure.is_some() {
             return;
         }
+        // An armed membership-recovery attempt owns the mailbox: pane records
+        // are epoch-owned canonical facts, so the observation's record sync,
+        // Resize admission, and reconcile enqueue all stay outside the window.
+        // The recovery mailbox carries the Refresh alone and the install-time
+        // origin check still sees the untouched canonical pane set.
+        if self.retired_membership_attempt_active() {
+            return;
+        }
         let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
             return;
         };
@@ -755,6 +766,17 @@ impl NativeUi {
             let Some(state) = self.state.as_mut() else {
                 return;
             };
+            // A non-Session close carrier — status-only recovery, or the
+            // pending membership handoff before its atomic install — owns the
+            // window the same way: the carrier mailbox holds no canonical pane
+            // set, so the observation's record sync would mint pane facts the
+            // Retired-phase shape forbids, and Resize admission has no
+            // attached record to carry it. Legitimate close scheduling is
+            // unaffected; the predicate releases with the carrier's own
+            // settlement commit.
+            if state.close_status_only() {
+                return;
+            }
             state.sync_pane_set(observed, sampled_at);
             // First-Starting records the observation but admits no ordinary
             // Resize: the focus leaf's setup pipeline owns its geometry
@@ -807,12 +829,21 @@ impl NativeUi {
     /// divergence `sync_pane_set` recorded (and its minted episode budget)
     /// stays visible through `reconcile_pending` while the queue the startup
     /// allocator requires empty carries nothing. Ready's first schedule
-    /// delivers the same `PaneRef` targets under that original deadline.
+    /// delivers the same `PaneRef` targets under that original deadline. An
+    /// armed membership-recovery attempt suppresses the enqueue from every
+    /// caller: its mailbox carries the recovery Refresh alone. A non-Session
+    /// close carrier suppresses it the same way until the carrier's own
+    /// settlement commits: the status mailbox's desired anchor is not the
+    /// session's retained anchor, so an ordinary admission would mint work it
+    /// must reject as stale.
     fn schedule_pane_reconcile(&mut self, mailbox: &Arc<CommandMailbox>) {
+        if self.retired_membership_attempt_active() {
+            return;
+        }
         let Some(state) = self.state.as_mut() else {
             return;
         };
-        if state.phase_kind() == SessionPhaseKind::Starting {
+        if state.phase_kind() == SessionPhaseKind::Starting || state.close_status_only() {
             return;
         }
         let Some((anchor, targets, deadlines)) = state.reconcile_targets(self.clock.now()) else {
@@ -828,6 +859,21 @@ impl NativeUi {
                 | AdmissionError::RefreshGenerationExhausted
                 | AdmissionError::Build(_),
             ) => self.retire(CarrierFailure::Protocol),
+        }
+    }
+
+    /// Whether an armed retired-membership recovery attempt currently owns the
+    /// mailbox: ordinary scheduled admissions stay suppressed until the
+    /// candidate installs or the attempt settles. The attempt record exists
+    /// only on Linux; other platforms have no recovery path.
+    fn retired_membership_attempt_active(&self) -> bool {
+        #[cfg(target_os = "linux")]
+        {
+            self.retired_peer_attempt.is_some()
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            false
         }
     }
 

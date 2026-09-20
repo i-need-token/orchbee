@@ -157,11 +157,9 @@ impl LocalTerminalSession<'_> {
                 ..
             } => WorkerAction::ReadViewportRows {
                 origin: match origin {
-                    ViewportRowOrigin::Tail { rows_before } => {
-                        WorkerViewportRowOrigin::Tail {
-                            rows_before: *rows_before,
-                        }
-                    }
+                    ViewportRowOrigin::Tail { rows_before } => WorkerViewportRowOrigin::Tail {
+                        rows_before: *rows_before,
+                    },
                     ViewportRowOrigin::Committed { delta } => {
                         WorkerViewportRowOrigin::Committed { delta: *delta }
                     }
@@ -218,14 +216,12 @@ impl LocalTerminalSession<'_> {
                         Action::ReadRows { .. } => {
                             valid_rows_record(request.action(), viewer, request_id, &record)
                         }
-                        Action::ReadViewportRows { .. } => {
-                            valid_viewport_rows_record(
-                                request.action(),
-                                viewer,
-                                request_id,
-                                &record,
-                            )
-                        }
+                        Action::ReadViewportRows { .. } => valid_viewport_rows_record(
+                            request.action(),
+                            viewer,
+                            request_id,
+                            &record,
+                        ),
                         _ => viewer.projection.receive(&record).is_ok(),
                     };
                     if accepted {

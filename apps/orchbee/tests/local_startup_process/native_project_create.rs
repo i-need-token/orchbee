@@ -434,3 +434,113 @@ fn duplicate_project_labels_stay_id_addressable() -> TestResult {
     }
     Ok(())
 }
+
+/// `project rename` end-to-end against the live Server: create seeds one
+/// Project, a label-targeted rename commits under the dedicated schema, the
+/// committed label is observable through `project get`, the equal-label
+/// rename reports `unchanged`, and a typed-id rename commits again.
+#[test]
+fn project_rename_commits_against_the_live_server() -> TestResult {
+    let _process_witness = process_witness_guard();
+    let fixture = Fixture::new();
+    let _server = spawn_real_server(&fixture);
+    let validators = validators(&fixture);
+
+    // Seed through the already-delivered create; address everything after by
+    // the committed id or a current label — never a stale one.
+    let (output, created) = run_json(
+        &fixture,
+        &["project", "create", "--label", "old", "--format", "json"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "seed create: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let project_id = created["result"]["projectId"]
+        .as_str()
+        .expect("allocated id")
+        .to_owned();
+
+    // Label-targeted rename commits under its dedicated schema.
+    let (output, renamed) = run_json(
+        &fixture,
+        &[
+            "project", "rename", "old", "--label", "new", "--format", "json",
+        ],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "project rename: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    validate(&validators, "orchbee.project.rename", &output);
+    assert_eq!(renamed["schema"], "orchbee.project.rename");
+    assert_eq!(renamed["result"]["action"], "project.rename");
+    assert_eq!(renamed["result"]["outcome"], "committed");
+    assert_eq!(renamed["result"]["projectId"], project_id.as_str());
+    assert_eq!(renamed["result"]["label"], "new");
+    let committed_revision = renamed["result"]["revision"].as_str().unwrap().to_owned();
+
+    // The effect is observable: the id and the new label resolve; the stale
+    // label is honestly not-found.
+    let (output, project) = run_json(
+        &fixture,
+        &["project", "get", project_id.as_str(), "--format", "json"],
+    );
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(project["result"]["project"]["label"], "new");
+    let (output, project) = run_json(&fixture, &["project", "get", "new", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        project["result"]["project"]["projectId"],
+        project_id.as_str()
+    );
+    let (output, failure) = run_json(&fixture, &["project", "get", "old", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(3));
+    assert_eq!(failure["failure"]["kind"], "not-found");
+
+    // Equal-label rename is the Server's unchanged verdict at the same
+    // revision — no commit happened.
+    let (output, unchanged) = run_json(
+        &fixture,
+        &[
+            "project", "rename", "new", "--label", "new", "--format", "json",
+        ],
+    );
+    assert_eq!(output.status.code(), Some(0));
+    validate(&validators, "orchbee.project.rename", &output);
+    assert_eq!(unchanged["result"]["outcome"], "unchanged");
+    assert_eq!(unchanged["result"]["revision"], committed_revision.as_str());
+
+    // The typed id addresses the same row for a second commit.
+    let (output, by_id) = run_json(
+        &fixture,
+        &[
+            "project",
+            "rename",
+            project_id.as_str(),
+            "--label",
+            "final",
+            "--format",
+            "json",
+        ],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "id-addressed rename: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(by_id["result"]["outcome"], "committed");
+    assert_eq!(by_id["result"]["label"], "final");
+    let (output, project) = run_json(&fixture, &["project", "get", "final", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        project["result"]["project"]["projectId"],
+        project_id.as_str()
+    );
+    Ok(())
+}

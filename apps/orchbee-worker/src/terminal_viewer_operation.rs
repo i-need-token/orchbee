@@ -230,9 +230,7 @@ fn apply(
                     ViewportRowOrigin::Tail { rows_before } => {
                         RowWindowOrigin::Tail { rows_before }
                     }
-                    ViewportRowOrigin::Committed { delta } => {
-                        RowWindowOrigin::Committed { delta }
-                    }
+                    ViewportRowOrigin::Committed { delta } => RowWindowOrigin::Committed { delta },
                 },
                 purpose: RowWindowPurpose::Viewport,
                 request_sequence,
@@ -280,23 +278,26 @@ fn apply(
                 ViewerProjectionDemand::Active => ProjectionDemand::Active,
                 ViewerProjectionDemand::Paused => ProjectionDemand::Paused,
             };
-            let command =
-                encode_projection_demand_control(&ProjectionDemandControl::SetProjectionDemand(
-                    SetProjectionDemand {
-                        attachment_id: id,
-                        demand,
-                    },
-                ))?;
+            let command = encode_projection_demand_control(
+                &ProjectionDemandControl::SetProjectionDemand(SetProjectionDemand {
+                    attachment_id: id,
+                    demand,
+                }),
+            )?;
             let Some(response) =
                 ack_round_trip(host, server, correlation, command.kind, &command.payload)?
             else {
-                return Ok(TerminalViewerOutcome::Rejected(ViewerRejection::HostRejected));
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::HostRejected,
+                ));
             };
             let envelope = decode_transport_envelope(&response)?;
             let ProjectionDemandControl::ProjectionDemandAccepted(accepted) =
                 decode_projection_demand_control(envelope.kind, envelope.role, envelope.payload)?
             else {
-                return Err(invalid("Host did not acknowledge the viewer projection demand").into());
+                return Err(
+                    invalid("Host did not acknowledge the viewer projection demand").into(),
+                );
             };
             if accepted.attachment_id != id || accepted.demand != demand {
                 return Err(invalid("Host projection demand acknowledgement disagrees").into());
@@ -313,16 +314,17 @@ fn apply(
                 ViewerHistoryDemand::FollowingBottom => HistoryDemand::FollowingBottom,
                 ViewerHistoryDemand::ViewingHistory => HistoryDemand::ViewingHistory,
             };
-            let command = encode_history_control(&HistoryControl::SetHistoryDemand(
-                SetHistoryDemand {
+            let command =
+                encode_history_control(&HistoryControl::SetHistoryDemand(SetHistoryDemand {
                     attachment_id: id,
                     demand,
-                },
-            ))?;
+                }))?;
             let Some(response) =
                 ack_round_trip(host, server, correlation, command.kind, &command.payload)?
             else {
-                return Ok(TerminalViewerOutcome::Rejected(ViewerRejection::HostRejected));
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::HostRejected,
+                ));
             };
             let envelope = decode_transport_envelope(&response)?;
             let HistoryControl::HistoryDemandAccepted(accepted) =
@@ -356,7 +358,9 @@ fn apply(
             let Some(response) =
                 ack_round_trip(host, server, correlation, command.kind, &command.payload)?
             else {
-                return Ok(TerminalViewerOutcome::Rejected(ViewerRejection::HostRejected));
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::HostRejected,
+                ));
             };
             let envelope = decode_transport_envelope(&response)?;
             if decode_row_access_control(envelope.kind, envelope.role, envelope.payload)?
@@ -387,7 +391,9 @@ fn apply(
             let Some(response) =
                 ack_round_trip(host, server, correlation, command.kind, &command.payload)?
             else {
-                return Ok(TerminalViewerOutcome::Rejected(ViewerRejection::HostRejected));
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::HostRejected,
+                ));
             };
             let envelope = decode_transport_envelope(&response)?;
             if decode_history_control(envelope.kind, envelope.role, envelope.payload)?
@@ -490,10 +496,9 @@ fn read_rows(
     // The effective budget is the smallest of the requested bound, the
     // negotiated row-window limit, and what the viewer record carrier can
     // hold after its envelope header.
-    let carrier_payload = u32::try_from(
-        MAXIMUM_VIEWER_RECORD_BYTES.saturating_sub(TRANSPORT_ENVELOPE_HEADER_BYTES),
-    )
-    .unwrap_or(u32::MAX);
+    let carrier_payload =
+        u32::try_from(MAXIMUM_VIEWER_RECORD_BYTES.saturating_sub(TRANSPORT_ENVELOPE_HEADER_BYTES))
+            .unwrap_or(u32::MAX);
     let effective_maximum = read
         .maximum_bytes
         .min(host.negotiated_limits().row_window_bytes)

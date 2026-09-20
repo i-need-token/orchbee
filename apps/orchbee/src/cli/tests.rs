@@ -237,6 +237,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::ProjectCreate,
         CommandPath::ProjectGet,
         CommandPath::ProjectList,
+        CommandPath::ProjectRename,
         CommandPath::Status,
         CommandPath::TabClose,
         CommandPath::TabCreate,
@@ -466,4 +467,100 @@ fn wait_failure_kinds_map_to_their_exit_codes() {
         body["result"]["schema"]["document"]["$id"],
         "orchbee.terminal.wait-output"
     );
+}
+
+/// A `terminal send` source-stage timeout or cancellation diagnoses the
+/// input read — nothing was awaited and nothing was sent. The wait stage
+/// keeps its own wording. Both locales and both routing paths are pinned.
+#[cfg(target_os = "linux")]
+#[test]
+fn source_stage_failures_diagnose_the_input_read() {
+    use super::{Failure, FailureKind, source_failure_output};
+    let input_details = || {
+        serde_json::Map::from_iter([
+            ("stage".to_owned(), json!("input")),
+            ("inputSource".to_owned(), json!("stdin")),
+        ])
+    };
+    for kind in [FailureKind::Timeout, FailureKind::Cancelled] {
+        for (locale, expected, forbidden) in [
+            (
+                Locale::EnUs,
+                match kind {
+                    FailureKind::Timeout => "could not be read within the time limit",
+                    _ => "Reading the declared input was cancelled",
+                },
+                match kind {
+                    FailureKind::Timeout => "wait deadline elapsed",
+                    _ => "wait was cancelled",
+                },
+            ),
+            (
+                Locale::ZhCn,
+                match kind {
+                    FailureKind::Timeout => "未能在时限内读取",
+                    _ => "读取已被取消",
+                },
+                match kind {
+                    FailureKind::Timeout => "未出现目标文本",
+                    _ => "未报告任何匹配",
+                },
+            ),
+        ] {
+            let failure = Failure::new(kind).details(input_details());
+            let stderr = locale.cli_failure(&failure);
+            assert!(
+                stderr.contains(expected),
+                "{kind:?} {locale:?} must diagnose the input read, got {stderr:?}"
+            );
+            assert!(
+                !stderr.contains(forbidden),
+                "{kind:?} {locale:?} must not claim a wait ran, got {stderr:?}"
+            );
+        }
+    }
+    // Both routing paths carry the same source-stage wording.
+    for (format, expect_stdout) in [(OutputFormat::Text, false), (OutputFormat::Json, true)] {
+        let failure = Failure::new(FailureKind::Timeout).details(input_details());
+        let output = source_failure_output(failure, 7, format, Locale::EnUs);
+        assert_eq!(output.stdout.is_empty(), !expect_stdout);
+        assert!(
+            output.stderr.contains("could not be read"),
+            "stderr diagnoses the input read on the {format:?} path"
+        );
+        if expect_stdout {
+            let body = envelope(&output.stdout);
+            assert_eq!(body["schema"], "orchbee.cli.failure.source");
+            assert_eq!(body["failure"]["kind"], "timeout");
+        }
+    }
+}
+
+/// The wait stage and the detail-free fallback keep the established wait
+/// wording — the source-stage carve-out never leaks into other producers.
+#[test]
+fn wait_stage_failures_keep_the_wait_wording() {
+    use super::{Failure, FailureKind};
+    for kind in [FailureKind::Timeout, FailureKind::Cancelled] {
+        for details in [
+            Some(serde_json::Map::from_iter([(
+                "stage".to_owned(),
+                json!("wait"),
+            )])),
+            None,
+        ] {
+            let mut failure = Failure::new(kind);
+            if let Some(details) = details {
+                failure = failure.details(details);
+            }
+            let expected = match (kind, &failure.details) {
+                (FailureKind::Timeout, _) => "wait deadline elapsed",
+                _ => "wait was cancelled",
+            };
+            assert!(
+                Locale::EnUs.cli_failure(&failure).contains(expected),
+                "{kind:?} without stage:\"input\" keeps the wait wording"
+            );
+        }
+    }
 }

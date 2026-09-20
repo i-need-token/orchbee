@@ -3353,6 +3353,8 @@
 				"JoinAttempt",
 				"IgnoreOldResult",
 				"RejectForbiddenObservationRequest",
+				"AdmitOrdinaryScheduled",
+				"AdmitOrdinaryObserved",
 				"Tick"
 			],
 			"variants": [

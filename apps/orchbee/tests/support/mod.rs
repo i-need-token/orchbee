@@ -356,13 +356,20 @@ pub fn bounded_wait_with_output(
 /// Spawn the staged CLI binary under the wall-clock backstop with the shared
 /// deterministic-locale environment both suites use.
 pub fn run(binary: &Path, base: &Path, arguments: &[&str]) -> Output {
+    run_lang(binary, base, arguments, "en_US.UTF-8")
+}
+
+/// The same spawn under a caller-selected `LANG` — locale-comparison evidence
+/// needs the zh-CN pass to differ from the en-US default in exactly one
+/// environment variable.
+pub fn run_lang(binary: &Path, base: &Path, arguments: &[&str], lang: &str) -> Output {
     let mut command = Command::new(binary);
     command
         .args(arguments)
         .env("ORCHBEE_RUNTIME_BASE", base)
         .env_remove("LC_ALL")
         .env_remove("LC_MESSAGES")
-        .env("LANG", "en_US.UTF-8");
+        .env("LANG", lang);
     bounded_output(&mut command, RUN_WALL_CLOCK_BACKSTOP)
         .unwrap_or_else(|timeout| panic!("{timeout}"))
 }

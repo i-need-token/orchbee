@@ -457,7 +457,10 @@ fn pane_press_on_reminted_incarnation_drops_without_focus() {
 fn pane_press_on_readonly_pane_never_steals_focus() {
     // A settled ReadOnly verdict on the target pane rejects the press
     // outright: no FocusPanel action leaves the anchor where it was and
-    // no input reaches the pane.
+    // no input reaches the pane. A content press is consumed with the
+    // pointer drop notice — the same negative adjudication the pending
+    // ReadOnly branch publishes — while a title-row press stays Client
+    // territory and drops quietly.
     let mut pointer = PointerState::default();
     pointer.set_capture(true);
     let mut view = ClientView::new(120);
@@ -471,12 +474,72 @@ fn pane_press_on_readonly_pane_never_steals_focus() {
     };
     publish_two_panel_map(&mut pointer);
     assert!(
-        !pointer
+        pointer
             .event(&mut view, &mut port, now(), press(2, 2))
             .handled()
     );
+    assert_eq!(
+        view.notice(),
+        Some(crate::client_view::Notice::PointerInputDropped)
+    );
     assert!(port.actions.is_empty());
     assert!(port.forwarded.is_empty());
+    assert!(matches!(pointer.gesture, Gesture::Idle));
+
+    // The title row is never pane input: a read-only verdict drops it
+    // the same silent way an unfocused press on a live pane's title does.
+    let mut view = ClientView::new(120);
+    assert!(
+        !pointer
+            .event(&mut view, &mut port, now(), press(2, 0))
+            .handled()
+    );
+    assert_eq!(view.notice(), None);
+    assert!(port.actions.is_empty());
+    assert!(matches!(pointer.gesture, Gesture::Idle));
+}
+
+#[test]
+fn pane_press_on_unsettled_mode_pane_reports_drop_without_focus() {
+    // An attached sibling whose controller mode has not arrived yet
+    // (`None`, between Attached and SetupConfigured) cannot admit input
+    // either: a content press reports the same drop notice without a
+    // focus request the client could never turn into input, and the
+    // title row still drops quietly. `None` is not a permission verdict
+    // — the notice states a factual input drop only.
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let mut port = RecordingPort {
+        probe: {
+            let mut probe = active_probe(0, 0, 1, 2);
+            set_leaf(&mut probe, pane_leaf(1, 1, 2, 0, true, None, true));
+            probe
+        },
+        ..RecordingPort::default()
+    };
+    publish_two_panel_map(&mut pointer);
+    assert!(
+        pointer
+            .event(&mut view, &mut port, now(), press(2, 2))
+            .handled()
+    );
+    assert_eq!(
+        view.notice(),
+        Some(crate::client_view::Notice::PointerInputDropped)
+    );
+    assert!(port.actions.is_empty());
+    assert!(port.forwarded.is_empty());
+    assert!(matches!(pointer.gesture, Gesture::Idle));
+
+    let mut view = ClientView::new(120);
+    assert!(
+        !pointer
+            .event(&mut view, &mut port, now(), press(2, 0))
+            .handled()
+    );
+    assert_eq!(view.notice(), None);
+    assert!(port.actions.is_empty());
     assert!(matches!(pointer.gesture, Gesture::Idle));
 }
 
@@ -674,16 +737,17 @@ fn pending_focus_waits_for_an_unarrived_controller_mode() {
 
 #[test]
 fn pending_focus_on_a_settled_read_only_verdict_drops_with_notice() {
-    // The mode arrives during the pending window as ReadOnly: the queue
-    // drops immediately with the pointer notice instead of waiting out
-    // the deadline.
+    // A controlling pane whose frame is not ready yet queues a pending
+    // focus. The mode then settles as ReadOnly during the window: the
+    // queue drops immediately with the pointer notice instead of waiting
+    // out the deadline.
     let mut pointer = PointerState::default();
     pointer.set_capture(true);
     let mut view = ClientView::new(120);
     let mut port = RecordingPort {
         probe: {
             let mut probe = active_probe(0, 0, 1, 2);
-            set_leaf(&mut probe, pane_leaf(1, 1, 2, 0, true, None, false));
+            set_leaf(&mut probe, pane_leaf(1, 1, 2, 0, true, Some(true), false));
             probe.frame = None;
             probe
         },

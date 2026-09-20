@@ -111,6 +111,7 @@ pub(crate) enum CommandPath {
     ProjectList,
     ProjectGet,
     ProjectCreate,
+    ProjectRename,
     WorkspaceList,
     WorkspaceGet,
     WorkspaceCreate,
@@ -147,6 +148,7 @@ impl CommandPath {
             Self::ProjectList => "project list",
             Self::ProjectGet => "project get",
             Self::ProjectCreate => "project create",
+            Self::ProjectRename => "project rename",
             Self::WorkspaceList => "workspace list",
             Self::WorkspaceGet => "workspace get",
             Self::WorkspaceCreate => "workspace create",
@@ -227,9 +229,9 @@ pub(crate) enum TabContext {
     Standalone,
 }
 
-/// The `terminal send` payload the grammar admits: literal bytes or one named
-/// key — the parser stores the validated choice so the executor never
-/// re-reads argv.
+/// The `terminal send` payload the grammar admits: literal bytes, one named
+/// key, or a declared local source materialized into the same literal text —
+/// the parser stores the validated choice so the executor never re-reads argv.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum TerminalSendInput {
     /// Literal UTF-8 bytes; `enter` folds one trailing CR into the same
@@ -237,6 +239,12 @@ pub(crate) enum TerminalSendInput {
     Text { text: String, enter: bool },
     /// One semantic key the Host encodes under the terminal's current mode.
     Key(TerminalSendKey),
+    /// A declared regular file read once into the same bounded text record;
+    /// `enter` folds one trailing CR into it.
+    File { path: String, enter: bool },
+    /// A declared noninteractive standard-input stream read once into the
+    /// same bounded text record; `enter` folds one trailing CR into it.
+    Stdin { enter: bool },
 }
 
 /// The closed `terminal send --key` vocabulary. `CtrlC`/`CtrlD` carry the
@@ -310,6 +318,10 @@ impl TerminalSendKey {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum MutationCommand {
     ProjectCreate {
+        label: WorkbenchLabel,
+    },
+    ProjectRename {
+        target: Target,
         label: WorkbenchLabel,
     },
     WorkspaceCreate {
@@ -502,6 +514,38 @@ pub(crate) enum UsageReason {
         cell_width: u16,
         cell_height: u16,
     },
+    /// A declared `--file`/`--stdin` source failed local validation before
+    /// any runtime effect; `cause` names the closed local cause set and
+    /// `value` echoes only the `--file` operand — never payload bytes.
+    SendSource {
+        option: &'static str,
+        value: Option<String>,
+        cause: SendSourceCause,
+    },
+}
+
+/// The closed causes a declared `terminal send` source can fail with before
+/// any byte reaches the wire; rendered per locale, never serialized.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SendSourceCause {
+    /// `--file` did not resolve to a regular file: a directory, FIFO,
+    /// device, or a nonregular replacement opened at that path.
+    NotRegularFile,
+    /// `--stdin` was a terminal; declared sources never read interactive
+    /// input.
+    InteractiveTerminal,
+    /// `--stdin` was a descriptor kind the source cannot read, such as a
+    /// socket.
+    UnsupportedStream,
+    /// The source produced no bytes.
+    Empty,
+    /// The source exceeded the 4,096-byte record bound including the
+    /// folded `--enter` CR.
+    Oversize,
+    /// The source bytes were not valid UTF-8.
+    NotUtf8,
+    /// The source could not be opened or read.
+    Unreadable,
 }
 
 #[derive(Clone, Debug, Eq)]
@@ -549,6 +593,8 @@ struct Options {
     text: Option<String>,
     enter: bool,
     key: Option<String>,
+    file: Option<String>,
+    stdin: bool,
     mouse: Option<bool>,
 }
 
@@ -560,6 +606,7 @@ const VALUE_FLAGS: &[&str] = &[
     "--cell-width",
     "--cols",
     "--direction",
+    "--file",
     "--key",
     "--label",
     "--path",
@@ -825,6 +872,7 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                     "--timeout" => &mut options.timeout,
                     "--text" => &mut options.text,
                     "--key" => &mut options.key,
+                    "--file" => &mut options.file,
 
                     _ => &mut options.target_panel,
                 };
@@ -836,13 +884,15 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                 }
                 index += 2;
             }
-            "--standalone" | "--confirm" | "--history" | "--enter" => {
+            "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin" => {
                 let (seen, option) = if token == "--standalone" {
                     (&mut options.standalone, "--standalone")
                 } else if token == "--confirm" {
                     (&mut options.confirm, "--confirm")
                 } else if token == "--history" {
                     (&mut options.history, "--history")
+                } else if token == "--stdin" {
+                    (&mut options.stdin, "--stdin")
                 } else {
                     (&mut options.enter, "--enter")
                 };
@@ -1029,6 +1079,21 @@ fn resolve_words(
             Ok(mutation(
                 MutationCommand::ProjectCreate {
                     label: label_option(options, UsageContext::Path("project create"), envelope)?,
+                },
+                options,
+            ))
+        }
+        ["project", "rename", value] => {
+            check_scope(
+                options,
+                LABEL_SCOPE,
+                UsageContext::Path("project rename"),
+                envelope,
+            )?;
+            Ok(mutation(
+                MutationCommand::ProjectRename {
+                    target: target((*value).to_owned(), Resource::Project, envelope)?,
+                    label: label_option(options, UsageContext::Path("project rename"), envelope)?,
                 },
                 options,
             ))
@@ -1487,6 +1552,16 @@ fn resolve_words(
             extra,
             envelope,
         )),
+        ["project", "rename"] => Err(missing_required(
+            UsageContext::Path("project rename"),
+            "<project>",
+            envelope,
+        )),
+        ["project", "rename", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("project rename"),
+            extra,
+            envelope,
+        )),
         ["project", verb, ..] => Err(unknown_command(
             UsageContext::Path("project"),
             verb,
@@ -1769,6 +1844,7 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["project", "list"] => HelpTopic::Command(CommandPath::ProjectList),
         ["project", "get"] => HelpTopic::Command(CommandPath::ProjectGet),
         ["project", "create"] => HelpTopic::Command(CommandPath::ProjectCreate),
+        ["project", "rename"] => HelpTopic::Command(CommandPath::ProjectRename),
         ["workspace", "list"] => HelpTopic::Command(CommandPath::WorkspaceList),
         ["workspace", "get"] => HelpTopic::Command(CommandPath::WorkspaceGet),
         ["workspace", "create"] => HelpTopic::Command(CommandPath::WorkspaceCreate),
@@ -1843,6 +1919,10 @@ struct Scope {
     enter: bool,
     /// `terminal send --key <name>`: the semantic-key value option.
     key: bool,
+    /// `terminal send --file <path>`: the declared regular-file source.
+    file: bool,
+    /// `terminal send --stdin`: the declared noninteractive input stream.
+    stdin: bool,
     /// `tui --mouse off|on`: admits the TUI-only pointer-capture switch.
     mouse: bool,
 }
@@ -1863,6 +1943,8 @@ const NO_OPTIONS: Scope = Scope {
     text: false,
     enter: false,
     key: false,
+    file: false,
+    stdin: false,
     mouse: false,
 };
 
@@ -1950,6 +2032,8 @@ const TERMINAL_SEND_SCOPE: Scope = Scope {
     text: true,
     enter: true,
     key: true,
+    file: true,
+    stdin: true,
     ..NO_OPTIONS
 };
 
@@ -1970,6 +2054,8 @@ fn business_options(options: &Options) -> bool {
         || options.text.is_some()
         || options.enter
         || options.key.is_some()
+        || options.file.is_some()
+        || options.stdin
 }
 
 /// The first named option present but outside `scope`, in the fixed `Options`
@@ -2034,6 +2120,12 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.key.is_some() && !scope.key {
         return Some("--key");
+    }
+    if options.file.is_some() && !scope.file {
+        return Some("--file");
+    }
+    if options.stdin && !scope.stdin {
+        return Some("--stdin");
     }
     if options.mouse.is_some() && !scope.mouse {
         return Some("--mouse");
@@ -2258,20 +2350,34 @@ fn wait_timeout_option(
 
 /// The wire's single-record input bound: literal bytes plus the optional
 /// folded CR must fit one input payload.
-const MAXIMUM_SEND_TEXT_BYTES: usize = 4096;
+pub(crate) const MAXIMUM_SEND_TEXT_BYTES: usize = 4096;
 
 /// `terminal send` admits exactly one payload form. `--text`/`--key` are
-/// mutually exclusive and one is required; `--enter` is the text form's own
-/// modifier and never legal alone or under `--key`. The text byte budget
-/// counts the payload the wire actually carries — the literal bytes plus the
-/// appended CR — so an over-limit record is refused before any connection.
+/// mutually exclusive and one is required; `--enter` is the text-bearing
+/// forms' own modifier and never legal alone or under `--key`. The text byte
+/// budget counts the payload the wire actually carries — the literal bytes
+/// plus the appended CR — so an over-limit record is refused before any
+/// connection. `--file` and `--stdin` are declarations only: the parser
+/// stores the source untouched and the materializer reads it later under
+/// the same bounded budget.
 fn send_input(
     options: &Options,
     context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<TerminalSendInput, ParseFailure> {
-    match (&options.text, &options.key) {
-        (Some(text), None) => {
+    // Exactly one source: a second declaration is the conflict the grammar
+    // rejects, named in a fixed order regardless of argv order.
+    let declared: Vec<&'static str> = [
+        ("--text", options.text.is_some()),
+        ("--key", options.key.is_some()),
+        ("--file", options.file.is_some()),
+        ("--stdin", options.stdin),
+    ]
+    .into_iter()
+    .filter_map(|(flag, seen)| seen.then_some(flag))
+    .collect();
+    match (&options.text, &options.key, &options.file, options.stdin) {
+        (Some(text), None, None, false) => {
             let bytes = text.len() + usize::from(options.enter);
             if text.is_empty() || bytes > MAXIMUM_SEND_TEXT_BYTES {
                 return Err(usage_with(
@@ -2289,7 +2395,7 @@ fn send_input(
                 enter: options.enter,
             })
         }
-        (None, Some(name)) => {
+        (None, Some(name), None, false) => {
             if options.enter {
                 return Err(usage_with(
                     UsageReason::UnexpectedOption {
@@ -2312,15 +2418,14 @@ fn send_input(
             };
             Ok(TerminalSendInput::Key(key))
         }
-        (Some(_), Some(_)) => Err(usage_with(
-            UsageReason::ConflictingOptions {
-                context,
-                first: "--text",
-                second: "--key",
-            },
-            envelope,
-        )),
-        (None, None) => {
+        (None, None, Some(path), false) => Ok(TerminalSendInput::File {
+            path: path.clone(),
+            enter: options.enter,
+        }),
+        (None, None, None, true) => Ok(TerminalSendInput::Stdin {
+            enter: options.enter,
+        }),
+        (None, None, None, false) => {
             if options.enter {
                 return Err(usage_with(
                     UsageReason::UnexpectedOption {
@@ -2330,8 +2435,20 @@ fn send_input(
                     envelope,
                 ));
             }
-            Err(missing_required(context, "'--text' or '--key'", envelope))
+            Err(missing_required(
+                context,
+                "'--text', '--key', '--file', or '--stdin'",
+                envelope,
+            ))
         }
+        _ => Err(usage_with(
+            UsageReason::ConflictingOptions {
+                context,
+                first: declared[0],
+                second: declared[1],
+            },
+            envelope,
+        )),
     }
 }
 

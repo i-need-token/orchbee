@@ -663,10 +663,21 @@ impl PointerState {
             };
         }
         // A pane without a live attachment cannot take a local focus — the
-        // planner refuses it anyway — and a settled ReadOnly verdict must
-        // never let a click steal the focus from wherever it rests.
-        if !leaf.attached || leaf.controlling == Some(false) {
+        // planner refuses it anyway — and a leaf that cannot currently
+        // admit input for this client must never let a click steal the
+        // focus from wherever it rests. That covers the settled ReadOnly
+        // verdict and the still-unsettled `None` mode between Attached
+        // and SetupConfigured: the title row stays Client territory and
+        // drops quietly, while a content press reports the same negative
+        // adjudication the pending ReadOnly branch publishes — a factual
+        // input drop, not a permission diagnosis.
+        let not_controlling = !matches!(leaf.controlling, Some(true));
+        if !leaf.attached || (not_controlling && !inside_content) {
             return PointerOutcome::Ignored;
+        }
+        if not_controlling {
+            view.report_pointer_input_dropped();
+            return PointerOutcome::Handled;
         }
         // Focus the pane before anything reaches it. The panel identity is
         // stable, never positional; the session plans a *local* focus

@@ -2861,3 +2861,468 @@ fn hostile_labels_round_trip_through_the_receipt() -> TestResult {
     assert!(output.stdout.len() < 8192, "text receipt stays small");
     Ok(())
 }
+
+// ---- project rename -----------------------------------------------------------
+
+/// `project rename` submits the already-modeled `ProjectRename` action through
+/// the shared setup transport. A label target resolves to the snapshot's own
+/// project id; an id target resolves by identity. The committed receipt
+/// reports under the dedicated `orchbee.project.rename` document — the shared
+/// mutation envelope's action enum stays closed.
+#[test]
+fn project_rename_commits_by_id_and_label() -> TestResult {
+    let base = base_dir("project-rename");
+    let scope = stage_scope(&base);
+    let peer = spawn_peer_n(&scope, 2, move |stream| {
+        let snapshot_request = admit_and_serve_snapshot(&stream);
+        let command = read_command(&stream);
+        assert_command_base(&command, snapshot_request.as_str());
+        let WorkbenchAction::ProjectRename { project_id, label } = &command.action else {
+            panic!("expected project.rename, got {:?}", command.action)
+        };
+        assert_eq!(
+            project_id.as_str(),
+            PROJECT,
+            "id and 'web' resolve to the same row"
+        );
+        assert_eq!(label.as_str(), "new");
+        command_response(
+            &stream,
+            command.request_id,
+            WorkbenchCommandOutcome::Renamed {
+                revision: revision(8),
+            },
+        );
+    });
+
+    for target in [PROJECT, "web"] {
+        let output = run(
+            &base,
+            &[
+                "project",
+                "rename",
+                target,
+                "--label",
+                "new",
+                "--format=json",
+            ],
+        );
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let document = envelope(&output);
+        assert_eq!(document["schema"], "orchbee.project.rename");
+        assert_eq!(document["version"], 1);
+        assert_eq!(document["source"]["kind"], "workbench-command");
+        assert_eq!(document["source"]["siteId"], SITE);
+        assert_eq!(document["source"]["expectedRevision"], "7");
+        assert_eq!(document["result"]["action"], "project.rename");
+        assert_eq!(document["result"]["outcome"], "committed");
+        assert_eq!(document["result"]["revision"], "8");
+        assert_eq!(document["result"]["projectId"], PROJECT);
+        assert_eq!(document["result"]["label"], "new");
+        assert!(
+            compiled_schema(&base, "orchbee.project.rename").is_valid(&document),
+            "receipt validates under its dedicated schema"
+        );
+    }
+    peer.join().expect("peer finished");
+    Ok(())
+}
+
+/// An equal-label rename is the Server's `Unchanged` verdict: the receipt
+/// reports `unchanged` with the base revision, still under the dedicated
+/// schema.
+#[test]
+fn project_rename_unchanged_reports_base_revision() -> TestResult {
+    let base = base_dir("project-rename-unchanged");
+    let scope = stage_scope(&base);
+    let peer = spawn_peer(&scope, |stream| {
+        admit_and_serve_snapshot(&stream);
+        let command = read_command(&stream);
+        assert!(
+            matches!(&command.action, WorkbenchAction::ProjectRename { .. }),
+            "expected project.rename, got {:?}",
+            command.action
+        );
+        command_response(
+            &stream,
+            command.request_id,
+            WorkbenchCommandOutcome::Unchanged {
+                revision: revision(7),
+            },
+        );
+    });
+    let output = run(
+        &base,
+        &[
+            "project", "rename", PROJECT, "--label", "web", "--format", "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(0));
+    let document = envelope(&output);
+    assert_eq!(document["schema"], "orchbee.project.rename");
+    assert_eq!(document["result"]["outcome"], "unchanged");
+    assert_eq!(document["result"]["revision"], "7");
+    assert!(compiled_schema(&base, "orchbee.project.rename").is_valid(&document));
+    Ok(())
+}
+
+/// The shared precommit matrix maps unchanged: rejected→3, denied→3,
+/// unavailable→4 — no new failure kinds for the new command.
+#[test]
+fn project_rename_precommit_verdicts_map_matrix() -> TestResult {
+    let base = base_dir("project-rename-matrix");
+    let scope = stage_scope(&base);
+    let rejected_peer = spawn_peer(&scope, |stream| {
+        admit_and_serve_snapshot(&stream);
+        let command = read_command(&stream);
+        command_response(
+            &stream,
+            command.request_id,
+            WorkbenchCommandOutcome::Rejected {
+                revision: revision(7),
+                reason: WorkbenchRejectionReason::ProjectUnavailable,
+            },
+        );
+    });
+    let output = run(
+        &base,
+        &[
+            "project",
+            "rename",
+            PROJECT,
+            "--label",
+            "x",
+            "--format=json",
+        ],
+    );
+    rejected_peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(3));
+    let document = envelope(&output);
+    assert_eq!(document["failure"]["kind"], "rejected");
+    assert_eq!(document["failure"]["details"]["stage"], "command");
+    assert_eq!(
+        document["failure"]["details"]["reason"],
+        "project-unavailable"
+    );
+    assert_eq!(document["failure"]["details"]["revision"], "7");
+    assert!(compiled_schema(&base, "orchbee.cli.failure").is_valid(&document));
+
+    let denied_peer = spawn_peer(&scope, |stream| {
+        admit_and_serve_snapshot(&stream);
+        let command = read_command(&stream);
+        command_response(
+            &stream,
+            command.request_id,
+            WorkbenchCommandOutcome::Denied {},
+        );
+    });
+    let output = run(
+        &base,
+        &[
+            "project",
+            "rename",
+            PROJECT,
+            "--label",
+            "x",
+            "--format=json",
+        ],
+    );
+    denied_peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(3));
+    assert_eq!(envelope(&output)["failure"]["kind"], "denied");
+
+    let unavailable_peer = spawn_peer(&scope, |stream| {
+        admit_and_serve_snapshot(&stream);
+        let command = read_command(&stream);
+        command_response(
+            &stream,
+            command.request_id,
+            WorkbenchCommandOutcome::Unavailable {
+                reason: WorkbenchCommandUnavailableReason::ServiceUnavailable,
+            },
+        );
+    });
+    let output = run(
+        &base,
+        &[
+            "project",
+            "rename",
+            PROJECT,
+            "--label",
+            "x",
+            "--format=json",
+        ],
+    );
+    unavailable_peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(4));
+    let document = envelope(&output);
+    assert_eq!(document["failure"]["kind"], "service-unavailable");
+    assert_eq!(document["failure"]["details"]["stage"], "command");
+    Ok(())
+}
+
+/// Resolve failures submit nothing: an unknown label is `not-found` and two
+/// same-label Projects are `ambiguous` — both stop after the snapshot read
+/// with zero commands on the wire.
+#[test]
+fn project_rename_resolve_failures_submit_nothing() -> TestResult {
+    let base = base_dir("project-rename-unresolved");
+    let scope = stage_scope(&base);
+    // Connection 1: the stock fixture has no "ghost" project → not-found.
+    // Connection 2: an inline snapshot with two "web" Projects → ambiguous.
+    // Either way the CLI must retire without writing a command: any further
+    // request on the connection is a test failure.
+    let peer = spawn_peer_n(&scope, 2, |stream| {
+        static CALL: Mutex<u32> = Mutex::new(0);
+        let call = {
+            let mut guard = CALL.lock().unwrap();
+            *guard += 1;
+            *guard
+        };
+        admit(&stream);
+        let request_id = read_snapshot_request(&stream);
+        if call == 1 {
+            snapshot_response(
+                &stream,
+                request_id,
+                WorkbenchSnapshotOutcome::Available {
+                    snapshot: parse_snapshot(fixture_document()).expect("fixture"),
+                },
+            );
+        } else {
+            // Two "web" Projects: derive the ambiguous snapshot from the
+            // stock fixture so every cross-reference stays intact — only the
+            // second row's identity (and its empty workspace list) changes.
+            let mut document: serde_json::Value =
+                serde_json::from_slice(fixture_document()).expect("fixture");
+            let mut duplicate = document["navigation"]["projects"][0].clone();
+            duplicate["projectId"] = serde_json::json!(id(0x12));
+            duplicate["workspaces"] = serde_json::json!([]);
+            document["navigation"]["projects"]
+                .as_array_mut()
+                .unwrap()
+                .push(duplicate);
+            let bytes = serde_json::to_vec(&document).expect("fixture bytes");
+            snapshot_response(
+                &stream,
+                request_id,
+                WorkbenchSnapshotOutcome::Available {
+                    snapshot: parse_snapshot(&bytes).expect("duplicate-label fixture"),
+                },
+            );
+        }
+        stream
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .expect("read timeout");
+        if let Ok(request) = read_workbench_request(&mut &stream) {
+            panic!("unexpected request after resolve failure: {request:?}");
+        }
+    });
+
+    let output = run(
+        &base,
+        &[
+            "project", "rename", "ghost", "--label", "x", "--format", "json",
+        ],
+    );
+    assert_eq!(output.status.code(), Some(3));
+    let document = envelope(&output);
+    assert_eq!(document["failure"]["kind"], "not-found");
+    assert_eq!(document["failure"]["details"]["resource"], "project");
+
+    let output = run(
+        &base,
+        &[
+            "project", "rename", "web", "--label", "x", "--format", "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(3));
+    let document = envelope(&output);
+    assert_eq!(document["failure"]["kind"], "ambiguous");
+    assert_eq!(document["failure"]["details"]["resource"], "project");
+    assert_eq!(
+        document["failure"]["details"]["candidates"],
+        serde_json::json!([PROJECT, id(0x12)])
+    );
+    assert_eq!(document["failure"]["details"]["totalCount"], 2);
+    Ok(())
+}
+
+/// A dropped post-submission answer is `outcome-unknown` with the submitted
+/// request identity — the listener sees exactly one connection and one
+/// command; nothing is replayed.
+#[test]
+fn project_rename_dropped_response_is_outcome_unknown() -> TestResult {
+    let base = base_dir("project-rename-drop");
+    let scope = stage_scope(&base);
+    let socket = scope.join("client.sock");
+    let listener = UnixListener::bind(&socket).expect("bind client socket");
+    fs::set_permissions(&socket, fs::Permissions::from_mode(0o600)).expect("chmod socket");
+    listener
+        .set_nonblocking(true)
+        .expect("listener nonblocking");
+    let submitted = Arc::new(Mutex::new(String::new()));
+    let seen = submitted.clone();
+    let peer = thread::spawn(move || {
+        let stream = accept_bounded(&listener);
+        stream
+            .set_read_timeout(Some(PEER_IO_DEADLINE))
+            .expect("peer read timeout");
+        stream
+            .set_write_timeout(Some(PEER_IO_DEADLINE))
+            .expect("peer write timeout");
+        admit(&stream);
+        let request_id = read_snapshot_request(&stream);
+        snapshot_response(
+            &stream,
+            request_id,
+            WorkbenchSnapshotOutcome::Available {
+                snapshot: parse_snapshot(fixture_document()).expect("fixture"),
+            },
+        );
+        let command = read_command(&stream);
+        *seen.lock().unwrap() = command.request_id.as_str().to_owned();
+        drop(stream);
+        thread::sleep(Duration::from_millis(300));
+        match listener.accept() {
+            Err(error) if error.kind() == ErrorKind::WouldBlock => {}
+            Ok(_) => panic!("the CLI must never replay a submitted command"),
+            Err(error) => panic!("listener accept failed: {error}"),
+        }
+    });
+    let output = run(
+        &base,
+        &[
+            "project",
+            "rename",
+            PROJECT,
+            "--label",
+            "x",
+            "--format=json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(8));
+    let document = envelope(&output);
+    assert_eq!(document["failure"]["kind"], "outcome-unknown");
+    assert_eq!(document["failure"]["details"]["stage"], "command");
+    assert_eq!(
+        document["failure"]["details"]["requestId"]
+            .as_str()
+            .unwrap(),
+        submitted.lock().unwrap().as_str(),
+        "the typed unknown reports the submitted request identity"
+    );
+    assert!(compiled_schema(&base, "orchbee.cli.failure").is_valid(&document));
+    Ok(())
+}
+
+/// The machine document is locale-neutral: en-US and zh-CN runs emit the
+/// same schema and every semantic field; each run's `source.requestId` is a
+/// fresh 32-hex identity of its own — identities are never claimed equal.
+#[test]
+fn project_rename_machine_document_is_locale_neutral() -> TestResult {
+    let base = base_dir("project-rename-locale");
+    let scope = stage_scope(&base);
+    let peer = spawn_peer_n(&scope, 2, |stream| {
+        admit_and_serve_snapshot(&stream);
+        let command = read_command(&stream);
+        command_response(
+            &stream,
+            command.request_id,
+            WorkbenchCommandOutcome::Renamed {
+                revision: revision(8),
+            },
+        );
+    });
+    let argv = [
+        "project", "rename", PROJECT, "--label", "new", "--format", "json",
+    ];
+    let english = run(&base, &argv);
+    let chinese = support::run_lang(&cohort().join("orchbee"), &base, &argv, "zh_CN.UTF-8");
+    peer.join().expect("peer finished");
+    assert_eq!(english.status.code(), Some(0));
+    assert_eq!(chinese.status.code(), Some(0));
+    let english_doc = envelope(&english);
+    let chinese_doc = envelope(&chinese);
+    for pointer in [
+        "/schema",
+        "/version",
+        "/source/kind",
+        "/source/siteId",
+        "/source/expectedRevision",
+        "/result/action",
+        "/result/outcome",
+        "/result/revision",
+        "/result/projectId",
+        "/result/label",
+    ] {
+        assert_eq!(
+            english_doc.pointer(pointer),
+            chinese_doc.pointer(pointer),
+            "semantic field {pointer} must be locale-neutral"
+        );
+    }
+    // Each run submitted under its own fresh request identity: both are
+    // legal 32-hex ids and never equal to each other.
+    let english_id = english_doc["source"]["requestId"].as_str().unwrap();
+    let chinese_id = chinese_doc["source"]["requestId"].as_str().unwrap();
+    for request_id in [english_id, chinese_id] {
+        assert_eq!(request_id.len(), 32, "request id shape: {request_id}");
+        assert!(
+            request_id
+                .chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+            "request id is lowercase hex: {request_id}"
+        );
+    }
+    assert_ne!(english_id, chinese_id, "request identities stay fresh");
+    // A successful mutation emits no diagnostics under either locale: the
+    // stream split is itself locale-neutral.
+    assert!(english.stderr.is_empty() && chinese.stderr.is_empty());
+    Ok(())
+}
+
+/// The text receipt renders the same fields one per line; nothing
+/// locale-specific or schema-shaped leaks into it.
+#[test]
+fn project_rename_text_receipt_rows() -> TestResult {
+    let base = base_dir("project-rename-text");
+    let scope = stage_scope(&base);
+    let peer = spawn_peer(&scope, |stream| {
+        admit_and_serve_snapshot(&stream);
+        let command = read_command(&stream);
+        command_response(
+            &stream,
+            command.request_id,
+            WorkbenchCommandOutcome::Renamed {
+                revision: revision(8),
+            },
+        );
+    });
+    let output = run(&base, &["project", "rename", "web", "--label", "new"]);
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(0));
+    let text = String::from_utf8_lossy(&output.stdout);
+    for row in [
+        "action",
+        "outcome",
+        "revision",
+        "requestId",
+        "projectId",
+        "label",
+    ] {
+        assert!(text.contains(row), "text receipt names {row}: {text}");
+    }
+    assert!(text.contains("project.rename"), "{text}");
+    assert!(text.contains("committed"), "{text}");
+    assert!(text.contains(PROJECT), "{text}");
+    Ok(())
+}

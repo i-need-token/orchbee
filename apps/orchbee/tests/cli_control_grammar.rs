@@ -42,6 +42,8 @@ static STAGE_SERIAL: Mutex<()> = Mutex::new(());
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
+/// A canonical 32-lowercase-hex Project identity.
+const PROJECT_ID: &str = "bcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbc";
 /// A canonical 32-lowercase-hex Terminal identity; `Resource::Terminal`
 /// admits no label form.
 const TERMINAL_ID: &str = "abababababababababababababababab";
@@ -223,14 +225,18 @@ fn usage_silent(probe: &Probe, arguments: &[&str]) {
 /// A grammar failure after a unique valid `--format json` keeps the selected
 /// envelope: a JSON failure document whose kind is `invalid-usage`.
 fn usage_json(probe: &Probe, arguments: &[&str]) {
+    usage_json_kind(probe, arguments, "invalid-usage");
+}
+
+/// The same envelope rule for every grammar-stage kind: a valid json
+/// selection keeps the JSON document while `failure.kind` is the kind the
+/// caller names (`invalid-identifier` for malformed targets and values).
+fn usage_json_kind(probe: &Probe, arguments: &[&str], kind: &str) {
     let output = run(probe, arguments);
     assert_eq!(output.status.code(), Some(2), "{arguments:?}");
     let document: serde_json::Value =
         serde_json::from_slice(&output.stdout).expect("json-envelope failure is JSON");
-    assert_eq!(
-        document["failure"]["kind"], "invalid-usage",
-        "{arguments:?}"
-    );
+    assert_eq!(document["failure"]["kind"], kind, "{arguments:?}");
 }
 
 /// Per-path help answers with zero runtime: exit 0 and a non-empty body even
@@ -1141,5 +1147,139 @@ fn cross_command_scope_and_help_boundaries() -> TestResult {
     // `help` never selects a format; the rejected selection keeps the
     // requested envelope.
     usage_json(&probe, &["help", "terminal", "--format", "json"]);
+    Ok(())
+}
+
+// ---- project rename ----------------------------------------------------------
+
+/// `project rename <target> --label <label>` rides the shared mutation
+/// grammar: one operand under the project target rules, one required
+/// single-use label, the shared `--`/`--format` envelope rules, and no
+/// `--confirm` — a rename is not destructive.
+#[test]
+fn project_rename_admitted_forms() -> TestResult {
+    let probe = probe();
+    for arguments in [
+        ["project", "rename", PROJECT_ID, "--label", "new"].as_slice(),
+        // Every non-ID token is a legal label candidate — uppercase hex,
+        // wrong lengths, and non-hex 32-char strings included; only empty,
+        // overlong, or zero-shaped operands are identifier failures.
+        ["project", "rename", "web", "--label", "new"].as_slice(),
+        ["project", "rename", "ABCDEF", "--label", "new"].as_slice(),
+        [
+            "project",
+            "rename",
+            "0123456789ABCDEF0123456789ABCDEF",
+            "--label",
+            "new",
+        ]
+        .as_slice(),
+        [
+            "project",
+            "rename",
+            "0000000000000000000000000000000g",
+            "--label",
+            "new",
+        ]
+        .as_slice(),
+        // Option before the operand is legal under the shared scan order.
+        ["project", "rename", "--label", "new", PROJECT_ID].as_slice(),
+        // `--` shields a flag-spelling operand: `--help` is a literal label
+        // target here, never the help suffix.
+        ["project", "rename", "--label", "new", "--", "--help"].as_slice(),
+    ] {
+        admitted(&probe, arguments);
+    }
+    // A valid json selection before `--` keeps the envelope through the
+    // post-parse stage; the post-terminator `--format=json` is the literal
+    // label target, not a second format selection.
+    admitted_json(
+        &probe,
+        &[
+            "project",
+            "rename",
+            "--label",
+            "new",
+            "--format=json",
+            "--",
+            "--format=json",
+        ],
+    );
+    admitted_json(
+        &probe,
+        &[
+            "project", "rename", PROJECT_ID, "--label", "new", "--format", "json",
+        ],
+    );
+    Ok(())
+}
+
+#[test]
+fn project_rename_usage_failures() -> TestResult {
+    let probe = probe();
+    for arguments in [
+        ["project", "rename"].as_slice(),
+        ["project", "rename", PROJECT_ID].as_slice(),
+        ["project", "rename", PROJECT_ID, PROJECT_ID, "--label", "x"].as_slice(),
+        [
+            "project", "rename", PROJECT_ID, "--label", "x", "--label", "y",
+        ]
+        .as_slice(),
+        // `--confirm` belongs to the close commands alone.
+        ["project", "rename", PROJECT_ID, "--label", "x", "--confirm"].as_slice(),
+        ["project", "rename", PROJECT_ID, "--label", "x", "extra"].as_slice(),
+        // After `--`, `--label` is a positional: the required option is
+        // absent and the extra positional is unexpected either way.
+        ["project", "rename", "--", "--label"].as_slice(),
+        ["project", "rename", "--", "--label", "x"].as_slice(),
+    ] {
+        usage(&probe, arguments);
+    }
+    // A valid json selection anywhere before `--` shapes the failure.
+    usage_json(&probe, &["project", "rename", "--format", "json"]);
+    usage_json(
+        &probe,
+        &["project", "rename", PROJECT_ID, "--format=json", "--bogus"],
+    );
+    // Identifier failures exit 2 under the same envelope but name their own
+    // kind: empty/overlong/zero-shaped targets and empty/overlong labels.
+    let overlong = "x".repeat(513);
+    for arguments in [
+        ["project", "rename", "", "--label", "x"].as_slice(),
+        ["project", "rename", overlong.as_str(), "--label", "x"].as_slice(),
+        ["project", "rename", ZERO_ID, "--label", "x"].as_slice(),
+        ["project", "rename", PROJECT_ID, "--label", ""].as_slice(),
+        [
+            "project",
+            "rename",
+            PROJECT_ID,
+            "--label",
+            overlong.as_str(),
+        ]
+        .as_slice(),
+    ] {
+        usage(&probe, arguments);
+    }
+    usage_json_kind(
+        &probe,
+        &[
+            "project", "rename", ZERO_ID, "--label", "x", "--format", "json",
+        ],
+        "invalid-identifier",
+    );
+    Ok(())
+}
+
+#[test]
+fn project_rename_help_paths() -> TestResult {
+    let probe = probe();
+    for arguments in [
+        ["help", "project"].as_slice(),
+        ["help", "project", "rename"].as_slice(),
+        ["project", "rename", "--help"].as_slice(),
+        ["project", "rename", "-h"].as_slice(),
+    ] {
+        help_ok(&probe, arguments);
+    }
     Ok(())
 }

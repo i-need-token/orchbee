@@ -114,7 +114,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     ("api", &["schema", "snapshot"]),
     ("config", &["check"]),
     ("panel", &["close", "get", "list", "move", "split"]),
-    ("project", &["create", "get", "list"]),
+    ("project", &["create", "get", "list", "rename"]),
     ("tab", &["close", "create", "get", "list", "move", "rename"]),
     ("terminal", &["get", "list", "read", "send", "wait-output"]),
     (
@@ -145,12 +145,15 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--text",
     "--enter",
     "--key",
+    "--file",
+    "--stdin",
 ];
 
 /// `<family>:<verb>` → the business flags that command admits. Commands not
 /// listed here admit none.
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("project:create", &["--label"]),
+    ("project:rename", &["--label"]),
     ("workspace:accept-directory", &["--path"]),
     ("workspace:list", &["--project"]),
     ("workspace:create", &["--project", "--label"]),
@@ -186,7 +189,10 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("panel:close", &["--confirm"]),
     ("panel:move", &["--target-panel", "--direction"]),
     ("terminal:read", &["--history", "--rows"]),
-    ("terminal:send", &["--text", "--enter", "--key"]),
+    (
+        "terminal:send",
+        &["--text", "--enter", "--key", "--file", "--stdin"],
+    ),
     ("terminal:wait-output", &["--match", "--rows", "--timeout"]),
 ];
 
@@ -226,6 +232,7 @@ const OPERAND_PATHS: &[&str] = &[
     "panel:move",
     "panel:split",
     "project:get",
+    "project:rename",
     "tab:close",
     "tab:get",
     "tab:move",
@@ -259,7 +266,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     ("api", &["schema", "snapshot"]),
     ("config", &["check"]),
     ("panel", &["close", "get", "list", "move", "split"]),
-    ("project", &["create", "get", "list"]),
+    ("project", &["create", "get", "list", "rename"]),
     ("tab", &["close", "create", "get", "list", "move", "rename"]),
     ("terminal", &["get", "list", "read", "send", "wait-output"]),
     (
@@ -301,6 +308,8 @@ fn flag_bit(flag: &str) -> &'static str {
         "--text" => "seen_text",
         "--enter" => "seen_enter",
         "--key" => "seen_key",
+        "--file" => "seen_file",
+        "--stdin" => "seen_stdin",
         other => unreachable!("flag {other} lacks a seen bit"),
     }
 }
@@ -311,7 +320,7 @@ fn flag_value(flag: &str) -> Option<&'static str> {
     match flag {
         "--direction" => Some("direction"),
         "--key" => Some("key"),
-        "--standalone" | "--confirm" | "--history" | "--enter" => None,
+        "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin" => None,
         _ => Some("filter"),
     }
 }
@@ -425,16 +434,28 @@ fn after_flag_cases_bash() -> String {
                         "                            {patterns}) ((seen_workspace)) && done=1 ;;"
                     )
                 }
-                // `terminal send` payload forms are mutually exclusive and
-                // `--enter` rides on `--text` only.
+                // `terminal send` payload sources are mutually exclusive and
+                // `--enter` rides on the text-bearing forms only.
                 "--text" => {
-                    format!("                            {patterns}) ((seen_key)) && done=1 ;;")
+                    format!(
+                        "                            {patterns}) ((seen_key || seen_file || seen_stdin)) && done=1 ;;"
+                    )
                 }
                 "--key" => format!(
-                    "                            {patterns}) ((seen_text || seen_enter)) && done=1 ;;"
+                    "                            {patterns}) ((seen_text || seen_enter || seen_file || seen_stdin)) && done=1 ;;"
                 ),
                 "--enter" => {
                     format!("                            {patterns}) ((seen_key)) && done=1 ;;")
+                }
+                "--file" => {
+                    format!(
+                        "                            {patterns}) ((seen_text || seen_key || seen_stdin)) && done=1 ;;"
+                    )
+                }
+                "--stdin" => {
+                    format!(
+                        "                            {patterns}) ((seen_text || seen_key || seen_file)) && done=1 ;;"
+                    )
                 }
                 _ => format!("                            {patterns}) ;;"),
             }
@@ -454,13 +475,13 @@ fn scope_cases_bash() -> String {
                 let bad = forbidden_bits(&command).join(" || ");
                 // `--workspace`/`--standalone` stay exclusive wherever both
                 // are admitted — only tab commands admit them. `terminal
-                // send` is dead once `--key` stands next to a text payload
-                // bit; a lone `--enter` stays viable because `--text` may
-                // still follow.
+                // send` is dead once two payload sources stand, or `--key`
+                // stands next to `--enter`; a lone `--enter` stays viable
+                // because a text-bearing source may still follow.
                 let exclusive = if *family == "tab" {
                     "((seen_workspace && seen_standalone)) && done=1\n                                        "
                 } else if command == "terminal:send" {
-                    "((seen_key && (seen_text || seen_enter))) && done=1\n                                        "
+                    "(((seen_text + seen_key + seen_file + seen_stdin) >= 2 || (seen_key && seen_enter))) && done=1\n                                        "
                 } else {
                     ""
                 };
@@ -485,7 +506,7 @@ fn verb_cases_bash() -> String {
                     let exclusive = if *family == "tab" {
                         " || (seen_workspace && seen_standalone)"
                     } else if *verb == "send" {
-                        " || (seen_key && (seen_text || seen_enter))"
+                        " || ((seen_text + seen_key + seen_file + seen_stdin) >= 2 || (seen_key && seen_enter))"
                     } else {
                         ""
                     };
@@ -538,11 +559,18 @@ fn extras_cases_bash() -> String {
                         "--workspace" | "--standalone" => {
                             "seen_workspace || seen_standalone".to_owned()
                         }
-                        // `terminal send`: payload forms exclude each other
-                        // and `--enter` is offered only once `--text` stands.
-                        "--text" => "seen_text || seen_key".to_owned(),
-                        "--key" => "seen_key || seen_text || seen_enter".to_owned(),
-                        "--enter" => "!seen_text || seen_enter".to_owned(),
+                        // `terminal send`: payload sources exclude each
+                        // other and `--enter` is offered only once a
+                        // text-bearing source stands.
+                        "--text" => "seen_text || seen_key || seen_file || seen_stdin".to_owned(),
+                        "--key" => "seen_key || seen_text || seen_enter || seen_file || seen_stdin"
+                            .to_owned(),
+                        "--enter" => {
+                            "!(seen_text || seen_file || seen_stdin) || seen_enter".to_owned()
+                        }
+                        "--file" | "--stdin" => {
+                            "seen_text || seen_key || seen_file || seen_stdin".to_owned()
+                        }
                         _ => flag_bit(flag).to_owned(),
                     };
                     format!("                (({cond})) || extras=\"$extras {flag}\"")
@@ -1133,13 +1161,19 @@ fn after_flag_cases_fish() -> String {
                     format!("                            case {patterns}; if test $seen_workspace -eq 1; set done 1; end")
                 }
                 "--text" => {
-                    format!("                            case {patterns}; if test $seen_key -eq 1; set done 1; end")
+                    format!("                            case {patterns}; if test $seen_key -eq 1 -o $seen_file -eq 1 -o $seen_stdin -eq 1; set done 1; end")
                 }
                 "--key" => {
-                    format!("                            case {patterns}; if test $seen_text -eq 1 -o $seen_enter -eq 1; set done 1; end")
+                    format!("                            case {patterns}; if test $seen_text -eq 1 -o $seen_enter -eq 1 -o $seen_file -eq 1 -o $seen_stdin -eq 1; set done 1; end")
                 }
                 "--enter" => {
                     format!("                            case {patterns}; if test $seen_key -eq 1; set done 1; end")
+                }
+                "--file" => {
+                    format!("                            case {patterns}; if test $seen_text -eq 1 -o $seen_key -eq 1 -o $seen_stdin -eq 1; set done 1; end")
+                }
+                "--stdin" => {
+                    format!("                            case {patterns}; if test $seen_text -eq 1 -o $seen_key -eq 1 -o $seen_file -eq 1; set done 1; end")
                 }
                 _ => format!("                            case {patterns}"),
             }
@@ -1163,7 +1197,7 @@ fn scope_cases_fish() -> String {
                 let exclusive = if *family == "tab" {
                     "\n                                        if test $seen_workspace -eq 1 -a $seen_standalone -eq 1; set done 1; end"
                 } else if command == "terminal:send" {
-                    "\n                                        if test $seen_key -eq 1 -a $seen_text -eq 1 -o $seen_key -eq 1 -a $seen_enter -eq 1; set done 1; end"
+                    "\n                                        if test (math \"$seen_text + $seen_key + $seen_file + $seen_stdin\") -ge 2 -o $seen_key -eq 1 -a $seen_enter -eq 1; set done 1; end"
                 } else {
                     ""
                 };
@@ -1193,7 +1227,7 @@ fn verb_cases_fish() -> String {
                     if *family == "tab" {
                         format!("                if test {bad}\n                    if test $seen_workspace -eq 0 -o $seen_standalone -eq 0; set -a verbs {verb}; end\n                end")
                     } else if *verb == "send" {
-                        format!("                if test {bad}\n                    if test $seen_key -eq 0 -o $seen_text -eq 0 -a $seen_enter -eq 0; set -a verbs {verb}; end\n                end")
+                        format!("                if test {bad}\n                    if test (math \"$seen_text + $seen_key + $seen_file + $seen_stdin\") -lt 2\n                        if test $seen_key -eq 0 -o $seen_enter -eq 0; set -a verbs {verb}; end\n                    end\n                end")
                     } else {
                         format!("                if test {bad}; set -a verbs {verb}; end")
                     }
@@ -1239,11 +1273,21 @@ fn extras_cases_fish() -> String {
                         "--workspace" | "--standalone" => {
                             "$seen_workspace -eq 0 -a $seen_standalone -eq 0".to_owned()
                         }
-                        "--text" => "$seen_text -eq 0 -a $seen_key -eq 0".to_owned(),
-                        "--key" => {
-                            "$seen_key -eq 0 -a $seen_text -eq 0 -a $seen_enter -eq 0".to_owned()
+                        "--text" => {
+                            "$seen_text -eq 0 -a $seen_key -eq 0 -a $seen_file -eq 0 -a $seen_stdin -eq 0"
+                                .to_owned()
                         }
-                        "--enter" => "$seen_text -eq 1 -a $seen_enter -eq 0".to_owned(),
+                        "--key" => {
+                            "$seen_key -eq 0 -a $seen_text -eq 0 -a $seen_enter -eq 0 -a $seen_file -eq 0 -a $seen_stdin -eq 0".to_owned()
+                        }
+                        "--enter" => {
+                            "(math \"$seen_text + $seen_file + $seen_stdin\") -ge 1 -a $seen_enter -eq 0"
+                                .to_owned()
+                        }
+                        "--file" | "--stdin" => {
+                            "$seen_text -eq 0 -a $seen_key -eq 0 -a $seen_file -eq 0 -a $seen_stdin -eq 0"
+                                .to_owned()
+                        }
                         _ => format!("${} -eq 0", flag_bit(flag)),
                     };
                     format!("                if test {cond}; set -a candidates {flag}; end")

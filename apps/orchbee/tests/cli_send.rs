@@ -11,12 +11,12 @@
 
 use std::{
     fs,
-    io::{ErrorKind, Read},
+    io::{ErrorKind, Read, Seek, SeekFrom},
     num::NonZeroU64,
     os::unix::fs::PermissionsExt,
     os::unix::net::{UnixListener, UnixStream},
     path::{Path, PathBuf},
-    process::Output,
+    process::{Command, Output, Stdio},
     sync::{Arc, Mutex, OnceLock},
     thread,
     time::{Duration, Instant},
@@ -825,8 +825,39 @@ fn terminal_send_invalid_argv_never_connects() -> TestResult {
             "conflicting payload",
         ),
         (
+            &[
+                "terminal",
+                "send",
+                TERMINAL,
+                "--text",
+                "x",
+                "--file",
+                "/etc/hostname",
+            ][..],
+            "text-file conflict",
+        ),
+        (
+            &[
+                "terminal",
+                "send",
+                TERMINAL,
+                "--file",
+                "/etc/hostname",
+                "--stdin",
+            ][..],
+            "file-stdin conflict",
+        ),
+        (
+            &["terminal", "send", TERMINAL, "--key", "enter", "--stdin"][..],
+            "key-stdin conflict",
+        ),
+        (
             &["terminal", "send", TERMINAL, "--enter"][..],
             "enter without text",
+        ),
+        (
+            &["terminal", "send", TERMINAL, "--key", "enter", "--enter"][..],
+            "enter on key source",
         ),
         (
             &["terminal", "send", TERMINAL, "--key", "ctrl-x"][..],
@@ -844,6 +875,904 @@ fn terminal_send_invalid_argv_never_connects() -> TestResult {
             "{name}: stderr={}",
             String::from_utf8_lossy(&output.stderr)
         );
+    }
+    Ok(())
+}
+
+// ---- declared input sources -------------------------------------------------
+//
+// `--file` and `--stdin` materialize one bounded text record before any
+// runtime effect; a source failure therefore proves zero Server contact —
+// the scripted listener below never accepts — while a valid source produces
+// exactly the same single `terminal.send` wire request `--text` does.
+
+/// A spawn with caller-owned stdin (the shared `run` always closes it).
+fn run_with_stdin(base: &Path, arguments: &[&str], stdin: Stdio) -> std::process::Child {
+    Command::new(cohort().join("orchbee"))
+        .args(arguments)
+        .env("ORCHBEE_RUNTIME_BASE", base)
+        .env_remove("LC_ALL")
+        .env_remove("LC_MESSAGES")
+        .env("LANG", "en_US.UTF-8")
+        .stdin(stdin)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn cli child")
+}
+
+fn wait(child: std::process::Child) -> Output {
+    support::bounded_wait_with_output(child, support::RUN_WALL_CLOCK_BACKSTOP)
+        .unwrap_or_else(|timeout| panic!("{timeout}"))
+}
+
+/// A staged file under the test base, returning its path.
+fn staged_file(base: &Path, name: &str, bytes: &[u8]) -> PathBuf {
+    let path = base.join(name);
+    fs::write(&path, bytes).expect("write staged source file");
+    path
+}
+
+/// The scripted exchange a materialized source must produce: the same one
+/// snapshot read plus one `terminal.send` carrying the folded text.
+fn serve_send(
+    scope: &Path,
+    expected_text: String,
+    expected_bytes: usize,
+    enter: bool,
+) -> thread::JoinHandle<()> {
+    spawn_peer(scope, move |stream| {
+        let snapshot_request = admit_and_serve_snapshot(&stream);
+        let request = read_send(&stream);
+        assert_send_base(&request, snapshot_request.as_str());
+        let TerminalSendPayload::Text(input) = request.payload() else {
+            panic!("expected text payload, got {:?}", request.payload())
+        };
+        assert_eq!(input.text().as_str(), expected_text);
+        assert_eq!(input.enter(), enter);
+        assert_eq!(input.record_bytes(), expected_bytes);
+        send_result(
+            &stream,
+            TerminalSendResult::new(
+                request.request_id().clone(),
+                Some(target()),
+                TerminalSendOutcome::Accepted {
+                    accepted_bytes: SendAcceptedBytes::new(input.record_bytes() as u32).unwrap(),
+                    cleanup: SendCleanupStatus::Confirmed,
+                },
+            )
+            .unwrap(),
+        );
+        expect_session_closed(&stream);
+    })
+}
+
+#[test]
+fn terminal_send_file_lands_one_record() -> TestResult {
+    let base = base_dir("send-file");
+    let scope = stage_scope(&base);
+    let path = staged_file(&base, "input.txt", b"deploy the release\n");
+    let peer = serve_send(&scope, "deploy the release\n".to_owned(), 19, false);
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "send",
+            TERMINAL,
+            "--file",
+            path.to_str().unwrap(),
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document = envelope(&output);
+    assert_eq!(document["schema"], "orchbee.terminal.send");
+    assert_eq!(document["result"]["payloadKind"], "text");
+    assert_eq!(document["result"]["recordBytes"], 19);
+    assert_eq!(document["result"]["inputStatus"], "accepted");
+    Ok(())
+}
+
+#[test]
+fn terminal_send_file_with_enter_folds_inside_limit() -> TestResult {
+    let base = base_dir("send-file-enter");
+    let scope = stage_scope(&base);
+    let path = staged_file(&base, "max.txt", &vec![b'a'; 4095]);
+    // --enter survives materialization as the wire fold flag: the wire text
+    // is the file bytes verbatim and the record counts text + folded CR.
+    let peer = serve_send(&scope, "a".repeat(4095), 4096, true);
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "send",
+            TERMINAL,
+            "--file",
+            path.to_str().unwrap(),
+            "--enter",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(envelope(&output)["result"]["recordBytes"], 4096);
+    Ok(())
+}
+
+#[test]
+fn terminal_send_stdin_pipe_lands_one_record() -> TestResult {
+    let base = base_dir("send-stdin");
+    let scope = stage_scope(&base);
+    let peer = serve_send(&scope, "echo from stdin".to_owned(), 15, false);
+    let mut child = run_with_stdin(
+        &base,
+        &["terminal", "send", TERMINAL, "--stdin", "--format", "json"],
+        Stdio::piped(),
+    );
+    {
+        use std::io::Write as _;
+        let mut stdin = child.stdin.take().expect("piped stdin");
+        stdin
+            .write_all(b"echo from stdin")
+            .expect("write stdin bytes");
+    } // dropping the write end delivers EOF
+    let output = wait(child);
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(envelope(&output)["result"]["recordBytes"], 15);
+    Ok(())
+}
+
+#[test]
+fn terminal_send_stdin_regular_file_inherits_offset() -> TestResult {
+    let base = base_dir("send-stdin-offset");
+    let scope = stage_scope(&base);
+    // The inherited file position is honored in place: seeking the shared
+    // description past "SKIP" leaves only the tail for the record.
+    let path = staged_file(&base, "stdin-file", b"SKIPlanded from offset\n");
+    let mut file = fs::File::open(&path).expect("open stdin file");
+    file.seek(SeekFrom::Start(4)).expect("seek shared offset");
+    let peer = serve_send(&scope, "landed from offset\n".to_owned(), 19, false);
+    let child = run_with_stdin(
+        &base,
+        &["terminal", "send", TERMINAL, "--stdin", "--format", "json"],
+        Stdio::from(file),
+    );
+    let output = wait(child);
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(envelope(&output)["result"]["recordBytes"], 19);
+    Ok(())
+}
+
+/// A source-stage validation/local failure exits 2 on the standard
+/// `invalid-usage` envelope and provably never reaches the runtime: the
+/// staged listener observes no connection.
+#[test]
+fn terminal_send_source_failures_have_zero_runtime_effect() -> TestResult {
+    let base = base_dir("send-source-usage");
+    let scope = stage_scope(&base);
+    let socket = scope.join("client.sock");
+    let listener = UnixListener::bind(&socket).expect("bind client socket");
+    listener
+        .set_nonblocking(true)
+        .expect("listener nonblocking");
+    let oversized = staged_file(&base, "big.txt", &vec![b'b'; 4097]);
+    let binary = staged_file(&base, "bin", &[0xff, 0xfe]);
+    let empty = staged_file(&base, "empty.txt", b"");
+    let cases: [(Vec<String>, &'static str); 5] = [
+        (
+            vec!["--file".into(), base.join("missing").display().to_string()],
+            "missing file",
+        ),
+        (
+            vec!["--file".into(), oversized.display().to_string()],
+            "oversize file",
+        ),
+        (
+            vec!["--file".into(), binary.display().to_string()],
+            "non-UTF-8 file",
+        ),
+        (
+            vec!["--file".into(), empty.display().to_string()],
+            "empty file",
+        ),
+        (
+            vec!["--file".into(), scope.display().to_string()],
+            "directory path",
+        ),
+    ];
+    for (source_args, name) in cases {
+        let mut arguments = vec!["terminal", "send", TERMINAL];
+        arguments.extend(source_args.iter().map(String::as_str));
+        arguments.extend(["--format", "json"]);
+        let output = run(&base, &arguments);
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "{name}: stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let document = envelope(&output);
+        assert_eq!(document["schema"], "orchbee.cli.failure", "{name}");
+        assert_eq!(document["failure"]["kind"], "invalid-usage", "{name}");
+    }
+    // No staged connection may ever have been attempted.
+    let deadline = Instant::now() + Duration::from_millis(400);
+    while Instant::now() < deadline {
+        match listener.accept() {
+            Ok(_) => panic!("a source-stage failure must never reach the runtime"),
+            Err(error) if error.kind() == ErrorKind::WouldBlock => {
+                thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => panic!("accept failed: {error}"),
+        }
+    }
+    Ok(())
+}
+
+/// A hung stdin (held-open pipe, no data) fails at the shared 5s deadline
+/// with the typed source envelope — and never touches the runtime.
+#[test]
+fn terminal_send_stdin_timeout_is_typed_and_effectless() -> TestResult {
+    let base = base_dir("send-stdin-timeout");
+    let scope = stage_scope(&base);
+    let socket = scope.join("client.sock");
+    let listener = UnixListener::bind(&socket).expect("bind client socket");
+    listener
+        .set_nonblocking(true)
+        .expect("listener nonblocking");
+    let child = run_with_stdin(
+        &base,
+        &["terminal", "send", TERMINAL, "--stdin", "--format", "json"],
+        Stdio::piped(), // held open, never written
+    );
+    let started = Instant::now();
+    let output = wait(child);
+    let elapsed = started.elapsed();
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        elapsed >= Duration::from_secs(5),
+        "the deadline must not fire early: {elapsed:?}"
+    );
+    let document = envelope(&output);
+    compiled_schema(&base, "orchbee.cli.failure.source")
+        .validate(&document)
+        .expect("source failure validates against its schema");
+    assert_eq!(document["schema"], "orchbee.cli.failure.source");
+    assert_eq!(document["failure"]["kind"], "timeout");
+    assert_eq!(document["failure"]["details"]["stage"], "input");
+    assert_eq!(document["failure"]["details"]["inputSource"], "stdin");
+    assert_eq!(document["failure"]["details"]["timeoutMs"], 5000);
+    // The human diagnosis names the input read — never a wait or a match.
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("could not be read within the time limit"),
+        "input-stage timeout diagnoses the read: {stderr}"
+    );
+    assert!(
+        !stderr.contains("wait") && !stderr.contains("match"),
+        "no wait or match claim survives into the input stage: {stderr}"
+    );
+    match listener.accept() {
+        Err(error) if error.kind() == ErrorKind::WouldBlock => {}
+        _ => panic!("a timed-out source must never reach the runtime"),
+    }
+    // The text projection routes the same diagnosis with empty stdout.
+    let child = run_with_stdin(
+        &base,
+        &["terminal", "send", TERMINAL, "--stdin", "--format", "text"],
+        Stdio::piped(),
+    );
+    let output = wait(child);
+    assert_eq!(output.status.code(), Some(7));
+    assert!(output.stdout.is_empty(), "text source failure is silent");
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("could not be read within the time limit")
+    );
+    Ok(())
+}
+
+/// SIGINT inside the source interval is a typed cancellation: exit 130 with
+/// the source envelope, zero runtime contact.
+#[test]
+fn terminal_send_stdin_sigint_is_typed_cancellation() -> TestResult {
+    let base = base_dir("send-stdin-int");
+    let scope = stage_scope(&base);
+    let socket = scope.join("client.sock");
+    let listener = UnixListener::bind(&socket).expect("bind client socket");
+    listener
+        .set_nonblocking(true)
+        .expect("listener nonblocking");
+    let child = run_with_stdin(
+        &base,
+        &["terminal", "send", TERMINAL, "--stdin", "--format", "json"],
+        Stdio::piped(),
+    );
+    thread::sleep(Duration::from_millis(1500));
+    nix::sys::signal::kill(
+        nix::unistd::Pid::from_raw(child.id() as i32),
+        nix::sys::signal::Signal::SIGINT,
+    )
+    .expect("signal child");
+    let output = wait(child);
+    // 130 is an *exit status*: a raw signal death would report signal, not
+    // code — this proves the typed cancellation path emitted the envelope.
+    assert_eq!(
+        output.status.code(),
+        Some(130),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document = envelope(&output);
+    compiled_schema(&base, "orchbee.cli.failure.source")
+        .validate(&document)
+        .expect("source failure validates against its schema");
+    assert_eq!(document["failure"]["kind"], "cancelled");
+    assert_eq!(document["failure"]["details"]["stage"], "input");
+    assert_eq!(document["failure"]["details"]["inputSource"], "stdin");
+    assert!(
+        document["failure"]["details"].get("timeoutMs").is_none(),
+        "a cancellation carries no timeout detail"
+    );
+    // The human diagnosis names the cancelled read — never a wait's match.
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Reading the declared input was cancelled"),
+        "input-stage cancellation diagnoses the read: {stderr}"
+    );
+    assert!(
+        !stderr.contains("wait") && !stderr.contains("match"),
+        "no wait or match claim survives into the input stage: {stderr}"
+    );
+    match listener.accept() {
+        Err(error) if error.kind() == ErrorKind::WouldBlock => {}
+        _ => panic!("a cancelled source must never reach the runtime"),
+    }
+    Ok(())
+}
+
+/// A signal the process inherited as ignored is excluded from capture:
+/// SIGINT does nothing to a held-open source, while the still-eligible
+/// SIGTERM cancels it at 143.
+#[test]
+fn terminal_send_stdin_inherited_ignore_excluded() -> TestResult {
+    let base = base_dir("send-stdin-ign");
+    let scope = stage_scope(&base);
+    let socket = scope.join("client.sock");
+    let _listener = UnixListener::bind(&socket).expect("bind client socket");
+    let binary = cohort().join("orchbee");
+    // `trap '' INT` installs SIG_IGN for SIGINT, which `exec` preserves —
+    // the CLI inherits an ignored SIGINT, exactly the eligibility input the
+    // guard must respect.
+    let mut command = Command::new("sh");
+    command
+        .args(["-c", "trap '' INT; exec \"$@\"", "sh"])
+        .arg(&binary)
+        .args(["terminal", "send", TERMINAL, "--stdin", "--format", "json"])
+        .env("ORCHBEE_RUNTIME_BASE", &base)
+        .env_remove("LC_ALL")
+        .env_remove("LC_MESSAGES")
+        .env("LANG", "en_US.UTF-8")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let child = command.spawn().expect("spawn sh wrapper");
+    let pid = nix::unistd::Pid::from_raw(child.id() as i32);
+    thread::sleep(Duration::from_millis(1500));
+    nix::sys::signal::kill(pid, nix::sys::signal::Signal::SIGINT)
+        .expect("send inherited-ignored SIGINT");
+    thread::sleep(Duration::from_millis(400));
+    // A null-signal probe: the child must still be running — an ignored
+    // SIGINT is excluded from capture and ends nothing.
+    assert!(
+        nix::sys::signal::kill(pid, None::<nix::sys::signal::Signal>).is_ok(),
+        "an inherited-ignored SIGINT must not cancel the source stage"
+    );
+    nix::sys::signal::kill(pid, nix::sys::signal::Signal::SIGTERM).expect("send SIGTERM");
+    let output = wait(child);
+    assert_eq!(
+        output.status.code(),
+        Some(143),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document = envelope(&output);
+    assert_eq!(document["failure"]["kind"], "cancelled");
+    assert_eq!(document["failure"]["details"]["inputSource"], "stdin");
+    Ok(())
+}
+
+/// stdin declared on an unsupported descriptor type is a source-stage
+/// rejection: a socket and a character device both exit 2 on the standard
+/// `invalid-usage` envelope without a single read, and provably never
+/// reach the runtime.
+#[test]
+fn terminal_send_stdin_unsupported_streams() -> TestResult {
+    let base = base_dir("send-stdin-unsupported");
+    let scope = stage_scope(&base);
+    let socket = scope.join("client.sock");
+    let listener = UnixListener::bind(&socket).expect("bind client socket");
+    listener
+        .set_nonblocking(true)
+        .expect("listener nonblocking");
+    // A unix socket end as the inherited stdin — S_IFSOCK is rejected by
+    // the exact S_IFMT classification.
+    let (socket_end, _peer_end) = UnixStream::pair().expect("socketpair");
+    let output = wait(run_with_stdin(
+        &base,
+        &["terminal", "send", TERMINAL, "--stdin", "--format", "json"],
+        Stdio::from(std::os::fd::OwnedFd::from(socket_end)),
+    ));
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "socket stdin: stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document = envelope(&output);
+    assert_eq!(document["schema"], "orchbee.cli.failure");
+    assert_eq!(document["failure"]["kind"], "invalid-usage");
+    // A character device as the inherited stdin — S_IFCHR is rejected the
+    // same way.
+    let null = fs::File::open("/dev/null").expect("open /dev/null");
+    let output = wait(run_with_stdin(
+        &base,
+        &["terminal", "send", TERMINAL, "--stdin", "--format", "json"],
+        Stdio::from(null),
+    ));
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "char-device stdin: stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(envelope(&output)["failure"]["kind"], "invalid-usage");
+    // No staged connection may ever have been attempted.
+    let deadline = Instant::now() + Duration::from_millis(400);
+    while Instant::now() < deadline {
+        match listener.accept() {
+            Ok(_) => panic!("an unsupported stream must never reach the runtime"),
+            Err(error) if error.kind() == ErrorKind::WouldBlock => {
+                thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => panic!("accept failed: {error}"),
+        }
+    }
+    Ok(())
+}
+
+/// An oversized regular-file stdin is bounded by real consumption: the
+/// shared file position advances by at most the cap+1 probe bytes from the
+/// inherited offset, and the descriptor's status flags are untouched.
+#[test]
+fn terminal_send_stdin_oversize_bounds_consumption() -> TestResult {
+    let base = base_dir("send-stdin-cap");
+    let scope = stage_scope(&base);
+    let socket = scope.join("client.sock");
+    let listener = UnixListener::bind(&socket).expect("bind client socket");
+    listener
+        .set_nonblocking(true)
+        .expect("listener nonblocking");
+    // 8,192 bytes remain past the inherited offset: a buffered or
+    // unbounded reader would consume far beyond the 4,097-byte probe.
+    let path = staged_file(&base, "big-stdin", &vec![b'z'; 8196]);
+    let mut file = fs::File::open(&path).expect("open stdin file");
+    file.seek(SeekFrom::Start(4)).expect("seek shared offset");
+    let mut observer = file.try_clone().expect("same-description observer");
+    let flags_before =
+        nix::fcntl::fcntl(&observer, nix::fcntl::FcntlArg::F_GETFL).expect("flags before spawn");
+    let output = wait(run_with_stdin(
+        &base,
+        &["terminal", "send", TERMINAL, "--stdin", "--format", "json"],
+        Stdio::from(file),
+    ));
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(envelope(&output)["failure"]["kind"], "invalid-usage");
+    let advanced = observer.stream_position().expect("shared offset") - 4;
+    assert!(
+        advanced <= 4097,
+        "consumption must stop at the cap probe, advanced {advanced} bytes"
+    );
+    let flags_after =
+        nix::fcntl::fcntl(&observer, nix::fcntl::FcntlArg::F_GETFL).expect("flags after wait");
+    assert_eq!(
+        flags_before, flags_after,
+        "the inherited descriptor's status flags must be preserved"
+    );
+    match listener.accept() {
+        Err(error) if error.kind() == ErrorKind::WouldBlock => {}
+        _ => panic!("an oversized source must never reach the runtime"),
+    }
+    Ok(())
+}
+
+/// Multibyte UTF-8 counts bytes, not scalars: `中` is three bytes, so the
+/// 4,096 record bound lands mid-character for some lengths. Below the
+/// bound the bytes arrive verbatim; at LIMIT+1 the source is refused even
+/// when the whole content is valid UTF-8.
+#[test]
+fn terminal_send_file_utf8_multibyte_boundaries() -> TestResult {
+    let base = base_dir("send-file-utf8");
+    let scope = stage_scope(&base);
+    // 1,365 × "中" = 4,095 bytes: --enter's folded CR completes a 4,096
+    // record; the wire text is the multibyte content verbatim.
+    let folded = "中".repeat(1365);
+    let path = staged_file(&base, "m4095", folded.as_bytes());
+    let peer = serve_send(&scope, folded, 4096, true);
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "send",
+            TERMINAL,
+            "--file",
+            path.to_str().unwrap(),
+            "--enter",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(envelope(&output)["result"]["recordBytes"], 4096);
+    // 4,094 ASCII bytes + one "é" = exactly 4,096 bytes: the multibyte
+    // scalar's last byte lands on the bound and is kept verbatim.
+    let exact = format!("{}é", "a".repeat(4094));
+    assert_eq!(exact.len(), 4096);
+    let path = staged_file(&base, "m4096", exact.as_bytes());
+    let peer = serve_send(&scope, exact, 4096, false);
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "send",
+            TERMINAL,
+            "--file",
+            path.to_str().unwrap(),
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(envelope(&output)["result"]["recordBytes"], 4096);
+    // 4,095 ASCII bytes + one "é" = 4,097 bytes: valid UTF-8 whose last
+    // scalar straddles the bound — refused on bytes, never on decoding.
+    let over = format!("{}é", "a".repeat(4095));
+    assert_eq!(over.len(), 4097);
+    let path = staged_file(&base, "m4097", over.as_bytes());
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "send",
+            TERMINAL,
+            "--file",
+            path.to_str().unwrap(),
+            "--format",
+            "json",
+        ],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(envelope(&output)["failure"]["kind"], "invalid-usage");
+    Ok(())
+}
+
+/// An inherited terminal as stdin is refused before a single read or any
+/// runtime contact: `script -e` seats the CLI's stdio on a real pty slave
+/// and propagates its exit status.
+#[test]
+fn terminal_send_stdin_tty_is_refused() -> TestResult {
+    let base = base_dir("send-stdin-tty");
+    let scope = stage_scope(&base);
+    let socket = scope.join("client.sock");
+    let listener = UnixListener::bind(&socket).expect("bind client socket");
+    listener
+        .set_nonblocking(true)
+        .expect("listener nonblocking");
+    let binary = cohort().join("orchbee");
+    let output = Command::new("script")
+        .args([
+            "-qec",
+            &format!(
+                "exec '{}' terminal send {} --stdin --format json",
+                binary.display(),
+                TERMINAL
+            ),
+            "/dev/null",
+        ])
+        .env("ORCHBEE_RUNTIME_BASE", &base)
+        .env_remove("LC_ALL")
+        .env_remove("LC_MESSAGES")
+        .env("LANG", "en_US.UTF-8")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn script pty wrapper");
+    let output = wait(output);
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "pty wrapper: out={}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    // The pty merges the child's stderr into the wrapper's stdout: the
+    // localized refusal must name the terminal cause.
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("is a terminal"),
+        "pty output must carry the terminal refusal"
+    );
+    match listener.accept() {
+        Err(error) if error.kind() == ErrorKind::WouldBlock => {}
+        _ => panic!("a terminal stdin must never reach the runtime"),
+    }
+    Ok(())
+}
+
+/// `--file -` is a literal filesystem path, never an alias for standard
+/// input: a file actually named `-` in the child's working directory is
+/// the source that gets read.
+#[test]
+fn terminal_send_file_dash_is_a_literal_path() -> TestResult {
+    let base = base_dir("send-file-dash");
+    let scope = stage_scope(&base);
+    let workdir = base.join("cwd");
+    fs::create_dir(&workdir).expect("create literal cwd");
+    staged_file(&workdir, "-", b"from the dash file\n");
+    let peer = serve_send(&scope, "from the dash file\n".to_owned(), 19, false);
+    let child = Command::new(cohort().join("orchbee"))
+        .args([
+            "terminal", "send", TERMINAL, "--file", "-", "--format", "json",
+        ])
+        .current_dir(&workdir)
+        .env("ORCHBEE_RUNTIME_BASE", &base)
+        .env_remove("LC_ALL")
+        .env_remove("LC_MESSAGES")
+        .env("LANG", "en_US.UTF-8")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn cli child");
+    let output = wait(child);
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(envelope(&output)["result"]["recordBytes"], 19);
+    Ok(())
+}
+
+/// A `--file` symlink is resolved to its target's real type: a link to a
+/// regular file reads fine, while a link to a writer-less FIFO is refused
+/// promptly — the nonblocking open must not hang on the FIFO.
+#[test]
+fn terminal_send_file_symlink_dispatch() -> TestResult {
+    let base = base_dir("send-file-symlink");
+    let scope = stage_scope(&base);
+    // symlink → regular file: accepted, content verbatim.
+    let real = staged_file(&base, "real.txt", b"via symlink\n");
+    let link = base.join("link.txt");
+    std::os::unix::fs::symlink(&real, &link).expect("symlink to regular file");
+    let peer = serve_send(&scope, "via symlink\n".to_owned(), 12, false);
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "send",
+            TERMINAL,
+            "--file",
+            link.to_str().unwrap(),
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(envelope(&output)["result"]["recordBytes"], 12);
+    // symlink → FIFO with no writer: a blocking open would hang forever;
+    // the nonblocking open reports the target's true type and refuses.
+    let fifo = base.join("fifo-target");
+    nix::unistd::mkfifo(
+        &fifo,
+        nix::sys::stat::Mode::S_IRUSR | nix::sys::stat::Mode::S_IWUSR,
+    )
+    .expect("mkfifo target");
+    let fifo_link = base.join("fifo-link");
+    std::os::unix::fs::symlink(&fifo, &fifo_link).expect("symlink to fifo");
+    let started = Instant::now();
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "send",
+            TERMINAL,
+            "--file",
+            fifo_link.to_str().unwrap(),
+            "--format",
+            "json",
+        ],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(envelope(&output)["failure"]["kind"], "invalid-usage");
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "the FIFO open must refuse promptly, not block"
+    );
+    Ok(())
+}
+
+/// The signal the spawned CLI will evaluate for eligibility: if the test
+/// process itself inherited it ignored or blocked, the child cannot
+/// capture it — report that environment honestly instead of claiming
+/// evidence the run never produced.
+fn require_eligible(signal: nix::sys::signal::Signal) {
+    let bit = 1_u64 << (signal as u32 - 1);
+    let status = fs::read_to_string("/proc/self/status").expect("read own SigIgn");
+    let ignored = status
+        .lines()
+        .find_map(|line| {
+            line.strip_prefix("SigIgn:")
+                .and_then(|value| u64::from_str_radix(value.trim(), 16).ok())
+        })
+        .expect("SigIgn field");
+    assert_eq!(
+        ignored & bit,
+        0,
+        "test environment inherited {signal:?} as ignored — the capture precondition is unmet"
+    );
+    let mask = nix::sys::signal::SigSet::thread_get_mask().expect("thread mask");
+    assert!(
+        !mask.contains(signal),
+        "test environment blocks {signal:?} — the capture precondition is unmet"
+    );
+}
+
+/// SIGHUP inside the source interval is the same typed cancellation as
+/// SIGINT: exit 129 with the source envelope, zero runtime contact.
+#[test]
+fn terminal_send_stdin_sighup_is_typed_cancellation() -> TestResult {
+    require_eligible(nix::sys::signal::Signal::SIGHUP);
+    let base = base_dir("send-stdin-hup");
+    let scope = stage_scope(&base);
+    let socket = scope.join("client.sock");
+    let listener = UnixListener::bind(&socket).expect("bind client socket");
+    listener
+        .set_nonblocking(true)
+        .expect("listener nonblocking");
+    let child = run_with_stdin(
+        &base,
+        &["terminal", "send", TERMINAL, "--stdin", "--format", "json"],
+        Stdio::piped(),
+    );
+    thread::sleep(Duration::from_millis(1500));
+    nix::sys::signal::kill(
+        nix::unistd::Pid::from_raw(child.id() as i32),
+        nix::sys::signal::Signal::SIGHUP,
+    )
+    .expect("signal child");
+    let output = wait(child);
+    // A raw SIGHUP death would report a signal, never an exit code — 129
+    // proves the typed cancellation path emitted the envelope itself.
+    assert_eq!(
+        output.status.code(),
+        Some(129),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document = envelope(&output);
+    compiled_schema(&base, "orchbee.cli.failure.source")
+        .validate(&document)
+        .expect("source failure validates against its schema");
+    assert_eq!(document["failure"]["kind"], "cancelled");
+    assert_eq!(document["failure"]["details"]["stage"], "input");
+    assert_eq!(document["failure"]["details"]["inputSource"], "stdin");
+    match listener.accept() {
+        Err(error) if error.kind() == ErrorKind::WouldBlock => {}
+        _ => panic!("a cancelled source must never reach the runtime"),
+    }
+    Ok(())
+}
+
+/// SIGQUIT inside the source interval cancels at 131: the guarded set is
+/// wider than the wait stage's INT/TERM pair, and every member produces
+/// the conventional `128 + signo` status.
+#[test]
+fn terminal_send_stdin_sigquit_is_typed_cancellation() -> TestResult {
+    require_eligible(nix::sys::signal::Signal::SIGQUIT);
+    let base = base_dir("send-stdin-quit");
+    let scope = stage_scope(&base);
+    let socket = scope.join("client.sock");
+    let listener = UnixListener::bind(&socket).expect("bind client socket");
+    listener
+        .set_nonblocking(true)
+        .expect("listener nonblocking");
+    let child = run_with_stdin(
+        &base,
+        &["terminal", "send", TERMINAL, "--stdin", "--format", "json"],
+        Stdio::piped(),
+    );
+    thread::sleep(Duration::from_millis(1500));
+    nix::sys::signal::kill(
+        nix::unistd::Pid::from_raw(child.id() as i32),
+        nix::sys::signal::Signal::SIGQUIT,
+    )
+    .expect("signal child");
+    let output = wait(child);
+    assert_eq!(
+        output.status.code(),
+        Some(131),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document = envelope(&output);
+    compiled_schema(&base, "orchbee.cli.failure.source")
+        .validate(&document)
+        .expect("source failure validates against its schema");
+    assert_eq!(document["failure"]["kind"], "cancelled");
+    assert_eq!(document["failure"]["details"]["stage"], "input");
+    assert_eq!(document["failure"]["details"]["inputSource"], "stdin");
+    match listener.accept() {
+        Err(error) if error.kind() == ErrorKind::WouldBlock => {}
+        _ => panic!("a cancelled source must never reach the runtime"),
     }
     Ok(())
 }

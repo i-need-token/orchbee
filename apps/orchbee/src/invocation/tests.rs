@@ -277,6 +277,13 @@ fn text_and_unselected_syntax_failures_stay_silent() {
         &["project", "create", "--label", "x", "--label", "y"],
         &["project", "create", "--label", "x", "extra"],
         &["project", "create", "--", "--label", "x"],
+        &["project", "rename"],
+        &["project", "rename", ID],
+        &["project", "rename", ID, ID, "--label", "x"],
+        &["project", "rename", ID, "--label", "x", "--label", "y"],
+        &["project", "rename", ID, "--label", "x", "--confirm"],
+        &["project", "rename", ID, "--label", "x", "extra"],
+        &["project", "rename", "--", "--label", "x"],
         &["-x"],
         &["--unknown"],
         &["status", "--unknown"],
@@ -474,6 +481,10 @@ fn suffix_help_resolves_any_recognized_help_path() {
             HelpTopic::Command(CommandPath::ProjectGet),
         ),
         (
+            &["project", "rename", "--help"],
+            HelpTopic::Command(CommandPath::ProjectRename),
+        ),
+        (
             &["workspace", "list", "--help"],
             HelpTopic::Command(CommandPath::WorkspaceList),
         ),
@@ -581,6 +592,10 @@ fn help_command_accepts_recognized_paths_only() {
         (
             &["help", "project", "get"],
             HelpTopic::Command(CommandPath::ProjectGet),
+        ),
+        (
+            &["help", "project", "rename"],
+            HelpTopic::Command(CommandPath::ProjectRename),
         ),
         (
             &["help", "workspace", "list"],
@@ -823,6 +838,51 @@ fn accepts_every_mutation_path() {
             &["project", "create", "--label", "api"],
             MutationCommand::ProjectCreate {
                 label: label("api"),
+            },
+        ),
+        (
+            &["project", "rename", "web", "--label", "site"],
+            MutationCommand::ProjectRename {
+                target: Target::Label("web".into()),
+                label: label("site"),
+            },
+        ),
+        (
+            &["project", "rename", ID, "--label", "site"],
+            MutationCommand::ProjectRename {
+                target: Target::Id(ID.into()),
+                label: label("site"),
+            },
+        ),
+        // A non-ID token — uppercase hex included — is a label candidate, not
+        // an identifier failure; only empty/overlong/zero-shaped operands are.
+        (
+            &[
+                "project",
+                "rename",
+                "0123456789ABCDEF0123456789ABCDEF",
+                "--label",
+                "site",
+            ],
+            MutationCommand::ProjectRename {
+                target: Target::Label("0123456789ABCDEF0123456789ABCDEF".into()),
+                label: label("site"),
+            },
+        ),
+        (
+            &["project", "rename", "--label", "site", "web"],
+            MutationCommand::ProjectRename {
+                target: Target::Label("web".into()),
+                label: label("site"),
+            },
+        ),
+        // `--` shields a flag-spelling operand: the literal label `--help`
+        // still resolves through the shared target rules.
+        (
+            &["project", "rename", "--label", "site", "--", "--help"],
+            MutationCommand::ProjectRename {
+                target: Target::Label("--help".into()),
+                label: label("site"),
             },
         ),
         (
@@ -2782,7 +2842,7 @@ fn terminal_send_grammar() {
             "{name}"
         );
     }
-    // Exactly one payload form is required.
+    // Exactly one source is required.
     let Err(failure) = parse(&["terminal", "send", ID]) else {
         panic!("missing payload must fail");
     };
@@ -2790,21 +2850,79 @@ fn terminal_send_grammar() {
         failure.usage.as_ref(),
         Some(&UsageReason::MissingRequired {
             context: UsageContext::Path("terminal send"),
-            requirement: "'--text' or '--key'",
+            requirement: "'--text', '--key', '--file', or '--stdin'",
         })
     );
-    // The forms exclude each other.
-    let Err(failure) = parse(&["terminal", "send", ID, "--text", "x", "--key", "enter"]) else {
-        panic!("conflicting payload forms must fail");
-    };
+    // The declared sources parse untouched into their own variants.
     assert_eq!(
-        failure.usage.as_ref(),
-        Some(&UsageReason::ConflictingOptions {
-            context: UsageContext::Path("terminal send"),
-            first: "--text",
-            second: "--key",
-        })
+        parse(&["terminal", "send", ID, "--file", "/tmp/in.txt"]),
+        Ok(send(TerminalSendInput::File {
+            path: "/tmp/in.txt".to_owned(),
+            enter: false,
+        }))
     );
+    assert_eq!(
+        parse(&["terminal", "send", ID, "--file", "/tmp/in.txt", "--enter"]),
+        Ok(send(TerminalSendInput::File {
+            path: "/tmp/in.txt".to_owned(),
+            enter: true,
+        }))
+    );
+    assert_eq!(
+        parse(&["terminal", "send", ID, "--stdin"]),
+        Ok(send(TerminalSendInput::Stdin { enter: false }))
+    );
+    assert_eq!(
+        parse(&["terminal", "send", ID, "--stdin", "--enter"]),
+        Ok(send(TerminalSendInput::Stdin { enter: true }))
+    );
+    // The forms exclude each other, named in the fixed order
+    // --text, --key, --file, --stdin regardless of argv order.
+    for (arguments, first, second) in [
+        (
+            &["terminal", "send", ID, "--text", "x", "--key", "enter"][..],
+            "--text",
+            "--key",
+        ),
+        (
+            &["terminal", "send", ID, "--key", "enter", "--text", "x"][..],
+            "--text",
+            "--key",
+        ),
+        (
+            &["terminal", "send", ID, "--stdin", "--text", "x"][..],
+            "--text",
+            "--stdin",
+        ),
+        (
+            &["terminal", "send", ID, "--file", "/p", "--stdin"][..],
+            "--file",
+            "--stdin",
+        ),
+        (
+            &["terminal", "send", ID, "--stdin", "--file", "/p"][..],
+            "--file",
+            "--stdin",
+        ),
+        (
+            &["terminal", "send", ID, "--stdin", "--key", "enter"][..],
+            "--key",
+            "--stdin",
+        ),
+    ] {
+        let Err(failure) = parse(arguments) else {
+            panic!("conflicting payload forms must fail: {arguments:?}");
+        };
+        assert_eq!(
+            failure.usage.as_ref(),
+            Some(&UsageReason::ConflictingOptions {
+                context: UsageContext::Path("terminal send"),
+                first,
+                second,
+            }),
+            "{arguments:?}"
+        );
+    }
     // `--enter` is the text form's modifier only.
     for arguments in [
         &["terminal", "send", ID, "--enter"][..],

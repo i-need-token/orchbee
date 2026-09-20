@@ -166,6 +166,26 @@ A lost reply retires this carrier again and retains the new identity. Exact resu
 returns to status observation; another Resume needs a latest eligible status and fresh drawn
 confirmation. This transition does not grant general session or changed-authority recovery.
 
+While the close carrier is not the session — status-only recovery, or
+MembershipRecoveryPending before its atomic membership install — the ordinary
+pane-reconcile enqueue stays suppressed. The carrier mailbox's desired anchor is
+not the session's retained anchor, so an ordinary admission would mint work the
+carrier must reject as stale. The predicate is the close carrier itself, not a
+session phase: CloseRead and ReconcileClose scheduling stay active, the
+separately confirmed Resume control is unchanged, and the carrier resets only
+through truthful retirement/finalization or the successful membership
+consumption commit inside the reply transaction. Because the carrier swap keeps
+the retained desired anchor untouched, ordinary scheduling resumes against a
+consistent mailbox once that commit clears the predicate. Drawn pane
+observations stay outside the canonical pane set entirely inside this window:
+the carrier's Retired-phase shape requires an empty pane set, and the record
+sync could mint an unattached canonical record under the retained desired
+anchor — a fact that would poison the carrier's own next settlement. Latest
+UI and mailbox geometry still updates through the separate observe_geometry
+path outside the record sync; Resize is unreachable because no record is
+attached; and the reconcile enqueue is separately suppressed at its own
+funnel, so no ordinary work is admitted.
+
 The Linux native recovery implementation retains the original local endpoint/cohort and the
 Workbench request, attachment/Refresh generation and command/UI-wait cursors after joining the
 exact retired task. The fresh mailbox copies these allocator positions, with no old queue, flight,
@@ -2315,6 +2335,28 @@ candidate leaves the old canonical state and origin parked, with no Attach. Abse
 knowledge, not cleanup evidence. Bootstrap, Open, activation, Create, Start and Close are not part
 of this observation entry.
 
+While an armed attempt owns the mailbox and before any candidate installs, the session
+admits no ordinary scheduled work against it: the post-event tick scheduler block
+(ordinary poll reconcile, publication refresh, close reconciliation, close read, pane
+reconcile, and poll), the observed-pane geometry Resize admission, and the pane
+reconcile enqueue itself are suppressed by the exact attempt marker, not by session
+phase. Admission-free bookkeeping continues unchanged — latest UI and mailbox
+geometry, updated by the separate observe_geometry path outside the record
+sync, close acknowledgement, event drain, and pending-draw reporting — and no
+retained fact is cleared nor deadline renewed to escape the window. Canonical
+pane records stay untouched: a drawn pane observation returns before the
+record sync inside this window, because a minted unattached pane fact would
+violate the Retired pane-empty shape the install-time origin check must still
+see. A draw-driven pane
+observation or a tick landing inside the window cannot mint a Resize, a reconcile
+episode, or any ordinary command serial: the queue carries the recovery Refresh alone,
+and the executor clears its membership flag after the Refresh reply before the next
+command. The suppression is scoped to the membership attempt marker alone; the separate
+status-only Close recovery keeps its own close-carrier suppression of the same reconcile
+funnel. After the atomic
+candidate installation clears the marker, ordinary scheduling may resume in the same
+tick.
+
 Prepare the candidate outside the reply mutex, then atomically commit the state and mailbox plans
 under that mutex after checking the exact retired origin, baseline, flight and forward deadline.
 Choose the clamped historical ordinal or Empty. A survivor advances the actual burned attachment
@@ -2331,13 +2373,14 @@ two explicit attempts, prior attachment cursor 1, burned 2 or exhausted 3 with m
 independent request/command/Refresh/UI-wait allocator maximum 5 with exhaustion, and independently retained/released old remote reference. Validation is a
 typed external input refined by the real canonical projector. Required checks cover origin and
 conflict guards, single carrier, no old-local submission after join, no fabricated cleanup/Close
-fact, target absence, atomic installation, stale results, fixed deadlines, cursor preservation and
-no automatic retry/Create. Progress assumes only local deadline and carrier termination fairness;
+fact, target absence, atomic installation, stale results, fixed deadlines, cursor preservation, no
+automatic retry/Create, and no ordinary scheduled or observed-geometry admission inside the armed
+pre-installation window. Progress assumes only local deadline and carrier termination fairness;
 it promises a live result or truthful parked retirement, not remote cleanup or recovery success.
 
 Run `node scripts/tla/run-models.mjs --models native-client-retired-membership-recovery --jobs 1`
 with pinned TLA+ tools 1.7.4 and one worker. All twelve configurations below completed temporal
-checking with empty state queues. Together, their generated successor coverage reaches all 42
+checking with empty state queues. Together, their generated successor coverage reaches all 44
 required actions.
 The ordinal/allocator partitions cover all 252 original initial states without symmetry assumptions
 or state constraints. Earlier unpartitioned 180-second timeouts do not establish a passing result.
@@ -2348,22 +2391,24 @@ setup remain abstraction boundaries requiring the runtime refinement below.
 
 | Configuration          | Generated / distinct / depth | Model/configuration SHA-256                                        |
 | ---------------------- | ---------------------------- | ------------------------------------------------------------------ |
-| `singleton-normal`     | 3,483,814 / 753,054 / 35     | `2d899c099f0863e9552669fd18d90117b3acec6247c7df4691bcede7c7a1b9b9` |
-| `singleton-near-limit` | 4,905,728 / 1,056,996 / 31   | `75aad168a14705a3b05e616813d23b46197fe3589547c333d04b98353765ac25` |
-| `singleton-exhausted`  | 1,333,389 / 287,118 / 26     | `b44fb3da620e88734ab0e53f5252edc31211f128747c0523a4bb26750cc6cfd4` |
-| `first-normal`         | 3,483,814 / 753,054 / 35     | `0d0e7dc31d4e82791958d3f524e5a93580f33eb94b34fb9d438037c7ae743748` |
-| `first-near-limit`     | 4,905,728 / 1,056,996 / 31   | `2d2b70e0c3a363da009907c818f5a1c013346b3aeb0495c450764e11eb982816` |
-| `first-exhausted`      | 1,333,389 / 287,118 / 26     | `5fc6b9a602c6d05e17eec2b3e54e584ea70a35764ee936e9ff66253606ea685c` |
-| `middle-normal`        | 3,483,814 / 753,054 / 35     | `4c53573ce23a1c0c89d3d2585ba1e7fa5316786ab42f54bb7c4bd0aa4a4b2d9b` |
-| `middle-near-limit`    | 4,905,728 / 1,056,996 / 31   | `833d8bdc641cfeedb9bf062fd7bec1b46fe93ca608930c50375ddc4ff0f7baff` |
-| `middle-exhausted`     | 1,333,389 / 287,118 / 26     | `b43fc09461924ce9dff66d4b5a8cd0c41a9001c94e4b01b32e50d87f05f36c09` |
-| `last-normal`          | 3,483,814 / 753,054 / 35     | `47e22a7ca5ee7f94561421d7a7169b301279e7e83440183e658a82b48ca25d2b` |
-| `last-near-limit`      | 4,905,728 / 1,056,996 / 31   | `e04240842241f1401a17b686639c2740e2fd9edd2ee05a01cac522698cf3db62` |
-| `last-exhausted`       | 1,333,389 / 287,118 / 26     | `1b85549eb06c352e37318fe6656dfc3b6a0d96011df498e68e3fe51e547f94ac` |
+| `singleton-normal`     | 5,465,794 / 1,072,122 / 37   | `35f28b0050f8e3fce720933ab21ab7fa3cec05e7e394169723842b15f8915ebb` |
+| `singleton-near-limit` | 7,523,456 / 1,481,436 / 33   | `ddc66d87a8a0a5b4c78197d5b044eb88348e645d691af345749e22719043cd93` |
+| `singleton-exhausted`  | 2,164,224 / 425,844 / 28     | `2414bfd93a03d9234da41860ea74abe0105e30940ccffe125938822b70392547` |
+| `first-normal`         | 5,465,794 / 1,072,122 / 37   | `287b980dbcfc1739ed922e30a84894ab173923375132a18eff351187eb3c5b22` |
+| `first-near-limit`     | 7,523,456 / 1,481,436 / 33   | `f33ee789d7cd0d03fcd8e541c3ad31793f7a2360b7a3b8f1ae8975fcd1a354c0` |
+| `first-exhausted`      | 2,164,224 / 425,844 / 28     | `87691f5664b4c8f05c326ee0097163b944e912f147344ae3c881fdc43f3be6d0` |
+| `middle-normal`        | 5,465,794 / 1,072,122 / 37   | `bba0b70198d0f87b0b86999f2100da1161a1de28d58043d54c4a94c205ab0ba6` |
+| `middle-near-limit`    | 7,523,456 / 1,481,436 / 33   | `46e4664783f55ec5a173f4033b8ae1248853b5b23eea493af874128834afee86` |
+| `middle-exhausted`     | 2,164,224 / 425,844 / 28     | `c8b40fdbe766d1533ee389ecd60cf35552a95c0f2e38adbb4e9372b5b06f88ed` |
+| `last-normal`          | 5,465,794 / 1,072,122 / 37   | `2e0cc7ee67c14a3ba1161dfb12c31eb410a370313e04c29a7cdbd4ec134a8c48` |
+| `last-near-limit`      | 7,523,456 / 1,481,436 / 33   | `b1b778f70bd5ab81b6a60dd8d043bfc5192dfa5c8f147eec6bd06634986cca29` |
+| `last-exhausted`       | 2,164,224 / 425,844 / 28     | `21f158c70ae6b511ee7e9ed12f4fedefbc0c83e7d5046df994f5d9b908bba30b` |
 
 Runtime refinement uses the existing task owner, reconnect origin and shutdown fence. The private
 state origin and UI attempt refine the model's eligibility and installation actions; the ordinary
-Poll executor returns correlated evidence only through a normal exact join. The existing mailbox
+Poll executor returns correlated evidence only through a normal exact join. The armed-attempt
+marker refines the model's ordinary gate; the tick scheduler block, the observed-geometry Resize
+admission, and the pane reconcile enqueue are its three guarded sites. The existing mailbox
 seed, Snapshot flight, common membership transaction and setup executor retain their ownership.
 
 Deterministic tests in `terminal_session/tests/retired_membership.rs` and

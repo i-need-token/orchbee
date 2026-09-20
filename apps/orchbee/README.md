@@ -32,7 +32,7 @@ orchbee --help | --version
 ```
 
 Query families are `project`, `workspace`, `tab`, `panel`, and `terminal` (`list`/`get`, plus
-`terminal read`). Mutation commands against the running Site are `project create`,
+`terminal read`). Mutation commands against the running Site are `project create`/`rename`,
 `workspace create`/`rename`/`accept-directory`, `tab create`/`rename`/`move`/`close`, and
 `panel split`/`move`/`close`. `terminal send <id> (--text <utf8> [--enter] | --key <name>)`
 delivers exactly one input record — literal text with an optional folded carriage return, or
@@ -43,7 +43,10 @@ one navigation record, no directory or filesystem effect — and returns the Ser
 project id for the `workspace create`/`tab create` chain; `workspace accept-directory`
 submits the existing `WorkspacePrimaryDirectoryAccept` action — the Server authoritatively
 probes the literal absolute path — which makes a CLI-created Workspace tab-admissible
-without the TUI directory wizard. The complete grammar, target and
+without the TUI directory wizard. `project rename <target> --label <label>` submits the
+existing `ProjectRename` action — the same one-snapshot/one-command envelope resolves the
+target by exact id or exact label first — and reports `committed`/`unchanged` under the
+dedicated `orchbee.project.rename` document. The complete grammar, target and
 filter rules, mutation outcomes, and the failure matrix with exit classes are owned by
 [native CLI query](docs/native-cli-query.md); `orchbee help <family>` and
 `orchbee help <family> <command>` print the same grammar from the binary itself.

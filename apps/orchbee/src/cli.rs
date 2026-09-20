@@ -8,6 +8,8 @@ mod query;
 pub(crate) mod results;
 mod schema;
 pub(crate) mod send;
+#[cfg(target_os = "linux")]
+pub(crate) mod source;
 mod text;
 
 #[cfg(test)]
@@ -22,11 +24,73 @@ use crate::invocation::{
 use crate::localization::Locale;
 use crate::presentation::ProcessResult;
 
-/// One fully prepared process answer: status code plus already-encoded streams.
+/// One fully prepared process answer: status code plus already-encoded
+/// streams. `finalization` is the deferred, noncloneable duty the common
+/// `main` emit path must consume after its last write attempt — only the
+/// Linux `terminal send` source signal guard ever produces one.
 pub(crate) struct Output {
     pub(crate) status: u8,
     pub(crate) stdout: Vec<u8>,
     pub(crate) stderr: String,
+    pub(crate) finalization: Option<SourceFinalization>,
+}
+
+/// A noncloneable finalization owed by `emit` after the last output attempt.
+/// Only the Linux `terminal send` source guard creates one: the inherited
+/// thread mask stays blocked while the process answer is written, and
+/// `release` restores it exactly — a signal arriving after the final drain
+/// still reaches its original disposition. It is never constructed on other
+/// platforms, and no path may drop it without releasing it.
+#[must_use = "the owed finalization must be released by the common emit finalizer"]
+pub(crate) struct SourceFinalization {
+    /// The thread mask captured before the source guard armed.
+    #[cfg(target_os = "linux")]
+    old_mask: nix::sys::signal::SigSet,
+    /// Test-only mock seam: `release` reports a kernel failure so the emit
+    /// finalizer's error routing is provable without a real mask fault.
+    #[cfg(test)]
+    fail_release: bool,
+}
+
+#[cfg(target_os = "linux")]
+impl SourceFinalization {
+    pub(crate) fn new(old_mask: nix::sys::signal::SigSet) -> Self {
+        Self {
+            old_mask,
+            #[cfg(test)]
+            fail_release: false,
+        }
+    }
+
+    /// A token whose `release` always reports a kernel failure — mock
+    /// evidence for the emit finalizer's restore-failure routing.
+    #[cfg(test)]
+    pub(crate) fn failing() -> Self {
+        Self {
+            old_mask: nix::sys::signal::SigSet::empty(),
+            fail_release: true,
+        }
+    }
+
+    /// Restore the captured thread mask exactly; a failure is a terminal
+    /// internal failure — reported by the caller, never retried.
+    pub(crate) fn release(self) -> Result<(), nix::errno::Errno> {
+        #[cfg(test)]
+        if self.fail_release {
+            return Err(nix::errno::Errno::EIO);
+        }
+        self.old_mask
+            .thread_swap_mask(nix::sys::signal::SigmaskHow::SIG_SETMASK)
+            .map(drop)
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+impl SourceFinalization {
+    /// Unreachable on non-Linux: the token is never constructed there.
+    pub(crate) fn release(self) -> Result<(), std::convert::Infallible> {
+        Ok(())
+    }
 }
 
 /// Legacy process results (TUI launch, version, root help) also finish
@@ -39,6 +103,7 @@ pub(crate) fn process_result(result: ProcessResult, locale: Locale) -> Output {
             status: result.status,
             stdout,
             stderr: result.stderr.to_owned(),
+            finalization: None,
         },
         Err(output::TooLarge) => failure_output(
             Failure::new(FailureKind::OutputTooLarge).details(Map::from_iter([(
@@ -189,12 +254,57 @@ fn failure_output(failure: Failure, format: Option<OutputFormat>, locale: Locale
                 status,
                 stdout,
                 stderr,
+                finalization: None,
             }
         }
         Some(OutputFormat::Text) | None => Output {
             status,
             stdout: Vec::new(),
             stderr,
+            finalization: None,
+        },
+    }
+}
+
+/// `terminal send` source-stage failures carry the dedicated
+/// `orchbee.cli.failure.source` envelope: the same failure object shape but
+/// no authority source and no request identity, because nothing was admitted
+/// yet. The caller's selected format still decides whether stdout carries
+/// the document; the status is explicit since a handled source interruption
+/// exits with the conventional `128 + signo`, not a kind-derived code.
+#[cfg(target_os = "linux")]
+pub(crate) fn source_failure_output(
+    failure: Failure,
+    status: u8,
+    format: OutputFormat,
+    locale: Locale,
+) -> Output {
+    let stderr = locale.cli_failure(&failure);
+    match format {
+        OutputFormat::Json => {
+            let mut failure_object =
+                Map::from_iter([("kind".to_owned(), json!(failure.kind.as_str()))]);
+            if let Some(details) = failure.details {
+                failure_object.insert("details".to_owned(), Value::Object(details));
+            }
+            let document = json!({
+                "schema": schema::SOURCE_FAILURE_ID,
+                "version": 1,
+                "failure": Value::Object(failure_object),
+            });
+            let stdout = output::encode_document(&document).unwrap_or_else(|_| Vec::new());
+            Output {
+                status,
+                stdout,
+                stderr,
+                finalization: None,
+            }
+        }
+        OutputFormat::Text => Output {
+            status,
+            stdout: Vec::new(),
+            stderr,
+            finalization: None,
         },
     }
 }
@@ -232,6 +342,7 @@ fn fixed_text(body: &str, locale: Locale) -> Output {
             status: 0,
             stdout,
             stderr: String::new(),
+            finalization: None,
         },
         Err(output::TooLarge) => failure_output(
             Failure::new(FailureKind::OutputTooLarge).details(Map::from_iter([(
@@ -291,7 +402,7 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
             Ok((source, projection)) => {
                 success_output(projection, source, &command, format, locale)
             }
-        }
+        },
         _ => network_query(&command, format, locale),
     }
 }
@@ -349,6 +460,7 @@ fn success_output(
                     status: 0,
                     stdout,
                     stderr: String::new(),
+                    finalization: None,
                 },
                 Err(output::TooLarge) => too_large(&source),
             }
@@ -359,6 +471,7 @@ fn success_output(
                     status: 0,
                     stdout,
                     stderr: String::new(),
+                    finalization: None,
                 },
                 Err(output::TooLarge) => too_large(&source),
             }

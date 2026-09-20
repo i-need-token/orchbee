@@ -76,9 +76,10 @@ mod linux {
     use serde_json::{Map, Value, json};
 
     use super::super::query::{obcs_request_id, snapshot_session_until};
+    use super::super::source::{self, ArmedSignals, Finish, SourceFailure, source_details};
     use super::super::{
-        Failure, FailureKind, Output, failure_output, output, present, results, stage_details,
-        target_details,
+        Failure, FailureKind, Output, SourceFinalization, failure_output, output, present, results,
+        source_failure_output, stage_details, target_details,
     };
     use super::{SendVerdict, TERMINAL_SEND_ID};
     use crate::invocation::{OutputFormat, Resource, Target, TerminalSendInput, TerminalSendKey};
@@ -98,9 +99,66 @@ mod linux {
     }
 
     /// The whole send invocation — cohort, discovery, admission, snapshot,
-    /// and the send exchange — shares this one absolute ceiling, sampled once
-    /// at command entry.
+    /// source materialization, and the send exchange — shares this one
+    /// absolute ceiling, sampled once at command entry.
     const SEND_BUDGET: Duration = Duration::from_secs(5);
+
+    /// How the command fails. `Failure` keeps the existing
+    /// `orchbee.cli.failure` envelope; `Source` carries the
+    /// `orchbee.cli.failure.source` envelope with its explicit status — a
+    /// handled source interruption exits `128 + signo`, which no failure kind
+    /// can express — plus the noncloneable finalization token the common
+    /// emit path must consume after the output attempt.
+    enum SendError {
+        Failure(Failure),
+        Source(Box<SourceError>),
+    }
+
+    /// The typed source-failure channel, boxed so the rarely-reached guard
+    /// finalization token does not enlarge every `Result<_, SendError>`.
+    struct SourceError {
+        failure: Failure,
+        status: u8,
+        finalization: Option<SourceFinalization>,
+    }
+
+    /// The explicit typed conversion from a materialization outcome to the
+    /// process-facing failure: source timeout keeps the existing timeout
+    /// mapping (7), source cancellation exits with the conventional
+    /// `128 + signo`, and every validation/local cause stays on the standard
+    /// path. `timeoutMs` reports the configured shared budget, never a
+    /// measured duration.
+    fn send_error(failure: SourceFailure) -> SendError {
+        match failure {
+            SourceFailure::Standard(failure) => SendError::Failure(failure),
+            SourceFailure::Timeout { source } => SendError::Source(Box::new(SourceError {
+                failure: Failure::new(FailureKind::Timeout).details(source_details(
+                    source,
+                    Some(u64::try_from(SEND_BUDGET.as_millis()).unwrap_or(u64::MAX)),
+                )),
+                status: FailureKind::Timeout.exit_code(),
+                finalization: None,
+            })),
+            SourceFailure::Cancelled { source, signal } => cancelled(source, signal, None),
+        }
+    }
+
+    /// The source-cancellation error: the `orchbee.cli.failure.source`
+    /// envelope names only the declared source, and the status follows the
+    /// conventional `128 + signo` of the first-read signal. `finalization`
+    /// carries the owed mask restore to the common emit path whenever the
+    /// guard still holds it.
+    fn cancelled(
+        source: source::InputSource,
+        signal: i32,
+        finalization: Option<SourceFinalization>,
+    ) -> SendError {
+        SendError::Source(Box::new(SourceError {
+            failure: Failure::new(FailureKind::Cancelled).details(source_details(source, None)),
+            status: 128_u8.saturating_add(u8::try_from(signal).unwrap_or(0)),
+            finalization,
+        }))
+    }
 
     /// The parsed payload form projected into the document — never the
     /// payload contents.
@@ -124,28 +182,96 @@ mod linux {
         locale: Locale,
     ) -> Output {
         match execute(target, input) {
-            Err(failure) => failure_output(failure, Some(format), locale),
+            Err(SendError::Failure(failure)) => failure_output(failure, Some(format), locale),
+            Err(SendError::Source(error)) => {
+                let SourceError {
+                    failure,
+                    status,
+                    finalization,
+                } = *error;
+                let mut output = source_failure_output(failure, status, format, locale);
+                output.finalization = finalization;
+                output
+            }
             Ok(answer) => answer_output(&answer, format, locale),
         }
     }
 
-    /// One admitted session, one snapshot read, one binding resolution, one
+    /// Which declared source produced the input — needed to name the
+    /// `inputSource` in a finish-boundary cancellation envelope.
+    fn input_source(input: &TerminalSendInput) -> source::InputSource {
+        match input {
+            TerminalSendInput::File { .. } => source::InputSource::File,
+            _ => source::InputSource::Stdin,
+        }
+    }
+
+    /// Source materialization first — a declared `--file`/`--stdin` becomes
+    /// the same bounded text record before any runtime effect, with the
+    /// private signal guard armed for exactly that interval — then one
+    /// admitted session, one snapshot read, one binding resolution, one
     /// `terminal.send` exchange — all under the single absolute deadline the
     /// command samples at entry. The session is fully dropped before the
     /// typed answer is mapped.
-    fn execute(target: &Target, input: &TerminalSendInput) -> Result<SendAnswer, Failure> {
+    fn execute(target: &Target, input: &TerminalSendInput) -> Result<SendAnswer, SendError> {
         let deadline = Instant::now()
             .checked_add(SEND_BUDGET)
-            .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
-        let (mut client, deadline, snapshot) = snapshot_session_until(deadline)?;
-        let (request, fact, facts) = prepare(target, input, &snapshot)?;
+            .ok_or_else(|| SendError::Failure(Failure::new(FailureKind::InternalFailure)))?;
+        // Grammar and target syntax were validated before this command ran;
+        // the source is the first effectful step and its failures carry no
+        // request identity.
+        let input = match input {
+            TerminalSendInput::File { .. } | TerminalSendInput::Stdin { .. } => {
+                let mut armed = ArmedSignals::arm()
+                    .map_err(|_| SendError::Failure(Failure::new(FailureKind::InternalFailure)))?;
+                match source::materialize(input, deadline, &mut armed) {
+                    // A captured signal was already consumed mid-read: the
+                    // first-read signo selects cancellation and the held
+                    // mask travels with the output as the owed finalization.
+                    Err(SourceFailure::Cancelled { source, signal }) => {
+                        return Err(cancelled(source, signal, Some(armed.into_finalization())));
+                    }
+                    outcome => match armed.finish() {
+                        // A signal consumed at the finish boundary wins over
+                        // whatever the materialization outcome was.
+                        Ok(Finish::Cancelled {
+                            signo,
+                            finalization,
+                        }) => {
+                            return Err(cancelled(input_source(input), signo, Some(finalization)));
+                        }
+                        // A signalfd or restore failure is terminal — the
+                        // owed restore was already attempted inside finish.
+                        Err(_) => {
+                            return Err(SendError::Failure(Failure::new(
+                                FailureKind::InternalFailure,
+                            )));
+                        }
+                        // The exact inherited mask is restored and the
+                        // descriptor closed — the materialization outcome
+                        // owns the result from here.
+                        Ok(Finish::Clear) => match outcome {
+                            Ok(materialized) => materialized,
+                            Err(failure) => return Err(send_error(failure)),
+                        },
+                    },
+                }
+            }
+            TerminalSendInput::Text { .. } | TerminalSendInput::Key(_) => {
+                std::borrow::Cow::Borrowed(input)
+            }
+        };
+        let (mut client, deadline, snapshot) =
+            snapshot_session_until(deadline).map_err(SendError::Failure)?;
+        let (request, fact, facts) =
+            prepare(target, &input, &snapshot).map_err(SendError::Failure)?;
         let source = send_source(&snapshot, request.request_id().as_str());
         let submission = client.submit_terminal_send_before(request, deadline);
         // The Client Session is fully dropped before the typed answer — or
         // the submission failure — is mapped into output.
         drop(client);
         match submission {
-            Err(error) => Err(classify_send(error).source(source)),
+            Err(error) => Err(SendError::Failure(classify_send(error).source(source))),
             Ok(result) => Ok(answer(&result, &fact, &facts, source)),
         }
     }
@@ -184,6 +310,11 @@ mod linux {
                 TerminalSendPayload::new_key(send_key(*key)),
                 PayloadFact::Key { name: key.as_str() },
             ),
+            // Materialization already folded declared sources into `Text`;
+            // reaching this arm means the folding was skipped — internal.
+            TerminalSendInput::File { .. } | TerminalSendInput::Stdin { .. } => {
+                return Err(Failure::new(FailureKind::InternalFailure));
+            }
         };
         let facts = RequestFacts {
             site_id: snapshot.site_id.as_str().to_owned(),
@@ -384,6 +515,7 @@ mod linux {
                     status: answer.status,
                     stdout,
                     stderr,
+                    finalization: None,
                 },
                 Err(output::TooLarge) => too_large(),
             },
@@ -393,6 +525,7 @@ mod linux {
                         status: answer.status,
                         stdout,
                         stderr,
+                        finalization: None,
                     },
                     Err(output::TooLarge) => too_large(),
                 }

@@ -2227,7 +2227,8 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
         sorted(vec![
             "create".to_owned(),
             "get".to_owned(),
-            "list".to_owned()
+            "list".to_owned(),
+            "rename".to_owned()
         ]),
         "{engine} help children"
     );
@@ -5113,5 +5114,200 @@ fn terminal_wait_late_attach_answer_settles_as_timeout() -> TestResult {
     let details = &failure["failure"]["details"];
     assert_eq!(details["stage"], "wait");
     assert!(details.get("cleanup").is_none());
+    Ok(())
+}
+
+// ---- project rename schema (dedicated document) -----------------------------
+
+/// `orchbee.project.rename` v1 is its own strict document: both committed and
+/// unchanged receipts validate, every contract violation is refused, and the
+/// shared `orchbee.mutation.result` v1 envelope stays closed — it never
+/// absorbs the new action.
+#[test]
+fn project_rename_schema_is_strict_and_distinct() -> TestResult {
+    let base = base_dir("project-rename-schema");
+    let rename_schema = compiled_schema(&base, "orchbee.project.rename");
+    let mutation_schema = compiled_schema(&base, "orchbee.mutation.result");
+
+    let committed = serde_json::json!({
+        "schema": "orchbee.project.rename",
+        "version": 1,
+        "source": {
+            "kind": "workbench-command",
+            "siteId": id(0xaa),
+            "requestId": id(0xbb),
+            "expectedRevision": "7"
+        },
+        "result": {
+            "action": "project.rename",
+            "outcome": "committed",
+            "revision": "8",
+            "projectId": id(0x10),
+            "label": "new"
+        }
+    });
+    let unchanged = serde_json::json!({
+        "schema": "orchbee.project.rename",
+        "version": 1,
+        "source": {
+            "kind": "workbench-command",
+            "siteId": id(0xaa),
+            "requestId": id(0xbb),
+            "expectedRevision": "7"
+        },
+        "result": {
+            "action": "project.rename",
+            "outcome": "unchanged",
+            "revision": "7",
+            "projectId": id(0x10),
+            "label": "web"
+        }
+    });
+    assert!(rename_schema.is_valid(&committed), "committed validates");
+    assert!(rename_schema.is_valid(&unchanged), "unchanged validates");
+
+    for variant in [
+        // Wrong action — another resource's rename must not fit.
+        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","siteId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"workspace.rename","outcome":"committed","revision":"8","projectId":id(0x10),"label":"x"}}),
+        // Unknown outcome.
+        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","siteId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"accepted","revision":"8","projectId":id(0x10),"label":"x"}}),
+        // Extra top-level / source / result fields.
+        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","siteId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"committed","revision":"8","projectId":id(0x10),"label":"x"},"extra":true}),
+        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","siteId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7","extra":1},"result":{"action":"project.rename","outcome":"committed","revision":"8","projectId":id(0x10),"label":"x"}}),
+        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","siteId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"committed","revision":"8","projectId":id(0x10),"label":"x","extra":1}}),
+        // Missing required result fields.
+        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","siteId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"committed","revision":"8","projectId":id(0x10)}}),
+        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","siteId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"committed","projectId":id(0x10),"label":"x"}}),
+        // Wrong source kind and wrong identifier shapes.
+        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"embedded","siteId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"committed","revision":"8","projectId":id(0x10),"label":"x"}}),
+        serde_json::json!({"schema":"orchbee.project.rename","version":1,"source":{"kind":"workbench-command","siteId":id(0xaa),"requestId":id(0xbb),"expectedRevision":"7"},"result":{"action":"project.rename","outcome":"committed","revision":"8","projectId":"not-an-id","label":"x"}}),
+    ] {
+        assert!(
+            !rename_schema.is_valid(&variant),
+            "rejected variant must fail: {variant}"
+        );
+    }
+
+    // The shared mutation envelope's action enum stays closed: dressing the
+    // rename result in the old schema id is refused, and the old document
+    // itself still validates only its own actions.
+    let disguised = serde_json::json!({
+        "schema": "orchbee.mutation.result",
+        "version": 1,
+        "source": {
+            "kind": "workbench-command",
+            "siteId": id(0xaa),
+            "requestId": id(0xbb),
+            "expectedRevision": "7"
+        },
+        "result": {
+            "action": "project.rename",
+            "outcome": "committed",
+            "revision": "8",
+            "projectId": id(0x10),
+            "label": "new"
+        }
+    });
+    assert!(
+        !mutation_schema.is_valid(&disguised),
+        "orchbee.mutation.result v1 never absorbs project.rename"
+    );
+    Ok(())
+}
+
+// ---- catalog envelope v3 ------------------------------------------------------
+
+/// The `orchbee.api.schema` catalog is its own versioned document: v3 now that
+/// the closed dictionary gained `orchbee.cli.failure.source` alongside the v2
+/// `orchbee.project.rename`. The listing self-validates, names exactly the
+/// registered ids, and every embedded document's `$id` equals its key; the
+/// older v1/v2 shapes are refused. Business schemas are untouched —
+/// `orchbee.mutation.result` still excludes `project.rename` — and the new
+/// receipt schema retrieves offline under either locale, byte-identical.
+#[test]
+fn api_schema_catalog_is_v3_closed_and_self_consistent() -> TestResult {
+    let base = base_dir("catalog-v3");
+    let api_schema = compiled_schema(&base, "orchbee.api.schema");
+
+    let output = run(&base, &["api", "schema", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0));
+    let listed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(listed["schema"], "orchbee.api.schema");
+    assert_eq!(listed["version"], 3, "catalog envelope is v3");
+    assert_eq!(listed["source"]["kind"], "embedded");
+    assert!(api_schema.is_valid(&listed), "listing self-validates");
+    let schemas = listed["result"]["schemas"].as_object().unwrap();
+    assert_eq!(schemas.len(), 22, "closed dictionary has 22 members");
+    assert!(
+        schemas.contains_key("orchbee.project.rename"),
+        "the rename receipt schema is registered"
+    );
+    assert!(
+        schemas.contains_key("orchbee.cli.failure.source"),
+        "the failure-source schema is registered"
+    );
+    for (id, document) in schemas {
+        assert_eq!(
+            document["$id"].as_str().unwrap(),
+            id.as_str(),
+            "embedded document $id matches its registry key"
+        );
+    }
+    // Older envelope shapes are refused — the bump is a real version, not a
+    // silent in-place edit.
+    for stale_version in [serde_json::json!(1), serde_json::json!(2)] {
+        let mut stale = listed.clone();
+        stale["version"] = stale_version.clone();
+        assert!(
+            !api_schema.is_valid(&stale),
+            "stale catalog {stale_version} fails under v3"
+        );
+    }
+
+    // Offline named retrieval is locale-neutral: the same build answers the
+    // identical document under en-US and zh-CN.
+    let argv = [
+        "api",
+        "schema",
+        "orchbee.project.rename",
+        "--format",
+        "json",
+    ];
+    let english = run(&base, &argv);
+    let chinese = support::run_lang(&cohort().join("orchbee"), &base, &argv, "zh_CN.UTF-8");
+    assert_eq!(english.status.code(), Some(0));
+    assert_eq!(chinese.status.code(), Some(0));
+    assert_eq!(
+        english.stdout, chinese.stdout,
+        "embedded schema retrieval is locale-neutral"
+    );
+    let named: serde_json::Value = serde_json::from_slice(&english.stdout)?;
+    assert_eq!(named["version"], 3);
+    assert_eq!(
+        named["result"]["schema"]["schemaId"],
+        "orchbee.project.rename"
+    );
+
+    // Business schemas are untouched: the shared mutation envelope's action
+    // enum still excludes the new action — rename rides its own document.
+    let output = run(
+        &base,
+        &[
+            "api",
+            "schema",
+            "orchbee.mutation.result",
+            "--format",
+            "json",
+        ],
+    );
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    let actions = document["result"]["schema"]["document"]["properties"]["result"]
+        ["properties"]["action"]["enum"]
+        .as_array()
+        .unwrap();
+    assert!(
+        !actions.iter().any(|a| a == "project.rename"),
+        "mutation.result v1 stays closed: {actions:?}"
+    );
     Ok(())
 }

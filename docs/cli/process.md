@@ -61,9 +61,16 @@ later phase:
 
 ## Signals and cancellation
 
-- `SIGINT` and `SIGTERM` abort only the invocation's own waiting and observation. They never
-  issue a semantic cancellation; cancelling an accepted operation requires the explicit `cancel`
+- `SIGINT` and `SIGTERM` abort the invocation's own waiting and observation. They never issue
+  a semantic cancellation; cancelling an accepted operation requires the explicit `cancel`
   verb.
+- A declared `terminal send` input source watches exactly `SIGHUP`, `SIGINT`, `SIGQUIT`, and
+  `SIGTERM`, minus any signal inherited as ignored or blocked, and only inside its
+  materialization window. A captured signal ends acquisition as a typed source failure —
+  reported on the `orchbee.cli.failure.source` envelope — before any request exists; the
+  invocation exits the conventional `128 + signo`. This watch set is the source stage's own:
+  no other command adopts it, and inherited dispositions are restored unchanged when
+  acquisition ends.
 - An interrupted invocation exits with the conventional code, writes no partial machine document
   after interruption, and restores nothing because it changed no terminal modes.
 - A wait interrupted after the operation was accepted leaves the operation running; the request

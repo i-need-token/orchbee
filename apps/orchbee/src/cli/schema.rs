@@ -8,7 +8,9 @@ use crate::invocation::{OutputFormat, Resource};
 use crate::localization::Locale;
 
 pub(crate) const FAILURE_ID: &str = "orchbee.cli.failure";
+pub(crate) const SOURCE_FAILURE_ID: &str = "orchbee.cli.failure.source";
 pub(crate) const MUTATION_RESULT_ID: &str = "orchbee.mutation.result";
+pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
@@ -21,6 +23,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.api.snapshot.json"),
     ),
     (FAILURE_ID, include_str!("schemas/orchbee.cli.failure.json")),
+    (
+        SOURCE_FAILURE_ID,
+        include_str!("schemas/orchbee.cli.failure.source.json"),
+    ),
     (
         "orchbee.config.check",
         include_str!("schemas/orchbee.config.check.json"),
@@ -44,6 +50,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
     (
         "orchbee.project.list",
         include_str!("schemas/orchbee.project.list.json"),
+    ),
+    (
+        PROJECT_RENAME_RESULT_ID,
+        include_str!("schemas/orchbee.project.rename.json"),
     ),
     (
         "orchbee.status",
@@ -156,7 +166,9 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        "version": 1,
+        // Catalog envelope v3: registering new schema ids changes the closed
+        // dictionary's shape; business document versions stay untouched.
+        "version": 3,
         "source": embedded_source(),
         "result": result,
     });
@@ -165,6 +177,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
             status: 0,
             stdout,
             stderr: String::new(),
+            finalization: None,
         },
         Err(output::TooLarge) => failure_output(
             Failure::new(FailureKind::OutputTooLarge)
