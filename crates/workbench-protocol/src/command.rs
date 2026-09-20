@@ -6,6 +6,7 @@ pub use publication::{
     WorkbenchPublicationResult,
 };
 mod tab_close;
+mod worktree_list;
 pub use tab_close::{
     WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason, WorkbenchTabClosePhase,
     WorkbenchTabClosePublicationReason, WorkbenchTabCloseRead, WorkbenchTabCloseReadOutcome,
@@ -13,6 +14,11 @@ pub use tab_close::{
     WorkbenchTabCloseResumeRejectionReason, WorkbenchTabCloseResumeResult, WorkbenchTabCloseStatus,
     WorkbenchTabCloseUnavailableReason, WorkbenchTabCloseUnknownPhase,
     WorkbenchTabCloseUnknownReason,
+};
+pub use worktree_list::{
+    MAXIMUM_ENCODED_WORKTREE_LIST_RESULT_BYTES, WorkbenchWorktreeListOutcome,
+    WorkbenchWorktreeListRead, WorkbenchWorktreeListResult, WorktreeEntry, WorktreeEntryText,
+    WorktreeListStage, WorktreeListTooLargeOrigin, WorktreeListUnavailableReason,
 };
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de, de::Visitor};
@@ -62,6 +68,96 @@ impl<'de> Deserialize<'de> for WorkbenchLabel {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = String::deserialize(deserializer)?;
         Self::parse(&value).map_err(de::Error::custom)
+    }
+}
+
+/// Maximum argument values one explicit terminal launch selection carries.
+/// The wire `arguments` list is argv[1..] — the Host synthesizes argv[0]
+/// from the executable; argv0 is never transmitted.
+pub const MAXIMUM_LAUNCH_SELECTION_ARGUMENTS: usize = 128;
+/// Maximum combined UTF-8 bytes of the executable path plus every argument
+/// value in one explicit launch selection.
+pub const MAXIMUM_LAUNCH_SELECTION_BYTES: usize = 2048;
+
+/// An explicit terminal launch program: one absolute executable path and its
+/// verbatim argument list. Construction and decode run the same closed
+/// lexical contract — a non-empty absolute NUL-free executable, NUL-free
+/// arguments, at most the argument count, and the aggregate byte bound —
+/// so a malformed wire selection is `InvalidDocument` before any effect.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LaunchSelection {
+    executable: String,
+    arguments: Vec<String>,
+}
+
+impl LaunchSelection {
+    pub fn new(executable: String, arguments: Vec<String>) -> Result<Self, ContractError> {
+        if executable.is_empty()
+            || !executable.starts_with('/')
+            || executable.as_bytes().contains(&0)
+        {
+            return Err(ContractError::InvalidDocument);
+        }
+        if arguments.len() > MAXIMUM_LAUNCH_SELECTION_ARGUMENTS {
+            return Err(ContractError::InvalidDocument);
+        }
+        let mut bytes = executable.len();
+        for argument in &arguments {
+            if argument.as_bytes().contains(&0) {
+                return Err(ContractError::InvalidDocument);
+            }
+            bytes = bytes
+                .checked_add(argument.len())
+                .ok_or(ContractError::InvalidDocument)?;
+        }
+        if bytes > MAXIMUM_LAUNCH_SELECTION_BYTES {
+            return Err(ContractError::InvalidDocument);
+        }
+        Ok(Self {
+            executable,
+            arguments,
+        })
+    }
+
+    #[must_use]
+    pub fn executable(&self) -> &str {
+        &self.executable
+    }
+
+    #[must_use]
+    pub fn arguments(&self) -> &[String] {
+        &self.arguments
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LaunchSelectionRef<'a> {
+    exec: &'a str,
+    args: &'a [String],
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct LaunchSelectionOwned {
+    exec: String,
+    args: Vec<String>,
+}
+
+impl Serialize for LaunchSelection {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        LaunchSelectionRef {
+            exec: &self.executable,
+            args: &self.arguments,
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for LaunchSelection {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let wire = LaunchSelectionOwned::deserialize(deserializer)?;
+        Self::new(wire.exec, wire.args).map_err(de::Error::custom)
     }
 }
 
@@ -276,6 +372,11 @@ pub enum WorkbenchAction {
         terminal_context_id: WorkbenchTerminalContextId,
         label: WorkbenchLabel,
         geometry: WorkbenchTerminalGeometry,
+        /// An explicit launch program; absent runs the resolved default
+        /// shell. Serialized only when present — a default launch emits
+        /// no key rather than a null placeholder.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        launch: Option<LaunchSelection>,
     },
     #[serde(rename = "panel.split")]
     PanelSplit {
@@ -285,6 +386,11 @@ pub enum WorkbenchAction {
         direction: WorkbenchPanelSplitDirection,
         label: WorkbenchLabel,
         geometry: WorkbenchTerminalGeometry,
+        /// An explicit launch program; absent runs the resolved default
+        /// shell. Serialized only when present — a default launch emits
+        /// no key rather than a null placeholder.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        launch: Option<LaunchSelection>,
     },
     #[serde(rename = "panel.close")]
     PanelClose {
@@ -343,6 +449,8 @@ pub enum WorkbenchRequest {
     TabCloseResume(WorkbenchTabCloseResume),
     #[serde(rename = "workbench.publication.read")]
     PublicationRead(PublicationReadIntent),
+    #[serde(rename = "workbench.worktree-list.read")]
+    WorktreeListRead(WorkbenchWorktreeListRead),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -552,6 +660,8 @@ pub enum WorkbenchResponse {
     TabCloseResume(WorkbenchTabCloseResumeResult),
     #[serde(rename = "workbench.publication.result")]
     Publication(WorkbenchPublicationResult),
+    #[serde(rename = "workbench.worktree-list.result")]
+    WorktreeList(WorkbenchWorktreeListResult),
 }
 
 pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, ContractError> {
@@ -618,6 +728,12 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
                 }
             }
             Ok(())
+        }
+        WorkbenchResponse::WorktreeList(result) => {
+            // The dedicated 32 KiB variant cap is enforced on parse and
+            // serialize alike; entry structure is part of the contract.
+            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKTREE_LIST_RESULT_BYTES)?;
+            result.validate()
         }
     }
 }

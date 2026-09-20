@@ -10,7 +10,9 @@ pub use carrier::{
     write_workbench_request, write_workbench_response,
 };
 pub use command::{
-    MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES, MAXIMUM_RESULT_PUBLICATIONS, PublicationReadIntent,
+    LaunchSelection, MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES,
+    MAXIMUM_ENCODED_WORKTREE_LIST_RESULT_BYTES, MAXIMUM_LAUNCH_SELECTION_ARGUMENTS,
+    MAXIMUM_LAUNCH_SELECTION_BYTES, MAXIMUM_RESULT_PUBLICATIONS, PublicationReadIntent,
     WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
     WorkbenchCommandUnavailableReason, WorkbenchLabel, WorkbenchPanelSplitDirection,
     WorkbenchPublicationOutcome, WorkbenchPublicationResult, WorkbenchRejectionReason,
@@ -23,8 +25,10 @@ pub use command::{
     WorkbenchTabCloseUnavailableReason, WorkbenchTabCloseUnknownPhase,
     WorkbenchTabCloseUnknownReason, WorkbenchTabMoveDirection, WorkbenchTerminalFailureReason,
     WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason,
-    parse_workbench_request, parse_workbench_response, serialize_workbench_request,
-    serialize_workbench_response,
+    WorkbenchWorktreeListOutcome, WorkbenchWorktreeListRead, WorkbenchWorktreeListResult,
+    WorktreeEntry, WorktreeEntryText, WorktreeListStage, WorktreeListTooLargeOrigin,
+    WorktreeListUnavailableReason, parse_workbench_request, parse_workbench_response,
+    serialize_workbench_request, serialize_workbench_response,
 };
 
 pub use directory::{

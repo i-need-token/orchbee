@@ -6,7 +6,7 @@ mod output;
 mod present;
 mod query;
 pub(crate) mod results;
-mod schema;
+pub(crate) mod schema;
 pub(crate) mod send;
 mod site;
 #[cfg(target_os = "linux")]
@@ -187,6 +187,10 @@ pub(crate) struct Failure {
     /// to the localized stderr diagnostic only and never serialized. Boxed so
     /// the rarely-reached reason does not enlarge every `Result<_, Failure>`.
     pub(crate) usage: Option<Box<crate::invocation::UsageReason>>,
+    /// A dedicated failure envelope schema when the failure belongs to a
+    /// bounded command family (`worktree list`); `None` is the shared
+    /// `orchbee.cli.failure` document.
+    pub(crate) failure_schema: Option<&'static str>,
 }
 
 impl Failure {
@@ -196,6 +200,7 @@ impl Failure {
             details: None,
             source: None,
             usage: None,
+            failure_schema: None,
         }
     }
 
@@ -206,6 +211,13 @@ impl Failure {
 
     pub(crate) fn source(mut self, source: Value) -> Self {
         self.source = Some(source);
+        self
+    }
+
+    /// Mark the failure as belonging to a dedicated family envelope; only
+    /// post-boundary failures carry it.
+    pub(crate) fn failure_schema(mut self, schema_id: &'static str) -> Self {
+        self.failure_schema = Some(schema_id);
         self
     }
 }
@@ -236,7 +248,10 @@ fn failure_output(failure: Failure, format: Option<OutputFormat>, locale: Locale
     match format {
         Some(OutputFormat::Json) => {
             let mut document = Map::from_iter([
-                ("schema".to_owned(), json!(schema::FAILURE_ID)),
+                (
+                    "schema".to_owned(),
+                    json!(failure.failure_schema.unwrap_or(schema::FAILURE_ID)),
+                ),
                 ("version".to_owned(), json!(1)),
             ]);
             let mut failure_object =
@@ -325,6 +340,7 @@ pub(crate) fn parse_failure(failure: ParseFailure, locale: Locale) -> Output {
         details,
         source: None,
         usage: failure.usage.map(Box::new),
+        failure_schema: None,
     };
     let format = match failure.envelope {
         crate::invocation::FailureEnvelope::Json => Some(OutputFormat::Json),
@@ -418,6 +434,17 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
                 success_output(projection, source, &command, format, locale)
             }
         },
+        // `worktree list` couples the snapshot to one Workbench worktree-list
+        // read on the same session; the directory is a strict typed ID and
+        // membership is the Server's call, never the CLI's.
+        QueryCommand::WorktreeList { project, directory } => {
+            match query::worktree_list(project, directory) {
+                Err(failure) => failure_output(failure, Some(format), locale),
+                Ok((source, projection)) => {
+                    success_output(projection, source, &command, format, locale)
+                }
+            }
+        }
         _ => network_query(&command, format, locale),
     }
 }

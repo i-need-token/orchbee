@@ -47,6 +47,7 @@ fn command(
             terminal_context_id: context,
             label: WorkbenchLabel::parse(label).unwrap(),
             geometry,
+            launch: None,
         },
     }
 }

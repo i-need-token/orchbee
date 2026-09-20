@@ -126,12 +126,12 @@ authorization kernel 固定为 version 2，而不是接受带 version 2 capacity
 当 echoed authorization 不是 version 2 时，construction 与 decoding 也会拒绝
 `CapacityExceeded`。
 
-| Message                    | 方向                      | 闭合 semantic payload                                                                                                                                     |
-| -------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AuthorizedTerminalLaunch` | Server -> Capability Node | 完整 operation authorization、可选的有界 node-local current directory，以及带完整 pixel geometry 的 `Immediate` 或 `Deferred`。                           |
-| `TerminalLaunchResult`     | Capability Node -> Server | 确切 authorization，加 `HostAccepted`、`Rejected`、`Failed` 或 `OutcomeUnknown`；每个 post-handoff outcome 都保留 observed Host epoch。                   |
-| `AuthorizedTerminalStart`  | Server -> Capability Node | 单独 fenced 且 leased 的 authorization、完整 target Host terminal identity，以及 previously deferred terminal 的完整 pixel geometry。                     |
-| `TerminalStartResult`      | Capability Node -> Server | 确切 authorization 与 target Host identity，加 `HostAccepted`、`Rejected`、`Failed` 或 `OutcomeUnknown`；success 显式区分 `Started` 与 `AlreadyStarted`。 |
+| Message                    | 方向                      | 闭合 semantic payload                                                                                                                                            |
+| -------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AuthorizedTerminalLaunch` | Server -> Capability Node | 完整 operation authorization、可选的有界 node-local current directory、带完整 pixel geometry 的 `Immediate` 或 `Deferred`，以及可选的有界显式 launch selection。 |
+| `TerminalLaunchResult`     | Capability Node -> Server | 确切 authorization，加 `HostAccepted`、`Rejected`、`Failed` 或 `OutcomeUnknown`；每个 post-handoff outcome 都保留 observed Host epoch。                          |
+| `AuthorizedTerminalStart`  | Server -> Capability Node | 单独 fenced 且 leased 的 authorization、完整 target Host terminal identity，以及 previously deferred terminal 的完整 pixel geometry。                            |
+| `TerminalStartResult`      | Capability Node -> Server | 确切 authorization 与 target Host identity，加 `HostAccepted`、`Rejected`、`Failed` 或 `OutcomeUnknown`；success 显式区分 `Started` 与 `AlreadyStarted`。        |
 
 每条 authorization 都绑定 product terminal ID、operation ID、protocol-owned Worker ID、nonzero
 Worker generation、nonzero per-terminal monotonic fence、stateful lease ID 与 nonzero absolute
@@ -154,6 +154,14 @@ authority 正确签发为前提，并不声称能够遏制违反 invariant 的 i
 `u16`。这些 type
 是 Capability Node refinement，不 import 或 re-export Terminal Host wire payload；未来 Worker
 adapter 必须显式转换并保留 validation。
+
+可选 launch selection 是 launch mode 之后的闭合尾块：`u16` executable 长度、executable 字节、
+`u16` argument 计数，然后是若干 `u16` 长度前缀的 argument 字符串。Executable 是不含 NUL 的
+非空 absolute UTF-8 path；argument 是不含 NUL 的 UTF-8 字符串（允许空值与 dash 前导值），最多
+128 项，且 executable 加全部 argument 合计最多 2,048 UTF-8 byte。在 mode block 处结束的
+payload 解码为默认 launch；存在的尾块按完整消费校验，部分字节或多余尾随字节一律拒绝。尾块
+只承载 `argv[1..]`——`argv[0]` 由 Host 从 executable path 合成——且缺省与显式空 argument
+列表不同。
 
 ## 只读查看附件消息
 
@@ -295,6 +303,33 @@ viewer、resize 或 lease 权限，也不占两个映射中的任何槽位；授
 顺序 send 内。Codec test 覆盖每个 payload/outcome/reason 组合、严格 golden、未知 tag、
 trailing byte 与边界长度；Server 与 Worker 指南拥有准入与真实 Host 证据。
 
+## Worktree job 消息
+
+OBCN kind 15 `WorktreeJobRequest` 与 kind 16 `WorktreeJobResult` 为 `worktree list`
+Server 流程承载一个有界 `git worktree list` 发现 job。请求依次为 operation ID（16 字节）、
+Worker ID（16）、Worker generation（u64），然后是 action tag：1 `Start` 带 u16 长度与
+1 至 4,096 字节目录（绝对、非空、无 NUL 的 POSIX 路径——构造与解码双侧校验），
+2 `Poll` 带 job ID（16），或 3 `Cancel` 带 job ID（16）。job ID 即 Start 操作自身的
+operation ID：Server 为每个 job 铸造一个身份并在 Poll/Cancel 上复用。
+
+结果回显 operation ID（16）、action tag 与 job ID（16）——action 回显使每个 outcome
+码不歧义——然后是一个按 action 划分的 outcome 字节。Start outcome：1 Accepted、
+2 Busy、3 InvalidDirectory、4 SpawnThreadFailed（属主线程，绝非子进程）、5 Dead
+（永久 tombstone 槽位）、12 RejectedFencing。Poll outcome：1 Pending；2 Completed 带
+三个 u16 长度前缀字节字段——probe `common_dir`、`listing` 与 `stderr`——其长度之和
+在构造与解码时都必须满足 7,936 字节字段预算；3 GitFailed 带 stage（1 probe / 2 list）、
+status 存在字节、可选 i32 退出码及同一预算下的一个长度前缀 `stderr` 字段；
+4 SpawnUnavailable{stage}；5 SpawnFailed{stage}；6 TooLarge 带可选 stage（wire 序列化
+预算自身溢出时为 0）；7 Timeout；8 Cancelled；9 OwnerIo 带可选 stage；10 Unknown；
+11 PhysicalUnknown；或 12 RejectedFencing。Cancel outcome 仅摘要：1 Registered 或
+2 AlreadyTerminal——终态在有界 receipt 过期前仍可由 Poll 重读——另有 10 Unknown、
+11 PhysicalUnknown 与 12 RejectedFencing。`RejectedFencing` 结果是类型化帧而非断连：
+钉在另一 Worker 或 generation 上的请求被拒绝且不退役 carrier。
+
+8 KiB OBCN 帧上限不变——7,936 是保守 policy 界，使每个 arm 都低于载荷上限并留有
+明示余量。Codec test 覆盖每个 action 与 outcome arm、严格 golden、字段预算边界、
+未知 tag、stage 码与 trailing byte；Server 与 Worker 指南拥有准入、fencing 与 job 证据。
+
 ## Authorization outcome
 
 Pre-admission rejection 区分 wrong Worker、stale generation、expired lease、stale fence、
@@ -316,9 +351,9 @@ identity 完全相同。其 `HostRejected` 与 `HostReportedFailure` epoch 必�
 constructor 发出矛盾的 canonical encoding。Worker refinement 还要求 successful Start observation
 在构造 result 前保留确切 authorized geometry。
 
-Launch payload 没有 general environment overlay、executable、argument vector、Project、
-Checkout、Worktree、Agent 或 Launch Profile field。Unknown trailing byte 会被拒绝，因此本
-contract 根本无法表示 nonempty environment。
+Launch payload 没有 general environment overlay、Project、Checkout、Worktree、Agent 或
+Launch Profile field。其唯一的 program data 是上文所述可选的有界 launch selection；unknown
+trailing byte 会被拒绝，因此本 contract 根本无法表示 nonempty environment。
 
 ## Carrier 与 ownership 边界
 

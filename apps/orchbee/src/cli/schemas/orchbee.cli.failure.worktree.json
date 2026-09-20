@@ -1,0 +1,410 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.cli.failure.worktree",
+	"title": "orchbee worktree list failure envelope",
+	"type": "object",
+	"required": ["schema", "version", "failure"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.cli.failure.worktree"
+		},
+		"version": {
+			"const": 1
+		},
+		"failure": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": [
+						"check-failed",
+						"denied",
+						"internal-failure",
+						"not-found",
+						"output-too-large",
+						"protocol-invalid",
+						"service-unavailable",
+						"timeout",
+						"transport-loss"
+					]
+				},
+				"details": {
+					"type": "object"
+				}
+			}
+		},
+		"source": {
+			"$ref": "#/$defs/source"
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "not-found"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/directoryDetails"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "service-unavailable"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/worktreeListUnavailableDetails"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "check-failed"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/worktreeListCheckDetails"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "timeout"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/worktreeListTimeoutDetails"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "output-too-large"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/worktreeListLimitDetails"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "transport-loss"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/worktreeListStageDetails"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "protocol-invalid"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"oneOf": [
+									{
+										"$ref": "#/$defs/worktreeListStageDetails"
+									},
+									{
+										"$ref": "#/$defs/worktreeListCorrelationDetails"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"const": "denied"
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/worktreeListStageDetails"
+							}
+						}
+					}
+				}
+			}
+		}
+	],
+	"$defs": {
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"directoryDetails": {
+			"type": "object",
+			"required": ["resource", "target"],
+			"additionalProperties": false,
+			"properties": {
+				"resource": {
+					"const": "directory"
+				},
+				"target": {
+					"$ref": "#/$defs/id"
+				}
+			}
+		},
+		"worktreeListStageDetails": {
+			"type": "object",
+			"required": ["stage"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "worktree-list"
+				}
+			}
+		},
+		"worktreeListUnavailableDetails": {
+			"type": "object",
+			"required": ["stage", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "worktree-list"
+				},
+				"reason": {
+					"enum": ["server-busy", "worker-unavailable", "job-dead", "job-unknown"]
+				}
+			}
+		},
+		"worktreeListCheckDetails": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["stage", "status"],
+					"additionalProperties": false,
+					"properties": {
+						"stage": {
+							"enum": ["probe", "list"]
+						},
+						"status": {
+							"type": ["integer", "null"]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["stage"],
+					"additionalProperties": false,
+					"properties": {
+						"stage": {
+							"const": "parse"
+						}
+					}
+				}
+			]
+		},
+		"worktreeListTimeoutDetails": {
+			"type": "object",
+			"required": ["stage", "timeoutMs"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "worktree-list"
+				},
+				"timeoutMs": {
+					"const": 5000
+				}
+			}
+		},
+		"worktreeListLimitDetails": {
+			"type": "object",
+			"required": ["stage", "origin", "limitBytes"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "worktree-list"
+				},
+				"origin": {
+					"enum": ["git-probe", "git-list", "worker-result", "workbench-result"]
+				},
+				"limitBytes": {
+					"enum": [65536, 7936, 32768]
+				}
+			}
+		},
+		"worktreeListCorrelationDetails": {
+			"type": "object",
+			"required": ["stage", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "worktree-list"
+				},
+				"reason": {
+					"const": "correlation-mismatch"
+				}
+			}
+		},
+		"source": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind", "siteId", "revision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "workbench-snapshot"
+						},
+						"siteId": {
+							"$ref": "#/$defs/id"
+						},
+						"revision": {
+							"$ref": "#/$defs/revision"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "siteId", "revision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "worktree-list"
+						},
+						"siteId": {
+							"$ref": "#/$defs/id"
+						},
+						"revision": {
+							"$ref": "#/$defs/revision"
+						}
+					}
+				}
+			]
+		},
+		"revision": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)$"
+		}
+	}
+}

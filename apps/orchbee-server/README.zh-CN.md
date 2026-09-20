@@ -17,6 +17,10 @@ installer 或 service manager 消费。
 一个空 Terminal Context 及其引用。独立授权的 `workspace.primary-directory.accept` 校验本地
 Worker 目录，再原子添加 Project Directory 并由该空 Workspace 选中。
 [目录契约](docs/workspace-terminal-directory.zh-CN.md) 拥有校验、重放和失败语义。
+`worktree-list` 读取先对已提交 snapshot 复核该 Project Directory 的 membership，再经既有
+carrier 向该目录的属主 Worker 派发一个 fencing OBCN 发现 job；应答是 Worker 有界的原始
+`git worktree list --porcelain -z` 字节，在 service 边界解析——membership 与 generation
+检查在锁内进行，请求 I/O 绝不在锁内。
 首个独立 Open 还会在启动前提交共享 Tab/Panel/Presentation
 及逻辑终端 binding。本地 `tab.create` 命令追加一个简单独立或已配置 Workspace Tab，共同提交成员关系与保留的
 终端意图，再派发一次启动。精确重放返回同一份待处理或最终结果。后续 Close 可以移除该

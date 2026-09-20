@@ -44,6 +44,7 @@ fn failed_site_initialization_preserves_unavailable_workbench_and_direct_termina
             None,
             None,
             orchbee_client_server_protocol::StartMode::Deferred,
+            None,
         );
         assert!(
             matches!(service.execute(ClientMessage::TerminalCreate(create)),

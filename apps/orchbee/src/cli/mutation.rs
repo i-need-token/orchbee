@@ -455,6 +455,7 @@ mod linux {
                 context,
                 label,
                 geometry,
+                launch,
             } => {
                 let terminal_context_id = match context {
                     TabContext::Standalone => {
@@ -469,6 +470,7 @@ mod linux {
                     terminal_context_id,
                     label: label.clone(),
                     geometry: *geometry,
+                    launch: launch.clone(),
                 })
             }
             MutationCommand::TabRename { target, label } => {
@@ -499,6 +501,7 @@ mod linux {
                 direction,
                 label,
                 geometry,
+                launch,
             } => {
                 let (context, tab, panel_id) = resolve_panel(snapshot, target)?;
                 Ok(WorkbenchAction::PanelSplit {
@@ -508,6 +511,7 @@ mod linux {
                     direction: *direction,
                     label: label.clone(),
                     geometry: *geometry,
+                    launch: launch.clone(),
                 })
             }
             MutationCommand::PanelClose { target } => {

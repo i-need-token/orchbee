@@ -139,12 +139,12 @@ capacity tag as unknown. Mixed versions consequently fail closed instead of sile
 rather than accepting a configurable version with version 2 capacity behavior. Construction and
 decoding also reject `CapacityExceeded` when its echoed authorization is not version 2.
 
-| Message                    | Direction                 | Closed semantic payload                                                                                                                                               |
-| -------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AuthorizedTerminalLaunch` | Server -> Capability Node | Complete operation authorization, optional bounded node-local current directory, and either `Immediate` with complete pixel geometry or `Deferred`.                   |
-| `TerminalLaunchResult`     | Capability Node -> Server | The exact authorization plus `HostAccepted`, `Rejected`, `Failed`, or `OutcomeUnknown`; every post-handoff outcome preserves the observed Host epoch.                 |
-| `AuthorizedTerminalStart`  | Server -> Capability Node | A separately fenced and leased authorization, complete target Host terminal identity, and complete pixel geometry for a previously deferred terminal.                 |
-| `TerminalStartResult`      | Capability Node -> Server | The exact authorization and target Host identity plus `HostAccepted`, `Rejected`, `Failed`, or `OutcomeUnknown`; success is explicitly `Started` or `AlreadyStarted`. |
+| Message                    | Direction                 | Closed semantic payload                                                                                                                                                                            |
+| -------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AuthorizedTerminalLaunch` | Server -> Capability Node | Complete operation authorization, optional bounded node-local current directory, either `Immediate` with complete pixel geometry or `Deferred`, and an optional bounded explicit launch selection. |
+| `TerminalLaunchResult`     | Capability Node -> Server | The exact authorization plus `HostAccepted`, `Rejected`, `Failed`, or `OutcomeUnknown`; every post-handoff outcome preserves the observed Host epoch.                                              |
+| `AuthorizedTerminalStart`  | Server -> Capability Node | A separately fenced and leased authorization, complete target Host terminal identity, and complete pixel geometry for a previously deferred terminal.                                              |
+| `TerminalStartResult`      | Capability Node -> Server | The exact authorization and target Host identity plus `HostAccepted`, `Rejected`, `Failed`, or `OutcomeUnknown`; success is explicitly `Started` or `AlreadyStarted`.                              |
 
 Every authorization binds the product terminal ID, operation ID, protocol-owned Worker ID,
 nonzero Worker generation, nonzero per-terminal monotonic fence, stateful lease ID and nonzero
@@ -169,6 +169,15 @@ height are in `0..=4096` and must be either both positive (pixels known) or both
 unknown), never mixed. The grid is at most 262,144 cells, and each total pixel extent fits `u16`. These types are Capability Node refinements, not
 imports or re-exports of Terminal Host wire payloads; a future Worker adapter must convert them
 explicitly and preserve validation.
+
+The optional launch selection is a closed tail after the launch mode: a `u16` executable length,
+the executable bytes, a `u16` argument count, then `u16`-length-prefixed argument strings. The
+executable is a nonempty absolute UTF-8 path without NUL; arguments are NUL-free UTF-8 strings
+(empty and dash-leading values allowed) with at most 128 entries and at most 2,048 UTF-8 bytes
+across the executable and all arguments combined. A payload that ends at the mode block decodes as
+the default launch; a present tail is validated with complete consumption, so partial or trailing
+bytes reject. The tail carries `argv[1..]` only — `argv[0]` is the Host's synthesis from the
+executable path — and absence is distinct from an explicit empty argument list.
 
 ## Read-only viewer messages
 
@@ -320,6 +329,37 @@ slot in either map; the authorized attachment is temporary to one sequential sen
 cover every payload/outcome/reason combination, strict goldens, unknown tags, trailing bytes, and
 boundary lengths; the Server and Worker guides own admission and the real Host evidence.
 
+## Worktree job messages
+
+OBCN kind 15 `WorktreeJobRequest` and kind 16 `WorktreeJobResult` carry one bounded
+`git worktree list` discovery job for the `worktree list` Server flow. A request contains
+operation ID (16 bytes), Worker ID (16), Worker generation (u64), then an action tag: 1
+`Start` with a u16 length and 1 through 4,096 directory bytes (an absolute, nonempty,
+NUL-free POSIX path — validated at construction and decode), 2 `Poll` with a job ID (16),
+or 3 `Cancel` with a job ID (16). The job ID is the Start operation's own operation ID:
+a Server mints one identity per job and reuses it on Poll and Cancel.
+
+A result echoes the operation ID (16), the action tag, and the job ID (16) — the action echo
+keeps every outcome code unambiguous — then one action-scoped outcome byte. Start outcomes:
+1 Accepted, 2 Busy, 3 InvalidDirectory, 4 SpawnThreadFailed (the owner thread, never a
+child), 5 Dead (a permanent tombstone slot), or 12 RejectedFencing. Poll outcomes: 1
+Pending; 2 Completed with three u16-length-prefixed byte fields — probe `common_dir`,
+`listing`, and `stderr` — whose summed length must fit the 7,936-byte field budget at
+construction and decode; 3 GitFailed with stage (1 probe / 2 list), a status-presence byte,
+an optional i32 exit status, and one length-prefixed `stderr` field under the same budget;
+4 SpawnUnavailable{stage}; 5 SpawnFailed{stage}; 6 TooLarge with an optional stage (0 when
+the wire serialization budget itself overflowed); 7 Timeout; 8 Cancelled; 9 OwnerIo with an
+optional stage; 10 Unknown; 11 PhysicalUnknown; or 12 RejectedFencing. Cancel outcomes are
+summary-only: 1 Registered or 2 AlreadyTerminal — the terminal outcome stays re-readable
+through Poll until the bounded receipt expires — plus 10 Unknown, 11 PhysicalUnknown, and 12
+RejectedFencing. A `RejectedFencing` result is a typed frame, not a disconnect: a request
+pinned to another Worker or generation is refused without retiring the carrier.
+
+The 8 KiB OBCN frame limit is unchanged — 7,936 is a conservative policy bound that keeps
+every arm below the payload ceiling with declared headroom. Codec tests cover every action
+and outcome arm, strict goldens, the field-budget boundary, unknown tags, stage codes, and
+trailing bytes; the Server and Worker guides own admission, fencing, and job evidence.
+
 ## Authorization outcomes
 
 Pre-admission rejection distinguishes wrong Worker, stale generation, expired lease, stale fence,
@@ -344,9 +384,10 @@ reject these identity and epoch contradictions, so canonical encoding cannot emi
 constructors. The Worker refinement additionally requires a successful Start observation to retain
 the exact authorized geometry before it constructs a result.
 
-The launch payload has no general environment overlay, executable, argument vector, Project,
-Checkout, Worktree, Agent, or Launch Profile field. Unknown trailing bytes are rejected, so a
-nonempty environment is not representable by this contract.
+The launch payload has no general environment overlay, Project, Checkout, Worktree, Agent, or
+Launch Profile field. Its only program data is the optional bounded launch selection described
+above; unknown trailing bytes are rejected, so a nonempty environment is not representable by this
+contract.
 
 ## Carrier and ownership boundaries
 

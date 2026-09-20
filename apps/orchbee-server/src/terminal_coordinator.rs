@@ -525,6 +525,27 @@ impl TerminalCoordinator {
                 }
             },
         };
+        // A decoded selection already passed the closed lexical contract at
+        // the OBCS boundary; re-validation here is the same typed constructor
+        // and can only fail on a contract divergence, which is a Server
+        // invariant failure, not a client rejection.
+        let launch = match request
+            .launch()
+            .map(|launch| {
+                orchbee_capability_node_protocol::LaunchSelection::new(
+                    launch.executable().to_owned(),
+                    launch.arguments().to_vec(),
+                )
+            })
+            .transpose()
+        {
+            Ok(launch) => launch,
+            Err(_) => {
+                return Err(ready(CreateOutcome::Failed {
+                    reason: CreateFailureReason::TerminalCreateFailed,
+                }));
+            }
+        };
         let Some(expiry) = expiry else {
             return Err(ready(CreateOutcome::Unavailable {
                 reason: CreateUnavailableReason::ServerBusy,
@@ -547,7 +568,7 @@ impl TerminalCoordinator {
             coordinator: self,
             pending: Box::new(PendingOperation {
                 command: CapabilityNodeMessage::AuthorizedTerminalLaunch(
-                    AuthorizedTerminalLaunch::new(authorization, cwd, mode),
+                    AuthorizedTerminalLaunch::new(authorization, cwd, mode, launch),
                 ),
                 create_id: request.request_id().clone(),
                 request: ClientMessage::TerminalCreate(request),
@@ -730,6 +751,14 @@ impl TerminalCoordinator {
         let identity = self.next_identity?;
         self.next_identity = identity.checked_add(1);
         Some(identity.to_be_bytes())
+    }
+
+    /// Reserves `count` sequential identities and returns the block base, so a
+    /// caller can derive fresh IDs without re-entering the coordinator lock.
+    pub(crate) fn allocate_identity_block(&mut self, count: u128) -> Option<u128> {
+        let base = self.next_identity?;
+        self.next_identity = Some(base.checked_add(count)?);
+        Some(base)
     }
 
     pub(crate) fn allocate_viewer_identities(&mut self) -> Option<ViewerOperationIdentities> {

@@ -101,6 +101,7 @@ fn immediate_create() -> Result<ClientMessage, Box<dyn std::error::Error>> {
         StartMode::Immediate {
             geometry: Geometry::new(80, 24, 9, 18)?,
         },
+        None,
     )))
 }
 
@@ -110,6 +111,7 @@ fn deferred_create() -> Result<ClientMessage, Box<dyn std::error::Error>> {
         None,
         None,
         StartMode::Deferred,
+        None,
     )))
 }
 

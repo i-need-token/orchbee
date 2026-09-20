@@ -48,6 +48,7 @@ fn parked_tab_create_completion_survives_an_interleaved_split_on_one_connection(
             terminal_context_id: context_id.clone(),
             label: WorkbenchLabel::parse("settled source")?,
             geometry: workbench_geometry()?,
+            launch: None,
         },
     );
     write_obwp(&mut first_client, &first_request, deadline())?;
@@ -69,6 +70,7 @@ fn parked_tab_create_completion_survives_an_interleaved_split_on_one_connection(
             terminal_context_id: context_id.clone(),
             label: WorkbenchLabel::parse("pending during split")?,
             geometry: workbench_geometry()?,
+            launch: None,
         },
     );
     write_obwp(&mut first_client, &second_request, deadline())?;
@@ -98,6 +100,7 @@ fn parked_tab_create_completion_survives_an_interleaved_split_on_one_connection(
             direction: WorkbenchPanelSplitDirection::Right,
             label: WorkbenchLabel::parse("split peer")?,
             geometry: workbench_geometry()?,
+            launch: None,
         },
     );
     write_obwp(&mut second_client, &split_request, deadline())?;
@@ -238,6 +241,7 @@ fn never_split_fixture() -> TestResult<(
             terminal_context_id: context_id,
             label: WorkbenchLabel::parse("never split")?,
             geometry: workbench_geometry()?,
+            launch: None,
         },
     );
     write_obwp(&mut first_client, &first_request, deadline())?;

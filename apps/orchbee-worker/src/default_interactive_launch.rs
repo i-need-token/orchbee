@@ -59,12 +59,16 @@ fn default_launch(executable: &str) -> DefaultInteractiveLaunch {
     DefaultInteractiveLaunch {
         executable: executable.to_owned(),
         arguments: Vec::new(),
-        environment: [
-            environment_entry("TERM", "xterm-256color"),
-            environment_entry("COLORTERM", "truecolor"),
-            environment_entry("TERM_PROGRAM", "ghostty"),
-        ],
+        environment: default_launch_environment(),
     }
+}
+
+pub(crate) fn default_launch_environment() -> [DefaultLaunchEnvironmentEntry; 3] {
+    [
+        environment_entry("TERM", "xterm-256color"),
+        environment_entry("COLORTERM", "truecolor"),
+        environment_entry("TERM_PROGRAM", "ghostty"),
+    ]
 }
 
 fn environment_entry(name: &str, value: &str) -> DefaultLaunchEnvironmentEntry {

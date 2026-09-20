@@ -11,13 +11,13 @@ use crate::{
 use super::{
     AbsoluteCwd, AuthorizedTerminalLaunch, AuthorizedTerminalStart, HostCreationId, HostEpoch,
     HostLaunchAccepted, HostLaunchState, HostStartAccepted, HostTerminalId, HostTerminalIdentity,
-    LeaseExpiresAtUnixMilliseconds, LeaseId, MAXIMUM_AUTHORIZED_CWD_BYTES, OperationId,
-    StartTransition, TERMINAL_LAUNCH_CAPABILITY_VERSION, TerminalFence, TerminalId,
-    TerminalLaunchCapabilityVersion, TerminalLaunchFailure, TerminalLaunchMode,
-    TerminalLaunchOutcome, TerminalLaunchRejection, TerminalLaunchResult,
-    TerminalOperationAuthorization, TerminalOperationLease, TerminalPixelGeometry,
-    TerminalStartFailure, TerminalStartOutcome, TerminalStartRejection, TerminalStartResult,
-    WorkerGeneration,
+    LaunchSelection, LeaseExpiresAtUnixMilliseconds, LeaseId, MAXIMUM_AUTHORIZED_CWD_BYTES,
+    MAXIMUM_LAUNCH_SELECTION_BYTES, OperationId, StartTransition,
+    TERMINAL_LAUNCH_CAPABILITY_VERSION, TerminalFence, TerminalId, TerminalLaunchCapabilityVersion,
+    TerminalLaunchFailure, TerminalLaunchMode, TerminalLaunchOutcome, TerminalLaunchRejection,
+    TerminalLaunchResult, TerminalOperationAuthorization, TerminalOperationLease,
+    TerminalPixelGeometry, TerminalStartFailure, TerminalStartOutcome, TerminalStartRejection,
+    TerminalStartResult, WorkerGeneration,
 };
 
 #[test]
@@ -71,11 +71,13 @@ fn round_trips_every_authorized_message_canonically() -> Result<(), Box<dyn std:
             authorization,
             Some(AbsoluteCwd::new("/tmp/orchbee")?),
             TerminalLaunchMode::Immediate(geometry),
+            None,
         )),
         CapabilityNodeMessage::AuthorizedTerminalLaunch(AuthorizedTerminalLaunch::new(
             authorization,
             None,
             TerminalLaunchMode::Deferred,
+            None,
         )),
         CapabilityNodeMessage::TerminalLaunchResult(TerminalLaunchResult::new(
             authorization,
@@ -266,6 +268,7 @@ fn capability_two_capacity_rejections_have_exact_canonical_tags()
             authorization(legacy_capability)?,
             None,
             TerminalLaunchMode::Deferred,
+            None,
         ));
     assert_eq!(decode_message(&encode(&legacy_request)?)?, legacy_request);
     Ok(())
@@ -278,6 +281,7 @@ fn streaming_helpers_handle_partial_io_without_owning_stream_state()
         authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?,
         Some(AbsoluteCwd::new("/tmp/orchbee")?),
         TerminalLaunchMode::Immediate(geometry()?),
+        None,
     ));
     let canonical = encode(&expected)?;
 
@@ -298,6 +302,7 @@ fn rejects_invalid_frame_headers_before_reading_or_allocating_payload()
         authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?,
         None,
         TerminalLaunchMode::Deferred,
+        None,
     ));
     let canonical = encode(&message)?;
 
@@ -505,6 +510,7 @@ fn rejects_zero_identity_generation_fence_expiry_and_capability()
         authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?,
         None,
         TerminalLaunchMode::Deferred,
+        None,
     ));
     let canonical = encode(&launch)?;
     for field_range in [
@@ -548,6 +554,7 @@ fn rejects_relative_non_utf8_and_extra_cwd_fields() -> Result<(), Box<dyn std::e
         authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?,
         Some(AbsoluteCwd::new("/tmp")?),
         TerminalLaunchMode::Deferred,
+        None,
     ));
     let canonical = encode(&launch)?;
     let cwd_offset = canonical
@@ -585,6 +592,7 @@ fn nonempty_environment_overlay_has_no_wire_representation()
         authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?,
         None,
         TerminalLaunchMode::Deferred,
+        None,
     ));
     let mut encoded = encode(&launch)?;
 
@@ -599,15 +607,95 @@ fn nonempty_environment_overlay_has_no_wire_representation()
 }
 
 #[test]
+fn launch_selection_tail_round_trips_and_decodes_closed() -> Result<(), Box<dyn std::error::Error>>
+{
+    let authorization = authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?;
+    let selection = LaunchSelection::new(
+        "/bin/sh".to_owned(),
+        vec![
+            "-c".to_owned(),
+            String::new(),
+            "--".to_owned(),
+            "--flag=1".to_owned(),
+            "漢字".to_owned(),
+        ],
+    )?;
+    let launch = CapabilityNodeMessage::AuthorizedTerminalLaunch(AuthorizedTerminalLaunch::new(
+        authorization,
+        Some(AbsoluteCwd::new("/tmp")?),
+        TerminalLaunchMode::Immediate(geometry()?),
+        Some(selection),
+    ));
+    let canonical = encode(&launch)?;
+    assert_eq!(decode_message(&canonical)?, launch);
+
+    // A payload that ends at the mode block decodes to the default launch —
+    // the pre-extension wire shape stays a legal same-kind frame.
+    let base = encode(&CapabilityNodeMessage::AuthorizedTerminalLaunch(
+        AuthorizedTerminalLaunch::new(
+            authorization,
+            Some(AbsoluteCwd::new("/tmp")?),
+            TerminalLaunchMode::Immediate(geometry()?),
+            None,
+        ),
+    ))?;
+    assert_eq!(canonical[8..base.len()], base[8..]);
+    let decoded_default = match decode_message(&base)? {
+        CapabilityNodeMessage::AuthorizedTerminalLaunch(value) => value,
+        other => return Err(format!("decoded {other:?}").into()),
+    };
+    assert_eq!(decoded_default.launch(), None);
+
+    // A truncated selection block is rejected at every cut point, and a
+    // garbage tail after a complete selection is rejected by finish().
+    for cut in 1..(canonical.len() - base.len()) {
+        let mut truncated = canonical[..base.len() + cut].to_vec();
+        let length = u16::try_from(truncated.len() - 8)?;
+        truncated[6..8].copy_from_slice(&length.to_be_bytes());
+        assert!(
+            decode_message(&truncated).is_err(),
+            "tail truncated at {cut} decoded"
+        );
+    }
+    let mut trailing = canonical;
+    append_payload_bytes(&mut trailing, &[0])?;
+    assert_eq!(
+        decode_message(&trailing),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    // A syntactically complete but lexically invalid selection — a relative
+    // executable — is rejected by the closed decoder contract.
+    let mut relative = encode(&launch)?;
+    let exec_offset = relative
+        .windows(7)
+        .position(|window| window == b"/bin/sh")
+        .ok_or("canonical exec bytes must exist")?;
+    relative[exec_offset] = b'.';
+    assert_eq!(
+        decode_message(&relative),
+        Err(ProtocolError::InvalidPayload)
+    );
+    Ok(())
+}
+
+#[test]
 fn maximum_launch_remains_inside_the_frame_bound() -> Result<(), Box<dyn std::error::Error>> {
     let maximum_cwd = AbsoluteCwd::new(&format!(
         "/{}",
         "z".repeat(MAXIMUM_AUTHORIZED_CWD_BYTES - 1)
     ))?;
+    // The worst-case payload pairs the maximum cwd with a maximum-size launch
+    // selection: executable plus argument bytes total exactly the 2,048 bound.
+    let maximum_selection = LaunchSelection::new(
+        "/bin/sh".to_owned(),
+        vec!["x".repeat(MAXIMUM_LAUNCH_SELECTION_BYTES - "/bin/sh".len())],
+    )?;
     let message = CapabilityNodeMessage::AuthorizedTerminalLaunch(AuthorizedTerminalLaunch::new(
         authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?,
         Some(maximum_cwd),
         TerminalLaunchMode::Immediate(geometry()?),
+        Some(maximum_selection),
     ));
     let encoded = encode(&message)?;
     let payload_length = usize::from(u16::from_be_bytes([encoded[6], encoded[7]]));
@@ -622,7 +710,7 @@ fn rejects_unknown_outcomes_transitions_and_truncated_payloads()
     let authorization = authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?;
 
     let mut unknown_launch_mode = encode(&CapabilityNodeMessage::AuthorizedTerminalLaunch(
-        AuthorizedTerminalLaunch::new(authorization, None, TerminalLaunchMode::Deferred),
+        AuthorizedTerminalLaunch::new(authorization, None, TerminalLaunchMode::Deferred, None),
     ))?;
     let launch_mode_offset = unknown_launch_mode.len() - 1;
     unknown_launch_mode[launch_mode_offset] = 99;

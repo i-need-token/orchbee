@@ -110,6 +110,7 @@ fn install_two_tabs(
             terminal_context_id: first.terminal_context_id().clone(),
             label: WorkbenchLabel::parse("\0duplicate\u{2028}\u{2029}\n").unwrap(),
             geometry,
+            launch: None,
         },
     );
     let terminal_grant =

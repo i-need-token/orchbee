@@ -33,6 +33,7 @@ mod tab_close;
 mod tab_create;
 mod viewer_session;
 mod workspace_directory;
+mod worktree_list;
 
 // One queued plus one in-flight exchange, each with a two-second write and twenty-second read.
 const LEASE_LIFETIME_MILLISECONDS: u64 = 46_000;
@@ -220,7 +221,8 @@ fn submit(handle: &WorkerRequestHandle, message: &CapabilityNodeMessage) -> Comp
             | WorkerOperationResult::Viewer(_)
             | WorkerOperationResult::Control(_)
             | WorkerOperationResult::Lifecycle(_)
-            | WorkerOperationResult::Send(_),
+            | WorkerOperationResult::Send(_)
+            | WorkerOperationResult::WorktreeJob(_),
         ) => Completion::Unknown,
         Err(WorkerRequestError::Backpressure) => Completion::Busy,
         Err(WorkerRequestError::PostDeliveryOutcomeUnknown(_)) => Completion::Unknown,

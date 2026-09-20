@@ -12,8 +12,8 @@ use orchbee_server::CloseStepObservation;
 use orchbee_workbench_protocol::{
     PublicationReadIntent, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchCommandResult, WorkbenchLabel, WorkbenchPanelId, WorkbenchPanelSplitDirection,
-    WorkbenchPublicationOutcome, WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId,
-    WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
+    WorkbenchPublicationOutcome, WorkbenchRejectionReason, WorkbenchRevision, WorkbenchTabId,
+    WorkbenchTerminalContextId, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
 };
 use std::time::Instant;
 
@@ -38,6 +38,7 @@ pub(super) fn split_command(
             direction,
             label: WorkbenchLabel::parse("split").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+            launch: None,
         },
     }
 }
@@ -980,4 +981,72 @@ fn bare_open_replays_a_non_opened_settled_result_over_a_multi_leaf_tree() {
         ));
     }
     assert!(!workbench_snapshot_unavailable(&mut coordinator));
+}
+
+#[test]
+fn launch_selection_reaches_the_split_command_and_replay_identity() {
+    let mut coordinator = site();
+    let create_a = tab_command(&coordinator, 1600, 0, "anchor");
+    let pending_a = dispatch_tab(&mut coordinator, create_a, 1601);
+    let completion_a = immediate_completion(pending_a.command());
+    coordinator
+        .complete_terminal_tab_create(pending_a, completion_a, Some(worker(1)))
+        .unwrap();
+    let (context, tab, panel_a) = standalone_leaf(&mut coordinator);
+    let mut split = split_command(
+        &mut coordinator,
+        1602,
+        context,
+        tab,
+        panel_a,
+        WorkbenchPanelSplitDirection::Right,
+    );
+    let WorkbenchAction::PanelSplit { launch, .. } = &mut split.action else {
+        panic!("panel.split action expected")
+    };
+    *launch = Some(
+        orchbee_workbench_protocol::LaunchSelection::new(
+            "/bin/sh".to_owned(),
+            vec!["-l".to_owned(), String::new(), "--flag".to_owned()],
+        )
+        .unwrap(),
+    );
+
+    // The pending OBCN command carries the selection verbatim.
+    let pending = dispatch_split(&mut coordinator, split.clone(), 1603);
+    let CapabilityNodeMessage::AuthorizedTerminalLaunch(authorized) = pending.command() else {
+        panic!("terminal Launch expected")
+    };
+    let selected = authorized.launch().expect("explicit launch selection");
+    assert_eq!(selected.executable(), "/bin/sh");
+    assert_eq!(
+        selected.arguments(),
+        ["-l".to_owned(), String::new(), "--flag".to_owned()].as_slice()
+    );
+
+    // An identical replay returns the pending outcome without dispatching a
+    // second launch.
+    let replay =
+        ready_split(coordinator.prepare_terminal_panel_split(split.clone(), None, None, None));
+    assert!(matches!(
+        replay.outcome,
+        WorkbenchCommandOutcome::PanelSplitPending { .. }
+    ));
+
+    // The same request id with a different selection conflicts before effect.
+    let mut conflict = split.clone();
+    let WorkbenchAction::PanelSplit { launch, .. } = &mut conflict.action else {
+        panic!("panel.split action expected")
+    };
+    *launch = Some(
+        orchbee_workbench_protocol::LaunchSelection::new("/bin/zsh".to_owned(), Vec::new())
+            .unwrap(),
+    );
+    assert!(matches!(
+        ready_split(coordinator.prepare_terminal_panel_split(conflict, None, None, None)).outcome,
+        WorkbenchCommandOutcome::Rejected {
+            reason: WorkbenchRejectionReason::RequestIdentityConflict,
+            ..
+        }
+    ));
 }

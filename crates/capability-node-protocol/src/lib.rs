@@ -27,13 +27,14 @@ pub use terminal_cwd_validation::{
 };
 pub use terminal_launch::{
     AbsoluteCwd, AuthorizedTerminalLaunch, AuthorizedTerminalStart, HostLaunchAccepted,
-    HostLaunchState, HostStartAccepted, HostTerminalIdentity, LeaseExpiresAtUnixMilliseconds,
-    MAXIMUM_AUTHORIZED_CWD_BYTES, StartTransition, TERMINAL_LAUNCH_CAPABILITY_VERSION,
-    TerminalFence, TerminalLaunchCapabilityVersion, TerminalLaunchFailure, TerminalLaunchMode,
-    TerminalLaunchOutcome, TerminalLaunchRejection, TerminalLaunchResult,
-    TerminalOperationAuthorization, TerminalOperationLease, TerminalPixelGeometry,
-    TerminalStartFailure, TerminalStartOutcome, TerminalStartRejection, TerminalStartResult,
-    WorkerGeneration,
+    HostLaunchState, HostStartAccepted, HostTerminalIdentity, LaunchSelection,
+    LeaseExpiresAtUnixMilliseconds, MAXIMUM_AUTHORIZED_CWD_BYTES,
+    MAXIMUM_LAUNCH_SELECTION_ARGUMENTS, MAXIMUM_LAUNCH_SELECTION_BYTES, StartTransition,
+    TERMINAL_LAUNCH_CAPABILITY_VERSION, TerminalFence, TerminalLaunchCapabilityVersion,
+    TerminalLaunchFailure, TerminalLaunchMode, TerminalLaunchOutcome, TerminalLaunchRejection,
+    TerminalLaunchResult, TerminalOperationAuthorization, TerminalOperationLease,
+    TerminalPixelGeometry, TerminalStartFailure, TerminalStartOutcome, TerminalStartRejection,
+    TerminalStartResult, WorkerGeneration,
 };
 pub use terminal_lifecycle::{
     LIFECYCLE_INVENTORY_PAGE_TERMINALS, LifecycleHostFailure, LifecycleInventoryCursor,
@@ -46,6 +47,13 @@ pub use terminal_lifecycle::{
 
 #[cfg(test)]
 mod tests;
+
+mod worktree_job;
+pub use worktree_job::{
+    MAXIMUM_WORKTREE_JOB_DIRECTORY_BYTES, MAXIMUM_WORKTREE_JOB_RESULT_FIELDS_BYTES,
+    WorktreeJobAction, WorktreeJobCancelOutcome, WorktreeJobOutcome, WorktreeJobPollOutcome,
+    WorktreeJobRequest, WorktreeJobResult, WorktreeJobStage, WorktreeJobStartOutcome,
+};
 
 mod terminal_control;
 pub use terminal_control::{

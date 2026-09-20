@@ -402,8 +402,12 @@ fn ordinal_and_attempt_exhaustion_keep_maximum_receipt_readable() -> TestResult 
 #[test]
 fn close_owner_blocks_higher_fence_launch_start_but_keeps_exact_launch_replay() -> TestResult {
     let start = original()?;
-    let launch =
-        AuthorizedTerminalLaunch::new(start.authorization(), None, TerminalLaunchMode::Deferred);
+    let launch = AuthorizedTerminalLaunch::new(
+        start.authorization(),
+        None,
+        TerminalLaunchMode::Deferred,
+        None,
+    );
     let mut kernel = AuthorizedHostOperationKernel::new(
         orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
         nz(7),
@@ -441,7 +445,7 @@ fn close_owner_blocks_higher_fence_launch_start_but_keeps_exact_launch_replay() 
         TERMINAL_LAUNCH_CAPABILITY_VERSION,
     );
     kernel.admit_launch(
-        AuthorizedTerminalLaunch::new(higher, None, TerminalLaunchMode::Deferred),
+        AuthorizedTerminalLaunch::new(higher, None, TerminalLaunchMode::Deferred, None),
         300,
     )?;
     assert!(

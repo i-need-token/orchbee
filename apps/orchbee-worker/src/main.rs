@@ -25,6 +25,10 @@ mod worker_connection;
 mod worker_identity;
 #[cfg(unix)]
 mod worker_options;
+#[cfg(unix)]
+mod worktree_discovery_job;
+#[cfg(unix)]
+mod worktree_job_operation;
 
 #[cfg(unix)]
 use std::env;

@@ -149,6 +149,8 @@ enum DecodedClientMessage {
         #[serde(deserialize_with = "deserialize_nullable")]
         cwd: Option<WorkingDirectory>,
         start_mode: DecodedStartMode,
+        #[serde(default)]
+        launch: Option<crate::LaunchSelection>,
     },
     #[serde(rename = "terminal.start")]
     Start {
@@ -205,6 +207,8 @@ enum EncodedClientMessage<'a> {
         worker_constraint: &'a Option<WorkerConstraint>,
         cwd: &'a Option<WorkingDirectory>,
         start_mode: &'a StartMode,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        launch: &'a Option<crate::LaunchSelection>,
     },
     #[serde(rename = "terminal.start")]
     Start {
@@ -405,11 +409,13 @@ pub(crate) fn decode_client_payload(payload: &[u8]) -> Result<ClientMessage, Pro
             worker_constraint,
             cwd,
             start_mode,
+            launch,
         } => Ok(ClientMessage::TerminalCreate(TerminalCreateRequest::new(
             request_id,
             worker_constraint,
             cwd,
             start_mode.into(),
+            launch,
         ))),
         DecodedClientMessage::Start {
             _protocol_version: _,
@@ -462,6 +468,7 @@ pub(crate) fn encode_client_payload(message: &ClientMessage) -> Result<Vec<u8>, 
             worker_constraint: &request.worker_constraint,
             cwd: &request.cwd,
             start_mode: &request.start_mode,
+            launch: &request.launch,
         },
         ClientMessage::TerminalStart(request) => EncodedClientMessage::Start {
             protocol_version: ProtocolVersion,

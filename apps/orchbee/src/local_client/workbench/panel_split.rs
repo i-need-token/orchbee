@@ -534,6 +534,7 @@ mod tests {
                 direction: orchbee_workbench_protocol::WorkbenchPanelSplitDirection::Right,
                 label: orchbee_workbench_protocol::WorkbenchLabel::parse("new").unwrap(),
                 geometry: WorkbenchTerminalGeometry::new(120, 40, 10, 20).unwrap(),
+                launch: None,
             },
         }
     }

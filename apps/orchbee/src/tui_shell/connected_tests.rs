@@ -48,6 +48,7 @@ fn real_tui_renders_shell_resizes_and_restores_modes_while_terminal_is_retained(
         StartMode::Immediate {
             geometry: Geometry::new(80, 24, 8, 16)?,
         },
+        None,
     ))?;
     assert!(matches!(
         created.outcome(),
@@ -252,6 +253,7 @@ fn real_tui_routes_pointer_reports_to_the_reporting_pane_and_restores_modes() ->
         StartMode::Immediate {
             geometry: Geometry::new(80, 24, 8, 16)?,
         },
+        None,
     ))?;
     assert!(matches!(
         created.outcome(),

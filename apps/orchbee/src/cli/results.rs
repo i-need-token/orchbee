@@ -8,7 +8,7 @@ use orchbee_client_server_protocol::TerminalLaunchFact;
 use orchbee_terminal_protocol::MAXIMUM_FRAME_ROWS;
 use orchbee_workbench_protocol::{
     PanelNode, PanelSlot, Presentation, Project, Snapshot, Tab, TerminalContext,
-    WorkbenchProtocolDocument, Workspace,
+    WorkbenchProtocolDocument, Workspace, WorktreeEntry, WorktreeEntryText,
 };
 use serde_json::{Map, Value, json};
 
@@ -36,6 +36,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
             }
         }
         QueryCommand::TerminalWaitOutput { .. } => "orchbee.terminal.wait-output",
+        QueryCommand::WorktreeList { .. } => "orchbee.worktree.list",
         QueryCommand::ApiSnapshot => "orchbee.api.snapshot",
         QueryCommand::ApiSchema { .. } => "orchbee.api.schema",
         QueryCommand::ConfigCheck => "orchbee.config.check",
@@ -619,7 +620,20 @@ pub(crate) enum Projection {
     TerminalRead(TerminalReadDoc),
     TerminalHistory(TerminalHistoryDoc),
     TerminalWaitOutput(TerminalWaitOutputDoc),
+    /// The `worktree list` answer: the registered directory identity plus the
+    /// observed Git entries, exactly as the workbench response carried them.
+    WorktreeList(WorktreeListDoc),
     ApiSnapshot(Value),
+}
+
+/// The `worktree list` result body. `path` is the registered Workbench
+/// directory — distinct from each entry's observed `worktreePath`.
+#[derive(Clone, Debug)]
+pub(crate) struct WorktreeListDoc {
+    pub(crate) project_id: String,
+    pub(crate) directory_id: String,
+    pub(crate) path: String,
+    pub(crate) entries: Vec<WorktreeEntry>,
 }
 
 impl Projection {
@@ -865,9 +879,60 @@ impl Projection {
                     "elapsedMs": doc.elapsed_ms,
                 },
             }),
+            Self::WorktreeList(doc) => json!({
+                "projectId": doc.project_id,
+                "directoryId": doc.directory_id,
+                "path": doc.path,
+                "worktrees": doc
+                    .entries
+                    .iter()
+                    .map(worktree_entry_json)
+                    .collect::<Vec<_>>(),
+            }),
             Self::ApiSnapshot(document) => json!({ "snapshot": document }),
         }
     }
+}
+
+/// The wire-faithful entry encoding: `worktreePath`/`worktreePathBytesHex`
+/// and `branch`/`branchBytesHex` stay semantic-exclusive, matching the
+/// workbench contract byte for byte.
+fn worktree_entry_json(entry: &WorktreeEntry) -> Value {
+    let mut object = Map::new();
+    match &entry.path {
+        WorktreeEntryText::Utf8(path) => {
+            object.insert("worktreePath".to_owned(), json!(path));
+        }
+        WorktreeEntryText::Bytes(bytes) => {
+            object.insert("worktreePathBytesHex".to_owned(), json!(hex_encode(bytes)));
+        }
+    }
+    object.insert("head".to_owned(), json!(entry.head));
+    match &entry.branch {
+        Some(WorktreeEntryText::Utf8(branch)) => {
+            object.insert("branch".to_owned(), json!(branch));
+        }
+        Some(WorktreeEntryText::Bytes(bytes)) => {
+            object.insert("branchBytesHex".to_owned(), json!(hex_encode(bytes)));
+        }
+        None => {
+            object.insert("branch".to_owned(), Value::Null);
+        }
+    }
+    object.insert("bare".to_owned(), json!(entry.bare));
+    object.insert("detached".to_owned(), json!(entry.detached));
+    object.insert("locked".to_owned(), json!(entry.locked));
+    object.insert("prunable".to_owned(), json!(entry.prunable));
+    Value::Object(object)
+}
+
+pub(crate) fn hex_encode(bytes: &[u8]) -> String {
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        encoded.push(char::from_digit(u32::from(byte >> 4), 16).expect("nibble"));
+        encoded.push(char::from_digit(u32::from(byte & 0x0f), 16).expect("nibble"));
+    }
+    encoded
 }
 
 fn workspace_row_json(row: &WorkspaceRow) -> Value {
@@ -1238,11 +1303,13 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
         // `terminal get` answers the Server's own launch-read join and
         // `terminal read`/`terminal wait-output` project live viewer
         // observations, not snapshot data alone; their answers are built by
-        // the query layer. `api schema`/`config check` never reach a
-        // snapshot projection.
+        // the query layer. `worktree list` issues its own Workbench request
+        // after the snapshot resolves the project; `api schema`/`config
+        // check` never reach a snapshot projection.
         QueryCommand::TerminalGet(_)
         | QueryCommand::TerminalRead { .. }
         | QueryCommand::TerminalWaitOutput { .. }
+        | QueryCommand::WorktreeList { .. }
         | QueryCommand::ApiSchema { .. }
         | QueryCommand::ConfigCheck => Err(Failure::new(FailureKind::InternalFailure)),
     }

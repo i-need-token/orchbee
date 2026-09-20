@@ -4206,6 +4206,7 @@ fn create_marker(
             terminal_context_id: session.cache().terminal_context_id().clone(),
             label: label.clone(),
             geometry: workbench_geometry,
+            launch: None,
         },
     };
     let request = WorkbenchTabCreateRequest::try_from(command)

@@ -1,8 +1,8 @@
 use std::ffi::OsString;
 
 use orchbee_workbench_protocol::{
-    WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
-    WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
+    LaunchSelection, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel,
+    WorkbenchPanelSplitDirection, WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
 };
 
 use super::{
@@ -1068,6 +1068,7 @@ fn geometry_bearing_commands_require_the_whole_geometry() {
                 context: TabContext::Standalone,
                 label: label("t"),
                 geometry: geometry(),
+                launch: None,
             },
             OutputFormat::Text
         ))
@@ -1083,6 +1084,7 @@ fn geometry_bearing_commands_require_the_whole_geometry() {
                 direction: WorkbenchPanelSplitDirection::Right,
                 label: label("p"),
                 geometry: geometry(),
+                launch: None,
             },
             OutputFormat::Text
         ))
@@ -1116,6 +1118,7 @@ fn tab_create_admits_exactly_one_context() {
                 context: TabContext::Workspace(Target::Label("main".into())),
                 label: label("t"),
                 geometry: geometry(),
+                launch: None,
             },
             OutputFormat::Text
         ))
@@ -1135,6 +1138,168 @@ fn tab_create_admits_exactly_one_context() {
     swapped.extend(["--label", "t"]);
     swapped.extend(GEOMETRY_ARGS);
     assert_eq!(parse(&swapped), Err(usage(FailureEnvelope::Text)));
+}
+
+fn launch(executable: &str, arguments: &[&str]) -> Option<LaunchSelection> {
+    Some(
+        LaunchSelection::new(
+            executable.to_owned(),
+            arguments
+                .iter()
+                .map(|argument| (*argument).to_owned())
+                .collect(),
+        )
+        .expect("test launch selection is protocol-valid"),
+    )
+}
+
+fn tab_create_invocation(launch_args: &[&str]) -> Vec<String> {
+    let mut arguments: Vec<String> = ["tab", "create", "--standalone", "--label", "t"]
+        .iter()
+        .map(|word| (*word).to_owned())
+        .collect();
+    arguments.extend(GEOMETRY_ARGS.iter().map(|word| (*word).to_owned()));
+    arguments.extend(launch_args.iter().map(|word| (*word).to_owned()));
+    arguments
+}
+
+fn tab_create_with(launch_args: &[&str]) -> Result<Request, ParseFailure> {
+    let arguments = tab_create_invocation(launch_args);
+    parse_request(arguments.iter().map(OsString::from))
+}
+
+#[test]
+fn launch_selection_options_parse_in_every_spelling() {
+    let expect = |launch_args: &[&str], arguments: &[&str]| {
+        assert_eq!(
+            tab_create_with(launch_args),
+            Ok(mutation(
+                MutationCommand::TabCreate {
+                    context: TabContext::Standalone,
+                    label: label("t"),
+                    geometry: geometry(),
+                    launch: launch("/bin/sh", arguments),
+                },
+                OutputFormat::Text
+            )),
+            "{launch_args:?}"
+        );
+    };
+    // `--exec` alone, both spellings.
+    expect(&["--exec", "/bin/sh"], &[]);
+    expect(&["--exec=/bin/sh"], &[]);
+    // `--arg` preserves order verbatim: empty, dash-prefixed, and the literal
+    // terminator via the equals spelling.
+    expect(
+        &["--exec", "/bin/sh", "--arg", "-c", "--arg=--", "--arg="],
+        &["-c", "--", ""],
+    );
+    // A `--arg` value that spells a flag is consumed as a value.
+    expect(&["--exec", "/bin/sh", "--arg", "--exec"], &["--exec"]);
+    // `--arg` may precede `--exec` in argv order — the pair is positional-free.
+    expect(&["--arg", "-l", "--exec", "/bin/sh"], &["-l"]);
+
+    // panel split shares the selection.
+    let mut split: Vec<String> = ["panel", "split", ID, "--direction", "right", "--label", "p"]
+        .iter()
+        .map(|word| (*word).to_owned())
+        .collect();
+    split.extend(GEOMETRY_ARGS.iter().map(|word| (*word).to_owned()));
+    split.extend(
+        ["--exec=/bin/sh", "--arg", "-l"]
+            .iter()
+            .map(|word| (*word).to_owned()),
+    );
+    assert_eq!(
+        parse_request(split.iter().map(OsString::from)),
+        Ok(mutation(
+            MutationCommand::PanelSplit {
+                target: Target::Id(ID.into()),
+                direction: WorkbenchPanelSplitDirection::Right,
+                label: label("p"),
+                geometry: geometry(),
+                launch: launch("/bin/sh", &["-l"]),
+            },
+            OutputFormat::Text
+        ))
+    );
+}
+
+#[test]
+fn launch_selection_options_fail_closed_on_misuse() {
+    let usage = |launch_args: &[&str]| {
+        assert_eq!(
+            tab_create_with(launch_args),
+            Err(self::usage(FailureEnvelope::Text)),
+            "{launch_args:?}"
+        );
+    };
+    // `--arg` without `--exec` is a missing requirement, not an empty program.
+    usage(&["--arg", "-c"]);
+    usage(&["--arg=--"]);
+    // `--exec` is single-use in either spelling.
+    usage(&["--exec", "/bin/sh", "--exec", "/bin/zsh"]);
+    usage(&["--exec=/bin/sh", "--exec=/bin/zsh"]);
+    usage(&["--exec", "/bin/sh", "--exec=/bin/zsh"]);
+    // Missing values keep the existing conventions: `--exec` at end and
+    // `--exec --` are both missing values.
+    usage(&["--exec"]);
+    usage(&["--exec", "--"]);
+    usage(&["--arg"]);
+    // Empty `--exec=` is an invalid executable, not a missing value.
+    usage(&["--exec="]);
+    // Executable shape: relative and bare names are invalid values.
+    usage(&["--exec", "sh"]);
+    usage(&["--exec", "bin/sh"]);
+    // NUL-bearing values cannot arrive through &str argv — NUL input is
+    // exercised through OsString at the byte envelope instead.
+
+    // The pair is scoped: unrelated commands reject both spellings.
+    for arguments in [
+        &["tab", "rename", ID, "--label", "x", "--exec", "/bin/sh"][..],
+        &["tab", "close", ID, "--confirm", "--arg", "x"][..],
+        &["terminal", "send", ID, "--text", "x", "--exec=/bin/sh"][..],
+        &[
+            "workspace",
+            "create",
+            "--project",
+            "p",
+            "--label",
+            "x",
+            "--arg=v",
+        ][..],
+    ] {
+        assert_eq!(
+            parse(arguments),
+            Err(self::usage(FailureEnvelope::Text)),
+            "{arguments:?}"
+        );
+    }
+}
+
+#[test]
+fn launch_selection_enforces_count_and_byte_bounds() {
+    // 128 arguments admit; the 129th is a usage failure.
+    let mut arguments = tab_create_invocation(&["--exec", "/bin/sh"]);
+    for _ in 0..128 {
+        arguments.push("--arg".to_owned());
+        arguments.push("x".to_owned());
+    }
+    assert!(parse_request(arguments.iter().map(OsString::from)).is_ok());
+    arguments.extend(["--arg".to_owned(), "x".to_owned()]);
+    assert_eq!(
+        parse_request(arguments.iter().map(OsString::from)),
+        Err(usage(FailureEnvelope::Text))
+    );
+
+    // Aggregate bound: exec bytes + argument bytes at most 2048.
+    let over = tab_create_invocation(&["--exec", "/bin/sh", "--arg", &"a".repeat(2041)]);
+    assert!(parse_request(over.iter().map(OsString::from)).is_ok());
+    let over = tab_create_invocation(&["--exec", "/bin/sh", "--arg", &"a".repeat(2042)]);
+    assert_eq!(
+        parse_request(over.iter().map(OsString::from)),
+        Err(usage(FailureEnvelope::Text))
+    );
 }
 
 #[test]
@@ -1280,6 +1445,7 @@ fn mutation_required_options_cannot_be_dropped() {
                 direction: WorkbenchPanelSplitDirection::Right,
                 label: label("p"),
                 geometry: geometry(),
+                launch: None,
             },
             OutputFormat::Text
         ))
@@ -1552,6 +1718,7 @@ fn mutation_values_are_bounded() {
                 label: label("t"),
                 geometry: WorkbenchTerminalGeometry::new(512, 512, 64, 63)
                     .expect("geometry inside bounds"),
+                launch: None,
             },
             OutputFormat::Text
         ))
@@ -1581,6 +1748,7 @@ fn mutation_values_are_bounded() {
                 label: label("t"),
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 0, 0)
                     .expect("paired-zero geometry is protocol-valid"),
+                launch: None,
             },
             OutputFormat::Text
         ))
@@ -3117,5 +3285,180 @@ fn terminal_send_grammar() {
             }),
             "{arguments:?}"
         );
+    }
+}
+
+#[test]
+fn worktree_list_grammar() {
+    // The admitted form: both selectors, project as ID or label, strict
+    // directory ID, optional --format.
+    assert_eq!(
+        parse(&["worktree", "list", "--project", ID, "--directory", ID2]),
+        Ok(query(
+            QueryCommand::WorktreeList {
+                project: Target::Id(ID.into()),
+                directory: WorkbenchDirectoryId::parse(ID2).unwrap(),
+            },
+            OutputFormat::Text
+        ))
+    );
+    assert_eq!(
+        parse(&[
+            "worktree",
+            "list",
+            "--project",
+            "web",
+            "--directory",
+            ID2,
+            "--format",
+            "json",
+        ]),
+        Ok(query(
+            QueryCommand::WorktreeList {
+                project: Target::Label("web".into()),
+                directory: WorkbenchDirectoryId::parse(ID2).unwrap(),
+            },
+            OutputFormat::Json
+        ))
+    );
+    // Option order is free inside the command scope.
+    assert_eq!(
+        parse(&[
+            "--format=json",
+            "worktree",
+            "list",
+            "--directory",
+            ID2,
+            "--project",
+            ID
+        ]),
+        Ok(query(
+            QueryCommand::WorktreeList {
+                project: Target::Id(ID.into()),
+                directory: WorkbenchDirectoryId::parse(ID2).unwrap(),
+            },
+            OutputFormat::Json
+        ))
+    );
+
+    // `--directory` admits only the strict nonzero 32-lowercase-hex ID —
+    // zero, uppercase, wrong length, a filesystem path, and labels are all
+    // the same generic invalid-usage with no details.
+    for value in [
+        ZERO,
+        "0123456789ABCDEF0123456789ABCDEF",
+        "0123456789abcdef0123456789abcde",
+        "0123456789abcdef0123456789abcdef0",
+        "/repo/main",
+        "label",
+        "",
+    ] {
+        let Err(failure) = parse(&["worktree", "list", "--project", ID, "--directory", value])
+        else {
+            panic!("--directory {value:?} must fail");
+        };
+        assert_eq!(failure.kind, ParseFailureKind::InvalidUsage, "{value}");
+        assert_eq!(
+            failure.usage.as_ref(),
+            Some(&UsageReason::InvalidValue {
+                context: UsageContext::Path("worktree list"),
+                option: "--directory",
+                value: (*value).to_owned(),
+                expected: ExpectedValue::DirectoryId,
+            }),
+            "{value}"
+        );
+    }
+
+    // Both selectors are mandatory.
+    for arguments in [
+        &["worktree", "list", "--directory", ID2][..],
+        &["worktree", "list", "--project", ID][..],
+        &["worktree", "list"][..],
+    ] {
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.kind,
+            ParseFailureKind::InvalidUsage,
+            "{arguments:?}"
+        );
+        assert!(
+            matches!(
+                failure.usage.as_ref(),
+                Some(UsageReason::MissingRequired { .. })
+            ),
+            "{arguments:?}"
+        );
+    }
+
+    // The family exists but `list` is its only verb, and stray operands or
+    // out-of-scope options fail the same way.
+    for arguments in [
+        &["worktree"][..],
+        &["worktree", "foo"][..],
+        &[
+            "worktree",
+            "list",
+            "extra",
+            "--project",
+            ID,
+            "--directory",
+            ID2,
+        ][..],
+        &[
+            "worktree",
+            "list",
+            "--project",
+            ID,
+            "--directory",
+            ID2,
+            "--workspace",
+            ID,
+        ][..],
+        &[
+            "worktree",
+            "list",
+            "--project",
+            ID,
+            "--directory",
+            ID2,
+            "--directory",
+            ID2,
+        ][..],
+    ] {
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.kind,
+            ParseFailureKind::InvalidUsage,
+            "{arguments:?}"
+        );
+    }
+}
+
+#[test]
+fn worktree_help_paths_resolve() {
+    for (arguments, topic) in [
+        (
+            &["help", "worktree"][..],
+            HelpTopic::Family(Family::Worktree),
+        ),
+        (
+            &["help", "worktree", "list"][..],
+            HelpTopic::Command(CommandPath::WorktreeList),
+        ),
+        (
+            &["worktree", "--help"][..],
+            HelpTopic::Family(Family::Worktree),
+        ),
+        (
+            &["worktree", "list", "--help"][..],
+            HelpTopic::Command(CommandPath::WorktreeList),
+        ),
+    ] {
+        assert_eq!(parse(arguments), Ok(Request::Help(topic)), "{arguments:?}");
     }
 }

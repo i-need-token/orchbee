@@ -1314,7 +1314,7 @@ fn capacity_operation_with_expiry(
     );
     match kind {
         RequestKind::Launch => Ok(AuthorizedHostOperation::Launch(
-            AuthorizedTerminalLaunch::new(authorization, None, TerminalLaunchMode::Deferred),
+            AuthorizedTerminalLaunch::new(authorization, None, TerminalLaunchMode::Deferred, None),
         )),
         RequestKind::Start => Ok(AuthorizedHostOperation::Start(
             AuthorizedTerminalStart::new(authorization, host_identity(5, 6, 7)?, geometry(80)?),
@@ -1373,6 +1373,7 @@ fn launch_with(
         authorization(spec)?,
         cwd.map(AbsoluteCwd::new).transpose()?,
         mode,
+        None,
     ))
 }
 

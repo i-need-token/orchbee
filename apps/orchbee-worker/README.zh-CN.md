@@ -50,7 +50,8 @@ Agent 行为、服务安装或恢复。
 [共享建模记录](../../crates/local-site-runtime/README.zh-CN.md) 定义进程与失败边界。
 
 首个 Launch 先由现有授权内核准入并解析启动事实。无效 lease/generation 的类型化拒绝
-不产生 Host。绑定代次的 cwd validation 可以在该 Launch 前完成而不启动 Host；其他非 Launch
+不产生 Host。绑定代次的 cwd validation 和 worktree-job 请求都可以在该 Launch 前完成
+而不启动 Host——发现槽位跨交接保留，已准入的 job 在交接后仍由其属主持有；其他非 Launch
 流量让连接退役。准入的 dispatch 和同一个内核跨 Host 启动保留，交接前再次校验授权。
 Host 目录为运行时下的 `host`，固定 endpoint ID 为 `00000000000000000000000000000001`。
 该目录下端点的绝对地址在创建目录或 Host 进程之前先按平台 socket 地址 ABI 检查；
@@ -62,6 +63,19 @@ Host 启动、唯一连接和严格 OBTP 握手共用五秒预算；不续期或
 
 回收线程只等待退出，不杀死 Host。Server/Worker 连接关闭后 Host 仍拥有保留终端。
 不支持重启后接管或替代 Host。显式端点模式继续采用其既有双 peer readiness 语义。
+
+## Worktree 发现 job
+
+串行请求循环在首个 Launch 之前和 Host 准入之后都接纳 `worktree list` Server 流程的
+OBCN worktree-job 请求（start/poll/cancel）。一个进程级槽位同时只运行一个发现 job——先在 Server 提供的
+目录内执行 `git rev-parse --path-format=absolute --git-common-dir` 探测，再执行
+`git worktree list --porcelain -z`——处于从准入起算的固定 5 秒 TTL 与一份跨两个
+stage 共享的 64 KiB stdout 预算之下；越过合并预算的 stage 承担 `too-large` 归因。
+每个请求按精确的 `{workerId, generation, jobId}` 三元组 fencing 并应答类型化结果帧；
+`rejected-fencing`、`busy`、`dead` 都是诚实 outcome，绝不伪造完成。job 只上报有界
+原始字节——porcelain 解析与畸形 listing 拒绝是 Server 的权威，不属于 Worker。
+属主自治回收其子进程——死亡或被逐出的 job 只保留一份有界 receipt，直到下一次
+start 将其替换；取消后终态仍可通过 `poll` 观察。
 
 ## 实时查看附件转发细化
 
@@ -144,12 +158,17 @@ bracketed-paste mode；commit 在 Core 二次授权后于独立的 input-admissi
 
 ## 默认交互式 launch 解析
 
-Application-private `default_interactive_launch` module 为运行中的 request loop 提供 launch-fact
-composition。其 transport-neutral `DefaultInteractiveLaunch` output 只持有一个已解析 executable、
-恰好为空的 literal argument vector，以及三个固定 environment entry。Loop 将它们与 Worker-local
-cwd、Terminal Protocol profile、geometry 和独立 creation identity 组合。三个 entry 映射到 Terminal
-Protocol launch environment；已接受首个 milestone 的 invocation-scoped
-`CreateTerminal.environmentOverlay` 仍为空。
+当被准入的 OBCN Launch 携带显式 launch selection 时，request loop 改为逐字采用其 executable
+与 argument vector：不查 `PATH`、不做 shell 解析、不静默回退到默认 shell——spawn 失败即
+Host 的 typed launch failure。该 selection 共享同样的三个固定 environment entry 与下述
+cwd/profile 组合。
+
+Application-private `default_interactive_launch` module 仅在没有显式 selection 时为运行中的
+request loop 提供 launch-fact composition。其 transport-neutral `DefaultInteractiveLaunch`
+output 只持有一个已解析 executable、恰好为空的 literal argument vector，以及三个固定
+environment entry。Loop 将它们与 Worker-local cwd、Terminal Protocol profile、geometry 和独立
+creation identity 组合。三个 entry 映射到 Terminal Protocol launch environment；已接受首个
+milestone 的 invocation-scoped `CreateTerminal.environmentOverlay` 仍为空。
 
 解析依次考虑 inherited `SHELL`、effective operating-system account 的 shell，再考虑
 `/bin/sh`。Candidate 只有在 path 非空、为 absolute、是有效 UTF-8、不含 U+0000、不超过

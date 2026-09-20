@@ -38,7 +38,8 @@ pub(crate) fn run(
     server.set_nonblocking(true)?;
     host.stream().set_nonblocking(true)?;
     let kernel = AuthorizedHostOperationKernel::new(worker_id, generation)?;
-    run_admitted(server, host, worker_id, generation, kernel)
+    let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
+    run_admitted(server, host, worker_id, generation, kernel, &worktree_slot)
 }
 
 pub(crate) fn run_admitted(
@@ -47,10 +48,29 @@ pub(crate) fn run_admitted(
     worker_id: WorkerId,
     generation: NonZeroU64,
     mut kernel: AuthorizedHostOperationKernel,
+    worktree_slot: &crate::worktree_discovery_job::WorktreeDiscoverySlot,
 ) -> Result<(), Box<dyn Error>> {
     let epoch = HostEpoch::from_bytes(*host.host_epoch().as_bytes())?;
     loop {
         let request = server_transport::receive(server, Some(host))?;
+        if let CapabilityNodeMessage::WorktreeJobRequest(request) = request {
+            // Start only admits a background owner; it never waits for the
+            // child. Every reply echoes operation identity and Job ID.
+            let result = crate::worktree_job_operation::execute(
+                request,
+                worker_id,
+                generation,
+                worktree_slot,
+            );
+            if server_transport::send(
+                server,
+                Some(host),
+                &CapabilityNodeMessage::WorktreeJobResult(result),
+            )? {
+                return Err(peer_closed().into());
+            }
+            continue;
+        }
         if let CapabilityNodeMessage::TerminalCwdValidationRequest(request) = request {
             let result = crate::terminal_cwd_validation::validate(request, worker_id, generation);
             if server_transport::send(
@@ -161,7 +181,9 @@ pub(crate) fn run_admitted(
             | CapabilityNodeMessage::TerminalSendResult(_)
             | CapabilityNodeMessage::TerminalStartResult(_)
             | CapabilityNodeMessage::TerminalViewerRequest(_)
-            | CapabilityNodeMessage::TerminalViewerResult(_) => {
+            | CapabilityNodeMessage::TerminalViewerResult(_)
+            | CapabilityNodeMessage::WorktreeJobRequest(_)
+            | CapabilityNodeMessage::WorktreeJobResult(_) => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     "Server sent a Worker-to-Server result",
@@ -218,7 +240,7 @@ fn prepare(dispatch: &AuthorizedHostDispatch) -> Result<PreparedHostOperation, B
     match dispatch.operation() {
         AuthorizedHostOperation::Launch(launch) => Ok(PreparedHostOperation::launch(
             dispatch,
-            launch_facts::resolve(launch.cwd())?,
+            launch_facts::resolve(launch.cwd(), launch.launch())?,
             correlation,
         )?),
         AuthorizedHostOperation::Start(_) => {

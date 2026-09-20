@@ -1232,6 +1232,7 @@ fn tab_create_command(request_id: &str, expected_revision: u64) -> WorkbenchComm
             terminal_context_id: context_id(30),
             label: workbench_label(),
             geometry: terminal_geometry(),
+            launch: None,
         },
     )
 }

@@ -2160,6 +2160,7 @@ fn build_create(
             terminal_context_id: state.cache().terminal_context_id().clone(),
             label,
             geometry: workbench_geometry,
+            launch: None,
         },
     };
     let request = WorkbenchTabCreateRequest::try_from(command)

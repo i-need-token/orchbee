@@ -19,6 +19,11 @@ impl Locale {
             .and_then(|source| source.get("kind"))
             .and_then(|value| value.as_str())
             == Some("local-runtime");
+        // The dedicated `worktree list` failure envelope owns its own
+        // wording; the schema marker is the unambiguous discriminator.
+        if failure.failure_schema == Some(crate::cli::schema::WORKTREE_FAILURE_ID) {
+            return self.cli_worktree_failure(failure);
+        }
         match failure.kind {
             FailureKind::Timeout if local_runtime => match self {
                 Self::EnUs => {
@@ -297,6 +302,114 @@ impl Locale {
         }
     }
 
+    /// `worktree list` failure diagnostics, keyed by the details the typed
+    /// outcome mapping produced. Every line states what the listing observed.
+    fn cli_worktree_failure(self, failure: &Failure) -> String {
+        use crate::cli::FailureKind;
+        let detail = |name: &str| {
+            failure
+                .details
+                .as_ref()
+                .and_then(|details| details.get(name))
+                .and_then(|value| value.as_str())
+                .unwrap_or("")
+        };
+        match failure.kind {
+            FailureKind::NotFound => {
+                let (_resource, target) = failure_target(failure);
+                match self {
+                    Self::EnUs => {
+                        format!("No directory with ID {target} is registered to the project.\n")
+                    }
+                    Self::ZhCn => format!("该项目未注册 ID 为 {target} 的目录。\n"),
+                }
+            }
+            FailureKind::Denied => match self {
+                Self::EnUs => "The local Site denied the worktree listing.\n".to_owned(),
+                Self::ZhCn => "本地 Site 拒绝了该 worktree 列举。\n".to_owned(),
+            },
+            FailureKind::ServiceUnavailable => {
+                let reason = detail("reason");
+                match (self, reason) {
+                    (Self::EnUs, "job-dead") => {
+                        "The directory's worktree listing job is no longer alive.\n".to_owned()
+                    }
+                    (Self::ZhCn, "job-dead") => {
+                        "该目录的 worktree 列举作业已不存在。\n".to_owned()
+                    }
+                    (Self::EnUs, "job-unknown") => {
+                        "The directory's worktree listing job is unknown to the Worker.\n"
+                            .to_owned()
+                    }
+                    (Self::ZhCn, "job-unknown") => {
+                        "Worker 不认识该目录的 worktree 列举作业。\n".to_owned()
+                    }
+                    (Self::EnUs, "worker-unavailable") => {
+                        "The directory's Worker is not available for the worktree listing right now.\n"
+                            .to_owned()
+                    }
+                    (Self::ZhCn, "worker-unavailable") => {
+                        "该目录的 Worker 当前无法进行 worktree 列举。\n".to_owned()
+                    }
+                    (Self::EnUs, _) => {
+                        "The local Site could not run the worktree listing right now.\n".to_owned()
+                    }
+                    (Self::ZhCn, _) => "本地 Site 当前无法执行 worktree 列举。\n".to_owned(),
+                }
+            }
+            FailureKind::CheckFailed => {
+                let stage = detail("stage");
+                match (self, stage) {
+                    (Self::EnUs, "parse") => {
+                        "The directory's Git worktree listing was malformed.\n".to_owned()
+                    }
+                    (Self::ZhCn, "parse") => {
+                        "该目录的 Git worktree 列表输出格式无效。\n".to_owned()
+                    }
+                    (Self::EnUs, stage) => {
+                        format!("The directory's Git worktree {stage} stage failed.\n")
+                    }
+                    (Self::ZhCn, stage) => {
+                        format!("该目录的 Git worktree {stage} 阶段失败。\n")
+                    }
+                }
+            }
+            FailureKind::Timeout => match self {
+                Self::EnUs => {
+                    "The worktree listing did not complete within the time limit.\n".to_owned()
+                }
+                Self::ZhCn => "worktree 列举未在时限内完成。\n".to_owned(),
+            },
+            FailureKind::OutputTooLarge => {
+                let origin = detail("origin");
+                match self {
+                    Self::EnUs => {
+                        format!("The worktree listing exceeded its output bound ({origin}).\n")
+                    }
+                    Self::ZhCn => format!("worktree 列举超出其输出上限（{origin}）。\n"),
+                }
+            }
+            FailureKind::TransportLoss => match self {
+                Self::EnUs => {
+                    "The connection to the local Site was lost during the worktree listing.\n"
+                        .to_owned()
+                }
+                Self::ZhCn => "与本地 Site 的连接在 worktree 列举期间中断。\n".to_owned(),
+            },
+            FailureKind::ProtocolInvalid => match self {
+                Self::EnUs => {
+                    "The local Site answered the worktree listing with an invalid protocol response.\n"
+                        .to_owned()
+                }
+                Self::ZhCn => "本地 Site 对 worktree 列举返回了无效的协议响应。\n".to_owned(),
+            },
+            _ => match self {
+                Self::EnUs => "The CLI hit an internal failure; no data was written.\n".to_owned(),
+                Self::ZhCn => "CLI 发生内部错误；未写出任何数据。\n".to_owned(),
+            },
+        }
+    }
+
     /// The localized `invalid-usage` stderr diagnostic: one concrete cause
     /// plus a help hint that always names a real path. `None` and the
     /// `Invalid` fallback keep the original generic text.
@@ -348,6 +461,18 @@ impl Locale {
             (Self::ZhCn, ExpectedValue::SendKey) => "'--key' 接受的按键名之一",
             (Self::EnUs, ExpectedValue::MouseMode) => "'off' or 'on'",
             (Self::ZhCn, ExpectedValue::MouseMode) => "'off' 或 'on'",
+            (Self::EnUs, ExpectedValue::DirectoryId) => {
+                "a nonzero 32-character lowercase hexadecimal directory ID"
+            }
+            (Self::ZhCn, ExpectedValue::DirectoryId) => "非零的 32 位小写十六进制目录 ID",
+            (Self::EnUs, ExpectedValue::Executable) => "a nonempty absolute executable path",
+            (Self::ZhCn, ExpectedValue::Executable) => "非空的绝对可执行文件路径",
+            (Self::EnUs, ExpectedValue::LaunchArguments) => {
+                "at most 128 arguments totaling at most 2,048 UTF-8 bytes with '--exec'"
+            }
+            (Self::ZhCn, ExpectedValue::LaunchArguments) => {
+                "配合 '--exec' 使用，至多 128 个参数且合计不超过 2,048 UTF-8 字节"
+            }
         };
         let (problem, hint) = match reason {
             UsageReason::Invalid => return self.usage_failure().to_owned(),
@@ -805,6 +930,7 @@ fn failure_target(failure: &Failure) -> (&'static str, String) {
         "panel" => "panel",
         "terminal" => "terminal",
         "schema" => "schema",
+        "directory" => "directory",
         _ => "project",
     };
     let target = failure
@@ -852,6 +978,10 @@ impl Locale {
             (_, HelpTopic::Family(Family::Terminal)) => match self {
                 Self::EnUs => HELP_TERMINAL_EN,
                 Self::ZhCn => HELP_TERMINAL_ZH,
+            },
+            (_, HelpTopic::Family(Family::Worktree)) => match self {
+                Self::EnUs => HELP_WORKTREE_EN,
+                Self::ZhCn => HELP_WORKTREE_ZH,
             },
             (_, HelpTopic::Family(Family::Site)) => match self {
                 Self::EnUs => HELP_SITE_EN,
@@ -934,6 +1064,8 @@ impl Locale {
             (Self::ZhCn, CommandPath::TerminalWaitOutput) => HELP_TERMINAL_WAIT_OUTPUT_ZH,
             (Self::EnUs, CommandPath::TerminalSend) => HELP_TERMINAL_SEND_EN,
             (Self::ZhCn, CommandPath::TerminalSend) => HELP_TERMINAL_SEND_ZH,
+            (Self::EnUs, CommandPath::WorktreeList) => HELP_WORKTREE_LIST_EN,
+            (Self::ZhCn, CommandPath::WorktreeList) => HELP_WORKTREE_LIST_ZH,
             (Self::EnUs, CommandPath::ApiSnapshot) => HELP_API_SNAPSHOT_EN,
             (Self::ZhCn, CommandPath::ApiSnapshot) => HELP_API_SNAPSHOT_ZH,
             (Self::EnUs, CommandPath::ApiSchema) => HELP_API_SCHEMA_EN,
@@ -946,8 +1078,8 @@ impl Locale {
     }
 }
 
-const ROOT_HELP_EN: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [operands] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\nModes and queries:\n  orchbee              Open the local terminal (Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee api          Machine snapshot and embedded schema documents\n\nSite lifecycle:\n  orchbee site start   Ensure the local Site is running (no TTY needed)\n\nMutations (one command per invocation, against the running Site):\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n\nInspection and help:\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee -h|--help    Show this help; after a family or command path, show\n                       that path's help\n  orchbee --version    Show the version\n\nRun 'orchbee help <family>' for filters and target rules, or\n'orchbee help <family> <command>' for one mutation's full syntax.\n";
-const ROOT_HELP_ZH: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [操作数] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\n模式与查询：\n  orchbee              打开本地终端（Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee api          机器快照与内嵌 schema 文档\n\nSite 生命周期：\n  orchbee site start   确保本地 Site 正在运行（无需 TTY）\n\n修改命令（每次调用执行一条命令，作用于运行中的 Site）：\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n\n检查与帮助：\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee -h|--help    显示此帮助；跟在 family 或命令路径后时显示该路径的帮助\n  orchbee --version    显示版本\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则，或\n'orchbee help <family> <command>' 查看单条修改命令的完整语法。\n";
+const ROOT_HELP_EN: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [operands] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\nModes and queries:\n  orchbee              Open the local terminal (Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee api          Machine snapshot and embedded schema documents\n\nSite lifecycle:\n  orchbee site start   Ensure the local Site is running (no TTY needed)\n\nMutations (one command per invocation, against the running Site):\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n\nInspection and help:\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee -h|--help    Show this help; after a family or command path, show\n                       that path's help\n  orchbee --version    Show the version\n\nRun 'orchbee help <family>' for filters and target rules, or\n'orchbee help <family> <command>' for one mutation's full syntax.\n";
+const ROOT_HELP_ZH: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [操作数] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\n模式与查询：\n  orchbee              打开本地终端（Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee api          机器快照与内嵌 schema 文档\n\nSite 生命周期：\n  orchbee site start   确保本地 Site 正在运行（无需 TTY）\n\n修改命令（每次调用执行一条命令，作用于运行中的 Site）：\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n\n检查与帮助：\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee -h|--help    显示此帮助；跟在 family 或命令路径后时显示该路径的帮助\n  orchbee --version    显示版本\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则，或\n'orchbee help <family> <command>' 查看单条修改命令的完整语法。\n";
 const HELP_TUI_EN: &str = "orchbee tui [--mouse on|off]\n\nOpen the local terminal interface (Linux development cohort).\nA bare 'orchbee' invocation does the same.\n\n  --mouse on|off   Host pointer capture for pane hit-testing; on by\n                   default. Only the explicit 'tui' route accepts it.\n";
 const HELP_TUI_ZH: &str = "orchbee tui [--mouse on|off]\n\n打开本地终端界面（Linux 开发 cohort）。\n裸 'orchbee' 调用效果相同。\n\n  --mouse on|off   宿主机指针捕获，用于面板命中；默认开启。\n                   只有显式 'tui' 路由接受该选项。\n";
 
@@ -960,11 +1092,11 @@ const HELP_PROJECT_ZH: &str = "orchbee project list|get|create|rename\n\n查询�
 const HELP_WORKSPACE_EN: &str = "orchbee workspace list|get|create|rename|accept-directory\n\nQuery and mutate Workspace resources in the running local Site.\n  workspace list [--project <t>]                    List Workspaces, optionally inside one Project\n  workspace get <target>                            Show one Workspace by exact ID or exact label\n  workspace create --project <t> --label <l>        Create one Workspace inside a Project\n  workspace rename <target> --label <l>             Rename one Workspace\n  workspace accept-directory <target> --path <p>    Accept a literal absolute path as the Workspace's primary directory\nEvery mutation reads one snapshot, then submits exactly one command.\n";
 const HELP_WORKSPACE_ZH: &str = "orchbee workspace list|get|create|rename|accept-directory\n\n查询并修改本地 Site 中的 Workspace 资源。\n  workspace list [--project <t>]                    列出 Workspace，可按某个 Project 过滤\n  workspace get <target>                            按精确 ID 或精确 label 显示一个 Workspace\n  workspace create --project <t> --label <l>        在某个 Project 内创建一个 Workspace\n  workspace rename <target> --label <l>             重命名一个 Workspace\n  workspace accept-directory <target> --path <p>    将一个字面绝对路径接受为 Workspace 的主目录\n每个修改命令先读取一次快照，然后只提交一个命令。\n";
 
-const HELP_TAB_EN: &str = "orchbee tab list|get|create|rename|move|close\n\nQuery and mutate Tab resources in the running local Site.\n  tab list [--workspace <t> | --standalone]  List Tabs, optionally filtered\n  tab get <target>                           Show one Tab by exact ID or label\n  tab create (--workspace <t>|--standalone) --label <l> --cols <n> --rows <n> --cell-width <px> --cell-height <px>\n                                             Create one Tab in one context\n  tab rename <target> --label <l>            Rename one Tab\n  tab move <target> --direction <d>          Move one Tab within its strip\n  tab close <target> --confirm               Close one Tab\n'--workspace' and '--standalone' are mutually exclusive single-use selectors.\n";
-const HELP_TAB_ZH: &str = "orchbee tab list|get|create|rename|move|close\n\n查询并修改本地 Site 中的 Tab 资源。\n  tab list [--workspace <t> | --standalone]  列出 Tab，可按 Workspace 或独立上下文过滤\n  tab get <target>                           按精确 ID 或 label 显示一个 Tab\n  tab create (--workspace <t>|--standalone) --label <l> --cols <n> --rows <n> --cell-width <px> --cell-height <px>\n                                             在某个上下文内创建一个 Tab\n  tab rename <target> --label <l>            重命名一个 Tab\n  tab move <target> --direction <d>          在标签条内移动一个 Tab\n  tab close <target> --confirm               关闭一个 Tab\n'--workspace' 与 '--standalone' 互斥且各只能用一次。\n";
+const HELP_TAB_EN: &str = "orchbee tab list|get|create|rename|move|close\n\nQuery and mutate Tab resources in the running local Site.\n  tab list [--workspace <t> | --standalone]  List Tabs, optionally filtered\n  tab get <target>                           Show one Tab by exact ID or label\n  tab create (--workspace <t>|--standalone) --label <l> --cols <n> --rows <n> --cell-width <px> --cell-height <px> [--exec <abs> [--arg <v>]...]\n                                             Create one Tab in one context\n  tab rename <target> --label <l>            Rename one Tab\n  tab move <target> --direction <d>          Move one Tab within its strip\n  tab close <target> --confirm               Close one Tab\n'--workspace' and '--standalone' are mutually exclusive single-use selectors.\n";
+const HELP_TAB_ZH: &str = "orchbee tab list|get|create|rename|move|close\n\n查询并修改本地 Site 中的 Tab 资源。\n  tab list [--workspace <t> | --standalone]  列出 Tab，可按 Workspace 或独立上下文过滤\n  tab get <target>                           按精确 ID 或 label 显示一个 Tab\n  tab create (--workspace <t>|--standalone) --label <l> --cols <n> --rows <n> --cell-width <px> --cell-height <px> [--exec <abs> [--arg <v>]...]\n                                             在某个上下文内创建一个 Tab\n  tab rename <target> --label <l>            重命名一个 Tab\n  tab move <target> --direction <d>          在标签条内移动一个 Tab\n  tab close <target> --confirm               关闭一个 Tab\n'--workspace' 与 '--standalone' 互斥且各只能用一次。\n";
 
-const HELP_PANEL_EN: &str = "orchbee panel list|get|split|close|move\n\nQuery and mutate Panel resources in the running local Site.\n  panel list [--tab <t>]                   List Panels, optionally inside one Tab\n  panel get <panel-id>                     Show one Panel by its complete typed ID\n  panel split <panel-id> --direction <d> --label <l> --cols <n> --rows <n> --cell-width <px> --cell-height <px>\n                                           Split one Panel, creating a sibling\n  panel close <panel-id> --confirm         Close one Panel\n  panel move <panel-id> --target-panel <panel-id> --direction <d>\n                                           Move one Panel next to a sibling\nPanels have no independent label; only complete 32-hex IDs are accepted.\n";
-const HELP_PANEL_ZH: &str = "orchbee panel list|get|split|close|move\n\n查询并修改本地 Site 中的 Panel 资源。\n  panel list [--tab <t>]                   列出 Panel，可按某个 Tab 过滤\n  panel get <panel-id>                     按完整类型化 ID 显示一个 Panel\n  panel split <panel-id> --direction <d> --label <l> --cols <n> --rows <n> --cell-width <px> --cell-height <px>\n                                           分裂一个 Panel，创建一个相邻 Panel\n  panel close <panel-id> --confirm         关闭一个 Panel\n  panel move <panel-id> --target-panel <panel-id> --direction <d>\n                                           将一个 Panel 移动到某个相邻 Panel 旁\nPanel 没有独立 label；只接受完整 32 位小写十六进制 ID。\n";
+const HELP_PANEL_EN: &str = "orchbee panel list|get|split|close|move\n\nQuery and mutate Panel resources in the running local Site.\n  panel list [--tab <t>]                   List Panels, optionally inside one Tab\n  panel get <panel-id>                     Show one Panel by its complete typed ID\n  panel split <panel-id> --direction <d> --label <l> --cols <n> --rows <n> --cell-width <px> --cell-height <px> [--exec <abs> [--arg <v>]...]\n                                           Split one Panel, creating a sibling\n  panel close <panel-id> --confirm         Close one Panel\n  panel move <panel-id> --target-panel <panel-id> --direction <d>\n                                           Move one Panel next to a sibling\nPanels have no independent label; only complete 32-hex IDs are accepted.\n";
+const HELP_PANEL_ZH: &str = "orchbee panel list|get|split|close|move\n\n查询并修改本地 Site 中的 Panel 资源。\n  panel list [--tab <t>]                   列出 Panel，可按某个 Tab 过滤\n  panel get <panel-id>                     按完整类型化 ID 显示一个 Panel\n  panel split <panel-id> --direction <d> --label <l> --cols <n> --rows <n> --cell-width <px> --cell-height <px> [--exec <abs> [--arg <v>]...]\n                                           分裂一个 Panel，创建一个相邻 Panel\n  panel close <panel-id> --confirm         关闭一个 Panel\n  panel move <panel-id> --target-panel <panel-id> --direction <d>\n                                           将一个 Panel 移动到某个相邻 Panel 旁\nPanel 没有独立 label；只接受完整 32 位小写十六进制 ID。\n";
 
 const HELP_TERMINAL_EN: &str = "orchbee terminal list|get|read|wait-output|send\n\nQuery terminals bound by Workbench Presentations in the running local Site,\nor send one input record to one of them.\n  terminal list                List every bound terminal\n  terminal get <terminal-id>   Show one terminal by its complete typed ID\n  terminal read <terminal-id> [--history --rows <n>]\n                               Read the terminal's visible content; the paired\n                               flags read retained history rows instead\n  terminal wait-output <terminal-id> --match <text>\n                               Wait for text in the terminal's retained output\n  terminal send <terminal-id>  Send text or one key to the terminal's input\nA terminal invisible to any Presentation binding cannot be listed, read,\nwaited on, or sent to; a binding proves structure only, not that a process\nis alive.\n";
 const HELP_TERMINAL_ZH: &str = "orchbee terminal list|get|read|wait-output|send\n\n查询本地 Site 中被 Workbench Presentation 绑定的终端，或向其中一个终端发送一条输入。\n  terminal list                列出所有已绑定终端\n  terminal get <terminal-id>   按完整类型化 ID 显示一个终端\n  terminal read <terminal-id> [--history --rows <n>]\n                               读取终端当前可见内容；成对 flag 时改为读取\n                               保留历史行\n  terminal wait-output <terminal-id> --match <text>\n                               等待终端保留输出中出现指定文本\n  terminal send <terminal-id>  向终端输入发送文本或一个按键\n未被任何 Presentation 引用的终端不可见、不可读、不可等待也不可发送；绑定只证明结构，不证明进程存活。\n";
@@ -1016,8 +1148,8 @@ const HELP_TAB_LIST_ZH: &str = "orchbee tab list [--workspace <t> | --standalone
 const HELP_TAB_GET_EN: &str = "orchbee tab get <target> [--format text|json]\n\nShow one Tab including its complete PanelNode root subtree.\n";
 const HELP_TAB_GET_ZH: &str = "orchbee tab get <target> [--format text|json]\n\n显示一个 Tab，包括其完整 PanelNode 根子树。\n";
 
-const HELP_TAB_CREATE_EN: &str = "orchbee tab create (--workspace <target> | --standalone) --label <label> --cols <n> --rows <n> --cell-width <px> --cell-height <px> [--format text|json]\n\nCreate one Tab in the selected terminal context: a Workspace chosen by\nexact ID or exact label, or the standalone context. All four geometry\nflags are required. The result carries the committed revision, the new\ntab, panel, and presentation ids, and the terminal spawn outcome.\n";
-const HELP_TAB_CREATE_ZH: &str = "orchbee tab create (--workspace <target> | --standalone) --label <label> --cols <n> --rows <n> --cell-width <px> --cell-height <px> [--format text|json]\n\n在所选终端上下文内创建一个 Tab：由精确 ID 或精确 label 选择的\nWorkspace，或独立上下文。四个几何参数均为必填。结果携带已提交修订、\n新的 tab、panel、presentation ID 及终端拉起结果。\n";
+const HELP_TAB_CREATE_EN: &str = "orchbee tab create (--workspace <target> | --standalone) --label <label> --cols <n> --rows <n> --cell-width <px> --cell-height <px> [--exec <abs> [--arg <v>]...] [--format text|json]\n\nCreate one Tab in the selected terminal context: a Workspace chosen by\nexact ID or exact label, or the standalone context. All four geometry\nflags are required. The result carries the committed revision, the new\ntab, panel, and presentation ids, and the terminal spawn outcome.\n'--exec' selects the launched program by absolute path and each '--arg'\nappends one verbatim argument; omitting both launches the default shell.\n";
+const HELP_TAB_CREATE_ZH: &str = "orchbee tab create (--workspace <target> | --standalone) --label <label> --cols <n> --rows <n> --cell-width <px> --cell-height <px> [--exec <abs> [--arg <v>]...] [--format text|json]\n\n在所选终端上下文内创建一个 Tab：由精确 ID 或精确 label 选择的\nWorkspace，或独立上下文。四个几何参数均为必填。结果携带已提交修订、\n新的 tab、panel、presentation ID 及终端拉起结果。\n'--exec' 以绝对路径选择启动程序，每个 '--arg' 逐字追加一个参数；\n两者均省略时启动默认 shell。\n";
 
 const HELP_TAB_RENAME_EN: &str = "orchbee tab rename <target> --label <label> [--format text|json]\n\nRename one Tab selected by exact ID or exact label. A committed result\ncarries the new revision; unchanged means the label already matched.\n";
 const HELP_TAB_RENAME_ZH: &str = "orchbee tab rename <target> --label <label> [--format text|json]\n\n重命名一个由精确 ID 或精确 label 选择的 Tab。committed 结果携带新修\n订；unchanged 表示 label 本已相同。\n";
@@ -1034,8 +1166,8 @@ const HELP_PANEL_LIST_ZH: &str = "orchbee panel list [--tab <t>] [--format text|
 const HELP_PANEL_GET_EN: &str = "orchbee panel get <panel-id> [--format text|json]\n\nShow one Panel by complete typed ID: owning tab, context, slot path, and\nits primary and child Presentations.\n";
 const HELP_PANEL_GET_ZH: &str = "orchbee panel get <panel-id> [--format text|json]\n\n按完整类型化 ID 显示一个 Panel：所属 Tab、上下文、slot 路径及其主与\n子 Presentation。\n";
 
-const HELP_PANEL_SPLIT_EN: &str = "orchbee panel split <panel-id> --direction <above|below|left|right> --label <label> --cols <n> --rows <n> --cell-width <px> --cell-height <px> [--format text|json]\n\nSplit one Panel, creating a sibling panel on the selected side. All four\ngeometry flags are required. The result carries the committed revision,\nthe new panel, split, slot, and presentation ids, and the terminal spawn\noutcome.\n";
-const HELP_PANEL_SPLIT_ZH: &str = "orchbee panel split <panel-id> --direction <above|below|left|right> --label <label> --cols <n> --rows <n> --cell-width <px> --cell-height <px> [--format text|json]\n\n分裂一个 Panel，在所选侧创建相邻 Panel。四个几何参数均为必填。结果携\n带已提交修订、新的 panel、split、slot、presentation ID 及终端拉起\n结果。\n";
+const HELP_PANEL_SPLIT_EN: &str = "orchbee panel split <panel-id> --direction <above|below|left|right> --label <label> --cols <n> --rows <n> --cell-width <px> --cell-height <px> [--exec <abs> [--arg <v>]...] [--format text|json]\n\nSplit one Panel, creating a sibling panel on the selected side. All four\ngeometry flags are required. The result carries the committed revision,\nthe new panel, split, slot, and presentation ids, and the terminal spawn\noutcome. '--exec' selects the launched program by absolute path and each\n'--arg' appends one verbatim argument; omitting both launches the\ndefault shell.\n";
+const HELP_PANEL_SPLIT_ZH: &str = "orchbee panel split <panel-id> --direction <above|below|left|right> --label <label> --cols <n> --rows <n> --cell-width <px> --cell-height <px> [--exec <abs> [--arg <v>]...] [--format text|json]\n\n分裂一个 Panel，在所选侧创建相邻 Panel。四个几何参数均为必填。结果携\n带已提交修订、新的 panel、split、slot、presentation ID 及终端拉起\n结果。'--exec' 以绝对路径选择启动程序，每个 '--arg' 逐字追加一个\n参数；两者均省略时启动默认 shell。\n";
 
 const HELP_PANEL_CLOSE_EN: &str = "orchbee panel close <panel-id> --confirm [--format text|json]\n\nClose one Panel selected by complete typed ID. '--confirm' is required.\nAn accepted result carries the accepted revision and the close request\nid; the Site finishes the close asynchronously.\n";
 const HELP_PANEL_CLOSE_ZH: &str = "orchbee panel close <panel-id> --confirm [--format text|json]\n\n关闭一个由完整类型化 ID 选择的 Panel。'--confirm' 为必填。accepted\n结果携带已接受修订与关闭请求 ID；Site 异步完成关闭。\n";
@@ -1057,6 +1189,12 @@ const HELP_TERMINAL_WAIT_OUTPUT_ZH: &str = "orchbee terminal wait-output <termin
 const HELP_TERMINAL_SEND_EN: &str = "orchbee terminal send <terminal-id> (--text <utf8> [--enter] | --key <name> | --file <path> [--enter] | --stdin [--enter]) [--format text|json]\n\nSend exactly one input record to one bound terminal. Exactly one source is\nrequired: the literal bytes of '--text' (UTF-8, at most 4096 bytes including\nthe appended CR); one named key from '--key'; the UTF-8 contents of the\nregular file named by '--file'; or the bytes piped or redirected to\n'--stdin' (a terminal, socket, or other stream is refused). For '--file' and\n'--stdin' the source is read completely under the same five-second budget,\nkept to at most 4096 bytes including the appended CR, and decoded as strict\nUTF-8 before anything is sent. '--enter' folds one carriage return into the\nsame record for every text-bearing form. Accepted key names: enter, escape,\ntab, backspace, delete, up, down, left, right, home, end, page-up,\npage-down, ctrl-c, ctrl-d. Named keys are delivered semantically; the Host\nencodes them under the terminal's current mode, never as canned escape\nbytes.\n\nThe send rides a temporary input-only attachment on the same session — it\nnever takes the TUI's controller, viewer, or resize ownership. The Site\nsubmits the record at most once and never retries an uncertain outcome;\nsends to one terminal serialize in arrival order. When the outcome is\nunknown (exit 8) do not resend blindly — check the terminal first, or you\nmay type twice. '--format json' emits the orchbee.terminal.send envelope\nwith inputStatus, cleanupStatus, and the accepted byte count.\n";
 const HELP_TERMINAL_SEND_ZH: &str = "orchbee terminal send <terminal-id> (--text <utf8> [--enter] | --key <name> | --file <path> [--enter] | --stdin [--enter]) [--format text|json]\n\n向一个已绑定终端恰好发送一条输入记录。必须恰好声明一个来源：'--text'\n的字面字节（UTF-8，含附加回车在内不超过 4096 字节）；'--key' 的一个\n按键名；'--file' 所指常规文件的 UTF-8 内容；或经管道、重定向提供给\n'--stdin' 的字节（终端、套接字或其他流会被拒绝）。'--file' 与\n'--stdin' 在同一个五秒预算内把来源完整读入、连同附加回车不超过\n4096 字节、按严格 UTF-8 解码，之后才会发送任何内容。每种承载文本的\n形式都可用 '--enter' 把一个回车并入同一记录。接受的按键名：enter、\nescape、tab、backspace、delete、up、down、left、right、home、end、\npage-up、page-down、ctrl-c、ctrl-d。具名按键按语义递交，由 Host 按\n终端当前模式编码，绝不发送预置转义字节。\n\n发送经由同一会话上的临时仅输入附属通道——绝不接管 TUI 的\ncontroller、viewer 或 resize 所有权。Site 至多提交一次该记录，对不\n确定结果绝不自动重试；同一终端的多个发送按到达顺序串行。当结果为\nunknown（退出码 8）时不要盲目重发——先查看终端，否则可能输入两次。\n'--format json' 输出带 inputStatus、cleanupStatus 与已接受字节数的\norchbee.terminal.send 封套。\n";
 
+const HELP_WORKTREE_EN: &str = "orchbee worktree list\n\nInspect the Git worktrees of one registered project directory.\n  worktree list --project <target> --directory <directory-id>\n                               List the directory's Git worktrees\n--project resolves an exact ID or exact label; --directory is always the\nstrict nonzero 32-lowercase-hex Workbench directory ID, never a path or\nlabel. Directory membership is decided by the running Site, not the CLI.\n";
+const HELP_WORKTREE_ZH: &str = "orchbee worktree list\n\n查看一个已注册项目目录的 Git worktree。\n  worktree list --project <target> --directory <directory-id>\n                               列出该目录的 Git worktree\n--project 按精确 ID 或精确标签解析；--directory 只接受严格的非零 32 位\n小写十六进制 Workbench 目录 ID，绝不接受路径或标签。目录归属由运行中\n的 Site 判定，CLI 不做预检。\n";
+
+const HELP_WORKTREE_LIST_EN: &str = "orchbee worktree list --project <target> --directory <directory-id> [--format text|json]\n\nList the Git worktrees of one registered project directory. --project takes\nan exact ID or exact label (ambiguous labels are rejected); --directory is\nthe strict nonzero 32-lowercase-hex Workbench directory ID — never a\nfilesystem path. The listing is read-only: it never creates, moves, locks,\nor prunes a worktree. An all-zero HEAD is an unborn repository, a null\nhead marks the bare repository, and branch names keep their full\n'refs/heads/…' form. '--format json' emits the orchbee.worktree.list\nenvelope; failures use the orchbee.cli.failure.worktree envelope and still\nrequire an explicit '--format json' for the stdout document.\n";
+const HELP_WORKTREE_LIST_ZH: &str = "orchbee worktree list --project <target> --directory <directory-id> [--format text|json]\n\n列出一个已注册项目目录的 Git worktree。--project 接受精确 ID 或精确标签\n（标签歧义会被拒绝）；--directory 为严格的非零 32 位小写十六进制\nWorkbench 目录 ID——绝不接受文件系统路径。该列举为只读操作：绝不创建、\n移动、锁定或清理任何 worktree。全零 HEAD 表示未出生的仓库，head 为\nnull 表示裸仓库，分支名保留完整的 'refs/heads/…' 形式。\n'--format json' 输出 orchbee.worktree.list 封套；失败使用\norchbee.cli.failure.worktree 封套，stdout 文档仍需显式 '--format json'。\n";
+
 const HELP_API_SNAPSHOT_EN: &str = "orchbee api snapshot [--format text|json]\n\nEmit the complete validated workbench.snapshot document inside the\norchbee.api.snapshot envelope. Successful output is JSON even under\n'--format text'; a failure envelope still requires '--format json'.\n";
 const HELP_API_SNAPSHOT_ZH: &str = "orchbee api snapshot [--format text|json]\n\n在 orchbee.api.snapshot 封套内输出完整已验证 workbench.snapshot 文档。\n成功输出即使 '--format text' 也为 JSON；失败封套仍需显式 '--format json'。\n";
 
@@ -1077,10 +1215,12 @@ pub(crate) struct CliLabels {
     pub(crate) context: &'static str,
     pub(crate) counts: &'static str,
     pub(crate) directories: &'static str,
+    pub(crate) directory_id: &'static str,
     pub(crate) group: &'static str,
     pub(crate) id: &'static str,
     pub(crate) launch: &'static str,
     pub(crate) panels_word: &'static str,
+    pub(crate) path: &'static str,
     pub(crate) pinned: &'static str,
     pub(crate) primary_directory: &'static str,
     pub(crate) primary_presentation: &'static str,
@@ -1106,6 +1246,7 @@ pub(crate) struct CliLabels {
     pub(crate) workspaces_word: &'static str,
     pub(crate) project_headers: [&'static str; 4],
     pub(crate) directory_headers: [&'static str; 3],
+    pub(crate) worktree_headers: [&'static str; 4],
     pub(crate) workspace_ref_headers: [&'static str; 2],
     pub(crate) workspace_headers: [&'static str; 5],
     pub(crate) tab_ref_headers: [&'static str; 2],
@@ -1122,10 +1263,12 @@ const EN_US_LABELS: CliLabels = CliLabels {
     context: "Context",
     counts: "Counts",
     directories: "Directories",
+    directory_id: "Directory ID",
     group: "Group",
     id: "ID",
     launch: "Launch",
     panels_word: "panels",
+    path: "Path",
     pinned: "Pinned",
     primary_directory: "Primary dir",
     primary_presentation: "Primary presentation",
@@ -1151,6 +1294,7 @@ const EN_US_LABELS: CliLabels = CliLabels {
     workspaces_word: "workspaces",
     project_headers: ["ID", "LABEL", "DIRECTORIES", "WORKSPACES"],
     directory_headers: ["ID", "WORKER", "PATH"],
+    worktree_headers: ["PATH", "HEAD", "BRANCH", "STATE"],
     workspace_ref_headers: ["ID", "LABEL"],
     workspace_headers: ["ID", "LABEL", "PROJECT", "PRIMARY DIRECTORY", "CONTEXT"],
     tab_ref_headers: ["ID", "LABEL"],
@@ -1174,10 +1318,12 @@ const ZH_CN_LABELS: CliLabels = CliLabels {
     context: "上下文",
     counts: "计数",
     directories: "目录",
+    directory_id: "目录 ID",
     group: "分组",
     id: "ID",
     launch: "启动",
     panels_word: "面板",
+    path: "路径",
     pinned: "置顶",
     primary_directory: "主目录",
     primary_presentation: "主 Presentation",
@@ -1203,6 +1349,7 @@ const ZH_CN_LABELS: CliLabels = CliLabels {
     workspaces_word: "工作区",
     project_headers: ["ID", "LABEL", "目录数", "工作区数"],
     directory_headers: ["ID", "WORKER", "路径"],
+    worktree_headers: ["路径", "HEAD", "分支", "状态"],
     workspace_ref_headers: ["ID", "LABEL"],
     workspace_headers: ["ID", "LABEL", "PROJECT", "主目录", "上下文"],
     tab_ref_headers: ["ID", "LABEL"],

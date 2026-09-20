@@ -14,9 +14,9 @@ use orchbee_server::{
     WorkbenchTabCreatePreparation, WorkbenchTabCreateRuntimeUnavailableReason,
 };
 use orchbee_workbench_protocol::{
-    ProtocolVersion, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
-    WorkbenchCommandUnavailableReason, WorkbenchTerminalFailureReason, WorkbenchTerminalGeometry,
-    WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason,
+    ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
+    WorkbenchCommandResult, WorkbenchCommandUnavailableReason, WorkbenchTerminalFailureReason,
+    WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason,
 };
 
 pub(crate) enum PreparedTerminalTabCreate {
@@ -37,6 +37,7 @@ pub(crate) struct PendingTerminalTabCreate {
     worker: WorkerPlacement,
     settles_first: bool,
     workspace_cwd: Option<WorkingDirectory>,
+    launch: Option<orchbee_client_server_protocol::LaunchSelection>,
 }
 
 impl PendingTerminalTabCreate {
@@ -57,6 +58,7 @@ impl PendingTerminalTabCreate {
             && self.terminal.create_reference() == &self.reference
             && authorization.and_then(presentation_binding).as_ref() == Some(metadata.binding())
             && pending_cwd_matches(self.terminal.command(), self.workspace_cwd.as_ref())
+            && pending_launch_matches(self.terminal.command(), self.launch.as_ref())
             && authorization.is_some_and(|authorization| {
                 authorization.worker_id() == self.worker.worker_id
                     && authorization.worker_generation() == self.worker.generation
@@ -103,6 +105,31 @@ impl SiteCoordinator {
                 &command,
                 WorkbenchCommandUnavailableReason::ServiceUnavailable,
             ));
+        };
+        // The selection is part of the committed command's identity; it is
+        // extracted before admission so the same value reaches the Worker
+        // verbatim. A decoded selection already passed the closed lexical
+        // contract, so conversion failure is an invariant break.
+        let launch = match &command.action {
+            WorkbenchAction::TabCreate { launch, .. } => launch.clone(),
+            _ => None,
+        };
+        let launch = match launch
+            .map(|selection| {
+                orchbee_client_server_protocol::LaunchSelection::new(
+                    selection.executable().to_owned(),
+                    selection.arguments().to_vec(),
+                )
+            })
+            .transpose()
+        {
+            Ok(launch) => launch,
+            Err(_) => {
+                return PreparedTerminalTabCreate::Ready(unavailable(
+                    &command,
+                    WorkbenchCommandUnavailableReason::ServiceUnavailable,
+                ));
+            }
         };
         let grant =
             WorkbenchGrant::manage_navigation_and_terminal_create(workbench.site_id().clone());
@@ -166,6 +193,7 @@ impl SiteCoordinator {
                 worker_constraint,
                 workspace_cwd.clone(),
                 StartMode::Immediate { geometry },
+                launch.clone(),
             ),
             Some(worker),
             Some(expiry),
@@ -200,6 +228,7 @@ impl SiteCoordinator {
             || terminal.authorization() != authorization
             || pending_authorization_from_message(terminal.command()) != Some(authorization)
             || !pending_cwd_matches(terminal.command(), workspace_cwd.as_ref())
+            || !pending_launch_matches(terminal.command(), launch.as_ref())
             || metadata.binding() != &binding
             || authorization.worker_id() != worker.worker_id
             || authorization.worker_generation() != worker.generation
@@ -229,6 +258,7 @@ impl SiteCoordinator {
             worker,
             settles_first,
             workspace_cwd,
+            launch,
         })
     }
 
@@ -265,6 +295,7 @@ impl SiteCoordinator {
             worker: _,
             settles_first: _,
             workspace_cwd: _,
+            launch: _,
         } = pending;
         let terminal = terminals
             .prepare_completion(terminal, completion, current_worker)
@@ -298,6 +329,19 @@ pub(super) fn pending_cwd_matches(
         return false;
     };
     command.cwd().map(|cwd| cwd.as_str()) == expected.map(WorkingDirectory::as_str)
+}
+
+pub(super) fn pending_launch_matches(
+    message: &CapabilityNodeMessage,
+    expected: Option<&orchbee_client_server_protocol::LaunchSelection>,
+) -> bool {
+    let CapabilityNodeMessage::AuthorizedTerminalLaunch(command) = message else {
+        return false;
+    };
+    command
+        .launch()
+        .map(|launch| (launch.executable(), launch.arguments()))
+        == expected.map(|selection| (selection.executable(), selection.arguments()))
 }
 
 pub(super) fn placement_matches_worker(

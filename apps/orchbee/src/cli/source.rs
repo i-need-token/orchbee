@@ -321,6 +321,7 @@ fn usage(option: &'static str, value: Option<String>, cause: SendSourceCause) ->
         kind: FailureKind::InvalidUsage,
         details: None,
         source: None,
+        failure_schema: None,
         usage: Some(Box::new(UsageReason::SendSource {
             option,
             value,

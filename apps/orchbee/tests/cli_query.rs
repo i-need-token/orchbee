@@ -1971,6 +1971,7 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
         "terminal",
         "tui",
         "workspace",
+        "worktree",
         "--help",
         "--version",
         "--format",
@@ -1984,7 +1985,7 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
     // Prefix filtering is the engine's job; still witness it once.
     assert_eq!(
         sorted(complete(&["w"])),
-        vec!["workspace".to_owned()],
+        vec!["workspace".to_owned(), "worktree".to_owned()],
         "{engine}"
     );
 
@@ -2006,6 +2007,51 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
             .collect()
         ),
         "{engine} workspace verbs"
+    );
+    // `worktree` has one verb; `worktree list` offers its two scoped flags.
+    assert_eq!(
+        sorted(complete(&["worktree", ""])),
+        sorted(
+            ["list", "--format", "--format="]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        ),
+        "{engine} worktree verbs"
+    );
+    assert_eq!(
+        sorted(complete(&["worktree", "list", ""])),
+        sorted(
+            [
+                "--project",
+                "--directory",
+                "--format",
+                "--format=",
+                "--help"
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
+        ),
+        "{engine} worktree list flags"
+    );
+    assert_eq!(
+        sorted(complete(&[
+            "worktree",
+            "list",
+            "--project",
+            "p",
+            "--directory",
+            "d",
+            ""
+        ])),
+        sorted(
+            ["--format", "--format="]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        ),
+        "{engine} fully supplied worktree list keeps only format flags"
     );
     // After `workspace list`: format flags + --help + the scoped filter only.
     let after_list = sorted(complete(&["workspace", "list", ""]));
@@ -2067,6 +2113,7 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
                 "--rows",
                 "--cell-width",
                 "--cell-height",
+                "--exec",
                 "--format",
                 "--format=",
                 "--help",
@@ -2076,6 +2123,52 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
             .collect()
         ),
         "{engine} tab create flags"
+    );
+    // `--arg` is offered only once `--exec` stands; it is repeatable and its
+    // dash-prefixed value is consumed whole.
+    let with_exec = sorted(complete(&["tab", "create", "--exec", "/bin/sh", ""]));
+    assert!(
+        with_exec.contains(&"--arg".to_owned()) && !with_exec.contains(&"--exec".to_owned()),
+        "{engine} --arg gated on --exec: {with_exec:?}"
+    );
+    assert!(
+        sorted(complete(&[
+            "tab", "create", "--exec", "/bin/sh", "--arg", "-c", "--arg", "x", ""
+        ]))
+        .contains(&"--arg".to_owned()),
+        "{engine} re-offers the repeatable --arg"
+    );
+    // `--exec` is one-shot: a second occurrence is a dead position.
+    assert_eq!(
+        complete(&["tab", "create", "--exec", "/bin/sh", "--exec", ""]).len(),
+        0,
+        "{engine} re-offers --exec"
+    );
+    // The pair is scoped: `tab close` admits neither flag.
+    assert_eq!(
+        complete(&["tab", "close", "--exec", "/bin/sh", ""]).len(),
+        0,
+        "{engine} --exec on tab close"
+    );
+    assert_eq!(
+        sorted(complete(&["panel", "split", "p", ""])),
+        sorted(
+            [
+                "--direction",
+                "--label",
+                "--cols",
+                "--rows",
+                "--cell-width",
+                "--cell-height",
+                "--exec",
+                "--format",
+                "--format=",
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
+        ),
+        "{engine} panel split flags"
     );
     assert_eq!(
         sorted(complete(&["tab", "close", ""])),
@@ -2479,11 +2572,12 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
             "{engine} exclusive scopes inside family at {cur:?}"
         );
     }
-    // Legal constrained prefixes still complete normally.
+    // Legal constrained prefixes still complete normally. `workspace` and
+    // `worktree` are the two families that accept a `--project` scope.
     assert_eq!(
         sorted(complete(&["--project", "x", ""])),
         sorted(
-            ["workspace", "--format", "--format="]
+            ["workspace", "worktree", "--format", "--format="]
                 .iter()
                 .map(|s| s.to_string())
                 .collect()
@@ -5442,29 +5536,29 @@ fn project_rename_schema_is_strict_and_distinct() -> TestResult {
     Ok(())
 }
 
-// ---- catalog envelope v3 ------------------------------------------------------
+// ---- catalog envelope v5 ------------------------------------------------------
 
-/// The `orchbee.api.schema` catalog is its own versioned document: v3 now that
-/// the closed dictionary gained `orchbee.cli.failure.source` alongside the v2
-/// `orchbee.project.rename`. The listing self-validates, names exactly the
-/// registered ids, and every embedded document's `$id` equals its key; the
-/// older v1/v2 shapes are refused. Business schemas are untouched —
-/// `orchbee.mutation.result` still excludes `project.rename` — and the new
+/// The `orchbee.api.schema` catalog is its own versioned document: v5 now that
+/// the closed dictionary gained `orchbee.worktree.list` and
+/// `orchbee.cli.failure.worktree` alongside the v4 `orchbee.site.start`. The
+/// listing self-validates, names exactly the registered ids, and every
+/// embedded document's `$id` equals its key; the older v1..v4 shapes are
+/// refused. Business schemas are untouched — `orchbee.mutation.result` still
 /// receipt schema retrieves offline under either locale, byte-identical.
 #[test]
-fn api_schema_catalog_is_v3_closed_and_self_consistent() -> TestResult {
-    let base = base_dir("catalog-v3");
+fn api_schema_catalog_is_v5_closed_and_self_consistent() -> TestResult {
+    let base = base_dir("catalog-v5");
     let api_schema = compiled_schema(&base, "orchbee.api.schema");
 
     let output = run(&base, &["api", "schema", "--format", "json"]);
     assert_eq!(output.status.code(), Some(0));
     let listed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(listed["schema"], "orchbee.api.schema");
-    assert_eq!(listed["version"], 4, "catalog envelope is v4");
+    assert_eq!(listed["version"], 5, "catalog envelope is v5");
     assert_eq!(listed["source"]["kind"], "embedded");
     assert!(api_schema.is_valid(&listed), "listing self-validates");
     let schemas = listed["result"]["schemas"].as_object().unwrap();
-    assert_eq!(schemas.len(), 23, "closed dictionary has 23 members");
+    assert_eq!(schemas.len(), 25, "closed dictionary has 25 members");
     assert!(
         schemas.contains_key("orchbee.project.rename"),
         "the rename receipt schema is registered"
@@ -5472,6 +5566,14 @@ fn api_schema_catalog_is_v3_closed_and_self_consistent() -> TestResult {
     assert!(
         schemas.contains_key("orchbee.cli.failure.source"),
         "the failure-source schema is registered"
+    );
+    assert!(
+        schemas.contains_key("orchbee.worktree.list"),
+        "the worktree list schema is registered"
+    );
+    assert!(
+        schemas.contains_key("orchbee.cli.failure.worktree"),
+        "the dedicated worktree failure schema is registered"
     );
     for (id, document) in schemas {
         assert_eq!(
@@ -5486,12 +5588,13 @@ fn api_schema_catalog_is_v3_closed_and_self_consistent() -> TestResult {
         serde_json::json!(1),
         serde_json::json!(2),
         serde_json::json!(3),
+        serde_json::json!(4),
     ] {
         let mut stale = listed.clone();
         stale["version"] = stale_version.clone();
         assert!(
             !api_schema.is_valid(&stale),
-            "stale catalog {stale_version} fails under v4"
+            "stale catalog {stale_version} fails under v5"
         );
     }
 
@@ -5513,7 +5616,7 @@ fn api_schema_catalog_is_v3_closed_and_self_consistent() -> TestResult {
         "embedded schema retrieval is locale-neutral"
     );
     let named: serde_json::Value = serde_json::from_slice(&english.stdout)?;
-    assert_eq!(named["version"], 4);
+    assert_eq!(named["version"], 5);
     assert_eq!(
         named["result"]["schema"]["schemaId"],
         "orchbee.project.rename"
@@ -5540,5 +5643,246 @@ fn api_schema_catalog_is_v3_closed_and_self_consistent() -> TestResult {
         !actions.iter().any(|a| a == "project.rename"),
         "mutation.result v1 stays closed: {actions:?}"
     );
+    Ok(())
+}
+
+// ---- worktree list document + failure envelope ------------------------------
+
+/// The `worktree list` success document and the dedicated failure envelope,
+/// validated against the embedded schemas. There is no fake-Site path to a
+/// real `found` answer in this suite, so the documents are hand-mirrored to
+/// the emitter's exact field set — the test pins the contract shape, and the
+/// emitter's own unit tests pin the bytes.
+#[test]
+fn worktree_list_schemas_pin_document_and_failure_shapes() -> TestResult {
+    let base = base_dir("worktree-schemas");
+    let list_schema = compiled_schema(&base, "orchbee.worktree.list");
+    let failure_schema = compiled_schema(&base, "orchbee.cli.failure.worktree");
+
+    let source = serde_json::json!({
+        "kind": "worktree-list",
+        "siteId": id(1),
+        "revision": "7",
+    });
+    let entry = serde_json::json!({
+        "worktreePath": "/repo/main",
+        "head": "0123456789abcdef0123456789abcdef01234567",
+        "branch": "refs/heads/main",
+        "bare": false,
+        "detached": false,
+        "locked": false,
+        "prunable": false,
+    });
+    let document = serde_json::json!({
+        "schema": "orchbee.worktree.list",
+        "version": 1,
+        "source": source,
+        "result": {
+            "projectId": id(2),
+            "directoryId": id(3),
+            "path": "/repo",
+            "worktrees": [
+                entry,
+                // An unborn HEAD stays verbatim; a bare entry carries nulls.
+                {
+                    "worktreePath": "/repo/unborn",
+                    "head": "0000000000000000000000000000000000000000",
+                    "branch": "refs/heads/trunk",
+                    "bare": false,
+                    "detached": false,
+                    "locked": false,
+                    "prunable": false,
+                },
+                {
+                    "worktreePath": "/repo/bare.git",
+                    "head": null,
+                    "branch": null,
+                    "bare": true,
+                    "detached": false,
+                    "locked": false,
+                    "prunable": false,
+                },
+                {
+                    "worktreePath": "/repo/detached",
+                    "head": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                    "branch": null,
+                    "bare": false,
+                    "detached": true,
+                    "locked": true,
+                    "prunable": true,
+                },
+                // Raw-byte path and branch forms.
+                {
+                    "worktreePathBytesHex": "2f7265706f2fff",
+                    "head": "0123456789abcdef0123456789abcdef01234567",
+                    "branchBytesHex": "726566732f68656164732fff",
+                    "bare": false,
+                    "detached": false,
+                    "locked": false,
+                    "prunable": false,
+                },
+            ],
+        },
+    });
+    assert!(
+        list_schema.is_valid(&document),
+        "canonical worktree list document validates"
+    );
+
+    for (name, mut bad) in [
+        (
+            "both path spellings",
+            serde_json::json!({"worktreePathBytesHex": "2f61"}),
+        ),
+        ("no path", serde_json::json!({"worktreePath": null})),
+        (
+            "both branch spellings",
+            serde_json::json!({"branchBytesHex": "726566"}),
+        ),
+        (
+            "uppercase head",
+            serde_json::json!({"head": "0123456789ABCDEF0123456789abcdef01234567"}),
+        ),
+        (
+            "short head",
+            serde_json::json!({"head": "0123456789abcdef"}),
+        ),
+        ("non-bare null head", serde_json::json!({"head": null})),
+        ("bare with head", serde_json::json!({"bare": true})),
+        (
+            "detached with branch",
+            serde_json::json!({"detached": true}),
+        ),
+        ("unknown field", serde_json::json!({"extra": true})),
+    ] {
+        let mut document = document.clone();
+        let entries = document["result"]["worktrees"].as_array_mut().unwrap();
+        bad.as_object_mut().unwrap().remove("worktreePath");
+        if name == "no path" {
+            entries[0].as_object_mut().unwrap().remove("worktreePath");
+        }
+        entries[0]
+            .as_object_mut()
+            .unwrap()
+            .extend(bad.as_object().unwrap().clone());
+        assert!(!list_schema.is_valid(&document), "{name} must be refused");
+    }
+
+    // The dedicated failure envelope: each pinned details shape validates,
+    // and the kind set deliberately excludes `invalid-usage` — grammar
+    // failures stay on the generic envelope.
+    {
+        let details = serde_json::json!({"resource": "directory", "target": id(3)});
+        let envelope = serde_json::json!({
+            "schema": "orchbee.cli.failure.worktree",
+            "version": 1,
+            "failure": {"kind": "not-found", "details": details},
+            "source": {"kind": "workbench-snapshot", "siteId": id(1), "revision": "7"},
+        });
+        assert!(failure_schema.is_valid(&envelope), "not-found envelope");
+    }
+    for (kind, details) in [
+        ("denied", serde_json::json!({"stage": "worktree-list"})),
+        (
+            "service-unavailable",
+            serde_json::json!({"stage": "worktree-list", "reason": "job-dead"}),
+        ),
+        (
+            "check-failed",
+            serde_json::json!({"stage": "probe", "status": 128}),
+        ),
+        // A signaled Git emits an explicit null status, never an invented code.
+        (
+            "check-failed",
+            serde_json::json!({"stage": "list", "status": null}),
+        ),
+        ("check-failed", serde_json::json!({"stage": "parse"})),
+        (
+            "timeout",
+            serde_json::json!({"stage": "worktree-list", "timeoutMs": 5000}),
+        ),
+        (
+            "output-too-large",
+            serde_json::json!({"stage": "worktree-list", "origin": "git-list", "limitBytes": 65536}),
+        ),
+        (
+            "transport-loss",
+            serde_json::json!({"stage": "worktree-list"}),
+        ),
+        (
+            "protocol-invalid",
+            serde_json::json!({"stage": "worktree-list", "reason": "correlation-mismatch"}),
+        ),
+        ("internal-failure", serde_json::json!(null)),
+    ] {
+        let mut failure = serde_json::json!({"kind": kind});
+        if !details.is_null() {
+            failure["details"] = details;
+        }
+        let envelope = serde_json::json!({
+            "schema": "orchbee.cli.failure.worktree",
+            "version": 1,
+            "failure": failure,
+            "source": {"kind": "workbench-snapshot", "siteId": id(1), "revision": "7"},
+        });
+        assert!(
+            failure_schema.is_valid(&envelope),
+            "{kind} envelope must validate"
+        );
+    }
+
+    // Refusals: grammar kinds do not belong to this envelope, detail shapes
+    // are pinned per kind, and an absent-directory failure must name the
+    // directory resource.
+    for (name, envelope) in [
+        (
+            "invalid-usage is not a worktree failure",
+            serde_json::json!({"schema":"orchbee.cli.failure.worktree","version":1,"failure":{"kind":"invalid-usage"}}),
+        ),
+        (
+            "not-found without directory details",
+            serde_json::json!({"schema":"orchbee.cli.failure.worktree","version":1,"failure":{"kind":"not-found","details":{"resource":"tab","target":"x"}}}),
+        ),
+        (
+            "unavailable with a foreign reason",
+            serde_json::json!({"schema":"orchbee.cli.failure.worktree","version":1,"failure":{"kind":"service-unavailable","details":{"stage":"worktree-list","reason":"socket"}}}),
+        ),
+        (
+            "timeout with a foreign budget",
+            serde_json::json!({"schema":"orchbee.cli.failure.worktree","version":1,"failure":{"kind":"timeout","details":{"stage":"worktree-list","timeoutMs":30000}}}),
+        ),
+        (
+            "too-large with a foreign limit",
+            serde_json::json!({"schema":"orchbee.cli.failure.worktree","version":1,"failure":{"kind":"output-too-large","details":{"stage":"worktree-list","origin":"git-list","limitBytes":8388608}}}),
+        ),
+        (
+            "generic failure schema id",
+            serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"not-found","details":{"resource":"directory","target":id(3)}}}),
+        ),
+        // The obsolete worktree outcome-unknown arm is gone: this read-only
+        // family reports response loss as transport-loss, never an
+        // undetermined effect.
+        (
+            "outcome-unknown is not a worktree failure",
+            serde_json::json!({"schema":"orchbee.cli.failure.worktree","version":1,"failure":{"kind":"outcome-unknown","details":{"stage":"worktree-list","reason":"response-loss"}}}),
+        ),
+        (
+            "probe without its status",
+            serde_json::json!({"schema":"orchbee.cli.failure.worktree","version":1,"failure":{"kind":"check-failed","details":{"stage":"probe"}}}),
+        ),
+        (
+            "parse with an invented status",
+            serde_json::json!({"schema":"orchbee.cli.failure.worktree","version":1,"failure":{"kind":"check-failed","details":{"stage":"parse","status":1}}}),
+        ),
+        (
+            "status that is not an integer or null",
+            serde_json::json!({"schema":"orchbee.cli.failure.worktree","version":1,"failure":{"kind":"check-failed","details":{"stage":"list","status":"1"}}}),
+        ),
+    ] {
+        assert!(
+            !failure_schema.is_valid(&envelope),
+            "{name} must be refused"
+        );
+    }
     Ok(())
 }

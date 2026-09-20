@@ -6,7 +6,8 @@ use orchbee_workbench_protocol::{
     WorkbenchRequest, WorkbenchResponse, WorkbenchSnapshotOutcome, WorkbenchSnapshotResult,
     WorkbenchSnapshotUnavailableReason, WorkbenchTabCloseReadOutcome, WorkbenchTabCloseReadResult,
     WorkbenchTabCloseResumeOutcome, WorkbenchTabCloseResumeResult,
-    WorkbenchTabCloseUnavailableReason,
+    WorkbenchTabCloseUnavailableReason, WorkbenchWorktreeListOutcome, WorkbenchWorktreeListResult,
+    WorktreeListUnavailableReason,
 };
 use std::sync::Arc;
 
@@ -44,7 +45,8 @@ impl WorkbenchService {
         let permitted = match &request {
             WorkbenchRequest::SnapshotRead(_)
             | WorkbenchRequest::PublicationRead(_)
-            | WorkbenchRequest::TabCloseRead(_) => self.policy.read,
+            | WorkbenchRequest::TabCloseRead(_)
+            | WorkbenchRequest::WorktreeListRead(_) => self.policy.read,
             WorkbenchRequest::TabCloseResume(_) => self.policy.manage_terminal_lifecycle,
             WorkbenchRequest::Command(command)
                 if matches!(
@@ -126,6 +128,15 @@ impl WorkbenchService {
                     response.unwrap_or_else(|| unavailable_or_denied(request, false)),
                 );
             }
+            WorkbenchRequest::WorktreeListRead(read) => {
+                let response = self
+                    .terminals
+                    .execute_worktree_list(read.clone())
+                    .map(WorkbenchResponse::WorktreeList);
+                return WorkbenchExecution::Response(
+                    response.unwrap_or_else(|| unavailable_or_denied(request, false)),
+                );
+            }
             WorkbenchRequest::SnapshotRead(_)
             | WorkbenchRequest::PublicationRead(_)
             | WorkbenchRequest::Command(_) => {}
@@ -180,6 +191,19 @@ impl WorkbenchService {
 
 fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchResponse {
     match request {
+        WorkbenchRequest::WorktreeListRead(read) => {
+            WorkbenchResponse::WorktreeList(WorkbenchWorktreeListResult {
+                protocol_version: ProtocolVersion,
+                request_id: read.request_id,
+                outcome: if denied {
+                    WorkbenchWorktreeListOutcome::Denied {}
+                } else {
+                    WorkbenchWorktreeListOutcome::Unavailable {
+                        reason: WorktreeListUnavailableReason::ServerBusy,
+                    }
+                },
+            })
+        }
         WorkbenchRequest::TabCloseRead(read) => {
             WorkbenchResponse::TabCloseRead(WorkbenchTabCloseReadResult {
                 protocol_version: ProtocolVersion,

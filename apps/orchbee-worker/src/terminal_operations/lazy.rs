@@ -33,8 +33,26 @@ pub(crate) fn run(
 ) -> Result<(), Box<dyn Error>> {
     server.set_nonblocking(true)?;
     let mut kernel = AuthorizedHostOperationKernel::new(worker_id, generation)?;
+    // The discovery slot outlives the pre-Host phase: jobs admitted here stay
+    // owned across the first Launch instead of being orphaned at handoff.
+    let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
     loop {
         let request = server_transport::receive(server, None)?;
+        if let CapabilityNodeMessage::WorktreeJobRequest(request) = request {
+            // Worktree jobs need no Host; they answer directly in this loop.
+            let result = crate::worktree_job_operation::execute(
+                request,
+                worker_id,
+                generation,
+                &worktree_slot,
+            );
+            let _no_host = server_transport::send(
+                server,
+                None,
+                &CapabilityNodeMessage::WorktreeJobResult(result),
+            )?;
+            continue;
+        }
         if let CapabilityNodeMessage::TerminalCwdValidationRequest(request) = request {
             let result = crate::terminal_cwd_validation::validate(request, worker_id, generation);
             // The send result reports Host closure, not Server closure. This pre-Host loop has no
@@ -99,7 +117,14 @@ pub(crate) fn run(
         if closed {
             return Err(super::peer_closed().into());
         }
-        return super::run_admitted(server, &mut host, worker_id, generation, kernel);
+        return super::run_admitted(
+            server,
+            &mut host,
+            worker_id,
+            generation,
+            kernel,
+            &worktree_slot,
+        );
     }
 }
 

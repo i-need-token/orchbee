@@ -14,6 +14,8 @@ mod native_cohort;
 mod native_context;
 #[path = "local_startup_process/native_endpoint_budget.rs"]
 mod native_endpoint_budget;
+#[path = "local_startup_process/native_exec_launch.rs"]
+mod native_exec_launch;
 #[path = "local_startup_process/native_history.rs"]
 mod native_history;
 #[path = "local_startup_process/native_location_labels.rs"]
@@ -38,6 +40,8 @@ mod native_workspace_accept_directory;
 mod native_workspace_fixture;
 #[path = "local_startup_process/native_workspace_setup.rs"]
 mod native_workspace_setup;
+#[path = "local_startup_process/native_worktree_list.rs"]
+mod native_worktree_list;
 #[path = "local_startup_process/pty_client.rs"]
 mod pty_client;
 #[path = "local_startup_process/startup_wait.rs"]
@@ -820,6 +824,7 @@ fn lazy_worker_rejects_invalid_launches_then_preserves_its_first_dispatch_and_re
                 ),
                 None,
                 TerminalLaunchMode::Deferred,
+                None,
             ),
         ))
     };

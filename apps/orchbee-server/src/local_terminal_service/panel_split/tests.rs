@@ -143,6 +143,7 @@ fn settle_first_terminal(
                     terminal_context_id: context.clone(),
                     label: WorkbenchLabel::parse("first").unwrap(),
                     geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+                    launch: None,
                 },
             },
             Some(request_id(2401)),
@@ -214,6 +215,7 @@ fn retargeted_split_completion_notifies_a_parked_bare_open_waiter() -> TestResul
             direction: WorkbenchPanelSplitDirection::Right,
             label: WorkbenchLabel::parse("split").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+            launch: None,
         },
     };
 

@@ -81,6 +81,7 @@ pub(super) fn context_tab_command(
             terminal_context_id,
             label: WorkbenchLabel::parse(label).unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+            launch: None,
         },
     }
 }
@@ -566,6 +567,7 @@ fn pending_and_final_replay_precede_missing_candidates_worker_and_conflict() {
             .clone(),
         label: WorkbenchLabel::parse("different").unwrap(),
         geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+        launch: None,
     };
     assert!(matches!(
         ready(coordinator.prepare_terminal_tab_create(conflict, None, None, None)).outcome,
@@ -584,6 +586,70 @@ fn pending_and_final_replay_precede_missing_candidates_worker_and_conflict() {
         final_result
     );
     assert_eq!(coordinator.allocate_identity(), Some(2_u128.to_be_bytes()));
+}
+
+#[test]
+fn launch_selection_reaches_the_worker_command_and_replay_identity() {
+    let mut coordinator = site();
+    let mut command = tab_command(&coordinator, 21, 0, "launch");
+    let WorkbenchAction::TabCreate { launch, .. } = &mut command.action else {
+        panic!("tab.create action expected")
+    };
+    // A maximum-size selection exercises the cross-layer conversion at the
+    // shared 2,048-byte bound: executable plus arguments total exactly 2,048.
+    let long = "x".repeat(2_048 - "/bin/sh".len() - "-c".len() - "漢字".len());
+    *launch = Some(
+        orchbee_workbench_protocol::LaunchSelection::new(
+            "/bin/sh".to_owned(),
+            vec!["-c".to_owned(), "漢字".to_owned(), long.clone()],
+        )
+        .unwrap(),
+    );
+
+    // The pending OBCN command carries the selection verbatim.
+    let pending = dispatch_tab(&mut coordinator, command.clone(), 211);
+    let CapabilityNodeMessage::AuthorizedTerminalLaunch(authorized) = pending.command() else {
+        panic!("terminal Launch expected")
+    };
+    let selected = authorized.launch().expect("explicit launch selection");
+    assert_eq!(selected.executable(), "/bin/sh");
+    assert_eq!(
+        selected.arguments(),
+        ["-c".to_owned(), "漢字".to_owned(), long].as_slice()
+    );
+
+    // An identical replay returns the pending outcome without dispatching a
+    // second launch.
+    let replay = ready(coordinator.prepare_terminal_tab_create(command.clone(), None, None, None));
+    assert!(matches!(
+        replay.outcome,
+        WorkbenchCommandOutcome::TabCreatePending { revision, .. }
+            if revision == WorkbenchRevision::new(1)
+    ));
+    // The probe consumes the identity it returns, so the next free value is 3.
+    assert_eq!(coordinator.allocate_identity(), Some(2_u128.to_be_bytes()));
+
+    // The same request id with a different selection conflicts before effect.
+    let mut conflict = command.clone();
+    let WorkbenchAction::TabCreate { launch, .. } = &mut conflict.action else {
+        panic!("tab.create action expected")
+    };
+    // The conflicting selection also exercises the 128-argument count bound.
+    *launch = Some(
+        orchbee_workbench_protocol::LaunchSelection::new(
+            "/bin/zsh".to_owned(),
+            vec![String::new(); 128],
+        )
+        .unwrap(),
+    );
+    assert!(matches!(
+        ready(coordinator.prepare_terminal_tab_create(conflict, None, None, None)).outcome,
+        WorkbenchCommandOutcome::Rejected {
+            reason: WorkbenchRejectionReason::RequestIdentityConflict,
+            ..
+        }
+    ));
+    assert_eq!(coordinator.allocate_identity(), Some(3_u128.to_be_bytes()));
 }
 
 #[test]
@@ -653,6 +719,7 @@ fn missing_retired_and_inconsistent_workbench_use_service_unavailable_without_te
             .unwrap(),
             label: WorkbenchLabel::parse("missing").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+            launch: None,
         },
     };
     let mut missing = SiteCoordinator::new(None);

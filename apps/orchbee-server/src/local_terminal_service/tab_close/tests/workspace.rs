@@ -114,6 +114,7 @@ fn pending_create(
             terminal_context_id: context.clone(),
             label: WorkbenchLabel::parse("workspace terminal").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+            launch: None,
         },
     );
     let PreparedTerminalTabCreate::Dispatch(pending) = service

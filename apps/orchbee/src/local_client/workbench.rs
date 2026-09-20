@@ -6,7 +6,8 @@ use orchbee_workbench_protocol::{
     WorkbenchPublicationResult, WorkbenchRejectionReason, WorkbenchRequest, WorkbenchRequestId,
     WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotResult, WorkbenchTabId,
     WorkbenchTerminalContextId, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
-    WorkbenchWireError, read_workbench_response, write_workbench_request,
+    WorkbenchWireError, WorkbenchWorktreeListRead, WorkbenchWorktreeListResult,
+    read_workbench_response, write_workbench_request,
 };
 
 use super::{ExchangeAttempt, LocalClient, exchange_once};
@@ -230,6 +231,81 @@ impl LocalClient {
         Ok(result)
     }
 
+    /// The `worktree list` read: one typed request on the admitted session
+    /// under the caller's absolute deadline. It is a pure read — a failed
+    /// exchange is classified like the snapshot read's, never replayed.
+    pub(crate) fn submit_workbench_worktree_list_read_before(
+        &mut self,
+        request: WorkbenchWorktreeListRead,
+        deadline: Instant,
+    ) -> Result<WorkbenchWorktreeListResult, WorktreeListReadError> {
+        if self.connection.is_none() {
+            return Err(WorktreeListReadError::SessionUnavailable);
+        }
+
+        let request_id = request.request_id.clone();
+        let mut frame = Vec::new();
+        write_workbench_request(&mut frame, &WorkbenchRequest::WorktreeListRead(request))
+            .map_err(WorktreeListReadError::RequestEncoding)?;
+        let deadline = self
+            .submission_deadline_before(deadline)
+            .map_err(WorktreeListReadError::RequestNotSubmitted)?;
+        let attempt = {
+            let Some(connection) = self.connection.as_mut() else {
+                return Err(WorktreeListReadError::SessionUnavailable);
+            };
+            exchange_once(
+                connection,
+                &self.clock,
+                deadline,
+                self.io_chunk_limits,
+                &frame,
+                |io| read_workbench_response(io),
+            )
+        };
+        let response = match attempt {
+            ExchangeAttempt::Result(response) => response,
+            ExchangeAttempt::NotSubmitted(error) => {
+                return Err(WorktreeListReadError::RequestNotSubmitted(error));
+            }
+            ExchangeAttempt::WriteFailed(error) => {
+                return self.retire_with_worktree_list_failure(
+                    request_id,
+                    WorktreeListReadFailure::Write(error),
+                );
+            }
+            ExchangeAttempt::ReadFailed(error) => {
+                return self.retire_with_worktree_list_failure(
+                    request_id,
+                    WorktreeListReadFailure::Response(error),
+                );
+            }
+            ExchangeAttempt::ReadDeadline(error) => {
+                return self.retire_with_worktree_list_failure(
+                    request_id,
+                    WorktreeListReadFailure::ResponseDeadline(error),
+                );
+            }
+        };
+        let WorkbenchResponse::WorktreeList(result) = response else {
+            return self.retire_with_worktree_list_failure(
+                request_id,
+                WorktreeListReadFailure::UnexpectedResponse,
+            );
+        };
+        if result.request_id != request_id {
+            let received = result.request_id.clone();
+            return self.retire_with_worktree_list_failure(
+                request_id.clone(),
+                WorktreeListReadFailure::CorrelationMismatch {
+                    expected: request_id,
+                    received,
+                },
+            );
+        }
+        Ok(result)
+    }
+
     pub(crate) fn submit_workbench_tab_create(
         &mut self,
         request: WorkbenchTabCreateRequest,
@@ -353,6 +429,15 @@ impl LocalClient {
     ) -> Result<Value, PublicationReadError> {
         self.connection.take();
         Err(PublicationReadError::Failed { request_id, reason })
+    }
+
+    fn retire_with_worktree_list_failure<Value>(
+        &mut self,
+        request_id: WorkbenchRequestId,
+        reason: WorktreeListReadFailure,
+    ) -> Result<Value, WorktreeListReadError> {
+        self.connection.take();
+        Err(WorktreeListReadError::Failed { request_id, reason })
     }
 
     fn retire_with_tab_create_unknown(
@@ -749,6 +834,95 @@ impl fmt::Display for SnapshotReadFailure {
 }
 
 impl std::error::Error for SnapshotReadFailure {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Write(error) | Self::ResponseDeadline(error) => Some(error),
+            Self::Response(error) => Some(error),
+            Self::UnexpectedResponse | Self::CorrelationMismatch { .. } => None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum WorktreeListReadError {
+    SessionUnavailable,
+    RequestEncoding(WorkbenchWireError),
+    RequestNotSubmitted(io::Error),
+    Failed {
+        request_id: WorkbenchRequestId,
+        reason: WorktreeListReadFailure,
+    },
+}
+
+impl fmt::Display for WorktreeListReadError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SessionUnavailable => formatter.write_str("local Client Session is unavailable"),
+            Self::RequestEncoding(error) => {
+                write!(
+                    formatter,
+                    "OBWP worktree-list request encoding failed: {error}"
+                )
+            }
+            Self::RequestNotSubmitted(error) => write!(
+                formatter,
+                "OBWP worktree-list request failed before any transport handoff: {error}"
+            ),
+            Self::Failed { request_id, reason } => {
+                write!(
+                    formatter,
+                    "OBWP worktree-list request {request_id} failed: {reason}"
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for WorktreeListReadError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::RequestEncoding(error) => Some(error),
+            Self::RequestNotSubmitted(error) => Some(error),
+            Self::Failed { reason, .. } => reason.source(),
+            Self::SessionUnavailable => None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum WorktreeListReadFailure {
+    Write(io::Error),
+    Response(WorkbenchWireError),
+    ResponseDeadline(io::Error),
+    UnexpectedResponse,
+    CorrelationMismatch {
+        expected: WorkbenchRequestId,
+        received: WorkbenchRequestId,
+    },
+}
+
+impl fmt::Display for WorktreeListReadFailure {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Write(error) => write!(formatter, "request write failed: {error}"),
+            Self::Response(error) => {
+                write!(formatter, "invalid worktree-list response: {error}")
+            }
+            Self::ResponseDeadline(error) => {
+                write!(formatter, "worktree-list response failed: {error}")
+            }
+            Self::UnexpectedResponse => {
+                formatter.write_str("expected workbench.worktree-list.result response")
+            }
+            Self::CorrelationMismatch { expected, received } => write!(
+                formatter,
+                "expected Workbench request identity {expected} but received {received}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for WorktreeListReadFailure {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Write(error) | Self::ResponseDeadline(error) => Some(error),

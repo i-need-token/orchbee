@@ -19,8 +19,8 @@ use nix::{
 use orchbee_capability_node_protocol::{
     AuthorizedTerminalLaunch, AuthorizedTerminalStart, CapabilityNodeMessage, ProtocolError,
     ReadMessageError, TerminalCwdValidationRequest, TerminalCwdValidationResult,
-    TerminalLaunchResult, TerminalOperationAuthorization, TerminalStartResult, encode_message,
-    read_message,
+    TerminalLaunchResult, TerminalOperationAuthorization, TerminalStartResult, WorktreeJobRequest,
+    WorktreeJobResult, encode_message, read_message,
 };
 use orchbee_local_site_protocol::WorkerId;
 
@@ -42,6 +42,7 @@ pub(crate) enum WorkerOperationRequest {
     Start(AuthorizedTerminalStart),
     Viewer(orchbee_capability_node_protocol::TerminalViewerRequest),
     Send(orchbee_capability_node_protocol::TerminalSendRequest),
+    WorktreeJob(WorktreeJobRequest),
 }
 
 impl WorkerOperationRequest {
@@ -68,6 +69,7 @@ impl WorkerOperationRequest {
             ),
             Self::Viewer(request) => (request.worker_id, request.worker_generation),
             Self::Send(request) => (request.worker_id, request.worker_generation),
+            Self::WorktreeJob(request) => (request.worker_id, request.worker_generation),
         }
     }
 
@@ -79,7 +81,8 @@ impl WorkerOperationRequest {
             | Self::Control(_)
             | Self::Launch(_)
             | Self::Start(_)
-            | Self::Send(_) => RequestLane::High,
+            | Self::Send(_)
+            | Self::WorktreeJob(_) => RequestLane::High,
         }
     }
 
@@ -98,6 +101,9 @@ impl WorkerOperationRequest {
             Self::Start(request) => CapabilityNodeMessage::AuthorizedTerminalStart(*request),
             Self::Viewer(request) => CapabilityNodeMessage::TerminalViewerRequest(*request),
             Self::Send(request) => CapabilityNodeMessage::TerminalSendRequest(request.clone()),
+            Self::WorktreeJob(request) => {
+                CapabilityNodeMessage::WorktreeJobRequest(request.clone())
+            }
         }
     }
 }
@@ -111,6 +117,7 @@ pub(crate) enum WorkerOperationResult {
     Start(TerminalStartResult),
     Viewer(orchbee_capability_node_protocol::TerminalViewerResult),
     Send(orchbee_capability_node_protocol::TerminalSendResult),
+    WorktreeJob(WorktreeJobResult),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1155,6 +1162,47 @@ fn validate_response(
             | CapabilityNodeMessage::TerminalStartResult(_),
         )
         | (_, CapabilityNodeMessage::TerminalSendResult(_)) => {
+            Err(WorkerResponseFailure::WrongResultKind)
+        }
+        (
+            WorkerOperationRequest::WorktreeJob(expected),
+            CapabilityNodeMessage::WorktreeJobResult(actual),
+        ) => {
+            use orchbee_capability_node_protocol::{WorktreeJobAction, WorktreeJobOutcome};
+            if actual.operation_id != expected.operation_id {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            let expected_job = match &expected.action {
+                // Start mints the Job identity: the echoed Job ID is the
+                // request's own operation identity.
+                WorktreeJobAction::Start { .. } => expected.operation_id,
+                WorktreeJobAction::Poll { job_id } | WorktreeJobAction::Cancel { job_id } => {
+                    *job_id
+                }
+            };
+            if actual.job_id != expected_job {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            if !matches!(
+                (&expected.action, &actual.outcome),
+                (
+                    WorktreeJobAction::Start { .. },
+                    WorktreeJobOutcome::Start(_)
+                ) | (WorktreeJobAction::Poll { .. }, WorktreeJobOutcome::Poll(_))
+                    | (
+                        WorktreeJobAction::Cancel { .. },
+                        WorktreeJobOutcome::Cancel(_)
+                    )
+            ) {
+                return Err(WorkerResponseFailure::WrongResultKind);
+            }
+            Ok(WorkerOperationResult::WorktreeJob(actual))
+        }
+        (_, CapabilityNodeMessage::WorktreeJobRequest(_)) => {
+            Err(WorkerResponseFailure::WrongDirection)
+        }
+        (_, CapabilityNodeMessage::WorktreeJobResult(_))
+        | (WorkerOperationRequest::WorktreeJob(_), _) => {
             Err(WorkerResponseFailure::WrongResultKind)
         }
     }

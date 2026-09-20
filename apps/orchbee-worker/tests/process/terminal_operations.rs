@@ -4,8 +4,8 @@ use nix::unistd::{Uid, User};
 use orchbee_capability_node_protocol::{
     AbsoluteCwd, AuthorizedTerminalLaunch, AuthorizedTerminalStart, CapabilityNodeMessage,
     HostLaunchState, LeaseExpiresAtUnixMilliseconds, LeaseId, OperationId,
-    TERMINAL_LAUNCH_CAPABILITY_VERSION, TerminalFence, TerminalId, TerminalLaunchMode,
-    TerminalLaunchOutcome, TerminalLaunchRejection, TerminalLaunchResult,
+    TERMINAL_LAUNCH_CAPABILITY_VERSION, TerminalFence, TerminalId, TerminalLaunchFailure,
+    TerminalLaunchMode, TerminalLaunchOutcome, TerminalLaunchRejection, TerminalLaunchResult,
     TerminalOperationAuthorization, TerminalOperationLease, TerminalPixelGeometry,
     TerminalStartOutcome, WorkerGeneration, WorkerId as CapabilityWorkerId, encode_message,
     read_message as read_obcn, write_message as write_obcn,
@@ -286,7 +286,7 @@ fn worker_resolves_only_admitted_launches_and_replays_without_another_command() 
     );
     let rejected = request_launch(
         &mut server,
-        &AuthorizedTerminalLaunch::new(wrong_worker, None, TerminalLaunchMode::Deferred),
+        &AuthorizedTerminalLaunch::new(wrong_worker, None, TerminalLaunchMode::Deferred, None),
     )?;
     assert_eq!(
         rejected.outcome(),
@@ -302,6 +302,196 @@ fn worker_resolves_only_admitted_launches_and_replays_without_another_command() 
             result.outcome(),
             TerminalLaunchOutcome::HostAccepted(_)
         ));
+        assert_eq!(request_launch(&mut server, &request)?, result);
+    }
+    drop(server);
+    assert_failed_after_exact_readiness(worker.finish()?);
+    join_peer(host, "Host launch observer")?;
+    Ok(())
+}
+
+#[test]
+fn real_host_executes_the_explicit_selection_and_reports_spawn_failures() -> TestResult {
+    let fixture = RuntimeFixture::new()?;
+    let _host = RunningHost::start(&fixture)?;
+    wait_for_socket(&fixture.host_endpoint())?;
+    let worker = RunningWorker::start(&fixture)?;
+    let (mut server, _) = admit_worker(&fixture.server_listener)?;
+    assert_eq!(worker.await_readiness()?, Some(*b"ready\n"));
+
+    // A real explicit executable receives argv[1..] verbatim — ordered,
+    // empty, dash-prefixed, and Unicode values — inside the authorized cwd.
+    let argv_file = fixture._directory.path().join("argv.txt");
+    let cwd_file = fixture._directory.path().join("cwd.txt");
+    let script = format!(
+        "printf '%s\\n' \"$@\" > '{}'; pwd > '{}'",
+        argv_file.display(),
+        cwd_file.display()
+    );
+    let explicit = AuthorizedTerminalLaunch::new(
+        authorization(9, 9)?,
+        Some(AbsoluteCwd::new("/tmp")?),
+        TerminalLaunchMode::Immediate(geometry()?),
+        Some(orchbee_capability_node_protocol::LaunchSelection::new(
+            "/bin/sh".to_owned(),
+            vec![
+                "-c".to_owned(),
+                script,
+                "orchbee-argv0".to_owned(),
+                "-x".to_owned(),
+                String::new(),
+                "漢字".to_owned(),
+            ],
+        )?),
+    );
+    let launched = request_launch(&mut server, &explicit)?;
+    let TerminalLaunchOutcome::HostAccepted(accepted) = launched.outcome() else {
+        return Err(format!("explicit launch rejected: {launched:?}").into());
+    };
+    assert!(matches!(
+        accepted.state(),
+        HostLaunchState::Started(_) | HostLaunchState::AwaitingStart
+    ));
+    // Spawn is asynchronous through the PTY; wait for the witness files.
+    let deadline = Instant::now() + PROCESS_TIMEOUT;
+    while !(argv_file.exists() && cwd_file.exists()) {
+        assert!(Instant::now() < deadline, "launch witness never wrote");
+        thread::sleep(Duration::from_millis(10));
+    }
+    // sh -c <script> <argv0> <argv...>: "$@" is argv[4..] — the transmitted
+    // arguments after the consumed `-c` pair and the synthesized argv0 slot.
+    assert_eq!(fs::read_to_string(&argv_file)?, "-x\n\n漢字\n");
+    assert_eq!(fs::read_to_string(&cwd_file)?.trim_end(), "/tmp");
+
+    // A real spawn failure publishes the existing failure outcome — no
+    // retry and no silent fallback to the default shell.
+    let failing = AuthorizedTerminalLaunch::new(
+        authorization(10, 10)?,
+        None,
+        TerminalLaunchMode::Immediate(geometry()?),
+        Some(orchbee_capability_node_protocol::LaunchSelection::new(
+            "/nonexistent/orchbee-missing-executable".to_owned(),
+            Vec::new(),
+        )?),
+    );
+    let failed = request_launch(&mut server, &failing)?;
+    let TerminalLaunchOutcome::Failed(TerminalLaunchFailure::HostReportedFailure { .. }) =
+        failed.outcome()
+    else {
+        return Err(format!("unexpected outcome: {:?}", failed.outcome()).into());
+    };
+    assert_eq!(request_launch(&mut server, &failing)?, failed);
+
+    drop(server);
+    assert_failed_after_exact_readiness(worker.finish()?);
+    Ok(())
+}
+
+#[test]
+fn explicit_launch_selection_reaches_the_host_verbatim() -> TestResult {
+    let fixture = RuntimeFixture::new()?;
+    let listener = fixture.bind_host_listener()?;
+    let host = thread::spawn(move || -> io::Result<()> {
+        let mut host = admit_host(&listener)?;
+        let home = User::from_uid(Uid::effective())?
+            .ok_or_else(|| io::Error::other("missing account"))?
+            .dir;
+        for (executable, arguments, expected_cwd) in [
+            (
+                "/bin/sh",
+                vec!["-c", "", "--", "-l", "echo 漢字"],
+                "/tmp".to_owned(),
+            ),
+            (
+                "/bin/zsh",
+                vec![],
+                home.to_str()
+                    .ok_or_else(|| io::Error::other("non-UTF8 home"))?
+                    .to_owned(),
+            ),
+        ] {
+            let record = read_terminal_record(&mut host)?;
+            let envelope = decode_transport_envelope(&record).map_err(protocol_io)?;
+            let TerminalCreationControl::CreateTerminal(request) =
+                decode_terminal_creation_control(envelope.kind, envelope.role, envelope.payload)
+                    .map_err(protocol_io)?
+            else {
+                return Err(io::Error::other("missing CreateTerminal"));
+            };
+            // The selection is argv[1..] verbatim — order, empty values,
+            // dash-prefixed and Unicode values all survive unmodified.
+            assert_eq!(request.launch.executable, executable);
+            assert_eq!(
+                request.launch.arguments,
+                arguments
+                    .iter()
+                    .map(|argument| (*argument).to_owned())
+                    .collect::<Vec<String>>()
+            );
+            assert_eq!(
+                request.launch.current_directory.as_deref(),
+                Some(expected_cwd.as_str())
+            );
+            assert!(request.environment_overlay.is_empty());
+            let epoch = HostEpoch::from_bytes([0x44; 16]).map_err(protocol_io)?;
+            let response = encode_terminal_creation_control(
+                &TerminalCreationControl::TerminalCreated(TerminalIdentity {
+                    creation_id: request.creation_id,
+                    host_epoch: epoch,
+                    terminal_id: orchbee_terminal_protocol::TerminalId::from_bytes(
+                        *request.creation_id.as_bytes(),
+                    )
+                    .map_err(protocol_io)?,
+                }),
+            )
+            .map_err(protocol_io)?;
+            host.write_all(
+                &host_record(
+                    response.kind,
+                    response.role,
+                    &response.payload,
+                    epoch,
+                    envelope
+                        .correlation_id
+                        .ok_or_else(|| io::Error::other("missing correlation"))?,
+                )
+                .map_err(protocol_io)?,
+            )?;
+        }
+        require_connection_closed(&mut host)
+    });
+    let worker = RunningWorker::start(&fixture)?;
+    let (mut server, _) = admit_worker(&fixture.server_listener)?;
+    assert_eq!(worker.await_readiness()?, Some(*b"ready\n"));
+
+    for (id, executable, arguments, cwd) in [
+        (
+            1,
+            "/bin/sh",
+            vec!["-c", "", "--", "-l", "echo 漢字"],
+            Some(AbsoluteCwd::new("/tmp")?),
+        ),
+        (2, "/bin/zsh", vec![], None),
+    ] {
+        let selection = orchbee_capability_node_protocol::LaunchSelection::new(
+            executable.to_owned(),
+            arguments
+                .iter()
+                .map(|argument| (*argument).to_owned())
+                .collect(),
+        )?;
+        let request = AuthorizedTerminalLaunch::new(
+            authorization(id, id)?,
+            cwd,
+            TerminalLaunchMode::Deferred,
+            Some(selection),
+        );
+        let result = request_launch(&mut server, &request)?;
+        assert!(matches!(
+            result.outcome(),
+            TerminalLaunchOutcome::HostAccepted(_)
+        ));
+        // An identical replay must not dispatch a second Host command.
         assert_eq!(request_launch(&mut server, &request)?, result);
     }
     drop(server);
@@ -476,6 +666,7 @@ fn launch(
         authorization(id, id)?,
         cwd,
         mode,
+        None,
     ))
 }
 

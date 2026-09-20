@@ -1,16 +1,16 @@
 use std::collections::BTreeMap;
 
 use orchbee_workbench_protocol::{
-    ContractError, MAXIMUM_PROJECTS, MAXIMUM_TERMINAL_CONTEXTS, MAXIMUM_WORKSPACES_PER_PROJECT,
-    Navigation, Project, ProtocolVersion, SiteId, Snapshot, TerminalContext, WorkbenchAction,
-    WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
-    WorkbenchCommandUnavailableReason, WorkbenchLabel, WorkbenchProjectId,
-    WorkbenchProtocolDocument, WorkbenchPublicationDocument, WorkbenchPublicationOutcome,
-    WorkbenchPublicationResult, WorkbenchRejectionReason, WorkbenchRequest, WorkbenchRequestId,
-    WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotOutcome, WorkbenchSnapshotResult,
-    WorkbenchSnapshotUnavailableReason, WorkbenchTabId, WorkbenchTerminalContextId,
-    WorkbenchWorkspaceId, Workspace, serialize_document, serialize_workbench_request,
-    serialize_workbench_response,
+    ContractError, Directory, MAXIMUM_PROJECTS, MAXIMUM_TERMINAL_CONTEXTS,
+    MAXIMUM_WORKSPACES_PER_PROJECT, Navigation, Project, ProtocolVersion, SiteId, Snapshot,
+    TerminalContext, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
+    WorkbenchCommandResult, WorkbenchCommandUnavailableReason, WorkbenchDirectoryId,
+    WorkbenchLabel, WorkbenchProjectId, WorkbenchProtocolDocument, WorkbenchPublicationDocument,
+    WorkbenchPublicationOutcome, WorkbenchPublicationResult, WorkbenchRejectionReason,
+    WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision,
+    WorkbenchSnapshotOutcome, WorkbenchSnapshotResult, WorkbenchSnapshotUnavailableReason,
+    WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchWorkspaceId, Workspace,
+    serialize_document, serialize_workbench_request, serialize_workbench_response,
 };
 
 use crate::workbench_projection::{
@@ -103,9 +103,9 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
                 };
                 Ok(Self(ReadOrNavigationRequest::Command { command, action }))
             }
-            request @ (WorkbenchRequest::TabCloseRead(_) | WorkbenchRequest::TabCloseResume(_)) => {
-                Err(request)
-            }
+            request @ (WorkbenchRequest::TabCloseRead(_)
+            | WorkbenchRequest::TabCloseResume(_)
+            | WorkbenchRequest::WorktreeListRead(_)) => Err(request),
         }
     }
 }
@@ -156,6 +156,23 @@ impl WorkbenchGrant {
         self.associate_directory = true;
         self
     }
+}
+
+/// The committed point-in-time membership slice a Worktree List request
+/// resolves and later re-verifies: site identity, revision, and the registered
+/// directory record (which carries its owning Worker identity).
+#[derive(Clone, Debug)]
+pub struct WorktreeListTarget {
+    pub site_id: SiteId,
+    pub revision: WorkbenchRevision,
+    pub directory: Directory,
+}
+
+#[derive(Debug)]
+pub enum WorktreeListResolution {
+    Found(WorktreeListTarget),
+    Missing,
+    Unavailable,
 }
 
 struct SettledRequest {
@@ -233,6 +250,40 @@ impl WorkbenchAuthority {
     #[must_use]
     pub fn snapshot(&self) -> &Snapshot {
         self.projection.snapshot()
+    }
+
+    /// Resolves committed `project -> directory` membership for the Worktree
+    /// List path against the projection snapshot; `Unavailable` means the
+    /// authority itself is retired, `Missing` means absent membership.
+    pub fn worktree_list_target(
+        &self,
+        project_id: &WorkbenchProjectId,
+        directory_id: &WorkbenchDirectoryId,
+    ) -> WorktreeListResolution {
+        if self.retired {
+            return WorktreeListResolution::Unavailable;
+        }
+        let snapshot = self.projection.snapshot();
+        let Some(project) = snapshot
+            .navigation
+            .projects
+            .iter()
+            .find(|project| project.project_id == *project_id)
+        else {
+            return WorktreeListResolution::Missing;
+        };
+        let Some(directory) = project
+            .directories
+            .iter()
+            .find(|directory| directory.directory_id == *directory_id)
+        else {
+            return WorktreeListResolution::Missing;
+        };
+        WorktreeListResolution::Found(WorktreeListTarget {
+            site_id: snapshot.site_id.clone(),
+            revision: snapshot.revision,
+            directory: directory.clone(),
+        })
     }
 
     pub fn execute(

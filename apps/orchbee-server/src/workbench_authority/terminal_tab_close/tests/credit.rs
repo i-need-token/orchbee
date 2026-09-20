@@ -70,6 +70,7 @@ fn every_ordinary_writer_preserves_reserved_removal_credit_and_noops_still_settl
                 terminal_context_id: context.clone(),
                 label: WorkbenchLabel::parse("new").unwrap(),
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+                launch: None,
             },
         };
         let request = command(&authority, 10001, action);

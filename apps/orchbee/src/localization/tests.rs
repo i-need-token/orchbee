@@ -716,6 +716,7 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
         kind: FailureKind::InvalidUsage,
         details: None,
         source: None,
+        failure_schema: None,
         usage: Some(Box::new(usage)),
     };
 
@@ -776,6 +777,7 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
         kind: FailureKind::InvalidUsage,
         details: None,
         source: None,
+        failure_schema: None,
         usage: None,
     };
     assert_eq!(
@@ -795,6 +797,7 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
             ("target".to_owned(), serde_json::json!("x")),
         ])),
         source: None,
+        failure_schema: None,
         usage: None,
     };
     assert_eq!(

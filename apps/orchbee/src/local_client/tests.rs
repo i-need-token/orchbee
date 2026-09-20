@@ -628,6 +628,7 @@ fn deferred_create(request_id: &str) -> io::Result<TerminalCreateRequest> {
         None,
         None,
         StartMode::Deferred,
+        None,
     ))
 }
 

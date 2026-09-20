@@ -156,6 +156,7 @@ fn workspace_publication_rebases_move_rename_and_pending_create_then_settles_ori
             terminal_context_id: context_id.clone(),
             label: WorkbenchLabel::parse("pending sibling").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+            launch: None,
         },
     );
     let WorkbenchTabCreateBegin::Admitted(admission) =

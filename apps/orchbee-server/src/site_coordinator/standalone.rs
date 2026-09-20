@@ -204,6 +204,7 @@ impl SiteCoordinator {
                 StartMode::Immediate {
                     geometry: request.geometry(),
                 },
+                None,
             ),
             worker,
             expiry,

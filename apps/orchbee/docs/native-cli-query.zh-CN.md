@@ -41,11 +41,18 @@ Agent、Worker、进程或 PTY 状态，也不要求 TTY。这是未发布的本
 - `--project <target>`、`--workspace <target>`、`--tab <target>`：带值的具名过滤器与上下文
   操作数，各只能用一次。下一个 token 即作为值被消费，即使以减号开头；裸 `--` 永不被当作值
   （缺值 → `invalid-usage`）。被消费的过滤值不再充当 format 选择器。每个 flag 只在声明它
-  的命令上合法（`--project` 仅 `workspace list`/`workspace create`，`--workspace` 仅
+  的命令上合法（`--project` 仅 `workspace list`/`workspace create`/`worktree list`，
+  `--workspace` 仅
   `tab list`/`tab create`，`--tab` 仅 `panel list`），出现在任何其他位置（包括 `get`
   命令）都是 `invalid-usage`。过滤器绝不静默丢弃：出现在未声明的命令上即在任何运行时访问
   之前报 `invalid-usage`，故 `workspace list` 拒绝 `--workspace`、`--tab` 与
   `--standalone`。
+- `--directory <directory-id>`：带值 flag，单次使用，`worktree list` 上必填、其他任何
+  命令上均非法。值仅为 `WorkbenchDirectoryId`——严格非零 32 位小写十六进制标识符，
+  绝非文件系统路径、标签或前缀。缺失、畸形、大写、全零或宽度错误的值在任何运行时访问
+  之前即为 `invalid-usage`；CLI 不做目录 membership 预检——membership 由运行中 Site
+  权威判定，well-formed 但不存在的目录以 worktree 失败 envelope 下的
+  `not-found` `{resource:"directory"}` 作答。
 - `--standalone`：无值布尔 flag，单次使用，仅 `tab list` 与 `tab create`；两处均与
   `--workspace` 互斥。
 - `--label <label>`：带值 flag，单次使用，`project create`、`project rename`、`workspace create`、
@@ -65,6 +72,13 @@ Agent、Worker、进程或 PTY 状态，也不要求 TTY。这是未发布的本
   四者在 `tab create` 与 `panel split` 上必须同时给出，各取一个十进制 `u16`。组合后的
   格数与像素范围必须满足协议 `WorkbenchTerminalGeometry` 界限；缺项、重复、非数值或越界
   均在任何运行时访问之前报 `invalid-usage`。
+- `--exec <path>` / `--arg <value>`：临时启动选择，仅 `tab create` 与 `panel split`
+  接受。`--exec` 单次使用，取不含 NUL 的非空绝对 UTF-8 可执行文件路径。`--arg` 可重复，
+  每个值按顺序原样追加为 `argv[1..]`——空值与 dash 前导值按标准取值规则被消费为值，
+  `argv[0]` 由可执行文件路径合成。至多 128 个 `--arg` 值，且可执行文件加全部参数值合计
+  至多 2,048 UTF-8 字节；无 `--exec` 而带 `--arg`、重复 `--exec`、或越界均在任何运行时
+  访问之前报 `invalid-usage`。省略 `--exec` 保持解析默认 shell；选择属于请求身份，绝不
+  持久化为 profile。
 - `--confirm`：无值布尔 flag，`tab close` 与 `panel close` 上必填；该处缺失或出现在任何
   其他命令上均为 `invalid-usage`。
 - `--match <text>`：带值 flag，单次使用，`terminal wait-output` 上必填；非空 UTF-8
@@ -114,13 +128,14 @@ orchbee workspace list [--project <target>] | workspace get <target>
 orchbee workspace create --project <target> --label <label>
 orchbee workspace rename <target> --label <label>
 orchbee workspace accept-directory <target> --path <path>
+orchbee worktree list --project <target> --directory <directory-id>
 orchbee tab list [--workspace <target> | --standalone] | tab get <target>
-orchbee tab create (--workspace <target> | --standalone) --label <label> <geometry>
+orchbee tab create (--workspace <target> | --standalone) --label <label> <geometry> [--exec <path> [--arg <value>]...]
 orchbee tab rename <target> --label <label>
 orchbee tab move <target> --direction previous|next|first|last
 orchbee tab close <target> --confirm
 orchbee panel list [--tab <target>] | panel get <target>
-orchbee panel split <target> --direction above|below|left|right --label <label> <geometry>
+orchbee panel split <target> --direction above|below|left|right --label <label> <geometry> [--exec <path> [--arg <value>]...]
 orchbee panel close <target> --confirm
 orchbee panel move <target> --target-panel <target> --direction above|below|left|right
 orchbee terminal list | terminal get <target> | terminal read <target> [--history --rows <1-1000>]
@@ -135,7 +150,7 @@ orchbee help <recognized path>
 orchbee <recognized path> -h|--help
 ```
 
-帮助主题：根级；`project`、`workspace`、`tab`、`panel`、`terminal`、`api`、`site`、
+帮助主题：根级；`project`、`workspace`、`worktree`、`tab`、`panel`、`terminal`、`api`、`site`、
 `config`、`completion` 九个族；以及包括 `tui` 在内的每条完整命令路径。`help` 只接受已识别的路径（不带
 过滤器、不带 format）。路径末尾的 `-h` 或 `--help` 是同一路径上的同一请求：`orchbee --help`、
 `project --help`、`project get --help` 输出的内容与 `help`、`help project`、`help project get`
@@ -313,6 +328,27 @@ checked 5 秒预算。非 Linux 平台对网络查询与 mutation 产出 `servic
    `host-protocol-fault` 属 transport 类缺陷 → 5；`unknown` → 8 并附
    绝不重试警告。每个非零应答都保持 `inputStatus` 诚实——已接受的输入绝不改写为未发送。
 
+`worktree list` 共享网络前导的第 1–4 步外加一次快照读取，全部处于命令入口一次性采样
+的同一个绝对 5 秒 deadline 内（`snapshot_session_until`——cohort、discovery、socket、
+admission、快照与 worktree-list 交换各自只消耗剩余额度；不做按阶段续期）。随后：
+
+1. **解析** —— `--project` 目标按普通 project target 规则在已验证快照上解析（精确 ID
+   或精确 label；`not-found`/`ambiguous` 保持通用失败 envelope——快照边界即该命令的
+   family 边界）。此处绝不检查目录 membership。
+2. **读取** —— 在同一已准入 session、同一 deadline 内，以新的 `WorkbenchRequestId`
+   提交恰好一次 `workbench.worktree-list.read` 请求 `{projectId,directoryId}`。
+   Server 在该时刻权威核验目录对 project 的 membership，并派发一个有界 Worker
+   发现 job——先 `git rev-parse --path-format=absolute --git-common-dir` 探测，
+   再 `git worktree list --porcelain -z` 列举，二者共享一个 5 秒 job TTL 与一份
+   64 KiB 合并 stdout 预算；越过共享预算的 stage 承担 `too-large` 归因。该读取绝不
+   重试、重放或重连；不可判定的交换即 `outcome-unknown`（8）。
+3. **映射** —— session 在类型化 `worktree-list.result` 投影之前完全释放。`Found`
+   产出 `orchbee.worktree.list` 文档：已注册的 `{projectId,directoryId,path}` 身份
+   加逐字 `entries`（`worktreePath`、`head`、`branch`、`bare`、`detached`、`locked`、
+   `prunable`——经 `*BytesHex` 备选字段字节精确）。该交换产出的每个失败——含
+   transport 与 protocol 缺陷——都携带专用的 `orchbee.cli.failure.worktree`
+   envelope；`not-found{resource:"directory"}` 是目录缺席的应答，绝不出现部分条目集。
+
 ### Send 输入源
 
 `--file` 与 `--stdin` 是*声明型*本地源：解析器原样存储，由源阶段在任何运行时副作用
@@ -417,7 +453,7 @@ terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresent
 
 成功 envelope 为 `{schema, version, source, result}`。所有业务文档——查询、mutation、
 收据与失败——均为 `version:1`，唯 `orchbee.terminal.get` 例外：它因新增 `launch`
-成员而为 `version:2`。`orchbee.api.schema` 目录 envelope 为 `version:4`：
+成员而为 `version:2`。`orchbee.api.schema` 目录 envelope 为 `version:5`：
 注册新的 schema id 会改变封闭字典的形状，按版本规则属目录形状变化而非业务变化：
 
 - `source.kind="workbench-snapshot"`：带同一份已验证快照的 `siteId` 与十进制字符串
@@ -432,6 +468,8 @@ terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresent
   字符串 `snapshotRevision`——出现在类型化 `terminal send` 应答上。
 - `source.kind="terminal-launch-read"`：`siteId` 与十进制字符串 `revision`——Server 在
   coordinator 锁内 join 出的修订——出现在 `terminal get` 应答上。
+- `source.kind="worktree-list"`：`siteId` 与 Server 权威 membership 核验时刻已提交
+  Workbench 的十进制字符串 `revision`——出现在 `worktree list` 结果及其快照后失败上。
 - 不存在 freshness 字段；一次一致读取不等于持续活性保证。
 
 结果载荷（schema ID 为稳定机器名）：
@@ -512,6 +550,24 @@ payloadKind,recordBytes?,key?,inputStatus,cleanupStatus,reason?,acceptedBytes?,t
   `{schemas:{schemaId:document,…}}` 列出全部已交付字典（draft 2020-12）。
   目录保持封闭：`result.schemas` 恰好命名已注册的 id，且每个内嵌文档的 `$id`
   与其键一致。按旧目录校验的 introspection 客户端从同一构建中选择内嵌 v2 文档。
+- `orchbee.worktree.list` → `{projectId,directoryId,path,worktrees:[<entry>…]}`：已注册
+  目录身份（`path` 为已注册 Workbench 目录——与每条目观察到的 `worktreePath` 相区分）
+  加 `git worktree list --porcelain -z` 的逐字投影。每条目恰好携带 `worktreePath`
+  （UTF-8）或 `worktreePathBytesHex`（小写十六进制原始字节）之一；`head` 为 40 或 64
+  位小写十六进制对象名，bare 仓库为 `null`（全零 HEAD 是 unborn 仓库的真实 Git 值，
+  原样保留）；`branch`（逐字完整 ref，如 `refs/heads/main`，绝不剥前缀）、
+  `branchBytesHex` 或 `null`（无分支适用时）三者取一；外加 `bare`/`detached`/`locked`/
+  `prunable` 标志。
+- `orchbee.cli.failure.worktree` → `{schema:"orchbee.cli.failure.worktree",version:1,
+failure:{kind,details?},source?}`：`worktree list` 越过快照边界后一切失败的专用
+  envelope（边界前的语法、前导与 project 解析失败保持 `orchbee.cli.failure`）。其
+  `details` 词汇封闭：`not-found` 为 `{resource:"directory",target}`；
+  `denied`/`service-unavailable`（`server-busy`|`worker-unavailable`|`job-dead`|
+  `job-unknown`）/`transport-loss`/`protocol-invalid`（`reason:"correlation-mismatch"`）
+  为 `{stage:"worktree-list"[,reason]}`；`check-failed` 为 `{stage:"probe"|"list",status}`
+  （`status` 为整数或 `null`）或 `{stage:"parse"}`；`timeout` 为 `{stage:"worktree-list", timeoutMs:5000}`；
+  `output-too-large` 为 `{stage:"worktree-list",origin,limitBytes}`（`origin`
+  `git-probe`|`git-list` → 65536，`worker-result` → 7936，`workbench-result` → 32768）。
 - `orchbee.mutation.result` → `{action,outcome,revision?,acceptedRevision?,closeRequestId?,
 <resolved typed IDs>,direction?,label?,terminal?}`，按上文 mutation 矩阵：`committed`/
   `unchanged` 带 `revision`，`accepted` 带 `acceptedRevision`+`closeRequestId`，
@@ -685,6 +741,14 @@ disposition 交付——OS 默认终止遵循 shell 的 `128 + signal` 约定，
 | command `Denied` precommit                                                                                                   | `denied`                                                                   | 3         | 省略                                                                                      |
 | command `Unavailable` precommit                                                                                              | `service-unavailable`                                                      | 4         | `{stage:"command",reason}`                                                                |
 | `OutcomeUnknown`（任意原因）                                                                                                 | `outcome-unknown`                                                          | 8         | `{stage:"command",requestId,reason}`                                                      |
+| worktree-list `RequestNotSubmitted`、写/io 响应失败、或 `TransportLoss` outcome（投递后响应丢失）                            | `transport-loss`                                                           | 5         | `{stage:"worktree-list"}`，属 `orchbee.cli.failure.worktree`                              |
+| worktree-list 非法/意外响应                                                                                                  | `protocol-invalid`                                                         | 5         | `{stage:"worktree-list"[,reason:"correlation-mismatch"]}`，属 worktree envelope           |
+| worktree-list 响应 deadline 到期，或共享 5 秒命令 deadline 到期                                                              | `timeout`                                                                  | 7         | `{stage:"worktree-list",timeoutMs:5000}`，属 worktree envelope                            |
+| worktree-list outcome `NotFound`（Server 核验时目录不在 project 内）                                                         | `not-found`                                                                | 3         | `{resource:"directory",target}`，属 worktree envelope                                     |
+| worktree-list outcome `Denied`                                                                                               | `denied`                                                                   | 3         | `{stage:"worktree-list"}`，属 worktree envelope                                           |
+| worktree-list `Unavailable`/`SpawnUnavailable`/`SpawnFailed`/`OwnerIo`                                                       | `service-unavailable`                                                      | 4         | `{stage:"worktree-list",reason:"server-busy"                                              | "worker-unavailable"                                     | "job-dead" | "job-unknown"}` |
+| worktree-list `GitFailed`（probe/list 带精确退出 status，被信号终止时为 `null`）或 `MalformedListing`                        | `check-failed`                                                             | 1         | `{stage:"probe"                                                                           | "list",status}`或`{stage:"parse"}`，属 worktree envelope |
+| worktree-list `TooLarge`（共享 Git stdout、OBCN 结果或 Workbench 结果预算被越过）                                            | `output-too-large`                                                         | 1         | `{stage:"worktree-list",origin,limitBytes}`，属 worktree envelope                         |
 | send `RequestNotSubmitted`（请求可证明从未到达线缆）                                                                         | `transport-loss`                                                           | 5         | `{stage:"send"}`                                                                          |
 | send `SessionUnavailable`/`RequestEncoding`                                                                                  | `internal-failure`                                                         | 1         | 省略                                                                                      |
 | send `OutcomeUnknown`（写/读/无效结果/correlation）                                                                          | `outcome-unknown`                                                          | 8         | `{stage:"send",requestId,reason}`                                                         |
@@ -710,6 +774,9 @@ disposition 交付——OS 默认终止遵循 shell 的 `128 + signal` 约定，
 
 `resource` ∈ `project|workspace|tab|panel|terminal|schema`；`stage` ∈
 `cohort|runtime-base|runtime-directory|socket|discovery|admission|activation|snapshot|viewer|command|send|platform|wait`。
+专用 `orchbee.cli.failure.worktree` envelope 接纳 `resource:"directory"` 与上文随其
+schema 记录的 `worktree-list|probe|list|parse` stage 词汇——这些值仅属该 envelope，
+不进入通用 `orchbee.cli.failure` 词汇。
 源阶段的 `input` stage 只存在于 `orchbee.cli.failure.source` envelope——不进入标准
 `orchbee.cli.failure` 的 stage 词汇。
 stage 与 reason 是有限 schema 值；任何异常文本都不进入机器字段。`details` 是按 kind 封闭的词汇——`{resource,target}`、
@@ -817,6 +884,10 @@ deadline 到期在 wire 请求尚不存在时即退出。
 | 真实 staged-cohort Server + 活跃 TUI 终端：`terminal read` 返回其网格并通过 schema 校验                                                                                  | 真实只读观察与 TUI 自身 viewer 共存                                              | `tests/local_startup_process`                             |
 | Mutation 语法：全部命令、target 规则、`--confirm`、几何界限、flag 范围                                                                                                   | 运行时访问前的精确 parse/失败类别                                                | `src/invocation` 测试                                     |
 | Mutation 脚本化 peer：全部十二条命令、precommit 判定、不可判定与未提交结果                                                                                               | 每次调用一条命令；`outcome-unknown` 绝不重放                                     | `tests/cli_mutation.rs`                                   |
+| Worktree list 语法：`--project`/`--directory` 双必填、严格目录 ID 值规则、flag 作用域                                                                                    | 运行时访问前即精确 parse/`invalid-usage`                                         | `src/invocation` 测试                                     |
+| Worktree list 文档/失败 envelope：条目 XOR 字节字段、bare/detached/HEAD 不变量、封闭 details 词汇                                                                        | 每个 fixture 校验通过；拒绝变体失败                                              | `tests/cli_query.rs` schema 对照测试                      |
+| Worker 发现 job：真实一次性 Git 仓库（init + commit + detached 链接 worktree，仅逐命令 `-c` 身份）、共享 TTL/stdout 预算归因                                             | 逐字 `-z` 字节、真实 HEAD/ref、类型化 outcome                                    | `apps/orchbee-worker` `worktree_discovery_job` 测试       |
+| Server worktree-list 处理器：`-z` 解析接受/拒绝矩阵、membership 权威、outcome→失败映射                                                                                   | 字节精确投影；畸形 listing 即 `check-failed`                                     | `apps/orchbee-server` `worktree_list` 测试                |
 | 非 TTY；stdout 阻塞时 session 已释放；各 format 预备 >8 MiB；真实写失败                                                                                                  | 文档化退出；阻塞前 transport 句柄已 drop                                         | `tests/local_startup_process` + emit 单元测试             |
 | `config check` 矩阵：每项 pass/fail/not-applicable、`exists` 语义                                                                                                        | 五项 typed 检查齐全                                                              | `tests/cli_query.rs` + `src/cli/config` 测试              |
 | `site start` 真实 staged cohort：冷启动拉起+准入、第二次/并发启动、无属主标记拒止、持锁 deadline、cohort 故障、信号、非 UTF-8 base、zh-CN 文本                           | `started`/`already-running` 分支真实；被拒 wedge 后标记逐字节不变；deadline 有界 | `tests/local_startup_process`                             |

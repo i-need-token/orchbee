@@ -917,6 +917,7 @@ impl UiDriver {
                             terminal_context_id: terminal_context_id.clone(),
                             label: label.clone(),
                             geometry: workbench_geometry,
+                            launch: None,
                         },
                     };
                     let request = WorkbenchTabCreateRequest::try_from(command)

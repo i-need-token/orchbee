@@ -4,6 +4,7 @@ mod error;
 mod geometry;
 mod identity;
 mod launch_read;
+mod launch_selection;
 mod model;
 mod number;
 mod open;
@@ -39,6 +40,10 @@ pub use launch_read::{
     TerminalLaunchBoundTo, TerminalLaunchFact, TerminalLaunchReadOutcome,
     TerminalLaunchReadRequest, TerminalLaunchReadResult, TerminalLaunchReadUnavailableReason,
     TerminalLaunchRoute, TerminalLaunchState,
+};
+pub use launch_selection::{
+    LaunchSelection, LaunchSelectionError, MAXIMUM_LAUNCH_SELECTION_ARGUMENTS,
+    MAXIMUM_LAUNCH_SELECTION_BYTES,
 };
 pub use model::{
     ClientMessage, CreateAcceptedState, CreateFailureReason, CreateOutcome, CreateRejectedReason,

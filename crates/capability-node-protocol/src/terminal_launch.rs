@@ -248,11 +248,72 @@ pub enum TerminalLaunchMode {
     Deferred,
 }
 
+/// Maximum argument values one explicit terminal launch selection carries.
+/// The payload's argument list is argv[1..] — the Host synthesizes argv[0]
+/// from the executable; argv0 is never transmitted.
+pub const MAXIMUM_LAUNCH_SELECTION_ARGUMENTS: usize = 128;
+/// Maximum combined UTF-8 bytes of the executable path plus every argument
+/// value in one explicit launch selection.
+pub const MAXIMUM_LAUNCH_SELECTION_BYTES: usize = 2048;
+
+/// An explicit terminal launch program authorized end-to-end: one absolute
+/// executable path and its verbatim argument list. Construction enforces
+/// the same closed lexical contract the payload decoder does — a non-empty
+/// absolute NUL-free executable, NUL-free arguments, at most the argument
+/// count, and the aggregate byte bound — so a malformed selection is
+/// `InvalidPayload` before any effect.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LaunchSelection {
+    executable: String,
+    arguments: Vec<String>,
+}
+
+impl LaunchSelection {
+    pub fn new(executable: String, arguments: Vec<String>) -> Result<Self, ProtocolError> {
+        if executable.is_empty()
+            || !executable.starts_with('/')
+            || executable.as_bytes().contains(&0)
+        {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        if arguments.len() > MAXIMUM_LAUNCH_SELECTION_ARGUMENTS {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        let mut bytes = executable.len();
+        for argument in &arguments {
+            if argument.as_bytes().contains(&0) {
+                return Err(ProtocolError::InvalidPayload);
+            }
+            bytes = bytes
+                .checked_add(argument.len())
+                .ok_or(ProtocolError::InvalidPayload)?;
+        }
+        if bytes > MAXIMUM_LAUNCH_SELECTION_BYTES {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        Ok(Self {
+            executable,
+            arguments,
+        })
+    }
+
+    #[must_use]
+    pub fn executable(&self) -> &str {
+        &self.executable
+    }
+
+    #[must_use]
+    pub fn arguments(&self) -> &[String] {
+        &self.arguments
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AuthorizedTerminalLaunch {
     authorization: TerminalOperationAuthorization,
     cwd: Option<AbsoluteCwd>,
     mode: TerminalLaunchMode,
+    launch: Option<LaunchSelection>,
 }
 
 impl AuthorizedTerminalLaunch {
@@ -261,11 +322,13 @@ impl AuthorizedTerminalLaunch {
         authorization: TerminalOperationAuthorization,
         cwd: Option<AbsoluteCwd>,
         mode: TerminalLaunchMode,
+        launch: Option<LaunchSelection>,
     ) -> Self {
         Self {
             authorization,
             cwd,
             mode,
+            launch,
         }
     }
 
@@ -282,6 +345,11 @@ impl AuthorizedTerminalLaunch {
     #[must_use]
     pub const fn mode(&self) -> TerminalLaunchMode {
         self.mode
+    }
+
+    #[must_use]
+    pub const fn launch(&self) -> Option<&LaunchSelection> {
+        self.launch.as_ref()
     }
 }
 

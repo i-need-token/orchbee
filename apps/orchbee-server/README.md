@@ -18,6 +18,11 @@ Workspaces through OBWP. Workspace creation commits one empty Terminal Context w
 The independently authorized `workspace.primary-directory.accept` validates a local Worker directory
 and atomically adds a Project Directory selected by that empty Workspace. The
 [directory contract](docs/workspace-terminal-directory.md) owns validation, replay and failures.
+The `worktree-list` read re-verifies one Project Directory's membership against the committed
+snapshot, then dispatches one fenced OBCN discovery job to that directory's owning Worker over
+the existing carrier; the answer is the Worker's bounded raw `git worktree list --porcelain -z`
+bytes parsed at the service boundary — membership and generation checks run under the locks,
+request I/O never does.
 The first standalone Open also commits one shared Tab/Panel/Presentation and logical terminal binding
 before launch. The local `tab.create` command appends a simple standalone or configured Workspace Tab, jointly commits
 membership and retained terminal intent, and dispatches one launch. Exact replay returns the same

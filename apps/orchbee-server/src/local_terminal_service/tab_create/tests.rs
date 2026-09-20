@@ -37,6 +37,7 @@ fn command(service: &LocalTerminalService, request: u128, revision: u64) -> Work
             terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
             label: WorkbenchLabel::parse("service tab").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+            launch: None,
         },
     }
 }

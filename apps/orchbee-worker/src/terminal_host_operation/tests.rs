@@ -43,7 +43,7 @@ fn exact_launch_success_remains_in_the_kernel_slot_and_replays_without_an_effect
     ] {
         let mut fixture = Fixture::fake()?;
         let mut kernel = kernel()?;
-        let launch = AuthorizedTerminalLaunch::new(authorization(1)?, None, mode);
+        let launch = AuthorizedTerminalLaunch::new(authorization(1)?, None, mode, None);
         let dispatch = dispatch(kernel.admit_launch(launch.clone(), 100)?)?;
         let operation = PreparedHostOperation::launch(&dispatch, facts()?, correlation()?)?;
         let peer = respond(fixture.peer.try_clone()?, Ok);
@@ -199,8 +199,12 @@ fn malformed_response_partitions_close_host_cache_unknown_and_never_resend() -> 
     for partition in 0..13 {
         let mut fixture = Fixture::fake()?;
         let mut kernel = kernel()?;
-        let launch =
-            AuthorizedTerminalLaunch::new(authorization(1)?, None, TerminalLaunchMode::Deferred);
+        let launch = AuthorizedTerminalLaunch::new(
+            authorization(1)?,
+            None,
+            TerminalLaunchMode::Deferred,
+            None,
+        );
         let dispatch = dispatch(kernel.admit_launch(launch.clone(), 100)?)?;
         let operation = PreparedHostOperation::launch(&dispatch, facts()?, correlation()?)?;
         let peer = respond(fixture.peer.try_clone()?, move |mut record| {
@@ -698,7 +702,7 @@ fn launch_dispatch(
     kernel: &mut AuthorizedHostOperationKernel,
 ) -> TestResult<AuthorizedHostDispatch> {
     dispatch(kernel.admit_launch(
-        AuthorizedTerminalLaunch::new(authorization(1)?, None, TerminalLaunchMode::Deferred),
+        AuthorizedTerminalLaunch::new(authorization(1)?, None, TerminalLaunchMode::Deferred, None),
         100,
     )?)
 }

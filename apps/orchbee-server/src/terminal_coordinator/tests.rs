@@ -137,7 +137,7 @@ fn geometry() -> Geometry {
     Geometry::new(80, 24, 8, 16).unwrap()
 }
 fn create_request(value: u128) -> TerminalCreateRequest {
-    TerminalCreateRequest::new(id(value), None, None, StartMode::Deferred)
+    TerminalCreateRequest::new(id(value), None, None, StartMode::Deferred, None)
 }
 fn create(value: u128) -> ClientMessage {
     ClientMessage::TerminalCreate(create_request(value))
@@ -240,6 +240,7 @@ fn create_plan_commit_installs_and_dispatches_the_complete_plan() {
         StartMode::Immediate {
             geometry: geometry(),
         },
+        None,
     );
     let reference = request.request_id().clone();
     let expected_request = request.clone();
@@ -256,6 +257,7 @@ fn create_plan_commit_installs_and_dispatches_the_complete_plan() {
             authorization,
             Some(AbsoluteCwd::new("/tmp/literal/../directory").unwrap()),
             TerminalLaunchMode::Immediate(worker_geometry(geometry()).unwrap()),
+            None
         ))
     );
     assert_eq!(
@@ -338,6 +340,7 @@ fn create_plan_refusals_leave_capacity_identity_lease_and_constraint_state_uncha
         }),
         None,
         StartMode::Deferred,
+        None,
     );
     assert_eq!(
         create_refusal(constrained.plan_create(request, Some(worker(1)), Some(expiry()))),
@@ -611,6 +614,7 @@ fn unavailable_worker_and_constraint_fail_without_allocating_authority() {
         }),
         None,
         StartMode::Deferred,
+        None,
     ));
     assert!(
         matches!(coordinator.prepare(false, constrained,Some(worker(1)),Some(expiry())),PreparedOperation::Ready(ServerMessage::TerminalCreateResult(result)) if result.outcome()==CreateOutcome::Rejected {reason: CreateRejectedReason::WorkerConstraintUnsatisfied})
@@ -783,6 +787,7 @@ fn immediate_launch_preserves_geometry_and_rejects_a_later_start() {
         StartMode::Immediate {
             geometry: geometry(),
         },
+        None,
     ));
     let pending = dispatch(coordinator.prepare(false, request, Some(worker(1)), Some(expiry())));
     let CapabilityNodeMessage::AuthorizedTerminalLaunch(command) = &pending.command else {

@@ -411,6 +411,7 @@ fn aggregate_close_fences_same_tab_split_and_move_until_publication() {
             direction: WorkbenchPanelSplitDirection::Right,
             label: WorkbenchLabel::parse("fenced split").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+            launch: None,
         },
     );
     let WorkbenchPanelSplitBegin::Ready(fenced) =
@@ -479,6 +480,7 @@ fn aggregate_close_fences_same_tab_split_and_move_until_publication() {
             direction: WorkbenchPanelSplitDirection::Right,
             label: WorkbenchLabel::parse("other split").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+            launch: None,
         },
     );
     let WorkbenchPanelSplitBegin::Admitted(other) =
@@ -591,6 +593,7 @@ fn leaf_close_leaves_same_tab_split_and_move_admissible() {
             direction: WorkbenchPanelSplitDirection::Right,
             label: WorkbenchLabel::parse("leaf split").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+            launch: None,
         },
     );
     let WorkbenchPanelSplitBegin::Admitted(splitting) =

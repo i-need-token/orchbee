@@ -232,6 +232,7 @@ fn terminal_and_workbench_records_alternate_on_one_admitted_connection() -> Test
         None,
         None,
         StartMode::Deferred,
+        None,
     ));
     write_client_message(&mut client, &terminal)?;
     let first = read_server_message(&mut client)?;

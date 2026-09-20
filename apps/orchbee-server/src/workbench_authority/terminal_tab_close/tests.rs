@@ -98,6 +98,7 @@ fn create_command(authority: &WorkbenchAuthority, id: u128, label: &str) -> Work
                 .clone(),
             label: WorkbenchLabel::parse(label).unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+            launch: None,
         },
     )
 }

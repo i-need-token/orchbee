@@ -29,10 +29,13 @@ orchbee completion bash|zsh|fish
 orchbee --help | --version
 ```
 
-查询 family 为 `project`、`workspace`、`tab`、`panel`、`terminal`（`list`/`get`，另有
-`terminal read`）。作用于运行中 Site 的修改命令为 `project create`/`rename`、
+查询 family 为 `project`、`workspace`、`tab`、`panel`、`terminal`、`worktree`（`list`/`get`，另有
+`terminal read`；`worktree` 仅提供 `list`，且要求 `--project <target>` 与
+`--directory <directory-id>`——严格非零 32 位小写十六进制 Workbench 目录 id，绝非文件系统路径或标签）。作用于运行中 Site 的修改命令为 `project create`/`rename`、
 `workspace create`/`rename`/`accept-directory`、`tab create`/`rename`/`move`/`close` 与
-`panel split`/`move`/`close`。`terminal send <id> (--text <utf8> [--enter] | --key <name>)`
+`panel split`/`move`/`close`——其中 `tab create` 与 `panel split` 还接受临时的
+`--exec <path> [--arg <value>]...` launch selection，仅为该次请求替换解析出的默认
+shell。`terminal send <id> (--text <utf8> [--enter] | --key <name>)`
 经同一已准入 session 向已绑定终端投递恰好一条输入记录——字面文本加可选折叠回车，或十五个语义键之一——不接管 TUI
 controller/viewer 所有权；其两轴收据分别报告 Server 的输入判定与 cleanup 状态。`project create`
 提交既有 `ProjectCreate` 动作——一条导航记录，无目录或文件系统副作用——并返回

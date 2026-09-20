@@ -97,6 +97,7 @@ const ROOT_WORDS: &[&str] = &[
     "terminal",
     "tui",
     "workspace",
+    "worktree",
 ];
 
 /// Root words that still parse when a `--format` selection was consumed:
@@ -112,6 +113,7 @@ const FORMAT_ROOT_WORDS: &[&str] = &[
     "tab",
     "terminal",
     "workspace",
+    "worktree",
 ];
 
 /// family → the verbs it implements.
@@ -127,6 +129,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
         "workspace",
         &["accept-directory", "create", "get", "list", "rename"],
     ),
+    ("worktree", &["list"]),
 ];
 
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
@@ -153,7 +156,14 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--key",
     "--file",
     "--stdin",
+    "--directory",
+    "--exec",
+    "--arg",
 ];
+
+/// Business flags whose seen bit never makes a repeat `done` — they stay
+/// offerable and keep consuming values while remaining scope-tracked.
+const REPEATABLE_FLAGS: &[&str] = &["--arg"];
 
 /// `<family>:<verb>` → the business flags that command admits. Commands not
 /// listed here admit none.
@@ -175,6 +185,8 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--rows",
             "--cell-width",
             "--cell-height",
+            "--exec",
+            "--arg",
         ],
     ),
     ("tab:rename", &["--label"]),
@@ -190,6 +202,8 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--rows",
             "--cell-width",
             "--cell-height",
+            "--exec",
+            "--arg",
         ],
     ),
     ("panel:close", &["--confirm"]),
@@ -200,6 +214,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         &["--text", "--enter", "--key", "--file", "--stdin"],
     ),
     ("terminal:wait-output", &["--match", "--rows", "--timeout"]),
+    ("worktree:list", &["--project", "--directory"]),
 ];
 
 /// `<family>:<verb>` → the words its `--direction` flag accepts. Only
@@ -266,6 +281,7 @@ const HELP_TOPICS: &[&str] = &[
     "terminal",
     "tui",
     "workspace",
+    "worktree",
 ];
 
 /// `help <topic>` → the deeper words that complete a help path.
@@ -281,6 +297,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
         "workspace",
         &["accept-directory", "create", "get", "list", "rename"],
     ),
+    ("worktree", &["list"]),
 ];
 
 const SHELLS: &[&str] = &["bash", "fish", "zsh"];
@@ -318,6 +335,9 @@ fn flag_bit(flag: &str) -> &'static str {
         "--key" => "seen_key",
         "--file" => "seen_file",
         "--stdin" => "seen_stdin",
+        "--directory" => "seen_directory",
+        "--exec" => "seen_exec",
+        "--arg" => "seen_arg",
         other => unreachable!("flag {other} lacks a seen bit"),
     }
 }
@@ -374,7 +394,8 @@ fn path_patterns(families: &[(&str, &[&str])]) -> String {
         .join("|")
 }
 
-/// bash/zsh `seen` bookkeeping arms, one per business flag.
+/// bash/zsh `seen` bookkeeping arms, one per business flag. A repeatable
+/// flag sets its bit — scope checks still see it — but never turns `done`.
 fn seen_cases_bash() -> String {
     BUSINESS_FLAGS
         .iter()
@@ -384,7 +405,11 @@ fn seen_cases_bash() -> String {
                 Some(kind) => format!("{bit}=1; value={kind}"),
                 None => format!("{bit}=1"),
             };
-            format!("                        {flag})\n                            if (({bit})); then done=1; else {assign}; fi ;;")
+            if REPEATABLE_FLAGS.contains(flag) {
+                format!("                        {flag})\n                            {assign} ;;")
+            } else {
+                format!("                        {flag})\n                            if (({bit})); then done=1; else {assign}; fi ;;")
+            }
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -579,6 +604,9 @@ fn extras_cases_bash() -> String {
                         "--file" | "--stdin" => {
                             "seen_text || seen_key || seen_file || seen_stdin".to_owned()
                         }
+                        // `--arg` is only legal next to `--exec`; the bit
+                        // never dedups it, so repeats stay offerable.
+                        "--arg" => "!seen_exec".to_owned(),
                         _ => flag_bit(flag).to_owned(),
                     };
                     format!("                (({cond})) || extras=\"$extras {flag}\"")
@@ -1110,7 +1138,8 @@ fn zsh() -> String {
     )
 }
 
-/// fish `seen` bookkeeping arms, one per business flag.
+/// fish `seen` bookkeeping arms, one per business flag. A repeatable flag
+/// still joins `seen_flags` for scope admission but never turns `done`.
 fn seen_cases_fish() -> String {
     BUSINESS_FLAGS
         .iter()
@@ -1122,7 +1151,11 @@ fn seen_cases_fish() -> String {
                 }
                 None => format!("set {bit} 1; set -a seen_flags '{flag}'"),
             };
-            format!("                        case '{flag}'\n                            if test ${bit} -eq 1; set done 1; else; {assign}; end")
+            if REPEATABLE_FLAGS.contains(flag) {
+                format!("                        case '{flag}'\n                            {assign}")
+            } else {
+                format!("                        case '{flag}'\n                            if test ${bit} -eq 1; set done 1; else; {assign}; end")
+            }
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -1202,11 +1235,11 @@ fn scope_cases_fish() -> String {
                 let command = format!("{family}:{verb}");
                 let allowed = command_flags(&command).join(" ");
                 let exclusive = if *family == "tab" {
-                    "\n                                        if test $seen_workspace -eq 1 -a $seen_standalone -eq 1; set done 1; end"
+                    "\n                                        if test $seen_workspace -eq 1 -a $seen_standalone -eq 1; set done 1; end".to_owned()
                 } else if command == "terminal:send" {
-                    "\n                                        if test (math \"$seen_text + $seen_key + $seen_file + $seen_stdin\") -ge 2 -o $seen_key -eq 1 -a $seen_enter -eq 1; set done 1; end"
+                    "\n                                        if test (math \"$seen_text + $seen_key + $seen_file + $seen_stdin\") -ge 2 -o $seen_key -eq 1 -a $seen_enter -eq 1; set done 1; end".to_owned()
                 } else {
-                    ""
+                    String::new()
                 };
                 format!("                                    case '{command}'\n                                        if not __orchbee_admit '{allowed}' $seen_flags; set done 1; end{exclusive}")
             })
@@ -1252,7 +1285,7 @@ fn narrow_lines_fish() -> String {
             let keep = families_of(flag).join(" ");
             match *flag {
                 "--workspace" => Some(format!(
-                    "        if test $seen_workspace -eq 1 -a $seen_standalone -eq 1\n            set possible\n        else if test $seen_workspace -eq 1 -o $seen_standalone -eq 1\n            set possible (__orchbee_narrow \"{keep}\" $possible)\n        end"
+                    "        if test $seen_workspace -eq 1 -a $seen_standalone -eq 1\n            set possible\n        else if test $seen_workspace -eq 1 -o $seen_standalone -eq 1\n            set possible (__orchbee_narrow \"{keep}\" $possible)\n        end",
                 )),
                 "--standalone" => None,
                 _ => Some(format!(
@@ -1292,6 +1325,8 @@ fn extras_cases_fish() -> String {
                             "$seen_text -eq 0 -a $seen_key -eq 0 -a $seen_file -eq 0 -a $seen_stdin -eq 0"
                                 .to_owned()
                         }
+                        // `--arg` is offered only while `--exec` stands.
+                        "--arg" => "$seen_exec -eq 1".to_owned(),
                         _ => format!("${} -eq 0", flag_bit(flag)),
                     };
                     format!("                if test {cond}; set -a candidates {flag}; end")
@@ -1357,8 +1392,11 @@ fn fish() -> String {
             "        if string match -q -- \"--\" \"$word\"; set ended 1; continue; end\n",
             "        if test $ended -eq 1 -o $done -eq 1; continue; end\n",
             "        if test -n \"$value\"\n",
-            "            if test \"$value\" = format -a \"$word\" != text -a \"$word\" != json; set done 1; end\n",
-            "            if test \"$value\" = mouse -a \"$word\" != off -a \"$word\" != on; set done 1; end\n",
+            // `test` reads a typed dash-word inside a `-a`/`-o` compound as an
+            // operator (fish 4.2.1 rejects `--arg -c` here), so `$word`
+            // comparisons stay split into standalone `test` job chains.
+            "            if test \"$value\" = format; and test \"$word\" != text; and test \"$word\" != json; set done 1; end\n",
+            "            if test \"$value\" = mouse; and test \"$word\" != off; and test \"$word\" != on; set done 1; end\n",
             "            set value \"\"\n",
             "            continue\n",
             "        end\n",
@@ -1493,7 +1531,7 @@ fn fish() -> String {
             "        set candidates $possible\n",
             "        if test $seen_format -eq 0 -a $seen_mouse -eq 0; set -a candidates --format --format=; end\n",
             "        if contains -- tui $possible; and test $seen_mouse -eq 0; set -a candidates --mouse; end\n",
-            "        if test {no_options}\n",
+            "        if {no_options}\n",
             "            set -a candidates --help --version\n",
             "        end\n",
             "    else if test \"$state\" = sub\n",
@@ -1507,7 +1545,7 @@ fn fish() -> String {
             "        switch \"$family:$sub\"\n",
             "{extras_cases}\n",
             "        end\n",
-            "        if test {no_options}\n",
+            "        if {no_options}\n",
             "            set -a candidates --help\n",
             "        end\n",
             "    else if test $state = operand\n",
@@ -1560,7 +1598,7 @@ fn fish() -> String {
         narrow_lines = narrow_lines_fish(),
         extras_cases = extras_cases_fish(),
         direction_cases = direction_cases_fish(),
-        no_options = no_options_fish(),
+        no_options = format!("test {}", no_options_fish()),
         help_cases = HELP_CHILDREN
             .iter()
             .map(|(topic, children)| format!(
@@ -1663,5 +1701,67 @@ mod tests {
         for flag in BUSINESS_FLAGS {
             assert!(!families_of(flag).is_empty(), "{flag} has no owner");
         }
+    }
+
+    #[test]
+    fn launch_flags_are_scoped_and_repeatable() {
+        // `--exec`/`--arg` are admitted only by tab:create and panel:split.
+        for (command, flags) in COMMAND_FLAGS {
+            let admits = *command == "tab:create" || *command == "panel:split";
+            assert_eq!(flags.contains(&"--exec"), admits, "{command} --exec");
+            assert_eq!(flags.contains(&"--arg"), admits, "{command} --arg");
+        }
+        for shell in [
+            CompletionShell::Bash,
+            CompletionShell::Zsh,
+            CompletionShell::Fish,
+        ] {
+            let script = render(shell);
+            // `--exec` is one-shot: its seen arm re-enters `done`.
+            // `--arg` is repeatable: its arm consumes a value without
+            // touching `done`, and the offer is gated on `--exec`.
+            let (exec_arm, arg_arm, arg_offer) = match shell {
+                CompletionShell::Fish => (
+                    "case '--exec'\n                            if test $seen_exec -eq 1; set done 1",
+                    "case '--arg'\n                            set seen_arg 1; set -a seen_flags '--arg'; set value filter",
+                    "if test $seen_exec -eq 1; set -a candidates --arg; end",
+                ),
+                _ => (
+                    "--exec)\n                            if ((seen_exec)); then done=1",
+                    "--arg)\n                            seen_arg=1; value=filter ;;",
+                    "((!seen_exec)) || extras=\"$extras --arg\"",
+                ),
+            };
+            assert!(script.contains(exec_arm), "{shell:?} --exec arm");
+            assert!(script.contains(arg_arm), "{shell:?} --arg arm");
+            assert!(script.contains(arg_offer), "{shell:?} --arg offer");
+        }
+    }
+
+    /// fish's `test` misreads a leading-dash operand inside a compound
+    /// `-a`/`-o` expression as an operator (witnessed on fish 4.2.1:
+    /// `test "$value" = format -a "$word" != text` fails once `$word` is
+    /// `-c`). `$word` is the only variable that can hold a typed word, so it
+    /// must never appear inside a compound `test`; `-a`/`-o` compounds over
+    /// fixed 0/1 `seen_*` operands are valid and remain.
+    #[test]
+    fn fish_compound_tests_have_no_user_word_operands() {
+        let script = render(CompletionShell::Fish);
+        let mut compounds = 0;
+        for line in script.lines() {
+            for segment in line.split(';') {
+                if !segment.contains("test ")
+                    || !(segment.contains(" -a ") || segment.contains(" -o "))
+                {
+                    continue;
+                }
+                compounds += 1;
+                assert!(
+                    !segment.contains("$word"),
+                    "compound test carries typed-word operand: {line}"
+                );
+            }
+        }
+        assert!(compounds > 0, "native -a/-o compounds should remain");
     }
 }

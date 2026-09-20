@@ -88,6 +88,7 @@ fn split(
                 direction,
                 label: WorkbenchLabel::parse("split").unwrap(),
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+                launch: None,
             },
         ),
     ) else {

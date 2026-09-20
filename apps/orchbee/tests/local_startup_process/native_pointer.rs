@@ -497,6 +497,7 @@ fn native_pointer_reports_reach_tracking_panes_and_follow_unfocused_focus() -> T
             direction: WorkbenchPanelSplitDirection::Right,
             label: WorkbenchLabel::parse("Split peer")?,
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
+            launch: None,
         },
         deadline,
     )?;

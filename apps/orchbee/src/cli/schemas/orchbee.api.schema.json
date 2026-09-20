@@ -7,7 +7,7 @@
 	"additionalProperties": false,
 	"properties": {
 		"schema": { "const": "orchbee.api.schema" },
-		"version": { "const": 4 },
+		"version": { "const": 5 },
 		"source": {
 			"type": "object",
 			"required": ["kind"],
@@ -37,6 +37,7 @@
 						"orchbee.api.snapshot",
 						"orchbee.cli.failure",
 						"orchbee.cli.failure.source",
+						"orchbee.cli.failure.worktree",
 						"orchbee.config.check",
 						"orchbee.mutation.result",
 						"orchbee.panel.get",
@@ -55,7 +56,8 @@
 						"orchbee.terminal.send",
 						"orchbee.terminal.wait-output",
 						"orchbee.workspace.get",
-						"orchbee.workspace.list"
+						"orchbee.workspace.list",
+						"orchbee.worktree.list"
 					],
 					"propertyNames": { "$ref": "#/$defs/schemaId" },
 					"additionalProperties": { "type": "object" }
@@ -70,6 +72,7 @@
 				"orchbee.api.snapshot",
 				"orchbee.cli.failure",
 				"orchbee.cli.failure.source",
+				"orchbee.cli.failure.worktree",
 				"orchbee.config.check",
 				"orchbee.mutation.result",
 				"orchbee.panel.get",
@@ -88,7 +91,8 @@
 				"orchbee.terminal.send",
 				"orchbee.terminal.wait-output",
 				"orchbee.workspace.get",
-				"orchbee.workspace.list"
+				"orchbee.workspace.list",
+				"orchbee.worktree.list"
 			]
 		}
 	}

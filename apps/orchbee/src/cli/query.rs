@@ -24,7 +24,9 @@ use orchbee_local_site_runtime::{
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch, TerminalTextFrame};
 #[cfg(target_os = "linux")]
 use orchbee_workbench_protocol::{
-    ProtocolVersion, Snapshot, SnapshotReadIntent, WorkbenchRequestId, WorkbenchSnapshotOutcome,
+    ProtocolVersion, Snapshot, SnapshotReadIntent, WorkbenchDirectoryId, WorkbenchRequestId,
+    WorkbenchSnapshotOutcome, WorkbenchWorktreeListOutcome, WorkbenchWorktreeListRead,
+    WorktreeListStage, WorktreeListTooLargeOrigin, WorktreeListUnavailableReason,
 };
 
 #[cfg(target_os = "linux")]
@@ -34,7 +36,9 @@ use super::{Failure, FailureKind, stage_details, stage_reason_details, target_de
 #[cfg(target_os = "linux")]
 use crate::invocation::{Resource, Target};
 #[cfg(target_os = "linux")]
-use crate::local_client::workbench::{SnapshotReadError, SnapshotReadFailure};
+use crate::local_client::workbench::{
+    SnapshotReadError, SnapshotReadFailure, WorktreeListReadError, WorktreeListReadFailure,
+};
 #[cfg(target_os = "linux")]
 use crate::local_client::{LocalClient, OutcomeUnknownReason, SubmissionError};
 #[cfg(target_os = "linux")]
@@ -164,6 +168,209 @@ pub(crate) fn read_terminal(
         // Every failure after this point had a validated snapshot: the
         // failure envelope may honestly cite it as the source.
         Err(failure) => Err(failure.source(source)),
+    }
+}
+
+/// `worktree list`: one absolute deadline covers the preamble, the snapshot
+/// read, and the worktree-list exchange. The snapshot resolves only the
+/// project identity — directory membership is the Server's authority, so the
+/// worktree-list read is the command's family boundary and every failure it
+/// produces wears the dedicated worktree failure envelope.
+#[cfg(target_os = "linux")]
+pub(crate) fn worktree_list(
+    project: &Target,
+    directory: &WorkbenchDirectoryId,
+) -> Result<(serde_json::Value, Projection), Failure> {
+    let deadline = deadline_after(NETWORK_BUDGET)?;
+    let (mut client, deadline, snapshot) = snapshot_session_until(deadline)?;
+    let source = super::results::snapshot_source(&snapshot);
+    let outcome = worktree_list_exchange(&mut client, deadline, &snapshot, project, directory);
+    // The Client Session is fully dropped before the answer is mapped into
+    // the bounded document or any output is prepared.
+    drop(client);
+    outcome
+        .map(|(source, doc)| (source, Projection::WorktreeList(doc)))
+        .map_err(|failure| {
+            // Failures past the snapshot boundary may honestly cite it; only
+            // post-query failures carry the worktree envelope schema.
+            failure.source(source)
+        })
+}
+
+/// Resolve the project on the snapshot, then submit the single worktree-list
+/// read. A pre-boundary failure (project resolution) keeps the generic
+/// envelope; everything from the typed exchange onward is worktree-family.
+#[cfg(target_os = "linux")]
+fn worktree_list_exchange(
+    client: &mut LocalClient,
+    deadline: Instant,
+    snapshot: &Snapshot,
+    project: &Target,
+    directory: &WorkbenchDirectoryId,
+) -> Result<(serde_json::Value, super::results::WorktreeListDoc), Failure> {
+    let resolved = super::results::resolve_or_fail(
+        snapshot
+            .navigation
+            .projects
+            .iter()
+            .map(|project| (project.project_id.as_str(), project.label.as_str(), project)),
+        project,
+        Resource::Project,
+    )?;
+    let request = WorkbenchWorktreeListRead {
+        protocol_version: ProtocolVersion,
+        request_id: request_id()?,
+        project_id: resolved.project_id.clone(),
+        directory_id: directory.clone(),
+    };
+    let result = client
+        .submit_workbench_worktree_list_read_before(request, deadline)
+        .map_err(classify_worktree_read)?;
+    match result.outcome {
+        WorkbenchWorktreeListOutcome::Found {
+            site_id,
+            workbench_revision,
+            project_id,
+            directory_id,
+            path,
+            entries,
+        } => Ok((
+            serde_json::json!({
+                "kind": "worktree-list",
+                "siteId": site_id.as_str(),
+                "revision": workbench_revision,
+            }),
+            super::results::WorktreeListDoc {
+                project_id: project_id.as_str().to_owned(),
+                directory_id: directory_id.as_str().to_owned(),
+                path: path.as_str().to_owned(),
+                entries,
+            },
+        )),
+        outcome => Err(classify_worktree_outcome(outcome, directory)),
+    }
+}
+
+/// The worktree-list outcome family → the CLI failure kinds. Every failure
+/// produced here is post-boundary and carries the dedicated envelope schema.
+#[cfg(target_os = "linux")]
+fn classify_worktree_outcome(
+    outcome: WorkbenchWorktreeListOutcome,
+    directory: &WorkbenchDirectoryId,
+) -> Failure {
+    let failure = |kind| Failure::new(kind).failure_schema(super::schema::WORKTREE_FAILURE_ID);
+    match outcome {
+        WorkbenchWorktreeListOutcome::NotFound {} => {
+            failure(FailureKind::NotFound).details(serde_json::Map::from_iter([
+                ("resource".to_owned(), serde_json::json!("directory")),
+                ("target".to_owned(), serde_json::json!(directory.as_str())),
+            ]))
+        }
+        WorkbenchWorktreeListOutcome::Denied {} => {
+            failure(FailureKind::Denied).details(stage_details("worktree-list"))
+        }
+        WorkbenchWorktreeListOutcome::Unavailable { reason } => {
+            let reason = match reason {
+                WorktreeListUnavailableReason::ServerBusy => "server-busy",
+                WorktreeListUnavailableReason::WorkerUnavailable => "worker-unavailable",
+                WorktreeListUnavailableReason::JobDead => "job-dead",
+                WorktreeListUnavailableReason::JobUnknown => "job-unknown",
+            };
+            failure(FailureKind::ServiceUnavailable)
+                .details(stage_reason_details("worktree-list", reason))
+        }
+        WorkbenchWorktreeListOutcome::GitFailed { stage, status } => {
+            // probe/list always carry the exact Git exit status — an explicit
+            // null when the process was signaled, never an invented code.
+            let mut details = stage_details(worktree_git_stage(stage));
+            details.insert("status".to_owned(), serde_json::json!(status));
+            failure(FailureKind::CheckFailed).details(details)
+        }
+        // Both spawn arms are the Worker's process-start failure, not a Git
+        // exit: service-unavailable with the worker-unavailable reason.
+        WorkbenchWorktreeListOutcome::SpawnUnavailable { .. }
+        | WorkbenchWorktreeListOutcome::SpawnFailed { .. } => {
+            failure(FailureKind::ServiceUnavailable)
+                .details(stage_reason_details("worktree-list", "worker-unavailable"))
+        }
+        WorkbenchWorktreeListOutcome::TooLarge { origin } => {
+            let (origin, limit_bytes) = match origin {
+                WorktreeListTooLargeOrigin::GitProbe => ("git-probe", 65536_u32),
+                WorktreeListTooLargeOrigin::GitList => ("git-list", 65536_u32),
+                WorktreeListTooLargeOrigin::WorkerResult => ("worker-result", 7936_u32),
+                WorktreeListTooLargeOrigin::WorkbenchResult => ("workbench-result", 32768_u32),
+            };
+            failure(FailureKind::OutputTooLarge).details(serde_json::Map::from_iter([
+                ("stage".to_owned(), serde_json::json!("worktree-list")),
+                ("origin".to_owned(), serde_json::json!(origin)),
+                ("limitBytes".to_owned(), serde_json::json!(limit_bytes)),
+            ]))
+        }
+        WorkbenchWorktreeListOutcome::Timeout {} => {
+            failure(FailureKind::Timeout).details(serde_json::Map::from_iter([
+                ("stage".to_owned(), serde_json::json!("worktree-list")),
+                ("timeoutMs".to_owned(), serde_json::json!(5000)),
+            ]))
+        }
+        WorkbenchWorktreeListOutcome::OwnerIo { .. } => failure(FailureKind::ServiceUnavailable)
+            .details(stage_reason_details("worktree-list", "worker-unavailable")),
+        WorkbenchWorktreeListOutcome::TransportLoss {} => {
+            failure(FailureKind::TransportLoss).details(stage_details("worktree-list"))
+        }
+        WorkbenchWorktreeListOutcome::MalformedListing {} => {
+            failure(FailureKind::CheckFailed).details(stage_details("parse"))
+        }
+        WorkbenchWorktreeListOutcome::Found { .. } => {
+            unreachable!("the found arm returns before classification")
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+const fn worktree_git_stage(stage: WorktreeListStage) -> &'static str {
+    match stage {
+        WorktreeListStage::Probe => "probe",
+        WorktreeListStage::List => "list",
+    }
+}
+
+/// The typed worktree-list exchange failures, classified under the worktree
+/// failure envelope: a deadline-expired response is the command's own
+/// timeout, never a transport guess.
+#[cfg(target_os = "linux")]
+fn classify_worktree_read(error: WorktreeListReadError) -> Failure {
+    use orchbee_workbench_protocol::WorkbenchWireError;
+    let failure = |kind| Failure::new(kind).failure_schema(super::schema::WORKTREE_FAILURE_ID);
+    match error {
+        WorktreeListReadError::SessionUnavailable | WorktreeListReadError::RequestEncoding(_) => {
+            failure(FailureKind::InternalFailure)
+        }
+        WorktreeListReadError::RequestNotSubmitted(_) => {
+            failure(FailureKind::TransportLoss).details(stage_details("worktree-list"))
+        }
+        WorktreeListReadError::Failed { reason, .. } => match reason {
+            WorktreeListReadFailure::Write(_) => {
+                failure(FailureKind::TransportLoss).details(stage_details("worktree-list"))
+            }
+            WorktreeListReadFailure::ResponseDeadline(_) => {
+                failure(FailureKind::Timeout).details(serde_json::Map::from_iter([
+                    ("stage".to_owned(), serde_json::json!("worktree-list")),
+                    ("timeoutMs".to_owned(), serde_json::json!(5000)),
+                ]))
+            }
+            WorktreeListReadFailure::Response(WorkbenchWireError::Io(_)) => {
+                failure(FailureKind::TransportLoss).details(stage_details("worktree-list"))
+            }
+            WorktreeListReadFailure::Response(_) | WorktreeListReadFailure::UnexpectedResponse => {
+                failure(FailureKind::ProtocolInvalid).details(stage_details("worktree-list"))
+            }
+            WorktreeListReadFailure::CorrelationMismatch { .. } => {
+                failure(FailureKind::ProtocolInvalid).details(stage_reason_details(
+                    "worktree-list",
+                    "correlation-mismatch",
+                ))
+            }
+        },
     }
 }
 
@@ -342,6 +549,124 @@ mod tests {
         assert_eq!(
             bounded_deadline(now, COHORT_BUDGET, now + Duration::from_secs(60)).unwrap(),
             now + COHORT_BUDGET
+        );
+    }
+
+    fn worktree_directory() -> WorkbenchDirectoryId {
+        WorkbenchDirectoryId::parse("0123456789abcdef0123456789abcdef").unwrap()
+    }
+
+    /// Post-delivery response loss is transport-loss (exit 5) under the
+    /// dedicated worktree envelope — the read-only family has no
+    /// outcome-unknown kind.
+    #[test]
+    fn worktree_transport_loss_is_exit_five() {
+        let failure = classify_worktree_outcome(
+            WorkbenchWorktreeListOutcome::TransportLoss {},
+            &worktree_directory(),
+        );
+        assert_eq!(failure.kind, FailureKind::TransportLoss);
+        assert_eq!(failure.kind.exit_code(), 5);
+        assert_eq!(
+            failure.failure_schema,
+            Some(crate::cli::schema::WORKTREE_FAILURE_ID)
+        );
+        let details = failure.details.expect("transport-loss details");
+        assert_eq!(details["stage"], serde_json::json!("worktree-list"));
+        assert_eq!(details.len(), 1);
+    }
+
+    /// Both spawn arms are the Worker's process-start failure:
+    /// service-unavailable (exit 4) with the worker-unavailable reason —
+    /// never a Git check failure.
+    #[test]
+    fn worktree_spawn_failures_are_worker_unavailable() {
+        for outcome in [
+            WorkbenchWorktreeListOutcome::SpawnUnavailable {
+                stage: WorktreeListStage::Probe,
+            },
+            WorkbenchWorktreeListOutcome::SpawnFailed {
+                stage: WorktreeListStage::List,
+            },
+        ] {
+            let failure = classify_worktree_outcome(outcome, &worktree_directory());
+            assert_eq!(failure.kind, FailureKind::ServiceUnavailable);
+            assert_eq!(failure.kind.exit_code(), 4);
+            assert_eq!(
+                failure.failure_schema,
+                Some(crate::cli::schema::WORKTREE_FAILURE_ID)
+            );
+            let details = failure.details.expect("unavailable details");
+            assert_eq!(details["stage"], serde_json::json!("worktree-list"));
+            assert_eq!(details["reason"], serde_json::json!("worker-unavailable"));
+        }
+    }
+
+    /// Git failures always carry the status key: the exact exit integer, or
+    /// an explicit JSON null when the process was signaled. Malformed
+    /// listings carry no invented status at all.
+    #[test]
+    fn worktree_git_status_is_always_explicit() {
+        let failure = classify_worktree_outcome(
+            WorkbenchWorktreeListOutcome::GitFailed {
+                stage: WorktreeListStage::Probe,
+                status: Some(1),
+            },
+            &worktree_directory(),
+        );
+        assert_eq!(failure.kind, FailureKind::CheckFailed);
+        assert_eq!(failure.kind.exit_code(), 1);
+        let details = failure.details.expect("git details");
+        assert_eq!(details["stage"], serde_json::json!("probe"));
+        assert_eq!(details["status"], serde_json::json!(1));
+
+        let failure = classify_worktree_outcome(
+            WorkbenchWorktreeListOutcome::GitFailed {
+                stage: WorktreeListStage::List,
+                status: None,
+            },
+            &worktree_directory(),
+        );
+        let details = failure.details.expect("signaled git details");
+        assert_eq!(details["stage"], serde_json::json!("list"));
+        assert_eq!(details["status"], serde_json::Value::Null);
+        assert!(details.contains_key("status"));
+
+        let failure = classify_worktree_outcome(
+            WorkbenchWorktreeListOutcome::MalformedListing {},
+            &worktree_directory(),
+        );
+        assert_eq!(failure.kind, FailureKind::CheckFailed);
+        let details = failure.details.expect("parse details");
+        assert_eq!(details["stage"], serde_json::json!("parse"));
+        assert!(!details.contains_key("status"));
+    }
+
+    /// Worker-side physical uncertainty surfaces as worker-unavailable; the
+    /// not-found arm keeps its directory resource identity.
+    #[test]
+    fn worktree_unavailable_reasons_and_not_found_stay_typed() {
+        let failure = classify_worktree_outcome(
+            WorkbenchWorktreeListOutcome::Unavailable {
+                reason: WorktreeListUnavailableReason::WorkerUnavailable,
+            },
+            &worktree_directory(),
+        );
+        assert_eq!(failure.kind, FailureKind::ServiceUnavailable);
+        let details = failure.details.expect("unavailable details");
+        assert_eq!(details["reason"], serde_json::json!("worker-unavailable"));
+
+        let failure = classify_worktree_outcome(
+            WorkbenchWorktreeListOutcome::NotFound {},
+            &worktree_directory(),
+        );
+        assert_eq!(failure.kind, FailureKind::NotFound);
+        assert_eq!(failure.kind.exit_code(), 3);
+        let details = failure.details.expect("not-found details");
+        assert_eq!(details["resource"], serde_json::json!("directory"));
+        assert_eq!(
+            details["target"],
+            serde_json::json!("0123456789abcdef0123456789abcdef")
         );
     }
 }
@@ -1441,6 +1766,7 @@ pub(crate) fn read_snapshot() -> Result<orchbee_workbench_protocol::Snapshot, su
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn terminal_get(
     _target: &crate::invocation::Target,
+    _history: Option<u16>,
 ) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
     Err(
         super::Failure::new(super::FailureKind::ServiceUnavailable).details(
@@ -1453,6 +1779,18 @@ pub(crate) fn terminal_get(
 pub(crate) fn read_terminal(
     _target: &crate::invocation::Target,
     _history: Option<u16>,
+) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
+    Err(
+        super::Failure::new(super::FailureKind::ServiceUnavailable).details(
+            super::stage_reason_details("platform", "unsupported-platform"),
+        ),
+    )
+}
+
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn worktree_list(
+    _project: &crate::invocation::Target,
+    _directory: &orchbee_workbench_protocol::WorkbenchDirectoryId,
 ) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
     Err(
         super::Failure::new(super::FailureKind::ServiceUnavailable).details(

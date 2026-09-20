@@ -2,7 +2,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Geometry, RequestId, WorkerId, WorkingDirectory};
+use crate::{Geometry, LaunchSelection, RequestId, WorkerId, WorkingDirectory};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(
@@ -33,6 +33,7 @@ pub struct TerminalCreateRequest {
     pub(crate) worker_constraint: Option<WorkerConstraint>,
     pub(crate) cwd: Option<WorkingDirectory>,
     pub(crate) start_mode: StartMode,
+    pub(crate) launch: Option<LaunchSelection>,
 }
 
 impl TerminalCreateRequest {
@@ -42,12 +43,14 @@ impl TerminalCreateRequest {
         worker_constraint: Option<WorkerConstraint>,
         cwd: Option<WorkingDirectory>,
         start_mode: StartMode,
+        launch: Option<LaunchSelection>,
     ) -> Self {
         Self {
             request_id,
             worker_constraint,
             cwd,
             start_mode,
+            launch,
         }
     }
 
@@ -69,6 +72,11 @@ impl TerminalCreateRequest {
     #[must_use]
     pub const fn start_mode(&self) -> &StartMode {
         &self.start_mode
+    }
+
+    #[must_use]
+    pub const fn launch(&self) -> Option<&LaunchSelection> {
+        self.launch.as_ref()
     }
 }
 

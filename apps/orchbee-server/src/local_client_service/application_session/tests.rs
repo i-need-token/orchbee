@@ -84,6 +84,7 @@ fn processes_duplicate_request_ids_again_without_a_ledger() -> Result<(), Box<dy
         StartMode::Immediate {
             geometry: Geometry::new(100, 30, 8, 16)?,
         },
+        None,
     ));
     let mut input = encode_client_frame(&first)?;
     input.extend_from_slice(&encode_client_frame(&second)?);
@@ -182,6 +183,7 @@ fn immediate_create() -> Result<ClientMessage, Box<dyn std::error::Error>> {
         StartMode::Immediate {
             geometry: Geometry::new(80, 24, 9, 18)?,
         },
+        None,
     )))
 }
 
@@ -191,6 +193,7 @@ fn deferred_create() -> Result<ClientMessage, Box<dyn std::error::Error>> {
         None,
         None,
         StartMode::Deferred,
+        None,
     )))
 }
 

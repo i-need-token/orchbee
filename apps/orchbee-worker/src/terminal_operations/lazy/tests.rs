@@ -13,8 +13,9 @@ use orchbee_capability_node_protocol::{
     LeaseId, OperationId, TERMINAL_LAUNCH_CAPABILITY_VERSION, TerminalCwdValidationOutcome,
     TerminalCwdValidationRequest, TerminalFence, TerminalId, TerminalLaunchFailure,
     TerminalLaunchMode, TerminalLaunchOutcome, TerminalOperationAuthorization,
-    TerminalOperationLease, WorkerGeneration, WorkerId as CapabilityWorkerId, read_message,
-    write_message,
+    TerminalOperationLease, WorkerGeneration, WorkerId as CapabilityWorkerId, WorktreeJobAction,
+    WorktreeJobOutcome, WorktreeJobPollOutcome, WorktreeJobRequest, WorktreeJobStartOutcome,
+    read_message, write_message,
 };
 use orchbee_local_site_protocol::WorkerId;
 use orchbee_local_site_runtime::{ModeCheckedLocalSiteRendezvous, NativeCohort};
@@ -93,6 +94,105 @@ fn validation_before_first_launch_uses_real_socket_and_never_creates_host_runtim
     Ok(())
 }
 
+/// A Worktree Job request before the first Launch must be answered inside the
+/// lazy loop — never retire the connection and never spawn a Host. A plain
+/// directory deterministically fails the Git probe, which still proves the
+/// full request → fenced dispatch → typed result exchange stayed alive.
+#[test]
+fn worktree_job_before_first_launch_answers_without_a_host() -> TestResult {
+    let fixture = TestCohort::new()?;
+    let cohort = NativeCohort::load(fixture.path(), Instant::now() + Duration::from_secs(2))?;
+    let directory = fixture.path().join("plain-directory");
+    fs::create_dir(&directory)?;
+    let site_runtime = fixture.path().join("runtime");
+    fs::create_dir(&site_runtime)?;
+    fs::set_permissions(&site_runtime, fs::Permissions::from_mode(0o700))?;
+    let host_runtime = ModeCheckedLocalSiteRendezvous::host_runtime_directory(&site_runtime);
+    let host_endpoint = ModeCheckedLocalSiteRendezvous::host_endpoint_path(&site_runtime);
+    let (mut server, worker) = UnixStream::pair()?;
+    server.set_read_timeout(Some(Duration::from_secs(5)))?;
+    server.set_write_timeout(Some(Duration::from_secs(2)))?;
+    let worker_runtime = site_runtime.clone();
+    let worker_thread = thread::spawn(move || {
+        run(&worker, WORKER_ID, GENERATION, &cohort, &worker_runtime).is_err()
+    });
+
+    let start = WorktreeJobRequest {
+        operation_id: OperationId::from_bytes([9; 16])?,
+        worker_id: CapabilityWorkerId::from_bytes(WORKER_ID.as_bytes())?,
+        worker_generation: WorkerGeneration::new(GENERATION),
+        action: WorktreeJobAction::Start {
+            directory: directory.as_os_str().as_encoded_bytes().to_vec(),
+        },
+    };
+    write_message(
+        &mut server,
+        &CapabilityNodeMessage::WorktreeJobRequest(start),
+    )?;
+    let job_id = {
+        let CapabilityNodeMessage::WorktreeJobResult(result) = read_message(&mut server)? else {
+            return Err(io::Error::other("Worker returned the wrong worktree message").into());
+        };
+        assert_eq!(result.operation_id.as_bytes(), [9; 16]);
+        let WorktreeJobOutcome::Start(outcome) = result.outcome else {
+            return Err(io::Error::other("expected a Start outcome").into());
+        };
+        assert_eq!(outcome, WorktreeJobStartOutcome::Accepted);
+        result.job_id
+    };
+    assert!(!host_runtime.exists());
+    assert!(!host_endpoint.exists());
+
+    // The connection stays alive for follow-up traffic on the admitted job.
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let terminal = loop {
+        let poll = WorktreeJobRequest {
+            operation_id: OperationId::from_bytes([10; 16])?,
+            worker_id: CapabilityWorkerId::from_bytes(WORKER_ID.as_bytes())?,
+            worker_generation: WorkerGeneration::new(GENERATION),
+            action: WorktreeJobAction::Poll { job_id },
+        };
+        write_message(
+            &mut server,
+            &CapabilityNodeMessage::WorktreeJobRequest(poll),
+        )?;
+        let CapabilityNodeMessage::WorktreeJobResult(result) = read_message(&mut server)? else {
+            return Err(io::Error::other("Worker returned the wrong worktree message").into());
+        };
+        assert_eq!(result.operation_id.as_bytes(), [10; 16]);
+        assert_eq!(result.job_id, job_id);
+        let WorktreeJobOutcome::Poll(outcome) = result.outcome else {
+            return Err(io::Error::other("expected a Poll outcome").into());
+        };
+        match outcome {
+            WorktreeJobPollOutcome::Pending => {
+                assert!(Instant::now() < deadline, "job never settled");
+                thread::sleep(Duration::from_millis(25));
+            }
+            terminal => break terminal,
+        }
+    };
+    // A plain directory fails the probe stage; the typed outcome is what
+    // matters, not Git's exact exit status.
+    assert!(
+        matches!(
+            terminal,
+            WorktreeJobPollOutcome::GitFailed { .. } | WorktreeJobPollOutcome::Completed { .. }
+        ),
+        "unexpected terminal outcome: {terminal:?}"
+    );
+    assert!(!host_runtime.exists());
+    assert!(!host_endpoint.exists());
+
+    drop(server);
+    assert!(
+        worker_thread
+            .join()
+            .map_err(|_panic| io::Error::other("lazy Worker test thread panicked"))?
+    );
+    Ok(())
+}
+
 #[test]
 fn overlong_host_endpoint_fails_before_host_directory_or_spawn() -> TestResult {
     let fixture = TestCohort::new()?;
@@ -138,6 +238,7 @@ fn overlong_host_endpoint_fails_before_host_directory_or_spawn() -> TestResult {
             authorization,
             None,
             TerminalLaunchMode::Deferred,
+            None,
         )),
     )?;
     let CapabilityNodeMessage::TerminalLaunchResult(result) = read_message(&mut server)? else {

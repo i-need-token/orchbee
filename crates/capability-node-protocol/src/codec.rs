@@ -24,6 +24,7 @@ mod cwd_validation;
 mod lifecycle;
 mod send;
 mod viewer;
+mod worktree_job;
 
 const FRAME_MAGIC: [u8; 4] = *b"OBCN";
 const FRAME_HEADER_BYTES: usize = 8;
@@ -59,6 +60,8 @@ pub enum CapabilityNodeMessage {
     TerminalViewerResult(crate::TerminalViewerResult),
     TerminalSendRequest(crate::TerminalSendRequest),
     TerminalSendResult(crate::TerminalSendResult),
+    WorktreeJobRequest(crate::WorktreeJobRequest),
+    WorktreeJobResult(crate::WorktreeJobResult),
 }
 
 pub fn encode_message(message: &CapabilityNodeMessage) -> Result<Vec<u8>, ProtocolError> {
@@ -167,6 +170,8 @@ fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
         CapabilityNodeMessage::TerminalSendResult(value) => {
             send::encode_result(value).expect("validated send result")
         }
+        CapabilityNodeMessage::WorktreeJobRequest(value) => worktree_job::encode_request(value),
+        CapabilityNodeMessage::WorktreeJobResult(value) => worktree_job::encode_result(value),
     }
 }
 
@@ -212,6 +217,12 @@ fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError
         Some(6) => viewer::decode_result(payload).map(CapabilityNodeMessage::TerminalViewerResult),
         Some(13) => send::decode_request(payload).map(CapabilityNodeMessage::TerminalSendRequest),
         Some(14) => send::decode_result(payload).map(CapabilityNodeMessage::TerminalSendResult),
+        Some(15) => {
+            worktree_job::decode_request(payload).map(CapabilityNodeMessage::WorktreeJobRequest)
+        }
+        Some(16) => {
+            worktree_job::decode_result(payload).map(CapabilityNodeMessage::WorktreeJobResult)
+        }
         Some(AUTHORIZED_TERMINAL_LAUNCH_KIND) => decode_authorized_terminal_launch(payload)
             .map(CapabilityNodeMessage::AuthorizedTerminalLaunch),
         Some(TERMINAL_LAUNCH_RESULT_KIND) => {
@@ -232,6 +243,9 @@ fn encode_authorized_terminal_launch(value: &AuthorizedTerminalLaunch) -> Vec<u8
     encode_authorization(&mut payload, value.authorization());
     encode_cwd(&mut payload, value.cwd());
     encode_launch_mode(&mut payload, value.mode());
+    if let Some(launch) = value.launch() {
+        encode_launch_selection(&mut payload, launch);
+    }
     payload
 }
 
@@ -242,8 +256,22 @@ fn decode_authorized_terminal_launch(
     let authorization = decode_authorization(&mut reader)?;
     let cwd = decode_cwd(&mut reader)?;
     let mode = decode_launch_mode(&mut reader)?;
+    // The optional selection tail is presence-coded by remaining bytes: a
+    // payload that ends at the mode block carries the default launch, and a
+    // present tail decodes closed — a partial or trailing-garbage block is
+    // rejected by finish() below.
+    let launch = if reader.is_exhausted() {
+        None
+    } else {
+        Some(decode_launch_selection(&mut reader)?)
+    };
     reader.finish()?;
-    Ok(AuthorizedTerminalLaunch::new(authorization, cwd, mode))
+    Ok(AuthorizedTerminalLaunch::new(
+        authorization,
+        cwd,
+        mode,
+        launch,
+    ))
 }
 
 fn encode_terminal_launch_result(value: TerminalLaunchResult) -> Vec<u8> {
@@ -455,6 +483,48 @@ fn decode_launch_mode(reader: &mut PayloadReader<'_>) -> Result<TerminalLaunchMo
     }
 }
 
+fn encode_launch_selection(payload: &mut Vec<u8>, selection: &crate::LaunchSelection) {
+    let executable = selection.executable().as_bytes();
+    payload.extend_from_slice(
+        &u16::try_from(executable.len())
+            .expect("bounded launch selection")
+            .to_be_bytes(),
+    );
+    payload.extend_from_slice(executable);
+    payload.extend_from_slice(
+        &u16::try_from(selection.arguments().len())
+            .expect("bounded launch selection")
+            .to_be_bytes(),
+    );
+    for argument in selection.arguments() {
+        let bytes = argument.as_bytes();
+        payload.extend_from_slice(
+            &u16::try_from(bytes.len())
+                .expect("bounded launch selection")
+                .to_be_bytes(),
+        );
+        payload.extend_from_slice(bytes);
+    }
+}
+
+fn decode_launch_selection(
+    reader: &mut PayloadReader<'_>,
+) -> Result<crate::LaunchSelection, ProtocolError> {
+    let executable_length = usize::from(reader.read_u16()?);
+    let executable = String::from_utf8(reader.read_slice(executable_length)?.to_vec())
+        .map_err(|_error| ProtocolError::InvalidPayload)?;
+    let argument_count = usize::from(reader.read_u16()?);
+    let mut arguments = Vec::with_capacity(argument_count.min(1024));
+    for _ in 0..argument_count {
+        let length = usize::from(reader.read_u16()?);
+        arguments.push(
+            String::from_utf8(reader.read_slice(length)?.to_vec())
+                .map_err(|_error| ProtocolError::InvalidPayload)?,
+        );
+    }
+    crate::LaunchSelection::new(executable, arguments)
+}
+
 fn encode_geometry(payload: &mut Vec<u8>, geometry: TerminalPixelGeometry) {
     payload.extend_from_slice(&geometry.columns().to_be_bytes());
     payload.extend_from_slice(&geometry.rows().to_be_bytes());
@@ -663,6 +733,10 @@ impl<'a> PayloadReader<'a> {
 
     fn read_u64(&mut self) -> Result<u64, ProtocolError> {
         self.read_array().map(u64::from_be_bytes)
+    }
+
+    fn is_exhausted(&self) -> bool {
+        self.offset == self.bytes.len()
     }
 
     fn finish(self) -> Result<(), ProtocolError> {

@@ -1,8 +1,8 @@
 use std::ffi::OsString;
 
 use orchbee_workbench_protocol::{
-    WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
-    WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
+    LaunchSelection, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel,
+    WorkbenchPanelSplitDirection, WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
 };
 
 /// Legacy three-variant invocation consumed by `presentation::present`.
@@ -83,6 +83,7 @@ pub(crate) enum Family {
     Tab,
     Panel,
     Terminal,
+    Worktree,
     Site,
     Api,
     Config,
@@ -98,6 +99,7 @@ impl Family {
             Self::Tab => "tab",
             Self::Panel => "panel",
             Self::Terminal => "terminal",
+            Self::Worktree => "worktree",
             Self::Site => "site",
             Self::Api => "api",
             Self::Config => "config",
@@ -135,6 +137,7 @@ pub(crate) enum CommandPath {
     TerminalRead,
     TerminalWaitOutput,
     TerminalSend,
+    WorktreeList,
 
     ApiSnapshot,
     ApiSchema,
@@ -173,6 +176,7 @@ impl CommandPath {
             Self::TerminalRead => "terminal read",
             Self::TerminalWaitOutput => "terminal wait-output",
             Self::TerminalSend => "terminal send",
+            Self::WorktreeList => "worktree list",
 
             Self::ApiSnapshot => "api snapshot",
             Self::ApiSchema => "api schema",
@@ -217,6 +221,13 @@ pub(crate) enum QueryCommand {
         rows: u16,
         /// Total wait budget in milliseconds from command start, 1..=3600000.
         timeout_ms: u32,
+    },
+    /// `worktree list --project <t> --directory <id>`: both selectors are
+    /// mandatory; the directory is a strict nonzero 32-lowercase-hex Workbench
+    /// directory ID, never a filesystem path or label.
+    WorktreeList {
+        project: Target,
+        directory: WorkbenchDirectoryId,
     },
     ApiSnapshot,
     ApiSchema {
@@ -344,6 +355,7 @@ pub(crate) enum MutationCommand {
         context: TabContext,
         label: WorkbenchLabel,
         geometry: WorkbenchTerminalGeometry,
+        launch: Option<LaunchSelection>,
     },
     TabRename {
         target: Target,
@@ -361,6 +373,7 @@ pub(crate) enum MutationCommand {
         direction: WorkbenchPanelSplitDirection,
         label: WorkbenchLabel,
         geometry: WorkbenchTerminalGeometry,
+        launch: Option<LaunchSelection>,
     },
     PanelClose {
         target: Target,
@@ -443,11 +456,16 @@ pub(crate) enum ExpectedValue {
     Shell,
     HistoryRows,
     DirectoryPath,
+    /// The `--directory` worktree-list selector: a nonzero 32-character
+    /// lowercase hexadecimal Workbench directory ID.
+    DirectoryId,
     MatchText,
     WaitTimeout,
     SendText,
     SendKey,
     MouseMode,
+    Executable,
+    LaunchArguments,
 }
 
 /// Why an `invalid-usage` failure was reached. Carried for the localized
@@ -584,6 +602,7 @@ enum Token {
 struct Options {
     format: Option<OutputFormat>,
     project: Option<String>,
+    directory: Option<String>,
     workspace: Option<String>,
     tab: Option<String>,
     standalone: bool,
@@ -605,16 +624,21 @@ struct Options {
     file: Option<String>,
     stdin: bool,
     mouse: Option<bool>,
+    exec: Option<String>,
+    args: Vec<String>,
 }
 
 /// Every named option that owns the next argv token as its value, used by
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
+    "--arg",
     "--cell-height",
     "--cell-width",
     "--cols",
     "--direction",
+    "--directory",
+    "--exec",
     "--file",
     "--key",
     "--label",
@@ -866,8 +890,16 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                         return Err(usage_with(UsageReason::MissingValue { option }, envelope));
                     }
                 };
+                // `--arg` is the sole repeatable value option: every
+                // occurrence appends one verbatim argv value in order.
+                if token.as_str() == "--arg" {
+                    options.args.push(value);
+                    index += 2;
+                    continue;
+                }
                 let slot = match token.as_str() {
                     "--project" => &mut options.project,
+                    "--directory" => &mut options.directory,
                     "--workspace" => &mut options.workspace,
                     "--tab" => &mut options.tab,
                     "--label" => &mut options.label,
@@ -882,6 +914,7 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                     "--text" => &mut options.text,
                     "--key" => &mut options.key,
                     "--file" => &mut options.file,
+                    "--exec" => &mut options.exec,
 
                     _ => &mut options.target_panel,
                 };
@@ -892,6 +925,23 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                     ));
                 }
                 index += 2;
+            }
+            // Equals spellings exist only for the launch selection options:
+            // `--exec=<value>` once, `--arg=<value>` repeatable, and `--arg=--`
+            // is the literal terminator value — never option syntax.
+            _ if token.starts_with("--exec=") => {
+                let value = token["--exec=".len()..].to_owned();
+                if options.exec.replace(value).is_some() {
+                    return Err(usage_with(
+                        UsageReason::DuplicateOption { option: "--exec" },
+                        envelope,
+                    ));
+                }
+                index += 1;
+            }
+            _ if token.starts_with("--arg=") => {
+                options.args.push(token["--arg=".len()..].to_owned());
+                index += 1;
             }
             "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin" => {
                 let (seen, option) = if token == "--standalone" {
@@ -1252,6 +1302,7 @@ fn resolve_words(
                     context,
                     label: label_option(options, UsageContext::Path("tab create"), envelope)?,
                     geometry: geometry_option(options, UsageContext::Path("tab create"), envelope)?,
+                    launch: launch_option(options, UsageContext::Path("tab create"), envelope)?,
                 },
                 options,
             ))
@@ -1349,6 +1400,7 @@ fn resolve_words(
                         UsageContext::Path("panel split"),
                         envelope,
                     )?,
+                    launch: launch_option(options, UsageContext::Path("panel split"), envelope)?,
                 },
                 options,
             ))
@@ -1479,6 +1531,21 @@ fn resolve_words(
                 MutationCommand::TerminalSend {
                     target: target((*value).to_owned(), Resource::Terminal, envelope)?,
                     input: send_input(options, context, envelope)?,
+                },
+                options,
+            ))
+        }
+        ["worktree", "list"] => {
+            let context = UsageContext::Path("worktree list");
+            check_scope(options, WORKTREE_LIST_SCOPE, context, envelope)?;
+            Ok(query(
+                QueryCommand::WorktreeList {
+                    project: target(
+                        required(&options.project, context, "'--project'", envelope)?,
+                        Resource::Project,
+                        envelope,
+                    )?,
+                    directory: directory_option(options, context, envelope)?,
                 },
                 options,
             ))
@@ -1778,6 +1845,17 @@ fn resolve_words(
             verb,
             envelope,
         )),
+        ["worktree"] => Err(missing_command(UsageContext::Path("worktree"), envelope)),
+        ["worktree", "list", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("worktree list"),
+            extra,
+            envelope,
+        )),
+        ["worktree", verb, ..] => Err(unknown_command(
+            UsageContext::Path("worktree"),
+            verb,
+            envelope,
+        )),
         ["api"] => Err(missing_command(UsageContext::Path("api"), envelope)),
         ["api", "snapshot", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("api snapshot"),
@@ -1892,6 +1970,9 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["terminal", "wait-output"] => HelpTopic::Command(CommandPath::TerminalWaitOutput),
         ["terminal", "send"] => HelpTopic::Command(CommandPath::TerminalSend),
 
+        ["worktree"] => HelpTopic::Family(Family::Worktree),
+        ["worktree", "list"] => HelpTopic::Command(CommandPath::WorktreeList),
+
         ["api", "snapshot"] => HelpTopic::Command(CommandPath::ApiSnapshot),
         ["api", "schema"] => HelpTopic::Command(CommandPath::ApiSchema),
         ["config", "check"] => HelpTopic::Command(CommandPath::ConfigCheck),
@@ -1920,6 +2001,9 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 #[derive(Clone, Copy)]
 struct Scope {
     project: bool,
+    /// `worktree list --directory <id>`: admits the strict directory-ID
+    /// selector; it is an ID flag, never a path.
+    directory: bool,
     workspace: bool,
     tab: bool,
     standalone: bool,
@@ -1949,10 +2033,15 @@ struct Scope {
     stdin: bool,
     /// `tui --mouse off|on`: admits the TUI-only pointer-capture switch.
     mouse: bool,
+    /// `tab create|panel split --exec <abs>`: the explicit launch executable.
+    exec: bool,
+    /// `tab create|panel split --arg <v>`: the repeatable launch-argv option.
+    args: bool,
 }
 
 const NO_OPTIONS: Scope = Scope {
     project: false,
+    directory: false,
     workspace: false,
     tab: false,
     standalone: false,
@@ -1970,6 +2059,8 @@ const NO_OPTIONS: Scope = Scope {
     file: false,
     stdin: false,
     mouse: false,
+    exec: false,
+    args: false,
 };
 
 /// The explicit `tui` route: only `--mouse` is admitted on top of the
@@ -2016,6 +2107,8 @@ const TAB_CREATE_SCOPE: Scope = Scope {
     standalone: true,
     label: true,
     geometry: true,
+    exec: true,
+    args: true,
     ..NO_OPTIONS
 };
 
@@ -2033,6 +2126,8 @@ const PANEL_SPLIT_SCOPE: Scope = Scope {
     label: true,
     direction: true,
     geometry: true,
+    exec: true,
+    args: true,
     ..NO_OPTIONS
 };
 
@@ -2061,9 +2156,16 @@ const TERMINAL_SEND_SCOPE: Scope = Scope {
     ..NO_OPTIONS
 };
 
+const WORKTREE_LIST_SCOPE: Scope = Scope {
+    project: true,
+    directory: true,
+    ..NO_OPTIONS
+};
+
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
-    options.label.is_some()
+    options.directory.is_some()
+        || options.label.is_some()
         || options.direction.is_some()
         || options.cols.is_some()
         || options.rows.is_some()
@@ -2080,6 +2182,8 @@ fn business_options(options: &Options) -> bool {
         || options.key.is_some()
         || options.file.is_some()
         || options.stdin
+        || options.exec.is_some()
+        || !options.args.is_empty()
 }
 
 /// The first named option present but outside `scope`, in the fixed `Options`
@@ -2087,6 +2191,9 @@ fn business_options(options: &Options) -> bool {
 fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     if options.project.is_some() && !scope.project {
         return Some("--project");
+    }
+    if options.directory.is_some() && !scope.directory {
+        return Some("--directory");
     }
     if options.workspace.is_some() && !scope.workspace {
         return Some("--workspace");
@@ -2154,6 +2261,12 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     if options.mouse.is_some() && !scope.mouse {
         return Some("--mouse");
     }
+    if options.exec.is_some() && !scope.exec {
+        return Some("--exec");
+    }
+    if !options.args.is_empty() && !scope.args {
+        return Some("--arg");
+    }
     None
 }
 
@@ -2195,6 +2308,48 @@ fn mouse_option(value: &str) -> Option<bool> {
     }
 }
 
+/// `--exec`/`--arg` build the optional explicit launch selection: `--exec`
+/// once with a non-empty absolute NUL-free executable, `--arg` repeat-ordered
+/// verbatim argv values, at most the protocol argument count and aggregate
+/// byte bound. `--arg` without `--exec` is a missing requirement — an
+/// argument list has no launch to modify.
+fn launch_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<Option<LaunchSelection>, ParseFailure> {
+    let Some(executable) = options.exec.clone() else {
+        if options.args.is_empty() {
+            return Ok(None);
+        }
+        return Err(missing_required(context, "'--exec'", envelope));
+    };
+    if executable.is_empty() || !executable.starts_with('/') || executable.as_bytes().contains(&0) {
+        return Err(usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "--exec",
+                value: executable,
+                expected: ExpectedValue::Executable,
+            },
+            envelope,
+        ));
+    }
+    LaunchSelection::new(executable, options.args.clone())
+        .map(Some)
+        .map_err(|_| {
+            usage_with(
+                UsageReason::InvalidValue {
+                    context,
+                    option: "--arg",
+                    value: options.args.join(" "),
+                    expected: ExpectedValue::LaunchArguments,
+                },
+                envelope,
+            )
+        })
+}
+
 /// `--label` carries a wire-ready Workbench label: non-empty and at most the
 /// protocol's 512-scalar bound.
 fn label_option(
@@ -2233,6 +2388,30 @@ fn path_option(
                 option: "--path",
                 value,
                 expected: ExpectedValue::DirectoryPath,
+            },
+            envelope,
+        )
+    })
+}
+
+/// `--directory` carries a wire-ready Workbench directory ID: the strict
+/// nonzero 32-lowercase-hex selector the `worktree list` grammar admits. It
+/// is an ID only — never a filesystem path or label — and membership stays
+/// the Server's authority; a malformed value is a generic usage failure with
+/// no resource details at this boundary.
+fn directory_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<WorkbenchDirectoryId, ParseFailure> {
+    let value = required(&options.directory, context, "'--directory'", envelope)?;
+    WorkbenchDirectoryId::parse(&value).map_err(|_| {
+        usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "--directory",
+                value,
+                expected: ExpectedValue::DirectoryId,
             },
             envelope,
         )

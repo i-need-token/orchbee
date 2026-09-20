@@ -32,10 +32,15 @@ orchbee completion bash|zsh|fish
 orchbee --help | --version
 ```
 
-Query families are `project`, `workspace`, `tab`, `panel`, and `terminal` (`list`/`get`, plus
-`terminal read`). Mutation commands against the running Site are `project create`/`rename`,
+Query families are `project`, `workspace`, `tab`, `panel`, `terminal`, and `worktree`
+(`list`/`get`, plus `terminal read`; `worktree` offers only `list`, which requires
+`--project <target>` and `--directory <directory-id>` — a strict nonzero 32-lowercase-hex
+Workbench directory id, never a filesystem path or label). Mutation commands against the
+running Site are `project create`/`rename`,
 `workspace create`/`rename`/`accept-directory`, `tab create`/`rename`/`move`/`close`, and
-`panel split`/`move`/`close`. `terminal send <id> (--text <utf8> [--enter] | --key <name>)`
+`panel split`/`move`/`close` — `tab create` and `panel split` additionally accept an ephemeral
+`--exec <path> [--arg <value>]...` launch selection that replaces the resolved default shell for
+that one request only. `terminal send <id> (--text <utf8> [--enter] | --key <name>)`
 delivers exactly one input record — literal text with an optional folded carriage return, or
 one of fifteen semantic keys — to a bound terminal over the same admitted session, without
 taking over TUI controller/viewer ownership; its two-axis receipt reports the Server's input

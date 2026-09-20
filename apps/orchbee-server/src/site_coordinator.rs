@@ -11,9 +11,12 @@ use orchbee_client_server_protocol::{
 };
 use orchbee_server::{
     WorkbenchAuthority, WorkbenchGrant, WorkbenchReadOrNavigationRequest,
-    WorkbenchTerminalMembership,
+    WorkbenchTerminalMembership, WorktreeListResolution,
 };
-use orchbee_workbench_protocol::{PresentationBinding, TerminalId, WorkbenchResponse, WorkerId};
+use orchbee_workbench_protocol::{
+    PresentationBinding, TerminalId, WorkbenchDirectoryId, WorkbenchProjectId, WorkbenchResponse,
+    WorkerId,
+};
 
 mod standalone;
 pub(crate) use standalone::PreparedOpen;
@@ -67,6 +70,25 @@ impl SiteCoordinator {
         site: &orchbee_workbench_protocol::SiteId,
     ) -> Option<bool> {
         Some(self.workbench.as_ref()?.site_id() == site)
+    }
+
+    /// Resolves committed Worktree List membership; `Unavailable` covers an
+    /// absent authority so callers need no second poisoning path.
+    pub(crate) fn worktree_list_target(
+        &self,
+        project_id: &WorkbenchProjectId,
+        directory_id: &WorkbenchDirectoryId,
+    ) -> WorktreeListResolution {
+        match self.workbench.as_ref() {
+            Some(authority) => authority.worktree_list_target(project_id, directory_id),
+            None => WorktreeListResolution::Unavailable,
+        }
+    }
+
+    /// Reserves `count` sequential operation identities once, so the Worktree
+    /// List Start/Poll exchanges mint fresh IDs without re-entering the lock.
+    pub(crate) fn allocate_identity_block(&mut self, count: u128) -> Option<u128> {
+        self.terminals.allocate_identity_block(count)
     }
 
     pub(crate) fn execute_workbench(

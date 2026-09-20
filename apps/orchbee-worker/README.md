@@ -54,8 +54,9 @@ The [shared modeling record](../../crates/local-site-runtime/README.md) owns pro
 
 The first Launch passes the existing authorization kernel and resolves launch facts before Host
 startup. Typed invalid-lease/generation rejection creates no Host. Generation-pinned cwd validation
-may complete before that Launch without starting a Host; any other non-Launch traffic retires the
-connection. The admitted dispatch and same kernel survive Host startup, and authorization is
+and worktree-job requests may complete before that Launch without starting a Host — the discovery
+slot survives the handoff so an admitted job stays owned across it; any other non-Launch traffic
+retires the connection. The admitted dispatch and same kernel survive Host startup, and authorization is
 checked again before handoff. The Host directory is `host` under the runtime, with fixed endpoint ID
 `00000000000000000000000000000001`. The absolute endpoint address under that directory is checked
 against the platform socket-address ABI before the directory or the Host process is created; an
@@ -69,6 +70,21 @@ and replay cache.
 The child reaper only waits for exit; it never kills Host. Host retains terminals after the
 Server/Worker connection closes. Restart adoption and replacement Host are unsupported.
 Explicit-endpoint mode retains its existing two-peer readiness semantics.
+
+## Worktree discovery job
+
+The serialized request loop admits OBCN worktree-job requests (start/poll/cancel) for the
+`worktree list` Server flow both before the first Launch and after Host admission. One process-level slot runs one discovery job at a time — a
+`git rev-parse --path-format=absolute --git-common-dir` probe followed by `git worktree list
+--porcelain -z` inside the Server-supplied directory — under a fixed five-second TTL counted
+from admission and one shared 64 KiB stdout budget across both stages; the stage that crosses
+the combined budget owns the `too-large` attribution. Every request is fenced by the exact
+`{workerId, generation, jobId}` tuple and answers a typed result frame; `rejected-fencing`,
+`busy`, and `dead` are honest outcomes, never fabricated completions. The job reports raw
+bounded bytes only — porcelain parsing and malformed-listing rejection are the Server's
+authority, not the Worker's. The owner reaps its child autonomously — a dead or evicted
+job retains only a bounded receipt until the next start replaces it; cancellation keeps the
+terminal outcome observable through `poll`.
 
 ## Live viewer relay refinement
 
@@ -148,6 +164,11 @@ request on an already-established carrier moves `idle -> record-open -> request-
 -> handed -> prepared -> responded -> settled`; a partial or malformed record abandons into the
 terminal `failed` phase, matching the carrier's fail-closed connection behavior — the model does
 not claim same-stream realignment, and byte-cursor alignment after a complete record stays with
+When an admitted OBCN Launch carries an explicit launch selection, the request loop adopts its
+executable and argument vector verbatim instead: no `PATH` search, no shell resolution, and no
+silent fallback to the default shell — a spawn failure is the Host's typed launch failure. The
+selection shares the same fixed three-entry environment and cwd/profile composition below.
+
 codec tests. A lost, late, or misclassified Host response settles the request as `unknown` and
 enters `failed` (the real broker retires); broker replacement, incarnation cleanup, and
 cross-request aftermath stay with `LocalWorkerObcnCarrier`, `LocalHostBroker`, and their tests.
@@ -165,7 +186,8 @@ codec/schema/process-test evidence, not model claims.
 ## Default interactive launch resolution
 
 The application-private `default_interactive_launch` module supplies the running request loop's
-launch-fact composition. Its transport-neutral `DefaultInteractiveLaunch` output owns only one
+launch-fact composition only when no explicit selection is present. Its transport-neutral
+`DefaultInteractiveLaunch` output owns only one
 resolved executable, an exactly empty literal argument vector, and three fixed environment entries.
 The loop combines these with Worker-local cwd, Terminal Protocol profile, geometry, and independent
 creation identity. The three entries map to the Terminal Protocol launch environment; the

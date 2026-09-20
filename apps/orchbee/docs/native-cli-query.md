@@ -54,11 +54,19 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   context operands, single use each. The next token is consumed as the value even when it
   begins with a dash; a bare `--` is never consumed as a value (missing value →
   `invalid-usage`). A consumed filter value is not a format selector. Each flag is valid only
-  on a command that declares it (`--project` on `workspace list`/`workspace create`,
+  on a command that declares it (`--project` on `workspace list`/`workspace create`/
+  `worktree list`,
   `--workspace` on `tab list`/`tab create`, `--tab` on `panel list`); anywhere else,
   including `get` commands, is `invalid-usage`. Filters are never silently dropped: a filter
   flag on a command that does not declare it is `invalid-usage` before any runtime access, so
   `workspace list` rejects `--workspace`, `--tab`, and `--standalone`.
+- `--directory <directory-id>`: single-use value flag, required on `worktree list` and valid
+  nowhere else. The value is a `WorkbenchDirectoryId` only — a strict nonzero 32-lowercase-hex
+  identifier, never a filesystem path, label, or prefix. A missing, malformed, uppercase,
+  zero-valued, or wrong-width value is `invalid-usage` before any runtime access; the CLI
+  performs no directory-membership precheck — membership is the running Site's authority, and
+  a well-formed but absent directory answers `not-found` with `{resource:"directory"}` under
+  the worktree failure envelope.
 - `--standalone`: valueless boolean flag, single use, only on `tab list` and `tab create`;
   mutually exclusive with `--workspace` on both.
 - `--label <label>`: single-use value flag, required on `project create`, `project rename`,
@@ -81,6 +89,16 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   takes one decimal `u16`. The combined grid cells and pixel extents must satisfy the
   protocol `WorkbenchTerminalGeometry` bounds; a partial, repeated, non-numeric, or
   out-of-range set is `invalid-usage` before any runtime access.
+- `--exec <path>` / `--arg <value>`: the ephemeral launch selection, admitted only on
+  `tab create` and `panel split`. `--exec` is single-use and takes a nonempty absolute
+  UTF-8 executable path without NUL. `--arg` is repeatable and each value is appended
+  verbatim, in order, as `argv[1..]` — empty and dash-leading values are consumed as
+  values under the standard value rule, and `argv[0]` is synthesized from the
+  executable path. At most 128 `--arg` values and at most 2,048 UTF-8 bytes across the
+  executable plus all argument values; `--arg` without `--exec`, a repeated `--exec`,
+  or a violated bound is `invalid-usage` before any runtime access. Omitting `--exec`
+  keeps the resolved default shell; a selection is part of request identity and is
+  never persisted as a profile.
 - `--confirm`: valueless boolean, required on `tab close` and `panel close`; absent there or
   present on any other command is `invalid-usage`.
 - `--match <text>`: single-use value flag, required on `terminal wait-output`; a nonempty
@@ -139,13 +157,14 @@ orchbee workspace list [--project <target>] | workspace get <target>
 orchbee workspace create --project <target> --label <label>
 orchbee workspace rename <target> --label <label>
 orchbee workspace accept-directory <target> --path <path>
+orchbee worktree list --project <target> --directory <directory-id>
 orchbee tab list [--workspace <target> | --standalone] | tab get <target>
-orchbee tab create (--workspace <target> | --standalone) --label <label> <geometry>
+orchbee tab create (--workspace <target> | --standalone) --label <label> <geometry> [--exec <path> [--arg <value>]...]
 orchbee tab rename <target> --label <label>
 orchbee tab move <target> --direction previous|next|first|last
 orchbee tab close <target> --confirm
 orchbee panel list [--tab <target>] | panel get <target>
-orchbee panel split <target> --direction above|below|left|right --label <label> <geometry>
+orchbee panel split <target> --direction above|below|left|right --label <label> <geometry> [--exec <path> [--arg <value>]...]
 orchbee panel close <target> --confirm
 orchbee panel move <target> --target-panel <target> --direction above|below|left|right
 orchbee terminal list | terminal get <target> | terminal read <target> [--history --rows <1-1000>]
@@ -160,7 +179,7 @@ orchbee help <recognized path>
 orchbee <recognized path> -h|--help
 ```
 
-Help topics: root; families `project`, `workspace`, `tab`, `panel`, `terminal`, `api`, `site`,
+Help topics: root; families `project`, `workspace`, `worktree`, `tab`, `panel`, `terminal`, `api`, `site`,
 `config`, `completion`; and every complete command path including `tui`. `help` takes only a recognized
 path (no filters, no format). A trailing `-h` or `--help` is the same request on the same path:
 `orchbee --help`, `project --help`, and `project get --help` emit exactly what `help`,
@@ -374,6 +393,32 @@ under the same deadline. A `--text`/`--key` invocation has no materialization st
    never-retried warning. Every nonzero answer keeps `inputStatus` truthful — an accepted
    input is never rewritten as unsent.
 
+`worktree list` shares steps 1–4 of the network preamble plus one snapshot read, all under
+one absolute 5-second deadline sampled once at command entry (`snapshot_session_until` —
+cohort, discovery, socket, admission, snapshot, and the worktree-list exchange each consume
+only what remains; there is no per-stage renewal). It then:
+
+1. **Resolve** — the `--project` target is resolved on the validated snapshot under the
+   ordinary project target rule (exact ID or exact label; `not-found`/`ambiguous` keep the
+   generic failure envelope — the snapshot boundary is the command's family boundary).
+   Directory membership is never checked here.
+2. **Read** — exactly one `workbench.worktree-list.read` request `{projectId,directoryId}`
+   under a fresh `WorkbenchRequestId`, bounded by the same deadline, on the same admitted
+   session. The Server authoritatively verifies the directory's membership in the project at
+   that moment and dispatches one bounded Worker discovery job — a `git rev-parse
+--path-format=absolute --git-common-dir` probe followed by `git worktree list --porcelain
+-z`, sharing one 5-second job TTL and one 64 KiB combined stdout budget; the stage that
+   crosses the shared budget owns the `too-large` attribution. The read is never retried,
+   replayed, or reconnected; an undetermined exchange is `outcome-unknown` (8).
+3. **Map** — the session is fully dropped before the typed `worktree-list.result` is
+   projected. `Found` yields the `orchbee.worktree.list` document: the registered
+   `{projectId,directoryId,path}` identity plus verbatim `entries` (`worktreePath`,
+   `head`, `branch`, `bare`, `detached`, `locked`, `prunable` — byte-exact through the
+   `*BytesHex` alternates). Every failure the exchange produces — including transport and
+   protocol defects — wears the dedicated `orchbee.cli.failure.worktree` envelope;
+   `not-found{resource:"directory"}` is the absent-directory answer, and no partial entry
+   set ever surfaces.
+
 ### Send input sources
 
 `--file` and `--stdin` are _declared_ local sources: the parser stores them untouched and
@@ -511,7 +556,7 @@ Canonical traversal order: `navigation.projects` order; each project's `workspac
 Success envelopes are `{schema, version, source, result}`. Every business document —
 query, mutation, receipt, and failure — is `version:1` except `orchbee.terminal.get`, which
 is `version:2` since it gained the `launch` member. The `orchbee.api.schema` catalog
-envelope is `version:4`: registering a new schema id changes the closed dictionary's
+envelope is `version:5`: registering a new schema id changes the closed dictionary's
 shape, which is a catalog shape change under the version rule, not a business one:
 
 - `source.kind="workbench-snapshot"` with `siteId` and decimal-string `revision` from the same
@@ -527,6 +572,9 @@ shape, which is a catalog shape change under the version rule, not a business on
   `snapshotRevision` the binding resolved from, on typed `terminal send` answers.
 - `source.kind="terminal-launch-read"` — `siteId` and the decimal-string `revision` the
   Server joined under the coordinator lock, on `terminal get` answers.
+- `source.kind="worktree-list"` — `siteId` and the decimal-string `revision` of the
+  committed Workbench at the Server's authoritative membership check, on `worktree list`
+  results and its post-snapshot failures.
 - There is no freshness field; one consistent read is not a liveness guarantee.
 
 Result payloads (schema IDs are stable machine names):
@@ -619,6 +667,27 @@ payloadKind,recordBytes?,key?,inputStatus,cleanupStatus,reason?,acceptedBytes?,t
   The catalog stays closed: `result.schemas` names exactly the registered ids and each
   embedded document's `$id` matches its key. Introspection clients validating against the
   older catalog select the embedded v2 document from this same build.
+- `orchbee.worktree.list` → `{projectId,directoryId,path,worktrees:[<entry>…]}`: the
+  registered directory identity (`path` is the registered Workbench directory — distinct
+  from each entry's observed `worktreePath`) plus the verbatim `git worktree list
+--porcelain -z` projection. Each entry carries exactly one of `worktreePath` (UTF-8) or
+  `worktreePathBytesHex` (lowercase-hex raw bytes), `head` as a 40- or 64-character
+  lowercase-hex object name or `null` for a bare repository (an all-zero HEAD is the real
+  Git value for an unborn repository and is preserved verbatim), exactly one of `branch`
+  (the verbatim full ref such as `refs/heads/main`, never stripped), `branchBytesHex`, or
+  `null` when no branch applies, and the `bare`/`detached`/`locked`/`prunable` flags.
+- `orchbee.cli.failure.worktree` → `{schema:"orchbee.cli.failure.worktree",version:1,
+failure:{kind,details?},source?}`: the dedicated failure envelope for every `worktree
+list` failure past the snapshot boundary (pre-boundary grammar, preamble, and project
+  resolution failures keep `orchbee.cli.failure`). Its `details` vocabulary is closed:
+  `{resource:"directory",target}` on `not-found`, `{stage:"worktree-list"[,reason]}` on
+  `denied`/`service-unavailable` (`server-busy`|`worker-unavailable`|`job-dead`|
+  `job-unknown`)/`transport-loss`/`protocol-invalid` (`reason:"correlation-mismatch"`),
+  `{stage:"probe"|"list",status}` (`status` integer or `null`) or `{stage:"parse"}` on
+  `check-failed`, `{stage:"worktree-list",
+timeoutMs:5000}` on `timeout`, and `{stage:"worktree-list",origin,limitBytes}` on
+  `output-too-large` (`origin` `git-probe`|`git-list` → 65536, `worker-result` → 7936,
+  `workbench-result` → 32768).
 - `orchbee.mutation.result` → `{action,outcome,revision?,acceptedRevision?,closeRequestId?,
 <resolved typed IDs>,direction?,label?,terminal?}` per the mutation matrix above:
   `revision` on `committed`/`unchanged`, `acceptedRevision`+`closeRequestId` on `accepted`,
@@ -814,6 +883,14 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | command `Denied` precommit                                                                                                                | `denied`                                                                   | 3         | omitted                                                                                   |
 | command `Unavailable` precommit                                                                                                           | `service-unavailable`                                                      | 4         | `{stage:"command",reason}`                                                                |
 | `OutcomeUnknown` (any reason)                                                                                                             | `outcome-unknown`                                                          | 8         | `{stage:"command",requestId,reason}`                                                      |
+| worktree-list `RequestNotSubmitted`, write/io response failure, or the `TransportLoss` outcome (post-delivery response loss)              | `transport-loss`                                                           | 5         | `{stage:"worktree-list"}` under `orchbee.cli.failure.worktree`                            |
+| worktree-list invalid/unexpected response                                                                                                 | `protocol-invalid`                                                         | 5         | `{stage:"worktree-list"[,reason:"correlation-mismatch"]}` under the worktree envelope     |
+| worktree-list response deadline, or the shared 5 s command deadline expiring                                                              | `timeout`                                                                  | 7         | `{stage:"worktree-list",timeoutMs:5000}` under the worktree envelope                      |
+| worktree-list outcome `NotFound` (directory absent from the project at the Server check)                                                  | `not-found`                                                                | 3         | `{resource:"directory",target}` under the worktree envelope                               |
+| worktree-list outcome `Denied`                                                                                                            | `denied`                                                                   | 3         | `{stage:"worktree-list"}` under the worktree envelope                                     |
+| worktree-list `Unavailable`/`SpawnUnavailable`/`SpawnFailed`/`OwnerIo`                                                                    | `service-unavailable`                                                      | 4         | `{stage:"worktree-list",reason:"server-busy"                                              | "worker-unavailable"                                           | "job-dead" | "job-unknown"}` |
+| worktree-list `GitFailed` (probe/list carry the exact exit status, `null` when signaled) or `MalformedListing`                            | `check-failed`                                                             | 1         | `{stage:"probe"                                                                           | "list",status}`or`{stage:"parse"}` under the worktree envelope |
+| worktree-list `TooLarge` (shared Git stdout, OBCN result, or Workbench result budget crossed)                                             | `output-too-large`                                                         | 1         | `{stage:"worktree-list",origin,limitBytes}` under the worktree envelope                   |
 | send `RequestNotSubmitted` (the request provably never reached the wire)                                                                  | `transport-loss`                                                           | 5         | `{stage:"send"}`                                                                          |
 | send `SessionUnavailable`/`RequestEncoding`                                                                                               | `internal-failure`                                                         | 1         | omitted                                                                                   |
 | send `OutcomeUnknown` (write/read/invalid-result/correlation)                                                                             | `outcome-unknown`                                                          | 8         | `{stage:"send",requestId,reason}`                                                         |
@@ -839,6 +916,9 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 
 `resource` is `project|workspace|tab|panel|terminal|schema`; `stage` is
 `cohort|runtime-base|runtime-directory|socket|discovery|admission|activation|snapshot|viewer|command|send|platform|wait`.
+The dedicated `orchbee.cli.failure.worktree` envelope admits `resource:"directory"` and the
+`worktree-list|probe|list|parse` stage vocabulary documented with its schema above — those
+values belong to that envelope only, not to the generic `orchbee.cli.failure` vocabulary.
 The source-stage `input` stage lives only in the `orchbee.cli.failure.source` envelope —
 it is not admitted into the standard `orchbee.cli.failure` stage vocabulary.
 Stages and reasons are finite schema values; no exception text becomes a machine field. `details`
@@ -965,6 +1045,10 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 | Real staged-cohort Server + live TUI terminal: `terminal read` returns its grid and schema-validates                                                                                                              | real read-only observation coexisting with the TUI's own viewer                                 | `tests/local_startup_process`                                      |
 | Mutation grammar: every command, target rules, `--confirm`, geometry bounds, flag scopes                                                                                                                          | exact parse/failure kinds before runtime access                                                 | `src/invocation` tests                                             |
 | Mutation scripted peers: all twelve commands, precommit verdicts, ambiguous and unapplied outcomes                                                                                                                | one command per call; `outcome-unknown` never replayed                                          | `tests/cli_mutation.rs`                                            |
+| Worktree list grammar: `--project`/`--directory` both required, strict directory-ID value rule, flag scopes                                                                                                       | exact parse/`invalid-usage` before runtime access                                               | `src/invocation` tests                                             |
+| Worktree list document/failure envelopes: entry XOR byte fields, bare/detached/HEAD invariants, closed details vocabulary                                                                                         | every fixture validates; rejected variants fail                                                 | `tests/cli_query.rs` schema contrast tests                         |
+| Worker discovery job: real disposable Git repository (init + commit + detached linked worktree, per-command `-c` identity only), shared TTL/stdout budget attribution                                             | verbatim `-z` bytes, real HEAD/ref, typed outcomes                                              | `apps/orchbee-worker` `worktree_discovery_job` tests               |
+| Server worktree-list handler: `-z` parser acceptance/rejection matrix, membership authority, outcome→failure mapping                                                                                              | byte-exact projection; malformed listings are `check-failed`                                    | `apps/orchbee-server` `worktree_list` tests                        |
 | Non-TTY; stdout blocked after the session is gone; >8 MiB prepared output on every format; real write failure                                                                                                     | documented exits; transport owners dropped before blocking                                      | `tests/local_startup_process` + emit unit tests                    |
 | `config check` matrix: pass/fail/not-applicable per check, `exists` semantics                                                                                                                                     | five typed checks always reported                                                               | `tests/cli_query.rs` + `src/cli/config` tests                      |
 | `site start` real staged cohort: cold start spawns + admits, second/overlapping starts, marker-without-owner refusal, held-lock deadline, cohort faults, signals, non-UTF-8 base, zh-CN text                      | `started`/`already-running` truth; refused wedge leaves marker byte-identical; bounded deadline | `tests/local_startup_process`                                      |

@@ -9,6 +9,10 @@ use crate::localization::Locale;
 
 pub(crate) const FAILURE_ID: &str = "orchbee.cli.failure";
 pub(crate) const SOURCE_FAILURE_ID: &str = "orchbee.cli.failure.source";
+/// The dedicated `worktree list` failure envelope: the command's own detail
+/// shapes (directory resource, worktree-list stage, shared Git bound origin)
+/// without touching the generic failure schema.
+pub(crate) const WORKTREE_FAILURE_ID: &str = "orchbee.cli.failure.worktree";
 pub(crate) const MUTATION_RESULT_ID: &str = "orchbee.mutation.result";
 pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 
@@ -26,6 +30,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
     (
         SOURCE_FAILURE_ID,
         include_str!("schemas/orchbee.cli.failure.source.json"),
+    ),
+    (
+        WORKTREE_FAILURE_ID,
+        include_str!("schemas/orchbee.cli.failure.worktree.json"),
     ),
     (
         "orchbee.config.check",
@@ -103,6 +111,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
         "orchbee.workspace.list",
         include_str!("schemas/orchbee.workspace.list.json"),
     ),
+    (
+        "orchbee.worktree.list",
+        include_str!("schemas/orchbee.worktree.list.json"),
+    ),
 ];
 
 pub(crate) fn embedded_source() -> Value {
@@ -170,9 +182,9 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog envelope v4: registering new schema ids changes the closed
+        // Catalog envelope v5: registering new schema ids changes the closed
         // dictionary's shape; business document versions stay untouched.
-        "version": 4,
+        "version": 5,
         "source": embedded_source(),
         "result": result,
     });

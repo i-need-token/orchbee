@@ -106,6 +106,7 @@ fn add_terminal_between(
             terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
             label: WorkbenchLabel::parse("close witness").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+            launch: None,
         },
     };
     let worker = WorkerPlacement {

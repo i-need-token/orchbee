@@ -1,7 +1,7 @@
 use super::tab_create::{
     client_geometry, pending_authorization, pending_authorization_from_message,
-    pending_cwd_matches, placement_matches_worker, terminal_outcome, terminal_preflight_reason,
-    unavailable_by_id,
+    pending_cwd_matches, pending_launch_matches, placement_matches_worker, terminal_outcome,
+    terminal_preflight_reason, unavailable_by_id,
 };
 use super::{
     PostcommitCoordinationError, SiteCoordinator, StandaloneTerminal, open_outcome,
@@ -17,8 +17,8 @@ use orchbee_server::{
     WorkbenchPanelSplitPreparation, WorkbenchPanelSplitSettlementTokenMismatch,
 };
 use orchbee_workbench_protocol::{
-    ProtocolVersion, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
-    WorkbenchCommandUnavailableReason,
+    ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
+    WorkbenchCommandResult, WorkbenchCommandUnavailableReason,
 };
 
 pub(crate) enum PreparedTerminalPanelSplit {
@@ -38,6 +38,7 @@ pub(crate) struct PendingTerminalPanelSplit {
     reference: RequestId,
     worker: WorkerPlacement,
     workspace_cwd: Option<WorkingDirectory>,
+    launch: Option<orchbee_client_server_protocol::LaunchSelection>,
 }
 
 impl PendingTerminalPanelSplit {
@@ -51,6 +52,7 @@ impl PendingTerminalPanelSplit {
         self.terminal.create_reference() == &self.reference
             && authorization.and_then(presentation_binding).as_ref() == Some(metadata.binding())
             && pending_cwd_matches(self.terminal.command(), self.workspace_cwd.as_ref())
+            && pending_launch_matches(self.terminal.command(), self.launch.as_ref())
             && authorization.is_some_and(|authorization| {
                 authorization.worker_id() == self.worker.worker_id
                     && authorization.worker_generation() == self.worker.generation
@@ -76,6 +78,31 @@ impl SiteCoordinator {
                 &command,
                 WorkbenchCommandUnavailableReason::ServiceUnavailable,
             ));
+        };
+        // The selection is part of the committed command's identity; it is
+        // extracted before admission so the same value reaches the Worker
+        // verbatim. A decoded selection already passed the closed lexical
+        // contract, so conversion failure is an invariant break.
+        let launch = match &command.action {
+            WorkbenchAction::PanelSplit { launch, .. } => launch.clone(),
+            _ => None,
+        };
+        let launch = match launch
+            .map(|selection| {
+                orchbee_client_server_protocol::LaunchSelection::new(
+                    selection.executable().to_owned(),
+                    selection.arguments().to_vec(),
+                )
+            })
+            .transpose()
+        {
+            Ok(launch) => launch,
+            Err(_) => {
+                return PreparedTerminalPanelSplit::Ready(unavailable(
+                    &command,
+                    WorkbenchCommandUnavailableReason::ServiceUnavailable,
+                ));
+            }
         };
         let grant =
             WorkbenchGrant::manage_navigation_and_terminal_create(workbench.site_id().clone());
@@ -140,6 +167,7 @@ impl SiteCoordinator {
                 worker_constraint,
                 workspace_cwd.clone(),
                 StartMode::Immediate { geometry },
+                launch.clone(),
             ),
             Some(worker),
             Some(expiry),
@@ -171,6 +199,7 @@ impl SiteCoordinator {
             || terminal.authorization() != authorization
             || pending_authorization_from_message(terminal.command()) != Some(authorization)
             || !pending_cwd_matches(terminal.command(), workspace_cwd.as_ref())
+            || !pending_launch_matches(terminal.command(), launch.as_ref())
             || metadata.binding() != &binding
             || authorization.worker_id() != worker.worker_id
             || authorization.worker_generation() != worker.generation
@@ -190,6 +219,7 @@ impl SiteCoordinator {
             reference,
             worker,
             workspace_cwd,
+            launch,
         })
     }
 
@@ -225,6 +255,7 @@ impl SiteCoordinator {
             reference,
             worker: _,
             workspace_cwd: _,
+            launch: _,
         } = pending;
         let terminal = terminals
             .prepare_completion(terminal, completion, current_worker)

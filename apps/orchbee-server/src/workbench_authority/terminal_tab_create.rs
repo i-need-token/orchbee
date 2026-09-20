@@ -421,6 +421,7 @@ impl WorkbenchAuthority {
             terminal_context_id,
             label,
             geometry,
+            launch: _,
         } = command.action.clone()
         else {
             return ready(

@@ -5,10 +5,14 @@
 
 use serde_json::Value;
 
+use orchbee_workbench_protocol::{WorktreeEntry, WorktreeEntryText};
+
 use super::config::CheckReport;
 use super::escape::{display_width, escape, quoted, table_label};
 use super::output::{Bounded, TooLarge};
-use super::results::{ContextRef, PanelDoc, PresentationRow, Projection, StatusDoc, TerminalRow};
+use super::results::{
+    ContextRef, PanelDoc, PresentationRow, Projection, StatusDoc, TerminalRow, hex_encode,
+};
 use crate::invocation::QueryCommand;
 use crate::localization::{CliLabels, Locale};
 
@@ -95,6 +99,49 @@ fn terminal_table(
     rows: &[TerminalRow],
 ) -> Result<(), TooLarge> {
     table(out, &text.terminal_headers, rows, terminal_cells)
+}
+
+/// Non-UTF-8 values render as `hex:`-prefixed lowercase hex; UTF-8 paths and
+/// refs pass through the same escaping as every other user-controlled value.
+fn worktree_text(value: &WorktreeEntryText) -> String {
+    match value {
+        WorktreeEntryText::Utf8(text) => quoted(text),
+        WorktreeEntryText::Bytes(bytes) => format!("hex:{}", hex_encode(bytes)),
+    }
+}
+
+fn worktree_state(entry: &WorktreeEntry) -> String {
+    let mut flags = Vec::new();
+    if entry.bare {
+        flags.push("bare");
+    }
+    if entry.detached {
+        flags.push("detached");
+    }
+    if entry.locked {
+        flags.push("locked");
+    }
+    if entry.prunable {
+        flags.push("prunable");
+    }
+    if flags.is_empty() {
+        "-".to_owned()
+    } else {
+        flags.join(",")
+    }
+}
+
+fn worktree_cells(entry: &WorktreeEntry) -> Vec<String> {
+    vec![
+        worktree_text(&entry.path),
+        entry.head.clone().unwrap_or_else(|| "-".to_owned()),
+        entry
+            .branch
+            .as_ref()
+            .map(worktree_text)
+            .unwrap_or_else(|| "-".to_owned()),
+        worktree_state(entry),
+    ]
 }
 
 pub(crate) fn render(
@@ -268,6 +315,16 @@ pub(crate) fn render(
             // The launch fact renders as its own `name  value` block — the
             // same validated projection the machine document carries.
             name_value_block(out, &super::results::launch_fact_json(&doc.launch))
+        }
+        // `worktree list` prints the resolved identity block, then one row
+        // per observed Git worktree: the escaped path (or its hex byte
+        // form), the verbatim HEAD (an all-zero value stays exactly as Git
+        // reported it), the verbatim branch ref, and the flag column.
+        Projection::WorktreeList(doc) => {
+            field(out, text.project_id, &doc.project_id)?;
+            field(out, text.directory_id, &doc.directory_id)?;
+            field(out, text.path, &quoted(&doc.path))?;
+            table(out, &text.worktree_headers, &doc.entries, worktree_cells)
         }
         // `api snapshot` answers a machine document in every format; the text
         // projection is unreachable by contract, not a second surface.

@@ -59,6 +59,7 @@ fn tab_move_preserves_pending_first_create_and_exact_replay_after_lost_response(
             terminal_context_id: initial.navigation.standalone_terminal_context_id.clone(),
             label: WorkbenchLabel::parse("A creation")?,
             geometry: workbench_geometry()?,
+            launch: None,
         },
     );
     write_obwp(&mut first_client, &first_request, deadline())?;
@@ -86,6 +87,7 @@ fn tab_move_preserves_pending_first_create_and_exact_replay_after_lost_response(
             terminal_context_id: one.navigation.standalone_terminal_context_id.clone(),
             label: WorkbenchLabel::parse("B creation")?,
             geometry: workbench_geometry()?,
+            launch: None,
         },
     );
     write_obwp(&mut second_client, &second_request, parked_deadline)?;
@@ -172,6 +174,7 @@ fn tab_move_preserves_pending_first_create_and_exact_replay_after_lost_response(
             terminal_context_id: moved.navigation.standalone_terminal_context_id.clone(),
             label: WorkbenchLabel::parse("C creation")?,
             geometry: workbench_geometry()?,
+            launch: None,
         },
     );
     write_obwp(&mut first_client, &third_request, deadline())?;

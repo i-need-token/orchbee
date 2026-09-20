@@ -269,6 +269,7 @@ fn add_terminal(service: &LocalTerminalService, index: u8) -> WorkbenchCommand {
             terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
             label: WorkbenchLabel::parse("viewer routing").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+            launch: None,
         },
     };
     let mut site = service.coordinator.lock().unwrap();

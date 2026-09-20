@@ -272,6 +272,7 @@ fn deferred_create() -> Result<ClientMessage, Box<dyn std::error::Error>> {
         None,
         None,
         StartMode::Deferred,
+        None,
     )))
 }
 
@@ -285,7 +286,58 @@ fn immediate_create_with_worst_case_json_cwd() -> Result<ClientMessage, Box<dyn 
         None,
         Some(cwd),
         StartMode::Immediate { geometry },
+        None,
     )))
+}
+
+#[test]
+fn terminal_create_launch_selection_is_optional_and_closed()
+-> Result<(), Box<dyn std::error::Error>> {
+    let request_id = RequestId::parse("33333333333333333333333333333333")?;
+    let geometry = Geometry::new(80, 24, 9, 18)?;
+    let message = ClientMessage::TerminalCreate(TerminalCreateRequest::new(
+        request_id.clone(),
+        None,
+        None,
+        StartMode::Immediate { geometry },
+        Some(crate::LaunchSelection::new(
+            "/bin/sh".to_owned(),
+            vec!["-c".to_owned(), String::new(), "--".to_owned()],
+        )?),
+    ));
+    let encoded = encode_client_frame(&message)?;
+    assert_eq!(decode_client_frame(&encoded)?, message);
+
+    // The same message without the field is the pre-extension wire shape:
+    // it decodes to a default launch, and the encoded forms differ only by
+    // the launch member.
+    let without = ClientMessage::TerminalCreate(TerminalCreateRequest::new(
+        request_id.clone(),
+        None,
+        None,
+        StartMode::Immediate { geometry },
+        None,
+    ));
+    let encoded_without = encode_client_frame(&without)?;
+    let decoded: serde_json::Value = serde_json::from_slice(payload(&encoded_without)?)?;
+    assert_eq!(decoded["launch"], serde_json::Value::Null);
+    assert_eq!(decode_client_frame(&encoded_without)?, without);
+
+    // Lexically invalid and unknown-field selections fail closed at decode.
+    for launch_json in [
+        r#""launch":{"exec":"bin/sh","args":[]}"#,
+        r#""launch":{"exec":"/bin/sh"}"#,
+        r#""launch":{"exec":"/bin/sh","args":[],"extra":1}"#,
+    ] {
+        let raw = format!(
+            r#"{{"kind":"terminal.create","protocolVersion":1,"requestId":"33333333333333333333333333333333","workerConstraint":null,"cwd":null,"startMode":{{"kind":"immediate","geometry":{{"columns":80,"rows":24,"cellPixelWidth":9,"cellPixelHeight":18}}}},{launch_json}}}"#
+        );
+        assert!(
+            decode_client_frame(&frame(raw.as_bytes())?).is_err(),
+            "accepted {launch_json}"
+        );
+    }
+    Ok(())
 }
 
 fn frame(payload: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {

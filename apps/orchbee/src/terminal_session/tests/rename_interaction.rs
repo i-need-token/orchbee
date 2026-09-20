@@ -63,9 +63,10 @@ impl RenameServer {
                             read_workbench_request(&mut reader).map_err(io::Error::other)?;
                         let command = match request {
                             WorkbenchRequest::TabCloseRead(_)
-                            | WorkbenchRequest::TabCloseResume(_) => {
+                            | WorkbenchRequest::TabCloseResume(_)
+                            | WorkbenchRequest::WorktreeListRead(_) => {
                                 return Err(io::Error::other(
-                                    "Rename unexpectedly issued a Close request",
+                                    "Rename unexpectedly issued a non-command request",
                                 ));
                             }
                             WorkbenchRequest::Command(command) => command,

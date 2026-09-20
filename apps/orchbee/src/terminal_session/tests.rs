@@ -674,6 +674,7 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
             terminal_context_id,
             label,
             geometry: requested,
+            launch: None,
         } = &command.action
         else {
             return Err(io::Error::other("expected tab.create action"));

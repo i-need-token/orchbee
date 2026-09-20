@@ -165,6 +165,7 @@ pub(super) fn run_legacy(
                     None,
                     cwd,
                     StartMode::Immediate { geometry },
+                    None,
                 ))
                 .map_err(submission)?;
             match result.outcome() {

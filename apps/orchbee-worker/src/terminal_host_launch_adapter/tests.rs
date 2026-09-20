@@ -546,7 +546,8 @@ fn launch_dispatch(
     cwd: Option<AbsoluteCwd>,
     mode: TerminalLaunchMode,
 ) -> Result<AuthorizedHostDispatch, Box<dyn std::error::Error>> {
-    let launch = AuthorizedTerminalLaunch::new(authorization(PRODUCT_TERMINAL, 21)?, cwd, mode);
+    let launch =
+        AuthorizedTerminalLaunch::new(authorization(PRODUCT_TERMINAL, 21)?, cwd, mode, None);
     let mut kernel = kernel()?;
     expect_dispatch(kernel.admit_launch(launch, 100)?)
 }

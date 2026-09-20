@@ -34,6 +34,7 @@ fn committed_move_finishes_while_another_owner_holds_the_worker_registry() {
                 terminal_context_id: snapshot.navigation.standalone_terminal_context_id.clone(),
                 label: WorkbenchLabel::parse("pending").unwrap(),
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+                launch: None,
             },
         };
         assert!(matches!(

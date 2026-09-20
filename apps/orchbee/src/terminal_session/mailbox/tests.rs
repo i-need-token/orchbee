@@ -2288,6 +2288,7 @@ fn create_marker(base: Instant, generation: u64, request_id: WorkbenchRequestId)
             terminal_context_id: context_id.clone(),
             label: label.clone(),
             geometry: workbench_geometry,
+            launch: None,
         },
     };
     let request = WorkbenchTabCreateRequest::try_from(command).unwrap();

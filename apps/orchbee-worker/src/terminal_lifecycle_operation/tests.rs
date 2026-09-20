@@ -499,12 +499,14 @@ fn real_dispatch_loop_bypasses_unrelated_closed_viewer_cleanup_for_one_lifecycle
             .stream()
             .set_nonblocking(true)
             .map_err(|e| e.to_string())?;
+        let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
         crate::terminal_operations::run_admitted(
             &fixture.server,
             &mut fixture.host,
             orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
             nz(7),
             kernel,
+            &worktree_slot,
         )
         .map_err(|e| e.to_string())
     });

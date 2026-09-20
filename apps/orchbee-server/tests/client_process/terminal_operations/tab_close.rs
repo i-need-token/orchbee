@@ -81,6 +81,7 @@ fn create_tab(client: &mut UnixStream, value: u128) -> TestResult<(Snapshot, Tab
             terminal_context_id: before.navigation.standalone_terminal_context_id.clone(),
             label: WorkbenchLabel::parse("idle Close capacity")?,
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
+            launch: None,
         },
     )?;
     let WorkbenchCommandOutcome::TabCreated { tab_id, .. } = created.outcome else {
@@ -387,6 +388,7 @@ fn real_workbench_panel_split_and_aggregate_close_releases_both_terminals() -> T
                 terminal_context_id: context_id.clone(),
                 label: WorkbenchLabel::parse("real split source")?,
                 geometry,
+                launch: None,
             },
         )
     );
@@ -423,6 +425,7 @@ fn real_workbench_panel_split_and_aggregate_close_releases_both_terminals() -> T
                 direction: WorkbenchPanelSplitDirection::Right,
                 label: WorkbenchLabel::parse("real split peer")?,
                 geometry,
+                launch: None,
             },
         )
     );
@@ -599,6 +602,7 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
                 terminal_context_id: context_id.clone(),
                 label: WorkbenchLabel::parse("fenced split source")?,
                 geometry,
+                launch: None,
             },
         )
     );
@@ -625,6 +629,7 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
                 direction: WorkbenchPanelSplitDirection::Right,
                 label: WorkbenchLabel::parse("fenced split peer")?,
                 geometry,
+                launch: None,
             },
         )
     );
@@ -649,6 +654,7 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
                 terminal_context_id: context_id.clone(),
                 label: WorkbenchLabel::parse("unrelated Tab")?,
                 geometry,
+                launch: None,
             },
         )
     );
@@ -697,6 +703,7 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
             direction: WorkbenchPanelSplitDirection::Right,
             label: WorkbenchLabel::parse("fenced during close")?,
             geometry,
+            launch: None,
         },
     };
     for attempt in 0..2 {
@@ -765,6 +772,7 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
                 direction: WorkbenchPanelSplitDirection::Right,
                 label: WorkbenchLabel::parse("unrelated split")?,
                 geometry,
+                launch: None,
             },
         )
     );
@@ -1018,6 +1026,7 @@ fn real_multileaf_create_and_move_reconcile_two_clients_and_retarget_close() -> 
                 terminal_context_id: context_id.clone(),
                 label: WorkbenchLabel::parse("multileaf source")?,
                 geometry,
+                launch: None,
             },
         )
     );
@@ -1044,6 +1053,7 @@ fn real_multileaf_create_and_move_reconcile_two_clients_and_retarget_close() -> 
                 direction: WorkbenchPanelSplitDirection::Right,
                 label: WorkbenchLabel::parse("multileaf peer")?,
                 geometry,
+                launch: None,
             },
         )
     );
@@ -1082,6 +1092,7 @@ fn real_multileaf_create_and_move_reconcile_two_clients_and_retarget_close() -> 
                 terminal_context_id: context_id.clone(),
                 label: WorkbenchLabel::parse("multileaf peer Tab")?,
                 geometry,
+                launch: None,
             },
         )
     );

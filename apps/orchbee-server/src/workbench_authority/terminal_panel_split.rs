@@ -605,6 +605,7 @@ impl WorkbenchAuthority {
             direction,
             label,
             geometry,
+            launch: _,
         } = command.action.clone()
         else {
             return WorkbenchPanelSplitBegin::Ready(result(

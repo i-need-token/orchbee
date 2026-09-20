@@ -7,14 +7,29 @@ use orchbee_terminal_protocol::{
 };
 
 use crate::{
-    default_interactive_launch::resolve_default_interactive_launch,
-    terminal_host_launch_adapter::ResolvedTerminalLaunchFacts, worker_identity::fresh_identity,
+    default_interactive_launch::{default_launch_environment, resolve_default_interactive_launch},
+    terminal_host_launch_adapter::ResolvedTerminalLaunchFacts,
+    worker_identity::fresh_identity,
 };
 
 pub(super) fn resolve(
     explicit_cwd: Option<&AbsoluteCwd>,
+    selection: Option<&orchbee_capability_node_protocol::LaunchSelection>,
 ) -> Result<ResolvedTerminalLaunchFacts, Box<dyn Error>> {
-    let launch = resolve_default_interactive_launch()?;
+    // An authorized selection is adopted verbatim: no PATH search, no shell
+    // resolution, and no silent fallback to the default launch. The default
+    // environment entries are protocol-fixed, so an explicit selection does
+    // not depend on a usable shell existing on this Worker.
+    let (executable, arguments) = match selection {
+        Some(selection) => (
+            selection.executable().to_owned(),
+            selection.arguments().to_vec(),
+        ),
+        None => {
+            let launch = resolve_default_interactive_launch()?;
+            (launch.executable, launch.arguments)
+        }
+    };
     // An explicit authorized path requires no home-directory lookup or translation.
     let cwd = match explicit_cwd {
         Some(cwd) => cwd.clone(),
@@ -30,10 +45,9 @@ pub(super) fn resolve(
     };
     Ok(ResolvedTerminalLaunchFacts::new(
         CreationId::from_bytes(fresh_identity()?)?,
-        launch.executable,
-        launch.arguments,
-        launch
-            .environment
+        executable,
+        arguments,
+        default_launch_environment()
             .into_iter()
             .map(|entry| LaunchEnvironmentEntry {
                 name: entry.name,
