@@ -255,13 +255,24 @@ fn admission_receipt_precedes_owner_work_and_backpressure_returns_none() -> Test
     let after = std::time::Instant::now();
     assert!(before <= receipt.admitted_observed_at());
     assert!(receipt.admitted_observed_at() <= after);
+    // The high lane admits up to its bound before backpressure applies.
+    let mut held = Vec::new();
+    for _queued in 0..7 {
+        held.push(handle.submit_lifecycle(request)?);
+    }
     assert!(matches!(
         handle.submit_lifecycle(request),
         Err(WorkerRequestError::Backpressure)
     ));
-    let queued = owner.receiver.try_recv()?;
+    let queued = owner
+        .queue
+        .dispatch_next()
+        .ok_or("expected a queued lifecycle request")?;
     assert_eq!(queued.request, WorkerOperationRequest::Lifecycle(request));
-    assert!(owner.receiver.try_recv().is_err());
+    for _queued in 0..7 {
+        assert!(owner.queue.dispatch_next().is_some());
+    }
+    assert!(owner.queue.dispatch_next().is_none());
     // Retiring the handle after admission must not erase the already returned receipt.
     handle.active.store(false, Ordering::Release);
     queued
@@ -278,7 +289,10 @@ fn lifecycle_receipt_preserves_original_errors_and_lost_completion_classificatio
     for complete in [false, true] {
         let (handle, owner, _shutdown, _server, _worker) = test_carrier()?;
         let receipt = handle.submit_lifecycle(request()?)?;
-        let queued = owner.receiver.try_recv()?;
+        let queued = owner
+            .queue
+            .dispatch_next()
+            .ok_or("expected a queued lifecycle request")?;
         queued.complete_write.store(complete, Ordering::Release);
         drop(queued);
         assert_eq!(
@@ -299,7 +313,10 @@ fn lifecycle_receipt_preserves_original_errors_and_lost_completion_classificatio
     ] {
         let (handle, owner, _shutdown, _server, _worker) = test_carrier()?;
         let receipt = handle.submit_lifecycle(request()?)?;
-        let queued = owner.receiver.try_recv()?;
+        let queued = owner
+            .queue
+            .dispatch_next()
+            .ok_or("expected a queued lifecycle request")?;
         queued
             .completion
             .as_ref()
@@ -325,13 +342,13 @@ fn lifecycle_admission_rejects_stale_routes_without_occupying_the_queue() -> Tes
         handle.submit_lifecycle(request),
         Err(WorkerRequestError::WrongGeneration)
     ));
-    assert!(owner.receiver.try_recv().is_err());
+    assert!(owner.queue.dispatch_next().is_none());
     handle.active.store(false, Ordering::Release);
     assert!(matches!(
         handle.submit_lifecycle(request),
         Err(WorkerRequestError::Unavailable)
     ));
-    assert!(owner.receiver.try_recv().is_err());
+    assert!(owner.queue.dispatch_next().is_none());
     Ok(())
 }
 

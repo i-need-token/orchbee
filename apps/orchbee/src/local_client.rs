@@ -16,9 +16,10 @@ use nix::{
 use orchbee_client_server_protocol::{
     ClientMessage, ProtocolError, ReadMessageError, RequestId, ServerMessage,
     TerminalControlAction, TerminalControlOutcome, TerminalControlRequest, TerminalControlResult,
-    TerminalCreateRequest, TerminalCreateResult, TerminalSendRequest, TerminalSendResult,
-    TerminalStartRequest, TerminalStartResult, TerminalViewerAction, TerminalViewerOutcome,
-    TerminalViewerRequest, TerminalViewerResult, encode_client_frame, read_server_message,
+    TerminalCreateRequest, TerminalCreateResult, TerminalLaunchReadRequest,
+    TerminalLaunchReadResult, TerminalSendRequest, TerminalSendResult, TerminalStartRequest,
+    TerminalStartResult, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
+    TerminalViewerResult, encode_client_frame, read_server_message,
 };
 use orchbee_local_client_protocol::{ClientSessionConnection, ConnectClientError};
 
@@ -462,6 +463,38 @@ impl LocalClient {
         Ok(result)
     }
 
+    pub(crate) fn submit_terminal_launch_read_before(
+        &mut self,
+        request: TerminalLaunchReadRequest,
+        deadline: Instant,
+    ) -> Result<TerminalLaunchReadResult, SubmissionError> {
+        let request_id = request.request_id().clone();
+        let message = ClientMessage::TerminalLaunchRead(request);
+        let result = self.exchange_before(message, &request_id, deadline)?;
+        let ServerMessage::TerminalLaunchReadResult(result) = result else {
+            return self.retire_with_unknown(
+                request_id,
+                OutcomeUnknownReason::UnexpectedResult {
+                    expected: ResultKind::LaunchRead,
+                    received: result_kind(&result),
+                },
+            );
+        };
+        if result.request_id() != &request_id {
+            let received = result.request_id().clone();
+            return self.retire_with_unknown(
+                request_id.clone(),
+                OutcomeUnknownReason::CorrelationMismatch {
+                    expected: request_id,
+                    received,
+                },
+            );
+        }
+        // Every typed outcome variant is a legitimate launch-read answer; the
+        // conditional-null invariants were already enforced at the wire boundary.
+        Ok(result)
+    }
+
     fn exchange(
         &mut self,
         request: ClientMessage,
@@ -681,6 +714,7 @@ pub(crate) enum ResultKind {
     Viewer,
     Control,
     Send,
+    LaunchRead,
 }
 
 impl fmt::Display for ResultKind {
@@ -692,6 +726,7 @@ impl fmt::Display for ResultKind {
             Self::Viewer => "terminal.viewer.result",
             Self::Control => "terminal.control.result",
             Self::Send => "terminal.send.result",
+            Self::LaunchRead => "terminal.launch.read.result",
         })
     }
 }
@@ -704,6 +739,7 @@ fn result_kind(result: &ServerMessage) -> ResultKind {
         ServerMessage::TerminalViewerResult(_) => ResultKind::Viewer,
         ServerMessage::TerminalControlResult(_) => ResultKind::Control,
         ServerMessage::TerminalSendResult(_) => ResultKind::Send,
+        ServerMessage::TerminalLaunchReadResult(_) => ResultKind::LaunchRead,
     }
 }
 

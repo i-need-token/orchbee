@@ -93,6 +93,36 @@ pub(crate) mod decimal {
         Ok(value)
     }
 }
+/// `Option<NonZeroU64>` as a required-but-nullable positive decimal string:
+/// the key is always present, `null` marks absence, and a present value uses
+/// the same canonical positive-decimal rule as `positive_decimal`.
+pub(crate) mod positive_decimal_nullable {
+    use serde::{Deserialize, Deserializer, Serializer, de};
+    use std::num::NonZeroU64;
+    pub(crate) fn serialize<S: Serializer>(
+        value: &Option<NonZeroU64>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        match value {
+            Some(value) => super::positive_decimal::serialize(value, serializer),
+            None => serializer.serialize_none(),
+        }
+    }
+    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<NonZeroU64>, D::Error> {
+        let Some(text) = Option::<String>::deserialize(deserializer)? else {
+            return Ok(None);
+        };
+        let value = text.parse::<u64>().map_err(de::Error::custom)?;
+        if value.to_string() != text {
+            return Err(de::Error::custom("expected canonical decimal u64"));
+        }
+        NonZeroU64::new(value)
+            .map(Some)
+            .ok_or_else(|| de::Error::custom("expected positive decimal u64"))
+    }
+}
 pub(crate) mod positive_decimal {
     use serde::{Deserializer, Serializer, de};
     use std::num::NonZeroU64;

@@ -1,6 +1,6 @@
 use std::{collections::BTreeSet, num::NonZeroU64};
 
-pub(crate) const MAXIMUM_ACTIVE_CLIENT_SESSIONS: usize = 8;
+pub(crate) const MAXIMUM_ACTIVE_CLIENT_SESSIONS: usize = 32;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ClientSessionAdmission {

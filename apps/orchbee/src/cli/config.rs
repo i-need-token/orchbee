@@ -65,7 +65,7 @@ fn detail(pairs: impl IntoIterator<Item = (String, Value)>) -> Map<String, Value
 /// A filesystem path as a machine field: UTF-8 paths are `path`, others are
 /// `pathBytesHex`; never a lossy display string.
 #[cfg(target_os = "linux")]
-fn path_detail(path: &Path) -> (String, Value) {
+pub(crate) fn path_detail(path: &Path) -> (String, Value) {
     match path.to_str() {
         Some(text) => ("path".to_owned(), json!(text)),
         None => {
@@ -84,7 +84,7 @@ fn path_detail(path: &Path) -> (String, Value) {
     }
 }
 
-fn local_runtime_source() -> Value {
+pub(crate) fn local_runtime_source() -> Value {
     json!({ "kind": "local-runtime" })
 }
 

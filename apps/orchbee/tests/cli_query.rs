@@ -763,6 +763,12 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
                 snapshot: parse_snapshot(fixture_document()).expect("fixture"),
             },
         );
+        // `terminal get` follows with one launch read on the same session;
+        // every other query retires the session after its snapshot.
+        if let Ok(ClientMessage::TerminalLaunchRead(request)) = read_client_message(&mut &stream) {
+            launch_read_reply(&stream, &request);
+            expect_session_eof(&stream);
+        }
     });
 
     let mut documents = Vec::new();
@@ -908,11 +914,22 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
         vec![id(0x29)],
     );
 
-    // Terminals: both bound ids are listed; `terminal get` resolves its
-    // binding path through the split.
+    // Terminals: both bound ids are listed; `terminal get` answers the
+    // Server's launch-read join — version 2 envelope, its own source kind,
+    // the same routing, and the retained launch fact.
     let terminals = documents[11]["result"]["terminals"].as_array().unwrap();
     assert_eq!(terminals.len(), 2);
-    let terminal = &documents[12]["result"]["terminal"];
+    let get = &documents[12];
+    assert_eq!(get["version"], 2);
+    assert_eq!(
+        get["source"],
+        serde_json::json!({
+            "kind": "terminal-launch-read",
+            "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "revision": "7",
+        })
+    );
+    let terminal = &get["result"]["terminal"];
     assert_eq!(terminal["terminalId"], id(0x30));
     assert_eq!(terminal["workerId"], "6f7263686265652d6c6f63616c2d7631");
     assert_eq!(
@@ -923,6 +940,19 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
             "tabId": id(0x21),
             "terminalContextId": id(0x20),
         })
+    );
+    // `launch` is nested inside `terminal` — a sibling `result.launch` is a
+    // contract violation, and the v1 sibling documents never carry it.
+    assert!(get["result"].get("launch").is_none());
+    let launch = &terminal["launch"];
+    assert_eq!(launch["state"], "started");
+    assert_eq!(launch["workerGeneration"], "1");
+    assert_eq!(launch["createOutcome"]["kind"], "accepted");
+    assert_eq!(launch["geometry"]["columns"], 120);
+    assert!(
+        documents[11]["result"]["terminals"][0]
+            .get("launch")
+            .is_none()
     );
 
     // `status` reports the same snapshot's real counts; `api snapshot`
@@ -2622,6 +2652,203 @@ fn viewer_reply(
         )),
     )
     .expect("peer writes viewer result");
+}
+
+/// The scripted `terminal.launch.read` answer for the fixture's bound
+/// terminal: the Server's join echoes the same routing the snapshot carries
+/// plus a `started` retained fact.
+fn launch_read_reply(
+    stream: &UnixStream,
+    request: &orchbee_client_server_protocol::TerminalLaunchReadRequest,
+) {
+    use orchbee_client_server_protocol as obcs;
+    let route = obcs::TerminalLaunchRoute::new(
+        request.terminal_id().clone(),
+        obcs::WorkerId::parse("6f7263686265652d6c6f63616c2d7631").expect("worker id"),
+        obcs::TerminalLaunchBoundTo::new(
+            obcs::PresentationId::parse(&id(0x28)).expect("presentation id"),
+            obcs::PanelId::parse(&id(0x27)).expect("panel id"),
+            obcs::TabId::parse(&id(0x21)).expect("tab id"),
+            obcs::TerminalContextId::parse(&id(0x20)).expect("context id"),
+        ),
+    );
+    let launch = obcs::TerminalLaunchFact::new(
+        obcs::TerminalLaunchState::Started,
+        std::num::NonZeroU64::new(1),
+        Some(obcs::CreateOutcome::Accepted {
+            state: obcs::CreateAcceptedState::Started {
+                geometry: obcs::Geometry::new(120, 40, 8, 16).expect("fixture geometry"),
+            },
+        }),
+        Some(obcs::Geometry::new(120, 40, 8, 16).expect("fixture geometry")),
+    )
+    .expect("fixture fact");
+    write_server_message(
+        &mut &*stream,
+        &ServerMessage::TerminalLaunchReadResult(obcs::TerminalLaunchReadResult::new(
+            request.request_id().clone(),
+            obcs::TerminalLaunchReadOutcome::Found {
+                site_id: obcs::SiteId::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").expect("site id"),
+                workbench_revision: 7,
+                terminal: Box::new(route),
+                launch: Box::new(launch),
+            },
+        )),
+    )
+    .expect("peer writes launch-read result");
+}
+
+/// Write one raw OBCS server frame carrying `payload` verbatim — the escape
+/// hatch for answers no typed `ServerMessage` can express, like an outcome the
+/// decoder accepts but post-decode validation rejects.
+fn write_raw_server_frame(stream: &UnixStream, payload: &[u8]) {
+    use std::io::Write;
+    let mut frame = Vec::with_capacity(8 + payload.len());
+    frame.extend_from_slice(b"OBCS");
+    frame.extend_from_slice(&1u16.to_be_bytes());
+    frame.extend_from_slice(
+        &u16::try_from(payload.len())
+            .expect("payload fits the frame budget")
+            .to_be_bytes(),
+    );
+    frame.extend_from_slice(payload);
+    (&mut &*stream)
+        .write_all(&frame)
+        .expect("peer writes raw frame");
+}
+
+/// `terminal get`'s launch-read exchange reports its own `launch-read` stage on
+/// every scripted failure arm — the typed `server-busy` refusal, a transport
+/// drop mid-exchange, a request-id correlation mismatch, and a result that
+/// decodes but fails launch-fact validation — and each emitted envelope
+/// validates against the embedded `orchbee.cli.failure` schema. A dropped
+/// session without the launch-read request fails the script, so a CLI that
+/// never reaches the exchange cannot produce a passing run.
+#[test]
+fn terminal_get_launch_read_failure_envelopes_validate() -> TestResult {
+    use orchbee_client_server_protocol as obcs;
+
+    let failure_schema = compiled_schema(&base_dir("launch-read-schema"), "orchbee.cli.failure");
+    for (tag, code, kind, details) in [
+        (
+            "server-busy",
+            4,
+            "service-unavailable",
+            serde_json::json!({"stage": "launch-read"}),
+        ),
+        (
+            "transport-drop",
+            5,
+            "transport-loss",
+            serde_json::json!({"stage": "launch-read"}),
+        ),
+        (
+            "correlation",
+            5,
+            "protocol-invalid",
+            serde_json::json!({"stage": "launch-read", "reason": "correlation-mismatch"}),
+        ),
+        (
+            "invalid-result",
+            5,
+            "protocol-invalid",
+            serde_json::json!({"stage": "launch-read"}),
+        ),
+    ] {
+        let base = base_dir(&format!("launch-read-{tag}"));
+        let scope = stage_scope(&base);
+        let peer = read_peer(&scope, move |stream| {
+            let request = match read_client_message(&mut &*stream) {
+                Ok(ClientMessage::TerminalLaunchRead(request)) => request,
+                other => panic!("peer expected terminal.launch.read, got {other:?}"),
+            };
+            match tag {
+                "server-busy" => write_server_message(
+                    &mut &*stream,
+                    &ServerMessage::TerminalLaunchReadResult(obcs::TerminalLaunchReadResult::new(
+                        request.request_id().clone(),
+                        obcs::TerminalLaunchReadOutcome::Unavailable {
+                            reason: obcs::TerminalLaunchReadUnavailableReason::ServerBusy,
+                        },
+                    )),
+                )
+                .expect("peer writes server-busy"),
+                // The request landed; the answer never does.
+                "transport-drop" => {}
+                "correlation" => write_server_message(
+                    &mut &*stream,
+                    &ServerMessage::TerminalLaunchReadResult(obcs::TerminalLaunchReadResult::new(
+                        obcs::RequestId::parse("ffffffffffffffffffffffffffffffff")
+                            .expect("fixture request id"),
+                        obcs::TerminalLaunchReadOutcome::Unavailable {
+                            reason: obcs::TerminalLaunchReadUnavailableReason::ServerBusy,
+                        },
+                    )),
+                )
+                .expect("peer writes mismatched result"),
+                // Well-framed and decodable, but `started` with a null
+                // generation/create outcome violates the launch-fact
+                // invariants the decoder enforces after parsing.
+                "invalid-result" => write_raw_server_frame(
+                    stream,
+                    serde_json::json!({
+                        "protocolVersion": 1,
+                        "requestId": request.request_id().as_str(),
+                        "kind": "terminal.launch.read.result",
+                        "outcome": {
+                            "kind": "found",
+                            "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                            "workbenchRevision": "7",
+                            "terminal": {
+                                "terminalId": request.terminal_id().as_str(),
+                                "workerId": "6f7263686265652d6c6f63616c2d7631",
+                                "boundTo": {
+                                    "presentationId": id(0x28),
+                                    "panelId": id(0x27),
+                                    "tabId": id(0x21),
+                                    "terminalContextId": id(0x20),
+                                },
+                            },
+                            "launch": {
+                                "state": "started",
+                                "workerGeneration": null,
+                                "createOutcome": null,
+                                "geometry": null,
+                            },
+                        },
+                    })
+                    .to_string()
+                    .as_bytes(),
+                ),
+                _ => unreachable!(),
+            }
+        });
+        let output = run(
+            &base,
+            &[
+                "terminal",
+                "get",
+                "00000000000000000000000000000030",
+                "--format",
+                "json",
+            ],
+        );
+        peer.join().expect("peer finished");
+        assert_eq!(
+            output.status.code(),
+            Some(code),
+            "{tag}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let envelope = failure_kind(&output);
+        assert_eq!(envelope["failure"]["kind"], kind, "{tag}: {envelope}");
+        assert_eq!(envelope["failure"]["details"], details, "{tag}: {envelope}");
+        assert!(
+            failure_schema.is_valid(&envelope),
+            "{tag}: schema rejected {envelope}"
+        );
+    }
+    Ok(())
 }
 
 /// Answer the admission and snapshot stages, then hand the stream to `script`
@@ -5233,11 +5460,11 @@ fn api_schema_catalog_is_v3_closed_and_self_consistent() -> TestResult {
     assert_eq!(output.status.code(), Some(0));
     let listed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(listed["schema"], "orchbee.api.schema");
-    assert_eq!(listed["version"], 3, "catalog envelope is v3");
+    assert_eq!(listed["version"], 4, "catalog envelope is v4");
     assert_eq!(listed["source"]["kind"], "embedded");
     assert!(api_schema.is_valid(&listed), "listing self-validates");
     let schemas = listed["result"]["schemas"].as_object().unwrap();
-    assert_eq!(schemas.len(), 22, "closed dictionary has 22 members");
+    assert_eq!(schemas.len(), 23, "closed dictionary has 23 members");
     assert!(
         schemas.contains_key("orchbee.project.rename"),
         "the rename receipt schema is registered"
@@ -5255,12 +5482,16 @@ fn api_schema_catalog_is_v3_closed_and_self_consistent() -> TestResult {
     }
     // Older envelope shapes are refused — the bump is a real version, not a
     // silent in-place edit.
-    for stale_version in [serde_json::json!(1), serde_json::json!(2)] {
+    for stale_version in [
+        serde_json::json!(1),
+        serde_json::json!(2),
+        serde_json::json!(3),
+    ] {
         let mut stale = listed.clone();
         stale["version"] = stale_version.clone();
         assert!(
             !api_schema.is_valid(&stale),
-            "stale catalog {stale_version} fails under v3"
+            "stale catalog {stale_version} fails under v4"
         );
     }
 
@@ -5282,7 +5513,7 @@ fn api_schema_catalog_is_v3_closed_and_self_consistent() -> TestResult {
         "embedded schema retrieval is locale-neutral"
     );
     let named: serde_json::Value = serde_json::from_slice(&english.stdout)?;
-    assert_eq!(named["version"], 3);
+    assert_eq!(named["version"], 4);
     assert_eq!(
         named["result"]["schema"]["schemaId"],
         "orchbee.project.rename"

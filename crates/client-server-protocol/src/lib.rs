@@ -3,6 +3,7 @@ mod control;
 mod error;
 mod geometry;
 mod identity;
+mod launch_read;
 mod model;
 mod number;
 mod open;
@@ -31,8 +32,13 @@ pub use geometry::{
     MAXIMUM_TERMINAL_CELLS,
 };
 pub use identity::{
-    ControllerId, HostEpoch, HostTerminalId, IdentityError, RequestId, SiteId, TerminalId,
-    ViewerId, WorkerId,
+    ControllerId, HostEpoch, HostTerminalId, IdentityError, PanelId, PresentationId, RequestId,
+    SiteId, TabId, TerminalContextId, TerminalId, ViewerId, WorkerId,
+};
+pub use launch_read::{
+    TerminalLaunchBoundTo, TerminalLaunchFact, TerminalLaunchReadOutcome,
+    TerminalLaunchReadRequest, TerminalLaunchReadResult, TerminalLaunchReadUnavailableReason,
+    TerminalLaunchRoute, TerminalLaunchState,
 };
 pub use model::{
     ClientMessage, CreateAcceptedState, CreateFailureReason, CreateOutcome, CreateRejectedReason,

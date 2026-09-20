@@ -253,7 +253,8 @@ pub(crate) fn render(
             out.push("\n")?;
             Ok(())
         }
-        Projection::TerminalGet(row) => {
+        Projection::TerminalGet(doc) => {
+            let row = &doc.terminal;
             field(out, text.terminal, &row.terminal_id)?;
             field(out, text.worker, &row.worker_id)?;
             out.write(format_args!("{}\n", text.bound_to))?;
@@ -262,7 +263,11 @@ pub(crate) fn render(
                 &text.terminal_headers,
                 std::slice::from_ref(row),
                 terminal_cells,
-            )
+            )?;
+            out.write(format_args!("{}\n", text.launch))?;
+            // The launch fact renders as its own `name  value` block — the
+            // same validated projection the machine document carries.
+            name_value_block(out, &super::results::launch_fact_json(&doc.launch))
         }
         // `api snapshot` answers a machine document in every format; the text
         // projection is unreachable by contract, not a second surface.
@@ -401,6 +406,12 @@ pub(crate) fn receipt(
 /// nested admitted `target` through the shared detail writer. No input
 /// contents ever appear.
 pub(crate) fn send_result(out: &mut Bounded, result: &Value) -> Result<(), TooLarge> {
+    name_value_block(out, result)
+}
+
+/// One `name  value` block over a JSON object's own fields; nested values go
+/// through the shared detail writer.
+fn name_value_block(out: &mut Bounded, result: &Value) -> Result<(), TooLarge> {
     let Value::Object(map) = result else {
         return Ok(());
     };

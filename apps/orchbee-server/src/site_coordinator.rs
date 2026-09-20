@@ -1,6 +1,6 @@
 use crate::terminal_coordinator::{
     Completion, PendingOperation, PreparedOperation, TerminalCompletionTokenMismatch,
-    TerminalCoordinator, WorkerPlacement,
+    TerminalCoordinator, TerminalPhase, WorkerPlacement,
 };
 use orchbee_capability_node_protocol::{
     LeaseExpiresAtUnixMilliseconds, TerminalOperationAuthorization,
@@ -195,6 +195,40 @@ impl SiteCoordinator {
         (self.target_lifecycle(target) == TargetLifecycle::Unfenced).then_some(target)
     }
 
+    /// `terminal.launch.read`: the visible binding, the committed revision, and
+    /// the retained launch fact all resolve under this one coordinator
+    /// acquisition, so the answer is a single point-in-time join. The read
+    /// touches no Worker or Host RPC and mutates nothing.
+    pub(crate) fn terminal_launch_read(
+        &self,
+        terminal_id: &str,
+    ) -> orchbee_client_server_protocol::TerminalLaunchReadOutcome {
+        use orchbee_client_server_protocol::TerminalLaunchReadOutcome as Outcome;
+        let Some(workbench) = self.workbench.as_ref() else {
+            return Outcome::NotFound;
+        };
+        let snapshot = workbench.snapshot();
+        let Some((route, binding)) = launch_route(snapshot, terminal_id) else {
+            return Outcome::NotFound;
+        };
+        let launch =
+            retained_launch_fact(&self.terminals, &binding).unwrap_or_else(not_tracked_fact);
+        let Some(site_id) =
+            orchbee_client_server_protocol::SiteId::parse(snapshot.site_id.as_str()).ok()
+        else {
+            return Outcome::Unavailable {
+                reason:
+                    orchbee_client_server_protocol::TerminalLaunchReadUnavailableReason::ServerBusy,
+            };
+        };
+        Outcome::Found {
+            site_id,
+            workbench_revision: snapshot.revision.value(),
+            terminal: Box::new(route),
+            launch: Box::new(launch),
+        }
+    }
+
     pub(crate) fn allocate_identity(&mut self) -> Option<[u8; 16]> {
         self.terminals.allocate_identity()
     }
@@ -292,4 +326,146 @@ fn open_create_outcome(reference: &RequestId, outcome: CreateOutcome) -> OpenOut
 
 fn unavailable(reason: CreateUnavailableReason) -> OpenOutcome {
     OpenOutcome::Unavailable { reason }
+}
+
+/// Walks the committed snapshot in traversal order — the same order `terminal
+/// list` rows follow — and returns the routing for the first presentation whose
+/// binding targets `terminal_id`.
+fn launch_route(
+    snapshot: &orchbee_workbench_protocol::Snapshot,
+    terminal_id: &str,
+) -> Option<(
+    orchbee_client_server_protocol::TerminalLaunchRoute,
+    PresentationBinding,
+)> {
+    for context in &snapshot.terminal_contexts {
+        for tab in &context.tabs {
+            if let Some(found) = launch_route_in_node(&tab.root, context, tab, terminal_id) {
+                return Some(found);
+            }
+        }
+    }
+    None
+}
+
+fn launch_route_in_node(
+    node: &orchbee_workbench_protocol::PanelNode,
+    context: &orchbee_workbench_protocol::TerminalContext,
+    tab: &orchbee_workbench_protocol::Tab,
+    terminal_id: &str,
+) -> Option<(
+    orchbee_client_server_protocol::TerminalLaunchRoute,
+    PresentationBinding,
+)> {
+    use orchbee_workbench_protocol::PanelNode;
+    match node {
+        PanelNode::Panel {
+            panel_id,
+            primary_presentation,
+            child_presentations,
+        } => {
+            for presentation in
+                std::iter::once(primary_presentation).chain(child_presentations.iter())
+            {
+                let Some(binding) = &presentation.binding else {
+                    continue;
+                };
+                if binding.terminal_id.as_str() != terminal_id {
+                    continue;
+                }
+                let route = launch_route_ids(
+                    terminal_id,
+                    binding.worker_id.as_str(),
+                    presentation.presentation_id.as_str(),
+                    panel_id.as_str(),
+                    tab.tab_id.as_str(),
+                    context.terminal_context_id.as_str(),
+                )?;
+                return Some((route, binding.clone()));
+            }
+            None
+        }
+        PanelNode::Split { children, .. } => children
+            .iter()
+            .find_map(|slot| launch_route_in_node(&slot.node, context, tab, terminal_id)),
+    }
+}
+
+/// Converts snapshot identities into OBCS identities. Both sides validate the
+/// same 32-hex non-zero shape, so failure is unreachable for a snapshot the
+/// authority committed — a `None` propagates as `not-found` rather than a panic.
+fn launch_route_ids(
+    terminal_id: &str,
+    worker_id: &str,
+    presentation_id: &str,
+    panel_id: &str,
+    tab_id: &str,
+    terminal_context_id: &str,
+) -> Option<orchbee_client_server_protocol::TerminalLaunchRoute> {
+    use orchbee_client_server_protocol as obcs;
+    Some(obcs::TerminalLaunchRoute::new(
+        obcs::TerminalId::parse(terminal_id).ok()?,
+        obcs::WorkerId::parse(worker_id).ok()?,
+        obcs::TerminalLaunchBoundTo::new(
+            obcs::PresentationId::parse(presentation_id).ok()?,
+            obcs::PanelId::parse(panel_id).ok()?,
+            obcs::TabId::parse(tab_id).ok()?,
+            obcs::TerminalContextId::parse(terminal_context_id).ok()?,
+        ),
+    ))
+}
+
+/// The retained coordinator fact for a visible binding: exactly one internally
+/// consistent record may answer, otherwise the observation is `not-tracked`.
+fn retained_launch_fact(
+    terminals: &TerminalCoordinator,
+    binding: &PresentationBinding,
+) -> Option<orchbee_client_server_protocol::TerminalLaunchFact> {
+    let terminal = u128::from_str_radix(binding.terminal_id.as_str(), 16)
+        .ok()
+        .and_then(|identity| {
+            orchbee_capability_node_protocol::TerminalId::from_bytes(identity.to_be_bytes()).ok()
+        })?;
+    let worker = u128::from_str_radix(binding.worker_id.as_str(), 16)
+        .ok()
+        .and_then(|identity| {
+            orchbee_capability_node_protocol::WorkerId::from_bytes(identity.to_be_bytes()).ok()
+        })?;
+    let retained = terminals.retained_create_for_binding(terminal, worker)?;
+    let state = launch_state(retained.phase);
+    let geometry = match retained.phase {
+        TerminalPhase::Started { geometry, .. } => Some(geometry),
+        _ => None,
+    };
+    orchbee_client_server_protocol::TerminalLaunchFact::new(
+        state,
+        std::num::NonZeroU64::new(retained.worker_generation.get()),
+        retained.outcome,
+        geometry,
+    )
+    .ok()
+}
+
+fn launch_state(phase: TerminalPhase) -> orchbee_client_server_protocol::TerminalLaunchState {
+    use orchbee_client_server_protocol::TerminalLaunchState as State;
+    match phase {
+        TerminalPhase::Creating => State::Creating,
+        TerminalPhase::AwaitingStart(_) => State::AwaitingStart,
+        TerminalPhase::Starting(_) => State::Starting,
+        TerminalPhase::Started { .. } => State::Started,
+        TerminalPhase::Unknown(_) => State::Unknown,
+        TerminalPhase::Unavailable(_) => State::Unavailable,
+    }
+}
+
+fn not_tracked_fact() -> orchbee_client_server_protocol::TerminalLaunchFact {
+    let Ok(fact) = orchbee_client_server_protocol::TerminalLaunchFact::new(
+        orchbee_client_server_protocol::TerminalLaunchState::NotTracked,
+        None,
+        None,
+        None,
+    ) else {
+        unreachable!("not-tracked is the empty fact shape");
+    };
+    fact
 }

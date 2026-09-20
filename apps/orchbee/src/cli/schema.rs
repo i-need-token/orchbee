@@ -56,6 +56,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.project.rename.json"),
     ),
     (
+        "orchbee.site.start",
+        include_str!("schemas/orchbee.site.start.json"),
+    ),
+    (
         "orchbee.status",
         include_str!("schemas/orchbee.status.json"),
     ),
@@ -166,9 +170,9 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog envelope v3: registering new schema ids changes the closed
+        // Catalog envelope v4: registering new schema ids changes the closed
         // dictionary's shape; business document versions stay untouched.
-        "version": 3,
+        "version": 4,
         "source": embedded_source(),
         "result": result,
     });

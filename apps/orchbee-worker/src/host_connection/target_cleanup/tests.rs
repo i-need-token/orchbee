@@ -71,8 +71,8 @@ fn frame(id: u8, epoch: HostEpoch) -> TestResult<Vec<u8>> {
 }
 
 #[test]
-fn actual_zero_one_seven_eight_slots_are_freed_only_on_commit() -> TestResult {
-    for count in [0, 1, 7, 8] {
+fn actual_zero_one_twenty_three_twenty_four_slots_are_freed_only_on_commit() -> TestResult {
+    for count in [0, 1, 23, 24] {
         let (host, _peer) = host()?;
         for id in 1..=count {
             host.viewers
@@ -81,9 +81,9 @@ fn actual_zero_one_seven_eight_slots_are_freed_only_on_commit() -> TestResult {
                 .map_err(|e| format!("{e:?}"))?;
             host.receive_event(frame(id, host.host_epoch())?)?;
         }
-        if count == 8 {
+        if count == 24 {
             assert_eq!(
-                host.viewers.borrow_mut().admit(&viewer(9, 5)?),
+                host.viewers.borrow_mut().admit(&viewer(25, 5)?),
                 Err(ViewerRejection::CapacityExceeded)
             );
         }
@@ -104,17 +104,52 @@ fn actual_zero_one_seven_eight_slots_are_freed_only_on_commit() -> TestResult {
             );
             host.receive_event(frame(id, host.host_epoch())?)?;
         }
-        for id in 10..18 {
+        for id in 10..34 {
             host.viewers
                 .borrow_mut()
                 .admit(&viewer(id, 6)?)
                 .map_err(|e| format!("{e:?}"))?;
         }
         assert_eq!(
-            host.viewers.borrow_mut().admit(&viewer(19, 6)?),
+            host.viewers.borrow_mut().admit(&viewer(35, 6)?),
             Err(ViewerRejection::CapacityExceeded)
         );
     }
+    Ok(())
+}
+
+#[test]
+fn prepared_cleanup_captures_all_viewers_and_commit_releases_their_records() -> TestResult {
+    let (host, _peer) = host()?;
+    let mut retained = 0;
+    for id in 1..=24_u8 {
+        host.viewers
+            .borrow_mut()
+            .admit(&viewer(id, 5)?)
+            .map_err(|e| format!("{e:?}"))?;
+        let record = frame(id, host.host_epoch())?;
+        retained += record.len();
+        host.receive_event(record)?;
+    }
+    assert_eq!(host.viewers.borrow().retained_record_bytes(), retained);
+    // The tombstone store is a separately bounded owner allocation.
+    assert!(
+        size_of::<RemovedTarget>()
+            * crate::terminal_authorization::MAXIMUM_RETAINED_TERMINAL_BINDINGS
+            <= 1024 * 1024
+    );
+    let prepared = host.prepare_target_cleanup(identity(5)?)?;
+    assert_eq!(prepared.target.viewers.iter().flatten().count(), 24);
+    host.commit_target_cleanup(prepared);
+    for id in 1..=24_u8 {
+        let request = viewer(id, 5)?;
+        assert!(host.disposed_viewer(request.attachment_id));
+        assert_eq!(
+            host.viewers.borrow_mut().poll(request.attachment_id),
+            TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable)
+        );
+    }
+    assert_eq!(host.viewers.borrow().retained_record_bytes(), 0);
     Ok(())
 }
 

@@ -264,7 +264,7 @@ fn preadmitted_input_and_resize_keep_success_while_new_effects_are_fenced_withou
         );
         let handle = service.workers.lock().unwrap().request_handle().unwrap();
         assert!(
-            matches!(handle.request(WorkerOperationRequest::Viewer(WorkerViewerRequest {
+            matches!(handle.blocking_admit_for_test(WorkerOperationRequest::Viewer(WorkerViewerRequest {
             request_id: marker_id, attachment_id: attachment, worker_id: orchbee_capability_node_protocol::WorkerId::from_bytes([9; 16]).unwrap(), worker_generation: WorkerGeneration::new(NonZeroU64::MIN), action: WorkerViewerAction::Poll,
         })), Ok(WorkerOperationResult::Viewer(result)) if result.outcome == WorkerViewerOutcome::Empty)
         );

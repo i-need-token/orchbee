@@ -104,6 +104,26 @@ impl LocalTerminalService {
         if let ClientMessage::TerminalSend(request) = request {
             return self.execute_send(&request);
         }
+        if let ClientMessage::TerminalLaunchRead(request) = request {
+            // A read-only coordinator join: no worker handle, no pending
+            // operation, no dispatch. The busy answer covers only a poisoned
+            // coordinator lock; an uncontended wait still blocks normally.
+            let outcome = self.coordinator.lock().map_or(
+                orchbee_client_server_protocol::TerminalLaunchReadOutcome::Unavailable {
+                    reason:
+                        orchbee_client_server_protocol::TerminalLaunchReadUnavailableReason::ServerBusy,
+                },
+                |coordinator| {
+                    coordinator.terminal_launch_read(request.terminal_id().as_str())
+                },
+            );
+            return ServerMessage::TerminalLaunchReadResult(
+                orchbee_client_server_protocol::TerminalLaunchReadResult::new(
+                    request.request_id().clone(),
+                    outcome,
+                ),
+            );
+        }
         let busy = busy_result(&request);
         let (prepared, handle) = {
             let Ok(workers) = self.workers.lock() else {
@@ -287,6 +307,15 @@ fn busy_result(request: &ClientMessage) -> ServerMessage {
                 Err(_) => unreachable!("validated send outcomes are encodable"),
             },
         ),
+        ClientMessage::TerminalLaunchRead(request) => ServerMessage::TerminalLaunchReadResult(
+            orchbee_client_server_protocol::TerminalLaunchReadResult::new(
+                request.request_id().clone(),
+                orchbee_client_server_protocol::TerminalLaunchReadOutcome::Unavailable {
+                    reason:
+                        orchbee_client_server_protocol::TerminalLaunchReadUnavailableReason::ServerBusy,
+                },
+            ),
+        ),
     }
 }
 fn unknown_result(result: &ServerMessage) -> ServerMessage {
@@ -325,5 +354,16 @@ fn unknown_result(result: &ServerMessage) -> ServerMessage {
                 Err(_) => unreachable!("validated send outcomes are encodable"),
             },
         ),
+        ServerMessage::TerminalLaunchReadResult(result) => {
+            ServerMessage::TerminalLaunchReadResult(
+                orchbee_client_server_protocol::TerminalLaunchReadResult::new(
+                    result.request_id().clone(),
+                    orchbee_client_server_protocol::TerminalLaunchReadOutcome::Unavailable {
+                        reason:
+                            orchbee_client_server_protocol::TerminalLaunchReadUnavailableReason::ServerBusy,
+                    },
+                ),
+            )
+        }
     }
 }

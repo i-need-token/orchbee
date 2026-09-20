@@ -189,13 +189,14 @@ fn maintenance_frees_one_of_eight_actual_grants_before_any_old_session_action() 
     }))), ServerMessage::TerminalControlResult(result) if result.outcome() == &ControlOutcome::InputAccepted {})
     );
     let handle = service.workers.lock().unwrap().request_handle().unwrap();
-    let marker = handle.request(WorkerOperationRequest::Viewer(WorkerViewerRequest {
-        request_id: marker_id,
-        attachment_id: OperationId::from_bytes([249; 16]).unwrap(),
-        worker_id: orchbee_capability_node_protocol::WorkerId::from_bytes([9; 16]).unwrap(),
-        worker_generation: WorkerGeneration::new(NonZeroU64::MIN),
-        action: WorkerViewerAction::Poll,
-    }));
+    let marker =
+        handle.blocking_admit_for_test(WorkerOperationRequest::Viewer(WorkerViewerRequest {
+            request_id: marker_id,
+            attachment_id: OperationId::from_bytes([249; 16]).unwrap(),
+            worker_id: orchbee_capability_node_protocol::WorkerId::from_bytes([9; 16]).unwrap(),
+            worker_generation: WorkerGeneration::new(NonZeroU64::MIN),
+            action: WorkerViewerAction::Poll,
+        }));
     assert!(
         matches!(marker, Ok(WorkerOperationResult::Viewer(result)) if result.outcome == WorkerViewerOutcome::Empty)
     );

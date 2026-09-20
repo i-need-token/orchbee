@@ -153,14 +153,15 @@ orchbee terminal wait-output <target> --match <text> [--rows <1-1000>] [--timeou
 orchbee terminal send <target> (--text <utf8> | --file <path> | --stdin) [--enter] | --key <name>
 orchbee api snapshot
 orchbee api schema [<schema-id>]
+orchbee site start
 orchbee config check
 orchbee completion bash|zsh|fish
 orchbee help <recognized path>
 orchbee <recognized path> -h|--help
 ```
 
-Help topics: root; families `project`, `workspace`, `tab`, `panel`, `terminal`, `api`, `config`,
-`completion`; and every complete command path including `tui`. `help` takes only a recognized
+Help topics: root; families `project`, `workspace`, `tab`, `panel`, `terminal`, `api`, `site`,
+`config`, `completion`; and every complete command path including `tui`. `help` takes only a recognized
 path (no filters, no format). A trailing `-h` or `--help` is the same request on the same path:
 `orchbee --help`, `project --help`, and `project get --help` emit exactly what `help`,
 `help project`, and `help project get` emit. Suffix help takes precedence over missing business
@@ -175,7 +176,8 @@ targets such as `help help`, `help version`, `help --version` are unknown paths 
 `help`, `completion`, `tui`, `--version`, and the bare invocation are fixed text outputs that do
 not accept `--format`; a single valid `--format=json` turns the resulting syntax failure into a
 JSON `invalid-usage` failure document, while a text/default failure keeps stdout empty. Data
-commands (`status`, all `list`/`get`, `api snapshot`, `api schema`, `config check`) and every
+commands (`status`, all `list`/`get`, `api snapshot`, `api schema`, `site start`,
+`config check`) and every
 mutation command accept `--format`. The `api` commands are the machine surface: a successful `api snapshot` or
 `api schema` emits the identical JSON document under both formats, while an `api` failure
 follows the selected format like any other command — under text/default it reports on stderr
@@ -240,7 +242,8 @@ sequence on Linux; the first failing stage wins and determines the failure:
 5-second cohort budget for its cohort check. Non-Linux platforms produce `service-unavailable`
 `{stage:"platform",reason:"unsupported-platform"}` for network queries and mutations and
 `check-failed` with the same details for `config check`; there is no fallback to unbounded
-connection APIs.
+connection APIs. `site start` on a non-Linux platform answers `service-unavailable` with the
+same platform details.
 
 `terminal read` shares steps 1–5 unchanged, then keeps the admitted session alive inside the
 same deadline — never a second admission — for one read-only viewer observation:
@@ -457,6 +460,47 @@ record feeds one `terminal.send` request under the unchanged success schema.
   dispositions are respected, not overridden. These are Linux-only claims backed by
   procfs, consistent with the procfd input admission.
 
+## Site activation
+
+`site start` is the headless form of the TUI's local startup: both call the single shared
+connect-or-activate core (`src/local_activation.rs`) — the sequence is identical and only the
+failure projection differs. One absolute 20-second deadline starts before cohort validation
+and is never reset per stage:
+
+1. **Cohort** — `NativeCohort::current(deadline)` first, before any runtime-directory work.
+   Its typed io kind classifies: `InvalidData` → `incompatible`, `NotFound` →
+   `service-unavailable`, `PermissionDenied` → `denied`, `TimedOut` → `timeout`, every other
+   kind → `internal-failure` — all with `{stage:"cohort"}`.
+2. **Prepare** — resolve `ORCHBEE_RUNTIME_BASE`/default, derive `orchbee-native-<euid>`, then
+   `prepare_mode_checked` in create-if-missing mode: the runtime directory may be created even
+   on an invocation that later refuses. Rendezvous errors classify exactly like a query's
+   discovery stage.
+3. **Socket budget** — every derived socket path must fit this platform's `sockaddr_un`;
+   an over-budget path is `service-unavailable`
+   `{stage:"runtime-directory",reason:"address-too-long"}` before any lock or admission attempt.
+4. **Connect or activate** — try an admitted `LocalClient` (a missing or refusing socket is
+   retryable inside the deadline; every other connect failure classifies through the query
+   `admission` mapping verbatim); take the activation lock, re-check the socket, read the
+   marker, take the Site lifetime lock, refuse `rejected` with
+   `{stage:"activation",reason:"recovery-required"}` when the marker or sockets show no live
+   owner, commit the marker,
+   spawn `orchbee-server --local-site <runtime-directory>` from the validated cohort, then
+   poll connect plus `try_wait` until readiness. A spawn or `try_wait` failure is the same
+   `recovery-required` refusal — the marker may already be committed, so the answer is never
+   a clean-timeout claim.
+5. **Probe** — the admitted probe `LocalClient` is dropped before output; a success implies
+   no held session, grant, or Site identity receipt.
+
+`result.outcome` reports the branch this invocation actually took: `started` only when it
+spawned the Server child, `already-running` when an existing Site admitted the probe. A
+`timeout` answer means readiness stayed unconfirmed — before marker commit nothing was left
+behind, between commit and spawn a marker without a live owner may persist (the next
+invocation then answers `recovery-required`), and after spawn a Server may still be running;
+the command never claims a timeout proves no Server started, never retries `recovery-required`,
+and never repairs or deletes runtime state. Signals stay inherited: no capture stage exists,
+so an interruption is process death under the conventional `128 + signo`, never a `cancelled`
+envelope. There is no `site stop`, restart, or repair verb in this slice.
+
 ## Canonical data and results
 
 Canonical traversal order: `navigation.projects` order; each project's `workspaces` order;
@@ -465,8 +509,9 @@ Canonical traversal order: `navigation.projects` order; each project's `workspac
 `childPresentations`. No sorting is added; filtered lists and `ambiguous` candidates preserve it.
 
 Success envelopes are `{schema, version, source, result}`. Every business document —
-query, mutation, receipt, and failure — is `version:1`. The `orchbee.api.schema` catalog
-envelope alone is `version:2`: registering a new schema id changes the closed dictionary's
+query, mutation, receipt, and failure — is `version:1` except `orchbee.terminal.get`, which
+is `version:2` since it gained the `launch` member. The `orchbee.api.schema` catalog
+envelope is `version:4`: registering a new schema id changes the closed dictionary's
 shape, which is a catalog shape change under the version rule, not a business one:
 
 - `source.kind="workbench-snapshot"` with `siteId` and decimal-string `revision` from the same
@@ -476,9 +521,12 @@ shape, which is a catalog shape change under the version rule, not a business on
   read.
 - `source.kind="embedded"` — the compiled-in schema dictionary (`api schema` results and its
   `not-found` failure).
-- `source.kind="local-runtime"` — produced `config check` results.
+- `source.kind="local-runtime"` — produced `config check` results and every `site start`
+  answer: the local runtime is the answering authority for activation outcomes and refusals.
 - `source.kind="terminal.send"` — `siteId`, the send `requestId`, and the decimal-string
   `snapshotRevision` the binding resolved from, on typed `terminal send` answers.
+- `source.kind="terminal-launch-read"` — `siteId` and the decimal-string `revision` the
+  Server joined under the coordinator lock, on `terminal get` answers.
 - There is no freshness field; one consistent read is not a liveness guarantee.
 
 Result payloads (schema IDs are stable machine names):
@@ -506,8 +554,31 @@ primaryPresentation,childPresentations}}` with `slotPath` the `PanelSlot` IDs fr
 binding:{terminalId,workerId}|null}`.
 - `orchbee.terminal.list` → `{terminals:[{terminalId,workerId,boundTo:{presentationId,panelId,
 tabId,terminalContextId}}]}`; `terminal get` returns the same identity facts under
-  `terminal`. Only presentation-bound terminals are visible; a binding does not prove the process
-  lives. No lifecycle/process/agent fields exist anywhere.
+  `terminal`, which additionally carries a nested `launch` member — the document is
+  `{terminal:{terminalId,workerId,boundTo,launch}}`, never a sibling `result.launch`. Only
+  presentation-bound terminals are visible; a binding
+  does not prove the process lives. No lifecycle/process/agent fields exist anywhere else.
+  Unlike `terminal list`, `terminal get` does not answer from the Client-held snapshot: it sends
+  a `terminal.launch.read` request on the admitted session and the Server resolves the current
+  binding, routing, and retained launch fact under the coordinator lock — the snapshot only
+  supplies the typed target id. Its envelope is `version:2` with
+  `source:{kind:"terminal-launch-read",siteId,revision}` where `revision` is the joined
+  workbench revision as a decimal string; older `version:1` validators reject it, which is the
+  deliberate compatibility boundary. `launch` is
+  `{state,workerGeneration,createOutcome,geometry}`: `state` is the retained phase verbatim —
+  `creating`, `awaiting-start`, `starting`, `started`, `unknown`, `unavailable` — or
+  `not-tracked` when no uniquely attributable consistent record exists for the visible binding;
+  `workerGeneration` is a positive decimal string, `null` only for `not-tracked`; `geometry` is
+  non-null only for `started`; `createOutcome` echoes the retained create outcome, `null` for
+  `creating` and `not-tracked`. The state is a retained fact, never process liveness:
+  `creating` records a phase, not proof of dispatch, and a deferred-start failure reads
+  `unavailable` without a fabricated start reason. Exit codes stay the query contract —
+  `not-found` 3, `server-busy` unavailable 4 — and a `found` answer whose
+  `launch.state` is `unavailable` with `createOutcome.kind` `failed` still exits 0 because the
+  query itself succeeded. The exchange rides the admitted session under the same 5-second
+  network budget shared with admission and the snapshot read: a dropped or timed-out exchange
+  is `transport-loss` 5, and a correlation mismatch or invalid result is `protocol-invalid` 5 —
+  the launch read never reports `timeout`.
 - `orchbee.terminal.read` → `{terminal,frame,content}`: `terminal` carries the same
   `{terminalId,workerId,boundTo}` identity facts; `frame` carries the applied projection's
   `{revision,generation,sequence}` as decimal strings (u64-safe), `alternateScreen`, `geometry`
@@ -558,10 +629,16 @@ payloadKind,recordBytes?,key?,inputStatus,cleanupStatus,reason?,acceptedBytes?,t
 - `orchbee.config.check` → `{ok,checks:[{name,status,details}]}` in fixed order
   `runtime-base`, `runtime-directory`, `cohort`, `locale`, `sockets`; all five always report.
   A failed check still produces this success schema with `ok:false` and exit 1.
+- `orchbee.site.start` → `{outcome,scope,runtimeBase}`: `outcome` is `started` or
+  `already-running` (the branch this invocation took, not a Site identity receipt), `scope`
+  is `orchbee-native-<euid>`, and `runtimeBase` carries exactly one of `path` (UTF-8) or
+  `pathBytesHex` (non-UTF-8, never a lossy display string).
 - `orchbee.cli.failure` → `{schema:"orchbee.cli.failure",version:1,failure:{kind,details?},
 source?}`; no English `message` field exists. `source` is attached only from an already trusted
   source (a validated snapshot for post-read failures, `embedded` for `api schema` not-found,
-  `workbench-command` for every command-stage mutation failure); pre-read failures have none.
+  `workbench-command` for every command-stage mutation failure, `local-runtime` for every
+  `site start` answer including its refusals, `terminal-launch-read` for `terminal get`
+  output-preparation failures after a trusted join); pre-read and grammar failures have none.
 - `orchbee.cli.failure.source` → `{schema:"orchbee.cli.failure.source",version:1,
 failure:{kind,details}}` — the send source-stage envelope for `timeout` and `cancelled`
   only. `details` is `{stage:"input",inputSource:"file"|"stdin"}` plus `timeoutMs` on
@@ -681,7 +758,8 @@ renders the same fields one per line under the same escaping rules as queries.
 
 Deliberately not delivered: `project close`, `workspace close`/`workspace focus`,
 `tab focus`, `panel resize`/`panel focus`, terminal open operations, Site lifecycle
-commands, and every remote operation.
+commands beyond `site start` (no stop, restart, disable, or repair verb exists), and every
+remote operation.
 
 ## Failure matrix
 
@@ -696,61 +774,71 @@ generally, a handled `terminal send` source-stage signal exits conventionally
 never captured is delivered to its original disposition — an OS default termination follows
 the shell's `128 + signal` convention and is not a synthesized CLI result.
 
-| Source                                                                                                                                    | `failure.kind`                                 | exit      | `details`                                                                                 |
-| ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | --------- | ----------------------------------------------------------------------------------------- |
-| argv envelope/grammar/format/target shape errors                                                                                          | `invalid-usage`                                | 2         | omitted                                                                                   |
-| zero-ID/empty/overlong label, malformed panel/terminal ID                                                                                 | `invalid-identifier`                           | 2         | `{resource,target}`                                                                       |
-| valid target or schema ID without a match                                                                                                 | `not-found`                                    | 3         | `{resource,target}`                                                                       |
-| multiple exact label matches                                                                                                              | `ambiguous`                                    | 3         | `{resource,target,candidates≤8,totalCount}`                                               |
-| `NativeCohort::current` error                                                                                                             | `check-failed`                                 | 1         | `{stage:"cohort"}`                                                                        |
-| base invalid/missing/not-a-directory, unsafe runtime/socket, other validation                                                             | `check-failed`                                 | 1         | `{stage:"runtime-base"                             \| "runtime-directory"   \| "socket"}` |
-| valid base with absent scope directory or absent `client.sock`                                                                            | `service-unavailable`                          | 4         | `{stage:"discovery"}`                                                                     |
-| `ConnectClientError::ConnectFailed`                                                                                                       | `service-unavailable`                          | 4         | `{stage:"admission"}`                                                                     |
-| `ConnectClientError::Io`                                                                                                                  | `transport-loss`                               | 5         | `{stage:"admission"}`                                                                     |
-| OBLC `Rejected(CapacityExceeded)`                                                                                                         | `session-capacity`                             | 4         | `{stage:"admission"}`                                                                     |
-| OBLC `Rejected(HandshakeTimeout)`                                                                                                         | `service-unavailable`                          | 4         | `{stage:"admission"}`                                                                     |
-| `Rejected(IncompatibleProtocol                                                \| IncompatibleCohort)`, `Protocol(IncompatibleVersion)`    | `incompatible`                                 | 6         | `{stage:"admission"}`                                                                     |
-| `Rejected(WrongMessage                                                        \| MalformedFrame)`, `UnexpectedResponse`, other `Protocol` | `protocol-invalid`                             | 5         | `{stage:"admission"}`                                                                     |
-| `RequestIoConfiguration`, `SessionUnavailable`, `RequestEncoding`                                                                         | `internal-failure`                             | 1         | omitted                                                                                   |
-| `SnapshotReadError::RequestNotSubmitted` (any cause)                                                                                      | `transport-loss`                               | 5         | `{stage:"snapshot"}`                                                                      |
-| `Failed(Write                                                                 \| ResponseDeadline)`, `Failed(Response(Io))`               | `transport-loss`                               | 5         | `{stage:"snapshot"}`                                                                      |
-| `Failed(Response(InvalidHeader                                                \| Contract))`, `UnexpectedResponse`                        | `protocol-invalid`                             | 5         | `{stage:"snapshot"}`                                                                      |
-| `Failed(CorrelationMismatch)`                                                                                                             | `protocol-invalid`                             | 5         | `{stage:"snapshot",reason:"correlation-mismatch"}`                                        |
-| outcome `Denied`                                                                                                                          | `denied`                                       | 3         | omitted                                                                                   |
-| outcome `Unavailable`                                                                                                                     | `service-unavailable`                          | 4         | `{stage:"snapshot"}`                                                                      |
-| viewer `RequestNotSubmitted`, `OutcomeUnknown(Write\|Read)`                                                                               | `transport-loss`                               | 5         | `{stage:"viewer"}`                                                                        |
-| viewer `OutcomeUnknown(InvalidResult\|UnexpectedResult)`, wrong outcome kind                                                              | `protocol-invalid`                             | 5         | `{stage:"viewer"}`                                                                        |
-| viewer `OutcomeUnknown(CorrelationMismatch)`                                                                                              | `protocol-invalid`                             | 5         | `{stage:"viewer",reason:"correlation-mismatch"}`                                          |
-| viewer outcome `Rejected(AlreadyAttached\|TerminalUnavailable)` or `Unavailable`                                                          | `service-unavailable`                          | 4         | `{stage:"viewer"}`                                                                        |
-| viewer outcome `Rejected(FeedbackMismatch)`, record rejected by the projection                                                            | `protocol-invalid`                             | 5         | `{stage:"viewer"}`                                                                        |
-| `ReadRows` outcome `RowsRejected(LimitExceeded)`                                                                                          | `rejected`                                     | 3         | `{stage:"viewer",operation:"read-history",reason:"limit-exceeded"}`                       |
-| `ReadRows` outcome `RowsRejected` (other producible reason)                                                                               | `service-unavailable`                          | 4         | `{stage:"viewer",operation:"read-history",reason}`                                        |
-| `ReadRows` outcome `RowsRejected(InvalidField\|InvalidAcknowledgement)`, mismatched/malformed row-window record                           | `protocol-invalid`                             | 5         | `{stage:"viewer"}`                                                                        |
-| `DefinitelyNotSubmitted::RequestNotSubmitted` (command)                                                                                   | `transport-loss`                               | 5         | `{stage:"command"}`                                                                       |
-| `DefinitelyNotSubmitted::SessionUnavailable`/`RequestEncoding`                                                                            | `internal-failure`                             | 1         | omitted                                                                                   |
-| command `Rejected` precommit                                                                                                              | `rejected`                                     | 3         | `{stage:"command",reason,revision}`                                                       |
-| command `Denied` precommit                                                                                                                | `denied`                                       | 3         | omitted                                                                                   |
-| command `Unavailable` precommit                                                                                                           | `service-unavailable`                          | 4         | `{stage:"command",reason}`                                                                |
-| `OutcomeUnknown` (any reason)                                                                                                             | `outcome-unknown`                              | 8         | `{stage:"command",requestId,reason}`                                                      |
-| send `RequestNotSubmitted` (the request provably never reached the wire)                                                                  | `transport-loss`                               | 5         | `{stage:"send"}`                                                                          |
-| send `SessionUnavailable`/`RequestEncoding`                                                                                               | `internal-failure`                             | 1         | omitted                                                                                   |
-| send `OutcomeUnknown` (write/read/invalid-result/correlation)                                                                             | `outcome-unknown`                              | 8         | `{stage:"send",requestId,reason}`                                                         |
-| `terminal.send.result` `Rejected`/`Unavailable`                                                                                           | typed answer, not a failure envelope           | 3/4       | send result `reason`, `cleanupStatus`; `host-protocol-fault` exits 5                      |
-| `terminal.send.result` `Accepted` + `Unconfirmed` cleanup                                                                                 | typed answer, not a failure envelope           | 5         | send result `acceptedBytes`, `cleanupStatus`                                              |
-| send source validation: unopenable/non-regular path, terminal or unsupported stdin, empty, oversized, non-UTF-8                           | `invalid-usage`                                | 2         | omitted (localized stderr names the declared option and concrete cause)                   |
-| send source deadline expired during materialization                                                                                       | `timeout` under `orchbee.cli.failure.source`   | 7         | `{stage:"input",inputSource,timeoutMs}`                                                   |
-| eligible signal captured during send source materialization                                                                               | `cancelled` under `orchbee.cli.failure.source` | 128+signo | `{stage:"input",inputSource}`                                                             |
-| send source signal setup/read/restore failure                                                                                             | `internal-failure`                             | 1         | omitted                                                                                   |
-| prepared output over 8 MiB                                                                                                                | `output-too-large`                             | 1         | `{limitBytes:8388608}`                                                                    |
-| stdout write/flush failure                                                                                                                | `output-failed`                                | 1         | no second stdout document                                                                 |
-| `config check` finishes with failures                                                                                                     | success schema `ok:false`                      | 1         | all five checks preserved                                                                 |
-| non-Linux network query, mutation, or `config check`                                                                                      | `service-unavailable`/`check-failed`           | 4/1       | `{stage:"platform",reason:"unsupported-platform"}`                                        |
-| `terminal wait-output` deadline exhausted without a match                                                                                 | `timeout`                                      | 7         | `{stage:"wait",timeoutMs,observed}`                                                       |
-| HUP/INT/QUIT/TERM during `terminal wait-output`                                                                                           | `cancelled`                                    | 130       | `{stage:"wait",cleanup}`                                                                  |
-| `terminal wait-output` match with unconfirmed `Detach`                                                                                    | typed viewer-stage failure                     | *         | `{stage:"viewer",matchObserved:true,cleanup:"unconfirmed"}`                               |
+| Source                                                                                                                                    | `failure.kind`                                                             | exit      | `details`                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------- |
+| argv envelope/grammar/format/target shape errors                                                                                          | `invalid-usage`                                                            | 2         | omitted                                                                                   |
+| zero-ID/empty/overlong label, malformed panel/terminal ID                                                                                 | `invalid-identifier`                                                       | 2         | `{resource,target}`                                                                       |
+| valid target or schema ID without a match                                                                                                 | `not-found`                                                                | 3         | `{resource,target}`                                                                       |
+| multiple exact label matches                                                                                                              | `ambiguous`                                                                | 3         | `{resource,target,candidates≤8,totalCount}`                                               |
+| `NativeCohort::current` error                                                                                                             | `check-failed`                                                             | 1         | `{stage:"cohort"}`                                                                        |
+| base invalid/missing/not-a-directory, unsafe runtime/socket, other validation                                                             | `check-failed`                                                             | 1         | `{stage:"runtime-base"                             \| "runtime-directory"   \| "socket"}` |
+| valid base with absent scope directory or absent `client.sock`                                                                            | `service-unavailable`                                                      | 4         | `{stage:"discovery"}`                                                                     |
+| `ConnectClientError::ConnectFailed`                                                                                                       | `service-unavailable`                                                      | 4         | `{stage:"admission"}`                                                                     |
+| `ConnectClientError::Io`                                                                                                                  | `transport-loss`                                                           | 5         | `{stage:"admission"}`                                                                     |
+| OBLC `Rejected(CapacityExceeded)`                                                                                                         | `session-capacity`                                                         | 4         | `{stage:"admission"}`                                                                     |
+| OBLC `Rejected(HandshakeTimeout)`                                                                                                         | `service-unavailable`                                                      | 4         | `{stage:"admission"}`                                                                     |
+| `Rejected(IncompatibleProtocol                                                \| IncompatibleCohort)`, `Protocol(IncompatibleVersion)`    | `incompatible`                                                             | 6         | `{stage:"admission"}`                                                                     |
+| `Rejected(WrongMessage                                                        \| MalformedFrame)`, `UnexpectedResponse`, other `Protocol` | `protocol-invalid`                                                         | 5         | `{stage:"admission"}`                                                                     |
+| `RequestIoConfiguration`, `SessionUnavailable`, `RequestEncoding`                                                                         | `internal-failure`                                                         | 1         | omitted                                                                                   |
+| `SnapshotReadError::RequestNotSubmitted` (any cause)                                                                                      | `transport-loss`                                                           | 5         | `{stage:"snapshot"}`                                                                      |
+| `Failed(Write                                                                 \| ResponseDeadline)`, `Failed(Response(Io))`               | `transport-loss`                                                           | 5         | `{stage:"snapshot"}`                                                                      |
+| `Failed(Response(InvalidHeader                                                \| Contract))`, `UnexpectedResponse`                        | `protocol-invalid`                                                         | 5         | `{stage:"snapshot"}`                                                                      |
+| `Failed(CorrelationMismatch)`                                                                                                             | `protocol-invalid`                                                         | 5         | `{stage:"snapshot",reason:"correlation-mismatch"}`                                        |
+| outcome `Denied`                                                                                                                          | `denied`                                                                   | 3         | omitted                                                                                   |
+| outcome `Unavailable`                                                                                                                     | `service-unavailable`                                                      | 4         | `{stage:"snapshot"}`                                                                      |
+| viewer `RequestNotSubmitted`, `OutcomeUnknown(Write\|Read)`                                                                               | `transport-loss`                                                           | 5         | `{stage:"viewer"}`                                                                        |
+| viewer `OutcomeUnknown(InvalidResult\|UnexpectedResult)`, wrong outcome kind                                                              | `protocol-invalid`                                                         | 5         | `{stage:"viewer"}`                                                                        |
+| viewer `OutcomeUnknown(CorrelationMismatch)`                                                                                              | `protocol-invalid`                                                         | 5         | `{stage:"viewer",reason:"correlation-mismatch"}`                                          |
+| viewer outcome `Rejected(AlreadyAttached\|TerminalUnavailable)` or `Unavailable`                                                          | `service-unavailable`                                                      | 4         | `{stage:"viewer"}`                                                                        |
+| viewer outcome `Rejected(FeedbackMismatch)`, record rejected by the projection                                                            | `protocol-invalid`                                                         | 5         | `{stage:"viewer"}`                                                                        |
+| `ReadRows` outcome `RowsRejected(LimitExceeded)`                                                                                          | `rejected`                                                                 | 3         | `{stage:"viewer",operation:"read-history",reason:"limit-exceeded"}`                       |
+| `ReadRows` outcome `RowsRejected` (other producible reason)                                                                               | `service-unavailable`                                                      | 4         | `{stage:"viewer",operation:"read-history",reason}`                                        |
+| `ReadRows` outcome `RowsRejected(InvalidField\|InvalidAcknowledgement)`, mismatched/malformed row-window record                           | `protocol-invalid`                                                         | 5         | `{stage:"viewer"}`                                                                        |
+| launch-read `RequestNotSubmitted`, `OutcomeUnknown(Write\|Read)` (incl. an exhausted shared network budget)                               | `transport-loss`                                                           | 5         | `{stage:"launch-read"}`                                                                   |
+| launch-read `OutcomeUnknown(InvalidResult\|UnexpectedResult)`, wrong outcome kind                                                         | `protocol-invalid`                                                         | 5         | `{stage:"launch-read"}`                                                                   |
+| launch-read `OutcomeUnknown(CorrelationMismatch)`                                                                                         | `protocol-invalid`                                                         | 5         | `{stage:"launch-read",reason:"correlation-mismatch"}`                                     |
+| launch-read outcome `Unavailable(ServerBusy)`                                                                                             | `service-unavailable`                                                      | 4         | `{stage:"launch-read"}`                                                                   |
+| `DefinitelyNotSubmitted::RequestNotSubmitted` (command)                                                                                   | `transport-loss`                                                           | 5         | `{stage:"command"}`                                                                       |
+| `DefinitelyNotSubmitted::SessionUnavailable`/`RequestEncoding`                                                                            | `internal-failure`                                                         | 1         | omitted                                                                                   |
+| command `Rejected` precommit                                                                                                              | `rejected`                                                                 | 3         | `{stage:"command",reason,revision}`                                                       |
+| command `Denied` precommit                                                                                                                | `denied`                                                                   | 3         | omitted                                                                                   |
+| command `Unavailable` precommit                                                                                                           | `service-unavailable`                                                      | 4         | `{stage:"command",reason}`                                                                |
+| `OutcomeUnknown` (any reason)                                                                                                             | `outcome-unknown`                                                          | 8         | `{stage:"command",requestId,reason}`                                                      |
+| send `RequestNotSubmitted` (the request provably never reached the wire)                                                                  | `transport-loss`                                                           | 5         | `{stage:"send"}`                                                                          |
+| send `SessionUnavailable`/`RequestEncoding`                                                                                               | `internal-failure`                                                         | 1         | omitted                                                                                   |
+| send `OutcomeUnknown` (write/read/invalid-result/correlation)                                                                             | `outcome-unknown`                                                          | 8         | `{stage:"send",requestId,reason}`                                                         |
+| `terminal.send.result` `Rejected`/`Unavailable`                                                                                           | typed answer, not a failure envelope                                       | 3/4       | send result `reason`, `cleanupStatus`; `host-protocol-fault` exits 5                      |
+| `terminal.send.result` `Accepted` + `Unconfirmed` cleanup                                                                                 | typed answer, not a failure envelope                                       | 5         | send result `acceptedBytes`, `cleanupStatus`                                              |
+| send source validation: unopenable/non-regular path, terminal or unsupported stdin, empty, oversized, non-UTF-8                           | `invalid-usage`                                                            | 2         | omitted (localized stderr names the declared option and concrete cause)                   |
+| send source deadline expired during materialization                                                                                       | `timeout` under `orchbee.cli.failure.source`                               | 7         | `{stage:"input",inputSource,timeoutMs}`                                                   |
+| eligible signal captured during send source materialization                                                                               | `cancelled` under `orchbee.cli.failure.source`                             | 128+signo | `{stage:"input",inputSource}`                                                             |
+| send source signal setup/read/restore failure                                                                                             | `internal-failure`                                                         | 1         | omitted                                                                                   |
+| prepared output over 8 MiB                                                                                                                | `output-too-large`                                                         | 1         | `{limitBytes:8388608}`                                                                    |
+| stdout write/flush failure                                                                                                                | `output-failed`                                                            | 1         | no second stdout document                                                                 |
+| `config check` finishes with failures                                                                                                     | success schema `ok:false`                                                  | 1         | all five checks preserved                                                                 |
+| `site start` cohort `InvalidData`/`NotFound`/`PermissionDenied`/`TimedOut`/other io kind                                                  | `incompatible`/`service-unavailable`/`denied`/`timeout`/`internal-failure` | 6/4/3/7/1 | `{stage:"cohort"}`                                                                        |
+| `site start` socket path over the `sockaddr_un` budget                                                                                    | `service-unavailable`                                                      | 4         | `{stage:"runtime-directory",reason:"address-too-long"}`                                   |
+| `site start` connect/admission failure                                                                                                    | the `ConnectClientError` rows above, verbatim                              | 4/5/6     | `{stage:"admission"}`                                                                     |
+| `site start` marker or sockets committed without a live owner; Server spawn or `try_wait` io failure                                      | `rejected`                                                                 | 3         | `{stage:"activation",reason:"recovery-required"}`                                         |
+| `site start` activation deadline elapsed; lock acquisition `TimedOut`                                                                     | `timeout`                                                                  | 7         | `{stage:"activation"}`                                                                    |
+| `site start` marker/probe/lock io failure (non-timeout)                                                                                   | `internal-failure`                                                         | 1         | `{stage:"activation"}`                                                                    |
+| non-Linux network query, mutation, `site start`, or `config check`                                                                        | `service-unavailable`/`check-failed`                                       | 4/1       | `{stage:"platform",reason:"unsupported-platform"}`                                        |
+| `terminal wait-output` deadline exhausted without a match                                                                                 | `timeout`                                                                  | 7         | `{stage:"wait",timeoutMs,observed}`                                                       |
+| HUP/INT/QUIT/TERM during `terminal wait-output`                                                                                           | `cancelled`                                                                | 130       | `{stage:"wait",cleanup}`                                                                  |
+| `terminal wait-output` match with unconfirmed `Detach`                                                                                    | typed viewer-stage failure                                                 | *         | `{stage:"viewer",matchObserved:true,cleanup:"unconfirmed"}`                               |
 
 `resource` is `project|workspace|tab|panel|terminal|schema`; `stage` is
-`cohort|runtime-base|runtime-directory|socket|discovery|admission|snapshot|viewer|command|send|platform|wait`.
+`cohort|runtime-base|runtime-directory|socket|discovery|admission|activation|snapshot|viewer|command|send|platform|wait`.
 The source-stage `input` stage lives only in the `orchbee.cli.failure.source` envelope —
 it is not admitted into the standard `orchbee.cli.failure` stage vocabulary.
 Stages and reasons are finite schema values; no exception text becomes a machine field. `details`
@@ -843,39 +931,45 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 - Failure envelopes never invent `source`: siteId/revision appear only from a validated snapshot.
 - Ambiguous never guesses: it reports bounded candidates plus the true count.
 - `api schema`, help, and completion enumerate exactly the commands delivered in the same build.
+- `site start` is the single activation surface and the one command that creates local-runtime
+  state: it may create the runtime directory, hold activation/lifetime locks, commit the marker,
+  and spawn the Server — only a grammar failure guarantees zero effect. Its absolute 20-second deadline
+  is never reset per stage; a `recovery-required` refusal is never retried, repaired, or
+  cleaned up; a timeout never claims no Server started.
 - Both 5-second budgets are CLI-owned checked deadlines; their construction failure is
   `internal-failure`, while transport-internal `RequestNotSubmitted` stays `transport-loss`.
 
 ## Scenario matrix and evidence
 
-| Scenario                                                                                                                                                                                                          | Expected                                                            | Evidence                                                           |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Exhaustive grammar: formats, positions, `--`, help forms, duplicates, invalids                                                                                                                                    | exact parse/failure kinds                                           | `src/invocation` tests                                             |
-| Format envelope ordering: a defect anywhere leaves stdout empty; a valid json anywhere shapes later failures                                                                                                      | envelope precedence over grammar errors                             | `src/invocation` tests + `tests/cli_query.rs`                      |
-| Filter scope: `workspace list` accepts only `--project`; wrong-command filters are usage before runtime                                                                                                           | complete matrix, no silently dropped filter                         | `src/invocation` tests + `tests/cli_query.rs`                      |
-| Target rules: ID/label/zero/overlong/ambiguous precedence                                                                                                                                                         | resolver verdicts                                                   | `src/cli` resolver tests                                           |
-| Validated snapshot → every result shape, empty collections, nulls                                                                                                                                                 | exact JSON/text fixtures                                            | `src/cli` output tests + JSON Schema validation (dev `jsonschema`) |
-| Schema dictionary ↔ emitted envelopes                                                                                                                                                                             | every success/failure fixture validates; rejected variants fail     | schema contrast tests                                              |
-| API failure format: text/default failures keep stdout empty, `--format json` yields the envelope                                                                                                                  | caller-selected failure format on `api schema`/`api snapshot`       | `tests/cli_query.rs` + `src/cli` tests                             |
-| No Site on disk                                                                                                                                                                                                   | `service-unavailable`, zero fs/process/lock mutation                | `tests/cli_query.rs`                                               |
-| Real staged-cohort Server: status/list/get/api snapshot, 8 admitted + ninth rejected + release, live TUI                                                                                                          | success/`session-capacity`/unchanged structure                      | `tests/local_startup_process`                                      |
-| Scripted OBLC/OBWP peers: denied, unavailable, malformed, wrong correlation, timeout, disconnect                                                                                                                  | typed kinds per matrix; never labeled real-Server evidence          | `tests/cli_query.rs`                                               |
-| Scripted OBCS viewer peer: attach-binding fields, `Empty`→`record` poll, detach release, reject/unavailable/malformed/correlation/disconnect                                                                      | `terminal read` success + typed viewer-stage failures               | `tests/cli_query.rs`                                               |
-| Scripted OBCS viewer peer + hand-built OBRW records: scrollback pricing, capacity/scrollback clamps, typed `rows-rejected`, window mismatch, oversized record, no retry                                           | `terminal read --history` success + typed failures                  | `tests/cli_query.rs`                                               |
-| Scripted OBCS send peer: UTF-8 text with optional folded CR and semantic keys arrive as one request, target/request identity, accepted/rejected/unavailable/unknown answers, stalled answer, no retry             | `terminal send` exit 0/3/4/5/8 with the two-axis result fields      | `tests/cli_send.rs`                                                |
-| Send source grammar: four-source exclusivity, fixed-order conflict naming, `--enter` scoping, flag scope                                                                                                          | exact parse/`invalid-usage` before any runtime access               | `src/invocation` tests                                             |
-| File/stdin materialization: nonblocking open + `fstat` type gate, regular-file shared offset, private FIFO reopen, cap+1, strict UTF-8, empty/non-regular/unsupported rejections                                  | bounded record or typed source `invalid-usage`; zero runtime effect | `src/cli/source` unit tests + `tests/cli_send.rs`                  |
-| Source deadline/cancellation: stalled pipe exits at the shared deadline (7), captured eligible signal exits `128+signo` under `orchbee.cli.failure.source`, inherited IGN/BLK preserved, restore failure internal | source envelope facts, no wire request, exact mask restore          | `src/cli/source` tests + labelled OS/process evidence              |
-| Scripted OBCS send peer with declared sources: materialized file/stdin arrives as one `terminal.send` text request                                                                                                | identical envelope to `--text`; exactly one request                 | `tests/cli_send.rs`                                                |
-| Scripted OBCS viewer peer + hand-built OBTF/OBRW records: increasing `requestSequence`, visible/history boundary window, real `FrameApplied` per frame, stale re-pin, excerpt tail match, deadline incl. preamble | `terminal wait-output` success + typed failures                     | `tests/cli_query.rs`                                               |
-| Real staged-cohort Server + live TUI terminal: `wait-output` matches existing/later/scrolled-off/UTF-8 output, short deadline exits 7, cancel frees the slot                                                      | public wait observation coexisting with the TUI's own viewer        | `tests/local_startup_process`                                      |
-| Real staged-cohort Server + live TUI terminal: `terminal read` returns its grid and schema-validates                                                                                                              | real read-only observation coexisting with the TUI's own viewer     | `tests/local_startup_process`                                      |
-| Mutation grammar: every command, target rules, `--confirm`, geometry bounds, flag scopes                                                                                                                          | exact parse/failure kinds before runtime access                     | `src/invocation` tests                                             |
-| Mutation scripted peers: all twelve commands, precommit verdicts, ambiguous and unapplied outcomes                                                                                                                | one command per call; `outcome-unknown` never replayed              | `tests/cli_mutation.rs`                                            |
-| Non-TTY; stdout blocked after the session is gone; >8 MiB prepared output on every format; real write failure                                                                                                     | documented exits; transport owners dropped before blocking          | `tests/local_startup_process` + emit unit tests                    |
-| `config check` matrix: pass/fail/not-applicable per check, `exists` semantics                                                                                                                                     | five typed checks always reported                                   | `tests/cli_query.rs` + `src/cli/config` tests                      |
-| Completion scripts project the grammar (bash/zsh executed, fish structural parity)                                                                                                                                | positive and negative contexts; no runtime enumeration              | `tests/cli_query.rs`                                               |
-| Bilingual text/failure output                                                                                                                                                                                     | exact en-US/zh-CN strings                                           | `tests/process.rs` + `tests/cli_query.rs`                          |
+| Scenario                                                                                                                                                                                                          | Expected                                                                                        | Evidence                                                           |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Exhaustive grammar: formats, positions, `--`, help forms, duplicates, invalids                                                                                                                                    | exact parse/failure kinds                                                                       | `src/invocation` tests                                             |
+| Format envelope ordering: a defect anywhere leaves stdout empty; a valid json anywhere shapes later failures                                                                                                      | envelope precedence over grammar errors                                                         | `src/invocation` tests + `tests/cli_query.rs`                      |
+| Filter scope: `workspace list` accepts only `--project`; wrong-command filters are usage before runtime                                                                                                           | complete matrix, no silently dropped filter                                                     | `src/invocation` tests + `tests/cli_query.rs`                      |
+| Target rules: ID/label/zero/overlong/ambiguous precedence                                                                                                                                                         | resolver verdicts                                                                               | `src/cli` resolver tests                                           |
+| Validated snapshot → every result shape, empty collections, nulls                                                                                                                                                 | exact JSON/text fixtures                                                                        | `src/cli` output tests + JSON Schema validation (dev `jsonschema`) |
+| Schema dictionary ↔ emitted envelopes                                                                                                                                                                             | every success/failure fixture validates; rejected variants fail                                 | schema contrast tests                                              |
+| API failure format: text/default failures keep stdout empty, `--format json` yields the envelope                                                                                                                  | caller-selected failure format on `api schema`/`api snapshot`                                   | `tests/cli_query.rs` + `src/cli` tests                             |
+| No Site on disk                                                                                                                                                                                                   | `service-unavailable`, zero fs/process/lock mutation                                            | `tests/cli_query.rs`                                               |
+| Real staged-cohort Server: status/list/get/api snapshot, 8 admitted + ninth rejected + release, live TUI                                                                                                          | success/`session-capacity`/unchanged structure                                                  | `tests/local_startup_process`                                      |
+| Scripted OBLC/OBWP peers: denied, unavailable, malformed, wrong correlation, timeout, disconnect                                                                                                                  | typed kinds per matrix; never labeled real-Server evidence                                      | `tests/cli_query.rs`                                               |
+| Scripted OBCS viewer peer: attach-binding fields, `Empty`→`record` poll, detach release, reject/unavailable/malformed/correlation/disconnect                                                                      | `terminal read` success + typed viewer-stage failures                                           | `tests/cli_query.rs`                                               |
+| Scripted OBCS viewer peer + hand-built OBRW records: scrollback pricing, capacity/scrollback clamps, typed `rows-rejected`, window mismatch, oversized record, no retry                                           | `terminal read --history` success + typed failures                                              | `tests/cli_query.rs`                                               |
+| Scripted OBCS send peer: UTF-8 text with optional folded CR and semantic keys arrive as one request, target/request identity, accepted/rejected/unavailable/unknown answers, stalled answer, no retry             | `terminal send` exit 0/3/4/5/8 with the two-axis result fields                                  | `tests/cli_send.rs`                                                |
+| Send source grammar: four-source exclusivity, fixed-order conflict naming, `--enter` scoping, flag scope                                                                                                          | exact parse/`invalid-usage` before any runtime access                                           | `src/invocation` tests                                             |
+| File/stdin materialization: nonblocking open + `fstat` type gate, regular-file shared offset, private FIFO reopen, cap+1, strict UTF-8, empty/non-regular/unsupported rejections                                  | bounded record or typed source `invalid-usage`; zero runtime effect                             | `src/cli/source` unit tests + `tests/cli_send.rs`                  |
+| Source deadline/cancellation: stalled pipe exits at the shared deadline (7), captured eligible signal exits `128+signo` under `orchbee.cli.failure.source`, inherited IGN/BLK preserved, restore failure internal | source envelope facts, no wire request, exact mask restore                                      | `src/cli/source` tests + labelled OS/process evidence              |
+| Scripted OBCS send peer with declared sources: materialized file/stdin arrives as one `terminal.send` text request                                                                                                | identical envelope to `--text`; exactly one request                                             | `tests/cli_send.rs`                                                |
+| Scripted OBCS viewer peer + hand-built OBTF/OBRW records: increasing `requestSequence`, visible/history boundary window, real `FrameApplied` per frame, stale re-pin, excerpt tail match, deadline incl. preamble | `terminal wait-output` success + typed failures                                                 | `tests/cli_query.rs`                                               |
+| Real staged-cohort Server + live TUI terminal: `wait-output` matches existing/later/scrolled-off/UTF-8 output, short deadline exits 7, cancel frees the slot                                                      | public wait observation coexisting with the TUI's own viewer                                    | `tests/local_startup_process`                                      |
+| Real staged-cohort Server + live TUI terminal: `terminal read` returns its grid and schema-validates                                                                                                              | real read-only observation coexisting with the TUI's own viewer                                 | `tests/local_startup_process`                                      |
+| Mutation grammar: every command, target rules, `--confirm`, geometry bounds, flag scopes                                                                                                                          | exact parse/failure kinds before runtime access                                                 | `src/invocation` tests                                             |
+| Mutation scripted peers: all twelve commands, precommit verdicts, ambiguous and unapplied outcomes                                                                                                                | one command per call; `outcome-unknown` never replayed                                          | `tests/cli_mutation.rs`                                            |
+| Non-TTY; stdout blocked after the session is gone; >8 MiB prepared output on every format; real write failure                                                                                                     | documented exits; transport owners dropped before blocking                                      | `tests/local_startup_process` + emit unit tests                    |
+| `config check` matrix: pass/fail/not-applicable per check, `exists` semantics                                                                                                                                     | five typed checks always reported                                                               | `tests/cli_query.rs` + `src/cli/config` tests                      |
+| `site start` real staged cohort: cold start spawns + admits, second/overlapping starts, marker-without-owner refusal, held-lock deadline, cohort faults, signals, non-UTF-8 base, zh-CN text                      | `started`/`already-running` truth; refused wedge leaves marker byte-identical; bounded deadline | `tests/local_startup_process`                                      |
+| Completion scripts project the grammar (bash/zsh executed, fish structural parity)                                                                                                                                | positive and negative contexts; no runtime enumeration                                          | `tests/cli_query.rs`                                               |
+| Bilingual text/failure output                                                                                                                                                                                     | exact en-US/zh-CN strings                                                                       | `tests/process.rs` + `tests/cli_query.rs`                          |
 
 Model obligations: this slice adds no new Server state machine, persistence, or retry and reuses
 the registered OBLC/OBWP/OBCS/Client models — `terminal read` rides the existing

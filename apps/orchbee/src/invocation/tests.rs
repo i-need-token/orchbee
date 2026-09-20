@@ -143,6 +143,92 @@ fn accepts_every_query_path_with_default_text() {
 }
 
 #[test]
+fn site_start_admits_only_format() {
+    // The bare path defaults to text; `--format` is the sole option.
+    assert_eq!(
+        parse(&["site", "start"]),
+        Ok(Request::SiteStart {
+            format: OutputFormat::Text
+        })
+    );
+    assert_eq!(
+        parse(&["site", "start", "--format", "json"]),
+        Ok(Request::SiteStart {
+            format: OutputFormat::Json
+        })
+    );
+    assert_eq!(
+        parse(&["--format=json", "site", "start"]),
+        Ok(Request::SiteStart {
+            format: OutputFormat::Json
+        })
+    );
+    let cases: &[&[&str]] = &[
+        // Operands, filters, and business flags are all out of scope.
+        &["site"],
+        &["site", "stop"],
+        &["site", "start", "extra"],
+        &["site", "start", "--project", "x"],
+        &["site", "start", "--confirm"],
+        &["site", "start", "--mouse", "off"],
+    ];
+    for arguments in cases {
+        assert_eq!(
+            parse(arguments),
+            Err(usage(FailureEnvelope::Text)),
+            "{arguments:?}"
+        );
+    }
+    // A missing or unsupported `--format` value names the concrete cause.
+    assert_eq!(
+        parse(&["site", "start", "--format"]),
+        Err(ParseFailure {
+            kind: ParseFailureKind::InvalidUsage,
+            envelope: FailureEnvelope::Silent,
+            usage: Some(UsageReason::MissingValue { option: "--format" }),
+        })
+    );
+    assert_eq!(
+        parse(&["site", "start", "--format", "yaml"]),
+        Err(ParseFailure {
+            kind: ParseFailureKind::InvalidUsage,
+            envelope: FailureEnvelope::Silent,
+            usage: Some(UsageReason::InvalidValue {
+                context: UsageContext::Root,
+                option: "--format",
+                value: "yaml".to_owned(),
+                expected: ExpectedValue::Format,
+            }),
+        })
+    );
+    // A json envelope selection survives into the usage failure.
+    assert_eq!(
+        parse(&["site", "start", "extra", "--format", "json"]),
+        Err(ParseFailure {
+            kind: ParseFailureKind::InvalidUsage,
+            envelope: FailureEnvelope::Json,
+            usage: Some(UsageReason::UnexpectedArgument {
+                context: UsageContext::Path("site start"),
+                value: "extra".to_owned(),
+            }),
+        })
+    );
+    // Help-path resolution: family overview and command help.
+    assert_eq!(
+        parse(&["site", "--help"]),
+        Ok(Request::Help(HelpTopic::Family(Family::Site)))
+    );
+    assert_eq!(
+        parse(&["site", "start", "--help"]),
+        Ok(Request::Help(HelpTopic::Command(CommandPath::SiteStart)))
+    );
+    assert_eq!(
+        parse(&["help", "site", "start"]),
+        Ok(Request::Help(HelpTopic::Command(CommandPath::SiteStart)))
+    );
+}
+
+#[test]
 fn accepts_format_in_every_position_and_both_spellings() {
     let cases: &[(&[&str], QueryCommand)] = &[
         (&["--format", "json", "status"], QueryCommand::Status),

@@ -13,11 +13,23 @@ use orchbee_terminal_protocol::{
 
 use super::validate_event;
 
-const MAXIMUM_VIEWERS: usize = 8;
+pub(super) const MAXIMUM_VIEWERS: usize = 24;
+const MAXIMUM_RETAINED_VIEWER_RECORD_BYTES: usize = 128 * 1024 * 1024;
 
-#[derive(Default)]
 pub(crate) struct HostViewers {
     viewers: BTreeMap<[u8; 16], Viewer>,
+    retained_record_bytes: usize,
+    retained_record_limit: usize,
+}
+
+impl Default for HostViewers {
+    fn default() -> Self {
+        Self {
+            viewers: BTreeMap::new(),
+            retained_record_bytes: 0,
+            retained_record_limit: MAXIMUM_RETAINED_VIEWER_RECORD_BYTES,
+        }
+    }
 }
 
 struct Viewer {
@@ -73,7 +85,24 @@ impl HostViewers {
     }
 
     pub(crate) fn remove(&mut self, id: OperationId) {
-        self.viewers.remove(&id.as_bytes());
+        if let Some(mut viewer) = self.viewers.remove(&id.as_bytes())
+            && let Some(record) = viewer.record.take()
+        {
+            self.retained_record_bytes -= record.len();
+        }
+    }
+
+    #[cfg(test)]
+    fn with_retained_record_limit(limit: usize) -> Self {
+        Self {
+            retained_record_limit: limit,
+            ..Self::default()
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn retained_record_bytes(&self) -> usize {
+        self.retained_record_bytes
     }
 
     pub(super) fn target_ids(
@@ -121,6 +150,7 @@ impl HostViewers {
         }
         match viewer.record.take() {
             Some(record) => {
+                self.retained_record_bytes -= record.len();
                 if let Some(flight) = &mut viewer.flight {
                     flight.delivered = true;
                 }
@@ -188,12 +218,17 @@ impl HostViewers {
             if route.host_epoch != epoch || (envelope.kind == 41) != route.base_revision.is_none() {
                 return Err(invalid("Host frame envelope and route disagree"));
             }
-            let viewer = self.viewer(route.attachment_id)?;
+            let viewer = self
+                .viewers
+                .get_mut(route.attachment_id.as_bytes())
+                .ok_or_else(|| invalid("Host event targets an unknown attachment"))?;
             if viewer.closed {
                 return Ok(());
             }
             if viewer.record.is_some() || viewer.flight.is_some() {
-                viewer.close();
+                if let Some(released) = viewer.close() {
+                    self.retained_record_bytes -= released.len();
+                }
                 return Ok(());
             }
             if route.sequence.get() <= viewer.last_sequence
@@ -204,6 +239,17 @@ impl HostViewers {
             {
                 return Err(invalid("Host frame violates attachment projection flow"));
             }
+            let Some(total) = self
+                .retained_record_bytes
+                .checked_add(record.len())
+                .filter(|total| *total <= self.retained_record_limit)
+            else {
+                if let Some(released) = viewer.close() {
+                    self.retained_record_bytes -= released.len();
+                }
+                return Ok(());
+            };
+            self.retained_record_bytes = total;
             viewer.record = Some(record);
             viewer.last_sequence = route.sequence.get();
             viewer.blocked_revision = None;
@@ -224,12 +270,17 @@ impl HostViewers {
             else {
                 return Err(invalid("unexpected projection-demand event"));
             };
-            let viewer = self.viewer(blocked.attachment_id)?;
+            let viewer = self
+                .viewers
+                .get_mut(blocked.attachment_id.as_bytes())
+                .ok_or_else(|| invalid("Host event targets an unknown attachment"))?;
             if viewer.closed {
                 return Ok(());
             }
             if viewer.record.is_some() || viewer.flight.is_some() {
-                viewer.close();
+                if let Some(released) = viewer.close() {
+                    self.retained_record_bytes -= released.len();
+                }
                 return Ok(());
             }
             if viewer
@@ -238,6 +289,17 @@ impl HostViewers {
             {
                 return Err(invalid("Host blocked revision did not advance"));
             }
+            let Some(total) = self
+                .retained_record_bytes
+                .checked_add(record.len())
+                .filter(|total| *total <= self.retained_record_limit)
+            else {
+                if let Some(released) = viewer.close() {
+                    self.retained_record_bytes -= released.len();
+                }
+                return Ok(());
+            };
+            self.retained_record_bytes = total;
             viewer.flight = None;
             viewer.record = Some(record);
             viewer.blocked_revision = Some(blocked.revision);
@@ -266,10 +328,10 @@ impl HostViewers {
 }
 
 impl Viewer {
-    fn close(&mut self) {
+    fn close(&mut self) -> Option<Vec<u8>> {
         self.closed = true;
-        self.record = None;
         self.flight = None;
+        self.record.take()
     }
 }
 

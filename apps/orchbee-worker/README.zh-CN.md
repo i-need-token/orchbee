@@ -73,15 +73,18 @@ Server 仍是查看附件的唯一签发方。每个绑定代际的查看附件�
 Worker 操作槽。
 
 OBCN 查看附件载体和 Worker 附件转换现已服务于 Server 已准入 Client Session 转发，并有真实
-Host 进程轨迹。Server 拥有 OBCS 查看消息与 Session 清理；Linux 裸入口现已消费该 relay。八个存活查看附件和每附件一帧保留记录属于实现边界，不是发布性能
-预算。缺失或矛盾的反馈绝不确认 Host 帧。`NeedSnapshot` 保留原因和序号；
+Host 进程轨迹。Server 拥有 OBCS 查看消息与 Session 清理；Linux 裸入口现已消费该 relay。二十四个存活查看附件、每附件最多一条保留 Host 记录，以及 128 MiB 聚合保留记录预算属于
+实现边界，不是发布性能预算；owning 模型见
+[查看附件容量与保留记录预算参考](docs/viewer-capacity-and-record-budget.zh-CN.md)。
+缺失或矛盾的反馈绝不确认 Host 帧。`NeedSnapshot` 保留原因和序号；
 `ProjectionBlocked` 仍是附件事件。
-交付槽已满时，只关闭该查看附件并释放排队字节；它的 Host detach 在下一个普通 Server operation
+交付槽已满时，只关闭该查看附件并释放排队字节；会把聚合预算推过上限的合法记录同样只退役
+其寻址查看附件。它的 Host detach 在下一个普通 Server operation
 之前执行，lifecycle step 跳过该清理。关闭中附件的迟到 event 被排空，不再保留额外帧。绝不静默替换 blocked event 或帧。
 Broker 的 `host_connection` module 拥有 event 路由、查看附件槽、controller grant 和共享 deadline exchange；
 `terminal_viewer_operation` 映射已准入的只读 command，并校验精确 Host response。
 查看附件 state borrow 不跨越 Host I/O。Attach 依次执行两个有界 exchange（capabilities，随后
-激活 projection demand）；cleanup 可在请求前执行最多十六个有界查看／控制 detach exchange。查看附件 carrier 现为这些 exchange 和 OBNR record delivery 提供二十秒预算。Lifecycle/metadata notification 经校验后排空；
+激活 projection demand）；cleanup 可在请求前执行最多三十二个有界查看／控制 detach exchange。查看附件 carrier 现为这些 exchange 和 OBNR record delivery 提供二十秒预算。Lifecycle/metadata notification 经校验后排空；
 bell、clipboard 与 application-signal effect 不经此只读投影路径对外发布。分离和 broker 丢失释放临时附件并保留终端。
 重新附着必须使用 Server 新签发的附件身份；此只读查看路径不授予输入或调整大小权限。
 
@@ -111,8 +114,8 @@ viewer/grant 或非递增 sequence。已知 Host rejection 消耗 sequence；含
 Viewer detach 或关闭先释放其 controller，再 detach viewer。仅当该 viewer 没有 controller 时，
 内部 release 才是幂等的；它绝不清除不同的当前 grant。存活 grant 的意外 resize lease 撤销让 broker 退役。
 已知 Dispose 后，精确 retired-target event 经校验后排空。
-Release 或 loss 均不提升其他 viewer，也不终止保留执行。八个 viewer 最多允许八个额外控制
-附件；cleanup 与普通操作共用单一 Host writer。
+Release 或 loss 均不提升其他 viewer，也不终止保留执行。controller grant 上限保持八个，
+与查看附件数量无关；cleanup 与普通操作共用单一 Host writer。
 
 确定性 grant 测试覆盖互斥、过期作用域、待定获取、sequence 耗尽和显式重新获取。故障进程测试
 覆盖 Host 输入确认静默或矛盾且不重放。Server 的真实双 Client 进程见证验证 Shell 输入、实际

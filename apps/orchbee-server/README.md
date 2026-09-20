@@ -47,7 +47,7 @@ one exact leaf, disposes and cleans it through the same lifecycle, and publishes
 with the leaf's parent Split collapsed into the sibling subtree; a Tab's only leaf closes as an
 aggregate Close. Known Host disposal and exact Worker/Server cleanup precede
 canonical removal; Client exit does not cancel accepted Close. Linux carrier/process checks cover
-eight live Client connections, idle control-slot release and same-connection reuse while an
+thirty-two live Client connections, idle control-slot release and same-connection reuse while an
 unrelated shell survives. The [Close contract](docs/terminal-tab-close.md) owns the bounds and
 separately evidenced native TUI integration and remaining production recovery and release obligations.
 
@@ -120,9 +120,15 @@ request handle through the Worker registry. The owner, not a caller or the regis
 write/read exchange; no registry lock is held across wire I/O.
 
 The handle rejects a request for another Worker or generation before touching the wire. It admits
-at most one submitted request behind the one request possibly in flight, and additional submissions
-receive immediate backpressure. `Unavailable` and `Backpressure` both mean that the addressed
-request did not cross the complete-write boundary. The owner writes one complete OBCN Launch,
+submissions into two bounded FIFO lanes under one queue lock — high for interactive and
+cleanup work, low for viewer observation — each capped at eight requests behind the one request
+possibly in flight. Ordinary submissions try-admit and receive immediate `Backpressure` when
+their lane is full — high-lane submissions also back off while a cleanup waiter is queued;
+only the two session-cleanup producers wait FIFO with priority over later try-admits. The owner dispatches at most four consecutive
+high-lane requests while the low lane is non-empty, then serves one low-lane request.
+`Unavailable` and `Backpressure` both mean that the addressed request did not cross the
+complete-write boundary. The [carrier scheduling model](docs/worker-carrier-model.md) owns
+lane classification, admission, dispatch bounds, drain and failure settlement. The owner writes one complete OBCN Launch,
 Start, or viewer request before reading exactly one result. It accepts only the matching result direction and
 kind, operation ID, complete authorization echo, and, for Start, target identity. A malformed,
 mismatched, timed-out, or disconnected exchange retires that Worker generation and makes queued
@@ -192,8 +198,8 @@ its current runtime consumes authorized Launch/Start and read-only viewer reques
 When the private Client endpoint is selected, every same-user compatible Human Client connection
 creates one independent process-local Client Session generation. TUI, Web, Desktop, mobile, tab,
 window, and renderer identity are intentionally absent: the endpoint admits one peer Client model.
-Server accepts up to eight active Sessions and at most sixteen total candidate/session handler
-threads. Each handshake has a two-second read/write timeout. One silent candidate therefore cannot
+Server accepts up to thirty-two active Sessions and at most forty-eight total
+candidate/session handler threads. Each handshake has a two-second read/write timeout. One silent candidate therefore cannot
 block another connection while a handler slot remains, and saturation closes excess candidates
 without allocating more threads. Handler slots and admitted-Session registrations are
 lifetime-owned guards, so normal completion, faults, and unwinding release both bounds.
@@ -284,7 +290,10 @@ before `RetireCarrier`. Checking an active flag only before an exchange is insuf
 would permit a write or newly accepted exact result after retirement. An already observed exact
 result may still publish before replacement; replacement activation must wait for that publication,
 matching the authorization model's pending-result guard. The carrier may not convert any transport
-classification into a successful or failed OBCN result.
+classification into a successful or failed OBCN result. The single submitted-slot occupancy this
+record explored has since been superseded by the dual bounded lanes in the
+[carrier scheduling model](docs/worker-carrier-model.md); the wire-phase, ambiguity-boundary and
+settlement obligations are unchanged.
 
 ## Local Client Session and OBCS modeling record
 

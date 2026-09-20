@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 
+use orchbee_client_server_protocol::TerminalLaunchFact;
 use orchbee_terminal_protocol::MAXIMUM_FRAME_ROWS;
 use orchbee_workbench_protocol::{
     PanelNode, PanelSlot, Presentation, Project, Snapshot, Tab, TerminalContext,
@@ -41,12 +42,33 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
     }
 }
 
+/// `terminal get` is the one document at `version:2`: it gained the `launch`
+/// member and a Server-joined source, a deliberate break older `version:1`
+/// validators reject. Every other envelope stays at `1`.
+pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
+    match command {
+        QueryCommand::TerminalGet(_) => 2,
+        _ => 1,
+    }
+}
+
 /// `source` for every snapshot-derived answer.
 pub(crate) fn snapshot_source(snapshot: &Snapshot) -> Value {
     json!({
         "kind": "workbench-snapshot",
         "siteId": snapshot.site_id.as_str(),
         "revision": snapshot.revision,
+    })
+}
+
+/// `source` for the one answer the Server itself joined: the launch read's
+/// site and the Workbench revision it observed under the coordinator lock —
+/// a decimal string like every u64 in a machine document.
+pub(crate) fn launch_read_source(site_id: &str, revision: u64) -> Value {
+    json!({
+        "kind": "terminal-launch-read",
+        "siteId": site_id,
+        "revision": revision.to_string(),
     })
 }
 
@@ -168,6 +190,16 @@ pub(crate) struct TerminalRow {
     pub(crate) panel_id: String,
     pub(crate) tab_id: String,
     pub(crate) terminal_context_id: String,
+}
+
+/// `terminal get` v2: the Server's point-in-time join — the current routing
+/// row plus the retained launch fact under one coordinator lock. `terminal`
+/// keeps the shared identity shape; only this document version carries
+/// `launch`.
+#[derive(Clone, Debug)]
+pub(crate) struct TerminalGetDoc {
+    pub(crate) terminal: TerminalRow,
+    pub(crate) launch: TerminalLaunchFact,
 }
 
 /// Routing metadata of the applied projection, re-encoded as decimal strings
@@ -583,7 +615,7 @@ pub(crate) enum Projection {
     PanelList(Vec<PanelRow>),
     PanelGet(PanelDoc),
     TerminalList(Vec<TerminalRow>),
-    TerminalGet(TerminalRow),
+    TerminalGet(TerminalGetDoc),
     TerminalRead(TerminalReadDoc),
     TerminalHistory(TerminalHistoryDoc),
     TerminalWaitOutput(TerminalWaitOutputDoc),
@@ -719,7 +751,15 @@ impl Projection {
             Self::TerminalList(rows) => json!({
                 "terminals": rows.iter().map(terminal_row_json).collect::<Vec<_>>(),
             }),
-            Self::TerminalGet(row) => json!({ "terminal": terminal_row_json(row) }),
+            Self::TerminalGet(doc) => {
+                // `terminal` keeps the shared routing row and gains `launch`
+                // inside it — only this document nests the retained fact.
+                let mut terminal = terminal_row_json(&doc.terminal);
+                if let Value::Object(members) = &mut terminal {
+                    members.insert("launch".to_owned(), launch_fact_json(&doc.launch));
+                }
+                json!({ "terminal": terminal })
+            }
             Self::TerminalRead(doc) => json!({
                 "terminal": terminal_row_json(&doc.terminal),
                 "frame": {
@@ -882,6 +922,22 @@ fn presentation_json(row: &PresentationRow) -> Value {
             }),
             _ => Value::Null,
         },
+    })
+}
+
+/// The retained launch fact as its machine-document value — the exact
+/// protocol shape: kebab-case `state`, a decimal-or-null `workerGeneration`,
+/// and the retained `createOutcome`/`geometry` encoders verbatim. The fact is
+/// validated at construction, so this projection cannot fail; machine and
+/// text output share it.
+pub(crate) fn launch_fact_json(launch: &TerminalLaunchFact) -> Value {
+    json!({
+        "state": launch.state(),
+        "workerGeneration": launch
+            .worker_generation()
+            .map(|generation| generation.get().to_string()),
+        "createOutcome": launch.create_outcome(),
+        "geometry": launch.geometry(),
     })
 }
 
@@ -1175,28 +1231,17 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
             Err(not_found(Resource::Panel, target))
         }
         QueryCommand::TerminalList => Ok(Projection::TerminalList(terminal_rows(snapshot))),
-        QueryCommand::TerminalGet(target) => {
-            let identity = match target {
-                Target::Id(identity) => identity.as_str(),
-                Target::Label(_) => {
-                    return Err(Failure::new(FailureKind::InternalFailure));
-                }
-            };
-            terminal_rows(snapshot)
-                .into_iter()
-                .find(|row| row.terminal_id == identity)
-                .map(Projection::TerminalGet)
-                .ok_or_else(|| not_found(Resource::Terminal, target))
-        }
         QueryCommand::ApiSnapshot => Ok(Projection::ApiSnapshot(
             serde_json::to_value(WorkbenchProtocolDocument::Snapshot(snapshot.clone()))
                 .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
         )),
+        // `terminal get` answers the Server's own launch-read join and
         // `terminal read`/`terminal wait-output` project live viewer
         // observations, not snapshot data alone; their answers are built by
         // the query layer. `api schema`/`config check` never reach a
         // snapshot projection.
-        QueryCommand::TerminalRead { .. }
+        QueryCommand::TerminalGet(_)
+        | QueryCommand::TerminalRead { .. }
         | QueryCommand::TerminalWaitOutput { .. }
         | QueryCommand::ApiSchema { .. }
         | QueryCommand::ConfigCheck => Err(Failure::new(FailureKind::InternalFailure)),

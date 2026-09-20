@@ -21,20 +21,21 @@ reference is a defect, and so is the reverse.
 
 ## Command paths
 
-| Rule        | Contract                                                                                                                                                                                         |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Shape       | `<executable> [global options] <resource> <verb> [operands] [options]`; a resource names a domain noun and a verb names one effect class. A root-level word such as `status` is a complete path. |
-| Words       | Fixed lowercase words with no abbreviations, aliases, or alternate spellings. Adding a synonym is a grammar change, not a convenience.                                                           |
-| Verbs       | Reuse an existing verb before adding one. Read verbs never mutate; mutation verbs submit at most one effect; wait verbs observe until a condition or a deadline.                                 |
-| Families    | A resource path without a verb, or a verb without its required operand, is a usage failure whose diagnostic names the exact `--help` path. Nothing executes with defaults.                       |
-| Root        | The bare executable and its root-level modes such as launching an interface, `--version`, and `--help` are enumerated by the grammar authority like any command.                                 |
-| Offline set | `help`, `--help`, `--version`, `completion`, and the machine schema listing are offline: they read no configuration, discover no runtime, and open no endpoint.                                  |
+| Rule        | Contract                                                                                                                                                                                                                                               |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Shape       | `<executable> [global options] <resource> <verb> [operands] [options]`; a resource names a domain noun and a verb names one effect class. A root-level word such as `status` is a complete path.                                                       |
+| Words       | Fixed lowercase words with no abbreviations, aliases, or alternate spellings. Adding a synonym is a grammar change, not a convenience.                                                                                                                 |
+| Verbs       | Reuse an existing verb before adding one. Read verbs never mutate; mutation verbs submit at most one effect; wait verbs observe until a condition or a deadline; activation verbs converge a runtime toward readiness and may create persistent state. |
+| Families    | A resource path without a verb, or a verb without its required operand, is a usage failure whose diagnostic names the exact `--help` path. Nothing executes with defaults.                                                                             |
+| Root        | The bare executable and its root-level modes such as launching an interface, `--version`, and `--help` are enumerated by the grammar authority like any command.                                                                                       |
+| Offline set | `help`, `--help`, `--version`, `completion`, and the machine schema listing are offline: they read no configuration, discover no runtime, and open no endpoint.                                                                                        |
 
-| Verb class | Verbs                                                            | Effect                                                                 |
-| ---------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Read       | `list`, `get`, `read`, `status`, `describe`, `explain`, `check`  | Observe existing state; create nothing that survives the invocation    |
-| Mutate     | `create`, `rename`, `move`, `split`, `close`, `invoke`, `cancel` | Submit exactly one effect under one request identity                   |
-| Wait       | `wait`, `changes`                                                | Observe until a declared condition, a cursor boundary, or the deadline |
+| Verb class | Verbs                                                            | Effect                                                                                                                                                    |
+| ---------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read       | `list`, `get`, `read`, `status`, `describe`, `explain`, `check`  | Observe existing state; create nothing that survives the invocation                                                                                       |
+| Mutate     | `create`, `rename`, `move`, `split`, `close`, `invoke`, `cancel` | Submit exactly one effect under one request identity                                                                                                      |
+| Wait       | `wait`, `changes`                                                | Observe until a declared condition, a cursor boundary, or the deadline                                                                                    |
+| Activate   | `start`                                                          | Converge a runtime toward readiness under one invocation-owned deadline; may create persistent runtime state and is idempotent on an already-ready target |
 
 ## Options
 

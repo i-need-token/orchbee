@@ -8,7 +8,10 @@ use orchbee_workbench_protocol::{
     WorkbenchTerminalGeometry, read_workbench_response, write_workbench_request,
 };
 use rustix::process::{Pid, PidfdFlags, pidfd_open};
+use std::cell::Cell;
+use std::io::{self, Read, Write};
 use std::os::{fd::AsFd, unix::net::UnixStream};
+use std::rc::Rc;
 
 const EMPTY: &str = "No terminal tabs";
 const CONFIGURED_EMPTY: &str = "Ctrl+B c · launch a terminal in this directory";
@@ -19,10 +22,61 @@ const CONFIGURED_HEADER: &str = "WORKBENCH · Context process / Configured";
 const UNCONFIGURED_HEADER: &str = "WORKBENCH · Context process / Unconfigured";
 const CLOSE_TIMEOUT: Duration = Duration::from_secs(45);
 
+/// One absolute deadline re-armed on every underlying syscall: each read and
+/// write recomputes the remaining budget rather than inheriting the whole
+/// exchange window, so a frame dripping byte-by-byte cannot outlive the
+/// intended deadline. Buffered readers keep any prefetched bytes — only real
+/// syscalls are metered. The deadline cell is shared by a session's read and
+/// write halves, which stay on one thread.
+pub(super) struct DeadlineStream {
+    stream: UnixStream,
+    deadline: Rc<Cell<Instant>>,
+}
+
+impl DeadlineStream {
+    pub(super) fn new(stream: UnixStream, deadline: Rc<Cell<Instant>>) -> Self {
+        Self { stream, deadline }
+    }
+
+    fn remaining(&self) -> io::Result<Duration> {
+        self.deadline
+            .get()
+            .checked_duration_since(Instant::now())
+            .filter(|remaining| !remaining.is_zero())
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "absolute exchange deadline expired",
+                )
+            })
+    }
+}
+
+impl Read for DeadlineStream {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        let remaining = self.remaining()?;
+        self.stream.set_read_timeout(Some(remaining))?;
+        self.stream.read(buffer)
+    }
+}
+
+impl Write for DeadlineStream {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        let remaining = self.remaining()?;
+        self.stream.set_write_timeout(Some(remaining))?;
+        self.stream.write(buffer)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.stream.flush()
+    }
+}
+
 // Fixture preparation and canonical observation use the public OBLC/OBWP connection.
 // Only the PTY-driven native Client selects contexts or creates terminal Tabs.
 pub(super) struct WorkbenchPeer {
-    stream: UnixStream,
+    stream: DeadlineStream,
+    deadline: Rc<Cell<Instant>>,
     next: u128,
 }
 
@@ -35,7 +89,12 @@ impl WorkbenchPeer {
             deadline,
         )?;
         let stream = UnixStream::from(admitted.as_fd().try_clone_to_owned()?);
-        Ok(Self { stream, next: 1 })
+        let deadline = Rc::new(Cell::new(Instant::now()));
+        Ok(Self {
+            stream: DeadlineStream::new(stream, deadline.clone()),
+            deadline,
+            next: 1,
+        })
     }
 
     fn request_id(&mut self) -> Result<WorkbenchRequestId, Box<dyn Error>> {
@@ -49,12 +108,7 @@ impl WorkbenchPeer {
         request: WorkbenchRequest,
         deadline: Instant,
     ) -> Result<WorkbenchResponse, Box<dyn Error>> {
-        let remaining = deadline
-            .checked_duration_since(Instant::now())
-            .filter(|remaining| !remaining.is_zero())
-            .ok_or("Workbench observation deadline expired")?;
-        self.stream.set_read_timeout(Some(remaining))?;
-        self.stream.set_write_timeout(Some(remaining))?;
+        self.deadline.set(deadline);
         write_workbench_request(&mut self.stream, &request)?;
         let response = read_workbench_response(&mut self.stream)?;
         assert!(Instant::now() < deadline, "Workbench response arrived late");

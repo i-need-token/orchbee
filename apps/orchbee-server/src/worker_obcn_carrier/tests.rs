@@ -12,7 +12,7 @@ use std::{
         mpsc::{self, Receiver},
     },
     thread::{self, JoinHandle},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 mod lifecycle;
@@ -34,9 +34,10 @@ use orchbee_local_site_protocol::WorkerId;
 use crate::worker_registry::{RegisteredWorkerWireOwner, WorkerAdmission, WorkerRegistry};
 
 use super::{
-    PendingRequest, WorkerCarrierLimits, WorkerCarrierShutdown, WorkerOperationRequest,
-    WorkerOperationResult, WorkerRequestError, WorkerRequestHandle, WorkerResponseFailure,
-    WorkerTransportFailure, WorkerWireExit, WorkerWireOwner, create_worker_carrier_with_limits,
+    AdmitOutcome, PendingRequest, RequestLane, WorkerCarrierLimits, WorkerCarrierShutdown,
+    WorkerOperationRequest, WorkerOperationResult, WorkerRequestError, WorkerRequestHandle,
+    WorkerResponseFailure, WorkerTransportFailure, WorkerWireExit, WorkerWireOwner,
+    create_worker_carrier_with_limits,
 };
 
 const LOCAL_WORKER_ID: WorkerId = WorkerId::from_bytes([7; 16]);
@@ -339,13 +340,7 @@ fn distinguishes_response_timeout_and_disconnect_after_complete_delivery() -> Te
         GENERATION.get(),
         LOCAL_WORKER_ID,
     )?)?);
-    let (queued_completion, queued_result) = mpsc::sync_channel(1);
-    handle.sender.try_send(PendingRequest {
-        completion: Some(queued_completion),
-        complete_write: Arc::new(AtomicBool::new(false)),
-        encoded: orchbee_capability_node_protocol::encode_message(&queued_request.message())?,
-        request: queued_request,
-    })?;
+    let queued_result = enqueue_request(&handle, queued_request)?;
     disconnect_sender.send(())?;
     assert_eq!(
         first_caller.join().map_err(|_panic| "requester panicked")?,
@@ -380,13 +375,7 @@ fn reports_a_preexisting_peer_record_before_any_request_byte_as_not_delivered() 
         GENERATION.get(),
         LOCAL_WORKER_ID,
     )?)?);
-    let (completion, receiver) = mpsc::sync_channel(1);
-    handle.sender.try_send(PendingRequest {
-        completion: Some(completion),
-        complete_write: Arc::new(AtomicBool::new(false)),
-        encoded: orchbee_capability_node_protocol::encode_message(&request.message())?,
-        request,
-    })?;
+    let receiver = enqueue_request(&handle, request)?;
     assert_eq!(owner.run(server), WorkerWireExit::UnexpectedPeerData);
     assert_eq!(
         receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
@@ -445,7 +434,7 @@ fn completion_channel_loss_preserves_complete_write_ambiguity() -> TestResult {
     let (handle, owner, _shutdown, _server, _worker) = test_carrier()?;
     let request = launch_request(authorization(1, 1, GENERATION.get(), LOCAL_WORKER_ID)?)?;
     let caller = thread::spawn(move || handle.request(WorkerOperationRequest::Launch(request)));
-    let pending = owner.receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?;
+    let pending = take_dispatched(&owner)?;
     pending.complete_write.store(true, Ordering::Release);
     drop(pending);
 
@@ -510,15 +499,13 @@ fn rejects_stale_routes_before_the_wire_without_retiring_the_carrier() -> TestRe
 }
 
 #[test]
-fn bounds_one_wire_request_one_queued_request_and_rejects_more_work() -> TestResult {
+fn bounds_one_wire_request_eight_queued_requests_and_rejects_more_work() -> TestResult {
     let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
     let (exit_sender, exit_receiver) = mpsc::channel();
     let owner_thread = spawn_owner(owner, server, exit_sender);
     let first = launch_request(authorization(1, 1, GENERATION.get(), LOCAL_WORKER_ID)?)?;
-    let second = launch_request(authorization(2, 2, GENERATION.get(), LOCAL_WORKER_ID)?)?;
-    let third = launch_request(authorization(3, 3, GENERATION.get(), LOCAL_WORKER_ID)?)?;
+    let ninth = launch_request(authorization(11, 11, GENERATION.get(), LOCAL_WORKER_ID)?)?;
     let first_result = launch_result(&first);
-    let second_result = launch_result(&second);
     let (first_seen_sender, first_seen_receiver) = mpsc::channel();
     let (release_sender, release_receiver) = mpsc::channel();
     let worker_thread = thread::spawn(move || -> TestResult {
@@ -532,14 +519,17 @@ fn bounds_one_wire_request_one_queued_request_and_rejects_more_work() -> TestRes
             &mut worker,
             &CapabilityNodeMessage::TerminalLaunchResult(first_result),
         )?;
-        assert_eq!(
-            read_message(&mut worker)?,
-            CapabilityNodeMessage::AuthorizedTerminalLaunch(second)
-        );
-        write_message(
-            &mut worker,
-            &CapabilityNodeMessage::TerminalLaunchResult(second_result),
-        )?;
+        for _queued in 0..8 {
+            let CapabilityNodeMessage::AuthorizedTerminalLaunch(request) =
+                read_message(&mut worker)?
+            else {
+                return Err("expected a queued Launch request".into());
+            };
+            write_message(
+                &mut worker,
+                &CapabilityNodeMessage::TerminalLaunchResult(launch_result(&request)),
+            )?;
+        }
         Ok(())
     });
 
@@ -549,21 +539,20 @@ fn bounds_one_wire_request_one_queued_request_and_rejects_more_work() -> TestRes
         thread::spawn(move || first_handle.request(WorkerOperationRequest::Launch(first_request)));
     first_seen_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?;
 
-    let second_request = WorkerOperationRequest::Launch(launch_request(authorization(
-        2,
-        2,
-        GENERATION.get(),
-        LOCAL_WORKER_ID,
-    )?)?);
-    let (second_completion, second_receiver) = mpsc::sync_channel(1);
-    handle.sender.try_send(PendingRequest {
-        completion: Some(second_completion),
-        complete_write: Arc::new(AtomicBool::new(false)),
-        encoded: orchbee_capability_node_protocol::encode_message(&second_request.message())?,
-        request: second_request,
-    })?;
+    let mut queued_results = Vec::new();
+    for operation in 2_u8..10 {
+        queued_results.push(enqueue_request(
+            &handle,
+            WorkerOperationRequest::Launch(launch_request(authorization(
+                operation,
+                u64::from(operation),
+                GENERATION.get(),
+                LOCAL_WORKER_ID,
+            )?)?),
+        )?);
+    }
     assert_eq!(
-        handle.request(WorkerOperationRequest::Launch(third)),
+        handle.request(WorkerOperationRequest::Launch(ninth)),
         Err(WorkerRequestError::Backpressure)
     );
 
@@ -574,10 +563,12 @@ fn bounds_one_wire_request_one_queued_request_and_rejects_more_work() -> TestRes
             .map_err(|_panic| "requester panicked")??,
         WorkerOperationResult::Launch(first_result)
     );
-    assert_eq!(
-        second_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)??,
-        WorkerOperationResult::Launch(second_result)
-    );
+    for queued_result in queued_results {
+        assert!(matches!(
+            queued_result.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+            Ok(WorkerOperationResult::Launch(_))
+        ));
+    }
     worker_thread
         .join()
         .map_err(|_panic| "fake Worker panicked")??;
@@ -937,16 +928,31 @@ fn enqueue_request(
     request: WorkerOperationRequest,
 ) -> TestResult<Receiver<Result<WorkerOperationResult, WorkerRequestError>>> {
     let (completion, result) = mpsc::sync_channel(1);
-    handle
-        .sender
-        .try_send(PendingRequest {
+    match handle.queue.try_admit(
+        request.lane(),
+        PendingRequest {
             completion: Some(completion),
             complete_write: Arc::new(AtomicBool::new(false)),
             encoded: orchbee_capability_node_protocol::encode_message(&request.message())?,
             request,
-        })
-        .map_err(|_error| io::Error::other("test Worker request was not queued"))?;
-    Ok(result)
+        },
+    ) {
+        AdmitOutcome::Admitted => Ok(result),
+        _ => Err(io::Error::other("test Worker request was not queued").into()),
+    }
+}
+
+/// Wait until the queue dispatches one request under the lane rules, like the
+/// wire owner popping work between exchanges.
+fn take_dispatched(owner: &WorkerWireOwner) -> TestResult<PendingRequest> {
+    let deadline = Instant::now() + TEST_COMPLETION_TIMEOUT;
+    loop {
+        if let Some(pending) = owner.queue.dispatch_next() {
+            return Ok(pending);
+        }
+        assert!(Instant::now() < deadline, "queued request never dispatched");
+        thread::sleep(Duration::from_millis(1));
+    }
 }
 
 fn assert_attached_generation_cannot_retire(
@@ -1205,7 +1211,7 @@ fn nonzero(value: u64) -> TestResult<NonZeroU64> {
 }
 
 #[test]
-fn queued_detach_is_not_lost_when_the_single_submission_slot_is_full() -> TestResult {
+fn queued_detach_waits_fifo_when_the_high_lane_is_full() -> TestResult {
     use orchbee_capability_node_protocol::{
         TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, TerminalViewerResult,
     };
@@ -1217,8 +1223,20 @@ fn queued_detach_is_not_lost_when_the_single_submission_slot_is_full() -> TestRe
         attachment_id: OperationId::from_bytes([2; 16])?,
         action: TerminalViewerAction::Poll,
     };
-    // Hold the owner before start so the submission slot is deterministically full.
-    let pending = enqueue_request(&handle, WorkerOperationRequest::Viewer(request))?;
+    // Fill the high lane so the cleanup Detach waits as a deposited FIFO waiter
+    // instead of occupying a lane slot directly.
+    let mut queued_results = Vec::new();
+    for operation in 10_u8..18 {
+        queued_results.push(enqueue_request(
+            &handle,
+            WorkerOperationRequest::Launch(launch_request(authorization(
+                operation,
+                u64::from(operation),
+                GENERATION.get(),
+                LOCAL_WORKER_ID,
+            )?)?),
+        )?);
+    }
     let cleanup = TerminalViewerRequest {
         request_id: OperationId::from_bytes([3; 16])?,
         action: TerminalViewerAction::Detach,
@@ -1228,19 +1246,22 @@ fn queued_detach_is_not_lost_when_the_single_submission_slot_is_full() -> TestRe
     let cleanup_thread = thread::spawn(move || cleanup_handle.enqueue_detach(cleanup));
     let (exit_sender, exit_receiver) = mpsc::channel();
     let owner_thread = spawn_owner(owner, server, exit_sender);
-    assert_eq!(
-        read_message(&mut worker)?,
-        CapabilityNodeMessage::TerminalViewerRequest(request)
-    );
-    write_message(
-        &mut worker,
-        &CapabilityNodeMessage::TerminalViewerResult(TerminalViewerResult {
-            request_id: request.request_id,
-            attachment_id: request.attachment_id,
-            outcome: TerminalViewerOutcome::Empty,
-        }),
-    )?;
-    assert!(pending.recv_timeout(TEST_COMPLETION_TIMEOUT)?.is_ok());
+    for _queued in 0..8 {
+        let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = read_message(&mut worker)?
+        else {
+            return Err("expected a queued Launch request".into());
+        };
+        write_message(
+            &mut worker,
+            &CapabilityNodeMessage::TerminalLaunchResult(launch_result(&launch)),
+        )?;
+    }
+    for queued_result in queued_results {
+        assert!(matches!(
+            queued_result.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+            Ok(WorkerOperationResult::Launch(_))
+        ));
+    }
     assert_eq!(
         read_message(&mut worker)?,
         CapabilityNodeMessage::TerminalViewerRequest(cleanup)
@@ -1815,5 +1836,257 @@ fn send_on_a_retired_carrier_is_unavailable_not_reused() -> TestResult {
     owner_thread
         .join()
         .map_err(|_panic| "wire owner panicked")?;
+    Ok(())
+}
+
+fn viewer_request(
+    request_id: u8,
+) -> TestResult<orchbee_capability_node_protocol::TerminalViewerRequest> {
+    use orchbee_capability_node_protocol::{TerminalViewerAction, TerminalViewerRequest};
+    Ok(TerminalViewerRequest {
+        request_id: OperationId::from_bytes([request_id; 16])?,
+        worker_id: CapabilityWorkerId::from_bytes(LOCAL_WORKER_ID.as_bytes())?,
+        worker_generation: WorkerGeneration::new(GENERATION),
+        attachment_id: OperationId::from_bytes([2; 16])?,
+        action: TerminalViewerAction::Poll,
+    })
+}
+
+fn launch_operation(operation: u8) -> TestResult<WorkerOperationRequest> {
+    Ok(WorkerOperationRequest::Launch(launch_request(
+        authorization(
+            operation,
+            u64::from(operation),
+            GENERATION.get(),
+            LOCAL_WORKER_ID,
+        )?,
+    )?))
+}
+
+fn request_key(request: &WorkerOperationRequest) -> OperationId {
+    match request {
+        WorkerOperationRequest::Launch(request) => request.authorization().operation_id(),
+        WorkerOperationRequest::Viewer(request) => request.request_id,
+        _ => unreachable!("test requests are Launch or Viewer"),
+    }
+}
+
+fn pending_for_test(
+    request: WorkerOperationRequest,
+) -> TestResult<(
+    PendingRequest,
+    Receiver<Result<WorkerOperationResult, WorkerRequestError>>,
+)> {
+    let (completion, result) = mpsc::sync_channel(1);
+    Ok((
+        PendingRequest {
+            completion: Some(completion),
+            complete_write: Arc::new(AtomicBool::new(false)),
+            encoded: orchbee_capability_node_protocol::encode_message(&request.message())?,
+            request,
+        },
+        result,
+    ))
+}
+
+fn waiter_count(owner: &WorkerWireOwner) -> usize {
+    owner.queue.lock().high_waiters.len()
+}
+
+#[test]
+fn each_lane_admits_eight_requests_then_applies_typed_backpressure() -> TestResult {
+    let (handle, owner, _shutdown, _server, _worker) = test_carrier()?;
+    let mut retained = Vec::new();
+    for operation in 1_u8..=8 {
+        retained.push(enqueue_request(&handle, launch_operation(operation)?)?);
+    }
+    // A full high lane does not consume the independent low lane.
+    retained.push(enqueue_request(
+        &handle,
+        WorkerOperationRequest::Viewer(viewer_request(1)?),
+    )?);
+    for request_id in 2_u8..=8 {
+        retained.push(enqueue_request(
+            &handle,
+            WorkerOperationRequest::Viewer(viewer_request(request_id)?),
+        )?);
+    }
+    // With both lanes at capacity the handle surfaces the existing typed busy.
+    assert_eq!(
+        handle.request(launch_operation(20)?),
+        Err(WorkerRequestError::Backpressure)
+    );
+    assert_eq!(
+        handle.request(WorkerOperationRequest::Viewer(viewer_request(20)?)),
+        Err(WorkerRequestError::Backpressure)
+    );
+    // Closing drains every queued payload exactly once with Unavailable.
+    let drained = owner.queue.close_and_drain();
+    assert_eq!(drained.len(), 16);
+    for pending in drained {
+        let _delivered = super::send_completion(pending, Err(WorkerRequestError::Unavailable));
+    }
+    for result in retained {
+        assert_eq!(
+            result.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+            Err(WorkerRequestError::Unavailable)
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn dispatch_is_fifo_and_rotates_four_high_then_one_low_while_both_lanes_wait() -> TestResult {
+    let (handle, owner, _shutdown, _server, _worker) = test_carrier()?;
+    let mut retained = Vec::new();
+    for operation in 1_u8..=8 {
+        retained.push(enqueue_request(&handle, launch_operation(operation)?)?);
+    }
+    for request_id in 1_u8..=8 {
+        retained.push(enqueue_request(
+            &handle,
+            WorkerOperationRequest::Viewer(viewer_request(request_id)?),
+        )?);
+    }
+    let mut sequence = Vec::new();
+    while let Some(pending) = owner.queue.dispatch_next() {
+        sequence.push(request_key(&pending.request));
+        drop(pending);
+    }
+    // High dispatches at most four consecutively while low is non-empty, then
+    // low must be served once; each lane keeps strict FIFO order.
+    let expected: Vec<OperationId> = [1_u8, 2, 3, 4, 1, 5, 6, 7, 8, 2, 3, 4, 5, 6, 7, 8]
+        .iter()
+        .map(|value| OperationId::from_bytes([*value; 16]))
+        .collect::<Result<_, _>>()?;
+    assert_eq!(sequence, expected);
+    assert!(owner.queue.dispatch_next().is_none());
+    drop(retained);
+    Ok(())
+}
+
+#[test]
+fn blocked_cleanup_promotes_into_freed_slots_before_new_try_admissions() -> TestResult {
+    let (handle, owner, _shutdown, _server, _worker) = test_carrier()?;
+    let mut retained = Vec::new();
+    for operation in 1_u8..=8 {
+        retained.push(enqueue_request(&handle, launch_operation(operation)?)?);
+    }
+    // A cleanup producer deposits its payload and waits once the lane is full.
+    let (waiter_request, waiter_result) = pending_for_test(launch_operation(30)?)?;
+    let waiter_queue = Arc::clone(&handle.queue);
+    let waiter_thread = thread::spawn(move || waiter_queue.block_admit_high(waiter_request));
+    let deadline = Instant::now() + TEST_COMPLETION_TIMEOUT;
+    while waiter_count(&owner) == 0 {
+        assert!(Instant::now() < deadline, "cleanup waiter never deposited");
+        thread::sleep(Duration::from_millis(1));
+    }
+    // While a waiter exists a try-admission cannot enter the lane even though
+    // a dispatch is about to free a slot.
+    let (pending, _result) = pending_for_test(launch_operation(40)?)?;
+    assert_eq!(
+        handle.queue.try_admit(RequestLane::High, pending),
+        AdmitOutcome::Full
+    );
+    // Each dispatch promotes the oldest waiter into the freed tail slot; the
+    // waiter joins the FIFO behind the seven remaining queued requests.
+    let first = owner
+        .queue
+        .dispatch_next()
+        .ok_or("expected a queued request")?;
+    drop(first);
+    assert!(waiter_count(&owner) == 0, "waiter was not promoted");
+    assert!(waiter_thread.join().map_err(|_| "waiter panicked")?);
+    let mut sequence = Vec::new();
+    while let Some(pending) = owner.queue.dispatch_next() {
+        sequence.push(request_key(&pending.request));
+        drop(pending);
+    }
+    let expected: Vec<OperationId> = [2_u8, 3, 4, 5, 6, 7, 8, 30]
+        .iter()
+        .map(|value| OperationId::from_bytes([*value; 16]))
+        .collect::<Result<_, _>>()?;
+    assert_eq!(sequence, expected);
+    drop(waiter_result);
+    drop(retained);
+    Ok(())
+}
+
+#[test]
+fn closed_queue_settles_every_queued_and_waiting_request_once() -> TestResult {
+    let (handle, owner, _shutdown, _server, _worker) = test_carrier()?;
+    let mut results = Vec::new();
+    for operation in 1_u8..=8 {
+        results.push(enqueue_request(&handle, launch_operation(operation)?)?);
+    }
+    for request_id in 1_u8..=8 {
+        results.push(enqueue_request(
+            &handle,
+            WorkerOperationRequest::Viewer(viewer_request(request_id)?),
+        )?);
+    }
+    let (waiter_request, waiter_result) = pending_for_test(launch_operation(30)?)?;
+    let waiter_queue = Arc::clone(&handle.queue);
+    let waiter_thread = thread::spawn(move || waiter_queue.block_admit_high(waiter_request));
+    let deadline = Instant::now() + TEST_COMPLETION_TIMEOUT;
+    while waiter_count(&owner) == 0 {
+        assert!(Instant::now() < deadline, "cleanup waiter never deposited");
+        thread::sleep(Duration::from_millis(1));
+    }
+
+    let drained = owner.queue.close_and_drain();
+    assert_eq!(drained.len(), 17);
+    for pending in drained {
+        let _delivered = super::send_completion(pending, Err(WorkerRequestError::Unavailable));
+    }
+    // Every producer settles once with Unavailable; the blocked producer wakes
+    // refused instead of being admitted into a dead queue.
+    for result in results {
+        assert_eq!(
+            result.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+            Err(WorkerRequestError::Unavailable)
+        );
+        assert!(result.recv().is_err(), "request settled more than once");
+    }
+    assert!(!waiter_thread.join().map_err(|_| "waiter panicked")?);
+    assert_eq!(
+        waiter_result.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+        Err(WorkerRequestError::Unavailable)
+    );
+    // A second drain settles nothing further and admission stays closed.
+    assert!(owner.queue.close_and_drain().is_empty());
+    assert_eq!(
+        handle.queue.try_admit(
+            RequestLane::Low,
+            pending_for_test(WorkerOperationRequest::Viewer(viewer_request(40)?))?.0
+        ),
+        AdmitOutcome::Closed
+    );
+    assert!(
+        !handle
+            .queue
+            .block_admit_high(pending_for_test(launch_operation(50)?)?.0)
+    );
+    Ok(())
+}
+
+#[test]
+fn dropping_the_last_handle_closes_the_queue_like_all_senders_gone() -> TestResult {
+    let (handle, owner, _shutdown, server, _worker) = test_carrier()?;
+    let mut dispatched = None;
+    assert!(matches!(
+        owner
+            .queue
+            .take_next(Duration::from_millis(5), &mut dispatched),
+        super::TakeNext::Idle
+    ));
+    drop(handle);
+    assert!(matches!(
+        owner
+            .queue
+            .take_next(Duration::from_millis(5), &mut dispatched),
+        super::TakeNext::Closed
+    ));
+    assert_eq!(owner.run(server), WorkerWireExit::Shutdown);
     Ok(())
 }

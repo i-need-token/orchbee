@@ -178,7 +178,7 @@ pub(crate) enum Completion {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum TerminalPhase {
+pub(crate) enum TerminalPhase {
     Creating,
     AwaitingStart(HostTerminalIdentity),
     Starting(HostTerminalIdentity),
@@ -217,6 +217,8 @@ struct TerminalBinding {
 pub(crate) struct RetainedTerminalCreate<'coordinator> {
     pub(crate) reference: &'coordinator RequestId,
     pub(crate) outcome: Option<CreateOutcome>,
+    pub(crate) phase: TerminalPhase,
+    pub(crate) worker_generation: WorkerGeneration,
 }
 
 #[derive(Debug)]
@@ -296,6 +298,8 @@ impl TerminalCoordinator {
         Some(RetainedTerminalCreate {
             reference,
             outcome: binding.create_outcome,
+            phase: binding.phase,
+            worker_generation: binding.authorization.worker_generation(),
         })
     }
 
@@ -440,6 +444,19 @@ impl TerminalCoordinator {
                     Ok(result) => ServerMessage::TerminalSendResult(result),
                     Err(_) => unreachable!("validated send outcomes are encodable"),
                 },
+            ),
+            // Launch reads never enter the pending-operation path; the service
+            // answers them from the coordinator under one site lock.
+            ClientMessage::TerminalLaunchRead(request) => PreparedOperation::Ready(
+                ServerMessage::TerminalLaunchReadResult(
+                    orchbee_client_server_protocol::TerminalLaunchReadResult::new(
+                        request.request_id().clone(),
+                        orchbee_client_server_protocol::TerminalLaunchReadOutcome::Unavailable {
+                            reason:
+                                orchbee_client_server_protocol::TerminalLaunchReadUnavailableReason::ServerBusy,
+                        },
+                    ),
+                ),
             ),
         }
     }
@@ -852,6 +869,15 @@ fn unknown_result(request: &ClientMessage) -> ServerMessage {
                 Ok(result) => result,
                 Err(_) => unreachable!("validated send outcomes are encodable"),
             },
+        ),
+        ClientMessage::TerminalLaunchRead(request) => ServerMessage::TerminalLaunchReadResult(
+            orchbee_client_server_protocol::TerminalLaunchReadResult::new(
+                request.request_id().clone(),
+                orchbee_client_server_protocol::TerminalLaunchReadOutcome::Unavailable {
+                    reason:
+                        orchbee_client_server_protocol::TerminalLaunchReadUnavailableReason::ServerBusy,
+                },
+            ),
         ),
     }
 }

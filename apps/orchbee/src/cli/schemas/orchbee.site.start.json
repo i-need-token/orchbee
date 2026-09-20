@@ -1,0 +1,38 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.site.start",
+	"title": "orchbee site start envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.site.start" },
+		"version": { "const": 1 },
+		"source": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "local-runtime" }
+			}
+		},
+		"result": {
+			"type": "object",
+			"required": ["outcome", "scope", "runtimeBase"],
+			"additionalProperties": false,
+			"properties": {
+				"outcome": { "enum": ["started", "already-running"] },
+				"scope": { "type": "string", "pattern": "^orchbee-native-[0-9]+$" },
+				"runtimeBase": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"path": { "type": "string", "minLength": 1 },
+						"pathBytesHex": { "type": "string", "pattern": "^([0-9a-f]{2})+$" }
+					},
+					"oneOf": [{ "required": ["path"] }, { "required": ["pathBytesHex"] }]
+				}
+			}
+		}
+	}
+}

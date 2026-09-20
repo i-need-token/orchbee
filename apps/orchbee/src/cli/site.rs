@@ -1,0 +1,213 @@
+//! `site start`: headless connect-or-activate for the implicit per-euid
+//! local Site. The command shares the TUI's one private activation
+//! algorithm — a transient admission probe is the only client it creates —
+//! and reports the branch it actually took: `started` iff this invocation
+//! spawned the Server, `already-running` otherwise. An interrupted or
+//! timed-out start can leave a committed marker without a live owner; the
+//! next invocation then answers refused recovery-required, and no repair
+//! is attempted or implied.
+
+#[cfg(target_os = "linux")]
+use std::time::{Duration, Instant};
+
+use serde_json::{Map, json};
+
+use super::{Failure, FailureKind, Output, failure_output, output};
+#[cfg(target_os = "linux")]
+use super::{stage_details, stage_reason_details};
+use crate::invocation::OutputFormat;
+use crate::localization::Locale;
+
+#[cfg(target_os = "linux")]
+use crate::local_activation::{ActivationCause, ActivationFailure, StartupFailure};
+
+/// One absolute budget covering cohort validation, rendezvous, locking,
+/// spawn, and readiness admission — the same 20 seconds the TUI uses.
+#[cfg(target_os = "linux")]
+const START_BUDGET: Duration = Duration::from_secs(20);
+
+pub(crate) fn start(format: OutputFormat, locale: Locale) -> Output {
+    match run() {
+        // Every `site start` failure is answered by the local runtime
+        // authority, so the failure document carries the same source the
+        // success envelope does; it also selects the localized start
+        // diagnostics rather than the shared query wording.
+        Err(failure) => failure_output(
+            failure.source(super::config::local_runtime_source()),
+            Some(format),
+            locale,
+        ),
+        Ok(started) => {
+            let result = json!({
+                "outcome": started.outcome,
+                "scope": started.scope,
+                "runtimeBase": Map::from_iter([started.runtime_base]),
+            });
+            // A preparation overflow answers in the caller's format, never
+            // with a second stdout document.
+            let too_large = || {
+                failure_output(
+                    Failure::new(FailureKind::OutputTooLarge).details(Map::from_iter([(
+                        "limitBytes".to_owned(),
+                        json!(output::LIMIT),
+                    )])),
+                    Some(format),
+                    locale,
+                )
+            };
+            match format {
+                OutputFormat::Json => {
+                    let document = json!({
+                        "schema": "orchbee.site.start",
+                        "version": 1,
+                        "source": super::config::local_runtime_source(),
+                        "result": result,
+                    });
+                    match output::encode_document(&document) {
+                        Ok(stdout) => Output {
+                            status: 0,
+                            stdout,
+                            stderr: String::new(),
+                            finalization: None,
+                        },
+                        Err(output::TooLarge) => too_large(),
+                    }
+                }
+                OutputFormat::Text => {
+                    let line = if started.spawned {
+                        locale.cli_site_started()
+                    } else {
+                        locale.cli_site_already_running()
+                    };
+                    match output::encode_text(line) {
+                        Ok(stdout) => Output {
+                            status: 0,
+                            stdout,
+                            stderr: String::new(),
+                            finalization: None,
+                        },
+                        Err(output::TooLarge) => too_large(),
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The outcome a successful attempt reports: the admitted probe is dropped
+/// before output, and only the branch fact and rendered paths remain.
+struct StartOutcome {
+    outcome: &'static str,
+    spawned: bool,
+    scope: String,
+    /// The single-member `runtimeBase` detail (`path` or `pathBytesHex`).
+    runtime_base: (String, serde_json::Value),
+}
+
+#[cfg(not(target_os = "linux"))]
+fn run() -> Result<StartOutcome, Failure> {
+    Err(
+        Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
+            "platform",
+            "unsupported-platform",
+        )),
+    )
+}
+
+#[cfg(target_os = "linux")]
+fn run() -> Result<StartOutcome, Failure> {
+    let deadline = Instant::now() + START_BUDGET;
+    crate::local_activation::activate_local_site(deadline)
+        .map(|started| StartOutcome {
+            outcome: if started.spawned {
+                "started"
+            } else {
+                "already-running"
+            },
+            spawned: started.spawned,
+            scope: started.scope,
+            runtime_base: super::config::path_detail(&started.runtime_base),
+        })
+        .map_err(classify)
+}
+
+/// Project the shared activation failure onto the CLI's typed vocabulary.
+/// The raw cause — never a string — selects the arm; the verdict only
+/// arbitrates between a typed cause and a bare lifecycle refusal.
+#[cfg(target_os = "linux")]
+fn classify(failure: ActivationFailure) -> Failure {
+    match failure.cause {
+        Some(ActivationCause::Cohort(error)) => classify_cohort(&error),
+        Some(ActivationCause::Rendezvous(error, scope_directory)) => {
+            super::query::classify_rendezvous(error, &scope_directory)
+        }
+        Some(ActivationCause::Connect(error)) => {
+            if failure.failure == StartupFailure::TimedOut {
+                timeout()
+            } else {
+                super::query::classify_connect(error)
+            }
+        }
+        // Lock/marker/probe I/O: a TimedOut kind means the shared budget
+        // expired; anything else is an internal runtime fault.
+        Some(ActivationCause::RuntimeIo(error)) => {
+            if error.kind() == std::io::ErrorKind::TimedOut {
+                timeout()
+            } else {
+                Failure::new(FailureKind::InternalFailure).details(stage_details("activation"))
+            }
+        }
+        // Lock acquisition carries the rendezvous error; only its wrapped
+        // System io kind can mean the shared budget expired.
+        Some(ActivationCause::LockFailure(error)) => {
+            if let orchbee_local_site_runtime::RendezvousError::System { source, .. } = &error
+                && source.kind() == std::io::ErrorKind::TimedOut
+            {
+                timeout()
+            } else {
+                Failure::new(FailureKind::InternalFailure).details(stage_details("activation"))
+            }
+        }
+        // Spawn and post-spawn liveness failures keep the existing wedge
+        // verdict: the marker may already be committed — refused, never a
+        // clean timeout claim.
+        Some(ActivationCause::SpawnIo) => recovery_required(),
+        None => match failure.failure {
+            StartupFailure::TimedOut => timeout(),
+            StartupFailure::RecoveryRequired => recovery_required(),
+            StartupFailure::SocketPathTooLong => socket_budget(),
+            _ => Failure::new(FailureKind::InternalFailure),
+        },
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn classify_cohort(error: &std::io::Error) -> Failure {
+    let kind = match error.kind() {
+        std::io::ErrorKind::InvalidData => FailureKind::Incompatible,
+        std::io::ErrorKind::NotFound => FailureKind::ServiceUnavailable,
+        std::io::ErrorKind::PermissionDenied => FailureKind::Denied,
+        std::io::ErrorKind::TimedOut => FailureKind::Timeout,
+        _ => FailureKind::InternalFailure,
+    };
+    Failure::new(kind).details(stage_details("cohort"))
+}
+
+#[cfg(target_os = "linux")]
+fn timeout() -> Failure {
+    Failure::new(FailureKind::Timeout).details(stage_details("activation"))
+}
+
+#[cfg(target_os = "linux")]
+fn recovery_required() -> Failure {
+    Failure::new(FailureKind::Rejected)
+        .details(stage_reason_details("activation", "recovery-required"))
+}
+
+#[cfg(target_os = "linux")]
+fn socket_budget() -> Failure {
+    Failure::new(FailureKind::ServiceUnavailable).details(stage_reason_details(
+        "runtime-directory",
+        "address-too-long",
+    ))
+}

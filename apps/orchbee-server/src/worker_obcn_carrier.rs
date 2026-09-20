@@ -1,12 +1,13 @@
 use std::{
+    collections::VecDeque,
     fmt,
     io::{self, Read, Write},
     num::NonZeroU64,
     os::{fd::AsFd, unix::net::UnixStream},
     sync::{
-        Arc,
+        Arc, Condvar, Mutex, MutexGuard,
         atomic::{AtomicBool, Ordering},
-        mpsc::{self, Receiver, RecvTimeoutError, SyncSender, TrySendError},
+        mpsc::{self, SyncSender},
     },
     time::{Duration, Instant},
 };
@@ -26,7 +27,9 @@ use orchbee_local_site_protocol::WorkerId;
 mod lifecycle;
 pub(crate) use lifecycle::PendingLifecycleResult;
 
-const REQUEST_QUEUE_CAPACITY: usize = 1;
+const HIGH_LANE_CAPACITY: usize = 8;
+const LOW_LANE_CAPACITY: usize = 8;
+const HIGH_LANE_BURST_LIMIT: usize = 4;
 const OPERATION_IO_TIMEOUT: Duration = Duration::from_secs(2);
 const OWNER_POLL_INTERVAL: Duration = Duration::from_millis(25);
 
@@ -65,6 +68,18 @@ impl WorkerOperationRequest {
             ),
             Self::Viewer(request) => (request.worker_id, request.worker_generation),
             Self::Send(request) => (request.worker_id, request.worker_generation),
+        }
+    }
+
+    const fn lane(&self) -> RequestLane {
+        match self {
+            Self::Viewer(_) => RequestLane::Low,
+            Self::CwdValidation(_)
+            | Self::Lifecycle(_)
+            | Self::Control(_)
+            | Self::Launch(_)
+            | Self::Start(_)
+            | Self::Send(_) => RequestLane::High,
         }
     }
 
@@ -190,12 +205,30 @@ impl fmt::Display for WorkerRequestError {
 
 impl std::error::Error for WorkerRequestError {}
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct WorkerRequestHandle {
     active: Arc<AtomicBool>,
     generation: NonZeroU64,
-    sender: SyncSender<PendingRequest>,
+    queue: Arc<CarrierQueue>,
     worker_id: WorkerId,
+}
+
+impl Clone for WorkerRequestHandle {
+    fn clone(&self) -> Self {
+        self.queue.handle_opened();
+        Self {
+            active: Arc::clone(&self.active),
+            generation: self.generation,
+            queue: Arc::clone(&self.queue),
+            worker_id: self.worker_id,
+        }
+    }
+}
+
+impl Drop for WorkerRequestHandle {
+    fn drop(&mut self) {
+        self.queue.handle_closed();
+    }
 }
 
 impl WorkerRequestHandle {
@@ -232,6 +265,18 @@ impl WorkerRequestHandle {
         self.submit(WorkerOperationRequest::Control(request), true)
     }
 
+    // Test flush markers take the same blocking high-lane admission as cleanup
+    // producers so their response proves every earlier high-lane or waiter
+    // predecessor left the queue; earlier low-lane requests may still be queued
+    // when the marker dispatches — the D=4 rotation can interleave them.
+    #[cfg(test)]
+    pub(crate) fn blocking_admit_for_test(
+        &self,
+        request: WorkerOperationRequest,
+    ) -> Result<WorkerOperationResult, WorkerRequestError> {
+        self.submit(request, true)
+    }
+
     fn submit(
         &self,
         request: WorkerOperationRequest,
@@ -249,6 +294,7 @@ impl WorkerRequestHandle {
         }
         let encoded =
             encode_message(&request.message()).map_err(WorkerRequestError::InvalidRequest)?;
+        let lane = request.lane();
         let (completion, result) = mpsc::sync_channel(1);
         let complete_write = Arc::new(AtomicBool::new(false));
         let pending = PendingRequest {
@@ -258,14 +304,15 @@ impl WorkerRequestHandle {
             request,
         };
         let admitted = if cleanup {
-            self.sender
-                .send(pending)
-                .map_err(|error| TrySendError::Disconnected(error.0))
+            match self.queue.block_admit_high(pending) {
+                true => AdmitOutcome::Admitted,
+                false => AdmitOutcome::Closed,
+            }
         } else {
-            self.sender.try_send(pending)
+            self.queue.try_admit(lane, pending)
         };
         match admitted {
-            Ok(()) => match result.recv() {
+            AdmitOutcome::Admitted => match result.recv() {
                 Ok(result) => result,
                 Err(_disconnected) if complete_write.load(Ordering::Acquire) => {
                     Err(WorkerRequestError::PostDeliveryOutcomeUnknown(
@@ -274,12 +321,8 @@ impl WorkerRequestHandle {
                 }
                 Err(_disconnected) => Err(WorkerRequestError::Unavailable),
             },
-            Err(TrySendError::Full(_pending)) if self.is_active() => {
-                Err(WorkerRequestError::Backpressure)
-            }
-            Err(TrySendError::Full(_pending) | TrySendError::Disconnected(_pending)) => {
-                Err(WorkerRequestError::Unavailable)
-            }
+            AdmitOutcome::Full if self.is_active() => Err(WorkerRequestError::Backpressure),
+            AdmitOutcome::Full | AdmitOutcome::Closed => Err(WorkerRequestError::Unavailable),
         }
     }
 
@@ -303,7 +346,7 @@ impl WorkerRequestHandle {
         let Ok(encoded) = encode_message(&request.message()) else {
             return;
         };
-        let _admitted = self.sender.send(PendingRequest {
+        let _admitted = self.queue.block_admit_high(PendingRequest {
             completion: None,
             complete_write: Arc::new(AtomicBool::new(false)),
             encoded,
@@ -324,11 +367,220 @@ impl WorkerRequestHandle {
     }
 }
 
+#[derive(Debug)]
 struct PendingRequest {
     completion: Option<SyncSender<Result<WorkerOperationResult, WorkerRequestError>>>,
     complete_write: Arc<AtomicBool>,
     encoded: Vec<u8>,
     request: WorkerOperationRequest,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RequestLane {
+    High,
+    Low,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum AdmitOutcome {
+    Admitted,
+    Full,
+    Closed,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum TakeNext {
+    Closed,
+    Dispatched,
+    Idle,
+}
+
+// A blocked cleanup producer deposits its bounded payload here and waits until
+// the wire owner transfers it into a freed high-lane slot under the queue lock.
+// Deposit order is FIFO and waiters always precede later try-admissions.
+#[derive(Debug)]
+struct HighWaiter {
+    admitted: Arc<AtomicBool>,
+    request: PendingRequest,
+}
+
+#[derive(Debug)]
+struct QueueState {
+    closed: bool,
+    consecutive_high: usize,
+    high: VecDeque<PendingRequest>,
+    high_waiters: VecDeque<HighWaiter>,
+    low: VecDeque<PendingRequest>,
+    open_handles: usize,
+}
+
+impl QueueState {
+    // Dispatch frees the popped lane slot immediately; the oldest high waiter
+    // then occupies that freed tail slot before any new try-admission can.
+    fn dispatch(&mut self) -> Option<PendingRequest> {
+        let (popped, lane) =
+            if self.consecutive_high < HIGH_LANE_BURST_LIMIT && !self.high.is_empty() {
+                (self.high.pop_front(), RequestLane::High)
+            } else if !self.low.is_empty() {
+                (self.low.pop_front(), RequestLane::Low)
+            } else {
+                (self.high.pop_front(), RequestLane::High)
+            };
+        let pending = popped?;
+        match lane {
+            RequestLane::High => {
+                self.consecutive_high += 1;
+                if let Some(waiter) = self.high_waiters.pop_front() {
+                    self.high.push_back(waiter.request);
+                    waiter.admitted.store(true, Ordering::Release);
+                }
+            }
+            RequestLane::Low => self.consecutive_high = 0,
+        }
+        Some(pending)
+    }
+}
+
+#[derive(Debug)]
+struct CarrierQueue {
+    changed: Condvar,
+    state: Mutex<QueueState>,
+}
+
+impl CarrierQueue {
+    fn new() -> Self {
+        Self {
+            changed: Condvar::new(),
+            state: Mutex::new(QueueState {
+                closed: false,
+                consecutive_high: 0,
+                high: VecDeque::new(),
+                high_waiters: VecDeque::new(),
+                low: VecDeque::new(),
+                open_handles: 1,
+            }),
+        }
+    }
+
+    fn lock(&self) -> MutexGuard<'_, QueueState> {
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn handle_opened(&self) {
+        self.lock().open_handles += 1;
+    }
+
+    fn handle_closed(&self) {
+        let mut state = self.lock();
+        debug_assert!(
+            state.open_handles > 0,
+            "carrier handle count cannot underflow"
+        );
+        state.open_handles = state.open_handles.saturating_sub(1);
+        if state.open_handles == 0 {
+            self.changed.notify_all();
+        }
+    }
+
+    fn try_admit(&self, lane: RequestLane, request: PendingRequest) -> AdmitOutcome {
+        let mut state = self.lock();
+        if state.closed {
+            return AdmitOutcome::Closed;
+        }
+        let full = match lane {
+            RequestLane::High => {
+                !state.high_waiters.is_empty() || state.high.len() >= HIGH_LANE_CAPACITY
+            }
+            RequestLane::Low => state.low.len() >= LOW_LANE_CAPACITY,
+        };
+        if full {
+            return AdmitOutcome::Full;
+        }
+        match lane {
+            RequestLane::High => state.high.push_back(request),
+            RequestLane::Low => state.low.push_back(request),
+        }
+        self.changed.notify_all();
+        AdmitOutcome::Admitted
+    }
+
+    fn block_admit_high(&self, request: PendingRequest) -> bool {
+        let mut state = self.lock();
+        if state.closed {
+            return false;
+        }
+        if state.high_waiters.is_empty() && state.high.len() < HIGH_LANE_CAPACITY {
+            state.high.push_back(request);
+            self.changed.notify_all();
+            return true;
+        }
+        let admitted = Arc::new(AtomicBool::new(false));
+        state.high_waiters.push_back(HighWaiter {
+            admitted: Arc::clone(&admitted),
+            request,
+        });
+        loop {
+            if admitted.load(Ordering::Acquire) {
+                return true;
+            }
+            if state.closed {
+                return false;
+            }
+            state = self
+                .changed
+                .wait(state)
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+        }
+    }
+
+    fn take_next(&self, timeout: Duration, dispatched: &mut Option<PendingRequest>) -> TakeNext {
+        let deadline = Instant::now().checked_add(timeout);
+        let mut state = self.lock();
+        loop {
+            if let Some(pending) = state.dispatch() {
+                self.changed.notify_all();
+                *dispatched = Some(pending);
+                return TakeNext::Dispatched;
+            }
+            if state.closed || state.open_handles == 0 {
+                return TakeNext::Closed;
+            }
+            let Some(remaining) = deadline
+                .and_then(|deadline| deadline.checked_duration_since(Instant::now()))
+                .filter(|remaining| !remaining.is_zero())
+            else {
+                return TakeNext::Idle;
+            };
+            state = self
+                .changed
+                .wait_timeout(state, remaining)
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .0;
+        }
+    }
+
+    fn close_and_drain(&self) -> Vec<PendingRequest> {
+        let mut state = self.lock();
+        state.closed = true;
+        let mut drained =
+            Vec::with_capacity(state.high.len() + state.low.len() + state.high_waiters.len());
+        drained.extend(state.high.drain(..));
+        drained.extend(state.low.drain(..));
+        drained.extend(state.high_waiters.drain(..).map(|waiter| waiter.request));
+        self.changed.notify_all();
+        drained
+    }
+
+    #[cfg(test)]
+    fn dispatch_next(&self) -> Option<PendingRequest> {
+        let dispatched = self.lock().dispatch();
+        if dispatched.is_some() {
+            self.changed.notify_all();
+        }
+        dispatched
+    }
 }
 
 pub(crate) struct WorkerCarrier {
@@ -377,7 +629,7 @@ pub(crate) struct WorkerWireOwner {
     active: Arc<AtomicBool>,
     in_flight: Option<PendingRequest>,
     limits: WorkerCarrierLimits,
-    receiver: Receiver<PendingRequest>,
+    queue: Arc<CarrierQueue>,
 }
 
 #[derive(Clone, Copy)]
@@ -414,13 +666,13 @@ fn create_worker_carrier_with_limits(
     limits: WorkerCarrierLimits,
 ) -> WorkerCarrier {
     let active = Arc::new(AtomicBool::new(true));
-    let (sender, receiver) = mpsc::sync_channel(REQUEST_QUEUE_CAPACITY);
+    let queue = Arc::new(CarrierQueue::new());
     WorkerCarrier {
         wire_owner: WorkerWireOwner {
             active: Arc::clone(&active),
             in_flight: None,
             limits,
-            receiver,
+            queue: Arc::clone(&queue),
         },
         shutdown: WorkerCarrierShutdown {
             active: Arc::clone(&active),
@@ -428,7 +680,7 @@ fn create_worker_carrier_with_limits(
         request_handle: WorkerRequestHandle {
             active: Arc::clone(&active),
             generation,
-            sender,
+            queue,
             worker_id,
         },
     }
@@ -458,10 +710,12 @@ impl WorkerWireOwner {
             if !self.active.load(Ordering::Acquire) {
                 return WorkerWireExit::Shutdown;
             }
-            match self.receiver.recv_timeout(self.limits.poll_interval) {
-                Ok(pending) => {
-                    debug_assert!(self.in_flight.is_none());
-                    self.in_flight = Some(pending);
+            debug_assert!(self.in_flight.is_none());
+            match self
+                .queue
+                .take_next(self.limits.poll_interval, &mut self.in_flight)
+            {
+                TakeNext::Dispatched => {
                     if !self.active.load(Ordering::Acquire) {
                         self.complete_in_flight(Err(WorkerRequestError::Unavailable));
                         return WorkerWireExit::Shutdown;
@@ -490,7 +744,7 @@ impl WorkerWireOwner {
                         return WorkerWireExit::RequestFailed;
                     }
                 }
-                Err(RecvTimeoutError::Timeout) => match probe_idle_stream(stream) {
+                TakeNext::Idle => match probe_idle_stream(stream) {
                     Ok(IdleStreamState::Open) => {}
                     Ok(IdleStreamState::Closed) => return WorkerWireExit::PeerClosed,
                     Ok(IdleStreamState::UnexpectedData) => {
@@ -498,7 +752,7 @@ impl WorkerWireOwner {
                     }
                     Err(failure) => return WorkerWireExit::Transport(failure),
                 },
-                Err(RecvTimeoutError::Disconnected) => return WorkerWireExit::Shutdown,
+                TakeNext::Closed => return WorkerWireExit::Shutdown,
             }
         }
     }
@@ -557,7 +811,7 @@ impl WorkerWireOwner {
     }
 
     fn drain_unavailable(&mut self) {
-        while let Ok(pending) = self.receiver.try_recv() {
+        for pending in self.queue.close_and_drain() {
             let _completion_delivered =
                 send_completion(pending, Err(WorkerRequestError::Unavailable));
         }

@@ -216,6 +216,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         Family::Config,
         Family::Panel,
         Family::Project,
+        Family::Site,
         Family::Tab,
         Family::Terminal,
         Family::Workspace,
@@ -238,6 +239,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::ProjectGet,
         CommandPath::ProjectList,
         CommandPath::ProjectRename,
+        CommandPath::SiteStart,
         CommandPath::Status,
         CommandPath::TabClose,
         CommandPath::TabCreate,
@@ -278,6 +280,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         "help",
         "panel",
         "project",
+        "site",
         "status",
         "tab",
         "terminal",
@@ -298,6 +301,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         "send",
         "snapshot",
         "split",
+        "start",
         "wait-output",
     ];
     let mut topics: Vec<CommandPath> = Vec::new();

@@ -40,7 +40,7 @@ Worker 注册表锁。二者均可在启动仍待完成时结算；精确 Move �
 维护所有者。Panel close 恰好捕获一个 leaf，经同一生命周期销毁并清理它，再发布存活
 Tab——被移除 leaf 的父 Split 折叠为兄弟子树；关闭 Tab 唯一 leaf 按聚合 Close 处理。已知
 Host 销毁和精确 Worker/Server 清理先于规范移除；Client 退出不取消
-已接受 Close。Linux 载体/进程检查覆盖八个活动 Client 连接、空闲控制槽释放，以及另一
+已接受 Close。Linux 载体/进程检查覆盖三十二个活动 Client 连接、空闲控制槽释放，以及另一
 shell 存活时的同连接复用。[Close 契约](docs/terminal-tab-close.zh-CN.md) 规定边界、另有证据
 支持的原生 TUI 集成，以及仍待完成的生产恢复和发布义务。
 
@@ -105,8 +105,14 @@ request handle。由该 owner 而非 caller 或 registry 序列化每次 write/r
 不会持有 registry lock。
 
 Handle 会在触碰 wire 前拒绝指向其他 Worker 或 generation 的 request。除了可能正在 in-flight 的一条
-request，它最多再准入一条 submitted request；更多 submission 会立即收到 backpressure。
-`Unavailable` 与 `Backpressure` 均表示 addressed request 没有跨过 complete-write boundary。Owner
+request，submission 进入单个队列锁下的两条有界 FIFO lane——interactive 与 cleanup 走 high，
+viewer 观测走 low——每条容量为 8。普通 submission 采用 try-admit：lane 已满时立即收到
+`Backpressure`，high-lane submission 在已有 cleanup waiter 排队时同样退让；只有两个
+session-cleanup 生产者按 FIFO 等待并优先于
+后续 try-admit。low lane 非空时 owner 至多连续派发 4 个 high-lane 请求，随后必须服务一个
+low-lane 请求。`Unavailable` 与 `Backpressure` 均表示 addressed request 没有跨过
+complete-write boundary。[载体调度模型](docs/worker-carrier-model.zh-CN.md) 拥有 lane 分类、
+准入、派放上界、排空与失败结算。Owner
 会先完整写出一条 OBCN Launch、Start 或查看 request，再读取恰好一条 result。它只接受匹配的 result
 direction 与 kind、operation ID、完整 authorization echo，以及 Start 的 target identity。
 Malformed、mismatched、timed-out 或 disconnected exchange 会退役该 Worker generation，并使
@@ -167,8 +173,8 @@ runtime 已通过 Host broker 消费获授权的 Launch/Start 和只读查看 re
 
 选择私有 Client endpoint 后，每条 same-user compatible Human Client connection 都会创建一个独立
 process-local Client Session generation。TUI、Web、Desktop、mobile、tab、window 与 renderer
-identity 被有意排除：该 endpoint 准入的是统一的 peer Client model。Server 最多接受八个 active
-Session，并最多保留十六个 candidate/session handler thread。每条 handshake 有两秒 read/write
+identity 被有意排除：该 endpoint 准入的是统一的 peer Client model。Server 最多接受三十二个 active
+Session，并最多保留四十八个 candidate/session handler thread。每条 handshake 有两秒 read/write
 timeout。因此，只要还有 handler slot，一个 silent candidate 就不能阻塞另一条 connection；饱和
 时，多余 candidate 会被关闭，且不会分配更多 thread。Handler slot 与 admitted-Session
 registration 都由 lifetime-owned guard 持有，因此正常完成、fault 与 unwind 都会释放两类上限。
@@ -255,7 +261,9 @@ linearize：complete write 前为 known unchanged，complete write 后为 unknow
 开始前检查 active flag 不足以防止 retirement 后 write 或新接受 exact result。已被观察的 exact
 result 仍可在 replacement 前 publish；replacement activation 必须等待该 publication，与
 authorization model 的 pending-result guard 一致。Carrier 不得把任何 transport classification
-转换为 successful 或 failed OBCN result。
+转换为 successful 或 failed OBCN result。该记录所探索的单 submitted-slot 占用自此被
+[载体调度模型](docs/worker-carrier-model.zh-CN.md) 中的双有界 lane 取代；wire-phase、
+ambiguity-boundary 与结算义务不变。
 
 ## 本机 Client Session 与 OBCS 建模记录
 

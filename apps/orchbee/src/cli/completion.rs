@@ -17,6 +17,9 @@
 //!   value-owning flag)
 //! - `seen_*` — one consumed bit per `--format`, per `--mouse`, and per
 //!   business flag; duplicates are usage
+//! - `seen_flags` — fish only: the consumed business flags as a list, so a
+//!   command's admission check is its own declared scope instead of an
+//!   enumeration of every flag it rejects
 //!
 //! Walk precedence per completed word (mirrors `format_envelope` + `scan`):
 //! 1. `--` → ended, always (the parser never takes it as a value)
@@ -88,6 +91,7 @@ const ROOT_WORDS: &[&str] = &[
     "help",
     "panel",
     "project",
+    "site",
     "status",
     "tab",
     "terminal",
@@ -103,6 +107,7 @@ const FORMAT_ROOT_WORDS: &[&str] = &[
     "config",
     "panel",
     "project",
+    "site",
     "status",
     "tab",
     "terminal",
@@ -115,6 +120,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     ("config", &["check"]),
     ("panel", &["close", "get", "list", "move", "split"]),
     ("project", &["create", "get", "list", "rename"]),
+    ("site", &["start"]),
     ("tab", &["close", "create", "get", "list", "move", "rename"]),
     ("terminal", &["get", "list", "read", "send", "wait-output"]),
     (
@@ -254,6 +260,7 @@ const HELP_TOPICS: &[&str] = &[
     "config",
     "panel",
     "project",
+    "site",
     "status",
     "tab",
     "terminal",
@@ -267,6 +274,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     ("config", &["check"]),
     ("panel", &["close", "get", "list", "move", "split"]),
     ("project", &["create", "get", "list", "rename"]),
+    ("site", &["start"]),
     ("tab", &["close", "create", "get", "list", "move", "rename"]),
     ("terminal", &["get", "list", "read", "send", "wait-output"]),
     (
@@ -1109,8 +1117,10 @@ fn seen_cases_fish() -> String {
         .map(|flag| {
             let bit = flag_bit(flag);
             let assign = match flag_value(flag) {
-                Some(kind) => format!("set {bit} 1; set value {kind}"),
-                None => format!("set {bit} 1"),
+                Some(kind) => {
+                    format!("set {bit} 1; set -a seen_flags '{flag}'; set value {kind}")
+                }
+                None => format!("set {bit} 1; set -a seen_flags '{flag}'"),
             };
             format!("                        case '{flag}'\n                            if test ${bit} -eq 1; set done 1; else; {assign}; end")
         })
@@ -1182,18 +1192,15 @@ fn after_flag_cases_fish() -> String {
         .join("\n")
 }
 
-/// fish verb-landing scope arms.
+/// fish verb-landing scope arms: the command's own declared flags admit the
+/// consumed set — no per-command enumeration of the flags it rejects.
 fn scope_cases_fish() -> String {
     FAMILY_VERBS
         .iter()
         .flat_map(|(family, verbs)| {
             verbs.iter().map(move |verb| {
                 let command = format!("{family}:{verb}");
-                let bad = forbidden_bits(&command)
-                    .iter()
-                    .map(|bit| format!("${bit} -eq 1"))
-                    .collect::<Vec<_>>()
-                    .join(" -o ");
+                let allowed = command_flags(&command).join(" ");
                 let exclusive = if *family == "tab" {
                     "\n                                        if test $seen_workspace -eq 1 -a $seen_standalone -eq 1; set done 1; end"
                 } else if command == "terminal:send" {
@@ -1201,14 +1208,15 @@ fn scope_cases_fish() -> String {
                 } else {
                     ""
                 };
-                format!("                                    case '{command}'\n                                        if test {bad}; set done 1; end{exclusive}")
+                format!("                                    case '{command}'\n                                        if not __orchbee_admit '{allowed}' $seen_flags; set done 1; end{exclusive}")
             })
         })
         .collect::<Vec<_>>()
         .join("\n")
 }
 
-/// fish sub-state verb offers.
+/// fish sub-state verb offers: a verb stays viable while every consumed flag
+/// is inside that verb's declared scope.
 fn verb_cases_fish() -> String {
     FAMILY_VERBS
         .iter()
@@ -1216,20 +1224,16 @@ fn verb_cases_fish() -> String {
             let lines = verbs
                 .iter()
                 .map(|verb| {
-                    let bad = forbidden_bits(&format!("{family}:{verb}"))
-                        .iter()
-                        .map(|bit| format!("${bit} -eq 0"))
-                        .collect::<Vec<_>>()
-                        .join(" -a ");
+                    let allowed = command_flags(&format!("{family}:{verb}")).join(" ");
                     // The exclusive pair must not both be seen for a tab verb
                     // to remain viable; `send` dies once `--key` stands next
                     // to a text payload bit.
                     if *family == "tab" {
-                        format!("                if test {bad}\n                    if test $seen_workspace -eq 0 -o $seen_standalone -eq 0; set -a verbs {verb}; end\n                end")
+                        format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test $seen_workspace -eq 0 -o $seen_standalone -eq 0; set -a verbs {verb}; end\n                end")
                     } else if *verb == "send" {
-                        format!("                if test {bad}\n                    if test (math \"$seen_text + $seen_key + $seen_file + $seen_stdin\") -lt 2\n                        if test $seen_key -eq 0 -o $seen_enter -eq 0; set -a verbs {verb}; end\n                    end\n                end")
+                        format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test (math \"$seen_text + $seen_key + $seen_file + $seen_stdin\") -lt 2\n                        if test $seen_key -eq 0 -o $seen_enter -eq 0; set -a verbs {verb}; end\n                    end\n                end")
                     } else {
-                        format!("                if test {bad}; set -a verbs {verb}; end")
+                        format!("                if __orchbee_admit '{allowed}' $seen_flags; set -a verbs {verb}; end")
                     }
                 })
                 .collect::<Vec<_>>()
@@ -1314,14 +1318,10 @@ fn direction_cases_fish() -> String {
         .join("\n")
 }
 
-/// The fish "no option was consumed" condition.
-fn no_options_fish() -> String {
-    let mut bits = vec!["seen_format", "seen_mouse"];
-    bits.extend(BUSINESS_FLAGS.iter().map(|flag| flag_bit(flag)));
-    bits.iter()
-        .map(|bit| format!("${bit} -eq 0"))
-        .collect::<Vec<_>>()
-        .join(" -a ")
+/// The fish "no option was consumed" condition: the business list is empty
+/// and neither orthogonal option bit stands.
+fn no_options_fish() -> &'static str {
+    "(count $seen_flags) -eq 0 -a $seen_format -eq 0 -a $seen_mouse -eq 0"
 }
 
 fn fish() -> String {
@@ -1334,13 +1334,24 @@ fn fish() -> String {
             "        if contains -- $word (string split ' ' -- $argv[1]); echo $word; end\n",
             "    end\n",
             "end\n",
+            "# argv[1] is the resolved command's allowed flags joined by spaces;\n",
+            "# argv[2..] is every consumed business flag. Succeeds iff each consumed\n",
+            "# flag is inside the allowed list — both sides arrive as parameters, so\n",
+            "# no caller-local variable is read implicitly.\n",
+            "function __orchbee_admit\n",
+            "    set -l allowed (string split ' ' -- $argv[1])\n",
+            "    for f in $argv[2..]\n",
+            "        contains -- $f $allowed; or return 1\n",
+            "    end\n",
+            "    return 0\n",
+            "end\n",
             "function __orchbee_candidates\n",
             "    set -l words (commandline -opc)\n",
             "    set -l cur (commandline -ct)\n",
             "    set -e words[1]\n",
             "    set -l state verb; set -l help_a \"\"; set -l help_b \"\"\n",
             "    set -l family \"\"; set -l sub \"\"; set -l leaf \"\"\n",
-            "    set -l seen_format 0; set -l seen_mouse 0; {seen_decls}\n",
+            "    set -l seen_format 0; set -l seen_mouse 0; {seen_decls}; set -l seen_flags\n",
             "    set -l ended 0; set -l done 0; set -l value \"\"\n",
             "    for word in $words\n",
             "        if string match -q -- \"--\" \"$word\"; set ended 1; continue; end\n",
@@ -1403,15 +1414,15 @@ fn fish() -> String {
             "                    case verb\n",
             "                        switch \"$word\"\n",
             "                            case status\n",
-            "                                if test {business_bits} -o $seen_mouse -eq 1\n",
+            "                                if test (count $seen_flags) -gt 0 -o $seen_mouse -eq 1\n",
             "                                    set done 1\n",
             "                                else; set leaf status; set state leaf; end\n",
             "                            case tui\n",
-            "                                if test $seen_format -eq 1 -o {business_bits}\n",
+            "                                if test $seen_format -eq 1 -o (count $seen_flags) -gt 0\n",
             "                                    set done 1\n",
             "                                else; set leaf tui; set state leaf; end\n",
             "                            case help completion\n",
-            "                                if test $seen_format -eq 1 -o {business_bits} -o $seen_mouse -eq 1\n",
+            "                                if test $seen_format -eq 1 -o (count $seen_flags) -gt 0 -o $seen_mouse -eq 1\n",
             "                                    set done 1\n",
             "                                else; set state $word; end\n",
             "                            case {families}; if test $seen_mouse -eq 1; set done 1; else; set family $word; set state sub; end\n",
@@ -1541,11 +1552,6 @@ fn fish() -> String {
             .map(|flag| format!("set -l {} 0", flag_bit(flag)))
             .collect::<Vec<_>>()
             .join("; "),
-        business_bits = BUSINESS_FLAGS
-            .iter()
-            .map(|flag| format!("${} -eq 1", flag_bit(flag)))
-            .collect::<Vec<_>>()
-            .join(" -o "),
         sub_flag_cases = sub_flag_cases_fish(),
         after_flag_cases = after_flag_cases_fish(),
         seen_cases = seen_cases_fish(),

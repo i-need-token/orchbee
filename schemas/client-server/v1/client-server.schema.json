@@ -39,6 +39,12 @@
 		},
 		{
 			"$ref": "#/$defs/terminalSendResult"
+		},
+		{
+			"$ref": "#/$defs/terminalLaunchRead"
+		},
+		{
+			"$ref": "#/$defs/terminalLaunchReadResult"
 		}
 	],
 	"$defs": {
@@ -73,6 +79,22 @@
 		},
 		"controllerId": {
 			"title": "ControllerId",
+			"$ref": "#/$defs/identity"
+		},
+		"presentationId": {
+			"title": "PresentationId",
+			"$ref": "#/$defs/identity"
+		},
+		"panelId": {
+			"title": "PanelId",
+			"$ref": "#/$defs/identity"
+		},
+		"tabId": {
+			"title": "TabId",
+			"$ref": "#/$defs/identity"
+		},
+		"terminalContextId": {
+			"title": "TerminalContextId",
 			"$ref": "#/$defs/identity"
 		},
 		"cwd": {
@@ -1492,6 +1514,277 @@
 				}
 			],
 			"$comment": "A null target is only legal for pre-admission refusals that carry no attachment obligation."
+		},
+		"terminalLaunchRead": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "terminalId"],
+			"properties": {
+				"kind": {
+					"const": "terminal.launch.read"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"terminalId": {
+					"$ref": "#/$defs/terminalId"
+				}
+			}
+		},
+		"launchBoundTo": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["presentationId", "panelId", "tabId", "terminalContextId"],
+			"properties": {
+				"presentationId": {
+					"$ref": "#/$defs/presentationId"
+				},
+				"panelId": {
+					"$ref": "#/$defs/panelId"
+				},
+				"tabId": {
+					"$ref": "#/$defs/tabId"
+				},
+				"terminalContextId": {
+					"$ref": "#/$defs/terminalContextId"
+				}
+			}
+		},
+		"launchRoute": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["terminalId", "workerId", "boundTo"],
+			"properties": {
+				"terminalId": {
+					"$ref": "#/$defs/terminalId"
+				},
+				"workerId": {
+					"$ref": "#/$defs/workerId"
+				},
+				"boundTo": {
+					"$ref": "#/$defs/launchBoundTo"
+				}
+			}
+		},
+		"launchState": {
+			"enum": [
+				"creating",
+				"awaiting-start",
+				"starting",
+				"started",
+				"unknown",
+				"unavailable",
+				"not-tracked"
+			]
+		},
+		"launchFact": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["state", "workerGeneration", "createOutcome", "geometry"],
+			"properties": {
+				"state": {
+					"$ref": "#/$defs/launchState"
+				},
+				"workerGeneration": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/projectionPositive"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"createOutcome": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/createOutcome"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"geometry": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/geometry"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"state": {
+								"const": "not-tracked"
+							}
+						},
+						"required": ["state"]
+					},
+					"then": {
+						"properties": {
+							"workerGeneration": {
+								"type": "null"
+							},
+							"createOutcome": {
+								"type": "null"
+							},
+							"geometry": {
+								"type": "null"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"state": {
+								"const": "creating"
+							}
+						},
+						"required": ["state"]
+					},
+					"then": {
+						"properties": {
+							"workerGeneration": {
+								"$ref": "#/$defs/projectionPositive"
+							},
+							"createOutcome": {
+								"type": "null"
+							},
+							"geometry": {
+								"type": "null"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"state": {
+								"const": "started"
+							}
+						},
+						"required": ["state"]
+					},
+					"then": {
+						"properties": {
+							"workerGeneration": {
+								"$ref": "#/$defs/projectionPositive"
+							},
+							"createOutcome": {
+								"$ref": "#/$defs/createOutcome"
+							},
+							"geometry": {
+								"$ref": "#/$defs/geometry"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"state": {
+								"enum": ["awaiting-start", "starting", "unknown", "unavailable"]
+							}
+						},
+						"required": ["state"]
+					},
+					"then": {
+						"properties": {
+							"workerGeneration": {
+								"$ref": "#/$defs/projectionPositive"
+							},
+							"createOutcome": {
+								"$ref": "#/$defs/createOutcome"
+							},
+							"geometry": {
+								"type": "null"
+							}
+						}
+					}
+				}
+			],
+			"$comment": "workerGeneration is non-null exactly for tracked states, geometry exactly for started, and createOutcome for every tracked state except creating."
+		},
+		"launchReadUnavailableReason": {
+			"enum": ["server-busy"]
+		},
+		"launchReadOutcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "siteId", "workbenchRevision", "terminal", "launch"],
+					"properties": {
+						"kind": {
+							"const": "found"
+						},
+						"siteId": {
+							"$ref": "#/$defs/siteId"
+						},
+						"workbenchRevision": {
+							"$ref": "#/$defs/projectionUnsigned"
+						},
+						"terminal": {
+							"$ref": "#/$defs/launchRoute"
+						},
+						"launch": {
+							"$ref": "#/$defs/launchFact"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind"],
+					"properties": {
+						"kind": {
+							"const": "not-found"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "reason"],
+					"properties": {
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"$ref": "#/$defs/launchReadUnavailableReason"
+						}
+					}
+				}
+			]
+		},
+		"terminalLaunchReadResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "outcome"],
+			"properties": {
+				"kind": {
+					"const": "terminal.launch.read.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"outcome": {
+					"$ref": "#/$defs/launchReadOutcome"
+				}
+			}
 		}
 	}
 }

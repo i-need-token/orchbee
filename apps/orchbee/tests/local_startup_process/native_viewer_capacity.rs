@@ -1,13 +1,19 @@
-use super::{native_cli_query::run_json, native_context::WorkbenchPeer, *};
+use super::{
+    native_cli_query::{run_json, validate, validators},
+    native_context::WorkbenchPeer,
+    *,
+};
 use orchbee_workbench_protocol::{
     PanelNode, WorkbenchAction, WorkbenchCommandOutcome, WorkbenchLabel, WorkbenchPanelId,
     WorkbenchPanelSplitDirection, WorkbenchTerminalGeometry,
 };
 use std::collections::BTreeSet;
 
-// The shared Worker admits eight viewer attachments total; two TUI Clients
-// each rendering the same four-Pane Tab consume every slot, so a ninth
-// read-only attach must be refused while the live eight stay undamaged.
+// Two TUI Clients each rendering the same four-Pane Tab hold eight viewer
+// attachments — well below the shared Worker's authorized table — so a ninth
+// read-only attach through the public read path must succeed while the live
+// eight stay undamaged. Exact-capacity refusal and release belong to
+// c1_capacity_process_witness, which owns the authorized-table boundary.
 // Four-way splits truncate pane titles at 120 columns, so titles never serve
 // as pane proof here — only shell-written identity files and printed markers
 // inside each pane's own viewer stream count.
@@ -75,7 +81,7 @@ fn send_pane_witness(
 }
 
 #[test]
-fn two_clients_four_panes_exhaust_eight_viewers_then_release_admits_read() -> TestResult {
+fn two_clients_four_panes_leave_cli_read_capacity_then_release_admits_read() -> TestResult {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::new();
     let mut primary = Client::spawn(&fixture, "en_US.UTF-8");
@@ -186,8 +192,8 @@ fn two_clients_four_panes_exhaust_eight_viewers_then_release_admits_read() -> Te
         "four panes must own four distinct shells"
     );
 
-    // The second TUI joins view-only; its own four pane attachments fill the
-    // remaining viewer slots, proven by the same per-pane markers.
+    // The second TUI joins view-only; its own four pane attachments bring the
+    // live count to eight, proven by the same per-pane markers.
     let mut viewer = Client::spawn(&fixture, "en_US.UTF-8");
     viewer.wait_ready_after(
         0,
@@ -212,7 +218,8 @@ fn two_clients_four_panes_exhaust_eight_viewers_then_release_admits_read() -> Te
         &mut [&mut primary],
     );
 
-    // The ninth viewer attach through the public read path must be refused.
+    // The ninth attach through the public read path still fits the authorized
+    // table: the read must succeed with the normal document shape.
     let (output, terminals) = run_json(&fixture, &["terminal", "list", "--format", "json"]);
     assert_eq!(output.status.code(), Some(0), "terminal list must succeed");
     let terminal_id = terminals["result"]["terminals"]
@@ -222,20 +229,29 @@ fn two_clients_four_panes_exhaust_eight_viewers_then_release_admits_read() -> Te
         .and_then(|terminal| terminal["terminalId"].as_str())
         .expect("four bound terminals listed")
         .to_owned();
-    let (ninth, failure) = run_json(
+    let (ninth, read) = run_json(
         &fixture,
         &["terminal", "read", &terminal_id, "--format", "json"],
     );
     assert_eq!(
         ninth.status.code(),
-        Some(4),
-        "ninth viewer attach must exit 4: {}",
+        Some(0),
+        "ninth viewer attach must succeed: {}",
         String::from_utf8_lossy(&ninth.stderr)
     );
-    assert_eq!(failure["failure"]["kind"], "service-unavailable");
+    assert_eq!(read["result"]["terminal"]["terminalId"], terminal_id);
+    assert_eq!(read["result"]["content"]["truncated"], false);
+    assert!(
+        !read["result"]["content"]["rows"]
+            .as_array()
+            .expect("read rows")
+            .is_empty(),
+        "a live terminal emits grid rows"
+    );
+    validate(&validators(&fixture), "orchbee.terminal.read", &ninth);
 
-    // The refusal damages nothing: fresh output in each of the eight views and
-    // the first Client's input still reaches each distinct shell.
+    // The admitted read damages nothing: fresh output in each of the eight
+    // views and the first Client's input still reaches each distinct shell.
     let mut post_pids = Vec::new();
     for index in (0..4).rev() {
         if index < 3 {
@@ -274,7 +290,7 @@ fn two_clients_four_panes_exhaust_eight_viewers_then_release_admits_read() -> Te
     post_pids.reverse();
     assert_eq!(
         pids, post_pids,
-        "post-refusal input must reach the same four shells in pane order"
+        "post-read input must reach the same four shells in pane order"
     );
     viewer.wait_frame_text_after(
         0,
@@ -286,7 +302,7 @@ fn two_clients_four_panes_exhaust_eight_viewers_then_release_admits_read() -> Te
     );
 
     // Releasing the second Client frees its four attachments; the identical
-    // read then succeeds while the original shells keep their identity.
+    // read still succeeds while the original shells keep their identity.
     viewer.close_before(Instant::now() + EXIT_TIMEOUT);
     let read_deadline = Instant::now() + SWITCH_TIMEOUT;
     let read = loop {

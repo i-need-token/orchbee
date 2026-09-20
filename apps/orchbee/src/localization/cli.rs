@@ -10,7 +10,66 @@ impl Locale {
     /// escaped before it reaches the terminal.
     pub(crate) fn cli_failure(self, failure: &Failure) -> String {
         use crate::cli::FailureKind;
+        // `site start` failures carry the local-runtime source; the shared
+        // query/send wording for these kinds would misstate what a start
+        // actually did, so each gets a dedicated start diagnostic.
+        let local_runtime = failure
+            .source
+            .as_ref()
+            .and_then(|source| source.get("kind"))
+            .and_then(|value| value.as_str())
+            == Some("local-runtime");
         match failure.kind {
+            FailureKind::Timeout if local_runtime => match self {
+                Self::EnUs => {
+                    "The local Site did not become ready within the time limit; a Server may still be starting, or activation state may have been left behind. No recovery was attempted.\n"
+                        .to_owned()
+                }
+                Self::ZhCn => {
+                    "本地 Site 未在时限内就绪：Server 可能仍在启动，也可能遗留了激活状态。未尝试任何恢复。\n"
+                        .to_owned()
+                }
+            },
+            FailureKind::Rejected if local_runtime => {
+                let reason = failure
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("reason"))
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("");
+                match self {
+                    Self::EnUs => {
+                        format!("The local Site refused the start ({reason}); its activation state requires recovery and no repair was attempted.\n")
+                    }
+                    Self::ZhCn => {
+                        format!("本地 Site 拒绝了启动（{reason}）：其激活状态需要恢复，未尝试任何修复。\n")
+                    }
+                }
+            }
+            FailureKind::Denied if local_runtime => match self {
+                Self::EnUs => {
+                    "The local Site refused the start; the native development cohort is not permitted.\n"
+                        .to_owned()
+                }
+                Self::ZhCn => "本地 Site 拒绝了启动：原生开发 cohort 未获许可。\n".to_owned(),
+            },
+            FailureKind::ServiceUnavailable if local_runtime => {
+                self.cli_site_unavailable(failure)
+            }
+            FailureKind::SessionCapacity if local_runtime => match self {
+                Self::EnUs => {
+                    "The local Site has no Client Session capacity for the start probe.\n"
+                        .to_owned()
+                }
+                Self::ZhCn => "本地 Site 没有可接纳启动探针的 Client Session 容量。\n".to_owned(),
+            },
+            FailureKind::TransportLoss if local_runtime => match self {
+                Self::EnUs => {
+                    "The connection to the local Site was lost during the start admission.\n"
+                        .to_owned()
+                }
+                Self::ZhCn => "与本地 Site 的连接在启动准入期间中断。\n".to_owned(),
+            },
             FailureKind::InvalidUsage => self.cli_usage(failure.usage.as_deref()),
             FailureKind::InvalidIdentifier => {
                 let resource = failure
@@ -662,6 +721,55 @@ impl Locale {
         }
     }
 
+    /// `site start` service-unavailable diagnostics, routed by the failure's
+    /// stage: each one states what the start actually observed.
+    fn cli_site_unavailable(self, failure: &Failure) -> String {
+        let stage = failure
+            .details
+            .as_ref()
+            .and_then(|details| details.get("stage"))
+            .and_then(|value| value.as_str())
+            .unwrap_or("");
+        match (self, stage) {
+            (Self::EnUs, "platform") => "site start is supported on Linux only.\n".to_owned(),
+            (Self::ZhCn, "platform") => "site start 仅在 Linux 上受支持。\n".to_owned(),
+            (Self::EnUs, "runtime-directory") => self.cli_socket_path_too_long().to_owned(),
+            (Self::ZhCn, "runtime-directory") => self.cli_socket_path_too_long().to_owned(),
+            (Self::EnUs, "discovery") => {
+                "No running local Site answered, and its runtime directory could not be created.\n"
+                    .to_owned()
+            }
+            (Self::ZhCn, "discovery") => {
+                "没有运行中的本地 Site 应答，且其运行时目录无法创建。\n".to_owned()
+            }
+            (Self::EnUs, "cohort") => {
+                "The native development cohort artifacts are missing.\n".to_owned()
+            }
+            (Self::ZhCn, "cohort") => "原生开发 cohort 工件缺失。\n".to_owned(),
+            (Self::EnUs, _) => {
+                "The local Site could not admit the start probe connection.\n".to_owned()
+            }
+            (Self::ZhCn, _) => "本地 Site 无法接纳启动探针连接。\n".to_owned(),
+        }
+    }
+
+    /// `site start` text answer when this invocation performed the
+    /// activation and the readiness probe was admitted.
+    pub(crate) const fn cli_site_started(self) -> &'static str {
+        match self {
+            Self::EnUs => "Local Site started.\n",
+            Self::ZhCn => "本地 Site 已启动。\n",
+        }
+    }
+
+    /// `site start` text answer when a running Site admitted the probe.
+    pub(crate) const fn cli_site_already_running(self) -> &'static str {
+        match self {
+            Self::EnUs => "Local Site is already running.\n",
+            Self::ZhCn => "本地 Site 已在运行。\n",
+        }
+    }
+
     /// The startup diagnostic when a derived Site socket path cannot fit one
     /// socket address on this platform.
     pub(crate) const fn cli_socket_path_too_long(self) -> &'static str {
@@ -744,6 +852,10 @@ impl Locale {
             (_, HelpTopic::Family(Family::Terminal)) => match self {
                 Self::EnUs => HELP_TERMINAL_EN,
                 Self::ZhCn => HELP_TERMINAL_ZH,
+            },
+            (_, HelpTopic::Family(Family::Site)) => match self {
+                Self::EnUs => HELP_SITE_EN,
+                Self::ZhCn => HELP_SITE_ZH,
             },
             (_, HelpTopic::Family(Family::Api)) => match self {
                 Self::EnUs => HELP_API_EN,
@@ -828,12 +940,14 @@ impl Locale {
             (Self::ZhCn, CommandPath::ApiSchema) => HELP_API_SCHEMA_ZH,
             (Self::EnUs, CommandPath::ConfigCheck) => HELP_CONFIG_CHECK_EN,
             (Self::ZhCn, CommandPath::ConfigCheck) => HELP_CONFIG_CHECK_ZH,
+            (Self::EnUs, CommandPath::SiteStart) => HELP_SITE_START_EN,
+            (Self::ZhCn, CommandPath::SiteStart) => HELP_SITE_START_ZH,
         }
     }
 }
 
-const ROOT_HELP_EN: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [operands] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\nModes and queries:\n  orchbee              Open the local terminal (Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee api          Machine snapshot and embedded schema documents\n\nMutations (one command per invocation, against the running Site):\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n\nInspection and help:\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee -h|--help    Show this help; after a family or command path, show\n                       that path's help\n  orchbee --version    Show the version\n\nRun 'orchbee help <family>' for filters and target rules, or\n'orchbee help <family> <command>' for one mutation's full syntax.\n";
-const ROOT_HELP_ZH: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [操作数] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\n模式与查询：\n  orchbee              打开本地终端（Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee api          机器快照与内嵌 schema 文档\n\n修改命令（每次调用执行一条命令，作用于运行中的 Site）：\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n\n检查与帮助：\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee -h|--help    显示此帮助；跟在 family 或命令路径后时显示该路径的帮助\n  orchbee --version    显示版本\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则，或\n'orchbee help <family> <command>' 查看单条修改命令的完整语法。\n";
+const ROOT_HELP_EN: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [operands] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\nModes and queries:\n  orchbee              Open the local terminal (Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee api          Machine snapshot and embedded schema documents\n\nSite lifecycle:\n  orchbee site start   Ensure the local Site is running (no TTY needed)\n\nMutations (one command per invocation, against the running Site):\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n\nInspection and help:\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee -h|--help    Show this help; after a family or command path, show\n                       that path's help\n  orchbee --version    Show the version\n\nRun 'orchbee help <family>' for filters and target rules, or\n'orchbee help <family> <command>' for one mutation's full syntax.\n";
+const ROOT_HELP_ZH: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [操作数] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\n模式与查询：\n  orchbee              打开本地终端（Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee api          机器快照与内嵌 schema 文档\n\nSite 生命周期：\n  orchbee site start   确保本地 Site 正在运行（无需 TTY）\n\n修改命令（每次调用执行一条命令，作用于运行中的 Site）：\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n\n检查与帮助：\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee -h|--help    显示此帮助；跟在 family 或命令路径后时显示该路径的帮助\n  orchbee --version    显示版本\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则，或\n'orchbee help <family> <command>' 查看单条修改命令的完整语法。\n";
 const HELP_TUI_EN: &str = "orchbee tui [--mouse on|off]\n\nOpen the local terminal interface (Linux development cohort).\nA bare 'orchbee' invocation does the same.\n\n  --mouse on|off   Host pointer capture for pane hit-testing; on by\n                   default. Only the explicit 'tui' route accepts it.\n";
 const HELP_TUI_ZH: &str = "orchbee tui [--mouse on|off]\n\n打开本地终端界面（Linux 开发 cohort）。\n裸 'orchbee' 调用效果相同。\n\n  --mouse on|off   宿主机指针捕获，用于面板命中；默认开启。\n                   只有显式 'tui' 路由接受该选项。\n";
 
@@ -854,6 +968,12 @@ const HELP_PANEL_ZH: &str = "orchbee panel list|get|split|close|move\n\n查询�
 
 const HELP_TERMINAL_EN: &str = "orchbee terminal list|get|read|wait-output|send\n\nQuery terminals bound by Workbench Presentations in the running local Site,\nor send one input record to one of them.\n  terminal list                List every bound terminal\n  terminal get <terminal-id>   Show one terminal by its complete typed ID\n  terminal read <terminal-id> [--history --rows <n>]\n                               Read the terminal's visible content; the paired\n                               flags read retained history rows instead\n  terminal wait-output <terminal-id> --match <text>\n                               Wait for text in the terminal's retained output\n  terminal send <terminal-id>  Send text or one key to the terminal's input\nA terminal invisible to any Presentation binding cannot be listed, read,\nwaited on, or sent to; a binding proves structure only, not that a process\nis alive.\n";
 const HELP_TERMINAL_ZH: &str = "orchbee terminal list|get|read|wait-output|send\n\n查询本地 Site 中被 Workbench Presentation 绑定的终端，或向其中一个终端发送一条输入。\n  terminal list                列出所有已绑定终端\n  terminal get <terminal-id>   按完整类型化 ID 显示一个终端\n  terminal read <terminal-id> [--history --rows <n>]\n                               读取终端当前可见内容；成对 flag 时改为读取\n                               保留历史行\n  terminal wait-output <terminal-id> --match <text>\n                               等待终端保留输出中出现指定文本\n  terminal send <terminal-id>  向终端输入发送文本或一个按键\n未被任何 Presentation 引用的终端不可见、不可读、不可等待也不可发送；绑定只证明结构，不证明进程存活。\n";
+
+const HELP_SITE_EN: &str = "orchbee site start\n\nManage the implicit per-user local Site's lifecycle.\n  site start   Ensure the local Site is running, activating it without a\n              TTY when needed\n";
+const HELP_SITE_ZH: &str = "orchbee site start\n\n管理隐式的每用户本地 Site 生命周期。\n  site start   确保本地 Site 正在运行，必要时在无 TTY 环境下激活\n";
+
+const HELP_SITE_START_EN: &str = "orchbee site start [--format text|json]\n\nEnsure the implicit per-user local Site is running. When no admitted\nSite answers, this invocation performs the existing activation sequence\n— the same locks, marker, Server spawn, and readiness admission the TUI\nstartup uses — and reports 'started'. When a running Site admits the\nreadiness probe, it reports 'already-running'. One absolute 20-second\nbudget covers the whole invocation.\n\n'--format json' emits the orchbee.site.start envelope. An interrupted\nor timed-out start may leave activation state behind; a later invocation\nthen answers refused with a recovery-required reason. The command never\nrepairs, stops, or deletes runtime state.\n";
+const HELP_SITE_START_ZH: &str = "orchbee site start [--format text|json]\n\n确保隐式的每用户本地 Site 正在运行。若没有已准入的 Site 应答，本次\n调用执行既有的激活序列——与 TUI 启动相同的锁、标记、Server 拉起\n与就绪准入——并报告 'started'。若运行中的 Site 准入了就绪探针，则\n报告 'already-running'。整个调用共享一个 20 秒绝对预算。\n\n'--format json' 输出 orchbee.site.start 封套。被中断或超时的启动\n可能遗留激活状态；后续调用将以拒绝加 recovery-required 原因应答。\n本命令绝不修复、停止或删除运行时状态。\n";
 
 const HELP_API_EN: &str = "orchbee api snapshot|schema\n\nMachine introspection of the local Workbench surface.\n  api snapshot           Emit the complete workbench.snapshot document\n  api schema [<id>]      List embedded JSON Schemas, or one schema by ID\nSuccessful output is always JSON, whatever '--format' was selected; a\nfailure envelope still requires an explicit '--format json'.\n";
 const HELP_API_ZH: &str = "orchbee api snapshot|schema\n\n本地 Workbench 面的机器自省。\n  api snapshot           输出完整 workbench.snapshot 文档\n  api schema [<id>]      列出内嵌 JSON Schema，或按 ID 取单个 schema\n成功输出无论 '--format' 选择如何都是 JSON；失败封套仍需显式\n'--format json'。\n";
@@ -959,6 +1079,7 @@ pub(crate) struct CliLabels {
     pub(crate) directories: &'static str,
     pub(crate) group: &'static str,
     pub(crate) id: &'static str,
+    pub(crate) launch: &'static str,
     pub(crate) panels_word: &'static str,
     pub(crate) pinned: &'static str,
     pub(crate) primary_directory: &'static str,
@@ -1003,6 +1124,7 @@ const EN_US_LABELS: CliLabels = CliLabels {
     directories: "Directories",
     group: "Group",
     id: "ID",
+    launch: "Launch",
     panels_word: "panels",
     pinned: "Pinned",
     primary_directory: "Primary dir",
@@ -1054,6 +1176,7 @@ const ZH_CN_LABELS: CliLabels = CliLabels {
     directories: "目录",
     group: "分组",
     id: "ID",
+    launch: "启动",
     panels_word: "面板",
     pinned: "置顶",
     primary_directory: "主目录",

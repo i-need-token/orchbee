@@ -2,7 +2,7 @@ use std::{
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
-        mpsc::{self, Receiver, TrySendError},
+        mpsc::{self, Receiver},
     },
     time::Instant,
 };
@@ -12,8 +12,8 @@ use orchbee_capability_node_protocol::{
 };
 
 use super::{
-    PendingRequest, WorkerOperationRequest, WorkerOperationResult, WorkerRequestError,
-    WorkerRequestHandle, WorkerResponseFailure,
+    AdmitOutcome, PendingRequest, RequestLane, WorkerOperationRequest, WorkerOperationResult,
+    WorkerRequestError, WorkerRequestHandle, WorkerResponseFailure,
 };
 
 #[must_use = "an admitted lifecycle request must be settled even after its attempt deadline"]
@@ -70,17 +70,15 @@ impl WorkerRequestHandle {
             encoded,
             request,
         };
-        match self.sender.try_send(pending) {
-            Ok(()) => Ok(PendingLifecycleResult {
+        match self.queue.try_admit(RequestLane::High, pending) {
+            AdmitOutcome::Admitted => Ok(PendingLifecycleResult {
                 result,
                 complete_write,
                 // An observation after enqueue, not the queue's linearization instant.
                 admitted_observed_at: Instant::now(),
             }),
-            Err(TrySendError::Full(_)) if self.is_active() => Err(WorkerRequestError::Backpressure),
-            Err(TrySendError::Full(_) | TrySendError::Disconnected(_)) => {
-                Err(WorkerRequestError::Unavailable)
-            }
+            AdmitOutcome::Full if self.is_active() => Err(WorkerRequestError::Backpressure),
+            AdmitOutcome::Full | AdmitOutcome::Closed => Err(WorkerRequestError::Unavailable),
         }
     }
 }

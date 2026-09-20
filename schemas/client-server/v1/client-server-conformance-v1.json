@@ -560,6 +560,56 @@
 			"direction": "server-to-client",
 			"name": "viewer-rejected-host-rejected",
 			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "launch-read",
+			"payload": "{\"kind\":\"terminal.launch.read\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"terminalId\":\"30303030303030303030303030303030\"}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-found-started",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"started\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}},\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-found-creating",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"creating\",\"workerGeneration\":\"1\",\"createOutcome\":null,\"geometry\":null}}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-found-awaiting-start",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"awaiting-start\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"awaiting-start\"}},\"geometry\":null}}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-found-starting",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"starting\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"awaiting-start\"}},\"geometry\":null}}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-found-unknown",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"unknown\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"outcome-unknown\"},\"geometry\":null}}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-found-unavailable",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"unavailable\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"unavailable\",\"reason\":\"server-busy\"},\"geometry\":null}}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-found-not-tracked",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"not-tracked\",\"workerGeneration\":null,\"createOutcome\":null,\"geometry\":null}}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-not-found",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"not-found\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-unavailable-server-busy",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"server-busy\"}}"
 		}
 	],
 	"equivalentMessages": [
@@ -1788,6 +1838,54 @@
 			"direction": "server-to-client",
 			"name": "viewer-rejected-unknown-reason",
 			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-busy\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "launch-read-request-missing-terminal-id",
+			"payload": "{\"kind\":\"terminal.launch.read\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\"}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "launch-read-request-extra-field",
+			"payload": "{\"kind\":\"terminal.launch.read\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\"}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "launch-read-result-unknown-state",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"detached\",\"workerGeneration\":\"1\",\"createOutcome\":null,\"geometry\":null}}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "launch-read-result-not-tracked-with-generation",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"not-tracked\",\"workerGeneration\":\"1\",\"createOutcome\":null,\"geometry\":null}}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "launch-read-result-started-without-geometry",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"started\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}},\"geometry\":null}}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "launch-read-result-creating-with-outcome",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"creating\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"outcome-unknown\"},\"geometry\":null}}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "launch-read-result-zero-generation",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"awaiting-start\",\"workerGeneration\":\"0\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"awaiting-start\"}},\"geometry\":null}}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "launch-read-result-unknown-unavailable-reason",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"terminal-runtime-unavailable\"}}"
 		}
 	],
 	"workingDirectoryCases": [

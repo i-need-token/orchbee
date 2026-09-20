@@ -83,6 +83,7 @@ pub(crate) enum Family {
     Tab,
     Panel,
     Terminal,
+    Site,
     Api,
     Config,
     Completion,
@@ -97,6 +98,7 @@ impl Family {
             Self::Tab => "tab",
             Self::Panel => "panel",
             Self::Terminal => "terminal",
+            Self::Site => "site",
             Self::Api => "api",
             Self::Config => "config",
             Self::Completion => "completion",
@@ -137,6 +139,7 @@ pub(crate) enum CommandPath {
     ApiSnapshot,
     ApiSchema,
     ConfigCheck,
+    SiteStart,
 }
 
 impl CommandPath {
@@ -174,6 +177,7 @@ impl CommandPath {
             Self::ApiSnapshot => "api snapshot",
             Self::ApiSchema => "api schema",
             Self::ConfigCheck => "config check",
+            Self::SiteStart => "site start",
         }
     }
 }
@@ -390,6 +394,11 @@ pub(crate) enum Request {
     },
     Mutation {
         command: MutationCommand,
+        format: OutputFormat,
+    },
+    /// `site start`: the headless connect-or-activate command — neither a
+    /// Workbench query nor a mutation; it runs the shared activation core.
+    SiteStart {
         format: OutputFormat,
     },
 }
@@ -1498,6 +1507,12 @@ fn resolve_words(
             reject_filters(options, UsageContext::Path("config check"), envelope)?;
             Ok(query(QueryCommand::ConfigCheck, options))
         }
+        ["site", "start"] => {
+            reject_filters(options, UsageContext::Path("site start"), envelope)?;
+            Ok(Request::SiteStart {
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
         ["completion", shell] => {
             reject_extras(options, UsageContext::Path("completion"), envelope)?;
             let shell = match *shell {
@@ -1786,6 +1801,13 @@ fn resolve_words(
             verb,
             envelope,
         )),
+        ["site"] => Err(missing_command(UsageContext::Path("site"), envelope)),
+        ["site", "start", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("site start"),
+            extra,
+            envelope,
+        )),
+        ["site", verb, ..] => Err(unknown_command(UsageContext::Path("site"), verb, envelope)),
         ["completion"] => Err(missing_required(
             UsageContext::Path("completion"),
             "<shell>",
@@ -1839,6 +1861,7 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["panel"] => HelpTopic::Family(Family::Panel),
         ["terminal"] => HelpTopic::Family(Family::Terminal),
         ["api"] => HelpTopic::Family(Family::Api),
+        ["site"] => HelpTopic::Family(Family::Site),
         ["config"] => HelpTopic::Family(Family::Config),
         ["completion"] => HelpTopic::Family(Family::Completion),
         ["project", "list"] => HelpTopic::Command(CommandPath::ProjectList),
@@ -1872,6 +1895,7 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["api", "snapshot"] => HelpTopic::Command(CommandPath::ApiSnapshot),
         ["api", "schema"] => HelpTopic::Command(CommandPath::ApiSchema),
         ["config", "check"] => HelpTopic::Command(CommandPath::ConfigCheck),
+        ["site", "start"] => HelpTopic::Command(CommandPath::SiteStart),
         _ => return None,
     })
 }

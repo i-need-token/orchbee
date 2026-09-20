@@ -118,7 +118,7 @@ fn schema_and_corpus_are_well_formed_and_every_canonical_message_round_trips()
             .pointer("/oneOf")
             .and_then(Value::as_array)
             .map(Vec::len),
-        Some(12)
+        Some(14)
     );
     assert!(jsonschema::draft202012::meta::is_valid(&schema));
     let schema_validator = jsonschema::draft202012::new(&schema)?;
@@ -282,6 +282,18 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         "send-cleanup-not-needed",
         "send-cleanup-confirmed",
         "send-cleanup-unconfirmed",
+        "message-terminal-launch-read",
+        "message-terminal-launch-read-result",
+        "launch-read-found",
+        "launch-read-not-found",
+        "launch-read-unavailable-server-busy",
+        "launch-state-creating",
+        "launch-state-awaiting-start",
+        "launch-state-starting",
+        "launch-state-started",
+        "launch-state-unknown",
+        "launch-state-unavailable",
+        "launch-state-not-tracked",
     ]);
     assert_eq!(reached, expected);
     Ok(())
@@ -806,6 +818,37 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                 SendCleanupStatus::Confirmed => "send-cleanup-confirmed",
                 SendCleanupStatus::Unconfirmed => "send-cleanup-unconfirmed",
             });
+        }
+        DecodedMessage::Client(ClientMessage::TerminalLaunchRead(_)) => {
+            reached.insert("message-terminal-launch-read");
+        }
+        DecodedMessage::Server(ServerMessage::TerminalLaunchReadResult(result)) => {
+            use orchbee_client_server_protocol::{
+                TerminalLaunchReadOutcome, TerminalLaunchReadUnavailableReason, TerminalLaunchState,
+            };
+            reached.insert("message-terminal-launch-read-result");
+            match result.outcome() {
+                TerminalLaunchReadOutcome::Found { launch, .. } => {
+                    reached.insert("launch-read-found");
+                    reached.insert(match launch.state() {
+                        TerminalLaunchState::Creating => "launch-state-creating",
+                        TerminalLaunchState::AwaitingStart => "launch-state-awaiting-start",
+                        TerminalLaunchState::Starting => "launch-state-starting",
+                        TerminalLaunchState::Started => "launch-state-started",
+                        TerminalLaunchState::Unknown => "launch-state-unknown",
+                        TerminalLaunchState::Unavailable => "launch-state-unavailable",
+                        TerminalLaunchState::NotTracked => "launch-state-not-tracked",
+                    });
+                }
+                TerminalLaunchReadOutcome::NotFound => {
+                    reached.insert("launch-read-not-found");
+                }
+                TerminalLaunchReadOutcome::Unavailable {
+                    reason: TerminalLaunchReadUnavailableReason::ServerBusy,
+                } => {
+                    reached.insert("launch-read-unavailable-server-busy");
+                }
+            }
         }
     }
 }

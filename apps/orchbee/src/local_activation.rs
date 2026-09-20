@@ -1,0 +1,311 @@
+//! The one app-private local-Site activation algorithm, shared by the TUI
+//! startup path and the headless `site start` command. Cohort validation
+//! precedes runtime-directory preparation; one absolute caller-supplied
+//! deadline bounds the whole attempt and is never reset per phase. The
+//! lock/marker/spawn order is identical for both callers; only the failure
+//! projection differs.
+
+use crate::local_client::{LocalClient, LocalClientConnectError};
+use orchbee_local_client_protocol::{ConnectClientError, RejectionReason, unix_socket_path_fits};
+use orchbee_local_site_runtime::{
+    LockAttempt, ModeCheckedLocalSiteRendezvous, NativeArtifact, NativeCohort, RetainedChild,
+    SiteScope,
+};
+use std::{
+    io,
+    path::PathBuf,
+    process::{Command, Stdio},
+    thread,
+    time::Instant,
+};
+
+/// The single local-startup verdict vocabulary, owned here by the shared
+/// activation core so the core never depends on the TUI adapter. The core
+/// itself only ever emits `Cohort`, `Runtime`, `SocketPathTooLong`,
+/// `RecoveryRequired`, `Incompatible`, `Admission`, or `TimedOut`;
+/// `Terminal`, `TerminalUnavailable`, `OutcomeUnknown`, and `Interface` are
+/// produced exclusively by the TUI adapter's own terminal stages and live
+/// in this one enum so both callers classify the same verdict type.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum StartupFailure {
+    Terminal,
+    Cohort,
+    Runtime,
+    SocketPathTooLong,
+    RecoveryRequired,
+    Incompatible,
+    Admission,
+    TimedOut,
+    TerminalUnavailable,
+    OutcomeUnknown,
+    Interface,
+}
+
+/// The shared activation verdict. `failure` is exactly the `StartupFailure`
+/// the TUI adapter has always derived; `cause` retains the raw typed error
+/// so the CLI can classify precisely — variant alone would collapse
+/// protocol-invalid/internal admission arms into a generic refusal.
+pub(crate) struct ActivationFailure {
+    pub(crate) failure: StartupFailure,
+    pub(crate) cause: Option<ActivationCause>,
+}
+
+/// The raw cause behind an activation failure, kept for typed CLI
+/// classification only — the TUI adapter never reads it.
+pub(crate) enum ActivationCause {
+    /// `NativeCohort::current` failure: an io error whose kind selects the
+    /// CLI exit class.
+    Cohort(io::Error),
+    /// Runtime-directory preparation failure: the rendezvous error plus the
+    /// scope directory the typed path split classifies against.
+    Rendezvous(orchbee_local_site_runtime::RendezvousError, PathBuf),
+    /// An admission/connect failure in its full wire form.
+    Connect(LocalClientConnectError),
+    /// Activation-lifetime lock acquisition failure — the rendezvous error
+    /// a `try_acquire_*_lock` call carries.
+    LockFailure(orchbee_local_site_runtime::RendezvousError),
+    /// Marker, socket-presence probe, or marker-commit I/O.
+    RuntimeIo(io::Error),
+    /// Server spawn or post-spawn liveness probe failure — a wedge-class
+    /// fault: the activation marker may already be committed, so the verdict
+    /// is unconditionally `RecoveryRequired` and the io detail is not
+    /// classified further.
+    SpawnIo,
+}
+
+impl ActivationFailure {
+    fn bare(failure: StartupFailure) -> Self {
+        Self {
+            failure,
+            cause: None,
+        }
+    }
+
+    fn caused(failure: StartupFailure, cause: ActivationCause) -> Self {
+        Self {
+            failure,
+            cause: Some(cause),
+        }
+    }
+}
+
+/// The result of a successful activation attempt: an admitted client plus
+/// whether THIS invocation spawned the Server child — an actual branch
+/// fact, never inferred from marker state.
+pub(crate) struct StartedSite {
+    pub(crate) client: LocalClient,
+    pub(crate) spawned: bool,
+    /// The scope string parsed for this attempt (`orchbee-native-<euid>`).
+    pub(crate) scope: String,
+    /// The resolved runtime base (`ORCHBEE_RUNTIME_BASE` or `/tmp`), for
+    /// machine-readable output.
+    pub(crate) runtime_base: PathBuf,
+}
+
+/// Connect-or-activate under one absolute deadline. The sequence is the
+/// existing TUI order, unchanged: cohort validation first, then
+/// runtime-base/scope resolution, `prepare_mode_checked`, the derived
+/// socket-path budget check, then the activation loop.
+pub(crate) fn activate_local_site(deadline: Instant) -> Result<StartedSite, ActivationFailure> {
+    let cohort = NativeCohort::current(deadline).map_err(|error| {
+        ActivationFailure::caused(
+            failure(&error, StartupFailure::Cohort),
+            ActivationCause::Cohort(error),
+        )
+    })?;
+    let base = std::env::var_os("ORCHBEE_RUNTIME_BASE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/tmp"));
+    let scope_text = format!("orchbee-native-{}", nix::unistd::geteuid());
+    let scope = SiteScope::parse(&scope_text)
+        .map_err(|_| ActivationFailure::bare(StartupFailure::Runtime))?;
+    let scope_directory = base.join(&scope_text);
+    let site =
+        ModeCheckedLocalSiteRendezvous::prepare_mode_checked(&base, scope).map_err(|error| {
+            ActivationFailure::caused(
+                StartupFailure::Runtime,
+                ActivationCause::Rendezvous(error, scope_directory),
+            )
+        })?;
+    // Every endpoint a Site derives that cannot fit this platform's socket
+    // address ABI can never bind or connect; report the derived-path budget
+    // before any admission attempt collapses it into a generic refusal.
+    if !ModeCheckedLocalSiteRendezvous::socket_budget_paths(site.runtime_directory())
+        .iter()
+        .all(|path| unix_socket_path_fits(path))
+    {
+        return Err(ActivationFailure::bare(StartupFailure::SocketPathTooLong));
+    }
+    let (client, spawned) = connect_or_activate(&site, &cohort, deadline)?;
+    Ok(StartedSite {
+        client,
+        spawned,
+        scope: scope_text,
+        runtime_base: base,
+    })
+}
+
+fn connect_or_activate(
+    site: &ModeCheckedLocalSiteRendezvous,
+    cohort: &NativeCohort,
+    deadline: Instant,
+) -> Result<(LocalClient, bool), ActivationFailure> {
+    loop {
+        check_deadline(deadline)?;
+        if let Some(client) = connect(site, cohort, deadline)? {
+            return Ok((client, false));
+        }
+        let _activation = match site.try_acquire_activation_lock().map_err(lock_failure)? {
+            LockAttempt::Acquired(lock) => lock,
+            LockAttempt::Contended => {
+                pause(deadline)?;
+                continue;
+            }
+        };
+        if let Some(client) = connect(site, cohort, deadline)? {
+            return Ok((client, false));
+        }
+        let marker = site.activation_started().map_err(runtime_failure)?;
+        let mut child = match site
+            .try_acquire_site_lifetime_lock()
+            .map_err(lock_failure)?
+        {
+            LockAttempt::Acquired(lifetime) => {
+                if marker
+                    || site.client_socket_exists().map_err(runtime_failure)?
+                    || site.worker_socket_exists().map_err(runtime_failure)?
+                {
+                    return Err(ActivationFailure::bare(StartupFailure::RecoveryRequired));
+                }
+                drop(lifetime);
+                check_deadline(deadline)?;
+                site.commit_activation().map_err(runtime_failure)?;
+                check_deadline(deadline)?;
+                Some(RetainedChild::new(
+                    Command::new(cohort.executable(NativeArtifact::Server))
+                        .arg("--local-site")
+                        .arg(site.runtime_directory())
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .spawn()
+                        .map_err(|_| {
+                            ActivationFailure::caused(
+                                StartupFailure::RecoveryRequired,
+                                ActivationCause::SpawnIo,
+                            )
+                        })?,
+                ))
+            }
+            LockAttempt::Contended if marker => None,
+            LockAttempt::Contended => {
+                return Err(ActivationFailure::bare(StartupFailure::RecoveryRequired));
+            }
+        };
+        loop {
+            check_deadline(deadline)?;
+            if let Some(client) = connect(site, cohort, deadline)? {
+                return Ok((client, child.is_some()));
+            }
+            if let Some(child) = child.as_mut() {
+                if child
+                    .try_wait()
+                    .map_err(|_| {
+                        ActivationFailure::caused(
+                            StartupFailure::RecoveryRequired,
+                            ActivationCause::SpawnIo,
+                        )
+                    })?
+                    .is_some()
+                {
+                    return Err(ActivationFailure::bare(StartupFailure::RecoveryRequired));
+                }
+            } else if matches!(
+                site.try_acquire_site_lifetime_lock()
+                    .map_err(lock_failure)?,
+                LockAttempt::Acquired(_)
+            ) {
+                return Err(ActivationFailure::bare(StartupFailure::RecoveryRequired));
+            }
+            pause(deadline)?;
+        }
+    }
+}
+
+fn connect(
+    site: &ModeCheckedLocalSiteRendezvous,
+    cohort: &NativeCohort,
+    deadline: Instant,
+) -> Result<Option<LocalClient>, ActivationFailure> {
+    site.client_socket_exists().map_err(runtime_failure)?;
+    match LocalClient::connect_before(site.client_socket_path(), cohort.identity(), deadline) {
+        Ok(client) => Ok(Some(client)),
+        Err(error) => {
+            // An absent or refusing socket inside the activation loop is
+            // retryable; every other connect failure surfaces verbatim.
+            if let LocalClientConnectError::Admission(ConnectClientError::ConnectFailed(source)) =
+                &error
+                && matches!(
+                    source.kind(),
+                    io::ErrorKind::NotFound | io::ErrorKind::ConnectionRefused
+                )
+            {
+                return Ok(None);
+            }
+            let failure = match &error {
+                LocalClientConnectError::Admission(ConnectClientError::Rejected(
+                    RejectionReason::IncompatibleCohort | RejectionReason::IncompatibleProtocol,
+                )) => StartupFailure::Incompatible,
+                LocalClientConnectError::Admission(
+                    ConnectClientError::ConnectFailed(source) | ConnectClientError::Io(source),
+                ) => failure(source, StartupFailure::Admission),
+                _ => StartupFailure::Admission,
+            };
+            Err(ActivationFailure::caused(
+                failure,
+                ActivationCause::Connect(error),
+            ))
+        }
+    }
+}
+
+/// Marker/probe/commit I/O keeps the existing `Runtime` verdict; the raw io
+/// error rides along for CLI kind classification.
+fn runtime_failure(error: io::Error) -> ActivationFailure {
+    ActivationFailure::caused(StartupFailure::Runtime, ActivationCause::RuntimeIo(error))
+}
+
+/// A lock acquisition keeps the existing `Runtime` verdict; the raw
+/// rendezvous error rides along for CLI kind classification.
+fn lock_failure(error: orchbee_local_site_runtime::RendezvousError) -> ActivationFailure {
+    ActivationFailure::caused(StartupFailure::Runtime, ActivationCause::LockFailure(error))
+}
+
+/// Shared deadline check — the TUI readiness loop consumes the identical
+/// verdict via the adapter's `failure` projection.
+pub(crate) fn check_deadline(deadline: Instant) -> Result<(), ActivationFailure> {
+    if Instant::now() >= deadline {
+        return Err(ActivationFailure::bare(StartupFailure::TimedOut));
+    }
+    Ok(())
+}
+
+pub(crate) fn pause(deadline: Instant) -> Result<(), ActivationFailure> {
+    check_deadline(deadline)?;
+    thread::sleep(
+        std::time::Duration::from_millis(10)
+            .min(deadline.saturating_duration_since(Instant::now())),
+    );
+    Ok(())
+}
+
+/// The existing deadline-sensitive fallback: a TimedOut io kind means the
+/// operation expired against the shared budget rather than failing its own
+/// class.
+fn failure(error: &io::Error, fallback: StartupFailure) -> StartupFailure {
+    if error.kind() == io::ErrorKind::TimedOut {
+        StartupFailure::TimedOut
+    } else {
+        fallback
+    }
+}

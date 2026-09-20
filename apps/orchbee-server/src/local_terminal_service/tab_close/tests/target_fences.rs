@@ -245,13 +245,14 @@ fn parked_attach_and_acquire_success_cannot_install_after_close_acceptance() {
             thread::sleep(Duration::from_millis(5));
         }
         let handle = service.workers.lock().unwrap().request_handle().unwrap();
-        let marker = handle.request(WorkerOperationRequest::Viewer(WorkerViewerRequest {
-            request_id: marker_id,
-            attachment_id: attachment,
-            worker_id: orchbee_capability_node_protocol::WorkerId::from_bytes([9; 16]).unwrap(),
-            worker_generation: WorkerGeneration::new(NonZeroU64::MIN),
-            action: WorkerViewerAction::Poll,
-        }));
+        let marker =
+            handle.blocking_admit_for_test(WorkerOperationRequest::Viewer(WorkerViewerRequest {
+                request_id: marker_id,
+                attachment_id: attachment,
+                worker_id: orchbee_capability_node_protocol::WorkerId::from_bytes([9; 16]).unwrap(),
+                worker_generation: WorkerGeneration::new(NonZeroU64::MIN),
+                action: WorkerViewerAction::Poll,
+            }));
         assert!(
             matches!(&marker, Ok(WorkerOperationResult::Viewer(result)) if result.outcome == WorkerViewerOutcome::Empty),
             "marker: {marker:?}"

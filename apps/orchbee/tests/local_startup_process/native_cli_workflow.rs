@@ -3,7 +3,7 @@
 //! every business step is one invocation of the real staged `orchbee` binary:
 //! project create → workspace create → workspace accept-directory → tab
 //! create → terminal list → terminal send → terminal wait-output → terminal
-//! read → tab close --confirm → canonical snapshot. No internal API mutates
+//! read → terminal get → tab close --confirm → canonical snapshot. No internal API mutates
 //! business state, no fixture file fakes a command, and no send is retried.
 //! Read and wait-output steps only observe produced output; they can never
 //! fabricate command completion.
@@ -15,7 +15,7 @@
 //! send receipt is cross-checked against the wait receipt's observed source.
 
 use super::{
-    native_cli_query::{run_json, spawn_real_server, validate, validators},
+    native_cli_query::{run_json, spawn_real_server, spawn_real_server_env, validate, validators},
     *,
 };
 use std::path::Path;
@@ -436,6 +436,71 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
         );
     }
 
+    // 8.5. `terminal get` on the live first terminal — the Server-authoritative
+    //     launch-read witness. The envelope is `version: 2` sourced by the
+    //     Server-joined read (not a client snapshot), `launch` nests inside
+    //     `result.terminal`, and the joined revision equals the revision an
+    //     adjacent `terminal list` observed (nothing mutates between the two
+    //     reads, so both report the same committed Workbench revision). The
+    //     wait/read steps above already proved the shell runs, so `started`
+    //     is a deterministic assertion here — not a race on create timing.
+    let (output, listed) = run_json(&fixture, &["terminal", "list", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0));
+    let (output, got) = run_json(
+        &fixture,
+        &["terminal", "get", terminal_a.as_str(), "--format", "json"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "terminal get: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    validate(&validators, "orchbee.terminal.get", &output);
+    assert_eq!(got["version"], 2, "get answers with the v2 envelope: {got}");
+    assert_eq!(got["source"]["kind"], "terminal-launch-read");
+    assert_eq!(
+        got["source"]["siteId"],
+        binding_a.2.as_str(),
+        "get source site matches the list envelope source"
+    );
+    let get_revision = got["source"]["revision"]
+        .as_str()
+        .expect("get source revision is a decimal string");
+    assert!(
+        get_revision.bytes().all(|byte| byte.is_ascii_digit())
+            && get_revision.parse::<u64>().is_ok_and(|value| value > 0),
+        "get source revision is a positive decimal string: {got}"
+    );
+    assert_eq!(
+        Some(get_revision),
+        listed["source"]["revision"].as_str(),
+        "the joined read reports the same committed revision an adjacent list observed"
+    );
+    let terminal = &got["result"]["terminal"];
+    assert_eq!(terminal["terminalId"], terminal_a.as_str());
+    assert_eq!(terminal["workerId"], binding_a.1.as_str());
+    assert!(
+        got["result"].get("launch").is_none(),
+        "launch nests inside `terminal`, never beside it: {got}"
+    );
+    let launch = &terminal["launch"];
+    assert_eq!(launch["state"], "started");
+    let generation = launch["workerGeneration"]
+        .as_str()
+        .expect("tracked launch carries a decimal workerGeneration");
+    assert_ne!(
+        generation.parse::<u64>().ok(),
+        Some(0),
+        "tracked generation is positive: {got}"
+    );
+    assert_eq!(launch["createOutcome"]["kind"], "accepted");
+    assert_eq!(launch["createOutcome"]["state"]["kind"], "started");
+    assert!(
+        launch["geometry"]["columns"].as_u64().is_some(),
+        "started launch carries its geometry: {got}"
+    );
+
     // 9. A bounded wait for a marker that is never produced times out with
     //    the accepted `timeout` failure (exit 7) — and the same terminal
     //    still answers a subsequent query. Limited claim: this proves only
@@ -683,4 +748,172 @@ fn closed_resources_absent_negative_controls() {
         ]
     });
     assert!(!closed_resources_absent(&snapshot, &tabs, &terminal_refs));
+}
+
+/// Real failed-launch witness, no TUI: the fixture Server inherits a `SHELL`
+/// pointing at a fixture-private executable whose shebang names a guaranteed
+/// nonexistent interpreter under the same disposable directory. Worker
+/// default-shell admission accepts it (regular file + X_OK is the whole
+/// admission surface — no interpreter/format check), Host `execve` then fails
+/// and reports a real launch failure. The retained fact must read back
+/// through the public CLI as `unavailable` with a `failed` create outcome —
+/// never silently dropped, never a phantom `started`. `SHELL` is set only on
+/// the spawned Server command (the managed Worker inherits it); nothing
+/// process-global, no account shell, and no cohort binary is touched.
+#[test]
+fn cli_get_reads_the_retained_failed_launch_without_tui() -> TestResult {
+    let _process_witness = process_witness_guard();
+    let fixture = Fixture::new();
+
+    // Fixture-private executable: regular file, 0700, shebang interpreter that
+    // does not exist — guaranteed ENOENT inside the Host's execve.
+    let shell_dir = fixture.base.join("fixture-shell");
+    fs::create_dir(&shell_dir)?;
+    let shell = shell_dir.join("shell");
+    let interpreter = shell_dir.join("no-such-interpreter");
+    fs::write(&shell, format!("#!{}\n", interpreter.display()))?;
+    fs::set_permissions(&shell, fs::Permissions::from_mode(0o700))?;
+    let _server = spawn_real_server_env(&fixture, &[("SHELL", shell.as_path())]);
+    let validators = validators(&fixture);
+
+    // Same public workspace path as the happy workflow: project → workspace →
+    // accept-directory → tab create. The mutation commits the tab and reports
+    // the terminal's typed spawn outcome.
+    let directory = fixture.base.join("wf 目录 fail");
+    fs::create_dir(&directory)?;
+    let directory = fs::canonicalize(directory)?;
+    let directory = directory.to_str().ok_or("directory path UTF-8")?;
+
+    let (output, created) = run_json(
+        &fixture,
+        &["project", "create", "--label", "wf", "--format", "json"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "project create: {:?}",
+        output
+    );
+    let project_id = created["result"]["projectId"]
+        .as_str()
+        .expect("allocated projectId")
+        .to_owned();
+    let (output, workspace) = run_json(
+        &fixture,
+        &[
+            "workspace",
+            "create",
+            "--project",
+            project_id.as_str(),
+            "--label",
+            "main",
+            "--format",
+            "json",
+        ],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "workspace create: {:?}",
+        output
+    );
+    let workspace_id = workspace["result"]["workspaceId"]
+        .as_str()
+        .expect("workspace id")
+        .to_owned();
+    let (output, _accepted) = run_json(
+        &fixture,
+        &[
+            "workspace",
+            "accept-directory",
+            workspace_id.as_str(),
+            "--path",
+            directory,
+            "--format",
+            "json",
+        ],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "accept-directory: {:?}",
+        output
+    );
+
+    let mut args = vec![
+        "tab",
+        "create",
+        "--workspace",
+        workspace_id.as_str(),
+        "--label",
+        "fails",
+    ];
+    args.extend(GEOMETRY);
+    args.extend(["--format", "json"]);
+    let (output, tab) = run_json(&fixture, &args);
+    // Preserve the actual mutation contract: the tab commit itself is
+    // `committed`; the failed spawn rides inside the receipt's terminal fact
+    // — a Host-reported exec failure, never a precommit or fallback outcome.
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "tab create receipt: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(tab["result"]["action"], "tab.create");
+    assert_eq!(tab["result"]["outcome"], "committed");
+    assert_eq!(tab["result"]["terminal"]["outcome"], "failed");
+    assert_eq!(
+        tab["result"]["terminal"]["reason"], "terminal-create-failed",
+        "the exec failure is the Host-reported kind, not admission/runtime: {tab}"
+    );
+    let tab_id = tab["result"]["tabId"].as_str().expect("tabId").to_owned();
+
+    // The failed launch's binding was committed with the tab; discover the
+    // terminal through the public list surface (no receipt id, no seeding).
+    let (terminal_id, worker_id, site_id) = bind_terminal(&fixture, &tab_id);
+
+    // `terminal get` answers the failed retained fact through the real Server
+    // read: v2 envelope, Server-joined source, nested launch, unavailable
+    // state with the failed create outcome and a real positive generation.
+    let (output, got) = run_json(
+        &fixture,
+        &["terminal", "get", terminal_id.as_str(), "--format", "json"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "terminal get on a failed launch still answers: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    validate(&validators, "orchbee.terminal.get", &output);
+    assert_eq!(got["version"], 2);
+    assert_eq!(got["source"]["kind"], "terminal-launch-read");
+    assert_eq!(got["source"]["siteId"], site_id.as_str());
+    let terminal = &got["result"]["terminal"];
+    assert_eq!(terminal["terminalId"], terminal_id.as_str());
+    assert_eq!(terminal["workerId"], worker_id.as_str());
+    assert_eq!(terminal["boundTo"]["tabId"], tab_id.as_str());
+    let launch = &terminal["launch"];
+    assert_eq!(
+        launch["state"], "unavailable",
+        "the failed launch settles to the retained unavailable phase: {got}"
+    );
+    assert_eq!(launch["createOutcome"]["kind"], "failed");
+    assert_eq!(
+        launch["createOutcome"]["reason"], "terminal-create-failed",
+        "the retained outcome echoes the Host failure: {got}"
+    );
+    let generation = launch["workerGeneration"]
+        .as_str()
+        .expect("tracked launch carries a decimal workerGeneration");
+    assert!(
+        generation.parse::<u64>().is_ok_and(|value| value > 0),
+        "tracked generation is positive: {got}"
+    );
+    assert!(
+        launch["geometry"].is_null(),
+        "a failed launch carries no started geometry: {got}"
+    );
+    Ok(())
 }

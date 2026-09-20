@@ -350,6 +350,12 @@ fn denied_result(request: &ClientMessage) -> ServerMessage {
                 Err(_) => unreachable!("validated send outcomes are encodable"),
             },
         ),
+        ClientMessage::TerminalLaunchRead(request) => ServerMessage::TerminalLaunchReadResult(
+            orchbee_client_server_protocol::TerminalLaunchReadResult::new(
+                request.request_id().clone(),
+                orchbee_client_server_protocol::TerminalLaunchReadOutcome::NotFound,
+            ),
+        ),
     }
 }
 

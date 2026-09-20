@@ -10,8 +10,9 @@ use std::{env, path::PathBuf};
 #[cfg(target_os = "linux")]
 use orchbee_client_server_protocol::{
     RequestId as ObcsRequestId, SiteId as ObcsSiteId, TerminalId as ObcsTerminalId,
-    TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, ViewerId,
-    ViewerRejectedReason, WorkerId as ObcsWorkerId,
+    TerminalLaunchReadOutcome, TerminalLaunchReadRequest, TerminalViewerAction,
+    TerminalViewerOutcome, TerminalViewerRequest, ViewerId, ViewerRejectedReason,
+    WorkerId as ObcsWorkerId,
 };
 #[cfg(target_os = "linux")]
 use orchbee_local_client_protocol::ConnectClientError;
@@ -63,6 +64,61 @@ pub(crate) fn read_snapshot() -> Result<Snapshot, Failure> {
     // any output is prepared.
     drop(client);
     Ok(snapshot)
+}
+
+/// `terminal get`: the snapshot session admits the transport and supplies the
+/// typed target id — nothing else. The answer is the Server's own join under
+/// the coordinator lock: the current binding, the committed revision, and the
+/// retained launch fact. A stale snapshot route is never echoed back.
+#[cfg(target_os = "linux")]
+pub(crate) fn terminal_get(target: &Target) -> Result<(serde_json::Value, Projection), Failure> {
+    let (mut client, deadline, _snapshot) = snapshot_session()?;
+    let identity = match target {
+        Target::Id(identity) => identity.as_str(),
+        // The parser admits only typed IDs for terminal targets.
+        Target::Label(_) => return Err(Failure::new(FailureKind::InternalFailure)),
+    };
+    let request = TerminalLaunchReadRequest::new(
+        obcs_request_id()?,
+        ObcsTerminalId::parse(identity).map_err(|_| Failure::new(FailureKind::InternalFailure))?,
+    );
+    let outcome = client
+        .submit_terminal_launch_read_before(request, deadline)
+        .map_err(classify_launch_read);
+    // The Client Session is fully dropped before the answer is mapped into the
+    // document or any output is prepared.
+    drop(client);
+    let result = outcome?;
+    match result.outcome() {
+        TerminalLaunchReadOutcome::Found {
+            site_id,
+            workbench_revision,
+            terminal,
+            launch,
+        } => {
+            let bound_to = terminal.bound_to();
+            let row = super::results::TerminalRow {
+                terminal_id: terminal.terminal_id().as_str().to_owned(),
+                worker_id: terminal.worker_id().as_str().to_owned(),
+                presentation_id: bound_to.presentation_id().as_str().to_owned(),
+                panel_id: bound_to.panel_id().as_str().to_owned(),
+                tab_id: bound_to.tab_id().as_str().to_owned(),
+                terminal_context_id: bound_to.terminal_context_id().as_str().to_owned(),
+            };
+            Ok((
+                super::results::launch_read_source(site_id.as_str(), *workbench_revision),
+                Projection::TerminalGet(super::results::TerminalGetDoc {
+                    terminal: row,
+                    launch: (**launch).clone(),
+                }),
+            ))
+        }
+        TerminalLaunchReadOutcome::NotFound => Err(Failure::new(FailureKind::NotFound)
+            .details(target_details(Resource::Terminal, identity))),
+        TerminalLaunchReadOutcome::Unavailable { .. } => {
+            Err(Failure::new(FailureKind::ServiceUnavailable).details(stage_details("launch-read")))
+        }
+    }
 }
 
 /// `terminal read`: the snapshot resolves the typed binding, then one
@@ -1146,6 +1202,34 @@ fn wait_cleanup_details(
     failure
 }
 
+/// A launch read is a pure observation like the viewer paths: pre-submission
+/// breakage is clean transport loss and a malformed or mismatched answer is a
+/// protocol violation — never `outcome-unknown`, because nothing was mutated.
+#[cfg(target_os = "linux")]
+fn classify_launch_read(error: SubmissionError) -> Failure {
+    match error {
+        SubmissionError::SessionUnavailable | SubmissionError::RequestEncoding(_) => {
+            Failure::new(FailureKind::InternalFailure)
+        }
+        SubmissionError::RequestNotSubmitted(_) => {
+            Failure::new(FailureKind::TransportLoss).details(stage_details("launch-read"))
+        }
+        SubmissionError::OutcomeUnknown { reason, .. } => match reason {
+            OutcomeUnknownReason::Write(_) | OutcomeUnknownReason::Read(_) => {
+                Failure::new(FailureKind::TransportLoss).details(stage_details("launch-read"))
+            }
+            OutcomeUnknownReason::CorrelationMismatch { .. } => {
+                Failure::new(FailureKind::ProtocolInvalid)
+                    .details(stage_reason_details("launch-read", "correlation-mismatch"))
+            }
+            OutcomeUnknownReason::InvalidResult(_)
+            | OutcomeUnknownReason::UnexpectedResult { .. } => {
+                Failure::new(FailureKind::ProtocolInvalid).details(stage_details("launch-read"))
+            }
+        },
+    }
+}
+
 #[cfg(target_os = "linux")]
 fn classify_viewer(error: SubmissionError) -> Failure {
     match error {
@@ -1215,7 +1299,10 @@ fn rendezvous() -> Result<ModeCheckedLocalSiteRendezvous, Failure> {
 /// above it belongs to `runtime-base`. A scope ENOENT is service-unavailable
 /// discovery, never a configuration failure.
 #[cfg(target_os = "linux")]
-fn classify_rendezvous(error: RendezvousError, scope_directory: &std::path::Path) -> Failure {
+pub(crate) fn classify_rendezvous(
+    error: RendezvousError,
+    scope_directory: &std::path::Path,
+) -> Failure {
     let path = rendezvous_path(&error);
     let stage = if path == Some(scope_directory) {
         "runtime-directory"
@@ -1250,7 +1337,7 @@ fn rendezvous_path(error: &RendezvousError) -> Option<&std::path::Path> {
 }
 
 #[cfg(target_os = "linux")]
-fn classify_connect(error: crate::local_client::LocalClientConnectError) -> Failure {
+pub(crate) fn classify_connect(error: crate::local_client::LocalClientConnectError) -> Failure {
     use orchbee_local_client_protocol::{ProtocolError, RejectionReason};
     match error {
         crate::local_client::LocalClientConnectError::Admission(connect) => match connect {
@@ -1344,6 +1431,17 @@ pub(crate) fn obcs_request_id() -> Result<ObcsRequestId, Failure> {
 
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn read_snapshot() -> Result<orchbee_workbench_protocol::Snapshot, super::Failure> {
+    Err(
+        super::Failure::new(super::FailureKind::ServiceUnavailable).details(
+            super::stage_reason_details("platform", "unsupported-platform"),
+        ),
+    )
+}
+
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn terminal_get(
+    _target: &crate::invocation::Target,
+) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
     Err(
         super::Failure::new(super::FailureKind::ServiceUnavailable).details(
             super::stage_reason_details("platform", "unsupported-platform"),

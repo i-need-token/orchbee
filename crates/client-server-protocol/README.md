@@ -14,17 +14,17 @@ project Workbench state.
 
 ## Public API
 
-| API                                                                                      | Contract                                                                                                                                                                                               |
-| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `RequestId`, `SiteId`, `WorkerId`, `TerminalId`, `ViewerId`, `HostEpoch`, `ControllerId` | Parse separately typed nonzero opaque 128-bit lowercase hexadecimal identities.                                                                                                                        |
-| `WorkingDirectory`                                                                       | Validate an absolute POSIX UTF-8 path of at most 4,096 encoded bytes with no NUL.                                                                                                                      |
-| `Geometry`                                                                               | Construct complete geometry only when all scalar and product bounds hold. Cell-pixel width and height are either both positive (pixels known) or both zero (pixels unknown); a mixed pair is rejected. |
-| `TerminalCreateRequest`, `TerminalStartRequest`                                          | Construct validated Client requests; start rejects equal start/create request identities.                                                                                                              |
-| `CreateOutcome`, `StartOutcome` and result types                                         | Represent only the stable Client-visible result combinations admitted by OBCS v1.                                                                                                                      |
-| `encode_client_frame`, `decode_client_frame`                                             | Encode or decode exactly one complete in-memory Client-to-Server frame.                                                                                                                                |
-| `encode_server_frame`, `decode_server_frame`                                             | Encode or decode exactly one complete in-memory Server-to-Client frame.                                                                                                                                |
-| `read_client_message`, `read_server_message`                                             | Read exactly one frame from a partial-read-capable ordered stream and leave a following frame unread.                                                                                                  |
-| `write_client_message`, `write_server_message`                                           | Write a complete frame through partial writes without flushing the caller.                                                                                                                             |
+| API                                                                                                                                                 | Contract                                                                                                                                                                                               |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `RequestId`, `SiteId`, `WorkerId`, `TerminalId`, `ViewerId`, `HostEpoch`, `ControllerId`, `PresentationId`, `PanelId`, `TabId`, `TerminalContextId` | Parse separately typed nonzero opaque 128-bit lowercase hexadecimal identities.                                                                                                                        |
+| `WorkingDirectory`                                                                                                                                  | Validate an absolute POSIX UTF-8 path of at most 4,096 encoded bytes with no NUL.                                                                                                                      |
+| `Geometry`                                                                                                                                          | Construct complete geometry only when all scalar and product bounds hold. Cell-pixel width and height are either both positive (pixels known) or both zero (pixels unknown); a mixed pair is rejected. |
+| `TerminalCreateRequest`, `TerminalStartRequest`                                                                                                     | Construct validated Client requests; start rejects equal start/create request identities.                                                                                                              |
+| `CreateOutcome`, `StartOutcome` and result types                                                                                                    | Represent only the stable Client-visible result combinations admitted by OBCS v1.                                                                                                                      |
+| `encode_client_frame`, `decode_client_frame`                                                                                                        | Encode or decode exactly one complete in-memory Client-to-Server frame.                                                                                                                                |
+| `encode_server_frame`, `decode_server_frame`                                                                                                        | Encode or decode exactly one complete in-memory Server-to-Client frame.                                                                                                                                |
+| `read_client_message`, `read_server_message`                                                                                                        | Read exactly one frame from a partial-read-capable ordered stream and leave a following frame unread.                                                                                                  |
+| `write_client_message`, `write_server_message`                                                                                                      | Write a complete frame through partial writes without flushing the caller.                                                                                                                             |
 
 All decoded objects and enums are closed. Missing explicit nullable create fields, unknown fields or
 tags, duplicate keys, BOM, invalid UTF-8, trailing JSON values, direction mismatches, invalid
@@ -159,6 +159,34 @@ refusals decided before any binding was resolved. Every `accepted`, `outcome-unk
 and both codec boundaries enforce the rule identically, and a `rejected`/`unavailable` result
 with `not-needed` cleanup may still carry the pinned target. Consumers read the recorded target
 fields verbatim and never re-resolve them.
+
+## Launch read binding
+
+`TerminalLaunchReadRequest` (`terminal.launch.read`) and
+`TerminalLaunchReadResult` (`terminal.launch.read.result`) carry one read-only launch-fact
+lookup for a single terminal. The request is `requestId` + `terminalId` plus the mandatory
+`protocolVersion`; it dispatches no Worker/Host RPC, attaches no viewer, holds no grant, and
+never mutates — the Server resolves the target against its current committed Workbench
+membership inside the coordinator lock and answers in one pass.
+
+The `found` outcome carries the current routing row (`terminalId`, `workerId`, `boundTo`
+presentation/panel/tab/context identities), the `siteId`, the decimal-string
+`workbenchRevision` the join observed, and a `launch` fact object. `not-found` and
+`unavailable{reason:"server-busy"}` are the only other outcomes; a site without a Workbench
+answers `not-found`, including for orphaned retained records.
+
+`launch.state` is the retained launch phase verbatim — `creating`, `awaiting-start`,
+`starting`, `started`, `unknown`, or `unavailable` — plus `not-tracked` when no uniquely
+attributable consistent coordinator record exists for the visible binding (a missing,
+ambiguous, or inconsistent record is reported, never repaired). `not-tracked` is an
+observation about retained facts, not the `unknown` phase and never process liveness;
+`creating` likewise records a phase, not proof of dispatch. `workerGeneration` is a
+positive decimal string and is `null` exactly for `not-tracked`; `geometry` is non-null
+exactly for `started`; `createOutcome` echoes the retained `CreateOutcome` encoding and is
+`null` for `creating` and `not-tracked`. All three members are always present so a missing
+key is a malformed frame, while `null` carries the absence. The decoder enforces those
+conditional-null rules together with the closed-dictionary and identity checks. No lease,
+fence, key, or authorization internals appear in either direction.
 
 ## Request boundary
 

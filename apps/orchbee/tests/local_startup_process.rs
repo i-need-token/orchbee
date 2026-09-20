@@ -1,5 +1,7 @@
 #![cfg(target_os = "linux")]
 
+#[path = "local_startup_process/native_capacity_witness.rs"]
+mod native_capacity_witness;
 #[path = "local_startup_process/native_cli_query.rs"]
 mod native_cli_query;
 #[path = "local_startup_process/native_cli_workflow.rs"]
@@ -24,6 +26,8 @@ mod native_pointer;
 mod native_project_create;
 #[path = "local_startup_process/native_send.rs"]
 mod native_send;
+#[path = "local_startup_process/native_site_start.rs"]
+mod native_site_start;
 #[path = "local_startup_process/native_viewer_capacity.rs"]
 mod native_viewer_capacity;
 #[path = "local_startup_process/native_wait.rs"]
@@ -38,6 +42,9 @@ mod native_workspace_setup;
 mod pty_client;
 #[path = "local_startup_process/startup_wait.rs"]
 mod startup_wait;
+// The shared support module also carries helpers only other suites use.
+#[allow(dead_code)]
+mod support;
 
 use native_cohort::{Fixture, ManagedProcess};
 use orchbee_local_client_protocol::ClientSessionConnection;

@@ -72,7 +72,8 @@ fn viewer(
 }
 
 #[test]
-fn real_close_disposes_eight_live_viewer_entries_and_preserves_sibling_and_replay() -> TestResult {
+fn real_close_disposes_twenty_four_live_viewer_entries_and_preserves_sibling_and_replay()
+-> TestResult {
     let fixture = RuntimeFixture::new()?;
     let _host = RunningHost::start(&fixture)?;
     wait_for_socket(&fixture.host_endpoint())?;
@@ -91,7 +92,7 @@ fn real_close_disposes_eight_live_viewer_entries_and_preserves_sibling_and_repla
     else {
         return Err("sibling launch".into());
     };
-    for id in 1..=8 {
+    for id in 1..=24 {
         assert_eq!(
             viewer(
                 &mut server,
@@ -107,7 +108,7 @@ fn real_close_disposes_eight_live_viewer_entries_and_preserves_sibling_and_repla
     assert_eq!(
         viewer(
             &mut server,
-            9,
+            25,
             TerminalViewerAction::Attach {
                 host_epoch: sibling.identity().host_epoch(),
                 terminal_id: sibling.identity().terminal_id(),
@@ -176,7 +177,7 @@ fn real_close_disposes_eight_live_viewer_entries_and_preserves_sibling_and_repla
         })
     ));
     assert_eq!(step(&mut server, dispose)?, disposed);
-    for id in 1..=8 {
+    for id in 1..=24 {
         assert_eq!(
             viewer(&mut server, id, TerminalViewerAction::Poll)?,
             TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable)
@@ -186,7 +187,7 @@ fn real_close_disposes_eight_live_viewer_entries_and_preserves_sibling_and_repla
             TerminalViewerOutcome::Detached
         );
     }
-    for id in 11..=18 {
+    for id in 26..=49 {
         assert_eq!(
             viewer(
                 &mut server,

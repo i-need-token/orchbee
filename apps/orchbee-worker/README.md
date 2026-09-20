@@ -83,16 +83,19 @@ without waiting for terminal output; downstream delivery cannot hold the Worker 
 The OBCN viewer carrier and Worker attachment transitions now serve Server's admitted Client
 Session relay, with actual Host process traces. Server owns OBCS viewer messages and Session cleanup;
 bare Linux entry now consumes this path.
-Eight live viewers and one retained frame per viewer are implementation bounds, not release
-performance budgets. A missing or contradictory feedback never acknowledges a Host frame.
+Twenty-four live viewers, at most one retained Host record per viewer, and a 128 MiB aggregate
+retained-record budget are implementation bounds, not release performance budgets; the owning
+model is the [viewer capacity and record budget reference](docs/viewer-capacity-and-record-budget.md).
+A missing or contradictory feedback never acknowledges a Host frame.
 `NeedSnapshot` preserves its reason and sequence; `ProjectionBlocked` remains an attachment event.
-A full delivery slot closes only that viewer and releases its queued bytes. Its Host detach runs
+A full delivery slot closes only that viewer and releases its queued bytes, and a valid record
+that would cross the aggregate budget retires only its addressed viewer the same way. Its Host detach runs
 before the next ordinary Server operation; lifecycle steps bypass this cleanup. Late events for that closing viewer are drained without retaining
 another frame. No blocked event or frame is silently replaced. The broker's `host_connection`
 module owns event routing, viewer slots, controller grants, and the shared deadline exchange; `terminal_viewer_operation`
 maps admitted read-only commands and validates their exact Host responses. No viewer-state borrow
 survives Host I/O. Attach performs two sequential bounded exchanges (capabilities, then active
-projection demand); cleanup may perform up to sixteen bounded viewer/control detach exchanges before a request.
+projection demand); cleanup may perform up to thirty-two bounded viewer/control detach exchanges before a request.
 Server now budgets twenty seconds for those exchanges and OBNR record delivery. Lifecycle/metadata notifications are validated and drained; bell, clipboard, and
 application-signal effects are not exposed through this read-only projection path.
 Detach and broker loss release transient attachments and preserve retained terminals. Reattachment
@@ -127,8 +130,8 @@ Viewer detach or closure first releases its controller, then detaches the viewer
 is idempotent only when that viewer has no controller; it never clears a different current grant.
 Unexpected resize-lease revocation of a live grant retires the broker. Exact retired-target events
 after known Dispose are validated and drained. Neither release nor loss promotes another
-viewer or terminates retained execution. Eight viewers allow at most eight extra control
-attachments; cleanup and normal operations share the single Host writer.
+viewer or terminates retained execution. Controller grants stay capped at eight regardless of
+viewer count; cleanup and normal operations share the single Host writer.
 
 Deterministic grant tests cover exclusivity, stale scope, pending acquisition, sequence exhaustion,
 and explicit re-acquisition. Fault process tests cover silent and contradictory Host input

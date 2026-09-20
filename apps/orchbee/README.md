@@ -25,6 +25,7 @@ orchbee tui                      # the same terminal, explicitly
 orchbee status                   # the running Site's Workbench snapshot
 orchbee <family> <command>       # queries and Workbench mutations
 orchbee api snapshot|schema      # machine snapshot and embedded schemas
+orchbee site start               # ensure the local Site is running (no TTY)
 orchbee config check             # local runtime inspection
 orchbee help [<family>|<command>]
 orchbee completion bash|zsh|fish
@@ -46,7 +47,15 @@ probes the literal absolute path — which makes a CLI-created Workspace tab-adm
 without the TUI directory wizard. `project rename <target> --label <label>` submits the
 existing `ProjectRename` action — the same one-snapshot/one-command envelope resolves the
 target by exact id or exact label first — and reports `committed`/`unchanged` under the
-dedicated `orchbee.project.rename` document. The complete grammar, target and
+dedicated `orchbee.project.rename` document. `site start` is the headless activation path:
+it runs the same connect-or-activate sequence the TUI startup uses — validate the cohort,
+prepare the runtime directory, take the locks, commit the marker, spawn the Server when no
+running Site answers — under one absolute 20-second deadline, then reports `started` only
+when this invocation actually spawned the child and `already-running` when an existing Site
+admitted its probe. The command is effectful even on refusal: only a grammar failure is
+guaranteed zero-effect, an interrupted or timed-out start may leave committed activation
+state the next invocation reports as `rejected`/`recovery-required`, and it never repairs,
+stops, or deletes runtime state. The complete grammar, target and
 filter rules, mutation outcomes, and the failure matrix with exit classes are owned by
 [native CLI query](docs/native-cli-query.md); `orchbee help <family>` and
 `orchbee help <family> <command>` print the same grammar from the binary itself.

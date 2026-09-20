@@ -128,14 +128,15 @@ orchbee terminal wait-output <target> --match <text> [--rows <1-1000>] [--timeou
 orchbee terminal send <target> (--text <utf8> | --file <path> | --stdin) [--enter] | --key <name>
 orchbee api snapshot
 orchbee api schema [<schema-id>]
+orchbee site start
 orchbee config check
 orchbee completion bash|zsh|fish
 orchbee help <recognized path>
 orchbee <recognized path> -h|--help
 ```
 
-帮助主题：根级；`project`、`workspace`、`tab`、`panel`、`terminal`、`api`、`config`、
-`completion` 八个族；以及包括 `tui` 在内的每条完整命令路径。`help` 只接受已识别的路径（不带
+帮助主题：根级；`project`、`workspace`、`tab`、`panel`、`terminal`、`api`、`site`、
+`config`、`completion` 九个族；以及包括 `tui` 在内的每条完整命令路径。`help` 只接受已识别的路径（不带
 过滤器、不带 format）。路径末尾的 `-h` 或 `--help` 是同一路径上的同一请求：`orchbee --help`、
 `project --help`、`project get --help` 输出的内容与 `help`、`help project`、`help project get`
 完全相同。后缀 help 优先于缺失的业务参数（`project get --help` 描述 `project get`），但不优先于
@@ -149,7 +150,7 @@ orchbee <recognized path> -h|--help
 `help`、`completion`、`tui`、`--version` 与裸调用是固定文本输出，不接受 `--format`；一个合法
 `--format=json` 会把随后产生的语法失败变成 JSON `invalid-usage` 失败文档，而 text/默认失败仍
 保持 stdout 为空。数据命令（`status`、全部 `list`/`get`、`api snapshot`、`api schema`、
-`config check`）与全部 mutation 命令接受 `--format`。`api` 命令是机器面：`api snapshot` 或 `api schema` 成功时在
+`site start`、`config check`）与全部 mutation 命令接受 `--format`。`api` 命令是机器面：`api snapshot` 或 `api schema` 成功时在
 两种 format 下输出同一份 JSON 文档；`api` 失败则与其他命令一样跟随所选 format——text/默认下
 只写 stderr、stdout 为空，只有 `--format json` 才产出失败 envelope。
 
@@ -203,7 +204,8 @@ canonical 遍历次序报告至多前 8 个候选 typed ID 与真实 `totalCount
 `config check` 纯本地：不 connect socket、不取锁、不 mkdir/chmod；其 cohort 检查使用单独的
 checked 5 秒预算。非 Linux 平台对网络查询与 mutation 产出 `service-unavailable`
 `{stage:"platform",reason:"unsupported-platform"}`，对 `config check` 产出同 details 的
-`check-failed`；不存在向无界连接 API 的回退。
+`check-failed`；不存在向无界连接 API 的回退。`site start` 在非 Linux 平台以同 details 的
+`service-unavailable` 应答。
 
 `terminal read` 沿用第 1–5 步原样不变，然后在同一 deadline 内让已准入的 session 保持存活
 ——绝无第二次准入——完成一次只读 viewer 观察：
@@ -372,6 +374,40 @@ inputSource:"file"|"stdin"}`，仅超时另带 `timeoutMs`（配置的共享预�
   disposition 被尊重而非覆盖。以上均为依托 procfs 的 Linux-only 声明，与 procfd
   输入准入一致。
 
+## Site 激活
+
+`site start` 是 TUI 本地启动的无头形态：两者调用同一个共享 connect-or-activate 核
+（`src/local_activation.rs`）——序列完全一致，仅失败投影不同。一个 20 秒绝对 deadline 在
+cohort 验证之前开始，且绝不按阶段重置：
+
+1. **Cohort** —— 先执行 `NativeCohort::current(deadline)`，先于任何运行时目录工作。其
+   typed io kind 分类：`InvalidData` → `incompatible`，`NotFound` → `service-unavailable`，
+   `PermissionDenied` → `denied`，`TimedOut` → `timeout`，其余一切 kind →
+   `internal-failure`——均带 `{stage:"cohort"}`。
+2. **Prepare** —— 解析 `ORCHBEE_RUNTIME_BASE`/默认值，推导 `orchbee-native-<euid>`，然后
+   以 create-if-missing 模式执行 `prepare_mode_checked`：即使调用稍后被拒，运行时目录也可能
+   已被创建。Rendezvous 错误与查询的 discovery 阶段完全同规则分类。
+3. **Socket 预算** —— 每个派生 socket 路径必须适配本平台 `sockaddr_un`；超预算路径在任何
+   取锁或准入尝试之前即 `service-unavailable`
+   `{stage:"runtime-directory",reason:"address-too-long"}`。
+4. **Connect or activate** —— 尝试一个已准入 `LocalClient`（socket 缺失或拒连在 deadline
+   内可重试；其他 connect 失败逐字沿用查询的 `admission` 映射）；取激活锁，复查 socket，
+   读标记，取 Site 生存期锁；当标记或 socket 显示无存活属主时拒绝
+   `rejected`/`{stage:"activation",reason:"recovery-required"}`；提交标记，按已验证 cohort
+   spawn `orchbee-server --local-site <runtime-directory>`，随后轮询 connect 加 `try_wait`
+   直至就绪。spawn 或 `try_wait` 失败同样是 `recovery-required` 拒绝——标记可能已提交，故
+   答案绝不是干净超时声明。
+5. **Probe** —— 已准入的探针 `LocalClient` 在输出前释放；成功不意味持有 session、grant 或
+   Site 身份收据。
+
+`result.outcome` 报告本次调用实际走的分支：`started` 仅当本次调用拉起了 Server 子进程，
+`already-running` 当既有 Site 准入了其探针。`timeout` 答案意为就绪未能确认——标记提交之前
+无遗留；提交与 spawn 之间可能残留无存活属主的标记（后续调用随即应答
+`recovery-required`）；spawn 之后 Server 可能仍在运行。该命令绝不声称超时证明没有 Server
+启动，绝不重试 `recovery-required`，绝不修复或删除运行时状态。信号保持继承：不存在捕获
+阶段，中断即进程死亡，按惯例 `128 + signo` 退出，绝不产出 `cancelled` envelope。本切片不
+存在 `site stop`、restart 或修复动词。
+
 ## Canonical 数据与结果
 
 Canonical 遍历次序：`navigation.projects` 顺序；各 project 的 `workspaces` 顺序；
@@ -380,7 +416,8 @@ terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresent
 过滤后的列表与 `ambiguous` 候选都保持该次序。
 
 成功 envelope 为 `{schema, version, source, result}`。所有业务文档——查询、mutation、
-收据与失败——均为 `version:1`。仅 `orchbee.api.schema` 目录 envelope 为 `version:2`：
+收据与失败——均为 `version:1`，唯 `orchbee.terminal.get` 例外：它因新增 `launch`
+成员而为 `version:2`。`orchbee.api.schema` 目录 envelope 为 `version:4`：
 注册新的 schema id 会改变封闭字典的形状，按版本规则属目录形状变化而非业务变化：
 
 - `source.kind="workbench-snapshot"`：带同一份已验证快照的 `siteId` 与十进制字符串
@@ -389,9 +426,12 @@ terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresent
   `expectedRevision`——已产出的 mutation 结果，以及有效读取之后 command 阶段的失败。
 - `source.kind="embedded"`：随二进制编译内嵌的 schema 字典（`api schema` 结果及其
   `not-found` 失败）。
-- `source.kind="local-runtime"`：已产出的 `config check` 结果。
+- `source.kind="local-runtime"`：已产出的 `config check` 结果，以及 `site start` 的每个
+  应答——本地运行时是激活 outcome 与拒绝的应答权威。
 - `source.kind="terminal.send"`：`siteId`、send `requestId`，以及解析出该绑定的十进制
   字符串 `snapshotRevision`——出现在类型化 `terminal send` 应答上。
+- `source.kind="terminal-launch-read"`：`siteId` 与十进制字符串 `revision`——Server 在
+  coordinator 锁内 join 出的修订——出现在 `terminal get` 应答上。
 - 不存在 freshness 字段；一次一致读取不等于持续活性保证。
 
 结果载荷（schema ID 为稳定机器名）：
@@ -418,9 +458,26 @@ primaryPresentation,childPresentations}}`，`slotPath` 为自 root 至该叶子�
   链（root 本身即 panel 时为 `[]`），每个 presentation 为 `{presentationId,label,
 binding:{terminalId,workerId}|null}`。
 - `orchbee.terminal.list` → `{terminals:[{terminalId,workerId,boundTo:{presentationId,panelId,
-tabId,terminalContextId}}]}`；`terminal get` 在 `terminal` 下返回同一身份事实。只有被
-  presentation 绑定的终端可见；绑定存在不证明进程存活。任何位置都没有 lifecycle/process/agent
-  字段。
+tabId,terminalContextId}}]}`；`terminal get` 在 `terminal` 下返回同一身份事实，其中嵌套一个
+  `launch` 成员——文档形状为 `{terminal:{terminalId,workerId,boundTo,launch}}`，绝不出现兄弟
+  `result.launch`。只有被 presentation 绑定的终端可见；绑定存在不证明进程存活。其余任何位置
+  都没有 lifecycle/process/agent 字段。与 `terminal list` 不同，`terminal get` 不从 Client
+  持有的快照作答：它在已准入 session 上发送一次 `terminal.launch.read` 请求，由 Server 在
+  coordinator 锁内解析当前绑定、路由与 retained launch fact——快照只提供类型化目标 id。
+  其 envelope 为 `version:2`，`source:{kind:"terminal-launch-read",siteId,revision}` 的
+  `revision` 是 join 所得 workbench 修订的十进制字符串；旧的 `version:1` 校验器会拒绝它，
+  这是刻意的兼容性边界。`launch` 为 `{state,workerGeneration,createOutcome,geometry}`：
+  `state` 逐字呈现 retained phase——`creating`、`awaiting-start`、`starting`、`started`、
+  `unknown`、`unavailable`——或在可见绑定没有可唯一归属且一致的记录时为 `not-tracked`；
+  `workerGeneration` 为正的十进制字符串，仅在 `not-tracked` 时为 `null`；`geometry` 仅在
+  `started` 时非空；`createOutcome` 照录 retained create outcome，在 `creating` 与
+  `not-tracked` 时为 `null`。state 是 retained 事实，绝非进程存活：`creating` 只记录
+  phase、不证明 dispatch 已发生；deferred-start 失败如实读作 `unavailable`，不虚构 start
+  原因。退出码保持查询契约——`not-found` 为 3、`server-busy` unavailable 为
+  4——`found` 应答即使 `launch.state` 为 `unavailable` 且 `createOutcome.kind` 为
+  `failed` 仍退出 0，因为查询本身成功。该交换承载于已准入 session，与准入及快照读取共享
+  同一份 5 秒网络预算：断开或耗尽的交换是 `transport-loss` 5，correlation 失配或无效结果是
+  `protocol-invalid` 5——launch read 绝不报告 `timeout`。
 - `orchbee.terminal.read` → `{terminal,frame,content}`：`terminal` 携带同样的
   `{terminalId,workerId,boundTo}` 身份事实；`frame` 携带已应用投影的
   `{revision,generation,sequence}`（十进制字符串，u64 无损）、`alternateScreen`、`geometry`
@@ -465,10 +522,16 @@ payloadKind,recordBytes?,key?,inputStatus,cleanupStatus,reason?,acceptedBytes?,t
 - `orchbee.config.check` → `{ok,checks:[{name,status,details}]}`，固定次序
   `runtime-base`、`runtime-directory`、`cohort`、`locale`、`sockets`；五项永远齐全。存在失败
   项时仍产出该成功 schema（`ok:false`）并以 1 退出。
+- `orchbee.site.start` → `{outcome,scope,runtimeBase}`：`outcome` 取值 `started` 或
+  `already-running`（本次调用实际走的分支，而非 Site 身份收据），`scope` 为
+  `orchbee-native-<euid>`，`runtimeBase` 恰携带 `path`（UTF-8）或 `pathBytesHex`
+  （非 UTF-8，绝非有损显示串）之一。
 - `orchbee.cli.failure` → `{schema:"orchbee.cli.failure",version:1,failure:{kind,details?},
 source?}`；不存在英文 `message` 字段。`source` 只取自已可信来源（读取后失败用已验证快照；
   `api schema` not-found 用 `embedded`；mutation command 阶段失败一律用
-  `workbench-command`）；读取之前的失败没有 source。
+  `workbench-command`；`site start` 的每个应答含其拒绝一律用 `local-runtime`；`terminal get`
+  在可信 join 之后的输出准备失败用 `terminal-launch-read`）；读取之前
+  的失败与语法失败没有 source。
 - `orchbee.cli.failure.source` → `{schema:"orchbee.cli.failure.source",version:1,
 failure:{kind,details}}`——send 源阶段专用 envelope，仅 `timeout` 与 `cancelled`。
   `details` 为 `{stage:"input",inputSource:"file"|"stdin"}`，超时另带 `timeoutMs`；
@@ -568,7 +631,8 @@ Mutation 结果使用 `schema:"orchbee.mutation.result"`、`version:1`，
 `projectId` 与 `label`。
 
 明确不交付：`project close`、`workspace close`/`workspace focus`、`tab focus`、
-`panel resize`/`panel focus`、终端 open 操作、Site 生命周期命令，以及一切远端操作。
+`panel resize`/`panel focus`、终端 open 操作、`site start` 之外的 Site 生命周期命令
+（不存在 stop、restart、disable 或修复动词），以及一切远端操作。
 
 ## 失败矩阵
 
@@ -581,61 +645,71 @@ HUP/INT/QUIT/TERM；更一般地，被处理的 `terminal send` 源阶段信号�
 `128 + signo` 退出：合格集对应 129/130/131/143）。源 guard 未捕获的合格信号按原
 disposition 交付——OS 默认终止遵循 shell 的 `128 + signal` 约定，不是 CLI 合成的结果。
 
-| 来源                                                                                                                         | `failure.kind`                               | 退出      | `details`                                                                                 |
-| ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | --------- | ----------------------------------------------------------------------------------------- |
-| argv 封装/语法/format/target 形状错误                                                                                        | `invalid-usage`                              | 2         | 省略                                                                                      |
-| 全零 ID/空/超长 label、非法 panel/terminal ID                                                                                | `invalid-identifier`                         | 2         | `{resource,target}`                                                                       |
-| 合法 target 或 schema ID 无匹配                                                                                              | `not-found`                                  | 3         | `{resource,target}`                                                                       |
-| 多个精确 label 匹配                                                                                                          | `ambiguous`                                  | 3         | `{resource,target,candidates≤8,totalCount}`                                               |
-| `NativeCohort::current` 出错                                                                                                 | `check-failed`                               | 1         | `{stage:"cohort"}`                                                                        |
-| 基座非法/缺失/非目录、不安全 runtime/socket、其他校验                                                                        | `check-failed`                               | 1         | `{stage:"runtime-base"                             \| "runtime-directory"   \| "socket"}` |
-| 合法基座下 scope 目录或 `client.sock` 不存在                                                                                 | `service-unavailable`                        | 4         | `{stage:"discovery"}`                                                                     |
-| `ConnectClientError::ConnectFailed`                                                                                          | `service-unavailable`                        | 4         | `{stage:"admission"}`                                                                     |
-| `ConnectClientError::Io`                                                                                                     | `transport-loss`                             | 5         | `{stage:"admission"}`                                                                     |
-| OBLC `Rejected(CapacityExceeded)`                                                                                            | `session-capacity`                           | 4         | `{stage:"admission"}`                                                                     |
-| OBLC `Rejected(HandshakeTimeout)`                                                                                            | `service-unavailable`                        | 4         | `{stage:"admission"}`                                                                     |
-| `Rejected(IncompatibleProtocol                                    \| IncompatibleCohort)`、`Protocol(IncompatibleVersion)`   | `incompatible`                               | 6         | `{stage:"admission"}`                                                                     |
-| `Rejected(WrongMessage                                            \| MalformedFrame)`、`UnexpectedResponse`、其余 `Protocol` | `protocol-invalid`                           | 5         | `{stage:"admission"}`                                                                     |
-| `RequestIoConfiguration`、`SessionUnavailable`、`RequestEncoding`                                                            | `internal-failure`                           | 1         | 省略                                                                                      |
-| `SnapshotReadError::RequestNotSubmitted`（任何原因）                                                                         | `transport-loss`                             | 5         | `{stage:"snapshot"}`                                                                      |
-| `Failed(Write                                                     \| ResponseDeadline)`、`Failed(Response(Io))`              | `transport-loss`                             | 5         | `{stage:"snapshot"}`                                                                      |
-| `Failed(Response(InvalidHeader                                    \| Contract))`、`UnexpectedResponse`                       | `protocol-invalid`                           | 5         | `{stage:"snapshot"}`                                                                      |
-| `Failed(CorrelationMismatch)`                                                                                                | `protocol-invalid`                           | 5         | `{stage:"snapshot",reason:"correlation-mismatch"}`                                        |
-| outcome `Denied`                                                                                                             | `denied`                                     | 3         | 省略                                                                                      |
-| outcome `Unavailable`                                                                                                        | `service-unavailable`                        | 4         | `{stage:"snapshot"}`                                                                      |
-| viewer `RequestNotSubmitted`、`OutcomeUnknown(Write\|Read)`                                                                  | `transport-loss`                             | 5         | `{stage:"viewer"}`                                                                        |
-| viewer `OutcomeUnknown(InvalidResult\|UnexpectedResult)`、错误 outcome 类别                                                  | `protocol-invalid`                           | 5         | `{stage:"viewer"}`                                                                        |
-| viewer `OutcomeUnknown(CorrelationMismatch)`                                                                                 | `protocol-invalid`                           | 5         | `{stage:"viewer",reason:"correlation-mismatch"}`                                          |
-| viewer outcome `Rejected(AlreadyAttached\|TerminalUnavailable)` 或 `Unavailable`                                             | `service-unavailable`                        | 4         | `{stage:"viewer"}`                                                                        |
-| viewer outcome `Rejected(FeedbackMismatch)`、record 被投影拒绝                                                               | `protocol-invalid`                           | 5         | `{stage:"viewer"}`                                                                        |
-| `ReadRows` outcome `RowsRejected(LimitExceeded)`                                                                             | `rejected`                                   | 3         | `{stage:"viewer",operation:"read-history",reason:"limit-exceeded"}`                       |
-| `ReadRows` outcome `RowsRejected`（其他可产生 reason）                                                                       | `service-unavailable`                        | 4         | `{stage:"viewer",operation:"read-history",reason}`                                        |
-| `ReadRows` outcome `RowsRejected(InvalidField\|InvalidAcknowledgement)`、行窗口 record 失配/畸形                             | `protocol-invalid`                           | 5         | `{stage:"viewer"}`                                                                        |
-| `DefinitelyNotSubmitted::RequestNotSubmitted`（command）                                                                     | `transport-loss`                             | 5         | `{stage:"command"}`                                                                       |
-| `DefinitelyNotSubmitted::SessionUnavailable`/`RequestEncoding`                                                               | `internal-failure`                           | 1         | 省略                                                                                      |
-| command `Rejected` precommit                                                                                                 | `rejected`                                   | 3         | `{stage:"command",reason,revision}`                                                       |
-| command `Denied` precommit                                                                                                   | `denied`                                     | 3         | 省略                                                                                      |
-| command `Unavailable` precommit                                                                                              | `service-unavailable`                        | 4         | `{stage:"command",reason}`                                                                |
-| `OutcomeUnknown`（任意原因）                                                                                                 | `outcome-unknown`                            | 8         | `{stage:"command",requestId,reason}`                                                      |
-| send `RequestNotSubmitted`（请求可证明从未到达线缆）                                                                         | `transport-loss`                             | 5         | `{stage:"send"}`                                                                          |
-| send `SessionUnavailable`/`RequestEncoding`                                                                                  | `internal-failure`                           | 1         | 省略                                                                                      |
-| send `OutcomeUnknown`（写/读/无效结果/correlation）                                                                          | `outcome-unknown`                            | 8         | `{stage:"send",requestId,reason}`                                                         |
-| `terminal.send.result` `Rejected`/`Unavailable`                                                                              | 类型化应答，非失败 envelope                  | 3/4       | send 结果 `reason`、`cleanupStatus`；`host-protocol-fault` 退出 5                         |
-| `terminal.send.result` `Accepted` + `Unconfirmed` cleanup                                                                    | 类型化应答，非失败 envelope                  | 5         | send 结果 `acceptedBytes`、`cleanupStatus`                                                |
-| send 源校验：打不开/非 regular 路径、终端或不支持的 stdin、空、超限、非 UTF-8                                                | `invalid-usage`                              | 2         | 省略（本地化 stderr 指明所声明选项与具体原因）                                            |
-| send 源物化期间共享 deadline 到期                                                                                            | `timeout`，属 `orchbee.cli.failure.source`   | 7         | `{stage:"input",inputSource,timeoutMs}`                                                   |
-| send 源物化期间捕获合格信号                                                                                                  | `cancelled`，属 `orchbee.cli.failure.source` | 128+signo | `{stage:"input",inputSource}`                                                             |
-| send 源信号 setup/读取/恢复失败                                                                                              | `internal-failure`                           | 1         | 省略                                                                                      |
-| 预备输出超 8 MiB                                                                                                             | `output-too-large`                           | 1         | `{limitBytes:8388608}`                                                                    |
-| stdout 写/flush 失败                                                                                                         | `output-failed`                              | 1         | 不追加第二份 stdout 文档                                                                  |
-| `config check` 完成但存在失败项                                                                                              | 成功 schema `ok:false`                       | 1         | 五项全部保留                                                                              |
-| 非 Linux 网络查询、mutation 或 `config check`                                                                                | `service-unavailable`/`check-failed`         | 4/1       | `{stage:"platform",reason:"unsupported-platform"}`                                        |
-| `terminal wait-output` 期限耗尽未命中                                                                                        | `timeout`                                    | 7         | `{stage:"wait",timeoutMs,observed}`                                                       |
-| `terminal wait-output` 期间收到 HUP/INT/QUIT/TERM                                                                            | `cancelled`                                  | 130       | `{stage:"wait",cleanup}`                                                                  |
-| `terminal wait-output` 命中但 `Detach` 未确认                                                                                | 类型化 viewer-stage 失败                     | *         | `{stage:"viewer",matchObserved:true,cleanup:"unconfirmed"}`                               |
+| 来源                                                                                                                         | `failure.kind`                                                             | 退出      | `details`                                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------- |
+| argv 封装/语法/format/target 形状错误                                                                                        | `invalid-usage`                                                            | 2         | 省略                                                                                      |
+| 全零 ID/空/超长 label、非法 panel/terminal ID                                                                                | `invalid-identifier`                                                       | 2         | `{resource,target}`                                                                       |
+| 合法 target 或 schema ID 无匹配                                                                                              | `not-found`                                                                | 3         | `{resource,target}`                                                                       |
+| 多个精确 label 匹配                                                                                                          | `ambiguous`                                                                | 3         | `{resource,target,candidates≤8,totalCount}`                                               |
+| `NativeCohort::current` 出错                                                                                                 | `check-failed`                                                             | 1         | `{stage:"cohort"}`                                                                        |
+| 基座非法/缺失/非目录、不安全 runtime/socket、其他校验                                                                        | `check-failed`                                                             | 1         | `{stage:"runtime-base"                             \| "runtime-directory"   \| "socket"}` |
+| 合法基座下 scope 目录或 `client.sock` 不存在                                                                                 | `service-unavailable`                                                      | 4         | `{stage:"discovery"}`                                                                     |
+| `ConnectClientError::ConnectFailed`                                                                                          | `service-unavailable`                                                      | 4         | `{stage:"admission"}`                                                                     |
+| `ConnectClientError::Io`                                                                                                     | `transport-loss`                                                           | 5         | `{stage:"admission"}`                                                                     |
+| OBLC `Rejected(CapacityExceeded)`                                                                                            | `session-capacity`                                                         | 4         | `{stage:"admission"}`                                                                     |
+| OBLC `Rejected(HandshakeTimeout)`                                                                                            | `service-unavailable`                                                      | 4         | `{stage:"admission"}`                                                                     |
+| `Rejected(IncompatibleProtocol                                    \| IncompatibleCohort)`、`Protocol(IncompatibleVersion)`   | `incompatible`                                                             | 6         | `{stage:"admission"}`                                                                     |
+| `Rejected(WrongMessage                                            \| MalformedFrame)`、`UnexpectedResponse`、其余 `Protocol` | `protocol-invalid`                                                         | 5         | `{stage:"admission"}`                                                                     |
+| `RequestIoConfiguration`、`SessionUnavailable`、`RequestEncoding`                                                            | `internal-failure`                                                         | 1         | 省略                                                                                      |
+| `SnapshotReadError::RequestNotSubmitted`（任何原因）                                                                         | `transport-loss`                                                           | 5         | `{stage:"snapshot"}`                                                                      |
+| `Failed(Write                                                     \| ResponseDeadline)`、`Failed(Response(Io))`              | `transport-loss`                                                           | 5         | `{stage:"snapshot"}`                                                                      |
+| `Failed(Response(InvalidHeader                                    \| Contract))`、`UnexpectedResponse`                       | `protocol-invalid`                                                         | 5         | `{stage:"snapshot"}`                                                                      |
+| `Failed(CorrelationMismatch)`                                                                                                | `protocol-invalid`                                                         | 5         | `{stage:"snapshot",reason:"correlation-mismatch"}`                                        |
+| outcome `Denied`                                                                                                             | `denied`                                                                   | 3         | 省略                                                                                      |
+| outcome `Unavailable`                                                                                                        | `service-unavailable`                                                      | 4         | `{stage:"snapshot"}`                                                                      |
+| viewer `RequestNotSubmitted`、`OutcomeUnknown(Write\|Read)`                                                                  | `transport-loss`                                                           | 5         | `{stage:"viewer"}`                                                                        |
+| viewer `OutcomeUnknown(InvalidResult\|UnexpectedResult)`、错误 outcome 类别                                                  | `protocol-invalid`                                                         | 5         | `{stage:"viewer"}`                                                                        |
+| viewer `OutcomeUnknown(CorrelationMismatch)`                                                                                 | `protocol-invalid`                                                         | 5         | `{stage:"viewer",reason:"correlation-mismatch"}`                                          |
+| viewer outcome `Rejected(AlreadyAttached\|TerminalUnavailable)` 或 `Unavailable`                                             | `service-unavailable`                                                      | 4         | `{stage:"viewer"}`                                                                        |
+| viewer outcome `Rejected(FeedbackMismatch)`、record 被投影拒绝                                                               | `protocol-invalid`                                                         | 5         | `{stage:"viewer"}`                                                                        |
+| `ReadRows` outcome `RowsRejected(LimitExceeded)`                                                                             | `rejected`                                                                 | 3         | `{stage:"viewer",operation:"read-history",reason:"limit-exceeded"}`                       |
+| `ReadRows` outcome `RowsRejected`（其他可产生 reason）                                                                       | `service-unavailable`                                                      | 4         | `{stage:"viewer",operation:"read-history",reason}`                                        |
+| `ReadRows` outcome `RowsRejected(InvalidField\|InvalidAcknowledgement)`、行窗口 record 失配/畸形                             | `protocol-invalid`                                                         | 5         | `{stage:"viewer"}`                                                                        |
+| launch-read `RequestNotSubmitted`、`OutcomeUnknown(Write\|Read)`（含共享网络预算耗尽）                                       | `transport-loss`                                                           | 5         | `{stage:"launch-read"}`                                                                   |
+| launch-read `OutcomeUnknown(InvalidResult\|UnexpectedResult)`、错误 outcome 类别                                             | `protocol-invalid`                                                         | 5         | `{stage:"launch-read"}`                                                                   |
+| launch-read `OutcomeUnknown(CorrelationMismatch)`                                                                            | `protocol-invalid`                                                         | 5         | `{stage:"launch-read",reason:"correlation-mismatch"}`                                     |
+| launch-read outcome `Unavailable(ServerBusy)`                                                                                | `service-unavailable`                                                      | 4         | `{stage:"launch-read"}`                                                                   |
+| `DefinitelyNotSubmitted::RequestNotSubmitted`（command）                                                                     | `transport-loss`                                                           | 5         | `{stage:"command"}`                                                                       |
+| `DefinitelyNotSubmitted::SessionUnavailable`/`RequestEncoding`                                                               | `internal-failure`                                                         | 1         | 省略                                                                                      |
+| command `Rejected` precommit                                                                                                 | `rejected`                                                                 | 3         | `{stage:"command",reason,revision}`                                                       |
+| command `Denied` precommit                                                                                                   | `denied`                                                                   | 3         | 省略                                                                                      |
+| command `Unavailable` precommit                                                                                              | `service-unavailable`                                                      | 4         | `{stage:"command",reason}`                                                                |
+| `OutcomeUnknown`（任意原因）                                                                                                 | `outcome-unknown`                                                          | 8         | `{stage:"command",requestId,reason}`                                                      |
+| send `RequestNotSubmitted`（请求可证明从未到达线缆）                                                                         | `transport-loss`                                                           | 5         | `{stage:"send"}`                                                                          |
+| send `SessionUnavailable`/`RequestEncoding`                                                                                  | `internal-failure`                                                         | 1         | 省略                                                                                      |
+| send `OutcomeUnknown`（写/读/无效结果/correlation）                                                                          | `outcome-unknown`                                                          | 8         | `{stage:"send",requestId,reason}`                                                         |
+| `terminal.send.result` `Rejected`/`Unavailable`                                                                              | 类型化应答，非失败 envelope                                                | 3/4       | send 结果 `reason`、`cleanupStatus`；`host-protocol-fault` 退出 5                         |
+| `terminal.send.result` `Accepted` + `Unconfirmed` cleanup                                                                    | 类型化应答，非失败 envelope                                                | 5         | send 结果 `acceptedBytes`、`cleanupStatus`                                                |
+| send 源校验：打不开/非 regular 路径、终端或不支持的 stdin、空、超限、非 UTF-8                                                | `invalid-usage`                                                            | 2         | 省略（本地化 stderr 指明所声明选项与具体原因）                                            |
+| send 源物化期间共享 deadline 到期                                                                                            | `timeout`，属 `orchbee.cli.failure.source`                                 | 7         | `{stage:"input",inputSource,timeoutMs}`                                                   |
+| send 源物化期间捕获合格信号                                                                                                  | `cancelled`，属 `orchbee.cli.failure.source`                               | 128+signo | `{stage:"input",inputSource}`                                                             |
+| send 源信号 setup/读取/恢复失败                                                                                              | `internal-failure`                                                         | 1         | 省略                                                                                      |
+| 预备输出超 8 MiB                                                                                                             | `output-too-large`                                                         | 1         | `{limitBytes:8388608}`                                                                    |
+| stdout 写/flush 失败                                                                                                         | `output-failed`                                                            | 1         | 不追加第二份 stdout 文档                                                                  |
+| `config check` 完成但存在失败项                                                                                              | 成功 schema `ok:false`                                                     | 1         | 五项全部保留                                                                              |
+| `site start` cohort `InvalidData`/`NotFound`/`PermissionDenied`/`TimedOut`/其他 io kind                                      | `incompatible`/`service-unavailable`/`denied`/`timeout`/`internal-failure` | 6/4/3/7/1 | `{stage:"cohort"}`                                                                        |
+| `site start` socket 路径超 `sockaddr_un` 预算                                                                                | `service-unavailable`                                                      | 4         | `{stage:"runtime-directory",reason:"address-too-long"}`                                   |
+| `site start` connect/admission 失败                                                                                          | 同上方 `ConnectClientError` 各行，逐字一致                                 | 4/5/6     | `{stage:"admission"}`                                                                     |
+| `site start` 标记或 socket 已提交但无存活属主；Server spawn 或 `try_wait` io 失败                                            | `rejected`                                                                 | 3         | `{stage:"activation",reason:"recovery-required"}`                                         |
+| `site start` 激活 deadline 到期；取锁 `TimedOut`                                                                             | `timeout`                                                                  | 7         | `{stage:"activation"}`                                                                    |
+| `site start` 标记/探针/锁 io 失败（非超时）                                                                                  | `internal-failure`                                                         | 1         | `{stage:"activation"}`                                                                    |
+| 非 Linux 网络查询、mutation、`site start` 或 `config check`                                                                  | `service-unavailable`/`check-failed`                                       | 4/1       | `{stage:"platform",reason:"unsupported-platform"}`                                        |
+| `terminal wait-output` 期限耗尽未命中                                                                                        | `timeout`                                                                  | 7         | `{stage:"wait",timeoutMs,observed}`                                                       |
+| `terminal wait-output` 期间收到 HUP/INT/QUIT/TERM                                                                            | `cancelled`                                                                | 130       | `{stage:"wait",cleanup}`                                                                  |
+| `terminal wait-output` 命中但 `Detach` 未确认                                                                                | 类型化 viewer-stage 失败                                                   | *         | `{stage:"viewer",matchObserved:true,cleanup:"unconfirmed"}`                               |
 
 `resource` ∈ `project|workspace|tab|panel|terminal|schema`；`stage` ∈
-`cohort|runtime-base|runtime-directory|socket|discovery|admission|snapshot|viewer|command|send|platform|wait`。
+`cohort|runtime-base|runtime-directory|socket|discovery|admission|activation|snapshot|viewer|command|send|platform|wait`。
 源阶段的 `input` stage 只存在于 `orchbee.cli.failure.source` envelope——不进入标准
 `orchbee.cli.failure` 的 stage 词汇。
 stage 与 reason 是有限 schema 值；任何异常文本都不进入机器字段。`details` 是按 kind 封闭的词汇——`{resource,target}`、
@@ -710,39 +784,44 @@ deadline 到期在 wire 请求尚不存在时即退出。
 - 失败 envelope 绝不虚构 `source`：siteId/revision 只来自已验证快照。
 - Ambiguous 绝不猜测：报告有界候选与真实总数。
 - `api schema`、help 与 completion 只枚举同一次构建中真实交付的命令。
+- `site start` 是唯一的激活面，也是唯一会创建本地运行时状态的命令：它可能创建运行时目录、
+  持有激活/生存期锁、提交标记并拉起 Server——只有语法失败保证零副作用。其 20 秒绝对
+  deadline 绝不按阶段重置；`recovery-required` 拒绝绝不重试、修复或清理；超时绝不声称
+  没有 Server 启动。
 - 两个 5 秒预算都是 CLI 自有的 checked deadline；其构造失败是 `internal-failure`，而 transport
   内部 `RequestNotSubmitted` 一律保持 `transport-loss`。
 
 ## 场景矩阵与证据
 
-| 场景                                                                                                                                                                     | 预期                                               | 证据                                                      |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- | --------------------------------------------------------- |
-| 穷举语法：format、位置、`--`、help 形式、重复、非法                                                                                                                      | 精确 parse/失败类别                                | `src/invocation` 测试                                     |
-| format envelope 次序：任何位置的缺陷即空 stdout；任何位置的合法 json 决定其后失败的 envelope                                                                             | envelope 优先于语法错误                            | `src/invocation` 测试 + `tests/cli_query.rs`              |
-| 过滤器范围：`workspace list` 只接受 `--project`；越界过滤器在任何运行时访问之前即 usage                                                                                  | 完整矩阵，过滤器绝不静默丢弃                       | `src/invocation` 测试 + `tests/cli_query.rs`              |
-| 目标规则：ID/label/全零/超长/歧义优先                                                                                                                                    | resolver 判定                                      | `src/cli` resolver 测试                                   |
-| 已验证快照 → 各结果形状、空集合、null                                                                                                                                    | 精确 JSON/text fixture                             | `src/cli` 输出测试 + JSON Schema 校验（dev `jsonschema`） |
-| Schema 字典 ↔ 实际 envelope                                                                                                                                              | 每个成功/失败 fixture 通过校验；被拒变体不通过     | schema 对比测试                                           |
-| API 失败格式：text/默认失败保持 stdout 为空，`--format json` 产出 envelope                                                                                               | `api schema`/`api snapshot` 失败遵守调用方 format  | `tests/cli_query.rs` + `src/cli` 测试                     |
-| 无 Site 磁盘状态                                                                                                                                                         | `service-unavailable`，零 fs/进程/锁变更           | `tests/cli_query.rs`                                      |
-| 真实 staged-cohort Server：status/list/get/api snapshot、8 个准入加第 9 个被拒加释放、活跃 TUI                                                                           | 成功/`session-capacity`/结构不变                   | `tests/local_startup_process`                             |
-| 脚本化 OBLC/OBWP peer：denied、unavailable、畸形、错误 correlation、超时、断连                                                                                           | 按矩阵 typed kind；绝不冒称真实 Server 证据        | `tests/cli_query.rs`                                      |
-| 脚本化 OBCS viewer peer：attach-binding 字段、`Empty`→`record` 轮询、detach 释放、reject/unavailable/畸形/correlation/断连                                               | `terminal read` 成功 + typed viewer-stage 失败     | `tests/cli_query.rs`                                      |
-| 脚本化 OBCS viewer peer + 手工 OBRW record：滚动定价、容量/滚动钳制、typed `rows-rejected`、窗口失配、超大 record、无重试                                                | `terminal read --history` 成功 + typed 失败        | `tests/cli_query.rs`                                      |
-| 脚本化 OBCS send peer：UTF-8 文本与可选折叠回车、语义键均以一条请求到达，target/请求身份，accepted/rejected/unavailable/unknown 应答、停滞应答、无重试                   | `terminal send` 退出 0/3/4/5/8 且两轴结果字段齐全  | `tests/cli_send.rs`                                       |
-| send 源语法：四源互斥、固定次序冲突命名、`--enter` 适用范围、flag 范围                                                                                                   | 任何运行时访问前的精确 parse/`invalid-usage`       | `src/invocation` 测试                                     |
-| 文件/stdin 物化：非阻塞 open + `fstat` 类型闸、regular 文件共享 offset、私有 FIFO 重开、cap+1、严格 UTF-8、空/非 regular/不支持类型的拒绝                                | 有界记录或类型化源 `invalid-usage`；零运行时副作用 | `src/cli/source` 单元测试 + `tests/cli_send.rs`           |
-| 源 deadline/取消：停滞管道在共享 deadline 退出 7、被捕获合格信号按 `128+signo` 携带 `orchbee.cli.failure.source`、继承 IGN/BLK 原样保留、恢复失败即 internal             | 源 envelope 事实、无 wire 请求、精确 mask 恢复     | `src/cli/source` 测试 + 标注的 OS/进程证据                |
-| 脚本化 OBCS send peer + 声明型源：物化后的文件/stdin 以一条 `terminal.send` 文本请求到达                                                                                 | 与 `--text` 完全相同的 envelope；恰好一条请求      | `tests/cli_send.rs`                                       |
-| 脚本化 OBCS viewer peer + 手工 OBTF/OBRW record：递增 `requestSequence`、可见/历史边界窗口、每帧真实 `FrameApplied`、stale 重钉、行尾 excerpt 命中、含 preamble 的总期限 | `terminal wait-output` 成功 + typed 失败           | `tests/cli_query.rs`                                      |
-| 真实 staged-cohort Server + 活跃 TUI 终端：`wait-output` 命中已有/后到/滚出屏/UTF-8 输出，短期限退出 7，取消后槽位可复用                                                 | 公共等待观察与 TUI 自身 viewer 共存                | `tests/local_startup_process`                             |
-| 真实 staged-cohort Server + 活跃 TUI 终端：`terminal read` 返回其网格并通过 schema 校验                                                                                  | 真实只读观察与 TUI 自身 viewer 共存                | `tests/local_startup_process`                             |
-| Mutation 语法：全部命令、target 规则、`--confirm`、几何界限、flag 范围                                                                                                   | 运行时访问前的精确 parse/失败类别                  | `src/invocation` 测试                                     |
-| Mutation 脚本化 peer：全部十二条命令、precommit 判定、不可判定与未提交结果                                                                                               | 每次调用一条命令；`outcome-unknown` 绝不重放       | `tests/cli_mutation.rs`                                   |
-| 非 TTY；stdout 阻塞时 session 已释放；各 format 预备 >8 MiB；真实写失败                                                                                                  | 文档化退出；阻塞前 transport 句柄已 drop           | `tests/local_startup_process` + emit 单元测试             |
-| `config check` 矩阵：每项 pass/fail/not-applicable、`exists` 语义                                                                                                        | 五项 typed 检查齐全                                | `tests/cli_query.rs` + `src/cli/config` 测试              |
-| 补全脚本投影语法（bash/zsh 实执行，fish 结构对齐）                                                                                                                       | 正/负上下文；无运行时枚举                          | `tests/cli_query.rs`                                      |
-| 双语文本/失败输出                                                                                                                                                        | 精确 en-US/zh-CN 字符串                            | `tests/process.rs` + `tests/cli_query.rs`                 |
+| 场景                                                                                                                                                                     | 预期                                                                             | 证据                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 穷举语法：format、位置、`--`、help 形式、重复、非法                                                                                                                      | 精确 parse/失败类别                                                              | `src/invocation` 测试                                     |
+| format envelope 次序：任何位置的缺陷即空 stdout；任何位置的合法 json 决定其后失败的 envelope                                                                             | envelope 优先于语法错误                                                          | `src/invocation` 测试 + `tests/cli_query.rs`              |
+| 过滤器范围：`workspace list` 只接受 `--project`；越界过滤器在任何运行时访问之前即 usage                                                                                  | 完整矩阵，过滤器绝不静默丢弃                                                     | `src/invocation` 测试 + `tests/cli_query.rs`              |
+| 目标规则：ID/label/全零/超长/歧义优先                                                                                                                                    | resolver 判定                                                                    | `src/cli` resolver 测试                                   |
+| 已验证快照 → 各结果形状、空集合、null                                                                                                                                    | 精确 JSON/text fixture                                                           | `src/cli` 输出测试 + JSON Schema 校验（dev `jsonschema`） |
+| Schema 字典 ↔ 实际 envelope                                                                                                                                              | 每个成功/失败 fixture 通过校验；被拒变体不通过                                   | schema 对比测试                                           |
+| API 失败格式：text/默认失败保持 stdout 为空，`--format json` 产出 envelope                                                                                               | `api schema`/`api snapshot` 失败遵守调用方 format                                | `tests/cli_query.rs` + `src/cli` 测试                     |
+| 无 Site 磁盘状态                                                                                                                                                         | `service-unavailable`，零 fs/进程/锁变更                                         | `tests/cli_query.rs`                                      |
+| 真实 staged-cohort Server：status/list/get/api snapshot、8 个准入加第 9 个被拒加释放、活跃 TUI                                                                           | 成功/`session-capacity`/结构不变                                                 | `tests/local_startup_process`                             |
+| 脚本化 OBLC/OBWP peer：denied、unavailable、畸形、错误 correlation、超时、断连                                                                                           | 按矩阵 typed kind；绝不冒称真实 Server 证据                                      | `tests/cli_query.rs`                                      |
+| 脚本化 OBCS viewer peer：attach-binding 字段、`Empty`→`record` 轮询、detach 释放、reject/unavailable/畸形/correlation/断连                                               | `terminal read` 成功 + typed viewer-stage 失败                                   | `tests/cli_query.rs`                                      |
+| 脚本化 OBCS viewer peer + 手工 OBRW record：滚动定价、容量/滚动钳制、typed `rows-rejected`、窗口失配、超大 record、无重试                                                | `terminal read --history` 成功 + typed 失败                                      | `tests/cli_query.rs`                                      |
+| 脚本化 OBCS send peer：UTF-8 文本与可选折叠回车、语义键均以一条请求到达，target/请求身份，accepted/rejected/unavailable/unknown 应答、停滞应答、无重试                   | `terminal send` 退出 0/3/4/5/8 且两轴结果字段齐全                                | `tests/cli_send.rs`                                       |
+| send 源语法：四源互斥、固定次序冲突命名、`--enter` 适用范围、flag 范围                                                                                                   | 任何运行时访问前的精确 parse/`invalid-usage`                                     | `src/invocation` 测试                                     |
+| 文件/stdin 物化：非阻塞 open + `fstat` 类型闸、regular 文件共享 offset、私有 FIFO 重开、cap+1、严格 UTF-8、空/非 regular/不支持类型的拒绝                                | 有界记录或类型化源 `invalid-usage`；零运行时副作用                               | `src/cli/source` 单元测试 + `tests/cli_send.rs`           |
+| 源 deadline/取消：停滞管道在共享 deadline 退出 7、被捕获合格信号按 `128+signo` 携带 `orchbee.cli.failure.source`、继承 IGN/BLK 原样保留、恢复失败即 internal             | 源 envelope 事实、无 wire 请求、精确 mask 恢复                                   | `src/cli/source` 测试 + 标注的 OS/进程证据                |
+| 脚本化 OBCS send peer + 声明型源：物化后的文件/stdin 以一条 `terminal.send` 文本请求到达                                                                                 | 与 `--text` 完全相同的 envelope；恰好一条请求                                    | `tests/cli_send.rs`                                       |
+| 脚本化 OBCS viewer peer + 手工 OBTF/OBRW record：递增 `requestSequence`、可见/历史边界窗口、每帧真实 `FrameApplied`、stale 重钉、行尾 excerpt 命中、含 preamble 的总期限 | `terminal wait-output` 成功 + typed 失败                                         | `tests/cli_query.rs`                                      |
+| 真实 staged-cohort Server + 活跃 TUI 终端：`wait-output` 命中已有/后到/滚出屏/UTF-8 输出，短期限退出 7，取消后槽位可复用                                                 | 公共等待观察与 TUI 自身 viewer 共存                                              | `tests/local_startup_process`                             |
+| 真实 staged-cohort Server + 活跃 TUI 终端：`terminal read` 返回其网格并通过 schema 校验                                                                                  | 真实只读观察与 TUI 自身 viewer 共存                                              | `tests/local_startup_process`                             |
+| Mutation 语法：全部命令、target 规则、`--confirm`、几何界限、flag 范围                                                                                                   | 运行时访问前的精确 parse/失败类别                                                | `src/invocation` 测试                                     |
+| Mutation 脚本化 peer：全部十二条命令、precommit 判定、不可判定与未提交结果                                                                                               | 每次调用一条命令；`outcome-unknown` 绝不重放                                     | `tests/cli_mutation.rs`                                   |
+| 非 TTY；stdout 阻塞时 session 已释放；各 format 预备 >8 MiB；真实写失败                                                                                                  | 文档化退出；阻塞前 transport 句柄已 drop                                         | `tests/local_startup_process` + emit 单元测试             |
+| `config check` 矩阵：每项 pass/fail/not-applicable、`exists` 语义                                                                                                        | 五项 typed 检查齐全                                                              | `tests/cli_query.rs` + `src/cli/config` 测试              |
+| `site start` 真实 staged cohort：冷启动拉起+准入、第二次/并发启动、无属主标记拒止、持锁 deadline、cohort 故障、信号、非 UTF-8 base、zh-CN 文本                           | `started`/`already-running` 分支真实；被拒 wedge 后标记逐字节不变；deadline 有界 | `tests/local_startup_process`                             |
+| 补全脚本投影语法（bash/zsh 实执行，fish 结构对齐）                                                                                                                       | 正/负上下文；无运行时枚举                                                        | `tests/cli_query.rs`                                      |
+| 双语文本/失败输出                                                                                                                                                        | 精确 en-US/zh-CN 字符串                                                          | `tests/process.rs` + `tests/cli_query.rs`                 |
 
 模型义务：本切片不新增 Server 状态机、持久化或重试，复用已注册的 OBLC/OBWP/OBCS/Client
 模型——`terminal read` 复用既有 `terminal.viewer` attach/poll/detach 生命周期，`--history`

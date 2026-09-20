@@ -8,6 +8,7 @@ mod query;
 pub(crate) mod results;
 mod schema;
 pub(crate) mod send;
+mod site;
 #[cfg(target_os = "linux")]
 pub(crate) mod source;
 mod text;
@@ -373,12 +374,26 @@ pub(crate) fn mutation(command: MutationCommand, format: OutputFormat, locale: L
     mutation::run(&command, format, locale)
 }
 
+/// `site start` is neither a query nor a workbench mutation: it runs the
+/// shared connect-or-activate core once and reports the branch it took.
+pub(crate) fn site_start(format: OutputFormat, locale: Locale) -> Output {
+    site::start(format, locale)
+}
+
 pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale) -> Output {
     match &command {
         QueryCommand::ApiSchema { schema_id } => {
             schema::answer(schema_id.as_deref(), format, locale)
         }
         QueryCommand::ConfigCheck => config::check(format, locale),
+        // `terminal get` answers the Server's own launch-read join on the
+        // admitted session; the snapshot supplies only the typed target id.
+        QueryCommand::TerminalGet(target) => match query::terminal_get(target) {
+            Err(failure) => failure_output(failure, Some(format), locale),
+            Ok((source, projection)) => {
+                success_output(projection, source, &command, format, locale)
+            }
+        },
         // `terminal read` couples the snapshot to one viewer observation on
         // the same session; its answer arrives already projected.
         QueryCommand::TerminalRead { target, history } => {
@@ -451,7 +466,7 @@ fn success_output(
         OutputFormat::Json => {
             let document = json!({
                 "schema": schema_id,
-                "version": 1,
+                "version": results::schema_version(command),
                 "source": source,
                 "result": projection.result(),
             });

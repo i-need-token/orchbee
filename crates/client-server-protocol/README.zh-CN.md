@@ -13,17 +13,17 @@ Workbench state。
 
 ## Public API
 
-| API                                                                                      | Contract                                                                                                                                                   |
-| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RequestId`、`SiteId`、`WorkerId`、`TerminalId`、`ViewerId`、`HostEpoch`、`ControllerId` | 解析独立 typed、nonzero opaque 128-bit 小写十六进制 identity。                                                                                             |
-| `WorkingDirectory`                                                                       | 校验最多 4,096 个 encoded byte、无 NUL 的 absolute POSIX UTF-8 path。                                                                                      |
-| `Geometry`                                                                               | 仅当所有 scalar 与 product bound 都成立时构造 complete geometry。cell-pixel width 与 height 必须同正（pixel 已知）或同零（pixel 未知）；混合成对值被拒绝。 |
-| `TerminalCreateRequest`、`TerminalStartRequest`                                          | 构造 validated Client request；start 拒绝相同的 start/create request identity。                                                                            |
-| `CreateOutcome`、`StartOutcome` 与 result type                                           | 只表示 OBCS v1 准入的稳定 Client-visible result combination。                                                                                              |
-| `encode_client_frame`、`decode_client_frame`                                             | Encode 或 decode 恰好一个完整 in-memory Client-to-Server frame。                                                                                           |
-| `encode_server_frame`、`decode_server_frame`                                             | Encode 或 decode 恰好一个完整 in-memory Server-to-Client frame。                                                                                           |
-| `read_client_message`、`read_server_message`                                             | 从支持 partial read 的有序 stream 中精确读取一个 frame，并保留后续 frame 未读。                                                                            |
-| `write_client_message`、`write_server_message`                                           | 通过 partial write 写出完整 frame，且不 flush caller。                                                                                                     |
+| API                                                                                                                                                 | Contract                                                                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RequestId`、`SiteId`、`WorkerId`、`TerminalId`、`ViewerId`、`HostEpoch`、`ControllerId`、`PresentationId`、`PanelId`、`TabId`、`TerminalContextId` | 解析独立 typed、nonzero opaque 128-bit 小写十六进制 identity。                                                                                             |
+| `WorkingDirectory`                                                                                                                                  | 校验最多 4,096 个 encoded byte、无 NUL 的 absolute POSIX UTF-8 path。                                                                                      |
+| `Geometry`                                                                                                                                          | 仅当所有 scalar 与 product bound 都成立时构造 complete geometry。cell-pixel width 与 height 必须同正（pixel 已知）或同零（pixel 未知）；混合成对值被拒绝。 |
+| `TerminalCreateRequest`、`TerminalStartRequest`                                                                                                     | 构造 validated Client request；start 拒绝相同的 start/create request identity。                                                                            |
+| `CreateOutcome`、`StartOutcome` 与 result type                                                                                                      | 只表示 OBCS v1 准入的稳定 Client-visible result combination。                                                                                              |
+| `encode_client_frame`、`decode_client_frame`                                                                                                        | Encode 或 decode 恰好一个完整 in-memory Client-to-Server frame。                                                                                           |
+| `encode_server_frame`、`decode_server_frame`                                                                                                        | Encode 或 decode 恰好一个完整 in-memory Server-to-Client frame。                                                                                           |
+| `read_client_message`、`read_server_message`                                                                                                        | 从支持 partial read 的有序 stream 中精确读取一个 frame，并保留后续 frame 未读。                                                                            |
+| `write_client_message`、`write_server_message`                                                                                                      | 通过 partial write 写出完整 frame，且不 flush caller。                                                                                                     |
 
 所有 decoded object 与 enum 都是 closed。缺失显式 nullable create field、未知 field 或 tag、重复
 key、BOM、无效 UTF-8、尾随 JSON value、direction mismatch、无效 identity、path 或 geometry，以及
@@ -144,6 +144,31 @@ text 仅在无 `enter` 时合法。字段私有，任何公开构造或解码路
 target；构造与两个 codec 边界一致执行该规则，而 cleanup 为 `not-needed` 的
 `rejected`/`unavailable` 结果仍可携带已钉定的 target。消费方逐字段照录该
 target，绝不重新解析。
+
+## Launch read binding
+
+`TerminalLaunchReadRequest`（`terminal.launch.read`）与 `TerminalLaunchReadResult`
+（`terminal.launch.read.result`）承载一次针对单个终端的只读 launch-fact 查询。请求为
+`requestId` + `terminalId` 加必选 `protocolVersion`；不派发任何 Worker/Host RPC、不挂
+viewer、不持有 grant、绝不变更——Server 在 coordinator 锁内按其当前已提交的 Workbench
+membership 解析目标，并一趟返回。
+
+`found` outcome 携带当前路由行（`terminalId`、`workerId`、`boundTo` 的
+presentation/panel/tab/context identity）、`siteId`、join 观测到的 decimal-string
+`workbenchRevision` 以及一个 `launch` fact 对象。其余 outcome 只有 `not-found` 与
+`unavailable{reason:"server-busy"}`；无 Workbench 的 Site 一律回答 `not-found`，包括
+仅存的 orphan retained 记录。
+
+`launch.state` 逐字呈现 retained launch phase——`creating`、`awaiting-start`、
+`starting`、`started`、`unknown` 或 `unavailable`——另加 `not-tracked`：当可见 binding
+没有可唯一归属且一致的 coordinator 记录时使用（缺失、歧义或不一致的记录如实报告，绝不
+修补）。`not-tracked` 是对 retained fact 的观察，不是 `unknown` phase，也绝非进程存活；
+`creating` 同样只记录 phase，不证明 dispatch 已发生。`workerGeneration` 为 positive
+decimal string，恰在 `not-tracked` 时为 `null`；`geometry` 恰在 `started` 时非 null；
+`createOutcome` 照录 retained `CreateOutcome` 编码，在 `creating` 与 `not-tracked` 时为
+`null`。三个成员始终存在：缺 key 即 malformed frame，`null` 才表示缺席。decoder 在
+closed-dictionary 与 identity 校验之外一并执行这些 conditional-null 规则。任一方向上都不
+出现 lease、fence、key 或 authorization 内部字段。
 
 ## Request boundary
 

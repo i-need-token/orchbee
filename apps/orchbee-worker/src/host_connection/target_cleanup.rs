@@ -8,12 +8,12 @@ use orchbee_terminal_protocol::{
     inspect_terminal_frame_route,
 };
 
-use super::HostBrokerConnection;
+use super::{HostBrokerConnection, viewers::MAXIMUM_VIEWERS};
 
 #[derive(Clone, Copy)]
 struct RemovedTarget {
     identity: HostTerminalIdentity,
-    viewers: [Option<OperationId>; 8],
+    viewers: [Option<OperationId>; MAXIMUM_VIEWERS],
     controller: Option<OperationId>,
     disposed: bool,
 }

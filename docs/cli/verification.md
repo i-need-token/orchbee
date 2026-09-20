@@ -47,6 +47,10 @@ refused in review regardless of its tests.
 - A mutation is run against a scripted endpoint that fails after accepting the submission; the
   test asserts one submission, no retry, and an unknown-outcome document carrying the request
   identity.
+- An activation verb is run against a real or staged runtime fixture: a cold invocation brings
+  the service up, a repeat invocation reports already-running, a staged half-activation refuses
+  without mutating the committed state, and the whole attempt honors one invocation-owned
+  deadline.
 
 ## Exit code and envelope evidence
 
@@ -85,6 +89,8 @@ handling, and launcher resolution.
   standard error, and the exit code separately.
 - Send `SIGINT` during a wait against a scripted endpoint and assert exit `130`, no cancel
   request, and no partial machine document.
+- Send a termination signal to an activation verb and assert the process dies by the signal
+  disposition — never as a synthesized typed cancellation document.
 - Run without a controlling terminal and assert that every command except a declared interactive
   one behaves identically.
 - Record the operating system and the endpoint fixture with the evidence; process evidence
@@ -92,13 +98,14 @@ handling, and launcher resolution.
 
 ## Change checklist
 
-| Change                       | Evidence                                                                                          |
-| ---------------------------- | ------------------------------------------------------------------------------------------------- |
-| New command or option        | Grammar class; help, completion, and schema agreement; parse-before-effect for its usage failures |
-| New failure kind             | Mapping and envelope classes; both locales for its diagnostic                                     |
-| Exit-code vocabulary         | Every mapping test across every Orchbee executable; owning guides updated in the same change      |
-| Mutation verb                | One-submission, no-replay, unknown-outcome, and detachment cases against a scripted endpoint      |
-| Wait verb or deadline        | Deadline expiry, interruption, cursor reset, and upper-bound cases                                |
-| Text rendering or truncation | Text class; expected-text update reviewed as a visual diff                                        |
-| Runtime discovery            | Unsafe path, absent endpoint, and cohort mismatch cases with denied repair                        |
-| Repository gate              | `pnpm verify` passes                                                                              |
+| Change                       | Evidence                                                                                                        |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| New command or option        | Grammar class; help, completion, and schema agreement; parse-before-effect for its usage failures               |
+| New failure kind             | Mapping and envelope classes; both locales for its diagnostic                                                   |
+| Exit-code vocabulary         | Every mapping test across every Orchbee executable; owning guides updated in the same change                    |
+| Mutation verb                | One-submission, no-replay, unknown-outcome, and detachment cases against a scripted endpoint                    |
+| Wait verb or deadline        | Deadline expiry, interruption, cursor reset, and upper-bound cases                                              |
+| Activation verb              | Cold start, idempotent re-run, half-activation refusal with unchanged committed state, and one bounded deadline |
+| Text rendering or truncation | Text class; expected-text update reviewed as a visual diff                                                      |
+| Runtime discovery            | Unsafe path, absent endpoint, and cohort mismatch cases with denied repair                                      |
+| Repository gate              | `pnpm verify` passes                                                                                            |

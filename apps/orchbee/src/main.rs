@@ -1,6 +1,8 @@
 mod cli;
 mod client_view;
 mod invocation;
+#[cfg(target_os = "linux")]
+mod local_activation;
 #[cfg(unix)]
 #[cfg_attr(
     not(test),
@@ -97,6 +99,7 @@ fn main() -> ExitCode {
             Ok(invocation::Request::Mutation { command, format }) => {
                 cli::mutation(command, format, locale)
             }
+            Ok(invocation::Request::SiteStart { format }) => cli::site_start(format, locale),
         },
         locale,
     )

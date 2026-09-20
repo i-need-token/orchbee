@@ -22,7 +22,7 @@ mod application_session;
 mod record_stream;
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
-const MAXIMUM_CLIENT_CONNECTIONS: usize = 16;
+const MAXIMUM_CLIENT_CONNECTIONS: usize = 48;
 
 pub(crate) fn start(
     endpoint: &Path,

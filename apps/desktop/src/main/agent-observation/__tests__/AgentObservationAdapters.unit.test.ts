@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { closeSync, openSync } from 'node:fs';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -8,6 +9,11 @@ import { pathToFileURL } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 
 const resourceRoot = path.resolve(process.cwd(), 'resources/agent-observation-adapters/bundle');
+
+// Fixture-only bounds protecting test execution; the shipped hook `timeout`
+// fields are the harness-owned product budgets and are not measured here.
+const FIXTURE_DEADLINE_MS = 30_000;
+const SPAWN_WATCHDOG_MS = 5_000;
 const transportUrl = resourceUrl('scripts/observation-transport.mjs');
 const sanitizersUrl = resourceUrl('scripts/hook-sanitizers.mjs');
 const openCodeUrl = resourceUrl('opencode/orchbee-agent-observation.mjs');
@@ -233,41 +239,81 @@ describe('Agent observation adapter resources', () => {
 		await expect(withAckServer(() => undefined, send)).resolves.toBe(false);
 	});
 
-	it('keeps every persisted command-hook entry silent when the runtime or Capsule script is absent', async () => {
-		const hookFiles = [
-			'hooks/hooks.json',
-			'hooks/codex.json',
-			'hooks/grok.json',
-			'hooks/copilot.json',
-			'gemini/hooks/hooks.json',
-			'qwen-code/hooks/hooks.json',
-		];
-		for (const relativePath of hookFiles) {
-			const value: unknown = JSON.parse(
-				await readFile(path.join(resourceRoot, relativePath), 'utf8'),
-			);
-			for (const hook of commandHooks(value)) {
-				for (const [scenario, environment] of [
-					['runtime-absent', { PATH: '/definitely/missing' }],
-					['capsule-script-absent', process.env],
-				] as const) {
-					const invocation = guardedInvocation(hook);
-					const result = spawnSync(invocation.command, invocation.arguments, {
-						env: environment,
-						input: '{"private":"content"}',
-						timeout: 1000,
-					});
-					const label = `${relativePath}:${scenario}`;
-					expect({
-						label,
-						status: result.status,
-						stderrBytes: result.stderr.length,
-						stdoutBytes: result.stdout.length,
-					}).toEqual({ label, status: 0, stderrBytes: 0, stdoutBytes: 0 });
+	it(
+		'keeps every persisted command-hook entry silent when the runtime or Capsule script is absent',
+		// Secondary guard for the asynchronous reads; the owned bounds are the
+		// monotonic fixture deadline and the per-spawn watchdog below.
+		{ timeout: 35_000 },
+		async () => {
+			const startedAt = performance.now();
+			const deadline = startedAt + FIXTURE_DEADLINE_MS;
+			const hookFiles = [
+				'hooks/hooks.json',
+				'hooks/codex.json',
+				'hooks/grok.json',
+				'hooks/copilot.json',
+				'gemini/hooks/hooks.json',
+				'qwen-code/hooks/hooks.json',
+			];
+			// Private stdin payload via a regular-file fd: a hook that never
+			// reads stdin cannot break a parent pipe writer that does not exist.
+			const stdinDir = await mkdtemp(path.join(tmpdir(), 'orchbee-hook-stdin-'));
+			try {
+				const stdinPath = path.join(stdinDir, 'input.json');
+				await writeFile(stdinPath, '{"private":"content"}');
+				for (const relativePath of hookFiles) {
+					const value: unknown = JSON.parse(
+						await readFile(path.join(resourceRoot, relativePath), 'utf8'),
+					);
+					for (const hook of commandHooks(value)) {
+						for (const [scenario, environment] of [
+							['runtime-absent', { PATH: '/definitely/missing' }],
+							['capsule-script-absent', process.env],
+						] as const) {
+							const label = `${relativePath}:${scenario}`;
+							// Freshly opened fd at offset 0 per invocation; owned by this
+							// iteration and closed after the synchronous spawn settles.
+							const stdinFd = openSync(stdinPath, 'r');
+							try {
+								const remaining = Math.ceil(deadline - performance.now());
+								expect(remaining, `${label}: shared fixture deadline expired`).toBeGreaterThan(0);
+								const invocation = guardedInvocation(hook);
+								const result = spawnSync(invocation.command, invocation.arguments, {
+									env: environment,
+									stdio: [stdinFd, 'pipe', 'pipe'],
+									// Disposable fixture child; SIGKILL suffices, no cleanup needed.
+									killSignal: 'SIGKILL',
+									timeout: Math.min(SPAWN_WATCHDOG_MS, remaining),
+								});
+								expect({
+									label,
+									status: result.status,
+									signal: result.signal,
+									hasError: result.error !== undefined,
+									errorCode: spawnErrorCode(result.error),
+									stderrBytes: result.stderr.length,
+									stdoutBytes: result.stdout.length,
+								}).toEqual({
+									label,
+									status: 0,
+									signal: null,
+									hasError: false,
+									errorCode: null,
+									stderrBytes: 0,
+									stdoutBytes: 0,
+								});
+							} finally {
+								closeSync(stdinFd);
+							}
+						}
+					}
 				}
+				expect(performance.now() - startedAt).toBeLessThanOrEqual(FIXTURE_DEADLINE_MS);
+			} finally {
+				await rm(stdinDir, { recursive: true, force: true });
 			}
-		}
-	});
+		},
+	);
 
 	it('maps Codex and Grok through separate content-free wire contracts', async () => {
 		const sanitizers = await import(sanitizersUrl);
@@ -789,6 +835,12 @@ function guardedInvocation(hook: CommandHook): {
 		return { arguments: hook.args.map(replaceRoot), command: hook.command };
 	}
 	return { arguments: ['-c', replaceRoot(hook.command)], command: '/bin/sh' };
+}
+
+function spawnErrorCode(error: Error | undefined): string | null {
+	return error !== undefined && 'code' in error && typeof error.code === 'string'
+		? error.code
+		: null;
 }
 
 function captureObservations(target: unknown[]): (observation: unknown) => void {

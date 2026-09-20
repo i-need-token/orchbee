@@ -168,6 +168,13 @@ enum DecodedClientMessage {
         terminal_id: TerminalId,
         payload: crate::TerminalSendPayload,
     },
+    #[serde(rename = "terminal.launch.read")]
+    LaunchRead {
+        #[serde(rename = "protocolVersion")]
+        _protocol_version: ProtocolVersion,
+        request_id: RequestId,
+        terminal_id: TerminalId,
+    },
 }
 
 #[derive(Serialize)]
@@ -214,6 +221,12 @@ enum EncodedClientMessage<'a> {
         worker_id: &'a WorkerId,
         terminal_id: &'a TerminalId,
         payload: &'a crate::TerminalSendPayload,
+    },
+    #[serde(rename = "terminal.launch.read")]
+    LaunchRead {
+        protocol_version: ProtocolVersion,
+        request_id: &'a RequestId,
+        terminal_id: &'a TerminalId,
     },
 }
 
@@ -264,6 +277,49 @@ enum DecodedServerMessage {
         target: Option<crate::SendTarget>,
         outcome: crate::TerminalSendOutcome,
     },
+    #[serde(rename = "terminal.launch.read.result")]
+    LaunchRead {
+        #[serde(rename = "protocolVersion")]
+        _protocol_version: ProtocolVersion,
+        request_id: RequestId,
+        outcome: DecodedTerminalLaunchReadOutcome,
+    },
+}
+
+/// The launch fact decodes into a checked intermediate shape: `createOutcome`
+/// is a `DecodedCreateOutcome` like every create-result boundary, and the
+/// conditional-null invariants are enforced when the fact is built.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DecodedTerminalLaunchFact {
+    state: crate::TerminalLaunchState,
+    #[serde(deserialize_with = "crate::number::positive_decimal_nullable::deserialize")]
+    worker_generation: Option<std::num::NonZeroU64>,
+    #[serde(deserialize_with = "deserialize_nullable")]
+    create_outcome: Option<DecodedCreateOutcome>,
+    #[serde(deserialize_with = "deserialize_nullable")]
+    geometry: Option<Geometry>,
+}
+
+#[derive(Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+enum DecodedTerminalLaunchReadOutcome {
+    Found {
+        site_id: SiteId,
+        #[serde(deserialize_with = "crate::number::decimal::deserialize")]
+        workbench_revision: u64,
+        terminal: Box<crate::TerminalLaunchRoute>,
+        launch: Box<DecodedTerminalLaunchFact>,
+    },
+    NotFound,
+    Unavailable {
+        reason: crate::TerminalLaunchReadUnavailableReason,
+    },
 }
 
 #[derive(Serialize)]
@@ -305,6 +361,12 @@ enum EncodedServerMessage<'a> {
         request_id: &'a RequestId,
         target: &'a Option<crate::SendTarget>,
         outcome: &'a crate::TerminalSendOutcome,
+    },
+    #[serde(rename = "terminal.launch.read.result")]
+    LaunchRead {
+        protocol_version: ProtocolVersion,
+        request_id: &'a RequestId,
+        outcome: &'a crate::TerminalLaunchReadOutcome,
     },
 }
 
@@ -367,6 +429,13 @@ pub(crate) fn decode_client_payload(payload: &[u8]) -> Result<ClientMessage, Pro
         } => Ok(ClientMessage::TerminalSend(
             crate::TerminalSendRequest::new(request_id, site_id, worker_id, terminal_id, payload),
         )),
+        DecodedClientMessage::LaunchRead {
+            _protocol_version: _,
+            request_id,
+            terminal_id,
+        } => Ok(ClientMessage::TerminalLaunchRead(
+            crate::TerminalLaunchReadRequest::new(request_id, terminal_id),
+        )),
     }
 }
 
@@ -417,6 +486,11 @@ pub(crate) fn encode_client_payload(message: &ClientMessage) -> Result<Vec<u8>, 
                 payload: &request.payload,
             }
         }
+        ClientMessage::TerminalLaunchRead(request) => EncodedClientMessage::LaunchRead {
+            protocol_version: ProtocolVersion,
+            request_id: &request.request_id,
+            terminal_id: &request.terminal_id,
+        },
     };
     serde_json::to_vec(&encoded).map_err(|_error| ProtocolError::InvalidPayload)
 }
@@ -469,6 +543,39 @@ pub(crate) fn decode_server_payload(payload: &[u8]) -> Result<ServerMessage, Pro
             crate::TerminalSendResult::new(request_id, target, outcome)
                 .map_err(|_error| ProtocolError::InvalidPayload)?,
         ),
+        DecodedServerMessage::LaunchRead {
+            _protocol_version: _,
+            request_id,
+            outcome,
+        } => {
+            let outcome = match outcome {
+                DecodedTerminalLaunchReadOutcome::Found {
+                    site_id,
+                    workbench_revision,
+                    terminal,
+                    launch,
+                } => crate::TerminalLaunchReadOutcome::Found {
+                    site_id,
+                    workbench_revision,
+                    terminal,
+                    launch: Box::new(crate::TerminalLaunchFact::new(
+                        launch.state,
+                        launch.worker_generation,
+                        launch.create_outcome.map(Into::into),
+                        launch.geometry,
+                    )?),
+                },
+                DecodedTerminalLaunchReadOutcome::NotFound => {
+                    crate::TerminalLaunchReadOutcome::NotFound
+                }
+                DecodedTerminalLaunchReadOutcome::Unavailable { reason } => {
+                    crate::TerminalLaunchReadOutcome::Unavailable { reason }
+                }
+            };
+            ServerMessage::TerminalLaunchReadResult(crate::TerminalLaunchReadResult::new(
+                request_id, outcome,
+            ))
+        }
     })
 }
 
@@ -505,6 +612,16 @@ pub(crate) fn encode_server_payload(message: &ServerMessage) -> Result<Vec<u8>, 
                 protocol_version: ProtocolVersion,
                 request_id: &result.request_id,
                 target: &result.target,
+                outcome: &result.outcome,
+            }
+        }
+        ServerMessage::TerminalLaunchReadResult(result) => {
+            if let crate::TerminalLaunchReadOutcome::Found { launch, .. } = &result.outcome {
+                launch.validate()?;
+            }
+            EncodedServerMessage::LaunchRead {
+                protocol_version: ProtocolVersion,
+                request_id: &result.request_id,
                 outcome: &result.outcome,
             }
         }

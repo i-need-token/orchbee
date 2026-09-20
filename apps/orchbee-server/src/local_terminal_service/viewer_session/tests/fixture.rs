@@ -179,38 +179,30 @@ impl Fixture {
             worker_generation: current.generation,
             action: WorkerAction::Poll,
         };
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        loop {
-            let result = handle.request(WorkerOperationRequest::Viewer(request));
-            match result {
-                Ok(WorkerOperationResult::Viewer(result))
-                    if result.outcome == WorkerOutcome::Empty =>
-                {
-                    return Ok(self.effects.lock().unwrap().clone());
-                }
-                // Session Drop queues its final Detach without waiting for its response.
-                // Only a definite pre-admission refusal may retry this observation marker.
-                Err(WorkerRequestError::Backpressure) if std::time::Instant::now() < deadline => {
-                    thread::yield_now()
-                }
-                other => {
-                    return Err(format!(
-                        "marker={sequence}, generation={}, result={other:?}, owner_finished={}, peer_finished={}, effects={:?}",
-                        current.generation.get(),
-                        self.owner
-                            .lock()
-                            .unwrap()
-                            .as_ref()
-                            .is_none_or(thread::JoinHandle::is_finished),
-                        self.peer
-                            .lock()
-                            .unwrap()
-                            .as_ref()
-                            .is_none_or(thread::JoinHandle::is_finished),
-                        self.effects.lock().unwrap()
-                    ));
-                }
+        // The marker takes the blocking high-lane admission path so its response
+        // is a strict cut for earlier high-lane and waiter predecessors — which
+        // is what these fixtures enqueue (cleanup detaches, session-drop work).
+        // Earlier low-lane requests may still be queued when it dispatches;
+        // ordinary low-lane producers here complete synchronously beforehand.
+        match handle.blocking_admit_for_test(WorkerOperationRequest::Viewer(request)) {
+            Ok(WorkerOperationResult::Viewer(result)) if result.outcome == WorkerOutcome::Empty => {
+                Ok(self.effects.lock().unwrap().clone())
             }
+            other => Err(format!(
+                "marker={sequence}, generation={}, result={other:?}, owner_finished={}, peer_finished={}, effects={:?}",
+                current.generation.get(),
+                self.owner
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .is_none_or(thread::JoinHandle::is_finished),
+                self.peer
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .is_none_or(thread::JoinHandle::is_finished),
+                self.effects.lock().unwrap()
+            )),
         }
     }
     pub(super) fn replace_worker(&self) {

@@ -121,7 +121,7 @@ fn concurrent_clients_are_independent_and_disconnect_preserves_worker() -> TestR
 fn active_session_capacity_is_typed_and_released_after_an_obcs_fault() -> TestResult {
     let server = RunningServer::start()?;
     let mut sessions = Vec::new();
-    for _session in 0..8 {
+    for _session in 0..32 {
         sessions.push(connect_bounded_client(server.client_endpoint())?);
     }
     assert!(matches!(
@@ -136,7 +136,7 @@ fn active_session_capacity_is_typed_and_released_after_an_obcs_fault() -> TestRe
     expect_connection_closed(&mut faulted)?;
     let replacement = wait_for_client_admission(server.client_endpoint())?;
     assert!(replacement.generation() > disconnected_generation);
-    assert_eq!(sessions.len(), 7);
+    assert_eq!(sessions.len(), 31);
     Ok(())
 }
 

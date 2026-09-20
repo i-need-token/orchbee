@@ -39,10 +39,13 @@ fn actual_full_carrier_backpressure_does_not_charge_the_close_step() {
         close,
     } = fixture();
     let handle = service.workers.lock().unwrap().request_handle().unwrap();
-    // One effect-free request is in flight and one is admitted to the actual bounded queue.
+    // One effect-free request is in flight and the bounded high lane is filled
+    // behind it, so the next lifecycle admission sees real backpressure.
     let first = handle.submit_lifecycle(foreign_query(1)).unwrap();
     let first_request = lifecycle(&mut peer);
-    let queued = handle.submit_lifecycle(foreign_query(2)).unwrap();
+    let queued: Vec<_> = (2..=9)
+        .map(|ordinal| handle.submit_lifecycle(foreign_query(ordinal)).unwrap())
+        .collect();
     service.start_close_maintenance().unwrap();
     let _accepted = service.execute_terminal_tab_close(close.clone()).unwrap();
     let deadline = Instant::now() + Duration::from_secs(2);
@@ -65,10 +68,14 @@ fn actual_full_carrier_backpressure_does_not_charge_the_close_step() {
         thread::yield_now();
     }
     reply(&mut peer, first_request, settled_page());
-    let queued_request = lifecycle(&mut peer);
-    reply(&mut peer, queued_request, settled_page());
+    let mut last_queued_operation = None;
+    for receipt in queued {
+        let queued_request = lifecycle(&mut peer);
+        last_queued_operation = Some(queued_request.close_operation_id);
+        reply(&mut peer, queued_request, settled_page());
+        receipt.wait().unwrap();
+    }
     let _first = first.wait().unwrap();
-    let _queued = queued.wait().unwrap();
     let actual_close = lifecycle(&mut peer);
     assert_eq!(
         actual_close.step_ordinal.get(),
@@ -77,7 +84,7 @@ fn actual_full_carrier_backpressure_does_not_charge_the_close_step() {
     );
     assert_ne!(
         actual_close.close_operation_id,
-        queued_request.close_operation_id
+        last_queued_operation.unwrap()
     );
     reply(
         &mut peer,

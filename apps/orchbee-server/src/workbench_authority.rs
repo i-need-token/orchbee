@@ -227,6 +227,14 @@ impl WorkbenchAuthority {
         &self.projection.snapshot().site_id
     }
 
+    /// The committed projection head. Callers already hold the coordinator
+    /// lock, so the returned snapshot is a consistent join with any retained
+    /// terminal facts resolved under the same acquisition.
+    #[must_use]
+    pub fn snapshot(&self) -> &Snapshot {
+        self.projection.snapshot()
+    }
+
     pub fn execute(
         &mut self,
         grant: Option<&WorkbenchGrant>,

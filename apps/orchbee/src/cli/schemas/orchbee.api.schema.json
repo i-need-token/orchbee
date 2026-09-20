@@ -7,7 +7,7 @@
 	"additionalProperties": false,
 	"properties": {
 		"schema": { "const": "orchbee.api.schema" },
-		"version": { "const": 3 },
+		"version": { "const": 4 },
 		"source": {
 			"type": "object",
 			"required": ["kind"],
@@ -44,6 +44,7 @@
 						"orchbee.project.get",
 						"orchbee.project.list",
 						"orchbee.project.rename",
+						"orchbee.site.start",
 						"orchbee.status",
 						"orchbee.tab.get",
 						"orchbee.tab.list",
@@ -76,6 +77,7 @@
 				"orchbee.project.get",
 				"orchbee.project.list",
 				"orchbee.project.rename",
+				"orchbee.site.start",
 				"orchbee.status",
 				"orchbee.tab.get",
 				"orchbee.tab.list",

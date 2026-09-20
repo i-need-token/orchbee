@@ -290,7 +290,7 @@ fn exact_disposed_viewer_reuses_either_attach_form_without_old_host_cleanup() {
         assert_eq!(service.controllers.lock().unwrap().len(), 1);
         let handle = service.workers.lock().unwrap().request_handle().unwrap();
         assert!(
-            matches!(handle.request(WorkerOperationRequest::Viewer(WorkerViewerRequest {
+            matches!(handle.blocking_admit_for_test(WorkerOperationRequest::Viewer(WorkerViewerRequest {
             request_id: marker_id, attachment_id: OperationId::from_bytes([249; 16]).unwrap(),
             worker_id: orchbee_capability_node_protocol::WorkerId::from_bytes([9; 16]).unwrap(), worker_generation: WorkerGeneration::new(NonZeroU64::MIN), action: WorkerViewerAction::Poll,
         })), Ok(WorkerOperationResult::Viewer(result)) if result.outcome == WorkerViewerOutcome::Empty)

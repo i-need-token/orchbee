@@ -49,15 +49,15 @@ later phase:
 
 ## Side effects and request identity
 
-| Rule               | Contract                                                                                                                                                                          |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Reads              | Create no directory, lock, marker, terminal, viewer, or grant. A declared read-side attachment is held minimally, released before output, and named in the owning guide.          |
-| One submission     | A mutation submits at most one effect per invocation under one request identity, either caller-supplied or freshly generated after grammar validation, never before.              |
-| No replay          | The invocation never retries, replays, or resubmits an effect. An undetermined result is reported as unknown outcome with the request identity, not guessed or repeated.          |
-| Precommit refusals | Refused, unavailable, broken-channel, and incompatible outcomes on a mutation are definite: nothing was applied, and the caller may resubmit under a new identity.                |
-| Detachment         | `--detach` returns once the submission is accepted and yields the request identity; a later `get` or `wait` observes it. Detachment never changes what was submitted.             |
-| Reads of output    | Terminal or transcript reads return current content only, are never redacted automatically, and are documented as possibly containing secrets so callers limit what they forward. |
-| Durable state      | The process owns none. It writes no history, cache, lock file, or PID file; the service is the only durable authority.                                                            |
+| Rule               | Contract                                                                                                                                                                                                                                                                                                                     |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reads              | Create no directory, lock, marker, terminal, viewer, or grant. A declared read-side attachment is held minimally, released before output, and named in the owning guide.                                                                                                                                                     |
+| One submission     | A mutation submits at most one effect per invocation under one request identity, either caller-supplied or freshly generated after grammar validation, never before.                                                                                                                                                         |
+| No replay          | The invocation never retries, replays, or resubmits an effect. An undetermined result is reported as unknown outcome with the request identity, not guessed or repeated.                                                                                                                                                     |
+| Precommit refusals | Refused, unavailable, broken-channel, and incompatible outcomes on a mutation are definite: nothing was applied, and the caller may resubmit under a new identity.                                                                                                                                                           |
+| Detachment         | `--detach` returns once the submission is accepted and yields the request identity; a later `get` or `wait` observes it. Detachment never changes what was submitted.                                                                                                                                                        |
+| Reads of output    | Terminal or transcript reads return current content only, are never redacted automatically, and are documented as possibly containing secrets so callers limit what they forward.                                                                                                                                            |
+| Durable state      | The process owns none for reads and mutations: no history, cache, lock file, or PID file; the service is the only durable authority. An activation verb is the declared exception — it may create the runtime directory, hold its locks, commit its marker, and spawn the service, and the owning guide names each artifact. |
 
 ## Signals and cancellation
 
@@ -72,7 +72,9 @@ later phase:
   no other command adopts it, and inherited dispositions are restored unchanged when
   acquisition ends.
 - An interrupted invocation exits with the conventional code, writes no partial machine document
-  after interruption, and restores nothing because it changed no terminal modes.
+  after interruption, and restores nothing because it changed no terminal modes. An interrupted
+  activation may additionally leave committed runtime state behind; the owning guide names the
+  residue, and a later invocation reports it rather than repairing it.
 - A wait interrupted after the operation was accepted leaves the operation running; the request
   identity already printed or supplied remains the handle for a later `get` or `wait`.
 
@@ -87,11 +89,16 @@ later phase:
   [Rust](../RUST.md#local-process-and-ipc-boundaries). A version or cohort mismatch is an
   incompatible outcome.
 - An invocation never starts, activates, repairs, or locks a service unless its verb declares that
-  effect.
+  effect. A verb that declares activation is the only path that may create the scoped runtime
+  directory, take its locks, commit its marker, or spawn the service; it still validates the cohort
+  before any runtime-directory work, holds one invocation-owned deadline for the whole attempt,
+  reports a half-activated state as a refusal, and never repairs, stops, or deletes runtime state.
 
 ## Concurrency between invocations
 
-- Invocations do not coordinate through files or shared memory. Two concurrent invocations are
-  independent sessions to the same authority, and the authority owns ordering.
+- Invocations do not coordinate through files or shared memory, except that activation verbs
+  serialize on the runtime's declared lock files so concurrent activators converge on one
+  service. Two concurrent invocations are otherwise independent sessions to the same authority,
+  and the authority owns ordering.
 - Pagination cursors and request identities are the only state carried between invocations, and
   both are opaque to the caller.

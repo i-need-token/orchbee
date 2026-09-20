@@ -1,6 +1,8 @@
 use orchbee_capability_node_protocol::{ControlRejection, HostTerminalId, OperationId};
 use std::{collections::BTreeMap, num::NonZeroU64};
 
+const MAXIMUM_CONTROLLERS: usize = 8;
+
 #[derive(Clone, Copy)]
 pub(crate) struct ControlGrant {
     pub(crate) viewer_id: OperationId,
@@ -23,7 +25,7 @@ impl HostControllers {
         controller_id: OperationId,
         terminal_id: HostTerminalId,
     ) -> Result<(), ControlRejection> {
-        if self.grants.len() >= 8
+        if self.grants.len() >= MAXIMUM_CONTROLLERS
             || self.contains(controller_id)
             || self
                 .grants

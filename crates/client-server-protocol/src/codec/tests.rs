@@ -1,9 +1,13 @@
 use std::io::{self, Cursor, Read, Write};
 
 use crate::{
-    CreateOutcome, Geometry, RequestId, ServerMessage, StartMode, TerminalCreateRequest,
-    TerminalCreateResult, WorkingDirectory,
+    CreateAcceptedState, CreateOutcome, Geometry, PanelId, PresentationId, RequestId,
+    ServerMessage, SiteId, StartMode, TabId, TerminalContextId, TerminalCreateRequest,
+    TerminalCreateResult, TerminalId, TerminalLaunchBoundTo, TerminalLaunchFact,
+    TerminalLaunchReadOutcome, TerminalLaunchReadResult, TerminalLaunchRoute, TerminalLaunchState,
+    WorkerId, WorkingDirectory,
 };
+use std::num::NonZeroU64;
 
 use super::{
     FRAME_HEADER_BYTES, FRAME_MAGIC, FRAME_VERSION, MAXIMUM_FRAME_PAYLOAD_BYTES, ProtocolError,
@@ -208,6 +212,45 @@ fn worst_case_json_escaping_stays_inside_the_frame_bound() -> Result<(), Box<dyn
     assert!(encoded.len() - FRAME_HEADER_BYTES <= MAXIMUM_FRAME_PAYLOAD_BYTES);
     assert!(encoded.len() - FRAME_HEADER_BYTES > 24 * 1024);
     assert_eq!(decode_client_frame(&encoded)?, message);
+    Ok(())
+}
+
+#[test]
+fn maximum_launch_read_result_stays_inside_the_frame_bound()
+-> Result<(), Box<dyn std::error::Error>> {
+    // The largest legal shape: every 32-hex identity present, u64::MAX for the
+    // decimal-string revision and generation, and the `started` fact that
+    // carries both a create outcome and a geometry.
+    let message = ServerMessage::TerminalLaunchReadResult(TerminalLaunchReadResult::new(
+        RequestId::parse("ffffffffffffffffffffffffffffffff")?,
+        TerminalLaunchReadOutcome::Found {
+            site_id: SiteId::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")?,
+            workbench_revision: u64::MAX,
+            terminal: Box::new(TerminalLaunchRoute::new(
+                TerminalId::parse("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")?,
+                WorkerId::parse("cccccccccccccccccccccccccccccccc")?,
+                TerminalLaunchBoundTo::new(
+                    PresentationId::parse("dddddddddddddddddddddddddddddddd")?,
+                    PanelId::parse("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")?,
+                    TabId::parse("11111111111111111111111111111111")?,
+                    TerminalContextId::parse("22222222222222222222222222222222")?,
+                ),
+            )),
+            launch: Box::new(TerminalLaunchFact::new(
+                TerminalLaunchState::Started,
+                NonZeroU64::new(u64::MAX),
+                Some(CreateOutcome::Accepted {
+                    state: CreateAcceptedState::Started {
+                        geometry: Geometry::new(255, 255, 257, 257)?,
+                    },
+                }),
+                Some(Geometry::new(255, 255, 257, 257)?),
+            )?),
+        },
+    ));
+    let encoded = encode_server_frame(&message)?;
+    assert!(encoded.len() - FRAME_HEADER_BYTES <= MAXIMUM_FRAME_PAYLOAD_BYTES);
+    assert_eq!(decode_server_frame(&encoded)?, message);
     Ok(())
 }
 

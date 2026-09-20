@@ -56,7 +56,7 @@ every failure kind and terminal result to exactly one code, and the mapping is t
 | `0`   | Success         | The read completed, including an empty result; the mutation completed or was unchanged; a detached submission was accepted                                                                                      |
 | `1`   | Local failure   | A local configuration check failed, output could not be prepared or written, or an internal invariant failed before any request                                                                                 |
 | `2`   | Usage           | Invalid grammar, option, value, target syntax, input document, or argument envelope                                                                                                                             |
-| `3`   | Refused         | The authority definitively declined before applying anything: not found, ambiguous, denied, rejected, blocked, or conflicting                                                                                   |
+| `3`   | Refused         | The authority definitively declined: not found, ambiguous, denied, rejected, blocked, or conflicting; an activation refusal can follow partial runtime effects rather than promising nothing was applied        |
 | `4`   | Unavailable     | No reachable service, capacity exhausted, or the current platform cannot serve the request                                                                                                                      |
 | `5`   | Broken channel  | Transport loss or a protocol violation                                                                                                                                                                          |
 | `6`   | Incompatible    | Protocol, cohort, or version mismatch                                                                                                                                                                           |
@@ -66,7 +66,9 @@ every failure kind and terminal result to exactly one code, and the mapping is t
 | `130` | Interrupted     | Default `SIGINT` semantics                                                                                                                                                                                      |
 
 - A refused, unavailable, broken-channel, or incompatible outcome on a mutation means nothing was
-  applied. Only unknown outcome admits that an effect may exist.
+  applied. Only unknown outcome admits that an effect may exist. An activation verb follows its
+  own rule: its `rejected` refusal means half-activated runtime state may persist, so the command
+  reports the refusal and never claims nothing was applied.
 - An interrupted wait does not cancel the observed operation; see
   [`process.md`](process.md#signals-and-cancellation).
 - Codes not in the table are reserved and unreachable, except the source-stage interruption

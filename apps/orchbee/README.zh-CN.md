@@ -22,6 +22,7 @@ orchbee tui                      # 显式打开同一终端
 orchbee status                   # 运行中 Site 的 Workbench 快照
 orchbee <family> <command>       # 查询与 Workbench 修改命令
 orchbee api snapshot|schema      # 机器快照与内嵌 schema
+orchbee site start               # 确保本地 Site 正在运行（无需 TTY）
 orchbee config check             # 本地运行时检查
 orchbee help [<family>|<command>]
 orchbee completion bash|zsh|fish
@@ -40,7 +41,13 @@ Server 分配的 project id，供 `workspace create`/`tab create` 链使用；
 Server 权威探测该字面绝对路径——使 CLI 创建的 Workspace 无需 TUI 目录向导即可接纳 Tab。
 `project rename <target> --label <label>` 提交既有 `ProjectRename` 动作——同一
 "一次快照/一条命令" 信封先按精确 ID 或精确 label 解析 target——并在专用
-`orchbee.project.rename` 文档下报告 `committed`/`unchanged`。完整语法、
+`orchbee.project.rename` 文档下报告 `committed`/`unchanged`。`site start` 是无头
+激活路径：它执行与 TUI 启动相同的 connect-or-activate 序列——验证 cohort、准备
+运行时目录、取锁、提交标记、在没有运行中 Site 应答时拉起 Server——全程共享一个
+20 秒绝对 deadline，然后仅当本次调用实际拉起了子进程时报告 `started`，当既有
+Site 准入了其探针时报告 `already-running`。该命令即使在拒绝时也有副作用：只有
+语法失败保证零副作用；被中断或超时的启动可能遗留已提交的激活状态，后续调用会以
+`rejected`/`recovery-required` 报告；它绝不修复、停止或删除运行时状态。完整语法、
 target 与 filter 规则、修改结果及含退出分类的 failure matrix 由
 [native CLI query](docs/native-cli-query.zh-CN.md) 持有；`orchbee help <family>` 与
 `orchbee help <family> <command>` 直接从二进制输出同一套语法。
