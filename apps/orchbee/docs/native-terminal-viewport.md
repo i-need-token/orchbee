@@ -60,6 +60,11 @@ never conflated with retained history: `total_rows` comes only from served windo
 - `Recover` — `SetHistoryDemand(FollowingBottom)` then `SetProjectionDemand(Active)`. Any leg
   failure faults the pane. Success publishes `ViewportOutcome::Recovered`.
 
+Every outcome travels back as a fire-and-forget `WorkerEvent::ViewportOutcome` notice:
+`publish_notice_before` deposits it with no wait key and no expected reply, the UI's
+`take_event_before` admits it alongside the pane detach/failure notices, and
+`apply_viewport_outcome` resolves the exact `PaneRef` before dispatching into the core.
+
 Every step is fenced by `viewer_once_ready`/`viewer_for_ready_lease`: the pane must still be the
 canonical record with the same incarnation and live attachment, and the outcome's attachment and
 (lease) generation must match. Actions for a dead viewer never run.
@@ -188,4 +193,5 @@ returns to live output.
 | Adversarial sequences   | Deterministic trace tests — stray/foreign/stale windows, typed stale retry, halving, ack rejection, bottom exit, absolute jump                          |
 | Input boundary          | `client_view` tests — `Ctrl+B PageUp` → `EnterHistory`, help precedence; dispatcher consumption is exercised through the port default                   |
 | Rendering               | Surface fencing is owned by the core (`surface()` re-validates generation/columns); painter coverage rides the shell render paths                       |
-| Model                   | `formal/tla/TerminalClientViewport.tla` + `.cfg` registered in `scripts/tla/models.json`; TLC run by the gate owner                                   |
+| Outcome notice seam     | `ui/viewport_tests` — `publish_notice_before` → `take_event_before` → `apply_viewport_outcome` regression keeps the protocol open and advances the Entering core |
+| Model                   | `formal/tla/TerminalClientViewport.tla` + `.cfg` registered in `scripts/tla/models.json`; the mechanical `ConsumeRecovered`/`ExecuteAck`/`ResetCore` corrections are mapped but TLC remains pending with the gate owner |

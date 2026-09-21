@@ -142,7 +142,7 @@ ResetCore ==
     /\ win_seq' = 0 /\ win_gen' = 0 /\ ack' = "none" /\ read_flight' = 0
     /\ read_issue_gen' = 0 /\ pending_nav' = "none" /\ nav_delta' = 0
     /\ committed' = 0 /\ refresh' = 0 /\ need_facts' = 0 /\ deadline' = 0
-    /\ retry_used' = 0 /\ halve_used' = 0 /\ drawn_gen' = 0
+    /\ retry_used' = 0 /\ halve_used' = 0 /\ drawn_gen' = 0 /\ recover_done' = 0
     /\ UNCHANGED next_seq
 
 \* ---------------- client-local actions ----------------
@@ -593,7 +593,7 @@ ExecuteAck ==
                    read_flight, next_seq, read_issue_gen, pending_nav,
                    nav_delta, committed, refresh, deadline, retry_used,
                    halve_used, recover_done, drawn_gen, req, resp,
-                   win_gen_flight, enter_resp, recover_resp, delivered,
+                   win_gen_flight, ack_out, enter_resp, recover_resp, delivered,
                    evt_pending, evt_seq, evt_gen, evt_anchor, last_evt_seq,
                    observed_seq, host_gen, host_read_watermark, host_dirty,
                    demand, proj, emitted_delta>>
@@ -658,7 +658,7 @@ ConsumeRecovered ==
     /\ UNCHANGED <<mode, facts_gen, need_facts, win_seq, win_gen, ack,
                    read_flight, next_seq, read_issue_gen, pending_nav,
                    nav_delta, committed, refresh, deadline, retry_used,
-                   halve_used, recover_done, drawn_gen, cmd_q, req, resp,
+                   halve_used, drawn_gen, cmd_q, req, resp,
                    win_gen_flight, ack_out, ack_resp, enter_resp, delivered,
                    evt_pending, evt_seq, evt_gen, evt_anchor, last_evt_seq,
                    observed_seq, host_gen, host_pending, host_committed,

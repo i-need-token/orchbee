@@ -509,6 +509,54 @@ fn fresh_incarnation_restarts_the_sequence_domain() {
     assert_eq!(projection_at(&mut ui, &peer).read_watermark, 1);
 }
 
+// A worker-published `ViewportOutcome` notice survives the real
+// publish → take → apply seam: `publish_notice_before` deposits it with no
+// wait key, `ui.tick`'s `take_event_before` must hand it to
+// `apply_viewport_outcome` instead of faulting the mailbox closed, and the
+// applied Enter keeps the Entering core — whose next facts stage the entry
+// Read — proving the outcome advanced state. Regression for the take-side
+// whitelist that used to accept only pane detach/failure notices and
+// protocol-closed on every legitimate lookback result.
+#[test]
+fn viewport_outcome_notice_survives_publish_take_apply() {
+    let (mut ui, mailbox, clock, _elapsed) = ready_split_ui();
+    drain(&mailbox);
+    let key = ui
+        .state
+        .as_ref()
+        .unwrap()
+        .focus_pane_ref()
+        .expect("focus pane");
+    install_frame(&mut ui, &key);
+    ui.enter_history();
+    assert_eq!(recv_viewports(&mailbox), [ViewportStep::Enter]);
+
+    mailbox
+        .publish_notice_before(
+            WorkerEvent::ViewportOutcome {
+                key: key.clone(),
+                outcome: ViewportOutcome::Enter { applied: true },
+            },
+            clock.now() + crate::terminal_session::state::OPERATION_TOTAL,
+            &clock,
+        )
+        .expect("the fire-and-forget outcome publishes");
+    ui.tick();
+    assert!(
+        ui.retirement_failure.is_none() && ui.state.is_some(),
+        "a legitimate outcome notice must not close the protocol"
+    );
+    assert!(
+        projection_at(&mut ui, &key).viewport.is_some(),
+        "the applied Enter kept the Entering core"
+    );
+    drain(&mailbox);
+
+    // The outcome genuinely advanced state: the Entering core's read
+    // demand stages the entry read once facts arrive.
+    assert_eq!(staged_read_sequence(&mut ui, &mailbox, &key, 1, 1), 1);
+}
+
 /// A ready fixture under a `Controlling` mode — `forward` requires it.
 fn controlling_ui() -> (
     NativeUi,

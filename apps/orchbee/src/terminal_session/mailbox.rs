@@ -2372,12 +2372,12 @@ impl CommandMailbox {
         Ok(wait_key)
     }
 
-    /// Deposits a fire-and-forget pane notice (`PaneDetached`/`PaneFailed`):
-    /// no wait key is minted and no UI reply is expected — the UI settles the
-    /// notice straight into the state on take. Stale notices are still
-    /// delivered; the state's settle functions discard non-matching
-    /// incarnations, so the worker never has to guess whether the UI raced
-    /// ahead of the reconcile that produced the notice.
+    /// Deposits a fire-and-forget pane notice (`PaneDetached`/`PaneFailed`/
+    /// `ViewportOutcome`): no wait key is minted and no UI reply is expected —
+    /// the UI settles the notice straight into the state on take. Stale
+    /// notices are still delivered; the state's settle functions discard
+    /// non-matching incarnations, so the worker never has to guess whether the
+    /// UI raced ahead of the reconcile that produced the notice.
     pub(super) fn publish_notice_before(
         &self,
         event: WorkerEvent,
@@ -2611,10 +2611,15 @@ impl CommandMailbox {
         }
         let Some(wait_key) = state.event_wait_key.clone() else {
             // Fire-and-forget pane notices carry no wait key: the UI settles
-            // them directly and no reply exists.
+            // them directly and no reply exists. `ViewportOutcome` rides the
+            // same publication arm — `run_viewport` deposits it through
+            // `publish_notice_before` — so a taken outcome is as legitimate as
+            // a detach/failure notice.
             if !matches!(
                 &*event,
-                WorkerEvent::PaneDetached { .. } | WorkerEvent::PaneFailed { .. }
+                WorkerEvent::PaneDetached { .. }
+                    | WorkerEvent::PaneFailed { .. }
+                    | WorkerEvent::ViewportOutcome { .. }
             ) {
                 return Err(self.close_protocol(&mut state));
             }

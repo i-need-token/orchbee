@@ -56,6 +56,11 @@ demand 双腿、行窗口 read/acknowledge 握手、导航意图、恢复，以�
 - `Recover` — `SetHistoryDemand(FollowingBottom)` 再 `SetProjectionDemand(Active)`。任一腿
   失败 → 窗格判错。成功 → 发布 `ViewportOutcome::Recovered`。
 
+每个结果都经 fire-and-forget `WorkerEvent::ViewportOutcome` 通知回程：
+`publish_notice_before` 不设 wait key、不期待回复；UI 的 `take_event_before`
+与窗格 detach/failure 通知同等受理，再由 `apply_viewport_outcome` 按精确
+`PaneRef` 派发到 core。
+
 每一步都经 `viewer_once_ready`/`viewer_for_ready_lease` 围栏：窗格必须仍是同一
 incarnation 与活动 attachment 的规范记录，且结果的 attachment 与（租约）generation
 匹配。死 viewer 的动作绝不执行。
@@ -166,4 +171,5 @@ kind-53 事件仍经其自有通道精确应答一次。`Recovering`
 | 对抗序列                  | 确定性 trace 测试 — 流浪/外来/陈旧窗口、带类型 stale 重试、减半、ack 拒绝、底部退出、绝对跳转                                                      |
 | 输入边界                  | `client_view` 测试 — `Ctrl+B PageUp` → `EnterHistory`、help 优先级；dispatcher 消费经端口缺省路径验证                                              |
 | 呈现                      | surface 围栏归核心所有（`surface()` 每次复核 generation/列数）；画笔覆盖随 shell 渲染路径                                                          |
-| 模型                      | `formal/tla/TerminalClientViewport.tla` + `.cfg` 注册于 `scripts/tla/models.json`；TLC 由门禁负责人运行                                            |
+| 结果通知接缝               | `ui/viewport_tests` — `publish_notice_before` → `take_event_before` → `apply_viewport_outcome` 回归保持协议开放并推进 Entering 核心               |
+| 模型                      | `formal/tla/TerminalClientViewport.tla` + `.cfg` 注册于 `scripts/tla/models.json`；`ConsumeRecovered`/`ExecuteAck`/`ResetCore` 机械修正已映射，TLC 仍由门禁负责人待跑 |
