@@ -7,7 +7,7 @@ import type {
 } from '@orchbee/terminal';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { TerminalSettingsSurface } from '../TerminalSettingsSurface';
 import { ApplicationLocaleController } from '../../application-locale';
@@ -48,24 +48,76 @@ afterAll(() => {
 });
 
 describe('TerminalSettingsSurface', () => {
+	const testResources = {
+		containers: [] as HTMLElement[],
+		disposables: [] as { dispose(): void }[],
+		roots: [] as ReturnType<typeof createRoot>[],
+	};
+
+	function trackContainer<ElementType extends HTMLElement>(element: ElementType): ElementType {
+		testResources.containers.push(element);
+		return element;
+	}
+	function trackDisposable<DisposableType extends { dispose(): void }>(
+		disposable: DisposableType,
+	): DisposableType {
+		testResources.disposables.push(disposable);
+		return disposable;
+	}
+	function trackRoot(root: ReturnType<typeof createRoot>): ReturnType<typeof createRoot> {
+		testResources.roots.push(root);
+		return root;
+	}
+
+	afterEach(async () => {
+		const failures: unknown[] = [];
+		for (const root of testResources.roots.splice(0)) {
+			try {
+				await act(async () => root.unmount());
+			} catch (error) {
+				failures.push(error);
+			}
+		}
+		for (const container of testResources.containers.splice(0)) {
+			try {
+				container.remove();
+			} catch (error) {
+				failures.push(error);
+			}
+		}
+		for (const disposable of testResources.disposables.splice(0)) {
+			try {
+				disposable.dispose();
+			} catch (error) {
+				failures.push(error);
+			}
+		}
+		if (failures.length === 1) throw failures[0];
+		if (failures.length > 1) throw new AggregateError(failures, 'test cleanup failed');
+	});
+
 	it('focuses global search, navigates categories, and routes theme choices outside presentation configuration', async () => {
-		const container = document.createElement('div');
+		const container = trackContainer(document.createElement('div'));
 		document.body.append(container);
 		const storage = memoryStorage();
-		const controller = new TerminalSettingsController({
-			storage,
-			themeTarget: document.documentElement,
-		});
-		const keyboardShortcutController = new KeyboardShortcutSettingsController({
-			platform: 'apple',
-			storage,
-		});
+		const controller = trackDisposable(
+			new TerminalSettingsController({
+				storage,
+				themeTarget: document.documentElement,
+			}),
+		);
+		const keyboardShortcutController = trackDisposable(
+			new KeyboardShortcutSettingsController({
+				platform: 'apple',
+				storage,
+			}),
+		);
 		const presentationListener =
 			vi.fn<(configuration: ReturnType<typeof controller.current>) => void>();
 		controller.subscribe(presentationListener);
 		controller.open();
 		const close = vi.fn<() => void>();
-		const root = createRoot(container);
+		const root = trackRoot(createRoot(container));
 
 		await act(async () => {
 			root.render(
@@ -73,7 +125,7 @@ describe('TerminalSettingsSurface', () => {
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
 					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: createApplicationLocaleController(),
+						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
 						controller,
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'apple',
@@ -205,32 +257,33 @@ describe('TerminalSettingsSurface', () => {
 				container.querySelector("select[aria-label='Terminal display theme']"),
 			).value,
 		).toBe('host');
-
-		await act(async () => root.unmount());
-		container.remove();
-		controller.dispose();
-		keyboardShortcutController.dispose();
 	});
 
 	it('switches the mounted Settings copy and persists an explicit display language', async () => {
-		const container = document.createElement('div');
+		const container = trackContainer(document.createElement('div'));
 		document.body.append(container);
 		const storage = memoryStorage();
-		const applicationLocaleController = new ApplicationLocaleController({
-			documentElement: document.documentElement,
-			preferredLocales: ['zh-CN'],
-			storage,
-		});
-		const controller = new TerminalSettingsController({
-			storage,
-			themeTarget: document.documentElement,
-		});
-		const keyboardShortcutController = new KeyboardShortcutSettingsController({
-			platform: 'apple',
-			storage,
-		});
+		const applicationLocaleController = trackDisposable(
+			new ApplicationLocaleController({
+				documentElement: document.documentElement,
+				preferredLocales: ['zh-CN'],
+				storage,
+			}),
+		);
+		const controller = trackDisposable(
+			new TerminalSettingsController({
+				storage,
+				themeTarget: document.documentElement,
+			}),
+		);
+		const keyboardShortcutController = trackDisposable(
+			new KeyboardShortcutSettingsController({
+				platform: 'apple',
+				storage,
+			}),
+		);
 		controller.open();
-		const root = createRoot(container);
+		const root = trackRoot(createRoot(container));
 
 		await act(async () => {
 			root.render(
@@ -268,36 +321,34 @@ describe('TerminalSettingsSurface', () => {
 			'orchbee:web:application-locale:v1',
 			'{"locale":"en-US"}',
 		);
-
-		await act(async () => root.unmount());
-		container.remove();
-		applicationLocaleController.dispose();
-		controller.dispose();
-		keyboardShortcutController.dispose();
 	});
 
 	it('supports deterministic result selection, destination focus, and layered Escape', async () => {
-		const container = document.createElement('div');
+		const container = trackContainer(document.createElement('div'));
 		document.body.append(container);
 		const storage = memoryStorage();
-		const controller = new TerminalSettingsController({
-			storage,
-			themeTarget: document.documentElement,
-		});
-		const keyboardShortcutController = new KeyboardShortcutSettingsController({
-			platform: 'apple',
-			storage,
-		});
+		const controller = trackDisposable(
+			new TerminalSettingsController({
+				storage,
+				themeTarget: document.documentElement,
+			}),
+		);
+		const keyboardShortcutController = trackDisposable(
+			new KeyboardShortcutSettingsController({
+				platform: 'apple',
+				storage,
+			}),
+		);
 		const close = vi.fn<() => void>();
 		controller.open();
-		const root = createRoot(container);
+		const root = trackRoot(createRoot(container));
 		await act(async () => {
 			root.render(
 				createElement(
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
 					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: createApplicationLocaleController(),
+						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
 						controller,
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'apple',
@@ -360,37 +411,38 @@ describe('TerminalSettingsSurface', () => {
 			);
 		});
 		expect(close).toHaveBeenCalledOnce();
-
-		await act(async () => root.unmount());
-		container.remove();
-		controller.dispose();
-		keyboardShortcutController.dispose();
 	});
 
 	it('applies typography, padding, Agent tail, and copy settings live', async () => {
-		const container = document.createElement('div');
+		const container = trackContainer(document.createElement('div'));
 		document.body.append(container);
 		const storage = memoryStorage();
-		const controller = new TerminalSettingsController({
-			storage,
-			themeTarget: document.documentElement,
-		});
-		const interactionController = new TerminalInteractionSettingsController(storage);
+		const controller = trackDisposable(
+			new TerminalSettingsController({
+				storage,
+				themeTarget: document.documentElement,
+			}),
+		);
+		const interactionController = trackDisposable(
+			new TerminalInteractionSettingsController(storage),
+		);
 		const interactionListener = vi.fn<(configuration: TerminalInteractionConfiguration) => void>();
 		interactionController.subscribe(interactionListener);
-		const keyboardShortcutController = new KeyboardShortcutSettingsController({
-			platform: 'apple',
-			storage,
-		});
+		const keyboardShortcutController = trackDisposable(
+			new KeyboardShortcutSettingsController({
+				platform: 'apple',
+				storage,
+			}),
+		);
 		controller.open();
-		const root = createRoot(container);
+		const root = trackRoot(createRoot(container));
 		await act(async () => {
 			root.render(
 				createElement(
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
 					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: createApplicationLocaleController(),
+						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
 						controller,
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'apple',
@@ -471,36 +523,34 @@ describe('TerminalSettingsSurface', () => {
 		await act(async () => copyOnSelect.click());
 		expect(interactionController.current()).toEqual({ copyOnSelect: false });
 		expect(interactionListener).toHaveBeenCalledWith({ copyOnSelect: false });
-
-		await act(async () => root.unmount());
-		container.remove();
-		controller.dispose();
-		interactionController.dispose();
-		keyboardShortcutController.dispose();
 	});
 
 	it('commits Desktop scrollback defaults for future terminals and keeps failures visible', async () => {
-		const container = document.createElement('div');
+		const container = trackContainer(document.createElement('div'));
 		document.body.append(container);
 		const storage = memoryStorage();
-		const controller = new TerminalSettingsController({
-			storage,
-			themeTarget: document.documentElement,
-		});
-		const keyboardShortcutController = new KeyboardShortcutSettingsController({
-			platform: 'apple',
-			storage,
-		});
+		const controller = trackDisposable(
+			new TerminalSettingsController({
+				storage,
+				themeTarget: document.documentElement,
+			}),
+		);
+		const keyboardShortcutController = trackDisposable(
+			new KeyboardShortcutSettingsController({
+				platform: 'apple',
+				storage,
+			}),
+		);
 		const terminalDefaults = createTerminalDefaultSettingsControl();
 		controller.open();
-		const root = createRoot(container);
+		const root = trackRoot(createRoot(container));
 		await act(async () => {
 			root.render(
 				createElement(
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
 					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: createApplicationLocaleController(),
+						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
 						controller,
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'apple',
@@ -553,30 +603,31 @@ describe('TerminalSettingsSurface', () => {
 			container.querySelector("[data-settings-search-result='terminal.scrollback']"),
 		);
 		expect(searchResult.textContent).toContain('Scrollback limit');
-
-		await act(async () => root.unmount());
-		container.remove();
-		controller.dispose();
-		keyboardShortcutController.dispose();
 	});
 
 	it('exposes a Desktop macOS-only Option-as-Alt preference and applies it live', async () => {
-		const container = document.createElement('div');
+		const container = trackContainer(document.createElement('div'));
 		document.body.append(container);
 		const storage = memoryStorage();
-		const controller = new TerminalSettingsController({
-			storage,
-			themeTarget: document.documentElement,
-		});
-		const keyboardShortcutController = new KeyboardShortcutSettingsController({
-			platform: 'apple',
-			storage,
-		});
-		const macosTerminalInputSettingsController = new MacosTerminalInputSettingsController(storage);
+		const controller = trackDisposable(
+			new TerminalSettingsController({
+				storage,
+				themeTarget: document.documentElement,
+			}),
+		);
+		const keyboardShortcutController = trackDisposable(
+			new KeyboardShortcutSettingsController({
+				platform: 'apple',
+				storage,
+			}),
+		);
+		const macosTerminalInputSettingsController = trackDisposable(
+			new MacosTerminalInputSettingsController(storage),
+		);
 		const inputListener = vi.fn<(configuration: TerminalInputConfiguration) => void>();
 		macosTerminalInputSettingsController.subscribe(inputListener);
 		controller.open();
-		const root = createRoot(container);
+		const root = trackRoot(createRoot(container));
 
 		await act(async () => {
 			root.render(
@@ -584,7 +635,7 @@ describe('TerminalSettingsSurface', () => {
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
 					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: createApplicationLocaleController(),
+						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
 						controller,
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'apple',
@@ -609,36 +660,34 @@ describe('TerminalSettingsSurface', () => {
 		});
 		expect(macosTerminalInputSettingsController.current()).toEqual({ optionAsAlt: 'right' });
 		expect(inputListener).toHaveBeenCalledWith({ optionAsAlt: 'right' });
-
-		await act(async () => root.unmount());
-		container.remove();
-		controller.dispose();
-		keyboardShortcutController.dispose();
-		macosTerminalInputSettingsController.dispose();
 	});
 
 	it('validates draft values and opens the Desktop-only Browser access capability', async () => {
-		const container = document.createElement('div');
+		const container = trackContainer(document.createElement('div'));
 		document.body.append(container);
 		const storage = memoryStorage();
-		const controller = new TerminalSettingsController({
-			storage,
-			themeTarget: document.documentElement,
-		});
-		const keyboardShortcutController = new KeyboardShortcutSettingsController({
-			platform: 'apple',
-			storage,
-		});
+		const controller = trackDisposable(
+			new TerminalSettingsController({
+				storage,
+				themeTarget: document.documentElement,
+			}),
+		);
+		const keyboardShortcutController = trackDisposable(
+			new KeyboardShortcutSettingsController({
+				platform: 'apple',
+				storage,
+			}),
+		);
 		controller.open();
 		const requestBrowserAccess = vi.fn<(returnFocus: HTMLElement) => void>();
-		const root = createRoot(container);
+		const root = trackRoot(createRoot(container));
 		await act(async () => {
 			root.render(
 				createElement(
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
 					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: createApplicationLocaleController(),
+						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
 						controller,
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'apple',
@@ -680,35 +729,34 @@ describe('TerminalSettingsSurface', () => {
 		await act(async () => open.click());
 		expect(requestBrowserAccess).toHaveBeenCalledOnce();
 		expect(controller.getSnapshot().open).toBe(true);
-
-		await act(async () => root.unmount());
-		container.remove();
-		controller.dispose();
-		keyboardShortcutController.dispose();
 	});
 
 	it('keeps the shortcut table stable during global search and supports shortcut editing', async () => {
-		const container = document.createElement('div');
+		const container = trackContainer(document.createElement('div'));
 		document.body.append(container);
 		const storage = memoryStorage();
-		const controller = new TerminalSettingsController({
-			storage,
-			themeTarget: document.documentElement,
-		});
-		const keyboardShortcutController = new KeyboardShortcutSettingsController({
-			platform: 'standard',
-			storage,
-		});
+		const controller = trackDisposable(
+			new TerminalSettingsController({
+				storage,
+				themeTarget: document.documentElement,
+			}),
+		);
+		const keyboardShortcutController = trackDisposable(
+			new KeyboardShortcutSettingsController({
+				platform: 'standard',
+				storage,
+			}),
+		);
 		controller.open();
 		const close = vi.fn<() => void>();
-		const root = createRoot(container);
+		const root = trackRoot(createRoot(container));
 		await act(async () => {
 			root.render(
 				createElement(
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
 					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: createApplicationLocaleController(),
+						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
 						controller,
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'standard',
@@ -850,35 +898,34 @@ describe('TerminalSettingsSurface', () => {
 			code: 'KeyK',
 			modifiers: ['mod', 'shift'],
 		});
-
-		await act(async () => root.unmount());
-		container.remove();
-		controller.dispose();
-		keyboardShortcutController.dispose();
 	});
 
 	it('explains a pasted Ghostty configuration without applying or persisting it', async () => {
-		const container = document.createElement('div');
+		const container = trackContainer(document.createElement('div'));
 		document.body.append(container);
 		const storage = memoryStorage();
-		const controller = new TerminalSettingsController({
-			storage,
-			themeTarget: document.documentElement,
-		});
-		const keyboardShortcutController = new KeyboardShortcutSettingsController({
-			platform: 'apple',
-			storage,
-		});
+		const controller = trackDisposable(
+			new TerminalSettingsController({
+				storage,
+				themeTarget: document.documentElement,
+			}),
+		);
+		const keyboardShortcutController = trackDisposable(
+			new KeyboardShortcutSettingsController({
+				platform: 'apple',
+				storage,
+			}),
+		);
 		controller.open();
 		const initialPreferences = controller.getSnapshot().preferences;
-		const root = createRoot(container);
+		const root = trackRoot(createRoot(container));
 		await act(async () => {
 			root.render(
 				createElement(
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
 					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: createApplicationLocaleController(),
+						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
 						controller,
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'apple',
@@ -948,34 +995,33 @@ describe('TerminalSettingsSurface', () => {
 		);
 		expect(remountedSource.value).toBe('');
 		expect(container.textContent).not.toContain('Migration report');
-
-		await act(async () => root.unmount());
-		container.remove();
-		controller.dispose();
-		keyboardShortcutController.dispose();
 	});
 
 	it('keeps the read-only remote diagnostic stable during global search without side effects', async () => {
-		const container = document.createElement('div');
+		const container = trackContainer(document.createElement('div'));
 		document.body.append(container);
 		const storage = memoryStorage();
-		const controller = new TerminalSettingsController({
-			storage,
-			themeTarget: document.documentElement,
-		});
-		const keyboardShortcutController = new KeyboardShortcutSettingsController({
-			platform: 'apple',
-			storage,
-		});
+		const controller = trackDisposable(
+			new TerminalSettingsController({
+				storage,
+				themeTarget: document.documentElement,
+			}),
+		);
+		const keyboardShortcutController = trackDisposable(
+			new KeyboardShortcutSettingsController({
+				platform: 'apple',
+				storage,
+			}),
+		);
 		controller.open();
-		const root = createRoot(container);
+		const root = trackRoot(createRoot(container));
 		await act(async () => {
 			root.render(
 				createElement(
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
 					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: createApplicationLocaleController(),
+						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
 						controller,
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'apple',
@@ -1014,34 +1060,33 @@ describe('TerminalSettingsSurface', () => {
 		expect(container.textContent).toContain('No settings found.');
 		expect(container.querySelector('#remote-development-diagnostic-command')).not.toBeNull();
 		expect(storage.setItem).not.toHaveBeenCalled();
-
-		await act(async () => root.unmount());
-		container.remove();
-		controller.dispose();
-		keyboardShortcutController.dispose();
 	});
 
 	it('searches the Chinese catalog without falling back to English', async () => {
-		const container = document.createElement('div');
+		const container = trackContainer(document.createElement('div'));
 		document.body.append(container);
 		const storage = memoryStorage();
-		const controller = new TerminalSettingsController({
-			storage,
-			themeTarget: document.createElement('div'),
-		});
-		const keyboardShortcutController = new KeyboardShortcutSettingsController({
-			platform: 'apple',
-			storage,
-		});
+		const controller = trackDisposable(
+			new TerminalSettingsController({
+				storage,
+				themeTarget: document.createElement('div'),
+			}),
+		);
+		const keyboardShortcutController = trackDisposable(
+			new KeyboardShortcutSettingsController({
+				platform: 'apple',
+				storage,
+			}),
+		);
 		controller.open();
-		const root = createRoot(container);
+		const root = trackRoot(createRoot(container));
 		await act(async () => {
 			root.render(
 				createElement(
 					OrchbeeI18nProvider,
 					{ locale: 'zh-CN' },
 					createElement(TerminalSettingsSurface, {
-						applicationLocaleController: createApplicationLocaleController(),
+						applicationLocaleController: trackDisposable(createApplicationLocaleController()),
 						controller,
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'apple',
@@ -1100,11 +1145,6 @@ describe('TerminalSettingsSurface', () => {
 		expect(container.textContent).toContain('诊断远端 shell');
 		expect(container.textContent).toContain('不会自动修改远端');
 		expect(container.textContent).not.toContain('No automatic remote changes');
-
-		await act(async () => root.unmount());
-		container.remove();
-		controller.dispose();
-		keyboardShortcutController.dispose();
 	});
 });
 
