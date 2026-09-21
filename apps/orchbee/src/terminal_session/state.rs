@@ -1113,10 +1113,11 @@ pub(super) struct NativeSessionState {
     settled_create: Option<CommittedTabCreate>,
     /// Volatile per-Tab Client-local zoom flags (`Ctrl+B z`): a flag lives
     /// while its Tab is known alive with more than one leaf — the current
-    /// cache answers first, then the retained context snapshots — and is
-    /// collected at every membership install. Never wired, shared between
-    /// Clients, or persisted; bounded by the same navigation retention the
-    /// context snapshots already obey.
+    /// cache answers first (its silence about its own location is already
+    /// that location's complete truth), then only the departed contexts'
+    /// retained snapshots — and is collected at every membership install.
+    /// Never wired, shared between Clients, or persisted; bounded by the
+    /// same navigation retention the context snapshots already obey.
     zoomed_tabs: std::collections::BTreeSet<WorkbenchTabId>,
 }
 
@@ -3289,14 +3290,19 @@ impl NativeSessionState {
     }
 
     /// A flag's latest-known membership: the current cache answers for its
-    /// own tabs first; a departed context's tabs fall back to that context's
-    /// retained snapshot; anything else is unknown (zero leaves).
+    /// own location first — its silence about a Tab there is already the
+    /// complete truth, so only a departed context's retained snapshot may
+    /// answer next; anything else is unknown (zero leaves). A retained
+    /// entry sharing the current location is stale for this purpose and
+    /// never consulted.
     fn latest_known_panel_count(&self, tab_id: &WorkbenchTabId) -> usize {
         if let Some(tab) = self.cache.tabs().iter().find(|tab| tab.tab_id() == tab_id) {
             return tab.panel_count();
         }
+        let current = self.cache.location();
         self.retained_contexts
             .iter()
+            .filter(|retained| retained.location() != current)
             .find_map(|retained| retained.tabs().iter().find(|tab| tab.tab_id() == tab_id))
             .map_or(0, NativeSimpleTab::panel_count)
     }

@@ -981,12 +981,17 @@ same when it takes effect. `z` during a guarded phase (pending refresh, in-fligh
 an armed rename draft) is the same local no-op the focus bindings already are. Tab and
 Workspace switching remember the zoom flag of every surviving Tab: a flag lives while its Tab
 is known alive with more than one leaf in the latest known membership — the current context's
-cache first, then the retained context snapshots bounded by `MAXIMUM_TERMINAL_CONTEXTS` — and
-is collected when the Tab shrinks to one leaf, disappears, or its retained entry is recycled
-by navigation removal or capacity eviction. A remote removal the Client has not yet observed
-may leave a flag lazily alive on a stale retained snapshot until the next install; the flag
-still never fabricates a zoomed view — rendering adjudicates zoom on the current cache only
-and only while the Tab still has more than one leaf. Zoom-driven focus resizes travel the
+cache first (its silence about its own location is already that location's complete truth),
+then only the departed contexts' retained snapshots bounded by `MAXIMUM_TERMINAL_CONTEXTS` —
+and is collected when the Tab shrinks to one leaf, disappears, or its retained entry is
+recycled by navigation removal or capacity eviction. `NativeClientPanelZoom` models `retained`
+as exactly this departed-context view — a projection of the retained list rather than the raw
+container, which may keep an entry at the current location under another provenance that zoom
+never consults — so the model's `RetainedSnapshotsAreDeparted` constrains that projected view.
+A remote removal the Client has not yet observed may leave a flag lazily alive on the
+latest-known membership — a stale current cache or a departed context's retained snapshot —
+until the next install; the flag still never fabricates a zoomed view — rendering adjudicates
+zoom on the current cache only and only while the Tab still has more than one leaf. Zoom-driven focus resizes travel the
 ordinary `QueuedCommand::Resize` path, so the Host's frame-generation bump invalidates the
 focused terminal's scrollback viewport under the same stale-generation rule any resize uses;
 a hidden leaf is never resized, so its viewport and history survive zoom intact and rebind

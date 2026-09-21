@@ -799,11 +799,15 @@ session 状态——绝不进入 Workbench 协议、绝不在 Client 间同步�
 跟随，该迁移像任何布局变化一样使指针命中图失效并重新观测几何——zoom 切换本身生效时
 同样如此。受守卫相位中（pending 刷新、在途 mutation、已武装 rename draft）的 `z` 与
 焦点键位一样是本地空操作。Tab 与 Workspace 切换记住每个存活 Tab 的 zoom 标志：标志在
-其 Tab 按最新已知 membership 仍存活且叶子数大于一时存续——先查当前 context 的缓存，
-再查受 `MAXIMUM_TERMINAL_CONTEXTS` 约束的 retained context 快照——当 Tab 缩至单叶子、
-消失，或其 retained 条目被 navigation 移除或容量挤出时回收。Client 尚未观测到的远端
-移除可能让标志在过期 retained 快照上惰性存活到下一次安装；标志仍绝不伪造 zoom 视图——
-渲染只依据当前缓存裁决 zoom，且仅在 Tab 叶子数仍大于一时。zoom 引起的焦点 resize 走
+其 Tab 按最新已知 membership 仍存活且叶子数大于一时存续——先查当前 context 的缓存
+（其对本位置条目的沉默已是该位置的完整事实），再仅查已离开 context 的 retained 快照
+（受 `MAXIMUM_TERMINAL_CONTEXTS` 约束）——当 Tab 缩至单叶子、消失，或其 retained
+条目被 navigation 移除或容量挤出时回收。`NativeClientPanelZoom` 模型的 `retained`
+正是这个已离开 context 的视图——retained 列表的投影而非原始容器：原始列表可能因其它
+provenance 保留当前位置条目，zoom 绝不消费它，因此模型的 `RetainedSnapshotsAreDeparted`
+约束的是这个投影视图。Client 尚未观测到的远端移除可能让标志在最新已知 membership 上
+——过期当前缓存或已离开 context 的 retained 快照——惰性存活到下一次安装；标志仍绝不
+伪造 zoom 视图——渲染只依据当前缓存裁决 zoom，且仅在 Tab 叶子数仍大于一时。zoom 引起的焦点 resize 走
 普通 `QueuedCommand::Resize` 路径，因此 Host 帧世代递增按与任何 resize 相同的
 stale-generation 规则使焦点终端的滚动回退视口失效；隐藏叶子绝不 resize，其视口与历史
 在 zoom 中完整保留，并在重新成为焦点时正确重绑。上述不 churn 保证以可投影的 framed

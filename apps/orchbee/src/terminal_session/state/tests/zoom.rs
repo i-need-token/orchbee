@@ -57,37 +57,56 @@ fn deadlines() -> OperationDeadlines {
     OperationDeadlines::from_sample(Instant::now()).unwrap()
 }
 
+/// Replaces a Tab root with a two-leaf horizontal split whose added peer
+/// leaf derives its IDs from `seed` — the shared zoom GC fixture shape.
+fn split_root(root: &mut PanelNode, seed: u128) {
+    let original = root.clone();
+    *root = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: original,
+                slot_id: WorkbenchPanelSlotId::parse(&id(seed + 1)).unwrap(),
+            },
+            PanelSlot {
+                node: PanelNode::Panel {
+                    child_presentations: Vec::new(),
+                    panel_id: panel_id(seed + 10),
+                    primary_presentation: Presentation {
+                        binding: Some(PresentationBinding {
+                            terminal_id: terminal_id(seed + 12),
+                            worker_id: worker_id(seed + 11),
+                        }),
+                        label: "peer".into(),
+                        presentation_id: presentation_id(seed + 13),
+                    },
+                },
+                slot_id: WorkbenchPanelSlotId::parse(&id(seed + 14)).unwrap(),
+            },
+        ]),
+        orientation: PanelOrientation::Horizontal,
+        split_id: WorkbenchSplitId::parse(&id(seed + 20)).unwrap(),
+    };
+}
+
 /// A three-context snapshot whose Workspace context (id 72) holds one
 /// two-leaf Tab: the departure/retention fixture for zoom flags riding a
 /// retained context snapshot.
 fn split_contexts() -> Snapshot {
     let mut snapshot = contexts(1, 1);
-    let original = snapshot.terminal_contexts[1].tabs[0].root.clone();
-    snapshot.terminal_contexts[1].tabs[0].root = PanelNode::Split {
-        children: Box::new([
-            PanelSlot {
-                node: original,
-                slot_id: WorkbenchPanelSlotId::parse(&id(6_001)).unwrap(),
-            },
-            PanelSlot {
-                node: PanelNode::Panel {
-                    child_presentations: Vec::new(),
-                    panel_id: panel_id(6_010),
-                    primary_presentation: Presentation {
-                        binding: Some(PresentationBinding {
-                            terminal_id: terminal_id(6_012),
-                            worker_id: worker_id(6_011),
-                        }),
-                        label: "peer".into(),
-                        presentation_id: presentation_id(6_013),
-                    },
-                },
-                slot_id: WorkbenchPanelSlotId::parse(&id(6_014)).unwrap(),
-            },
-        ]),
-        orientation: PanelOrientation::Horizontal,
-        split_id: WorkbenchSplitId::parse(&id(6_020)).unwrap(),
-    };
+    split_root(&mut snapshot.terminal_contexts[1].tabs[0].root, 6_000);
+    snapshot
+}
+
+/// The stale-current-location fixture: the standalone context's first Tab
+/// is also split (a legitimate departed-context flag target), and context
+/// 72 keeps a single-leaf sibling beside its split Tab so a fresh return
+/// candidate can drop the split Tab without emptying the context. The
+/// revision is parametrized so the later candidate publishes fresh truth.
+fn split_contexts_at(revision: u64) -> Snapshot {
+    let mut snapshot = contexts(1, revision);
+    split_root(&mut snapshot.terminal_contexts[0].tabs[0].root, 5_000);
+    split_root(&mut snapshot.terminal_contexts[1].tabs[0].root, 6_000);
+    snapshot.terminal_contexts[1].tabs.push(tab(11));
     snapshot
 }
 
@@ -358,6 +377,103 @@ fn navigation_removal_evicts_the_retained_flag() {
     finish_selection(&mut state, shrunk, 3);
     assert_eq!(state.cache().terminal_context_id(), &context_id(2));
     assert!(state.zoomed_tabs.is_empty());
+    assert!(!state.zoom_active());
+    assert!(state.invariant_holds());
+}
+
+/// The fresh return candidate's silence about a deleted Tab is already the
+/// complete truth: the stale retained entry the raw list still holds for
+/// that same location must not resurrect the flag, while a departed
+/// context's flag keeps riding its own retained snapshot.
+#[test]
+fn the_return_install_collects_a_flag_the_stale_current_entry_still_lists() {
+    let snapshot = split_contexts_at(1);
+    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    // The standalone context's split Tab mints the departed-context flag
+    // that keeps its own retained truth through the whole trace.
+    let standalone_id = state.tab(0).unwrap().tab_id().clone();
+    assert!(state.toggle_zoom());
+
+    into_split_context(&mut state, &snapshot);
+    let deleted_id = state.tab(0).unwrap().tab_id().clone();
+    assert!(state.toggle_zoom());
+
+    // Depart to context 74: the raw retained list now holds the stale
+    // context-72 entry that still lists the soon-to-be-deleted Tab.
+    assert!(state.start_context_selection(2, true, deadlines()));
+    finish_selection(&mut state, snapshot.clone(), 2);
+    assert_eq!(state.cache().terminal_context_id(), &context_id(74));
+    assert!(state.zoomed_tabs.contains(&deleted_id));
+    assert!(state.zoomed_tabs.contains(&standalone_id));
+
+    // Remote truth removes the Tab: the fresh context-72 candidate carries
+    // only the sibling, while the raw retained entry for this same location
+    // still lists it.
+    let mut returned = split_contexts_at(2);
+    returned.terminal_contexts[1]
+        .tabs
+        .retain(|tab| tab.tab_id != tab_id(1_100));
+    assert!(state.start_context_selection(3, false, deadlines()));
+    finish_selection(&mut state, returned, 3);
+    assert_eq!(state.cache().terminal_context_id(), &context_id(72));
+    assert!(
+        state
+            .cache()
+            .tabs()
+            .iter()
+            .all(|tab| tab.tab_id() != &deleted_id)
+    );
+    assert!(state.retained_contexts.iter().any(|retained| {
+        retained.location() == state.cache().location()
+            && retained
+                .tabs()
+                .iter()
+                .any(|tab| tab.tab_id() == &deleted_id)
+    }));
+    assert!(!state.zoomed_tabs.contains(&deleted_id));
+    assert!(state.zoomed_tabs.contains(&standalone_id));
+    assert!(!state.zoom_active());
+    assert!(state.invariant_holds());
+}
+
+/// The merge install shares the same latest-known lookup: after a round
+/// trip leaves a stale current-location entry in the raw retained list, a
+/// same-context refresh that shrinks the zoomed Tab still collects the
+/// flag instead of falling back to that entry's stale two-leaf truth.
+#[test]
+fn a_same_context_merge_does_not_fall_back_to_the_stale_current_entry() {
+    let snapshot = split_contexts_at(1);
+    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let standalone_id = state.tab(0).unwrap().tab_id().clone();
+    assert!(state.toggle_zoom());
+    into_split_context(&mut state, &snapshot);
+    let shrunk_id = state.tab(0).unwrap().tab_id().clone();
+    assert!(state.toggle_zoom());
+
+    // Round trip so the raw retained list holds a stale entry for the very
+    // location the merge is about to republish.
+    assert!(state.start_context_selection(2, true, deadlines()));
+    finish_selection(&mut state, snapshot.clone(), 2);
+    assert!(state.start_context_selection(3, false, deadlines()));
+    finish_selection(&mut state, snapshot.clone(), 3);
+    assert_eq!(state.cache().terminal_context_id(), &context_id(72));
+    assert!(state.zoomed_tabs.contains(&shrunk_id));
+
+    // The next same-context refresh shrinks the zoomed Tab to one leaf:
+    // the fresh cache answers, and the stale same-location retained entry
+    // — still claiming two leaves — stays out of the lookup.
+    assert!(state.start_pending_refresh(7));
+    let mut merged = split_contexts_at(2);
+    merged.terminal_contexts[1].tabs[0].root = tab(10).root;
+    let prepared =
+        state.prepare_refresh(7, WorkbenchSnapshotOutcome::Available { snapshot: merged });
+    assert_eq!(
+        state.apply_prepared_refresh(prepared, Instant::now()),
+        RefreshDecision::Continue
+    );
+    assert_eq!(state.tab(0).unwrap().panel_count(), 1);
+    assert!(!state.zoomed_tabs.contains(&shrunk_id));
+    assert!(state.zoomed_tabs.contains(&standalone_id));
     assert!(!state.zoom_active());
     assert!(state.invariant_holds());
 }

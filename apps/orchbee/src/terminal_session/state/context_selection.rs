@@ -30,6 +30,13 @@ impl RetainedContext {
     pub(super) fn tabs(&self) -> &[NativeSimpleTab] {
         &self.tabs
     }
+
+    /// The snapshot's context identity: the zoom GC never consults a
+    /// retained entry sharing the current cache's location — the fresh
+    /// cache is already that location's complete truth, absence included.
+    pub(super) fn location(&self) -> &NativeContextLocation {
+        &self.location
+    }
 }
 
 pub(super) struct ContextProvenance<'a> {
