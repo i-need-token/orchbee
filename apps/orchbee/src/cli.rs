@@ -533,6 +533,17 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
                 success_output(projection, source, &command, format, locale)
             }
         },
+        // `workspace close-status` reads the retained operation record on the
+        // admitted session; the stable `(project, workspace)` pair is the
+        // whole selector — the record outlives the active projection.
+        QueryCommand::WorkspaceCloseStatus { project, workspace } => {
+            match query::workspace_close_status(project, workspace) {
+                Err(failure) => failure_output(failure, Some(format), locale),
+                Ok((source, projection)) => {
+                    success_output(projection, source, &command, format, locale)
+                }
+            }
+        }
         // `worktree list` couples the snapshot to one Workbench worktree-list
         // read on the same session; the directory is a strict typed ID and
         // membership is the Server's call, never the CLI's.

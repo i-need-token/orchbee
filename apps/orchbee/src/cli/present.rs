@@ -9,7 +9,13 @@ use orchbee_agent_observation_protocol::{
     AgentExplainOutcome, AgentGetOutcome, AgentListOutcome, AgentSessionDetail,
     AgentSessionExplanation,
 };
-use orchbee_workbench_protocol::{LaunchProfileEntry, WorktreeEntry, WorktreeEntryText};
+use orchbee_workbench_protocol::{
+    LaunchProfileEntry, WorkbenchTabCloseBlockedReason, WorkbenchTabClosePhase,
+    WorkbenchTabClosePublicationReason, WorkbenchTabCloseStatus, WorkbenchTabCloseUnknownPhase,
+    WorkbenchTabCloseUnknownReason, WorkbenchWorkspaceCloseMember,
+    WorkbenchWorkspaceCloseMemberStatus, WorkbenchWorkspaceCloseReadOutcome, WorktreeEntry,
+    WorktreeEntryText,
+};
 
 use super::config::CheckReport;
 use super::escape::{display_width, escape, quoted, table_label};
@@ -162,6 +168,162 @@ fn worktree_cells(entry: &WorktreeEntry) -> Vec<String> {
             .unwrap_or_else(|| "-".to_owned()),
         worktree_state(entry),
     ]
+}
+
+/// `workspace close-status`: `not-closing` is the honest empty answer; an
+/// `available` record prints operation identity, the lifecycle status, the
+/// aggregate counts, and the captured members in frozen admission order.
+fn workspace_close_status(
+    out: &mut Bounded,
+    outcome: &WorkbenchWorkspaceCloseReadOutcome,
+    text: &CliLabels,
+) -> Result<(), TooLarge> {
+    let WorkbenchWorkspaceCloseReadOutcome::Available {
+        close_request_id,
+        project_id,
+        workspace_id,
+        terminal_context_id,
+        attempt_generation,
+        status,
+        counts,
+        members,
+    } = outcome
+    else {
+        return out.push(&format!("{}\n", text.close_not_closing));
+    };
+    field(out, text.close_request_id, close_request_id.as_str())?;
+    field(out, text.project_id, project_id.as_str())?;
+    field(out, text.workspace_id, workspace_id.as_str())?;
+    field(out, text.terminal_context, terminal_context_id.as_str())?;
+    field(
+        out,
+        text.attempt_generation,
+        &attempt_generation.value().to_string(),
+    )?;
+    field(out, text.status, &close_status_text(status))?;
+    field(
+        out,
+        text.counts,
+        &format!(
+            "closing={} cleanup-blocked={} outcome-unknown={} disposed-awaiting-publication={}",
+            counts.closing,
+            counts.cleanup_blocked,
+            counts.outcome_unknown,
+            counts.disposed_awaiting_publication
+        ),
+    )?;
+    field(out, text.members, &members.len().to_string())?;
+    table(out, &text.close_member_headers, members, close_member_cells)
+}
+
+fn close_member_cells(member: &WorkbenchWorkspaceCloseMember) -> Vec<String> {
+    vec![
+        member.tab_id.as_str().to_owned(),
+        member.panel_id.as_str().to_owned(),
+        member.presentation_id.as_str().to_owned(),
+        member_status_text(&member.status),
+    ]
+}
+
+/// The scope-level lifecycle status, spelled with the wire's own tokens —
+/// the closed tombstone shows the publication revision it recorded.
+fn close_status_text(status: &WorkbenchTabCloseStatus) -> String {
+    match status {
+        WorkbenchTabCloseStatus::Closing { phase } => {
+            format!("closing ({})", closing_phase_text(*phase))
+        }
+        WorkbenchTabCloseStatus::CleanupBlocked { reason, resumable } => format!(
+            "cleanup-blocked ({}, resumable={})",
+            blocked_reason_text(*reason),
+            resumable
+        ),
+        WorkbenchTabCloseStatus::OutcomeUnknown { phase, reason } => format!(
+            "outcome-unknown ({}, {})",
+            unknown_phase_text(*phase),
+            unknown_reason_text(*reason)
+        ),
+        WorkbenchTabCloseStatus::DisposedAwaitingPublication { reason, resumable } => format!(
+            "disposed-awaiting-publication ({}, resumable={})",
+            publication_reason_text(*reason),
+            resumable
+        ),
+        WorkbenchTabCloseStatus::Closed { revision } => {
+            format!("closed (revision {})", revision.value())
+        }
+    }
+}
+
+fn member_status_text(status: &WorkbenchWorkspaceCloseMemberStatus) -> String {
+    match status {
+        WorkbenchWorkspaceCloseMemberStatus::Closing { phase } => {
+            format!("closing ({})", closing_phase_text(*phase))
+        }
+        WorkbenchWorkspaceCloseMemberStatus::CleanupBlocked { reason, resumable } => format!(
+            "cleanup-blocked ({}, resumable={})",
+            blocked_reason_text(*reason),
+            resumable
+        ),
+        WorkbenchWorkspaceCloseMemberStatus::OutcomeUnknown { phase, reason } => format!(
+            "outcome-unknown ({}, {})",
+            unknown_phase_text(*phase),
+            unknown_reason_text(*reason)
+        ),
+        WorkbenchWorkspaceCloseMemberStatus::DisposedAwaitingPublication { reason, resumable } => {
+            format!(
+                "disposed-awaiting-publication ({}, resumable={})",
+                publication_reason_text(*reason),
+                resumable
+            )
+        }
+    }
+}
+
+fn closing_phase_text(phase: WorkbenchTabClosePhase) -> &'static str {
+    match phase {
+        WorkbenchTabClosePhase::Queued => "queued",
+        WorkbenchTabClosePhase::WaitingGrace => "waiting-grace",
+        WorkbenchTabClosePhase::WaitingOutcome => "waiting-outcome",
+        WorkbenchTabClosePhase::Disposing => "disposing",
+    }
+}
+
+fn unknown_phase_text(phase: WorkbenchTabCloseUnknownPhase) -> &'static str {
+    match phase {
+        WorkbenchTabCloseUnknownPhase::Terminate => "terminate",
+        WorkbenchTabCloseUnknownPhase::Force => "force",
+        WorkbenchTabCloseUnknownPhase::Dispose => "dispose",
+    }
+}
+
+fn blocked_reason_text(reason: WorkbenchTabCloseBlockedReason) -> &'static str {
+    match reason {
+        WorkbenchTabCloseBlockedReason::WorkerUnavailable => "worker-unavailable",
+        WorkbenchTabCloseBlockedReason::HostRefused => "host-refused",
+        WorkbenchTabCloseBlockedReason::CleanupIncomplete => "cleanup-incomplete",
+        WorkbenchTabCloseBlockedReason::InventoryIncomplete => "inventory-incomplete",
+        WorkbenchTabCloseBlockedReason::IdentityConflict => "identity-conflict",
+        WorkbenchTabCloseBlockedReason::ContinuationBudgetExhausted => {
+            "continuation-budget-exhausted"
+        }
+        WorkbenchTabCloseBlockedReason::ResumeGenerationExhausted => "resume-generation-exhausted",
+    }
+}
+
+fn unknown_reason_text(reason: WorkbenchTabCloseUnknownReason) -> &'static str {
+    match reason {
+        WorkbenchTabCloseUnknownReason::TransportLost => "transport-lost",
+        WorkbenchTabCloseUnknownReason::Deadline => "deadline",
+        WorkbenchTabCloseUnknownReason::InvalidResponse => "invalid-response",
+    }
+}
+
+fn publication_reason_text(reason: WorkbenchTabClosePublicationReason) -> &'static str {
+    match reason {
+        WorkbenchTabClosePublicationReason::TargetCleanupPending => "target-cleanup-pending",
+        WorkbenchTabClosePublicationReason::Preparing => "preparing",
+        WorkbenchTabClosePublicationReason::PreparationFailed => "preparation-failed",
+        WorkbenchTabClosePublicationReason::AuthorityRetired => "authority-retired",
+    }
 }
 
 pub(crate) fn render(
@@ -378,6 +540,10 @@ pub(crate) fn render(
             }
             Ok(())
         }
+        // `workspace close-status` prints the retained operation's identity
+        // block, its aggregate counts, then one row per captured member —
+        // the same record the machine document carries, tombstone included.
+        Projection::WorkspaceCloseStatus(outcome) => workspace_close_status(out, outcome, text),
         // `worktree list` prints the resolved identity block, then one row
         // per observed Git worktree: the escaped path (or its hex byte
         // form), the verbatim HEAD (an all-zero value stays exactly as Git

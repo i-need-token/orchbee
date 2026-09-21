@@ -22,6 +22,10 @@ pub(crate) const AGENT_FAILURE_ID: &str = "orchbee.cli.failure.agent";
 /// settlements — the generic schema's resource and candidate grammars are
 /// closed without it.
 pub(crate) const LAUNCH_PROFILE_FAILURE_ID: &str = "orchbee.cli.failure.launch-profile";
+/// The dedicated Workspace Close lifecycle envelope: `close-status` and
+/// `close-resume` stages, the resume rejection vocabulary, and the
+/// outcome-unknown request echo — kept off the generic failure schema.
+pub(crate) const CLOSE_FAILURE_ID: &str = "orchbee.cli.failure.close";
 pub(crate) const MUTATION_RESULT_ID: &str = "orchbee.mutation.result";
 pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 
@@ -71,6 +75,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
     (
         AGENT_FAILURE_ID,
         include_str!("schemas/orchbee.cli.failure.agent.json"),
+    ),
+    (
+        CLOSE_FAILURE_ID,
+        include_str!("schemas/orchbee.cli.failure.close.json"),
     ),
     (
         LAUNCH_PROFILE_FAILURE_ID,
@@ -165,6 +173,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.terminal.wait-output.json"),
     ),
     (
+        "orchbee.workspace.close-status",
+        include_str!("schemas/orchbee.workspace.close-status.json"),
+    ),
+    (
         "orchbee.workspace.get",
         include_str!("schemas/orchbee.workspace.get.json"),
     ),
@@ -243,9 +255,9 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog envelope v8: registering new schema ids changes the closed
+        // Catalog envelope v9: registering new schema ids changes the closed
         // dictionary's shape; business document versions stay untouched.
-        "version": 8,
+        "version": 9,
         "source": embedded_source(),
         "result": result,
     });

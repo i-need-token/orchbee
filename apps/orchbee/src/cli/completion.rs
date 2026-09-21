@@ -149,7 +149,16 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     ("terminal", &["get", "list", "read", "send", "wait-output"]),
     (
         "workspace",
-        &["accept-directory", "create", "get", "list", "rename"],
+        &[
+            "accept-directory",
+            "close",
+            "close-resume",
+            "close-status",
+            "create",
+            "get",
+            "list",
+            "rename",
+        ],
     ),
     ("worktree", &["list"]),
 ];
@@ -196,6 +205,8 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--profile",
     "--name",
     "--adapter-source",
+    "--request",
+    "--generation",
 ];
 
 /// The business flags every `agent integration <verb>` admits — also the
@@ -225,6 +236,18 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("workspace:list", &["--project"]),
     ("workspace:create", &["--project", "--label"]),
     ("workspace:rename", &["--label"]),
+    ("workspace:close", &["--confirm"]),
+    ("workspace:close-status", &["--project", "--workspace"]),
+    (
+        "workspace:close-resume",
+        &[
+            "--project",
+            "--workspace",
+            "--request",
+            "--generation",
+            "--confirm",
+        ],
+    ),
     ("tab:list", &["--workspace", "--standalone"]),
     (
         "tab:create",
@@ -369,6 +392,7 @@ const OPERAND_PATHS: &[&str] = &[
     "terminal:send",
     "terminal:wait-output",
     "workspace:accept-directory",
+    "workspace:close",
     "workspace:get",
     "workspace:rename",
 ];
@@ -408,7 +432,16 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     ("terminal", &["get", "list", "read", "send", "wait-output"]),
     (
         "workspace",
-        &["accept-directory", "create", "get", "list", "rename"],
+        &[
+            "accept-directory",
+            "close",
+            "close-resume",
+            "close-status",
+            "create",
+            "get",
+            "list",
+            "rename",
+        ],
     ),
     ("worktree", &["list"]),
 ];
@@ -470,6 +503,8 @@ fn flag_bit(flag: &str) -> &'static str {
         "--profile" => "seen_profile",
         "--name" => "seen_name",
         "--adapter-source" => "seen_adapter_source",
+        "--request" => "seen_request",
+        "--generation" => "seen_generation",
         other => unreachable!("flag {other} lacks a seen bit"),
     }
 }

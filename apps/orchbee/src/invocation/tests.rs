@@ -2,8 +2,9 @@ use std::ffi::OsString;
 
 use orchbee_workbench_protocol::{
     LaunchProfileName, LaunchProfileSelector, LaunchSelection, WorkbenchDirectoryId,
-    WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
-    WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
+    WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection, WorkbenchProjectId,
+    WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabMoveDirection,
+    WorkbenchTerminalGeometry, WorkbenchWorkspaceId,
 };
 
 use super::{
@@ -5636,6 +5637,453 @@ fn agent_integration_help_paths_resolve() {
             parse(&["help", "agent", "integration", verb]),
             Ok(Request::Help(HelpTopic::Command(command))),
             "help agent integration {verb}"
+        );
+    }
+}
+
+/// `workspace close` parses every target shape and always owes `--confirm`.
+#[test]
+fn workspace_close_parses_targets_and_requires_confirm() {
+    for (target, expected) in [
+        (ID, Target::Id(ID.into())),
+        ("main", Target::Label("main".to_owned())),
+        (
+            "@workspace:ab",
+            Target::Selector("@workspace:ab".to_owned()),
+        ),
+    ] {
+        assert_eq!(
+            parse(&["workspace", "close", target, "--confirm"]),
+            Ok(mutation(
+                MutationCommand::WorkspaceClose { target: expected },
+                OutputFormat::Text
+            )),
+            "target {target}"
+        );
+    }
+    // `--confirm` is mandatory for the destructive verb, a missing operand
+    // names its own requirement, and a stray extra is an unexpected
+    // argument — all stay usage failures with their concrete reason.
+    let usage_reason = |arguments: &[&str]| {
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.kind,
+            ParseFailureKind::InvalidUsage,
+            "{arguments:?}"
+        );
+        failure.usage.expect("usage reason recorded")
+    };
+    assert_eq!(
+        usage_reason(&["workspace", "close", ID]),
+        UsageReason::MissingRequired {
+            context: UsageContext::Path("workspace close"),
+            requirement: "'--confirm'",
+        }
+    );
+    assert_eq!(
+        usage_reason(&["workspace", "close"]),
+        UsageReason::MissingRequired {
+            context: UsageContext::Path("workspace close"),
+            requirement: "<workspace>",
+        }
+    );
+    assert_eq!(
+        usage_reason(&["workspace", "close", ID, "--confirm", "extra"]),
+        UsageReason::UnexpectedArgument {
+            context: UsageContext::Path("workspace close"),
+            value: "extra".to_owned(),
+        }
+    );
+}
+
+/// `workspace close-status` parses only strict stable IDs — the retained
+/// record outlives the Workspace's active-projection membership, so labels
+/// and selectors never reach the wire.
+#[test]
+fn workspace_close_status_requires_strict_stable_ids() {
+    assert_eq!(
+        parse(&[
+            "workspace",
+            "close-status",
+            "--project",
+            ID,
+            "--workspace",
+            ID2
+        ]),
+        Ok(query(
+            QueryCommand::WorkspaceCloseStatus {
+                project: WorkbenchProjectId::parse(ID).expect("project id"),
+                workspace: WorkbenchWorkspaceId::parse(ID2).expect("workspace id"),
+            },
+            OutputFormat::Text
+        ))
+    );
+    // Either flag may come first; `--format` stays orthogonal.
+    assert_eq!(
+        parse(&[
+            "workspace",
+            "close-status",
+            "--workspace",
+            ID2,
+            "--project",
+            ID,
+            "--format",
+            "json",
+        ]),
+        Ok(query(
+            QueryCommand::WorkspaceCloseStatus {
+                project: WorkbenchProjectId::parse(ID).expect("project id"),
+                workspace: WorkbenchWorkspaceId::parse(ID2).expect("workspace id"),
+            },
+            OutputFormat::Json
+        ))
+    );
+    let usage_reason = |arguments: &[&str]| {
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.kind,
+            ParseFailureKind::InvalidUsage,
+            "{arguments:?}"
+        );
+        failure.usage.expect("usage reason recorded")
+    };
+    // Both stable IDs are required.
+    assert_eq!(
+        usage_reason(&["workspace", "close-status", "--workspace", ID2]),
+        UsageReason::MissingRequired {
+            context: UsageContext::Path("workspace close-status"),
+            requirement: "'--project'",
+        }
+    );
+    assert_eq!(
+        usage_reason(&["workspace", "close-status", "--project", ID]),
+        UsageReason::MissingRequired {
+            context: UsageContext::Path("workspace close-status"),
+            requirement: "'--workspace'",
+        }
+    );
+    // A label, a selector, and a malformed ID are all InvalidValue — never
+    // resolved locally.
+    assert_eq!(
+        usage_reason(&[
+            "workspace",
+            "close-status",
+            "--project",
+            "main",
+            "--workspace",
+            ID2
+        ]),
+        UsageReason::InvalidValue {
+            context: UsageContext::Path("workspace close-status"),
+            option: "--project",
+            value: "main".to_owned(),
+            expected: ExpectedValue::ProjectId,
+        }
+    );
+    assert_eq!(
+        usage_reason(&[
+            "workspace",
+            "close-status",
+            "--project",
+            ID,
+            "--workspace",
+            "@workspace:ab",
+        ]),
+        UsageReason::InvalidValue {
+            context: UsageContext::Path("workspace close-status"),
+            option: "--workspace",
+            value: "@workspace:ab".to_owned(),
+            expected: ExpectedValue::WorkspaceId,
+        }
+    );
+    // Out-of-scope options and stray operands stay usage failures.
+    assert_eq!(
+        usage_reason(&[
+            "workspace",
+            "close-status",
+            "--project",
+            ID,
+            "--workspace",
+            ID2,
+            "--confirm",
+        ]),
+        UsageReason::UnexpectedOption {
+            context: UsageContext::Path("workspace close-status"),
+            option: "--confirm",
+        }
+    );
+    assert_eq!(
+        usage_reason(&["workspace", "close-status", "extra"]),
+        UsageReason::UnexpectedArgument {
+            context: UsageContext::Path("workspace close-status"),
+            value: "extra".to_owned(),
+        }
+    );
+}
+
+/// `workspace close-resume` parses the full strict selector set; a
+/// stale-but-valid generation stays a semantic request, never a parser
+/// error, and `--confirm` is mandatory.
+#[test]
+fn workspace_close_resume_parses_strict_selectors_and_fences() {
+    assert_eq!(
+        parse(&[
+            "workspace",
+            "close-resume",
+            "--project",
+            ID,
+            "--workspace",
+            ID2,
+            "--request",
+            ID2,
+            "--generation",
+            "7",
+            "--confirm",
+        ]),
+        Ok(mutation(
+            MutationCommand::WorkspaceCloseResume {
+                project: WorkbenchProjectId::parse(ID).expect("project id"),
+                workspace: WorkbenchWorkspaceId::parse(ID2).expect("workspace id"),
+                request: WorkbenchRequestId::parse(ID2).expect("request id"),
+                generation: WorkbenchTabCloseAttemptGeneration::parse("7").expect("generation"),
+            },
+            OutputFormat::Text
+        ))
+    );
+    // A large, nonzero, well-formed generation is a fence value, not a
+    // grammar concern — staleness is the Server's settled `stale` answer.
+    assert_eq!(
+        parse(&[
+            "workspace",
+            "close-resume",
+            "--project",
+            ID,
+            "--workspace",
+            ID2,
+            "--request",
+            ID2,
+            "--generation",
+            "18446744073709551615",
+            "--confirm",
+        ])
+        .map(|request| matches!(
+            request,
+            Request::Mutation {
+                command: MutationCommand::WorkspaceCloseResume { .. },
+                ..
+            }
+        )),
+        Ok(true)
+    );
+    let usage_reason = |arguments: &[&str]| {
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.kind,
+            ParseFailureKind::InvalidUsage,
+            "{arguments:?}"
+        );
+        failure.usage.expect("usage reason recorded")
+    };
+    // Every selector is required.
+    for (arguments, requirement) in [
+        (
+            &[
+                "workspace",
+                "close-resume",
+                "--workspace",
+                ID2,
+                "--request",
+                ID2,
+                "--generation",
+                "1",
+                "--confirm",
+            ][..],
+            "'--project'",
+        ),
+        (
+            &[
+                "workspace",
+                "close-resume",
+                "--project",
+                ID,
+                "--request",
+                ID2,
+                "--generation",
+                "1",
+                "--confirm",
+            ][..],
+            "'--workspace'",
+        ),
+        (
+            &[
+                "workspace",
+                "close-resume",
+                "--project",
+                ID,
+                "--workspace",
+                ID2,
+                "--generation",
+                "1",
+                "--confirm",
+            ][..],
+            "'--request'",
+        ),
+        (
+            &[
+                "workspace",
+                "close-resume",
+                "--project",
+                ID,
+                "--workspace",
+                ID2,
+                "--request",
+                ID2,
+                "--confirm",
+            ][..],
+            "'--generation'",
+        ),
+    ] {
+        assert_eq!(
+            usage_reason(arguments),
+            UsageReason::MissingRequired {
+                context: UsageContext::Path("workspace close-resume"),
+                requirement,
+            },
+            "{arguments:?}"
+        );
+    }
+    // `--confirm` is mandatory even when every selector is present.
+    assert_eq!(
+        usage_reason(&[
+            "workspace",
+            "close-resume",
+            "--project",
+            ID,
+            "--workspace",
+            ID2,
+            "--request",
+            ID2,
+            "--generation",
+            "1",
+        ]),
+        UsageReason::MissingRequired {
+            context: UsageContext::Path("workspace close-resume"),
+            requirement: "'--confirm'",
+        }
+    );
+    // Malformed IDs are InvalidValue per selector.
+    for (option, value, expected) in [
+        ("--project", "not-an-id", ExpectedValue::ProjectId),
+        ("--workspace", "not-an-id", ExpectedValue::WorkspaceId),
+        ("--request", "not-an-id", ExpectedValue::CloseRequestId),
+    ] {
+        let arguments = [
+            "workspace",
+            "close-resume",
+            "--project",
+            ID,
+            "--workspace",
+            ID2,
+            "--request",
+            ID2,
+            "--generation",
+            "1",
+            "--confirm",
+        ];
+        let position = arguments.iter().position(|word| *word == option).unwrap();
+        let mut arguments = arguments.to_vec();
+        arguments[position + 1] = value;
+        assert_eq!(
+            usage_reason(&arguments),
+            UsageReason::InvalidValue {
+                context: UsageContext::Path("workspace close-resume"),
+                option,
+                value: value.to_owned(),
+                expected,
+            },
+            "{option} {value}"
+        );
+    }
+    // Non-numeric and zero generations are InvalidValue.
+    for value in ["0", "abc", "-1", "1.5", ""] {
+        assert_eq!(
+            usage_reason(&[
+                "workspace",
+                "close-resume",
+                "--project",
+                ID,
+                "--workspace",
+                ID2,
+                "--request",
+                ID2,
+                "--generation",
+                value,
+                "--confirm",
+            ]),
+            UsageReason::InvalidValue {
+                context: UsageContext::Path("workspace close-resume"),
+                option: "--generation",
+                value: value.to_owned(),
+                expected: ExpectedValue::CloseGeneration,
+            },
+            "generation {value:?}"
+        );
+    }
+    // Out-of-scope options and stray operands stay usage failures.
+    assert_eq!(
+        usage_reason(&[
+            "workspace",
+            "close-resume",
+            "--project",
+            ID,
+            "--workspace",
+            ID2,
+            "--request",
+            ID2,
+            "--generation",
+            "1",
+            "--confirm",
+            "--label",
+            "x",
+        ]),
+        UsageReason::UnexpectedOption {
+            context: UsageContext::Path("workspace close-resume"),
+            option: "--label",
+        }
+    );
+    assert_eq!(
+        usage_reason(&["workspace", "close-resume", "extra"]),
+        UsageReason::UnexpectedArgument {
+            context: UsageContext::Path("workspace close-resume"),
+            value: "extra".to_owned(),
+        }
+    );
+}
+
+/// All three Workspace Close help paths resolve to their pinned command
+/// topics on both surfaces.
+#[test]
+fn workspace_close_help_paths_resolve() {
+    for (verb, command) in [
+        ("close", CommandPath::WorkspaceClose),
+        ("close-status", CommandPath::WorkspaceCloseStatus),
+        ("close-resume", CommandPath::WorkspaceCloseResume),
+    ] {
+        assert_eq!(
+            parse(&["workspace", verb, "--help"]),
+            Ok(Request::Help(HelpTopic::Command(command))),
+            "workspace {verb} --help"
+        );
+        assert_eq!(
+            parse(&["help", "workspace", verb]),
+            Ok(Request::Help(HelpTopic::Command(command))),
+            "help workspace {verb}"
         );
     }
 }

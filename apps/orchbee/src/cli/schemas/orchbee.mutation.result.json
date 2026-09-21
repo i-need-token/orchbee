@@ -7,8 +7,13 @@
 	"additionalProperties": false,
 	"properties": {
 		"schema": { "const": "orchbee.mutation.result" },
-		"version": { "const": 3 },
-		"source": { "$ref": "#/$defs/commandSource" },
+		"version": { "const": 4 },
+		"source": {
+			"oneOf": [
+				{ "$ref": "#/$defs/commandSource" },
+				{ "$ref": "#/$defs/closeResumeSource" }
+			]
+		},
 		"result": {
 			"type": "object",
 			"required": ["action", "outcome"],
@@ -28,14 +33,17 @@
 						"tab.move",
 						"tab.rename",
 						"workspace.accept-directory",
+						"workspace.close",
+						"workspace.close-resume",
 						"workspace.create",
 						"workspace.rename"
 					]
 				},
-				"outcome": { "enum": ["accepted", "committed", "unchanged"] },
+				"outcome": { "enum": ["accepted", "committed", "resumed", "unchanged"] },
 				"revision": { "$ref": "#/$defs/revision" },
 				"acceptedRevision": { "$ref": "#/$defs/revision" },
 				"closeRequestId": { "$ref": "#/$defs/id" },
+				"attemptGeneration": { "$ref": "#/$defs/revision" },
 				"projectId": { "$ref": "#/$defs/id" },
 				"workspaceId": { "$ref": "#/$defs/id" },
 				"terminalContextId": { "$ref": "#/$defs/id" },
@@ -90,6 +98,35 @@
 				},
 				{
 					"if": {
+						"properties": { "outcome": { "const": "resumed" } },
+						"required": ["outcome"]
+					},
+					"then": {
+						"required": ["closeRequestId", "attemptGeneration"]
+					}
+				},
+				{
+					"if": {
+						"properties": { "action": { "const": "workspace.close-resume" } },
+						"required": ["action"]
+					},
+					"then": { "required": ["projectId", "workspaceId"] }
+				},
+				{
+					"if": {
+						"properties": { "action": { "const": "workspace.close" } },
+						"required": ["action"]
+					},
+					"then": {
+						"required": [
+							"projectId",
+							"workspaceId",
+							"terminalContextId"
+						]
+					}
+				},
+				{
+					"if": {
 						"properties": {
 							"action": { "enum": ["launch-profile.create", "launch-profile.delete"] }
 						},
@@ -134,6 +171,24 @@
 				"siteId": { "$ref": "#/$defs/id" },
 				"requestId": { "$ref": "#/$defs/id" },
 				"expectedRevision": { "$ref": "#/$defs/revision" }
+			}
+		},
+		"closeResumeSource": {
+			"type": "object",
+			"required": [
+				"kind",
+				"siteId",
+				"requestId",
+				"closeRequestId",
+				"expectedAttemptGeneration"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "workspace-close-resume" },
+				"siteId": { "$ref": "#/$defs/id" },
+				"requestId": { "$ref": "#/$defs/id" },
+				"closeRequestId": { "$ref": "#/$defs/id" },
+				"expectedAttemptGeneration": { "$ref": "#/$defs/revision" }
 			}
 		}
 	}

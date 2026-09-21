@@ -579,6 +579,26 @@ impl Locale {
                 "a nonzero 32-character lowercase hexadecimal directory ID"
             }
             (Self::ZhCn, ExpectedValue::DirectoryId) => "非零的 32 位小写十六进制目录 ID",
+            (Self::EnUs, ExpectedValue::ProjectId) => {
+                "a nonzero 32-character lowercase hexadecimal project ID"
+            }
+            (Self::ZhCn, ExpectedValue::ProjectId) => "非零的 32 位小写十六进制 project ID",
+            (Self::EnUs, ExpectedValue::WorkspaceId) => {
+                "a nonzero 32-character lowercase hexadecimal workspace ID"
+            }
+            (Self::ZhCn, ExpectedValue::WorkspaceId) => "非零的 32 位小写十六进制 workspace ID",
+            (Self::EnUs, ExpectedValue::CloseRequestId) => {
+                "the close operation's own nonzero 32-character lowercase hexadecimal request ID"
+            }
+            (Self::ZhCn, ExpectedValue::CloseRequestId) => {
+                "该 close 操作自身的非零 32 位小写十六进制 request ID"
+            }
+            (Self::EnUs, ExpectedValue::CloseGeneration) => {
+                "a nonzero decimal attempt generation without a leading zero"
+            }
+            (Self::ZhCn, ExpectedValue::CloseGeneration) => {
+                "无前导零的非零十进制 attempt generation"
+            }
             (Self::EnUs, ExpectedValue::Executable) => "a nonempty absolute executable path",
             (Self::ZhCn, ExpectedValue::Executable) => "非空的绝对可执行文件路径",
             (Self::EnUs, ExpectedValue::LaunchArguments) => {
@@ -1913,6 +1933,12 @@ impl Locale {
             (Self::ZhCn, CommandPath::WorkspaceAcceptDirectory) => {
                 HELP_WORKSPACE_ACCEPT_DIRECTORY_ZH
             }
+            (Self::EnUs, CommandPath::WorkspaceClose) => HELP_WORKSPACE_CLOSE_EN,
+            (Self::ZhCn, CommandPath::WorkspaceClose) => HELP_WORKSPACE_CLOSE_ZH,
+            (Self::EnUs, CommandPath::WorkspaceCloseStatus) => HELP_WORKSPACE_CLOSE_STATUS_EN,
+            (Self::ZhCn, CommandPath::WorkspaceCloseStatus) => HELP_WORKSPACE_CLOSE_STATUS_ZH,
+            (Self::EnUs, CommandPath::WorkspaceCloseResume) => HELP_WORKSPACE_CLOSE_RESUME_EN,
+            (Self::ZhCn, CommandPath::WorkspaceCloseResume) => HELP_WORKSPACE_CLOSE_RESUME_ZH,
             (Self::EnUs, CommandPath::TabList) => HELP_TAB_LIST_EN,
             (Self::ZhCn, CommandPath::TabList) => HELP_TAB_LIST_ZH,
             (Self::EnUs, CommandPath::TabGet) => HELP_TAB_GET_EN,
@@ -2021,8 +2047,8 @@ const HELP_STATUS_ZH: &str = "orchbee status\n\n从正在运行的本地 Site �
 const HELP_PROJECT_EN: &str = "orchbee project list|get|create|rename\n\nQuery and mutate Project resources in the running local Site.\n  project list                       List every Project\n  project get <target>               Show one Project by exact ID, @project:<suffix>, or exact label\n  project create --label <l>         Create one Project\n  project rename <target> --label <l>  Rename one Project\nTargets are case-sensitive; ambiguous labels or suffixes are rejected, never guessed.\nEvery mutation reads one snapshot, then submits exactly one command.\n";
 const HELP_PROJECT_ZH: &str = "orchbee project list|get|create|rename\n\n查询并修改本地 Site 中的 Project 资源。\n  project list                       列出所有 Project\n  project get <target>               按精确 ID、@project:<suffix> 或精确 label 显示一个 Project\n  project create --label <l>         创建一个 Project\n  project rename <target> --label <l>  重命名一个 Project\ntarget 区分大小写；歧义 label 或后缀会被拒绝而非猜测。\n每个修改命令先读取一次快照，然后只提交一个命令。\n";
 
-const HELP_WORKSPACE_EN: &str = "orchbee workspace list|get|create|rename|accept-directory\n\nQuery and mutate Workspace resources in the running local Site.\n  workspace list [--project <t>]                    List Workspaces, optionally inside one Project\n  workspace get <target>                            Show one Workspace by exact ID, @workspace:<suffix>, or exact label\n  workspace create --project <t> --label <l>        Create one Workspace inside a Project\n  workspace rename <target> --label <l>             Rename one Workspace\n  workspace accept-directory <target> --path <p>    Accept a literal absolute path as the Workspace's primary directory\nEvery mutation reads one snapshot, then submits exactly one command.\n";
-const HELP_WORKSPACE_ZH: &str = "orchbee workspace list|get|create|rename|accept-directory\n\n查询并修改本地 Site 中的 Workspace 资源。\n  workspace list [--project <t>]                    列出 Workspace，可按某个 Project 过滤\n  workspace get <target>                            按精确 ID、@workspace:<suffix> 或精确 label 显示一个 Workspace\n  workspace create --project <t> --label <l>        在某个 Project 内创建一个 Workspace\n  workspace rename <target> --label <l>             重命名一个 Workspace\n  workspace accept-directory <target> --path <p>    将一个字面绝对路径接受为 Workspace 的主目录\n每个修改命令先读取一次快照，然后只提交一个命令。\n";
+const HELP_WORKSPACE_EN: &str = "orchbee workspace list|get|create|rename|accept-directory|close|close-status|close-resume\n\nQuery and mutate Workspace resources in the running local Site.\n  workspace list [--project <t>]                    List Workspaces, optionally inside one Project\n  workspace get <target>                            Show one Workspace by exact ID, @workspace:<suffix>, or exact label\n  workspace create --project <t> --label <l>        Create one Workspace inside a Project\n  workspace rename <target> --label <l>             Rename one Workspace\n  workspace accept-directory <target> --path <p>    Accept a literal absolute path as the Workspace's primary directory\n  workspace close <target> --confirm                Close every terminal the Workspace's Clients use\n  workspace close-status --project <id> --workspace <id>\n                                                    Read the retained close operation by stable IDs\n  workspace close-resume --project <id> --workspace <id> --request <close-id> --generation <n> --confirm\n                                                    Open one fresh attempt for a resumable close\nEvery mutation reads one snapshot, then submits exactly one command.\n";
+const HELP_WORKSPACE_ZH: &str = "orchbee workspace list|get|create|rename|accept-directory|close|close-status|close-resume\n\n查询并修改本地 Site 中的 Workspace 资源。\n  workspace list [--project <t>]                    列出 Workspace，可按某个 Project 过滤\n  workspace get <target>                            按精确 ID、@workspace:<suffix> 或精确 label 显示一个 Workspace\n  workspace create --project <t> --label <l>        在某个 Project 内创建一个 Workspace\n  workspace rename <target> --label <l>             重命名一个 Workspace\n  workspace accept-directory <target> --path <p>    将一个字面绝对路径接受为 Workspace 的主目录\n  workspace close <target> --confirm                关闭该 Workspace 的 Clients 使用的全部终端\n  workspace close-status --project <id> --workspace <id>\n                                                    按稳定 ID 读取保留的关闭操作\n  workspace close-resume --project <id> --workspace <id> --request <close-id> --generation <n> --confirm\n                                                    为可恢复的关闭开启一次新的尝试\n每个修改命令先读取一次快照，然后只提交一个命令。\n";
 
 const HELP_TAB_EN: &str = "orchbee tab list|get|create|rename|move|close\n\nQuery and mutate Tab resources in the running local Site.\n  tab list [--workspace <t> | --standalone]  List Tabs, optionally filtered\n  tab get <target>                           Show one Tab by exact ID, @tab:<suffix>, or label\n  tab create (--workspace <t>|--standalone) --label <l> [--cols <n> --rows <n> --cell-width <px> --cell-height <px>] [--profile <s> | --exec <abs> [--arg <v>]...]\n                                             Create one Tab in one context\n  tab rename <target> --label <l>            Rename one Tab\n  tab move <target> --direction <d>          Move one Tab within its strip\n  tab close <target> --confirm               Close one Tab\n'--workspace' and '--standalone' are mutually exclusive single-use selectors.\n";
 const HELP_TAB_ZH: &str = "orchbee tab list|get|create|rename|move|close\n\n查询并修改本地 Site 中的 Tab 资源。\n  tab list [--workspace <t> | --standalone]  列出 Tab，可按 Workspace 或独立上下文过滤\n  tab get <target>                           按精确 ID、@tab:<suffix> 或 label 显示一个 Tab\n  tab create (--workspace <t>|--standalone) --label <l> [--cols <n> --rows <n> --cell-width <px> --cell-height <px>] [--profile <s> | --exec <abs> [--arg <v>]...]\n                                             在某个上下文内创建一个 Tab\n  tab rename <target> --label <l>            重命名一个 Tab\n  tab move <target> --direction <d>          在标签条内移动一个 Tab\n  tab close <target> --confirm               关闭一个 Tab\n'--workspace' 与 '--standalone' 互斥且各只能用一次。\n";
@@ -2107,6 +2133,15 @@ const HELP_WORKSPACE_RENAME_EN: &str = "orchbee workspace rename <target> --labe
 const HELP_WORKSPACE_RENAME_ZH: &str = "orchbee workspace rename <target> --label <label> [--format text|json]\n\n重命名一个由精确 ID、@workspace:<suffix> 或精确 label 选择的 Workspace。命令先读取一次快\n照，然后只提交一个命令。committed 结果携带新修订；unchanged 表示\nlabel 本已相同。\n";
 const HELP_WORKSPACE_ACCEPT_DIRECTORY_EN: &str = "orchbee workspace accept-directory <target> --path <path> [--format text|json]\n\nAccept a literal absolute POSIX path as the primary directory of the\nWorkspace selected by exact ID, @workspace:<suffix>, or exact label.\n'--path' is required: a\nliteral absolute path of at most 4,096 UTF-8 bytes without NUL — never\nexpanded ('~', '$'), created, or probed by the CLI. The command reads one\nsnapshot, resolves the target and its owning Project, then submits\nexactly one command under a fresh request id; the Server authoritatively\nprobes the path and rejects a Workspace that already has a directory.\nA committed result carries the new revision, the Server-allocated\ndirectory and worker ids, the resolved project and workspace ids, and the\nrequest's literal path.\n";
 const HELP_WORKSPACE_ACCEPT_DIRECTORY_ZH: &str = "orchbee workspace accept-directory <target> --path <path> [--format text|json]\n\n将一个字面绝对 POSIX 路径接受为由精确 ID、@workspace:<suffix> 或精确 label 选择的\nWorkspace 的主目录。'--path' 为必填：字面绝对路径，至多 4,096 个\nUTF-8 字节且不含 NUL——CLI 不展开（'~'、'$'）、不创建、不探测。命\n令先读取一次快照、解析目标及其所属 Project，然后以全新请求 ID 只\n提交一个命令；由 Server 权威探测该路径，并拒绝已有目录的\nWorkspace。committed 结果携带新修订、Server 分配的 directory 与\nworker ID、已解析的 project 与 workspace ID，以及请求的字面路径。\n";
+
+const HELP_WORKSPACE_CLOSE_EN: &str = "orchbee workspace close <target> --confirm [--format text|json]\n\nClose every terminal the Workspace's Clients use, selected by exact ID,\n@workspace:<suffix>, or exact label. '--confirm' is required. The\nWorkspace itself, its checkout, branch, and directories are preserved —\nonly the terminal membership in its context closes. An accepted result\ncarries the accepted revision, the close request id, and the resolved\nproject, workspace, and terminal context ids; the Site finishes the\nclose asynchronously and re-running this command is not a resume — use\n'workspace close-resume' for a retained resumable operation.\n";
+const HELP_WORKSPACE_CLOSE_ZH: &str = "orchbee workspace close <target> --confirm [--format text|json]\n\n关闭由精确 ID、@workspace:<suffix> 或精确 label 选择的 Workspace 中\nClients 使用的全部终端。'--confirm' 为必填。Workspace 本身及其\ncheckout、branch、目录全部保留——仅关闭其上下文中的终端成员。\naccepted 结果携带已接受修订、关闭请求 ID，以及解析出的 project、\nworkspace 与终端上下文 ID；Site 异步完成关闭，重复执行本命令不等于\n恢复——对保留的可恢复操作请使用 'workspace close-resume'。\n";
+
+const HELP_WORKSPACE_CLOSE_STATUS_EN: &str = "orchbee workspace close-status --project <id> --workspace <id> [--format text|json]\n\nRead the retained Workspace Close operation for one scope, selected by\nstrict stable IDs: '--project' and '--workspace' are complete nonzero\n32-lowercase-hex Workbench IDs, never labels or suffixes. The record\noutlives the Workspace's active projection, so a completed close still\nanswers with its closed tombstone revision. An available result carries\nthe operation identity, attempt generation, scope status, aggregate\ncounts, and every captured member's lifecycle truth; not-closing means\nno retained operation covers the scope. '--format json' emits the\norchbee.workspace.close-status envelope.\n";
+const HELP_WORKSPACE_CLOSE_STATUS_ZH: &str = "orchbee workspace close-status --project <id> --workspace <id> [--format text|json]\n\n按严格稳定 ID 读取某个作用域保留的 Workspace 关闭操作：'--project' 与\n'--workspace' 为完整的非零 32 位小写十六进制 Workbench ID，绝不接受\nlabel 或后缀。该记录在 Workspace 离开活动投影后仍然保留，因此已完成\n的关闭仍以其 closed 墓碑修订应答。available 结果携带操作身份、尝试\n代次、作用域状态、聚合计数与每个被捕获成员的生命周期实况；\nnot-closing 表示没有保留操作覆盖该作用域。'--format json' 输出\norchbee.workspace.close-status 封套。\n";
+
+const HELP_WORKSPACE_CLOSE_RESUME_EN: &str = "orchbee workspace close-resume --project <id> --workspace <id> --request <close-id> --generation <n> --confirm [--format text|json]\n\nOpen one fresh attempt window for a retained, resumable Workspace Close.\nAll selectors are strict stable IDs: '--project' and '--workspace' are\ncomplete 32-lowercase-hex Workbench IDs, '--request' is the close\noperation's own request id from 'workspace close' or 'close-status', and\n'--generation' is the nonzero attempt generation last observed — an\noutdated fence answers stale, never a second attempt. '--confirm' is\nrequired. Only resumable lifecycle states resume; unknown outcomes are\nnon-resumable. A resumed result carries the operation identity and the\nnew attempt generation.\n";
+const HELP_WORKSPACE_CLOSE_RESUME_ZH: &str = "orchbee workspace close-resume --project <id> --workspace <id> --request <close-id> --generation <n> --confirm [--format text|json]\n\n为一个保留的、可恢复的 Workspace 关闭操作开启一次新的尝试窗口。所有\n选择器均为严格稳定 ID：'--project' 与 '--workspace' 为完整 32 位小写\n十六进制 Workbench ID，'--request' 为来自 'workspace close' 或\n'close-status' 的关闭操作自身请求 ID，'--generation' 为最近观察到的\n非零尝试代次——过期栅栏以 stale 应答，绝不发起第二次尝试。\n'--confirm' 为必填。只有可恢复的生命周期状态可恢复；unknown 结果不可\n恢复。resumed 结果携带操作身份与新的尝试代次。\n";
 
 const HELP_TAB_LIST_EN: &str = "orchbee tab list [--workspace <t> | --standalone] [--format text|json]\n\nList Tabs. Filters select one Workspace's context (exact ID,\n@workspace:<suffix>, or label) or\nthe standalone context. Fields: ids, label, pinned flag, group, and owning\ncontext kind.\n";
 const HELP_TAB_LIST_ZH: &str = "orchbee tab list [--workspace <t> | --standalone] [--format text|json]\n\n列出 Tab。过滤参数可选择一个 Workspace 的上下文（精确 ID、@workspace:<suffix> 或 label）或\n独立上下文。字段：各 ID、label、置顶标记、分组与所属上下文类型。\n";
@@ -2271,6 +2306,15 @@ pub(crate) struct CliLabels {
     // `agent integration list` columns — provider, its PATH availability,
     // the management mode, the observed state, and the issue when present.
     pub(crate) integration_headers: [&'static str; 5],
+    // `workspace close-status` field labels, the member table columns, and
+    // the empty-record notice.
+    pub(crate) close_request_id: &'static str,
+    pub(crate) workspace_id: &'static str,
+    pub(crate) attempt_generation: &'static str,
+    pub(crate) status: &'static str,
+    pub(crate) members: &'static str,
+    pub(crate) close_not_closing: &'static str,
+    pub(crate) close_member_headers: [&'static str; 4],
 }
 
 const EN_US_LABELS: CliLabels = CliLabels {
@@ -2358,6 +2402,13 @@ const EN_US_LABELS: CliLabels = CliLabels {
     agent_doctor_asset_roots: "Asset roots",
     agent_doctor_hints: "Hints",
     integration_headers: ["PROVIDER", "AVAILABILITY", "MANAGEMENT", "STATE", "ISSUE"],
+    close_request_id: "Close request ID",
+    workspace_id: "Workspace ID",
+    attempt_generation: "Attempt generation",
+    status: "Status",
+    members: "Members",
+    close_not_closing: "no close operation recorded for this workspace",
+    close_member_headers: ["TAB", "PANEL", "PRESENTATION", "STATUS"],
 };
 
 const ZH_CN_LABELS: CliLabels = CliLabels {
@@ -2445,6 +2496,13 @@ const ZH_CN_LABELS: CliLabels = CliLabels {
     agent_doctor_asset_roots: "资产根",
     agent_doctor_hints: "提示",
     integration_headers: ["提供方", "可用性", "管理方式", "状态", "问题"],
+    close_request_id: "关闭请求 ID",
+    workspace_id: "工作区 ID",
+    attempt_generation: "尝试代次",
+    status: "状态",
+    members: "成员",
+    close_not_closing: "该工作区没有已记录的关闭操作",
+    close_member_headers: ["TAB", "PANEL", "PRESENTATION", "状态"],
 };
 
 impl Locale {

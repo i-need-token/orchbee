@@ -33,7 +33,9 @@ use orchbee_terminal_protocol::{AttachmentId, HostEpoch, TerminalTextFrame};
 use orchbee_workbench_protocol::{
     LaunchProfileCatalogOutcome, LaunchProfileSelector, ProtocolVersion, Snapshot,
     SnapshotReadIntent, WorkbenchDirectoryId, WorkbenchLaunchProfileCatalogRead,
-    WorkbenchRequestId, WorkbenchSnapshotOutcome, WorkbenchSnapshotUnavailableReason,
+    WorkbenchProjectId, WorkbenchRequestId, WorkbenchSnapshotOutcome,
+    WorkbenchSnapshotUnavailableReason, WorkbenchTabCloseUnavailableReason,
+    WorkbenchWorkspaceCloseRead, WorkbenchWorkspaceCloseReadOutcome, WorkbenchWorkspaceId,
     WorkbenchWorktreeListOutcome, WorkbenchWorktreeListRead, WorktreeListStage,
     WorktreeListTooLargeOrigin, WorktreeListUnavailableReason,
 };
@@ -53,7 +55,8 @@ use crate::local_client::agent::{AgentReadError, AgentReadFailure, AgentReadOper
 #[cfg(target_os = "linux")]
 use crate::local_client::workbench::{
     LaunchProfileCatalogReadError, LaunchProfileCatalogReadFailure, SnapshotReadError,
-    SnapshotReadFailure, WorktreeListReadError, WorktreeListReadFailure,
+    SnapshotReadFailure, WorkbenchWorkspaceCloseFailure, WorkbenchWorkspaceCloseNotSubmitted,
+    WorkbenchWorkspaceCloseReadError, WorktreeListReadError, WorktreeListReadFailure,
 };
 #[cfg(target_os = "linux")]
 use crate::local_client::{
@@ -379,6 +382,114 @@ const fn worktree_git_stage(stage: WorktreeListStage) -> &'static str {
     match stage {
         WorktreeListStage::Probe => "probe",
         WorktreeListStage::List => "list",
+    }
+}
+
+/// `workspace close-status`: one typed retained-record read on the admitted
+/// session, keyed by the stable `(project, workspace)` pair. The record
+/// outlives the Workspace's active projection, so the snapshot supplies only
+/// the session's site — membership is never re-resolved locally. Every
+/// failure past the session boundary carries the dedicated close envelope.
+#[cfg(target_os = "linux")]
+pub(crate) fn workspace_close_status(
+    project: &WorkbenchProjectId,
+    workspace: &WorkbenchWorkspaceId,
+) -> Result<(serde_json::Value, Projection), Failure> {
+    let deadline = deadline_after(NETWORK_BUDGET)?;
+    let (mut client, deadline, snapshot) = snapshot_session_until(deadline)?;
+    let source = super::results::snapshot_source(&snapshot);
+    let request = WorkbenchWorkspaceCloseRead {
+        protocol_version: ProtocolVersion,
+        request_id: request_id()?,
+        site_id: snapshot.site_id.clone(),
+        project_id: project.clone(),
+        workspace_id: workspace.clone(),
+    };
+    let outcome = client
+        .submit_workbench_workspace_close_read(request, None, deadline)
+        .map_err(classify_close_status_read);
+    // The Client Session is fully dropped before the answer is mapped into
+    // the bounded document or any output is prepared.
+    drop(client);
+    outcome
+        .and_then(|outcome| classify_close_status_outcome(outcome))
+        .map(|outcome| (source.clone(), Projection::WorkspaceCloseStatus(outcome)))
+        .map_err(|failure| failure.source(source))
+}
+
+/// The close read outcome family → projection or CLI failure. Only the
+/// record-bearing answers reach the result document; refusals leave as
+/// failures under the close envelope.
+#[cfg(target_os = "linux")]
+fn classify_close_status_outcome(
+    outcome: WorkbenchWorkspaceCloseReadOutcome,
+) -> Result<WorkbenchWorkspaceCloseReadOutcome, Failure> {
+    let failure = |kind| Failure::new(kind).failure_schema(super::schema::CLOSE_FAILURE_ID);
+    match outcome {
+        WorkbenchWorkspaceCloseReadOutcome::NotClosing { .. }
+        | WorkbenchWorkspaceCloseReadOutcome::Available { .. } => Ok(outcome),
+        WorkbenchWorkspaceCloseReadOutcome::Denied {} => {
+            Err(failure(FailureKind::Denied).details(stage_details("close-status")))
+        }
+        WorkbenchWorkspaceCloseReadOutcome::Unavailable { reason } => {
+            let reason = match reason {
+                WorkbenchTabCloseUnavailableReason::ServerBusy => "server-busy",
+            };
+            Err(failure(FailureKind::ServiceUnavailable)
+                .details(stage_reason_details("close-status", reason)))
+        }
+    }
+}
+
+/// The close status exchange failures, classified under the close failure
+/// envelope: a deadline-expired response is the command's own timeout, and a
+/// scope-mismatched answer is a protocol fault, never a silent retry.
+#[cfg(target_os = "linux")]
+fn classify_close_status_read(error: WorkbenchWorkspaceCloseReadError) -> Failure {
+    use orchbee_workbench_protocol::WorkbenchWireError;
+    let failure = |kind| Failure::new(kind).failure_schema(super::schema::CLOSE_FAILURE_ID);
+    match error {
+        WorkbenchWorkspaceCloseReadError::NotSubmitted(reason) => match reason {
+            WorkbenchWorkspaceCloseNotSubmitted::SessionUnavailable
+            | WorkbenchWorkspaceCloseNotSubmitted::RequestEncoding(_) => {
+                failure(FailureKind::InternalFailure)
+            }
+            WorkbenchWorkspaceCloseNotSubmitted::RequestNotSubmitted(_) => {
+                failure(FailureKind::TransportLoss).details(stage_details("close-status"))
+            }
+        },
+        WorkbenchWorkspaceCloseReadError::Failed { reason, .. } => match reason {
+            WorkbenchWorkspaceCloseFailure::Write(_) => {
+                failure(FailureKind::TransportLoss).details(stage_details("close-status"))
+            }
+            WorkbenchWorkspaceCloseFailure::ResponseDeadline(_) => failure(FailureKind::Timeout)
+                .details(serde_json::Map::from_iter([
+                    ("stage".to_owned(), serde_json::json!("close-status")),
+                    ("timeoutMs".to_owned(), serde_json::json!(5000)),
+                ])),
+            WorkbenchWorkspaceCloseFailure::Response(WorkbenchWireError::Io(_)) => {
+                failure(FailureKind::TransportLoss).details(stage_details("close-status"))
+            }
+            WorkbenchWorkspaceCloseFailure::Response(_)
+            | WorkbenchWorkspaceCloseFailure::UnexpectedResponse
+            | WorkbenchWorkspaceCloseFailure::ActionIncompatible => {
+                failure(FailureKind::ProtocolInvalid).details(stage_details("close-status"))
+            }
+            WorkbenchWorkspaceCloseFailure::CorrelationMismatch { .. } => {
+                failure(FailureKind::ProtocolInvalid)
+                    .details(stage_reason_details("close-status", "correlation-mismatch"))
+            }
+            WorkbenchWorkspaceCloseFailure::SiteMismatch { .. }
+            | WorkbenchWorkspaceCloseFailure::ProjectMismatch { .. }
+            | WorkbenchWorkspaceCloseFailure::WorkspaceMismatch { .. }
+            | WorkbenchWorkspaceCloseFailure::TerminalContextMismatch { .. }
+            | WorkbenchWorkspaceCloseFailure::OperationMismatch { .. }
+            | WorkbenchWorkspaceCloseFailure::AcceptedRevisionMismatch { .. }
+            | WorkbenchWorkspaceCloseFailure::AttemptGenerationMismatch { .. } => {
+                failure(FailureKind::ProtocolInvalid)
+                    .details(stage_reason_details("close-status", "scope-mismatch"))
+            }
+        },
     }
 }
 

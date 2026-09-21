@@ -6,8 +6,9 @@ use orchbee_agent_observation_protocol::{
 };
 use orchbee_workbench_protocol::{
     LaunchProfileName, LaunchProfileSelector, LaunchSelection, WorkbenchDirectoryId,
-    WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
-    WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
+    WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection, WorkbenchProjectId,
+    WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabMoveDirection,
+    WorkbenchTerminalGeometry, WorkbenchWorkspaceId,
 };
 
 /// Legacy three-variant invocation consumed by `presentation::present`.
@@ -169,6 +170,9 @@ pub(crate) enum CommandPath {
     WorkspaceCreate,
     WorkspaceRename,
     WorkspaceAcceptDirectory,
+    WorkspaceClose,
+    WorkspaceCloseStatus,
+    WorkspaceCloseResume,
     TabList,
     TabGet,
     TabCreate,
@@ -222,6 +226,9 @@ impl CommandPath {
             Self::WorkspaceCreate => "workspace create",
             Self::WorkspaceRename => "workspace rename",
             Self::WorkspaceAcceptDirectory => "workspace accept-directory",
+            Self::WorkspaceClose => "workspace close",
+            Self::WorkspaceCloseStatus => "workspace close-status",
+            Self::WorkspaceCloseResume => "workspace close-resume",
             Self::TabList => "tab list",
             Self::TabGet => "tab get",
             Self::TabCreate => "tab create",
@@ -363,6 +370,13 @@ pub(crate) enum QueryCommand {
         project: Option<Target>,
     },
     WorkspaceGet(Target),
+    /// `workspace close-status --project <id> --workspace <id>`: the
+    /// retained Workspace Close record read from stable IDs — it stays
+    /// answerable after the Workspace leaves the active projection.
+    WorkspaceCloseStatus {
+        project: WorkbenchProjectId,
+        workspace: WorkbenchWorkspaceId,
+    },
     TabList {
         workspace: Option<Target>,
         standalone: bool,
@@ -660,6 +674,22 @@ pub(crate) enum MutationCommand {
         target: Target,
         path: WorkbenchDirectoryPath,
     },
+    /// `workspace close <target> --confirm`: close every terminal in the
+    /// Workspace's Terminal Context; the Workspace, its checkout, branch,
+    /// and directories survive the close.
+    WorkspaceClose {
+        target: Target,
+    },
+    /// `workspace close-resume --project <id> --workspace <id> --request
+    /// <close-id> --generation <n> --confirm`: one fresh attempt window for
+    /// a resumable retained Workspace Close, fenced by the explicit
+    /// attempt-generation the caller last observed.
+    WorkspaceCloseResume {
+        project: WorkbenchProjectId,
+        workspace: WorkbenchWorkspaceId,
+        request: WorkbenchRequestId,
+        generation: WorkbenchTabCloseAttemptGeneration,
+    },
     TabCreate {
         context: TabContext,
         label: WorkbenchLabel,
@@ -878,6 +908,18 @@ pub(crate) enum ExpectedValue {
     Provider,
     /// `agent integration --adapter-source <abs>`: a literal absolute path.
     AdapterSource,
+    /// The `workspace close-status|close-resume --project` operand: a
+    /// nonzero 32-character lowercase hexadecimal Project ID.
+    ProjectId,
+    /// The `workspace close-status|close-resume --workspace` operand: a
+    /// nonzero 32-character lowercase hexadecimal Workspace ID.
+    WorkspaceId,
+    /// The `workspace close-resume --request` operand: the close operation's
+    /// own nonzero 32-character lowercase hexadecimal request ID.
+    CloseRequestId,
+    /// The `workspace close-resume --generation` operand: the caller's
+    /// last-observed nonzero attempt generation, canonical decimal text.
+    CloseGeneration,
 }
 
 /// Why an `invalid-usage` failure was reached. Carried for the localized
@@ -1071,6 +1113,13 @@ struct Options {
     profile: Option<String>,
     provider: Option<String>,
     adapter_source: Option<String>,
+    /// `workspace close-resume --request <id>`: the close operation's own
+    /// request ID — the operation identity, never the resume's new
+    /// request identity.
+    request: Option<String>,
+    /// `workspace close-resume --generation <n>`: the explicit attempt
+    /// fence; a stale value is a settled `stale` answer, never an effect.
+    generation: Option<String>,
 }
 
 /// Every named option that owns the next argv token as its value, used by
@@ -1089,6 +1138,7 @@ const VALUE_FLAGS: &[&str] = &[
     "--directory",
     "--exec",
     "--file",
+    "--generation",
     "--into-tab",
     "--key",
     "--label",
@@ -1102,6 +1152,7 @@ const VALUE_FLAGS: &[&str] = &[
     "--provider",
     "--profile",
     "--regex",
+    "--request",
     "--rows",
     "--tab",
     "--target-panel",
@@ -1536,6 +1587,8 @@ fn apply_value_flag(
         "--profile" => &mut options.profile,
         "--adapter-source" => &mut options.adapter_source,
         "--regex" => &mut options.regex,
+        "--request" => &mut options.request,
+        "--generation" => &mut options.generation,
         "--lines" => &mut options.lines,
         "--target-panel" => &mut options.target_panel,
         "--into-tab" => &mut options.into_tab,
@@ -1911,6 +1964,75 @@ fn resolve_words(
                         UsageContext::Path("workspace accept-directory"),
                         envelope,
                     )?,
+                },
+                options,
+            ))
+        }
+        ["workspace", "close", value] => {
+            check_scope(
+                options,
+                CONFIRM_SCOPE,
+                UsageContext::Path("workspace close"),
+                envelope,
+            )?;
+            if !options.confirm {
+                return Err(missing_required(
+                    UsageContext::Path("workspace close"),
+                    "'--confirm'",
+                    envelope,
+                ));
+            }
+            Ok(mutation(
+                MutationCommand::WorkspaceClose {
+                    target: target((*value).to_owned(), Resource::Workspace, envelope)?,
+                },
+                options,
+            ))
+        }
+        ["workspace", "close-status"] => {
+            check_scope(
+                options,
+                WORKSPACE_CLOSE_STATUS_SCOPE,
+                UsageContext::Path("workspace close-status"),
+                envelope,
+            )?;
+            Ok(query(
+                QueryCommand::WorkspaceCloseStatus {
+                    project: project_id_option(
+                        options,
+                        UsageContext::Path("workspace close-status"),
+                        envelope,
+                    )?,
+                    workspace: workspace_id_option(
+                        options,
+                        UsageContext::Path("workspace close-status"),
+                        envelope,
+                    )?,
+                },
+                options,
+            ))
+        }
+        ["workspace", "close-resume"] => {
+            check_scope(
+                options,
+                WORKSPACE_CLOSE_RESUME_SCOPE,
+                UsageContext::Path("workspace close-resume"),
+                envelope,
+            )?;
+            let context = UsageContext::Path("workspace close-resume");
+            let project = project_id_option(options, context, envelope)?;
+            let workspace = workspace_id_option(options, context, envelope)?;
+            let request = close_request_option(options, context, envelope)?;
+            let generation = close_generation_option(options, context, envelope)?;
+            if !options.confirm {
+                return Err(missing_required(context, "'--confirm'", envelope));
+            }
+            Ok(mutation(
+                MutationCommand::WorkspaceCloseResume {
+                    project,
+                    workspace,
+                    request,
+                    generation,
                 },
                 options,
             ))
@@ -2478,6 +2600,26 @@ fn resolve_words(
             extra,
             envelope,
         )),
+        ["workspace", "close"] => Err(missing_required(
+            UsageContext::Path("workspace close"),
+            "<workspace>",
+            envelope,
+        )),
+        ["workspace", "close", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("workspace close"),
+            extra,
+            envelope,
+        )),
+        ["workspace", "close-status", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("workspace close-status"),
+            extra,
+            envelope,
+        )),
+        ["workspace", "close-resume", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("workspace close-resume"),
+            extra,
+            envelope,
+        )),
         ["workspace", verb, ..] => Err(unknown_command(
             UsageContext::Path("workspace"),
             verb,
@@ -2802,6 +2944,9 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["workspace", "accept-directory"] => {
             HelpTopic::Command(CommandPath::WorkspaceAcceptDirectory)
         }
+        ["workspace", "close"] => HelpTopic::Command(CommandPath::WorkspaceClose),
+        ["workspace", "close-status"] => HelpTopic::Command(CommandPath::WorkspaceCloseStatus),
+        ["workspace", "close-resume"] => HelpTopic::Command(CommandPath::WorkspaceCloseResume),
         ["tab", "list"] => HelpTopic::Command(CommandPath::TabList),
         ["tab", "get"] => HelpTopic::Command(CommandPath::TabGet),
         ["tab", "create"] => HelpTopic::Command(CommandPath::TabCreate),
@@ -2937,6 +3082,11 @@ struct Scope {
     /// `agent integration * --adapter-source <abs>`: the development/test
     /// capsule-source override (literal absolute path).
     adapter_source: bool,
+    /// `workspace close-resume --request <id>`: the close operation's own
+    /// request ID.
+    request: bool,
+    /// `workspace close-resume --generation <n>`: the attempt fence.
+    generation: bool,
 }
 
 const NO_OPTIONS: Scope = Scope {
@@ -2977,6 +3127,8 @@ const NO_OPTIONS: Scope = Scope {
     name: false,
     profile: false,
     adapter_source: false,
+    request: false,
+    generation: false,
 };
 
 /// The explicit `tui` route: only `--mouse` is admitted on top of the
@@ -3061,6 +3213,26 @@ const TAB_MOVE_SCOPE: Scope = Scope {
 };
 
 const CONFIRM_SCOPE: Scope = Scope {
+    confirm: true,
+    ..NO_OPTIONS
+};
+
+/// `workspace close-status`: the stable-ID scope — the operation record is
+/// addressed by the exact Project and Workspace IDs, never a positional
+/// target.
+const WORKSPACE_CLOSE_STATUS_SCOPE: Scope = Scope {
+    project: true,
+    workspace: true,
+    ..NO_OPTIONS
+};
+
+/// `workspace close-resume`: the stable-ID scope plus the close operation's
+/// own request ID, the attempt-generation fence, and the explicit confirm.
+const WORKSPACE_CLOSE_RESUME_SCOPE: Scope = Scope {
+    project: true,
+    workspace: true,
+    request: true,
+    generation: true,
     confirm: true,
     ..NO_OPTIONS
 };
@@ -3169,6 +3341,8 @@ fn business_options(options: &Options) -> bool {
         || options.profile.is_some()
         || options.provider.is_some()
         || options.adapter_source.is_some()
+        || options.request.is_some()
+        || options.generation.is_some()
 }
 
 /// The first named option present but outside `scope`, in the fixed `Options`
@@ -3302,6 +3476,12 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.adapter_source.is_some() && !scope.adapter_source {
         return Some("--adapter-source");
+    }
+    if options.request.is_some() && !scope.request {
+        return Some("--request");
+    }
+    if options.generation.is_some() && !scope.generation {
+        return Some("--generation");
     }
     None
 }
@@ -3554,6 +3734,93 @@ fn directory_option(
                 option: "--directory",
                 value,
                 expected: ExpectedValue::DirectoryId,
+            },
+            envelope,
+        )
+    })
+}
+
+/// `workspace close-status|close-resume --project <id>`: the strict stable
+/// Project ID — an ID only, never a label or selector, because the retained
+/// close record outlives the Workspace's active-projection membership.
+fn project_id_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<WorkbenchProjectId, ParseFailure> {
+    let value = required(&options.project, context, "'--project'", envelope)?;
+    WorkbenchProjectId::parse(&value).map_err(|_| {
+        usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "--project",
+                value,
+                expected: ExpectedValue::ProjectId,
+            },
+            envelope,
+        )
+    })
+}
+
+/// `workspace close-status|close-resume --workspace <id>`: the strict
+/// stable Workspace ID under the same stable-identity rule as `--project`.
+fn workspace_id_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<WorkbenchWorkspaceId, ParseFailure> {
+    let value = required(&options.workspace, context, "'--workspace'", envelope)?;
+    WorkbenchWorkspaceId::parse(&value).map_err(|_| {
+        usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "--workspace",
+                value,
+                expected: ExpectedValue::WorkspaceId,
+            },
+            envelope,
+        )
+    })
+}
+
+/// `workspace close-resume --request <id>`: the close operation's own
+/// request ID — the operation identity the Server re-verifies, never the
+/// resume request's fresh identity.
+fn close_request_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<WorkbenchRequestId, ParseFailure> {
+    let value = required(&options.request, context, "'--request'", envelope)?;
+    WorkbenchRequestId::parse(&value).map_err(|_| {
+        usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "--request",
+                value,
+                expected: ExpectedValue::CloseRequestId,
+            },
+            envelope,
+        )
+    })
+}
+
+/// `workspace close-resume --generation <n>`: the explicit attempt fence —
+/// the protocol's nonzero generation spelling; a stale-but-valid value is
+/// the Server's settled `stale` answer, while a malformed value is usage.
+fn close_generation_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<WorkbenchTabCloseAttemptGeneration, ParseFailure> {
+    let value = required(&options.generation, context, "'--generation'", envelope)?;
+    WorkbenchTabCloseAttemptGeneration::parse(&value).map_err(|_| {
+        usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "--generation",
+                value,
+                expected: ExpectedValue::CloseGeneration,
             },
             envelope,
         )

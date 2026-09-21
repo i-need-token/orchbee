@@ -32,6 +32,7 @@ pub(crate) mod launch_profile;
 mod tab_close;
 mod tab_move;
 pub(crate) mod tab_rename;
+mod workspace_close;
 pub(crate) mod workspace_setup;
 pub(crate) use launch_profile::{LaunchProfileCatalogReadError, LaunchProfileCatalogReadFailure};
 pub(crate) use tab_close::{
@@ -42,6 +43,12 @@ pub(crate) use tab_close::{
 pub(crate) use tab_move::{
     WorkbenchTabMoveCommit, WorkbenchTabMoveNotSubmitted, WorkbenchTabMoveOutcomeUnknownReason,
     WorkbenchTabMovePrecommit, WorkbenchTabMoveRequest, WorkbenchTabMoveSubmission,
+};
+pub(crate) use workspace_close::{
+    WorkbenchWorkspaceCloseAccepted, WorkbenchWorkspaceCloseFailure,
+    WorkbenchWorkspaceCloseNotSubmitted, WorkbenchWorkspaceClosePrecommit,
+    WorkbenchWorkspaceCloseReadError, WorkbenchWorkspaceCloseRequest,
+    WorkbenchWorkspaceCloseResumeSubmission, WorkbenchWorkspaceCloseSubmission,
 };
 
 impl LocalClient {
