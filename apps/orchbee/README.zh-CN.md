@@ -81,8 +81,9 @@ target 与 filter 规则、修改结果及含退出分类的 failure matrix 由
 worktree、观察 Agent 并干净地关闭——见
 [原生 CLI 工作流](docs/cli-workflows.zh-CN.md)。
 
-按一次会话通常需要的顺序列出日常入口——cohort 暂存完成后每一行都可
-直接照抄运行：
+按一次会话通常需要的顺序列出常用命令模板——先按链接的工作流完成
+Workspace 与 terminal 准备，再把每个 `<…>` 占位符替换为实际 ID 或
+provider：
 
 ```sh
 orchbee site start                        # 激活一次本地 Site（无需 TTY）

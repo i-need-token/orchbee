@@ -93,8 +93,9 @@ For an end-to-end headless sequence — start a Site, create a
 Project/Workspace/directory, launch and drive a terminal, inspect worktrees,
 observe Agents, and close cleanly — see [native CLI workflows](docs/cli-workflows.md).
 
-The everyday entries, in the order one session usually needs them — every line
-runs as written once a development cohort is staged:
+Common command templates, in the order one session usually needs them —
+follow the linked workflow to create the Workspace and terminal first, then
+substitute each `<…>` placeholder with the real id or provider:
 
 ```sh
 orchbee site start                        # activate the local Site once (no TTY)
