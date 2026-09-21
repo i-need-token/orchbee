@@ -1433,9 +1433,16 @@ fn agent_read_names_family_result_retires_the_session() -> TestResult {
         )
         .map_err(io::Error::other)?;
         // The client retires the session on the family mismatch; the peer
-        // observes the drop as EOF.
+        // must observe a clean EOF — a timed-out read means the connection
+        // was not dropped, and any other error is not evidence of a close.
         let mut sink = [0_u8; 8];
-        stream.read(&mut sink).map(|_| ())
+        match stream.read(&mut sink) {
+            Ok(0) => Ok(()),
+            Ok(received) => Err(io::Error::other(format!(
+                "expected EOF after session retire, read {received} bytes"
+            ))),
+            Err(error) => Err(error),
+        }
     })?;
     let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
     let request = AgentReadRequest::List {

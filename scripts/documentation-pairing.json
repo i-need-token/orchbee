@@ -582,8 +582,8 @@
 			"zhCnSha256": "ab3f4eef6a88ee8100c516717b76ab94b26e8cbc1d565e9af83da8ae42907d34"
 		},
 		"proposals/agent/session-names.md": {
-			"englishSha256": "93743351f289f3dbe4db44e249b1d116716366b477b6f1616027b99f6c60c5eb",
-			"zhCnSha256": "a7c2f526bdc8a5888a142aed6eefd4f229ff71a4db4ff9cb209777c5ad8fc51b"
+			"englishSha256": "9436bf4b461fd3165e1f9994fef204fa71179355bb557413b334ac2c231bc634",
+			"zhCnSha256": "529f19dcce45a16e88a85f2ec7e732f553217b6f081eb4dfbd6fd2616c24f483"
 		},
 		"proposals/cli/native-command-surface.md": {
 			"englishSha256": "1a747a510bc58097ab4870fc6e50370662dc3d9fc24d270b06f45f0b9bf6484e",

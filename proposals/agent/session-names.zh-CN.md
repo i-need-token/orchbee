@@ -1,26 +1,26 @@
 # Agent 会话命名侧表
 
-| 字段             | 内容                                                                                                                                                                                                                                                                                                                                 |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Status           | 设计候选，未实现、未获接受。OBAP wire 联合、names DTO 与帧编解码先于任何 Server 执行器或 CLI 面合入，本文档为未来的实现切片承载既有设计语义。在产品与架构决策负责人接受、且归属实现落地之前，本文任何内容都不是当前权威                                                                                                                            |
-| 决策负责人       | 当前请求方，以 Orchbee 产品与架构决策负责人身份                                                                                                                                                                                                                                                                                       |
-| 语义归属         | Server `AgentState` 命名表归属、`AgentService` 执行器、OBAP names 家族、CLI names 命令面                                                                                                                                                                                                                                                  |
-| 当前权威         | [`apps/orchbee-server/docs/agent-canonical-model.md`](../../apps/orchbee-server/docs/agent-canonical-model.md)（已实现的读模型与会话解复用的 names 拒绝）、[`crates/agent-observation-protocol/README.md`](../../crates/agent-observation-protocol/README.md)（names 编解码/DTO 的暂存状态）                                                    |
-| 退出条件         | names 功能在自身获接受的授权下实现，且归属权威——canonical-model、command-surface 与 `schemas/agent-observation/v1`——收敛为描述已交付行为；届时删除本提案及其译文                                                                                                                                                                          |
+| 字段       | 内容                                                                                                                                                                                                                                                                                         |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status     | 设计候选，未实现、未获接受。OBAP wire 联合、names DTO 与帧编解码先于任何 Server 执行器或 CLI 面合入，本文档为未来的实现切片承载既有设计语义。在产品与架构决策负责人接受、且归属实现落地之前，本文任何内容都不是当前权威                                                                      |
+| 决策负责人 | 当前请求方，以 Orchbee 产品与架构决策负责人身份                                                                                                                                                                                                                                              |
+| 语义归属   | Server `AgentState` 命名表归属、`AgentService` 执行器、OBAP names 家族、CLI names 命令面                                                                                                                                                                                                     |
+| 当前权威   | [`apps/orchbee-server/docs/agent-canonical-model.md`](../../apps/orchbee-server/docs/agent-canonical-model.md)（已实现的读模型与会话解复用的 names 拒绝）、[`crates/agent-observation-protocol/README.md`](../../crates/agent-observation-protocol/README.md)（names 编解码/DTO 的暂存状态） |
+| 退出条件   | names 功能在自身获接受的授权下实现，且归属权威——canonical-model、command-surface 与 `schemas/agent-observation/v1`——收敛为描述已交付行为；届时删除本提案及其译文                                                                                                                             |
 
 英文原文为规范：[session-names.md](session-names.md)。
 
 ## 变更授权（提议）
 
-| 字段           | 提议授权                                                                                                                                                                                                                                                                                                                              |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 分级           | Modeled——侧表在 `AgentState` cell 内引入一张新的有状态表、selector 解析次序、原子改名迁移与有界读载荷；Consequential 面限于已合入的 wire kind                                                                                                                                                                                               |
-| 问题           | 客户端只能用不透明会话身份寻址会话。已合入协议已能收发封闭的 names 请求/结果家族（resolve、names.list、name.assign、name.release），但不存在任何 Server 状态、执行器、策略门或 CLI 文法来应答它                                                                                                                                              |
-| 阶段成果       | 一张按 Site、随运行时存续的别名表置于 `AgentState` 内，通过共享 `with_state` fold 应答全部四种 names 操作；CLI 解析位置 `auto` 词与显式 `--session`/`--name` 逃逸；已发布 schema 与 read 家族并列覆盖 kind 7–14                                                                                                                                |
-| 非目标         | 跨运行时 dispose 持久化名字、远端（非托管）解析、改动规范会话文档、写账本或重放语义、会话删除（`delete.request` 仍保留——落地时必须路由经过同一个 fold 内 release），以及任何第二 names 权威                                                                                                                                                    |
-| 兼容性         | 在本切片落地之前，names 行为即当前拒绝：良构 names 帧以 `WrongDocumentKind` 终结客户端会话。落地后每个 names 操作经定型联合应答——从不命名会话的客户端无需任何改动                                                                                                                                                                              |
-| 交付           | 单一切片：`AgentState` names 映射 + fold 内清扫、`AgentService` 执行器操作、`AgentPolicy.manage` 准入、会话解复用路由到执行器、CLI 命令面、schema kind 7–14 与归属权威收敛——证据落在协议、服务、会话解复用与 CLI 进程各层                                                                                                                        |
-| 恢复           | 撤回 names 解复用路由；暂存的编解码/DTO 保持惰性，会话解复用拒绝即缺席行为——绝不伪造 names 结果                                                                                                                                                                              |
+| 字段     | 提议授权                                                                                                                                                                                                                  |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 分级     | Modeled——侧表在 `AgentState` cell 内引入一张新的有状态表、selector 解析次序、原子改名迁移与有界读载荷；Consequential 面限于已合入的 wire kind                                                                             |
+| 问题     | 客户端只能用不透明会话身份寻址会话。已合入协议已能收发封闭的 names 请求/结果家族（resolve、names.list、name.assign、name.release），但不存在任何 Server 状态、执行器、策略门或 CLI 文法来应答它                           |
+| 阶段成果 | 一张按 Site、随运行时存续的别名表置于 `AgentState` 内，通过共享 `with_state` fold 应答全部四种 names 操作；CLI 解析位置 `auto` 词与显式 `--session`/`--name` 逃逸；已发布 schema 与 read 家族并列覆盖 kind 7–14           |
+| 非目标   | 跨运行时 dispose 持久化名字、远端（非托管）解析、改动规范会话文档、写账本或重放语义、会话删除（`delete.request` 仍保留——落地时必须路由经过同一个 fold 内 release），以及任何第二 names 权威                               |
+| 兼容性   | 在本切片落地之前，names 行为即当前拒绝：良构 names 帧以 `WrongDocumentKind` 终结客户端会话。落地后每个 names 操作经定型联合应答——从不命名会话的客户端无需任何改动                                                         |
+| 交付     | 单一切片：`AgentState` names 映射 + fold 内清扫、`AgentService` 执行器操作、`AgentPolicy.manage` 准入、会话解复用路由到执行器、CLI 命令面、schema kind 7–14 与归属权威收敛——证据落在协议、服务、会话解复用与 CLI 进程各层 |
+| 恢复     | 撤回 names 解复用路由；暂存的编解码/DTO 保持惰性，会话解复用拒绝即缺席行为——绝不伪造 names 结果                                                                                                                           |
 
 ## 已核实的当前状态
 
@@ -82,12 +82,12 @@ names 侧表是按 Site、随运行时存续的别名表，由规范的 `AgentSt
 
 ### 有限迁移
 
-| Wire 请求 kind | 权限 | Fold 语义 | 结果 |
-| --- | --- | --- | --- |
-| `agent.session.resolve.request` | `policy.read` | 仅 selector 解析，零变更 | `resolved{sessionId,resolvedBy}` / `rejected{not-found\|read-denied}` / `unavailable` |
-| `agent.session.names.list.request` | `policy.read` | fold 内清扫后枚举全表 | `listed{bindings:[{name,sessionId,lifecycle}]}` / `rejected{read-denied}` / `unavailable` |
-| `agent.session.name.assign.request` | `policy.manage` | 解析目标；活性与冲突检查；提交绑定（改名时原子换绑） | `assigned{sessionId,name,previousName}` / `unchanged{sessionId,name}` / `rejected{name-in-use\|session-not-found\|session-ended\|name-not-found\|capacity-exceeded\|manage-denied}` / `unavailable` |
-| `agent.session.name.release.request` | `policy.manage` | 解析目标；存在则丢弃绑定 | `released{sessionId,name}` / `unchanged{sessionId}` / `rejected{name-not-found\|session-not-found\|manage-denied}` / `unavailable` |
+| Wire 请求 kind                       | 权限            | Fold 语义                                            | 结果                                                                                                                                                                                                |
+| ------------------------------------ | --------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent.session.resolve.request`      | `policy.read`   | 仅 selector 解析，零变更                             | `resolved{sessionId,resolvedBy}` / `rejected{not-found\|read-denied}` / `unavailable`                                                                                                               |
+| `agent.session.names.list.request`   | `policy.read`   | fold 内清扫后枚举全表                                | `listed{bindings:[{name,sessionId,lifecycle}]}` / `rejected{read-denied}` / `unavailable`                                                                                                           |
+| `agent.session.name.assign.request`  | `policy.manage` | 解析目标；活性与冲突检查；提交绑定（改名时原子换绑） | `assigned{sessionId,name,previousName}` / `unchanged{sessionId,name}` / `rejected{name-in-use\|session-not-found\|session-ended\|name-not-found\|capacity-exceeded\|manage-denied}` / `unavailable` |
+| `agent.session.name.release.request` | `policy.manage` | 解析目标；存在则丢弃绑定                             | `released{sessionId,name}` / `unchanged{sessionId}` / `rejected{name-not-found\|session-not-found\|manage-denied}` / `unavailable`                                                                  |
 
 - 会话已持有别名时 `assigned` 携带 `previousName`——旧绑定在同一 fold 内释放、
   新绑定提交，并发 `names.list` 绝不可能观察到两个都缺或两个并存。
