@@ -1,5 +1,6 @@
 use super::*;
 use crate::terminal_session::workbench_projection::NativeContextLocation;
+use orchbee_workbench_protocol::{Project, WorkbenchProjectId, WorkbenchWorkspaceId, Workspace};
 
 fn removal_snapshot(tab_count: usize, revision: u64) -> Snapshot {
     Snapshot {
@@ -199,6 +200,35 @@ fn removal_classification_diverges_on_uncertain_provenance_malformed_navigation_
                 snapshot: removal_snapshot(1, 1)
             }
         ),
+        PreparedRefresh::Divergent { generation: 5 }
+    ));
+
+    // A relocated-but-alive context is never a removal: the session's
+    // context id is absent from the standalone slot yet still carried by a
+    // workspace — the removed_context_landing workspace-carrier check must
+    // refuse the permit. The snapshot is otherwise structurally valid so
+    // this case cannot pass on an unrelated early rejection.
+    let mut moved = removal_snapshot(1, 2);
+    moved.navigation.projects.push(Project {
+        directories: Vec::new(),
+        label: "peer project".into(),
+        project_id: WorkbenchProjectId::parse(&id(80)).unwrap(),
+        workspaces: vec![Workspace {
+            label: "moved workspace".into(),
+            primary_directory_id: None,
+            workspace_id: WorkbenchWorkspaceId::parse(&id(81)).unwrap(),
+            terminal_context_id: context_id(2),
+        }],
+    });
+    moved.terminal_contexts.push(TerminalContext {
+        groups: Vec::new(),
+        tabs: vec![removal_tab(40)],
+        terminal_context_id: context_id(2),
+    });
+    let mut relocated = ready(1);
+    assert!(relocated.start_pending_refresh(5));
+    assert!(matches!(
+        relocated.prepare_refresh(5, WorkbenchSnapshotOutcome::Available { snapshot: moved }),
         PreparedRefresh::Divergent { generation: 5 }
     ));
 }

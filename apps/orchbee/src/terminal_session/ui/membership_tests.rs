@@ -1,7 +1,11 @@
 use super::*;
 use crate::local_client::test_server::adjustable_operation_clock;
 use crate::terminal_session::mailbox::{EventDeadline, SwitchMarker};
-use crate::terminal_session::state::{CleanupContinuation, ControllerMode, FrameIdentity};
+use crate::terminal_session::state::{
+    CleanupContinuation, ControllerMode, FrameIdentity, PaneKey, SelectedTab, SessionNotice,
+    SetupEventDisposition,
+};
+use crate::terminal_session::workbench_projection::NativeContextLocation;
 use orchbee_workbench_protocol::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -503,6 +507,181 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
         mailbox.try_recv().unwrap().is_none(),
         "no Open/Create/Start or replacement-shell command is queued"
     );
+}
+
+/// The session's own context can be deleted remotely — a peer Client's
+/// workspace close removes it from the canonical snapshot while this
+/// session still owns live viewers. The real refresh entry must stage the
+/// exact cleanup (old cache and desired stay in place while fresh input is
+/// refused as busy), and only the anchor's `MembershipDetached` proof may
+/// install the surviving standalone context: every pane record of the
+/// removed epoch drops, the deleted location is never parked back as a
+/// retained context, and a bound landing member recovers as an attach.
+#[test]
+fn removed_context_refresh_cleans_every_pending_viewer_then_lands_on_standalone() {
+    let clock = adjustable_operation_clock(Arc::new(AtomicU64::new(0)));
+    let mailbox = Arc::new(CommandMailbox::new(
+        10,
+        Geometry::new(80, 24, 8, 16).unwrap(),
+    ));
+    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::Bootstrap {
+                cache: super::super::workbench_projection::project_native_standalone_tabs(
+                    &split_snapshot(),
+                )
+                .unwrap(),
+            },
+            EventDeadline::Startup(clock.now() + super::super::state::OPERATION_TOTAL),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    mailbox.take_deposited_reply(&wait).unwrap().unwrap();
+    let state = ui.state.as_mut().unwrap();
+    let old = state.desired().unwrap().clone();
+    assert!(state.install_projection_t(&old));
+    assert!(state.record_setup_configuration_t(&old, ControllerMode::ReadOnly, None));
+    assert!(state.stage_drawn_frame_t(&old, FrameIdentity::new(1)));
+    assert!(state.mark_feedback_accepted_t(&old, FrameIdentity::new(1)));
+    assert!(state.publish_ready_t(&old, FrameIdentity::new(1), ControllerMode::ReadOnly, None));
+    // The split tab's second leaf carries its own live viewer, so the
+    // removed epoch owes the cleanup two pane records, not only the focus.
+    let peer_panel = state
+        .tab(0)
+        .unwrap()
+        .leaf_panel_ids()
+        .into_iter()
+        .nth(1)
+        .unwrap();
+    let peer = PaneKey::new(old.anchor().clone(), peer_panel);
+    state.install_unattached_pane(&SelectedTab::new_panel(peer.clone(), 0, 1));
+    let peer_ref = state.pane_ref_for(&peer).unwrap();
+    assert!(matches!(
+        state.settle_attached_event_t(&peer_ref),
+        Some(SetupEventDisposition::Applied)
+    ));
+    assert!(state.record_setup_configuration_t(&peer_ref, ControllerMode::ReadOnly, None));
+    assert!(state.has_attachments());
+    let baseline = state.cache().clone();
+
+    let (lease, wait) = place_refresh(&mut ui, &mailbox, &clock, removal_snapshot(1, 2));
+    ui.tick();
+    let Some(UiReply::Refresh(settlement)) = mailbox.take_deposited_reply(&wait).unwrap() else {
+        panic!("cleanup settlement");
+    };
+    let RefreshDecision::Cleanup(cleanup) = settlement.decision() else {
+        panic!("live viewers make the exact cleanup mandatory before landing");
+    };
+    let cleanup = cleanup.clone();
+    assert_eq!(cleanup.old(), old.anchor());
+    let state = ui.state.as_ref().unwrap();
+    assert_eq!(state.cache(), &baseline);
+    assert_eq!(state.desired(), Some(&old));
+    assert_eq!(ui.view().phase(), NativeDisplayPhase::Switching);
+
+    // ReconcilingMembership freezes Ready-based admission: fresh input is
+    // refused as busy, never queued, and never retiring.
+    assert_eq!(ui.create_tab(), SessionActionDisposition::KeepNavigator);
+    assert_eq!(
+        ui.state.as_ref().unwrap().notice(),
+        Some(SessionNotice::LocalBusy)
+    );
+    assert!(mailbox.try_recv().unwrap().is_none());
+    assert!(!ui.retirement_requested());
+
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::MembershipDetached {
+                cleanup: cleanup.clone(),
+                detached: cleanup.old().clone(),
+            },
+            EventDeadline::TotalCleanup(cleanup.deadlines().total()),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    let Some(UiReply::Membership(settlement)) = mailbox.take_deposited_reply(&wait).unwrap() else {
+        panic!("membership install reply");
+    };
+    let RefreshDecision::AttachRecovered(target) = settlement.decision() else {
+        panic!("the surviving standalone context carries an attachable member");
+    };
+    let state = ui.state.as_ref().unwrap();
+    assert_eq!(
+        state.cache().location(),
+        &NativeContextLocation::Standalone(removal_context())
+    );
+    assert_eq!(state.desired(), Some(target.selected().key()));
+    // Both pending pane records of the removed epoch are cleaned — the
+    // anchor proof covered every live viewer, not only the focus pane.
+    assert!(state.pane_record(&old).is_none());
+    assert!(state.pane_record(&peer).is_none());
+    assert!(!state.has_attachments());
+    // The deleted context is never parked back: navigation surfaces only
+    // the surviving standalone location and the full invariant — which
+    // includes the retained-context contract — holds.
+    assert!(state.invariant_holds());
+    assert_eq!(ui.view().context_count(), 1);
+    assert_eq!(
+        ui.view().context_at(0).unwrap().location(),
+        &NativeContextLocation::Standalone(removal_context())
+    );
+    assert_eq!(ui.view().active_context_position(), Some(1));
+    assert!(state.pending_refresh_generation().is_none());
+    assert!(state.invariant_holds());
+    mailbox.finish_lease(lease).unwrap();
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+/// The workbench's standalone context moved to `ctx9` while the session's
+/// own `ctx2` is absent from navigation and terminal_contexts — the shape
+/// the removal classifier mints a landing permit for.
+fn removal_snapshot(tab_count: usize, revision: u64) -> Snapshot {
+    let mut snapshot = snapshot(tab_count, revision);
+    let landing = removal_context();
+    snapshot.navigation.standalone_terminal_context_id = landing.clone();
+    snapshot.terminal_contexts[0].terminal_context_id = landing;
+    snapshot
+}
+
+fn removal_context() -> WorkbenchTerminalContextId {
+    WorkbenchTerminalContextId::parse(&format!("{:032x}", 9)).unwrap()
+}
+
+/// One ctx2 tab whose root splits two leaves so both can carry live
+/// viewers under the same epoch anchor.
+fn split_snapshot() -> Snapshot {
+    let mut snapshot = snapshot(1, 1);
+    let original_root = snapshot.terminal_contexts[0].tabs[0].root.clone();
+    snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: original_root,
+                slot_id: WorkbenchPanelSlotId::parse(&format!("{:032x}", 7_001)).unwrap(),
+            },
+            PanelSlot {
+                node: PanelNode::Panel {
+                    child_presentations: Vec::new(),
+                    panel_id: WorkbenchPanelId::parse(&format!("{:032x}", 7_010)).unwrap(),
+                    primary_presentation: Presentation {
+                        binding: Some(PresentationBinding {
+                            terminal_id: TerminalId::parse(&format!("{:032x}", 7_012)).unwrap(),
+                            worker_id: WorkerId::parse(&format!("{:032x}", 7_011)).unwrap(),
+                        }),
+                        label: "peer".into(),
+                        presentation_id: TerminalPresentationId::parse(&format!("{:032x}", 7_013))
+                            .unwrap(),
+                    },
+                },
+                slot_id: WorkbenchPanelSlotId::parse(&format!("{:032x}", 7_014)).unwrap(),
+            },
+        ]),
+        orientation: PanelOrientation::Horizontal,
+        split_id: WorkbenchSplitId::parse(&format!("{:032x}", 7_020)).unwrap(),
+    };
+    snapshot
 }
 
 pub(super) fn place_refresh(

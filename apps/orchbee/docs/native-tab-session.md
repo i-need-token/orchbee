@@ -2552,12 +2552,19 @@ settling, a spent permit never rearming, and eventual settlement to a landing or
 retirement.
 
 Run `node scripts/tla/run-models.mjs --models native-client-context-removal --jobs 1`
-with pinned TLA+ tools 1.7.4 and one worker. The single configuration completed temporal
-checking with an empty state queue and reached all 29 required actions.
+with pinned TLA+ tools 1.7.4 and one worker. The table records the result for the model
+input before the cleanup-evidence refinement described next; that single configuration
+completed temporal checking with an empty state queue and reached all 29 required actions.
 
-| Configuration | Generated / distinct / depth | Model/configuration SHA-256                                    |
-| ------------- | ---------------------------- | ------------------------------------------------------------ |
+| Configuration | Generated / distinct / depth | Model/configuration SHA-256                                        |
+| ------------- | ---------------------------- | ------------------------------------------------------------------ |
 | `default`     | 4,119,616 / 855,520 / 23     | `63456d3419b980871bc4d69b29b1bae9f4f346c36d3ddb8b0a600ce92fb2083f` |
+
+The checked model has since been tightened inside the accepted contract: `RetiredMintPermit`
+requires the same quiet structural guards the live mint requires, and `DetachUnavailable`
+retires honestly without recording a `Detached` proof it never received. No claim, constant,
+timeout, fairness assumption or required coverage changed; the refined model awaits its next
+recorded run.
 
 Runtime refinement uses the existing refresh reply deposit, membership cleanup, executor Detach
 and candidate install paths unchanged. The classifier refines the model's delivery actions

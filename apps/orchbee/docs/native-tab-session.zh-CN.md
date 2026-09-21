@@ -2106,12 +2106,16 @@ origin、诚实隔离、落点稳定、陈旧结果绝不结算、已花费许�
 或如实退休。
 
 运行 `node scripts/tla/run-models.mjs --models native-client-context-removal --jobs 1`，
-使用 pinned TLA+ tools 1.7.4 与单 worker。单个配置完成时态检查且状态队列为空，覆盖全部
-29 个必需 action。
+使用 pinned TLA+ tools 1.7.4 与单 worker。下表记录的是下文清理证据精化之前模型输入的
+结果；该单个配置完成时态检查且状态队列为空，覆盖全部 29 个必需 action。
 
-| 配置        | 生成 / 去重 / 深度           | 模型/配置 SHA-256                                              |
-| ----------- | ---------------------------- | ------------------------------------------------------------ |
-| `default`   | 4,119,616 / 855,520 / 23     | `63456d3419b980871bc4d69b29b1bae9f4f346c36d3ddb8b0a600ce92fb2083f` |
+| 配置      | 生成 / 去重 / 深度       | 模型/配置 SHA-256                                                  |
+| --------- | ------------------------ | ------------------------------------------------------------------ |
+| `default` | 4,119,616 / 855,520 / 23 | `63456d3419b980871bc4d69b29b1bae9f4f346c36d3ddb8b0a600ce92fb2083f` |
+
+此后已检查模型在已接受合同内收紧：`RetiredMintPermit` 要求与实装 mint 相同的静默结构
+守卫，`DetachUnavailable` 如实退休而不记录其未收到的 `Detached` 证据。任何 claim、
+常量、timeout、公平性假设与必需覆盖均未变化；精化后的模型等待下一次记录运行。
 
 运行时精化沿用既有 refresh 回复 deposit、成员清理、executor Detach 与候选 install 路径
 不变。分类器经 refresh 回复 deposit 内的 `prepare_context_removal` 精化模型的投递

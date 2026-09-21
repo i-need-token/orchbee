@@ -157,12 +157,12 @@ DetachDetached ==
 
 \* A stale worker releases its slot once and reports Unavailable; the cleanup
 \* fails honestly — no fabricated proof, no unconditional retry of the wire
-\* action. Retirement is the truthful outcome, origin stays empty.
+\* action. Retirement is the truthful outcome, origin stays empty. Failure
+\* records nothing in `detached`: that field is canonical Detached evidence
+\* and grows only through a real DetachDetached result.
 DetachUnavailable ==
   /\ s.staged /\ s.attached # {}
-  /\ \E p \in s.attached:
-      s' = [s EXCEPT !.detached = @ \cup {p},
-              !.phase = "retired", !.staged = FALSE, !.permit = "none",
+  /\ s' = [s EXCEPT !.phase = "retired", !.staged = FALSE, !.permit = "none",
               !.flight = 0, !.cleanupSettled = TRUE, !.originEvidence = "none",
               !.panes = {}, !.attached = {}, !.dirty = {},
               !.taggedInFlight = FALSE]
@@ -275,7 +275,7 @@ BeginRetiredRecovery ==
 \* landing authority.
 RetiredMintPermit ==
   /\ s.phase = "recovering" /\ s.flight = 2 /\ s.now < s.cutoff
-  /\ s.originEvidence = "clean" /\ s.provenanceClean
+  /\ s.originEvidence = "clean" /\ s.provenanceClean /\ s.guardsClean
   /\ s' = [s EXCEPT !.permit = "carried", !.permitGen = 2,
               !.classified = "removed"]
 
