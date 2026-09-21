@@ -15,5 +15,8 @@ orchbee-terminal-protocol = { path = "../../crates/terminal-protocol" }
 orchbee-local-site-runtime = { path = "../../crates/local-site-runtime" }
 nix = { workspace = true, features = ["fs", "poll", "socket", "user"] }
 
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+rustix = { workspace = true, features = ["process"] }
+
 [lints]
 workspace = true

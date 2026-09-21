@@ -99,8 +99,9 @@ impl PreparedHostOperation {
         dispatch: &AuthorizedHostDispatch,
         facts: ResolvedTerminalLaunchFacts,
         correlation: CorrelationId,
+        site_runtime: Option<&std::path::Path>,
     ) -> Result<Self, HostOperationError> {
-        let request = map_launch_dispatch(dispatch, facts)?;
+        let request = map_launch_dispatch(dispatch, facts, site_runtime)?;
         let expected = ExpectedResponse::Created(request.creation_id);
         let control = encode_terminal_creation_control(&TerminalCreationControl::CreateTerminal(
             Box::new(request),

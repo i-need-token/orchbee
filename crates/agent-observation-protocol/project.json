@@ -1,0 +1,11 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "agent-observation-protocol",
+	"runtime": ["native"],
+	"stability": "experimental",
+	"responsibility": "Independent Rust binding for bounded Agent observation read requests/results, the OBAP frame codec, and the opaque list page-cursor wire shape governed by the language-neutral version-1 schema under schemas/agent-observation/v1. Actual consumers are the native orchbee CLI and the orchbee-server read service.",
+	"nonGoals": [
+		"Owning canonical Agent state, session lifecycle, ingress, mutations, wait or change streams, persistence, socket or timeout lifecycle, authentication, authorization, cursor secrets, rendering, CLI grammar, or platform effects.",
+		"Defining Workbench, terminal, Environment, Directory, Checkout, Worktree, Launch Profile, Archive, SSH, lease, fence, Host epoch, attachment, or Client-local state contracts."
+	]
+}

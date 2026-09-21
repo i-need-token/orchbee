@@ -13,11 +13,14 @@ use orchbee_local_client_protocol::{
 };
 use orchbee_local_peer_credentials::require_same_effective_user;
 
+use crate::agent_service::{AgentPolicy, AgentService};
 use crate::client_session_registry::{ClientSessionAdmission, ClientSessionRegistry};
 
 use crate::local_terminal_service::LocalTerminalService;
 use crate::workbench_service::{WorkbenchPolicy, WorkbenchService};
 
+#[cfg(test)]
+pub(crate) mod agent_harness;
 mod application_session;
 mod record_stream;
 
@@ -31,7 +34,8 @@ pub(crate) fn start(
 ) -> io::Result<thread::JoinHandle<io::Result<()>>> {
     let listener = UnixListener::bind(endpoint)?;
     fs::set_permissions(endpoint, fs::Permissions::from_mode(0o600))?;
-    start_listener(listener, expected_cohort, terminals)
+    let agents = Arc::new(AgentService::open(AgentPolicy { read: true })?);
+    start_listener(listener, expected_cohort, terminals, agents)
 }
 
 #[cfg(target_os = "linux")]
@@ -39,8 +43,9 @@ pub(crate) fn start_managed(
     endpoint: &Path,
     expected_cohort: &str,
     terminals: Arc<LocalTerminalService>,
+    agents: Arc<AgentService>,
 ) -> io::Result<thread::JoinHandle<io::Result<()>>> {
-    start_listener(bind_managed(endpoint)?, expected_cohort, terminals)
+    start_listener(bind_managed(endpoint)?, expected_cohort, terminals, agents)
 }
 
 #[cfg(target_os = "linux")]
@@ -71,6 +76,7 @@ fn start_listener(
     listener: UnixListener,
     expected_cohort: &str,
     terminals: Arc<LocalTerminalService>,
+    agents: Arc<AgentService>,
 ) -> io::Result<thread::JoinHandle<io::Result<()>>> {
     let registry = Arc::new(Mutex::new(ClientSessionRegistry::new()));
     let connection_slots = Arc::new(ConnectionSlots::new());
@@ -95,6 +101,7 @@ fn start_listener(
                 expected_cohort,
                 terminals,
                 workbench,
+                agents,
             )
         })
 }
@@ -106,7 +113,12 @@ fn serve(
     expected_cohort: Arc<str>,
     terminals: Arc<LocalTerminalService>,
     workbench: Arc<WorkbenchService>,
+    agents: Arc<AgentService>,
 ) -> io::Result<()> {
+    // The listener owns the canonical Agent runtime: when this loop ends,
+    // the guard disposes it so already-admitted connections observe genuine
+    // `runtime-unavailable` rather than fabricated state.
+    let _runtime_owner = AgentRuntimeOwner::new(Arc::clone(&agents));
     loop {
         match listener.accept() {
             Ok((stream, _address)) => {
@@ -117,6 +129,7 @@ fn serve(
                 let candidate_cohort = Arc::clone(&expected_cohort);
                 let candidate_terminals = Arc::clone(&terminals);
                 let candidate_workbench = Arc::clone(&workbench);
+                let candidate_agents = Arc::clone(&agents);
                 let _candidate = thread::Builder::new()
                     .name("orchbee-local-client".to_owned())
                     .spawn(move || {
@@ -127,6 +140,7 @@ fn serve(
                             connection_slot,
                             &candidate_terminals,
                             &candidate_workbench,
+                            &candidate_agents,
                         );
                     });
             }
@@ -143,6 +157,7 @@ fn handle_candidate(
     _connection_slot: ConnectionSlot,
     terminals: &LocalTerminalService,
     workbench: &WorkbenchService,
+    agents: &AgentService,
 ) {
     if stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT)).is_err()
         || stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT)).is_err()
@@ -213,11 +228,30 @@ fn handle_candidate(
         &mut records,
         |request| session.execute(request),
         |request| workbench.execute(request),
+        |request| agents.execute_prepared(request, || terminals.prepare_agent_drain_read(agents)),
     );
 }
 
 fn send_rejection(stream: &mut UnixStream, reason: RejectionReason) {
     let _result = write_message(stream, &LocalClientMessage::Rejected { reason });
+}
+
+/// Disposes the canonical Agent runtime when the owning listener loop
+/// ends; runtime disposal is the single unavailability authority.
+struct AgentRuntimeOwner {
+    agents: Arc<AgentService>,
+}
+
+impl AgentRuntimeOwner {
+    const fn new(agents: Arc<AgentService>) -> Self {
+        Self { agents }
+    }
+}
+
+impl Drop for AgentRuntimeOwner {
+    fn drop(&mut self) {
+        self.agents.shutdown();
+    }
 }
 
 struct ClientSessionRegistration {

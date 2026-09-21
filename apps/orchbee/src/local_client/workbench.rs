@@ -90,6 +90,7 @@ impl LocalClient {
                 &self.clock,
                 deadline,
                 self.io_chunk_limits,
+                None,
                 &frame,
                 |io| read_workbench_response(io),
             )
@@ -184,6 +185,7 @@ impl LocalClient {
                 &self.clock,
                 deadline,
                 self.io_chunk_limits,
+                None,
                 &frame,
                 |io| read_workbench_response(io),
             )
@@ -259,6 +261,7 @@ impl LocalClient {
                 &self.clock,
                 deadline,
                 self.io_chunk_limits,
+                None,
                 &frame,
                 |io| read_workbench_response(io),
             )
@@ -356,6 +359,7 @@ impl LocalClient {
                 &self.clock,
                 deadline,
                 self.io_chunk_limits,
+                None,
                 &frame,
                 |io| read_workbench_response(io),
             )

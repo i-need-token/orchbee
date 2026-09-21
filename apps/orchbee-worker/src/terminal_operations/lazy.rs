@@ -1,5 +1,6 @@
 use super::{server_transport, unix_milliseconds};
 use crate::{
+    agent_drain::AgentDrain,
     host_connection::HostBrokerConnection,
     terminal_authorization::{AuthorizedHostOperationKernel, HostOperationAdmission},
     terminal_host_operation::HostOperationDisposition,
@@ -11,6 +12,7 @@ use orchbee_local_site_runtime::{
     NativeCohort, RetainedChild, SiteScope,
 };
 use std::{
+    cell::RefCell,
     error::Error,
     io,
     num::NonZeroU64,
@@ -20,6 +22,7 @@ use std::{
     },
     path::Path,
     process::{Command, Stdio},
+    rc::Rc,
     thread,
     time::{Duration, Instant},
 };
@@ -32,12 +35,24 @@ pub(crate) fn run(
     runtime: &Path,
 ) -> Result<(), Box<dyn Error>> {
     server.set_nonblocking(true)?;
+    // The Agent Drain queue is owned by this admitted Server connection and
+    // exists before any Host: pre-Launch requests get a truthful empty page,
+    // and the same watermarks survive into the admitted loop unchanged.
+    let drain = Rc::new(RefCell::new(AgentDrain::new()));
     let mut kernel = AuthorizedHostOperationKernel::new(worker_id, generation)?;
     // The discovery slot outlives the pre-Host phase: jobs admitted here stay
     // owned across the first Launch instead of being orphaned at handoff.
     let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
     loop {
         let request = server_transport::receive(server, None)?;
+        if let CapabilityNodeMessage::AgentDrainRequest(request) = request {
+            // Without a Host, send always reports host_closed=true; that flag
+            // is expected here and does not retire the Server connection.
+            let _no_host = super::dispatch_drain_request(
+                server, None, &drain, &request, worker_id, generation,
+            )?;
+            continue;
+        }
         if let CapabilityNodeMessage::WorktreeJobRequest(request) = request {
             // Worktree jobs need no Host; they answer directly in this loop.
             let result = crate::worktree_job_operation::execute(
@@ -85,9 +100,10 @@ pub(crate) fn run(
             }
         };
         // Preserve this exact kernel and dispatch across preparation and startup.
-        let prepared = super::prepare(&dispatch);
-        let started =
-            prepared.and_then(|prepared| start_host(cohort, runtime).map(|host| (prepared, host)));
+        let prepared = super::prepare(&dispatch, Some(runtime));
+        let started = prepared.and_then(|prepared| {
+            start_host(cohort, runtime, Rc::clone(&drain)).map(|host| (prepared, host))
+        });
         let (prepared, mut host) = match started {
             Ok(started) => started,
             Err(error) => {
@@ -123,7 +139,11 @@ pub(crate) fn run(
             worker_id,
             generation,
             kernel,
-            &worktree_slot,
+            super::AdmittedAux {
+                drain: &drain,
+                worktree_slot: &worktree_slot,
+                site_runtime: Some(runtime),
+            },
         );
     }
 }
@@ -131,6 +151,7 @@ pub(crate) fn run(
 fn start_host(
     cohort: &NativeCohort,
     runtime: &Path,
+    drain: Rc<RefCell<AgentDrain>>,
 ) -> Result<HostBrokerConnection, Box<dyn Error>> {
     let deadline = Instant::now() + Duration::from_secs(5);
     // The Host binds `<id>.s` relatively inside `host/` — a 34-byte leaf that
@@ -177,7 +198,7 @@ fn start_host(
                     && status.uid() == nix::unistd::geteuid().as_raw()
                     && status.mode() & 0o7777 == 0o600 =>
             {
-                return HostBrokerConnection::connect_before(&endpoint, deadline);
+                return HostBrokerConnection::connect_before(&endpoint, deadline, drain);
             }
             Ok(status)
                 if status.file_type().is_socket()

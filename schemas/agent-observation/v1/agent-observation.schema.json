@@ -1,0 +1,570 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "urn:orchbee:schema:agent-observation:v1",
+	"title": "Agent observation read requests and results",
+	"oneOf": [
+		{ "$ref": "#/$defs/sessionListRequest" },
+		{ "$ref": "#/$defs/sessionGetRequest" },
+		{ "$ref": "#/$defs/sessionExplainRequest" },
+		{ "$ref": "#/$defs/sessionListResult" },
+		{ "$ref": "#/$defs/sessionGetResult" },
+		{ "$ref": "#/$defs/sessionExplainResult" }
+	],
+	"$defs": {
+		"safeInteger": {
+			"type": "integer",
+			"minimum": 0,
+			"maximum": 9007199254740991
+		},
+		"opaqueIdentity": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9._:-]{1,128}$"
+		},
+		"sessionId": { "$ref": "#/$defs/opaqueIdentity" },
+		"turnId": { "$ref": "#/$defs/opaqueIdentity" },
+		"attentionRequestId": { "$ref": "#/$defs/opaqueIdentity" },
+		"eventId": { "$ref": "#/$defs/opaqueIdentity" },
+		"executionLocationId": { "$ref": "#/$defs/opaqueIdentity" },
+		"providerId": {
+			"type": "string",
+			"pattern": "^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$",
+			"maxLength": 64
+		},
+		"presentationId": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"$comment": "Native wire profile: exactly 32 lowercase hexadecimal characters and never the zero sentinel; the nonzero rule is a semantic invariant enforced by each binding."
+		},
+		"obapRequestId": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"$comment": "Request identity: exactly 32 lowercase hexadecimal characters and never the zero sentinel; the nonzero rule is a semantic invariant enforced by each binding."
+		},
+		"cursor": {
+			"type": "string",
+			"pattern": "^v1\\.[A-Za-z0-9_-]{59}\\.[A-Za-z0-9_-]{43}$",
+			"maxLength": 107,
+			"$comment": "Opaque server-minted page cursor: 'v1.' + base64url(44-byte payload, unpadded, 59 chars) + '.' + base64url(32-byte tag, 43 chars) = exactly 106 characters; maxLength 107 keeps the agreed bound."
+		},
+		"capability": {
+			"enum": [
+				"sessionLifecycle",
+				"turnLifecycle",
+				"questions",
+				"approvals",
+				"authentication",
+				"activity",
+				"subagents",
+				"progress"
+			]
+		},
+		"activity": {
+			"enum": [
+				"thinking",
+				"tool",
+				"editing",
+				"command",
+				"subagent",
+				"compacting",
+				"retrying",
+				"other"
+			]
+		},
+		"presentationVisibility": {
+			"enum": ["visible", "hidden", "unknown"]
+		},
+		"executionLocation": {
+			"type": "object",
+			"required": ["executionLocationId"],
+			"additionalProperties": false,
+			"properties": {
+				"executionLocationId": { "$ref": "#/$defs/executionLocationId" }
+			}
+		},
+		"presentationAttachment": {
+			"type": "object",
+			"required": ["generation", "navigable", "presentationId", "visibility"],
+			"additionalProperties": false,
+			"properties": {
+				"generation": { "$ref": "#/$defs/opaqueIdentity" },
+				"navigable": { "type": "boolean" },
+				"presentationId": { "$ref": "#/$defs/presentationId" },
+				"visibility": { "$ref": "#/$defs/presentationVisibility" }
+			}
+		},
+		"observation": {
+			"type": "object",
+			"required": ["fidelity", "freshness", "generation", "sequence", "source"],
+			"additionalProperties": false,
+			"properties": {
+				"fidelity": { "enum": ["rich", "basic", "heuristic"] },
+				"freshness": { "enum": ["fresh", "stale", "disconnected"] },
+				"generation": { "$ref": "#/$defs/safeInteger" },
+				"sequence": { "$ref": "#/$defs/safeInteger" },
+				"source": { "enum": ["native", "hook", "terminal", "heuristic"] }
+			}
+		},
+		"turnState": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": { "kind": { "const": "unknown" } }
+				},
+				{
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": { "kind": { "const": "idle" } }
+				},
+				{
+					"type": "object",
+					"required": ["activity", "kind", "phase", "turnId"],
+					"additionalProperties": false,
+					"properties": {
+						"activity": {
+							"oneOf": [{ "$ref": "#/$defs/activity" }, { "type": "null" }]
+						},
+						"kind": { "const": "active" },
+						"phase": { "enum": ["queued", "working", "waiting-external"] },
+						"turnId": { "$ref": "#/$defs/turnId" }
+					}
+				}
+			]
+		},
+		"attentionRequest": {
+			"type": "object",
+			"required": ["actionPath", "kind", "requestId", "turnId"],
+			"additionalProperties": false,
+			"properties": {
+				"actionPath": { "const": "navigate-only" },
+				"kind": {
+					"enum": ["question", "approval", "authentication", "unclassified"]
+				},
+				"requestId": { "$ref": "#/$defs/attentionRequestId" },
+				"turnId": {
+					"oneOf": [{ "$ref": "#/$defs/turnId" }, { "type": "null" }]
+				}
+			}
+		},
+		"turnOutcome": {
+			"type": "object",
+			"required": ["eventId", "kind", "turnId"],
+			"additionalProperties": false,
+			"properties": {
+				"eventId": { "$ref": "#/$defs/eventId" },
+				"kind": {
+					"enum": ["succeeded", "failed", "canceled", "interrupted"]
+				},
+				"turnId": { "$ref": "#/$defs/turnId" }
+			}
+		},
+		"semanticStatus": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["count", "kind"],
+					"additionalProperties": false,
+					"properties": {
+						"count": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 9007199254740991
+						},
+						"kind": { "const": "needs-attention" }
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": { "kind": { "const": "failed" } }
+				},
+				{
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": { "kind": { "const": "succeeded" } }
+				},
+				{
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": { "kind": { "const": "canceled" } }
+				},
+				{
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": { "kind": { "const": "interrupted" } }
+				},
+				{
+					"type": "object",
+					"required": ["activity", "kind", "phase"],
+					"additionalProperties": false,
+					"properties": {
+						"activity": {
+							"oneOf": [{ "$ref": "#/$defs/activity" }, { "type": "null" }]
+						},
+						"kind": { "const": "working" },
+						"phase": { "enum": ["queued", "working", "waiting-external"] }
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": { "kind": { "const": "idle" } }
+				},
+				{
+					"type": "object",
+					"required": ["activityHint", "kind"],
+					"additionalProperties": false,
+					"properties": {
+						"activityHint": {
+							"oneOf": [{ "$ref": "#/$defs/activity" }, { "type": "null" }]
+						},
+						"kind": { "const": "unknown" }
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": { "kind": { "const": "ended" } }
+				}
+			]
+		},
+		"sessionSnapshot": {
+			"type": "object",
+			"required": [
+				"activityHint",
+				"capabilities",
+				"executionLocation",
+				"lastOutcome",
+				"lifecycle",
+				"observation",
+				"parentSessionId",
+				"pendingRequests",
+				"presentationAttachments",
+				"providerId",
+				"sessionId",
+				"turn"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"activityHint": {
+					"oneOf": [{ "$ref": "#/$defs/activity" }, { "type": "null" }]
+				},
+				"capabilities": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/capability" },
+					"maxItems": 10,
+					"uniqueItems": true
+				},
+				"executionLocation": { "$ref": "#/$defs/executionLocation" },
+				"lastOutcome": {
+					"oneOf": [{ "$ref": "#/$defs/turnOutcome" }, { "type": "null" }]
+				},
+				"lifecycle": { "enum": ["live", "ended"] },
+				"observation": { "$ref": "#/$defs/observation" },
+				"parentSessionId": {
+					"oneOf": [{ "$ref": "#/$defs/sessionId" }, { "type": "null" }]
+				},
+				"pendingRequests": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/attentionRequest" },
+					"maxItems": 128
+				},
+				"presentationAttachments": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/presentationAttachment" },
+					"maxItems": 32
+				},
+				"providerId": { "$ref": "#/$defs/providerId" },
+				"sessionId": { "$ref": "#/$defs/sessionId" },
+				"turn": { "$ref": "#/$defs/turnState" }
+			}
+		},
+		"sessionSummary": {
+			"type": "object",
+			"required": [
+				"executionLocation",
+				"lifecycle",
+				"observation",
+				"parentSessionId",
+				"pendingRequestCount",
+				"presentationAttachments",
+				"providerId",
+				"sessionId",
+				"status"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"executionLocation": { "$ref": "#/$defs/executionLocation" },
+				"lifecycle": { "enum": ["live", "ended"] },
+				"observation": { "$ref": "#/$defs/observation" },
+				"parentSessionId": {
+					"oneOf": [{ "$ref": "#/$defs/sessionId" }, { "type": "null" }]
+				},
+				"pendingRequestCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 128
+				},
+				"presentationAttachments": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/presentationAttachment" },
+					"maxItems": 32
+				},
+				"providerId": { "$ref": "#/$defs/providerId" },
+				"sessionId": { "$ref": "#/$defs/sessionId" },
+				"status": { "$ref": "#/$defs/semanticStatus" }
+			}
+		},
+		"sessionDetail": {
+			"type": "object",
+			"required": ["snapshot", "status"],
+			"additionalProperties": false,
+			"properties": {
+				"snapshot": { "$ref": "#/$defs/sessionSnapshot" },
+				"status": { "$ref": "#/$defs/semanticStatus" }
+			}
+		},
+		"statusBasis": {
+			"enum": [
+				"attention-request",
+				"turn-outcome",
+				"active-turn",
+				"affirmative-idle",
+				"session-ended",
+				"limited-activity-hint",
+				"unobserved-turn-state"
+			]
+		},
+		"freshnessMeaning": {
+			"enum": [
+				"current-observation",
+				"last-observation-may-be-outdated",
+				"no-trusted-current-route"
+			]
+		},
+		"explanation": {
+			"type": "object",
+			"required": [
+				"actionPath",
+				"capabilityCeiling",
+				"contentAvailable",
+				"fidelity",
+				"freshness",
+				"freshnessMeaning",
+				"generation",
+				"sequence",
+				"source",
+				"status",
+				"statusBasis"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"actionPath": { "const": "navigate-only" },
+				"capabilityCeiling": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/capability" },
+					"maxItems": 10,
+					"uniqueItems": true
+				},
+				"contentAvailable": { "const": false },
+				"fidelity": { "enum": ["rich", "basic", "heuristic"] },
+				"freshness": { "enum": ["fresh", "stale", "disconnected"] },
+				"freshnessMeaning": { "$ref": "#/$defs/freshnessMeaning" },
+				"generation": { "$ref": "#/$defs/safeInteger" },
+				"sequence": { "$ref": "#/$defs/safeInteger" },
+				"source": { "enum": ["native", "hook", "terminal", "heuristic"] },
+				"status": { "$ref": "#/$defs/semanticStatus" },
+				"statusBasis": { "$ref": "#/$defs/statusBasis" }
+			}
+		},
+		"sessionListRequest": {
+			"type": "object",
+			"required": ["kind", "requestId"],
+			"additionalProperties": false,
+			"properties": {
+				"cursor": { "$ref": "#/$defs/cursor" },
+				"includeEnded": { "type": "boolean" },
+				"kind": { "const": "agent.session.list.request" },
+				"limit": { "type": "integer", "minimum": 1, "maximum": 100 },
+				"requestId": { "$ref": "#/$defs/obapRequestId" }
+			},
+			"$comment": "includeEnded defaults to false and limit to 50 when absent."
+		},
+		"sessionGetRequest": {
+			"type": "object",
+			"required": ["kind", "requestId", "sessionId"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "agent.session.get.request" },
+				"requestId": { "$ref": "#/$defs/obapRequestId" },
+				"sessionId": { "$ref": "#/$defs/sessionId" }
+			}
+		},
+		"sessionExplainRequest": {
+			"type": "object",
+			"required": ["kind", "requestId", "sessionId"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "agent.session.explain.request" },
+				"requestId": { "$ref": "#/$defs/obapRequestId" },
+				"sessionId": { "$ref": "#/$defs/sessionId" }
+			}
+		},
+		"rejectedOutcome": {
+			"type": "object",
+			"required": ["kind", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "rejected" },
+				"reason": { "type": "string" }
+			}
+		},
+		"unavailableOutcome": {
+			"type": "object",
+			"required": ["kind", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "unavailable" },
+				"reason": { "const": "runtime-unavailable" }
+			}
+		},
+		"sessionListResult": {
+			"type": "object",
+			"required": ["kind", "requestId", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "agent.session.list.result" },
+				"requestId": { "$ref": "#/$defs/obapRequestId" },
+				"result": {
+					"type": "object",
+					"required": ["outcome"],
+					"additionalProperties": false,
+					"properties": {
+						"outcome": {
+							"oneOf": [
+								{
+									"type": "object",
+									"required": ["items", "kind", "nextCursor", "revision"],
+									"additionalProperties": false,
+									"properties": {
+										"items": {
+											"type": "array",
+											"items": { "$ref": "#/$defs/sessionSummary" },
+											"maxItems": 100
+										},
+										"kind": { "const": "listed" },
+										"nextCursor": {
+											"oneOf": [{ "$ref": "#/$defs/cursor" }, { "type": "null" }]
+										},
+										"revision": { "$ref": "#/$defs/safeInteger" }
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind", "reason"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": { "const": "rejected" },
+										"reason": {
+											"enum": ["cursor-invalid", "cursor-stale", "read-denied"]
+										}
+									}
+								},
+								{ "$ref": "#/$defs/unavailableOutcome" }
+							]
+						}
+					}
+				}
+			}
+		},
+		"sessionGetResult": {
+			"type": "object",
+			"required": ["kind", "requestId", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "agent.session.get.result" },
+				"requestId": { "$ref": "#/$defs/obapRequestId" },
+				"result": {
+					"type": "object",
+					"required": ["outcome"],
+					"additionalProperties": false,
+					"properties": {
+						"outcome": {
+							"oneOf": [
+								{
+									"type": "object",
+									"required": ["kind", "revision", "session"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": { "const": "found" },
+										"revision": { "$ref": "#/$defs/safeInteger" },
+										"session": { "$ref": "#/$defs/sessionDetail" }
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind", "reason"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": { "const": "rejected" },
+										"reason": { "enum": ["not-found", "read-denied"] }
+									}
+								},
+								{ "$ref": "#/$defs/unavailableOutcome" }
+							]
+						}
+					}
+				}
+			}
+		},
+		"sessionExplainResult": {
+			"type": "object",
+			"required": ["kind", "requestId", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "agent.session.explain.result" },
+				"requestId": { "$ref": "#/$defs/obapRequestId" },
+				"result": {
+					"type": "object",
+					"required": ["outcome"],
+					"additionalProperties": false,
+					"properties": {
+						"outcome": {
+							"oneOf": [
+								{
+									"type": "object",
+									"required": ["explanation", "kind", "revision", "session"],
+									"additionalProperties": false,
+									"properties": {
+										"explanation": { "$ref": "#/$defs/explanation" },
+										"kind": { "const": "found" },
+										"revision": { "$ref": "#/$defs/safeInteger" },
+										"session": { "$ref": "#/$defs/sessionDetail" }
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind", "reason"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": { "const": "rejected" },
+										"reason": { "enum": ["not-found", "read-denied"] }
+									}
+								},
+								{ "$ref": "#/$defs/unavailableOutcome" }
+							]
+						}
+					}
+				}
+			}
+		}
+	}
+}

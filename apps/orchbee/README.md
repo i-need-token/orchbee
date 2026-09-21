@@ -32,10 +32,13 @@ orchbee completion bash|zsh|fish
 orchbee --help | --version
 ```
 
-Query families are `project`, `workspace`, `tab`, `panel`, `terminal`, and `worktree`
-(`list`/`get`, plus `terminal read`; `worktree` offers only `list`, which requires
+Query families are `project`, `workspace`, `tab`, `panel`, `terminal`, `worktree`, and
+`agent` (`list`/`get`, plus `terminal read`; `worktree` offers only `list`, which requires
 `--project <target>` and `--directory <directory-id>` — a strict nonzero 32-lowercase-hex
-Workbench directory id, never a filesystem path or label). Mutation commands against the
+Workbench directory id, never a filesystem path or label; `agent` offers `list` with
+`--include-ended`/`--limit`/`--cursor` paging, `get <session-id>`, and `explain
+<session-id>` — a read-only typed view of the Server's canonical Agent sessions over OBAP,
+never inferred from terminal contents). Mutation commands against the
 running Site are `project create`/`rename`,
 `workspace create`/`rename`/`accept-directory`, `tab create`/`rename`/`move`/`close`, and
 `panel split`/`move`/`close` — `tab create` and `panel split` additionally accept an ephemeral
@@ -64,6 +67,9 @@ stops, or deletes runtime state. The complete grammar, target and
 filter rules, mutation outcomes, and the failure matrix with exit classes are owned by
 [native CLI query](docs/native-cli-query.md); `orchbee help <family>` and
 `orchbee help <family> <command>` print the same grammar from the binary itself.
+For an end-to-end headless sequence — start a Site, create a
+Project/Workspace/directory, launch and drive a terminal, inspect worktrees,
+observe Agents, and close cleanly — see [native CLI workflows](docs/cli-workflows.md).
 
 Help writes stdout, failures write stderr, and version writes one locale-neutral
 `orchbee <version>` line. Development status is `0` for normal TUI close/help/version and for

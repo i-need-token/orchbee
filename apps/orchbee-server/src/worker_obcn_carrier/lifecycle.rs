@@ -12,8 +12,8 @@ use orchbee_capability_node_protocol::{
 };
 
 use super::{
-    AdmitOutcome, PendingRequest, RequestLane, WorkerOperationRequest, WorkerOperationResult,
-    WorkerRequestError, WorkerRequestHandle, WorkerResponseFailure,
+    AdmitOutcome, CompletionDelivery, PendingRequest, RequestLane, WorkerOperationRequest,
+    WorkerOperationResult, WorkerRequestError, WorkerRequestHandle, WorkerResponseFailure,
 };
 
 #[must_use = "an admitted lifecycle request must be settled even after its attempt deadline"]
@@ -65,7 +65,7 @@ impl WorkerRequestHandle {
         let (completion, result) = mpsc::sync_channel(1);
         let complete_write = Arc::new(AtomicBool::new(false));
         let pending = PendingRequest {
-            completion: Some(completion),
+            completion: CompletionDelivery::for_request(&request, completion),
             complete_write: Arc::clone(&complete_write),
             encoded,
             request,

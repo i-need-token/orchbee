@@ -7,7 +7,7 @@
 	"additionalProperties": false,
 	"properties": {
 		"schema": { "const": "orchbee.api.schema" },
-		"version": { "const": 5 },
+		"version": { "const": 6 },
 		"source": {
 			"type": "object",
 			"required": ["kind"],
@@ -33,9 +33,13 @@
 				"schemas": {
 					"type": "object",
 					"required": [
+						"orchbee.agent.explain",
+						"orchbee.agent.get",
+						"orchbee.agent.list",
 						"orchbee.api.schema",
 						"orchbee.api.snapshot",
 						"orchbee.cli.failure",
+						"orchbee.cli.failure.agent",
 						"orchbee.cli.failure.source",
 						"orchbee.cli.failure.worktree",
 						"orchbee.config.check",
@@ -68,9 +72,13 @@
 	"$defs": {
 		"schemaId": {
 			"enum": [
+				"orchbee.agent.explain",
+				"orchbee.agent.get",
+				"orchbee.agent.list",
 				"orchbee.api.schema",
 				"orchbee.api.snapshot",
 				"orchbee.cli.failure",
+				"orchbee.cli.failure.agent",
 				"orchbee.cli.failure.source",
 				"orchbee.cli.failure.worktree",
 				"orchbee.config.check",

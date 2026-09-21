@@ -10,6 +10,7 @@ use orchbee_terminal_protocol::{
     HostEpoch, ReadRows, RowAccessControl, RowWindowOrigin, decode_row_access_control,
 };
 use std::num::NonZeroU64;
+use std::rc::Rc;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread::{self, JoinHandle};
 
@@ -33,6 +34,7 @@ fn host(row_window_bytes: u32) -> TestResult<(HostBrokerConnection, UnixStream)>
             viewers: RefCell::new(viewers::HostViewers::default()),
             controllers: RefCell::new(controllers::HostControllers::default()),
             retired_targets: RefCell::new(target_cleanup::RetiredTargets::default()),
+            drain: Rc::new(RefCell::new(crate::agent_drain::AgentDrain::new())),
         },
         peer,
     ))

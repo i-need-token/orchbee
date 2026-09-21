@@ -1,3 +1,9 @@
+// Canonical Agent model: the production consumer lives in the `orchbee-server`
+// binary (agent_service); the library target itself has no consumer, so the
+// module compiles here only for the private conformance harness. See
+// docs/agent-canonical-model.md.
+#[cfg(test)]
+mod agent;
 mod workbench_authority;
 mod workbench_projection;
 

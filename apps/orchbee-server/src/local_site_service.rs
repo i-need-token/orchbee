@@ -16,6 +16,7 @@ use orchbee_local_site_protocol::{
 };
 
 use crate::{
+    agent_service::AgentService,
     local_client_service,
     local_terminal_service::LocalTerminalService,
     worker_obcn_carrier::create_worker_carrier,
@@ -24,6 +25,13 @@ use crate::{
 
 #[cfg(target_os = "linux")]
 mod managed;
+
+/// The managed Site-owned private observation endpoint for RICH hook
+/// envelopes — bound and started by the managed bootstrap before the
+/// Worker exists. `unix` because the transport is an AF_UNIX socket over
+/// `nix::poll`.
+#[cfg(unix)]
+mod agent_observation_endpoint;
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -64,7 +72,7 @@ pub(crate) fn run(
 
     loop {
         match listener.accept() {
-            Ok((stream, _address)) => handle_candidate(stream, &registry, expected_cohort),
+            Ok((stream, _address)) => handle_candidate(stream, &registry, expected_cohort, None),
             Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
             Err(error) => return Err(error),
         }
@@ -140,6 +148,7 @@ fn handle_candidate(
     mut stream: UnixStream,
     registry: &Arc<Mutex<WorkerRegistry>>,
     expected_cohort: &str,
+    agents: Option<&Arc<AgentService>>,
 ) {
     if stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT)).is_err()
         || stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT)).is_err()
@@ -204,8 +213,15 @@ fn handle_candidate(
     }
 
     let carrier = create_worker_carrier(hello.worker_id(), generation);
-    let Some(registered_owner) = WorkerRegistry::register_carrier(registry, generation, carrier)
-    else {
+    // A managed Site admits the canonical Agent leaf inside the registry
+    // guard before the Live record installs; the non-managed listener has
+    // no AgentService, so it keeps the plain registration unchanged.
+    let Some(registered_owner) = (match agents {
+        Some(agents) => {
+            WorkerRegistry::register_carrier_with_agents(registry, generation, carrier, agents)
+        }
+        None => WorkerRegistry::register_carrier(registry, generation, carrier),
+    }) else {
         cancel_pending_admission(registry, generation);
         return;
     };

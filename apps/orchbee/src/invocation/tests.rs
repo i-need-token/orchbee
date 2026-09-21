@@ -3462,3 +3462,261 @@ fn worktree_help_paths_resolve() {
         assert_eq!(parse(arguments), Ok(Request::Help(topic)), "{arguments:?}");
     }
 }
+
+const AGENT_CURSOR: &str = "v1.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ";
+
+/// `agent list|get|explain`: the flat read grammar — defaults, option values,
+/// and the opaque session identity operand.
+#[test]
+fn agent_read_grammar() {
+    use orchbee_agent_observation_protocol::{AgentListCursor, AgentSessionId};
+    let session = || AgentSessionId::parse("sess-alpha").expect("valid session id");
+    let cursor = || AgentListCursor::parse(AGENT_CURSOR).expect("valid cursor");
+
+    // Defaults: first page, live sessions only, page size 50.
+    assert_eq!(
+        parse(&["agent", "list"]),
+        Ok(query(
+            QueryCommand::AgentList {
+                include_ended: false,
+                limit: 50,
+                cursor: None,
+            },
+            OutputFormat::Text
+        ))
+    );
+    // Every declared option in any order.
+    assert_eq!(
+        parse(&[
+            "agent",
+            "list",
+            "--include-ended",
+            "--limit",
+            "25",
+            "--cursor",
+            AGENT_CURSOR,
+        ]),
+        Ok(query(
+            QueryCommand::AgentList {
+                include_ended: true,
+                limit: 25,
+                cursor: Some(cursor()),
+            },
+            OutputFormat::Text
+        ))
+    );
+    // Page-size bounds are inclusive on both ends.
+    for value in ["1", "100"] {
+        assert_eq!(
+            parse(&["agent", "list", "--limit", value]),
+            Ok(query(
+                QueryCommand::AgentList {
+                    include_ended: false,
+                    limit: value.parse().expect("bound literal"),
+                    cursor: None,
+                },
+                OutputFormat::Text
+            )),
+            "--limit {value}"
+        );
+    }
+    // Session identity operands: opaque strings, never labels or typed ids.
+    assert_eq!(
+        parse(&["agent", "get", "sess-alpha"]),
+        Ok(query(QueryCommand::AgentGet(session()), OutputFormat::Text))
+    );
+    assert_eq!(
+        parse(&["agent", "explain", "sess-alpha"]),
+        Ok(query(
+            QueryCommand::AgentExplain(session()),
+            OutputFormat::Text
+        ))
+    );
+    // A 32-hex operand is still just a session identity — no typed-id split.
+    assert_eq!(
+        parse(&["agent", "get", ID]),
+        Ok(query(
+            QueryCommand::AgentGet(AgentSessionId::parse(ID).expect("hex session id")),
+            OutputFormat::Text
+        ))
+    );
+    // Format selection applies like every other query.
+    assert_eq!(
+        parse(&["agent", "list", "--format", "json"]),
+        Ok(query(
+            QueryCommand::AgentList {
+                include_ended: false,
+                limit: 50,
+                cursor: None,
+            },
+            OutputFormat::Json
+        ))
+    );
+}
+
+/// `agent` grammar failures: wrong arity, out-of-scope options, and invalid
+/// option values all stay usage failures — the wire never sees them.
+#[test]
+fn agent_read_usage_failures() {
+    let usage_reason = |arguments: &[&str]| {
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.kind,
+            ParseFailureKind::InvalidUsage,
+            "{arguments:?}"
+        );
+        failure.usage.expect("usage reason recorded")
+    };
+    let path = |spelling: &'static str| UsageContext::Path(spelling);
+
+    // Missing command / missing operand / extra operands / unknown verb.
+    assert_eq!(
+        usage_reason(&["agent"]),
+        UsageReason::MissingCommand {
+            context: path("agent"),
+        }
+    );
+    assert_eq!(
+        usage_reason(&["agent", "list", "extra"]),
+        UsageReason::UnexpectedArgument {
+            context: path("agent list"),
+            value: "extra".to_owned(),
+        }
+    );
+    assert_eq!(
+        usage_reason(&["agent", "get"]),
+        UsageReason::MissingRequired {
+            context: path("agent get"),
+            requirement: "<session>",
+        }
+    );
+    assert_eq!(
+        usage_reason(&["agent", "explain", "a", "b"]),
+        UsageReason::UnexpectedArgument {
+            context: path("agent explain"),
+            value: "b".to_owned(),
+        }
+    );
+    assert_eq!(
+        usage_reason(&["agent", "frobnicate"]),
+        UsageReason::UnknownCommand {
+            context: path("agent"),
+            word: "frobnicate".to_owned(),
+        }
+    );
+
+    // Out-of-scope options on each path.
+    for (arguments, context, option) in [
+        (
+            &["agent", "get", "sess", "--include-ended"][..],
+            "agent get",
+            "--include-ended",
+        ),
+        (
+            &["agent", "explain", "sess", "--cursor", AGENT_CURSOR][..],
+            "agent explain",
+            "--cursor",
+        ),
+        (
+            &["agent", "list", "--label", "x"][..],
+            "agent list",
+            "--label",
+        ),
+    ] {
+        assert_eq!(
+            usage_reason(arguments),
+            UsageReason::UnexpectedOption {
+                context: path(context),
+                option,
+            },
+            "{arguments:?}"
+        );
+    }
+
+    // Invalid option values and identities.
+    for value in ["0", "101", "1.5", "abc", "-1"] {
+        assert_eq!(
+            usage_reason(&["agent", "list", "--limit", value]),
+            UsageReason::InvalidValue {
+                context: path("agent list"),
+                option: "--limit",
+                value: value.to_owned(),
+                expected: ExpectedValue::AgentListLimit,
+            },
+            "{value}"
+        );
+    }
+    for value in [
+        "nope",
+        "v1.short.tag",
+        "v2.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ",
+    ] {
+        assert_eq!(
+            usage_reason(&["agent", "list", "--cursor", value]),
+            UsageReason::InvalidValue {
+                context: path("agent list"),
+                option: "--cursor",
+                value: value.to_owned(),
+                expected: ExpectedValue::AgentCursor,
+            },
+            "{value}"
+        );
+    }
+    for (verb, value) in [("get", "bad id!"), ("explain", ""), ("get", "non-ascii-会")] {
+        assert_eq!(
+            usage_reason(&["agent", verb, value]),
+            UsageReason::InvalidValue {
+                context: path(if verb == "get" {
+                    "agent get"
+                } else {
+                    "agent explain"
+                }),
+                option: "<session>",
+                value: value.to_owned(),
+                expected: ExpectedValue::AgentSessionId,
+            },
+            "{verb} {value}"
+        );
+    }
+    assert_eq!(
+        usage_reason(&["agent", "list", "--limit"]),
+        UsageReason::MissingValue { option: "--limit" }
+    );
+    assert_eq!(
+        usage_reason(&["agent", "list", "--include-ended", "--include-ended"]),
+        UsageReason::DuplicateOption {
+            option: "--include-ended",
+        }
+    );
+}
+
+/// Agent help resolves on both surfaces and lands on the pinned topics.
+#[test]
+fn agent_help_paths_resolve() {
+    assert_eq!(
+        parse(&["agent", "--help"]),
+        Ok(Request::Help(HelpTopic::Family(Family::Agent)))
+    );
+    assert_eq!(
+        parse(&["help", "agent"]),
+        Ok(Request::Help(HelpTopic::Family(Family::Agent)))
+    );
+    for (verb, command) in [
+        ("list", CommandPath::AgentList),
+        ("get", CommandPath::AgentGet),
+        ("explain", CommandPath::AgentExplain),
+    ] {
+        assert_eq!(
+            parse(&["agent", verb, "--help"]),
+            Ok(Request::Help(HelpTopic::Command(command))),
+            "agent {verb} --help"
+        );
+        assert_eq!(
+            parse(&["help", "agent", verb]),
+            Ok(Request::Help(HelpTopic::Command(command))),
+            "help agent {verb}"
+        );
+    }
+}

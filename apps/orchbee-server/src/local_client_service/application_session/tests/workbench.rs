@@ -27,6 +27,7 @@ fn alternating_carriers_preserve_each_response_and_exact_record_boundaries() {
         &mut stream,
         |request| super::denied_result(&request),
         |request| service.execute(request),
+        |_request| panic!("unexpected Agent request"),
     );
     let mut output = Cursor::new(stream.output);
     assert_eq!(
@@ -131,6 +132,7 @@ fn a_stalled_large_snapshot_writer_releases_the_gate_before_another_session_read
             &mut stream,
             |_request| panic!("unexpected terminal request"),
             |request| stalled_service.execute(request),
+            |_request| panic!("unexpected Agent request"),
         );
         stream.output
     });
@@ -195,6 +197,7 @@ fn postcommit_coordination_failure_closes_without_a_workbench_response() {
             &mut stream,
             |_request| panic!("unexpected terminal request"),
             |_request| WorkbenchExecution::OutcomeUnknown,
+            |_request| panic!("unexpected Agent request"),
         ),
         Err(super::ApplicationSessionError::WorkbenchOutcomeUnknown)
     ));

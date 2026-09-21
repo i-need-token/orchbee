@@ -1,8 +1,9 @@
 use std::{
+    fmt,
     io::{self, Read, Write},
     num::NonZeroU64,
     os::{
-        fd::{AsFd, AsRawFd},
+        fd::{AsFd, AsRawFd, BorrowedFd},
         unix::net::UnixStream,
     },
     path::Path,
@@ -21,14 +22,25 @@ use orchbee_local_peer_credentials::require_same_effective_user;
 use super::{ClientSessionConnection, ConnectClientError};
 use crate::{ClientHello, LocalClientMessage, read_message, write_message};
 
-pub(super) fn connect_before(
+pub(super) fn connect_before_cancellable(
     endpoint: &Path,
     hello: ClientHello,
     expires_at: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<ClientSessionConnection, ConnectClientError> {
+    admit(endpoint, hello, expires_at, wake).map_err(translate_wake)
+}
+
+fn admit(
+    endpoint: &Path,
+    hello: ClientHello,
+    expires_at: Instant,
+    wake: Option<BorrowedFd<'_>>,
 ) -> Result<ClientSessionConnection, ConnectClientError> {
     let deadline = Deadline {
         expires_at,
         now: &Instant::now,
+        wake,
     };
     deadline.remaining()?;
     let address = UnixAddr::new(endpoint).map_err(io::Error::from)?;
@@ -100,10 +112,66 @@ fn finish_admission(
     Ok(ClientSessionConnection { stream, generation })
 }
 
+/// The borrowed wake descriptor reported `POLLIN` — a provisional wake
+/// observation only. The protocol never reads the descriptor; the caller's
+/// own signal owner performs the sole arbitration read and decides whether
+/// any cancellation happened.
+#[derive(Debug)]
+struct WakeReady;
+
+impl fmt::Display for WakeReady {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("cancellation wake descriptor reported readiness")
+    }
+}
+
+impl std::error::Error for WakeReady {}
+
+/// The borrowed wake descriptor reported `POLLERR`, `POLLHUP`, or
+/// `POLLNVAL`: the wake channel itself is broken, distinct from a wake.
+#[derive(Debug)]
+struct WakeFault(PollFlags);
+
+impl fmt::Display for WakeFault {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "cancellation wake descriptor reported fault flags {:?}",
+            self.0
+        )
+    }
+}
+
+impl std::error::Error for WakeFault {}
+
+/// Surface private wake observations at the public error boundary. Only the
+/// `Io` and `ConnectFailed` wrappers can carry one; every other variant
+/// already holds its own typed provenance.
+fn translate_wake(error: ConnectClientError) -> ConnectClientError {
+    match error {
+        ConnectClientError::ConnectFailed(inner) | ConnectClientError::Io(inner)
+            if is_wake::<WakeReady>(&inner) =>
+        {
+            ConnectClientError::CancellationReady
+        }
+        ConnectClientError::ConnectFailed(inner) | ConnectClientError::Io(inner)
+            if is_wake::<WakeFault>(&inner) =>
+        {
+            ConnectClientError::CancellationSourceFault(inner)
+        }
+        error => error,
+    }
+}
+
+fn is_wake<M: std::error::Error + 'static>(error: &io::Error) -> bool {
+    error.get_ref().is_some_and(|inner| inner.is::<M>())
+}
+
 #[derive(Clone, Copy)]
 struct Deadline<'a> {
     expires_at: Instant,
     now: &'a dyn Fn() -> Instant,
+    wake: Option<BorrowedFd<'a>>,
 }
 
 impl Deadline<'_> {
@@ -124,10 +192,47 @@ impl Deadline<'_> {
                 !remaining.subsec_nanos().is_multiple_of(1_000_000),
             ));
             let timeout = PollTimeout::try_from(milliseconds).unwrap_or(PollTimeout::MAX);
-            let mut descriptors = [PollFd::new(stream.as_fd(), interest)];
+            let Some(wake) = self.wake else {
+                let mut descriptors = [PollFd::new(stream.as_fd(), interest)];
+                match poll(&mut descriptors, timeout) {
+                    Ok(0) | Err(Errno::EINTR) => {}
+                    Ok(_) => {
+                        self.remaining()?;
+                        return Ok(());
+                    }
+                    Err(error) => return Err(error.into()),
+                }
+                continue;
+            };
+            // The borrowed descriptor only joins the poll set; it is never
+            // read, drained, owned, or closed here.
+            let mut descriptors = [
+                PollFd::new(stream.as_fd(), interest),
+                PollFd::new(wake, PollFlags::POLLIN),
+            ];
             match poll(&mut descriptors, timeout) {
                 Ok(0) | Err(Errno::EINTR) => {}
                 Ok(_) => {
+                    // A wake event is decided before any simultaneous socket
+                    // readiness. POLLIN wins over fault flags because pending
+                    // bytes still belong to the owner's arbitration read; a
+                    // fault with nothing readable is a broken channel.
+                    let observed = descriptors[1].revents().unwrap_or(PollFlags::empty());
+                    if observed.contains(PollFlags::POLLIN) {
+                        return Err(io::Error::other(WakeReady));
+                    }
+                    if observed
+                        .intersects(PollFlags::POLLERR | PollFlags::POLLHUP | PollFlags::POLLNVAL)
+                    {
+                        return Err(io::Error::other(WakeFault(observed)));
+                    }
+                    if descriptors[0]
+                        .revents()
+                        .unwrap_or(PollFlags::empty())
+                        .is_empty()
+                    {
+                        continue;
+                    }
                     self.remaining()?;
                     return Ok(());
                 }

@@ -1,6 +1,7 @@
 use std::{
     io::{self, Read, Write},
     num::NonZeroU64,
+    os::fd::{AsFd, BorrowedFd},
     os::unix::net::{UnixListener, UnixStream},
     sync::{
         Arc, Mutex,
@@ -10,6 +11,10 @@ use std::{
     time::{Duration, Instant},
 };
 
+use nix::poll::PollFlags;
+use orchbee_agent_observation_protocol::{
+    AgentReadRequest, AgentSafeInteger, AgentWireError, ObapRequestId, read_agent_request,
+};
 use orchbee_client_server_protocol::{
     ClientMessage, CreateOutcome, CreateRejectedReason, FRAME_VERSION as OBCS_FRAME_VERSION,
     ProtocolError as ObcsProtocolError, RequestId, ServerMessage, StartMode, StartOutcome,
@@ -23,9 +28,11 @@ use orchbee_local_client_protocol::{
     write_message as write_oblc_message,
 };
 
+use super::agent::{AgentReadError, AgentReadFailure};
 use super::{
-    IoChunkLimits, LocalClient, LocalClientConnectError, MonotonicClock, OutcomeUnknownReason,
-    ResultKind, SubmissionError,
+    ClientSessionConnection, DeadlineIo, IoChunkLimits, LocalClient, LocalClientConnectError,
+    LocalOperationClock, MonotonicClock, OutcomeUnknownReason, ResultKind, SubmissionDeadline,
+    SubmissionError, exchange_wake_fault, exchange_wake_ready,
 };
 
 const COHORT: &str = "test-cohort";
@@ -1158,6 +1165,244 @@ fn adjustable_clock_exposes_distinct_forward_and_cleanup_cutoffs() -> TestResult
     assert_eq!(clock.now(), origin + Duration::from_secs(50));
 
     assert_eq!(client.generation().map(NonZeroU64::get), Some(39));
+    drop(client);
+    server.finish()?;
+    Ok(())
+}
+
+// ---- borrowed wake descriptor (Agent cancellation owner) ------------------
+
+/// A `DeadlineIo` over the admitted connection plus a fresh deadline; the
+/// borrowed wake descriptor only joins the wait set.
+fn deadline_io<'a>(
+    connection: &'a mut ClientSessionConnection,
+    clock: &'a LocalOperationClock,
+    deadline: SubmissionDeadline,
+    wake: Option<BorrowedFd<'a>>,
+) -> DeadlineIo<'a> {
+    DeadlineIo {
+        connection,
+        clock,
+        deadline,
+        io_chunk_limits: IoChunkLimits::UNBOUNDED,
+        wake,
+        write_began: false,
+    }
+}
+
+/// A peer that completes OBLC admission then holds the session open until
+/// the client drops it — no OBAP/OBCS bytes ever arrive.
+fn hold_after_admission(stream: &mut UnixStream) -> io::Result<()> {
+    expect_hello(stream, COHORT)?;
+    admit(stream, 7)?;
+    let mut sink = [0_u8; 8];
+    stream.read(&mut sink).map(|_| ())
+}
+
+#[test]
+fn wake_readiness_interrupts_the_exchange_wait() -> TestResult {
+    let server = FakeServer::start(|mut stream| hold_after_admission(&mut stream))?;
+    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let (wake_read, mut wake_write) = UnixStream::pair()?;
+    wake_write.write_all(b"x")?;
+    let clock = client.operation_clock();
+    let deadline = SubmissionDeadline::start(&clock, Duration::from_secs(5))?;
+    let io = deadline_io(
+        client.connection.as_mut().expect("admitted connection"),
+        &clock,
+        deadline,
+        Some(wake_read.as_fd()),
+    );
+    let error = io
+        .wait_until_ready(PollFlags::POLLIN)
+        .expect_err("wake readiness interrupts the wait");
+    assert!(exchange_wake_ready(&error), "readiness marker: {error:?}");
+    assert!(!exchange_wake_fault(&error), "not a fault: {error:?}");
+    // The byte is never drained — the owner's arbitration read still finds it.
+    let mut byte = [0_u8; 1];
+    (&wake_read).read_exact(&mut byte)?;
+    assert_eq!(&byte, b"x");
+    drop(client);
+    server.finish()?;
+    Ok(())
+}
+
+#[test]
+fn wake_readiness_wins_over_simultaneous_socket_data() -> TestResult {
+    let server = FakeServer::start(|mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 7)?;
+        stream.write_all(b"noise")?;
+        let mut sink = [0_u8; 8];
+        // The client drops with the noise byte unread, so this read may fail
+        // with ECONNRESET — either outcome means the peer is gone.
+        let _ = stream.read(&mut sink);
+        Ok(())
+    })?;
+    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let (wake_read, mut wake_write) = UnixStream::pair()?;
+    wake_write.write_all(b"x")?;
+    let clock = client.operation_clock();
+    let deadline = SubmissionDeadline::start(&clock, Duration::from_secs(5))?;
+    let io = deadline_io(
+        client.connection.as_mut().expect("admitted connection"),
+        &clock,
+        deadline,
+        Some(wake_read.as_fd()),
+    );
+    let error = io
+        .wait_until_ready(PollFlags::POLLIN)
+        .expect_err("wake readiness wins over socket readiness");
+    assert!(exchange_wake_ready(&error), "readiness marker: {error:?}");
+    drop(client);
+    server.finish()?;
+    Ok(())
+}
+
+#[test]
+fn wake_fault_is_distinct_from_readiness() -> TestResult {
+    let server = FakeServer::start(|mut stream| hold_after_admission(&mut stream))?;
+    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    // A pipe, not a socket: with nothing written and the write end closed, the
+    // read end reports POLLHUP without POLLIN — a stream socket would instead
+    // report the peer's EOF as readable POLLIN.
+    let (wake_read, wake_write) = nix::unistd::pipe()?;
+    drop(wake_write);
+    let clock = client.operation_clock();
+    let deadline = SubmissionDeadline::start(&clock, Duration::from_secs(5))?;
+    let io = deadline_io(
+        client.connection.as_mut().expect("admitted connection"),
+        &clock,
+        deadline,
+        Some(wake_read.as_fd()),
+    );
+    let error = io
+        .wait_until_ready(PollFlags::POLLIN)
+        .expect_err("a broken wake source reports a fault");
+    assert!(exchange_wake_fault(&error), "fault marker: {error:?}");
+    assert!(!exchange_wake_ready(&error), "not readiness: {error:?}");
+    drop(client);
+    server.finish()?;
+    Ok(())
+}
+
+#[test]
+fn wake_readiness_wins_over_simultaneous_hangup() -> TestResult {
+    let server = FakeServer::start(|mut stream| hold_after_admission(&mut stream))?;
+    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let (wake_read, mut wake_write) = UnixStream::pair()?;
+    wake_write.write_all(b"x")?;
+    drop(wake_write);
+    let clock = client.operation_clock();
+    let deadline = SubmissionDeadline::start(&clock, Duration::from_secs(5))?;
+    let io = deadline_io(
+        client.connection.as_mut().expect("admitted connection"),
+        &clock,
+        deadline,
+        Some(wake_read.as_fd()),
+    );
+    let error = io
+        .wait_until_ready(PollFlags::POLLIN)
+        .expect_err("readable data still wins over POLLHUP");
+    assert!(exchange_wake_ready(&error), "readiness marker: {error:?}");
+    drop(client);
+    server.finish()?;
+    Ok(())
+}
+
+#[test]
+fn absent_wake_descriptor_preserves_the_plain_wait() -> TestResult {
+    let server = FakeServer::start(|mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 7)?;
+        stream.write_all(b"noise")?;
+        let mut sink = [0_u8; 8];
+        // The client drops with the noise byte unread, so this read may fail
+        // with ECONNRESET — either outcome means the peer is gone.
+        let _ = stream.read(&mut sink);
+        Ok(())
+    })?;
+    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let clock = client.operation_clock();
+    let deadline = SubmissionDeadline::start(&clock, Duration::from_secs(5))?;
+    let io = deadline_io(
+        client.connection.as_mut().expect("admitted connection"),
+        &clock,
+        deadline,
+        None,
+    );
+    io.wait_until_ready(PollFlags::POLLIN)
+        .expect("socket readiness alone answers the wait");
+    drop(client);
+    server.finish()?;
+    Ok(())
+}
+
+/// A wake observation before the first request byte keeps the request
+/// unsubmitted: the marker surfaces at the `RequestNotSubmitted` position.
+#[test]
+fn agent_read_wake_ready_before_write_is_request_not_submitted() -> TestResult {
+    let server = FakeServer::start(|mut stream| hold_after_admission(&mut stream))?;
+    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let (wake_read, mut wake_write) = UnixStream::pair()?;
+    wake_write.write_all(b"x")?;
+    let request = AgentReadRequest::List {
+        request_id: ObapRequestId::parse(FIRST_REQUEST_ID).expect("request id"),
+        include_ended: false,
+        limit: AgentSafeInteger::new(50),
+        cursor: None,
+    };
+    match client.submit_agent_read_before_cancellable(
+        request,
+        Instant::now() + Duration::from_secs(5),
+        Some(wake_read.as_fd()),
+    ) {
+        Err(AgentReadError::RequestNotSubmitted(error)) => {
+            assert!(exchange_wake_ready(&error), "readiness marker: {error:?}")
+        }
+        other => panic!("expected RequestNotSubmitted wake marker, got {other:?}"),
+    }
+    drop(client);
+    server.finish()?;
+    Ok(())
+}
+
+/// A wake observation inside the response wait surfaces inside
+/// `AgentReadError::Failed` through `AgentWireError::Io` — the marker
+/// traverses every error layer without being read or retried.
+#[test]
+fn agent_read_wake_ready_mid_response_surfaces_through_io() -> TestResult {
+    let (wake_read, mut wake_write) = UnixStream::pair()?;
+    let server = FakeServer::start(move |mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 7)?;
+        read_agent_request(&mut stream).map_err(io::Error::other)?;
+        // The request is fully on the wire; now the owner-side byte arrives
+        // inside the client's response wait.
+        wake_write.write_all(b"x")?;
+        let mut sink = [0_u8; 8];
+        stream.read(&mut sink).map(|_| ())
+    })?;
+    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let request = AgentReadRequest::List {
+        request_id: ObapRequestId::parse(FIRST_REQUEST_ID).expect("request id"),
+        include_ended: false,
+        limit: AgentSafeInteger::new(50),
+        cursor: None,
+    };
+    match client.submit_agent_read_before_cancellable(
+        request,
+        Instant::now() + Duration::from_secs(5),
+        Some(wake_read.as_fd()),
+    ) {
+        Err(AgentReadError::Failed { reason, .. }) => match reason {
+            AgentReadFailure::Response(AgentWireError::Io(error)) => {
+                assert!(exchange_wake_ready(&error), "readiness marker: {error:?}")
+            }
+            other => panic!("expected Response(Io) wake marker, got {other:?}"),
+        },
+        other => panic!("expected Failed(Response(Io)), got {other:?}"),
+    }
     drop(client);
     server.finish()?;
     Ok(())

@@ -9,6 +9,7 @@ use crate::client_session_registry::{
 
 use super::{ClientSessionRegistration, ConnectionSlots, MAXIMUM_CLIENT_CONNECTIONS};
 
+mod agent;
 mod workbench;
 
 #[test]

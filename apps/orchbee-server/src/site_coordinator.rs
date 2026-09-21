@@ -36,6 +36,7 @@ pub(crate) use terminal_selection::{
 };
 mod target_lifecycle;
 pub(crate) use target_lifecycle::TargetLifecycle;
+mod agent_registration;
 
 pub(crate) struct SiteCoordinator {
     terminals: TerminalCoordinator,

@@ -4,6 +4,7 @@ use std::{
     io::{self, Read, Write},
     os::unix::net::UnixStream,
     path::Path,
+    rc::Rc,
     time::Duration,
 };
 
@@ -12,9 +13,11 @@ use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, ClientId, ConnectionControl, CorrelationId, Envelope, Hello,
     MAXIMUM_INPUT_BYTES, MAXIMUM_ROW_WINDOW_BYTES, MAXIMUM_TERMINAL_FRAME_BYTES,
     MAXIMUM_TRANSPORT_RECORD_BYTES, MessageRole, PayloadEncoding, TRANSPORT_ENVELOPE_HEADER_BYTES,
-    decode_connection_control, decode_transport_envelope, encode_connection_control,
-    encode_transport_envelope,
+    TerminalEffectEvent, decode_connection_control, decode_terminal_effect_event,
+    decode_transport_envelope, encode_connection_control, encode_transport_envelope,
 };
+
+use crate::agent_drain::AgentDrain;
 
 #[cfg(target_os = "linux")]
 mod admission;
@@ -44,6 +47,10 @@ pub(crate) struct HostBrokerConnection {
     pub(crate) viewers: RefCell<HostViewers>,
     pub(crate) controllers: RefCell<controllers::HostControllers>,
     retired_targets: RefCell<target_cleanup::RetiredTargets>,
+    /// Shared handle to the admitted Server connection's Agent Drain queue.
+    /// The broker only appends; the connection loop owns the watermark and
+    /// outlives this Host attachment, so dropping the broker never resets it.
+    drain: Rc<RefCell<AgentDrain>>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -58,6 +65,7 @@ impl HostBrokerConnection {
     pub(crate) fn connect_before(
         endpoint: &Path,
         deadline: std::time::Instant,
+        drain: Rc<RefCell<AgentDrain>>,
     ) -> Result<Self, Box<dyn Error>> {
         let mut transport = admission::Admission::connect(endpoint, deadline)?;
         let expected = requested_hello()?;
@@ -73,10 +81,14 @@ impl HostBrokerConnection {
             viewers: RefCell::new(HostViewers::default()),
             controllers: RefCell::new(controllers::HostControllers::default()),
             retired_targets: RefCell::new(target_cleanup::RetiredTargets::default()),
+            drain,
         })
     }
 
-    pub(crate) fn connect(endpoint: &Path) -> Result<Self, Box<dyn Error>> {
+    pub(crate) fn connect(
+        endpoint: &Path,
+        drain: Rc<RefCell<AgentDrain>>,
+    ) -> Result<Self, Box<dyn Error>> {
         let mut stream = UnixStream::connect(endpoint)?;
         require_same_effective_user(&stream)?;
         stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT))?;
@@ -97,6 +109,7 @@ impl HostBrokerConnection {
             viewers: RefCell::new(HostViewers::default()),
             controllers: RefCell::new(controllers::HostControllers::default()),
             retired_targets: RefCell::new(target_cleanup::RetiredTargets::default()),
+            drain,
         })
     }
 
@@ -118,6 +131,16 @@ impl HostBrokerConnection {
         }
         let envelope = orchbee_terminal_protocol::decode_transport_envelope(&record)
             .map_err(io::Error::other)?;
+        // Envelope validation precedes every consumer below, including the
+        // Agent Drain intercept and the viewer borrow.
+        if envelope.protocol != CURRENT_PROTOCOL_VERSION
+            || envelope.role != MessageRole::Event
+            || envelope.correlation_id.is_some()
+            || envelope.host_epoch != Some(self.host_epoch)
+            || envelope.optional_message
+        {
+            return Err(io::Error::other("unexpected Host event envelope"));
+        }
         if envelope.kind == 23 {
             if envelope.host_epoch != Some(self.host_epoch)
                 || envelope.protocol != CURRENT_PROTOCOL_VERSION
@@ -140,6 +163,24 @@ impl HostBrokerConnection {
                 return Ok(());
             }
             return Err(io::Error::other("unexpected controller resize lease event"));
+        }
+        if envelope.payload_encoding == PayloadEncoding::ControlJson
+            && let Ok(TerminalEffectEvent::ApplicationSignal(signal)) =
+                decode_terminal_effect_event(envelope.kind, envelope.role, envelope.payload)
+        {
+            // The Agent Drain producer intercepts application signals before
+            // the viewer borrow so terminals with no attached viewer still
+            // reach the queue. Decode failures and epoch mismatches keep their
+            // existing fatal outcome for this connection.
+            if signal.identity.host_epoch != self.host_epoch {
+                return Err(io::Error::other(
+                    "application signal has a different Host epoch",
+                ));
+            }
+            let identity =
+                crate::terminal_host_launch_adapter::capability_identity(signal.identity)
+                    .map_err(io::Error::other)?;
+            return self.drain.borrow_mut().append(identity, signal.payload);
         }
         self.viewers.borrow_mut().receive(record, self.host_epoch)
     }

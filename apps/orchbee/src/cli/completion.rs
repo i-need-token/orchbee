@@ -85,6 +85,7 @@ use crate::invocation::CompletionShell;
 
 /// Top-level words the grammar accepts before any option.
 const ROOT_WORDS: &[&str] = &[
+    "agent",
     "api",
     "completion",
     "config",
@@ -104,6 +105,7 @@ const ROOT_WORDS: &[&str] = &[
 /// every data command family accepts it; `help`/`completion`/`tui`/`--version`
 /// reject it.
 const FORMAT_ROOT_WORDS: &[&str] = &[
+    "agent",
     "api",
     "config",
     "panel",
@@ -118,6 +120,7 @@ const FORMAT_ROOT_WORDS: &[&str] = &[
 
 /// family → the verbs it implements.
 const FAMILY_VERBS: &[(&str, &[&str])] = &[
+    ("agent", &["explain", "get", "list"]),
     ("api", &["schema", "snapshot"]),
     ("config", &["check"]),
     ("panel", &["close", "get", "list", "move", "split"]),
@@ -159,6 +162,9 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--directory",
     "--exec",
     "--arg",
+    "--include-ended",
+    "--limit",
+    "--cursor",
 ];
 
 /// Business flags whose seen bit never makes a repeat `done` — they stay
@@ -168,6 +174,7 @@ const REPEATABLE_FLAGS: &[&str] = &["--arg"];
 /// `<family>:<verb>` → the business flags that command admits. Commands not
 /// listed here admit none.
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    ("agent:list", &["--include-ended", "--limit", "--cursor"]),
     ("project:create", &["--label"]),
     ("project:rename", &["--label"]),
     ("workspace:accept-directory", &["--path"]),
@@ -247,6 +254,8 @@ const KEY_VALUES: &[&str] = &[
 
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
+    "agent:explain",
+    "agent:get",
     "api:schema",
     "panel:close",
     "panel:get",
@@ -270,6 +279,7 @@ const OPERAND_PATHS: &[&str] = &[
 /// Help topics that lead anywhere (`help <word>`); leaf topics accept no
 /// deeper word.
 const HELP_TOPICS: &[&str] = &[
+    "agent",
     "api",
     "completion",
     "config",
@@ -286,6 +296,7 @@ const HELP_TOPICS: &[&str] = &[
 
 /// `help <topic>` → the deeper words that complete a help path.
 const HELP_CHILDREN: &[(&str, &[&str])] = &[
+    ("agent", &["explain", "get", "list"]),
     ("api", &["schema", "snapshot"]),
     ("config", &["check"]),
     ("panel", &["close", "get", "list", "move", "split"]),
@@ -338,6 +349,9 @@ fn flag_bit(flag: &str) -> &'static str {
         "--directory" => "seen_directory",
         "--exec" => "seen_exec",
         "--arg" => "seen_arg",
+        "--include-ended" => "seen_include_ended",
+        "--limit" => "seen_limit",
+        "--cursor" => "seen_cursor",
         other => unreachable!("flag {other} lacks a seen bit"),
     }
 }
@@ -348,7 +362,9 @@ fn flag_value(flag: &str) -> Option<&'static str> {
     match flag {
         "--direction" => Some("direction"),
         "--key" => Some("key"),
-        "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin" => None,
+        "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin" | "--include-ended" => {
+            None
+        }
         _ => Some("filter"),
     }
 }

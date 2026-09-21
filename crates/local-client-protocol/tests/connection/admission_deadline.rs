@@ -212,6 +212,140 @@ fn full_linux_unix_backlog_is_rejected_without_a_second_connection() -> TestResu
     Ok(())
 }
 
+#[test]
+fn borrowed_wake_ends_a_held_admission_and_is_never_drained() -> TestResult {
+    let fixture = TestDirectory::new()?;
+    let endpoint = fixture.path.join("client.sock");
+    let listener = UnixListener::bind(&endpoint)?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let mut stream = accept_candidate(&listener)?;
+        stream.set_read_timeout(Some(Duration::from_secs(3)))?;
+        // The wake may fire before or after the hello is written; either way
+        // the client drops its candidate and this side observes EOF.
+        let _ = read_message(&mut stream);
+        let mut sink = Vec::new();
+        let _ = stream.read_to_end(&mut sink);
+        Ok(())
+    });
+    let (read_end, write_end) = nix::unistd::pipe()?;
+    let writer = thread::spawn(move || -> io::Result<()> {
+        // Land the wake while the hello response is held.
+        thread::sleep(Duration::from_millis(100));
+        nix::unistd::write(&write_end, b"x")?;
+        Ok(())
+    });
+    let result = ClientSessionConnection::connect_before_cancellable(
+        &endpoint,
+        "test",
+        Instant::now() + Duration::from_secs(5),
+        Some(read_end.as_fd()),
+    );
+    assert!(
+        matches!(result, Err(ConnectClientError::CancellationReady)),
+        "unexpected result: {result:?}"
+    );
+    // The protocol observed but never consumed the descriptor: the byte the
+    // caller's owner wrote is still there for the sole arbitration read.
+    let mut byte = [0_u8; 1];
+    assert_eq!(nix::unistd::read(&read_end, &mut byte)?, 1);
+    assert_eq!(&byte, b"x");
+    writer.join().map_err(|_| "writer panic")??;
+    server.join().map_err(|_| "server panic")??;
+    Ok(())
+}
+
+#[test]
+fn a_preloaded_wake_wins_even_when_the_socket_is_ready() -> TestResult {
+    let fixture = TestDirectory::new()?;
+    let endpoint = fixture.path.join("client.sock");
+    let listener = UnixListener::bind(&endpoint)?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let mut stream = accept_candidate(&listener)?;
+        stream.set_read_timeout(Some(Duration::from_secs(3)))?;
+        let _ = read_message(&mut stream);
+        let mut sink = Vec::new();
+        let _ = stream.read_to_end(&mut sink);
+        Ok(())
+    });
+    let (read_end, write_end) = nix::unistd::pipe()?;
+    nix::unistd::write(&write_end, b"x")?;
+    let result = ClientSessionConnection::connect_before_cancellable(
+        &endpoint,
+        "test",
+        Instant::now() + Duration::from_secs(5),
+        Some(read_end.as_fd()),
+    );
+    // The wake is decided before simultaneous socket readiness — a fact for
+    // the caller's owner, not a committed cancellation.
+    assert!(matches!(result, Err(ConnectClientError::CancellationReady)));
+    server.join().map_err(|_| "server panic")??;
+    Ok(())
+}
+
+#[test]
+fn a_faulted_wake_descriptor_is_a_source_fault_not_a_wake() -> TestResult {
+    let fixture = TestDirectory::new()?;
+    let endpoint = fixture.path.join("client.sock");
+    let listener = UnixListener::bind(&endpoint)?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let mut stream = accept_candidate(&listener)?;
+        stream.set_read_timeout(Some(Duration::from_secs(3)))?;
+        let _ = read_message(&mut stream);
+        let mut sink = Vec::new();
+        let _ = stream.read_to_end(&mut sink);
+        Ok(())
+    });
+    // A pipe write end with no readers reports POLLERR.
+    let (read_end, write_end) = nix::unistd::pipe()?;
+    drop(read_end);
+    let result = ClientSessionConnection::connect_before_cancellable(
+        &endpoint,
+        "test",
+        Instant::now() + Duration::from_secs(5),
+        Some(write_end.as_fd()),
+    );
+    assert!(matches!(
+        result,
+        Err(ConnectClientError::CancellationSourceFault(_))
+    ));
+    server.join().map_err(|_| "server panic")??;
+    Ok(())
+}
+
+#[test]
+fn a_none_wake_is_exactly_the_existing_admission() -> TestResult {
+    let fixture = TestDirectory::new()?;
+    let endpoint = fixture.path.join("client.sock");
+    let listener = UnixListener::bind(&endpoint)?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let mut stream = accept_candidate(&listener)?;
+        stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+        assert!(matches!(
+            read_message(&mut stream),
+            Ok(LocalClientMessage::ClientHello(_))
+        ));
+        let mut bytes = Vec::new();
+        write_message(
+            &mut bytes,
+            &LocalClientMessage::ClientAccepted {
+                generation: NonZeroU64::new(9).ok_or_else(|| io::Error::other("generation"))?,
+            },
+        )
+        .map_err(io::Error::other)?;
+        stream.write_all(&bytes)?;
+        Ok(())
+    });
+    let client = ClientSessionConnection::connect_before_cancellable(
+        &endpoint,
+        "test",
+        Instant::now() + Duration::from_secs(2),
+        None,
+    )?;
+    assert_eq!(client.generation().get(), 9);
+    server.join().map_err(|_| "server panic")??;
+    Ok(())
+}
+
 fn accept_candidate(listener: &UnixListener) -> io::Result<UnixStream> {
     // A deadline may expire before the Client opens a socket. The fixture must
     // fail within its own bound instead of leaving a Server thread in accept.

@@ -7,7 +7,7 @@ use std::{
     sync::{
         Arc, Condvar, Mutex, MutexGuard,
         atomic::{AtomicBool, Ordering},
-        mpsc::{self, SyncSender},
+        mpsc::{self, Receiver, SyncSender},
     },
     time::{Duration, Instant},
 };
@@ -43,6 +43,8 @@ pub(crate) enum WorkerOperationRequest {
     Viewer(orchbee_capability_node_protocol::TerminalViewerRequest),
     Send(orchbee_capability_node_protocol::TerminalSendRequest),
     WorktreeJob(WorktreeJobRequest),
+    // The Server drain pump admits drains through admit_agent_drain.
+    AgentDrain(orchbee_capability_node_protocol::AgentDrainRequest),
 }
 
 impl WorkerOperationRequest {
@@ -70,11 +72,13 @@ impl WorkerOperationRequest {
             Self::Viewer(request) => (request.worker_id, request.worker_generation),
             Self::Send(request) => (request.worker_id, request.worker_generation),
             Self::WorktreeJob(request) => (request.worker_id, request.worker_generation),
+            Self::AgentDrain(request) => (request.worker_id, request.worker_generation),
         }
     }
 
     const fn lane(&self) -> RequestLane {
         match self {
+            Self::AgentDrain(_) => RequestLane::Low,
             Self::Viewer(_) => RequestLane::Low,
             Self::CwdValidation(_)
             | Self::Lifecycle(_)
@@ -104,6 +108,7 @@ impl WorkerOperationRequest {
             Self::WorktreeJob(request) => {
                 CapabilityNodeMessage::WorktreeJobRequest(request.clone())
             }
+            Self::AgentDrain(request) => CapabilityNodeMessage::AgentDrainRequest(*request),
         }
     }
 }
@@ -118,6 +123,8 @@ pub(crate) enum WorkerOperationResult {
     Viewer(orchbee_capability_node_protocol::TerminalViewerResult),
     Send(orchbee_capability_node_protocol::TerminalSendResult),
     WorktreeJob(WorktreeJobResult),
+    // Constructed by the Server drain pump's reply path.
+    AgentDrain(orchbee_capability_node_protocol::AgentDrainReply),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -289,6 +296,28 @@ impl WorkerRequestHandle {
         request: WorkerOperationRequest,
         cleanup: bool,
     ) -> Result<WorkerOperationResult, WorkerRequestError> {
+        self.admit(request, cleanup)?.recv()
+    }
+
+    // The Server drain reader's admission seam: enqueue the typed
+    // AgentDrain request on the LOW lane and hand back its exchange so the
+    // caller can wait with its own bounded deadline instead of blocking
+    // like submit.
+    pub(crate) fn admit_agent_drain(
+        &self,
+        request: orchbee_capability_node_protocol::AgentDrainRequest,
+    ) -> Result<PendingExchange, WorkerRequestError> {
+        self.admit(WorkerOperationRequest::AgentDrain(request), false)
+    }
+
+    /// Admit one request through the existing worker/generation fence and lane
+    /// rules, returning the exchange that receives its result. Completion
+    /// ownership is fixed by the admitted request kind.
+    fn admit(
+        &self,
+        request: WorkerOperationRequest,
+        cleanup: bool,
+    ) -> Result<PendingExchange, WorkerRequestError> {
         if !self.is_active() {
             return Err(WorkerRequestError::Unavailable);
         }
@@ -305,7 +334,7 @@ impl WorkerRequestHandle {
         let (completion, result) = mpsc::sync_channel(1);
         let complete_write = Arc::new(AtomicBool::new(false));
         let pending = PendingRequest {
-            completion: Some(completion),
+            completion: CompletionDelivery::for_request(&request, completion),
             complete_write: Arc::clone(&complete_write),
             encoded,
             request,
@@ -319,15 +348,10 @@ impl WorkerRequestHandle {
             self.queue.try_admit(lane, pending)
         };
         match admitted {
-            AdmitOutcome::Admitted => match result.recv() {
-                Ok(result) => result,
-                Err(_disconnected) if complete_write.load(Ordering::Acquire) => {
-                    Err(WorkerRequestError::PostDeliveryOutcomeUnknown(
-                        WorkerResponseFailure::CarrierStopped,
-                    ))
-                }
-                Err(_disconnected) => Err(WorkerRequestError::Unavailable),
-            },
+            AdmitOutcome::Admitted => Ok(PendingExchange {
+                result,
+                complete_write,
+            }),
             AdmitOutcome::Full if self.is_active() => Err(WorkerRequestError::Backpressure),
             AdmitOutcome::Full | AdmitOutcome::Closed => Err(WorkerRequestError::Unavailable),
         }
@@ -354,7 +378,7 @@ impl WorkerRequestHandle {
             return;
         };
         let _admitted = self.queue.block_admit_high(PendingRequest {
-            completion: None,
+            completion: CompletionDelivery::Detached,
             complete_write: Arc::new(AtomicBool::new(false)),
             encoded,
             request,
@@ -374,12 +398,106 @@ impl WorkerRequestHandle {
     }
 }
 
+/// Who owns the completion delivery for one admitted request. A Required
+/// result must reach a live receiver or the carrier dies; a DiscardableDrain
+/// result may be consumed and dropped when its Server drain reader abandoned
+/// the wait, keeping healthy carrier traffic alive. Detached requests carry
+/// no receiver at all.
+#[derive(Debug)]
+enum CompletionDelivery {
+    Required(SyncSender<Result<WorkerOperationResult, WorkerRequestError>>),
+    // The drain pump's discardable delivery lane.
+    DiscardableDrain(SyncSender<Result<WorkerOperationResult, WorkerRequestError>>),
+    Detached,
+}
+
+impl CompletionDelivery {
+    /// Completion ownership is derived from the admitted request kind, never
+    /// chosen by the caller: only a typed AgentDrain request gets a discardable
+    /// completion.
+    fn for_request(
+        request: &WorkerOperationRequest,
+        completion: SyncSender<Result<WorkerOperationResult, WorkerRequestError>>,
+    ) -> Self {
+        match request {
+            WorkerOperationRequest::AgentDrain(_) => Self::DiscardableDrain(completion),
+            _ => Self::Required(completion),
+        }
+    }
+}
+
 #[derive(Debug)]
 struct PendingRequest {
-    completion: Option<SyncSender<Result<WorkerOperationResult, WorkerRequestError>>>,
+    completion: CompletionDelivery,
     complete_write: Arc<AtomicBool>,
     encoded: Vec<u8>,
     request: WorkerOperationRequest,
+}
+
+/// One admitted exchange handed back to the requester: exactly one result
+/// receiver plus the shared complete-write marker used to classify a lost
+/// completion channel.
+#[derive(Debug)]
+pub(crate) struct PendingExchange {
+    result: Receiver<Result<WorkerOperationResult, WorkerRequestError>>,
+    complete_write: Arc<AtomicBool>,
+}
+
+impl PendingExchange {
+    /// Blocking wait used by `submit`: preserves the existing result mapping
+    /// where a lost channel before a complete write is Unavailable and a lost
+    /// channel after it leaves the post-delivery outcome unknown.
+    fn recv(self) -> Result<WorkerOperationResult, WorkerRequestError> {
+        match self.result.recv() {
+            Ok(result) => result,
+            Err(_disconnected) if self.complete_write.load(Ordering::Acquire) => {
+                Err(WorkerRequestError::PostDeliveryOutcomeUnknown(
+                    WorkerResponseFailure::CarrierStopped,
+                ))
+            }
+            Err(_disconnected) => Err(WorkerRequestError::Unavailable),
+        }
+    }
+
+    /// Bounded wait against one absolute deadline. An elapsed wait leaves the
+    /// attempt alive — the exchange may be waited again; only a lost channel
+    /// is terminal and is classified by the complete-write marker exactly like
+    /// the blocking wait.
+    pub(crate) fn recv_deadline(&self, deadline: Instant) -> ExchangeWait {
+        match self
+            .result
+            .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+        {
+            Ok(result) => ExchangeWait::Ready(Box::new(result)),
+            Err(mpsc::RecvTimeoutError::Timeout) => ExchangeWait::Elapsed,
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                ExchangeWait::Lost(if self.complete_write.load(Ordering::Acquire) {
+                    WorkerRequestError::PostDeliveryOutcomeUnknown(
+                        WorkerResponseFailure::CarrierStopped,
+                    )
+                } else {
+                    WorkerRequestError::Unavailable
+                })
+            }
+        }
+    }
+}
+
+/// Outcome of one bounded wait on a pending exchange.
+#[derive(Debug)]
+pub(crate) enum ExchangeWait {
+    Ready(Box<Result<WorkerOperationResult, WorkerRequestError>>),
+    Elapsed,
+    /// The typed cause of the loss; the pump folds every loss to
+    /// `PreparedUnavailable`, so the payload is carried unread.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "typed loss cause; pump folds every loss to PreparedUnavailable"
+        )
+    )]
+    Lost(WorkerRequestError),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -848,9 +966,17 @@ fn send_completion(
     pending: PendingRequest,
     result: Result<WorkerOperationResult, WorkerRequestError>,
 ) -> bool {
-    pending
-        .completion
-        .is_none_or(|completion| completion.send(result).is_ok())
+    match pending.completion {
+        CompletionDelivery::Detached => true,
+        CompletionDelivery::Required(completion) => completion.send(result).is_ok(),
+        // An abandoned drain read must not kill healthy carrier traffic: the
+        // reply is still consumed off the wire, then discarded when its
+        // receiver is gone.
+        CompletionDelivery::DiscardableDrain(completion) => {
+            let _delivered = completion.send(result);
+            true
+        }
+    }
 }
 
 fn configure_idle_stream(stream: &UnixStream) -> Result<(), WorkerTransportFailure> {
@@ -1142,11 +1268,23 @@ fn validate_response(
             Ok(WorkerOperationResult::Send(actual))
         }
         (
+            WorkerOperationRequest::AgentDrain(expected),
+            CapabilityNodeMessage::AgentDrainReply(actual),
+        ) => {
+            if actual.token_echo() != expected.token
+                || actual.acknowledged_echo() != expected.acknowledged
+            {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            Ok(WorkerOperationResult::AgentDrain(actual))
+        }
+        (
             _,
             CapabilityNodeMessage::AuthorizedTerminalLaunch(_)
             | CapabilityNodeMessage::AuthorizedTerminalStart(_)
             | CapabilityNodeMessage::TerminalViewerRequest(_)
-            | CapabilityNodeMessage::TerminalSendRequest(_),
+            | CapabilityNodeMessage::TerminalSendRequest(_)
+            | CapabilityNodeMessage::AgentDrainRequest(_),
         ) => Err(WorkerResponseFailure::WrongDirection),
         (
             WorkerOperationRequest::Viewer(_),
@@ -1161,6 +1299,7 @@ fn validate_response(
             CapabilityNodeMessage::TerminalLaunchResult(_)
             | CapabilityNodeMessage::TerminalStartResult(_),
         )
+        | (_, CapabilityNodeMessage::AgentDrainReply(_))
         | (_, CapabilityNodeMessage::TerminalSendResult(_)) => {
             Err(WorkerResponseFailure::WrongResultKind)
         }
@@ -1205,6 +1344,11 @@ fn validate_response(
         | (WorkerOperationRequest::WorktreeJob(_), _) => {
             Err(WorkerResponseFailure::WrongResultKind)
         }
+        (
+            WorkerOperationRequest::AgentDrain(_),
+            CapabilityNodeMessage::TerminalLaunchResult(_)
+            | CapabilityNodeMessage::TerminalStartResult(_),
+        ) => Err(WorkerResponseFailure::WrongResultKind),
     }
 }
 

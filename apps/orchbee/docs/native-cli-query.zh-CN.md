@@ -4,8 +4,9 @@
 Workbench mutation 批。查询命令是对已在运行的本地 Site 的只读观察；mutation 命令各自在
 [Mutations](#mutations) 安全契约下至多提交一次 effectful `workbench.command`。本面绝不创建、
 修复、锁定或激活 Site；查询不创建终端、viewer 或控制授权——唯一例外是 `terminal read`，
-它对已绑定终端持有一个短暂的只读 viewer attachment 并在输出前释放。任何命令都不猜测
-Agent、Worker、进程或 PTY 状态，也不要求 TTY。这是未发布的本地开发面；`apps/cli` 仍是
+它对已绑定终端持有一个短暂的只读 viewer attachment 并在输出前释放。`agent` 族通过
+Agent Observation Protocol（OBAP）读取 Server 的 canonical Agent session——类型化的
+只读视图，绝不从终端内容推断。任何命令都不猜测 Worker、进程或 PTY 状态，也不要求 TTY。这是未发布的本地开发面；`apps/cli` 仍是
 已交付的 TypeScript CLI 权威；安装、发布、远端连接与 Site 生命周期操作不在范围内。
 
 归属：本记录拥有 `src/invocation.rs` 与 `src/cli/**` 实现的公共语法、结果 envelope、失败矩阵、
@@ -108,6 +109,14 @@ Agent、Worker、进程或 PTY 状态，也不要求 TTY。这是未发布的本
 - `--mouse off|on`：带值 flag，单次使用，仅显式 `tui` 路由受理——宿主机指针捕获
   用于面板命中，默认开启。语法仅两 token 形式；`--mouse=<value>`、缺失或未知值、
   重复、出现在其他命令路由或裸调用，均为 `invalid-usage`。
+- `--include-ended`：无值布尔 flag，单次使用，仅 `agent list` 受理；让请求页包含
+  lifecycle 为 `ended` 的 session。
+- `--limit <n>`：带值 flag，单次使用，仅 `agent list` 受理；页大小为一个
+  `1..=100` 的十进制 `u64`，默认取 wire 契约的 50。重复、非数值或越界值均为
+  `invalid-usage`。
+- `--cursor <c>`：带值 flag，单次使用，仅 `agent list` 受理；铸造的
+  `v1.<59>.<43>` 续页 token，逐字携带——真实性由 Server 侧校验，CLI 绝不验证。
+  畸形 token 在任何运行时访问之前即 `invalid-usage`。
 - `--version`：仅在独占根调用时合法；其他位置或与其他参数并存都是 usage。
 - `-h`/`--help`：根级独占 token，或已识别帮助路径（family 或完整命令路径）的单一后缀。
 - `--` 之后的位置参数：`--` 之后的 token 只作位置参数，故 `orchbee -- status` 查询 status，
@@ -141,6 +150,9 @@ orchbee panel move <target> --target-panel <target> --direction above|below|left
 orchbee terminal list | terminal get <target> | terminal read <target> [--history --rows <1-1000>]
 orchbee terminal wait-output <target> --match <text> [--rows <1-1000>] [--timeout <1-3600000>]
 orchbee terminal send <target> (--text <utf8> | --file <path> | --stdin) [--enter] | --key <name>
+orchbee terminal send <target> (--text <utf8> [--enter] | --key <name>)
+orchbee agent list [--include-ended] [--limit <1-100>] [--cursor <v1.…>]
+orchbee agent get <session-id> | agent explain <session-id>
 orchbee api snapshot
 orchbee api schema [<schema-id>]
 orchbee site start
@@ -150,7 +162,7 @@ orchbee help <recognized path>
 orchbee <recognized path> -h|--help
 ```
 
-帮助主题：根级；`project`、`workspace`、`worktree`、`tab`、`panel`、`terminal`、`api`、`site`、
+帮助主题：根级；`project`、`workspace`、`worktree`、`tab`、`panel`、`terminal`、`agent`、`api`、`site`、
 `config`、`completion` 九个族；以及包括 `tui` 在内的每条完整命令路径。`help` 只接受已识别的路径（不带
 过滤器、不带 format）。路径末尾的 `-h` 或 `--help` 是同一路径上的同一请求：`orchbee --help`、
 `project --help`、`project get --help` 输出的内容与 `help`、`help project`、`help project get`
@@ -164,7 +176,7 @@ orchbee <recognized path> -h|--help
 
 `help`、`completion`、`tui`、`--version` 与裸调用是固定文本输出，不接受 `--format`；一个合法
 `--format=json` 会把随后产生的语法失败变成 JSON `invalid-usage` 失败文档，而 text/默认失败仍
-保持 stdout 为空。数据命令（`status`、全部 `list`/`get`、`api snapshot`、`api schema`、
+保持 stdout 为空。数据命令（`status`、全部 `list`/`get`、`agent explain`、`api snapshot`、`api schema`、
 `site start`、`config check`）与全部 mutation 命令接受 `--format`。`api` 命令是机器面：`api snapshot` 或 `api schema` 成功时在
 两种 format 下输出同一份 JSON 文档；`api` 失败则与其他命令一样跟随所选 format——text/默认下
 只写 stderr、stdout 为空，只有 `--format json` 才产出失败 envelope。
@@ -184,6 +196,9 @@ Unicode scalar；空或过长的 token 与全零 ID 形值都是 `invalid-identi
 操作数与 `--target-panel` 同样遵守（`panel` 规则：仅 typed ID，并在被移动 panel 自身所在
 tab 内解析）。`api schema` 接受非空
 schema ID；空串是 `invalid-identifier`（`resource="schema"`），无匹配是 `not-found`。
+`agent get` 与 `agent explain` 接受 Agent session 身份：取自 `[A-Za-z0-9._:-]` 的
+1–128 字符不透明 token——绝不做 id/label 拆分；畸形 token 在任何运行时访问之前
+即 `invalid-usage`。
 
 读取成功后的解析：零匹配 → `not-found`（3）；多个精确 label 匹配 → `ambiguous`（3），按
 canonical 遍历次序报告至多前 8 个候选 typed ID 与真实 `totalCount`。命名不存在实体的过滤器是
@@ -410,6 +425,55 @@ inputSource:"file"|"stdin"}`，仅超时另带 `timeoutMs`（配置的共享预�
   disposition 被尊重而非覆盖。以上均为依托 procfs 的 Linux-only 声明，与 procfd
   输入准入一致。
 
+`agent list`、`agent get` 与 `agent explain` 沿用与每个网络查询相同的
+cohort → discovery → socket → admission 前导，但共享一个在调用入口采样一次的绝对
+5 秒命令预算：前导、准入与单次 OBAP 交换共用同一个 ceiling，阶段之间绝不刷新——
+预算耗尽的后续阶段不会启动，在 ceiling 上或其后完成的步骤结算为命令自身的
+timeout。它们完全跳过 Workbench 快照读取。它们在唯一已准入的 Client Session 上
+执行恰好一次 Agent Observation Protocol（OBAP）请求/结果交换：
+
+1. **请求**——一个 OBAP 帧（`OBAP` magic，version 1），使用全新铸造的
+   `ObapRequestId`：`agent.session.list.request`（kind 1）携带 `includeEnded`、
+   `limit` 与可选 `cursor`（首页省略——绝不序列化为 `null`，线上显式 `null`
+   亦被拒绝）；`agent.session.get.request`（kind 3）或
+   `agent.session.explain.request`（kind 5）携带已解析的 `sessionId`。编码后的
+   请求以 16 KiB 为界。
+2. **结果**——恰好一个匹配的结果帧（kind 2/4/6），list 以 1 MiB 为界、
+   get/explain 以 128 KiB 为界；小型拒答走 ≤1 KiB 界限。帧的 `requestId` 必须
+   等于所发身份，结果 kind 必须匹配所发 operation——任何失配均为
+   `protocol-invalid`、stage `agent-read`。
+3. **释放**——Client Session 在任何结果映射或输出准备之前完全 drop。提交后
+   不可判定的结果会 retire 该 session 且绝不重放：不重连、不二次准入、不重试。
+
+在 Linux 上，Agent 读取命令为整个 armed span 拥有一套独立、更窄的信号
+watch——仅 {SIGINT, SIGTERM}，在任何运行时接触之前通过源阶段所用的同一套
+私有 arming 机制 arm：合格集排除进程已 block 或 ignore 的每个信号，借用的
+信号描述符并入每次准入与交换等待，精确的旧 mask 在输出期间保持屏蔽、随后
+由同一个不可克隆的 finalization 令牌恢复。arming 运行之前，进程信号行为
+保持继承；SIGHUP 与 SIGQUIT 在整个调用期间绝不 mask、绝不捕获——完全保留
+其继承 disposition，那里的默认原始死亡是诚实结果、CLI 不予上报；继承为
+ignored 或 blocked 的成员只是离开合格集（空集仍是真实的 armed 策略）。
+arming 本身就确立了取消所有权——与准入竞速无关——因此被捕获的信号无论在
+准入期还是读取期落地，都将本次调用结算为 `orchbee.cli.failure.agent` 文档
+上的 `cancelled`：`{stage:"agent-read", operation}`、无关联 source，任一
+成员的退出状态均为 130。130 对 SIGINT 与 SIGTERM 是刻意统一的——不是
+`128 + signo`，信号身份不予暴露。在唯一的 finish 仲裁上信号优先于
+deadline、transport 故障与准入结果，且该仲裁仍只在已准入 session drop
+之后运行。在 clear 仲裁下幸存的临时 wake 观测判为 `internal-failure`，
+绝不判为 transport 或 timeout。
+
+语义应答映射到 `orchbee.cli.failure.agent` 文档下的固定失败类别：
+`listed`/`found` 是仅有的成功 outcome；`rejected{read-denied}` → `denied`；
+`rejected{not-found}` → `not-found`（仅 get/explain，指名该 session）；
+`rejected{cursor-invalid|cursor-stale}` → `rejected`（仅 list）；`unavailable` →
+`service-unavailable` 且 `reason:"runtime-unavailable"`。交换内 deadline 耗尽为
+`timeout` 且 `timeoutMs:5000`；transport 故障为 `transport-loss`；畸形、失配或
+correlation 不符的帧为 `protocol-invalid`。准入后的全部失败携带
+`{stage:"agent-read",operation:"list"|"get"|"explain"}`；相关联的 `agent-read`
+source 只附在可信语义应答上——transport、timeout、protocol-invalid 与
+cancelled 失败均不携带。Agent 读取只观察 Server 的 canonical Agent session；`ended` session
+被如实报告、绝不复活，`--include-ended` 放宽的是页过滤器而非生命周期本身。
+
 ## Site 激活
 
 `site start` 是 TUI 本地启动的无头形态：两者调用同一个共享 connect-or-activate 核
@@ -453,7 +517,7 @@ terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresent
 
 成功 envelope 为 `{schema, version, source, result}`。所有业务文档——查询、mutation、
 收据与失败——均为 `version:1`，唯 `orchbee.terminal.get` 例外：它因新增 `launch`
-成员而为 `version:2`。`orchbee.api.schema` 目录 envelope 为 `version:5`：
+成员而为 `version:2`。`orchbee.api.schema` 目录 envelope 为 `version:6`：
 注册新的 schema id 会改变封闭字典的形状，按版本规则属目录形状变化而非业务变化：
 
 - `source.kind="workbench-snapshot"`：带同一份已验证快照的 `siteId` 与十进制字符串
@@ -470,6 +534,8 @@ terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresent
   coordinator 锁内 join 出的修订——出现在 `terminal get` 应答上。
 - `source.kind="worktree-list"`：`siteId` 与 Server 权威 membership 核验时刻已提交
   Workbench 的十进制字符串 `revision`——出现在 `worktree list` 结果及其快照后失败上。
+- `source.kind="agent-read"`：语义应答带回的相关联 `requestId`——出现在已产出的
+  agent 读取结果与准入后语义拒答上。
 - 不存在 freshness 字段；一次一致读取不等于持续活性保证。
 
 结果载荷（schema ID 为稳定机器名）：
@@ -544,6 +610,20 @@ payloadKind,recordBytes?,key?,inputStatus,cleanupStatus,reason?,acceptedBytes?,t
   （`workerGeneration`、`hostEpoch`、`hostTerminalId`）——只要应答承认一个（`accepted`、
   `outcome-unknown` 或任何 cleanup 义务）即出现，准入前拒绝则缺席。提交的文本绝不回显到
   文档或诊断的任何位置。
+- `orchbee.agent.list` → 逐字的 `listed` outcome：
+  `{kind:"listed",items:[<session summary>…],nextCursor|null,revision}`，每个 summary
+  即 wire `AgentSessionSummary`（session/provider/lifecycle/语义状态/freshness/观察
+  计数/执行位置/pending 请求计数 ≤128/presentation 附件），`nextCursor` 为 Server
+  铸造的续页 token，供 `--cursor` 使用。
+- `orchbee.agent.get` → 逐字的 `found` outcome：
+  `{kind:"found",revision,session}`，`session` 即 wire `AgentSessionDetail`——
+  在 summary 字段之外增加 `capabilities`（≤10 个去重 token）、`lastOutcome` 与
+  `pendingRequests`。
+- `orchbee.agent.explain` → 逐字的 `found` outcome：
+  `{kind:"found",revision,session,explanation}`，`explanation` 为 canonical 11 字段
+  对象（`status`、`statusBasis`、`freshnessMeaning`、`capabilityCeiling`、
+  `fidelity`、`freshness`、`generation`、`sequence`、`source`、`actionPath`、
+  `contentAvailable`）——Server 的派生解读，绝非 CLI 推断。
 - `orchbee.api.snapshot` → `{snapshot}`：完整 `WorkbenchProtocolDocument::Snapshot` 的语义化
   重编码，含 `kind:"workbench.snapshot"`；envelope 的 `siteId`/`revision` 与内部文档一致。
 - `orchbee.api.schema` → 带参 `{schema:{schemaId,document}}`；无参
@@ -593,6 +673,13 @@ failure:{kind,details}}`——send 源阶段专用 envelope，仅 `timeout` 与 
   `details` 为 `{stage:"input",inputSource:"file"|"stdin"}`，超时另带 `timeoutMs`；
   绝不含权威 `source`、请求身份、路径或载荷字节，因为该失败可证明先于任何运行时
   副作用。
+- `orchbee.cli.failure.agent` → `{schema:"orchbee.cli.failure.agent",version:1,failure:
+{kind,details?},source?}`——准入后 agent 读取失败的文档：`kind` ∈
+  `{cancelled,denied,internal-failure,not-found,protocol-invalid,rejected,
+service-unavailable,timeout,transport-loss}`，`details` 为按 kind 封闭的词汇
+  （`{stage:"agent-read",operation[,reason|sessionId|timeoutMs]}`），`source`
+  仅出现在可信语义应答上。agent 命令的准入前失败仍使用通用
+  `orchbee.cli.failure` 文档。
 
 ### Config 检查
 
@@ -698,7 +785,9 @@ transport-loss/protocol-invalid；6 incompatible；7 `timeout`（`terminal wait-
 期限耗尽未命中，或 send 源物化期间共享 deadline 到期）；8 outcome-unknown；130
 `cancelled`（被处理的 SIGINT 类中断——`terminal wait-output` 期间收到
 HUP/INT/QUIT/TERM；更一般地，被处理的 `terminal send` 源阶段信号按惯例
-`128 + signo` 退出：合格集对应 129/130/131/143）。源 guard 未捕获的合格信号按原
+`128 + signo` 退出：合格集对应 129/130/131/143）。`agent` 读取期间被捕获的
+SIGINT 或 SIGTERM 结算为类型化 `cancelled` agent 失败、状态 130——按契约两个
+成员相同——未被 watch 的 SIGHUP/SIGQUIT 保留其继承 disposition。源 guard 未捕获的合格信号按原
 disposition 交付——OS 默认终止遵循 shell 的 `128 + signal` 约定，不是 CLI 合成的结果。
 
 | 来源                                                                                                                         | `failure.kind`                                                             | 退出      | `details`                                                                                 |
@@ -754,6 +843,15 @@ disposition 交付——OS 默认终止遵循 shell 的 `128 + signal` 约定，
 | send `OutcomeUnknown`（写/读/无效结果/correlation）                                                                          | `outcome-unknown`                                                          | 8         | `{stage:"send",requestId,reason}`                                                         |
 | `terminal.send.result` `Rejected`/`Unavailable`                                                                              | 类型化应答，非失败 envelope                                                | 3/4       | send 结果 `reason`、`cleanupStatus`；`host-protocol-fault` 退出 5                         |
 | `terminal.send.result` `Accepted` + `Unconfirmed` cleanup                                                                    | 类型化应答，非失败 envelope                                                | 5         | send 结果 `acceptedBytes`、`cleanupStatus`                                                |
+| agent `RequestNotSubmitted`/`Write`/`ResponseDeadline`/`Response(Io)`（deadline 未耗尽）                                     | `transport-loss`                                                           | 5         | `{stage:"agent-read",operation}`                                                          |
+| agent 交换或准入后步骤内共享总 deadline 耗尽                                                                                 | `timeout`                                                                  | 7         | `{stage:"agent-read",operation,timeoutMs:5000}`                                           |
+| agent armed span 捕获合格 SIGINT 或 SIGTERM（任意阶段；HUP/QUIT 保持原始 disposition）                                       | `cancelled`                                                                | 130       | `{stage:"agent-read",operation}`                                                          |
+| agent `Response(wire fault)`/`UnexpectedResponse`/`CorrelationMismatch`、错误结果 kind                                       | `protocol-invalid`                                                         | 5         | `{stage:"agent-read",operation}`                                                          |
+| agent outcome `Rejected(NotFound)`（get/explain）                                                                            | `not-found`                                                                | 3         | `{stage:"agent-read",operation,sessionId}`                                                |
+| agent outcome `Rejected(ReadDenied)`                                                                                         | `denied`                                                                   | 3         | `{stage:"agent-read",operation,reason:"read-denied"}`                                     |
+| agent list outcome `Rejected(CursorInvalid\|CursorStale)`                                                                    | `rejected`                                                                 | 3         | `{stage:"agent-read",operation:"list",reason:"cursor-invalid"\|"cursor-stale"}`           |
+| agent outcome `Unavailable`                                                                                                  | `service-unavailable`                                                      | 4         | `{stage:"agent-read",operation,reason:"runtime-unavailable"}`                             |
+| agent `SessionUnavailable`/`RequestEncoding`                                                                                 | `internal-failure`                                                         | 1         | 省略                                                                                      |
 | send 源校验：打不开/非 regular 路径、终端或不支持的 stdin、空、超限、非 UTF-8                                                | `invalid-usage`                                                            | 2         | 省略（本地化 stderr 指明所声明选项与具体原因）                                            |
 | send 源物化期间共享 deadline 到期                                                                                            | `timeout`，属 `orchbee.cli.failure.source`                                 | 7         | `{stage:"input",inputSource,timeoutMs}`                                                   |
 | send 源物化期间捕获合格信号                                                                                                  | `cancelled`，属 `orchbee.cli.failure.source`                               | 128+signo | `{stage:"input",inputSource}`                                                             |
@@ -773,7 +871,7 @@ disposition 交付——OS 默认终止遵循 shell 的 `128 + signal` 约定，
 | `terminal wait-output` 命中但 `Detach` 未确认                                                                                | 类型化 viewer-stage 失败                                                   | *         | `{stage:"viewer",matchObserved:true,cleanup:"unconfirmed"}`                               |
 
 `resource` ∈ `project|workspace|tab|panel|terminal|schema`；`stage` ∈
-`cohort|runtime-base|runtime-directory|socket|discovery|admission|activation|snapshot|viewer|command|send|platform|wait`。
+`cohort|runtime-base|runtime-directory|socket|discovery|admission|activation|snapshot|viewer|command|send|agent-read|platform|wait`。
 专用 `orchbee.cli.failure.worktree` envelope 接纳 `resource:"directory"` 与上文随其
 schema 记录的 `worktree-list|probe|list|parse` stage 词汇——这些值仅属该 envelope，
 不进入通用 `orchbee.cli.failure` 词汇。
@@ -785,8 +883,10 @@ stage 与 reason 是有限 schema 值；任何异常文本都不进入机器字�
 `{stage:"send",requestId,reason}`、
 `{stage:"viewer",operation:"read-history"|"wait-output",reason}`、
 `{stage:"wait",timeoutMs,observed}`、`{stage:"wait",cleanup}`、
-`{stage:"viewer",matchObserved,cleanup}` 或
-`{limitBytes}`——内嵌 schema 拒绝超出这些形状的文档。读路径错误永不归类为
+`{stage:"viewer",matchObserved,cleanup}`、`{limitBytes}`，或 agent-read 族——
+`{stage:"agent-read",operation}`、`{stage:"agent-read",operation,sessionId}`、
+`{stage:"agent-read",operation,reason}`、`{stage:"agent-read",operation,timeoutMs}`——
+内嵌 schema 拒绝超出这些形状的文档。读路径错误永不归类为
 outcome-unknown/failed-effect：只有 command 阶段可能产生不可判定效果；
 `rejected`/`denied`/`unavailable` precommit 答案都是确定的——Server 未应用任何效果。
 send 阶段对其单条输入记录遵循同一规则：`RequestNotSubmitted` 是确定的未提交，
@@ -841,7 +941,12 @@ deadline 到期在 wire 请求尚不存在时即退出。
   合格信号在输出最终化路径之后仍被阻塞。
 - 每次调用至多一次快照读取、一次准入，且读取与命令共用一个网络 deadline；`terminal read`
   的 viewer 交换与 `terminal send` 的唯一 send 复用同一 session 与同一 deadline——绝无
-  第二次准入或续期预算。
+  第二次准入或续期预算。Agent 读取对其唯一一次 OBAP 交换遵循同一纪律：一个请求、
+  全新 `ObapRequestId`、一个相关联结果，任何不可判定结果即 retire session 且绝不
+  重放——且完全不取 Workbench 快照。
+- Agent 观察绝不虚构：结果是逐字的 wire outcome，`found` 的 `explanation` 是 Server
+  的 canonical 11 字段解读，成功绝不从终端内容或截图推断。`agent-read` source 只在
+  可信的相关联应答之后存在；transport、timeout 与 protocol-invalid 失败均不携带。
   `terminal wait-output` 保持同一次准入，并把固定 5 秒预算替换为命令开始时取的用户
   `--timeout` deadline；其每附件 `requestSequence` 在全部 `read-rows` 中从 1 严格递增。
 - match 只证明该文本在本次观察的搜索窗口内被找到——绝不证明命令完成、新 turn 或没有
@@ -880,6 +985,8 @@ deadline 到期在 wire 请求尚不存在时即退出。
 | 源 deadline/取消：停滞管道在共享 deadline 退出 7、被捕获合格信号按 `128+signo` 携带 `orchbee.cli.failure.source`、继承 IGN/BLK 原样保留、恢复失败即 internal             | 源 envelope 事实、无 wire 请求、精确 mask 恢复                                   | `src/cli/source` 测试 + 标注的 OS/进程证据                |
 | 脚本化 OBCS send peer + 声明型源：物化后的文件/stdin 以一条 `terminal.send` 文本请求到达                                                                                 | 与 `--text` 完全相同的 envelope；恰好一条请求                                    | `tests/cli_send.rs`                                       |
 | 脚本化 OBCS viewer peer + 手工 OBTF/OBRW record：递增 `requestSequence`、可见/历史边界窗口、每帧真实 `FrameApplied`、stale 重钉、行尾 excerpt 命中、含 preamble 的总期限 | `terminal wait-output` 成功 + typed 失败                                         | `tests/cli_query.rs`                                      |
+| 脚本化 OBLC/OBAP peer：list/get/explain 逐字 outcome、选项→wire 回显、denied/not-found/cursor/unavailable 应答、畸形/错 kind/correlation 不符帧、无重试                  | agent 读取成功 + typed `agent-read` 失败                                         | `tests/cli_agent.rs`                                      |
+| Agent envelope ↔ 内嵌 schema：发出的成功/失败文档通过校验；wire 不可能变体（计数 129、重复 capabilities/ceiling）被拒                                                    | wire 契约的 schema 重述                                                          | `tests/cli_agent.rs`                                      |
 | 真实 staged-cohort Server + 活跃 TUI 终端：`wait-output` 命中已有/后到/滚出屏/UTF-8 输出，短期限退出 7，取消后槽位可复用                                                 | 公共等待观察与 TUI 自身 viewer 共存                                              | `tests/local_startup_process`                             |
 | 真实 staged-cohort Server + 活跃 TUI 终端：`terminal read` 返回其网格并通过 schema 校验                                                                                  | 真实只读观察与 TUI 自身 viewer 共存                                              | `tests/local_startup_process`                             |
 | Mutation 语法：全部命令、target 规则、`--confirm`、几何界限、flag 范围                                                                                                   | 运行时访问前的精确 parse/失败类别                                                | `src/invocation` 测试                                     |

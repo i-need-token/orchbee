@@ -52,8 +52,28 @@ impl ClientSessionConnection {
         cohort: &str,
         deadline: std::time::Instant,
     ) -> Result<Self, ConnectClientError> {
+        Self::connect_before_cancellable(endpoint, cohort, deadline, None)
+    }
+
+    /// The same admission plus one optional borrowed wake descriptor observed
+    /// during connect and handshake waits. The descriptor is a wake-up
+    /// capability only: it is never owned, duplicated, read, drained, or
+    /// closed here, no signal mask or disposition is touched, and what made it
+    /// readable is never interpreted. `None` is exactly `connect_before`.
+    /// `POLLIN` is a wake candidate; `POLLERR`/`POLLHUP`/`POLLNVAL` report a
+    /// broken wake channel. Both surface as `CancellationReady` or
+    /// `CancellationSourceFault` — provisional facts, not a cancellation
+    /// verdict; the caller's own signal owner performs the sole arbitration
+    /// read and decides the outcome.
+    #[cfg(target_os = "linux")]
+    pub fn connect_before_cancellable(
+        endpoint: &Path,
+        cohort: &str,
+        deadline: std::time::Instant,
+        wake: Option<BorrowedFd<'_>>,
+    ) -> Result<Self, ConnectClientError> {
         let hello = ClientHello::new(cohort)?;
-        admission_deadline::connect_before(endpoint, hello, deadline)
+        admission_deadline::connect_before_cancellable(endpoint, hello, deadline, wake)
     }
 
     pub fn connect(endpoint: &Path, cohort: &str) -> Result<Self, ConnectClientError> {
@@ -145,16 +165,30 @@ pub enum ConnectClientError {
     Protocol(ProtocolError),
     Rejected(RejectionReason),
     UnexpectedResponse,
+    /// The borrowed wake descriptor became readable during admission — a
+    /// provisional wake fact, not a cancellation verdict. The descriptor was
+    /// never read here; the caller's own signal owner performs the sole
+    /// arbitration read and decides the outcome.
+    CancellationReady,
+    /// The borrowed wake descriptor reported `POLLERR`, `POLLHUP`, or
+    /// `POLLNVAL` — the wake channel itself is broken. The caller decides
+    /// whether this counts toward its cancellation outcome.
+    CancellationSourceFault(io::Error),
 }
 
 impl fmt::Display for ConnectClientError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ConnectFailed(error) | Self::Io(error) => error.fmt(formatter),
+            Self::ConnectFailed(error) | Self::Io(error) | Self::CancellationSourceFault(error) => {
+                error.fmt(formatter)
+            }
             Self::Protocol(error) => error.fmt(formatter),
             Self::Rejected(reason) => write!(formatter, "local Client was rejected: {reason:?}"),
             Self::UnexpectedResponse => {
                 formatter.write_str("local Client received an unexpected handshake response")
+            }
+            Self::CancellationReady => {
+                formatter.write_str("local Client admission observed a cancellation wake")
             }
         }
     }
@@ -163,9 +197,11 @@ impl fmt::Display for ConnectClientError {
 impl std::error::Error for ConnectClientError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::ConnectFailed(error) | Self::Io(error) => Some(error),
+            Self::ConnectFailed(error) | Self::Io(error) | Self::CancellationSourceFault(error) => {
+                Some(error)
+            }
             Self::Protocol(error) => Some(error),
-            Self::Rejected(_) | Self::UnexpectedResponse => None,
+            Self::Rejected(_) | Self::UnexpectedResponse | Self::CancellationReady => None,
         }
     }
 }

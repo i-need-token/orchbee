@@ -4,6 +4,9 @@
 
 use std::collections::HashMap;
 
+use orchbee_agent_observation_protocol::{
+    AgentExplainOutcome, AgentGetOutcome, AgentListOutcome, ObapRequestId,
+};
 use orchbee_client_server_protocol::TerminalLaunchFact;
 use orchbee_terminal_protocol::MAXIMUM_FRAME_ROWS;
 use orchbee_workbench_protocol::{
@@ -18,6 +21,9 @@ use crate::invocation::{QueryCommand, Resource, Target};
 pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
     match command {
         QueryCommand::Status => "orchbee.status",
+        QueryCommand::AgentList { .. } => "orchbee.agent.list",
+        QueryCommand::AgentGet(_) => "orchbee.agent.get",
+        QueryCommand::AgentExplain(_) => "orchbee.agent.explain",
         QueryCommand::ProjectList => "orchbee.project.list",
         QueryCommand::ProjectGet(_) => "orchbee.project.get",
         QueryCommand::WorkspaceList { .. } => "orchbee.workspace.list",
@@ -70,6 +76,17 @@ pub(crate) fn launch_read_source(site_id: &str, revision: u64) -> Value {
         "kind": "terminal-launch-read",
         "siteId": site_id,
         "revision": revision.to_string(),
+    })
+}
+
+/// `source` for a correlated Agent read answer: the operation family plus
+/// the request identity the semantic reply carried back. Only attached after
+/// a valid correlated response — local transport, timeout, cancellation, and
+/// protocol faults have no honest source.
+pub(crate) fn agent_source(request_id: &ObapRequestId) -> Value {
+    json!({
+        "kind": "agent-read",
+        "requestId": request_id.as_str(),
     })
 }
 
@@ -607,6 +624,12 @@ pub(crate) fn terminal_binding(snapshot: &Snapshot, identity: &str) -> Option<Te
 #[derive(Debug)]
 pub(crate) enum Projection {
     Status(StatusDoc),
+    /// The typed `listed` outcome, verbatim from the wire.
+    AgentList(AgentListOutcome),
+    /// The typed `found` outcome, verbatim from the wire.
+    AgentGet(AgentGetOutcome),
+    /// The typed `found` outcome carrying session plus explanation.
+    AgentExplain(AgentExplainOutcome),
     ProjectList(Vec<ProjectRow>),
     ProjectGet(ProjectDoc),
     WorkspaceList(Vec<WorkspaceRow>),
@@ -640,6 +663,11 @@ impl Projection {
     /// The `result` member of the machine envelope.
     pub(crate) fn result(&self) -> Value {
         match self {
+            // Agent projections serialize the exact wire outcome object —
+            // the typed enum is the single serialization truth.
+            Self::AgentList(outcome) => json!(outcome),
+            Self::AgentGet(outcome) => json!(outcome),
+            Self::AgentExplain(outcome) => json!(outcome),
             Self::Status(doc) => json!({
                 "site": {
                     "reachable": true,
@@ -1305,8 +1333,12 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
         // observations, not snapshot data alone; their answers are built by
         // the query layer. `worktree list` issues its own Workbench request
         // after the snapshot resolves the project; `api schema`/`config
-        // check` never reach a snapshot projection.
-        QueryCommand::TerminalGet(_)
+        // check` never reach a snapshot projection, and Agent reads are
+        // answered by the OBAP exchange, never a snapshot projection.
+        QueryCommand::AgentList { .. }
+        | QueryCommand::AgentGet(_)
+        | QueryCommand::AgentExplain(_)
+        | QueryCommand::TerminalGet(_)
         | QueryCommand::TerminalRead { .. }
         | QueryCommand::TerminalWaitOutput { .. }
         | QueryCommand::WorktreeList { .. }

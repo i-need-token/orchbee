@@ -3,6 +3,10 @@ use std::{
     io::{self, Cursor, Read, Write},
 };
 
+use orchbee_agent_observation_protocol::{
+    AGENT_MAGIC, AgentReadRequest, AgentReadResult, AgentWireError, read_agent_request,
+    write_agent_result,
+};
 use orchbee_client_server_protocol::{
     ClientMessage, FRAME_MAGIC, PASTE_RECORD_MAGIC, ReadMessageError, ServerMessage,
     WriteMessageError, read_client_message, write_server_message,
@@ -12,12 +16,14 @@ use orchbee_workbench_protocol::{
     write_workbench_response,
 };
 
+use crate::agent_service::AgentReadFault;
 use crate::workbench_service::WorkbenchExecution;
 
 pub(super) fn run<Stream>(
     stream: &mut Stream,
     mut execute: impl FnMut(ClientMessage) -> ServerMessage,
     mut execute_workbench: impl FnMut(WorkbenchRequest) -> WorkbenchExecution,
+    mut execute_agent: impl FnMut(AgentReadRequest) -> Result<AgentReadResult, AgentReadFault>,
 ) -> Result<(), ApplicationSessionError>
 where
     Stream: Read + Write,
@@ -43,6 +49,12 @@ where
                 write_workbench_response(stream, &result)
                     .map_err(ApplicationSessionError::Workbench)?;
             }
+            AGENT_MAGIC => {
+                let request = read_agent_request(&mut Cursor::new(prefix).chain(&mut *stream))
+                    .map_err(ApplicationSessionError::Agent)?;
+                let result = execute_agent(request).map_err(ApplicationSessionError::AgentFault)?;
+                write_agent_result(stream, &result).map_err(ApplicationSessionError::Agent)?;
+            }
             _ => return Err(ApplicationSessionError::UnknownProtocol),
         }
     }
@@ -54,6 +66,8 @@ pub(super) enum ApplicationSessionError {
     UnknownProtocol,
     WorkbenchOutcomeUnknown,
     Workbench(WorkbenchWireError),
+    Agent(AgentWireError),
+    AgentFault(AgentReadFault),
     Read(ReadMessageError),
     Write(WriteMessageError),
 }
@@ -69,6 +83,10 @@ impl fmt::Display for ApplicationSessionError {
                 formatter.write_str("Workbench command outcome is unknown")
             }
             Self::Workbench(error) => error.fmt(formatter),
+            Self::Agent(error) => write!(formatter, "OBAP record exchange failed: {error}"),
+            Self::AgentFault(error) => {
+                write!(formatter, "Agent read could not be answered: {error}")
+            }
             Self::Read(error) => write!(formatter, "OBCS request read failed: {error}"),
             Self::Write(error) => write!(formatter, "OBCS result write failed: {error}"),
         }
@@ -81,6 +99,8 @@ impl std::error::Error for ApplicationSessionError {
             Self::Prefix(error) => Some(error),
             Self::UnknownProtocol | Self::WorkbenchOutcomeUnknown => None,
             Self::Workbench(error) => Some(error),
+            Self::Agent(error) => Some(error),
+            Self::AgentFault(error) => Some(error),
             Self::Read(error) => Some(error),
             Self::Write(error) => Some(error),
         }

@@ -112,7 +112,7 @@ fn rejects_an_unmappable_zero_worker_id_before_acceptance() -> TestResult {
         &LocalSiteMessage::WorkerHello(WorkerHello::new(COHORT, WorkerId::from_bytes([0; 16]))?),
     )?;
 
-    handle_candidate(server, &registry, COHORT);
+    handle_candidate(server, &registry, COHORT, None);
 
     assert_eq!(
         read_site_message(&mut worker)?,
@@ -143,7 +143,7 @@ fn admit_worker(
         &mut worker,
         &LocalSiteMessage::WorkerHello(WorkerHello::new(COHORT, worker_id)?),
     )?;
-    handle_candidate(server, registry, COHORT);
+    handle_candidate(server, registry, COHORT, None);
     let reply = read_site_message(&mut worker)?;
     let LocalSiteMessage::WorkerAccepted { generation } = reply else {
         return Err(io::Error::other(format!(

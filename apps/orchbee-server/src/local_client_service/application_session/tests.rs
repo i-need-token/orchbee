@@ -11,6 +11,7 @@ use orchbee_client_server_protocol::{
 
 use super::ApplicationSessionError;
 
+mod agent;
 mod workbench;
 
 fn run<Stream: Read + Write>(stream: &mut Stream) -> Result<(), ApplicationSessionError> {
@@ -18,6 +19,7 @@ fn run<Stream: Read + Write>(stream: &mut Stream) -> Result<(), ApplicationSessi
         stream,
         |request| denied_result(&request),
         |_request| panic!("unexpected Workbench request"),
+        |_request| panic!("unexpected Agent request"),
     )
 }
 
@@ -244,6 +246,7 @@ fn routes_paste_records_through_the_control_executor() -> Result<(), Box<dyn std
             result.clone()
         },
         |_request| panic!("unexpected Workbench request"),
+        |_request| panic!("unexpected Agent request"),
     )
     .expect_err("EOF must end the OBCS Session");
     assert!(matches!(
@@ -294,9 +297,12 @@ fn rejects_malformed_paste_records_without_reaching_the_executor()
     ] {
         let mut stream = MemoryStream::new(mutated);
         assert!(
-            super::run(&mut stream, executor, |_request| {
-                panic!("unexpected Workbench request")
-            })
+            super::run(
+                &mut stream,
+                executor,
+                |_request| { panic!("unexpected Workbench request") },
+                |_request| { panic!("unexpected Agent request") }
+            )
             .is_err()
         );
         assert!(stream.output.is_empty());
@@ -306,9 +312,12 @@ fn rejects_malformed_paste_records_without_reaching_the_executor()
     oversized.extend_from_slice(&(MAXIMUM_PASTE_CONTENT_BYTES as u32 + 57).to_be_bytes());
     let mut stream = MemoryStream::new(oversized);
     assert!(matches!(
-        super::run(&mut stream, executor, |_request| {
-            panic!("unexpected Workbench request")
-        }),
+        super::run(
+            &mut stream,
+            executor,
+            |_request| { panic!("unexpected Workbench request") },
+            |_request| { panic!("unexpected Agent request") }
+        ),
         Err(ApplicationSessionError::Read(ReadMessageError::Protocol(
             ProtocolError::PayloadTooLarge { .. }
         )))

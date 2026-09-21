@@ -211,6 +211,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         super::completion::render(CompletionShell::Fish),
     ];
     for family in [
+        Family::Agent,
         Family::Api,
         Family::Completion,
         Family::Config,
@@ -227,6 +228,9 @@ fn fixed_outputs_are_far_below_the_bound() {
     // Every `CommandPath` variant, in both locales — the bound must cover the
     // mutation helps as well as the queries.
     let commands = [
+        CommandPath::AgentExplain,
+        CommandPath::AgentGet,
+        CommandPath::AgentList,
         CommandPath::ApiSchema,
         CommandPath::ApiSnapshot,
         CommandPath::ConfigCheck,
@@ -274,6 +278,7 @@ fn fixed_outputs_are_far_below_the_bound() {
     // everything the walk does enumerate. Both legal surfaces are walked:
     // trailing `--help` and the `help` prefix.
     let roots = [
+        "agent",
         "api",
         "completion",
         "config",
@@ -292,6 +297,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         "check",
         "close",
         "create",
+        "explain",
         "get",
         "list",
         "move",
@@ -567,4 +573,46 @@ fn wait_stage_failures_keep_the_wait_wording() {
             );
         }
     }
+}
+
+/// A captured signal on an Agent read answers `orchbee.cli.failure.agent`
+/// with the cancelled kind at 130 and the noncloneable finalization riding
+/// the common emit path — a cancelled read carries no correlated source.
+#[cfg(target_os = "linux")]
+#[test]
+fn agent_cancellation_emits_agent_envelope_with_finalization() {
+    use super::{Failure, FailureKind, SourceFinalization, query};
+    let command = QueryCommand::AgentList {
+        include_ended: false,
+        limit: 50,
+        cursor: None,
+    };
+    let mut details = serde_json::Map::new();
+    details.insert("stage".to_owned(), json!("agent-read"));
+    details.insert("operation".to_owned(), json!("list"));
+    let output = super::agent_output(
+        Err(query::AgentQueryError::Cancelled(Box::new(
+            query::AgentCancelled {
+                failure: Failure::new(FailureKind::Cancelled).details(details),
+                finalization: SourceFinalization::failing(),
+            },
+        ))),
+        &command,
+        OutputFormat::Json,
+        Locale::EnUs,
+    );
+    assert_eq!(output.status, 130);
+    assert!(
+        output.finalization.is_some(),
+        "the owed finalization reaches the common emit"
+    );
+    let body = envelope(&output.stdout);
+    assert_eq!(body["schema"], "orchbee.cli.failure.agent");
+    assert_eq!(body["failure"]["kind"], "cancelled");
+    assert_eq!(body["failure"]["details"]["stage"], "agent-read");
+    assert_eq!(body["failure"]["details"]["operation"], "list");
+    assert!(
+        body.get("source").is_none() || body["source"].is_null(),
+        "a cancelled read publishes no correlated source"
+    );
 }

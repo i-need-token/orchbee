@@ -1,5 +1,8 @@
 use std::ffi::OsString;
 
+use orchbee_agent_observation_protocol::{
+    AgentListCursor, AgentSessionId, DEFAULT_LIST_LIMIT, MAXIMUM_LIST_LIMIT,
+};
 use orchbee_workbench_protocol::{
     LaunchSelection, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel,
     WorkbenchPanelSplitDirection, WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
@@ -78,6 +81,7 @@ pub(crate) enum HelpTopic {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Family {
+    Agent,
     Project,
     Workspace,
     Tab,
@@ -94,6 +98,7 @@ impl Family {
     /// The family's real help-path spelling, as `help_topic` recognizes it.
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
+            Self::Agent => "agent",
             Self::Project => "project",
             Self::Workspace => "workspace",
             Self::Tab => "tab",
@@ -112,6 +117,9 @@ impl Family {
 pub(crate) enum CommandPath {
     Tui,
     Status,
+    AgentList,
+    AgentGet,
+    AgentExplain,
     ProjectList,
     ProjectGet,
     ProjectCreate,
@@ -151,6 +159,9 @@ impl CommandPath {
         match self {
             Self::Tui => "tui",
             Self::Status => "status",
+            Self::AgentList => "agent list",
+            Self::AgentGet => "agent get",
+            Self::AgentExplain => "agent explain",
             Self::ProjectList => "project list",
             Self::ProjectGet => "project get",
             Self::ProjectCreate => "project create",
@@ -189,6 +200,13 @@ impl CommandPath {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum QueryCommand {
     Status,
+    AgentList {
+        include_ended: bool,
+        limit: u64,
+        cursor: Option<AgentListCursor>,
+    },
+    AgentGet(AgentSessionId),
+    AgentExplain(AgentSessionId),
     ProjectList,
     ProjectGet(Target),
     WorkspaceList {
@@ -466,6 +484,9 @@ pub(crate) enum ExpectedValue {
     MouseMode,
     Executable,
     LaunchArguments,
+    AgentSessionId,
+    AgentListLimit,
+    AgentCursor,
 }
 
 /// Why an `invalid-usage` failure was reached. Carried for the localized
@@ -626,6 +647,9 @@ struct Options {
     mouse: Option<bool>,
     exec: Option<String>,
     args: Vec<String>,
+    include_ended: bool,
+    limit: Option<String>,
+    cursor: Option<String>,
 }
 
 /// Every named option that owns the next argv token as its value, used by
@@ -636,12 +660,14 @@ const VALUE_FLAGS: &[&str] = &[
     "--cell-height",
     "--cell-width",
     "--cols",
+    "--cursor",
     "--direction",
     "--directory",
     "--exec",
     "--file",
     "--key",
     "--label",
+    "--limit",
     "--path",
     "--match",
     "--mouse",
@@ -915,6 +941,8 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                     "--key" => &mut options.key,
                     "--file" => &mut options.file,
                     "--exec" => &mut options.exec,
+                    "--limit" => &mut options.limit,
+                    "--cursor" => &mut options.cursor,
 
                     _ => &mut options.target_panel,
                 };
@@ -943,7 +971,8 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                 options.args.push(token["--arg=".len()..].to_owned());
                 index += 1;
             }
-            "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin" => {
+            "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
+            | "--include-ended" => {
                 let (seen, option) = if token == "--standalone" {
                     (&mut options.standalone, "--standalone")
                 } else if token == "--confirm" {
@@ -952,6 +981,8 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                     (&mut options.history, "--history")
                 } else if token == "--stdin" {
                     (&mut options.stdin, "--stdin")
+                } else if token == "--include-ended" {
+                    (&mut options.include_ended, "--include-ended")
                 } else {
                     (&mut options.enter, "--enter")
                 };
@@ -1116,6 +1147,45 @@ fn resolve_words(
         ["status"] => {
             reject_filters(options, UsageContext::Path("status"), envelope)?;
             Ok(query(QueryCommand::Status, options))
+        }
+        ["agent", "list"] => {
+            check_scope(
+                options,
+                AGENT_LIST_SCOPE,
+                UsageContext::Path("agent list"),
+                envelope,
+            )?;
+            let context = UsageContext::Path("agent list");
+            Ok(query(
+                QueryCommand::AgentList {
+                    include_ended: options.include_ended,
+                    limit: agent_limit_option(options, context, envelope)?,
+                    cursor: agent_cursor_option(options, context, envelope)?,
+                },
+                options,
+            ))
+        }
+        ["agent", "get", value] => {
+            reject_filters(options, UsageContext::Path("agent get"), envelope)?;
+            Ok(query(
+                QueryCommand::AgentGet(agent_session_id(
+                    value,
+                    UsageContext::Path("agent get"),
+                    envelope,
+                )?),
+                options,
+            ))
+        }
+        ["agent", "explain", value] => {
+            reject_filters(options, UsageContext::Path("agent explain"), envelope)?;
+            Ok(query(
+                QueryCommand::AgentExplain(agent_session_id(
+                    value,
+                    UsageContext::Path("agent explain"),
+                    envelope,
+                )?),
+                options,
+            ))
         }
         ["project", "list"] => {
             reject_filters(options, UsageContext::Path("project list"), envelope)?;
@@ -1613,6 +1683,33 @@ fn resolve_words(
             extra,
             envelope,
         )),
+        ["agent"] => Err(missing_command(UsageContext::Path("agent"), envelope)),
+        ["agent", "list", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("agent list"),
+            extra,
+            envelope,
+        )),
+        ["agent", "get"] => Err(missing_required(
+            UsageContext::Path("agent get"),
+            "<session>",
+            envelope,
+        )),
+        ["agent", "get", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("agent get"),
+            extra,
+            envelope,
+        )),
+        ["agent", "explain"] => Err(missing_required(
+            UsageContext::Path("agent explain"),
+            "<session>",
+            envelope,
+        )),
+        ["agent", "explain", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("agent explain"),
+            extra,
+            envelope,
+        )),
+        ["agent", verb, ..] => Err(unknown_command(UsageContext::Path("agent"), verb, envelope)),
         ["project"] => Err(missing_command(UsageContext::Path("project"), envelope)),
         ["project", "list", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("project list"),
@@ -1933,6 +2030,10 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
     Some(match path {
         ["tui"] => HelpTopic::Command(CommandPath::Tui),
         ["status"] => HelpTopic::Command(CommandPath::Status),
+        ["agent"] => HelpTopic::Family(Family::Agent),
+        ["agent", "list"] => HelpTopic::Command(CommandPath::AgentList),
+        ["agent", "get"] => HelpTopic::Command(CommandPath::AgentGet),
+        ["agent", "explain"] => HelpTopic::Command(CommandPath::AgentExplain),
         ["project"] => HelpTopic::Family(Family::Project),
         ["workspace"] => HelpTopic::Family(Family::Workspace),
         ["tab"] => HelpTopic::Family(Family::Tab),
@@ -2037,6 +2138,12 @@ struct Scope {
     exec: bool,
     /// `tab create|panel split --arg <v>`: the repeatable launch-argv option.
     args: bool,
+    /// `agent list --include-ended`: admits the lifecycle filter flag.
+    include_ended: bool,
+    /// `agent list --limit <n>`: admits the page-size value option.
+    limit: bool,
+    /// `agent list --cursor <c>`: admits the page cursor value option.
+    cursor: bool,
 }
 
 const NO_OPTIONS: Scope = Scope {
@@ -2061,12 +2168,23 @@ const NO_OPTIONS: Scope = Scope {
     mouse: false,
     exec: false,
     args: false,
+    include_ended: false,
+    limit: false,
+    cursor: false,
 };
 
 /// The explicit `tui` route: only `--mouse` is admitted on top of the
 /// shared option grammar.
 const TUI_SCOPE: Scope = Scope {
     mouse: true,
+    ..NO_OPTIONS
+};
+
+/// `agent list`: the three pagination/filter options of the read grammar.
+const AGENT_LIST_SCOPE: Scope = Scope {
+    include_ended: true,
+    limit: true,
+    cursor: true,
     ..NO_OPTIONS
 };
 
@@ -2184,6 +2302,9 @@ fn business_options(options: &Options) -> bool {
         || options.stdin
         || options.exec.is_some()
         || !options.args.is_empty()
+        || options.include_ended
+        || options.limit.is_some()
+        || options.cursor.is_some()
 }
 
 /// The first named option present but outside `scope`, in the fixed `Options`
@@ -2266,6 +2387,15 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if !options.args.is_empty() && !scope.args {
         return Some("--arg");
+    }
+    if options.include_ended && !scope.include_ended {
+        return Some("--include-ended");
+    }
+    if options.limit.is_some() && !scope.limit {
+        return Some("--limit");
+    }
+    if options.cursor.is_some() && !scope.cursor {
+        return Some("--cursor");
     }
     None
 }
@@ -2653,6 +2783,73 @@ fn send_input(
             envelope,
         )),
     }
+}
+
+/// `agent list --limit`: the bounded page size, 1..=100, defaulting to the
+/// wire contract's 50.
+fn agent_limit_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<u64, ParseFailure> {
+    let Some(value) = options.limit.clone() else {
+        return Ok(DEFAULT_LIST_LIMIT);
+    };
+    match value.parse::<u64>() {
+        Ok(limit) if (1..=MAXIMUM_LIST_LIMIT).contains(&limit) => Ok(limit),
+        _ => Err(usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "--limit",
+                value,
+                expected: ExpectedValue::AgentListLimit,
+            },
+            envelope,
+        )),
+    }
+}
+
+/// `agent list --cursor`: the minted `v1.<59>.<43>` page cursor, carried
+/// verbatim — authenticity is verified Server-side, never here.
+fn agent_cursor_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<Option<AgentListCursor>, ParseFailure> {
+    match &options.cursor {
+        Some(value) => AgentListCursor::parse(value).map(Some).map_err(|_| {
+            usage_with(
+                UsageReason::InvalidValue {
+                    context,
+                    option: "--cursor",
+                    value: value.clone(),
+                    expected: ExpectedValue::AgentCursor,
+                },
+                envelope,
+            )
+        }),
+        None => Ok(None),
+    }
+}
+
+/// The `agent get|explain` operand: a wire-ready Agent session identity —
+/// opaque `1..=128` `[A-Za-z0-9._:-]+`, never an id/label split.
+fn agent_session_id(
+    value: &str,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<AgentSessionId, ParseFailure> {
+    AgentSessionId::parse(value).map_err(|_| {
+        usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "<session>",
+                value: value.to_owned(),
+                expected: ExpectedValue::AgentSessionId,
+            },
+            envelope,
+        )
+    })
 }
 
 fn tab_direction(

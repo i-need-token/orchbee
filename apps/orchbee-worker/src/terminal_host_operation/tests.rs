@@ -1,4 +1,5 @@
 use std::{
+    cell::RefCell,
     error::Error,
     fs,
     io::{self, Read, Write},
@@ -7,6 +8,7 @@ use std::{
     os::unix::net::{UnixListener, UnixStream},
     path::PathBuf,
     process::{Child, Command, Stdio},
+    rc::Rc,
     sync::atomic::{AtomicU64, Ordering},
     thread,
     time::{Duration, Instant},
@@ -45,7 +47,7 @@ fn exact_launch_success_remains_in_the_kernel_slot_and_replays_without_an_effect
         let mut kernel = kernel()?;
         let launch = AuthorizedTerminalLaunch::new(authorization(1)?, None, mode, None);
         let dispatch = dispatch(kernel.admit_launch(launch.clone(), 100)?)?;
-        let operation = PreparedHostOperation::launch(&dispatch, facts()?, correlation()?)?;
+        let operation = PreparedHostOperation::launch(&dispatch, facts()?, correlation()?, None)?;
         let peer = respond(fixture.peer.try_clone()?, Ok);
         assert_eq!(
             operation.execute(
@@ -96,7 +98,7 @@ fn handoff_rejections_and_invalid_preparation_never_send_a_command() -> TestResu
     let mut kernel = kernel()?;
     let dispatch = launch_dispatch(&mut kernel)?;
     assert!(PreparedHostOperation::start(&dispatch, correlation()?).is_err());
-    let invalid = PreparedHostOperation::launch(&dispatch, facts()?, correlation()?)?;
+    let invalid = PreparedHostOperation::launch(&dispatch, facts()?, correlation()?, None)?;
     assert!(matches!(
         invalid.execute(
             &mut kernel,
@@ -108,7 +110,7 @@ fn handoff_rejections_and_invalid_preparation_never_send_a_command() -> TestResu
         Err(HostOperationError::InvalidBudget)
     ));
     assert!(kernel.take_result().is_none());
-    let expired = PreparedHostOperation::launch(&dispatch, facts()?, correlation()?)?;
+    let expired = PreparedHostOperation::launch(&dispatch, facts()?, correlation()?, None)?;
     assert_eq!(
         expired.execute(
             &mut kernel,
@@ -159,8 +161,12 @@ fn exact_generic_failure_is_failed_even_when_its_diagnostics_say_rejected_and_re
 -> TestResult {
     let mut fixture = Fixture::fake()?;
     let mut kernel = kernel()?;
-    let operation =
-        PreparedHostOperation::launch(&launch_dispatch(&mut kernel)?, facts()?, correlation()?)?;
+    let operation = PreparedHostOperation::launch(
+        &launch_dispatch(&mut kernel)?,
+        facts()?,
+        correlation()?,
+        None,
+    )?;
     let peer = respond(fixture.peer.try_clone()?, |_record| {
         let control = encode_connection_control(&ConnectionControl::TypedFailure(TypedFailure {
             code: "rejected".to_owned(),
@@ -206,7 +212,7 @@ fn malformed_response_partitions_close_host_cache_unknown_and_never_resend() -> 
             None,
         );
         let dispatch = dispatch(kernel.admit_launch(launch.clone(), 100)?)?;
-        let operation = PreparedHostOperation::launch(&dispatch, facts()?, correlation()?)?;
+        let operation = PreparedHostOperation::launch(&dispatch, facts()?, correlation()?, None)?;
         let peer = respond(fixture.peer.try_clone()?, move |mut record| {
             match partition {
                 0 => record[6] = 0,                                          // Request role.
@@ -296,8 +302,12 @@ fn observed_host_loss_before_handoff_is_a_definite_failure() -> TestResult {
     let mut fixture = Fixture::fake()?;
     fixture.peer.shutdown(Shutdown::Both)?;
     let mut kernel = kernel()?;
-    let operation =
-        PreparedHostOperation::launch(&launch_dispatch(&mut kernel)?, facts()?, correlation()?)?;
+    let operation = PreparedHostOperation::launch(
+        &launch_dispatch(&mut kernel)?,
+        facts()?,
+        correlation()?,
+        None,
+    )?;
     assert_eq!(
         operation.execute(
             &mut kernel,
@@ -319,8 +329,12 @@ fn server_loss_before_handoff_abandons_without_sending_or_inventing_a_result() -
     let mut fixture = Fixture::fake()?;
     fixture.server_peer.shutdown(Shutdown::Both)?;
     let mut kernel = kernel()?;
-    let operation =
-        PreparedHostOperation::launch(&launch_dispatch(&mut kernel)?, facts()?, correlation()?)?;
+    let operation = PreparedHostOperation::launch(
+        &launch_dispatch(&mut kernel)?,
+        facts()?,
+        correlation()?,
+        None,
+    )?;
     assert_eq!(
         operation.execute(
             &mut kernel,
@@ -478,8 +492,12 @@ fn start_responses_preserve_transitions_and_reject_contradictory_payloads() -> T
 fn server_loss_interrupts_a_waiting_host_and_closes_both_links() -> TestResult {
     let mut fixture = Fixture::fake()?;
     let mut kernel = kernel()?;
-    let operation =
-        PreparedHostOperation::launch(&launch_dispatch(&mut kernel)?, facts()?, correlation()?)?;
+    let operation = PreparedHostOperation::launch(
+        &launch_dispatch(&mut kernel)?,
+        facts()?,
+        correlation()?,
+        None,
+    )?;
     let mut peer = fixture.peer.try_clone()?;
     let server = fixture.server_peer.try_clone()?;
     let barrier = thread::spawn(move || -> io::Result<()> {
@@ -508,8 +526,12 @@ fn server_loss_interrupts_a_waiting_host_and_closes_both_links() -> TestResult {
 fn a_silent_host_is_bounded_by_the_operation_deadline() -> TestResult {
     let mut fixture = Fixture::fake()?;
     let mut kernel = kernel()?;
-    let operation =
-        PreparedHostOperation::launch(&launch_dispatch(&mut kernel)?, facts()?, correlation()?)?;
+    let operation = PreparedHostOperation::launch(
+        &launch_dispatch(&mut kernel)?,
+        facts()?,
+        correlation()?,
+        None,
+    )?;
     let started = Instant::now();
     assert_eq!(
         operation.execute(
@@ -555,7 +577,7 @@ fn real_zig_host_creates_starts_and_retains_the_same_terminal_after_broker_loss(
         thread::yield_now();
     }
     let mut host = loop {
-        match HostBrokerConnection::connect(&endpoint) {
+        match HostBrokerConnection::connect(&endpoint, fresh_drain()?) {
             Ok(host) => break host,
             Err(error)
                 if error
@@ -570,8 +592,12 @@ fn real_zig_host_creates_starts_and_retains_the_same_terminal_after_broker_loss(
     };
     let (server, _server_peer) = UnixStream::pair()?;
     let mut kernel = kernel()?;
-    let operation =
-        PreparedHostOperation::launch(&launch_dispatch(&mut kernel)?, facts()?, correlation()?)?;
+    let operation = PreparedHostOperation::launch(
+        &launch_dispatch(&mut kernel)?,
+        facts()?,
+        correlation()?,
+        None,
+    )?;
     assert_eq!(
         operation.execute(&mut kernel, &mut host, &server, || 100, BUDGET)?,
         HostOperationDisposition::ResultReady
@@ -598,7 +624,7 @@ fn real_zig_host_creates_starts_and_retains_the_same_terminal_after_broker_loss(
         matches!(result.outcome(), TerminalStartOutcome::HostAccepted(value) if value.identity() == identity && value.geometry() == geometry()?)
     );
     drop(host);
-    let observer = HostBrokerConnection::connect(&endpoint)
+    let observer = HostBrokerConnection::connect(&endpoint, fresh_drain()?)
         .map_err(|error| format!("retained Host connection: {error}"))?;
     assert_eq!(
         CapabilityHostEpoch::from_bytes(*observer.host_epoch().as_bytes())?,
@@ -741,6 +767,10 @@ fn geometry() -> TestResult<TerminalPixelGeometry> {
 fn correlation() -> TestResult<CorrelationId> {
     Ok(CorrelationId::from_bytes([6; 16])?)
 }
+fn fresh_drain() -> TestResult<Rc<RefCell<crate::agent_drain::AgentDrain>>> {
+    Ok(Rc::new(RefCell::new(crate::agent_drain::AgentDrain::new())))
+}
+
 fn host_identity() -> TestResult<TerminalIdentity> {
     Ok(TerminalIdentity {
         creation_id: CreationId::from_bytes([2; 16])?,
@@ -914,7 +944,7 @@ impl Fixture {
             )?)?;
             Ok(peer)
         });
-        let host = HostBrokerConnection::connect(&endpoint)?;
+        let host = HostBrokerConnection::connect(&endpoint, fresh_drain()?)?;
         let peer = peer.join().map_err(|_| "handshake peer panicked")??;
         let (server, server_peer) = UnixStream::pair()?;
         Ok(Self {

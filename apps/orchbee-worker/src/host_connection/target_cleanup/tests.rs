@@ -4,7 +4,7 @@ use orchbee_capability_node_protocol::{
     TerminalViewerRequest, ViewerRejection, WorkerGeneration, WorkerId,
 };
 use orchbee_terminal_protocol::{Envelope, encode_transport_envelope};
-use std::{cell::RefCell, num::NonZeroU64, os::unix::net::UnixStream};
+use std::{cell::RefCell, num::NonZeroU64, os::unix::net::UnixStream, rc::Rc};
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
@@ -22,6 +22,7 @@ fn host() -> TestResult<(HostBrokerConnection, UnixStream)> {
             viewers: RefCell::new(super::super::viewers::HostViewers::default()),
             controllers: RefCell::new(super::super::controllers::HostControllers::default()),
             retired_targets: RefCell::new(RetiredTargets::default()),
+            drain: Rc::new(RefCell::new(crate::agent_drain::AgentDrain::new())),
         },
         peer,
     ))

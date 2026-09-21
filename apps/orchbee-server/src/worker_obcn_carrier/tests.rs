@@ -34,10 +34,10 @@ use orchbee_local_site_protocol::WorkerId;
 use crate::worker_registry::{RegisteredWorkerWireOwner, WorkerAdmission, WorkerRegistry};
 
 use super::{
-    AdmitOutcome, PendingRequest, RequestLane, WorkerCarrierLimits, WorkerCarrierShutdown,
-    WorkerOperationRequest, WorkerOperationResult, WorkerRequestError, WorkerRequestHandle,
-    WorkerResponseFailure, WorkerTransportFailure, WorkerWireExit, WorkerWireOwner,
-    create_worker_carrier_with_limits,
+    AdmitOutcome, CompletionDelivery, ExchangeWait, PendingRequest, RequestLane,
+    WorkerCarrierLimits, WorkerCarrierShutdown, WorkerOperationRequest, WorkerOperationResult,
+    WorkerRequestError, WorkerRequestHandle, WorkerResponseFailure, WorkerTransportFailure,
+    WorkerWireExit, WorkerWireOwner, create_worker_carrier_with_limits, send_completion,
 };
 
 const LOCAL_WORKER_ID: WorkerId = WorkerId::from_bytes([7; 16]);
@@ -401,7 +401,7 @@ fn partial_request_frame_write_is_not_delivered() -> TestResult {
     )?)?);
     let (completion, result) = mpsc::sync_channel(1);
     let pending = PendingRequest {
-        completion: Some(completion),
+        completion: CompletionDelivery::for_request(&request, completion),
         complete_write: Arc::new(AtomicBool::new(false)),
         encoded: orchbee_capability_node_protocol::encode_message(&request.message())?,
         request,
@@ -931,7 +931,7 @@ fn enqueue_request(
     match handle.queue.try_admit(
         request.lane(),
         PendingRequest {
-            completion: Some(completion),
+            completion: CompletionDelivery::for_request(&request, completion),
             complete_write: Arc::new(AtomicBool::new(false)),
             encoded: orchbee_capability_node_protocol::encode_message(&request.message())?,
             request,
@@ -1864,11 +1864,14 @@ fn launch_operation(operation: u8) -> TestResult<WorkerOperationRequest> {
     )?))
 }
 
-fn request_key(request: &WorkerOperationRequest) -> OperationId {
+fn request_key(request: &WorkerOperationRequest) -> TestResult<OperationId> {
     match request {
-        WorkerOperationRequest::Launch(request) => request.authorization().operation_id(),
-        WorkerOperationRequest::Viewer(request) => request.request_id,
-        _ => unreachable!("test requests are Launch or Viewer"),
+        WorkerOperationRequest::Launch(request) => Ok(request.authorization().operation_id()),
+        WorkerOperationRequest::Viewer(request) => Ok(request.request_id),
+        WorkerOperationRequest::AgentDrain(request) => {
+            Ok(OperationId::from_bytes([request.token.get() as u8; 16])?)
+        }
+        _ => unreachable!("test requests are Launch, Viewer or AgentDrain"),
     }
 }
 
@@ -1881,7 +1884,7 @@ fn pending_for_test(
     let (completion, result) = mpsc::sync_channel(1);
     Ok((
         PendingRequest {
-            completion: Some(completion),
+            completion: CompletionDelivery::for_request(&request, completion),
             complete_write: Arc::new(AtomicBool::new(false)),
             encoded: orchbee_capability_node_protocol::encode_message(&request.message())?,
             request,
@@ -1951,7 +1954,7 @@ fn dispatch_is_fifo_and_rotates_four_high_then_one_low_while_both_lanes_wait() -
     }
     let mut sequence = Vec::new();
     while let Some(pending) = owner.queue.dispatch_next() {
-        sequence.push(request_key(&pending.request));
+        sequence.push(request_key(&pending.request)?);
         drop(pending);
     }
     // High dispatches at most four consecutively while low is non-empty, then
@@ -2000,7 +2003,7 @@ fn blocked_cleanup_promotes_into_freed_slots_before_new_try_admissions() -> Test
     assert!(waiter_thread.join().map_err(|_| "waiter panicked")?);
     let mut sequence = Vec::new();
     while let Some(pending) = owner.queue.dispatch_next() {
-        sequence.push(request_key(&pending.request));
+        sequence.push(request_key(&pending.request)?);
         drop(pending);
     }
     let expected: Vec<OperationId> = [2_u8, 3, 4, 5, 6, 7, 8, 30]
@@ -2089,5 +2092,489 @@ fn dropping_the_last_handle_closes_the_queue_like_all_senders_gone() -> TestResu
         super::TakeNext::Closed
     ));
     assert_eq!(owner.run(server), WorkerWireExit::Shutdown);
+    Ok(())
+}
+
+// ---- AgentDrain LOW-lane exchange (typed CNP kinds 17/18) ----
+
+fn drain_request(
+    token: u64,
+    acknowledged: u64,
+) -> TestResult<orchbee_capability_node_protocol::AgentDrainRequest> {
+    Ok(orchbee_capability_node_protocol::AgentDrainRequest {
+        worker_id: CapabilityWorkerId::from_bytes(LOCAL_WORKER_ID.as_bytes())?,
+        worker_generation: WorkerGeneration::new(GENERATION),
+        token: nonzero(token)?,
+        acknowledged,
+    })
+}
+
+fn drain_reply(
+    token_echo: u64,
+    acknowledged_echo: u64,
+    queue_tail: u64,
+    entries: Vec<orchbee_capability_node_protocol::AgentDrainEntry>,
+) -> TestResult<orchbee_capability_node_protocol::AgentDrainReply> {
+    Ok(orchbee_capability_node_protocol::AgentDrainReply::new(
+        nonzero(token_echo)?,
+        acknowledged_echo,
+        queue_tail,
+        entries,
+    )?)
+}
+
+fn drain_page() -> TestResult<Vec<orchbee_capability_node_protocol::AgentDrainEntry>> {
+    Ok(vec![
+        orchbee_capability_node_protocol::AgentDrainEntry::Event {
+            sequence: nonzero(1)?,
+            identity: host_identity(1)?,
+            payload: "drain-test-payload".to_owned(),
+        },
+    ])
+}
+
+#[test]
+fn queued_abandoned_drain_is_discarded_and_required_work_continues() -> TestResult {
+    let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
+    let drain = drain_request(1, 0)?;
+    let exchange = handle.admit_agent_drain(drain)?;
+    // The receiver is dropped while the request still sits in the LOW lane:
+    // the owner is not running yet, so abandonment is guaranteed to precede
+    // dispatch and reply delivery.
+    drop(exchange);
+    // A Required request queued beside it must still be served after the
+    // abandoned drain's reply is consumed and discarded.
+    let required_result = enqueue_request(&handle, launch_operation(2)?)?;
+    let (exit_sender, exit_receiver) = mpsc::channel();
+    let owner_thread = spawn_owner(owner, server, exit_sender);
+    let launch = launch_request(authorization(2, 2, GENERATION.get(), LOCAL_WORKER_ID)?)?;
+    let expected = launch_result(&launch);
+    let worker_thread = thread::spawn(move || -> TestResult {
+        // The occupied HIGH lane dispatches before the LOW-lane drain.
+        assert_eq!(
+            read_message(&mut worker)?,
+            CapabilityNodeMessage::AuthorizedTerminalLaunch(launch)
+        );
+        write_message(
+            &mut worker,
+            &CapabilityNodeMessage::TerminalLaunchResult(expected),
+        )?;
+        assert_eq!(
+            read_message(&mut worker)?,
+            CapabilityNodeMessage::AgentDrainRequest(drain)
+        );
+        write_message(
+            &mut worker,
+            &CapabilityNodeMessage::AgentDrainReply(drain_reply(1, 0, 0, Vec::new())?),
+        )?;
+        Ok(())
+    });
+
+    assert_eq!(
+        required_result.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+        Ok(WorkerOperationResult::Launch(expected))
+    );
+    worker_thread
+        .join()
+        .map_err(|_panic| "fake Worker panicked")??;
+    assert_eq!(
+        exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+        WorkerWireExit::PeerClosed
+    );
+    owner_thread
+        .join()
+        .map_err(|_panic| "wire owner panicked")?;
+    Ok(())
+}
+
+#[test]
+fn in_flight_abandoned_drain_is_discarded_and_required_work_continues() -> TestResult {
+    let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
+    let (exit_sender, exit_receiver) = mpsc::channel();
+    let owner_thread = spawn_owner(owner, server, exit_sender);
+    let drain = drain_request(1, 0)?;
+    let launch = launch_request(authorization(2, 2, GENERATION.get(), LOCAL_WORKER_ID)?)?;
+    let expected = launch_result(&launch);
+    let (seen_sender, seen_receiver) = mpsc::channel();
+    let (release_sender, release_receiver) = mpsc::channel();
+    let worker_thread = thread::spawn(move || -> TestResult {
+        assert_eq!(
+            read_message(&mut worker)?,
+            CapabilityNodeMessage::AgentDrainRequest(drain)
+        );
+        seen_sender.send(())?;
+        release_receiver.recv()?;
+        write_message(
+            &mut worker,
+            &CapabilityNodeMessage::AgentDrainReply(drain_reply(1, 0, 0, Vec::new())?),
+        )?;
+        assert_eq!(
+            read_message(&mut worker)?,
+            CapabilityNodeMessage::AuthorizedTerminalLaunch(launch)
+        );
+        write_message(
+            &mut worker,
+            &CapabilityNodeMessage::TerminalLaunchResult(expected),
+        )?;
+        Ok(())
+    });
+
+    let exchange = handle.admit_agent_drain(drain_request(1, 0)?)?;
+    // The request is in flight on the wire; the deterministic barrier drops
+    // the receiver before the reply is ever written.
+    seen_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?;
+    drop(exchange);
+    release_sender.send(())?;
+    assert_eq!(
+        handle.request(launch_operation(2)?)?,
+        WorkerOperationResult::Launch(expected)
+    );
+    worker_thread
+        .join()
+        .map_err(|_panic| "fake Worker panicked")??;
+    assert_eq!(
+        exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+        WorkerWireExit::PeerClosed
+    );
+    owner_thread
+        .join()
+        .map_err(|_panic| "wire owner panicked")?;
+    Ok(())
+}
+
+#[test]
+fn in_flight_abandoned_required_exchange_retires_the_carrier() -> TestResult {
+    let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
+    let (exit_sender, exit_receiver) = mpsc::channel();
+    let owner_thread = spawn_owner(owner, server, exit_sender);
+    let launch = launch_request(authorization(1, 1, GENERATION.get(), LOCAL_WORKER_ID)?)?;
+    let expected = launch_result(&launch);
+    let (seen_sender, seen_receiver) = mpsc::channel();
+    let (release_sender, release_receiver) = mpsc::channel();
+    let worker_thread = thread::spawn(move || -> TestResult {
+        assert_eq!(
+            read_message(&mut worker)?,
+            CapabilityNodeMessage::AuthorizedTerminalLaunch(launch)
+        );
+        seen_sender.send(())?;
+        release_receiver.recv()?;
+        write_message(
+            &mut worker,
+            &CapabilityNodeMessage::TerminalLaunchResult(expected),
+        )?;
+        Ok(())
+    });
+
+    let exchange = handle.admit(launch_operation(1)?, false)?;
+    seen_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?;
+    drop(exchange);
+    release_sender.send(())?;
+    worker_thread
+        .join()
+        .map_err(|_panic| "fake Worker panicked")??;
+    assert_eq!(
+        exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+        WorkerWireExit::RequestFailed
+    );
+    owner_thread
+        .join()
+        .map_err(|_panic| "wire owner panicked")?;
+    Ok(())
+}
+
+#[test]
+fn drain_echo_mismatches_retire_the_carrier() -> TestResult {
+    for (request, reply) in [
+        // token_echo must equal the request token exactly.
+        (drain_request(1, 0)?, drain_reply(2, 0, 0, Vec::new())?),
+        // acknowledged_echo must equal the request acknowledgment exactly.
+        (drain_request(1, 0)?, drain_reply(1, 7, 0, Vec::new())?),
+    ] {
+        let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
+        let (exit_sender, exit_receiver) = mpsc::channel();
+        let owner_thread = spawn_owner(owner, server, exit_sender);
+        let worker_thread = thread::spawn(move || -> TestResult {
+            assert_eq!(
+                read_message(&mut worker)?,
+                CapabilityNodeMessage::AgentDrainRequest(request)
+            );
+            write_message(&mut worker, &CapabilityNodeMessage::AgentDrainReply(reply))?;
+            Ok(())
+        });
+        let exchange = handle.admit_agent_drain(request)?;
+        assert_eq!(
+            exchange.recv(),
+            Err(WorkerRequestError::PostDeliveryOutcomeUnknown(
+                WorkerResponseFailure::MismatchedCorrelation
+            ))
+        );
+        worker_thread
+            .join()
+            .map_err(|_panic| "fake Worker panicked")??;
+        assert_eq!(
+            exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+            WorkerWireExit::RequestFailed
+        );
+        owner_thread
+            .join()
+            .map_err(|_panic| "wire owner panicked")?;
+    }
+    Ok(())
+}
+
+#[test]
+fn drain_wrong_result_kind_direction_and_malformed_frame_retire_the_carrier() -> TestResult {
+    // A well-formed frame of another result kind is rejected like every
+    // existing request kind.
+    let drain = drain_request(1, 0)?;
+    let wrong_kind = CapabilityNodeMessage::TerminalLaunchResult(launch_result(&launch_request(
+        authorization(9, 9, GENERATION.get(), LOCAL_WORKER_ID)?,
+    )?));
+    assert_drain_delivery_failure(drain, wrong_kind, |failure| {
+        matches!(
+            failure,
+            WorkerRequestError::PostDeliveryOutcomeUnknown(WorkerResponseFailure::WrongResultKind)
+        )
+    })?;
+
+    // A request-direction message is rejected like every existing kind.
+    let drain = drain_request(1, 0)?;
+    let wrong_direction = CapabilityNodeMessage::AgentDrainRequest(drain_request(1, 0)?);
+    assert_drain_delivery_failure(drain, wrong_direction, |failure| {
+        matches!(
+            failure,
+            WorkerRequestError::PostDeliveryOutcomeUnknown(WorkerResponseFailure::WrongDirection)
+        )
+    })?;
+
+    // A malformed frame keeps the existing fatal wire behavior.
+    let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
+    let (exit_sender, exit_receiver) = mpsc::channel();
+    let owner_thread = spawn_owner(owner, server, exit_sender);
+    let drain = drain_request(1, 0)?;
+    let worker_thread = thread::spawn(move || -> TestResult {
+        assert_eq!(
+            read_message(&mut worker)?,
+            CapabilityNodeMessage::AgentDrainRequest(drain)
+        );
+        worker.write_all(&[0xff, 0xff, 0xff, 0xff])?;
+        worker.flush()?;
+        Ok(())
+    });
+    let exchange = handle.admit_agent_drain(drain_request(1, 0)?)?;
+    assert!(matches!(
+        exchange.recv(),
+        Err(WorkerRequestError::PostDeliveryOutcomeUnknown(
+            WorkerResponseFailure::InvalidFrame(_) | WorkerResponseFailure::Disconnected
+        ))
+    ));
+    worker_thread
+        .join()
+        .map_err(|_panic| "fake Worker panicked")??;
+    assert_eq!(
+        exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+        WorkerWireExit::RequestFailed
+    );
+    owner_thread
+        .join()
+        .map_err(|_panic| "wire owner panicked")?;
+    Ok(())
+}
+
+fn assert_drain_delivery_failure(
+    drain: orchbee_capability_node_protocol::AgentDrainRequest,
+    response: CapabilityNodeMessage,
+    expect: impl Fn(&WorkerRequestError) -> bool,
+) -> TestResult {
+    let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
+    let (exit_sender, exit_receiver) = mpsc::channel();
+    let owner_thread = spawn_owner(owner, server, exit_sender);
+    let worker_thread = thread::spawn(move || -> TestResult {
+        assert_eq!(
+            read_message(&mut worker)?,
+            CapabilityNodeMessage::AgentDrainRequest(drain)
+        );
+        write_message(&mut worker, &response)?;
+        Ok(())
+    });
+    let exchange = handle.admit_agent_drain(drain)?;
+    match exchange.recv() {
+        Err(failure) if expect(&failure) => {}
+        other => return Err(format!("unexpected drain delivery outcome: {other:?}").into()),
+    }
+    worker_thread
+        .join()
+        .map_err(|_panic| "fake Worker panicked")??;
+    assert_eq!(
+        exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+        WorkerWireExit::RequestFailed
+    );
+    owner_thread
+        .join()
+        .map_err(|_panic| "wire owner panicked")?;
+    Ok(())
+}
+
+#[test]
+fn drain_admission_rejects_stale_routes_before_the_wire() -> TestResult {
+    let (handle, _owner, _shutdown, _server, _worker) = test_carrier()?;
+    let mut wrong_worker = drain_request(1, 0)?;
+    wrong_worker.worker_id = CapabilityWorkerId::from_bytes([9; 16])?;
+    assert!(matches!(
+        handle.admit_agent_drain(wrong_worker),
+        Err(WorkerRequestError::WrongWorker)
+    ));
+    let mut wrong_generation = drain_request(1, 0)?;
+    wrong_generation.worker_generation = WorkerGeneration::new(nonzero(GENERATION.get() + 1)?);
+    assert!(matches!(
+        handle.admit_agent_drain(wrong_generation),
+        Err(WorkerRequestError::WrongGeneration)
+    ));
+    Ok(())
+}
+
+#[test]
+fn elapsed_drain_wait_keeps_the_attempt_for_a_later_reply() -> TestResult {
+    let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
+    let exchange = handle.admit_agent_drain(drain_request(1, 0)?)?;
+    // No owner is running: the bounded wait elapses without abandoning the
+    // admitted attempt.
+    assert!(matches!(
+        exchange.recv_deadline(Instant::now() + Duration::from_millis(20)),
+        ExchangeWait::Elapsed
+    ));
+
+    let (exit_sender, exit_receiver) = mpsc::channel();
+    let owner_thread = spawn_owner(owner, server, exit_sender);
+    let drain = drain_request(1, 0)?;
+    let reply = drain_reply(1, 0, 1, drain_page()?)?;
+    let expected = reply.clone();
+    let worker_thread = thread::spawn(move || -> TestResult {
+        assert_eq!(
+            read_message(&mut worker)?,
+            CapabilityNodeMessage::AgentDrainRequest(drain)
+        );
+        write_message(&mut worker, &CapabilityNodeMessage::AgentDrainReply(reply))?;
+        Ok(())
+    });
+    match exchange.recv_deadline(Instant::now() + TEST_COMPLETION_TIMEOUT) {
+        ExchangeWait::Ready(result) => match *result {
+            Ok(WorkerOperationResult::AgentDrain(actual)) => assert_eq!(actual, expected),
+            other => {
+                return Err(format!("unexpected drain wait outcome: {other:?}").into());
+            }
+        },
+        other => return Err(format!("unexpected drain wait outcome: {other:?}").into()),
+    }
+    worker_thread
+        .join()
+        .map_err(|_panic| "fake Worker panicked")??;
+    assert_eq!(
+        exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+        WorkerWireExit::PeerClosed
+    );
+    owner_thread
+        .join()
+        .map_err(|_panic| "wire owner panicked")?;
+    Ok(())
+}
+
+#[test]
+fn lost_drain_exchange_maps_complete_write_like_the_blocking_wait() -> TestResult {
+    for complete in [false, true] {
+        let (handle, owner, _shutdown, _server, _worker) = test_carrier()?;
+        let exchange = handle.admit_agent_drain(drain_request(1, 0)?)?;
+        let queued = owner
+            .queue
+            .dispatch_next()
+            .ok_or("expected a queued drain request")?;
+        queued.complete_write.store(complete, Ordering::Release);
+        drop(queued);
+        match exchange.recv_deadline(Instant::now() + TEST_COMPLETION_TIMEOUT) {
+            ExchangeWait::Lost(WorkerRequestError::Unavailable) if !complete => {}
+            ExchangeWait::Lost(WorkerRequestError::PostDeliveryOutcomeUnknown(
+                WorkerResponseFailure::CarrierStopped,
+            )) if complete => {}
+            other => {
+                return Err(format!(
+                    "unexpected drain wait outcome for complete={complete}: {other:?}"
+                )
+                .into());
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn buffered_drain_result_is_ready_at_an_elapsed_deadline() -> TestResult {
+    let (handle, owner, _shutdown, _server, _worker) = test_carrier()?;
+    let exchange = handle.admit_agent_drain(drain_request(1, 0)?)?;
+    // Populate the exchange's completion channel synchronously through the
+    // REAL delivery path: dispatch the admitted drain off the LOW lane and
+    // send a typed AgentDrain result via the same send_completion the owner
+    // uses for every settled request. No wire, no thread, no timing — the
+    // channel is provably populated before recv_deadline is called. A peer
+    // write observed on a done channel cannot prove this state: the owner
+    // may not have decoded or delivered the reply yet.
+    let queued = owner
+        .queue
+        .dispatch_next()
+        .ok_or("expected a queued drain request")?;
+    let reply = drain_reply(1, 0, 0, Vec::new())?;
+    assert!(send_completion(
+        queued,
+        Ok(WorkerOperationResult::AgentDrain(reply.clone()))
+    ));
+    // The deadline is already in the past. A populated channel must still
+    // surface Ready with the typed payload — recv_deadline only reports
+    // Elapsed when the channel is EMPTY at the deadline, and never discards
+    // a buffered result.
+    let elapsed_deadline = Instant::now() - Duration::from_millis(1);
+    match exchange.recv_deadline(elapsed_deadline) {
+        ExchangeWait::Ready(result) => match *result {
+            Ok(WorkerOperationResult::AgentDrain(actual)) => assert_eq!(actual, reply),
+            other => {
+                return Err(format!("buffered drain result was not Ready: {other:?}").into());
+            }
+        },
+        other => {
+            return Err(format!("buffered drain result was not Ready: {other:?}").into());
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn drain_exchanges_fill_the_low_lane_and_rotate_after_four_highs() -> TestResult {
+    let (handle, owner, _shutdown, _server, _worker) = test_carrier()?;
+    let mut retained = Vec::new();
+    for operation in 1_u8..=8 {
+        retained.push(enqueue_request(&handle, launch_operation(operation)?)?);
+    }
+    let mut drains = Vec::new();
+    for token in 1_u64..=8 {
+        drains.push(handle.admit_agent_drain(drain_request(token, 0)?)?);
+    }
+    // The ninth drain meets the existing LOW-lane bound with typed
+    // backpressure; try_admit never blocks.
+    assert!(matches!(
+        handle.admit_agent_drain(drain_request(9, 0)?),
+        Err(WorkerRequestError::Backpressure)
+    ));
+    // Drains share the LOW lane: after every four-high burst one drain
+    // dispatches; each lane keeps strict FIFO order.
+    let mut sequence = Vec::new();
+    while let Some(pending) = owner.queue.dispatch_next() {
+        sequence.push(request_key(&pending.request)?);
+        drop(pending);
+    }
+    let expected: Vec<OperationId> = [1_u8, 2, 3, 4, 1, 5, 6, 7, 8, 2, 3, 4, 5, 6, 7, 8]
+        .iter()
+        .map(|value| OperationId::from_bytes([*value; 16]))
+        .collect::<Result<_, _>>()?;
+    assert_eq!(sequence, expected);
+    drop(drains);
+    drop(retained);
     Ok(())
 }

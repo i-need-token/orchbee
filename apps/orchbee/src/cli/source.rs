@@ -5,10 +5,13 @@
 //! reported through `orchbee.cli.failure.source` (timeout/cancelled) or the
 //! existing `invalid-usage` path (validation), never as transport loss.
 //!
-//! Signal capture is private to the source stage on Linux: [`ArmedSignals`]
-//! owns a signalfd over the eligible subset of the termination set —
-//! everything not already blocked or ignored at arm time — for the
-//! materialization interval only. Arming is FD-first: the bounded
+//! Signal capture is private on Linux: [`ArmedSignals`] owns a signalfd over
+//! the eligible subset of a command stage's own watch set — everything not
+//! already blocked or ignored at arm time — for that stage's guarded
+//! interval only. The source stage watches the four-signal [`GUARDED`] set
+//! for its materialization interval; the Agent read owner borrows the same
+//! mechanism for its narrower [`INTERRUPTS`] pair only — SIGHUP/SIGQUIT are
+//! never masked or captured there. Arming is FD-first: the bounded
 //! `/proc/self/status` `SigIgn` parse and the descriptor creation run under
 //! inherited dispositions, then one atomic thread-mask swap both blocks the
 //! eligible set and captures the exact old mask. Dispositions are never
@@ -91,6 +94,12 @@ const GUARDED: [Signal; 4] = [
     Signal::SIGTERM,
 ];
 
+/// The Agent read owner's own interruption set over the same private arming
+/// mechanism: only the process's cancel pair is eligible. SIGHUP and SIGQUIT
+/// keep their inherited disposition entirely — the Agent owner never masks
+/// or captures them.
+const INTERRUPTS: [Signal; 2] = [Signal::SIGINT, Signal::SIGTERM];
+
 /// `/proc/self/status` is read through a hard bound so the status file can
 /// never produce an unbounded buffer, and its `SigIgn` field must appear
 /// exactly once in valid hex — anything else is an internal failure.
@@ -159,13 +168,28 @@ impl ArmedSignals {
     /// already blocks or ignores — create its signalfd, then atomically swap
     /// the thread mask and capture the old one.
     pub(crate) fn arm() -> Result<Self, ArmError> {
+        Self::arm_set(&GUARDED)
+    }
+
+    /// The Agent read owner borrows the identical private arming mechanism
+    /// for its own narrower interruption set — [`INTERRUPTS`] minus every
+    /// signal the process already blocks or ignores. The eligibility,
+    /// atomic mask swap, and restore contracts are exactly `arm`'s; only
+    /// membership differs, so SIGHUP/SIGQUIT are never captured or masked.
+    pub(crate) fn arm_interrupts() -> Result<Self, ArmError> {
+        Self::arm_set(&INTERRUPTS)
+    }
+
+    /// The shared private arming body: `watched` minus every inherited
+    /// blocked/ignored member becomes the eligible set.
+    fn arm_set(watched: &[Signal]) -> Result<Self, ArmError> {
         let ignored = inherited_ignored()?;
         let old_mask = SigSet::thread_get_mask()?;
         let mut eligible = SigSet::empty();
-        for signal in GUARDED {
-            let bit = 1_u64 << (signal as u32 - 1);
-            if ignored & bit == 0 && !old_mask.contains(signal) {
-                eligible.add(signal);
+        for signal in watched {
+            let bit = 1_u64 << (*signal as u32 - 1);
+            if ignored & bit == 0 && !old_mask.contains(*signal) {
+                eligible.add(*signal);
             }
         }
         let fd = SignalFd::with_flags(&eligible, SfdFlags::SFD_NONBLOCK | SfdFlags::SFD_CLOEXEC)?;
@@ -1051,6 +1075,153 @@ mod tests {
         );
         // The signal stays blocked: unblocking it would deliver a further
         // pending SIGINT and terminate the test process.
+    }
+
+    /// The Agent owner's narrower set captures an eligible interruption and
+    /// restores the exact mask at finish — the same contract as `arm`, only
+    /// the membership differs.
+    #[test]
+    fn interrupts_capture_and_release_restore_exact_mask() {
+        let before = SigSet::thread_get_mask().expect("thread mask");
+        let ignored = inherited_ignored().expect("read inherited ignored set");
+        let Some(signal) = INTERRUPTS.into_iter().find(|signal| {
+            ignored & (1_u64 << (*signal as u32 - 1)) == 0 && !before.contains(*signal)
+        }) else {
+            // Both interruptions excluded: still a real armed policy — arm,
+            // observe no capture, finish clear, restore.
+            let mut armed = ArmedSignals::arm_interrupts().expect("arm empty eligible set");
+            assert_eq!(armed.take().expect("take"), None);
+            match armed.finish().expect("finish") {
+                Finish::Clear => {}
+                _ => panic!("an empty eligible set must finish clear"),
+            }
+            assert_eq!(SigSet::thread_get_mask().unwrap(), before);
+            return;
+        };
+        let mut armed = ArmedSignals::arm_interrupts().expect("arm interruptions");
+        signal::raise(signal).expect("raise captured signal");
+        assert_eq!(armed.take().expect("take"), Some(signal as i32));
+        armed
+            .into_finalization()
+            .release()
+            .expect("release restores mask");
+        assert_eq!(SigSet::thread_get_mask().unwrap(), before);
+    }
+
+    /// SIGHUP and SIGQUIT are outside the Agent owner's set entirely: arming
+    /// adds nothing for them to the thread mask, no raised member can be
+    /// captured, and finish restores the exact inherited mask.
+    #[test]
+    fn interrupts_never_mask_or_capture_hup_or_quit() {
+        let before = SigSet::thread_get_mask().expect("thread mask");
+        let mut armed = ArmedSignals::arm_interrupts().expect("arm interruptions");
+        let masked = SigSet::thread_get_mask().expect("armed thread mask");
+        for signal in [Signal::SIGHUP, Signal::SIGQUIT] {
+            if before.contains(signal) {
+                continue;
+            }
+            assert!(
+                !masked.contains(signal),
+                "{signal:?} must stay outside the Agent owner's mask"
+            );
+        }
+        assert_eq!(armed.take().expect("take"), None);
+        match armed.finish().expect("finish") {
+            Finish::Clear => {}
+            _ => panic!("no interruption was raised — finish must be clear"),
+        }
+        assert_eq!(SigSet::thread_get_mask().unwrap(), before);
+    }
+
+    /// An inherited-blocked member of the Agent set is excluded by the same
+    /// eligibility rule: SIGINT blocked before arm is never captured and the
+    /// pending signal survives arm/finish untouched.
+    #[test]
+    fn interrupts_inherited_blocked_int_excluded_and_pending_preserved() {
+        let mut blocked = SigSet::empty();
+        blocked.add(Signal::SIGINT);
+        blocked.thread_block().expect("block SIGINT");
+        signal::raise(Signal::SIGINT).expect("pend SIGINT");
+        let before = SigSet::thread_get_mask().expect("thread mask");
+        assert!(before.contains(Signal::SIGINT));
+        let armed = ArmedSignals::arm_interrupts().expect("arm with inherited block");
+        match armed.finish().expect("finish") {
+            Finish::Clear => {}
+            _ => panic!("an excluded signal must not select cancellation"),
+        }
+        let after = SigSet::thread_get_mask().expect("thread mask");
+        assert_eq!(before, after, "exact inherited mask restored");
+        assert!(after.contains(Signal::SIGINT));
+        let mut probe = SigSet::empty();
+        probe.add(Signal::SIGINT);
+        assert_eq!(
+            pending_signo(probe),
+            Some(Signal::SIGINT as i32),
+            "the pending SIGINT must be preserved, not swallowed"
+        );
+        // The signal stays blocked: unblocking it would deliver a further
+        // pending SIGINT and terminate the test process.
+    }
+
+    /// An unwatched signal the process already blocks: SIGQUIT is pending
+    /// before the Agent arm and must survive it untouched — never captured,
+    /// never swallowed.
+    #[test]
+    fn interrupts_inherited_blocked_quit_pending_preserved() {
+        let mut blocked = SigSet::empty();
+        blocked.add(Signal::SIGQUIT);
+        blocked.thread_block().expect("block SIGQUIT");
+        signal::raise(Signal::SIGQUIT).expect("pend SIGQUIT");
+        let before = SigSet::thread_get_mask().expect("thread mask");
+        assert!(before.contains(Signal::SIGQUIT));
+        let armed = ArmedSignals::arm_interrupts().expect("arm with blocked SIGQUIT");
+        match armed.finish().expect("finish") {
+            Finish::Clear => {}
+            _ => panic!("an unwatched signal must never select cancellation"),
+        }
+        let after = SigSet::thread_get_mask().expect("thread mask");
+        assert_eq!(before, after, "exact inherited mask restored");
+        assert!(after.contains(Signal::SIGQUIT));
+        let mut probe = SigSet::empty();
+        probe.add(Signal::SIGQUIT);
+        assert_eq!(
+            pending_signo(probe),
+            Some(Signal::SIGQUIT as i32),
+            "the pending SIGQUIT must be preserved, not swallowed"
+        );
+        // SIGQUIT stays blocked on this thread: unblocking it would deliver
+        // the pending signal and core-dump the test process.
+    }
+
+    /// A captured interruption at the finish boundary keeps the eligible
+    /// mask blocked until the token's release restores the exact inherited
+    /// mask — the same output-window contract `arm` gives the source stage.
+    #[test]
+    fn interrupts_finish_captured_signal_holds_mask_until_release() {
+        let ignored = inherited_ignored().expect("read inherited ignored set");
+        let before = SigSet::thread_get_mask().expect("thread mask");
+        let Some(signal) = INTERRUPTS.into_iter().find(|signal| {
+            ignored & (1_u64 << (*signal as u32 - 1)) == 0 && !before.contains(*signal)
+        }) else {
+            return;
+        };
+        let armed = ArmedSignals::arm_interrupts().expect("arm interruptions");
+        signal::raise(signal).expect("raise captured signal");
+        match armed.finish().expect("finish") {
+            Finish::Cancelled {
+                signo,
+                finalization,
+            } => {
+                assert_eq!(signo, signal as i32);
+                assert!(
+                    SigSet::thread_get_mask().unwrap().contains(signal),
+                    "the captured signal stays masked until release"
+                );
+                finalization.release().expect("release");
+            }
+            _ => panic!("captured signal must select cancellation"),
+        }
+        assert_eq!(SigSet::thread_get_mask().unwrap(), before);
     }
 
     #[test]

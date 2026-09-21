@@ -82,6 +82,19 @@ apps/orchbee 通过私有 LocalClient::connect_before 消费它。现有 connect
 | AD-03：一个总截止时间覆盖部分进展与最终接受。                   | 带截止时间的 poll/read/write 与最终检查；步进时钟写、读及最终边界测试。                 | DeadlineNeverRenews、AcceptedIsExactAndTimely、AdmissionEventuallySettles。                |
 | AD-04：失败仅关闭候选连接；成功返回已接受的 blocking stream。   | 静默 Server EOF、有类型负面响应与 blocking mode 测试；现有调用方保留 stream ownership。 | FailureReleasesCandidate、ReturnConnection、ObserveDeadline、IoFails。                     |
 
+### 可取消准入边界
+
+`connect_before_cancellable(endpoint, cohort, deadline, wake)` 是同一准入外加一个可选的
+borrowed wake descriptor。`None` 与 `connect_before` 完全一致，absolute deadline 永不续期。
+该 descriptor 只是唤醒能力：本 crate 从不 own、duplicate、read、drain 或 close 它，从不改动
+signal mask 或 disposition，也从不解释它为何可读。`POLLIN` 只是 wake candidate；
+无可读 byte 时的 `POLLERR`、`POLLHUP` 或 `POLLNVAL` 表示 wake channel 已损坏，并且 wake
+event 先于任何同时就绪的 socket readiness 判定。私有观察在边界上映射为
+`ConnectClientError::CancellationReady` 与 `ConnectClientError::CancellationSourceFault(error)`。
+两者都不是取消结论，也都不得按 marker 文本读取；由调用方自己的 signal owner 执行唯一的
+仲裁读并决定结果，包括唤醒源不可达
+或故障的情形。`connect` 与 `connect_before` 不会产生这两个变体。
+
 ## Server 准入与上限
 
 Server 为每条 accepted connection 分配独立 generation，并最多准入八个 active Client Session。

@@ -29,9 +29,12 @@ orchbee completion bash|zsh|fish
 orchbee --help | --version
 ```
 
-查询 family 为 `project`、`workspace`、`tab`、`panel`、`terminal`、`worktree`（`list`/`get`，另有
+查询 family 为 `project`、`workspace`、`tab`、`panel`、`terminal`、`worktree`、`agent`（`list`/`get`，另有
 `terminal read`；`worktree` 仅提供 `list`，且要求 `--project <target>` 与
-`--directory <directory-id>`——严格非零 32 位小写十六进制 Workbench 目录 id，绝非文件系统路径或标签）。作用于运行中 Site 的修改命令为 `project create`/`rename`、
+`--directory <directory-id>`——严格非零 32 位小写十六进制 Workbench 目录 id，绝非文件系统路径或标签；
+`agent` 提供 `list`（支持 `--include-ended`/`--limit`/`--cursor` 分页）、`get <session-id>` 与
+`explain <session-id>`——经 OBAP 读取 Server 权威 Agent session 的只读类型化视图，绝不从终端内容推断）。
+作用于运行中 Site 的修改命令为 `project create`/`rename`、
 `workspace create`/`rename`/`accept-directory`、`tab create`/`rename`/`move`/`close` 与
 `panel split`/`move`/`close`——其中 `tab create` 与 `panel split` 还接受临时的
 `--exec <path> [--arg <value>]...` launch selection，仅为该次请求替换解析出的默认
@@ -53,7 +56,10 @@ Site 准入了其探针时报告 `already-running`。该命令即使在拒绝时
 `rejected`/`recovery-required` 报告；它绝不修复、停止或删除运行时状态。完整语法、
 target 与 filter 规则、修改结果及含退出分类的 failure matrix 由
 [native CLI query](docs/native-cli-query.zh-CN.md) 持有；`orchbee help <family>` 与
-`orchbee help <family> <command>` 直接从二进制输出同一套语法。
+`orchbee help <family> <command>` 直接从二进制输出同一套语法。端到端的无头
+序列——启动 Site、创建 Project/Workspace/目录、拉起并驱动终端、查看
+worktree、观察 Agent 并干净地关闭——见
+[原生 CLI 工作流](docs/cli-workflows.zh-CN.md)。
 
 Help 只写 stdout，失败只写 stderr；Version 写入一行与 locale 无关的 `orchbee <version>`。
 正常关闭 TUI、help、version 以及查询、修改、检查成功的开发退出状态为 `0`；usage failure 为 `2`；

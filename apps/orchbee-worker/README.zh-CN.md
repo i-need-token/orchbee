@@ -61,6 +61,16 @@ Host 启动、唯一连接和严格 OBTP 握手共用五秒预算；不续期或
 准备/启动失败在可交付时返回交接前失败结果并退役 Worker；已交接的不明确结果不重放。
 后续操作使用原串行循环和 replay cache。
 
+此 managed 路径上的每个 Launch 还会通过现有 Terminal Protocol `environmentOverlay`
+传播本地 Agent 观察通道。对每个准入的 Launch，launch adapter 将跨属主约定的文件名
+`agent-observation-v3.sock` 拼接到已验证的 `--local-site` 运行时目录上，仅当 `lstat`
+证明该路径是存在且归本 Worker effective user 所有的 socket 时才予以采纳。被采纳的
+socket 在现有 16 条 / 4 KiB overlay 上限内把 `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3`
+设为其绝对路径；候选缺失、非 socket、属主不符或非 UTF-8 时则不注入变量，也绝不因此
+使 Launch 失败。门禁在每次 Launch 重新求值，不缓存准入结果。显式端点路径不携带 Site
+运行时目录，overlay 保持为空——远端与非 managed 启动不会获得观察通道，也不为此引入
+CNP 字段或 Server 私有代码。
+
 回收线程只等待退出，不杀死 Host。Server/Worker 连接关闭后 Host 仍拥有保留终端。
 不支持重启后接管或替代 Host。显式端点模式继续采用其既有双 peer readiness 语义。
 
@@ -167,8 +177,9 @@ Application-private `default_interactive_launch` module 仅在没有显式 selec
 request loop 提供 launch-fact composition。其 transport-neutral `DefaultInteractiveLaunch`
 output 只持有一个已解析 executable、恰好为空的 literal argument vector，以及三个固定
 environment entry。Loop 将它们与 Worker-local cwd、Terminal Protocol profile、geometry 和独立
-creation identity 组合。三个 entry 映射到 Terminal Protocol launch environment；已接受首个
-milestone 的 invocation-scoped `CreateTerminal.environmentOverlay` 仍为空。
+creation identity 组合。三个 entry 映射到 Terminal Protocol launch environment。
+invocation-scoped `CreateTerminal.environmentOverlay` 在显式端点路径上仍为空；在 managed
+local-site 路径上承载下文所述的单个 Agent 观察变量。
 
 解析依次考虑 inherited `SHELL`、effective operating-system account 的 shell，再考虑
 `/bin/sh`。Candidate 只有在 path 非空、为 absolute、是有效 UTF-8、不含 U+0000、不超过
@@ -459,6 +470,35 @@ admission、delivery、loss 与 no-retry claim；framing 与 OS fact 仍是 symb
 具体假设。它们不证明 Server Client Session 查看附件路由、activation、restart reconciliation 或其他 OS
 platform。查看附件 process trace 单独证明真实 Worker 与 Host 上的两个读取附件、停滞查看
 附件、精确反馈、快照恢复、分离／重新附着，以及终端保留。
+
+## Agent drain 队列与 request loop
+
+每个已接纳 Worker 到 Server connection 拥有一个 `AgentDrain` 队列（`src/agent_drain.rs`），
+在任何 Host 启动之前创建。共享的 `Rc<RefCell<AgentDrain>>` 句柄是
+`HostBrokerConnection` 两条 connection 路径上的必需构造参数——eager 路径在 Server
+admission 与 Host connect 之间建立它，lazy 路径在 pre-Host loop 顶部建立它，并把同一句柄
+穿过 `start_host` 传入 admitted loop。不存在可选 owner、空 fallback，也没有 per-viewer
+或 per-request 分配；队列生命周期恰好等于已接纳 Server connection 的 epoch。
+`Rc<RefCell>` 是合理的，因为 Worker event loop 是单线程的，且 borrow 始终在任何 Server
+I/O 之前释放：`server_transport::send` 在 POLLOUT 等待期间可能消费 Host event，而这些
+event 会追加到同一队列。
+
+`HostBrokerConnection::receive_event` 是唯一生产者。在 envelope 与 Host-epoch 校验之后，
+它解码每条 kind-58 application signal，通过既有 launch adapter 转换 Terminal Host
+identity，并在借用 viewer 之前追加到共享 drain——没有附着 viewer 的 terminal 同样入队。
+携带外部 Host epoch 的 signal 仍是致命的；到达 viewer 路径的 `ApplicationSignal` 现在是
+非预期路由，而非被静默丢弃。Bell 与 Clipboard 路由不变。
+
+队列至多保留 1,024 个 entry 与 4 MiB 编码字节。溢出逐出最旧 sequence，由合并出的头部
+`Gap` 覆盖——该 GAP 自身消耗一个槽位与字节。Reply 同时受 480 个 entry 与 8,165 编码
+entry 字节的分页约束；一次成功 send 提交请求时捕获的水位，`Ok(false)` 与 `Ok(true)`
+两种写结果同样提交。超过 offered 水位的 acknowledgement 是致命的；stale 或零
+acknowledgement 是 no-op，未确认 sequence 继续处于 offered；回显 token 与请求的完全
+一致。
+
+Pre-Host loop 用与 admitted loop 相同的共享 dispatch 应答 drain request，因此 Host 存在
+之前的请求返回真实的空页而不启动 Host，且同一 owner、token 与 acknowledgement 状态
+穿越首次 launch 保持连续。
 
 ## Terminal cwd validation
 

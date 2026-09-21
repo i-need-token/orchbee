@@ -1,3 +1,4 @@
+mod agent_drain;
 mod codec;
 mod error;
 mod identity;
@@ -14,6 +15,11 @@ pub use terminal_viewer::{
     ViewerRowsRejectedReason, ViewerSnapshotReason, ViewportRowOrigin,
 };
 
+pub use agent_drain::{
+    AGENT_DRAIN_REPLY_KIND, AGENT_DRAIN_REQUEST_KIND, AgentDrainEntry, AgentDrainReply,
+    AgentDrainRequest, EVENT_ENTRY_OVERHEAD_BYTES, GAP_ENTRY_BYTES, MAXIMUM_REPLY_ENTRIES,
+    MAXIMUM_SIGNAL_PAYLOAD_BYTES, REPLY_ENTRY_BYTES, REPLY_HEADER_BYTES, REQUEST_PAYLOAD_BYTES,
+};
 pub use codec::{
     CapabilityNodeMessage, MAXIMUM_FRAME_PAYLOAD_BYTES, PROTOCOL_VERSION, decode_message,
     encode_message, read_message, write_message,

@@ -3,7 +3,7 @@ use std::{
     io::Read,
     num::NonZeroU64,
     sync::{Arc, Mutex},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use orchbee_capability_node_protocol::{
@@ -15,6 +15,8 @@ use orchbee_client_server_protocol::{
 };
 
 use crate::{
+    agent::AgentRuntimeSnapshot,
+    agent_service::{AgentService, PreparedUnavailable},
     site_coordinator::SiteCoordinator,
     terminal_coordinator::{Completion, PreparedOperation, WorkerPlacement},
     worker_obcn_carrier::{
@@ -23,6 +25,7 @@ use crate::{
     worker_registry::WorkerRegistry,
 };
 
+mod agent_drain_read;
 mod close_maintenance;
 mod controller_session;
 mod panel_split;
@@ -37,6 +40,18 @@ mod worktree_list;
 
 // One queued plus one in-flight exchange, each with a two-second write and twenty-second read.
 const LEASE_LIFETIME_MILLISECONDS: u64 = 46_000;
+
+// The private prepared-read budget for one Agent OBAP read: minted once per
+// provider call before any preparation lock is taken, so a denied request
+// never observes it and an eligible request never re-mints it. It is an
+// internal budget only — lock and scheduler delay can overrun it, and its
+// expiry surfaces the existing `RuntimeUnavailable` arm, never a client-
+// facing guarantee.
+const AGENT_DRAIN_READ_WINDOW: Duration = Duration::from_secs(4);
+// Cooperative pacing for the `Backpressure` admission arm only: the pump
+// sleeps at most this private interval inside the remaining window. It is
+// never a no-progress-page delay — an empty page is complete coverage.
+const AGENT_DRAIN_READ_RETRY: Duration = Duration::from_millis(25);
 
 pub(crate) struct LocalTerminalService {
     close_maintenance: close_maintenance::CloseMaintenance,
@@ -79,6 +94,27 @@ impl LocalTerminalService {
         site: &orchbee_workbench_protocol::SiteId,
     ) -> Option<bool> {
         self.coordinator.lock().ok()?.workbench_site_matches(site)
+    }
+
+    /// The production prepared-read provider for Agent OBAP reads. One
+    /// private four-second window is minted here — after the executor's
+    /// policy gate has already admitted this request and before any
+    /// preparation lock is taken — then the drain pump runs under it with
+    /// the private 25 ms backpressure interval. Every failure arm is the
+    /// typed `PreparedUnavailable` the executor maps to
+    /// `RuntimeUnavailable`; nothing here fabricates a last-good read.
+    pub(crate) fn prepare_agent_drain_read(
+        &self,
+        agents: &AgentService,
+    ) -> Result<AgentRuntimeSnapshot, PreparedUnavailable> {
+        let deadline = Instant::now() + AGENT_DRAIN_READ_WINDOW;
+        agent_drain_read::agent_drain_prepare(
+            self.workers.as_ref(),
+            &self.coordinator,
+            agents,
+            deadline,
+            AGENT_DRAIN_READ_RETRY,
+        )
     }
 
     pub(crate) fn execute_workbench(
@@ -224,6 +260,9 @@ fn submit(handle: &WorkerRequestHandle, message: &CapabilityNodeMessage) -> Comp
             | WorkerOperationResult::Send(_)
             | WorkerOperationResult::WorktreeJob(_),
         ) => Completion::Unknown,
+        // The drain variant can never come back from the Launch/Start
+        // requests submitted here; it exists for the Agent drain pump.
+        Ok(WorkerOperationResult::AgentDrain(_)) => Completion::Unknown,
         Err(WorkerRequestError::Backpressure) => Completion::Busy,
         Err(WorkerRequestError::PostDeliveryOutcomeUnknown(_)) => Completion::Unknown,
         Err(

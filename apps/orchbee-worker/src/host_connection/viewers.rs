@@ -313,8 +313,8 @@ impl HostViewers {
             Ok(TerminalEffectEvent::ClipboardWriteRequest(event)) => {
                 self.viewer(event.attachment_id)?;
             }
-            Ok(TerminalEffectEvent::ApplicationSignal(event))
-                if event.identity.host_epoch == epoch => {}
+            // ApplicationSignal records are intercepted in receive_event
+            // before this borrow; any that reach here are unexpected.
             _ => return validate_event(&record, epoch),
         }
         Ok(())

@@ -1,5 +1,7 @@
 use crate::{
-    local_client_service, local_terminal_service::LocalTerminalService,
+    agent_service::{AgentPolicy, AgentService},
+    local_client_service,
+    local_terminal_service::LocalTerminalService,
     worker_registry::WorkerRegistry,
 };
 use orchbee_local_site_runtime::{
@@ -30,6 +32,21 @@ pub(super) fn run(runtime: &Path) -> io::Result<()> {
         return Err(io::Error::other("Site lifetime is already owned"));
     };
     nix::unistd::setsid()?;
+    // The observation endpoint binds and starts before the Worker socket
+    // or any emitter can exist; a bind/start failure fails the whole Site
+    // start loudly under the held lifetime lock rather than publishing a
+    // ready Site without its observation channel.
+    let bound = super::agent_observation_endpoint::bind(runtime)?;
+    // The bound endpoint is fully functional on any runtime path; only the
+    // ingress's stored overlay copy is a String, which cannot carry
+    // non-UTF-8 bytes — a non-UTF-8 base therefore stores no path, the same
+    // degradation the Worker applies to its own env overlay derivation.
+    let socket_path = bound.path().to_str().map(str::to_owned);
+    let agents = Arc::new(AgentService::open_observing(
+        AgentPolicy { read: true },
+        socket_path,
+    )?);
+    let _endpoint = bound.start(Arc::clone(&agents));
     let listener = UnixListener::bind(site.worker_socket_path())?;
     std::fs::set_permissions(
         site.worker_socket_path(),
@@ -54,7 +71,9 @@ pub(super) fn run(runtime: &Path) -> io::Result<()> {
             return Err(io::Error::other("local Worker exited before admission"));
         }
         match listener.accept() {
-            Ok((stream, _)) => super::handle_candidate(stream, &registry, cohort.identity()),
+            Ok((stream, _)) => {
+                super::handle_candidate(stream, &registry, cohort.identity(), Some(&agents))
+            }
             Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
                 thread::sleep(Duration::from_millis(10))
             }
@@ -79,6 +98,7 @@ pub(super) fn run(runtime: &Path) -> io::Result<()> {
         site.client_socket_path(),
         cohort.identity(),
         terminals,
+        agents,
     )?;
     loop {
         thread::park();

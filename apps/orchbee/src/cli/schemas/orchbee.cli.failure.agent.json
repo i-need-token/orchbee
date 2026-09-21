@@ -1,0 +1,240 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.cli.failure.agent",
+	"title": "orchbee cli agent read failure envelope",
+	"type": "object",
+	"required": ["schema", "version", "failure"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.cli.failure.agent" },
+		"version": { "const": 1 },
+		"failure": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": [
+						"cancelled",
+						"denied",
+						"internal-failure",
+						"not-found",
+						"protocol-invalid",
+						"rejected",
+						"service-unavailable",
+						"timeout",
+						"transport-loss"
+					]
+				},
+				"details": { "type": "object" }
+			}
+		},
+		"source": { "$ref": "#/$defs/source" }
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": { "kind": { "const": "not-found" } },
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": { "details": { "$ref": "#/$defs/notFoundDetails" } }
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": { "kind": { "const": "denied" } },
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": { "details": { "$ref": "#/$defs/deniedDetails" } }
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": { "kind": { "const": "rejected" } },
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": { "details": { "$ref": "#/$defs/rejectedDetails" } }
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": { "kind": { "const": "service-unavailable" } },
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": { "details": { "$ref": "#/$defs/unavailableDetails" } }
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": { "kind": { "const": "timeout" } },
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": { "details": { "$ref": "#/$defs/timeoutDetails" } }
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"enum": ["cancelled", "protocol-invalid", "transport-loss"]
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": { "details": { "$ref": "#/$defs/commonDetails" } }
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": { "kind": { "const": "internal-failure" } },
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": { "not": { "required": ["details"] } }
+				}
+			}
+		}
+	],
+	"$defs": {
+		"hexId": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": { "const": "00000000000000000000000000000000" }
+		},
+		"opaqueId": { "type": "string", "pattern": "^[0-9A-Za-z._:-]{1,128}$" },
+		"operation": { "enum": ["explain", "get", "list"] },
+		"commonDetails": {
+			"type": "object",
+			"required": ["stage", "operation"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": { "const": "agent-read" },
+				"operation": { "$ref": "#/$defs/operation" }
+			}
+		},
+		"notFoundDetails": {
+			"type": "object",
+			"required": ["stage", "operation", "sessionId"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": { "const": "agent-read" },
+				"operation": { "enum": ["explain", "get"] },
+				"sessionId": { "$ref": "#/$defs/opaqueId" }
+			}
+		},
+		"deniedDetails": {
+			"type": "object",
+			"required": ["stage", "operation", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": { "const": "agent-read" },
+				"operation": { "$ref": "#/$defs/operation" },
+				"reason": { "const": "read-denied" }
+			}
+		},
+		"rejectedDetails": {
+			"type": "object",
+			"required": ["stage", "operation", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": { "const": "agent-read" },
+				"operation": { "const": "list" },
+				"reason": { "enum": ["cursor-invalid", "cursor-stale"] }
+			}
+		},
+		"unavailableDetails": {
+			"type": "object",
+			"required": ["stage", "operation", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": { "const": "agent-read" },
+				"operation": { "$ref": "#/$defs/operation" },
+				"reason": { "const": "runtime-unavailable" }
+			}
+		},
+		"timeoutDetails": {
+			"type": "object",
+			"required": ["stage", "operation", "timeoutMs"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": { "const": "agent-read" },
+				"operation": { "$ref": "#/$defs/operation" },
+				"timeoutMs": { "const": 5000 }
+			}
+		},
+		"source": {
+			"type": "object",
+			"required": ["kind", "requestId"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "agent-read" },
+				"requestId": { "$ref": "#/$defs/hexId" }
+			}
+		}
+	}
+}

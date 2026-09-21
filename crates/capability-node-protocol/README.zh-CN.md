@@ -330,6 +330,28 @@ status 存在字节、可选 i32 退出码及同一预算下的一个长度前�
 明示余量。Codec test 覆盖每个 action 与 outcome arm、严格 golden、字段预算边界、
 未知 tag、stage 码与 trailing byte；Server 与 Worker 指南拥有准入、fencing 与 job 证据。
 
+## Agent drain 消息
+
+OBCN kind 17 `AgentDrainRequest` 与 kind 18 `AgentDrainReply` 承载 Server 发起的、对 Worker
+留存 terminal application signal 的 drain。kind 之后的 request body 依次为：protocol 所有的
+Worker ID（`16` 字节）、非零 Worker generation（`u64`）、非零 request token（`u64`）、
+已确认 sequence 水位（`u64`）——41 payload 字节，含 frame 共 49 字节。Worker 原样回显
+token，从不自行铸造或重铸。超过 Worker offered 水位的 acknowledgement 是致命协议错误；
+stale 或零 acknowledgement 是合法 no-op，绝不移除任何未确认 sequence。
+
+Reply 携带回显的 token 与 acknowledgement、queue tail 水位、有界 entry 数量，以及一段连续
+且不重叠的 `Event`/`Gap` entry 页。每个 event entry 是完整的 CNP 侧 `HostTerminalIdentity`
+加至多 4,096 字节的 UTF-8 payload；每个 gap entry 覆盖一段已从留存窗口逐出的闭 sequence
+区间。Decoder 在任何分配之前拒绝超过 480 个 entry、未知 tag、非正 sequence 或 gap 界、
+反向 gap 区间、超大 payload、不连续或重叠的页、超出已声明 queue tail 的 entry、trailing
+byte 与整数溢出。首条 entry 不要求紧跟回显的 acknowledgement，因为 stale
+acknowledgement 是合法的。
+
+这些类型是 Capability Node refinement：event identity 复用本 crate 自己的
+`HostTerminalIdentity`，而非 Terminal Host wire identity。Wire kind 15 与 16 仍为 Worktree
+功能保留，此处不占用。Server 侧 drain 生产、registry 与 held-listener 行为不在本 crate
+范围内。
+
 ## Authorization outcome
 
 Pre-admission rejection 区分 wrong Worker、stale generation、expired lease、stale fence、

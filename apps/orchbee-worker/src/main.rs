@@ -1,4 +1,6 @@
 #[cfg(unix)]
+mod agent_drain;
+#[cfg(unix)]
 mod default_interactive_launch;
 #[cfg(unix)]
 mod host_connection;

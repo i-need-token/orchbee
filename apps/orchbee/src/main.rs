@@ -336,4 +336,57 @@ mod tests {
             "the complete document lands before the mask is released"
         );
     }
+
+    /// The same child-mode probe armed through `arm_interrupts` — the Agent
+    /// INT/TERM watch — proving the finalization token it produces holds the
+    /// mask through the output window exactly like the source arm's token.
+    const CANCELLED_INTERRUPTS_CHILD_ENV: &str = "ORCHBEE_TEST_CANCELLED_INTERRUPTS_OUTPUT_CHILD";
+
+    #[test]
+    fn cancelled_interrupts_output_completes_before_unmask() {
+        if let Ok(path) = env::var(CANCELLED_INTERRUPTS_CHILD_ENV) {
+            // Child: capture SIGINT into a token through the Agent INT/TERM
+            // arm, then emit through a writer that raises SIGTERM mid-write.
+            let mut armed = ArmedSignals::arm_interrupts().expect("arm interrupts");
+            signal::raise(Signal::SIGINT).expect("capture first signal");
+            assert_eq!(armed.take().expect("take"), Some(Signal::SIGINT as i32));
+            let token = armed.into_finalization();
+            let mut out = RaisingWriter {
+                inner: fs::File::create(path).expect("child output file"),
+                raised: false,
+            };
+            let mut err = io::sink();
+            let _ = emit_with(answer(Some(token)), Locale::EnUs, &mut out, &mut err);
+            std::process::abort();
+        }
+        let file = env::temp_dir().join(format!(
+            "obemit-cancelled-interrupts-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        let output = Command::new(env::current_exe().expect("test binary"))
+            .args([
+                "--exact",
+                "tests::cancelled_interrupts_output_completes_before_unmask",
+                "--test-threads=1",
+                "--nocapture",
+            ])
+            .env(CANCELLED_INTERRUPTS_CHILD_ENV, &file)
+            .stdin(Stdio::null())
+            .output()
+            .expect("spawn child test");
+        assert_eq!(
+            output.status.signal(),
+            Some(Signal::SIGTERM as i32),
+            "the mid-output signal must be delivered at release"
+        );
+        assert_eq!(
+            fs::read(&file).expect("read child output"),
+            b"{\"schema\":\"test\"}\n",
+            "the complete document lands before the mask is released"
+        );
+    }
 }

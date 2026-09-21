@@ -221,6 +221,16 @@ pub(crate) struct RetainedTerminalCreate<'coordinator> {
     pub(crate) worker_generation: WorkerGeneration,
 }
 
+/// Resolution of a binding identity pair against the retained creates. `Absent` is a
+/// legitimate miss; `Ambiguous` and `Inconsistent` are coordinator invariant violations
+/// that must never be collapsed into `Absent`.
+pub(crate) enum RetainedBindingResolution<'coordinator> {
+    Absent,
+    Unique(RetainedTerminalCreate<'coordinator>),
+    Ambiguous,
+    Inconsistent,
+}
+
 #[derive(Debug)]
 pub(crate) struct TerminalCoordinator {
     bindings: BTreeMap<RequestId, TerminalBinding>,
@@ -280,27 +290,49 @@ impl TerminalCoordinator {
         })
     }
 
-    pub(crate) fn retained_create_for_binding(
+    fn resolve_retained_binding(
         &self,
         terminal_id: TerminalId,
         worker_id: WorkerId,
-    ) -> Option<RetainedTerminalCreate<'_>> {
+    ) -> RetainedBindingResolution<'_> {
         let mut matches = self.bindings.iter().filter(|(_, binding)| {
             binding.authorization.terminal_id() == terminal_id
                 && binding.authorization.worker_id() == worker_id
         });
-        let (reference, binding) = matches.next()?;
-        if matches.next().is_some()
-            || binding.create_outcome.is_none() != matches!(binding.phase, TerminalPhase::Creating)
-        {
-            return None;
+        let Some((reference, binding)) = matches.next() else {
+            return RetainedBindingResolution::Absent;
+        };
+        if matches.next().is_some() {
+            return RetainedBindingResolution::Ambiguous;
         }
-        Some(RetainedTerminalCreate {
+        if binding.create_outcome.is_none() != matches!(binding.phase, TerminalPhase::Creating) {
+            return RetainedBindingResolution::Inconsistent;
+        }
+        RetainedBindingResolution::Unique(RetainedTerminalCreate {
             reference,
             outcome: binding.create_outcome,
             phase: binding.phase,
             worker_generation: binding.authorization.worker_generation(),
         })
+    }
+
+    pub(crate) fn retained_create_for_binding(
+        &self,
+        terminal_id: TerminalId,
+        worker_id: WorkerId,
+    ) -> Option<RetainedTerminalCreate<'_>> {
+        match self.resolve_retained_binding(terminal_id, worker_id) {
+            RetainedBindingResolution::Unique(retained) => Some(retained),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn retained_binding_resolution(
+        &self,
+        terminal_id: TerminalId,
+        worker_id: WorkerId,
+    ) -> RetainedBindingResolution<'_> {
+        self.resolve_retained_binding(terminal_id, worker_id)
     }
 
     pub(crate) fn binding_viewer_target(
@@ -802,6 +834,20 @@ impl TerminalCoordinator {
     #[cfg(test)]
     pub(crate) fn set_next_identity_for_test(&mut self, next_identity: Option<u128>) {
         self.next_identity = next_identity;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_phase_for_test(&mut self, reference: &RequestId, phase: TerminalPhase) {
+        self.bindings.get_mut(reference).unwrap().phase = phase;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn replace_authorization_for_test(
+        &mut self,
+        reference: &RequestId,
+        authorization: TerminalOperationAuthorization,
+    ) {
+        self.bindings.get_mut(reference).unwrap().authorization = authorization;
     }
 }
 

@@ -24,8 +24,8 @@ The carrier queue is one `Mutex`+`Condvar` cell holding:
 
 A request lives in exactly one place at a time: its producer thread (before admission),
 `high_waiters`, `high`, `low`, the owner's in-flight slot, or settled (one completion send, or a
-fire-forget drop for completion-less cleanup detaches). There is no hidden or unbounded queue
-behind the lanes.
+fire-forget drop for completion-less cleanup detaches, or a consumed-and-discarded reply for an
+abandoned drain exchange). There is no hidden or unbounded queue behind the lanes.
 
 ## Caller lane map
 
@@ -37,10 +37,16 @@ The lane follows producer semantics, not the wire variant alone:
 | `request()`                                                  | Viewer (Attach/Poll/ReadRows/feedback/explicit Detach)               | low  | try-admit; full → `Backpressure`                   |
 | `cleanup_control()`                                          | Control Release                                                      | high | FIFO wait; priority over try-admit                 |
 | `enqueue_detach()`                                           | Viewer Detach                                                        | high | FIFO wait; priority over try-admit                 |
+| `admit_agent_drain()`                                        | AgentDrain                                                           | low  | try-admit; full → `Backpressure`                   |
 
 The identical Viewer Detach variant is high when produced by session-drop cleanup and low when
 produced by ordinary observation. Only the two existing cleanup producers block; every ordinary
-producer try-admits and receives the existing typed `Backpressure` busy result.
+producer try-admits and receives the existing typed `Backpressure` busy result. The
+`admit_agent_drain` seam is production: the Server drain-read pump try-admits a typed
+AgentDrain request
+through the same worker/generation fence and receives a `PendingExchange` whose bounded
+`recv_deadline` wait keeps the attempt alive when it elapses, so the pump
+waits with its own deadline instead of `submit`'s blocking receive.
 
 ## Admission
 
@@ -82,9 +88,54 @@ after), then closes the queue and settles every queued and waiter request exactl
 payload to the wire, so completion-less cleanup detaches still reach the worker at final
 teardown — the owner then exits `Shutdown` and the same drain runs, the previous
 all-senders-dropped semantics.
-Completion-less (`None`) cleanup requests settle by drop; losing the reply receiver of an
-in-flight request still retires the carrier conservatively. The `NotDelivered` versus
+Completion ownership is one of `Required`, `DiscardableDrain` or `Detached`, fixed by the
+admitted request kind at admission construction: `Detached` cleanup requests settle by drop;
+losing the reply receiver of an in-flight `Required` request still retires the carrier
+conservatively; an abandoned `DiscardableDrain` exchange consumes and discards the valid reply
+so healthy carrier traffic survives — malformed frames, wrong kinds or directions, echo
+mismatches and transport failures stay fatal exactly as before. The `NotDelivered` versus
 `PostDeliveryOutcomeUnknown` distinction across the complete-write boundary is unchanged.
+
+## Drain target
+
+`WorkerRegistry::agent_drain_carrier()` answers the drain-scoped carrier
+question `request_handle()` cannot: `NoCarrier` only when `active == None`;
+`CarrierUnavailable` for a pending admission, a present-but-inactive carrier record, or a
+carrier whose identity cannot be named on the drain wire (CNP rejects an all-zero
+`WorkerId`); `Live` carrying the cloned request handle, the full CNP `WorkerId` +
+`WorkerGeneration` identity pair, and the shared per-carrier `AgentDrainMint`.
+
+The mint is born at successful carrier registration and dies with the record. `mint()`
+issues the next drain token through a checked compare-and-swap — at `u64::MAX` it returns
+`None` and leaves `last_issued` untouched: exhaustion is a value answer, never a carrier
+retirement and never token reuse. `floor()` peeks the next would-be token without issuing
+it. A cloned target may outlive retirement only alongside a dead identity — the mint is
+not a liveness proof; the handle's admission fence is. The production consumer is
+the `LocalTerminalService` prepared-read provider (`agent_drain_read`).
+
+## Native leaf
+
+`WorkerRegistry::register_carrier_with_agents()` runs the same registration
+path as `register_carrier()` — identical checks, identical publication — plus the canonical
+`AgentService` native leaf attached to the outcome. While the registry guard is held, the
+exact CNP `WorkerId` + `WorkerGeneration` identity is derived from the admitted worker and
+the registry-minted generation (the same pair `agent_drain_carrier()` re-derives), then
+`AgentService::native_admit_carrier()` runs inside the same guard. A contract refusal or a
+poisoned cell fails the registration closed: the carrier record is never installed, so a
+readable Live carrier always implies its leaf was admitted.
+
+The registration carries the leaf as `{identity, Weak<AgentService>}`. On teardown the wire
+owner still settles first; the registration guard then retires the leaf inside the registry
+guard — before `retire_carrier` frees the slot — so a replacement can never be exposed
+between leaf retirement and slot release. A dead service (weak upgrade fails) or a poisoned
+cell (typed `Err`) cannot block registry retirement, and a stale registration's old identity
+cannot retire a replacement's leaf: both the leaf's full-identity check and the registry's
+generation check refuse it. No mutex is held across socket I/O, and the unmanaged
+`register_carrier()` keeps its behavior untouched — it is the same
+`register_carrier_impl` without a service argument. The managed listener path wires the
+seam in production: `LocalSiteService` calls `register_carrier_with_agents` when the
+shared `AgentService` exists and plain `register_carrier` otherwise; lifecycle authority
+stays at the site composition root.
 
 ## Lock discipline
 
@@ -95,6 +146,7 @@ bounded-deque operations; completion sends happen outside it on the drain path.
 ## Ownership accounting
 
 Resident payloads: `high` ≤ 8, `low` ≤ 8, `high_waiters` ≤ 32 (producer-bound), in-flight 1 —
-each a `PendingRequest` (encoded frame bytes + typed request + one `sync_channel(1)`
-completion pair). Per-request result receivers live on their producer threads. No whole-process
-memory bound is claimed here; this enumerates the queue-owned and producer-held copies.
+each a `PendingRequest` (encoded frame bytes + typed request + one completion endpoint under
+the `Required`/`DiscardableDrain`/`Detached` ownership policy). Per-request result receivers
+live on their producer threads. No whole-process memory bound is claimed here; this enumerates
+the queue-owned and producer-held copies.

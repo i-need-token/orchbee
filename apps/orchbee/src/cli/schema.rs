@@ -13,11 +13,27 @@ pub(crate) const SOURCE_FAILURE_ID: &str = "orchbee.cli.failure.source";
 /// shapes (directory resource, worktree-list stage, shared Git bound origin)
 /// without touching the generic failure schema.
 pub(crate) const WORKTREE_FAILURE_ID: &str = "orchbee.cli.failure.worktree";
+/// The dedicated Agent read failure envelope: post-admission exchange and
+/// semantic failures plus the signal-cancelled kind, kept off the generic
+/// failure schema.
+pub(crate) const AGENT_FAILURE_ID: &str = "orchbee.cli.failure.agent";
 pub(crate) const MUTATION_RESULT_ID: &str = "orchbee.mutation.result";
 pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
+    (
+        "orchbee.agent.explain",
+        include_str!("schemas/orchbee.agent.explain.json"),
+    ),
+    (
+        "orchbee.agent.get",
+        include_str!("schemas/orchbee.agent.get.json"),
+    ),
+    (
+        "orchbee.agent.list",
+        include_str!("schemas/orchbee.agent.list.json"),
+    ),
     (
         "orchbee.api.schema",
         include_str!("schemas/orchbee.api.schema.json"),
@@ -27,6 +43,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.api.snapshot.json"),
     ),
     (FAILURE_ID, include_str!("schemas/orchbee.cli.failure.json")),
+    (
+        AGENT_FAILURE_ID,
+        include_str!("schemas/orchbee.cli.failure.agent.json"),
+    ),
     (
         SOURCE_FAILURE_ID,
         include_str!("schemas/orchbee.cli.failure.source.json"),
@@ -182,9 +202,9 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog envelope v5: registering new schema ids changes the closed
+        // Catalog envelope v6: registering new schema ids changes the closed
         // dictionary's shape; business document versions stay untouched.
-        "version": 5,
+        "version": 6,
         "source": embedded_source(),
         "result": result,
     });

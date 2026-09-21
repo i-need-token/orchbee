@@ -67,6 +67,18 @@ Preparation/startup failure returns a pre-handoff failure when deliverable and r
 uncertain handed-off outcomes are never replayed. Later operations use the same serialized loop
 and replay cache.
 
+Every Launch on this managed path also propagates the local Agent observation channel through the
+existing Terminal Protocol `environmentOverlay`. For each admitted Launch the launch adapter joins
+the cross-owner file name `agent-observation-v3.sock` onto the verified `--local-site` runtime
+directory and admits the candidate only when `lstat` proves an existing socket owned by this
+Worker's effective user. An admitted socket sets
+`ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` to its absolute path inside the existing 16-entry and 4 KiB
+overlay bounds; a missing, non-socket, foreign-owned, or non-UTF-8 candidate emits no variable and
+never fails the launch. The gate re-evaluates on every Launch instead of caching admission. The
+explicit-endpoint path carries no Site runtime directory and keeps an empty overlay — remote and
+non-managed launches gain no observation channel, and no CNP field or Server-private import is
+introduced for it.
+
 The child reaper only waits for exit; it never kills Host. Host retains terminals after the
 Server/Worker connection closes. Restart adoption and replacement Host are unsupported.
 Explicit-endpoint mode retains its existing two-peer readiness semantics.
@@ -190,8 +202,9 @@ launch-fact composition only when no explicit selection is present. Its transpor
 `DefaultInteractiveLaunch` output owns only one
 resolved executable, an exactly empty literal argument vector, and three fixed environment entries.
 The loop combines these with Worker-local cwd, Terminal Protocol profile, geometry, and independent
-creation identity. The three entries map to the Terminal Protocol launch environment; the
-invocation-scoped `CreateTerminal.environmentOverlay` remains empty in the accepted first milestone.
+creation identity. The three entries map to the Terminal Protocol launch environment. The
+invocation-scoped `CreateTerminal.environmentOverlay` stays empty on the explicit-endpoint path;
+on the managed local-site path it carries the single Agent observation variable described below.
 
 Resolution considers an inherited `SHELL`, then the effective operating-system account's shell,
 then `/bin/sh`. A candidate is valid only when its path is nonempty, absolute, valid UTF-8, free of
@@ -492,6 +505,37 @@ framing and OS facts remain concrete assumptions outside its symbolic state spac
 prove Server Client Session viewer routing, activation, restart reconciliation, or another OS platform.
 The viewer process trace separately proves two read attachments, a stalled viewer, exact feedback,
 snapshot recovery, detach/reattach, and terminal retention through the real Worker and Host.
+
+## Agent drain queue and request loop
+
+One `AgentDrain` queue (`src/agent_drain.rs`) is owned by each admitted Worker-to-Server
+connection and created before any Host startup. A shared `Rc<RefCell<AgentDrain>>` handle is a
+required `HostBrokerConnection` constructor argument on both connection paths — the eager path
+builds it between Server admission and Host connect, and the lazy path builds it at the top of the
+pre-Host loop and passes the same handle through `start_host` into the admitted loop. There is no
+optional owner, no empty fallback, and no per-viewer or per-request allocation; the queue's
+lifetime is exactly the admitted Server connection epoch. `Rc<RefCell>` is sound because the
+Worker event loop is single-threaded, and the borrow is always released before Server I/O:
+`server_transport::send` may consume Host events during POLLOUT waits, and those events append to
+the same queue.
+
+`HostBrokerConnection::receive_event` is the single producer. After envelope and Host-epoch
+validation it decodes every kind-58 application signal, converts the Terminal Host identity
+through the existing launch adapter, and appends to the shared drain before borrowing viewers —
+a terminal with no attached viewer still enters the queue. Signals for a foreign Host epoch stay
+fatal, and an `ApplicationSignal` reaching the viewer path is now unexpected rather than silently
+dropped. Bell and Clipboard routing is unchanged.
+
+The queue retains at most 1,024 entries and 4 MiB of encoded bytes. Overflow evicts the oldest
+sequence, covering it with a merged leading `Gap` that consumes its own slot and bytes. Replies
+page by both an entry count of 480 and 8,165 encoded entry bytes; a successful send commits the
+watermark captured at request time, for both `Ok(false)` and `Ok(true)` write results. An
+acknowledgement above the offered watermark is fatal, a stale or zero acknowledgement is a
+no-op that leaves unconfirmed sequences offered, and the echoed token is exactly the request's.
+
+The pre-Host loop answers drain requests with the same shared dispatch as the admitted loop, so
+a request before any Host returns a truthful empty page without starting a Host, and the same
+owner, token, and acknowledgement state survives the first launch.
 
 ## Terminal cwd validation
 

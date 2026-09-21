@@ -11,12 +11,14 @@ use orchbee_terminal_protocol::{
     HelloAccepted, HostEpoch, TRANSPORT_ENVELOPE_HEADER_BYTES, encode_connection_control,
 };
 use std::{
+    cell::RefCell,
     fs,
     io::{Read, Write},
     net::Shutdown,
     num::NonZeroU64,
     os::unix::net::{UnixListener, UnixStream},
     path::PathBuf,
+    rc::Rc,
     sync::atomic::{AtomicU64, Ordering},
     thread,
     time::Duration,
@@ -28,6 +30,10 @@ static NEXT: AtomicU64 = AtomicU64::new(0);
 
 fn nz(value: u64) -> NonZeroU64 {
     NonZeroU64::new(value).expect("fixture nonzero")
+}
+
+fn fresh_drain() -> Rc<RefCell<crate::agent_drain::AgentDrain>> {
+    Rc::new(RefCell::new(crate::agent_drain::AgentDrain::new()))
 }
 fn request(action: TerminalLifecycleAction) -> TestResult<TerminalLifecycleRequest> {
     Ok(TerminalLifecycleRequest {
@@ -156,6 +162,7 @@ fn no_bytes(peer: &mut UnixStream) -> TestResult {
 }
 struct Fixture {
     host: HostBrokerConnection,
+    drain: Rc<RefCell<crate::agent_drain::AgentDrain>>,
     peer: UnixStream,
     server: UnixStream,
     server_peer: UnixStream,
@@ -205,7 +212,8 @@ impl Fixture {
             };
             run().map_err(|e| e.to_string())
         });
-        let host = HostBrokerConnection::connect(&endpoint)?;
+        let drain = fresh_drain();
+        let host = HostBrokerConnection::connect(&endpoint, Rc::clone(&drain))?;
         let peer = thread
             .join()
             .map_err(|_| "handshake panic")?
@@ -213,6 +221,7 @@ impl Fixture {
         let (server, server_peer) = UnixStream::pair()?;
         Ok(Self {
             host,
+            drain,
             peer,
             server,
             server_peer,
@@ -440,7 +449,7 @@ fn real_dispatch_loop_bypasses_unrelated_closed_viewer_cleanup_for_one_lifecycle
         CapabilityNodeMessage, TerminalViewerAction, TerminalViewerRequest, read_message,
         write_message,
     };
-    let fixture = Fixture::new()?;
+    let mut fixture = Fixture::new()?;
     let unrelated = TerminalViewerRequest {
         request_id: OperationId::from_bytes([61; 16])?,
         attachment_id: OperationId::from_bytes([60; 16])?,
@@ -488,48 +497,52 @@ fn real_dispatch_loop_bypasses_unrelated_closed_viewer_cleanup_for_one_lifecycle
     server_peer.set_read_timeout(Some(Duration::from_secs(3)))?;
     server_peer.set_write_timeout(Some(Duration::from_secs(3)))?;
     let mut host_peer = fixture.peer.try_clone()?;
-    let runner = thread::spawn(move || {
-        let mut fixture = fixture;
-        fixture
-            .server
-            .set_nonblocking(true)
-            .map_err(|e| e.to_string())?;
-        fixture
-            .host
-            .stream()
-            .set_nonblocking(true)
-            .map_err(|e| e.to_string())?;
-        let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
-        crate::terminal_operations::run_admitted(
-            &fixture.server,
-            &mut fixture.host,
-            orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
-            nz(7),
-            kernel,
-            &worktree_slot,
-        )
-        .map_err(|e| e.to_string())
+    // The admitted loop must run on this thread: the connection's drain owner
+    // is Rc-shared and cannot cross threads. The spawned thread drives both
+    // socket peers instead.
+    let runner = thread::spawn(move || -> Result<(), String> {
+        let mut run = || -> TestResult {
+            write_message(
+                &mut server_peer,
+                &CapabilityNodeMessage::TerminalLifecycleRequest(request),
+            )?;
+            let record = read_record(&mut host_peer)?;
+            let envelope = decode_transport_envelope(&record)?;
+            assert!(matches!(
+                decode_lifecycle_control(envelope.kind, envelope.role, envelope.payload)?,
+                LifecycleControl::DisposeTerminal(_)
+            ));
+            host_peer.write_all(&ack(request)?)?;
+            let CapabilityNodeMessage::TerminalLifecycleResult(result) =
+                read_message(&mut server_peer)?
+            else {
+                panic!("lifecycle result");
+            };
+            assert_eq!(result.request(), request);
+            assert_eq!(result.outcome(), TerminalLifecycleOutcome::Disposed);
+            no_bytes(&mut host_peer)?;
+            server_peer.shutdown(Shutdown::Both)?;
+            Ok(())
+        };
+        run().map_err(|e| e.to_string())
     });
-    write_message(
-        &mut server_peer,
-        &CapabilityNodeMessage::TerminalLifecycleRequest(request),
-    )?;
-    let record = read_record(&mut host_peer)?;
-    let envelope = decode_transport_envelope(&record)?;
-    assert!(matches!(
-        decode_lifecycle_control(envelope.kind, envelope.role, envelope.payload)?,
-        LifecycleControl::DisposeTerminal(_)
-    ));
-    host_peer.write_all(&ack(request)?)?;
-    let CapabilityNodeMessage::TerminalLifecycleResult(result) = read_message(&mut server_peer)?
-    else {
-        panic!("lifecycle result");
-    };
-    assert_eq!(result.request(), request);
-    assert_eq!(result.outcome(), TerminalLifecycleOutcome::Disposed);
-    no_bytes(&mut host_peer)?;
-    server_peer.shutdown(Shutdown::Both)?;
-    assert!(runner.join().map_err(|_| "Worker loop panic")?.is_err());
+    fixture.server.set_nonblocking(true)?;
+    fixture.host.stream().set_nonblocking(true)?;
+    let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
+    let outcome = crate::terminal_operations::run_admitted(
+        &fixture.server,
+        &mut fixture.host,
+        orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
+        nz(7),
+        kernel,
+        crate::terminal_operations::AdmittedAux {
+            drain: &fixture.drain,
+            worktree_slot: &worktree_slot,
+            site_runtime: None,
+        },
+    );
+    assert!(outcome.is_err());
+    runner.join().map_err(|_| "peer driver panic")??;
     Ok(())
 }
 

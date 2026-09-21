@@ -1,4 +1,9 @@
-use std::num::NonZeroU64;
+use std::{
+    num::NonZeroU64,
+    os::unix::net::UnixListener,
+    path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 use orchbee_capability_node_protocol::{
     AuthorizedTerminalLaunch, AuthorizedTerminalStart, HostCreationId, HostEpoch, HostTerminalId,
@@ -34,7 +39,7 @@ fn immediate_launch_maps_stable_identity_explicit_cwd_and_all_resolved_facts() -
     )?;
     let facts = resolved_facts("/Users/worker")?;
 
-    let request = map_launch_dispatch(&dispatch, facts)?;
+    let request = map_launch_dispatch(&dispatch, facts, None)?;
 
     assert_eq!(request.creation_id.as_bytes(), &[HOST_CREATION; 16]);
     assert_ne!(request.creation_id.as_bytes(), &[PRODUCT_TERMINAL; 16]);
@@ -64,7 +69,7 @@ fn immediate_launch_maps_stable_identity_explicit_cwd_and_all_resolved_facts() -
 fn deferred_launch_uses_resolved_home_and_carries_no_geometry() -> TestResult {
     let dispatch = launch_dispatch(None, TerminalLaunchMode::Deferred)?;
 
-    let request = map_launch_dispatch(&dispatch, resolved_facts("/home/worker")?)?;
+    let request = map_launch_dispatch(&dispatch, resolved_facts("/home/worker")?, None)?;
 
     assert_eq!(
         request.launch.current_directory.as_deref(),
@@ -80,6 +85,7 @@ fn resolved_host_creation_identity_is_stable_and_independent_from_product_termin
     let first = map_launch_dispatch(
         &launch_dispatch(None, TerminalLaunchMode::Deferred)?,
         resolved_facts("/home/worker")?,
+        None,
     )?;
     let second = map_launch_dispatch(
         &launch_dispatch(
@@ -87,6 +93,7 @@ fn resolved_host_creation_identity_is_stable_and_independent_from_product_termin
             TerminalLaunchMode::Immediate(geometry(80, 24, 8, 16)?),
         )?,
         resolved_facts("/another-home")?,
+        None,
     )?;
 
     assert_eq!(first.creation_id, second.creation_id);
@@ -129,7 +136,7 @@ fn request_and_response_functions_reject_the_opposite_authorized_operation_kind(
     )?;
 
     assert_eq!(
-        map_launch_dispatch(&start, resolved_facts("/home/worker")?),
+        map_launch_dispatch(&start, resolved_facts("/home/worker")?, None),
         Err(HostLaunchAdapterError::OperationKindMismatch)
     );
     assert_eq!(
@@ -423,9 +430,9 @@ fn launch_request_reuses_terminal_protocol_argument_and_environment_bounds() -> 
 
     let mut exact_arguments = resolved_facts("/home/worker")?;
     exact_arguments.arguments = vec![String::new(); MAXIMUM_LAUNCH_ARGUMENTS];
-    map_launch_dispatch(&dispatch, exact_arguments.clone())?;
+    map_launch_dispatch(&dispatch, exact_arguments.clone(), None)?;
     exact_arguments.arguments.push(String::new());
-    assert_invalid_host_field(map_launch_dispatch(&dispatch, exact_arguments));
+    assert_invalid_host_field(map_launch_dispatch(&dispatch, exact_arguments, None));
 
     let mut exact_environment = resolved_facts("/home/worker")?;
     exact_environment.environment = (0..MAXIMUM_LAUNCH_ENVIRONMENT_ENTRIES)
@@ -434,12 +441,12 @@ fn launch_request_reuses_terminal_protocol_argument_and_environment_bounds() -> 
             value: None,
         })
         .collect();
-    map_launch_dispatch(&dispatch, exact_environment.clone())?;
+    map_launch_dispatch(&dispatch, exact_environment.clone(), None)?;
     exact_environment.environment.push(LaunchEnvironmentEntry {
         name: "OVER_BOUND".to_owned(),
         value: None,
     });
-    assert_invalid_host_field(map_launch_dispatch(&dispatch, exact_environment));
+    assert_invalid_host_field(map_launch_dispatch(&dispatch, exact_environment, None));
     Ok(())
 }
 
@@ -448,11 +455,11 @@ fn launch_and_response_values_are_revalidated_at_the_host_protocol_boundary() ->
     let launch = launch_dispatch(None, TerminalLaunchMode::Deferred)?;
     let mut invalid_executable = resolved_facts("/home/worker")?;
     invalid_executable.executable.clear();
-    assert_invalid_host_field(map_launch_dispatch(&launch, invalid_executable));
+    assert_invalid_host_field(map_launch_dispatch(&launch, invalid_executable, None));
 
     let mut invalid_profile = resolved_facts("/home/worker")?;
     invalid_profile.terminal_profile.palette.pop();
-    assert_invalid_host_field(map_launch_dispatch(&launch, invalid_profile));
+    assert_invalid_host_field(map_launch_dispatch(&launch, invalid_profile, None));
 
     let mut invalid_failure = typed_failure(false);
     invalid_failure.code = "x".repeat(MAXIMUM_TYPED_FAILURE_CODE_BYTES + 1);
@@ -488,7 +495,98 @@ fn launch_and_response_values_are_revalidated_at_the_host_protocol_boundary() ->
     Ok(())
 }
 
+#[test]
+fn admitted_site_observation_socket_sets_the_overlay_variable() -> TestResult {
+    let directory = ObservationSiteDirectory::new()?;
+    UnixListener::bind(directory.path().join(OBSERVATION_SOCKET_NAME))?;
+    let dispatch = launch_dispatch(None, TerminalLaunchMode::Deferred)?;
+
+    let request = map_launch_dispatch(
+        &dispatch,
+        resolved_facts("/home/worker")?,
+        Some(directory.path()),
+    )?;
+
+    let expected = directory
+        .path()
+        .join(OBSERVATION_SOCKET_NAME)
+        .to_str()
+        .expect("fixture path is UTF-8")
+        .to_owned();
+    assert_eq!(
+        request.environment_overlay,
+        vec![EnvironmentOverlayEntry {
+            name: OBSERVATION_SOCKET_ENV.to_owned(),
+            value: expected,
+        }]
+    );
+    Ok(())
+}
+
+#[test]
+fn unqualified_observation_candidates_produce_no_overlay() -> TestResult {
+    let directory = ObservationSiteDirectory::new()?;
+    let dispatch = launch_dispatch(None, TerminalLaunchMode::Deferred)?;
+    let socket_name = directory.path().join(OBSERVATION_SOCKET_NAME);
+
+    // Nothing at the socket name: no variable is published.
+    let request = map_launch_dispatch(
+        &dispatch,
+        resolved_facts("/home/worker")?,
+        Some(directory.path()),
+    )?;
+    assert!(request.environment_overlay.is_empty());
+
+    // A regular file is not the bound socket.
+    std::fs::write(&socket_name, b"not-a-socket")?;
+    let request = map_launch_dispatch(
+        &dispatch,
+        resolved_facts("/home/worker")?,
+        Some(directory.path()),
+    )?;
+    assert!(request.environment_overlay.is_empty());
+
+    // A symlink to a real socket still fails the symlink_metadata type check.
+    std::fs::remove_file(&socket_name)?;
+    let target = directory.path().join("elsewhere.sock");
+    UnixListener::bind(&target)?;
+    std::os::unix::fs::symlink(&target, &socket_name)?;
+    let request = map_launch_dispatch(
+        &dispatch,
+        resolved_facts("/home/worker")?,
+        Some(directory.path()),
+    )?;
+    assert!(request.environment_overlay.is_empty());
+    Ok(())
+}
+
 type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+static NEXT_OBSERVATION_DIRECTORY: AtomicU64 = AtomicU64::new(0);
+
+struct ObservationSiteDirectory(PathBuf);
+
+impl ObservationSiteDirectory {
+    fn new() -> std::io::Result<Self> {
+        let path = std::env::temp_dir().join(format!(
+            "orchbee-worker-observation-overlay-{}-{}",
+            std::process::id(),
+            NEXT_OBSERVATION_DIRECTORY.fetch_add(1, Ordering::Relaxed),
+        ));
+        std::fs::create_dir(&path)?;
+        Ok(Self(path))
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for ObservationSiteDirectory {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
 
 fn resolved_facts(
     default_cwd: &str,

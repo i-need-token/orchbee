@@ -24,6 +24,11 @@ impl Locale {
         if failure.failure_schema == Some(crate::cli::schema::WORKTREE_FAILURE_ID) {
             return self.cli_worktree_failure(failure);
         }
+        // Agent read and cancelled failures answer under the dedicated Agent
+        // envelope; the schema marker selects their wording the same way.
+        if failure.failure_schema == Some(crate::cli::schema::AGENT_FAILURE_ID) {
+            return self.cli_agent_failure(failure);
+        }
         match failure.kind {
             FailureKind::Timeout if local_runtime => match self {
                 Self::EnUs => {
@@ -473,6 +478,20 @@ impl Locale {
             (Self::ZhCn, ExpectedValue::LaunchArguments) => {
                 "配合 '--exec' 使用，至多 128 个参数且合计不超过 2,048 UTF-8 字节"
             }
+            (Self::EnUs, ExpectedValue::AgentSessionId) => {
+                "an agent session identity (1–128 ASCII letters, digits, '.', '_', ':', '-')"
+            }
+            (Self::ZhCn, ExpectedValue::AgentSessionId) => {
+                "一个 Agent 会话身份（1–128 个 ASCII 字母、数字、'.'、'_'、':'、'-'）"
+            }
+            (Self::EnUs, ExpectedValue::AgentListLimit) => "a decimal integer from 1 to 100",
+            (Self::ZhCn, ExpectedValue::AgentListLimit) => "1–100 的十进制整数",
+            (Self::EnUs, ExpectedValue::AgentCursor) => {
+                "a 'v1.<payload>.<tag>' list cursor from a previous page"
+            }
+            (Self::ZhCn, ExpectedValue::AgentCursor) => {
+                "上一页返回的 'v1.<payload>.<tag>' 列表游标"
+            }
         };
         let (problem, hint) = match reason {
             UsageReason::Invalid => return self.usage_failure().to_owned(),
@@ -915,6 +934,401 @@ impl Locale {
             Self::ZhCn => format!("… 因读取上限省略了 {omitted} 行\n"),
         }
     }
+
+    // ---- agent read rendering ------------------------------------------------
+
+    /// The notice printed instead of an empty agent table.
+    pub(crate) const fn cli_agent_empty(self) -> &'static str {
+        match self {
+            Self::EnUs => "No agent sessions.\n",
+            Self::ZhCn => "没有 Agent 会话。\n",
+        }
+    }
+
+    /// The pagination line emitted after a non-exhaustive agent page.
+    pub(crate) fn cli_agent_next_cursor(self, cursor: &str) -> String {
+        match self {
+            Self::EnUs => format!("More sessions exist; continue with --cursor {cursor}\n"),
+            Self::ZhCn => format!("还有更多会话；使用 --cursor {cursor} 继续\n"),
+        }
+    }
+
+    /// The localized text form of one semantic Agent status, including its
+    /// structured payload (attention count, active activity, activity hint).
+    pub(crate) fn cli_agent_status(
+        self,
+        status: &orchbee_agent_observation_protocol::AgentSemanticStatus,
+    ) -> String {
+        use orchbee_agent_observation_protocol::AgentSemanticStatus;
+        match status {
+            AgentSemanticStatus::NeedsAttention { count } => match self {
+                Self::EnUs => format!("needs attention ({} pending)", count.value()),
+                Self::ZhCn => format!("需要注意（{} 项待处理）", count.value()),
+            },
+            AgentSemanticStatus::Failed {} => match self {
+                Self::EnUs => "failed".to_owned(),
+                Self::ZhCn => "失败".to_owned(),
+            },
+            AgentSemanticStatus::Succeeded {} => match self {
+                Self::EnUs => "succeeded".to_owned(),
+                Self::ZhCn => "成功".to_owned(),
+            },
+            AgentSemanticStatus::Canceled {} => match self {
+                Self::EnUs => "canceled".to_owned(),
+                Self::ZhCn => "已取消".to_owned(),
+            },
+            AgentSemanticStatus::Interrupted {} => match self {
+                Self::EnUs => "interrupted".to_owned(),
+                Self::ZhCn => "已中断".to_owned(),
+            },
+            AgentSemanticStatus::Working { activity, phase } => {
+                let phase_text = self.cli_agent_phase(*phase);
+                match activity {
+                    Some(activity) => {
+                        format!("{} ({})", phase_text, self.cli_agent_activity(*activity))
+                    }
+                    None => phase_text.to_owned(),
+                }
+            }
+            AgentSemanticStatus::Idle {} => match self {
+                Self::EnUs => "idle".to_owned(),
+                Self::ZhCn => "空闲".to_owned(),
+            },
+            AgentSemanticStatus::Unknown { activity_hint } => match (self, activity_hint) {
+                (Self::EnUs, Some(activity)) => {
+                    format!("unknown (hint: {})", self.cli_agent_activity(*activity))
+                }
+                (Self::ZhCn, Some(activity)) => {
+                    format!("未知（提示：{}）", self.cli_agent_activity(*activity))
+                }
+                (Self::EnUs, None) => "unknown".to_owned(),
+                (Self::ZhCn, None) => "未知".to_owned(),
+            },
+            AgentSemanticStatus::Ended {} => match self {
+                Self::EnUs => "ended".to_owned(),
+                Self::ZhCn => "已结束".to_owned(),
+            },
+        }
+    }
+
+    pub(crate) const fn cli_agent_activity(
+        self,
+        activity: orchbee_agent_observation_protocol::AgentActivity,
+    ) -> &'static str {
+        use orchbee_agent_observation_protocol::AgentActivity;
+        match (self, activity) {
+            (Self::EnUs, AgentActivity::Thinking) => "thinking",
+            (Self::EnUs, AgentActivity::Tool) => "tool",
+            (Self::EnUs, AgentActivity::Editing) => "editing",
+            (Self::EnUs, AgentActivity::Command) => "command",
+            (Self::EnUs, AgentActivity::Subagent) => "subagent",
+            (Self::EnUs, AgentActivity::Compacting) => "compacting",
+            (Self::EnUs, AgentActivity::Retrying) => "retrying",
+            (Self::EnUs, AgentActivity::Other) => "other",
+            (Self::ZhCn, AgentActivity::Thinking) => "思考中",
+            (Self::ZhCn, AgentActivity::Tool) => "工具调用",
+            (Self::ZhCn, AgentActivity::Editing) => "编辑中",
+            (Self::ZhCn, AgentActivity::Command) => "命令执行",
+            (Self::ZhCn, AgentActivity::Subagent) => "子代理",
+            (Self::ZhCn, AgentActivity::Compacting) => "压缩中",
+            (Self::ZhCn, AgentActivity::Retrying) => "重试中",
+            (Self::ZhCn, AgentActivity::Other) => "其他",
+        }
+    }
+
+    pub(crate) const fn cli_agent_phase(
+        self,
+        phase: orchbee_agent_observation_protocol::AgentTurnPhase,
+    ) -> &'static str {
+        use orchbee_agent_observation_protocol::AgentTurnPhase;
+        match (self, phase) {
+            (Self::EnUs, AgentTurnPhase::Queued) => "queued",
+            (Self::EnUs, AgentTurnPhase::Working) => "working",
+            (Self::EnUs, AgentTurnPhase::WaitingExternal) => "waiting-external",
+            (Self::ZhCn, AgentTurnPhase::Queued) => "排队中",
+            (Self::ZhCn, AgentTurnPhase::Working) => "工作中",
+            (Self::ZhCn, AgentTurnPhase::WaitingExternal) => "等待外部",
+        }
+    }
+
+    pub(crate) const fn cli_agent_freshness(
+        self,
+        freshness: orchbee_agent_observation_protocol::AgentObservationFreshness,
+    ) -> &'static str {
+        use orchbee_agent_observation_protocol::AgentObservationFreshness;
+        match (self, freshness) {
+            (Self::EnUs, AgentObservationFreshness::Fresh) => "fresh",
+            (Self::EnUs, AgentObservationFreshness::Stale) => "stale",
+            (Self::EnUs, AgentObservationFreshness::Disconnected) => "disconnected",
+            (Self::ZhCn, AgentObservationFreshness::Fresh) => "新鲜",
+            (Self::ZhCn, AgentObservationFreshness::Stale) => "过期",
+            (Self::ZhCn, AgentObservationFreshness::Disconnected) => "已断开",
+        }
+    }
+
+    pub(crate) const fn cli_agent_lifecycle(
+        self,
+        lifecycle: orchbee_agent_observation_protocol::AgentLifecycle,
+    ) -> &'static str {
+        use orchbee_agent_observation_protocol::AgentLifecycle;
+        match (self, lifecycle) {
+            (Self::EnUs, AgentLifecycle::Live) => "live",
+            (Self::EnUs, AgentLifecycle::Ended) => "ended",
+            (Self::ZhCn, AgentLifecycle::Live) => "存活",
+            (Self::ZhCn, AgentLifecycle::Ended) => "已结束",
+        }
+    }
+
+    pub(crate) const fn cli_agent_capability(
+        self,
+        capability: orchbee_agent_observation_protocol::AgentCapability,
+    ) -> &'static str {
+        use orchbee_agent_observation_protocol::AgentCapability;
+        match (self, capability) {
+            (Self::EnUs, AgentCapability::SessionLifecycle) => "sessionLifecycle",
+            (Self::EnUs, AgentCapability::TurnLifecycle) => "turnLifecycle",
+            (Self::EnUs, AgentCapability::Questions) => "questions",
+            (Self::EnUs, AgentCapability::Approvals) => "approvals",
+            (Self::EnUs, AgentCapability::Authentication) => "authentication",
+            (Self::EnUs, AgentCapability::Activity) => "activity",
+            (Self::EnUs, AgentCapability::Subagents) => "subagents",
+            (Self::EnUs, AgentCapability::Progress) => "progress",
+            (Self::ZhCn, AgentCapability::SessionLifecycle) => "会话生命周期",
+            (Self::ZhCn, AgentCapability::TurnLifecycle) => "轮次生命周期",
+            (Self::ZhCn, AgentCapability::Questions) => "提问",
+            (Self::ZhCn, AgentCapability::Approvals) => "审批",
+            (Self::ZhCn, AgentCapability::Authentication) => "认证",
+            (Self::ZhCn, AgentCapability::Activity) => "活动",
+            (Self::ZhCn, AgentCapability::Subagents) => "子代理",
+            (Self::ZhCn, AgentCapability::Progress) => "进度",
+        }
+    }
+
+    pub(crate) const fn cli_agent_attention_kind(
+        self,
+        kind: orchbee_agent_observation_protocol::AgentAttentionKind,
+    ) -> &'static str {
+        use orchbee_agent_observation_protocol::AgentAttentionKind;
+        match (self, kind) {
+            (Self::EnUs, AgentAttentionKind::Question) => "question",
+            (Self::EnUs, AgentAttentionKind::Approval) => "approval",
+            (Self::EnUs, AgentAttentionKind::Authentication) => "authentication",
+            (Self::EnUs, AgentAttentionKind::Unclassified) => "unclassified",
+            (Self::ZhCn, AgentAttentionKind::Question) => "提问",
+            (Self::ZhCn, AgentAttentionKind::Approval) => "审批",
+            (Self::ZhCn, AgentAttentionKind::Authentication) => "认证",
+            (Self::ZhCn, AgentAttentionKind::Unclassified) => "未分类",
+        }
+    }
+
+    pub(crate) const fn cli_agent_outcome_kind(
+        self,
+        kind: orchbee_agent_observation_protocol::AgentTurnOutcomeKind,
+    ) -> &'static str {
+        use orchbee_agent_observation_protocol::AgentTurnOutcomeKind;
+        match (self, kind) {
+            (Self::EnUs, AgentTurnOutcomeKind::Succeeded) => "succeeded",
+            (Self::EnUs, AgentTurnOutcomeKind::Failed) => "failed",
+            (Self::EnUs, AgentTurnOutcomeKind::Canceled) => "canceled",
+            (Self::EnUs, AgentTurnOutcomeKind::Interrupted) => "interrupted",
+            (Self::ZhCn, AgentTurnOutcomeKind::Succeeded) => "成功",
+            (Self::ZhCn, AgentTurnOutcomeKind::Failed) => "失败",
+            (Self::ZhCn, AgentTurnOutcomeKind::Canceled) => "已取消",
+            (Self::ZhCn, AgentTurnOutcomeKind::Interrupted) => "已中断",
+        }
+    }
+
+    pub(crate) const fn cli_agent_visibility(
+        self,
+        visibility: orchbee_agent_observation_protocol::AgentPresentationVisibility,
+    ) -> &'static str {
+        use orchbee_agent_observation_protocol::AgentPresentationVisibility;
+        match (self, visibility) {
+            (Self::EnUs, AgentPresentationVisibility::Visible) => "visible",
+            (Self::EnUs, AgentPresentationVisibility::Hidden) => "hidden",
+            (Self::EnUs, AgentPresentationVisibility::Unknown) => "unknown",
+            (Self::ZhCn, AgentPresentationVisibility::Visible) => "可见",
+            (Self::ZhCn, AgentPresentationVisibility::Hidden) => "隐藏",
+            (Self::ZhCn, AgentPresentationVisibility::Unknown) => "未知",
+        }
+    }
+
+    pub(crate) const fn cli_agent_source(
+        self,
+        source: orchbee_agent_observation_protocol::AgentObservationSource,
+    ) -> &'static str {
+        use orchbee_agent_observation_protocol::AgentObservationSource;
+        match (self, source) {
+            (Self::EnUs, AgentObservationSource::Native) => "native",
+            (Self::EnUs, AgentObservationSource::Hook) => "hook",
+            (Self::EnUs, AgentObservationSource::Terminal) => "terminal",
+            (Self::EnUs, AgentObservationSource::Heuristic) => "heuristic",
+            (Self::ZhCn, AgentObservationSource::Native) => "原生",
+            (Self::ZhCn, AgentObservationSource::Hook) => "钩子",
+            (Self::ZhCn, AgentObservationSource::Terminal) => "终端",
+            (Self::ZhCn, AgentObservationSource::Heuristic) => "启发式",
+        }
+    }
+
+    pub(crate) const fn cli_agent_fidelity(
+        self,
+        fidelity: orchbee_agent_observation_protocol::AgentObservationFidelity,
+    ) -> &'static str {
+        use orchbee_agent_observation_protocol::AgentObservationFidelity;
+        match (self, fidelity) {
+            (Self::EnUs, AgentObservationFidelity::Rich) => "rich",
+            (Self::EnUs, AgentObservationFidelity::Basic) => "basic",
+            (Self::EnUs, AgentObservationFidelity::Heuristic) => "heuristic",
+            (Self::ZhCn, AgentObservationFidelity::Rich) => "丰富",
+            (Self::ZhCn, AgentObservationFidelity::Basic) => "基础",
+            (Self::ZhCn, AgentObservationFidelity::Heuristic) => "启发式",
+        }
+    }
+
+    pub(crate) const fn cli_agent_status_basis(
+        self,
+        basis: orchbee_agent_observation_protocol::AgentStatusBasis,
+    ) -> &'static str {
+        use orchbee_agent_observation_protocol::AgentStatusBasis;
+        match (self, basis) {
+            (Self::EnUs, AgentStatusBasis::AttentionRequest) => "attention-request",
+            (Self::EnUs, AgentStatusBasis::TurnOutcome) => "turn-outcome",
+            (Self::EnUs, AgentStatusBasis::ActiveTurn) => "active-turn",
+            (Self::EnUs, AgentStatusBasis::AffirmativeIdle) => "affirmative-idle",
+            (Self::EnUs, AgentStatusBasis::SessionEnded) => "session-ended",
+            (Self::EnUs, AgentStatusBasis::LimitedActivityHint) => "limited-activity-hint",
+            (Self::EnUs, AgentStatusBasis::UnobservedTurnState) => "unobserved-turn-state",
+            (Self::ZhCn, AgentStatusBasis::AttentionRequest) => "注意请求",
+            (Self::ZhCn, AgentStatusBasis::TurnOutcome) => "轮次结果",
+            (Self::ZhCn, AgentStatusBasis::ActiveTurn) => "活跃轮次",
+            (Self::ZhCn, AgentStatusBasis::AffirmativeIdle) => "确认空闲",
+            (Self::ZhCn, AgentStatusBasis::SessionEnded) => "会话已结束",
+            (Self::ZhCn, AgentStatusBasis::LimitedActivityHint) => "有限活动提示",
+            (Self::ZhCn, AgentStatusBasis::UnobservedTurnState) => "未观察轮次状态",
+        }
+    }
+
+    pub(crate) const fn cli_agent_freshness_meaning(
+        self,
+        meaning: orchbee_agent_observation_protocol::AgentFreshnessMeaning,
+    ) -> &'static str {
+        use orchbee_agent_observation_protocol::AgentFreshnessMeaning;
+        match (self, meaning) {
+            (Self::EnUs, AgentFreshnessMeaning::CurrentObservation) => "current-observation",
+            (Self::EnUs, AgentFreshnessMeaning::LastObservationMayBeOutdated) => {
+                "last-observation-may-be-outdated"
+            }
+            (Self::EnUs, AgentFreshnessMeaning::NoTrustedCurrentRoute) => {
+                "no-trusted-current-route"
+            }
+            (Self::ZhCn, AgentFreshnessMeaning::CurrentObservation) => "当前观察",
+            (Self::ZhCn, AgentFreshnessMeaning::LastObservationMayBeOutdated) => {
+                "上次观察可能已过期"
+            }
+            (Self::ZhCn, AgentFreshnessMeaning::NoTrustedCurrentRoute) => "无可信当前路由",
+        }
+    }
+
+    /// The localized boolean words used by navigable flags.
+    pub(crate) const fn cli_agent_bool(self, value: bool) -> &'static str {
+        match (self, value) {
+            (Self::EnUs, true) => "yes",
+            (Self::EnUs, false) => "no",
+            (Self::ZhCn, true) => "是",
+            (Self::ZhCn, false) => "否",
+        }
+    }
+
+    /// The navigate-only facts line on `agent explain`: every v1 action is a
+    /// navigation and provider content is never carried by the read.
+    pub(crate) const fn cli_agent_navigate_only_facts(self) -> &'static str {
+        match self {
+            Self::EnUs => {
+                "actions are navigate-only; provider content is not available through agent reads\n"
+            }
+            Self::ZhCn => "操作仅限导航；Agent 读取不提供提供方内容\n",
+        }
+    }
+}
+
+impl Locale {
+    /// The stderr diagnostic for a post-admission Agent read failure: every
+    /// kind names the operation's own stage, and `not-found` echoes the
+    /// escaped session identity instead of a resource/target pair.
+    fn cli_agent_failure(self, failure: &Failure) -> String {
+        use crate::cli::FailureKind;
+        match failure.kind {
+            FailureKind::NotFound => {
+                let session = failure
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("sessionId"))
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("");
+                let escaped = crate::cli::escape::quoted(session);
+                match self {
+                    Self::EnUs => format!("No agent session matches {escaped}.\n"),
+                    Self::ZhCn => format!("没有与 {escaped} 匹配的 Agent 会话。\n"),
+                }
+            }
+            FailureKind::Denied => match self {
+                Self::EnUs => "The local Site denied the agent read.\n".to_owned(),
+                Self::ZhCn => "本地 Site 拒绝了本次 Agent 读取。\n".to_owned(),
+            },
+            FailureKind::Rejected => {
+                let reason = failure
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("reason"))
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("");
+                match self {
+                    Self::EnUs => {
+                        format!("The local Site rejected the agent list cursor ({reason}).\n")
+                    }
+                    Self::ZhCn => {
+                        format!("本地 Site 拒绝了该 Agent 列表游标（{reason}）。\n")
+                    }
+                }
+            }
+            FailureKind::ServiceUnavailable => match self {
+                Self::EnUs => {
+                    "The agent observation runtime is unavailable right now.\n".to_owned()
+                }
+                Self::ZhCn => "Agent 观察运行时当前不可用。\n".to_owned(),
+            },
+            FailureKind::Timeout => match self {
+                Self::EnUs => {
+                    "The agent read did not finish within its 5-second deadline.\n".to_owned()
+                }
+                Self::ZhCn => "Agent 读取未能在 5 秒期限内完成。\n".to_owned(),
+            },
+            FailureKind::TransportLoss => match self {
+                Self::EnUs => {
+                    "The connection to the local Site was lost during the agent read.\n".to_owned()
+                }
+                Self::ZhCn => "与本地 Site 的连接在 Agent 读取期间中断。\n".to_owned(),
+            },
+            FailureKind::Cancelled => match self {
+                Self::EnUs => "The agent read was cancelled.\n".to_owned(),
+                Self::ZhCn => "Agent 读取已被取消。\n".to_owned(),
+            },
+            FailureKind::ProtocolInvalid => match self {
+                Self::EnUs => {
+                    "The local Site answered the agent read with an invalid protocol response.\n"
+                        .to_owned()
+                }
+                Self::ZhCn => "本地 Site 对本次 Agent 读取返回了无效的协议响应。\n".to_owned(),
+            },
+            _ => match self {
+                Self::EnUs => {
+                    "The CLI hit an internal failure during the agent read; no data was written.\n"
+                        .to_owned()
+                }
+                Self::ZhCn => "CLI 在 Agent 读取期间发生内部错误；未写出任何数据。\n".to_owned(),
+            },
+        }
+    }
 }
 
 fn failure_target(failure: &Failure) -> (&'static str, String) {
@@ -986,6 +1400,10 @@ impl Locale {
             (_, HelpTopic::Family(Family::Site)) => match self {
                 Self::EnUs => HELP_SITE_EN,
                 Self::ZhCn => HELP_SITE_ZH,
+            },
+            (_, HelpTopic::Family(Family::Agent)) => match self {
+                Self::EnUs => HELP_AGENT_EN,
+                Self::ZhCn => HELP_AGENT_ZH,
             },
             (_, HelpTopic::Family(Family::Api)) => match self {
                 Self::EnUs => HELP_API_EN,
@@ -1066,6 +1484,12 @@ impl Locale {
             (Self::ZhCn, CommandPath::TerminalSend) => HELP_TERMINAL_SEND_ZH,
             (Self::EnUs, CommandPath::WorktreeList) => HELP_WORKTREE_LIST_EN,
             (Self::ZhCn, CommandPath::WorktreeList) => HELP_WORKTREE_LIST_ZH,
+            (Self::EnUs, CommandPath::AgentList) => HELP_AGENT_LIST_EN,
+            (Self::ZhCn, CommandPath::AgentList) => HELP_AGENT_LIST_ZH,
+            (Self::EnUs, CommandPath::AgentGet) => HELP_AGENT_GET_EN,
+            (Self::ZhCn, CommandPath::AgentGet) => HELP_AGENT_GET_ZH,
+            (Self::EnUs, CommandPath::AgentExplain) => HELP_AGENT_EXPLAIN_EN,
+            (Self::ZhCn, CommandPath::AgentExplain) => HELP_AGENT_EXPLAIN_ZH,
             (Self::EnUs, CommandPath::ApiSnapshot) => HELP_API_SNAPSHOT_EN,
             (Self::ZhCn, CommandPath::ApiSnapshot) => HELP_API_SNAPSHOT_ZH,
             (Self::EnUs, CommandPath::ApiSchema) => HELP_API_SCHEMA_EN,
@@ -1078,8 +1502,9 @@ impl Locale {
     }
 }
 
-const ROOT_HELP_EN: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [operands] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\nModes and queries:\n  orchbee              Open the local terminal (Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee api          Machine snapshot and embedded schema documents\n\nSite lifecycle:\n  orchbee site start   Ensure the local Site is running (no TTY needed)\n\nMutations (one command per invocation, against the running Site):\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n\nInspection and help:\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee -h|--help    Show this help; after a family or command path, show\n                       that path's help\n  orchbee --version    Show the version\n\nRun 'orchbee help <family>' for filters and target rules, or\n'orchbee help <family> <command>' for one mutation's full syntax.\n";
-const ROOT_HELP_ZH: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [操作数] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\n模式与查询：\n  orchbee              打开本地终端（Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee api          机器快照与内嵌 schema 文档\n\nSite 生命周期：\n  orchbee site start   确保本地 Site 正在运行（无需 TTY）\n\n修改命令（每次调用执行一条命令，作用于运行中的 Site）：\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n\n检查与帮助：\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee -h|--help    显示此帮助；跟在 family 或命令路径后时显示该路径的帮助\n  orchbee --version    显示版本\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则，或\n'orchbee help <family> <command>' 查看单条修改命令的完整语法。\n";
+const ROOT_HELP_EN: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [operands] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\nModes and queries:\n  orchbee              Open the local terminal (Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee agent        list | get | explain\n  orchbee api          Machine snapshot and embedded schema documents\n\nSite lifecycle:\n  orchbee site start   Ensure the local Site is running (no TTY needed)\n\nMutations (one command per invocation, against the running Site):\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n\nInspection and help:\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee -h|--help    Show this help; after a family or command path, show\n                       that path's help\n  orchbee --version    Show the version\n\nRun 'orchbee help <family>' for filters and target rules, or\n'orchbee help <family> <command>' for one mutation's full syntax.\n";
+const ROOT_HELP_ZH: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [操作数] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\n模式与查询：\n  orchbee              打开本地终端（Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee agent        list | get | explain\n  orchbee api          机器快照与内嵌 schema 文档\n\nSite 生命周期：\n  orchbee site start   确保本地 Site 正在运行（无需 TTY）\n\n修改命令（每次调用执行一条命令，作用于运行中的 Site）：\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n\n检查与帮助：\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee -h|--help    显示此帮助；跟在 family 或命令路径后时显示该路径的帮助\n  orchbee --version    显示版本\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则，或\n'orchbee help <family> <command>' 查看单条修改命令的完整语法。\n";
+
 const HELP_TUI_EN: &str = "orchbee tui [--mouse on|off]\n\nOpen the local terminal interface (Linux development cohort).\nA bare 'orchbee' invocation does the same.\n\n  --mouse on|off   Host pointer capture for pane hit-testing; on by\n                   default. Only the explicit 'tui' route accepts it.\n";
 const HELP_TUI_ZH: &str = "orchbee tui [--mouse on|off]\n\n打开本地终端界面（Linux 开发 cohort）。\n裸 'orchbee' 调用效果相同。\n\n  --mouse on|off   宿主机指针捕获，用于面板命中；默认开启。\n                   只有显式 'tui' 路由接受该选项。\n";
 
@@ -1106,6 +1531,18 @@ const HELP_SITE_ZH: &str = "orchbee site start\n\n管理隐式的每用户本地
 
 const HELP_SITE_START_EN: &str = "orchbee site start [--format text|json]\n\nEnsure the implicit per-user local Site is running. When no admitted\nSite answers, this invocation performs the existing activation sequence\n— the same locks, marker, Server spawn, and readiness admission the TUI\nstartup uses — and reports 'started'. When a running Site admits the\nreadiness probe, it reports 'already-running'. One absolute 20-second\nbudget covers the whole invocation.\n\n'--format json' emits the orchbee.site.start envelope. An interrupted\nor timed-out start may leave activation state behind; a later invocation\nthen answers refused with a recovery-required reason. The command never\nrepairs, stops, or deletes runtime state.\n";
 const HELP_SITE_START_ZH: &str = "orchbee site start [--format text|json]\n\n确保隐式的每用户本地 Site 正在运行。若没有已准入的 Site 应答，本次\n调用执行既有的激活序列——与 TUI 启动相同的锁、标记、Server 拉起\n与就绪准入——并报告 'started'。若运行中的 Site 准入了就绪探针，则\n报告 'already-running'。整个调用共享一个 20 秒绝对预算。\n\n'--format json' 输出 orchbee.site.start 封套。被中断或超时的启动\n可能遗留激活状态；后续调用将以拒绝加 recovery-required 原因应答。\n本命令绝不修复、停止或删除运行时状态。\n";
+
+const HELP_AGENT_EN: &str = "orchbee agent list|get|explain\n\nObserve Agent sessions tracked by the running local Site.\n  agent list [--include-ended] [--limit <n>] [--cursor <c>]\n                                List Agent sessions (live only unless\n                                --include-ended; 1-100 per page, default 50)\n  agent get <session-id>        Show one Agent session by its opaque identity\n  agent explain <session-id>    Explain how one session's status and freshness\n                                were derived\nA session id is the opaque session identity, never a label; a cursor is the\nserver-minted 'v1.<payload>.<tag>' token from a previous page. Nothing is\ncreated, activated, or mutated.\n";
+const HELP_AGENT_ZH: &str = "orchbee agent list|get|explain\n\n观察运行中的本地 Site 跟踪的 Agent 会话。\n  agent list [--include-ended] [--limit <n>] [--cursor <c>]\n                                列出 Agent 会话（默认仅存活会话；每页\n                                1-100 条，默认 50）\n  agent get <session-id>        按不透明会话身份显示一个 Agent 会话\n  agent explain <session-id>    解释一个会话的状态与新鲜度推导依据\n会话 ID 是不透明会话身份而非 label；cursor 是上一页返回的服务端铸造\n'v1.<payload>.<tag>' 令牌。不创建、不激活、不修改任何状态。\n";
+
+const HELP_AGENT_LIST_EN: &str = "orchbee agent list [--include-ended] [--limit <n>] [--cursor <c>] [--format text|json]\n\nList Agent sessions observed by the running local Site. '--include-ended'\nadds ended sessions; '--limit' selects 1-100 rows per page (default 50);\n'--cursor' continues from a previous page's server-minted nextCursor.\n'--format json' emits the orchbee.agent.list envelope.\n";
+const HELP_AGENT_LIST_ZH: &str = "orchbee agent list [--include-ended] [--limit <n>] [--cursor <c>] [--format text|json]\n\n列出运行中的本地 Site 观察到的 Agent 会话。'--include-ended' 包含已结束\n会话；'--limit' 每页 1-100 条（默认 50）；'--cursor' 从上一页服务端铸造\n的 nextCursor 继续。'--format json' 输出 orchbee.agent.list 封套。\n";
+
+const HELP_AGENT_GET_EN: &str = "orchbee agent get <session-id> [--format text|json]\n\nShow one Agent session by its opaque session identity: lifecycle, semantic\nstatus, observation freshness, location, capabilities, pending requests,\nand presentation attachments. '--format json' emits the\norchbee.agent.get envelope.\n";
+const HELP_AGENT_GET_ZH: &str = "orchbee agent get <session-id> [--format text|json]\n\n按不透明会话身份显示一个 Agent 会话：生命周期、语义状态、观察新鲜度、\n位置、能力、待处理请求与 Presentation 附着。'--format json' 输出\norchbee.agent.get 封套。\n";
+
+const HELP_AGENT_EXPLAIN_EN: &str = "orchbee agent explain <session-id> [--format text|json]\n\nExplain one Agent session's derived view: the canonical status basis,\nfreshness meaning, capability ceiling, observation source and fidelity,\nand the navigate-only action boundary. '--format json' emits the\norchbee.agent.explain envelope.\n";
+const HELP_AGENT_EXPLAIN_ZH: &str = "orchbee agent explain <session-id> [--format text|json]\n\n解释一个 Agent 会话的推导视图：规范状态依据、新鲜度含义、能力上限、\n观察来源与保真度，以及仅限导航的操作边界。'--format json' 输出\norchbee.agent.explain 封套。\n";
 
 const HELP_API_EN: &str = "orchbee api snapshot|schema\n\nMachine introspection of the local Workbench surface.\n  api snapshot           Emit the complete workbench.snapshot document\n  api schema [<id>]      List embedded JSON Schemas, or one schema by ID\nSuccessful output is always JSON, whatever '--format' was selected; a\nfailure envelope still requires an explicit '--format json'.\n";
 const HELP_API_ZH: &str = "orchbee api snapshot|schema\n\n本地 Workbench 面的机器自省。\n  api snapshot           输出完整 workbench.snapshot 文档\n  api schema [<id>]      列出内嵌 JSON Schema，或按 ID 取单个 schema\n成功输出无论 '--format' 选择如何都是 JSON；失败封套仍需显式\n'--format json'。\n";
@@ -1254,6 +1691,30 @@ pub(crate) struct CliLabels {
     pub(crate) panel_headers: [&'static str; 6],
     pub(crate) presentation_headers: [&'static str; 4],
     pub(crate) terminal_headers: [&'static str; 6],
+    // Agent read field labels and column headers.
+    pub(crate) agent_session: &'static str,
+    pub(crate) agent_provider: &'static str,
+    pub(crate) agent_lifecycle: &'static str,
+    pub(crate) agent_status: &'static str,
+    pub(crate) agent_freshness: &'static str,
+    pub(crate) agent_location: &'static str,
+    pub(crate) agent_observation: &'static str,
+    pub(crate) agent_generation: &'static str,
+    pub(crate) agent_sequence: &'static str,
+    pub(crate) agent_capabilities: &'static str,
+    pub(crate) agent_last_outcome: &'static str,
+    pub(crate) agent_pending_requests: &'static str,
+    pub(crate) agent_attachments: &'static str,
+    pub(crate) agent_status_basis: &'static str,
+    pub(crate) agent_freshness_meaning: &'static str,
+    pub(crate) agent_capability_ceiling: &'static str,
+    pub(crate) agent_source: &'static str,
+    pub(crate) agent_fidelity: &'static str,
+    pub(crate) agent_navigate_only: &'static str,
+    pub(crate) agent_none: &'static str,
+    pub(crate) agent_headers: [&'static str; 5],
+    pub(crate) agent_request_headers: [&'static str; 3],
+    pub(crate) agent_attachment_headers: [&'static str; 4],
 }
 
 const EN_US_LABELS: CliLabels = CliLabels {
@@ -1309,6 +1770,29 @@ const EN_US_LABELS: CliLabels = CliLabels {
     ],
     presentation_headers: ["ID", "LABEL", "TERMINAL", "WORKER"],
     terminal_headers: ["ID", "WORKER", "PRESENTATION", "PANEL", "TAB", "CONTEXT"],
+    agent_session: "Session",
+    agent_provider: "Provider",
+    agent_lifecycle: "Lifecycle",
+    agent_status: "Status",
+    agent_freshness: "Freshness",
+    agent_location: "Location",
+    agent_observation: "Observation",
+    agent_generation: "generation",
+    agent_sequence: "sequence",
+    agent_capabilities: "Capabilities",
+    agent_last_outcome: "Last outcome",
+    agent_pending_requests: "Pending requests",
+    agent_attachments: "Presentations",
+    agent_status_basis: "Status basis",
+    agent_freshness_meaning: "Freshness meaning",
+    agent_capability_ceiling: "Capability ceiling",
+    agent_source: "Source",
+    agent_fidelity: "Fidelity",
+    agent_navigate_only: "Facts",
+    agent_none: "none",
+    agent_headers: ["SESSION", "PROVIDER", "STATUS", "FRESHNESS", "LOCATION"],
+    agent_request_headers: ["KIND", "REQUEST", "TURN"],
+    agent_attachment_headers: ["PRESENTATION", "GENERATION", "NAVIGABLE", "VISIBILITY"],
 };
 
 const ZH_CN_LABELS: CliLabels = CliLabels {
@@ -1364,6 +1848,29 @@ const ZH_CN_LABELS: CliLabels = CliLabels {
     ],
     presentation_headers: ["ID", "LABEL", "终端", "WORKER"],
     terminal_headers: ["ID", "WORKER", "PRESENTATION", "PANEL", "TAB", "上下文"],
+    agent_session: "会话",
+    agent_provider: "提供方",
+    agent_lifecycle: "生命周期",
+    agent_status: "状态",
+    agent_freshness: "新鲜度",
+    agent_location: "位置",
+    agent_observation: "观察",
+    agent_generation: "代次",
+    agent_sequence: "序号",
+    agent_capabilities: "能力",
+    agent_last_outcome: "最近结果",
+    agent_pending_requests: "待处理请求",
+    agent_attachments: "Presentation",
+    agent_status_basis: "状态依据",
+    agent_freshness_meaning: "新鲜度含义",
+    agent_capability_ceiling: "能力上限",
+    agent_source: "来源",
+    agent_fidelity: "保真度",
+    agent_navigate_only: "事实",
+    agent_none: "无",
+    agent_headers: ["会话", "提供方", "状态", "新鲜度", "位置"],
+    agent_request_headers: ["类型", "请求", "轮次"],
+    agent_attachment_headers: ["PRESENTATION", "代次", "可导航", "可见性"],
 };
 
 impl Locale {

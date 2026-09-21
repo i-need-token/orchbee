@@ -1,9 +1,11 @@
 use std::{
+    cell::RefCell,
     error::Error,
     ffi::OsString,
     io::{self, Write},
     num::NonZeroU64,
     os::unix::net::UnixStream,
+    rc::Rc,
     time::Duration,
 };
 
@@ -13,7 +15,8 @@ use orchbee_local_site_protocol::{
 };
 
 use crate::{
-    host_connection::HostBrokerConnection, terminal_operations, worker_options::WorkerOptions,
+    agent_drain::AgentDrain, host_connection::HostBrokerConnection, terminal_operations,
+    worker_options::WorkerOptions,
 };
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -72,13 +75,18 @@ pub(crate) fn run(
     }
     let options = WorkerOptions::parse(arguments)?;
     let server = connect_to_server(&options.server_endpoint, cohort)?;
-    let mut host = HostBrokerConnection::connect(&options.terminal_host_endpoint)?;
+    // The Agent Drain queue belongs to this admitted Server connection and is
+    // created before the Host broker so both paths share one owner.
+    let drain = Rc::new(RefCell::new(AgentDrain::new()));
+    let mut host =
+        HostBrokerConnection::connect(&options.terminal_host_endpoint, Rc::clone(&drain))?;
     write_ready_marker(&server, &host)?;
     terminal_operations::run(
         server.stream(),
         &mut host,
         LOCAL_WORKER_ID,
         server.generation(),
+        &drain,
     )
 }
 

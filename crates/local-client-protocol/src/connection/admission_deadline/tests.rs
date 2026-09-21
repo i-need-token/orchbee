@@ -11,8 +11,11 @@ use std::{
 
 use nix::errno::Errno;
 
-use super::{Deadline, DeadlineIo, complete_connect, exchange_hello, finish_admission};
-use crate::{ClientHello, ConnectClientError, LocalClientMessage, write_message};
+use super::{
+    Deadline, DeadlineIo, WakeFault, WakeReady, complete_connect, exchange_hello, finish_admission,
+    is_wake, translate_wake,
+};
+use crate::{ClientHello, ConnectClientError, LocalClientMessage, RejectionReason, write_message};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -30,6 +33,7 @@ fn partial_reads_and_writes_share_the_original_deadline() -> TestResult {
         let deadline = Deadline {
             expires_at: start + Duration::from_millis(3),
             now: &clock,
+            wake: None,
         };
         let mut chunked = ChunkedStream {
             stream,
@@ -66,6 +70,7 @@ fn interrupted_and_spurious_ready_io_cannot_renew_the_deadline() -> TestResult {
         let deadline = Deadline {
             expires_at: start + Duration::from_millis(3),
             now: &clock,
+            wake: None,
         };
         let mut stream = FailingStream {
             stream,
@@ -98,7 +103,8 @@ fn absolute_deadline_checks_before_at_and_after_the_boundary() -> TestResult {
         assert_eq!(
             Deadline {
                 expires_at: cutoff,
-                now: &clock
+                now: &clock,
+                wake: None,
             }
             .remaining()
             .is_err(),
@@ -131,6 +137,7 @@ fn decoded_acceptance_at_deadline_does_not_complete() -> TestResult {
     let deadline = Deadline {
         expires_at: start + Duration::from_millis((request.len() + response.len()) as u64),
         now: &clock,
+        wake: None,
     };
     let mut chunked = ChunkedStream {
         stream,
@@ -160,6 +167,7 @@ fn expiration_after_blocking_restoration_closes_the_candidate() -> TestResult {
     let deadline = Deadline {
         expires_at: start + Duration::from_millis(1),
         now: &clock,
+        wake: None,
     };
     assert!(matches!(
         finish_admission(stream, generation, deadline),
@@ -177,6 +185,7 @@ fn pending_connect_checks_kernel_readiness_and_errors_without_reconnecting() -> 
     let deadline = Deadline {
         expires_at: Instant::now() + Duration::from_secs(1),
         now: &Instant::now,
+        wake: None,
     };
     complete_connect(&stream, Err(Errno::EINPROGRESS), deadline)?;
     assert_eq!(
@@ -194,6 +203,7 @@ fn pending_connect_checks_kernel_readiness_and_errors_without_reconnecting() -> 
     let expired = Deadline {
         expires_at: Instant::now(),
         now: &Instant::now,
+        wake: None,
     };
     assert_eq!(
         complete_connect(&stream, Err(Errno::EINPROGRESS), expired)
@@ -202,6 +212,126 @@ fn pending_connect_checks_kernel_readiness_and_errors_without_reconnecting() -> 
         io::ErrorKind::TimedOut
     );
     Ok(())
+}
+
+#[test]
+fn wake_ready_wins_over_simultaneous_socket_readiness() -> TestResult {
+    // The pending-connect poll sees POLLOUT on the socket and POLLIN on the
+    // wake pipe together; the wake observation is decided first.
+    let (stream, _peer) = UnixStream::pair()?;
+    let (read_end, write_end) = nix::unistd::pipe()?;
+    nix::unistd::write(&write_end, b"x")?;
+    let deadline = Deadline {
+        expires_at: Instant::now() + Duration::from_secs(1),
+        now: &Instant::now,
+        wake: Some(read_end.as_fd()),
+    };
+    let error = complete_connect(&stream, Err(Errno::EINPROGRESS), deadline).unwrap_err();
+    assert!(is_wake::<WakeReady>(&error));
+    Ok(())
+}
+
+#[test]
+fn wake_observation_survives_the_hello_io_wrapper_and_translates_once() -> TestResult {
+    // The marker rides inside the Io wrapper like any io::Error — it is not
+    // reinterpreted, and the retry loop cannot confuse it for Interrupted or
+    // WouldBlock. Translation happens once at the public boundary.
+    let (stream, _peer) = UnixStream::pair()?;
+    stream.set_nonblocking(true)?;
+    let (read_end, write_end) = nix::unistd::pipe()?;
+    nix::unistd::write(&write_end, b"x")?;
+    let deadline = Deadline {
+        expires_at: Instant::now() + Duration::from_secs(1),
+        now: &Instant::now,
+        wake: Some(read_end.as_fd()),
+    };
+    let mut stream = stream;
+    let error = exchange_hello(&mut stream, ClientHello::new("test")?, deadline).unwrap_err();
+    assert!(matches!(
+        &error,
+        ConnectClientError::Io(inner) if is_wake::<WakeReady>(inner)
+    ));
+    assert!(matches!(
+        translate_wake(error),
+        ConnectClientError::CancellationReady
+    ));
+    Ok(())
+}
+
+#[test]
+fn a_faulted_wake_descriptor_is_distinct_from_ready() -> TestResult {
+    // A pipe write end with no readers reports POLLERR: a broken wake
+    // channel, not a wake.
+    let (stream, _peer) = UnixStream::pair()?;
+    stream.set_nonblocking(true)?;
+    let (read_end, write_end) = nix::unistd::pipe()?;
+    drop(read_end);
+    let deadline = Deadline {
+        expires_at: Instant::now() + Duration::from_secs(1),
+        now: &Instant::now,
+        wake: Some(write_end.as_fd()),
+    };
+    let mut stream = stream;
+    let error = DeadlineIo {
+        stream: &mut stream,
+        deadline,
+    }
+    .write_all(b"x")
+    .unwrap_err();
+    assert!(is_wake::<WakeFault>(&error));
+    assert!(!is_wake::<WakeReady>(&error));
+    assert!(matches!(
+        translate_wake(ConnectClientError::Io(error)),
+        ConnectClientError::CancellationSourceFault(_)
+    ));
+    Ok(())
+}
+
+#[test]
+fn an_untriggered_wake_descriptor_preserves_the_deadline() -> TestResult {
+    let (stream, _peer) = UnixStream::pair()?;
+    stream.set_nonblocking(true)?;
+    let (read_end, _write_end) = nix::unistd::pipe()?;
+    let start = Instant::now();
+    let time = Cell::new(start);
+    let clock = || {
+        let value = time.get();
+        time.set(value + Duration::from_millis(1));
+        value
+    };
+    let deadline = Deadline {
+        expires_at: start + Duration::from_millis(1),
+        now: &clock,
+        wake: Some(read_end.as_fd()),
+    };
+    let mut stream = stream;
+    let error = DeadlineIo {
+        stream: &mut stream,
+        deadline,
+    }
+    .read_exact(&mut [0])
+    .unwrap_err();
+    assert_eq!(error.kind(), io::ErrorKind::TimedOut);
+    Ok(())
+}
+
+#[test]
+fn translate_wake_leaves_ordinary_errors_untouched() {
+    let timeout = io::Error::new(io::ErrorKind::TimedOut, "deadline");
+    assert!(matches!(
+        translate_wake(ConnectClientError::Io(timeout)),
+        ConnectClientError::Io(error) if error.kind() == io::ErrorKind::TimedOut
+    ));
+    assert!(matches!(
+        translate_wake(ConnectClientError::Rejected(
+            RejectionReason::CapacityExceeded
+        )),
+        ConnectClientError::Rejected(RejectionReason::CapacityExceeded)
+    ));
+    assert!(matches!(
+        translate_wake(ConnectClientError::UnexpectedResponse),
+        ConnectClientError::UnexpectedResponse
+    ));
 }
 
 struct ChunkedStream<'a> {

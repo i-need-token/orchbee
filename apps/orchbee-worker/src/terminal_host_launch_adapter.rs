@@ -1,4 +1,8 @@
-use std::fmt;
+use std::{
+    fmt,
+    os::unix::fs::{FileTypeExt, MetadataExt},
+    path::Path,
+};
 
 use orchbee_capability_node_protocol::{
     AbsoluteCwd, HostCreationId as CapabilityHostCreationId, HostEpoch as CapabilityHostEpoch,
@@ -7,8 +11,9 @@ use orchbee_capability_node_protocol::{
     TerminalLaunchMode, TerminalPixelGeometry as CapabilityTerminalPixelGeometry,
 };
 use orchbee_terminal_protocol::{
-    ConnectionControl, CreateTerminal, CreationId, HostEpoch as ProtocolHostEpoch, IdentityError,
-    LaunchEnvironmentEntry, LaunchStartMode, LifecycleControl, ProtocolError as HostProtocolError,
+    ConnectionControl, CreateTerminal, CreationId, EnvironmentOverlayEntry,
+    HostEpoch as ProtocolHostEpoch, IdentityError, LaunchEnvironmentEntry, LaunchStartMode,
+    LifecycleControl, MAXIMUM_ENVIRONMENT_OVERLAY_VALUE_BYTES, ProtocolError as HostProtocolError,
     StartTerminal, StartTransition as ProtocolStartTransition, TerminalConfiguration,
     TerminalCreationControl, TerminalId as ProtocolTerminalId, TerminalIdentity, TerminalLaunch,
     TerminalPixelGeometry as ProtocolTerminalPixelGeometry, TerminalProfile, TerminalStartAccepted,
@@ -148,9 +153,16 @@ impl From<HostProtocolError> for HostLaunchAdapterError {
     }
 }
 
+// Cross-owner convention with Server's private endpoint: the managed Site
+// runtime directory holds the Agent observation socket under this exact file
+// name. The Worker keeps its own literal copy; no Server code is imported.
+const OBSERVATION_SOCKET_NAME: &str = "agent-observation-v3.sock";
+const OBSERVATION_SOCKET_ENV: &str = "ORCHBEE_AGENT_OBSERVATION_SOCKET_V3";
+
 pub(crate) fn map_launch_dispatch(
     dispatch: &AuthorizedHostDispatch,
     facts: ResolvedTerminalLaunchFacts,
+    site_runtime: Option<&Path>,
 ) -> Result<CreateTerminal, HostLaunchAdapterError> {
     let AuthorizedHostOperation::Launch(launch) = dispatch.operation() else {
         return Err(HostLaunchAdapterError::OperationKindMismatch);
@@ -168,7 +180,7 @@ pub(crate) fn map_launch_dispatch(
     };
     let control = TerminalCreationControl::CreateTerminal(Box::new(CreateTerminal {
         creation_id: facts.creation_id,
-        environment_overlay: Vec::new(),
+        environment_overlay: observation_overlay(site_runtime),
         launch: TerminalLaunch {
             arguments: facts.arguments,
             configuration: facts.configuration,
@@ -259,6 +271,35 @@ fn map_terminal_created(
     })
 }
 
+// The overlay admits only a live socket owned by this Worker's effective user.
+// A managed Site binds it before spawning the Worker, so a missing or
+// unqualified candidate simply produces no variable — the launch keeps its
+// resolved facts and the producer runs without an observation channel.
+fn observation_overlay(site_runtime: Option<&Path>) -> Vec<EnvironmentOverlayEntry> {
+    let Some(runtime) = site_runtime else {
+        return Vec::new();
+    };
+    let candidate = runtime.join(OBSERVATION_SOCKET_NAME);
+    let admitted = std::fs::symlink_metadata(&candidate)
+        .map(|metadata| {
+            metadata.file_type().is_socket() && metadata.uid() == nix::unistd::geteuid().as_raw()
+        })
+        .unwrap_or(false);
+    if !admitted {
+        return Vec::new();
+    }
+    let Some(path) = candidate.to_str() else {
+        return Vec::new();
+    };
+    if path.len() > MAXIMUM_ENVIRONMENT_OVERLAY_VALUE_BYTES {
+        return Vec::new();
+    }
+    vec![EnvironmentOverlayEntry {
+        name: OBSERVATION_SOCKET_ENV.to_owned(),
+        value: path.to_owned(),
+    }]
+}
+
 // Terminal Protocol retryability is retry guidance, not a rejection/failure discriminator.
 fn map_reported_launch_failure(
     response_epoch: ProtocolHostEpoch,
@@ -328,7 +369,7 @@ fn protocol_identity(identity: HostTerminalIdentity) -> Result<TerminalIdentity,
     })
 }
 
-fn capability_identity(
+pub(crate) fn capability_identity(
     identity: TerminalIdentity,
 ) -> Result<HostTerminalIdentity, CapabilityProtocolError> {
     Ok(HostTerminalIdentity::new(

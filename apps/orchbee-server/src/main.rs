@@ -1,4 +1,8 @@
 #[cfg(unix)]
+mod agent;
+#[cfg(unix)]
+mod agent_service;
+#[cfg(unix)]
 mod client_session_registry;
 #[cfg(unix)]
 mod local_client_service;

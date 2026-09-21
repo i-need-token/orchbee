@@ -1,5 +1,6 @@
 use super::super::{ConnectionSlots, handle_candidate};
 use crate::{
+    agent_service::{AgentPolicy, AgentService},
     client_session_registry::ClientSessionRegistry,
     local_terminal_service::LocalTerminalService,
     workbench_service::{WorkbenchPolicy, WorkbenchService},
@@ -34,6 +35,7 @@ fn an_oblc_admitted_session_with_read_only_policy_cannot_mutate_or_discover_ledg
         },
         Arc::clone(&terminals),
     );
+    let agents = AgentService::open(AgentPolicy { read: true })?;
     let registry = Arc::new(Mutex::new(ClientSessionRegistry::new()));
     let slots = Arc::new(ConnectionSlots::new());
     let slot = slots.acquire().unwrap();
@@ -41,7 +43,9 @@ fn an_oblc_admitted_session_with_read_only_policy_cannot_mutate_or_discover_ledg
     client.set_read_timeout(Some(Duration::from_secs(3)))?;
     client.set_write_timeout(Some(Duration::from_secs(3)))?;
     let server_thread = thread::spawn(move || {
-        handle_candidate(server, &registry, "test", slot, &terminals, &service)
+        handle_candidate(
+            server, &registry, "test", slot, &terminals, &service, &agents,
+        )
     });
     write_message(
         &mut client,

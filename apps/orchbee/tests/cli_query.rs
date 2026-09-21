@@ -5536,29 +5536,29 @@ fn project_rename_schema_is_strict_and_distinct() -> TestResult {
     Ok(())
 }
 
-// ---- catalog envelope v5 ------------------------------------------------------
+// ---- catalog envelope v6 ------------------------------------------------------
 
-/// The `orchbee.api.schema` catalog is its own versioned document: v5 now that
-/// the closed dictionary gained `orchbee.worktree.list` and
-/// `orchbee.cli.failure.worktree` alongside the v4 `orchbee.site.start`. The
+/// The `orchbee.api.schema` catalog is its own versioned document: v6 now that
+/// the closed dictionary gained the four Agent read schemas alongside the v5
+/// `orchbee.worktree.list` and `orchbee.cli.failure.worktree`. The
 /// listing self-validates, names exactly the registered ids, and every
-/// embedded document's `$id` equals its key; the older v1..v4 shapes are
+/// embedded document's `$id` equals its key; the older v1..v5 shapes are
 /// refused. Business schemas are untouched — `orchbee.mutation.result` still
 /// receipt schema retrieves offline under either locale, byte-identical.
 #[test]
-fn api_schema_catalog_is_v5_closed_and_self_consistent() -> TestResult {
-    let base = base_dir("catalog-v5");
+fn api_schema_catalog_is_v6_closed_and_self_consistent() -> TestResult {
+    let base = base_dir("catalog-v6");
     let api_schema = compiled_schema(&base, "orchbee.api.schema");
 
     let output = run(&base, &["api", "schema", "--format", "json"]);
     assert_eq!(output.status.code(), Some(0));
     let listed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(listed["schema"], "orchbee.api.schema");
-    assert_eq!(listed["version"], 5, "catalog envelope is v5");
+    assert_eq!(listed["version"], 6, "catalog envelope is v6");
     assert_eq!(listed["source"]["kind"], "embedded");
     assert!(api_schema.is_valid(&listed), "listing self-validates");
     let schemas = listed["result"]["schemas"].as_object().unwrap();
-    assert_eq!(schemas.len(), 25, "closed dictionary has 25 members");
+    assert_eq!(schemas.len(), 29, "closed dictionary has 29 members");
     assert!(
         schemas.contains_key("orchbee.project.rename"),
         "the rename receipt schema is registered"
@@ -5575,6 +5575,17 @@ fn api_schema_catalog_is_v5_closed_and_self_consistent() -> TestResult {
         schemas.contains_key("orchbee.cli.failure.worktree"),
         "the dedicated worktree failure schema is registered"
     );
+    assert!(
+        schemas.contains_key("orchbee.cli.failure.agent"),
+        "the failure-agent schema is registered"
+    );
+    for id in [
+        "orchbee.agent.list",
+        "orchbee.agent.get",
+        "orchbee.agent.explain",
+    ] {
+        assert!(schemas.contains_key(id), "the {id} schema is registered");
+    }
     for (id, document) in schemas {
         assert_eq!(
             document["$id"].as_str().unwrap(),
@@ -5589,12 +5600,13 @@ fn api_schema_catalog_is_v5_closed_and_self_consistent() -> TestResult {
         serde_json::json!(2),
         serde_json::json!(3),
         serde_json::json!(4),
+        serde_json::json!(5),
     ] {
         let mut stale = listed.clone();
         stale["version"] = stale_version.clone();
         assert!(
             !api_schema.is_valid(&stale),
-            "stale catalog {stale_version} fails under v5"
+            "stale catalog {stale_version} fails under v6"
         );
     }
 
@@ -5616,7 +5628,7 @@ fn api_schema_catalog_is_v5_closed_and_self_consistent() -> TestResult {
         "embedded schema retrieval is locale-neutral"
     );
     let named: serde_json::Value = serde_json::from_slice(&english.stdout)?;
-    assert_eq!(named["version"], 5);
+    assert_eq!(named["version"], 6);
     assert_eq!(
         named["result"]["schema"]["schemaId"],
         "orchbee.project.rename"

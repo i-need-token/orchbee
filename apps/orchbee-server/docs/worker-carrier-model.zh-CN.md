@@ -22,7 +22,8 @@
 
 任一请求在任一时刻恰好存在于一处：其生产者线程（准入前）、`high_waiters`、`high`、
 `low`、owner 在飞槽位、或已结算（一次 completion 发送，或对无 completion 的 cleanup
-detach 的 fire-forget 丢弃）。lane 之后不存在隐藏或无界队列。
+detach 的 fire-forget 丢弃，或对被弃 drain 交换的"消费后丢弃"应答）。lane 之后不存在
+隐藏或无界队列。
 
 ## 调用方 lane 映射
 
@@ -34,10 +35,14 @@ lane 由生产者语义决定，而非仅由线协议变体决定：
 | `request()`                                                  | Viewer（Attach/Poll/ReadRows/feedback/显式 Detach）                  | low  | try-admit；满 → `Backpressure`              |
 | `cleanup_control()`                                          | Control Release                                                      | high | FIFO 等待；优先于 try-admit                 |
 | `enqueue_detach()`                                           | Viewer Detach                                                        | high | FIFO 等待；优先于 try-admit                 |
+| `admit_agent_drain()`                                        | AgentDrain                                                           | low  | try-admit；满 → `Backpressure`              |
 
 同一个 Viewer Detach 变体，来自会话销毁 cleanup 时走 high，来自普通观测时走 low。
 仅既有的两个 cleanup 生产者会阻塞；所有普通生产者 try-admit，满时获得既有的类型化
-`Backpressure` 忙结果。
+`Backpressure` 忙结果。`admit_agent_drain` 接缝为生产：Server drain 读取泵经同一
+worker/generation 栅栏准入一个类型化 AgentDrain 请求，并返回 `PendingExchange`——其
+有界 `recv_deadline` 等待在超时后保留该尝试，使读取泵可以按自己的期限等待，
+而非使用 `submit` 的阻塞接收。
 
 ## 准入
 
@@ -73,9 +78,46 @@ owner 退出或析构时先将载体标记为不活跃，按 complete-write 标�
 `open_handles` 归零使 `take_next` 返回 `Closed`——但在此之前 `dispatch` 先把队列中
 残余载荷全部送上线，因此无 completion 的 cleanup detach 在最终拆除时仍会送达 worker——
 随后 owner 以 `Shutdown` 退出并执行同样的排空，即先前全体 sender 销毁的语义。
-无 completion（`None`）的 cleanup 请求以丢弃结算；在飞请求的应答接收方丢失仍
-保守地使载体退役。完整写入边界两侧的 `NotDelivered` 与
-`PostDeliveryOutcomeUnknown` 区分不变。
+completion 所有权为 `Required`、`DiscardableDrain`、`Detached` 三者之一，在准入构造时
+按请求种类固定：`Detached` cleanup 请求以丢弃结算；在飞 `Required` 请求的应答接收方
+丢失仍保守地使载体退役；被弃的 `DiscardableDrain` 交换则消费并丢弃合法应答，使健康的
+载体流量存活——畸形帧、错误种类或方向、echo 不匹配与传输失败仍如从前一样致命。
+完整写入边界两侧的 `NotDelivered` 与 `PostDeliveryOutcomeUnknown` 区分不变。
+
+## drain 目标
+
+`WorkerRegistry::agent_drain_carrier()` 回答 `request_handle()` 无法回答的
+drain 域载体问题：仅当 `active == None` 时为 `NoCarrier`；待准入、存在但已不活跃的
+载体记录、或身份无法在 drain 线上命名（CNP 拒绝全零 `WorkerId`）的载体均为
+`CarrierUnavailable`；`Live` 携带克隆的请求句柄、完整 CNP `WorkerId` +
+`WorkerGeneration` 身份对、以及共享的 per-carrier `AgentDrainMint`。
+
+mint 在载体注册成功时创建、随记录消亡。`mint()` 经检查型 CAS 发放下一个 drain
+token——到达 `u64::MAX` 时返回 `None` 且 `last_issued` 不变：耗尽是一个值应答，
+绝不使载体退役、绝不复用 token。`floor()` 只窥探下一个将发 token 而不发放。克隆的
+target 可在退役后继续存活，但只伴随死身份——mint 不是存活证明，句柄的准入栅栏才
+是。生产消费者是 `LocalTerminalService` 的 prepared-read 提供者（`agent_drain_read`）。
+
+## native 叶
+
+`WorkerRegistry::register_carrier_with_agents()` 走与 `register_carrier()`
+相同的注册路径——相同检查、相同发布——并把 canonical `AgentService` 的 native 叶附
+在结果上。在持有 registry 守卫期间，从已准入的 worker 与 registry 铸造的 generation
+导出精确的 CNP `WorkerId` + `WorkerGeneration` 身份对（与 `agent_drain_carrier()`
+重新导出的同一对），然后在同一守卫内运行
+`AgentService::native_admit_carrier()`。契约拒绝或已毒化的 cell 均以失败关闭注册：
+载体记录绝不安装，因此可读的 Live 载体必然意味着其叶已准入。
+
+注册以 `{identity, Weak<AgentService>}` 携带该叶。退役时 wire owner 仍先收尾；随后
+注册守卫在 registry 守卫内退役该叶——先于 `retire_carrier` 释放槽位——因此替代者
+绝不可能在叶退役与槽位释放之间被暴露。服务消亡（弱引用升级失败）或已毒化 cell
+（类型化 `Err`）都不能阻塞 registry 退役；陈旧注册持有的旧身份也无法退役替代者的
+叶：叶的全等身份检查与 registry 的 generation 检查双重拒绝。没有任何互斥锁跨越
+socket I/O 持有；非托管 `register_carrier()` 行为保持不变——它是同一个
+`register_carrier_impl`，仅不带 service 实参。托管 listener 路径在生产中接线
+该缝：共享 `AgentService` 存在时 `LocalSiteService` 调用
+`register_carrier_with_agents`，否则调用普通 `register_carrier`；生命周期权威
+留在 site 组合根。
 
 ## 锁纪律
 
@@ -86,6 +128,6 @@ completion 发送在锁外进行。
 ## 所有权核算
 
 驻留载荷：`high` ≤ 8、`low` ≤ 8、`high_waiters` ≤ 32（生产者界）、在飞 1——均为
-`PendingRequest`（已编码帧字节 + 类型化请求 + 一个 `sync_channel(1)` completion 对）。
-每请求的结果接收方驻留在其生产者线程上。本文不声明整进程内存上界；此处枚举的是队列
-持有与生产者持有的副本。
+`PendingRequest`（已编码帧字节 + 类型化请求 + 一个在 `Required`/`DiscardableDrain`/
+`Detached` 所有权策略下的 completion 端点）。每请求的结果接收方驻留在其生产者线程上。
+本文不声明整进程内存上界；此处枚举的是队列持有与生产者持有的副本。

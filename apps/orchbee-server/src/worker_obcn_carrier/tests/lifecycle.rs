@@ -275,11 +275,10 @@ fn admission_receipt_precedes_owner_work_and_backpressure_returns_none() -> Test
     assert!(owner.queue.dispatch_next().is_none());
     // Retiring the handle after admission must not erase the already returned receipt.
     handle.active.store(false, Ordering::Release);
-    queued
-        .completion
-        .as_ref()
-        .ok_or("missing completion")?
-        .send(Ok(WorkerOperationResult::Lifecycle(result(request)?)))?;
+    let CompletionDelivery::Required(completion) = &queued.completion else {
+        return Err("expected a required completion".into());
+    };
+    completion.send(Ok(WorkerOperationResult::Lifecycle(result(request)?)))?;
     assert_eq!(receipt.wait()?, result(request)?);
     Ok(())
 }
@@ -317,11 +316,10 @@ fn lifecycle_receipt_preserves_original_errors_and_lost_completion_classificatio
             .queue
             .dispatch_next()
             .ok_or("expected a queued lifecycle request")?;
-        queued
-            .completion
-            .as_ref()
-            .ok_or("missing completion")?
-            .send(Err(error))?;
+        let CompletionDelivery::Required(completion) = &queued.completion else {
+            return Err("expected a required completion".into());
+        };
+        completion.send(Err(error))?;
         assert_eq!(receipt.wait(), Err(error));
     }
     Ok(())

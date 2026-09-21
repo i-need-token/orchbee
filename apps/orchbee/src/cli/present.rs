@@ -5,6 +5,10 @@
 
 use serde_json::Value;
 
+use orchbee_agent_observation_protocol::{
+    AgentExplainOutcome, AgentGetOutcome, AgentListOutcome, AgentSessionDetail,
+    AgentSessionExplanation,
+};
 use orchbee_workbench_protocol::{WorktreeEntry, WorktreeEntryText};
 
 use super::config::CheckReport;
@@ -331,7 +335,253 @@ pub(crate) fn render(
         Projection::ApiSnapshot(_) => {
             unreachable!("api snapshot success always takes the document arm")
         }
+        // Agent text renders only ever see the success outcome — refusals
+        // leave the query layer as failures before projection.
+        Projection::AgentList(outcome) => agent_list(out, outcome, text, locale),
+        Projection::AgentGet(outcome) => agent_get(out, outcome, text, locale),
+        Projection::AgentExplain(outcome) => agent_explain(out, outcome, text, locale),
     }
+}
+
+/// `agent list`: the SESSION/PROVIDER/STATUS/FRESHNESS/LOCATION table, an
+/// empty notice instead of an empty table, and a pagination hint whenever the
+/// page is not the last one.
+fn agent_list(
+    out: &mut Bounded,
+    outcome: &AgentListOutcome,
+    text: &CliLabels,
+    locale: Locale,
+) -> Result<(), TooLarge> {
+    let AgentListOutcome::Listed {
+        items, next_cursor, ..
+    } = outcome
+    else {
+        unreachable!("agent list projection holds only the listed outcome")
+    };
+    if items.is_empty() {
+        out.push(locale.cli_agent_empty())?;
+    } else {
+        table(out, &text.agent_headers, items, |row| {
+            vec![
+                row.session_id.as_str().to_owned(),
+                row.provider_id.as_str().to_owned(),
+                locale.cli_agent_status(&row.status),
+                locale
+                    .cli_agent_freshness(row.observation.freshness)
+                    .to_owned(),
+                row.execution_location
+                    .execution_location_id
+                    .as_str()
+                    .to_owned(),
+            ]
+        })?;
+    }
+    if let Some(cursor) = next_cursor {
+        out.push(&locale.cli_agent_next_cursor(cursor.as_str()))?;
+    }
+    Ok(())
+}
+
+/// `agent get`: labeled fields for the session's own snapshot plus its
+/// derived status — identity, provider, lifecycle, status, freshness,
+/// location, observation coordinates, capabilities, pending requests, and
+/// presentation attachment rows.
+fn agent_get(
+    out: &mut Bounded,
+    outcome: &AgentGetOutcome,
+    text: &CliLabels,
+    locale: Locale,
+) -> Result<(), TooLarge> {
+    let AgentGetOutcome::Found { session, .. } = outcome else {
+        unreachable!("agent get projection holds only the found outcome")
+    };
+    agent_session_fields(out, session, text, locale)
+}
+
+fn agent_session_fields(
+    out: &mut Bounded,
+    session: &AgentSessionDetail,
+    text: &CliLabels,
+    locale: Locale,
+) -> Result<(), TooLarge> {
+    let snapshot = &session.snapshot;
+    field(out, text.agent_session, snapshot.session_id.as_str())?;
+    field(out, text.agent_provider, snapshot.provider_id.as_str())?;
+    field(
+        out,
+        text.agent_lifecycle,
+        locale.cli_agent_lifecycle(snapshot.lifecycle),
+    )?;
+    field(
+        out,
+        text.agent_status,
+        &locale.cli_agent_status(&session.status),
+    )?;
+    field(
+        out,
+        text.agent_freshness,
+        locale.cli_agent_freshness(snapshot.observation.freshness),
+    )?;
+    field(
+        out,
+        text.agent_location,
+        snapshot.execution_location.execution_location_id.as_str(),
+    )?;
+    out.write(format_args!(
+        "{:<14}{} {} · {} {} · {} {}\n",
+        text.agent_observation,
+        text.agent_generation,
+        snapshot.observation.generation.value(),
+        text.agent_sequence,
+        snapshot.observation.sequence.value(),
+        locale.cli_agent_fidelity(snapshot.observation.fidelity),
+        locale.cli_agent_source(snapshot.observation.source),
+    ))?;
+    if snapshot.capabilities.is_empty() {
+        field(out, text.agent_capabilities, text.agent_none)?;
+    } else {
+        out.write(format_args!("{:<14}", text.agent_capabilities))?;
+        for (index, capability) in snapshot.capabilities.iter().enumerate() {
+            if index > 0 {
+                out.push(", ")?;
+            }
+            out.push(locale.cli_agent_capability(*capability))?;
+        }
+        out.push("\n")?;
+    }
+    match &snapshot.last_outcome {
+        Some(outcome) => out.write(format_args!(
+            "{:<14}{} {} {}\n",
+            text.agent_last_outcome,
+            locale.cli_agent_outcome_kind(outcome.kind),
+            outcome.turn_id.as_str(),
+            outcome.event_id.as_str(),
+        ))?,
+        None => field(out, text.agent_last_outcome, text.agent_none)?,
+    }
+    out.write(format_args!(
+        "{:<14}{}\n",
+        text.agent_pending_requests,
+        snapshot.pending_requests.len()
+    ))?;
+    table(
+        out,
+        &text.agent_request_headers,
+        &snapshot.pending_requests,
+        |request| {
+            vec![
+                locale.cli_agent_attention_kind(request.kind).to_owned(),
+                request.request_id.as_str().to_owned(),
+                request
+                    .turn_id
+                    .as_ref()
+                    .map(|turn| turn.as_str().to_owned())
+                    .unwrap_or_else(|| "null".to_owned()),
+            ]
+        },
+    )?;
+    out.write(format_args!("{}\n", text.agent_attachments))?;
+    table(
+        out,
+        &text.agent_attachment_headers,
+        &snapshot.presentation_attachments,
+        |attachment| {
+            vec![
+                attachment.presentation_id.as_str().to_owned(),
+                attachment.generation.as_str().to_owned(),
+                locale.cli_agent_bool(attachment.navigable).to_owned(),
+                locale
+                    .cli_agent_visibility(attachment.visibility)
+                    .to_owned(),
+            ]
+        },
+    )
+}
+
+/// `agent explain`: the derived view — canonical status basis, freshness
+/// meaning, capability ceiling, observation source and fidelity, and the
+/// navigate-only action boundary.
+fn agent_explain(
+    out: &mut Bounded,
+    outcome: &AgentExplainOutcome,
+    text: &CliLabels,
+    locale: Locale,
+) -> Result<(), TooLarge> {
+    let AgentExplainOutcome::Found {
+        session,
+        explanation,
+        ..
+    } = outcome
+    else {
+        unreachable!("agent explain projection holds only the found outcome")
+    };
+    agent_explanation_fields(out, session, explanation, text, locale)
+}
+
+fn agent_explanation_fields(
+    out: &mut Bounded,
+    session: &AgentSessionDetail,
+    explanation: &AgentSessionExplanation,
+    text: &CliLabels,
+    locale: Locale,
+) -> Result<(), TooLarge> {
+    field(
+        out,
+        text.agent_session,
+        session.snapshot.session_id.as_str(),
+    )?;
+    field(
+        out,
+        text.agent_status,
+        &locale.cli_agent_status(&explanation.status),
+    )?;
+    field(
+        out,
+        text.agent_status_basis,
+        locale.cli_agent_status_basis(explanation.status_basis),
+    )?;
+    field(
+        out,
+        text.agent_freshness_meaning,
+        locale.cli_agent_freshness_meaning(explanation.freshness_meaning),
+    )?;
+    field(
+        out,
+        text.agent_freshness,
+        locale.cli_agent_freshness(explanation.freshness),
+    )?;
+    out.write(format_args!(
+        "{:<14}{} {} · {} {}\n",
+        text.agent_observation,
+        text.agent_generation,
+        explanation.generation.value(),
+        text.agent_sequence,
+        explanation.sequence.value(),
+    ))?;
+    if explanation.capability_ceiling.is_empty() {
+        field(out, text.agent_capability_ceiling, text.agent_none)?;
+    } else {
+        out.write(format_args!("{:<14}", text.agent_capability_ceiling))?;
+        for (index, capability) in explanation.capability_ceiling.iter().enumerate() {
+            if index > 0 {
+                out.push(", ")?;
+            }
+            out.push(locale.cli_agent_capability(*capability))?;
+        }
+        out.push("\n")?;
+    }
+    field(
+        out,
+        text.agent_source,
+        locale.cli_agent_source(explanation.source),
+    )?;
+    field(
+        out,
+        text.agent_fidelity,
+        locale.cli_agent_fidelity(explanation.fidelity),
+    )?;
+    out.write(format_args!("{:<14}", text.agent_navigate_only))?;
+    out.push(locale.cli_agent_navigate_only_facts())
 }
 
 fn status(out: &mut Bounded, doc: &StatusDoc, text: &CliLabels) -> Result<(), TooLarge> {

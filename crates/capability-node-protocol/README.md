@@ -360,6 +360,30 @@ every arm below the payload ceiling with declared headroom. Codec tests cover ev
 and outcome arm, strict goldens, the field-budget boundary, unknown tags, stage codes, and
 trailing bytes; the Server and Worker guides own admission, fencing, and job evidence.
 
+## Agent drain messages
+
+OBCN kind 17 `AgentDrainRequest` and kind 18 `AgentDrainReply` carry the Server-initiated drain of
+the Worker's retained terminal application signals. The request body after its kind is, in order:
+the protocol-owned Worker ID (`16` bytes), the nonzero Worker generation (`u64`), the nonzero
+request token (`u64`), and the acknowledged sequence watermark (`u64`) — 41 payload bytes, 49
+framed. The Worker echoes the exact token; it never mints or remints one. An acknowledgement above
+the Worker's offered watermark is a fatal protocol error; a stale or zero acknowledgement is a
+legal no-op and never removes an unconfirmed sequence.
+
+The reply carries the echoed token and acknowledgement, the queue tail watermark, a bounded entry
+count, and a contiguous non-overlapping page of `Event` and `Gap` entries. Each event entry is the
+complete CNP-side `HostTerminalIdentity` plus a UTF-8 payload of at most 4,096 bytes; each gap
+entry covers a closed sequence range evicted from the retained window. The decoder rejects
+more than 480 entries before any allocation, unknown tags, nonpositive sequences or gap bounds,
+reversed gap ranges, oversized payloads, non-contiguous or overlapping pages, entries beyond the
+declared queue tail, trailing bytes, and integer overflow. The first entry is not required to
+follow the echoed acknowledgement, because stale acknowledgements are legal.
+
+These types are Capability Node refinements: the event identity reuses the crate's own
+`HostTerminalIdentity`, not the Terminal Host wire identity. Wire kinds 15 and 16 remain reserved
+for Worktree functionality and are not consumed here. Server-side drain production, registry, and
+held-listener behavior remain outside this crate's scope.
+
 ## Authorization outcomes
 
 Pre-admission rejection distinguishes wrong Worker, stale generation, expired lease, stale fence,

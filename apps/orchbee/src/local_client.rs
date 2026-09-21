@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::{
     fmt,
     io::{self, Read, Write},
-    os::fd::AsFd,
+    os::fd::{AsFd, BorrowedFd},
     path::Path,
     sync::Arc,
     time::{Duration, Instant},
@@ -70,8 +70,23 @@ impl LocalClient {
         cohort: &str,
         deadline: Instant,
     ) -> Result<Self, LocalClientConnectError> {
-        let connection = ClientSessionConnection::connect_before(endpoint, cohort, deadline)
-            .map_err(LocalClientConnectError::Admission)?;
+        Self::connect_before_cancellable(endpoint, cohort, deadline, None)
+    }
+
+    /// `connect_before` with the signal owner's borrowed wake descriptor
+    /// joined into the admission wait set: the protocol only polls it and
+    /// reports provisional wake observations; the caller performs the sole
+    /// arbitration read after the session is dropped.
+    #[cfg(target_os = "linux")]
+    pub(crate) fn connect_before_cancellable(
+        endpoint: &Path,
+        cohort: &str,
+        deadline: Instant,
+        wake: Option<BorrowedFd<'_>>,
+    ) -> Result<Self, LocalClientConnectError> {
+        let connection =
+            ClientSessionConnection::connect_before_cancellable(endpoint, cohort, deadline, wake)
+                .map_err(LocalClientConnectError::Admission)?;
         Self::from_connection(
             connection,
             #[cfg(target_os = "linux")]
@@ -545,6 +560,7 @@ impl LocalClient {
                 &self.clock,
                 deadline,
                 self.io_chunk_limits,
+                None,
                 &frame,
                 |io| read_server_message(io),
             )
@@ -846,6 +862,7 @@ fn exchange_once<ResultType, ReadError>(
     clock: &dyn MonotonicClock,
     deadline: SubmissionDeadline,
     io_chunk_limits: IoChunkLimits,
+    wake: Option<BorrowedFd<'_>>,
     frame: &[u8],
     read_result: impl FnOnce(&mut DeadlineIo<'_>) -> Result<ResultType, ReadError>,
 ) -> ExchangeAttempt<ResultType, ReadError> {
@@ -854,6 +871,7 @@ fn exchange_once<ResultType, ReadError>(
         clock,
         deadline,
         io_chunk_limits,
+        wake,
         write_began: false,
     };
 
@@ -884,7 +902,70 @@ struct DeadlineIo<'a> {
     clock: &'a dyn MonotonicClock,
     deadline: SubmissionDeadline,
     io_chunk_limits: IoChunkLimits,
+    /// The signal owner's borrowed wake descriptor — only ever polled, never
+    /// owned, read, drained, or closed here.
+    wake: Option<BorrowedFd<'a>>,
     write_began: bool,
+}
+
+/// Provisional wake observation private to the Client exchange path: the
+/// borrowed descriptor reported readable data. The armed signal owner still
+/// performs the sole arbitration read — this marker is never a verdict.
+#[derive(Debug)]
+struct ExchangeWakeReady;
+
+impl fmt::Display for ExchangeWakeReady {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("the borrowed wake descriptor is readable")
+    }
+}
+
+impl std::error::Error for ExchangeWakeReady {}
+
+/// The borrowed wake descriptor reported a fault flag with no readable data
+/// left — the owner's arbitration read could never observe a capture, so
+/// the observation is a source fault, not readiness.
+#[derive(Debug)]
+struct ExchangeWakeFault(PollFlags);
+
+impl fmt::Display for ExchangeWakeFault {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "the borrowed wake descriptor faulted: {:?}",
+            self.0
+        )
+    }
+}
+
+impl std::error::Error for ExchangeWakeFault {}
+
+/// Whether an exchange I/O error carries the private wake-ready marker —
+/// the armed owner's discriminator for "descriptor readable, no signal
+/// read yet" once the span ends clear.
+pub(crate) fn exchange_wake_ready(error: &io::Error) -> bool {
+    error
+        .get_ref()
+        .is_some_and(|inner| inner.is::<ExchangeWakeReady>())
+}
+
+/// Whether an exchange I/O error carries the private wake-fault marker.
+pub(crate) fn exchange_wake_fault(error: &io::Error) -> bool {
+    error
+        .get_ref()
+        .is_some_and(|inner| inner.is::<ExchangeWakeFault>())
+}
+
+/// Test-only marker constructors: the query classifiers are provable only
+/// against the real private marker payloads.
+#[cfg(test)]
+pub(crate) fn wake_ready_io() -> io::Error {
+    io::Error::other(ExchangeWakeReady)
+}
+
+#[cfg(test)]
+pub(crate) fn wake_fault_io() -> io::Error {
+    io::Error::other(ExchangeWakeFault(PollFlags::POLLHUP))
 }
 
 impl DeadlineIo<'_> {
@@ -892,14 +973,49 @@ impl DeadlineIo<'_> {
         loop {
             let remaining = self.deadline.remaining(self.clock)?;
             let timeout = poll_timeout(remaining);
-            let mut descriptors = [PollFd::new(self.connection.as_fd(), interest)];
+            let Some(wake) = self.wake else {
+                let mut descriptors = [PollFd::new(self.connection.as_fd(), interest)];
+                match poll(&mut descriptors, timeout) {
+                    Ok(0) | Err(Errno::EINTR) => {}
+                    Ok(_ready) => {
+                        self.deadline.remaining(self.clock)?;
+                        return Ok(());
+                    }
+                    Err(error) => return Err(error.into()),
+                }
+                continue;
+            };
+            // The borrowed wake descriptor joins the same deadline-bounded
+            // wait set; its readiness is decided before simultaneous socket
+            // readiness so the owner observes it first.
+            let mut descriptors = [
+                PollFd::new(self.connection.as_fd(), interest),
+                PollFd::new(wake, PollFlags::POLLIN),
+            ];
             match poll(&mut descriptors, timeout) {
-                Ok(0) => {}
+                Ok(0) | Err(Errno::EINTR) => {}
                 Ok(_ready) => {
+                    let observed = descriptors[1].revents().unwrap_or(PollFlags::empty());
+                    // Readable data still wins over simultaneous fault flags:
+                    // the owner's arbitration read can still consume it.
+                    if observed.contains(PollFlags::POLLIN) {
+                        return Err(io::Error::other(ExchangeWakeReady));
+                    }
+                    if observed
+                        .intersects(PollFlags::POLLERR | PollFlags::POLLHUP | PollFlags::POLLNVAL)
+                    {
+                        return Err(io::Error::other(ExchangeWakeFault(observed)));
+                    }
+                    if descriptors[0]
+                        .revents()
+                        .unwrap_or(PollFlags::empty())
+                        .is_empty()
+                    {
+                        continue;
+                    }
                     self.deadline.remaining(self.clock)?;
                     return Ok(());
                 }
-                Err(Errno::EINTR) => {}
                 Err(error) => return Err(error.into()),
             }
         }
@@ -941,6 +1057,7 @@ impl Write for DeadlineIo<'_> {
     }
 }
 
+pub(crate) mod agent;
 pub(crate) mod workbench;
 
 #[cfg(test)]

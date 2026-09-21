@@ -86,6 +86,21 @@ and protocol failures never become absence. Neither variant permits this adapter
 | AD-03: one total deadline covers partial progress and final acceptance.                         | Deadline-aware poll/read/write and final checks; stepping-clock write/read and final-boundary tests.           | DeadlineNeverRenews, AcceptedIsExactAndTimely, AdmissionEventuallySettles.                               |
 | AD-04: failure closes only the candidate; success returns the accepted blocking stream.         | Silent-Server EOF, typed negative responses and blocking-mode tests; existing callers retain stream ownership. | FailureReleasesCandidate, ReturnConnection, ObserveDeadline, IoFails.                                    |
 
+### Cancellable admission boundary
+
+`connect_before_cancellable(endpoint, cohort, deadline, wake)` is the same admission plus one
+optional borrowed wake descriptor. `None` is exactly `connect_before`, and the absolute deadline is
+never renewed. The descriptor is a wake-up capability only: this crate never owns, duplicates,
+reads, drains, or closes it, never changes signal masks or dispositions, and never interprets what
+made it readable. `POLLIN` is only a wake candidate; `POLLERR`, `POLLHUP`, or `POLLNVAL` without
+readable bytes report a broken wake channel, and a wake event is decided before any simultaneous
+socket readiness. The private observations surface at the public boundary as
+`ConnectClientError::CancellationReady` and
+`ConnectClientError::CancellationSourceFault(error)`. Neither is a cancellation verdict and neither
+may be read from marker text; the caller's own signal owner performs the sole arbitration read and
+decides the outcome, including an unreachable or faulted wake source. `connect` and
+`connect_before` cannot produce these variants.
+
 ## Server admission and bounds
 
 Server assigns every accepted connection an independent generation and admits up to eight active

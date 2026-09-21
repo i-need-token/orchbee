@@ -47,6 +47,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
+name = "base64"
+version = "0.22.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
+
+[[package]]
 name = "bit-set"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -220,6 +226,7 @@ checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
 dependencies = [
  "block-buffer",
  "crypto-common",
+ "subtle",
 ]
 
 [[package]]
@@ -351,6 +358,15 @@ name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
+
+[[package]]
+name = "hmac"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
+dependencies = [
+ "digest",
+]
 
 [[package]]
 name = "ident_case"
@@ -660,6 +676,7 @@ dependencies = [
  "crossterm",
  "jsonschema",
  "nix",
+ "orchbee-agent-observation-protocol",
  "orchbee-capability-node-protocol",
  "orchbee-client-server-protocol",
  "orchbee-local-client-protocol",
@@ -673,6 +690,14 @@ dependencies = [
  "sha2",
  "signal-hook",
  "unicode-segmentation",
+]
+
+[[package]]
+name = "orchbee-agent-observation-protocol"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -722,7 +747,10 @@ dependencies = [
 name = "orchbee-server"
 version = "0.1.0"
 dependencies = [
+ "base64",
+ "hmac",
  "nix",
+ "orchbee-agent-observation-protocol",
  "orchbee-capability-node-protocol",
  "orchbee-client-server-protocol",
  "orchbee-local-client-protocol",
@@ -732,6 +760,7 @@ dependencies = [
  "orchbee-terminal-protocol",
  "orchbee-workbench-protocol",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -760,6 +789,7 @@ dependencies = [
  "orchbee-local-site-protocol",
  "orchbee-local-site-runtime",
  "orchbee-terminal-protocol",
+ "rustix",
 ]
 
 [[package]]
@@ -1137,6 +1167,12 @@ dependencies = [
  "quote",
  "syn 2.0.119",
 ]
+
+[[package]]
+name = "subtle"
+version = "2.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "syn"

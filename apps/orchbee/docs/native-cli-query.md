@@ -7,8 +7,10 @@ commands each submit at most one effectful `workbench.command` under the safety 
 [Mutations](#mutations). The surface never creates, repairs, locks, or activates a Site;
 queries never create terminals, viewers, or control grants — the single exception is
 `terminal read`, which holds one short-lived read-only viewer attachment against an already
-bound terminal and releases it before output. Nothing guesses Agent, Worker, process, or PTY
-state; and no command requires a TTY. This is an unpublished local development surface;
+bound terminal and releases it before output. The `agent` family reads the Server's canonical
+Agent sessions through the Agent Observation Protocol (OBAP) — a typed read-only view, never
+inferred from terminal contents. Nothing guesses Worker, process, or PTY state; and no
+command requires a TTY. This is an unpublished local development surface;
 `apps/cli` remains the delivered TypeScript CLI authority, and installation, distribution,
 remote connections, and Site lifecycle operations stay out of scope.
 
@@ -136,6 +138,15 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   host pointer capture for pane hit-testing, on by default. The two-token form is the
   whole grammar; `--mouse=<value>`, a missing or unknown value, a repeat, or the flag on
   any other command route, or the bare invocation, is `invalid-usage`.
+- `--include-ended`: valueless boolean flag, single use, admitted only on `agent list`;
+  includes sessions whose lifecycle is `ended` in the requested page.
+- `--limit <n>`: single-use value flag, admitted only on `agent list`; the page size as
+  one decimal `u64` in `1..=100`, defaulting to the wire contract's 50. A repeated,
+  non-numeric, or out-of-range value is `invalid-usage`.
+- `--cursor <c>`: single-use value flag, admitted only on `agent list`; the minted
+  `v1.<59>.<43>` continuation token, carried verbatim — authenticity is verified
+  Server-side, never at the CLI. A malformed token is `invalid-usage` before any
+  runtime access.
 - `--version`: legal only as the sole root invocation; any other position or company is usage.
 - `-h`/`--help`: root sole token, or the single suffix of a recognized help path (a family
   name or a complete command path).
@@ -170,6 +181,9 @@ orchbee panel move <target> --target-panel <target> --direction above|below|left
 orchbee terminal list | terminal get <target> | terminal read <target> [--history --rows <1-1000>]
 orchbee terminal wait-output <target> --match <text> [--rows <1-1000>] [--timeout <1-3600000>]
 orchbee terminal send <target> (--text <utf8> | --file <path> | --stdin) [--enter] | --key <name>
+orchbee terminal send <target> (--text <utf8> [--enter] | --key <name>)
+orchbee agent list [--include-ended] [--limit <1-100>] [--cursor <v1.…>]
+orchbee agent get <session-id> | agent explain <session-id>
 orchbee api snapshot
 orchbee api schema [<schema-id>]
 orchbee site start
@@ -179,8 +193,8 @@ orchbee help <recognized path>
 orchbee <recognized path> -h|--help
 ```
 
-Help topics: root; families `project`, `workspace`, `worktree`, `tab`, `panel`, `terminal`, `api`, `site`,
-`config`, `completion`; and every complete command path including `tui`. `help` takes only a recognized
+Help topics: root; families `project`, `workspace`, `worktree`, `tab`, `panel`, `terminal`, `agent`, `api`,
+`site`, `config`, `completion`; and every complete command path including `tui`. `help` takes only a recognized
 path (no filters, no format). A trailing `-h` or `--help` is the same request on the same path:
 `orchbee --help`, `project --help`, and `project get --help` emit exactly what `help`,
 `help project`, and `help project get` emit. Suffix help takes precedence over missing business
@@ -195,9 +209,8 @@ targets such as `help help`, `help version`, `help --version` are unknown paths 
 `help`, `completion`, `tui`, `--version`, and the bare invocation are fixed text outputs that do
 not accept `--format`; a single valid `--format=json` turns the resulting syntax failure into a
 JSON `invalid-usage` failure document, while a text/default failure keeps stdout empty. Data
-commands (`status`, all `list`/`get`, `api snapshot`, `api schema`, `site start`,
-`config check`) and every
-mutation command accept `--format`. The `api` commands are the machine surface: a successful `api snapshot` or
+commands (`status`, all `list`/`get`, `agent explain`, `api snapshot`, `api schema`, `site start`,
+`config check`) and every mutation command accept `--format`. The `api` commands are the machine surface: a successful `api snapshot` or
 `api schema` emits the identical JSON document under both formats, while an `api` failure
 follows the selected format like any other command — under text/default it reports on stderr
 with empty stdout, and only `--format json` produces a failure envelope.
@@ -220,6 +233,9 @@ per-resource target rules, and so do every mutation operand and `--target-panel`
 rule: typed IDs only, resolved inside the moved panel's own tab). `api schema` takes a nonempty
 schema ID; an empty one is
 `invalid-identifier` with `resource="schema"`, an unmatched one is `not-found`.
+`agent get` and `agent explain` take an Agent session identity: an opaque token of 1–128
+characters drawn from `[A-Za-z0-9._:-]` — never an id/label split, and a malformed token
+is `invalid-usage` before any runtime access.
 
 Resolution after a successful read: zero matches → `not-found` (3); multiple exact label matches
 → `ambiguous` (3) reporting at most the first 8 candidate typed IDs in canonical traversal order
@@ -505,6 +521,63 @@ record feeds one `terminal.send` request under the unchanged success schema.
   dispositions are respected, not overridden. These are Linux-only claims backed by
   procfs, consistent with the procfd input admission.
 
+`agent list`, `agent get`, and `agent explain` run the same cohort → discovery → socket →
+admission preamble as every network query under one absolute 5-second command budget
+sampled once at invocation entry: the preamble, the admission, and the single OBAP
+exchange all share that ceiling, which is never refreshed between stages — a stage with
+no budget left never starts, and a step completing at or past the ceiling settles as the
+command's own timeout. They skip the Workbench snapshot read entirely. On the single
+admitted Client Session they perform exactly one Agent Observation Protocol (OBAP)
+request/result exchange:
+
+1. **Request** — one OBAP frame (`OBAP` magic, version 1) under a freshly minted
+   `ObapRequestId`: `agent.session.list.request` (kind 1) carrying `includeEnded`,
+   `limit`, and an optional `cursor` (omitted on the first page — never serialized as
+   `null`, and an explicit `null` on the wire is rejected); `agent.session.get.request`
+   (kind 3) or `agent.session.explain.request` (kind 5) carrying the parsed `sessionId`.
+   The encoded request is bounded at 16 KiB.
+2. **Result** — exactly one matching result frame (kinds 2/4/6), bounded at 1 MiB for
+   list and 128 KiB for get/explain; a small refusal rides the ≤1 KiB bound. The frame's
+   `requestId` must equal the issued identity and the result kind must match the issued
+   operation — any mismatch is `protocol-invalid` stage `agent-read`.
+3. **Release** — the Client Session is fully dropped before the outcome is mapped or
+   output is prepared. An ambiguous post-submission outcome retires the session and is
+   never replayed: no reconnect, no second admission, no retry.
+
+On Linux the Agent read commands own a separate, narrower signal watch for the whole
+armed span — {SIGINT, SIGTERM} only, armed before any runtime contact through the same
+private arming mechanics the source stage uses: the eligible set excludes every signal
+the process already blocks or ignores, the borrowed signal descriptor joins every
+admission and exchange wait, and the exact old mask stays blocked through output and is
+restored afterward by the same noncloneable finalization token. Before the arming runs,
+process signal behavior stays inherited; SIGHUP and SIGQUIT are never masked or captured
+at all — they keep their inherited disposition for the whole invocation, so a default
+raw death there is honest and unreported by the CLI, and an inherited ignored or blocked
+member simply leaves the eligible set (an empty set is still a real armed policy).
+Arming itself establishes cancellation ownership — independent of the admission race —
+so a captured signal settles the invocation as `cancelled` on the
+`orchbee.cli.failure.agent` document whether it landed during admission or during the
+read: `{stage:"agent-read", operation}` with no correlated source, at exit status 130
+for either member. 130 is deliberate for both SIGINT and SIGTERM — it is not
+`128 + signo`, and the signal's identity is not exposed. The signal wins over deadline,
+transport fault, and admission outcomes at the single finish arbitration, which still
+runs only after the admitted session is dropped. A provisional wake observation
+surviving a clear arbitration is an `internal-failure`, never a transport or timeout
+verdict.
+
+Semantic answers map to fixed failure kinds under the `orchbee.cli.failure.agent`
+document: `listed`/`found` are the only success outcomes; `rejected{read-denied}` →
+`denied`; `rejected{not-found}` → `not-found` (get/explain only, naming the session);
+`rejected{cursor-invalid|cursor-stale}` → `rejected` (list only); `unavailable` →
+`service-unavailable` with `reason:"runtime-unavailable"`. A deadline elapsed inside the
+exchange is `timeout` with `timeoutMs:5000`; a transport fault is `transport-loss`; a
+malformed, mismatched, or miscorrelated frame is `protocol-invalid`. All post-admission
+failures carry `{stage:"agent-read",operation:"list"|"get"|"explain"}`; the correlated
+`agent-read` source is attached only to trustworthy semantic answers — transport,
+timeout, protocol-invalid, and cancelled failures carry none. Agent reads observe the Server's
+canonical Agent sessions only; an `ended` session is reported, never resurrected, and
+`--include-ended` widens the page filter rather than the lifecycle itself.
+
 ## Site activation
 
 `site start` is the headless form of the TUI's local startup: both call the single shared
@@ -556,7 +629,7 @@ Canonical traversal order: `navigation.projects` order; each project's `workspac
 Success envelopes are `{schema, version, source, result}`. Every business document —
 query, mutation, receipt, and failure — is `version:1` except `orchbee.terminal.get`, which
 is `version:2` since it gained the `launch` member. The `orchbee.api.schema` catalog
-envelope is `version:5`: registering a new schema id changes the closed dictionary's
+envelope is `version:6`: registering a new schema id changes the closed dictionary's
 shape, which is a catalog shape change under the version rule, not a business one:
 
 - `source.kind="workbench-snapshot"` with `siteId` and decimal-string `revision` from the same
@@ -575,6 +648,8 @@ shape, which is a catalog shape change under the version rule, not a business on
 - `source.kind="worktree-list"` — `siteId` and the decimal-string `revision` of the
   committed Workbench at the Server's authoritative membership check, on `worktree list`
   results and its post-snapshot failures.
+- `source.kind="agent-read"` — the correlated `requestId` the semantic answer carried
+  back, on produced agent read results and on post-admission semantic refusals.
 - There is no freshness field; one consistent read is not a liveness guarantee.
 
 Result payloads (schema IDs are stable machine names):
@@ -659,6 +734,20 @@ payloadKind,recordBytes?,key?,inputStatus,cleanupStatus,reason?,acceptedBytes?,t
   (`workerGeneration`,`hostEpoch`,`hostTerminalId`) — present whenever the answer admits one
   (`accepted`, `outcome-unknown`, or any cleanup obligation), absent on pre-admission
   refusals. The submitted text is never echoed anywhere in the document or diagnostics.
+- `orchbee.agent.list` → the `listed` outcome verbatim:
+  `{kind:"listed",items:[<session summary>…],nextCursor|null,revision}` where each summary
+  is the wire `AgentSessionSummary` (session/provider/lifecycle/semantic status/freshness/
+  observation counters/execution location/pending-request count ≤128/presentation
+  attachments) and `nextCursor` is the Server-minted continuation token for `--cursor`.
+- `orchbee.agent.get` → the `found` outcome verbatim:
+  `{kind:"found",revision,session}` where `session` is the wire `AgentSessionDetail` —
+  the summary fields plus `capabilities` (≤10 unique tokens), `lastOutcome`, and
+  `pendingRequests`.
+- `orchbee.agent.explain` → the `found` outcome verbatim:
+  `{kind:"found",revision,session,explanation}` where `explanation` is the canonical
+  11-field object (`status`, `statusBasis`, `freshnessMeaning`, `capabilityCeiling`,
+  `fidelity`, `freshness`, `generation`, `sequence`, `source`, `actionPath`,
+  `contentAvailable`) — the Server's derived reading, never a CLI inference.
 - `orchbee.api.snapshot` → `{snapshot}`: the complete `WorkbenchProtocolDocument::Snapshot`
   semantic re-encode including `kind:"workbench.snapshot"`; envelope `siteId`/`revision` agree
   with the inner document.
@@ -713,6 +802,13 @@ failure:{kind,details}}` — the send source-stage envelope for `timeout` and `c
   only. `details` is `{stage:"input",inputSource:"file"|"stdin"}` plus `timeoutMs` on
   timeout; there is never an authority `source`, a request identity, a path, or a payload
   byte, because the failure provably precedes any runtime effect.
+- `orchbee.cli.failure.agent` → `{schema:"orchbee.cli.failure.agent",version:1,failure:
+{kind,details?},source?}` — the post-admission agent read failure document: `kind` ∈
+  `{cancelled,denied,internal-failure,not-found,protocol-invalid,rejected,
+service-unavailable,timeout,transport-loss}` with a closed per-kind `details` vocabulary
+  (`{stage:"agent-read",operation[,reason|sessionId|timeoutMs]}`), and `source` only on
+  trustworthy semantic answers. Pre-admission failures on the agent commands keep the
+  generic `orchbee.cli.failure` document instead.
 
 ### Config checks
 
@@ -839,7 +935,10 @@ Exit codes: 0 success (empty lists included); 1 local config/output/internal det
 deadline expiring during materialization); 8 outcome-unknown; 130 `cancelled` (a handled
 SIGINT-class interruption — a HUP/INT/QUIT/TERM during `terminal wait-output` — and, more
 generally, a handled `terminal send` source-stage signal exits conventionally
-`128 + signo`: 129/130/131/143 for the eligible set). An eligible signal the source guard
+`128 + signo`: 129/130/131/143 for the eligible set). During an `agent` read a captured
+SIGINT or SIGTERM settles as the typed `cancelled` agent failure at status 130 — both
+members, by contract — while the unwatched SIGHUP/SIGQUIT keep their inherited
+dispositions. An eligible signal the source guard
 never captured is delivered to its original disposition — an OS default termination follows
 the shell's `128 + signal` convention and is not a synthesized CLI result.
 
@@ -896,6 +995,15 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | send `OutcomeUnknown` (write/read/invalid-result/correlation)                                                                             | `outcome-unknown`                                                          | 8         | `{stage:"send",requestId,reason}`                                                         |
 | `terminal.send.result` `Rejected`/`Unavailable`                                                                                           | typed answer, not a failure envelope                                       | 3/4       | send result `reason`, `cleanupStatus`; `host-protocol-fault` exits 5                      |
 | `terminal.send.result` `Accepted` + `Unconfirmed` cleanup                                                                                 | typed answer, not a failure envelope                                       | 5         | send result `acceptedBytes`, `cleanupStatus`                                              |
+| agent `RequestNotSubmitted`/`Write`/`ResponseDeadline`/`Response(Io)` (deadline not elapsed)                                              | `transport-loss`                                                           | 5         | `{stage:"agent-read",operation}`                                                          |
+| agent exchange or post-admission step with the shared total deadline elapsed                                                              | `timeout`                                                                  | 7         | `{stage:"agent-read",operation,timeoutMs:5000}`                                           |
+| agent armed span captures an eligible SIGINT or SIGTERM (any stage; HUP/QUIT stay raw)                                                    | `cancelled`                                                                | 130       | `{stage:"agent-read",operation}`                                                          |
+| agent `Response(wire fault)`/`UnexpectedResponse`/`CorrelationMismatch`, wrong result kind                                                | `protocol-invalid`                                                         | 5         | `{stage:"agent-read",operation}`                                                          |
+| agent outcome `Rejected(NotFound)` (get/explain)                                                                                          | `not-found`                                                                | 3         | `{stage:"agent-read",operation,sessionId}`                                                |
+| agent outcome `Rejected(ReadDenied)`                                                                                                      | `denied`                                                                   | 3         | `{stage:"agent-read",operation,reason:"read-denied"}`                                     |
+| agent list outcome `Rejected(CursorInvalid\|CursorStale)`                                                                                 | `rejected`                                                                 | 3         | `{stage:"agent-read",operation:"list",reason:"cursor-invalid"\|"cursor-stale"}`           |
+| agent outcome `Unavailable`                                                                                                               | `service-unavailable`                                                      | 4         | `{stage:"agent-read",operation,reason:"runtime-unavailable"}`                             |
+| agent `SessionUnavailable`/`RequestEncoding`                                                                                              | `internal-failure`                                                         | 1         | omitted                                                                                   |
 | send source validation: unopenable/non-regular path, terminal or unsupported stdin, empty, oversized, non-UTF-8                           | `invalid-usage`                                                            | 2         | omitted (localized stderr names the declared option and concrete cause)                   |
 | send source deadline expired during materialization                                                                                       | `timeout` under `orchbee.cli.failure.source`                               | 7         | `{stage:"input",inputSource,timeoutMs}`                                                   |
 | eligible signal captured during send source materialization                                                                               | `cancelled` under `orchbee.cli.failure.source`                             | 128+signo | `{stage:"input",inputSource}`                                                             |
@@ -915,7 +1023,7 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | `terminal wait-output` match with unconfirmed `Detach`                                                                                    | typed viewer-stage failure                                                 | *         | `{stage:"viewer",matchObserved:true,cleanup:"unconfirmed"}`                               |
 
 `resource` is `project|workspace|tab|panel|terminal|schema`; `stage` is
-`cohort|runtime-base|runtime-directory|socket|discovery|admission|activation|snapshot|viewer|command|send|platform|wait`.
+`cohort|runtime-base|runtime-directory|socket|discovery|admission|activation|snapshot|viewer|command|send|agent-read|platform|wait`.
 The dedicated `orchbee.cli.failure.worktree` envelope admits `resource:"directory"` and the
 `worktree-list|probe|list|parse` stage vocabulary documented with its schema above — those
 values belong to that envelope only, not to the generic `orchbee.cli.failure` vocabulary.
@@ -928,7 +1036,9 @@ is a closed per-kind vocabulary — `{resource,target}`,
 `{stage:"send",requestId,reason}`,
 `{stage:"viewer",operation:"read-history"|"wait-output",reason}`,
 `{stage:"wait",timeoutMs,observed}`, `{stage:"wait",cleanup}`,
-`{stage:"viewer",matchObserved,cleanup}`, or `{limitBytes}` —
+`{stage:"viewer",matchObserved,cleanup}`, `{limitBytes}`, or the agent-read family —
+`{stage:"agent-read",operation}`, `{stage:"agent-read",operation,sessionId}`,
+`{stage:"agent-read",operation,reason}`, `{stage:"agent-read",operation,timeoutMs}` —
 and the embedded schemas reject documents outside those shapes. Read-path errors never become
 outcome-unknown/failed-effect: only the command stage can produce an undetermined effect, and
 `rejected`/`denied`/`unavailable` precommit answers are definite — the Server applied nothing.
@@ -999,7 +1109,15 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 - There is at most one snapshot read per invocation, one admission per invocation, and one
   network deadline covering read and command; `terminal read`'s viewer exchanges and
   `terminal send`'s single send ride on that same session and deadline — never a second
-  admission or a renewed budget.
+  admission or a renewed budget. Agent reads follow the same discipline for their one OBAP
+  exchange: one request under a fresh `ObapRequestId`, one correlated result, the session
+  retired on any ambiguous outcome and never replayed — and no Workbench snapshot is
+  taken at all.
+- Agent observation never fabricates: results are the wire outcome verbatim, a `found`
+  `explanation` is the Server's canonical 11-field reading, and success is never inferred
+  from terminal contents or screenshots. An `agent-read` source exists only after a
+  trustworthy correlated answer; transport, timeout, and protocol-invalid failures carry
+  none.
   `terminal wait-output` keeps the same single admission and replaces the fixed 5-second
   budget with the user `--timeout` deadline taken at command start; its per-attachment
   `requestSequence` strictly increases from 1 across every `read-rows` it issues.
@@ -1041,6 +1159,8 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 | Source deadline/cancellation: stalled pipe exits at the shared deadline (7), captured eligible signal exits `128+signo` under `orchbee.cli.failure.source`, inherited IGN/BLK preserved, restore failure internal | source envelope facts, no wire request, exact mask restore                                      | `src/cli/source` tests + labelled OS/process evidence              |
 | Scripted OBCS send peer with declared sources: materialized file/stdin arrives as one `terminal.send` text request                                                                                                | identical envelope to `--text`; exactly one request                                             | `tests/cli_send.rs`                                                |
 | Scripted OBCS viewer peer + hand-built OBTF/OBRW records: increasing `requestSequence`, visible/history boundary window, real `FrameApplied` per frame, stale re-pin, excerpt tail match, deadline incl. preamble | `terminal wait-output` success + typed failures                                                 | `tests/cli_query.rs`                                               |
+| Scripted OBLC/OBAP peers: list/get/explain verbatim outcomes, option→wire echo, denied/not-found/cursor/unavailable answers, malformed/wrong-kind/miscorrelated frames, no-retry                                  | agent read success + typed `agent-read` failures                                                | `tests/cli_agent.rs`                                               |
+| Agent envelopes ↔ embedded schemas: emitted success/failure documents validate; wire-impossible variants (count 129, duplicate capabilities/ceiling) rejected                                                     | schema restatement of the wire contract                                                         | `tests/cli_agent.rs`                                               |
 | Real staged-cohort Server + live TUI terminal: `wait-output` matches existing/later/scrolled-off/UTF-8 output, short deadline exits 7, cancel frees the slot                                                      | public wait observation coexisting with the TUI's own viewer                                    | `tests/local_startup_process`                                      |
 | Real staged-cohort Server + live TUI terminal: `terminal read` returns its grid and schema-validates                                                                                                              | real read-only observation coexisting with the TUI's own viewer                                 | `tests/local_startup_process`                                      |
 | Mutation grammar: every command, target rules, `--confirm`, geometry bounds, flag scopes                                                                                                                          | exact parse/failure kinds before runtime access                                                 | `src/invocation` tests                                             |

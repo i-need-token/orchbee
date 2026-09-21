@@ -410,6 +410,24 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
                 success_output(projection, source, &command, format, locale)
             }
         },
+        // Agent reads exchange on their own admitted Client Session; answers
+        // arrive already projected with the correlated request identity.
+        QueryCommand::AgentList {
+            include_ended,
+            limit,
+            cursor,
+        } => agent_output(
+            query::agent_list(*include_ended, *limit, cursor.clone()),
+            &command,
+            format,
+            locale,
+        ),
+        QueryCommand::AgentGet(session_id) => {
+            agent_output(query::agent_get(session_id), &command, format, locale)
+        }
+        QueryCommand::AgentExplain(session_id) => {
+            agent_output(query::agent_explain(session_id), &command, format, locale)
+        }
         // `terminal read` couples the snapshot to one viewer observation on
         // the same session; its answer arrives already projected.
         QueryCommand::TerminalRead { target, history } => {
@@ -446,6 +464,46 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
             }
         }
         _ => network_query(&command, format, locale),
+    }
+}
+
+/// One Agent read answer: pre-admission failures keep the generic failure
+/// document, every post-admission fault or semantic refusal answers with the
+/// dedicated agent failure document, and a successful read emits the
+/// verbatim wire outcome under the correlated `agent-read` source. A
+/// captured signal answers the agent document's `cancelled` kind — its
+/// owed finalization rides the common emit path like every guarded output.
+fn agent_output(
+    result: Result<(Value, results::Projection), query::AgentQueryError>,
+    command: &QueryCommand,
+    format: OutputFormat,
+    locale: Locale,
+) -> Output {
+    match result {
+        Err(query::AgentQueryError::Admission(failure)) => {
+            failure_output(failure, Some(format), locale)
+        }
+        Err(query::AgentQueryError::Read(failure)) => failure_output(
+            failure.failure_schema(schema::AGENT_FAILURE_ID),
+            Some(format),
+            locale,
+        ),
+        // Only the Linux signal owner constructs `Cancelled`.
+        #[cfg(target_os = "linux")]
+        Err(query::AgentQueryError::Cancelled(cancelled)) => {
+            let query::AgentCancelled {
+                failure,
+                finalization,
+            } = *cancelled;
+            let mut output = failure_output(
+                failure.failure_schema(schema::AGENT_FAILURE_ID),
+                Some(format),
+                locale,
+            );
+            output.finalization = Some(finalization);
+            output
+        }
+        Ok((source, projection)) => success_output(projection, source, command, format, locale),
     }
 }
 

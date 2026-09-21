@@ -3,10 +3,17 @@
 //! create directories, acquire locks, start processes, or mutate the Workbench.
 
 #[cfg(target_os = "linux")]
+use std::os::fd::BorrowedFd;
+#[cfg(target_os = "linux")]
 use std::time::{Duration, Instant};
 #[cfg(target_os = "linux")]
 use std::{env, path::PathBuf};
 
+#[cfg(target_os = "linux")]
+use orchbee_agent_observation_protocol::{
+    AgentExplainOutcome, AgentGetOutcome, AgentListOutcome, AgentReadRequest, AgentReadResult,
+    AgentSafeInteger, AgentSessionId, AgentWireError, ObapRequestId,
+};
 #[cfg(target_os = "linux")]
 use orchbee_client_server_protocol::{
     RequestId as ObcsRequestId, SiteId as ObcsSiteId, TerminalId as ObcsTerminalId,
@@ -32,15 +39,23 @@ use orchbee_workbench_protocol::{
 #[cfg(target_os = "linux")]
 use super::results::Projection;
 #[cfg(target_os = "linux")]
-use super::{Failure, FailureKind, stage_details, stage_reason_details, target_details};
+use super::source::{ArmedSignals, Finish, SignalWatch};
+#[cfg(target_os = "linux")]
+use super::{
+    Failure, FailureKind, SourceFinalization, stage_details, stage_reason_details, target_details,
+};
 #[cfg(target_os = "linux")]
 use crate::invocation::{Resource, Target};
+#[cfg(target_os = "linux")]
+use crate::local_client::agent::{AgentReadError, AgentReadFailure, AgentReadOperation};
 #[cfg(target_os = "linux")]
 use crate::local_client::workbench::{
     SnapshotReadError, SnapshotReadFailure, WorktreeListReadError, WorktreeListReadFailure,
 };
 #[cfg(target_os = "linux")]
-use crate::local_client::{LocalClient, OutcomeUnknownReason, SubmissionError};
+use crate::local_client::{
+    LocalClient, OutcomeUnknownReason, SubmissionError, exchange_wake_fault, exchange_wake_ready,
+};
 #[cfg(target_os = "linux")]
 use crate::terminal_projection::TerminalProjection;
 #[cfg(target_os = "linux")]
@@ -48,6 +63,11 @@ use crate::termination_signal::{TerminationSignal, TerminationSource};
 
 #[cfg(target_os = "linux")]
 const COHORT_BUDGET: Duration = Duration::from_secs(5);
+/// The Agent read's whole-command budget: one absolute deadline sampled
+/// once at invocation entry and shared by the preamble, the admission, and
+/// the single OBAP exchange — never refreshed between stages.
+#[cfg(target_os = "linux")]
+const AGENT_TOTAL_BUDGET: Duration = Duration::from_secs(5);
 #[cfg(target_os = "linux")]
 const NETWORK_BUDGET: Duration = Duration::from_secs(5);
 /// An `Empty` poll answer is retried inside the shared network budget; the
@@ -668,6 +688,178 @@ mod tests {
             details["target"],
             serde_json::json!("0123456789abcdef0123456789abcdef")
         );
+    }
+
+    /// socket.
+    #[test]
+    fn agent_settle_reports_timeout_only_at_or_past_total() {
+        assert!(
+            agent_settle(
+                Instant::now() + Duration::from_secs(60),
+                AgentReadOperation::List
+            )
+            .is_ok()
+        );
+        let failure = agent_settle(Instant::now(), AgentReadOperation::Get)
+            .expect_err("an expired total settles as the Agent timeout");
+        assert_eq!(failure.kind, FailureKind::Timeout);
+        let details = failure.details.expect("agent timeout details");
+        assert_eq!(details["stage"], serde_json::json!("agent-read"));
+        assert_eq!(details["operation"], serde_json::json!("get"));
+        assert_eq!(details["timeoutMs"], serde_json::json!(5000));
+    }
+
+    /// An already-expired total fails before any subsequent stage IO: the
+    /// preamble never gets a usable window and the connect is never
+    /// attempted — the call returns promptly with a failure, deterministic
+    /// on any machine.
+    #[test]
+    fn agent_session_until_expired_total_fails_before_io() {
+        let started = Instant::now();
+        assert!(agent_session_until(Instant::now(), None).is_err());
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "an expired total fails fast, never starting the next IO"
+        );
+    }
+
+    /// A provisional wake marker held into `Clear` classification is a
+    /// contradiction: at every transport I/O position it must land on
+    /// `internal-failure`, never a transport-loss or timeout verdict.
+    #[test]
+    fn agent_markers_classify_internal_at_every_io_position() {
+        let request_id =
+            ObapRequestId::parse("11111111111111111111111111111111").expect("request id");
+        for marker in [
+            crate::local_client::wake_ready_io,
+            crate::local_client::wake_fault_io,
+        ] {
+            for operation in [
+                AgentReadOperation::List,
+                AgentReadOperation::Get,
+                AgentReadOperation::Explain,
+            ] {
+                let not_submitted =
+                    classify_agent_read(AgentReadError::RequestNotSubmitted(marker()), operation);
+                assert_eq!(not_submitted.kind, FailureKind::InternalFailure);
+                for reason in [
+                    AgentReadFailure::Write(marker()),
+                    AgentReadFailure::ResponseDeadline(marker()),
+                    AgentReadFailure::Response(AgentWireError::Io(marker())),
+                ] {
+                    let failure = classify_agent_read(
+                        AgentReadError::Failed {
+                            request_id: request_id.clone(),
+                            reason,
+                        },
+                        operation,
+                    );
+                    assert_eq!(
+                        failure.kind,
+                        FailureKind::InternalFailure,
+                        "{operation:?} marker must never classify as transport/timeout"
+                    );
+                    assert!(
+                        failure.details.is_none(),
+                        "internal-failure carries no agent-read details"
+                    );
+                }
+            }
+        }
+    }
+
+    /// A recording watch wrapping a real armed INT/TERM guard: `finish`
+    /// first waits for the peer's disconnect observation, then runs the real
+    /// arbitration read — so it only succeeds when the admitted session's
+    /// socket was already dropped before the finish read.
+    struct OrderWatch {
+        inner: ArmedSignals,
+        eof: std::sync::mpsc::Receiver<()>,
+    }
+
+    impl AgentWatch for OrderWatch {
+        fn poll_fd(&self) -> Option<BorrowedFd<'_>> {
+            SignalWatch::poll_fd(&self.inner)
+        }
+
+        fn finish(self) -> Result<Finish, nix::errno::Errno> {
+            self.eof
+                .recv_timeout(Duration::from_secs(5))
+                .expect("the admitted session must be dropped before finish");
+            self.inner.finish()
+        }
+    }
+
+    /// Owner-model evidence for the drop-before-finish order: driving the
+    /// real `agent_armed_finish` against a live admitted session, the watch
+    /// observes the peer's EOF at finish entry — the Client Session socket
+    /// was closed before the signal arbitration read ran.
+    #[test]
+    fn session_socket_drops_before_finish_arbitration() {
+        use orchbee_agent_observation_protocol::{read_agent_request, write_agent_result};
+        use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
+
+        let (eof, eof_rx) = std::sync::mpsc::channel();
+        let server = crate::local_client::test_server::FakeServer::start(move |mut stream| {
+            match read_message(&mut stream).map_err(std::io::Error::other)? {
+                LocalClientMessage::ClientHello(_) => {}
+                _ => {
+                    return Err(std::io::Error::other("expected ClientHello"));
+                }
+            }
+            write_message(
+                &mut stream,
+                &LocalClientMessage::ClientAccepted {
+                    generation: std::num::NonZeroU64::new(1).expect("generation"),
+                },
+            )
+            .map_err(std::io::Error::other)?;
+            let request = read_agent_request(&mut stream).map_err(std::io::Error::other)?;
+            let result: AgentReadResult = serde_json::from_value(serde_json::json!({
+                "kind": "agent.session.list.result",
+                "requestId": request.request_id().as_str(),
+                "result": {"outcome": {"kind": "listed", "items": [], "nextCursor": null, "revision": 7}}
+            }))
+            .map_err(std::io::Error::other)?;
+            write_agent_result(&mut stream, &result).map_err(std::io::Error::other)?;
+            // Read until the client session closes — EOF is the drop mark.
+            let mut sink = [0_u8; 64];
+            let _ = std::io::Read::read(&mut stream, &mut sink);
+            let _ = eof.send(());
+            Ok(())
+        })
+        .expect("start fake server");
+        let client = LocalClient::connect(server.endpoint(), "test-cohort")
+            .expect("connect admitted client");
+        let armed = ArmedSignals::arm_interrupts().expect("arm interrupts");
+        let watch = OrderWatch {
+            inner: armed,
+            eof: eof_rx,
+        };
+        let request_id =
+            ObapRequestId::parse("11111111111111111111111111111111").expect("request id");
+        let outcome = agent_armed_finish(
+            AgentReadOperation::List,
+            |request_id| AgentReadRequest::List {
+                request_id,
+                include_ended: false,
+                limit: orchbee_agent_observation_protocol::AgentSafeInteger::new(50),
+                cursor: None,
+            },
+            Instant::now() + Duration::from_secs(10),
+            request_id,
+            watch,
+            move |_total, _wake| Ok(client),
+        );
+        // The finish read ran only after the peer's EOF — and the cleared
+        // span hands back the exchanged result for normal classification.
+        let (_id, attempt) =
+            outcome.unwrap_or_else(|_| panic!("clear arbitration hands back the attempt"));
+        assert!(
+            matches!(attempt, AgentAttempt::Exchanged(Ok(_))),
+            "the exchange completed before finish"
+        );
+        server.finish().expect("peer finished");
     }
 }
 
@@ -1691,6 +1883,13 @@ pub(crate) fn classify_connect(error: crate::local_client::LocalClientConnectErr
             ConnectClientError::Protocol(_) | ConnectClientError::UnexpectedResponse => {
                 Failure::new(FailureKind::ProtocolInvalid).details(stage_details("admission"))
             }
+            // Only `connect_before_cancellable` callers can observe these; the
+            // current `None` path never produces them. The Agent read's signal
+            // owner arbitrates the wake before classification.
+            ConnectClientError::CancellationReady
+            | ConnectClientError::CancellationSourceFault(_) => {
+                Failure::new(FailureKind::InternalFailure)
+            }
         },
         crate::local_client::LocalClientConnectError::RequestIoConfiguration(_) => {
             Failure::new(FailureKind::InternalFailure)
@@ -1754,6 +1953,525 @@ pub(crate) fn obcs_request_id() -> Result<ObcsRequestId, Failure> {
         .map_err(|_| Failure::new(FailureKind::InternalFailure))
 }
 
+/// The Agent read failure family a caller must answer with: pre-admission
+/// failures keep the generic `orchbee.cli.failure` document, while every
+/// post-admission exchange or semantic answer is documented by
+/// `orchbee.cli.failure.agent`. A captured signal answers `cancelled` on
+/// the agent document — the only schema carrying it for this family — and
+/// owes the common emit its noncloneable finalization token.
+/// The typed cancellation payload: the settled agent failure plus the owed
+/// finalization token, boxed so the common error type stays small on paths
+/// that never cancel.
+#[cfg(target_os = "linux")]
+pub(crate) struct AgentCancelled {
+    pub(crate) failure: Failure,
+    pub(crate) finalization: SourceFinalization,
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) enum AgentQueryError {
+    Admission(Failure),
+    Read(Failure),
+    Cancelled(Box<AgentCancelled>),
+}
+
+/// Why the armed span never reached an admitted session — the generic
+/// failure family. Preamble failures arrive already classified; the raw
+/// connect outcome is held unprojected because it may carry the protocol's
+/// provisional wake markers, which only the finish arbitration may weigh.
+#[cfg(target_os = "linux")]
+enum AgentAdmissionError {
+    Preamble(Failure),
+    Connect(crate::local_client::LocalClientConnectError),
+}
+
+/// The armed Agent span's retained raw outcome — never projected to a
+/// `Failure` before the signal owner's single arbitration, so provisional
+/// wake markers survive intact to that point. The variant carries the
+/// phase: `Admission` answers the generic document, the rest answer the
+/// agent document.
+#[cfg(target_os = "linux")]
+enum AgentAttempt {
+    Admission(AgentAdmissionError),
+    /// The shared absolute budget expired before or after the exchange.
+    Expired,
+    /// One OBAP exchange settled to its raw result or typed failure.
+    Exchanged(Result<AgentReadResult, AgentReadError>),
+}
+
+/// The armed Agent interruption owner as one pollable descriptor plus one
+/// finish arbitration — the private seam where a test substitutes a
+/// recording watch to prove the admitted session is dropped first. Only
+/// `ArmedSignals` implements it in production.
+#[cfg(target_os = "linux")]
+trait AgentWatch {
+    /// The borrowed signal descriptor joined into every transport wait.
+    fn poll_fd(&self) -> Option<BorrowedFd<'_>>;
+    /// The single arbitration read after the armed span.
+    fn finish(self) -> Result<Finish, nix::errno::Errno>;
+}
+
+#[cfg(target_os = "linux")]
+impl AgentWatch for ArmedSignals {
+    fn poll_fd(&self) -> Option<BorrowedFd<'_>> {
+        SignalWatch::poll_fd(self)
+    }
+
+    fn finish(self) -> Result<Finish, nix::errno::Errno> {
+        ArmedSignals::finish(self)
+    }
+}
+
+/// One armed Agent read command: after grammar validation and request
+/// identity, the interruption guard arms before the synchronous preamble
+/// and owns SIGINT/SIGTERM for the whole `T0+5s` span; the borrowed wake
+/// descriptor joins every transport wait; the Client Session is dropped
+/// before the single `finish` arbitration; and no early return may bypass
+/// that arbitration once armed. `Clear` hands the raw attempt back for the
+/// normal classification; `Cancelled` answers the typed 130 family.
+#[cfg(target_os = "linux")]
+fn agent_armed_run(
+    operation: AgentReadOperation,
+    build: impl FnOnce(ObapRequestId) -> AgentReadRequest,
+) -> Result<(ObapRequestId, AgentAttempt), AgentQueryError> {
+    let total = deadline_after(AGENT_TOTAL_BUDGET).map_err(AgentQueryError::Admission)?;
+    let request_id = obap_request_id().map_err(AgentQueryError::Admission)?;
+    let armed = ArmedSignals::arm_interrupts()
+        .map_err(|_| AgentQueryError::Admission(Failure::new(FailureKind::InternalFailure)))?;
+    agent_armed_finish(
+        operation,
+        build,
+        total,
+        request_id,
+        armed,
+        agent_session_until,
+    )
+}
+
+/// The armed span's finish half, separated so a recording watch can prove
+/// the admitted session is already dropped when the arbitration read runs:
+/// `agent_span` owns the session and drops it before returning; only then
+/// does `armed.finish()` read the signal descriptor. Nothing here
+/// classifies.
+#[cfg(target_os = "linux")]
+fn agent_armed_finish(
+    operation: AgentReadOperation,
+    build: impl FnOnce(ObapRequestId) -> AgentReadRequest,
+    total: Instant,
+    request_id: ObapRequestId,
+    armed: impl AgentWatch,
+    acquire: impl FnOnce(Instant, Option<BorrowedFd<'_>>) -> Result<LocalClient, AgentAdmissionError>,
+) -> Result<(ObapRequestId, AgentAttempt), AgentQueryError> {
+    let attempt = {
+        let wake = armed.poll_fd();
+        agent_span(total, operation, wake, request_id.clone(), build, acquire)
+    };
+    match armed.finish() {
+        Err(_) => Err(match attempt {
+            AgentAttempt::Admission(_) => {
+                AgentQueryError::Admission(Failure::new(FailureKind::InternalFailure))
+            }
+            _ => AgentQueryError::Read(Failure::new(FailureKind::InternalFailure)),
+        }),
+        Ok(Finish::Cancelled { finalization, .. }) => {
+            Err(AgentQueryError::Cancelled(Box::new(AgentCancelled {
+                // A cancelled read carries no source: only a trustworthy semantic
+                // answer may publish the correlated request identity.
+                failure: Failure::new(FailureKind::Cancelled)
+                    .details(agent_read_details(operation)),
+                finalization,
+            })))
+        }
+        Ok(Finish::Clear) => Ok((request_id, attempt)),
+    }
+}
+
+/// The armed span body: admission under the borrowed wake descriptor, the
+/// pre-submission settle, one OBAP exchange, then the session is dropped —
+/// all before the caller's finish arbitration. Nothing here classifies.
+#[cfg(target_os = "linux")]
+fn agent_span(
+    total: Instant,
+    operation: AgentReadOperation,
+    wake: Option<BorrowedFd<'_>>,
+    request_id: ObapRequestId,
+    build: impl FnOnce(ObapRequestId) -> AgentReadRequest,
+    acquire: impl FnOnce(Instant, Option<BorrowedFd<'_>>) -> Result<LocalClient, AgentAdmissionError>,
+) -> AgentAttempt {
+    let mut client = match acquire(total, wake) {
+        Err(error) => return AgentAttempt::Admission(error),
+        Ok(client) => client,
+    };
+    if agent_settle(total, operation).is_err() {
+        drop(client);
+        return AgentAttempt::Expired;
+    }
+    let result = client.submit_agent_read_before_cancellable(build(request_id), total, wake);
+    // The Client Session is fully dropped before the owner arbitrates.
+    drop(client);
+    if agent_settle(total, operation).is_err() {
+        return AgentAttempt::Expired;
+    }
+    AgentAttempt::Exchanged(result)
+}
+
+/// One admitted Client Session for an Agent observation read under the
+/// caller's single absolute budget: the same cohort → discovery → socket →
+/// admission preamble as every network query, then one connect — each stage
+/// bounded by `total`, never a renewed budget. The wake descriptor joins
+/// the admission wait set; nothing here may create state, replay a request,
+/// or touch the Workbench.
+#[cfg(target_os = "linux")]
+fn agent_session_until(
+    total: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<LocalClient, AgentAdmissionError> {
+    let cohort_deadline = bounded_deadline(Instant::now(), COHORT_BUDGET, total)
+        .map_err(AgentAdmissionError::Preamble)?;
+    let (cohort, site) =
+        session_preamble(cohort_deadline, None).map_err(AgentAdmissionError::Preamble)?;
+    LocalClient::connect_before_cancellable(
+        site.client_socket_path(),
+        cohort.identity(),
+        total,
+        wake,
+    )
+    .map_err(AgentAdmissionError::Connect)
+}
+
+/// Post-step settlement of the shared absolute budget: at or past the
+/// ceiling the step's outcome is the command's own Agent timeout — never a
+/// late success or a stale transport fault.
+#[cfg(target_os = "linux")]
+fn agent_settle(total: Instant, operation: AgentReadOperation) -> Result<(), Failure> {
+    if Instant::now() >= total {
+        return Err(Failure::new(FailureKind::Timeout).details(agent_timeout_details(operation)));
+    }
+    Ok(())
+}
+
+/// Classify a cleared span outcome the existing way: admission outcomes
+/// keep the generic failure family, the expiry marker is the command's own
+/// Agent timeout, and a raw exchange result or failure maps through the
+/// post-admission classifiers — provisional wake markers left readable
+/// without a captured signal land on `internal-failure`.
+#[cfg(target_os = "linux")]
+fn classify_attempt(
+    attempt: AgentAttempt,
+    operation: AgentReadOperation,
+) -> Result<AgentReadResult, AgentQueryError> {
+    match attempt {
+        AgentAttempt::Admission(AgentAdmissionError::Preamble(failure)) => {
+            Err(AgentQueryError::Admission(failure))
+        }
+        AgentAttempt::Admission(AgentAdmissionError::Connect(error)) => {
+            Err(AgentQueryError::Admission(classify_connect(error)))
+        }
+        AgentAttempt::Expired => Err(AgentQueryError::Read(
+            Failure::new(FailureKind::Timeout).details(agent_timeout_details(operation)),
+        )),
+        AgentAttempt::Exchanged(result) => {
+            result.map_err(|error| AgentQueryError::Read(classify_agent_read(error, operation)))
+        }
+    }
+}
+
+/// `agent list`: one OBAP list request on one admitted session, then the
+/// session is dropped before any output work. The `listed` outcome is the
+/// only success path; every semantic refusal maps to its fixed failure kind
+/// and carries the correlated request identity as the honest source.
+#[cfg(target_os = "linux")]
+pub(crate) fn agent_list(
+    include_ended: bool,
+    limit: u64,
+    cursor: Option<orchbee_agent_observation_protocol::AgentListCursor>,
+) -> Result<(serde_json::Value, Projection), AgentQueryError> {
+    let (request_id, attempt) = agent_armed_run(AgentReadOperation::List, |request_id| {
+        AgentReadRequest::List {
+            request_id,
+            include_ended,
+            limit: AgentSafeInteger::new(limit),
+            cursor,
+        }
+    })?;
+    let AgentReadResult::List { result, .. } = classify_attempt(attempt, AgentReadOperation::List)?
+    else {
+        return Err(AgentQueryError::Read(agent_protocol_invalid(
+            AgentReadOperation::List,
+        )));
+    };
+    let source = super::results::agent_source(&request_id);
+    match result.outcome {
+        AgentListOutcome::Listed { .. } => Ok((source, Projection::AgentList(result.outcome))),
+        AgentListOutcome::Rejected { reason } => Err(AgentQueryError::Read(
+            match reason {
+                orchbee_agent_observation_protocol::AgentListRejectionReason::ReadDenied => {
+                    Failure::new(FailureKind::Denied)
+                }
+                _ => Failure::new(FailureKind::Rejected),
+            }
+            .details(agent_rejection_details(
+                AgentReadOperation::List,
+                rejection_reason_text(&reason),
+            ))
+            .source(source),
+        )),
+        AgentListOutcome::Unavailable { .. } => Err(AgentQueryError::Read(
+            Failure::new(FailureKind::ServiceUnavailable)
+                .details(agent_unavailable_details(AgentReadOperation::List))
+                .source(source),
+        )),
+    }
+}
+
+/// `agent get`: one OBAP get request, same admission/exchange discipline.
+#[cfg(target_os = "linux")]
+pub(crate) fn agent_get(
+    session_id: &AgentSessionId,
+) -> Result<(serde_json::Value, Projection), AgentQueryError> {
+    agent_session_read(
+        AgentReadOperation::Get,
+        |request_id| AgentReadRequest::Get {
+            request_id,
+            session_id: session_id.clone(),
+        },
+        session_id,
+    )
+}
+
+/// `agent explain`: one OBAP explain request, same admission/exchange
+/// discipline.
+#[cfg(target_os = "linux")]
+pub(crate) fn agent_explain(
+    session_id: &AgentSessionId,
+) -> Result<(serde_json::Value, Projection), AgentQueryError> {
+    agent_session_read(
+        AgentReadOperation::Explain,
+        |request_id| AgentReadRequest::Explain {
+            request_id,
+            session_id: session_id.clone(),
+        },
+        session_id,
+    )
+}
+
+/// The shared single-session read behind `agent get` and `agent explain`.
+#[cfg(target_os = "linux")]
+fn agent_session_read(
+    operation: AgentReadOperation,
+    request: impl FnOnce(ObapRequestId) -> AgentReadRequest,
+    session_id: &AgentSessionId,
+) -> Result<(serde_json::Value, Projection), AgentQueryError> {
+    let (request_id, attempt) = agent_armed_run(operation, request)?;
+    let result = classify_attempt(attempt, operation)?;
+    let source = super::results::agent_source(&request_id);
+    match (operation, result) {
+        (
+            AgentReadOperation::Get,
+            AgentReadResult::Get {
+                result: envelope, ..
+            },
+        ) => match envelope.outcome {
+            AgentGetOutcome::Found { .. } => Ok((source, Projection::AgentGet(envelope.outcome))),
+            AgentGetOutcome::Rejected { reason } => Err(AgentQueryError::Read(
+                agent_session_rejection(operation, reason, session_id).source(source),
+            )),
+            AgentGetOutcome::Unavailable { .. } => Err(AgentQueryError::Read(
+                Failure::new(FailureKind::ServiceUnavailable)
+                    .details(agent_unavailable_details(operation))
+                    .source(source),
+            )),
+        },
+        (
+            AgentReadOperation::Explain,
+            AgentReadResult::Explain {
+                result: envelope, ..
+            },
+        ) => match envelope.outcome {
+            AgentExplainOutcome::Found { .. } => {
+                Ok((source, Projection::AgentExplain(envelope.outcome)))
+            }
+            AgentExplainOutcome::Rejected { reason } => Err(AgentQueryError::Read(
+                agent_session_rejection(operation, reason, session_id).source(source),
+            )),
+            AgentExplainOutcome::Unavailable { .. } => Err(AgentQueryError::Read(
+                Failure::new(FailureKind::ServiceUnavailable)
+                    .details(agent_unavailable_details(operation))
+                    .source(source),
+            )),
+        },
+        _ => Err(AgentQueryError::Read(agent_protocol_invalid(operation))),
+    }
+}
+
+/// The `get`/`explain` refusal mapping: `not-found` names the session, while
+/// `read-denied` carries only the typed reason — both under the common
+/// `agent-read` stage.
+#[cfg(target_os = "linux")]
+fn agent_session_rejection(
+    operation: AgentReadOperation,
+    reason: orchbee_agent_observation_protocol::AgentSessionRejectionReason,
+    session_id: &AgentSessionId,
+) -> Failure {
+    match reason {
+        orchbee_agent_observation_protocol::AgentSessionRejectionReason::NotFound => {
+            Failure::new(FailureKind::NotFound)
+                .details(agent_session_details(operation, session_id.as_str()))
+        }
+        orchbee_agent_observation_protocol::AgentSessionRejectionReason::ReadDenied => {
+            Failure::new(FailureKind::Denied)
+                .details(agent_rejection_details(operation, "read-denied"))
+        }
+    }
+}
+
+/// Common `agent-read` details: the stage plus the operation, as the failure
+/// schema closes them. Session-targeted failures add `sessionId`.
+#[cfg(target_os = "linux")]
+fn agent_read_details(operation: AgentReadOperation) -> serde_json::Map<String, serde_json::Value> {
+    let mut details = serde_json::Map::new();
+    details.insert("stage".to_owned(), serde_json::json!("agent-read"));
+    details.insert(
+        "operation".to_owned(),
+        serde_json::json!(operation.as_str()),
+    );
+    details
+}
+
+#[cfg(target_os = "linux")]
+fn agent_session_details(
+    operation: AgentReadOperation,
+    session_id: &str,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut details = agent_read_details(operation);
+    details.insert("sessionId".to_owned(), serde_json::json!(session_id));
+    details
+}
+
+#[cfg(target_os = "linux")]
+fn agent_rejection_details(
+    operation: AgentReadOperation,
+    reason: &str,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut details = agent_read_details(operation);
+    details.insert("reason".to_owned(), serde_json::json!(reason));
+    details
+}
+
+#[cfg(target_os = "linux")]
+fn agent_unavailable_details(
+    operation: AgentReadOperation,
+) -> serde_json::Map<String, serde_json::Value> {
+    agent_rejection_details(operation, "runtime-unavailable")
+}
+
+/// The fixed `timeoutMs` the agent-read failure schema publishes: the shared
+/// absolute command budget in milliseconds.
+#[cfg(target_os = "linux")]
+fn agent_timeout_details(
+    operation: AgentReadOperation,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut details = agent_read_details(operation);
+    details.insert(
+        "timeoutMs".to_owned(),
+        serde_json::json!(AGENT_TOTAL_BUDGET.as_millis() as u64),
+    );
+    details
+}
+
+#[cfg(target_os = "linux")]
+fn agent_protocol_invalid(operation: AgentReadOperation) -> Failure {
+    Failure::new(FailureKind::ProtocolInvalid).details(agent_read_details(operation))
+}
+
+/// A deadline-elapsed transport error is the command's own timeout, never a
+/// transport loss: `TimedOut` only arises from the shared deadline inside the
+/// exchange machinery.
+#[cfg(target_os = "linux")]
+fn is_deadline_elapsed(error: &std::io::Error) -> bool {
+    error.kind() == std::io::ErrorKind::TimedOut
+}
+
+/// A provisional wake marker surviving to `Clear` classification is a
+/// contradiction — the descriptor reported readiness or a fault yet the
+/// owner read no signal. Both map to `internal-failure`, never cancellation
+/// or a transport verdict.
+#[cfg(target_os = "linux")]
+fn wake_marker_failure(error: &std::io::Error) -> Option<Failure> {
+    if exchange_wake_ready(error) || exchange_wake_fault(error) {
+        Some(Failure::new(FailureKind::InternalFailure))
+    } else {
+        None
+    }
+}
+
+/// Post-admission Agent read failures: a semantic answer maps to its fixed
+/// kind, an expired deadline to timeout, a transport fault to transport-loss,
+/// and any malformed/correlated violation to protocol-invalid — every
+/// document under the common `agent-read` stage, none with a source.
+#[cfg(target_os = "linux")]
+fn classify_agent_read(error: AgentReadError, operation: AgentReadOperation) -> Failure {
+    match error {
+        AgentReadError::SessionUnavailable | AgentReadError::RequestEncoding(_) => {
+            Failure::new(FailureKind::InternalFailure)
+        }
+        AgentReadError::RequestNotSubmitted(error) => {
+            if let Some(failure) = wake_marker_failure(&error) {
+                failure
+            } else if is_deadline_elapsed(&error) {
+                Failure::new(FailureKind::Timeout).details(agent_timeout_details(operation))
+            } else {
+                Failure::new(FailureKind::TransportLoss).details(agent_read_details(operation))
+            }
+        }
+        AgentReadError::Failed { reason, .. } => classify_agent_failure(reason, operation),
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn classify_agent_failure(reason: AgentReadFailure, operation: AgentReadOperation) -> Failure {
+    match reason {
+        AgentReadFailure::Write(error)
+        | AgentReadFailure::ResponseDeadline(error)
+        | AgentReadFailure::Response(AgentWireError::Io(error)) => {
+            if let Some(failure) = wake_marker_failure(&error) {
+                failure
+            } else if is_deadline_elapsed(&error) {
+                Failure::new(FailureKind::Timeout).details(agent_timeout_details(operation))
+            } else {
+                Failure::new(FailureKind::TransportLoss).details(agent_read_details(operation))
+            }
+        }
+        AgentReadFailure::Response(_)
+        | AgentReadFailure::UnexpectedResponse
+        | AgentReadFailure::CorrelationMismatch { .. } => agent_protocol_invalid(operation),
+    }
+}
+
+/// The OBAP request identity minted per command: sixteen fresh bytes as
+/// canonical 32-lowercase-hex, never reused.
+#[cfg(target_os = "linux")]
+fn obap_request_id() -> Result<ObapRequestId, Failure> {
+    ObapRequestId::parse(&fresh_request_id()?)
+        .map_err(|_| Failure::new(FailureKind::InternalFailure))
+}
+
+#[cfg(target_os = "linux")]
+fn rejection_reason_text(
+    reason: &orchbee_agent_observation_protocol::AgentListRejectionReason,
+) -> &'static str {
+    match reason {
+        orchbee_agent_observation_protocol::AgentListRejectionReason::CursorInvalid => {
+            "cursor-invalid"
+        }
+        orchbee_agent_observation_protocol::AgentListRejectionReason::CursorStale => "cursor-stale",
+        orchbee_agent_observation_protocol::AgentListRejectionReason::ReadDenied => "read-denied",
+    }
+}
+
+/// What the terminal observation produced: the applied visible frame, or the
+/// validated scrollback window behind it.
+
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn read_snapshot() -> Result<orchbee_workbench_protocol::Snapshot, super::Failure> {
     Err(
@@ -1811,6 +2529,50 @@ pub(crate) fn wait_output(
             super::stage_reason_details("platform", "unsupported-platform"),
         ),
     )
+}
+
+/// The Agent read failure family a caller must answer with; on platforms
+/// without a local Client Session every read is a pre-admission platform
+/// failure under the generic document.
+#[cfg(not(target_os = "linux"))]
+pub(crate) enum AgentQueryError {
+    Admission(super::Failure),
+    Read(super::Failure),
+}
+
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn agent_list(
+    _include_ended: bool,
+    _limit: u64,
+    _cursor: Option<orchbee_agent_observation_protocol::AgentListCursor>,
+) -> Result<(serde_json::Value, super::results::Projection), AgentQueryError> {
+    Err(AgentQueryError::Admission(
+        super::Failure::new(super::FailureKind::ServiceUnavailable).details(
+            super::stage_reason_details("platform", "unsupported-platform"),
+        ),
+    ))
+}
+
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn agent_get(
+    _session_id: &orchbee_agent_observation_protocol::AgentSessionId,
+) -> Result<(serde_json::Value, super::results::Projection), AgentQueryError> {
+    Err(AgentQueryError::Admission(
+        super::Failure::new(super::FailureKind::ServiceUnavailable).details(
+            super::stage_reason_details("platform", "unsupported-platform"),
+        ),
+    ))
+}
+
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn agent_explain(
+    _session_id: &orchbee_agent_observation_protocol::AgentSessionId,
+) -> Result<(serde_json::Value, super::results::Projection), AgentQueryError> {
+    Err(AgentQueryError::Admission(
+        super::Failure::new(super::FailureKind::ServiceUnavailable).details(
+            super::stage_reason_details("platform", "unsupported-platform"),
+        ),
+    ))
 }
 
 /// Deterministic wait-path evidence: an injectable clock and flag make the
