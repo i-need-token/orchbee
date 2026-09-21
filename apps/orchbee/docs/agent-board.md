@@ -73,12 +73,16 @@ than landing anywhere else.
 `AgentBoard` covers two Agent sessions, three presentations across two contexts and tabs, a
 deliberate non-zero-panel target, bounded pages with one re-walk, revision bumps, one retirement,
 selection by opaque id, coalesced intents, stale Get and stale stage drops, exact staged landing,
-input consumption and lane reclamation. TLC checks the full state space — 1,083,010 distinct
-states — without state constraints or symmetry, with all required action witnesses and weak-fair
-progress for read rounds, staged jumps and lane exit. That evidence predates this round's
-supersession, dead-lane, draw-verdict, reopen-persistence and index-readiness contracts: the
-checked model still proves the earlier boundary, and the model revision covering the new contract
-is developed and verified separately.
+input consumption and lane reclamation. The current bound additionally exercises close/reopen over
+two epochs, a per-presentation viewer-death environment action, the narrow same-target reattach
+stage, and an unpaintable draw that must close the board rather than remain an invisible modal;
+`LandedIsLive` records that a landing is reported only against a live target viewer.
+
+The accepted 1,083,010-distinct-state run remains the finite-bound evidence for the prior
+single-epoch variant — `MaxEpoch = 1` could not reach reopen. The reopen, viewer-death/reattach
+and unpaintable-close delta is registered and awaiting the TLC gate rerun; until that discharge
+those claims stand on the model text alone, checked alongside the unchanged invariants and
+weak-fair progress properties.
 
 Run the registered model with `node scripts/tla/run-models.mjs --models agent-board`. The OBAP
 framing and identity contracts refine the wire steps; `NativeContextSelection`, `NativeTabSwitch`

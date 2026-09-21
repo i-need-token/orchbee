@@ -58,10 +58,14 @@ Up/Down 与 `j`/`k` 按不透明 Agent 会话 id 选择行，`Enter` 请求跳�
 
 `AgentBoard` 覆盖两个 Agent 会话、分布在两个 context 与 Tab 上的三个 presentation、一个
 刻意的非零 Panel 目标、带一次重走的有界分页、revision 推进、一次退役、按不透明 id 的选择、
-合并意图、stale Get 与 stale stage 丢弃、精确逐级落定、输入吞掉与通道回收。TLC 在无状态
-约束、无对称归约下检查完整状态空间——1,083,010 个不同状态——全部必需动作见证齐备，
-并为读取轮次、逐级跳转与通道退出提供弱公平进展。该证据早于本轮的取代、死通道、绘制裁决、
-重开保留与索引就绪契约：已检查模型仍证明先前边界，覆盖新契约的模型修订另行开发并验证。
+合并意图、stale Get 与 stale stage 丢弃、精确逐级落定、输入吞掉与通道回收。当前界额外地
+覆盖两个 epoch 的关闭/重开、按 presentation 的 viewer 死亡环境动作、窄同目标重连级，以及
+必须关闭看板而非保持不可见模态的不可绘制绘制；`LandedIsLive` 记录落定只可对存活目标
+viewer 报告。
+
+已接受的 1,083,010 distinct 状态运行仍是先前单 epoch 变体的有限界证据——`MaxEpoch = 1`
+不可达重开。重开、viewer 死亡/重连与不可绘制关闭这组 delta 已注册并等待 TLC 门槛重跑；
+在该放电完成前，这些断言仅立于模型文本，与未改动的不变量及弱公平进展性质一同受检。
 
 使用 `node scripts/tla/run-models.mjs --models agent-board` 运行已注册模型。OBAP 帧与身
 份契约精化线上步骤；`NativeContextSelection`、`NativeTabSwitch` 与 local-client 模型精化

@@ -1898,7 +1898,9 @@
 			"timeoutMilliseconds": 420000,
 			"requiredCoverage": [
 				"Open",
+				"Reopen",
 				"Close",
+				"UnpaintableClose",
 				"LaneExit",
 				"BoardByte",
 				"OutsideWheel",
@@ -1918,9 +1920,12 @@
 				"ResolveContext",
 				"ResolveTab",
 				"ResolvePanel",
+				"ResolveReattach",
 				"JumpSettled",
 				"ServerBump",
 				"ServerRetire",
+				"ViewerDies",
+				"PaintRefused",
 				"CooldownElapse"
 			]
 		},
@@ -3847,6 +3852,8 @@
 				"RequestSwitch",
 				"RejectSwitch",
 				"SameTargetNoOp",
+				"AgentTargetViewerDies",
+				"AgentSameTargetReattach",
 				"DeliverAcceptedControl",
 				"ProcessSwitchMarker",
 				"DrainOldFlightPreservingAnchor",

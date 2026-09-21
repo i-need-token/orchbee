@@ -997,6 +997,7 @@ Tab 数量为零时没有可选目标。
 | Switching，目标等于当前期望 Tab                                                 | 空操作；不生成重复标记或代次。                                                                                                                                                                                                                    |
 | RetryableAttachUnavailable，可挂接目标等于活动目标                              | 显式选择会准入新的标记与代次；由于清理未留下查看器，执行器跳过 Detach。不存在自动重试。                                                                                                                                                           |
 | RetryableAttachUnavailable，目标不同                                            | 原子准入标记/代次；由于不存在查看器而跳过 Detach，并按照该目标保留的来源状态分派，与 SelectedWithoutAttachment 完全相同。                                                                                                                         |
+| Ready，Agent 看板重连准入：目标等于期望 Tab 且存在已记录的死目标 pane 证据      | 经普通 switch 管线为同一期望 Tab 铸出新的标记与代次——该 Tab 全部查看器在新 anchor 代次下 detach 并重新挂接（已接受代价；Server 终端不重启）——随后跳转在精确目标 Panel 上落定。没有已记录死目标证据时该准入不存在；普通同目标选择仍为空操作。 |
 | SelectedWithoutAttachment，目标不同                                             | 原子准入同一种标记/代次转换。由于不存在查看器，执行器跳过 Detach，然后依据 **目标的**保留来源状态分派：Started/BindingOnly 执行正常 Attach 建立流程；Pending/unavailable/failed/outcome-unknown 不执行 Attach，结算为 SelectedWithoutAttachment。 |
 | SelectedWithoutAttachment，目标是已选中的不可挂接 Tab                           | 空操作；没有标记或代次。                                                                                                                                                                                                                          |
 | Creating、CreateCommittedNeedDetach、ProjectionUnavailable、Starting 或 Retired | 拒绝有副作用的选择。只有下文明确列出的恢复操作仍可使用。                                                                                                                                                                                          |
@@ -1008,6 +1009,12 @@ RetryableAttachUnavailable 仅在没有待结算刷新时才是显式重试。�
 Panel 按键沿活动 Tab 的分屏树移动本地焦点；单个 Panel 或没有方向邻居时为空操作。“Panel
 投影与本地焦点”一节描述的临时 split/close/move 键位，与其他结构性提交适用相同的阶段、
 队列与 fence 规则，对焦点叶子准入一条结构性 panel 变更。
+
+Agent 看板的跳转弯道另拥有一条更窄的准入：当跳转到达的 Panel 其 pane 查看器已死而该
+Tab 的选中挂接仍存活时，已记录的死目标 pane 证据允许它为同一期望 Tab 铸出新的标记与
+代次。普通 switch 管线随后将该 Tab 全部查看器 detach 并重新挂接——因一个挂接代次拥有
+整个 Tab 的查看器，这是已接受的整 Tab 代价——之后跳转在精确 Panel 上落定。证据门正是
+它与普通同目标空操作的分界：没有已记录的死目标证据该准入不存在，且绝不制造另一身份。
 
 ## Create 是排空 FIFO 的屏障
 
@@ -1754,7 +1761,8 @@ Old/New，并不证明连续 Create 的重新进入、任意成员移除、显�
 这些声明。
 `NativeTabSwitch.tla/.cfg` 检查暂存候选安装、分离的意图与 successor 分配、definite Unavailable
 时有条件的精确 stable-anchor 恢复、handoff 前 Gone、显式的 Detach 请求/结果顺序、查看器/控制器唯一性、被取代挂接的
-清理、Attach 后失败/截止时间清理、歧义退役、代次栅栏、首帧反馈和最终尺寸追赶。
+清理、Attach 后失败/截止时间清理、歧义退役、代次栅栏、首帧反馈、最终尺寸追赶，以及仅在
+已记录死目标证据下为同一期望 Tab 铸出新标记/代次的 Agent 作用域同目标重连准入。
 `NativeClientRefreshFence.tla/.cfg` 检查导航器/打开操作的复合准入、最多一个待处理刷新、重新
 打开但不读取、拒绝时完整保留核心状态、不复用刷新代次、精确应用待处理结果、只追加缓存替换、
 保留有缓存支撑的活动项、防御性隐藏过时完成结果，以及一条抽象的已接受 Input/Resize 记录；该
@@ -1898,6 +1906,11 @@ Switch 接口，不证明成员向量验证、运行时 anchor proof 保留、�
 | `two-switch-readonly` | 2,306,238 / 567,200 / 65   | `ad32026f23e6c5d2b783f954d4ecf6382093408cad40f5066d049ff71b149660` |
 | `exhaustion-control`  | 355,697 / 97,340 / 44      | `6186c9818a558457bd0399becc76d699f16fe2fab099f06482b79a8328b43b87` |
 | `exhaustion-readonly` | 112,009 / 30,832 / 40      | `06e0c19c36637188962a091f6b5d6db1a815d2b1bda3271f06be8c0ce5752ebc` |
+
+以上四个配置的结果早于 Agent 重连 delta。已注册模型现在还要求
+`AgentTargetViewerDies` 与 `AgentSameTargetReattach` 覆盖，以及
+`DeadTargetsAreAttachable` 与 `SameTargetReattachKeepsTab` 检查；表中结果仍是未改动
+断言的有限界证据，该 delta 在门槛重跑放电前仅立于模型文本。
 
 ### 较早的无移除证据
 

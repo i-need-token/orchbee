@@ -1208,6 +1208,7 @@ target.
 | Switching, target equals current desired Tab                                                               | No-op; no duplicate marker or generation.                                                                                                                                                                                                                                                                           |
 | RetryableAttachUnavailable, attachable target equals active                                                | An explicit selection admits a fresh marker and generation; the executor skips Detach because cleanup left no viewer. There is no automatic retry.                                                                                                                                                                  |
 | RetryableAttachUnavailable, target differs                                                                 | Atomically admit a marker/generation, skip Detach because no viewer exists, and dispatch by that target's retained provenance exactly as for SelectedWithoutAttachment.                                                                                                                                             |
+| Ready, Agent-board reattach admission: target equals the desired Tab and recorded dead-target-pane evidence exists | Mint a fresh marker and generation for the same desired Tab through the ordinary switch pipeline — every viewer in that Tab detaches and re-attaches under the new anchor generation (the accepted cost; the Server's terminals are not restarted) — then the jump lands on the exact target Panel. Without recorded dead-target evidence this admission does not exist; ordinary same-target selection stays a no-op. |
 | SelectedWithoutAttachment, target differs                                                                  | Atomically admit the same marker/generation transition. The executor skips Detach because no viewer exists, then dispatches by the **target's** retained provenance: Started/BindingOnly performs normal Attach setup; Pending/unavailable/failed/outcome-unknown settles SelectedWithoutAttachment without Attach. |
 | SelectedWithoutAttachment, target is the selected non-attachable Tab                                       | No-op; no marker or generation.                                                                                                                                                                                                                                                                                     |
 | Creating, CreateCommittedNeedDetach, ProjectionUnavailable, Starting, or Retired                           | Reject effectful selection. Only the recovery actions explicitly named below remain available.                                                                                                                                                                                                                      |
@@ -1221,6 +1222,15 @@ they are a no-op for a single Panel or when no directional neighbor exists. The 
 split/close/move bindings described under Panel projection admit one structural panel mutation
 against the focused leaf under the same phase, queue, and fence rules as the other structural
 submissions.
+
+The Agent board's jump pipeline owns one narrower admission of its own. When a jump reaches a
+Panel whose pane viewer is dead while the Tab's selected attachment is still live, recorded
+dead-target-pane evidence lets it mint a fresh marker and generation for the same desired Tab.
+The ordinary switch pipeline then detaches and re-attaches every viewer in that Tab — an accepted
+whole-Tab cost, because one attachment epoch owns the Tab's viewers — before the jump lands on the
+exact Panel. The evidence gate is what separates this from the ordinary same-target no-op: it
+never manufactures another identity, and the admission does not exist without recorded
+dead-target proof.
 
 ## Create is a draining FIFO barrier
 
@@ -2133,7 +2143,9 @@ operation generated/replay trace and `NativeClientMembershipRemoval` own those c
 successor allocation, conditional exact stable-anchor restoration for definite Unavailable,
 pre-handoff Gone, explicit Detach request/result sequencing, viewer/controller uniqueness, superseded attached cleanup,
 post-Attach failure/deadline cleanup, ambiguity retirement, generation fencing, first-frame
-feedback, and final-geometry catch-up. `NativeClientRefreshFence.tla/.cfg` checks compound
+feedback, final-geometry catch-up, and the Agent-scoped same-target reattach admission that mints
+a fresh marker/generation for the same desired Tab only on recorded dead-target evidence.
+`NativeClientRefreshFence.tla/.cfg` checks compound
 navigator/open admission, at most one pending refresh, reopen-without-read, full refusal core
 preservation, non-reusing refresh generations, exact pending-result application, append-only cache
 replacement, cache-backed active preservation, defensive stale-completion invisibility, and one
@@ -2306,6 +2318,12 @@ validation, runtime anchor proof preservation, numeric deadlines or real carrier
 | `two-switch-readonly` | 2,306,238 / 567,200 / 65     | `ad32026f23e6c5d2b783f954d4ecf6382093408cad40f5066d049ff71b149660` |
 | `exhaustion-control`  | 355,697 / 97,340 / 44        | `6186c9818a558457bd0399becc76d699f16fe2fab099f06482b79a8328b43b87` |
 | `exhaustion-readonly` | 112,009 / 30,832 / 40        | `06e0c19c36637188962a091f6b5d6db1a815d2b1bda3271f06be8c0ce5752ebc` |
+
+The four-configuration results above predate the Agent-reattach delta. The registered model now
+also requires `AgentTargetViewerDies` and `AgentSameTargetReattach` coverage plus the
+`DeadTargetsAreAttachable` and `SameTargetReattachKeepsTab` checks; the tabled results remain
+finite-bound evidence for the unchanged claims, and the delta stands on the model text until the
+gate rerun discharges it.
 
 ### Earlier no-removal evidence
 

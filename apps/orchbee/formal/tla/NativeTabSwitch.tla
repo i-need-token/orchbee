@@ -133,7 +133,8 @@ Retired(state) ==
     !.projectionTab = NoTab,
     !.frameGeometry = NoGeometry,
     !.feedbackRequestedGeometry = NoGeometry,
-    !.mustRecheck = FALSE]
+    !.mustRecheck = FALSE,
+    !.deadTargets = {}]
 
 Initial(controllerSet) == [
   phase |-> "ready",
@@ -179,7 +180,8 @@ Initial(controllerSet) == [
   sameTargetCoreChanged |-> FALSE,
   rejectedSwitchSeen |-> FALSE,
   sameTargetNoOpSeen |-> FALSE,
-  deadlineCleanupSupersededSeen |-> FALSE
+  deadlineCleanupSupersededSeen |-> FALSE,
+  deadTargets |-> {}
 ]
 
 Init ==
@@ -208,14 +210,17 @@ SwitchAdmissionGuard(target) ==
   /\ Cardinality(s.markerGenerations) < MaxSwitchAdmissions
   /\ Len(s.commands) < MaxQueue
 
-AdmitSwitch(target, deadlineCleanupWitness) ==
-  /\ SwitchAdmissionGuard(target)
-  /\ LET nextGeneration == s.generationCursor + 1 IN
+\* Body shared by the ordinary switch admission and the narrow Agent
+\* same-target reattach: a fresh marker/generation enters the ordinary
+\* switch pipeline, and any recorded dead-target evidence is consumed.
+AdmitSwitchBody(target, deadlineCleanupWitness) ==
+  LET nextGeneration == s.generationCursor + 1 IN
        s' = [s EXCEPT
          !.desiredGeneration = nextGeneration,
          !.desiredTab = target,
           !.generationCursor = nextGeneration,
           !.markerGenerations = @ \cup {nextGeneration},
+          !.deadTargets = {},
           !.anchor = IF s.phase \in StableAnchorPhases THEN Anchor(s) ELSE @,
           !.restoredBy = NoGeneration,
           !.restoredGeneration = NoGeneration,
@@ -227,6 +232,10 @@ AdmitSwitch(target, deadlineCleanupWitness) ==
          !.projectionGeneration = NoGeneration,
          !.projectionTab = NoTab,
          !.frameGeometry = NoGeometry]
+
+AdmitSwitch(target, deadlineCleanupWitness) ==
+  /\ SwitchAdmissionGuard(target)
+  /\ AdmitSwitchBody(target, deadlineCleanupWitness)
 
 RequestSwitchDuringDeadlineCleanup(target) ==
   /\ s.phase \in CleanupPhases
@@ -256,6 +265,34 @@ SameTargetNoOp ==
   /\ LET next == [s EXCEPT !.sameTargetNoOpSeen = TRUE] IN
        s' = [next EXCEPT
          !.sameTargetCoreChanged = @ \/ (CoreSnapshot(next) # CoreSnapshot(s))]
+
+\* The world under the selection surface: a pane viewer inside the desired
+\* Tab dies while the Tab's selected attachment stays live — canonical pane
+\* disposal or controller loss the board observes. The model abstracts each
+\* Tab to its selected attachment, so intra-Tab pane loss arrives as
+\* recorded evidence on the desired Tab rather than as a viewer-set change.
+AgentTargetViewerDies ==
+  /\ s.carrierLive
+  /\ s.phase = "ready"
+  /\ s.desiredTab \in AttachableTabs
+  /\ s.desiredTab \notin s.deadTargets
+  /\ s' = [s EXCEPT !.deadTargets = @ \cup {s.desiredTab}]
+
+\* The narrow Agent-board reattach admission, gated on recorded dead-target
+\* evidence: ordinary same-target selection stays a no-op in Ready, but a
+\* board jump that reaches a known-dead target pane mints a fresh
+\* marker/generation for the same desired Tab through the ordinary switch
+\* pipeline — every viewer in that Tab detaches and re-attaches under the
+\* new anchor generation (the accepted cost; the Server's terminals are not
+\* restarted) and focus lands on the exact target panel.
+AgentSameTargetReattach ==
+  /\ s.carrierLive
+  /\ s.desiredTab \in s.deadTargets
+  /\ s.phase \in {"ready", "selected-no-attach"}
+  /\ s.generationCursor < MaxGeneration
+  /\ Cardinality(s.markerGenerations) < MaxSwitchAdmissions
+  /\ Len(s.commands) < MaxQueue
+  /\ AdmitSwitchBody(s.desiredTab, FALSE)
 
 DeliverAcceptedControl ==
   /\ s.commands # <<>>
@@ -889,6 +926,8 @@ Next ==
   \/ \E target \in Tabs: RequestSwitchDuringDeadlineCleanup(target)
   \/ \E target \in Tabs: RejectSwitch(target)
   \/ SameTargetNoOp
+  \/ AgentTargetViewerDies
+  \/ AgentSameTargetReattach
   \/ DeliverAcceptedControl
   \/ ProcessSwitchMarker
   \/ DrainOldFlightPreservingAnchor
@@ -1027,6 +1066,7 @@ TypeOK ==
   /\ s.rejectedSwitchSeen \in BOOLEAN
   /\ s.sameTargetNoOpSeen \in BOOLEAN
   /\ s.deadlineCleanupSupersededSeen \in BOOLEAN
+  /\ s.deadTargets \subseteq Tabs
 
 AtMostOneViewerAndController ==
   /\ Cardinality(s.viewers) <= 1
@@ -1129,6 +1169,10 @@ BusyRequiresGenerationRecheck ==
 RefusedAdmissionPreservesCore == ~s.refusalCoreChanged
 SameTargetNoOpPreservesCore == ~s.sameTargetCoreChanged
 
+\* Dead-target evidence is only ever recorded for an attachable desired
+\* Tab — the reattach admission may never manufacture a target.
+DeadTargetsAreAttachable == s.deadTargets \subseteq AttachableTabs
+
 NonAttachableTargetNeverAttaches ==
   \A attachment \in s.viewers \cup s.attachRequests:
     attachment.tab \in AttachableTabs
@@ -1161,5 +1205,14 @@ ExitIsAlwaysAdmitted ==
 
 SwitchEventuallySettles ==
   (s.phase \in UnsettledPhases) ~> (s.phase \in StablePhases)
+
+\* The narrow Agent reattach mints the next allocation generation for the
+\* same desired Tab and consumes the recorded dead-target evidence — it is
+\* never a free pass to another identity.
+SameTargetReattachKeepsTab ==
+  [][AgentSameTargetReattach =>
+       /\ s.desiredTab' = s.desiredTab
+       /\ s.desiredGeneration' = s.generationCursor + 1
+       /\ s.deadTargets' = {}]_vars
 
 =============================================================================

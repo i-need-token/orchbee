@@ -86,10 +86,20 @@ Init ==
        landedPlacement |-> NoLocation,
        landedTarget |-> "no-presentation",
        landedSerial |-> 0,
+       landedLive |-> FALSE,
        outcome |-> "none",
        paneBytes |-> FALSE,
        paneBytesAtOpen |-> FALSE,
-       consumed |-> {}]
+       consumed |-> {},
+       \* Per-presentation viewer liveness (the pane record's
+       \* attached/projected/not-departing/mode-known facts folded into one
+       \* target-level bit) and the paint verdict. A dead viewer never
+       \* revives on its own — only the jump's reattach stage re-installs
+       \* it. `deadSeen` bounds environment deaths to one per presentation
+       \* per run, the same shape as `bumps`/`retired`.
+       viewerLive |-> [p \in Presentations |-> TRUE],
+       deadSeen |-> {},
+       paintable |-> TRUE]
 
 \* Deterministic presentation pick for a live session: a presentation in the
 \* currently-viewed context first, then the smallest presentation id — the
@@ -119,9 +129,16 @@ JumpCurrent == s.jumpSerial # 0 /\ s.jumpSerial = s.serial
 
 \* ------------------------- board lifecycle -------------------------
 
-\* Opening is a generation boundary: the epoch advances, every prior result is
-\* dropped, and admission is refused until the previous lane thread has
-\* actually exited — never two live lanes, never a recycled generation.
+\* Opening is a generation boundary: the epoch advances, every prior
+\* in-flight intent/jump/lane result is fenced, and admission is refused
+\* until the previous lane thread has actually exited — never two live
+\* lanes, never a recycled generation. The accepted display cache survives
+\* close/reopen unchanged: `rows`/`rowState`/`fullWalk`, `lastGood` with its
+\* stale mark, the repaired `selected`, and any residual `cooldown` all keep
+\* their original age — a reopen may not launder freshness or skip the
+\* cooldown, while a fresh lane, fresh intents and a fresh jump generation
+\* are still minted. Viewer facts are world state, not board state: a dead
+\* presentation stays dead across reopen.
 Open ==
   /\ s.board = "closed"
   /\ ~s.laneAlive
@@ -129,26 +146,45 @@ Open ==
   /\ s' = [s EXCEPT !.board = "open", !.epoch = @ + 1, !.round = 0,
                     !.laneAlive = TRUE, !.lanePhase = "idle",
                     !.laneRound = 0, !.intent = "none",
-                    !.intentTarget = NoSession, !.cooldown = FALSE,
+                    !.intentTarget = NoSession,
                     !.walkRev = 0, !.walkPages = {}, !.retries = 0,
-                    !.bumps = 0, !.consumed = {},
-                    !.rows = {}, !.rowState = "unread",
-                    !.fullWalk = FALSE, !.lastGood = {},
-                    !.lastGoodStale = FALSE, !.selected = NoSession,
+                    !.bumps = 0, !.consumed = {}, !.deadSeen = {},
                     !.jumpStage = "none", !.jumpTarget = NoTarget,
-                    !.jumpSerial = 0, !.landedSerial = 0, !.outcome = "none",
-                    !.paneBytesAtOpen = s.paneBytes]
+                    !.jumpSerial = 0, !.landedSerial = 0,
+                    !.landedLive = FALSE, !.outcome = "none",
+                    !.paintable = TRUE, !.paneBytesAtOpen = s.paneBytes]
+
+\* Observable reopen coverage: the second open is a distinct action name so
+\* the bounded run proves close → lane exit → reopen is actually exercised.
+Reopen == s.epoch >= 1 /\ Open
 
 \* Closing cancels the lane and the jump in the same ordered transition: no
 \* new submit may follow, and the thread must actually exit before any
-\* reopen. Results already on the wire die with the dead generation.
-Close ==
+\* reopen. Results already on the wire die with the dead generation — the
+\* lane owns its outcome receiver, so nothing the dead lane computed can be
+\* delivered into the next epoch.
+CloseBoard ==
+  [s EXCEPT !.board = "closed", !.lanePhase = "exiting",
+            !.intent = "none", !.intentTarget = NoSession,
+            !.jumpStage = "none", !.jumpTarget = NoTarget,
+            !.jumpSerial = 0, !.outcome = "none",
+            !.serial = IF s.serial < MaxSerial THEN @ + 1 ELSE @]
+
+Close == s.board = "open" /\ s' = CloseBoard
+
+\* The draw's honest verdict: the overlay does not fit the current terminal
+\* — the board must not remain an invisible input owner.
+PaintRefused ==
   /\ s.board = "open"
-  /\ s' = [s EXCEPT !.board = "closed", !.lanePhase = "exiting",
-                    !.intent = "none", !.intentTarget = NoSession,
-                    !.jumpStage = "none", !.jumpTarget = NoTarget,
-                    !.jumpSerial = 0, !.outcome = "none",
-                    !.serial = IF s.serial < MaxSerial THEN @ + 1 ELSE @]
+  /\ s.paintable
+  /\ s' = [s EXCEPT !.paintable = FALSE]
+
+\* A board that cannot be painted auto-closes through the same ordered
+\* transition as an explicit close; consumed input is never replayed.
+UnpaintableClose ==
+  /\ s.board = "open"
+  /\ ~s.paintable
+  /\ s' = CloseBoard
 
 \* The owner reclaims the thread: a cancelled lane exits, and only then may a
 \* later Open admit a fresh one.
@@ -175,11 +211,7 @@ OutsideWheel ==
 
 BackdropPress ==
   /\ s.board = "open"
-  /\ s' = [s EXCEPT !.board = "closed", !.lanePhase = "exiting",
-                    !.intent = "none", !.intentTarget = NoSession,
-                    !.jumpStage = "none", !.jumpTarget = NoTarget,
-                    !.jumpSerial = 0, !.outcome = "none",
-                    !.serial = IF s.serial < MaxSerial THEN @ + 1 ELSE @]
+  /\ s' = CloseBoard
 
 PaneByte ==
   /\ s.board = "closed"
@@ -273,6 +305,7 @@ StartGet ==
                     !.landedPlacement = NoLocation,
                     !.landedTarget = "no-presentation",
                     !.landedSerial = 0,
+                    !.landedLive = FALSE,
                     !.outcome = "none"]
 
 \* Each page response sees the revision the Server currently publishes. The
@@ -339,9 +372,12 @@ GetResolve ==
                              !.jumpTarget = [session |-> session,
                                              presentation |-> Pick(session)]]
 
-\* A Get whose generation was superseded (close, reopen or a newer jump)
-\* deposits nothing and leaves no navigation trace; a superseded staged jump
-\* dies before its next stage can move the view.
+\* A Get whose serial generation was superseded by a newer jump deposits
+\* nothing and leaves no navigation trace; a superseded staged jump dies
+\* before its next stage can move the view. This is the same-epoch supersede
+\* path: close retires the lane itself, so no result an old lane computed
+\* can ever be delivered into a later epoch — the epoch fence is structural,
+\* not a race the model needs to schedule.
 GetStaleDrop ==
   /\ s.board = "open"
   /\ s.lanePhase = "get"
@@ -352,7 +388,7 @@ GetStaleDrop ==
 StageStaleDrop ==
   /\ s.board = "open"
   /\ s.lanePhase = "idle"
-  /\ s.jumpStage \in {"context", "tab", "panel"}
+  /\ s.jumpStage \in {"context", "tab", "panel", "reattach"}
   /\ ~JumpCurrent
   /\ s' = [s EXCEPT !.jumpStage = "none", !.jumpTarget = NoTarget,
                     !.outcome = "none"]
@@ -396,11 +432,35 @@ ResolvePanel ==
   /\ JumpCurrent
   /\ IF s.jumpTarget.presentation \in s.retired
        THEN s' = [s EXCEPT !.jumpStage = "gone", !.outcome = "target-gone"]
-       ELSE s' = [s EXCEPT !.jumpStage = "done", !.outcome = "landed",
-                           !.view = Placement(s.jumpTarget.presentation),
-                           !.landedPlacement = Placement(s.jumpTarget.presentation),
-                           !.landedTarget = s.jumpTarget.presentation,
-                           !.landedSerial = s.jumpSerial]
+       ELSE IF ~s.viewerLive[s.jumpTarget.presentation]
+         THEN \* The exact panel is reached but its viewer is dead: desired
+              \* focus identity alone is never a landing. The jump takes the
+              \* narrow reattach stage — a dead same-id target can never
+              \* produce `landed`.
+              s' = [s EXCEPT !.jumpStage = "reattach"]
+         ELSE s' = [s EXCEPT !.jumpStage = "done", !.outcome = "landed",
+                             !.view = Placement(s.jumpTarget.presentation),
+                             !.landedPlacement = Placement(s.jumpTarget.presentation),
+                             !.landedTarget = s.jumpTarget.presentation,
+                             !.landedSerial = s.jumpSerial,
+                             !.landedLive = TRUE]
+
+\* The Agent-scoped same-target reattach: the target presentation's pane
+\* viewer is dead, so the narrow admission mints a fresh anchor generation
+\* through the ordinary switch pipeline — every viewer in the active Tab
+\* detaches and re-attaches under the new generation (the accepted cost; the
+\* Server's terminals are not restarted) and focus lands on the exact target
+\* panel. The next panel pass then sees a live viewer and may land.
+ResolveReattach ==
+  /\ s.board = "open"
+  /\ s.jumpStage = "reattach"
+  /\ JumpCurrent
+  /\ IF s.jumpTarget.presentation \in s.retired
+       THEN s' = [s EXCEPT !.jumpStage = "gone", !.outcome = "target-gone"]
+       ELSE s' = [s EXCEPT
+            !.viewerLive = [@ EXCEPT ![s.jumpTarget.presentation] = TRUE],
+            !.jumpStage = "panel",
+            !.view = Placement(s.jumpTarget.presentation)]
 
 JumpSettled ==
   /\ s.board = "open"
@@ -428,6 +488,18 @@ ServerRetire ==
   /\ \E p \in Presentations:
        s' = [s EXCEPT !.retired = {p}]
 
+\* A presentation's pane viewer dies under the board: canonical disposal or
+\* controller loss is world state the board merely observes. One death per
+\* presentation per run bounds the interleaving the same way `bumps`/`retired`
+\* do; only the jump's reattach stage revives a viewer.
+ViewerDies ==
+  /\ s.board = "open"
+  /\ \E p \in Presentations:
+       /\ s.viewerLive[p]
+       /\ p \notin s.deadSeen
+       /\ s' = [s EXCEPT !.viewerLive = [@ EXCEPT ![p] = FALSE],
+                         !.deadSeen = @ \cup {p}]
+
 \* The post-round cooldown passes abstractly; it gates the next List submit,
 \* never the intent bookkeeping.
 CooldownElapse ==
@@ -435,22 +507,24 @@ CooldownElapse ==
   /\ s' = [s EXCEPT !.cooldown = FALSE]
 
 Next ==
-  \/ Open \/ Close \/ LaneExit
+  \/ Open \/ Reopen \/ Close \/ UnpaintableClose \/ LaneExit
   \/ BoardByte \/ OutsideWheel \/ BackdropPress \/ PaneByte
   \/ SelectNext
   \/ RequestRefresh \/ RequestRefreshWhileJumpPending \/ RequestJump
   \/ StartList \/ StartListExhausted \/ StartGet
   \/ ListPage \/ ListDeadline
   \/ GetResolve \/ GetStaleDrop \/ StageStaleDrop
-  \/ ResolveContext \/ ResolveTab \/ ResolvePanel \/ JumpSettled
-  \/ ServerBump \/ ServerRetire \/ CooldownElapse
+  \/ ResolveContext \/ ResolveTab \/ ResolvePanel \/ ResolveReattach
+  \/ JumpSettled
+  \/ ServerBump \/ ServerRetire \/ ViewerDies \/ PaintRefused
+  \/ CooldownElapse
 
 Spec == Init /\ [][Next]_vars
        /\ WF_vars(ListPage) /\ WF_vars(ListDeadline)
        /\ WF_vars(GetResolve) /\ WF_vars(GetStaleDrop) /\ WF_vars(StageStaleDrop)
        /\ WF_vars(ResolveContext) /\ WF_vars(ResolveTab) /\ WF_vars(ResolvePanel)
-       /\ WF_vars(StartList) /\ WF_vars(StartGet) /\ WF_vars(JumpSettled)
-       /\ WF_vars(LaneExit)
+       /\ WF_vars(ResolveReattach) /\ WF_vars(StartList) /\ WF_vars(StartGet)
+       /\ WF_vars(JumpSettled) /\ WF_vars(LaneExit) /\ WF_vars(UnpaintableClose)
 
 \* ------------------------------ invariants ---------------------------
 
@@ -459,7 +533,8 @@ TypeOK ==
   /\ s.lanePhase \in {"idle", "list", "get", "exiting"}
   /\ s.intent \in {"none", "refresh", "jump"}
   /\ s.rowState \in RowStates
-  /\ s.jumpStage \in {"none", "verify", "context", "tab", "panel", "done", "gone"}
+  /\ s.jumpStage \in {"none", "verify", "context", "tab", "panel",
+                      "reattach", "done", "gone"}
   /\ s.retries \in 0..MaxRetries
   /\ s.retired \subseteq Presentations
   /\ s.rows \subseteq Sessions
@@ -477,6 +552,10 @@ TypeOK ==
   /\ s.consumed \subseteq {"byte", "wheel", "refresh-pending"}
   /\ s.paneBytes \in BOOLEAN
   /\ s.paneBytesAtOpen \in BOOLEAN
+  /\ s.viewerLive \in [Presentations -> BOOLEAN]
+  /\ s.deadSeen \subseteq Presentations
+  /\ s.paintable \in BOOLEAN
+  /\ s.landedLive \in BOOLEAN
 
 \* At most one lane thread exists, it lives only inside an open board's
 \* generation, and no submit follows close or cancel.
@@ -509,6 +588,11 @@ LandedExact ==
 LandedIsRequested ==
   s.outcome = "landed" => s.landedTarget = s.jumpTarget.presentation
 
+\* A landing is recorded only when the exact target's pane viewer was live
+\* at the land step — a same-identity dead viewer is never reported as a
+\* landing; the reattach stage must re-install it first.
+LandedIsLive == s.outcome = "landed" => s.landedLive
+
 \* A vanished target reports target-gone and never records a landing — a
 \* failed jump cannot masquerade as a successful one.
 TargetGoneHonest ==
@@ -519,7 +603,7 @@ TargetGoneHonest ==
 \* and can only be dropped (StageStaleDrop) or overwritten by the newer Get —
 \* the Resolve*/landed guards keep it from ever moving the view.
 StagedIsCurrent ==
-  s.jumpStage \in {"verify", "context", "tab", "panel"} =>
+  s.jumpStage \in {"verify", "context", "tab", "panel", "reattach"} =>
     (s.jumpSerial # 0 /\ s.jumpSerial <= s.serial)
 
 \* A closed board holds no live navigation in flight.
@@ -536,7 +620,13 @@ RoundEventuallySettles ==
     ~> (s.rowState \in {"complete", "incomplete", "failed"} \/ s.board = "closed")
 LaneEventuallyReclaimed == (s.board = "closed" /\ s.laneAlive) ~> ~s.laneAlive
 JumpEventuallySettles ==
-  (s.jumpStage \in {"verify", "context", "tab", "panel"})
+  (s.jumpStage \in {"verify", "context", "tab", "panel", "reattach"})
     ~> (s.jumpStage = "none" \/ s.board = "closed")
+
+\* A board the renderer refuses to paint closes rather than remaining an
+\* invisible modal — either the auto-close edge or an ordinary close ends
+\* the episode.
+UnpaintableEventuallyCloses ==
+  (s.board = "open" /\ ~s.paintable) ~> s.board = "closed"
 
 =============================================================================
