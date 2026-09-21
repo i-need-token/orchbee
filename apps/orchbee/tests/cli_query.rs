@@ -2161,6 +2161,7 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
                 "doctor",
                 "explain",
                 "get",
+                "integration",
                 "list",
                 "wait",
                 "--format",
@@ -2258,6 +2259,212 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
         .len(),
         0,
         "{engine} re-offers --after-revision"
+    );
+    // `agent integration` nests one level deeper: the sub-family offers
+    // its four verbs, a landed verb offers the union scope, and
+    // `--provider` completes the closed provider vocabulary.
+    assert_eq!(
+        sorted(complete(&["agent", "integration", ""])),
+        sorted(
+            [
+                "disable",
+                "enable",
+                "explain",
+                "list",
+                "--format",
+                "--format="
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
+        ),
+        "{engine} agent integration verbs"
+    );
+    assert_eq!(
+        sorted(complete(&["agent", "integration", "list", ""])),
+        sorted(
+            [
+                "--adapter-source",
+                "--provider",
+                "--format",
+                "--format=",
+                "--help",
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
+        ),
+        "{engine} integration list flags"
+    );
+    let provider_values = sorted(
+        [
+            "claude-code",
+            "codex",
+            "gemini",
+            "github-copilot",
+            "grok",
+            "cline",
+            "opencode",
+            "pi",
+            "omp",
+            "qwen-code",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<_>>(),
+    );
+    assert_eq!(
+        sorted(complete(&[
+            "agent",
+            "integration",
+            "list",
+            "--provider",
+            ""
+        ])),
+        provider_values,
+        "{engine} integration --provider values"
+    );
+    // `--provider` is single-use on the integration family: the second
+    // occurrence is already a dead prefix, so its pending value, a
+    // trailing `--format=`, and every later position complete nothing —
+    // committed either at the landed verb or at the deep sub-family.
+    for cur in ["", "--format="] {
+        assert_eq!(
+            complete(&[
+                "agent",
+                "integration",
+                "list",
+                "--provider",
+                "codex",
+                "--provider",
+                cur
+            ])
+            .len(),
+            0,
+            "{engine} integration duplicate --provider at {cur:?}"
+        );
+        assert_eq!(
+            complete(&[
+                "agent",
+                "integration",
+                "list",
+                "--provider",
+                "codex",
+                "--provider",
+                "pi",
+                cur
+            ])
+            .len(),
+            0,
+            "{engine} integration duplicate --provider consumed at {cur:?}"
+        );
+        assert_eq!(
+            complete(&[
+                "agent",
+                "integration",
+                "--provider",
+                "codex",
+                "--provider",
+                cur
+            ])
+            .len(),
+            0,
+            "{engine} deep duplicate --provider at {cur:?}"
+        );
+    }
+    // A single `--provider` keeps both provider commands viable — before
+    // and after the family word lands.
+    for words in [
+        &["--provider", "codex", "agent", ""][..],
+        &["agent", "--provider", "codex", ""][..],
+    ] {
+        let offered = sorted(complete(words));
+        assert!(
+            offered.contains(&"integration".to_owned()) && offered.contains(&"doctor".to_owned()),
+            "{engine} single --provider keeps integration and doctor: {offered:?}"
+        );
+    }
+    // Two `--provider`s retire `integration` but leave `doctor` — the
+    // flags-before-command ownership case.
+    for words in [
+        &["--provider", "codex", "--provider", "pi", "agent", ""][..],
+        &["agent", "--provider", "codex", "--provider", "pi", ""][..],
+    ] {
+        assert_eq!(
+            sorted(complete(words)),
+            sorted(
+                ["doctor", "--format", "--format="]
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect()
+            ),
+            "{engine} two --provider occurrences leave only doctor"
+        );
+    }
+    // Landing the retired family is a dead prefix.
+    assert_eq!(
+        complete(&[
+            "--provider",
+            "codex",
+            "--provider",
+            "pi",
+            "agent",
+            "integration",
+            ""
+        ])
+        .len(),
+        0,
+        "{engine} integration after two --provider occurrences"
+    );
+    // `agent doctor` keeps both selectors repeatable: `--provider` and
+    // `--asset-root` stay offerable and complete their vocabularies on
+    // every pass.
+    assert_eq!(
+        sorted(complete(&["agent", "doctor", ""])),
+        sorted(
+            [
+                "--provider",
+                "--asset-root",
+                "--format",
+                "--format=",
+                "--help"
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
+        ),
+        "{engine} doctor flags"
+    );
+    assert_eq!(
+        sorted(complete(&[
+            "agent",
+            "doctor",
+            "--provider",
+            "codex",
+            "--provider",
+            ""
+        ])),
+        provider_values,
+        "{engine} doctor repeats --provider values"
+    );
+    let doctor_repeat = sorted(complete(&[
+        "agent",
+        "doctor",
+        "--provider",
+        "codex",
+        "--provider",
+        "pi",
+        "",
+    ]));
+    assert!(
+        doctor_repeat.contains(&"--provider".to_owned())
+            && doctor_repeat.contains(&"--asset-root".to_owned()),
+        "{engine} doctor keeps both selectors offerable: {doctor_repeat:?}"
+    );
+    let doctor_root = sorted(complete(&["agent", "doctor", "--asset-root", "/x", ""]));
+    assert!(
+        doctor_root.contains(&"--asset-root".to_owned()),
+        "{engine} --asset-root must stay offerable: {doctor_root:?}"
     );
     // The pair is scoped: `tab close` admits neither flag.
     assert_eq!(

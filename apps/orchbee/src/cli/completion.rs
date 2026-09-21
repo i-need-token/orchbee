@@ -16,10 +16,14 @@
 //!   `direction` | `key` (`terminal send --key`) | `filter` (every other
 //!   value-owning flag)
 //! - `seen_*` — one consumed bit per `--format`, per `--mouse`, and per
-//!   business flag; duplicates are usage
-//! - `seen_flags` — fish only: the consumed business flags as a list, so a
-//!   command's admission check is its own declared scope instead of an
-//!   enumeration of every flag it rejects
+//!   business flag; duplicates are usage except for the grammar's
+//!   declared repeatable flags
+//! - `seen_flags` — the consumed business flags as a list, so a command's
+//!   admission check is its own declared scope instead of an enumeration
+//!   of every flag it rejects
+//! - `seen_provider2` — a second `--provider` stands: legal only toward
+//!   `agent doctor`, so it retires `agent integration` from the viable
+//!   words and is a dead prefix once that family is committed
 //!
 //! Walk precedence per completed word (mirrors `format_envelope` + `scan`):
 //! 1. `--` → ended, always (the parser never takes it as a value)
@@ -479,17 +483,23 @@ fn families_of(flag: &str) -> Vec<&'static str> {
 
 /// bash/zsh: the seen-bits outside the `agent integration` union scope that
 /// could possibly stand when `integration` or one of its verbs lands —
-/// i.e. the flags `agent`'s sub-state admits at all. Flags no `agent` path
-/// owns are already `done` before the landing check can see them.
+/// i.e. the flags `agent`'s sub-state admits at all, plus the repeated
+/// `--provider` bit whose resolve-time single-use contract excludes it.
+/// Flags no `agent` path owns are already `done` before the landing check
+/// can see them.
 fn integration_bad_bits() -> String {
-    BUSINESS_FLAGS
+    let mut bits = BUSINESS_FLAGS
         .iter()
         .filter(|flag| {
             !INTEGRATION_COMMAND_FLAGS.contains(flag) && families_of(flag).contains(&"agent")
         })
         .map(|flag| flag_bit(flag))
-        .collect::<Vec<_>>()
-        .join(" || ")
+        .collect::<Vec<_>>();
+    // A repeated `--provider` parses only under `agent doctor`: the second
+    // occurrence is inside the union scope's spelling but outside its
+    // grammar, so it lands in the bad set rather than the scope check.
+    bits.push("seen_provider2");
+    bits.join(" || ")
 }
 
 /// `agent:integration:<flag>` patterns — the flags admitted at the `deep`
@@ -577,7 +587,17 @@ fn seen_cases_bash() -> String {
                 Some(kind) => format!("{bit}=1; value={kind}; seen_flags+=({flag})"),
                 None => format!("{bit}=1; seen_flags+=({flag})"),
             };
-            if REPEATABLE_FLAGS.contains(flag) {
+            if *flag == "--provider" {
+                // Repeatable only toward `agent doctor`: once the
+                // integration family is committed (the `deep` sub-family or
+                // a resolved `integration:<verb>`), a second `--provider` is
+                // a dead prefix; anywhere earlier it records
+                // `seen_provider2`, which retires `integration` from the
+                // still-viable verbs while `doctor` stays legal.
+                format!(
+                    "                        --provider)\n                            if ((seen_provider)); then\n                                seen_provider2=1\n                                case \"$family:$sub\" in\n                                    agent:integration|agent:integration:*) done=1 ;;\n                                    *) {assign} ;;\n                                esac\n                            else {assign}; fi ;;"
+                )
+            } else if REPEATABLE_FLAGS.contains(flag) {
                 format!("                        {flag})\n                            {assign} ;;")
             } else {
                 format!("                        {flag})\n                            if (({bit})); then done=1; else {assign}; fi ;;")
@@ -861,9 +881,15 @@ fn extras_cases_bash() -> String {
                         // `--profile` excludes the explicit launch pair.
                         "--profile" => "seen_profile || seen_exec || seen_arg".to_owned(),
                         "--exec" => "seen_exec || seen_profile".to_owned(),
-                        // `--until` is repeatable — it stays offerable on
-                        // every pass so another condition can follow.
-                        "--until" => "0".to_owned(),
+                        // `--until`, `--asset-root`, and doctor's
+                        // `--provider` are repeatable — they stay offerable
+                        // on every pass so another selector can follow.
+                        // Integration's `--provider` is single-use: its seen
+                        // bit gates the offer there.
+                        "--provider" if command.starts_with("agent:integration:") => {
+                            "seen_provider".to_owned()
+                        }
+                        "--provider" | "--asset-root" | "--until" => "0".to_owned(),
                         _ => flag_bit(flag).to_owned(),
                     };
                     format!("                (({cond})) || extras=\"$extras {flag}\"")
@@ -905,7 +931,7 @@ fn bash() -> String {
             "_orchbee() {{\n",
             "    local cur candidates=\"\" extras=\"\" verbs=\"\" possible=\"\"\n",
             "    local state=verb help_a=\"\" help_b=\"\" help_c=\"\" family=\"\" sub=\"\" leaf=\"\"\n",
-            "    local seen_format=0 seen_mouse=0 {seen_decls}\n",
+            "    local seen_format=0 seen_mouse=0 {seen_decls} seen_provider2=0\n",
             "    local -a seen_flags\n",
             "    local ended=0 done=0 dead=0 value=\"\"\n",
             "    local i word\n",
@@ -1201,7 +1227,7 @@ fn zsh() -> String {
             "_orchbee() {{\n",
             "    local candidates=\"\" extras=\"\" verbs=\"\" possible=\"\"\n",
             "    local state=verb help_a=\"\" help_b=\"\" help_c=\"\" family=\"\" sub=\"\" leaf=\"\"\n",
-            "    local seen_format=0 seen_mouse=0 {seen_decls}\n",
+            "    local seen_format=0 seen_mouse=0 {seen_decls} seen_provider2=0\n",
             "    local -a seen_flags\n",
             "    local ended=0 done=0 dead=0 value=\"\"\n",
             "    local i word cur\n",
@@ -1483,7 +1509,15 @@ fn seen_cases_fish() -> String {
                 }
                 None => format!("set {bit} 1; set -a seen_flags '{flag}'"),
             };
-            if REPEATABLE_FLAGS.contains(flag) {
+            if *flag == "--provider" {
+                // Same contract as bash/zsh: repeatable toward `agent
+                // doctor`, a dead prefix once the integration family is
+                // committed, and `seen_provider2` retires `integration`
+                // from the viable verbs in between.
+                format!(
+                    "                        case '--provider'\n                            if test $seen_provider -eq 1\n                                set seen_provider2 1\n                                switch \"$family:$sub\"\n                                    case 'agent:integration' 'agent:integration:*'\n                                        set done 1\n                                    case '*'\n                                        {assign}\n                                end\n                            else\n                                {assign}\n                            end"
+                )
+            } else if REPEATABLE_FLAGS.contains(flag) {
                 format!("                        case '{flag}'\n                            {assign}")
             } else {
                 format!("                        case '{flag}'\n                            if test ${bit} -eq 1; set done 1; else; {assign}; end")
@@ -1622,7 +1656,7 @@ fn verb_cases_fish() -> String {
                 .collect::<Vec<_>>();
             if *family == "agent" {
                 lines.push(format!(
-                    "                if __orchbee_admit '{}' $seen_flags; set -a verbs integration; end",
+                    "                if test $seen_provider2 -eq 0; and __orchbee_admit '{}' $seen_flags; set -a verbs integration; end",
                     INTEGRATION_COMMAND_FLAGS.join(" ")
                 ));
             }
@@ -1699,9 +1733,15 @@ fn extras_cases_fish() -> String {
                             "$seen_profile -eq 0 -a $seen_exec -eq 0 -a $seen_arg -eq 0".to_owned()
                         }
                         "--exec" => "$seen_exec -eq 0 -a $seen_profile -eq 0".to_owned(),
-                        // `--until` is repeatable — it stays offerable on
-                        // every pass so another condition can follow.
-                        "--until" => "0 -eq 1".to_owned(),
+                        // `--until`, `--asset-root`, and doctor's
+                        // `--provider` are repeatable — they stay offerable
+                        // on every pass so another selector can follow.
+                        // Integration's `--provider` is single-use: its seen
+                        // bit gates the offer there.
+                        "--provider" if command.starts_with("agent:integration:") => {
+                            "$seen_provider -eq 0".to_owned()
+                        }
+                        "--provider" | "--asset-root" | "--until" => "0 -eq 0".to_owned(),
                         _ => format!("${} -eq 0", flag_bit(flag)),
                     };
                     format!("                if test {cond}; set -a candidates {flag}; end")
@@ -1761,7 +1801,7 @@ fn fish() -> String {
             "    set -e words[1]\n",
             "    set -l state verb; set -l help_a \"\"; set -l help_b \"\"; set -l help_c \"\"\n",
             "    set -l family \"\"; set -l sub \"\"; set -l leaf \"\"\n",
-            "    set -l seen_format 0; set -l seen_mouse 0; {seen_decls}; set -l seen_flags\n",
+            "    set -l seen_format 0; set -l seen_mouse 0; {seen_decls}; set -l seen_provider2 0; set -l seen_flags\n",
             "    set -l ended 0; set -l done 0; set -l value \"\"\n",
             "    for word in $words\n",
             "        if string match -q -- \"--\" \"$word\"; set ended 1; continue; end\n",
@@ -1850,7 +1890,7 @@ fn fish() -> String {
             "                        switch \"$family:$word\"\n",
             "                            case 'agent:integration'\n",
             "                                set sub integration; set state deep\n",
-            "                                if not __orchbee_admit '{integration_allowed}' $seen_flags; set done 1; end\n",
+            "                                if test $seen_provider2 -eq 1; or not __orchbee_admit '{integration_allowed}' $seen_flags; set done 1; end\n",
             "                            case {paths}\n",
             "                                set sub $word; set state after\n",
             "                                switch \"$family:$sub\"\n",
@@ -1862,7 +1902,7 @@ fn fish() -> String {
             "                        switch \"$family:$sub:$word\"\n",
             "                            case {deep_verb_cases}\n",
             "                                set sub \"integration:$word\"; set state after\n",
-            "                                if not __orchbee_admit '{integration_allowed}' $seen_flags; set done 1; end\n",
+            "                                if test $seen_provider2 -eq 1; or not __orchbee_admit '{integration_allowed}' $seen_flags; set done 1; end\n",
             "                            case '*'; set done 1\n",
             "                        end\n",
             "                    case after\n",
@@ -1904,7 +1944,7 @@ fn fish() -> String {
             "        end\n",
             "        if test (count $verbs) -eq 0; set dead 1; end\n",
             "    else if test \"$state\" = deep\n",
-            "        if __orchbee_admit '{integration_allowed}' $seen_flags; set verbs {integration_verb_words}; end\n",
+            "        if test $seen_provider2 -eq 0; and __orchbee_admit '{integration_allowed}' $seen_flags; set verbs {integration_verb_words}; end\n",
             "        if test (count $verbs) -eq 0; set dead 1; end\n",
             "    end\n",
             "    set -l candidates\n",
