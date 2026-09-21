@@ -1,7 +1,7 @@
 use super::{
-    MAXIMUM_SEND_TEXT_BYTES, SendAcceptedBytes, SendCleanupStatus, SendKey, SendTarget, SendText,
-    SendTextInput, TerminalSendOutcome, TerminalSendPayload, TerminalSendRequest,
-    TerminalSendResult,
+    MAXIMUM_SEND_RECORDS, MAXIMUM_SEND_TEXT_BYTES, SendAcceptedBytes, SendBytes,
+    SendCleanupStatus, SendKey, SendProgress, SendRecord, SendRecords, SendTarget, SendText,
+    SendTextInput, TerminalSendOutcome, TerminalSendRequest, TerminalSendResult,
 };
 use crate::{HostEpoch, HostTerminalId, RequestId, SiteId, TerminalId, WorkerId};
 use std::num::NonZeroU64;
@@ -39,40 +39,42 @@ fn folded_enter_shares_the_same_payload_bound() {
 }
 
 #[test]
-fn payload_decode_enforces_the_combined_bound() {
-    let maximum = "x".repeat(MAXIMUM_SEND_TEXT_BYTES);
-    let accepted = format!("{{\"kind\":\"text\",\"text\":\"{maximum}\",\"enter\":false}}");
-    assert!(serde_json::from_str::<TerminalSendPayload>(&accepted).is_ok());
-    let rejected = format!("{{\"kind\":\"text\",\"text\":\"{maximum}\",\"enter\":true}}");
-    assert!(serde_json::from_str::<TerminalSendPayload>(&rejected).is_err());
-}
-
-#[test]
-fn payload_wire_shape_is_closed_and_tagged() -> Result<(), Box<dyn std::error::Error>> {
-    let payload = TerminalSendPayload::new_text(text("ls -la"), true)?;
-    assert_eq!(
-        serde_json::to_string(&payload)?,
-        "{\"kind\":\"text\",\"text\":\"ls -la\",\"enter\":true}"
+fn records_enforce_count_and_aggregate_decoded_bounds() {
+    use super::{
+        MAXIMUM_SEND_AGGREGATE_BYTES, MAXIMUM_SEND_BYTES_BYTES, SendComboBase, SendModifiers,
+    };
+    let key = || SendRecord::Key {
+        key: SendKey::Enter,
+    };
+    assert!(SendRecords::new(Vec::new()).is_err());
+    assert!(SendRecords::new(vec![key(); MAXIMUM_SEND_RECORDS]).is_ok());
+    assert!(SendRecords::new(vec![key(); MAXIMUM_SEND_RECORDS + 1]).is_err());
+    // Key records carry no decoded bytes: the maximum count plus a 1MiB
+    // bytes record is the exact aggregate ceiling.
+    let mut records = vec![key(); MAXIMUM_SEND_RECORDS - 1];
+    records.push(SendRecord::Bytes {
+        bytes: SendBytes::new(vec![0; MAXIMUM_SEND_AGGREGATE_BYTES]).expect("bound"),
+    });
+    assert!(SendRecords::new(records).is_ok());
+    // One extra decoded byte over the aggregate bound refuses.
+    let mut over = vec![key(); MAXIMUM_SEND_RECORDS - 1];
+    over.push(SendRecord::Bytes {
+        bytes: SendBytes::new(vec![0; MAXIMUM_SEND_BYTES_BYTES]).expect("bound"),
+    });
+    over.insert(
+        0,
+        SendRecord::Bytes {
+            bytes: SendBytes::new(vec![0; 1]).expect("one byte"),
+        },
     );
-    assert_eq!(
-        serde_json::from_str::<TerminalSendPayload>("{\"kind\":\"key\",\"key\":\"ctrl-c\"}")?,
-        TerminalSendPayload::Key {
-            key: SendKey::CtrlC
-        }
-    );
-    for rejected in [
-        "{\"kind\":\"text\",\"text\":\"ls\",\"enter\":true,\"extra\":0}",
-        "{\"kind\":\"key\",\"key\":\"ctrl-alt-delete\"}",
-        "{\"kind\":\"text\",\"text\":\"\",\"enter\":false}",
-        "{\"kind\":\"text\",\"enter\":true}",
-        "{\"kind\":\"future\"}",
-    ] {
-        assert!(
-            serde_json::from_str::<TerminalSendPayload>(rejected).is_err(),
-            "payload {rejected} decoded"
-        );
-    }
-    Ok(())
+    assert!(SendRecords::new(over).is_err());
+    // The closed combo vocabulary rejects what the wire must never carry.
+    assert!(SendModifiers::new(false, false, false).is_err());
+    assert!(SendComboBase::new_named(SendKey::CtrlC).is_err());
+    assert!(SendComboBase::new_named(SendKey::CtrlD).is_err());
+    assert!(SendComboBase::new_function(13).is_err());
+    assert!(SendComboBase::new_letter(b'A').is_err());
+    assert!(SendComboBase::new_digit(b'/').is_err());
 }
 
 #[test]
@@ -110,20 +112,23 @@ fn accepted_bytes_admits_zero_and_rejects_overflow() {
     assert_eq!(SendAcceptedBytes::new(0).expect("zero is legal").get(), 0);
     assert!(SendAcceptedBytes::new(SendAcceptedBytes::MAXIMUM).is_ok());
     assert!(SendAcceptedBytes::new(SendAcceptedBytes::MAXIMUM + 1).is_err());
-    assert!(serde_json::from_str::<SendAcceptedBytes>("0").is_ok());
-    assert!(serde_json::from_str::<SendAcceptedBytes>("-1").is_err());
-    assert!(serde_json::from_str::<SendAcceptedBytes>("1048577").is_err());
 }
 
 #[test]
 fn impossible_status_cleanup_pairs_are_rejected_at_construction_and_decode() {
     for outcome in [
         TerminalSendOutcome::Accepted {
-            accepted_bytes: SendAcceptedBytes::new(0).expect("zero is legal"),
+            progress: SendProgress::complete(1, 0),
             cleanup: SendCleanupStatus::NotNeeded,
         },
         TerminalSendOutcome::OutcomeUnknown {
+            progress: SendProgress::none(),
             cleanup: SendCleanupStatus::Confirmed,
+        },
+        TerminalSendOutcome::Rejected {
+            reason: super::SendRejectedReason::HostInputInvalid,
+            progress: SendProgress::stopped(1, 0),
+            cleanup: SendCleanupStatus::NotNeeded,
         },
     ] {
         assert!(
@@ -135,17 +140,20 @@ fn impossible_status_cleanup_pairs_are_rejected_at_construction_and_decode() {
             .is_err()
         );
         let encoded = serde_json::to_string(&outcome).expect("encode");
+        // The serde shape is permissive; the constructor is the authority.
         assert!(serde_json::from_str::<TerminalSendOutcome>(&encoded).is_ok());
     }
     for outcome in [
         TerminalSendOutcome::Accepted {
-            accepted_bytes: SendAcceptedBytes::new(0).expect("zero"),
+            progress: SendProgress::complete(1, 0),
             cleanup: SendCleanupStatus::Unconfirmed,
         },
         TerminalSendOutcome::OutcomeUnknown {
+            progress: SendProgress::none(),
             cleanup: SendCleanupStatus::Unconfirmed,
         },
         TerminalSendOutcome::OutcomeUnknown {
+            progress: SendProgress::none(),
             cleanup: SendCleanupStatus::NotNeeded,
         },
     ] {
@@ -164,18 +172,21 @@ fn impossible_status_cleanup_pairs_are_rejected_at_construction_and_decode() {
 fn every_outcome_carries_the_cleanup_axis() -> Result<(), Box<dyn std::error::Error>> {
     for outcome in [
         TerminalSendOutcome::Accepted {
-            accepted_bytes: SendAcceptedBytes::new(0)?,
+            progress: SendProgress::complete(1, 0),
             cleanup: SendCleanupStatus::Unconfirmed,
         },
         TerminalSendOutcome::Rejected {
             reason: super::SendRejectedReason::HostInputInvalid,
+            progress: SendProgress::none(),
             cleanup: SendCleanupStatus::Confirmed,
         },
         TerminalSendOutcome::Unavailable {
             reason: super::SendUnavailableReason::HostProtocolFault,
+            progress: SendProgress::none(),
             cleanup: SendCleanupStatus::Unconfirmed,
         },
         TerminalSendOutcome::OutcomeUnknown {
+            progress: SendProgress::none(),
             cleanup: SendCleanupStatus::NotNeeded,
         },
     ] {
@@ -187,12 +198,14 @@ fn every_outcome_carries_the_cleanup_axis() -> Result<(), Box<dyn std::error::Er
         );
     }
     assert!(
-        serde_json::from_str::<TerminalSendOutcome>("{\"kind\":\"accepted\",\"acceptedBytes\":1}")
-            .is_err()
+        serde_json::from_str::<TerminalSendOutcome>(
+            "{\"kind\":\"accepted\",\"cleanup\":\"confirmed\"}"
+        )
+        .is_err()
     );
     assert!(
         serde_json::from_str::<TerminalSendOutcome>(
-            "{\"kind\":\"accepted\",\"acceptedBytes\":1,\"cleanup\":\"future\"}"
+            "{\"kind\":\"accepted\",\"progress\":{\"recordsAccepted\":1,\"firstStoppedRecord\":1,\"acceptedEncodedBytes\":0},\"cleanup\":\"future\"}"
         )
         .is_err()
     );
@@ -200,13 +213,15 @@ fn every_outcome_carries_the_cleanup_axis() -> Result<(), Box<dyn std::error::Er
 }
 
 #[test]
-fn request_exposes_the_flat_binding_triple_and_payload() -> Result<(), Box<dyn std::error::Error>> {
+fn request_exposes_the_flat_binding_triple_and_records() -> Result<(), Box<dyn std::error::Error>> {
     let request = TerminalSendRequest::new(
         RequestId::parse("11111111111111111111111111111111")?,
         SiteId::parse("22222222222222222222222222222222")?,
         WorkerId::parse("33333333333333333333333333333333")?,
         TerminalId::parse("44444444444444444444444444444444")?,
-        TerminalSendPayload::new_key(SendKey::Enter),
+        SendRecords::new(vec![SendRecord::Key {
+            key: SendKey::Enter,
+        }])?,
     );
     assert_eq!(
         request.request_id().as_str(),
@@ -225,10 +240,10 @@ fn request_exposes_the_flat_binding_triple_and_payload() -> Result<(), Box<dyn s
         "44444444444444444444444444444444"
     );
     assert_eq!(
-        request.payload(),
-        &TerminalSendPayload::Key {
+        request.records().as_slice(),
+        &[SendRecord::Key {
             key: SendKey::Enter
-        }
+        }]
     );
     Ok(())
 }
@@ -240,7 +255,7 @@ fn result_records_the_selected_physical_target_or_none() -> Result<(), Box<dyn s
         request_id.clone(),
         Some(target()),
         TerminalSendOutcome::Accepted {
-            accepted_bytes: SendAcceptedBytes::new(12)?,
+            progress: SendProgress::complete(1, 12),
             cleanup: SendCleanupStatus::Confirmed,
         },
     )?;
@@ -263,6 +278,7 @@ fn result_records_the_selected_physical_target_or_none() -> Result<(), Box<dyn s
         None,
         TerminalSendOutcome::Rejected {
             reason: super::SendRejectedReason::TerminalUnavailable,
+            progress: SendProgress::none(),
             cleanup: SendCleanupStatus::NotNeeded,
         },
     )?;
@@ -275,28 +291,32 @@ fn result_records_the_selected_physical_target_or_none() -> Result<(), Box<dyn s
 fn absent_target_is_only_legal_for_pre_admission_refusals() -> Result<(), Box<dyn std::error::Error>>
 {
     let request_id = RequestId::parse("11111111111111111111111111111111")?;
-    let accepted_bytes = || SendAcceptedBytes::new(3).expect("bytes");
+    let accepted = || SendProgress::complete(1, 3);
     for outcome in [
         TerminalSendOutcome::Accepted {
-            accepted_bytes: accepted_bytes(),
+            progress: accepted(),
             cleanup: SendCleanupStatus::Confirmed,
         },
         TerminalSendOutcome::Accepted {
-            accepted_bytes: accepted_bytes(),
+            progress: accepted(),
             cleanup: SendCleanupStatus::Unconfirmed,
         },
         TerminalSendOutcome::OutcomeUnknown {
+            progress: SendProgress::none(),
             cleanup: SendCleanupStatus::NotNeeded,
         },
         TerminalSendOutcome::OutcomeUnknown {
+            progress: SendProgress::none(),
             cleanup: SendCleanupStatus::Unconfirmed,
         },
         TerminalSendOutcome::Rejected {
             reason: super::SendRejectedReason::HostRejected,
+            progress: SendProgress::none(),
             cleanup: SendCleanupStatus::Confirmed,
         },
         TerminalSendOutcome::Unavailable {
             reason: super::SendUnavailableReason::HostUnavailable,
+            progress: SendProgress::none(),
             cleanup: SendCleanupStatus::Unconfirmed,
         },
     ] {
@@ -308,10 +328,12 @@ fn absent_target_is_only_legal_for_pre_admission_refusals() -> Result<(), Box<dy
     for outcome in [
         TerminalSendOutcome::Rejected {
             reason: super::SendRejectedReason::TerminalUnavailable,
+            progress: SendProgress::none(),
             cleanup: SendCleanupStatus::NotNeeded,
         },
         TerminalSendOutcome::Unavailable {
             reason: super::SendUnavailableReason::ServerBusy,
+            progress: SendProgress::none(),
             cleanup: SendCleanupStatus::NotNeeded,
         },
     ] {
@@ -328,6 +350,7 @@ fn absent_target_is_only_legal_for_pre_admission_refusals() -> Result<(), Box<dy
             Some(target()),
             TerminalSendOutcome::Rejected {
                 reason: super::SendRejectedReason::StaleHostEpoch,
+                progress: SendProgress::none(),
                 cleanup: SendCleanupStatus::NotNeeded,
             },
         )
@@ -339,7 +362,7 @@ fn absent_target_is_only_legal_for_pre_admission_refusals() -> Result<(), Box<dy
         request_id: request_id.clone(),
         target: None,
         outcome: TerminalSendOutcome::Accepted {
-            accepted_bytes: accepted_bytes(),
+            progress: accepted(),
             cleanup: SendCleanupStatus::Confirmed,
         },
     };
@@ -347,10 +370,10 @@ fn absent_target_is_only_legal_for_pre_admission_refusals() -> Result<(), Box<dy
     // The decode boundary applies the same rule, and a missing `target` field
     // is rejected rather than treated as `null`.
     for payload in [
-        "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":3,\"cleanup\":\"confirmed\"}}",
-        "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"outcome-unknown\",\"cleanup\":\"not-needed\"}}",
-        "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\",\"cleanup\":\"confirmed\"}}",
-        "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"terminal-unavailable\",\"cleanup\":\"not-needed\"}}",
+        "{\"kind\":\"terminal.send.result\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"accepted\",\"progress\":{\"recordsAccepted\":1,\"firstStoppedRecord\":1,\"acceptedEncodedBytes\":3},\"cleanup\":\"confirmed\"}}",
+        "{\"kind\":\"terminal.send.result\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"outcome-unknown\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"not-needed\"}}",
+        "{\"kind\":\"terminal.send.result\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"confirmed\"}}",
+        "{\"kind\":\"terminal.send.result\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"terminal-unavailable\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"not-needed\"}}",
     ] {
         assert!(
             crate::wire::decode_server_payload(payload.as_bytes()).is_err(),
@@ -359,7 +382,7 @@ fn absent_target_is_only_legal_for_pre_admission_refusals() -> Result<(), Box<dy
     }
     assert!(
         crate::wire::decode_server_payload(
-            b"{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"rejected\",\"reason\":\"terminal-unavailable\",\"cleanup\":\"not-needed\"}}",
+            b"{\"kind\":\"terminal.send.result\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"rejected\",\"reason\":\"terminal-unavailable\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"not-needed\"}}",
         )
         .is_ok()
     );

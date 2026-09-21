@@ -116,39 +116,4 @@ fn decode_body(body: &[u8]) -> Result<ClientMessage, ProtocolError> {
     )))
 }
 
-fn identity_bytes<T: Identity>(id: &T) -> Result<[u8; 16], ProtocolError> {
-    u128::from_str_radix(id.as_str(), 16)
-        .map_err(|_| ProtocolError::InvalidPayload)
-        .map(|value| value.to_be_bytes())
-}
-
-trait Identity {
-    fn as_str(&self) -> &str;
-    fn parse(value: &str) -> Result<Self, ProtocolError>
-    where
-        Self: Sized;
-}
-macro_rules! identity_adapter {
-    ($name:ident) => {
-        impl Identity for $name {
-            fn as_str(&self) -> &str {
-                $name::as_str(self)
-            }
-            fn parse(value: &str) -> Result<Self, ProtocolError> {
-                $name::parse(value).map_err(|_| ProtocolError::InvalidPayload)
-            }
-        }
-    };
-}
-identity_adapter!(RequestId);
-identity_adapter!(ViewerId);
-identity_adapter!(ControllerId);
-
-fn identity<T: Identity>(bytes: Option<&[u8]>) -> Result<T, ProtocolError> {
-    let raw: [u8; 16] = bytes
-        .ok_or(ProtocolError::InvalidPayload)?
-        .try_into()
-        .map_err(|_| ProtocolError::InvalidPayload)?;
-    let value = u128::from_be_bytes(raw);
-    T::parse(&format!("{value:032x}"))
-}
+use crate::record_identities::{identity, identity_bytes};

@@ -5,8 +5,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use crate::{
     ClientMessage, CreateOutcome, Geometry, PROTOCOL_VERSION, ProtocolError, RequestId,
     ServerMessage, SiteId, StartMode, StartOutcome, TerminalCreateRequest, TerminalCreateResult,
-    TerminalId, TerminalStartRequest, TerminalStartResult, WorkerConstraint, WorkerId,
-    WorkingDirectory, number::Binary64SafeInteger,
+    TerminalId, TerminalStartRequest, TerminalStartResult, WorkerConstraint, WorkingDirectory,
+    number::Binary64SafeInteger,
 };
 
 const UTF8_BOM: &[u8] = &[0xef, 0xbb, 0xbf];
@@ -160,16 +160,7 @@ enum DecodedClientMessage {
         terminal_create_request_id: RequestId,
         geometry: Geometry,
     },
-    #[serde(rename = "terminal.send")]
-    Send {
-        #[serde(rename = "protocolVersion")]
-        _protocol_version: ProtocolVersion,
-        request_id: RequestId,
-        site_id: SiteId,
-        worker_id: WorkerId,
-        terminal_id: TerminalId,
-        payload: crate::TerminalSendPayload,
-    },
+
     #[serde(rename = "terminal.launch.read")]
     LaunchRead {
         #[serde(rename = "protocolVersion")]
@@ -217,15 +208,7 @@ enum EncodedClientMessage<'a> {
         terminal_create_request_id: &'a RequestId,
         geometry: Geometry,
     },
-    #[serde(rename = "terminal.send")]
-    Send {
-        protocol_version: ProtocolVersion,
-        request_id: &'a RequestId,
-        site_id: &'a SiteId,
-        worker_id: &'a WorkerId,
-        terminal_id: &'a TerminalId,
-        payload: &'a crate::TerminalSendPayload,
-    },
+
     #[serde(rename = "terminal.launch.read")]
     LaunchRead {
         protocol_version: ProtocolVersion,
@@ -430,16 +413,6 @@ pub(crate) fn decode_client_payload(payload: &[u8]) -> Result<ClientMessage, Pro
         } => TerminalStartRequest::new(request_id, terminal_create_request_id, geometry)
             .map(ClientMessage::TerminalStart)
             .map_err(|_error| ProtocolError::InvalidPayload),
-        DecodedClientMessage::Send {
-            _protocol_version: _,
-            request_id,
-            site_id,
-            worker_id,
-            terminal_id,
-            payload,
-        } => Ok(ClientMessage::TerminalSend(
-            crate::TerminalSendRequest::new(request_id, site_id, worker_id, terminal_id, payload),
-        )),
         DecodedClientMessage::LaunchRead {
             _protocol_version: _,
             request_id,
@@ -481,22 +454,8 @@ pub(crate) fn encode_client_payload(message: &ClientMessage) -> Result<Vec<u8>, 
             terminal_create_request_id: &request.terminal_create_request_id,
             geometry: request.geometry,
         },
-        ClientMessage::TerminalSend(request) => {
-            // The combined text-plus-return bound is a wire invariant; re-check
-            // it at the encode boundary regardless of how the value was built.
-            if let crate::TerminalSendPayload::Text(input) = request.payload()
-                && input.record_bytes() > crate::MAXIMUM_SEND_TEXT_BYTES
-            {
-                return Err(ProtocolError::InvalidPayload);
-            }
-            EncodedClientMessage::Send {
-                protocol_version: ProtocolVersion,
-                request_id: &request.request_id,
-                site_id: &request.site_id,
-                worker_id: &request.worker_id,
-                terminal_id: &request.terminal_id,
-                payload: &request.payload,
-            }
+        ClientMessage::TerminalSend(_) => {
+            unreachable!("send requests ride the dedicated OBSN record frame")
         }
         ClientMessage::TerminalLaunchRead(request) => EncodedClientMessage::LaunchRead {
             protocol_version: ProtocolVersion,

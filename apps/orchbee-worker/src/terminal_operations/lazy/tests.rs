@@ -16,7 +16,8 @@ use orchbee_capability_node_protocol::{
     TERMINAL_LAUNCH_CAPABILITY_VERSION, TerminalCwdValidationOutcome, TerminalCwdValidationRequest,
     TerminalFence, TerminalId, TerminalLaunchFailure, TerminalLaunchMode, TerminalLaunchOutcome,
     TerminalOperationAuthorization, TerminalOperationLease, TerminalPixelGeometry,
-    TerminalSendOutcome, TerminalSendPayload, TerminalSendRequest, WorkerGeneration,
+    SendRecord, SendRecords, SendTextInput, TerminalSendOutcome, TerminalSendRequest,
+    WorkerGeneration,
     WorkerId as CapabilityWorkerId, WorktreeJobAction, WorktreeJobOutcome, WorktreeJobPollOutcome,
     WorktreeJobRequest, WorktreeJobStartOutcome, read_message, write_message,
 };
@@ -1147,7 +1148,10 @@ fn send_apc(
             worker_generation: WorkerGeneration::new(GENERATION),
             target,
             attachment_id: OperationId::from_bytes([attempt.wrapping_add(100); 16])?,
-            payload: TerminalSendPayload::new_text(SendText::new(apc)?, true)?,
+            records: SendRecords::new(vec![SendRecord::Text(SendTextInput::new(
+                SendText::new(apc)?,
+                true,
+            )?)])?,
         }),
     )?;
     let CapabilityNodeMessage::TerminalSendResult(result) = read_message(server)? else {

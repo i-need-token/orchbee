@@ -9,13 +9,15 @@ mod model;
 mod number;
 mod open;
 mod paste_record;
+mod record_identities;
 mod send;
+mod send_record;
 mod viewer;
 mod viewer_record;
 mod wire;
 mod working_directory;
 
-pub const PROTOCOL_VERSION: u8 = 1;
+pub const PROTOCOL_VERSION: u8 = 2;
 
 pub use codec::{
     FRAME_HEADER_BYTES, FRAME_MAGIC, FRAME_VERSION, MAXIMUM_FRAME_PAYLOAD_BYTES,
@@ -54,10 +56,14 @@ pub use model::{
 };
 pub use paste_record::PASTE_RECORD_MAGIC;
 pub use send::{
-    MAXIMUM_SEND_TEXT_BYTES, SendAcceptedBytes, SendCleanupStatus, SendKey, SendRejectedReason,
-    SendTarget, SendText, SendTextInput, SendUnavailableReason, TerminalSendOutcome,
-    TerminalSendPayload, TerminalSendRequest, TerminalSendResult,
+    MAXIMUM_SEND_ACCEPTED_BYTES, MAXIMUM_SEND_ACCEPTED_ENCODED_BYTES,
+    MAXIMUM_SEND_AGGREGATE_BYTES, MAXIMUM_SEND_BYTES_BYTES, MAXIMUM_SEND_PASTE_BYTES,
+    MAXIMUM_SEND_RECORDS, MAXIMUM_SEND_TEXT_BYTES, SendAcceptedBytes, SendBytes,
+    SendCleanupStatus, SendComboBase, SendKey, SendModifiers, SendPasteContent, SendProgress,
+    SendRecord, SendRecords, SendRejectedReason, SendTarget, SendText, SendTextInput,
+    SendUnavailableReason, TerminalSendOutcome, TerminalSendRequest, TerminalSendResult,
 };
+pub use send_record::SEND_RECORD_MAGIC;
 pub use viewer::{
     HistoryDemand, MAXIMUM_READ_ROWS, MAXIMUM_READ_ROWS_BYTES, MAXIMUM_VIEWER_RECORD_BYTES,
     MINIMUM_READ_ROWS_BYTES, ProjectionDemand, TerminalViewerAction, TerminalViewerOutcome,

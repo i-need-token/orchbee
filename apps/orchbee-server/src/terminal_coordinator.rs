@@ -486,6 +486,7 @@ impl TerminalCoordinator {
                     None,
                     orchbee_client_server_protocol::TerminalSendOutcome::Unavailable {
                         reason: orchbee_client_server_protocol::SendUnavailableReason::ServerBusy,
+                        progress: orchbee_client_server_protocol::SendProgress::none(),
                         cleanup: orchbee_client_server_protocol::SendCleanupStatus::NotNeeded,
                     },
                 ) {
@@ -945,6 +946,7 @@ fn unknown_result(request: &ClientMessage) -> ServerMessage {
                 request.request_id().clone(),
                 None,
                 orchbee_client_server_protocol::TerminalSendOutcome::OutcomeUnknown {
+                    progress: orchbee_client_server_protocol::SendProgress::none(),
                     cleanup: orchbee_client_server_protocol::SendCleanupStatus::Unconfirmed,
                 },
             )
@@ -954,6 +956,7 @@ fn unknown_result(request: &ClientMessage) -> ServerMessage {
                     None,
                     orchbee_client_server_protocol::TerminalSendOutcome::Unavailable {
                         reason: orchbee_client_server_protocol::SendUnavailableReason::ServerBusy,
+                        progress: orchbee_client_server_protocol::SendProgress::none(),
                         cleanup: orchbee_client_server_protocol::SendCleanupStatus::NotNeeded,
                     },
                 )

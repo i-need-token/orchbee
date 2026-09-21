@@ -198,7 +198,7 @@ fn lifecycle_active_rejections_use_distinct_documented_launch_and_start_tags()
 #[test]
 fn capability_two_capacity_rejections_have_exact_canonical_tags()
 -> Result<(), Box<dyn std::error::Error>> {
-    assert_eq!(PROTOCOL_VERSION, 1);
+    assert_eq!(PROTOCOL_VERSION, 2);
     assert_eq!(TERMINAL_LAUNCH_CAPABILITY_VERSION.get(), 2);
 
     let current_authorization = authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?;
@@ -208,7 +208,7 @@ fn capability_two_capacity_rejections_have_exact_canonical_tags()
     )?);
     let encoded_launch = encode(&launch)?;
     assert_eq!(encoded_launch.len(), 101);
-    assert_eq!(&encoded_launch[..8], &[b'O', b'B', b'C', b'N', 0, 1, 0, 93]);
+    assert_eq!(&encoded_launch[..8], &[b'O', b'B', b'C', b'N', 0, 2, 0, 93]);
     assert_eq!(&encoded_launch[97..99], &[0, 2]);
     assert_eq!(&encoded_launch[99..], &[2, 8]);
     assert_eq!(decode_message(&encoded_launch)?, launch);
@@ -221,7 +221,7 @@ fn capability_two_capacity_rejections_have_exact_canonical_tags()
     )?);
     let encoded_start = encode(&start)?;
     assert_eq!(encoded_start.len(), 149);
-    assert_eq!(&encoded_start[..8], &[b'O', b'B', b'C', b'N', 0, 1, 0, 141]);
+    assert_eq!(&encoded_start[..8], &[b'O', b'B', b'C', b'N', 0, 2, 0, 141]);
     assert_eq!(&encoded_start[97..99], &[0, 2]);
     assert_eq!(&encoded_start[147..], &[2, 9]);
     assert_eq!(decode_message(&encoded_start)?, start);
@@ -1274,7 +1274,7 @@ fn pasted_result_and_paste_rejections_round_trip() -> Result<(), Box<dyn std::er
     Ok(())
 }
 
-fn send_request(payload: crate::TerminalSendPayload) -> crate::TerminalSendRequest {
+fn send_request(records: crate::SendRecords) -> crate::TerminalSendRequest {
     crate::TerminalSendRequest {
         request_id: OperationId::from_bytes([21; 16]).expect("id"),
         worker_id: WorkerId::from_bytes([22; 16]).expect("id"),
@@ -1285,114 +1285,202 @@ fn send_request(payload: crate::TerminalSendPayload) -> crate::TerminalSendReque
             HostTerminalId::from_bytes([25; 16]).expect("id"),
         ),
         attachment_id: OperationId::from_bytes([26; 16]).expect("id"),
-        payload,
+        records,
     }
 }
 
+/// One-record convenience: every typed constructor re-validates.
+fn one_record(record: crate::SendRecord) -> crate::SendRecords {
+    crate::SendRecords::new(vec![record]).expect("one record is always in bounds")
+}
+
+fn text_record(text: &str, enter: bool) -> crate::SendRecord {
+    crate::SendRecord::Text(
+        crate::SendTextInput::new(crate::SendText::new(text.to_owned()).expect("text"), enter)
+            .expect("text input"),
+    )
+}
+
 #[test]
-fn send_text_request_encodes_the_documented_golden_frame() -> Result<(), Box<dyn std::error::Error>>
-{
-    let request = CapabilityNodeMessage::TerminalSendRequest(send_request(
-        crate::TerminalSendPayload::new_text(crate::SendText::new("ls -la".to_string())?, true)?,
-    ));
-    let mut expected = Vec::from(*b"OBCN");
-    expected.extend_from_slice(&PROTOCOL_VERSION.to_be_bytes());
-    expected.extend_from_slice(&115_u16.to_be_bytes());
-    expected.push(13);
-    expected.extend_from_slice(&[21; 16]);
-    expected.extend_from_slice(&[22; 16]);
-    expected.extend_from_slice(&9_u64.to_be_bytes());
-    expected.extend_from_slice(&[23; 16]);
-    expected.extend_from_slice(&[24; 16]);
-    expected.extend_from_slice(&[25; 16]);
-    expected.extend_from_slice(&[26; 16]);
-    expected.push(1);
-    expected.extend_from_slice(&6_u16.to_be_bytes());
-    expected.extend_from_slice(b"ls -la");
-    expected.push(1);
+fn send_request_record_encodes_the_golden_obns_frame() -> Result<(), Box<dyn std::error::Error>> {
+    let request =
+        CapabilityNodeMessage::TerminalSendRequest(send_request(one_record(text_record("ls -la", true))));
+    let mut body = Vec::new();
+    body.extend_from_slice(&[21; 16]);
+    body.extend_from_slice(&[22; 16]);
+    body.extend_from_slice(&9_u64.to_be_bytes());
+    body.extend_from_slice(&[23; 16]);
+    body.extend_from_slice(&[24; 16]);
+    body.extend_from_slice(&[25; 16]);
+    body.extend_from_slice(&[26; 16]);
+    body.push(1);
+    body.push(1);
+    body.extend_from_slice(&6_u16.to_be_bytes());
+    body.extend_from_slice(b"ls -la");
+    body.push(1);
+    let mut expected = Vec::from(*b"OBNS");
+    expected.extend_from_slice(&1_u16.to_be_bytes());
+    expected.extend_from_slice(&0_u16.to_be_bytes());
+    expected.extend_from_slice(&(body.len() as u32).to_be_bytes());
+    expected.extend_from_slice(&body);
     assert_eq!(encode_message(&request)?, expected);
-    assert_eq!(expected.len(), 123);
+    assert_eq!(expected.len(), 12 + 105 + 10);
     assert_eq!(decode_message(&expected)?, request);
+    let mut stream = ChunkedReader::new(expected.clone(), 7);
+    assert_eq!(read_message(&mut stream)?, request);
     Ok(())
 }
 
 #[test]
-fn send_key_request_uses_one_numeric_key_code() -> Result<(), Box<dyn std::error::Error>> {
-    let request = CapabilityNodeMessage::TerminalSendRequest(send_request(
-        crate::TerminalSendPayload::new_key(crate::SendKey::CtrlC),
-    ));
+fn send_record_sequence_preserves_order_and_every_form() -> Result<(), Box<dyn std::error::Error>> {
+    let request = CapabilityNodeMessage::TerminalSendRequest(send_request(crate::SendRecords::new(
+        vec![
+            text_record("echo hi", false),
+            crate::SendRecord::Key {
+                key: crate::SendKey::CtrlC,
+            },
+            crate::SendRecord::Combo {
+                modifiers: crate::SendModifiers::new(true, true, false)?,
+                base: crate::SendComboBase::new_letter(b'p')?,
+            },
+            crate::SendRecord::Combo {
+                modifiers: crate::SendModifiers::new(false, false, true)?,
+                base: crate::SendComboBase::new_named(crate::SendKey::Tab)?,
+            },
+            crate::SendRecord::Bytes {
+                bytes: crate::SendBytes::new(vec![0x00, 0xff, 0x1b])?,
+            },
+            crate::SendRecord::Paste {
+                content: crate::SendPasteContent::new(b"pasted\ncontent".to_vec())?,
+            },
+            crate::SendRecord::Key {
+                key: crate::SendKey::Enter,
+            },
+        ],
+    )?));
     let encoded = encode_message(&request)?;
-    assert_eq!(encoded.len(), 8 + 107);
-    assert_eq!(encoded[8], 13);
-    assert_eq!(&encoded[8 + 105..], &[2, 14]);
+    assert!(encoded.starts_with(b"OBNS\0\x01\0\0"));
     assert_eq!(decode_message(&encoded)?, request);
     Ok(())
 }
 
 #[test]
 fn send_request_decode_enforces_every_boundary() -> Result<(), Box<dyn std::error::Error>> {
-    let request = CapabilityNodeMessage::TerminalSendRequest(send_request(
-        crate::TerminalSendPayload::new_text(crate::SendText::new("hi".to_string())?, false)?,
-    ));
+    let request =
+        CapabilityNodeMessage::TerminalSendRequest(send_request(one_record(text_record("hi", false))));
     let encoded = encode_message(&request)?;
+    // Header: 12 bytes; body prefix 105 bytes; text record starts at 12+105.
+    let record_at = 12 + 105;
+
+    let mut wrong_magic = encoded.clone();
+    wrong_magic[3] = b'X';
+    // A wrong record magic falls through to the standard frame decoder,
+    // which rejects the unknown magic identically.
+    assert_eq!(
+        decode_message(&wrong_magic),
+        Err(ProtocolError::InvalidMagic)
+    );
+
+    let mut wrong_version = encoded.clone();
+    wrong_version[4..6].copy_from_slice(&2_u16.to_be_bytes());
+    assert_eq!(
+        decode_message(&wrong_version),
+        Err(ProtocolError::IncompatibleVersion { received: 1 })
+    );
+
+    let mut reserved = encoded.clone();
+    reserved[6] = 1;
+    assert_eq!(
+        decode_message(&reserved),
+        Err(ProtocolError::InvalidPayload)
+    );
 
     let mut trailing = encoded.clone();
     trailing.push(0);
-    let trailing_length = u16::try_from(trailing.len() - 8)?;
-    trailing[6..8].copy_from_slice(&trailing_length.to_be_bytes());
     assert_eq!(
         decode_message(&trailing),
         Err(ProtocolError::InvalidPayload)
     );
 
-    let mut bad_tag = encoded.clone();
-    bad_tag[8 + 105] = 9;
-    assert_eq!(decode_message(&bad_tag), Err(ProtocolError::InvalidPayload));
+    // The declared body length must exceed the identity prefix.
+    let mut short_body = encoded.clone();
+    short_body[8..12].copy_from_slice(&105_u32.to_be_bytes());
+    assert!(matches!(
+        decode_message(&short_body),
+        Err(ProtocolError::PayloadTooLarge { .. })
+    ));
 
+    let mut oversized = encoded.clone();
+    oversized[8..12].copy_from_slice(&u32::MAX.to_be_bytes());
+    assert!(matches!(
+        decode_message(&oversized),
+        Err(ProtocolError::PayloadTooLarge { .. })
+    ));
+
+    // Record count zero is invalid; count exceeding capacity rejects at
+    // sequence construction.
+    let mut zero_count = encoded.clone();
+    zero_count[12 + 104] = 0;
+    zero_count.truncate(12 + 105);
+    zero_count[8..12].copy_from_slice(&105_u32.to_be_bytes());
+    // body == prefix exactly is below the minimum, so the length rule fires.
+    assert!(matches!(
+        decode_message(&zero_count),
+        Err(ProtocolError::PayloadTooLarge { .. })
+    ));
+
+    // An unknown record kind refuses.
+    let mut bad_kind = encoded.clone();
+    bad_kind[record_at] = 9;
+    assert_eq!(
+        decode_message(&bad_kind),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    // An unknown key code refuses.
     let mut bad_key = encoded.clone();
-    bad_key[8 + 105] = 2;
-    bad_key[8 + 106] = 16;
-    let mut bad_key_frame = bad_key[..8 + 107].to_vec();
-    assert_eq!(
-        decode_message(&bad_key_frame),
-        Err(ProtocolError::InvalidPayload)
-    );
-    bad_key_frame[8 + 106] = 0;
+    bad_key[record_at] = 2;
+    bad_key[record_at + 1] = 16;
+    let mut bad_key_frame = bad_key[..record_at + 2].to_vec();
+    let bad_key_len = u32::try_from(bad_key_frame.len() - 12)?;
+    bad_key_frame[8..12].copy_from_slice(&bad_key_len.to_be_bytes());
     assert_eq!(
         decode_message(&bad_key_frame),
         Err(ProtocolError::InvalidPayload)
     );
 
+    // Invalid UTF-8 inside a text record refuses.
     let mut bad_utf8 = encoded.clone();
-    bad_utf8[8 + 109] = 0x80;
+    bad_utf8[record_at + 3] = 0x80;
     assert_eq!(
         decode_message(&bad_utf8),
         Err(ProtocolError::InvalidPayload)
     );
 
+    // A non-0/1 enter flag refuses.
     let mut bad_enter = encoded.clone();
-    bad_enter[8 + 110] = 2;
+    bad_enter[record_at + 5] = 2;
     assert_eq!(
         decode_message(&bad_enter),
         Err(ProtocolError::InvalidPayload)
     );
 
     let mut zero_generation = encoded.clone();
-    zero_generation[8 + 33..8 + 41].copy_from_slice(&0_u64.to_be_bytes());
+    zero_generation[12 + 32..12 + 40].copy_from_slice(&0_u64.to_be_bytes());
     assert_eq!(
         decode_message(&zero_generation),
         Err(ProtocolError::InvalidPayload)
     );
 
     let mut zero_epoch = encoded.clone();
-    zero_epoch[8 + 57..8 + 73].fill(0);
+    zero_epoch[12 + 56..12 + 72].fill(0);
     assert_eq!(
         decode_message(&zero_epoch),
         Err(ProtocolError::InvalidIdentity)
     );
 
     let mut zero_attachment = encoded.clone();
-    zero_attachment[8 + 89..8 + 105].fill(0);
+    zero_attachment[12 + 88..12 + 104].fill(0);
     assert_eq!(
         decode_message(&zero_attachment),
         Err(ProtocolError::InvalidIdentity)
@@ -1401,41 +1489,97 @@ fn send_request_decode_enforces_every_boundary() -> Result<(), Box<dyn std::erro
 }
 
 #[test]
+fn send_records_enforce_count_and_aggregate_bounds() -> Result<(), Box<dyn std::error::Error>> {
+    // 64 is the wire-admitted ceiling; 65 never constructs.
+    assert!(
+        crate::SendRecords::new(vec![
+            crate::SendRecord::Key {
+                key: crate::SendKey::Enter,
+            };
+            crate::terminal_send::MAXIMUM_SEND_RECORDS
+        ])
+        .is_ok()
+    );
+    assert!(
+        crate::SendRecords::new(vec![
+            crate::SendRecord::Key {
+                key: crate::SendKey::Enter,
+            };
+            crate::terminal_send::MAXIMUM_SEND_RECORDS + 1
+        ])
+        .is_err()
+    );
+    assert!(crate::SendRecords::new(Vec::new()).is_err());
+
+    // The aggregate decoded bound is content bytes only — key records add
+    // nothing, so 64 keys plus one 1MiB bytes record is the exact ceiling.
+    let mut records = vec![
+        crate::SendRecord::Key {
+            key: crate::SendKey::Enter,
+        };
+        crate::terminal_send::MAXIMUM_SEND_RECORDS - 1
+    ];
+    records.push(crate::SendRecord::Bytes {
+        bytes: crate::SendBytes::new(vec![0; crate::MAXIMUM_SEND_AGGREGATE_BYTES])?,
+    });
+    assert!(crate::SendRecords::new(records).is_ok());
+    let mut over = vec![
+        crate::SendRecord::Key {
+            key: crate::SendKey::Enter,
+        };
+        crate::terminal_send::MAXIMUM_SEND_RECORDS - 1
+    ];
+    over.push(crate::SendRecord::Bytes {
+        bytes: crate::SendBytes::new(vec![0; crate::MAXIMUM_SEND_BYTES_BYTES])?,
+    });
+    over.insert(
+        0,
+        crate::SendRecord::Bytes {
+            bytes: crate::SendBytes::new(vec![0; 1])?,
+        },
+    );
+    assert!(crate::SendRecords::new(over).is_err());
+    Ok(())
+}
+
+#[test]
 fn send_text_bound_counts_the_folded_return() -> Result<(), Box<dyn std::error::Error>> {
     let maximum = "x".repeat(crate::MAXIMUM_SEND_TEXT_BYTES);
+    assert!(crate::SendText::new(maximum.clone()).is_ok());
     assert!(
-        crate::TerminalSendPayload::new_text(crate::SendText::new(maximum.clone())?, false).is_ok()
+        crate::SendTextInput::new(crate::SendText::new(maximum.clone())?, false).is_ok()
     );
-    assert!(crate::TerminalSendPayload::new_text(crate::SendText::new(maximum)?, true).is_err());
+    assert!(crate::SendTextInput::new(crate::SendText::new(maximum)?, true).is_err());
     assert!(
-        crate::TerminalSendPayload::new_text(
+        crate::SendTextInput::new(
             crate::SendText::new("x".repeat(crate::MAXIMUM_SEND_TEXT_BYTES - 1))?,
             true
         )
         .is_ok()
     );
 
-    let request = CapabilityNodeMessage::TerminalSendRequest(send_request(
-        crate::TerminalSendPayload::new_text(
-            crate::SendText::new("x".repeat(crate::MAXIMUM_SEND_TEXT_BYTES - 1))?,
+    let request = CapabilityNodeMessage::TerminalSendRequest(send_request(one_record(
+        text_record(
+            &"x".repeat(crate::MAXIMUM_SEND_TEXT_BYTES - 1),
             true,
-        )?,
-    ));
+        ),
+    )));
     let encoded = encode_message(&request)?;
     assert_eq!(
         encoded.len(),
-        8 + 105 + 1 + 2 + (crate::MAXIMUM_SEND_TEXT_BYTES - 1) + 1
+        12 + 105 + 1 + 2 + (crate::MAXIMUM_SEND_TEXT_BYTES - 1) + 1
     );
     assert_eq!(decode_message(&encoded)?, request);
 
-    // A wire frame declaring MAXIMUM text bytes plus the folded return is one
-    // byte over the combined bound and must be rejected.
+    // A wire text field declaring the full text bound plus the folded return
+    // is one byte over the combined bound and must be rejected at decode.
     let mut overlong = encoded.clone();
-    overlong[8 + 106..8 + 108]
+    let record_at = 12 + 105;
+    overlong[record_at + 1..record_at + 3]
         .copy_from_slice(&u16::try_from(crate::MAXIMUM_SEND_TEXT_BYTES)?.to_be_bytes());
-    overlong.insert(8 + 108 + crate::MAXIMUM_SEND_TEXT_BYTES - 1, b'x');
-    let overlong_length = u16::try_from(overlong.len() - 8)?;
-    overlong[6..8].copy_from_slice(&overlong_length.to_be_bytes());
+    overlong.insert(record_at + 3 + crate::MAXIMUM_SEND_TEXT_BYTES - 1, b'x');
+    let body_len = u32::try_from(overlong.len() - 12)?;
+    overlong[8..12].copy_from_slice(&body_len.to_be_bytes());
     assert_eq!(
         decode_message(&overlong),
         Err(ProtocolError::InvalidPayload)
@@ -1444,30 +1588,124 @@ fn send_text_bound_counts_the_folded_return() -> Result<(), Box<dyn std::error::
 }
 
 #[test]
+fn send_combo_records_validate_the_closed_vocabulary() -> Result<(), Box<dyn std::error::Error>> {
+    // A modifier-only combination is not a record.
+    assert!(crate::SendModifiers::new(false, false, false).is_err());
+    // `ctrl-c`/`ctrl-d` are already modified keys, never combo bases.
+    assert!(crate::SendComboBase::new_named(crate::SendKey::CtrlC).is_err());
+    assert!(crate::SendComboBase::new_named(crate::SendKey::CtrlD).is_err());
+    assert!(crate::SendComboBase::new_named(crate::SendKey::Enter).is_ok());
+    // Function bases are exactly F1..F12.
+    assert!(crate::SendComboBase::new_function(0).is_err());
+    assert!(crate::SendComboBase::new_function(12).is_ok());
+    assert!(crate::SendComboBase::new_function(13).is_err());
+    // Letter/digit bases are the physical ASCII identities.
+    assert!(crate::SendComboBase::new_letter(b'a').is_ok());
+    assert!(crate::SendComboBase::new_letter(b'A').is_err());
+    assert!(crate::SendComboBase::new_digit(b'0').is_ok());
+    assert!(crate::SendComboBase::new_digit(b'/').is_err());
+
+    // Wire-level: reserved modifier bits, a modifier-only combo, a named
+    // ctrl-c base, and nonzero reserved bytes on insert/space all refuse.
+    let request = CapabilityNodeMessage::TerminalSendRequest(send_request(one_record(
+        crate::SendRecord::Combo {
+            modifiers: crate::SendModifiers::new(true, false, false)?,
+            base: crate::SendComboBase::new_letter(b'x')?,
+        },
+    )));
+    let encoded = encode_message(&request)?;
+    let record_at = 12 + 105;
+    assert_eq!(encoded[record_at], 3);
+    assert_eq!(encoded[record_at + 1], 0b001);
+    assert_eq!(encoded[record_at + 2], 5);
+    assert_eq!(encoded[record_at + 3], b'x');
+
+    let mut reserved_bits = encoded.clone();
+    reserved_bits[record_at + 1] = 0b1000;
+    assert_eq!(
+        decode_message(&reserved_bits),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut modifier_only = encoded.clone();
+    modifier_only[record_at + 1] = 0;
+    assert_eq!(
+        decode_message(&modifier_only),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut named_ctrl_c = encoded.clone();
+    named_ctrl_c[record_at + 2] = 1;
+    named_ctrl_c[record_at + 3] = 14;
+    assert_eq!(
+        decode_message(&named_ctrl_c),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut insert_reserved = encoded.clone();
+    insert_reserved[record_at + 2] = 2;
+    insert_reserved[record_at + 3] = 7;
+    assert_eq!(
+        decode_message(&insert_reserved),
+        Err(ProtocolError::InvalidPayload)
+    );
+    Ok(())
+}
+
+#[test]
+fn send_bytes_and_paste_bounds_hold_at_the_wire() -> Result<(), Box<dyn std::error::Error>> {
+    assert!(crate::SendBytes::new(Vec::new()).is_err());
+    assert!(crate::SendBytes::new(vec![0; crate::MAXIMUM_SEND_BYTES_BYTES]).is_ok());
+    assert!(crate::SendBytes::new(vec![0; crate::MAXIMUM_SEND_BYTES_BYTES + 1]).is_err());
+    assert!(crate::SendPasteContent::new(Vec::new()).is_err());
+    assert!(
+        crate::SendPasteContent::new(vec![0; crate::MAXIMUM_SEND_PASTE_BYTES]).is_ok()
+    );
+    assert!(
+        crate::SendPasteContent::new(vec![0; crate::MAXIMUM_SEND_PASTE_BYTES + 1]).is_err()
+    );
+
+    // A maximum bytes record stays inside the declared record-body bound and
+    // round-trips: this is the 1MiB frame-overhead proof.
+    let request = CapabilityNodeMessage::TerminalSendRequest(send_request(one_record(
+        crate::SendRecord::Bytes {
+            bytes: crate::SendBytes::new(vec![0x5a; crate::MAXIMUM_SEND_BYTES_BYTES])?,
+        },
+    )));
+    let encoded = encode_message(&request)?;
+    assert_eq!(encoded.len(), 12 + 105 + 5 + crate::MAXIMUM_SEND_BYTES_BYTES);
+    assert_eq!(decode_message(&encoded)?, request);
+    Ok(())
+}
+
+#[test]
 fn send_result_golden_and_outcome_axes() -> Result<(), Box<dyn std::error::Error>> {
     let accepted = CapabilityNodeMessage::TerminalSendResult(crate::TerminalSendResult::new(
         OperationId::from_bytes([31; 16])?,
         crate::TerminalSendOutcome::Accepted {
-            accepted_bytes: crate::SendAcceptedBytes::new(2)?,
+            progress: crate::SendProgress::new(2, 2, 5)?,
             cleanup: crate::SendCleanupStatus::Confirmed,
         },
     )?);
     let mut expected = Vec::from(*b"OBCN");
     expected.extend_from_slice(&PROTOCOL_VERSION.to_be_bytes());
-    expected.extend_from_slice(&23_u16.to_be_bytes());
+    expected.extend_from_slice(&29_u16.to_be_bytes());
     expected.push(14);
     expected.extend_from_slice(&[31; 16]);
     expected.push(3);
-    expected.extend_from_slice(&2_u32.to_be_bytes());
+    expected.push(2);
+    expected.push(2);
+    expected.extend_from_slice(&5_u64.to_be_bytes());
     expected.push(2);
     assert_eq!(encode_message(&accepted)?, expected);
-    assert_eq!(expected.len(), 31);
+    assert_eq!(expected.len(), 8 + 29);
     assert_eq!(decode_message(&expected)?, accepted);
 
+    // A key press admitted with zero encoded bytes is still confirmed.
     let zero_key_press = CapabilityNodeMessage::TerminalSendResult(crate::TerminalSendResult::new(
         OperationId::from_bytes([31; 16])?,
         crate::TerminalSendOutcome::Accepted {
-            accepted_bytes: crate::SendAcceptedBytes::new(0)?,
+            progress: crate::SendProgress::new(1, 1, 0)?,
             cleanup: crate::SendCleanupStatus::Unconfirmed,
         },
     )?);
@@ -1479,17 +1717,26 @@ fn send_result_golden_and_outcome_axes() -> Result<(), Box<dyn std::error::Error
     for outcome in [
         crate::TerminalSendOutcome::Unavailable {
             reason: crate::SendUnavailable::HostUnavailable,
+            progress: crate::SendProgress::none(),
             cleanup: crate::SendCleanupStatus::NotNeeded,
+        },
+        crate::TerminalSendOutcome::Unavailable {
+            reason: crate::SendUnavailable::InputBudgetExhausted,
+            progress: crate::SendProgress::stopped(3, 17),
+            cleanup: crate::SendCleanupStatus::Confirmed,
         },
         crate::TerminalSendOutcome::Rejected {
             reason: crate::SendRejection::WrongWorker,
+            progress: crate::SendProgress::none(),
             cleanup: crate::SendCleanupStatus::NotNeeded,
         },
         crate::TerminalSendOutcome::Rejected {
             reason: crate::SendRejection::HostInputBackpressure,
+            progress: crate::SendProgress::stopped(1, 9),
             cleanup: crate::SendCleanupStatus::Unconfirmed,
         },
         crate::TerminalSendOutcome::OutcomeUnknown {
+            progress: crate::SendProgress::stopped(2, 4),
             cleanup: crate::SendCleanupStatus::Unconfirmed,
         },
     ] {
@@ -1509,6 +1756,7 @@ fn send_result_rejects_unknown_codes_and_impossible_pairs() -> Result<(), Box<dy
         OperationId::from_bytes([31; 16])?,
         crate::TerminalSendOutcome::Rejected {
             reason: crate::SendRejection::HostInputInvalid,
+            progress: crate::SendProgress::none(),
             cleanup: crate::SendCleanupStatus::Confirmed,
         },
     )?);
@@ -1529,35 +1777,51 @@ fn send_result_rejects_unknown_codes_and_impossible_pairs() -> Result<(), Box<dy
     );
 
     let mut unknown_cleanup = encoded.clone();
-    unknown_cleanup[8 + 19] = 4;
+    unknown_cleanup[8 + 29] = 4;
     assert_eq!(
         decode_message(&unknown_cleanup),
         Err(ProtocolError::InvalidPayload)
     );
 
     // `Accepted` with `not-needed` cleanup cannot arise from a real
-    // Attach → input → Detach sequence and is rejected on the wire.
+    // Attach → records → Detach sequence and is rejected on the wire.
     let mut accepted_no_attachment = Vec::from(*b"OBCN");
     accepted_no_attachment.extend_from_slice(&PROTOCOL_VERSION.to_be_bytes());
-    accepted_no_attachment.extend_from_slice(&22_u16.to_be_bytes());
+    accepted_no_attachment.extend_from_slice(&28_u16.to_be_bytes());
     accepted_no_attachment.push(14);
     accepted_no_attachment.extend_from_slice(&[31; 16]);
     accepted_no_attachment.push(3);
-    accepted_no_attachment.extend_from_slice(&5_u32.to_be_bytes());
+    accepted_no_attachment.push(1);
+    accepted_no_attachment.push(1);
+    accepted_no_attachment.extend_from_slice(&0_u64.to_be_bytes());
     accepted_no_attachment.push(1);
     assert_eq!(
         decode_message(&accepted_no_attachment),
         Err(ProtocolError::InvalidPayload)
     );
 
+    // `OutcomeUnknown` with confirmed cleanup is impossible.
     let mut unknown_confirmed = encoded.clone();
     unknown_confirmed[8 + 17] = 4;
-    unknown_confirmed[8 + 18] = 2;
-    let mut unknown_confirmed_frame = unknown_confirmed[..8 + 19].to_vec();
-    let unknown_confirmed_length = u16::try_from(unknown_confirmed_frame.len() - 8)?;
-    unknown_confirmed_frame[6..8].copy_from_slice(&unknown_confirmed_length.to_be_bytes());
+    unknown_confirmed[8 + 18] = 0;
+    unknown_confirmed[8 + 19] = 0;
+    unknown_confirmed.truncate(8 + 20 + 8 + 1);
+    unknown_confirmed[8 + 20..8 + 28].copy_from_slice(&0_u64.to_be_bytes());
+    unknown_confirmed[8 + 28] = 2;
+    let len = u16::try_from(unknown_confirmed.len() - 8)?;
+    unknown_confirmed[6..8].copy_from_slice(&len.to_be_bytes());
     assert_eq!(
-        decode_message(&unknown_confirmed_frame),
+        decode_message(&unknown_confirmed),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    // A progress whose confirmed prefix exceeds the stopped index is
+    // contradictory and rejected on the wire.
+    let mut inverted = encoded.clone();
+    inverted[8 + 19] = 3;
+    inverted[8 + 20] = 1;
+    assert_eq!(
+        decode_message(&inverted),
         Err(ProtocolError::InvalidPayload)
     );
 
@@ -1570,16 +1834,20 @@ fn send_result_rejects_unknown_codes_and_impossible_pairs() -> Result<(), Box<dy
         Err(ProtocolError::InvalidPayload)
     );
 
-    let mut oversized_accepted = Vec::from(*b"OBCN");
-    oversized_accepted.extend_from_slice(&PROTOCOL_VERSION.to_be_bytes());
-    oversized_accepted.extend_from_slice(&22_u16.to_be_bytes());
-    oversized_accepted.push(14);
-    oversized_accepted.extend_from_slice(&[31; 16]);
-    oversized_accepted.push(3);
-    oversized_accepted.extend_from_slice(&(crate::MAXIMUM_SEND_ACCEPTED_BYTES + 1).to_be_bytes());
-    oversized_accepted.push(2);
+    // The summed encoded byte bound rejects an impossible total.
+    let mut oversized_total = Vec::from(*b"OBCN");
+    oversized_total.extend_from_slice(&PROTOCOL_VERSION.to_be_bytes());
+    oversized_total.extend_from_slice(&28_u16.to_be_bytes());
+    oversized_total.push(14);
+    oversized_total.extend_from_slice(&[31; 16]);
+    oversized_total.push(3);
+    oversized_total.push(1);
+    oversized_total.push(1);
+    oversized_total
+        .extend_from_slice(&(crate::MAXIMUM_SEND_ACCEPTED_ENCODED_BYTES + 1).to_be_bytes());
+    oversized_total.push(2);
     assert_eq!(
-        decode_message(&oversized_accepted),
+        decode_message(&oversized_total),
         Err(ProtocolError::InvalidPayload)
     );
 
@@ -1587,7 +1855,7 @@ fn send_result_rejects_unknown_codes_and_impossible_pairs() -> Result<(), Box<dy
         crate::TerminalSendResult::new(
             OperationId::from_bytes([31; 16])?,
             crate::TerminalSendOutcome::Accepted {
-                accepted_bytes: crate::SendAcceptedBytes::new(0)?,
+                progress: crate::SendProgress::new(1, 1, 0)?,
                 cleanup: crate::SendCleanupStatus::NotNeeded,
             },
         )
@@ -1597,10 +1865,12 @@ fn send_result_rejects_unknown_codes_and_impossible_pairs() -> Result<(), Box<dy
         crate::TerminalSendResult::new(
             OperationId::from_bytes([31; 16])?,
             crate::TerminalSendOutcome::OutcomeUnknown {
+                progress: crate::SendProgress::none(),
                 cleanup: crate::SendCleanupStatus::Confirmed,
             },
         )
         .is_err()
     );
+    assert!(crate::SendProgress::new(2, 1, 0).is_err());
     Ok(())
 }

@@ -35,7 +35,7 @@ fn request_payload(action: &[u8]) -> Vec<u8> {
 
 fn frame(payload: &[u8]) -> Vec<u8> {
     [
-        b"OBCN\0\x01".as_slice(),
+        b"OBCN\0\x02".as_slice(),
         &u16::try_from(payload.len()).unwrap().to_be_bytes(),
         payload,
     ]

@@ -6,17 +6,19 @@ use crate::worker_obcn_carrier::create_worker_carrier;
 use crate::worker_registry::{WorkerAdmission, WorkerRegistry};
 use orchbee_capability_node_protocol::{
     CapabilityNodeMessage, HostCreationId, HostEpoch, HostLaunchAccepted, HostLaunchState,
-    HostTerminalId, HostTerminalIdentity, SendAcceptedBytes as WorkerAcceptedBytes,
-    SendCleanupStatus as WorkerCleanup, SendRejection as WorkerRejection, SendText as WorkerText,
+    HostTerminalId, HostTerminalIdentity, SendCleanupStatus as WorkerCleanup,
+    SendProgress as WorkerProgress, SendRecord as WorkerRecord,
+    SendRecords as WorkerRecords, SendRejection as WorkerRejection, SendText as WorkerText,
+    SendTextInput as WorkerTextInput,
     SendUnavailable as WorkerUnavailable, TerminalLaunchMode, TerminalLaunchOutcome,
     TerminalLaunchResult, TerminalSendOutcome as WorkerOutcome,
-    TerminalSendPayload as WorkerPayload, TerminalSendRequest as WorkerRequest,
-    TerminalSendResult as WorkerResult, WorkerGeneration, read_message, write_message,
+    TerminalSendRequest as WorkerRequest, TerminalSendResult as WorkerResult,
+    WorkerGeneration, read_message, write_message,
 };
 use orchbee_client_server_protocol::{
-    ClientMessage, RequestId, SendKey, SendText, ServerMessage, SiteId as ClientSiteId,
-    TerminalId as ClientTerminalId, TerminalSendPayload, TerminalSendRequest,
-    WorkerId as ClientWorkerId,
+    ClientMessage, RequestId, SendKey, SendProgress, SendRecord, SendRecords, SendText,
+    SendTextInput, ServerMessage, SiteId as ClientSiteId, TerminalId as ClientTerminalId,
+    TerminalSendRequest, WorkerId as ClientWorkerId,
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, SiteId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
@@ -327,7 +329,7 @@ fn read_snapshot(
 fn send_request(
     fixture: &Fixture,
     index: u8,
-    payload: TerminalSendPayload,
+    records: SendRecords,
 ) -> TestResult<TerminalSendRequest> {
     let (site_id, worker_id, terminal_id) = fixture.selector(index)?;
     Ok(TerminalSendRequest::new(
@@ -335,7 +337,7 @@ fn send_request(
         site_id,
         worker_id,
         terminal_id,
-        payload,
+        records,
     ))
 }
 
@@ -346,6 +348,17 @@ fn send(service: &LocalTerminalService, request: TerminalSendRequest) -> Termina
         panic!("send must produce a send result")
     };
     result
+}
+
+fn one_text(value: &str, enter: bool) -> TestResult<SendRecords> {
+    Ok(SendRecords::new(vec![SendRecord::Text(SendTextInput::new(
+        SendText::new(value.to_owned())?,
+        enter,
+    )?)])?)
+}
+
+fn one_key(key: SendKey) -> TestResult<SendRecords> {
+    Ok(SendRecords::new(vec![SendRecord::Key { key }])?)
 }
 
 fn hex_id(value: [u8; 16]) -> String {
@@ -359,12 +372,12 @@ fn send_to_started_terminal_delivers_accepted_with_the_pinned_target() -> TestRe
     let request = send_request(
         &fixture,
         0,
-        TerminalSendPayload::new_text(SendText::new("echo hi".to_owned())?, true)?,
+        one_text("echo hi", true)?,
     )?;
     thread::scope(|scope| -> TestResult {
         let execution = scope.spawn(|| send(&fixture.service, request));
         let delivered = fixture.reply(WorkerOutcome::Accepted {
-            accepted_bytes: WorkerAcceptedBytes::new(8)?,
+            progress: WorkerProgress::complete(1, 8),
             cleanup: WorkerCleanup::Confirmed,
         })?;
         let result = execution.join().map_err(|_| "execute panicked")?;
@@ -385,17 +398,17 @@ fn send_to_started_terminal_delivers_accepted_with_the_pinned_target() -> TestRe
         );
         assert_ne!(delivered.request_id, delivered.attachment_id);
         assert_eq!(
-            delivered.payload,
-            WorkerPayload::new_text(WorkerText::new("echo hi".to_owned())?, true)?
+            delivered.records,
+            WorkerRecords::new(vec![WorkerRecord::Text(WorkerTextInput::new(
+                WorkerText::new("echo hi".to_owned())?,
+                true,
+            )?)])?
         );
-        let Outcome::Accepted {
-            accepted_bytes,
-            cleanup,
-        } = result.outcome()
-        else {
+        let Outcome::Accepted { progress, cleanup } = result.outcome() else {
             panic!("accepted outcome")
         };
-        assert_eq!(accepted_bytes.get(), 8);
+        assert_eq!(progress.records_accepted(), 1);
+        assert_eq!(progress.accepted_encoded_bytes(), 8);
         assert_eq!(*cleanup, Cleanup::Confirmed);
         let target = result.target().expect("pinned send target");
         assert_eq!(target.worker_generation(), NonZeroU64::MIN);
@@ -409,19 +422,25 @@ fn send_to_started_terminal_delivers_accepted_with_the_pinned_target() -> TestRe
 fn send_key_payload_maps_to_the_closed_key_set() -> TestResult {
     let fixture = Fixture::new()?;
     fixture.add_terminal(0, true)?;
-    let request = send_request(&fixture, 0, TerminalSendPayload::new_key(SendKey::CtrlC))?;
+    let request = send_request(&fixture, 0, one_key(SendKey::CtrlC)?)?;
     thread::scope(|scope| -> TestResult {
         let execution = scope.spawn(|| send(&fixture.service, request));
         let delivered = fixture.reply(WorkerOutcome::Rejected {
+            progress: WorkerProgress::none(),
             reason: WorkerRejection::HostRejected,
             cleanup: WorkerCleanup::Confirmed,
         })?;
         let result = execution.join().map_err(|_| "execute panicked")?;
         assert_eq!(
-            delivered.payload,
-            WorkerPayload::new_key(orchbee_capability_node_protocol::SendKey::CtrlC)
+            delivered.records,
+            WorkerRecords::new(vec![WorkerRecord::Key {
+                key: orchbee_capability_node_protocol::SendKey::CtrlC,
+            }])?
         );
-        let Outcome::Rejected { reason, cleanup } = result.outcome() else {
+        let Outcome::Rejected {
+            reason, cleanup, ..
+        } = result.outcome()
+        else {
             panic!("rejected outcome")
         };
         assert_eq!(*reason, Rejected::HostRejected);
@@ -438,25 +457,22 @@ fn send_accepted_with_unconfirmed_cleanup_preserves_both_axes() -> TestResult {
     let request = send_request(
         &fixture,
         0,
-        TerminalSendPayload::new_text(SendText::new("x".to_owned())?, false)?,
+        one_text("x", false)?,
     )?;
     thread::scope(|scope| -> TestResult {
         let execution = scope.spawn(|| send(&fixture.service, request));
         fixture.reply(WorkerOutcome::Accepted {
-            accepted_bytes: WorkerAcceptedBytes::new(0)?,
+            progress: WorkerProgress::complete(1, 0),
             cleanup: WorkerCleanup::Unconfirmed,
         })?;
         let result = execution.join().map_err(|_| "execute panicked")?;
-        let Outcome::Accepted {
-            accepted_bytes,
-            cleanup,
-        } = result.outcome()
-        else {
+        let Outcome::Accepted { progress, cleanup } = result.outcome() else {
             panic!("accepted outcome")
         };
         // A legal zero-byte admission is echoed verbatim; the attachment is
         // reported unconfirmed rather than released or unsent.
-        assert_eq!(accepted_bytes.get(), 0);
+        assert_eq!(progress.records_accepted(), 1);
+        assert_eq!(progress.accepted_encoded_bytes(), 0);
         assert_eq!(*cleanup, Cleanup::Unconfirmed);
         assert!(result.target().is_some());
         Ok(())
@@ -470,54 +486,64 @@ fn send_worker_unavailable_and_unknown_outcomes_keep_the_pinned_target() -> Test
     for (worker_outcome, expected) in [
         (
             WorkerOutcome::Unavailable {
+            progress: WorkerProgress::none(),
                 reason: WorkerUnavailable::HostUnavailable,
                 cleanup: WorkerCleanup::NotNeeded,
             },
             Outcome::Unavailable {
+            progress: SendProgress::none(),
                 reason: Unavailable::HostUnavailable,
                 cleanup: Cleanup::NotNeeded,
             },
         ),
         (
             WorkerOutcome::Unavailable {
+            progress: WorkerProgress::none(),
                 reason: WorkerUnavailable::HostProtocolFault,
                 cleanup: WorkerCleanup::NotNeeded,
             },
             Outcome::Unavailable {
+            progress: SendProgress::none(),
                 reason: Unavailable::HostProtocolFault,
                 cleanup: Cleanup::NotNeeded,
             },
         ),
         (
             WorkerOutcome::OutcomeUnknown {
+            progress: WorkerProgress::none(),
                 cleanup: WorkerCleanup::Unconfirmed,
             },
             Outcome::OutcomeUnknown {
+            progress: SendProgress::none(),
                 cleanup: Cleanup::Unconfirmed,
             },
         ),
         (
             WorkerOutcome::Rejected {
+            progress: WorkerProgress::none(),
                 reason: WorkerRejection::WrongWorker,
                 cleanup: WorkerCleanup::NotNeeded,
             },
             Outcome::Unavailable {
+            progress: SendProgress::none(),
                 reason: Unavailable::WorkerUnavailable,
                 cleanup: Cleanup::NotNeeded,
             },
         ),
         (
             WorkerOutcome::Rejected {
+            progress: WorkerProgress::none(),
                 reason: WorkerRejection::StaleWorkerGeneration,
                 cleanup: WorkerCleanup::Confirmed,
             },
             Outcome::Rejected {
+            progress: SendProgress::none(),
                 reason: Rejected::StaleWorkerGeneration,
                 cleanup: Cleanup::Confirmed,
             },
         ),
     ] {
-        let request = send_request(&fixture, 0, TerminalSendPayload::new_key(SendKey::Enter))?;
+        let request = send_request(&fixture, 0, one_key(SendKey::Enter)?)?;
         thread::scope(|scope| -> TestResult {
             let execution = scope.spawn(|| send(&fixture.service, request));
             fixture.reply(worker_outcome)?;
@@ -538,12 +564,13 @@ fn send_without_a_matching_binding_is_rejected_before_admission() -> TestResult 
         ClientSiteId::parse(&format!("{:032x}", 1))?,
         ClientWorkerId::parse(&format!("{:032x}", u128::from_be_bytes(WORKER_BYTES)))?,
         ClientTerminalId::parse(&format!("{:032x}", 99))?,
-        TerminalSendPayload::new_key(SendKey::Enter),
+        one_key(SendKey::Enter)?,
     );
     let result = send(&fixture.service, request);
     assert_eq!(
         result.outcome(),
         &Outcome::Rejected {
+            progress: SendProgress::none(),
             reason: Rejected::TerminalUnavailable,
             cleanup: Cleanup::NotNeeded,
         }
@@ -556,11 +583,12 @@ fn send_without_a_matching_binding_is_rejected_before_admission() -> TestResult 
 fn send_to_awaiting_start_is_rejected_before_admission() -> TestResult {
     let fixture = Fixture::new()?;
     fixture.add_terminal(0, false)?;
-    let request = send_request(&fixture, 0, TerminalSendPayload::new_key(SendKey::Enter))?;
+    let request = send_request(&fixture, 0, one_key(SendKey::Enter)?)?;
     let result = send(&fixture.service, request);
     assert_eq!(
         result.outcome(),
         &Outcome::Rejected {
+            progress: SendProgress::none(),
             reason: Rejected::TerminalUnavailable,
             cleanup: Cleanup::NotNeeded,
         }
@@ -574,11 +602,12 @@ fn send_to_a_fenced_binding_is_rejected_before_admission() -> TestResult {
     let fixture = Fixture::new()?;
     let mut close = fixture.add_terminal(0, true)?;
     fixture.fence(&mut close)?;
-    let request = send_request(&fixture, 0, TerminalSendPayload::new_key(SendKey::Enter))?;
+    let request = send_request(&fixture, 0, one_key(SendKey::Enter)?)?;
     let result = send(&fixture.service, request);
     assert_eq!(
         result.outcome(),
         &Outcome::Rejected {
+            progress: SendProgress::none(),
             reason: Rejected::TerminalUnavailable,
             cleanup: Cleanup::NotNeeded,
         }
@@ -591,12 +620,13 @@ fn send_to_a_fenced_binding_is_rejected_before_admission() -> TestResult {
 fn send_after_worker_replacement_reports_stale_runtime() -> TestResult {
     let fixture = Fixture::new()?;
     fixture.add_terminal(0, true)?;
-    let request = send_request(&fixture, 0, TerminalSendPayload::new_key(SendKey::Enter))?;
+    let request = send_request(&fixture, 0, one_key(SendKey::Enter)?)?;
     fixture.replace_worker()?;
     let result = send(&fixture.service, request);
     assert_eq!(
         result.outcome(),
         &Outcome::Unavailable {
+            progress: SendProgress::none(),
             reason: Unavailable::TerminalRuntimeUnavailable,
             cleanup: Cleanup::NotNeeded,
         }
@@ -609,7 +639,7 @@ fn send_after_worker_replacement_reports_stale_runtime() -> TestResult {
 fn send_response_loss_after_delivery_reports_outcome_unknown() -> TestResult {
     let fixture = Fixture::new()?;
     fixture.add_terminal(0, true)?;
-    let request = send_request(&fixture, 0, TerminalSendPayload::new_key(SendKey::Enter))?;
+    let request = send_request(&fixture, 0, one_key(SendKey::Enter)?)?;
     thread::scope(|scope| -> TestResult {
         let execution = scope.spawn(|| send(&fixture.service, request));
         let delivered = fixture.requests.lock().map_err(|_| "poisoned")?.recv()?;
@@ -621,6 +651,7 @@ fn send_response_loss_after_delivery_reports_outcome_unknown() -> TestResult {
         assert_eq!(
             result.outcome(),
             &Outcome::OutcomeUnknown {
+            progress: SendProgress::none(),
                 cleanup: Cleanup::Unconfirmed,
             }
         );
@@ -633,7 +664,7 @@ fn send_response_loss_after_delivery_reports_outcome_unknown() -> TestResult {
 fn send_on_a_dead_carrier_is_unavailable_and_not_reused() -> TestResult {
     let fixture = Fixture::new()?;
     fixture.add_terminal(0, true)?;
-    let request = send_request(&fixture, 0, TerminalSendPayload::new_key(SendKey::Enter))?;
+    let request = send_request(&fixture, 0, one_key(SendKey::Enter)?)?;
     fixture.kill_carrier()?;
     // Once the carrier is retired the registry stops serving a handle, so each
     // send resolves to the same unavailable outcome instead of reusing a dead
@@ -643,6 +674,7 @@ fn send_on_a_dead_carrier_is_unavailable_and_not_reused() -> TestResult {
         assert_eq!(
             result.outcome(),
             &Outcome::Unavailable {
+            progress: SendProgress::none(),
                 reason: Unavailable::TerminalRuntimeUnavailable,
                 cleanup: Cleanup::NotNeeded,
             }

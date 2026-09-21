@@ -42,7 +42,7 @@ const TERMINAL_LAUNCH_RESULT_KIND: u8 = 2;
 const AUTHORIZED_TERMINAL_START_KIND: u8 = 3;
 const TERMINAL_START_RESULT_KIND: u8 = 4;
 
-pub const PROTOCOL_VERSION: u16 = 1;
+pub const PROTOCOL_VERSION: u16 = 2;
 pub const MAXIMUM_FRAME_PAYLOAD_BYTES: usize = 8 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -80,6 +80,9 @@ pub fn encode_message(message: &CapabilityNodeMessage) -> Result<Vec<u8>, Protoc
     {
         return control::encode_paste_record(request);
     }
+    if let CapabilityNodeMessage::TerminalSendRequest(request) = message {
+        return send::encode_request_record(request);
+    }
     let payload = encode_payload(message);
     if payload.len() > MAXIMUM_FRAME_PAYLOAD_BYTES {
         return Err(ProtocolError::PayloadTooLarge {
@@ -107,6 +110,10 @@ pub fn decode_message(frame: &[u8]) -> Result<CapabilityNodeMessage, ProtocolErr
     if frame.starts_with(b"OBNQ") {
         return control::decode_paste_record(frame);
     }
+    if frame.starts_with(b"OBNS") {
+        return send::decode_request_record(frame)
+            .map(CapabilityNodeMessage::TerminalSendRequest);
+    }
     let header: &[u8; FRAME_HEADER_BYTES] = frame
         .get(..FRAME_HEADER_BYTES)
         .ok_or(ProtocolError::InvalidPayload)?
@@ -130,6 +137,10 @@ pub fn read_message(reader: &mut impl Read) -> Result<CapabilityNodeMessage, Rea
     }
     if header.starts_with(b"OBNQ") {
         return control::read_paste_record(reader, header);
+    }
+    if header.starts_with(b"OBNS") {
+        return send::read_request_record(reader, header)
+            .map(CapabilityNodeMessage::TerminalSendRequest);
     }
     let payload_length = decode_header(&header)?;
     let mut payload = vec![0_u8; payload_length];
@@ -167,8 +178,8 @@ fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
         CapabilityNodeMessage::TerminalStartResult(value) => encode_terminal_start_result(*value),
         CapabilityNodeMessage::TerminalViewerRequest(value) => viewer::encode_request(*value),
         CapabilityNodeMessage::TerminalViewerResult(value) => viewer::encode_result(value),
-        CapabilityNodeMessage::TerminalSendRequest(value) => {
-            send::encode_request(value).expect("bounded send request")
+        CapabilityNodeMessage::TerminalSendRequest(_) => {
+            unreachable!("send requests ride the dedicated OBNS record frame")
         }
         CapabilityNodeMessage::TerminalSendResult(value) => {
             send::encode_result(value).expect("validated send result")
@@ -222,7 +233,6 @@ fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError
             viewer::decode_request(payload).map(CapabilityNodeMessage::TerminalViewerRequest)
         }
         Some(6) => viewer::decode_result(payload).map(CapabilityNodeMessage::TerminalViewerResult),
-        Some(13) => send::decode_request(payload).map(CapabilityNodeMessage::TerminalSendRequest),
         Some(14) => send::decode_result(payload).map(CapabilityNodeMessage::TerminalSendResult),
         Some(15) => {
             worktree_job::decode_request(payload).map(CapabilityNodeMessage::WorktreeJobRequest)
@@ -699,6 +709,12 @@ struct PayloadReader<'a> {
 }
 
 impl<'a> PayloadReader<'a> {
+    /// A reader over a whole record body that carries no leading kind byte —
+    /// the dedicated record frames (send request) dispatch on magic instead.
+    fn whole(bytes: &'a [u8]) -> Self {
+        Self { bytes, offset: 0 }
+    }
+
     fn after_kind(bytes: &'a [u8], expected_kind: u8) -> Result<Self, ProtocolError> {
         if bytes.first().copied() != Some(expected_kind) {
             return Err(ProtocolError::InvalidPayload);

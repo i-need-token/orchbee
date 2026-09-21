@@ -23,9 +23,9 @@ use std::{
 };
 
 use orchbee_client_server_protocol::{
-    ClientMessage, HostEpoch, HostTerminalId, SendAcceptedBytes, SendCleanupStatus, SendKey,
-    SendRejectedReason, SendTarget, SendUnavailableReason, ServerMessage, TerminalSendOutcome,
-    TerminalSendPayload, TerminalSendResult, read_client_message, write_server_message,
+    ClientMessage, HostEpoch, HostTerminalId, SendCleanupStatus, SendKey, SendProgress,
+    SendRecord, SendRejectedReason, SendTarget, SendUnavailableReason, ServerMessage,
+    TerminalSendOutcome, TerminalSendResult, read_client_message, write_server_message,
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::{
@@ -384,8 +384,8 @@ fn terminal_send_text_with_enter_lands_one_record() -> TestResult {
         let request = read_send(&stream);
         assert_send_base(&request, snapshot_request.as_str());
         *seen.lock().unwrap() = request.request_id().as_str().to_owned();
-        let TerminalSendPayload::Text(input) = request.payload() else {
-            panic!("expected text payload, got {:?}", request.payload())
+        let [SendRecord::Text(input)] = request.records().as_slice() else {
+            panic!("expected a single text record, got {:?}", request.records())
         };
         assert_eq!(input.text().as_str(), "cargo test");
         assert!(input.enter(), "--enter folds the CR into the same record");
@@ -396,7 +396,7 @@ fn terminal_send_text_with_enter_lands_one_record() -> TestResult {
                 request.request_id().clone(),
                 Some(target()),
                 TerminalSendOutcome::Accepted {
-                    accepted_bytes: SendAcceptedBytes::new(input.record_bytes() as u32).unwrap(),
+                    progress: SendProgress::complete(1, input.record_bytes() as u64),
                     cleanup: SendCleanupStatus::Confirmed,
                 },
             )
@@ -448,7 +448,7 @@ fn terminal_send_text_with_enter_lands_one_record() -> TestResult {
     assert_eq!(result["recordBytes"], "cargo test".len() + 1);
     assert_eq!(result["inputStatus"], "accepted");
     assert_eq!(result["cleanupStatus"], "confirmed");
-    assert_eq!(result["acceptedBytes"], "cargo test".len() + 1);
+    assert_eq!(result["acceptedEncodedBytes"], "cargo test".len() + 1);
     // The physical target is the Server-pinned identity verbatim.
     assert_eq!(result["target"]["workerGeneration"], GENERATION.to_string());
     assert_eq!(result["target"]["hostEpoch"], HOST_EPOCH);
@@ -470,8 +470,8 @@ fn terminal_send_key_submits_semantic_key() -> TestResult {
         let snapshot_request = admit_and_serve_snapshot(&stream);
         let request = read_send(&stream);
         assert_send_base(&request, snapshot_request.as_str());
-        let TerminalSendPayload::Key { key } = request.payload() else {
-            panic!("expected key payload, got {:?}", request.payload())
+        let [SendRecord::Key { key }] = request.records().as_slice() else {
+            panic!("expected a single key record, got {:?}", request.records())
         };
         assert_eq!(*key, SendKey::CtrlC);
         send_result(
@@ -480,7 +480,7 @@ fn terminal_send_key_submits_semantic_key() -> TestResult {
                 request.request_id().clone(),
                 Some(target()),
                 TerminalSendOutcome::Accepted {
-                    accepted_bytes: SendAcceptedBytes::new(1).unwrap(),
+                    progress: SendProgress::complete(1, 1),
                     cleanup: SendCleanupStatus::Unconfirmed,
                 },
             )
@@ -511,10 +511,10 @@ fn terminal_send_key_submits_semantic_key() -> TestResult {
     let document = envelope(&output);
     let result = &document["result"];
     assert_eq!(result["payloadKind"], "key");
-    assert_eq!(result["key"], "ctrl-c");
+    assert_eq!(result["records"], 1);
     assert_eq!(result["inputStatus"], "accepted");
     assert_eq!(result["cleanupStatus"], "unconfirmed");
-    assert_eq!(result["acceptedBytes"], 1);
+    assert_eq!(result["acceptedEncodedBytes"], 1);
     assert!(result.get("recordBytes").is_none());
     assert!(compiled_schema(&base, "orchbee.terminal.send").is_valid(&document));
     Ok(())
@@ -535,6 +535,7 @@ fn terminal_send_rejected_reports_typed_refusal() -> TestResult {
                 Some(target()),
                 TerminalSendOutcome::Rejected {
                     reason: SendRejectedReason::HostInputBackpressure,
+                    progress: SendProgress::none(),
                     cleanup: SendCleanupStatus::Confirmed,
                 },
             )
@@ -575,6 +576,7 @@ fn terminal_send_unavailable_reports_not_submitted() -> TestResult {
                 None,
                 TerminalSendOutcome::Unavailable {
                     reason: SendUnavailableReason::WorkerUnavailable,
+                    progress: SendProgress::none(),
                     cleanup: SendCleanupStatus::NotNeeded,
                 },
             )
@@ -617,6 +619,7 @@ fn terminal_send_host_protocol_fault_exits_transport() -> TestResult {
                 None,
                 TerminalSendOutcome::Unavailable {
                     reason: SendUnavailableReason::HostProtocolFault,
+                    progress: SendProgress::none(),
                     cleanup: SendCleanupStatus::NotNeeded,
                 },
             )
@@ -655,6 +658,7 @@ fn terminal_send_unknown_outcome_never_retries() -> TestResult {
                 request.request_id().clone(),
                 Some(target()),
                 TerminalSendOutcome::OutcomeUnknown {
+                    progress: SendProgress::none(),
                     cleanup: SendCleanupStatus::Unconfirmed,
                 },
             )
@@ -744,7 +748,7 @@ fn terminal_send_text_format_renders_result_fields() -> TestResult {
                 request.request_id().clone(),
                 Some(target()),
                 TerminalSendOutcome::Accepted {
-                    accepted_bytes: SendAcceptedBytes::new(2).unwrap(),
+                    progress: SendProgress::complete(1, 2),
                     cleanup: SendCleanupStatus::Confirmed,
                 },
             )
@@ -766,7 +770,10 @@ fn terminal_send_text_format_renders_result_fields() -> TestResult {
         "recordBytes",
         "inputStatus",
         "cleanupStatus",
-        "acceptedBytes",
+        "acceptedEncodedBytes",
+        "records",
+        "recordsAccepted",
+        "firstStoppedRecord",
         "target",
         "workerGeneration",
         "hostEpoch",
@@ -931,8 +938,8 @@ fn serve_send(
         let snapshot_request = admit_and_serve_snapshot(&stream);
         let request = read_send(&stream);
         assert_send_base(&request, snapshot_request.as_str());
-        let TerminalSendPayload::Text(input) = request.payload() else {
-            panic!("expected text payload, got {:?}", request.payload())
+        let [SendRecord::Text(input)] = request.records().as_slice() else {
+            panic!("expected a single text record, got {:?}", request.records())
         };
         assert_eq!(input.text().as_str(), expected_text);
         assert_eq!(input.enter(), enter);
@@ -943,7 +950,42 @@ fn serve_send(
                 request.request_id().clone(),
                 Some(target()),
                 TerminalSendOutcome::Accepted {
-                    accepted_bytes: SendAcceptedBytes::new(input.record_bytes() as u32).unwrap(),
+                    progress: SendProgress::complete(1, input.record_bytes() as u64),
+                    cleanup: SendCleanupStatus::Confirmed,
+                },
+            )
+            .unwrap(),
+        );
+        expect_session_closed(&stream);
+    })
+}
+
+/// The same scripted exchange for content routed to an opaque `bytes`
+/// record: the wire payload is the literal bytes plus any folded CR.
+fn serve_bytes(
+    scope: &Path,
+    expected: Vec<u8>,
+    enter: bool,
+) -> thread::JoinHandle<()> {
+    spawn_peer(scope, move |stream| {
+        let snapshot_request = admit_and_serve_snapshot(&stream);
+        let request = read_send(&stream);
+        assert_send_base(&request, snapshot_request.as_str());
+        let [SendRecord::Bytes { bytes }] = request.records().as_slice() else {
+            panic!("expected a single bytes record, got {:?}", request.records())
+        };
+        let mut expected_wire = expected.clone();
+        if enter {
+            expected_wire.push(b'\r');
+        }
+        assert_eq!(bytes.as_bytes(), expected_wire.as_slice());
+        send_result(
+            &stream,
+            TerminalSendResult::new(
+                request.request_id().clone(),
+                Some(target()),
+                TerminalSendOutcome::Accepted {
+                    progress: SendProgress::complete(1, bytes.as_bytes().len() as u64),
                     cleanup: SendCleanupStatus::Confirmed,
                 },
             )
@@ -1081,10 +1123,9 @@ fn terminal_send_source_failures_have_zero_runtime_effect() -> TestResult {
     listener
         .set_nonblocking(true)
         .expect("listener nonblocking");
-    let oversized = staged_file(&base, "big.txt", &vec![b'b'; 4097]);
-    let binary = staged_file(&base, "bin", &[0xff, 0xfe]);
+    let oversized = staged_file(&base, "big.txt", &vec![b'b'; 1024 * 1024 + 1]);
     let empty = staged_file(&base, "empty.txt", b"");
-    let cases: [(Vec<String>, &'static str); 5] = [
+    let cases: [(Vec<String>, &'static str); 4] = [
         (
             vec!["--file".into(), base.join("missing").display().to_string()],
             "missing file",
@@ -1092,10 +1133,6 @@ fn terminal_send_source_failures_have_zero_runtime_effect() -> TestResult {
         (
             vec!["--file".into(), oversized.display().to_string()],
             "oversize file",
-        ),
-        (
-            vec!["--file".into(), binary.display().to_string()],
-            "non-UTF-8 file",
         ),
         (
             vec!["--file".into(), empty.display().to_string()],
@@ -1383,9 +1420,9 @@ fn terminal_send_stdin_oversize_bounds_consumption() -> TestResult {
     listener
         .set_nonblocking(true)
         .expect("listener nonblocking");
-    // 8,192 bytes remain past the inherited offset: a buffered or
-    // unbounded reader would consume far beyond the 4,097-byte probe.
-    let path = staged_file(&base, "big-stdin", &vec![b'z'; 8196]);
+    // 1 MiB + 4 bytes remain past the inherited offset: a buffered or
+    // unbounded reader would consume far beyond the 1 MiB + 1 probe.
+    let path = staged_file(&base, "big-stdin", &vec![b'z'; 1024 * 1024 + 8]);
     let mut file = fs::File::open(&path).expect("open stdin file");
     file.seek(SeekFrom::Start(4)).expect("seek shared offset");
     let mut observer = file.try_clone().expect("same-description observer");
@@ -1405,7 +1442,7 @@ fn terminal_send_stdin_oversize_bounds_consumption() -> TestResult {
     assert_eq!(envelope(&output)["failure"]["kind"], "invalid-usage");
     let advanced = observer.stream_position().expect("shared offset") - 4;
     assert!(
-        advanced <= 4097,
+        advanced <= 1024 * 1024 + 1,
         "consumption must stop at the cap probe, advanced {advanced} bytes"
     );
     let flags_after =
@@ -1481,11 +1518,13 @@ fn terminal_send_file_utf8_multibyte_boundaries() -> TestResult {
         String::from_utf8_lossy(&output.stderr)
     );
     assert_eq!(envelope(&output)["result"]["recordBytes"], 4096);
-    // 4,095 ASCII bytes + one "é" = 4,097 bytes: valid UTF-8 whose last
-    // scalar straddles the bound — refused on bytes, never on decoding.
+    // 4,095 ASCII bytes + one "é" = 4,097 bytes: valid UTF-8 that crosses
+    // the text-record bound — routed to a literal bytes record, kept whole.
     let over = format!("{}é", "a".repeat(4095));
     assert_eq!(over.len(), 4097);
     let path = staged_file(&base, "m4097", over.as_bytes());
+    let bytes_bytes = over.len();
+    let peer = serve_bytes(&scope, over.clone().into_bytes(), false);
     let output = run(
         &base,
         &[
@@ -1498,13 +1537,16 @@ fn terminal_send_file_utf8_multibyte_boundaries() -> TestResult {
             "json",
         ],
     );
+    peer.join().expect("peer finished");
     assert_eq!(
         output.status.code(),
-        Some(2),
+        Some(0),
         "stderr={}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(envelope(&output)["failure"]["kind"], "invalid-usage");
+    let document = envelope(&output);
+    assert_eq!(document["result"]["payloadKind"], "bytes");
+    assert_eq!(document["result"]["recordBytes"], bytes_bytes);
     Ok(())
 }
 

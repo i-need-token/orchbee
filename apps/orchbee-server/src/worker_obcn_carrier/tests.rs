@@ -20,12 +20,13 @@ mod lifecycle;
 use orchbee_capability_node_protocol::{
     AbsoluteCwd, AuthorizedTerminalLaunch, AuthorizedTerminalStart, CapabilityNodeMessage,
     HostCreationId, HostEpoch, HostTerminalId, HostTerminalIdentity,
-    LeaseExpiresAtUnixMilliseconds, LeaseId, OperationId, SendAcceptedBytes, SendCleanupStatus,
-    SendKey, SendRejection, SendText, TerminalCwdValidationOutcome, TerminalCwdValidationRequest,
-    TerminalCwdValidationResult, TerminalFence, TerminalId, TerminalLaunchMode,
-    TerminalLaunchOutcome, TerminalLaunchRejection, TerminalLaunchResult,
-    TerminalOperationAuthorization, TerminalOperationLease, TerminalPixelGeometry,
-    TerminalSendOutcome, TerminalSendPayload, TerminalSendRequest, TerminalSendResult,
+    LeaseExpiresAtUnixMilliseconds, LeaseId, OperationId, SendCleanupStatus, SendKey,
+    SendProgress, SendRecord, SendRecords, SendRejection, SendText, SendTextInput,
+    TerminalCwdValidationOutcome, TerminalCwdValidationRequest, TerminalCwdValidationResult,
+    TerminalFence, TerminalId, TerminalLaunchMode, TerminalLaunchOutcome,
+    TerminalLaunchRejection, TerminalLaunchResult, TerminalOperationAuthorization,
+    TerminalOperationLease, TerminalPixelGeometry, TerminalSendOutcome, TerminalSendRequest,
+    TerminalSendResult,
     TerminalStartOutcome, TerminalStartRejection, TerminalStartResult, WorkerGeneration,
     WorkerId as CapabilityWorkerId, read_message, write_message,
 };
@@ -1612,12 +1613,23 @@ fn paste_results_validate_count_boundaries_and_exact_result_class() -> TestResul
     Ok(())
 }
 
+fn one_text(value: &str, enter: bool) -> TestResult<SendRecords> {
+    Ok(SendRecords::new(vec![SendRecord::Text(SendTextInput::new(
+        SendText::new(value.to_owned())?,
+        enter,
+    )?)])?)
+}
+
+fn one_key(key: SendKey) -> TestResult<SendRecords> {
+    Ok(SendRecords::new(vec![SendRecord::Key { key }])?)
+}
+
 fn send_request(
     operation: u8,
     attachment: u8,
     generation: u64,
     worker_id: WorkerId,
-    payload: TerminalSendPayload,
+    records: SendRecords,
 ) -> TestResult<TerminalSendRequest> {
     Ok(TerminalSendRequest {
         request_id: OperationId::from_bytes([operation; 16])?,
@@ -1625,7 +1637,7 @@ fn send_request(
         worker_generation: WorkerGeneration::new(nonzero(generation)?),
         target: host_identity(7)?,
         attachment_id: OperationId::from_bytes([attachment; 16])?,
-        payload,
+        records,
     })
 }
 
@@ -1639,25 +1651,26 @@ fn carries_send_requests_and_results_on_the_serialized_wire() -> TestResult {
         11,
         GENERATION.get(),
         LOCAL_WORKER_ID,
-        TerminalSendPayload::new_text(SendText::new("echo hi".to_owned())?, true)?,
+        one_text("echo hi", true)?,
     )?;
     let key_request = send_request(
         12,
         13,
         GENERATION.get(),
         LOCAL_WORKER_ID,
-        TerminalSendPayload::new_key(SendKey::CtrlC),
+        one_key(SendKey::CtrlC)?,
     )?;
     let text_result = TerminalSendResult::new(
         text_request.request_id,
         TerminalSendOutcome::Accepted {
-            accepted_bytes: SendAcceptedBytes::new(8)?,
+            progress: SendProgress::complete(1, 8),
             cleanup: SendCleanupStatus::Confirmed,
         },
     )?;
     let key_result = TerminalSendResult::new(
         key_request.request_id,
         TerminalSendOutcome::Rejected {
+            progress: SendProgress::none(),
             reason: SendRejection::HostInputBackpressure,
             cleanup: SendCleanupStatus::Unconfirmed,
         },
@@ -1712,11 +1725,12 @@ fn send_result_correlation_mismatch_is_post_delivery_unknown() -> TestResult {
         11,
         GENERATION.get(),
         LOCAL_WORKER_ID,
-        TerminalSendPayload::new_key(SendKey::Enter),
+        one_key(SendKey::Enter)?,
     )?;
     let mismatched = TerminalSendResult::new(
         OperationId::from_bytes([9; 16])?,
         TerminalSendOutcome::OutcomeUnknown {
+            progress: SendProgress::none(),
             cleanup: SendCleanupStatus::Unconfirmed,
         },
     )?;
@@ -1734,7 +1748,7 @@ fn send_wrong_result_kind_and_direction_retire_the_carrier() -> TestResult {
         11,
         GENERATION.get(),
         LOCAL_WORKER_ID,
-        TerminalSendPayload::new_key(SendKey::Escape),
+        one_key(SendKey::Escape)?,
     )?;
     let unrelated_launch = launch_request(authorization(9, 9, GENERATION.get(), LOCAL_WORKER_ID)?)?;
     assert_post_delivery_failure(
@@ -1749,7 +1763,7 @@ fn send_wrong_result_kind_and_direction_retire_the_carrier() -> TestResult {
             21,
             GENERATION.get(),
             LOCAL_WORKER_ID,
-            TerminalSendPayload::new_key(SendKey::Tab),
+            one_key(SendKey::Tab)?,
         )?),
         WorkerResponseFailure::WrongDirection,
     )?;
@@ -1766,7 +1780,7 @@ fn send_response_loss_after_delivery_is_outcome_unknown() -> TestResult {
         11,
         GENERATION.get(),
         LOCAL_WORKER_ID,
-        TerminalSendPayload::new_text(SendText::new("printf".to_owned())?, false)?,
+        one_text("printf", false)?,
     )?;
     let worker_thread = thread::spawn(move || -> TestResult {
         let _request = read_message(&mut worker)?;
@@ -1800,11 +1814,12 @@ fn send_on_a_retired_carrier_is_unavailable_not_reused() -> TestResult {
         11,
         GENERATION.get(),
         LOCAL_WORKER_ID,
-        TerminalSendPayload::new_key(SendKey::Home),
+        one_key(SendKey::Home)?,
     )?;
     let mismatched = TerminalSendResult::new(
         OperationId::from_bytes([9; 16])?,
         TerminalSendOutcome::OutcomeUnknown {
+            progress: SendProgress::none(),
             cleanup: SendCleanupStatus::Unconfirmed,
         },
     )?;

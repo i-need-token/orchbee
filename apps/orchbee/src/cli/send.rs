@@ -29,6 +29,9 @@ pub(crate) enum SendVerdict {
     AcceptedCleanupUnconfirmed,
     /// A typed refusal; the input provably did not reach the Host queue.
     Rejected,
+    /// A determinate stop after a confirmed prefix: the receipt names the
+    /// frontier and resending the whole sequence could type twice.
+    PartialAccepted,
     /// Never submitted; no Host write was attempted.
     Unavailable,
     /// The exchange never settled; the input may already have landed.
@@ -68,9 +71,10 @@ mod linux {
     use std::time::{Duration, Instant};
 
     use orchbee_client_server_protocol::{
-        SendCleanupStatus, SendKey, SendRejectedReason, SendText, SendUnavailableReason,
-        SiteId as ObcsSiteId, TerminalId as ObcsTerminalId, TerminalSendOutcome,
-        TerminalSendPayload, TerminalSendRequest, TerminalSendResult, WorkerId as ObcsWorkerId,
+        SendBytes, SendCleanupStatus, SendComboBase, SendKey, SendModifiers, SendPasteContent,
+        SendRecord, SendRecords, SendRejectedReason, SendText, SendTextInput,
+        SendUnavailableReason, SiteId as ObcsSiteId, TerminalId as ObcsTerminalId,
+        TerminalSendOutcome, TerminalSendRequest, TerminalSendResult, WorkerId as ObcsWorkerId,
     };
     use orchbee_workbench_protocol::Snapshot;
     use serde_json::{Map, Value, json};
@@ -161,10 +165,12 @@ mod linux {
     }
 
     /// The parsed payload form projected into the document — never the
-    /// payload contents.
-    enum PayloadFact {
-        Text { record_bytes: usize },
-        Key { name: &'static str },
+    /// payload contents. `record_bytes` echoes the single content record's
+    /// decoded size only when the request carries exactly one such record.
+    struct PayloadFact {
+        kind: &'static str,
+        records: usize,
+        record_bytes: Option<usize>,
     }
 
     /// The resolved request facts the answer document echoes; collected
@@ -257,9 +263,10 @@ mod linux {
                     },
                 }
             }
-            TerminalSendInput::Text { .. } | TerminalSendInput::Key(_) => {
-                std::borrow::Cow::Borrowed(input)
-            }
+            TerminalSendInput::Text { .. }
+            | TerminalSendInput::Keys(_)
+            | TerminalSendInput::Bytes { .. }
+            | TerminalSendInput::Paste { .. } => std::borrow::Cow::Borrowed(input),
         };
         let (mut client, deadline, snapshot) =
             snapshot_session_until(deadline).map_err(SendError::Failure)?;
@@ -285,30 +292,14 @@ mod linux {
         input: &TerminalSendInput,
         snapshot: &Snapshot,
     ) -> Result<(TerminalSendRequest, PayloadFact, RequestFacts), Failure> {
-        // Typed IDs and `@terminal:` selectors resolve against the snapshot's
-        // complete bound set; the request then carries the resolved full id.
+        // Resolve a full ID or @terminal selector from the current snapshot.
         let row = results::terminal_select(snapshot, target)
             .map_err(|failure| failure.source(results::snapshot_source(snapshot)))?;
-        let (payload, fact) = match input {
-            TerminalSendInput::Text { text, enter } => {
-                let record_bytes = text.len() + usize::from(*enter);
-                let text = SendText::new(text.clone())
-                    .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-                (
-                    TerminalSendPayload::new_text(text, *enter)
-                        .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
-                    PayloadFact::Text { record_bytes },
-                )
-            }
-            TerminalSendInput::Key(key) => (
-                TerminalSendPayload::new_key(send_key(*key)),
-                PayloadFact::Key { name: key.as_str() },
-            ),
-            // Materialization already folded declared sources into `Text`;
-            // reaching this arm means the folding was skipped — internal.
-            TerminalSendInput::File { .. } | TerminalSendInput::Stdin { .. } => {
-                return Err(Failure::new(FailureKind::InternalFailure));
-            }
+        let (records, kind, record_bytes) = send_records(input)?;
+        let fact = PayloadFact {
+            kind,
+            records: records.len(),
+            record_bytes,
         };
         let facts = RequestFacts {
             site_id: snapshot.site_id.as_str().to_owned(),
@@ -324,11 +315,112 @@ mod linux {
                     .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
                 ObcsTerminalId::parse(row.terminal_id.as_str())
                     .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
-                payload,
+                records,
             ),
             fact,
             facts,
         ))
+    }
+
+    /// The ordered wire records the parsed input produces plus the honest
+    /// `payloadKind` label. `recordBytes` is reported only for a single
+    /// content-bearing record — multi-record sequences report the record
+    /// count instead, never a guessed sum. Every constructor re-checks the
+    /// bounds the parser already enforced, so impossible argv cannot
+    /// produce a malformed record.
+    fn send_records(
+        input: &TerminalSendInput,
+    ) -> Result<(SendRecords, &'static str, Option<usize>), Failure> {
+        let internal = || Failure::new(FailureKind::InternalFailure);
+        let (records, kind, record_bytes) = match input {
+            TerminalSendInput::Text { text, enter } => {
+                let record = SendRecord::Text(
+                    SendTextInput::new(
+                        SendText::new(text.clone()).map_err(|_| internal())?,
+                        *enter,
+                    )
+                    .map_err(|_| internal())?,
+                );
+                (vec![record], "text", Some(text.len() + usize::from(*enter)))
+            }
+            TerminalSendInput::Keys(keys) => {
+                let records: Vec<SendRecord> = keys.iter().map(|key| send_record(*key)).collect();
+                let kind = if records.len() == 1 { "key" } else { "sequence" };
+                (records, kind, None)
+            }
+            TerminalSendInput::Bytes { bytes, enter } => {
+                // `--enter` on literal bytes folds a trailing CR into the
+                // record itself — a Bytes record is opaque content.
+                let mut bytes = bytes.clone();
+                if *enter {
+                    bytes.push(b'\r');
+                }
+                let record_bytes = bytes.len();
+                (
+                    vec![SendRecord::Bytes {
+                        bytes: SendBytes::new(bytes).map_err(|_| internal())?,
+                    }],
+                    "bytes",
+                    Some(record_bytes),
+                )
+            }
+            TerminalSendInput::Paste { content, enter } => {
+                // `--enter` on a paste is a separate trailing Enter record —
+                // a CR inside bracketed content is literal text, not submit.
+                let mut records = vec![SendRecord::Paste {
+                    content: SendPasteContent::new(content.clone()).map_err(|_| internal())?,
+                }];
+                if *enter {
+                    records.push(SendRecord::Key {
+                        key: SendKey::Enter,
+                    });
+                }
+                let kind = if *enter { "sequence" } else { "paste" };
+                (records, kind, Some(content.len()))
+            }
+            // Materialization folds every declared source into `Bytes` or
+            // `Paste` before this point; reaching these arms is internal.
+            TerminalSendInput::File { .. } | TerminalSendInput::Stdin { .. } => {
+                return Err(internal());
+            }
+        };
+        Ok((
+            SendRecords::new(records).map_err(|_| internal())?,
+            kind,
+            record_bytes,
+        ))
+    }
+
+    /// One parsed `--key` value as its wire record: a named semantic key
+    /// stays a `key` record; an explicit modifier combination becomes a
+    /// `combo` record over the closed base vocabulary.
+    fn send_record(key: crate::invocation::ParsedSendKey) -> SendRecord {
+        use crate::invocation::{ParsedSendKey, TerminalComboBase};
+        match key {
+            ParsedSendKey::Key(key) => SendRecord::Key {
+                key: send_key(key),
+            },
+            ParsedSendKey::Combo(combo) => {
+                let base = match combo.base {
+                    TerminalComboBase::Key(key) => {
+                        SendComboBase::Named(send_key(key))
+                    }
+                    TerminalComboBase::Insert => SendComboBase::Insert,
+                    TerminalComboBase::Function(number) => SendComboBase::Function(number),
+                    TerminalComboBase::Space => SendComboBase::Space,
+                    TerminalComboBase::Letter(letter) => SendComboBase::Letter(letter),
+                    TerminalComboBase::Digit(digit) => SendComboBase::Digit(digit),
+                };
+                SendRecord::Combo {
+                    modifiers: SendModifiers {
+                        control: combo.control,
+                        alt: combo.alt,
+                        shift: combo.shift,
+                    },
+                    base,
+                }
+            }
+        }
     }
 
     /// Map the typed `terminal.send.result` into the two-axis receipt and the
@@ -347,15 +439,10 @@ mod linux {
             ("workerId".to_owned(), json!(facts.worker_id)),
             ("terminalId".to_owned(), json!(facts.terminal_id)),
         ]);
-        match fact {
-            PayloadFact::Text { record_bytes } => {
-                document.insert("payloadKind".to_owned(), json!("text"));
-                document.insert("recordBytes".to_owned(), json!(record_bytes));
-            }
-            PayloadFact::Key { name } => {
-                document.insert("payloadKind".to_owned(), json!("key"));
-                document.insert("key".to_owned(), json!(name));
-            }
+        document.insert("payloadKind".to_owned(), json!(fact.kind));
+        document.insert("records".to_owned(), json!(fact.records));
+        if let Some(record_bytes) = fact.record_bytes {
+            document.insert("recordBytes".to_owned(), json!(record_bytes));
         }
         if let Some(target) = result.target() {
             document.insert(
@@ -367,65 +454,98 @@ mod linux {
                 }),
             );
         }
-        let (input_status, cleanup, reason, accepted_bytes, status, verdict) =
-            match result.outcome() {
-                TerminalSendOutcome::Accepted {
-                    accepted_bytes,
-                    cleanup,
-                } => (
-                    "accepted",
-                    *cleanup,
-                    None,
-                    Some(accepted_bytes.get()),
-                    if matches!(cleanup, SendCleanupStatus::Confirmed) {
-                        0
-                    } else {
-                        5
-                    },
-                    if matches!(cleanup, SendCleanupStatus::Confirmed) {
-                        SendVerdict::Quiet
-                    } else {
-                        SendVerdict::AcceptedCleanupUnconfirmed
-                    },
-                ),
-                TerminalSendOutcome::Rejected { reason, cleanup } => (
-                    "rejected",
+        // The typed outcome always knows its delivery cursor: emit the
+        // confirmed prefix, the first not-confirmed index, and the summed
+        // Host-encoded byte count verbatim. A lost whole-request answer
+        // never reaches this mapping — the failure envelope carries no
+        // progress fields, so absent stays distinguishable from known-zero.
+        let progress = result.outcome().progress();
+        document.insert(
+            "recordsAccepted".to_owned(),
+            json!(progress.records_accepted()),
+        );
+        document.insert(
+            "firstStoppedRecord".to_owned(),
+            json!(progress.first_stopped_record()),
+        );
+        document.insert(
+            "acceptedEncodedBytes".to_owned(),
+            json!(progress.accepted_encoded_bytes()),
+        );
+        let (input_status, cleanup, reason, status, verdict) = match result.outcome() {
+            TerminalSendOutcome::Accepted { cleanup, .. } => (
+                "accepted",
+                *cleanup,
+                None,
+                if matches!(cleanup, SendCleanupStatus::Confirmed) {
+                    0
+                } else {
+                    5
+                },
+                if matches!(cleanup, SendCleanupStatus::Confirmed) {
+                    SendVerdict::Quiet
+                } else {
+                    SendVerdict::AcceptedCleanupUnconfirmed
+                },
+            ),
+            TerminalSendOutcome::Rejected {
+                reason, cleanup, ..
+            } => {
+                // A refusal with a confirmed prefix is a determinate
+                // partial application — exit 9, never the refused-nothing 3.
+                let partial = progress.records_accepted() > 0;
+                (
+                    if partial { "partial-accepted" } else { "rejected" },
                     *cleanup,
                     Some(rejected_reason(*reason)),
-                    None,
-                    3,
-                    SendVerdict::Rejected,
-                ),
-                TerminalSendOutcome::Unavailable { reason, cleanup } => (
-                    "not-submitted",
+                    if partial { 9 } else { 3 },
+                    if partial {
+                        SendVerdict::PartialAccepted
+                    } else {
+                        SendVerdict::Rejected
+                    },
+                )
+            }
+            TerminalSendOutcome::Unavailable {
+                reason, cleanup, ..
+            } => {
+                let partial = progress.records_accepted() > 0;
+                (
+                    if partial {
+                        "partial-accepted"
+                    } else {
+                        "not-submitted"
+                    },
                     *cleanup,
                     Some(unavailable_reason(*reason)),
-                    None,
+                    if partial {
+                        9
                     // A host protocol fault is a transport-class defect, not
                     // service unavailability.
-                    if matches!(reason, SendUnavailableReason::HostProtocolFault) {
+                    } else if matches!(reason, SendUnavailableReason::HostProtocolFault) {
                         5
                     } else {
                         4
                     },
-                    SendVerdict::Unavailable,
-                ),
-                TerminalSendOutcome::OutcomeUnknown { cleanup } => (
-                    "unknown",
-                    *cleanup,
-                    None,
-                    None,
-                    8,
-                    SendVerdict::OutcomeUnknown,
-                ),
-            };
+                    if partial {
+                        SendVerdict::PartialAccepted
+                    } else {
+                        SendVerdict::Unavailable
+                    },
+                )
+            }
+            TerminalSendOutcome::OutcomeUnknown { cleanup, .. } => (
+                "unknown",
+                *cleanup,
+                None,
+                8,
+                SendVerdict::OutcomeUnknown,
+            ),
+        };
         document.insert("inputStatus".to_owned(), json!(input_status));
         document.insert("cleanupStatus".to_owned(), json!(cleanup_status(cleanup)));
         if let Some(reason) = reason {
             document.insert("reason".to_owned(), json!(reason));
-        }
-        if let Some(accepted_bytes) = accepted_bytes {
-            document.insert("acceptedBytes".to_owned(), json!(accepted_bytes));
         }
         SendAnswer {
             source,
@@ -575,6 +695,7 @@ mod linux {
             SendUnavailableReason::TerminalRuntimeUnavailable => "terminal-runtime-unavailable",
             SendUnavailableReason::HostUnavailable => "host-unavailable",
             SendUnavailableReason::HostProtocolFault => "host-protocol-fault",
+            SendUnavailableReason::InputBudgetExhausted => "input-budget-exhausted",
         }
     }
 }

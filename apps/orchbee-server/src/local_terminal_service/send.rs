@@ -1,11 +1,12 @@
 use std::num::NonZeroU64;
 
 use orchbee_capability_node_protocol::{
-    SendRejection as WorkerRejection, SendUnavailable as WorkerUnavailableReason,
-    TerminalSendOutcome as WorkerOutcome, TerminalSendRequest as WorkerRequest,
+    SendProgress as WorkerProgress, SendRejection as WorkerRejection,
+    SendUnavailable as WorkerUnavailableReason, TerminalSendOutcome as WorkerOutcome,
+    TerminalSendRequest as WorkerRequest,
 };
 use orchbee_client_server_protocol::{
-    RequestId, SendAcceptedBytes, SendCleanupStatus as Cleanup, SendRejectedReason as Rejected,
+    RequestId, SendCleanupStatus as Cleanup, SendProgress, SendRejectedReason as Rejected,
     SendTarget, SendUnavailableReason as Unavailable, ServerMessage,
     TerminalSendOutcome as Outcome, TerminalSendRequest, TerminalSendResult,
 };
@@ -20,8 +21,9 @@ use super::{LocalTerminalService, placement};
 
 impl LocalTerminalService {
     /// One-shot orchestration input: admit the exact retained binding, dispatch
-    /// the pinned operation on the serialized Worker carrier, and report the
-    /// Worker verdict with the independent cleanup axis preserved.
+    /// the pinned record sequence on the serialized Worker carrier, and report
+    /// the Worker verdict with the independent cleanup axis and the delivery
+    /// frontier preserved.
     pub(crate) fn execute_send(&self, request: &TerminalSendRequest) -> ServerMessage {
         let request_id = request.request_id().clone();
         let prepared = {
@@ -81,22 +83,17 @@ impl LocalTerminalService {
     }
 }
 
+/// Translate the admitted client records verbatim into Worker records: every
+/// semantic distinction — text versus literal bytes, semantic key versus
+/// modifier combo, literal write versus Host-bracketed paste — survives.
 fn send_request(
     request: &TerminalSendRequest,
     prepared: &PreparedSendTarget,
 ) -> Option<(WorkerRequest, SendTarget)> {
-    let payload = match request.payload() {
-        orchbee_client_server_protocol::TerminalSendPayload::Text(input) => {
-            let text =
-                orchbee_capability_node_protocol::SendText::new(input.text().as_str().to_owned())
-                    .ok()?;
-            orchbee_capability_node_protocol::TerminalSendPayload::new_text(text, input.enter())
-                .ok()?
-        }
-        orchbee_client_server_protocol::TerminalSendPayload::Key { key } => {
-            orchbee_capability_node_protocol::TerminalSendPayload::new_key(send_key(*key))
-        }
-    };
+    let mut records = Vec::with_capacity(request.records().len());
+    for record in request.records().iter() {
+        records.push(worker_record(record)?);
+    }
     let target = send_target(&prepared.target)?;
     Some((
         WorkerRequest {
@@ -105,10 +102,59 @@ fn send_request(
             worker_generation: prepared.target.worker.generation,
             target: prepared.target.identity,
             attachment_id: prepared.identities.attachment,
-            payload,
+            records: orchbee_capability_node_protocol::SendRecords::new(records).ok()?,
         },
         target,
     ))
+}
+
+fn worker_record(
+    record: &orchbee_client_server_protocol::SendRecord,
+) -> Option<orchbee_capability_node_protocol::SendRecord> {
+    use orchbee_capability_node_protocol as worker;
+    use orchbee_client_server_protocol::SendRecord as Client;
+    Some(match record {
+        Client::Text(input) => worker::SendRecord::Text(
+            worker::SendTextInput::new(
+                worker::SendText::new(input.text().as_str().to_owned()).ok()?,
+                input.enter(),
+            )
+            .ok()?,
+        ),
+        Client::Key { key } => worker::SendRecord::Key {
+            key: send_key(*key),
+        },
+        Client::Combo { modifiers, base } => worker::SendRecord::Combo {
+            modifiers: worker::SendModifiers::new(
+                modifiers.control,
+                modifiers.alt,
+                modifiers.shift,
+            )
+            .ok()?,
+            base: worker_combo_base(*base)?,
+        },
+        Client::Bytes { bytes } => worker::SendRecord::Bytes {
+            bytes: worker::SendBytes::new(bytes.as_bytes().to_vec()).ok()?,
+        },
+        Client::Paste { content } => worker::SendRecord::Paste {
+            content: worker::SendPasteContent::new(content.as_bytes().to_vec()).ok()?,
+        },
+    })
+}
+
+fn worker_combo_base(
+    base: orchbee_client_server_protocol::SendComboBase,
+) -> Option<orchbee_capability_node_protocol::SendComboBase> {
+    use orchbee_capability_node_protocol::SendComboBase as Worker;
+    use orchbee_client_server_protocol::SendComboBase as Client;
+    Some(match base {
+        Client::Named(key) => Worker::new_named(send_key(key)).ok()?,
+        Client::Insert => Worker::Insert,
+        Client::Function(number) => Worker::new_function(number).ok()?,
+        Client::Space => Worker::Space,
+        Client::Letter(letter) => Worker::new_letter(letter).ok()?,
+        Client::Digit(digit) => Worker::new_digit(digit).ok()?,
+    })
 }
 
 fn send_target(target: &BindingViewerTarget) -> Option<SendTarget> {
@@ -160,6 +206,18 @@ fn cleanup(status: orchbee_capability_node_protocol::SendCleanupStatus) -> Clean
     }
 }
 
+/// The delivery frontier is a worker-side fact the Server reports verbatim;
+/// the wire bounds are identical on both protocols so the translation never
+/// invents a cursor.
+fn progress(cursor: WorkerProgress) -> SendProgress {
+    SendProgress::new(
+        cursor.records_accepted(),
+        cursor.first_stopped_record(),
+        cursor.accepted_encoded_bytes(),
+    )
+    .expect("worker progress satisfies the shared bounds")
+}
+
 fn admission_outcome(error: BindingViewerPreparationError) -> Outcome {
     match error {
         BindingViewerPreparationError::ServerBusy => {
@@ -189,6 +247,7 @@ fn carrier_outcome(error: WorkerRequestError) -> Outcome {
             unavailable(Unavailable::WorkerUnavailable, Cleanup::NotNeeded)
         }
         WorkerRequestError::PostDeliveryOutcomeUnknown(_) => Outcome::OutcomeUnknown {
+            progress: SendProgress::none(),
             cleanup: Cleanup::Unconfirmed,
         },
     }
@@ -198,20 +257,27 @@ fn worker_outcome(outcome: WorkerOutcome) -> Outcome {
     match outcome {
         WorkerOutcome::Unavailable {
             reason,
+            progress: cursor,
             cleanup: status,
         } => Outcome::Unavailable {
             reason: match reason {
                 WorkerUnavailableReason::HostUnavailable => Unavailable::HostUnavailable,
                 WorkerUnavailableReason::HostProtocolFault => Unavailable::HostProtocolFault,
+                WorkerUnavailableReason::InputBudgetExhausted => {
+                    Unavailable::InputBudgetExhausted
+                }
             },
+            progress: progress(cursor),
             cleanup: cleanup(status),
         },
         WorkerOutcome::Rejected {
             reason,
+            progress: cursor,
             cleanup: status,
         } => match reason {
             WorkerRejection::WrongWorker => Outcome::Unavailable {
                 reason: Unavailable::WorkerUnavailable,
+                progress: progress(cursor),
                 cleanup: cleanup(status),
             },
             reason => Outcome::Rejected {
@@ -226,22 +292,22 @@ fn worker_outcome(outcome: WorkerOutcome) -> Outcome {
                     WorkerRejection::HostInputUnavailable => Rejected::HostInputUnavailable,
                     WorkerRejection::WrongWorker => unreachable!("handled above"),
                 },
+                progress: progress(cursor),
                 cleanup: cleanup(status),
             },
         },
         WorkerOutcome::Accepted {
-            accepted_bytes,
+            progress: cursor,
             cleanup: status,
-        } => match SendAcceptedBytes::new(accepted_bytes.get()) {
-            Ok(accepted_bytes) => Outcome::Accepted {
-                accepted_bytes,
-                cleanup: cleanup(status),
-            },
-            Err(_) => Outcome::OutcomeUnknown {
-                cleanup: Cleanup::Unconfirmed,
-            },
+        } => Outcome::Accepted {
+            progress: progress(cursor),
+            cleanup: cleanup(status),
         },
-        WorkerOutcome::OutcomeUnknown { cleanup: status } => Outcome::OutcomeUnknown {
+        WorkerOutcome::OutcomeUnknown {
+            progress: cursor,
+            cleanup: status,
+        } => Outcome::OutcomeUnknown {
+            progress: progress(cursor),
             cleanup: cleanup(status),
         },
     }
@@ -250,12 +316,14 @@ fn worker_outcome(outcome: WorkerOutcome) -> Outcome {
 fn rejected(reason: Rejected, status: Cleanup) -> Outcome {
     Outcome::Rejected {
         reason,
+        progress: SendProgress::none(),
         cleanup: status,
     }
 }
 fn unavailable(reason: Unavailable, status: Cleanup) -> Outcome {
     Outcome::Unavailable {
         reason,
+        progress: SendProgress::none(),
         cleanup: status,
     }
 }
@@ -274,6 +342,7 @@ fn send_result(
                 request_id.clone(),
                 target,
                 Outcome::OutcomeUnknown {
+                    progress: SendProgress::none(),
                     cleanup: Cleanup::Unconfirmed,
                 },
             )

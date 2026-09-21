@@ -1,19 +1,24 @@
 use std::{
-    error::Error, net::Shutdown, num::NonZeroU64, os::unix::net::UnixStream, time::Duration,
+    error::Error,
+    net::Shutdown,
+    num::NonZeroU64,
+    os::unix::net::UnixStream,
+    time::{Duration, Instant},
 };
 
 use orchbee_capability_node_protocol::{
-    SendAcceptedBytes, SendCleanupStatus, SendKey, SendRejection, SendUnavailable,
-    TerminalSendOutcome, TerminalSendPayload, TerminalSendRequest, TerminalSendResult,
+    SendAcceptedBytes, SendCleanupStatus, SendComboBase, SendKey, SendProgress, SendRecord,
+    SendRejection, SendUnavailable, TerminalSendOutcome, TerminalSendRequest,
+    TerminalSendResult,
 };
 use orchbee_local_site_protocol::WorkerId;
 use orchbee_terminal_protocol::{
     AttachTerminal, AttachmentCapabilityState, AttachmentControl, AttachmentId, AttachmentTarget,
     CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, Envelope, InputAccepted,
-    InputMessage, KeyAction, KeyInput, MessageRole, PayloadEncoding, TerminalId, TerminalKeyCode,
-    TerminalModifiers, WriteInput, decode_attachment_control, decode_connection_control,
-    decode_input_message, decode_transport_envelope, encode_attachment_control,
-    encode_input_message, encode_transport_envelope,
+    InputMessage, KeyAction, KeyInput, MessageRole, PasteAutoInput, PayloadEncoding, TerminalId,
+    TerminalKeyCode, TerminalModifiers, WriteInput, decode_attachment_control,
+    decode_connection_control, decode_input_message, decode_transport_envelope,
+    encode_attachment_control, encode_input_message, encode_transport_envelope,
 };
 
 use crate::host_connection::{HostBrokerConnection, HostExchange, PeerFailure};
@@ -27,8 +32,15 @@ const INPUT_CAPABILITIES: AttachmentCapabilityState = AttachmentCapabilityState 
     resize: false,
 };
 
-/// One Host round trip per send step, matching the shared exchange budget.
+/// One absolute input budget sampled once when the operation starts; it
+/// covers the attach exchange plus every record exchange, and each exchange
+/// gets at most the lesser of the shared step budget and what remains.
+const INPUT_BUDGET: Duration = Duration::from_secs(3);
+/// A single Host exchange never exceeds this step budget.
 const HOST_STEP_BUDGET: Duration = Duration::from_secs(1);
+/// Cleanup detach is a separate allowance outside the input budget; it never
+/// renews input time and it never runs more than once.
+const CLEANUP_BUDGET: Duration = Duration::from_secs(1);
 
 /// The operation result plus whether the Host carrier is still trustworthy.
 /// `host_failed` asks the caller to deliver the result and then end the
@@ -104,16 +116,28 @@ pub(crate) fn execute(
         Some(SendRejection::StaleHostEpoch)
     } else if host.disposed_terminal(request.target.terminal_id()) {
         Some(SendRejection::TerminalUnavailable)
-    } else if exceeds_negotiated_input(&request, host) {
-        Some(SendRejection::HostInputLimitExceeded)
+    } else if negotiated_excess(&request, host) {
+        // The negotiated-bound check runs before the attachment exists, so
+        // the honest frontier is zero: no record was ever submitted.
+        return respond(
+            &request,
+            TerminalSendOutcome::Rejected {
+                reason: SendRejection::HostInputLimitExceeded,
+                progress: SendProgress::none(),
+                cleanup: SendCleanupStatus::NotNeeded,
+            },
+            host,
+            false,
+        );
     } else {
         None
     };
     if let Some(reason) = outcome {
         return respond(
-            request,
+            &request,
             TerminalSendOutcome::Rejected {
                 reason,
+                progress: SendProgress::none(),
                 cleanup: SendCleanupStatus::NotNeeded,
             },
             host,
@@ -123,17 +147,24 @@ pub(crate) fn execute(
     apply(request, host, server)
 }
 
-/// The negotiated Host input bound — distinct from the static command-level
-/// payload bound — still gates the final write. A semantic key carries no
-/// raw bytes; only a write payload can exceed the negotiated limit.
-fn exceeds_negotiated_input(request: &TerminalSendRequest, host: &HostBrokerConnection) -> bool {
-    match &request.payload {
-        TerminalSendPayload::Text(input) => {
-            input.record_bytes() as u64 > u64::from(host.negotiated_limits().input_bytes)
-        }
-        TerminalSendPayload::Key { .. } => false,
-    }
+/// The negotiated Host input bound — distinct from the static record-level
+/// bounds — still gates every byte-bearing record before the attachment is
+/// opened. A semantic key or combo carries no raw bytes; only literal
+/// content can exceed the negotiated limit. The check runs at
+/// pre-admission — a true answer means no record may be dispatched.
+fn negotiated_excess(request: &TerminalSendRequest, host: &HostBrokerConnection) -> bool {
+    let limit = u64::from(host.negotiated_limits().input_bytes);
+    request.records.iter().any(|record| {
+        let bytes = match record {
+            SendRecord::Text(input) => input.record_bytes() as u64,
+            SendRecord::Bytes { bytes } => bytes.as_bytes().len() as u64,
+            SendRecord::Paste { content } => content.as_bytes().len() as u64,
+            SendRecord::Key { .. } | SendRecord::Combo { .. } => 0,
+        };
+        bytes > limit
+    })
 }
+
 
 fn apply(
     request: TerminalSendRequest,
@@ -142,26 +173,43 @@ fn apply(
 ) -> Result<SendExecution, Box<dyn Error>> {
     let attachment_id = AttachmentId::from_bytes(request.attachment_id.as_bytes())?;
     let terminal_id = TerminalId::from_bytes(request.target.terminal_id().as_bytes())?;
+    let input_deadline = Instant::now()
+        .checked_add(INPUT_BUDGET)
+        .ok_or_else(|| invalid("input deadline overflow"))?;
     let command = encode_attachment_control(&AttachmentControl::AttachTerminal(AttachTerminal {
         attachment_id,
         capabilities: INPUT_CAPABILITIES,
         request_resize_lease: false,
         terminal_id,
     }))?;
+    let Some(attach_budget) = step_budget(input_deadline) else {
+        return respond(
+            &request,
+            TerminalSendOutcome::Unavailable {
+                reason: SendUnavailable::InputBudgetExhausted,
+                progress: SendProgress::none(),
+                cleanup: SendCleanupStatus::NotNeeded,
+            },
+            host,
+            false,
+        );
+    };
     let capability_revision = match exchange_fresh(
         host,
         server,
         command.kind,
         &command.payload,
         PayloadEncoding::ControlJson,
+        attach_budget,
     )? {
         StepAnswer::Record(record) => match attach_outcome(&record, attachment_id, terminal_id)? {
             AttachOutcome::Revision(revision) => revision,
             AttachOutcome::Refused(reason) => {
                 return respond(
-                    request,
+                    &request,
                     TerminalSendOutcome::Rejected {
                         reason,
+                        progress: SendProgress::none(),
                         cleanup: SendCleanupStatus::NotNeeded,
                     },
                     host,
@@ -170,9 +218,10 @@ fn apply(
             }
             AttachOutcome::Desync => {
                 return close(
-                    request,
+                    &request,
                     TerminalSendOutcome::Unavailable {
                         reason: SendUnavailable::HostProtocolFault,
+                        progress: SendProgress::none(),
                         cleanup: SendCleanupStatus::Unconfirmed,
                     },
                     host,
@@ -181,9 +230,10 @@ fn apply(
         },
         StepAnswer::ProtocolFault => {
             return close(
-                request,
+                &request,
                 TerminalSendOutcome::Unavailable {
                     reason: SendUnavailable::HostProtocolFault,
+                    progress: SendProgress::none(),
                     cleanup: SendCleanupStatus::Unconfirmed,
                 },
                 host,
@@ -194,77 +244,115 @@ fn apply(
             // Host but the stream can never carry a reliable DetachTerminal.
             // Shutdown lets the pending attachment die with the connection.
             return close(
-                request,
+                &request,
                 TerminalSendOutcome::Unavailable {
                     reason: SendUnavailable::HostUnavailable,
+                    progress: SendProgress::none(),
                     cleanup: SendCleanupStatus::Unconfirmed,
                 },
                 host,
             );
         }
     };
-    let (command, expected_bytes) = input_command(&request, attachment_id, capability_revision)?;
-    // Input messages ride the raw-bytes encoding while every response is
-    // still ControlJson.
-    let accepted_bytes = match exchange_fresh(
-        host,
-        server,
-        command.kind,
-        &command.payload,
-        PayloadEncoding::RawBytes,
-    )? {
-        StepAnswer::Record(record) => {
-            match input_outcome(&record, attachment_id, capability_revision, expected_bytes)? {
-                InputOutcome::Accepted(bytes) => bytes,
-                InputOutcome::Refused(reason) => {
-                    let (cleanup, host_failed) = detach(host, server, attachment_id).cleanup();
-                    return respond(
-                        request,
-                        TerminalSendOutcome::Rejected { reason, cleanup },
-                        host,
-                        host_failed,
-                    );
-                }
-                InputOutcome::Desync => {
-                    return close(
-                        request,
-                        TerminalSendOutcome::OutcomeUnknown {
-                            cleanup: SendCleanupStatus::Unconfirmed,
-                        },
-                        host,
-                    );
+
+    // Ordered correlated exchanges, one per record. The frontier cursor moves
+    // only on a validated acknowledgement; the first stop ends the sequence
+    // and no record is ever replayed.
+    let mut accepted_encoded_bytes = 0_u64;
+    let record_count = request.records.len();
+    for index in 0..record_count {
+        let record = &request.records.as_slice()[index];
+        let Some(budget) = step_budget(input_deadline) else {
+            // The input deadline expired between records: a determinate stop.
+            // The confirmed prefix stands, the stopped record provably never
+            // left this Worker, and cleanup still gets its own allowance.
+            let (cleanup, host_failed) = detach(host, server, attachment_id).cleanup();
+            return respond(
+                &request,
+                TerminalSendOutcome::Unavailable {
+                    reason: SendUnavailable::InputBudgetExhausted,
+                    progress: SendProgress::stopped(index, accepted_encoded_bytes),
+                    cleanup,
+                },
+                host,
+                host_failed,
+            );
+        };
+        let (command, expected_bytes) =
+            input_command(record, attachment_id, capability_revision)?;
+        // Input messages ride the raw-bytes encoding while every response is
+        // still ControlJson.
+        match exchange_fresh(
+            host,
+            server,
+            command.kind,
+            &command.payload,
+            PayloadEncoding::RawBytes,
+            budget,
+        )? {
+            StepAnswer::Record(record) => {
+                match input_outcome(&record, attachment_id, capability_revision, expected_bytes)? {
+                    InputOutcome::Accepted(bytes) => {
+                        accepted_encoded_bytes += u64::from(bytes.get());
+                    }
+                    InputOutcome::Refused(reason) => {
+                        let (cleanup, host_failed) =
+                            detach(host, server, attachment_id).cleanup();
+                        return respond(
+                            &request,
+                            TerminalSendOutcome::Rejected {
+                                reason,
+                                progress: SendProgress::stopped(index, accepted_encoded_bytes),
+                                cleanup,
+                            },
+                            host,
+                            host_failed,
+                        );
+                    }
+                    InputOutcome::Desync => {
+                        return close(
+                            &request,
+                            TerminalSendOutcome::OutcomeUnknown {
+                                progress: SendProgress::stopped(index, accepted_encoded_bytes),
+                                cleanup: SendCleanupStatus::Unconfirmed,
+                            },
+                            host,
+                        );
+                    }
                 }
             }
+            // The record may have been applied before the carrier failed or
+            // the response desynced; it is never resent and no further
+            // exchange is attempted on this stream.
+            StepAnswer::ProtocolFault | StepAnswer::TransportLost => {
+                return close(
+                    &request,
+                    TerminalSendOutcome::OutcomeUnknown {
+                        progress: SendProgress::stopped(index, accepted_encoded_bytes),
+                        cleanup: SendCleanupStatus::Unconfirmed,
+                    },
+                    host,
+                );
+            }
+            // The record provably never left this Worker.
+            StepAnswer::LocalFault => {
+                return close(
+                    &request,
+                    TerminalSendOutcome::Unavailable {
+                        reason: SendUnavailable::HostUnavailable,
+                        progress: SendProgress::stopped(index, accepted_encoded_bytes),
+                        cleanup: SendCleanupStatus::Unconfirmed,
+                    },
+                    host,
+                );
+            }
         }
-        // The input may have been applied before the carrier failed or the
-        // response desynced; it is never resent and no further exchange is
-        // attempted on this stream.
-        StepAnswer::ProtocolFault | StepAnswer::TransportLost => {
-            return close(
-                request,
-                TerminalSendOutcome::OutcomeUnknown {
-                    cleanup: SendCleanupStatus::Unconfirmed,
-                },
-                host,
-            );
-        }
-        // The input provably never left this Worker.
-        StepAnswer::LocalFault => {
-            return close(
-                request,
-                TerminalSendOutcome::Unavailable {
-                    reason: SendUnavailable::HostUnavailable,
-                    cleanup: SendCleanupStatus::Unconfirmed,
-                },
-                host,
-            );
-        }
-    };
+    }
     let (cleanup, host_failed) = detach(host, server, attachment_id).cleanup();
     respond(
-        request,
+        &request,
         TerminalSendOutcome::Accepted {
-            accepted_bytes,
+            progress: SendProgress::complete(record_count, accepted_encoded_bytes),
             cleanup,
         },
         host,
@@ -272,16 +360,25 @@ fn apply(
     )
 }
 
-/// One Host round trip under a fresh correlation. The answer is classified by
-/// where the exchange ended so the caller can tell a dead carrier from a
-/// desynchronized one; a Server-side failure is fatal to the whole session
-/// and propagates instead.
+/// What one exchange may spend: at most the shared step budget and never
+/// past the absolute input deadline. `None` means the deadline already ran
+/// out — the caller must not start another record.
+fn step_budget(input_deadline: Instant) -> Option<Duration> {
+    let remaining = input_deadline.checked_duration_since(Instant::now())?;
+    Some(remaining.min(HOST_STEP_BUDGET))
+}
+
+/// One Host round trip under a fresh correlation and the given budget. The
+/// answer is classified by where the exchange ended so the caller can tell a
+/// dead carrier from a desynchronized one; a Server-side failure is fatal to
+/// the whole session and propagates instead.
 fn exchange_fresh(
     host: &HostBrokerConnection,
     server: &UnixStream,
     kind: u16,
     payload: &[u8],
     encoding: PayloadEncoding,
+    budget: Duration,
 ) -> Result<StepAnswer, Box<dyn Error>> {
     let local = (|| -> Result<(CorrelationId, Vec<u8>), Box<dyn Error>> {
         let correlation = CorrelationId::from_bytes(fresh_identity()?)?;
@@ -300,7 +397,7 @@ fn exchange_fresh(
     let Ok((correlation, record)) = local else {
         return Ok(StepAnswer::LocalFault);
     };
-    let Some(mut exchange) = HostExchange::new(host, server, HOST_STEP_BUDGET) else {
+    let Some(mut exchange) = HostExchange::new(host, server, budget) else {
         return Ok(StepAnswer::LocalFault);
     };
     match exchange.prepare() {
@@ -376,9 +473,10 @@ fn input_outcome(
     else {
         return Ok(InputOutcome::Desync);
     };
-    // A raw write is admitted byte-exact or not at all; a semantic key reports
-    // whatever byte count the Host encoded under the terminal's own modes, so
-    // only the identity echo and the protocol byte bound apply.
+    // A raw write is admitted byte-exact or not at all; a semantic key and a
+    // mode-encoded paste report whatever byte count the Host produced under
+    // the terminal's own modes, so only the identity echo and the protocol
+    // byte bound apply to those records.
     if accepted_attachment != attachment_id
         || accepted_revision != capability_revision
         || expected_bytes.is_some_and(|expected| accepted_bytes != expected)
@@ -391,11 +489,12 @@ fn input_outcome(
     Ok(InputOutcome::Accepted(bytes))
 }
 
-/// Best-effort detach for the paths where the carrier stayed healthy enough
-/// to try: a typed input refusal or a validated InputAccepted. A local
-/// construction failure still counts as unreachable — the resulting shutdown
-/// drops the lingering attachment with the connection instead of silently
-/// retaining it.
+/// Best-effort detach under its own cleanup allowance for the paths where
+/// the carrier stayed healthy enough to try: a typed input refusal, a
+/// validated InputAccepted, or a determinate budget stop between records. A
+/// local construction failure still counts as unreachable — the resulting
+/// shutdown drops the lingering attachment with the connection instead of
+/// silently retaining it.
 fn detach(
     host: &HostBrokerConnection,
     server: &UnixStream,
@@ -411,6 +510,7 @@ fn detach(
         command.kind,
         &command.payload,
         PayloadEncoding::ControlJson,
+        CLEANUP_BUDGET,
     ) {
         Ok(answer) => answer,
         Err(error) => return unreachable_detach(error),
@@ -443,50 +543,105 @@ fn unreachable_detach(error: Box<dyn Error>) -> DetachOutcome {
     DetachOutcome::Unreachable
 }
 
+/// The Host input message for one record plus the byte-exactness expectation
+/// the acknowledgement must satisfy. `Text` and `Bytes` are raw writes, so
+/// the Host's accepted count must equal the exact encoded byte count;
+/// `Paste` content gets bracket markers from the terminal's own mode and
+/// key records are semantic encodings, so neither has a predictable count.
 fn input_command(
-    request: &TerminalSendRequest,
+    record: &SendRecord,
     attachment_id: AttachmentId,
     capability_revision: NonZeroU64,
 ) -> Result<(orchbee_terminal_protocol::EncodedInputMessage, Option<u32>), Box<dyn Error>> {
-    match &request.payload {
-        TerminalSendPayload::Text(input) => {
+    match record {
+        SendRecord::Text(input) => {
             let mut bytes = Vec::with_capacity(input.record_bytes());
             bytes.extend_from_slice(input.text().as_str().as_bytes());
             if input.enter() {
                 bytes.push(b'\r');
             }
-            let expected = u32::try_from(bytes.len()).map_err(|_| invalid("input too large"))?;
-            Ok((
-                encode_input_message(&InputMessage::WriteInput(WriteInput {
-                    attachment_id,
-                    bytes,
-                    capability_revision,
-                }))?,
-                Some(expected),
-            ))
+            raw_write(attachment_id, capability_revision, bytes)
         }
-        TerminalSendPayload::Key { key } => {
+        SendRecord::Bytes { bytes } => {
+            raw_write(attachment_id, capability_revision, bytes.as_bytes().to_vec())
+        }
+        SendRecord::Paste { content } => Ok((
+            encode_input_message(&InputMessage::PasteAutoInput(PasteAutoInput {
+                attachment_id,
+                capability_revision,
+                content: content.as_bytes().to_vec(),
+            }))?,
+            None,
+        )),
+        SendRecord::Key { key } => {
             let (code, control, unshifted_codepoint) = key_fields(*key);
-            Ok((
-                encode_input_message(&InputMessage::KeyInput(KeyInput {
-                    action: KeyAction::Press,
-                    attachment_id,
-                    capability_revision,
-                    composing: false,
-                    consumed_modifiers: TerminalModifiers::default(),
-                    key: TerminalKeyCode::parse(code)?,
-                    modifiers: TerminalModifiers {
-                        control,
-                        ..TerminalModifiers::default()
-                    },
-                    option_as_alt: false,
-                    text: String::new(),
-                    unshifted_codepoint,
-                }))?,
-                None,
-            ))
+            key_press(
+                attachment_id,
+                capability_revision,
+                &code,
+                TerminalModifiers {
+                    control,
+                    ..TerminalModifiers::default()
+                },
+                unshifted_codepoint,
+            )
+        }
+        SendRecord::Combo { modifiers, base } => {
+            let (code, unshifted_codepoint) = combo_base_fields(*base);
+            key_press(
+                attachment_id,
+                capability_revision,
+                &code,
+                TerminalModifiers {
+                    alt: modifiers.alt,
+                    control: modifiers.control,
+                    shift: modifiers.shift,
+                    ..TerminalModifiers::default()
+                },
+                unshifted_codepoint,
+            )
         }
     }
+}
+
+fn raw_write(
+    attachment_id: AttachmentId,
+    capability_revision: NonZeroU64,
+    bytes: Vec<u8>,
+) -> Result<(orchbee_terminal_protocol::EncodedInputMessage, Option<u32>), Box<dyn Error>> {
+    let expected = u32::try_from(bytes.len()).map_err(|_| invalid("input too large"))?;
+    Ok((
+        encode_input_message(&InputMessage::WriteInput(WriteInput {
+            attachment_id,
+            bytes,
+            capability_revision,
+        }))?,
+        Some(expected),
+    ))
+}
+
+fn key_press(
+    attachment_id: AttachmentId,
+    capability_revision: NonZeroU64,
+    code: &str,
+    modifiers: TerminalModifiers,
+    unshifted_codepoint: u32,
+) -> Result<(orchbee_terminal_protocol::EncodedInputMessage, Option<u32>), Box<dyn Error>> {
+    Ok((
+        encode_input_message(&InputMessage::KeyInput(KeyInput {
+            action: KeyAction::Press,
+            attachment_id,
+            capability_revision,
+            composing: false,
+            consumed_modifiers: TerminalModifiers::default(),
+            key: TerminalKeyCode::parse(code)?,
+            modifiers,
+            option_as_alt: false,
+            text: String::new(),
+            unshifted_codepoint,
+        }))?,
+        None,
+    ))
 }
 
 /// The terminal-protocol key identity and neutral modifier state for one
@@ -512,6 +667,28 @@ fn key_fields(key: SendKey) -> (&'static str, bool, u32) {
     }
 }
 
+/// The terminal-protocol key identity and neutral codepoint for one combo
+/// base. `Named` reuses the semantic-key spellings (the already-modified
+/// `CtrlC`/`CtrlD` bases cannot occur); `Letter`/`Digit` select the exact
+/// physical `KeyX`/`DigitN` code the Host encoder expects, with the ASCII
+/// codepoint as the unshifted value.
+fn combo_base_fields(base: SendComboBase) -> (String, u32) {
+    match base {
+        SendComboBase::Named(key) => {
+            let (code, _control, codepoint) = key_fields(key);
+            (code.to_owned(), codepoint)
+        }
+        SendComboBase::Insert => ("Insert".to_owned(), 0),
+        SendComboBase::Function(number) => (format!("F{number}"), 0),
+        SendComboBase::Space => ("Space".to_owned(), u32::from(b' ')),
+        SendComboBase::Letter(letter) => (
+            format!("Key{}", (letter - b'a' + b'A') as char),
+            u32::from(letter),
+        ),
+        SendComboBase::Digit(digit) => (format!("Digit{digit}"), u32::from(digit)),
+    }
+}
+
 fn attach_rejection(code: &str) -> SendRejection {
     match code {
         "missing-resource" => SendRejection::TerminalUnavailable,
@@ -534,7 +711,7 @@ fn input_rejection(code: &str) -> SendRejection {
 /// A healthy-carrier result: the connection stays usable for the next Server
 /// operation. `host_failed` here means the cleanup detach itself desynced.
 fn respond(
-    request: TerminalSendRequest,
+    request: &TerminalSendRequest,
     outcome: TerminalSendOutcome,
     host: &HostBrokerConnection,
     host_failed: bool,
@@ -551,7 +728,7 @@ fn respond(
 /// A desynchronized or dead carrier: the stream is shut down so the pending
 /// result is the last record this Host session ever produces.
 fn close(
-    request: TerminalSendRequest,
+    request: &TerminalSendRequest,
     outcome: TerminalSendOutcome,
     host: &HostBrokerConnection,
 ) -> Result<SendExecution, Box<dyn Error>> {

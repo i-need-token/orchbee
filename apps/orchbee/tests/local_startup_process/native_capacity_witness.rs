@@ -17,7 +17,8 @@ use orchbee_client_server_protocol::{
     ClientMessage, ControlInput, ControlRejectedReason, ControlUnavailableReason, ControllerId,
     RequestId, SendText, SendUnavailableReason, ServerMessage, SiteId as ObcsSiteId,
     TerminalControlAction, TerminalControlOutcome, TerminalControlRequest,
-    TerminalId as ObcsTerminalId, TerminalSendOutcome, TerminalSendPayload, TerminalSendRequest,
+    SendRecord, SendRecords, SendTextInput, TerminalId as ObcsTerminalId, TerminalSendOutcome,
+    TerminalSendRequest,
     TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, ViewerId,
     ViewerUnavailableReason, WorkerId as ObcsWorkerId, read_server_message, write_client_message,
 };
@@ -570,7 +571,7 @@ impl SessionPeer {
         &mut self,
         site: &ObcsSiteId,
         binding: &Binding,
-        payload: TerminalSendPayload,
+        records: SendRecords,
         deadline: Instant,
     ) -> Result<TerminalSendOutcome, String> {
         let request_id = self.request_id()?;
@@ -579,7 +580,7 @@ impl SessionPeer {
             site.clone(),
             binding.worker.clone(),
             binding.terminal.clone(),
-            payload,
+            records,
         ));
         loop {
             let per_op = (Instant::now() + EXCHANGE_TIMEOUT).min(deadline);
@@ -1858,13 +1859,16 @@ fn c1_capacity_process_witness() -> TestResult {
                 // accepted — the temporary input attachment is a separate
                 // admission, and its effect must reach the shell.
                 let marker = fixture.base.join("c1-send-marker");
-                let payload = TerminalSendPayload::new_text(
-                    SendText::new(format!("printf W > {}", marker.display()))
-                        .map_err(|error| format!("send text: {error}"))?,
-                    true,
-                )
-                .map_err(|error| format!("send payload: {error}"))?;
-                match probe.send(site, &rows[0], payload, deadline)? {
+                let records = SendRecords::new(vec![SendRecord::Text(
+                    SendTextInput::new(
+                        SendText::new(format!("printf W > {}", marker.display()))
+                            .map_err(|error| format!("send text: {error}"))?,
+                        true,
+                    )
+                    .map_err(|error| format!("send text input: {error}"))?,
+                )])
+                .map_err(|error| format!("send records: {error}"))?;
+                match probe.send(site, &rows[0], records, deadline)? {
                     TerminalSendOutcome::Accepted { .. } => bump(&counters.send_accepted),
                     other => return Err(format!("send under full viewer table: {other:?}")),
                 }

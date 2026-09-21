@@ -355,6 +355,7 @@ fn denied_result(request: &ClientMessage) -> ServerMessage {
                 None,
                 orchbee_client_server_protocol::TerminalSendOutcome::Rejected {
                     reason: orchbee_client_server_protocol::SendRejectedReason::TerminalUnavailable,
+                    progress: orchbee_client_server_protocol::SendProgress::none(),
                     cleanup: orchbee_client_server_protocol::SendCleanupStatus::NotNeeded,
                 },
             ) {

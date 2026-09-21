@@ -451,9 +451,9 @@ fn every_canonical_message_is_rejected_by_the_opposite_direction_decoder()
 fn rejects_every_unknown_tag_enum_and_nested_object_field() -> Result<(), Box<dyn std::error::Error>>
 {
     let client_payloads = [
-        r#"{"kind":"terminal.create","protocolVersion":1,"requestId":"11111111111111111111111111111111","workerConstraint":{"kind":"any","workerId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"cwd":null,"startMode":{"kind":"deferred"}}"#,
-        r#"{"kind":"terminal.create","protocolVersion":1,"requestId":"11111111111111111111111111111111","workerConstraint":null,"cwd":null,"startMode":{"kind":"later"}}"#,
-        r#"{"kind":"terminal.start","protocolVersion":1,"requestId":"22222222222222222222222222222222","terminalCreateRequestId":"11111111111111111111111111111111","geometry":{"columns":80,"rows":24,"cellPixelWidth":9,"cellPixelHeight":18,"pixels":1}}"#,
+        r#"{"kind":"terminal.create","protocolVersion":2,"requestId":"11111111111111111111111111111111","workerConstraint":{"kind":"any","workerId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"cwd":null,"startMode":{"kind":"deferred"}}"#,
+        r#"{"kind":"terminal.create","protocolVersion":2,"requestId":"11111111111111111111111111111111","workerConstraint":null,"cwd":null,"startMode":{"kind":"later"}}"#,
+        r#"{"kind":"terminal.start","protocolVersion":2,"requestId":"22222222222222222222222222222222","terminalCreateRequestId":"11111111111111111111111111111111","geometry":{"columns":80,"rows":24,"cellPixelWidth":9,"cellPixelHeight":18,"pixels":1}}"#,
     ];
     for invalid in client_payloads {
         assert_eq!(
@@ -463,14 +463,14 @@ fn rejects_every_unknown_tag_enum_and_nested_object_field() -> Result<(), Box<dy
     }
 
     let server_payloads = [
-        r#"{"kind":"terminal.create.result","protocolVersion":1,"requestId":"11111111111111111111111111111111","outcome":{"kind":"degraded"}}"#,
-        r#"{"kind":"terminal.create.result","protocolVersion":1,"requestId":"11111111111111111111111111111111","outcome":{"kind":"accepted","state":{"kind":"starting"}}}"#,
-        r#"{"kind":"terminal.create.result","protocolVersion":1,"requestId":"11111111111111111111111111111111","outcome":{"kind":"unavailable","reason":"network"}}"#,
-        r#"{"kind":"terminal.create.result","protocolVersion":1,"requestId":"11111111111111111111111111111111","outcome":{"kind":"failed","reason":"worker-failed"}}"#,
-        r#"{"kind":"terminal.start.result","protocolVersion":1,"requestId":"11111111111111111111111111111111","outcome":{"kind":"rejected","reason":"missing"}}"#,
-        r#"{"kind":"terminal.start.result","protocolVersion":1,"requestId":"11111111111111111111111111111111","outcome":{"kind":"unavailable","reason":"network"}}"#,
-        r#"{"kind":"terminal.start.result","protocolVersion":1,"requestId":"11111111111111111111111111111111","outcome":{"kind":"failed","reason":"host-failed"}}"#,
-        r#"{"kind":"terminal.start.result","protocolVersion":1,"requestId":"11111111111111111111111111111111","outcome":{"kind":"outcome-unknown","detail":"hidden"}}"#,
+        r#"{"kind":"terminal.create.result","protocolVersion":2,"requestId":"11111111111111111111111111111111","outcome":{"kind":"degraded"}}"#,
+        r#"{"kind":"terminal.create.result","protocolVersion":2,"requestId":"11111111111111111111111111111111","outcome":{"kind":"accepted","state":{"kind":"starting"}}}"#,
+        r#"{"kind":"terminal.create.result","protocolVersion":2,"requestId":"11111111111111111111111111111111","outcome":{"kind":"unavailable","reason":"network"}}"#,
+        r#"{"kind":"terminal.create.result","protocolVersion":2,"requestId":"11111111111111111111111111111111","outcome":{"kind":"failed","reason":"worker-failed"}}"#,
+        r#"{"kind":"terminal.start.result","protocolVersion":2,"requestId":"11111111111111111111111111111111","outcome":{"kind":"rejected","reason":"missing"}}"#,
+        r#"{"kind":"terminal.start.result","protocolVersion":2,"requestId":"11111111111111111111111111111111","outcome":{"kind":"unavailable","reason":"network"}}"#,
+        r#"{"kind":"terminal.start.result","protocolVersion":2,"requestId":"11111111111111111111111111111111","outcome":{"kind":"failed","reason":"host-failed"}}"#,
+        r#"{"kind":"terminal.start.result","protocolVersion":2,"requestId":"11111111111111111111111111111111","outcome":{"kind":"outcome-unknown","detail":"hidden"}}"#,
     ];
     for invalid in server_payloads {
         assert_eq!(
@@ -779,18 +779,23 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
             });
         }
         DecodedMessage::Client(ClientMessage::TerminalSend(request)) => {
-            use orchbee_client_server_protocol::TerminalSendPayload;
+            use orchbee_client_server_protocol::SendRecord;
             reached.insert("message-terminal-send");
-            reached.insert(match request.payload() {
-                TerminalSendPayload::Text(input) => {
-                    if input.enter() {
-                        "send-payload-text-enter"
-                    } else {
-                        "send-payload-text-plain"
+            for record in request.records().iter() {
+                reached.insert(match record {
+                    SendRecord::Text(input) => {
+                        if input.enter() {
+                            "send-payload-text-enter"
+                        } else {
+                            "send-payload-text-plain"
+                        }
                     }
-                }
-                TerminalSendPayload::Key { .. } => "send-payload-key",
-            });
+                    SendRecord::Key { .. } => "send-payload-key",
+                    SendRecord::Combo { .. } => "send-payload-combo",
+                    SendRecord::Bytes { .. } => "send-payload-bytes",
+                    SendRecord::Paste { .. } => "send-payload-paste",
+                });
+            }
         }
         DecodedMessage::Server(ServerMessage::TerminalSendResult(result)) => {
             use orchbee_client_server_protocol::{SendCleanupStatus, TerminalSendOutcome};
@@ -811,7 +816,7 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                 TerminalSendOutcome::Accepted { cleanup, .. }
                 | TerminalSendOutcome::Rejected { cleanup, .. }
                 | TerminalSendOutcome::Unavailable { cleanup, .. }
-                | TerminalSendOutcome::OutcomeUnknown { cleanup } => *cleanup,
+                | TerminalSendOutcome::OutcomeUnknown { cleanup, .. } => *cleanup,
             };
             reached.insert(match cleanup {
                 SendCleanupStatus::NotNeeded => "send-cleanup-not-needed",

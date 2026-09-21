@@ -1,8 +1,8 @@
 use super::*;
 use orchbee_capability_node_protocol::{
     HostCreationId, HostTerminalIdentity, SendAcceptedBytes, SendCleanupStatus, SendKey,
-    SendRejection, SendText, SendUnavailable, TerminalSendOutcome, TerminalSendPayload,
-    TerminalSendRequest, TerminalSendResult,
+    SendProgress, SendRecord, SendRecords, SendRejection, SendText, SendTextInput,
+    SendUnavailable, TerminalSendOutcome, TerminalSendRequest, TerminalSendResult,
 };
 use orchbee_terminal_protocol::{
     AttachTerminal, AttachmentCapabilities, AttachmentCapabilityState, AttachmentControl,
@@ -31,7 +31,7 @@ fn send_request(
     request: u8,
     generation: u64,
     target: HostTerminalIdentity,
-    payload: TerminalSendPayload,
+    records: SendRecords,
 ) -> TestResult<TerminalSendRequest> {
     Ok(TerminalSendRequest {
         request_id: OperationId::from_bytes([request; 16])?,
@@ -39,7 +39,7 @@ fn send_request(
         worker_generation: WorkerGeneration::new(nonzero(generation)?),
         target,
         attachment_id: OperationId::from_bytes(ATTACHMENT)?,
-        payload,
+        records,
     })
 }
 
@@ -55,8 +55,15 @@ fn send(server: &mut UnixStream, request: TerminalSendRequest) -> TestResult<Ter
     Ok(result)
 }
 
-fn text(value: &str, enter: bool) -> TestResult<TerminalSendPayload> {
-    TerminalSendPayload::new_text(SendText::new(value.to_owned())?, enter).map_err(Into::into)
+fn text(value: &str, enter: bool) -> TestResult<SendRecords> {
+    Ok(SendRecords::new(vec![SendRecord::Text(SendTextInput::new(
+        SendText::new(value.to_owned())?,
+        enter,
+    )?)])?)
+}
+
+fn one_key(key: SendKey) -> TestResult<SendRecords> {
+    Ok(SendRecords::new(vec![SendRecord::Key { key }])?)
 }
 
 fn scripted_epoch() -> TestResult<HostEpoch> {
@@ -302,6 +309,7 @@ fn send_fence_rejections_never_reach_the_host() -> TestResult {
     assert_eq!(
         send(&mut server, wrong_worker)?.outcome(),
         TerminalSendOutcome::Rejected {
+            progress: SendProgress::none(),
             reason: SendRejection::WrongWorker,
             cleanup: SendCleanupStatus::NotNeeded,
         }
@@ -313,6 +321,7 @@ fn send_fence_rejections_never_reach_the_host() -> TestResult {
         )?
         .outcome(),
         TerminalSendOutcome::Rejected {
+            progress: SendProgress::none(),
             reason: SendRejection::StaleWorkerGeneration,
             cleanup: SendCleanupStatus::NotNeeded,
         }
@@ -324,6 +333,7 @@ fn send_fence_rejections_never_reach_the_host() -> TestResult {
         )?
         .outcome(),
         TerminalSendOutcome::Rejected {
+            progress: SendProgress::none(),
             reason: SendRejection::StaleHostEpoch,
             cleanup: SendCleanupStatus::NotNeeded,
         }
@@ -360,7 +370,7 @@ fn send_text_runs_one_attach_input_detach_and_reports_confirmed() -> TestResult 
         )?
         .outcome(),
         TerminalSendOutcome::Accepted {
-            accepted_bytes: SendAcceptedBytes::new(7)?,
+            progress: SendProgress::complete(1, 7),
             cleanup: SendCleanupStatus::Confirmed,
         }
     );
@@ -371,7 +381,7 @@ fn send_text_runs_one_attach_input_detach_and_reports_confirmed() -> TestResult 
         )?
         .outcome(),
         TerminalSendOutcome::Accepted {
-            accepted_bytes: SendAcceptedBytes::new(2)?,
+            progress: SendProgress::complete(1, 2),
             cleanup: SendCleanupStatus::Confirmed,
         }
     );
@@ -423,12 +433,12 @@ fn send_key_emits_one_semantic_record_and_echoes_host_byte_count() -> TestResult
                 1,
                 7,
                 identity(SCRIPT_EPOCH, TERMINAL)?,
-                TerminalSendPayload::new_key(SendKey::CtrlC),
+                one_key(SendKey::CtrlC)?,
             )?,
         )?
         .outcome(),
         TerminalSendOutcome::Accepted {
-            accepted_bytes: SendAcceptedBytes::new(1)?,
+            progress: SendProgress::complete(1, 1),
             cleanup: SendCleanupStatus::Confirmed,
         }
     );
@@ -473,6 +483,7 @@ fn send_attach_typed_failures_are_typed_rejections_without_cleanup() -> TestResu
             )?
             .outcome(),
             TerminalSendOutcome::Rejected {
+            progress: SendProgress::none(),
                 reason,
                 cleanup: SendCleanupStatus::NotNeeded,
             }
@@ -519,6 +530,7 @@ fn send_input_typed_failure_still_detaches_and_reports_cleanup() -> TestResult {
         )?
         .outcome(),
         TerminalSendOutcome::Rejected {
+            progress: SendProgress::none(),
             reason: SendRejection::HostInputLimitExceeded,
             cleanup: SendCleanupStatus::Confirmed,
         }
@@ -573,6 +585,7 @@ fn send_corrupt_input_acknowledgement_never_resends_and_closes_host() -> TestRes
             )?
             .outcome(),
             TerminalSendOutcome::OutcomeUnknown {
+            progress: SendProgress::none(),
                 cleanup: SendCleanupStatus::Unconfirmed,
             }
         );
@@ -607,6 +620,7 @@ fn send_host_closure_positions_map_to_unavailable_or_unknown() -> TestResult {
         (
             CloseAt::Handshake,
             TerminalSendOutcome::Unavailable {
+            progress: SendProgress::none(),
                 reason: SendUnavailable::HostUnavailable,
                 cleanup: SendCleanupStatus::Unconfirmed,
             },
@@ -614,6 +628,7 @@ fn send_host_closure_positions_map_to_unavailable_or_unknown() -> TestResult {
         (
             CloseAt::AfterAttach,
             TerminalSendOutcome::Unavailable {
+            progress: SendProgress::none(),
                 reason: SendUnavailable::HostUnavailable,
                 cleanup: SendCleanupStatus::Unconfirmed,
             },
@@ -621,15 +636,16 @@ fn send_host_closure_positions_map_to_unavailable_or_unknown() -> TestResult {
         (
             CloseAt::AfterInput,
             TerminalSendOutcome::OutcomeUnknown {
+            progress: SendProgress::none(),
                 cleanup: SendCleanupStatus::Unconfirmed,
             },
         ),
         (
             CloseAt::DuringDetach,
             TerminalSendOutcome::Accepted {
-                accepted_bytes: SendAcceptedBytes::new(2).expect("bytes"),
-                cleanup: SendCleanupStatus::Unconfirmed,
-            },
+            progress: SendProgress::complete(1, 2),
+            cleanup: SendCleanupStatus::Unconfirmed,
+        },
         ),
     ] {
         let fixture = RuntimeFixture::new()?;
@@ -720,7 +736,7 @@ fn send_detach_typed_failure_reports_unconfirmed_and_closes_the_carrier() -> Tes
         )?
         .outcome(),
         TerminalSendOutcome::Accepted {
-            accepted_bytes: SendAcceptedBytes::new(2)?,
+            progress: SendProgress::complete(1, 2),
             cleanup: SendCleanupStatus::Unconfirmed,
         }
     );
@@ -763,6 +779,7 @@ fn send_attach_desync_shuts_down_without_another_exchange() -> TestResult {
         )?
         .outcome(),
         TerminalSendOutcome::Unavailable {
+            progress: SendProgress::none(),
             reason: SendUnavailable::HostProtocolFault,
             cleanup: SendCleanupStatus::Unconfirmed,
         }
@@ -817,7 +834,7 @@ fn send_text_boundary_lengths_encode_one_exact_record() -> TestResult {
         )?
         .outcome(),
         TerminalSendOutcome::Accepted {
-            accepted_bytes: SendAcceptedBytes::new(4096)?,
+            progress: SendProgress::complete(1, 4096),
             cleanup: SendCleanupStatus::Confirmed,
         }
     );
@@ -833,7 +850,7 @@ fn send_text_boundary_lengths_encode_one_exact_record() -> TestResult {
         )?
         .outcome(),
         TerminalSendOutcome::Accepted {
-            accepted_bytes: SendAcceptedBytes::new(4096)?,
+            progress: SendProgress::complete(1, 4096),
             cleanup: SendCleanupStatus::Confirmed,
         }
     );
@@ -1031,6 +1048,7 @@ fn send_attach_response_envelope_violations_are_protocol_faults() -> TestResult 
             )?
             .outcome(),
             TerminalSendOutcome::Unavailable {
+            progress: SendProgress::none(),
                 reason: SendUnavailable::HostProtocolFault,
                 cleanup: SendCleanupStatus::Unconfirmed,
             }
@@ -1096,6 +1114,7 @@ fn send_attach_capability_echo_mismatches_are_protocol_faults() -> TestResult {
             )?
             .outcome(),
             TerminalSendOutcome::Unavailable {
+            progress: SendProgress::none(),
                 reason: SendUnavailable::HostProtocolFault,
                 cleanup: SendCleanupStatus::Unconfirmed,
             }
@@ -1130,6 +1149,7 @@ fn send_attach_response_deadline_is_unavailable() -> TestResult {
         )?
         .outcome(),
         TerminalSendOutcome::Unavailable {
+            progress: SendProgress::none(),
             reason: SendUnavailable::HostUnavailable,
             cleanup: SendCleanupStatus::Unconfirmed,
         }
@@ -1168,6 +1188,7 @@ fn send_input_response_echo_violation_is_unknown_and_never_resent() -> TestResul
         )?
         .outcome(),
         TerminalSendOutcome::OutcomeUnknown {
+            progress: SendProgress::none(),
             cleanup: SendCleanupStatus::Unconfirmed,
         }
     );
@@ -1186,13 +1207,14 @@ fn send_key_acknowledgement_byte_bounds() -> TestResult {
         (
             0_u32,
             TerminalSendOutcome::Accepted {
-                accepted_bytes: SendAcceptedBytes::new(0).expect("zero"),
-                cleanup: SendCleanupStatus::Confirmed,
-            },
+            progress: SendProgress::complete(1, 0),
+            cleanup: SendCleanupStatus::Confirmed,
+        },
         ),
         (
             SendAcceptedBytes::MAXIMUM + 1,
             TerminalSendOutcome::OutcomeUnknown {
+            progress: SendProgress::none(),
                 cleanup: SendCleanupStatus::Unconfirmed,
             },
         ),
@@ -1261,7 +1283,7 @@ fn send_key_acknowledgement_byte_bounds() -> TestResult {
                     1,
                     7,
                     identity(SCRIPT_EPOCH, TERMINAL)?,
-                    TerminalSendPayload::new_key(SendKey::Enter),
+                    one_key(SendKey::Enter)?,
                 )?,
             )?
             .outcome(),

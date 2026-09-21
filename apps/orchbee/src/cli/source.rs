@@ -1,5 +1,6 @@
 //! `terminal send --file/--stdin`: materialize one declared local source
-//! into the same bounded text record `--text` already carries. Everything
+//! into the bounded record its declared form selects — literal bytes, or
+//! the Host-bracketed paste content under `--paste`. Everything
 //! here runs before session admission, snapshot, request preparation, and
 //! submission — a source failure therefore has no request identity and is
 //! reported through `orchbee.cli.failure.source` (timeout/cancelled) or the
@@ -45,9 +46,17 @@ use serde_json::{Map, Value, json};
 use super::{Failure, FailureKind, SourceFinalization};
 use crate::invocation::{SendSourceCause, TerminalSendInput, UsageReason};
 
-/// The wire payload bound a materialized source must satisfy — the literal
-/// bytes plus an optional folded CR, identical to `--text`.
-const LIMIT: usize = crate::invocation::MAXIMUM_SEND_TEXT_BYTES;
+/// The declared form's acquisition bound: the literal `bytes` record bound
+/// plus one spare byte to detect oversize, or the `paste` content bound.
+/// The folded `--enter` CR counts toward the `bytes` record bound after
+/// acquisition, so acquisition reads at most the plain bound.
+fn limit_for(paste: bool) -> usize {
+    if paste {
+        crate::invocation::MAXIMUM_SEND_PASTE_BYTES
+    } else {
+        crate::invocation::MAXIMUM_SEND_BYTES_BYTES
+    }
+}
 
 /// Which declared source a source-stage failure names in its typed details.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -355,38 +364,79 @@ fn usage(option: &'static str, value: Option<String>, cause: SendSourceCause) ->
     })
 }
 
-/// Materialize the parsed input declaration into the record the send path
-/// already submits. `Text`/`Key` pass through untouched; `File`/`Stdin` are
-/// acquired, bounded, and validated here — the returned `Text` variant keeps
-/// the existing single-request lifecycle byte-identical downstream.
+/// Materialize the parsed input declaration into the records the send path
+/// submits. `Text`/`Keys` pass through untouched; `File`/`Stdin` are
+/// acquired once, bounded to the declared form, and become the literal
+/// `Bytes` record — or the opaque `Paste` content under `--paste`. The
+/// bytes are verbatim: UTF-8 validity is never required and NUL bytes pass
+/// through; `--enter` on `Bytes` folds one CR into the record's bound,
+/// while on `Paste` it stays a separate flag the executor turns into a
+/// trailing Enter record.
 pub(crate) fn materialize<'a>(
     input: &'a TerminalSendInput,
     deadline: Instant,
     signals: &mut dyn SignalWatch,
 ) -> Result<Cow<'a, TerminalSendInput>, SourceFailure> {
-    let (bytes, enter, option, value) = match input {
-        TerminalSendInput::File { path, enter } => (
-            acquire_file(path, deadline, signals)?,
+    let (mut bytes, enter, paste, option, value) = match input {
+        TerminalSendInput::File {
+            path,
+            enter,
+            paste,
+        } => (
+            acquire_file(path, *paste, deadline, signals)?,
             *enter,
+            *paste,
             "--file",
             Some(path.clone()),
         ),
-        TerminalSendInput::Stdin { enter } => {
-            (acquire_stdin(deadline, signals)?, *enter, "--stdin", None)
-        }
-        TerminalSendInput::Text { .. } | TerminalSendInput::Key(_) => {
+        TerminalSendInput::Stdin { enter, paste } => (
+            acquire_stdin(*paste, deadline, signals)?,
+            *enter,
+            *paste,
+            "--stdin",
+            None,
+        ),
+        TerminalSendInput::Text { .. }
+        | TerminalSendInput::Keys(_)
+        | TerminalSendInput::Bytes { .. }
+        | TerminalSendInput::Paste { .. } => {
             return Ok(Cow::Borrowed(input));
         }
     };
-    if bytes.len() + usize::from(enter) > LIMIT {
-        return Err(usage(option, value, SendSourceCause::Oversize));
+    if paste {
+        if bytes.len() > crate::invocation::MAXIMUM_SEND_PASTE_BYTES {
+            return Err(usage(
+                option,
+                value,
+                SendSourceCause::Oversize {
+                    limit: crate::invocation::MAXIMUM_SEND_PASTE_BYTES,
+                },
+            ));
+        }
+        return Ok(Cow::Owned(TerminalSendInput::Paste {
+            content: bytes,
+            enter,
+        }));
     }
-    let text =
-        String::from_utf8(bytes).map_err(|_| usage(option, value, SendSourceCause::NotUtf8))?;
-    // `--enter` stays the wire's folded-CR flag, so a materialized source is
-    // indistinguishable from `--text` downstream — the folded carriage
-    // return counts toward the same record bound.
-    Ok(Cow::Owned(TerminalSendInput::Text { text, enter }))
+    // Routing: content that fits the text record bound as valid UTF-8 keeps
+    // the single `text` record path bit-identical; anything else becomes an
+    // opaque `bytes` record under the larger literal bound.
+    if bytes.len() + usize::from(enter) <= crate::invocation::MAXIMUM_SEND_TEXT_BYTES {
+        match String::from_utf8(bytes) {
+            Ok(text) => return Ok(Cow::Owned(TerminalSendInput::Text { text, enter })),
+            Err(error) => bytes = error.into_bytes(),
+        }
+    }
+    if bytes.len() + usize::from(enter) > crate::invocation::MAXIMUM_SEND_BYTES_BYTES {
+        return Err(usage(
+            option,
+            value,
+            SendSourceCause::Oversize {
+                limit: crate::invocation::MAXIMUM_SEND_BYTES_BYTES,
+            },
+        ));
+    }
+    Ok(Cow::Owned(TerminalSendInput::Bytes { bytes, enter }))
 }
 
 /// Acquire `--file`: open without blocking on non-regular paths, `fstat` the
@@ -394,6 +444,7 @@ pub(crate) fn materialize<'a>(
 /// and accept only a regular file.
 fn acquire_file(
     path: &str,
+    paste: bool,
     deadline: Instant,
     signals: &mut dyn SignalWatch,
 ) -> Result<Vec<u8>, SourceFailure> {
@@ -422,6 +473,7 @@ fn acquire_file(
             fd: file.as_fd(),
             pollable: true,
             deadline,
+            limit: limit_for(paste),
             source: InputSource::File,
             operand: Some(path),
         },
@@ -456,6 +508,7 @@ impl Read for BorrowedReader<'_> {
 /// nonblocking file description so the caller's descriptor flags are never
 /// mutated, and anything else is rejected outright.
 fn acquire_stdin(
+    paste: bool,
     deadline: Instant,
     signals: &mut dyn SignalWatch,
 ) -> Result<Vec<u8>, SourceFailure> {
@@ -480,6 +533,7 @@ fn acquire_stdin(
                 fd: stdin.as_fd(),
                 pollable: false,
                 deadline,
+                limit: limit_for(paste),
                 source: InputSource::Stdin,
                 operand: None,
             },
@@ -507,6 +561,7 @@ fn acquire_stdin(
                 fd: private.as_fd(),
                 pollable: true,
                 deadline,
+                limit: limit_for(paste),
                 source: InputSource::Stdin,
                 operand: None,
             },
@@ -523,13 +578,15 @@ fn acquire_stdin(
 
 /// What one bounded acquisition reads from and how it is classified: the
 /// borrowed descriptor to poll, whether it is pollable at all, the shared
-/// deadline, and the declared source identity for diagnostics. `operand`
-/// is the declared source value (the `--file` path) echoed verbatim in
-/// usage diagnostics — never added to machine details.
+/// deadline, the declared form's acquisition bound, and the declared source
+/// identity for diagnostics. `operand` is the declared source value (the
+/// `--file` path) echoed verbatim in usage diagnostics — never added to
+/// machine details.
 struct ReadPlan<'a> {
     fd: BorrowedFd<'a>,
     pollable: bool,
     deadline: Instant,
+    limit: usize,
     source: InputSource,
     operand: Option<&'a str>,
 }
@@ -537,10 +594,10 @@ struct ReadPlan<'a> {
 /// The shared bounded read loop: check cancellation and the deadline before
 /// every wait and every read, poll the source (plus the injected signal
 /// channel) when the descriptor is nonblocking, and drain `POLLHUP` data
-/// before counting EOF. The buffer never exceeds `LIMIT + 1`, so exactly
-/// 4,096 bytes succeeds and 4,097 is rejected without draining further. A
-/// non-pollable regular file answers each read directly — a kernel-stalled
-/// read there is the documented non-preemptible residual.
+/// before counting EOF. The buffer never exceeds `limit + 1`, so exactly
+/// `limit` bytes succeeds and `limit + 1` is rejected without draining
+/// further. A non-pollable regular file answers each read directly — a
+/// kernel-stalled read there is the documented non-preemptible residual.
 fn read_bounded(
     reader: &mut impl Read,
     plan: ReadPlan<'_>,
@@ -564,10 +621,11 @@ fn read_bounded_at(
         fd,
         pollable,
         deadline,
+        limit,
         source,
         operand,
     } = plan;
-    let mut bytes = Vec::with_capacity(LIMIT + 1);
+    let mut bytes = Vec::with_capacity(limit + 1);
     loop {
         match signals.take() {
             Err(_) => {
@@ -649,12 +707,12 @@ fn read_bounded_at(
         if deadline.saturating_duration_since(now()).is_zero() {
             return Err(SourceFailure::Timeout { source });
         }
-        let spare = (LIMIT + 1).saturating_sub(bytes.len());
+        let spare = (limit + 1).saturating_sub(bytes.len());
         if spare == 0 {
             return Err(usage(
                 source.option(),
                 operand.map(str::to_owned),
-                SendSourceCause::Oversize,
+                SendSourceCause::Oversize { limit },
             ));
         }
         let mut chunk = vec![0_u8; spare.min(8192)];
@@ -718,6 +776,9 @@ mod tests {
     };
 
     use super::*;
+
+    /// The literal `bytes` record bound the materializer enforces.
+    const BOUND: usize = crate::invocation::MAXIMUM_SEND_BYTES_BYTES;
     use crate::invocation::{SendSourceCause, TerminalSendInput, UsageReason};
 
     /// A watch that never reports a signal — the injected baseline for
@@ -791,6 +852,15 @@ mod tests {
         TerminalSendInput::File {
             path: path.to_owned(),
             enter,
+            paste: false,
+        }
+    }
+
+    fn file_input_paste(path: &str, enter: bool) -> TerminalSendInput {
+        TerminalSendInput::File {
+            path: path.to_owned(),
+            enter,
+            paste: true,
         }
     }
 
@@ -824,17 +894,20 @@ mod tests {
         value.as_deref()
     }
 
-    /// The text record a successful materialization produced.
-    fn materialized_text(
+    /// The literal payload bytes a successful materialization produced —
+    /// whichever record variant the routing rule chose.
+    fn materialized_bytes(
         input: &TerminalSendInput,
         signals: &mut dyn SignalWatch,
-    ) -> (String, bool) {
+    ) -> (Vec<u8>, bool) {
         match materialize(input, deadline(), signals)
             .expect("materialize")
             .into_owned()
         {
-            TerminalSendInput::Text { text, enter } => (text, enter),
-            _ => panic!("materialization did not fold into text"),
+            TerminalSendInput::Text { text, enter } => (text.into_bytes(), enter),
+            TerminalSendInput::Bytes { bytes, enter } => (bytes, enter),
+            TerminalSendInput::Paste { content, enter } => (content, enter),
+            other => panic!("materialization did not produce content: {other:?}"),
         }
     }
 
@@ -889,8 +962,8 @@ mod tests {
         let dir = workspace("file-ok");
         let path = write_file(&dir, "input", b"line one\nline two\n");
         let mut watch = IdleWatch;
-        let (text, enter) = materialized_text(&file_input(&path, false), &mut watch);
-        assert_eq!(text, "line one\nline two\n");
+        let (bytes, enter) = materialized_bytes(&file_input(&path, false), &mut watch);
+        assert_eq!(bytes, b"line one\nline two\n");
         assert!(!enter);
     }
 
@@ -898,23 +971,85 @@ mod tests {
     fn file_record_boundaries() {
         let dir = workspace("file-cap");
         let mut watch = IdleWatch;
-        // LIMIT-1 bytes + --enter fits: the folded-CR flag counts +1 byte.
-        let path = write_file(&dir, "fold-ok", &vec![b'x'; LIMIT - 1]);
-        let (text, enter) = materialized_text(&file_input(&path, true), &mut watch);
-        assert_eq!(text.len(), LIMIT - 1);
+        // BOUND-1 bytes + --enter fits: the folded-CR flag counts +1 byte.
+        let path = write_file(&dir, "fold-ok", &vec![b'x'; BOUND - 1]);
+        let (bytes, enter) = materialized_bytes(&file_input(&path, true), &mut watch);
+        assert_eq!(bytes.len(), BOUND - 1);
         assert!(enter, "--enter survives as the wire fold flag");
-        // LIMIT bytes without --enter is exactly the bound.
-        let path = write_file(&dir, "exact", &vec![b'y'; LIMIT]);
-        let (text, enter) = materialized_text(&file_input(&path, false), &mut watch);
-        assert_eq!(text.len(), LIMIT);
+        // BOUND bytes without --enter is exactly the bound.
+        let path = write_file(&dir, "exact", &vec![b'y'; BOUND]);
+        let (bytes, enter) = materialized_bytes(&file_input(&path, false), &mut watch);
+        assert_eq!(bytes.len(), BOUND);
         assert!(!enter);
-        // LIMIT bytes + --enter crosses the bound by one.
+        // BOUND bytes + --enter crosses the bound by one.
         let failure = materialize(&file_input(&path, true), deadline(), &mut watch).unwrap_err();
-        assert_eq!(cause(&failure), SendSourceCause::Oversize);
-        // LIMIT+1 bytes crosses outright.
-        let path = write_file(&dir, "over", &vec![b'z'; LIMIT + 1]);
+        assert_eq!(cause(&failure), SendSourceCause::Oversize { limit: BOUND });
+        // BOUND+1 bytes crosses outright.
+        let path = write_file(&dir, "over", &vec![b'z'; BOUND + 1]);
         let failure = materialize(&file_input(&path, false), deadline(), &mut watch).unwrap_err();
-        assert_eq!(cause(&failure), SendSourceCause::Oversize);
+        assert_eq!(cause(&failure), SendSourceCause::Oversize { limit: BOUND });
+    }
+
+    /// Routing pins: ≤4096 valid UTF-8 stays the single `text` record;
+    /// anything else within 1 MiB becomes `bytes`; `--paste` keeps the
+    /// opaque 256 KiB form regardless of UTF-8 validity.
+    #[test]
+    fn file_source_routing() {
+        let dir = workspace("file-route");
+        let mut watch = IdleWatch;
+        let path = write_file(&dir, "text", b"plain utf-8\n");
+        let materialized = materialize(&file_input(&path, false), deadline(), &mut watch)
+            .expect("small text")
+            .into_owned();
+        assert!(
+            matches!(materialized, TerminalSendInput::Text { enter: false, .. }),
+            "small UTF-8 must stay a text record: {materialized:?}"
+        );
+        // Valid UTF-8 over the text bound routes to bytes.
+        let path = write_file(&dir, "large-text", &vec![b'x'; 4097]);
+        let materialized = materialize(&file_input(&path, false), deadline(), &mut watch)
+            .expect("large text")
+            .into_owned();
+        assert!(
+            matches!(materialized, TerminalSendInput::Bytes { .. }),
+            "over-bound UTF-8 must route to bytes: {materialized:?}"
+        );
+        // Invalid UTF-8 under the text bound also routes to bytes.
+        let path = write_file(&dir, "binary", &[0xff, 0x00, 0xfe]);
+        let materialized = materialize(&file_input(&path, false), deadline(), &mut watch)
+            .expect("binary")
+            .into_owned();
+        assert!(
+            matches!(materialized, TerminalSendInput::Bytes { .. }),
+            "non-UTF-8 must route to bytes: {materialized:?}"
+        );
+    }
+
+    /// `--paste` carries the opaque 256 KiB bound on its own axis: content
+    /// at the bound passes, one byte over is refused with the paste bound —
+    /// and `--enter` stays a separate flag rather than folding into bytes.
+    #[test]
+    fn file_source_paste_boundaries() {
+        const PASTE_BOUND: usize = crate::invocation::MAXIMUM_SEND_PASTE_BYTES;
+        let dir = workspace("file-paste");
+        let mut watch = IdleWatch;
+        let path = write_file(&dir, "exact", &vec![b'p'; PASTE_BOUND]);
+        let (content, enter) = materialized_bytes(&file_input_paste(&path, true), &mut watch);
+        assert_eq!(content.len(), PASTE_BOUND);
+        assert!(enter, "--enter stays a separate flag on paste");
+        let path = write_file(&dir, "over", &vec![b'p'; PASTE_BOUND + 1]);
+        let failure =
+            materialize(&file_input_paste(&path, false), deadline(), &mut watch).unwrap_err();
+        assert_eq!(
+            cause(&failure),
+            SendSourceCause::Oversize {
+                limit: PASTE_BOUND
+            }
+        );
+        // Paste content is opaque: invalid UTF-8 and NULs pass untouched.
+        let path = write_file(&dir, "opaque", &[0xff, 0x00, 0x1b, 0x5b]);
+        let (content, _) = materialized_bytes(&file_input_paste(&path, false), &mut watch);
+        assert_eq!(content, [0xff, 0x00, 0x1b, 0x5b]);
     }
 
     /// Every `--file` diagnostic echoes the path the caller named — the
@@ -924,15 +1059,15 @@ mod tests {
     fn file_oversize_echoes_its_declared_path() {
         let dir = workspace("file-oversize-path");
         let mut watch = IdleWatch;
-        // The read loop hits LIMIT+1.
-        let path = write_file(&dir, "over", &vec![b'z'; LIMIT + 1]);
+        // The read loop hits BOUND+1.
+        let path = write_file(&dir, "over", &vec![b'z'; BOUND + 1]);
         let failure = materialize(&file_input(&path, false), deadline(), &mut watch).unwrap_err();
-        assert_eq!(cause(&failure), SendSourceCause::Oversize);
+        assert_eq!(cause(&failure), SendSourceCause::Oversize { limit: BOUND });
         assert_eq!(echoed_value(&failure), Some(path.as_str()));
-        // LIMIT + --enter overflows after a complete read — same echo.
-        let path = write_file(&dir, "fold-over", &vec![b'y'; LIMIT]);
+        // BOUND + --enter overflows after a complete read — same echo.
+        let path = write_file(&dir, "fold-over", &vec![b'y'; BOUND]);
         let failure = materialize(&file_input(&path, true), deadline(), &mut watch).unwrap_err();
-        assert_eq!(cause(&failure), SendSourceCause::Oversize);
+        assert_eq!(cause(&failure), SendSourceCause::Oversize { limit: BOUND });
         assert_eq!(echoed_value(&failure), Some(path.as_str()));
     }
 
@@ -940,10 +1075,10 @@ mod tests {
     fn file_source_rejects_invalid_and_unsupported() {
         let dir = workspace("file-bad");
         let mut watch = IdleWatch;
-        // Non-UTF-8 bytes.
-        let path = write_file(&dir, "binary", &[0xff, 0xfe, 0xfd]);
-        let failure = materialize(&file_input(&path, false), deadline(), &mut watch).unwrap_err();
-        assert_eq!(cause(&failure), SendSourceCause::NotUtf8);
+        // Invalid UTF-8 and NUL bytes are legal literal bytes.
+        let path = write_file(&dir, "binary", &[0xff, 0xfe, 0xfd, 0x00]);
+        let (bytes, _) = materialized_bytes(&file_input(&path, false), &mut watch);
+        assert_eq!(bytes, [0xff, 0xfe, 0xfd, 0x00]);
         // Empty.
         let path = write_file(&dir, "empty", b"");
         let failure = materialize(&file_input(&path, false), deadline(), &mut watch).unwrap_err();
@@ -1342,6 +1477,7 @@ mod tests {
                 fd: source_file.as_fd(),
                 pollable: true,
                 deadline,
+                limit: BOUND,
                 source: InputSource::File,
                 operand: None,
             },
@@ -1388,6 +1524,7 @@ mod tests {
                 fd: read_end.as_fd(),
                 pollable: false,
                 deadline,
+                limit: BOUND,
                 source: InputSource::Stdin,
                 operand: None,
             },
@@ -1455,6 +1592,7 @@ mod tests {
                 fd: read_end.as_fd(),
                 pollable: false,
                 deadline,
+                limit: BOUND,
                 source: InputSource::Stdin,
                 operand: None,
             },

@@ -9,8 +9,8 @@ use orchbee_workbench_protocol::{
 use super::{
     CommandPath, CompletionShell, ExpectedValue, FailureEnvelope, Family, HelpTopic,
     MutationCommand, OutputFormat, PanelMoveDestination, ParseFailure, ParseFailureKind,
-    QueryCommand, Request, Resource, TabContext, Target, TerminalSendInput, TerminalSendKey,
-    UsageContext, UsageReason, parse_request,
+    ParsedSendKey, QueryCommand, Request, Resource, TabContext, Target, TerminalSendInput,
+    TerminalSendKey, UsageContext, UsageReason, parse_request,
 };
 
 fn parse(arguments: &[&str]) -> Result<Request, ParseFailure> {
@@ -4062,7 +4062,7 @@ fn terminal_send_grammar() {
     ] {
         assert_eq!(
             parse(&["terminal", "send", ID, "--key", name]),
-            Ok(send(TerminalSendInput::Key(key))),
+            Ok(send(TerminalSendInput::Keys(vec![ParsedSendKey::Key(key)]))),
             "{name}"
         );
     }
@@ -4083,6 +4083,7 @@ fn terminal_send_grammar() {
         Ok(send(TerminalSendInput::File {
             path: "/tmp/in.txt".to_owned(),
             enter: false,
+            paste: false,
         }))
     );
     assert_eq!(
@@ -4090,15 +4091,16 @@ fn terminal_send_grammar() {
         Ok(send(TerminalSendInput::File {
             path: "/tmp/in.txt".to_owned(),
             enter: true,
+            paste: false,
         }))
     );
     assert_eq!(
         parse(&["terminal", "send", ID, "--stdin"]),
-        Ok(send(TerminalSendInput::Stdin { enter: false }))
+        Ok(send(TerminalSendInput::Stdin { enter: false, paste: false }))
     );
     assert_eq!(
         parse(&["terminal", "send", ID, "--stdin", "--enter"]),
-        Ok(send(TerminalSendInput::Stdin { enter: true }))
+        Ok(send(TerminalSendInput::Stdin { enter: true, paste: false }))
     );
     // The forms exclude each other, named in the fixed order
     // --text, --key, --file, --stdin regardless of argv order.

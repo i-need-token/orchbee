@@ -31,7 +31,7 @@ fn event(sequence: u64, payload_bytes: usize) -> AgentDrainEntry {
 fn framed(payload: &[u8]) -> Vec<u8> {
     let mut frame = Vec::with_capacity(8 + payload.len());
     frame.extend_from_slice(b"OBCN");
-    frame.extend_from_slice(&1_u16.to_be_bytes());
+    frame.extend_from_slice(&crate::codec::PROTOCOL_VERSION.to_be_bytes());
     frame.extend_from_slice(
         &u16::try_from(payload.len())
             .expect("payload length")

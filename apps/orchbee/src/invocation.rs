@@ -418,22 +418,70 @@ pub(crate) enum TabContext {
     Standalone,
 }
 
-/// The `terminal send` payload the grammar admits: literal bytes, one named
-/// key, or a declared local source materialized into the same literal text —
-/// the parser stores the validated choice so the executor never re-reads argv.
+/// The `terminal send` payload the grammar admits: literal UTF-8 text, an
+/// ordered repeatable key/combo sequence, or a declared local source
+/// materialized once into one bounded record. The parser stores the
+/// validated choice so the executor never re-reads argv.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum TerminalSendInput {
     /// Literal UTF-8 bytes; `enter` folds one trailing CR into the same
     /// single input record, never a second request.
     Text { text: String, enter: bool },
-    /// One semantic key the Host encodes under the terminal's current mode.
+    /// The ordered `--key` sequence — every element is a named semantic key
+    /// or an explicit modifier combination, in argv order.
+    Keys(Vec<ParsedSendKey>),
+    /// A declared regular file read once into one bounded record. `enter`
+    /// folds one trailing CR; `paste` selects the Host-bracketed paste
+    /// record instead of a literal write.
+    File {
+        path: String,
+        enter: bool,
+        paste: bool,
+    },
+    /// A declared noninteractive standard-input stream read once into one
+    /// bounded record; `enter`/`paste` follow `File`.
+    Stdin { enter: bool, paste: bool },
+    /// Materialized-only variant: the literal bytes a declared
+    /// `--file`/`--stdin` source produced, with `enter` folding one trailing
+    /// CR into the same record. The parser never emits this.
+    Bytes { bytes: Vec<u8>, enter: bool },
+    /// Materialized-only variant: the opaque content a declared
+    /// `--paste --file`/`--stdin` source produced; `enter` is a separate
+    /// trailing Enter record the executor appends, never folded into the
+    /// paste content. The parser never emits this.
+    Paste { content: Vec<u8>, enter: bool },
+}
+
+/// One `--key` argument's parsed value: a named semantic key or an explicit
+/// `ctrl`/`alt`/`shift` combination over the closed base vocabulary.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ParsedSendKey {
     Key(TerminalSendKey),
-    /// A declared regular file read once into the same bounded text record;
-    /// `enter` folds one trailing CR into it.
-    File { path: String, enter: bool },
-    /// A declared noninteractive standard-input stream read once into the
-    /// same bounded text record; `enter` folds one trailing CR into it.
-    Stdin { enter: bool },
+    Combo(TerminalSendCombo),
+}
+
+/// An explicit modifier combination: at least one modifier beside the base
+/// key — a modifier-only or bare-base value is rejected by the grammar.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct TerminalSendCombo {
+    pub(crate) control: bool,
+    pub(crate) alt: bool,
+    pub(crate) shift: bool,
+    pub(crate) base: TerminalComboBase,
+}
+
+/// The closed combo base vocabulary: every named semantic key except the
+/// already-modified `ctrl-c`/`ctrl-d`, plus `insert`, `f1` through `f12`,
+/// `space`, and single ASCII letters and digits under their physical
+/// `KeyX`/`DigitN` identities.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum TerminalComboBase {
+    Key(TerminalSendKey),
+    Insert,
+    Function(u8),
+    Space,
+    Letter(u8),
+    Digit(u8),
 }
 
 /// The closed `terminal send --key` vocabulary. `CtrlC`/`CtrlD` carry the
@@ -458,27 +506,6 @@ pub(crate) enum TerminalSendKey {
 }
 
 impl TerminalSendKey {
-    /// The flag's public spelling, reused for receipt correlation.
-    pub(crate) const fn as_str(self) -> &'static str {
-        match self {
-            Self::Enter => "enter",
-            Self::Escape => "escape",
-            Self::Tab => "tab",
-            Self::Backspace => "backspace",
-            Self::Delete => "delete",
-            Self::Up => "up",
-            Self::Down => "down",
-            Self::Left => "left",
-            Self::Right => "right",
-            Self::Home => "home",
-            Self::End => "end",
-            Self::PageUp => "page-up",
-            Self::PageDown => "page-down",
-            Self::CtrlC => "ctrl-c",
-            Self::CtrlD => "ctrl-d",
-        }
-    }
-
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
             "enter" => Self::Enter,
@@ -499,6 +526,82 @@ impl TerminalSendKey {
             _ => return None,
         })
     }
+}
+
+/// Parse one `--key` value: a bare named key, or `modifier+...+base` with at
+/// least one of `ctrl`/`alt`/`shift` — order-insensitive, each at most once.
+/// The base admits the named vocabulary except `ctrl-c`/`ctrl-d` (a
+/// combination over an already-modified key is ambiguous) plus `insert`,
+/// `f1`..=`f12`, `space`, one ASCII letter, or one ASCII digit. Everything
+/// else — empty segments, unknown bases, bare `f5`-style bases with no
+/// modifier — is refused before any effect.
+fn parse_send_key(value: &str) -> Option<ParsedSendKey> {
+    if !value.contains('+') {
+        return TerminalSendKey::parse(value).map(ParsedSendKey::Key);
+    }
+    let mut control = false;
+    let mut alt = false;
+    let mut shift = false;
+    let mut parts = value.split('+').peekable();
+    loop {
+        let part = parts.next()?;
+        if part.is_empty() {
+            return None;
+        }
+        if parts.peek().is_none() {
+            let base = combo_base(part)?;
+            if !(control || alt || shift) {
+                return None;
+            }
+            return Some(ParsedSendKey::Combo(TerminalSendCombo {
+                control,
+                alt,
+                shift,
+                base,
+            }));
+        }
+        let slot = match part {
+            "ctrl" => &mut control,
+            "alt" => &mut alt,
+            "shift" => &mut shift,
+            _ => return None,
+        };
+        if *slot {
+            return None;
+        }
+        *slot = true;
+    }
+}
+
+/// The combo base spelling: the named-key vocabulary minus the
+/// already-modified pair, then the physical-code names.
+fn combo_base(part: &str) -> Option<TerminalComboBase> {
+    if let Some(key) = TerminalSendKey::parse(part) {
+        return match key {
+            TerminalSendKey::CtrlC | TerminalSendKey::CtrlD => None,
+            key => Some(TerminalComboBase::Key(key)),
+        };
+    }
+    if let Some(number) = part
+        .strip_prefix('f')
+        .and_then(|suffix| suffix.parse::<u8>().ok())
+        && (1..=12).contains(&number)
+        && part.len() == if number < 10 { 2 } else { 3 }
+    {
+        return Some(TerminalComboBase::Function(number));
+    }
+    Some(match part {
+        "insert" => TerminalComboBase::Insert,
+        "space" => TerminalComboBase::Space,
+        _ => {
+            let bytes = part.as_bytes();
+            match bytes {
+                [letter @ b'a'..=b'z'] => TerminalComboBase::Letter(*letter),
+                [digit @ b'0'..=b'9'] => TerminalComboBase::Digit(*digit),
+                _ => return None,
+            }
+        }
+    })
 }
 
 /// One effectful command admitted by the grammar. Every field is a
@@ -710,6 +813,8 @@ pub(crate) enum ExpectedValue {
     WaitTimeout,
     SendText,
     SendKey,
+    /// The repeatable `--key` sequence bound: at most 64 values per request.
+    SendKeySequence,
     MouseMode,
     Executable,
     LaunchArguments,
@@ -836,11 +941,10 @@ pub(crate) enum SendSourceCause {
     UnsupportedStream,
     /// The source produced no bytes.
     Empty,
-    /// The source exceeded the 4,096-byte record bound including the
-    /// folded `--enter` CR.
-    Oversize,
-    /// The source bytes were not valid UTF-8.
-    NotUtf8,
+    /// The source exceeded the declared form's byte bound — the literal
+    /// byte record bound including the folded `--enter` CR, or the paste
+    /// content bound under `--paste`.
+    Oversize { limit: usize },
     /// The source could not be opened or read.
     Unreadable,
 }
@@ -894,9 +998,14 @@ struct Options {
     timeout: Option<String>,
     text: Option<String>,
     enter: bool,
-    key: Option<String>,
+    /// Every `--key` occurrence in argv order: the repeatable value option
+    /// builds the ordered key/combo record sequence.
+    keys: Vec<String>,
     file: Option<String>,
     stdin: bool,
+    /// `--paste`: the declared `--file`/`--stdin` source rides the
+    /// Host-selected bracketed-paste record instead of a literal write.
+    paste: bool,
     mouse: Option<bool>,
     exec: Option<String>,
     args: Vec<String>,
@@ -1242,7 +1351,7 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                 index += 1;
             }
             "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
-            | "--include-ended" | "--new-tab" => {
+            | "--include-ended" | "--new-tab" | "--paste" => {
                 let (seen, option) = if token == "--standalone" {
                     (&mut options.standalone, "--standalone")
                 } else if token == "--confirm" {
@@ -1255,6 +1364,8 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                     (&mut options.include_ended, "--include-ended")
                 } else if token == "--new-tab" {
                     (&mut options.new_tab, "--new-tab")
+                } else if token == "--paste" {
+                    (&mut options.paste, "--paste")
                 } else {
                     (&mut options.enter, "--enter")
                 };
@@ -1344,6 +1455,10 @@ fn apply_value_flag(
         }
         return Ok(());
     }
+    if option == "--key" {
+        options.keys.push(value);
+        return Ok(());
+    }
     if option == "--until" {
         options.until.push(value);
         return Ok(());
@@ -1363,7 +1478,6 @@ fn apply_value_flag(
         "--match" => &mut options.match_text,
         "--timeout" => &mut options.timeout,
         "--text" => &mut options.text,
-        "--key" => &mut options.key,
         "--file" => &mut options.file,
         "--exec" => &mut options.exec,
         "--limit" => &mut options.limit,
@@ -2967,7 +3081,7 @@ fn business_options(options: &Options) -> bool {
         || options.timeout.is_some()
         || options.text.is_some()
         || options.enter
-        || options.key.is_some()
+        || !options.keys.is_empty()
         || options.file.is_some()
         || options.stdin
         || options.exec.is_some()
@@ -3057,7 +3171,7 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     if options.enter && !scope.enter {
         return Some("--enter");
     }
-    if options.key.is_some() && !scope.key {
+    if !options.keys.is_empty() && !scope.key {
         return Some("--key");
     }
     if options.file.is_some() && !scope.file {
@@ -3519,108 +3633,172 @@ fn wait_timeout_option(
     }
 }
 
-/// The wire's single-record input bound: literal bytes plus the optional
-/// folded CR must fit one input payload.
+/// The wire's per-record text bound: literal bytes plus the optional
+/// folded CR must fit one `text` record.
 pub(crate) const MAXIMUM_SEND_TEXT_BYTES: usize = 4096;
 
-/// `terminal send` admits exactly one payload form. `--text`/`--key` are
-/// mutually exclusive and one is required; `--enter` is the text-bearing
-/// forms' own modifier and never legal alone or under `--key`. The text byte
-/// budget counts the payload the wire actually carries — the literal bytes
-/// plus the appended CR — so an over-limit record is refused before any
-/// connection. `--file` and `--stdin` are declarations only: the parser
+/// The wire's per-record bound for one literal `bytes` record — the
+/// materialized `--file`/`--stdin` payload plus its folded `--enter` CR.
+pub(crate) const MAXIMUM_SEND_BYTES_BYTES: usize = 1024 * 1024;
+
+/// The wire's per-record bound for one `paste` record's content under
+/// `--paste`; the Host's own bracket markers are additional.
+pub(crate) const MAXIMUM_SEND_PASTE_BYTES: usize = 256 * 1024;
+
+/// The wire's sequence bound: an ordered `--key` run submits at most 64
+/// records in one request.
+pub(crate) const MAXIMUM_SEND_RECORDS: usize = 64;
+
+/// `terminal send` admits exactly one source family: `--text`, one or more
+/// repeatable `--key` values, `--file`, or `--stdin`. `--enter` is the
+/// text-bearing modifier — legal under `--text`, `--file`, and `--stdin`,
+/// never under `--key`. `--paste` selects the Host-bracketed paste record
+/// and is legal only beside a declared `--file`/`--stdin` source. The text
+/// byte budget counts the payload the wire actually carries — the literal
+/// bytes plus the appended CR — so an over-limit record is refused before
+/// any connection. `--file` and `--stdin` are declarations only: the parser
 /// stores the source untouched and the materializer reads it later under
-/// the same bounded budget.
+/// the shared invocation deadline.
 fn send_input(
     options: &Options,
     context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<TerminalSendInput, ParseFailure> {
-    // Exactly one source: a second declaration is the conflict the grammar
-    // rejects, named in a fixed order regardless of argv order.
+    // Exactly one source family: a second declaration is the conflict the
+    // grammar rejects, named in a fixed order regardless of argv order.
     let declared: Vec<&'static str> = [
         ("--text", options.text.is_some()),
-        ("--key", options.key.is_some()),
+        ("--key", !options.keys.is_empty()),
         ("--file", options.file.is_some()),
         ("--stdin", options.stdin),
     ]
     .into_iter()
     .filter_map(|(flag, seen)| seen.then_some(flag))
     .collect();
-    match (&options.text, &options.key, &options.file, options.stdin) {
-        (Some(text), None, None, false) => {
-            let bytes = text.len() + usize::from(options.enter);
-            if text.is_empty() || bytes > MAXIMUM_SEND_TEXT_BYTES {
-                return Err(usage_with(
-                    UsageReason::InvalidValue {
-                        context,
-                        option: "--text",
-                        value: text.clone(),
-                        expected: ExpectedValue::SendText,
-                    },
-                    envelope,
-                ));
-            }
-            Ok(TerminalSendInput::Text {
-                text: text.clone(),
-                enter: options.enter,
-            })
-        }
-        (None, Some(name), None, false) => {
-            if options.enter {
-                return Err(usage_with(
-                    UsageReason::UnexpectedOption {
-                        context,
-                        option: "--enter",
-                    },
-                    envelope,
-                ));
-            }
-            let Some(key) = TerminalSendKey::parse(name) else {
-                return Err(usage_with(
-                    UsageReason::InvalidValue {
-                        context,
-                        option: "--key",
-                        value: name.clone(),
-                        expected: ExpectedValue::SendKey,
-                    },
-                    envelope,
-                ));
-            };
-            Ok(TerminalSendInput::Key(key))
-        }
-        (None, None, Some(path), false) => Ok(TerminalSendInput::File {
-            path: path.clone(),
-            enter: options.enter,
-        }),
-        (None, None, None, true) => Ok(TerminalSendInput::Stdin {
-            enter: options.enter,
-        }),
-        (None, None, None, false) => {
-            if options.enter {
-                return Err(usage_with(
-                    UsageReason::UnexpectedOption {
-                        context,
-                        option: "--enter",
-                    },
-                    envelope,
-                ));
-            }
-            Err(missing_required(
-                context,
-                "'--text', '--key', '--file', or '--stdin'",
-                envelope,
-            ))
-        }
-        _ => Err(usage_with(
+    if declared.len() > 1 {
+        return Err(usage_with(
             UsageReason::ConflictingOptions {
                 context,
                 first: declared[0],
                 second: declared[1],
             },
             envelope,
-        )),
+        ));
     }
+    if let Some(text) = &options.text {
+        if options.paste {
+            return Err(usage_with(
+                UsageReason::UnexpectedOption {
+                    context,
+                    option: "--paste",
+                },
+                envelope,
+            ));
+        }
+        let bytes = text.len() + usize::from(options.enter);
+        if text.is_empty() || bytes > MAXIMUM_SEND_TEXT_BYTES {
+            return Err(usage_with(
+                UsageReason::InvalidValue {
+                    context,
+                    option: "--text",
+                    value: text.clone(),
+                    expected: ExpectedValue::SendText,
+                },
+                envelope,
+            ));
+        }
+        return Ok(TerminalSendInput::Text {
+            text: text.clone(),
+            enter: options.enter,
+        });
+    }
+    if !options.keys.is_empty() {
+        if options.enter {
+            return Err(usage_with(
+                UsageReason::UnexpectedOption {
+                    context,
+                    option: "--enter",
+                },
+                envelope,
+            ));
+        }
+        if options.paste {
+            return Err(usage_with(
+                UsageReason::UnexpectedOption {
+                    context,
+                    option: "--paste",
+                },
+                envelope,
+            ));
+        }
+        if options.keys.len() > MAXIMUM_SEND_RECORDS {
+            return Err(usage_with(
+                UsageReason::InvalidValue {
+                    context,
+                    option: "--key",
+                    value: options.keys[MAXIMUM_SEND_RECORDS].clone(),
+                    expected: ExpectedValue::SendKeySequence,
+                },
+                envelope,
+            ));
+        }
+        // Whole-sequence prevalidation: every value parses before the
+        // request exists, so a bad later key never reaches the wire after
+        // earlier keys.
+        let mut keys = Vec::with_capacity(options.keys.len());
+        for value in &options.keys {
+            let Some(key) = parse_send_key(value) else {
+                return Err(usage_with(
+                    UsageReason::InvalidValue {
+                        context,
+                        option: "--key",
+                        value: value.clone(),
+                        expected: ExpectedValue::SendKey,
+                    },
+                    envelope,
+                ));
+            };
+            keys.push(key);
+        }
+        return Ok(TerminalSendInput::Keys(keys));
+    }
+    if options.file.is_some() || options.stdin {
+        return Ok(if let Some(path) = &options.file {
+            TerminalSendInput::File {
+                path: path.clone(),
+                enter: options.enter,
+                paste: options.paste,
+            }
+        } else {
+            TerminalSendInput::Stdin {
+                enter: options.enter,
+                paste: options.paste,
+            }
+        });
+    }
+    if options.paste {
+        return Err(usage_with(
+            UsageReason::UnexpectedOption {
+                context,
+                option: "--paste",
+            },
+            envelope,
+        ));
+    }
+    if options.enter {
+        return Err(usage_with(
+            UsageReason::UnexpectedOption {
+                context,
+                option: "--enter",
+            },
+            envelope,
+        ));
+    }
+    Err(missing_required(
+        context,
+        "'--text', '--key', '--file', or '--stdin'",
+        envelope,
+    ))
 }
 
 /// `agent list --limit`: the bounded page size, 1..=100, defaulting to the

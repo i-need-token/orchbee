@@ -291,6 +291,16 @@ impl Locale {
                     reason.unwrap_or("unknown")
                 ),
             },
+            SendVerdict::PartialAccepted => match self {
+                Self::EnUs => format!(
+                    "The send stopped partway ({}): the receipt's recordsAccepted prefix was typed; the stopped record and everything after it was not sent. Do not resend the whole sequence — the accepted prefix may already have taken effect.{cleanup_note}\n",
+                    reason.unwrap_or("unknown")
+                ),
+                Self::ZhCn => format!(
+                    "发送中途停止（{}）：回执中 recordsAccepted 前缀的输入已键入；被停下的记录及其后的内容未发送。请勿重发整个序列——已接受的前缀可能已生效。{cleanup_note}\n",
+                    reason.unwrap_or("unknown")
+                ),
+            },
             SendVerdict::Unavailable => match self {
                 Self::EnUs => format!(
                     "The input could not be submitted ({}); nothing was sent.{cleanup_note}\n",
@@ -621,6 +631,12 @@ impl Locale {
                 "a literal absolute adapter-source directory path"
             }
             (Self::ZhCn, ExpectedValue::AdapterSource) => "一个字面绝对 adapter-source 目录路径",
+            (Self::EnUs, ExpectedValue::SendKeySequence) => {
+                "a key name or 'ctrl+alt+shift+key' combination; repeatable, at most 64"
+            }
+            (Self::ZhCn, ExpectedValue::SendKeySequence) => {
+                "键名或 'ctrl+alt+shift+键' 组合；可重复，至多 64 个"
+            }
         };
         let (problem, hint) = match reason {
             UsageReason::Invalid => return self.usage_failure().to_owned(),
@@ -807,13 +823,10 @@ impl Locale {
                         (Self::EnUs, SendSourceCause::Empty) => {
                             format!("The '{option}' source{named} is empty.")
                         }
-                        (Self::EnUs, SendSourceCause::Oversize) => {
+                        (Self::EnUs, SendSourceCause::Oversize { limit }) => {
                             format!(
-                                "The '{option}' source{named} exceeds the 4,096-byte input bound."
+                                "The '{option}' source{named} exceeds the {limit}-byte input bound."
                             )
-                        }
-                        (Self::EnUs, SendSourceCause::NotUtf8) => {
-                            format!("The '{option}' source{named} is not valid UTF-8 text.")
                         }
                         (Self::EnUs, SendSourceCause::Unreadable) => {
                             format!("The '{option}' source{named} could not be read.")
@@ -830,11 +843,8 @@ impl Locale {
                         (Self::ZhCn, SendSourceCause::Empty) => {
                             format!("'{option}' 源{named}为空。")
                         }
-                        (Self::ZhCn, SendSourceCause::Oversize) => {
-                            format!("'{option}' 源{named}超过 4,096 字节输入上限。")
-                        }
-                        (Self::ZhCn, SendSourceCause::NotUtf8) => {
-                            format!("'{option}' 源{named}不是有效的 UTF-8 文本。")
+                        (Self::ZhCn, SendSourceCause::Oversize { limit }) => {
+                            format!("'{option}' 源{named}超过 {limit} 字节输入上限。")
                         }
                         (Self::ZhCn, SendSourceCause::Unreadable) => {
                             format!("无法读取 '{option}' 源{named}。")

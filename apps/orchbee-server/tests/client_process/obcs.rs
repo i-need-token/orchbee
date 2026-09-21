@@ -153,6 +153,7 @@ fn denied_result(request: &ClientMessage) -> ServerMessage {
                 orchbee_client_server_protocol::TerminalSendOutcome::Unavailable {
                     reason:
                         orchbee_client_server_protocol::SendUnavailableReason::WorkerUnavailable,
+                    progress: orchbee_client_server_protocol::SendProgress::none(),
                     cleanup: orchbee_client_server_protocol::SendCleanupStatus::NotNeeded,
                 },
             ) {

@@ -18,12 +18,18 @@ pub fn encode_client_frame(message: &ClientMessage) -> Result<Vec<u8>, ProtocolE
     {
         return crate::paste_record::encode(request);
     }
+    if let ClientMessage::TerminalSend(request) = message {
+        return crate::send_record::encode(request);
+    }
     encode_frame(&encode_client_payload(message)?)
 }
 
 pub fn decode_client_frame(frame: &[u8]) -> Result<ClientMessage, ProtocolError> {
     if frame.starts_with(b"OBCQ") {
         return crate::paste_record::decode(frame);
+    }
+    if frame.starts_with(b"OBSN") {
+        return crate::send_record::decode(frame);
     }
     decode_frame(frame).and_then(decode_client_payload)
 }
@@ -49,6 +55,9 @@ pub fn read_client_message(reader: &mut impl Read) -> Result<ClientMessage, Read
     reader.read_exact(&mut header)?;
     if header.starts_with(b"OBCQ") {
         return crate::paste_record::read(reader, header);
+    }
+    if header.starts_with(b"OBSN") {
+        return crate::send_record::read(reader, header);
     }
     let payload = read_payload_after_header(reader, header)?;
     decode_client_payload(&payload).map_err(Into::into)
