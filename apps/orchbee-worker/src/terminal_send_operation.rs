@@ -576,7 +576,7 @@ fn input_command(
             key_press(
                 attachment_id,
                 capability_revision,
-                &code,
+                code,
                 TerminalModifiers {
                     control,
                     ..TerminalModifiers::default()

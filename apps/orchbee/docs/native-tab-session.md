@@ -320,14 +320,20 @@ are not substitutes for this registered run.
 ## Canonical membership implementation boundary
 
 The shared membership implementation replaces the earlier append-only assumption below. Pure
-validation requires the same Site/context, nondecreasing revision and exact equality at the same
-revision. A higher revision may add, remove, reorder and rename Tab labels; each surviving Tab
-preserves its Panel/Presentation identities, Presentation label and Worker/terminal binding.
-Within this Site/context, overlap of any current and candidate Tab, Panel, Presentation or Terminal
-identity requires the same complete immutable member tuple. Changing only the Tab ID cannot disguise
-identity reassignment as removal plus addition. Worker ID alone is not a member identity: one Worker
-may own several terminals. Genuine removal plus entirely fresh identities is allowed. This compares
-two snapshots only and adds no registry of every previously removed identity.
+validation requires the same Site/context, nondecreasing revision and exact equality of Tabs,
+navigation and projects at the same revision. A higher revision may add, remove, reorder and
+rename Tabs; candidate Tab identities stay globally unique within the existing bound, and Panel,
+Presentation and Terminal identities each stay globally unique. Within this Site/context, overlap
+of any current and candidate Panel, Presentation or Terminal identity requires the same complete
+immutable member tuple — Panel, Presentation, Presentation label and the complete Worker/terminal
+binding — while the owning Tab is the one authorized delta: a member may relocate across Tabs
+through folded legal moves. A Tab identity that survives must still own at least one of its
+original members inside that same Tab; a vanished Tab needs none, so a Tab ID can never be reused
+to alias a different member set. Worker ID alone is not a member identity: one Worker may own
+several terminals. Genuine removal plus entirely fresh identities is allowed. This surviving-Tab
+floor is a conservative consumer boundary, not a completeness claim over every reachable producer
+history — a step-legal exchange that moves all of a Tab's members elsewhere is still rejected.
+This compares two snapshots only and adds no registry of every previously removed identity.
 Exact Create and Move commit revisions retain their original strict expectations. At a later
 revision the committed target may be absent, represented by an optional validated target index;
 its historical commit is never erased. A projection-owned `ClosedTabExpectation` checks exact
@@ -458,9 +464,13 @@ candidate with an optional target index. Existing Create consumers still require
 the common membership continuation is connected. This slice does not claim attachment cleanup or
 Empty installation. Four deterministic membership regressions cover removal at 0/1/255/256 members,
 later missing Create/Move targets, each retained structural identity domain, and a genuinely fresh
-terminal sharing the same Worker. The generated label history now admits removal, allocates fresh
-inserted identities independently of current length, and compares an independent per-domain identity
-map across 64 histories of 38 steps. Its scope is adjacent projections, not lifetime ID reuse.
+terminal sharing the same Worker. The generated label history admits removal and member relocation
+across Tabs under a fresh owner — the one authorized delta — and compares an independent
+set/relation oracle for the canonical predicate: same-revision projection equality, globally
+unique bounded Tab identities, per-domain member uniqueness, overlap requiring the complete
+immutable tuple with the owning Tab free, and the surviving-Tab member floor, across 64 histories
+of 38 steps. A duplicated Tab identity and a surviving Tab emptied of every member are dedicated
+rejection cases. Its scope is adjacent projections, not lifetime ID reuse.
 
 `NativeClientMembershipRemoval.tla/.cfg` owns the finite removal composition across Refresh,
 correlated Create projection, Move result/recovery, Switch cleanup and own known Closed. The five
@@ -488,7 +498,10 @@ one membership-removal publication, and one peer Create observed by an initially
 Canonical revisions use 1..4; an untrusted relative predecessor 0 exercises lower-revision rejection.
 Same-revision and exact Create/Move-commit candidates remain exact. Later removal keeps historical
 commit facts and surviving provenance. Immutable tuple/binding/Presentation-label validation is an
-opaque valid/invalid boundary; concrete values and 0..256-member histories require projector evidence.
+opaque valid/invalid boundary, and the abstract candidate has no member-owner dimension — a member
+relocating across Tabs under a fresh owner is invisible to the model, so the concrete canonical
+predicate and its projector evidence own that refinement; concrete values and 0..256-member
+histories require projector evidence.
 No retained registry of all peer-removed IDs is modeled. Local selection/restoration follows the
 accepted cache; own known Closed additionally fences its target by the retained commit revision.
 
@@ -881,12 +894,14 @@ The accepted Move refinement replaces the legacy `validate_append_only_refresh` 
 require the same Site/context and reject lower revision; same revision requires exact equality of
 the complete projection, including order and labels. At greater revision the shared canonical
 membership rule applies: overlap of any current and candidate Panel, Presentation or Terminal
-identity requires the same complete immutable member tuple, a surviving Tab identity retains at
-least one member, and only `Tab.label` and order may differ. Retained structural identities stay
-exact: a surviving Split keeps its owning Tab, both ordered Slot identities and orientation, and a
-surviving Slot keeps its parent Split; removed or entirely fresh Split/Slot identities need no
-comparison, and every candidate Panel, Presentation, Terminal, Split and Slot identity must be
-unique. Because `publication.read` folds every committed publication since the retained revision
+identity requires the same complete immutable member tuple with the owning Tab as the authorized
+relocation delta, a surviving Tab identity retains at least one of its original members inside
+that same Tab, and `Tab.label`, member ownership across Tabs, and order may differ. Retained
+structural identities stay exact: a surviving Split keeps its owning Tab, both ordered Slot
+identities and orientation, and a surviving Slot keeps its parent Split; removed or entirely
+fresh Split/Slot identities need no comparison, and every candidate Panel, Presentation,
+Terminal, Split and Slot identity must be unique. Because `publication.read` folds every
+committed publication since the retained revision
 into one final snapshot, and a journal gap answers with one full Snapshot, a single refresh may
 carry the sum of several committed splits, closes and moves; the same baseline-to-final comparison
 admits the folded result. Any survivor mutation, identity reassignment, retained-structure

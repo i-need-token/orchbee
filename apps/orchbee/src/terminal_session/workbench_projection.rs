@@ -1350,11 +1350,13 @@ fn member_tuples(tab: &NativeSimpleTab) -> impl Iterator<Item = MemberTuple<'_>>
 
 /// Every current member identity still present in the candidate must carry the original
 /// Panel, Presentation, label, and complete binding fields; the owning Tab field may differ
-/// — exactly the authorized same-context relocation delta, which composes across any number
-/// of sequential moves between publications because the rule is per member identity rather
-/// than per Tab roster. A Tab whose identity survives must still retain at least one member
-/// wherever it landed: genuinely removed members and entirely fresh identities need no
-/// comparison.
+/// — exactly the authorized same-context relocation delta, expressed per member identity
+/// rather than per Tab roster. A Tab whose identity survives must still own at least one of
+/// its own original members inside that same Tab: genuinely removed members and entirely
+/// fresh identities need no comparison. This surviving-Tab floor is a conservative consumer
+/// boundary, not a complete characterization of every reachable producer history — a folded
+/// history that relocates all of a Tab's members elsewhere (for example a two-Tab full member
+/// exchange, which legal command steps can produce) is still rejected as divergence.
 fn retained_member_tuples(current: &[NativeSimpleTab], candidate: &[NativeSimpleTab]) -> bool {
     let mut panels: HashMap<&WorkbenchPanelId, Vec<MemberTuple>> = HashMap::new();
     let mut presentations: HashMap<&TerminalPresentationId, Vec<MemberTuple>> = HashMap::new();
@@ -1370,9 +1372,10 @@ fn retained_member_tuples(current: &[NativeSimpleTab], candidate: &[NativeSimple
         }
     }
     current.iter().all(|tab| {
-        // A surviving Tab identity must still own at least one of its current
-        // members — the same floor the authority's `last-panel-in-tab`
-        // rejection enforces on the producer side.
+        // A surviving Tab identity must still own at least one of its own
+        // current members under the same Tab identity — a conservative
+        // consumer-side floor, deliberately stricter than the producer's
+        // `last-panel-in-tab` move rejection it is often mistaken for.
         let mut retains_member = false;
         for member in member_tuples(tab) {
             for hit in panels

@@ -261,12 +261,16 @@ node scripts/tla/run-models.mjs --models native-client-close-control,native-clie
 ## 规范成员实现边界
 
 共享 membership 实现替代下文较早的 append-only 假设。纯校验要求 Site/context 相同、revision
-不回退、同 revision 完全相等。更高 revision 可新增、移除、重排并重命名 Tab label；每个存活
-Tab 保持 Panel/Presentation identity、Presentation label 和 Worker/terminal binding。
-在该 Site/context 内，当前与候选的 Tab、Panel、Presentation 或 Terminal identity 只要有任一重叠，
-就必须属于同一个完整不可变 member tuple。只修改 Tab ID 不能把身份重新分配伪装成移除加新增。
-Worker ID 本身不是 member identity：一个 Worker 可以拥有多个 terminal。允许真正移除并使用全新
-identity 新增。这里只比较相邻两个 snapshot，不维护所有历史已移除 identity 的 registry。
+不回退、同 revision 的 Tab、navigation 与 projects 完全相等。更高 revision 可新增、移除、重排并
+重命名 Tab；候选 Tab identity 在既有上界内保持全域唯一，Panel、Presentation 与 Terminal identity
+各自全域唯一。在该 Site/context 内，当前与候选的 Panel、Presentation 或 Terminal identity 只要有
+任一重叠，就必须属于同一个完整不可变 member tuple——Panel、Presentation、Presentation label 与完整
+Worker/terminal binding——而 owning Tab 是唯一获授权的差量：member 可经由折叠的合法 move 跨 Tab
+迁移。存活的 Tab identity 必须在同一 Tab 内仍持有其原有成员的至少一个；已消失的 Tab 无此要求，
+因此 Tab ID 绝不可能被复用来为不同成员集合化名。Worker ID 本身不是 member identity：一个 Worker
+可以拥有多个 terminal。允许真正移除并使用全新 identity 新增。该 surviving-Tab floor 是保守的
+consumer 边界，不是对全部可达 producer 历史的完备刻画——把某个 Tab 的成员全部换走的逐步合法交换
+仍会被拒绝。这里只比较相邻两个 snapshot，不维护所有历史已移除 identity 的 registry。
 精确 Create 与 Move commit revision 保留原有严格期望。更晚 revision 可以缺少已提交目标，
 由可选的已校验 target index 表达；绝不抹去其历史 commit。投影所有的 `ClosedTabExpectation`
 检查精确 Site/context/Tab、最低 Closed revision 以及目标缺失；它只证明 membership。
@@ -378,9 +382,12 @@ settlement。Switch 的 definite-Unavailable restoration 在 owner model 与 sta
 `ValidatedCreatedProjection` / `ValidatedMovedProjection` 保留已验证候选及可选目标索引。
 在共同成员续接接入之前，现有 Create 消费者仍要求该索引存在。本片不声称完成 attachment
 清理或 Empty 安装。四个确定性成员回归覆盖 0/1/255/256 成员边界的删除、后续 Create/Move
-目标缺失、每种保留结构身份域，以及共享同一 Worker 的真正全新终端。生成标签历史现在允许
-删除，新增身份独立于当前长度分配，并在 64 条、每条 38 步的历史中比较独立的分域身份映射。
-其范围是相邻投影，而非全生命周期 ID 复用。
+目标缺失、每种保留结构身份域，以及共享同一 Worker 的真正全新终端。生成标签历史允许删除
+以及成员在 fresh owner 下跨 Tab 迁移——这是唯一获授权的差量——并比较规范谓词的独立
+集合/关系 oracle：同修订投影完全相等、候选 Tab identity 在既有上界内全域唯一、各成员身份域
+各自唯一、任一成员身份重叠即要求完整不可变元组且 owning Tab 自由、存活 Tab 须在同 Tab 内仍持
+有其原有成员之一；覆盖 64 条、每条 38 步的历史。重复的 Tab identity 与存活 Tab 换掉全部成员
+是两个专门的拒绝用例。其范围是相邻投影，而非全生命周期 ID 复用。
 
 `NativeClientMembershipRemoval.tla/.cfg` 拥有跨 Refresh、关联 Create 投影、Move 结果/恢复、
 Switch 清理及自身已知 Closed 的有限移除组合。五种入口按初始 Ready 可控制、Ready 只读、
@@ -402,8 +409,10 @@ checked 后继 2。其他新选择消耗初始游标的 checked 后继，Empty �
 模型准入一次结构操作和一次显式恢复，key 为 1..2、代次为 0..2、一次成员移除发布，
 以及初始 Empty Refresh 观察到的一次对端 Create。规范修订域为 1..4；不可信的相对前驱 0
 触发低修订拒绝。同修订及精确 Create/Move 提交候选仍须完全一致。更晚移除保留历史提交事实
-及存活成员来源。不可变元组/绑定/Presentation 标签验证抽象为有效/无效边界；具体值及
-0..256 成员历史需要投影器证据。不建模所有对端已移除 ID 的保留注册表。本地选择/恢复遵循
+及存活成员来源。不可变元组/绑定/Presentation 标签验证抽象为有效/无效边界，且抽象候选
+没有 member-owner 维度——成员在 fresh owner 下跨 Tab 迁移对模型不可见，该细化由具体规范
+谓词及其投影器证据负责；具体值及 0..256 成员历史需要投影器证据。不建模所有对端已移除 ID
+的保留注册表。本地选择/恢复遵循
 已接受缓存；自身已知 Closed 另按保留的提交修订对目标设栅栏。
 
 携带移除的候选在替换缓存或选择前等待精确历史挂接结算。`CompleteAlreadyGoneCleanup`
@@ -725,7 +734,8 @@ fn validate_created_tab(
 已接受的 Move 细化替换旧 `validate_append_only_refresh` 前缀策略：要求 Site/上下文相同，
 拒绝更低修订；相同修订要求完整投影精确相等，包括顺序和标签。更高修订时适用共享规范成员规则：
 当前与候选的任一 Panel、Presentation 或 Terminal 身份重叠即要求完整不可变成员元组相同，
-存活的 Tab 身份必须保留至少一个成员，且只有 `Tab.label` 与顺序可不同。保留的结构身份保持精确：
+其中 owning Tab 是唯一获授权的迁移差量；存活的 Tab 身份必须在同一 Tab 内仍持有其原有成员的
+至少一个；`Tab.label`、member 跨 Tab 归属以及顺序可以不同。保留的结构身份保持精确：
 存活的 Split 保留其所属 Tab、两个有序 Slot 身份与方向；存活的 Slot 保留其父 Split；已移除或
 完全 fresh 的 Split/Slot 身份无需比较，且候选中每个 Panel、Presentation、Terminal、Split 与
 Slot 身份必须唯一。由于 `publication.read` 会把保留修订以来的全部已提交 publication 折叠为

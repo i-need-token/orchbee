@@ -149,9 +149,6 @@ fn later_history_still_enforces_canonical_identity_and_membership_bounds() {
     wrong.location = NativeContextLocation::Standalone(context_id(999));
     failures.push(wrong);
     let mut wrong = projected(3, 12);
-    wrong.tabs[1].tab_id = tab_id(999);
-    failures.push(wrong);
-    let mut wrong = projected(3, 12);
     wrong.tabs[1].panel_id = panel_id(999);
     failures.push(wrong);
     let mut wrong = projected(3, 12);
@@ -173,6 +170,23 @@ fn later_history_still_enforces_canonical_identity_and_membership_bounds() {
             Err(NativeProjectionDivergence)
         );
     }
+}
+
+#[test]
+fn later_history_accepts_member_owner_migration_when_the_original_tab_vanishes() {
+    // Same authorized delta as the canonical rule: the member keeps its
+    // complete immutable tuple under a fresh owning Tab while the original
+    // Tab is gone — the folded shape of relocating to a fresh Tab plus
+    // closing the old Tab that held only the temporary leaf. The committed
+    // rename target is simply absent from later history, which the
+    // expectation already tolerates.
+    let baseline = projected(3, 10);
+    let expected = expectation(&baseline, 1, 11, "changed");
+    let mut migrated = projected(3, 12);
+    migrated.tabs[1].tab_id = tab_id(999);
+    let validated = validate_renamed_tab(&baseline, &expected, migrated.clone()).unwrap();
+    assert_eq!(validated.renamed_index, None);
+    assert_eq!(validated.candidate, migrated);
 }
 
 fn expectation(

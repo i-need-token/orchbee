@@ -254,8 +254,7 @@ fn canonical_refresh_rejects_outer_revision_and_membership_divergence() {
 #[test]
 fn canonical_refresh_rejects_every_non_tab_label_change_to_existing_members() {
     type Mutation = fn(&mut NativeSimpleTab);
-    let mutations: [(&str, Mutation); 6] = [
-        ("Tab ID", |tab| tab.tab_id = tab_id(200)),
+    let mutations: [(&str, Mutation); 5] = [
         ("Panel ID", |tab| tab.panel_id = panel_id(201)),
         ("Presentation ID", |tab| {
             tab.presentation_id = presentation_id(202);
@@ -278,6 +277,23 @@ fn canonical_refresh_rejects_every_non_tab_label_change_to_existing_members() {
             "changed {field} must reject the complete refresh"
         );
     }
+}
+
+#[test]
+fn canonical_refresh_accepts_member_owner_migration_when_the_original_tab_vanishes() {
+    // The one authorized delta: the member keeps its complete immutable
+    // tuple — Panel, Presentation, Presentation label and full binding —
+    // while its owning Tab moves to a fresh identity and the original Tab
+    // is gone. Folded, this is the shape of splitting off a temporary leaf,
+    // moving the original member to a fresh Tab, then closing the old Tab
+    // that held only the temporary leaf.
+    let current = projected(2, 10);
+    let mut candidate = projected(2, 11);
+    candidate.tabs[0].tab_id = tab_id(200);
+    assert_eq!(
+        validate_canonical_refresh(&current, candidate.clone()),
+        Ok(candidate)
+    );
 }
 
 #[test]
