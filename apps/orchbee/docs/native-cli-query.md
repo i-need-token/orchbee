@@ -9,8 +9,10 @@ queries never create terminals, viewers, or control grants — the single except
 `terminal read`, which holds one short-lived read-only viewer attachment against an already
 bound terminal and releases it before output. The `agent` family reads the Server's canonical
 Agent sessions through the Agent Observation Protocol (OBAP) — a typed read-only view, never
-inferred from terminal contents. Nothing guesses Worker, process, or PTY state; and no
-command requires a TTY. This is an unpublished local development surface;
+inferred from terminal contents. The `agent integration` commands are the exception: they are
+purely local provider onboarding — bounded reads and managed mutations of the invoking user's
+provider configuration, never a socket connect, Site activation, or OBAP request. Nothing
+guesses Worker, process, or PTY state; and no command requires a TTY. This is an unpublished local development surface;
 `apps/cli` remains the delivered TypeScript CLI authority, and installation, distribution,
 remote connections, and Site lifecycle operations stay out of scope.
 
@@ -191,6 +193,14 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   root, kept in flag order. Relative spellings, `~`/`$` forms, empty values, and a
   fifth value are `invalid-usage` before any runtime access — at most four supplied
   roots are admitted and none is ever expanded or guessed.
+- `--provider <id>`: single-use value flag, admitted only on the `agent integration`
+  commands; one of the closed supported-provider ids (ten members, reported by
+  `agent integration list`). Required on `explain`/`enable`/`disable`, an optional
+  filter on `list`. Any other value is `invalid-usage`.
+- `--adapter-source <abs>`: single-use value flag, admitted only on the
+  `agent integration` commands; a literal absolute path to a development/test
+  adapter payload that replaces the packaged cohort source for that invocation.
+  A relative path or a repeat is `invalid-usage`.
 - `--version`: legal only as the sole root invocation; any other position or company is usage.
 - `-h`/`--help`: root sole token, or the single suffix of a recognized help path (a family
   name or a complete command path).
@@ -233,6 +243,10 @@ orchbee agent list [--include-ended] [--limit <1-100>] [--cursor <v1.…>]
 orchbee agent get <session-id> | agent explain <session-id>
 orchbee agent wait <session-id> [--until <condition>]... [--after-revision <0-9007199254740991>] [--timeout <1-3600000>]
 orchbee agent doctor [--provider <id>]... [--asset-root <path>]...
+orchbee agent integration list [--provider <id>]
+orchbee agent integration explain --provider <id>
+orchbee agent integration enable --provider <id> [--adapter-source <abs>]
+orchbee agent integration disable --provider <id> [--adapter-source <abs>]
 orchbee api snapshot
 orchbee api schema [<schema-id>]
 orchbee site start
@@ -830,7 +844,7 @@ query, mutation, receipt, and failure — is `version:1` except `orchbee.termina
 the v2 `launch` member) and `orchbee.mutation.result` (`version:2` since it gained the
 launch-profile actions and their `catalogRevision`/`profileId`/`name` receipt fields).
 The `orchbee.api.schema` catalog
-envelope is `version:7`: registering a new schema id changes the closed dictionary's
+envelope is `version:8`: registering a new schema id changes the closed dictionary's
 shape, which is a catalog shape change under the version rule, not a business one:
 
 - `source.kind="workbench-snapshot"` with `siteId` and decimal-string `revision` from the same

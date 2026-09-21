@@ -212,6 +212,7 @@ fn fixed_outputs_are_far_below_the_bound() {
     ];
     for family in [
         Family::Agent,
+        Family::AgentIntegration,
         Family::Api,
         Family::Completion,
         Family::Config,
@@ -233,6 +234,10 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::AgentExplain,
         CommandPath::AgentGet,
         CommandPath::AgentList,
+        CommandPath::AgentIntegrationDisable,
+        CommandPath::AgentIntegrationEnable,
+        CommandPath::AgentIntegrationExplain,
+        CommandPath::AgentIntegrationList,
         CommandPath::AgentWait,
         CommandPath::ApiSchema,
         CommandPath::ApiSnapshot,
@@ -311,6 +316,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         "doctor",
         "explain",
         "get",
+        "integration",
         "list",
         "move",
         "read",
@@ -323,6 +329,9 @@ fn fixed_outputs_are_far_below_the_bound() {
         "wait",
         "wait-output",
     ];
+    // `agent integration` nests one level deeper — the pin table must cover
+    // its commands through both legal surfaces as well.
+    let integration_verbs = ["disable", "enable", "explain", "list"];
     let mut topics: Vec<CommandPath> = Vec::new();
     let mut collect = |arguments: &[&str]| {
         if let Ok(Request::Help(HelpTopic::Command(command))) =
@@ -339,6 +348,10 @@ fn fixed_outputs_are_far_below_the_bound() {
             collect(&[root, verb, "--help"]);
             collect(&["help", root, verb]);
         }
+    }
+    for verb in integration_verbs {
+        collect(&["agent", "integration", verb, "--help"]);
+        collect(&["help", "agent", "integration", verb]);
     }
     for command in &topics {
         assert!(
@@ -633,5 +646,34 @@ fn agent_cancellation_emits_agent_envelope_with_finalization() {
     assert!(
         body.get("source").is_none() || body["source"].is_null(),
         "a cancelled read publishes no correlated source"
+    );
+}
+
+/// A failed termination-signal registration refuses an integration
+/// invocation before any provider context, inspection, or effect — the
+/// armed seam makes `install` fail once, and the refusal carries the
+/// existing `internal-failure` kind at exit 1. A second install succeeds,
+/// proving the refusal came from the injected fault, not ambient state.
+#[cfg(unix)]
+#[test]
+fn integration_signal_install_failure_refuses_before_effects() {
+    use super::{FailureKind, integration};
+    use crate::agent_integrations::IntegrationId;
+    use crate::invocation::AgentIntegrationCommand;
+
+    crate::termination_signal::arm_install_fault();
+    let command = AgentIntegrationCommand::Enable {
+        provider: IntegrationId::ClaudeCode,
+        adapter_source: None,
+    };
+    let failure = match integration::run_local(&command) {
+        Err(failure) => failure,
+        Ok(_) => panic!("armed install fault must refuse the invocation"),
+    };
+    assert_eq!(failure.kind, FailureKind::InternalFailure);
+    assert_eq!(failure.kind.exit_code(), 1);
+    assert!(
+        crate::termination_signal::TerminationSignal::install().is_ok(),
+        "the armed fault is one-shot; install itself stays healthy"
     );
 }

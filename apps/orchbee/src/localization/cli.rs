@@ -611,6 +611,16 @@ impl Locale {
             (Self::ZhCn, ExpectedValue::ProfileSelector) => {
                 "精确 profile ID 或唯一匹配的名称（不超过 512 UTF-8 字节）"
             }
+            (Self::EnUs, ExpectedValue::Provider) => {
+                "one of the supported provider ids ('orchbee agent integration list' names them)"
+            }
+            (Self::ZhCn, ExpectedValue::Provider) => {
+                "受支持的 provider ID 之一（'orchbee agent integration list' 列出全部）"
+            }
+            (Self::EnUs, ExpectedValue::AdapterSource) => {
+                "a literal absolute adapter-source directory path"
+            }
+            (Self::ZhCn, ExpectedValue::AdapterSource) => "一个字面绝对 adapter-source 目录路径",
         };
         let (problem, hint) = match reason {
             UsageReason::Invalid => return self.usage_failure().to_owned(),
@@ -1068,6 +1078,154 @@ impl Locale {
         match self {
             Self::EnUs => "Local Site is already running.\n",
             Self::ZhCn => "本地 Site 已在运行。\n",
+        }
+    }
+
+    /// `agent integration list` capsule summary line — the machine capsule
+    /// state stays English; only the sentence frame is localized.
+    pub(crate) fn cli_integration_capsule_line(self, summary: &str) -> String {
+        match self {
+            Self::EnUs => format!("Adapter capsule: {summary}\n"),
+            Self::ZhCn => format!("适配器胶囊：{summary}\n"),
+        }
+    }
+
+    /// `agent integration explain` header — the fixed-field first lines.
+    /// Vocabulary values stay in their canonical English spelling.
+    pub(crate) fn cli_integration_explain_header(
+        self,
+        provider: &str,
+        state: &str,
+        availability: &str,
+        issue: &str,
+        capsule: &str,
+    ) -> String {
+        match self {
+            Self::EnUs => format!(
+                "Provider: {provider}\nState: {state}  availability: {availability}  issue: {issue}\nCapsule: {capsule}\n"
+            ),
+            Self::ZhCn => format!(
+                "提供方：{provider}\n状态：{state}  可用性：{availability}  问题：{issue}\n胶囊：{capsule}\n"
+            ),
+        }
+    }
+
+    pub(crate) const fn cli_integration_plan_header(self) -> &'static str {
+        match self {
+            Self::EnUs => "Plan:\n",
+            Self::ZhCn => "计划：\n",
+        }
+    }
+
+    /// `explain` when every pre-effect gate refuses the vector.
+    pub(crate) const fn cli_integration_plan_empty(self) -> &'static str {
+        match self {
+            Self::EnUs => "Plan: no steps — the observed state admits no enable vector.\n",
+            Self::ZhCn => "计划：无步骤——当前状态不接受任何启用向量。\n",
+        }
+    }
+
+    /// Mutation completed with the goal state observed.
+    pub(crate) fn cli_integration_completed(self, direction: &str, provider: &str) -> String {
+        match (self, direction) {
+            (Self::EnUs, "enable") => format!("Enabled {provider}.\n"),
+            (Self::EnUs, _) => format!("Disabled {provider}.\n"),
+            (Self::ZhCn, "enable") => format!("已启用 {provider}。\n"),
+            (Self::ZhCn, _) => format!("已禁用 {provider}。\n"),
+        }
+    }
+
+    /// A pre-effect refusal — the canonical refusal code stays English.
+    pub(crate) fn cli_integration_refused(
+        self,
+        direction: &str,
+        provider: &str,
+        reason: &str,
+    ) -> String {
+        match (self, direction) {
+            (Self::EnUs, "enable") => {
+                format!("Refused to enable {provider} ({reason}); nothing was changed.\n")
+            }
+            (Self::EnUs, _) => {
+                format!("Refused to disable {provider} ({reason}); nothing was changed.\n")
+            }
+            (Self::ZhCn, "enable") => {
+                format!("拒绝启用 {provider}（{reason}）；未做任何改动。\n")
+            }
+            (Self::ZhCn, _) => {
+                format!("拒绝禁用 {provider}（{reason}）；未做任何改动。\n")
+            }
+        }
+    }
+
+    /// A post-effect failure — the typed code and the re-inspected state.
+    pub(crate) fn cli_integration_failed(
+        self,
+        direction: &str,
+        provider: &str,
+        code: &str,
+        observed: Option<&str>,
+    ) -> String {
+        let observed = observed.unwrap_or("unknown");
+        match (self, direction) {
+            (Self::EnUs, "enable") => {
+                format!("Enable of {provider} failed ({code}); observed state: {observed}.\n")
+            }
+            (Self::EnUs, _) => {
+                format!("Disable of {provider} failed ({code}); observed state: {observed}.\n")
+            }
+            (Self::ZhCn, "enable") => {
+                format!("启用 {provider} 失败（{code}）；观察到的状态：{observed}。\n")
+            }
+            (Self::ZhCn, _) => {
+                format!("禁用 {provider} 失败（{code}）；观察到的状态：{observed}。\n")
+            }
+        }
+    }
+
+    /// The verdict could not be determined — re-inspection never ran.
+    pub(crate) fn cli_integration_unknown(self, direction: &str, provider: &str) -> String {
+        match (self, direction) {
+            (Self::EnUs, "enable") => format!(
+                "Could not determine whether {provider} was enabled; the post-effect re-inspection did not run.\n"
+            ),
+            (Self::EnUs, _) => format!(
+                "Could not determine whether {provider} was disabled; the post-effect re-inspection did not run.\n"
+            ),
+            (Self::ZhCn, "enable") => {
+                format!("无法确定 {provider} 是否已启用；效应后复检未运行。\n")
+            }
+            (Self::ZhCn, _) => {
+                format!("无法确定 {provider} 是否已禁用；效应后复检未运行。\n")
+            }
+        }
+    }
+
+    /// The termination signal fired — the invocation cancelled at a frontier
+    /// boundary.
+    pub(crate) fn cli_integration_cancelled(self, direction: &str, provider: &str) -> String {
+        match (self, direction) {
+            (Self::EnUs, "enable") => format!("Enable of {provider} cancelled.\n"),
+            (Self::EnUs, _) => format!("Disable of {provider} cancelled.\n"),
+            (Self::ZhCn, "enable") => format!("已取消启用 {provider}。\n"),
+            (Self::ZhCn, _) => format!("已取消禁用 {provider}。\n"),
+        }
+    }
+
+    /// The `attempted` list's leading word in text output.
+    pub(crate) const fn cli_integration_attempted_word(self) -> &'static str {
+        match self {
+            Self::EnUs => "attempted",
+            Self::ZhCn => "已尝试",
+        }
+    }
+
+    /// Header above the residue listing — retained paths are named, never
+    /// silently swept.
+    pub(crate) const fn cli_integration_residue_header(self) -> &'static str {
+        match self {
+            Self::EnUs => "Retained residue (not removed):\n",
+            Self::ZhCn => "保留的残留（未删除）：\n",
         }
     }
 
@@ -1678,6 +1836,10 @@ impl Locale {
                 Self::EnUs => HELP_AGENT_EN,
                 Self::ZhCn => HELP_AGENT_ZH,
             },
+            (_, HelpTopic::Family(Family::AgentIntegration)) => match self {
+                Self::EnUs => HELP_AGENT_INTEGRATION_EN,
+                Self::ZhCn => HELP_AGENT_INTEGRATION_ZH,
+            },
             (_, HelpTopic::Family(Family::Api)) => match self {
                 Self::EnUs => HELP_API_EN,
                 Self::ZhCn => HELP_API_ZH,
@@ -1775,6 +1937,14 @@ impl Locale {
             (Self::ZhCn, CommandPath::AgentWait) => HELP_AGENT_WAIT_ZH,
             (Self::EnUs, CommandPath::AgentDoctor) => HELP_AGENT_DOCTOR_EN,
             (Self::ZhCn, CommandPath::AgentDoctor) => HELP_AGENT_DOCTOR_ZH,
+            (Self::EnUs, CommandPath::AgentIntegrationList) => HELP_AGENT_INTEGRATION_LIST_EN,
+            (Self::ZhCn, CommandPath::AgentIntegrationList) => HELP_AGENT_INTEGRATION_LIST_ZH,
+            (Self::EnUs, CommandPath::AgentIntegrationExplain) => HELP_AGENT_INTEGRATION_EXPLAIN_EN,
+            (Self::ZhCn, CommandPath::AgentIntegrationExplain) => HELP_AGENT_INTEGRATION_EXPLAIN_ZH,
+            (Self::EnUs, CommandPath::AgentIntegrationEnable) => HELP_AGENT_INTEGRATION_ENABLE_EN,
+            (Self::ZhCn, CommandPath::AgentIntegrationEnable) => HELP_AGENT_INTEGRATION_ENABLE_ZH,
+            (Self::EnUs, CommandPath::AgentIntegrationDisable) => HELP_AGENT_INTEGRATION_DISABLE_EN,
+            (Self::ZhCn, CommandPath::AgentIntegrationDisable) => HELP_AGENT_INTEGRATION_DISABLE_ZH,
             (Self::EnUs, CommandPath::ApiSnapshot) => HELP_API_SNAPSHOT_EN,
             (Self::ZhCn, CommandPath::ApiSnapshot) => HELP_API_SNAPSHOT_ZH,
             (Self::EnUs, CommandPath::ApiSchema) => HELP_API_SCHEMA_EN,
@@ -1859,6 +2029,21 @@ const HELP_SITE_DIAGNOSE_EN: &str = "orchbee site diagnose [--format text|json]\
 const HELP_SITE_DIAGNOSE_ZH: &str = "orchbee site diagnose [--format text|json]\n\n报告隐式每用户本地 Site 运行时的有界事实——基目录与 scope 目录、\n激活标记与锁，以及有限的 client/worker/pending/observation/host 端点\n路径。每一行都是其各自观察瞬间的路径名或描述符事实：'held' 表示\n某个属主在那一刻持有生命周期锁——绝不表示某个 Site 或进程存活；\n'absent' 是路径名事实，绝不证明某个执行已结束。观察到 'known' 标记\n或合法的 client/worker 套接字叶时附加一条条件通告：若无可加入的\n现有 Site，按当前恢复策略新的激活将被阻止。\n\n本命令绝不连接任何端点，绝不创建或删除路径，绝不获取激活锁，也\n绝不修复、停止或预测后续启动。协作式五秒预算在有界的文件系统操作\n之间检查；无法到达的行以 'uninspectable' 闭合。'--format json'\n输出 orchbee.site.diagnose 封套。\n";
 const HELP_AGENT_DOCTOR_EN: &str = "orchbee agent doctor [--provider <id>]... [--asset-root <path>]... [--format text|json]\n\nExplain, from bounded filesystem facts alone, why Agent observations may\nnot arrive: each provider's executable and managed-hook state, declared\nasset roots, the observation endpoint, and the environment override.\n'--provider' selects canonical provider ids (repeatable); '--asset-root'\ndeclares absolute capsule roots to inspect (repeatable, at most 4).\nNothing is executed, connected, written, or repaired. '--format json'\nemits the orchbee.agent.doctor envelope.\n";
 const HELP_AGENT_DOCTOR_ZH: &str = "orchbee agent doctor [--provider <id>]... [--asset-root <path>]... [--format text|json]\n\n仅凭有界文件系统事实解释 Agent 观察为何可能未到达：各 provider 的\n可执行文件与托管 hook 状态、声明的 asset root、观察端点以及环境覆盖。\n'--provider' 选择规范 provider ID（可重复）；'--asset-root' 声明要检查\n的绝对 capsule root（可重复，至多 4 个）。不执行、不连接、不写入、\n不修复任何内容。'--format json' 输出 orchbee.agent.doctor 封套。\n";
+
+const HELP_AGENT_INTEGRATION_EN: &str = "orchbee agent integration list|explain|enable|disable\n\nManage the local onboarding of supported agent providers to the Orchbee\nobservation transport. These commands run entirely on the invoking user's\nmachine and PATH — they never contact a Site.\n  agent integration list [--provider <id>]\n                                Inspect every supported provider's local state\n  agent integration explain --provider <id>\n                                Show one provider's state and the plan enable\n                                would run\n  agent integration enable --provider <id>\n                                Install and enable the managed observation\n                                integration\n  agent integration disable --provider <id>\n                                Remove the managed integration\nlist and explain execute each provider's own bounded read commands where\nrequired; enable and disable additionally run bounded, non-interactive\nmutation steps. Provider-internal bookkeeping cannot be guaranteed absent.\n";
+const HELP_AGENT_INTEGRATION_ZH: &str = "orchbee agent integration list|explain|enable|disable\n\n管理受支持的 agent provider 到 Orchbee 观测传输的本地接入。这些命令完全\n在调用用户的机器与 PATH 上运行——不接触 Site。\n  agent integration list [--provider <id>]\n                                检查每个受支持 provider 的本地状态\n  agent integration explain --provider <id>\n                                显示一个 provider 的状态及 enable 将执行的\n                                计划\n  agent integration enable --provider <id>\n                                安装并启用受管观测集成\n  agent integration disable --provider <id>\n                                移除受管集成\nlist 与 explain 在需要时会执行各 provider 自身的有界只读命令；enable 与\ndisable 还会执行有界、非交互的变更步骤。provider 内部记账无法保证不\n发生。\n";
+
+const HELP_AGENT_INTEGRATION_LIST_EN: &str = "orchbee agent integration list [--provider <id>] [--adapter-source <abs>] [--format text|json]\n\nInspect every supported provider's local integration state — or only the\none selected by '--provider'. Reads run the providers' own bounded\ncommands from the ambient PATH where required; nothing is written.\n'--adapter-source' overrides the cohort adapter payload for development\nand tests. '--format json' emits the orchbee.agent.integrations envelope.\n";
+const HELP_AGENT_INTEGRATION_LIST_ZH: &str = "orchbee agent integration list [--provider <id>] [--adapter-source <abs>] [--format text|json]\n\n检查每个受支持 provider 的本地集成状态，或仅检查 '--provider' 所选的一\n个。需要时会执行 provider 自身来自环境 PATH 的有界读命令；不写入任何\n内容。'--adapter-source' 为开发与测试覆盖 cohort adapter 载荷。\n'--format json' 输出 orchbee.agent.integrations 封套。\n";
+
+const HELP_AGENT_INTEGRATION_EXPLAIN_EN: &str = "orchbee agent integration explain --provider <id> [--adapter-source <abs>] [--format text|json]\n\nExplain one provider's local integration state and the guard-evaluated\nplan 'enable' would run for the observed dimensions. Reads execute the\nprovider's own bounded commands from the ambient PATH where required;\nnothing is written. '--format json' emits the\norchbee.agent.integration.plan envelope.\n";
+const HELP_AGENT_INTEGRATION_EXPLAIN_ZH: &str = "orchbee agent integration explain --provider <id> [--adapter-source <abs>] [--format text|json]\n\n解释一个 provider 的本地集成状态，以及针对观测到的维度 'enable' 将执行\n的、经守卫求值的计划。需要时会执行 provider 自身来自环境 PATH 的有界\n读命令；不写入任何内容。'--format json' 输出\norchbee.agent.integration.plan 封套。\n";
+
+const HELP_AGENT_INTEGRATION_ENABLE_EN: &str = "orchbee agent integration enable --provider <id> [--adapter-source <abs>] [--format text|json]\n\nEnable one provider's managed observation integration locally: publish\nthe adapter capsule when needed, then run the provider's own bounded,\nnon-interactive setup commands. Refuses before any effect when the entry\nis foreign, newer-versioned, or manual-only; reports the post-effect\nstate observed by re-inspection. '--format json' emits the\norchbee.agent.integration.mutation envelope.\n";
+const HELP_AGENT_INTEGRATION_ENABLE_ZH: &str = "orchbee agent integration enable --provider <id> [--adapter-source <abs>] [--format text|json]\n\n在本地启用一个 provider 的受管观测集成：必要时先发布 adapter capsule，\n然后执行 provider 自身的有界、非交互设置命令。当条目为外来、更新版本\n或仅手动管理时，在任何效应前拒绝；并以复检视测到的效应后状态报告。\n'--format json' 输出 orchbee.agent.integration.mutation 封套。\n";
+
+const HELP_AGENT_INTEGRATION_DISABLE_EN: &str = "orchbee agent integration disable --provider <id> [--adapter-source <abs>] [--format text|json]\n\nDisable one provider's managed observation integration locally: run the\nprovider's own bounded removal commands or guarded removal of the owned\nentry. Only entries verifiably owned by Orchbee are ever removed; foreign\nor newer-versioned entries are refused before any effect. '--format json'\nemits the orchbee.agent.integration.mutation envelope.\n";
+const HELP_AGENT_INTEGRATION_DISABLE_ZH: &str = "orchbee agent integration disable --provider <id> [--adapter-source <abs>] [--format text|json]\n\n在本地禁用一个 provider 的受管观测集成：执行 provider 自身的有界移除\n命令，或对所有物执行受保护的移除。只有经核实归 Orchbee 所有的条目\n才会被移除；外来或更新版本的条目在任何效应前被拒绝。'--format json'\n输出 orchbee.agent.integration.mutation 封套。\n";
 
 const HELP_API_EN: &str = "orchbee api snapshot|schema\n\nMachine introspection of the local Workbench surface.\n  api snapshot           Emit the complete workbench.snapshot document\n  api schema [<id>]      List embedded JSON Schemas, or one schema by ID\nSuccessful output is always JSON, whatever '--format' was selected; a\nfailure envelope still requires an explicit '--format json'.\n";
 const HELP_API_ZH: &str = "orchbee api snapshot|schema\n\n本地 Workbench 面的机器自省。\n  api snapshot           输出完整 workbench.snapshot 文档\n  api schema [<id>]      列出内嵌 JSON Schema，或按 ID 取单个 schema\n成功输出无论 '--format' 选择如何都是 JSON；失败封套仍需显式\n'--format json'。\n";
@@ -2055,6 +2240,9 @@ pub(crate) struct CliLabels {
     pub(crate) agent_doctor_environment: &'static str,
     pub(crate) agent_doctor_asset_roots: &'static str,
     pub(crate) agent_doctor_hints: &'static str,
+    // `agent integration list` columns — provider, its PATH availability,
+    // the management mode, the observed state, and the issue when present.
+    pub(crate) integration_headers: [&'static str; 5],
 }
 
 const EN_US_LABELS: CliLabels = CliLabels {
@@ -2141,6 +2329,7 @@ const EN_US_LABELS: CliLabels = CliLabels {
     agent_doctor_environment: "Environment",
     agent_doctor_asset_roots: "Asset roots",
     agent_doctor_hints: "Hints",
+    integration_headers: ["PROVIDER", "AVAILABILITY", "MANAGEMENT", "STATE", "ISSUE"],
 };
 
 const ZH_CN_LABELS: CliLabels = CliLabels {
@@ -2227,6 +2416,7 @@ const ZH_CN_LABELS: CliLabels = CliLabels {
     agent_doctor_environment: "环境",
     agent_doctor_asset_roots: "资产根",
     agent_doctor_hints: "提示",
+    integration_headers: ["提供方", "可用性", "管理方式", "状态", "问题"],
 };
 
 impl Locale {

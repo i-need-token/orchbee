@@ -1,6 +1,7 @@
 mod completion;
 pub(crate) mod config;
 pub(crate) mod escape;
+pub(crate) mod integration;
 mod mutation;
 pub(crate) mod output;
 pub(crate) mod present;
@@ -434,6 +435,16 @@ pub(crate) fn site_start(format: OutputFormat, locale: Locale) -> Output {
 /// connects, creates, repairs, or predicts a later start.
 pub(crate) fn site_diagnose(format: OutputFormat, locale: Locale) -> Output {
     site_diagnose::run(format, locale)
+}
+
+/// `agent integration` is CLI-local provider onboarding: the bounded local
+/// runner owns every provider command, and no Site is started or contacted.
+pub(crate) fn agent_integration(
+    command: crate::invocation::AgentIntegrationCommand,
+    format: OutputFormat,
+    locale: Locale,
+) -> Output {
+    integration::run(&command, format, locale)
 }
 
 pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale) -> Output {

@@ -1,0 +1,152 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.agent.integration.plan",
+	"title": "orchbee agent integration explain envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.agent.integration.plan" },
+		"version": { "const": 1 },
+		"source": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "local-inspection" }
+			}
+		},
+		"result": {
+			"type": "object",
+			"required": [
+				"provider",
+				"availability",
+				"managementMode",
+				"state",
+				"issue",
+				"capsule",
+				"detail",
+				"plan"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"provider": {
+					"enum": [
+						"claude-code",
+						"codex",
+						"grok",
+						"opencode",
+						"pi",
+						"omp",
+						"gemini",
+						"github-copilot",
+						"cline",
+						"qwen-code"
+					]
+				},
+				"availability": { "enum": ["available", "not-found", "unknown"] },
+				"managementMode": { "enum": ["managed-local", "manual-only"] },
+				"state": {
+					"enum": [
+						"conflict",
+						"disabled",
+						"enabled",
+						"not-installed",
+						"stale-side",
+						"update-required",
+						"unknown"
+					]
+				},
+				"issue": {
+					"enum": [
+						"capsule-unsupported-version",
+						"inspection-failed",
+						"manual-action-required",
+						"unsupported-platform",
+						"unsupported-version",
+						null
+					]
+				},
+				"capsule": { "$ref": "#/$defs/capsule" },
+				"detail": { "$ref": "#/$defs/detail" },
+				"plan": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/plannedStep" }
+				},
+				"interactiveNote": { "type": "string", "minLength": 1 }
+			}
+		}
+	},
+	"$defs": {
+		"capsule": {
+			"type": "object",
+			"required": ["state", "source", "supportedPayloadVersion"],
+			"additionalProperties": false,
+			"properties": {
+				"state": {
+					"enum": [
+						"ready",
+						"not-ready",
+						"unsupported-version",
+						"source-absent",
+						"binding-failed"
+					]
+				},
+				"source": {
+					"enum": ["cohort-sidecar", "adapter-source-override", "absent"]
+				},
+				"supportedPayloadVersion": { "type": "string", "minLength": 1 },
+				"declaredPayloadVersion": { "type": "string", "minLength": 1 },
+				"unsupportedPayloadVersion": { "type": "string", "minLength": 1 },
+				"bindingFailure": { "const": true },
+				"rootPath": { "type": "string", "minLength": 1 },
+				"rootPathBytesHex": { "type": "string", "pattern": "^([0-9a-f]{2})+$" }
+			}
+		},
+		"detail": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": ["provider-cli", "provider-config", "guarded-filesystem", "none"]
+				},
+				"marketplace": { "enum": ["absent", "current", "legacy", null] },
+				"pluginPresent": { "type": ["boolean", "null"] },
+				"targetState": {
+					"enum": [
+						"conflict",
+						"current",
+						"legacy",
+						"missing",
+						"newer",
+						"unknown",
+						"update-required"
+					]
+				},
+				"sourceReady": { "type": "boolean" }
+			}
+		},
+		"plannedStep": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": [
+						"capsule-publish",
+						"provider-command",
+						"guarded-write",
+						"guarded-remove"
+					]
+				},
+				"executable": { "type": "string", "minLength": 1 },
+				"argv": {
+					"type": "array",
+					"items": { "type": "string" }
+				},
+				"target": { "type": "string", "minLength": 1 }
+			}
+		}
+	}
+}

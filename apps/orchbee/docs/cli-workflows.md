@@ -30,10 +30,11 @@ end-to-end path only — option and target wording matches what
   effect); `site start` performs the one effectful activation; every other
   command talks to the _running_ local Site.
 - Agent rows appear only when the running Site observes sessions from a
-  supported Agent integration that is already configured. There is no
-  dedicated provider install/configure command and no `agent launch`; an
-  already configured provider's installed executable is launched like any
-  other program — through the generic `--exec` route in section 3.
+  supported Agent integration that is already enabled. Provider onboarding
+  is the `agent integration` family in section 6 — local, bounded, and
+  never Site-touching — and there is no `agent launch`; an enabled
+  provider's installed executable is launched like any other program —
+  through the generic `--exec` route in section 3.
 
 ## 1. Check local inputs and start the Site
 
@@ -135,10 +136,26 @@ listing is read-only: it never creates, moves, locks, or prunes a worktree.
 Branch names keep their full `refs/heads/…` form; an all-zero `head` is an
 unborn repository and `null` marks the bare entry.
 
-## 6. Observe Agents
+## 6. Onboard a provider and observe Agents
 
-With a supported integration already configured and the Site observing
-sessions — nothing here performs provider lifecycle or control:
+`agent integration` manages the local onboarding of a supported provider —
+inspect its state, explain the enable plan, and enable or disable the
+managed integration. These commands run on the invoking user's machine and
+PATH only: they never contact a Site, and every mutation stays bounded and
+non-interactive.
+
+```sh
+orchbee agent integration list                     # every provider's local state
+orchbee agent integration explain --provider codex # the plan enable would run
+orchbee agent integration enable --provider codex
+orchbee agent integration disable --provider codex
+```
+
+Only entries verifiably owned by Orchbee are installed or removed; a
+foreign or newer-versioned entry is refused before any effect.
+
+With a supported integration enabled and the Site observing sessions —
+nothing below performs provider lifecycle or control:
 
 ```sh
 orchbee agent list                          # live sessions only

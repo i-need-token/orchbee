@@ -1,0 +1,620 @@
+{
+	"provider": "cline",
+	"executableName": "cline",
+	"readSlots": 0,
+	"dimensions": "directNames ∈ {none, present('.js'|'.ts'|bare dir under ~/.cline/plugins)} × installCount(_installed/local/*/package with cline/orchbee-agent-observation.js) ∈ {0,1,>1} × package.json {name==='${PLUGIN_NAME}', marker.orchbeeAgentObservation.contractVersion ∈ {=3, positive int ≠3, absent/malformed}} × sourceReady(bundle package contract==3); bounds ≤128 dirs, manifest ≤16KiB",
+	"cases": [
+		{
+			"id": "cline.inspect.enabled-current",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": ["current"],
+			"dims": {"installCount": 1, "contractVersion": 3, "sourceReady": true},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [
+					{"path": ".cline/plugins/_installed/local/bundle-reviewed/package/package.json", "kind": "file", "contentJson": "@cline.package.current"},
+					{"path": ".cline/plugins/_installed/local/bundle-reviewed/package/cline/orchbee-agent-observation.js", "kind": "file", "content": "// owned"}
+				],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {"state": "enabled", "issue": null, "availability": "available", "managementMode": "managed-local"},
+				"commands": []
+			},
+			"anchors": ["cline-adapter:114-155,163-175"],
+			"notes": "capsuleBundle = the adapter's own resource bundle at <resourceRoot>/bundle/package.json — required for sourceReady. ZERO provider commands."
+		},
+		{
+			"id": "cline.inspect.not-installed",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": ["not-installed"],
+			"dims": {"installCount": 0, "directNames": "none", "installedRoot": "missing"},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {"state": "not-installed", "issue": null, "availability": "available", "managementMode": "managed-local"}
+			},
+			"anchors": ["cline-adapter:128-134,152-154"]
+		},
+		{
+			"id": "cline.inspect.direct-name-conflict",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": ["conflict", "foreign"],
+			"dims": {"directNames": "orchbee-agent-observation.js present"},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [
+					{"path": ".cline/plugins/orchbee-agent-observation.js", "kind": "file", "content": "// user-owned"}
+				],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}
+			},
+			"anchors": ["cline-adapter:118-126"],
+			"notes": "Any direct-name entry (.js/.ts/bare dir) under ~/.cline/plugins is a foreign install → conflict, never adopted."
+		},
+		{
+			"id": "cline.inspect.contract-version-1",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": ["update-required"],
+			"dims": {"installCount": 1, "contractVersion": 1},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [
+					{"path": ".cline/plugins/_installed/local/bundle-old/package/package.json", "kind": "file", "contentJson": "@cline.package.contract1"},
+					{"path": ".cline/plugins/_installed/local/bundle-old/package/cline/orchbee-agent-observation.js", "kind": "file", "content": "// owned"}
+				],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {"state": "update-required", "issue": null, "availability": "available", "managementMode": "managed-local"}
+			},
+			"anchors": ["cline-adapter:163-174"]
+		},
+		{
+			"id": "cline.inspect.contract-version-4",
+			"operation": "inspect",
+			"class": "cli-divergence",
+			"covers": ["stale-side", "newer-contract", "cline-direction-split"],
+			"dims": {"installCount": 1, "contractVersion": 4},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [
+					{"path": ".cline/plugins/_installed/local/bundle-new/package/package.json", "kind": "file", "contentJson": "@cline.package.contract4"},
+					{"path": ".cline/plugins/_installed/local/bundle-new/package/cline/orchbee-agent-observation.js", "kind": "file", "content": "// owned"}
+				],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {"state": "stale-side", "issue": null, "availability": "available", "managementMode": "managed-local"},
+				"desktopCanonical": {"state": "update-required", "issue": null},
+				"cli": {"note": "contractVersion >3 → CLI stale-side (registered direction split §4.3-cline/§3.2); canonical spec maps ANY positive int ≠3 to update-required — an older Desktop would downgrade the newer contract on explicit enable."}
+			},
+			"anchors": ["cline-adapter:170-174", "design:complete53§4.3-cline,§3.2"],
+			"notes": "The Cline future-contract rejection case — explicitly refused, never falls through to uninstall."
+		},
+		{
+			"id": "cline.inspect.contract-version-zero",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": ["conflict"],
+			"dims": {"installCount": 1, "contractVersion": 0},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [
+					{"path": ".cline/plugins/_installed/local/bundle-bad/package/package.json", "kind": "file", "contentJson": "@cline.package.contractZero"},
+					{"path": ".cline/plugins/_installed/local/bundle-bad/package/cline/orchbee-agent-observation.js", "kind": "file", "content": "// owned"}
+				],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}
+			},
+			"anchors": ["cline-adapter:172-174"],
+			"notes": "contractVersion 0/negative/non-integer → conflict (not update-required, not stale-side)."
+		},
+		{
+			"id": "cline.inspect.contract-version-string",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": ["conflict"],
+			"dims": {"installCount": 1, "contractVersion": "\"3\" (string)"},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [
+					{"path": ".cline/plugins/_installed/local/bundle-bad/package/package.json", "kind": "file", "contentJson": "@cline.package.contractString"},
+					{"path": ".cline/plugins/_installed/local/bundle-bad/package/cline/orchbee-agent-observation.js", "kind": "file", "content": "// owned"}
+				],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}
+			},
+			"anchors": ["cline-adapter:170-174"]
+		},
+		{
+			"id": "cline.inspect.marker-absent",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": ["conflict", "foreign"],
+			"dims": {"installCount": 1, "marker": "absent"},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [
+					{"path": ".cline/plugins/_installed/local/bundle-x/package/package.json", "kind": "file", "contentJson": "@cline.package.noMarker"},
+					{"path": ".cline/plugins/_installed/local/bundle-x/package/cline/orchbee-agent-observation.js", "kind": "file", "content": "// payload"}
+				],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}
+			},
+			"anchors": ["cline-adapter:163-174"],
+			"notes": "Entry file exists but package.json lacks the orchbeeAgentObservation marker → ownership unverifiable → conflict."
+		},
+		{
+			"id": "cline.inspect.wrong-name",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": ["conflict", "foreign"],
+			"dims": {"installCount": 1, "nameMatch": false},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [
+					{"path": ".cline/plugins/_installed/local/other/package/package.json", "kind": "file", "contentJson": "@cline.package.wrongName"},
+					{"path": ".cline/plugins/_installed/local/other/package/cline/orchbee-agent-observation.js", "kind": "file", "content": "// payload"}
+				],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}
+			},
+			"anchors": ["cline-adapter:165-166"]
+		},
+		{
+			"id": "cline.inspect.two-installs",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": ["conflict"],
+			"dims": {"installCount": 2},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [
+					{"path": ".cline/plugins/_installed/local/a/package/package.json", "kind": "file", "contentJson": "@cline.package.current"},
+					{"path": ".cline/plugins/_installed/local/a/package/cline/orchbee-agent-observation.js", "kind": "file", "content": "// a"},
+					{"path": ".cline/plugins/_installed/local/b/package/package.json", "kind": "file", "contentJson": "@cline.package.contract1"},
+					{"path": ".cline/plugins/_installed/local/b/package/cline/orchbee-agent-observation.js", "kind": "file", "content": "// b"}
+				],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}
+			},
+			"anchors": ["cline-adapter:152"]
+		},
+		{
+			"id": "cline.inspect.too-many-install-dirs",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": ["unreadable", "unknown"],
+			"dims": {"installedLocalEntries": 129},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [{"path": ".cline/plugins/_installed/local", "kind": "dir-with-entries", "entries": 129}],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {"state": "unknown", "issue": "inspection-failed", "availability": "available", "managementMode": "managed-local"}
+			},
+			"anchors": ["cline-adapter:135"],
+			"notes": ">128 entries under _installed/local → unknown (scan bound exceeded), which surfaces inspection-failed."
+		},
+		{
+			"id": "cline.inspect.unreadable-installed-root",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": ["unreadable", "unknown"],
+			"dims": {"installedRoot": "EACCES"},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [{"path": ".cline/plugins/_installed/local", "kind": "dir", "mode": "0000"}],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {"state": "unknown", "issue": "inspection-failed", "availability": "available", "managementMode": "managed-local"}
+			},
+			"anchors": ["cline-adapter:131-134,50-51"],
+			"notes": "readdir failure other than ENOENT → unknown + inspection-failed; ENOENT → not-installed."
+		},
+		{
+			"id": "cline.inspect.enabled-source-not-ready",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": ["capsule-drift", "update-required"],
+			"dims": {"installCount": 1, "contractVersion": 3, "sourceReady": false},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "absent",
+				"fs": [
+					{"path": ".cline/plugins/_installed/local/bundle-reviewed/package/package.json", "kind": "file", "contentJson": "@cline.package.current"},
+					{"path": ".cline/plugins/_installed/local/bundle-reviewed/package/cline/orchbee-agent-observation.js", "kind": "file", "content": "// owned"}
+				],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {"state": "update-required", "issue": null, "availability": "available", "managementMode": "managed-local"}
+			},
+			"anchors": ["cline-adapter:44-55,157-159", "capsule-adapter:36-42"],
+			"notes": "Capsule-side bundle missing → sourceReady false → enabled degrades to update-required (capsule gone = update-required on both layers)."
+		},
+		{
+			"id": "cline.inspect.executable-missing-still-classifies",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": ["agent-unavailable"],
+			"dims": {"exe": "not-found", "installCount": 1, "contractVersion": 3},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": null,
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [
+					{"path": ".cline/plugins/_installed/local/bundle-reviewed/package/package.json", "kind": "file", "contentJson": "@cline.package.current"},
+					{"path": ".cline/plugins/_installed/local/bundle-reviewed/package/cline/orchbee-agent-observation.js", "kind": "file", "content": "// owned"}
+				],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {"state": "enabled", "issue": null, "availability": "not-found", "managementMode": "managed-local"}
+			},
+			"anchors": ["cline-adapter:44-62"]
+		},
+		{
+			"id": "cline.enable.not-installed",
+			"operation": "enable",
+			"class": "shared",
+			"covers": ["enable"],
+			"dims": {"state": "not-installed", "sourceReady": true},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [],
+				"commands": [
+					{"argv": ["plugin", "install", "${BUNDLE}", "--json"], "result": {"kind": "completed", "stdout": "{}"}}
+				]
+			},
+			"expect": {
+				"attempt": "attempted",
+				"planCommands": [["plugin", "install", "${BUNDLE}", "--json"]],
+				"cli": {"exit": 0, "frontier": "post-effect"}
+			},
+			"anchors": ["cline-adapter:65-92"]
+		},
+		{
+			"id": "cline.enable.update-required",
+			"operation": "enable",
+			"class": "shared",
+			"covers": ["enable", "update-required"],
+			"dims": {"state": "update-required", "contractVersion": 1, "sourceReady": true},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [
+					{"path": ".cline/plugins/_installed/local/bundle-old/package/package.json", "kind": "file", "contentJson": "@cline.package.contract1"},
+					{"path": ".cline/plugins/_installed/local/bundle-old/package/cline/orchbee-agent-observation.js", "kind": "file", "content": "// owned"}
+				],
+				"commands": [
+					{"argv": ["plugin", "uninstall", "${PLUGIN_NAME}", "--json"], "result": {"kind": "completed", "stdout": "{}"}},
+					{"argv": ["plugin", "install", "${BUNDLE}", "--json"], "result": {"kind": "completed", "stdout": "{}"}}
+				]
+			},
+			"expect": {
+				"attempt": "attempted",
+				"planCommands": [
+					["plugin", "uninstall", "${PLUGIN_NAME}", "--json"],
+					["plugin", "install", "${BUNDLE}", "--json"]
+				],
+				"cli": {"exit": 0, "frontier": "post-effect"}
+			},
+			"anchors": ["cline-adapter:75-91"]
+		},
+		{
+			"id": "cline.enable.noop-when-enabled",
+			"operation": "enable",
+			"class": "shared",
+			"covers": ["noop", "enable"],
+			"dims": {"state": "enabled", "sourceReady": true},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [
+					{"path": ".cline/plugins/_installed/local/bundle-reviewed/package/package.json", "kind": "file", "contentJson": "@cline.package.current"},
+					{"path": ".cline/plugins/_installed/local/bundle-reviewed/package/cline/orchbee-agent-observation.js", "kind": "file", "content": "// owned"}
+				],
+				"commands": []
+			},
+			"expect": {
+				"attempt": "attempted",
+				"planCommands": [],
+				"mustNotMutate": true,
+				"cli": {"exit": 0, "frontier": "pre-effect"}
+			},
+			"anchors": ["cline-adapter:69"]
+		},
+		{
+			"id": "cline.enable.conflict-refused",
+			"operation": "enable",
+			"class": "shared",
+			"covers": ["refusal", "conflict", "no-else-uninstall"],
+			"dims": {"state": "conflict", "directNames": "present"},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [
+					{"path": ".cline/plugins/orchbee-agent-observation.js", "kind": "file", "content": "// user-owned"}
+				],
+				"commands": []
+			},
+			"expect": {
+				"attempt": "conflict",
+				"planCommands": [],
+				"mustNotMutate": true,
+				"cli": {"exit": 3, "frontier": "pre-effect"}
+			},
+			"anchors": ["cline-adapter:70-72"]
+		},
+		{
+			"id": "cline.enable.unknown-failed-no-fallthrough",
+			"operation": "enable",
+			"class": "shared",
+			"covers": ["refusal", "no-else-uninstall", "unknown"],
+			"dims": {"state": "unknown", "installedRoot": "EACCES"},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [{"path": ".cline/plugins/_installed/local", "kind": "dir", "mode": "0000"}],
+				"commands": []
+			},
+			"expect": {
+				"attempt": "failed",
+				"planCommands": [],
+				"mustNotMutate": true,
+				"cli": {"exit": 9, "frontier": "pre-effect"}
+			},
+			"anchors": ["cline-adapter:70-72", "disposition55:29-31"]
+		},
+		{
+			"id": "cline.enable.source-not-ready",
+			"operation": "enable",
+			"class": "shared",
+			"covers": ["refusal", "capsule-drift"],
+			"dims": {"sourceReady": false, "state": "not-installed"},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "absent",
+				"fs": [],
+				"commands": []
+			},
+			"expect": {
+				"attempt": "failed",
+				"planCommands": [],
+				"mustNotMutate": true,
+				"cli": {"exit": 9, "frontier": "post-effect", "note": "capsule publish already attempted by the wrapper before the delegate ran → post-effect determinate failure with residue possible"}
+			},
+			"anchors": ["cline-adapter:66-67", "capsule-adapter:31-35"],
+			"notes": "Gate order: capsule.prepare() → bundle package check → install scan → exe resolve. Bundle manifest invalid (contractVersion≠3) also fails here."
+		},
+		{
+			"id": "cline.enable.future-contract-stale-side",
+			"operation": "enable",
+			"class": "cli-divergence",
+			"covers": ["stale-side", "newer-contract", "cline-direction-split", "refusal"],
+			"dims": {"state": "stale-side", "contractVersion": 4},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [
+					{"path": ".cline/plugins/_installed/local/bundle-new/package/package.json", "kind": "file", "contentJson": "@cline.package.contract4"},
+					{"path": ".cline/plugins/_installed/local/bundle-new/package/cline/orchbee-agent-observation.js", "kind": "file", "content": "// owned"}
+				],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {"state": "stale-side"},
+				"attempt": "stale-side",
+				"planCommands": [],
+				"mustNotMutate": true,
+				"desktopCanonical": {"state": "update-required", "attempt": "attempted", "planCommands": [["plugin", "uninstall", "${PLUGIN_NAME}", "--json"], ["plugin", "install", "${BUNDLE}", "--json"]]},
+				"cli": {"exit": 3, "verdict": "stale-side", "frontier": "pre-effect"}
+			},
+			"anchors": ["cline-adapter:170-174", "design:complete53§4.3-cline"],
+			"notes": "Canonical Desktop would emit uninstall+install — a downgrade of the newer contract. CLI refuses. Same for disable."
+		},
+		{
+			"id": "cline.disable.enabled",
+			"operation": "disable",
+			"class": "shared",
+			"covers": ["disable"],
+			"dims": {"state": "enabled"},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [
+					{"path": ".cline/plugins/_installed/local/bundle-reviewed/package/package.json", "kind": "file", "contentJson": "@cline.package.current"},
+					{"path": ".cline/plugins/_installed/local/bundle-reviewed/package/cline/orchbee-agent-observation.js", "kind": "file", "content": "// owned"}
+				],
+				"commands": [
+					{"argv": ["plugin", "uninstall", "${PLUGIN_NAME}", "--json"], "result": {"kind": "completed", "stdout": "{}"}}
+				]
+			},
+			"expect": {
+				"attempt": "attempted",
+				"planCommands": [["plugin", "uninstall", "${PLUGIN_NAME}", "--json"]],
+				"cli": {"exit": 0, "frontier": "post-effect"}
+			},
+			"anchors": ["cline-adapter:94-111"],
+			"notes": "Cline disable = uninstall --json even from enabled (no separate disable verb)."
+		},
+		{
+			"id": "cline.disable.noop-not-installed",
+			"operation": "disable",
+			"class": "shared",
+			"covers": ["noop", "disable"],
+			"dims": {"state": "not-installed"},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [],
+				"commands": []
+			},
+			"expect": {
+				"attempt": "attempted",
+				"planCommands": [],
+				"mustNotMutate": true,
+				"cli": {"exit": 0, "frontier": "pre-effect"}
+			},
+			"anchors": ["cline-adapter:97"]
+		},
+		{
+			"id": "cline.disable.update-required",
+			"operation": "disable",
+			"class": "shared",
+			"covers": ["disable", "update-required"],
+			"dims": {"state": "update-required", "contractVersion": 1},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [
+					{"path": ".cline/plugins/_installed/local/bundle-old/package/package.json", "kind": "file", "contentJson": "@cline.package.contract1"},
+					{"path": ".cline/plugins/_installed/local/bundle-old/package/cline/orchbee-agent-observation.js", "kind": "file", "content": "// owned"}
+				],
+				"commands": [
+					{"argv": ["plugin", "uninstall", "${PLUGIN_NAME}", "--json"], "result": {"kind": "completed", "stdout": "{}"}}
+				]
+			},
+			"expect": {
+				"attempt": "attempted",
+				"planCommands": [["plugin", "uninstall", "${PLUGIN_NAME}", "--json"]],
+				"cli": {"exit": 0, "frontier": "post-effect"}
+			},
+			"anchors": ["cline-adapter:98-110"]
+		},
+		{
+			"id": "cline.disable.conflict-refused",
+			"operation": "disable",
+			"class": "shared",
+			"covers": ["refusal", "conflict", "no-else-uninstall"],
+			"dims": {"state": "conflict"},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [
+					{"path": ".cline/plugins/orchbee-agent-observation", "kind": "dir"}
+				],
+				"commands": []
+			},
+			"expect": {
+				"attempt": "conflict",
+				"planCommands": [],
+				"mustNotMutate": true,
+				"cli": {"exit": 3, "frontier": "pre-effect"}
+			},
+			"anchors": ["cline-adapter:98-99,118-126"],
+			"notes": "Bare-directory direct name is equally a conflict trigger."
+		},
+		{
+			"id": "cline.mutation.future-contract-stale-side-disable",
+			"operation": "disable",
+			"class": "cli-divergence",
+			"covers": ["stale-side", "newer-contract", "cline-direction-split", "refusal"],
+			"dims": {"state": "stale-side", "contractVersion": 4},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/cline",
+				"capsule": "ready",
+				"capsuleBundle": {"path": "bundle/package.json", "contentJson": "@cline.package.current"},
+				"fs": [
+					{"path": ".cline/plugins/_installed/local/bundle-new/package/package.json", "kind": "file", "contentJson": "@cline.package.contract4"},
+					{"path": ".cline/plugins/_installed/local/bundle-new/package/cline/orchbee-agent-observation.js", "kind": "file", "content": "// owned"}
+				],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {"state": "stale-side"},
+				"attempt": "stale-side",
+				"planCommands": [],
+				"mustNotMutate": true,
+				"desktopCanonical": {"state": "update-required", "attempt": "attempted", "planCommands": [["plugin", "uninstall", "${PLUGIN_NAME}", "--json"]]},
+				"cli": {"exit": 3, "verdict": "stale-side", "frontier": "pre-effect"}
+			},
+			"anchors": ["cline-adapter:170-174", "design:complete53§3.2"],
+			"notes": "Disable of a newer contract must ALSO refuse — Desktop would uninstall it."
+		}
+	]
+}

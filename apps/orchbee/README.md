@@ -78,7 +78,11 @@ stops, or deletes runtime state. `site diagnose` is the read-only complement: it
 bounded facts about the runtime directory, marker, locks, and finite endpoint paths — each
 a closed-state row at its own observation instant — under one cooperative 5-second budget,
 and it never connects, creates, locks, repairs, or claims any process is alive or gone.
-The complete grammar, target and
+`agent integration` (`list`, `explain`,
+`enable`, `disable`) is the local provider-onboarding family: bounded reads
+and managed mutations of the invoking user's provider configuration on this
+machine only — no socket, lock, or Site contact; only entries verifiably
+owned by Orchbee are installed or removed. The complete grammar, target and
 filter rules, mutation outcomes, and the failure matrix with exit classes are owned by
 [native CLI query](docs/native-cli-query.md); `orchbee help <family>` and
 `orchbee help <family> <command>` print the same grammar from the binary itself.
@@ -548,6 +552,24 @@ into isolated directories; tests do not change the source cohort or default Site
 ```sh
 ORCHBEE_TEST_NATIVE_COHORT=/tmp/orchbee-native-dev cargo test -p orchbee --test local_startup_process --locked
 ```
+
+### Agent integration conformance fixtures
+
+`tests/fixtures/agent-integrations/` holds the corpora replayed by the
+`agent_integrations` unit harnesses:
+
+- `provider-conformance/` — `payloads.json` plus `cases/<provider>.cases.json`:
+  per-provider inspection, enable, and disable cases pinning scripted command
+  replies, expected argv, filesystem effects, and the rendered CLI verdict.
+- `provider-effects/` — `cases.json`: filesystem-effect machine cases —
+  capsule publish, move-aside, backup digests, remove walks, cohort and
+  version gates, and budget or cancellation frontiers.
+
+The harnesses resolve both corpora through `CARGO_MANIFEST_DIR`, so any
+checkout replays them with no environment override or machine-local path.
+A case edit is a semantic contract change and belongs in the same reviewed
+change as the engine behavior it pins; a new provider adds one file under
+`provider-conformance/cases/`.
 
 ## Standalone terminal intent
 

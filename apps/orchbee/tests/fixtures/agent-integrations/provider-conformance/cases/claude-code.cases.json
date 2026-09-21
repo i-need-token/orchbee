@@ -1,0 +1,2893 @@
+{
+	"provider": "claude-code",
+	"executableName": "claude",
+	"readSlots": 2,
+	"dimensions": "{marketplace ∈ absent|current|legacy|foreign} × pluginPresent × enabled ∈ {true,false} × versionMatch; marketplace ownership via classifyManagedResourceRoot on entry.path; plugin matched on id==='${PLUGIN_ID}'; marketplace matched on name==='${MARKETPLACE}' with source ∈ {directory,local}",
+	"cases": [
+		{
+			"id": "claude-code.inspect.enabled-current",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"current",
+				"two-read-slots"
+			],
+			"dims": {
+				"marketplace": "current",
+				"pluginPresent": true,
+				"enabled": true,
+				"versionMatch": true
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.enabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "enabled",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
+				"commands": [
+					[
+						"plugin",
+						"list",
+						"--json"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"list",
+						"--json"
+					]
+				]
+			},
+			"anchors": [
+				"state-parsers:36-73",
+				"create-adapters:399-417"
+			]
+		},
+		{
+			"id": "claude-code.inspect.disabled-current",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"disabled"
+			],
+			"dims": {
+				"marketplace": "current",
+				"pluginPresent": true,
+				"enabled": false,
+				"versionMatch": true
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.disabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "disabled",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
+				"commands": [
+					[
+						"plugin",
+						"list",
+						"--json"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"list",
+						"--json"
+					]
+				]
+			},
+			"anchors": [
+				"state-parsers:70-72"
+			]
+		},
+		{
+			"id": "claude-code.inspect.not-installed-clean",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"not-installed"
+			],
+			"dims": {
+				"marketplace": "absent",
+				"pluginPresent": false
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.empty"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.absent"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "not-installed",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
+				"commands": [
+					[
+						"plugin",
+						"list",
+						"--json"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"list",
+						"--json"
+					]
+				]
+			},
+			"anchors": [
+				"state-parsers:59-61"
+			]
+		},
+		{
+			"id": "claude-code.inspect.not-installed-marketplace-current",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"not-installed"
+			],
+			"dims": {
+				"marketplace": "current",
+				"pluginPresent": false
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.empty"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "not-installed",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
+			"anchors": [
+				"state-parsers:59-61"
+			],
+			"notes": "marketplace==current is checked only after plugin presence; absent plugin still yields not-installed."
+		},
+		{
+			"id": "claude-code.inspect.unreadable-first-read",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"unreadable",
+				"two-read-slots"
+			],
+			"dims": {
+				"firstRead": "failed"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "failed"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "unknown",
+					"issue": "inspection-failed",
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
+				"commands": [
+					[
+						"plugin",
+						"list",
+						"--json"
+					]
+				]
+			},
+			"anchors": [
+				"create-adapters:399-404",
+				"cli-adapter:70-83"
+			],
+			"notes": "First read failure returns null BEFORE the marketplace read is issued — the second slot must NOT appear in commands. Two-slot order and short-circuit are asserted."
+		},
+		{
+			"id": "claude-code.inspect.unreadable-second-read",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"unreadable",
+				"two-read-slots"
+			],
+			"dims": {
+				"firstRead": "completed",
+				"secondRead": "timed-out"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.enabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "timed-out"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "unknown",
+					"issue": "inspection-failed",
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
+				"commands": [
+					[
+						"plugin",
+						"list",
+						"--json"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"list",
+						"--json"
+					]
+				]
+			},
+			"anchors": [
+				"create-adapters:405-417",
+				"cli-adapter:70-83"
+			]
+		},
+		{
+			"id": "claude-code.inspect.malformed-json",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"unreadable"
+			],
+			"dims": {
+				"firstRead": "completed",
+				"parse": "malformed"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": "{not json"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "unknown",
+					"issue": "inspection-failed",
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
+			"anchors": [
+				"state-parsers:41-43,187-194",
+				"cli-adapter:70-83"
+			]
+		},
+		{
+			"id": "claude-code.inspect.non-array-plugins",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"unreadable"
+			],
+			"dims": {
+				"firstRead": "completed",
+				"parse": "record-not-array"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": "{\"plugins\":[]}"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "unknown",
+					"issue": "inspection-failed",
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
+			"anchors": [
+				"state-parsers:187-194"
+			],
+			"notes": "claude expects a bare JSON array; a wrapped object is rejected (contrast copilot which requires the object form)."
+		},
+		{
+			"id": "claude-code.inspect.foreign-marketplace",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"foreign",
+				"conflict"
+			],
+			"dims": {
+				"marketplace": "foreign",
+				"pluginPresent": true
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.enabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.foreign"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
+			"anchors": [
+				"state-parsers:53-55,220-231"
+			]
+		},
+		{
+			"id": "claude-code.inspect.foreign-marketplace-kind",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"foreign",
+				"conflict"
+			],
+			"dims": {
+				"marketplace": "foreign",
+				"sourceKind": "registry"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.enabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.foreignKind"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
+			"anchors": [
+				"state-parsers:225-230"
+			],
+			"notes": "marketplace source ∉ {directory,local} → foreign → conflict even when path equals the capsule root."
+		},
+		{
+			"id": "claude-code.inspect.duplicate-plugin",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"conflict"
+			],
+			"dims": {
+				"pluginMatches": 2
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.duplicate"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
+			"anchors": [
+				"state-parsers:48-50"
+			]
+		},
+		{
+			"id": "claude-code.inspect.duplicate-marketplace",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"conflict"
+			],
+			"dims": {
+				"marketplaceMatches": 2
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.enabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.duplicate"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
+			"anchors": [
+				"state-parsers:48-50"
+			]
+		},
+		{
+			"id": "claude-code.inspect.plugin-without-marketplace",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"conflict"
+			],
+			"dims": {
+				"marketplace": "absent",
+				"pluginPresent": true
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.enabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.absent"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
+			"anchors": [
+				"state-parsers:62-64"
+			],
+			"notes": "A present plugin with no orchbee-local marketplace is a foreign/ unmanaged install — conflict, never silently adopted."
+		},
+		{
+			"id": "claude-code.inspect.legacy-marketplace",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"update-required"
+			],
+			"dims": {
+				"marketplace": "legacy",
+				"pluginPresent": true,
+				"enabled": true,
+				"versionMatch": true
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.enabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.appBundle"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "update-required",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
+			"anchors": [
+				"state-parsers:56-58,164-172"
+			],
+			"notes": "App-bundle resource path is a named legacy root — update-required regardless of plugin version."
+		},
+		{
+			"id": "claude-code.inspect.older-sibling-versioned-root",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"update-required"
+			],
+			"dims": {
+				"marketplace": "legacy",
+				"siblingVersion": "0.3.0"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.enabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.olderSibling"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "update-required",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
+			"anchors": [
+				"state-parsers:173-180"
+			],
+			"notes": "Versioned SIBLING of the current capsule root classifies 'legacy' on the canonical spec."
+		},
+		{
+			"id": "claude-code.inspect.newer-sibling-versioned-root",
+			"operation": "inspect",
+			"class": "cli-divergence",
+			"covers": [
+				"stale-side",
+				"newer-sibling"
+			],
+			"dims": {
+				"marketplace": "newer-sibling",
+				"siblingVersion": "0.5.0"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.enabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.newerSibling"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "stale-side",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
+				"desktopCanonical": {
+					"state": "update-required",
+					"issue": null
+				},
+				"cli": {
+					"note": "semver-greater versioned sibling is CLI stale-side; enable/disable refuse pre-effect exit 3. Canonical classifier maps it to legacy→update-required (which would permit an explicit older-surface downgrade — §3.2 registers this divergence)."
+				}
+			},
+			"anchors": [
+				"state-parsers:173-180",
+				"design:complete53§3.2"
+			],
+			"notes": "Direction-aware split is the CLI's registered divergence — versionPattern is direction-blind on Desktop."
+		},
+		{
+			"id": "claude-code.inspect.old-plugin-version",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"update-required",
+				"unsupported-version-dimension"
+			],
+			"dims": {
+				"marketplace": "current",
+				"pluginPresent": true,
+				"enabled": true,
+				"versionMatch": false
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.oldVersion"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "update-required",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
+			"anchors": [
+				"state-parsers:65-69"
+			]
+		},
+		{
+			"id": "claude-code.inspect.missing-version-field",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"unreadable"
+			],
+			"dims": {
+				"parse": "missing-version"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.missingVersion"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "unknown",
+					"issue": "inspection-failed",
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
+			"anchors": [
+				"state-parsers:65-66"
+			]
+		},
+		{
+			"id": "claude-code.inspect.missing-enabled-field",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"unreadable"
+			],
+			"dims": {
+				"parse": "missing-enabled"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.missingEnabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "unknown",
+					"issue": "inspection-failed",
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
+			"anchors": [
+				"state-parsers:70-72"
+			]
+		},
+		{
+			"id": "claude-code.inspect.executable-not-found",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"agent-unavailable"
+			],
+			"dims": {
+				"exe": "not-found"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": null,
+				"capsule": "ready",
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {
+					"state": "unknown",
+					"issue": null,
+					"availability": "not-found",
+					"managementMode": "managed-local"
+				},
+				"commands": []
+			},
+			"anchors": [
+				"cli-adapter:58-68"
+			],
+			"notes": "CLI-family adapters short-circuit on missing executable: state unknown WITHOUT issuing any provider read (contrast codex/cline/guarded which still classify configuration)."
+		},
+		{
+			"id": "claude-code.inspect.manual-only-platform",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"unsupported-platform"
+			],
+			"dims": {
+				"managementMode": "manual-only",
+				"marketplace": "current",
+				"pluginPresent": true,
+				"enabled": true
+			},
+			"given": {
+				"managementMode": "manual-only",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.enabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "enabled",
+					"issue": "unsupported-platform",
+					"availability": "available",
+					"managementMode": "manual-only"
+				},
+				"commands": [
+					[
+						"plugin",
+						"list",
+						"--json"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"list",
+						"--json"
+					]
+				]
+			},
+			"anchors": [
+				"cli-adapter:70-83",
+				"create-adapters:54-55"
+			],
+			"notes": "manual-only still runs provider reads; the platform issue OVERRIDES inspection-failed in the issue slot."
+		},
+		{
+			"id": "claude-code.inspect.enabled-capsule-gone",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": [
+				"capsule-drift"
+			],
+			"dims": {
+				"marketplace": "current",
+				"pluginPresent": true,
+				"enabled": true,
+				"capsule": "absent"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "absent",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.enabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "update-required",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
+			"anchors": [
+				"capsule-adapter:36-42"
+			],
+			"notes": "CapsuleAgentIntegrationAdapter downgrades enabled→update-required when the stable capsule is not ready — applies to ALL ten providers."
+		},
+		{
+			"id": "claude-code.enable.noop-when-enabled",
+			"operation": "enable",
+			"class": "shared",
+			"covers": [
+				"noop",
+				"enable"
+			],
+			"dims": {
+				"state": "enabled"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.enabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "attempted",
+				"commands": [
+					[
+						"plugin",
+						"list",
+						"--json"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"list",
+						"--json"
+					]
+				],
+				"planCommands": [],
+				"mustNotMutate": true,
+				"cli": {
+					"exit": 0,
+					"frontier": "pre-effect",
+					"observedProvenance": "pre-effect"
+				}
+			},
+			"anchors": [
+				"create-adapters:215",
+				"command-ops:8-13"
+			]
+		},
+		{
+			"id": "claude-code.enable.disabled",
+			"operation": "enable",
+			"class": "shared",
+			"covers": [
+				"enable",
+				"disabled-path"
+			],
+			"dims": {
+				"state": "disabled"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.disabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"enable",
+							"${PLUGIN_ID}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "attempted",
+				"commands": [
+					[
+						"plugin",
+						"list",
+						"--json"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"list",
+						"--json"
+					],
+					[
+						"plugin",
+						"enable",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					]
+				],
+				"planCommands": [
+					[
+						"plugin",
+						"enable",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					]
+				],
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect",
+					"observedProvenance": "post-effect"
+				}
+			},
+			"anchors": [
+				"create-adapters:217-227"
+			]
+		},
+		{
+			"id": "claude-code.enable.not-installed",
+			"operation": "enable",
+			"class": "shared",
+			"covers": [
+				"enable"
+			],
+			"dims": {
+				"state": "not-installed",
+				"marketplace": "absent"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.empty"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.absent"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"add",
+							"${CAPSULE_ROOT}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"install",
+							"${PLUGIN_ID}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"enable",
+							"${PLUGIN_ID}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "attempted",
+				"commands": [
+					[
+						"plugin",
+						"list",
+						"--json"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"list",
+						"--json"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"add",
+						"${CAPSULE_ROOT}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"install",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"enable",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					]
+				],
+				"planCommands": [
+					[
+						"plugin",
+						"marketplace",
+						"add",
+						"${CAPSULE_ROOT}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"install",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"enable",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					]
+				],
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
+			},
+			"anchors": [
+				"create-adapters:228-245"
+			]
+		},
+		{
+			"id": "claude-code.enable.not-installed-marketplace-current",
+			"operation": "enable",
+			"class": "shared",
+			"covers": [
+				"enable"
+			],
+			"dims": {
+				"state": "not-installed",
+				"marketplace": "current"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.empty"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"install",
+							"${PLUGIN_ID}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"enable",
+							"${PLUGIN_ID}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "attempted",
+				"planCommands": [
+					[
+						"plugin",
+						"install",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"enable",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					]
+				],
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
+			},
+			"anchors": [
+				"create-adapters:238-244"
+			],
+			"notes": "marketplace==current skips both marketplace steps — guards evaluate dimensions, never re-emit observed-complete steps."
+		},
+		{
+			"id": "claude-code.enable.update-required-full-vector",
+			"operation": "enable",
+			"class": "shared",
+			"covers": [
+				"enable",
+				"update-required",
+				"longest-vector"
+			],
+			"dims": {
+				"state": "update-required",
+				"pluginPresent": true,
+				"marketplace": "legacy"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.oldVersion"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.legacy"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"uninstall",
+							"${PLUGIN_ID}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"remove",
+							"${MARKETPLACE}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"add",
+							"${CAPSULE_ROOT}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"install",
+							"${PLUGIN_ID}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"enable",
+							"${PLUGIN_ID}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "attempted",
+				"planCommands": [
+					[
+						"plugin",
+						"uninstall",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"remove",
+						"${MARKETPLACE}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"add",
+						"${CAPSULE_ROOT}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"install",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"enable",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					]
+				],
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect",
+					"note": "longest known mutation: 2+5+2=9 slots ×3.6s=32.4s — drives the 40,000ms aggregate (§6)"
+				}
+			},
+			"anchors": [
+				"create-adapters:231-245"
+			]
+		},
+		{
+			"id": "claude-code.enable.conflict-refused",
+			"operation": "enable",
+			"class": "shared",
+			"covers": [
+				"refusal",
+				"conflict",
+				"no-else-uninstall"
+			],
+			"dims": {
+				"state": "conflict",
+				"marketplace": "foreign"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.enabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.foreign"
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "conflict",
+				"commands": [
+					[
+						"plugin",
+						"list",
+						"--json"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"list",
+						"--json"
+					]
+				],
+				"planCommands": [],
+				"mustNotMutate": true,
+				"cli": {
+					"exit": 3,
+					"frontier": "pre-effect"
+				}
+			},
+			"anchors": [
+				"create-adapters:216"
+			]
+		},
+		{
+			"id": "claude-code.enable.unknown-failed-no-fallthrough",
+			"operation": "enable",
+			"class": "shared",
+			"covers": [
+				"refusal",
+				"no-else-uninstall",
+				"unknown"
+			],
+			"dims": {
+				"state": "unknown",
+				"parse": "malformed"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": "{bad json"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "failed",
+				"commands": [
+					[
+						"plugin",
+						"list",
+						"--json"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"list",
+						"--json"
+					]
+				],
+				"planCommands": [],
+				"mustNotMutate": true,
+				"cli": {
+					"exit": 9,
+					"frontier": "pre-effect",
+					"note": "unclassifiable state → determinate pre-effect failure; NEVER falls into an else-uninstall vector (disposition55)"
+				}
+			},
+			"anchors": [
+				"create-adapters:228-229",
+				"disposition55:29-31"
+			]
+		},
+		{
+			"id": "claude-code.enable.executable-missing",
+			"operation": "enable",
+			"class": "shared",
+			"covers": [
+				"agent-unavailable"
+			],
+			"dims": {
+				"exe": "not-found"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": null,
+				"capsule": "ready",
+				"commands": []
+			},
+			"expect": {
+				"attempt": "failed",
+				"commands": [],
+				"planCommands": [],
+				"mustNotMutate": true,
+				"cli": {
+					"exit": 4,
+					"code": "agent-unavailable",
+					"frontier": "pre-effect"
+				}
+			},
+			"anchors": [
+				"cli-adapter:86-94",
+				"controller:119-121"
+			]
+		},
+		{
+			"id": "claude-code.enable.manual-only-refused",
+			"operation": "enable",
+			"class": "shared",
+			"covers": [
+				"refusal",
+				"unsupported-platform"
+			],
+			"dims": {
+				"managementMode": "manual-only"
+			},
+			"given": {
+				"managementMode": "manual-only",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": []
+			},
+			"expect": {
+				"attempt": "manual-action-required",
+				"commands": [],
+				"mustNotMutate": true,
+				"cli": {
+					"exit": 4,
+					"frontier": "pre-effect"
+				}
+			},
+			"anchors": [
+				"cli-adapter:84-86",
+				"controller:115-117"
+			],
+			"notes": "manual-only gates BEFORE executable resolution and BEFORE any provider read."
+		},
+		{
+			"id": "claude-code.enable.capsule-prepare-failed",
+			"operation": "enable",
+			"class": "shared",
+			"covers": [
+				"capsule-publish-failure",
+				"post-effect"
+			],
+			"dims": {
+				"capsule": "invalid"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "invalid",
+				"commands": []
+			},
+			"expect": {
+				"attempt": "failed",
+				"commands": [],
+				"mustNotMutate": true,
+				"cli": {
+					"exit": 9,
+					"frontier": "post-effect",
+					"note": "capsule publish IS an Orchbee-owned effect — its failure is post-effect exit 9 with residue[] reported (§6); provider reads never ran"
+				}
+			},
+			"anchors": [
+				"capsule-adapter:31-35",
+				"design:complete53§6"
+			]
+		},
+		{
+			"id": "claude-code.enable.mutation-timed-out",
+			"operation": "enable",
+			"class": "shared",
+			"covers": [
+				"timeout",
+				"partial-completion"
+			],
+			"dims": {
+				"state": "update-required",
+				"pluginPresent": true,
+				"marketplace": "legacy",
+				"stepTimedOut": "marketplace-remove"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.oldVersion"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.legacy"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"uninstall",
+							"${PLUGIN_ID}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"remove",
+							"${MARKETPLACE}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "timed-out"
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "manual-action-required",
+				"commands": [
+					[
+						"plugin",
+						"list",
+						"--json"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"list",
+						"--json"
+					],
+					[
+						"plugin",
+						"uninstall",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"remove",
+						"${MARKETPLACE}",
+						"--scope",
+						"user"
+					]
+				],
+				"planCommands": [
+					[
+						"plugin",
+						"uninstall",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"remove",
+						"${MARKETPLACE}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"add",
+						"${CAPSULE_ROOT}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"install",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"enable",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					]
+				],
+				"cli": {
+					"exit": 8,
+					"verdict": "timed-out",
+					"frontier": "post-effect",
+					"observedProvenance": "partial-or-unavailable",
+					"attemptedSteps": [
+						"plugin uninstall",
+						"plugin marketplace remove (timed-out)"
+					]
+				},
+				"desktopCanonical": {
+					"attempt": "manual-action-required",
+					"controllerCode": "manual-action-required"
+				}
+			},
+			"anchors": [
+				"command-ops:6-13",
+				"create-adapters:245"
+			],
+			"notes": "Mid-plan timeout: the plan was the full update-required vector; execution stopped after uninstall succeeded and marketplace-remove timed out. commandAttempt maps timed-out→manual-action-required canonically; CLI surfaces verdict timed-out with post-effect frontier + partial/unavailable observation provenance (exit 8)."
+		},
+		{
+			"id": "claude-code.enable.deadline-before-mutation",
+			"operation": "enable",
+			"class": "cli-divergence",
+			"covers": [
+				"timeout",
+				"budget-deadline",
+				"refusal"
+			],
+			"dims": {
+				"state": "update-required (planned)",
+				"budget": "deadline consumed by inspection reads"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"deadlineMs": 3000,
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "timed-out"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "timed-out"
+						}
+					}
+				]
+			},
+			"expect": {
+				"commands": [
+					[
+						"plugin",
+						"list",
+						"--json"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"list",
+						"--json"
+					]
+				],
+				"planCommands": [],
+				"mustNotMutate": true,
+				"desktopCanonical": {
+					"attempt": "manual-action-required",
+					"note": "canonical maps a timed-out read to manual-action-required at the attempt level; there is no separate deadline verdict"
+				},
+				"cli": {
+					"exit": 7,
+					"verdict": "timed-out",
+					"frontier": "pre-effect",
+					"observedProvenance": "unavailable",
+					"note": "declared deadline consumed before ANY possible integration mutation → exit 7 (disposition55); no fs writes, no mutation argv issued"
+				}
+			},
+			"anchors": [
+				"disposition55:29-44",
+				"design:complete53§6"
+			],
+			"notes": "Budget/deadline gate: per-invocation budget spent by the two inspection reads; mutation plan never issued. Exit 7 is distinct from post-effect timeout (exit 8)."
+		},
+		{
+			"id": "claude-code.enable.partial-completion-recovery",
+			"operation": "enable",
+			"class": "shared",
+			"covers": [
+				"partial-recovery"
+			],
+			"dims": {
+				"state": "update-required",
+				"pluginPresent": false,
+				"marketplace": "legacy",
+				"prior": "claude-code.enable.mutation-timed-out"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.empty"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.legacy"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"remove",
+							"${MARKETPLACE}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"add",
+							"${CAPSULE_ROOT}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"install",
+							"${PLUGIN_ID}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"enable",
+							"${PLUGIN_ID}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "attempted",
+				"planCommands": [
+					[
+						"plugin",
+						"marketplace",
+						"remove",
+						"${MARKETPLACE}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"add",
+						"${CAPSULE_ROOT}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"install",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"enable",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					]
+				],
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
+			},
+			"anchors": [
+				"create-adapters:228-245",
+				"state-parsers:56-58"
+			],
+			"notes": "Same-invocation partial completion left plugin absent + marketplace legacy → still update-required; re-evaluation emits ONLY the remaining steps (no uninstall — pluginPresent=false). Guard evaluation IS convergence (§4.4)."
+		},
+		{
+			"id": "claude-code.disable.enabled",
+			"operation": "disable",
+			"class": "shared",
+			"covers": [
+				"disable"
+			],
+			"dims": {
+				"state": "enabled"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.enabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"disable",
+							"${PLUGIN_ID}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "attempted",
+				"planCommands": [
+					[
+						"plugin",
+						"disable",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					]
+				],
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
+			},
+			"anchors": [
+				"create-adapters:257-266"
+			]
+		},
+		{
+			"id": "claude-code.disable.noop-not-installed",
+			"operation": "disable",
+			"class": "shared",
+			"covers": [
+				"noop",
+				"disable"
+			],
+			"dims": {
+				"state": "not-installed"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.empty"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.absent"
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "attempted",
+				"planCommands": [],
+				"mustNotMutate": true,
+				"cli": {
+					"exit": 0,
+					"frontier": "pre-effect"
+				}
+			},
+			"anchors": [
+				"create-adapters:253-255"
+			]
+		},
+		{
+			"id": "claude-code.disable.noop-disabled",
+			"operation": "disable",
+			"class": "shared",
+			"covers": [
+				"noop",
+				"disable"
+			],
+			"dims": {
+				"state": "disabled"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.disabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "attempted",
+				"planCommands": [],
+				"mustNotMutate": true,
+				"cli": {
+					"exit": 0,
+					"frontier": "pre-effect"
+				}
+			},
+			"anchors": [
+				"create-adapters:253-255"
+			]
+		},
+		{
+			"id": "claude-code.disable.update-required-full",
+			"operation": "disable",
+			"class": "shared",
+			"covers": [
+				"disable",
+				"update-required"
+			],
+			"dims": {
+				"state": "update-required",
+				"pluginPresent": true,
+				"marketplace": "legacy"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.oldVersion"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.legacy"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"uninstall",
+							"${PLUGIN_ID}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"remove",
+							"${MARKETPLACE}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "attempted",
+				"planCommands": [
+					[
+						"plugin",
+						"uninstall",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"remove",
+						"${MARKETPLACE}",
+						"--scope",
+						"user"
+					]
+				],
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
+			},
+			"anchors": [
+				"create-adapters:268-276"
+			]
+		},
+		{
+			"id": "claude-code.disable.conflict-refused",
+			"operation": "disable",
+			"class": "shared",
+			"covers": [
+				"refusal",
+				"conflict",
+				"no-else-uninstall"
+			],
+			"dims": {
+				"state": "conflict"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.enabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.duplicate"
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "conflict",
+				"planCommands": [],
+				"mustNotMutate": true,
+				"cli": {
+					"exit": 3,
+					"frontier": "pre-effect"
+				}
+			},
+			"anchors": [
+				"create-adapters:256"
+			]
+		},
+		{
+			"id": "claude-code.disable.unknown-failed-no-fallthrough",
+			"operation": "disable",
+			"class": "shared",
+			"covers": [
+				"refusal",
+				"no-else-uninstall",
+				"unknown"
+			],
+			"dims": {
+				"state": "unknown",
+				"firstRead": "failed"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "failed"
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "failed",
+				"planCommands": [],
+				"mustNotMutate": true,
+				"cli": {
+					"exit": 9,
+					"frontier": "pre-effect"
+				}
+			},
+			"anchors": [
+				"create-adapters:251-268",
+				"disposition55:29-31"
+			]
+		},
+		{
+			"id": "claude-code.mutation.newer-sibling-stale-side",
+			"operation": "disable",
+			"class": "cli-divergence",
+			"covers": [
+				"stale-side",
+				"newer-sibling",
+				"refusal"
+			],
+			"dims": {
+				"marketplace": "newer-sibling",
+				"siblingVersion": "0.5.0"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.enabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.newerSibling"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "stale-side"
+				},
+				"attempt": "stale-side",
+				"planCommands": [],
+				"mustNotMutate": true,
+				"desktopCanonical": {
+					"state": "update-required",
+					"attempt": "attempted",
+					"planCommands": [
+						[
+							"plugin",
+							"uninstall",
+							"${PLUGIN_ID}",
+							"--scope",
+							"user"
+						],
+						[
+							"plugin",
+							"marketplace",
+							"remove",
+							"${MARKETPLACE}",
+							"--scope",
+							"user"
+						]
+					]
+				},
+				"cli": {
+					"exit": 3,
+					"verdict": "stale-side",
+					"frontier": "pre-effect"
+				}
+			},
+			"anchors": [
+				"state-parsers:173-180",
+				"design:complete53§3.2"
+			],
+			"notes": "The same input on canonical Desktop produces update-required and WOULD emit uninstall+marketplace-remove on disable — the CLI must refuse instead. Both enable and disable refuse for stale-side."
+		}
+	]
+}

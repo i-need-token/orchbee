@@ -1,4 +1,4 @@
-use std::ffi::OsString;
+use std::{ffi::OsString, path::PathBuf};
 
 use orchbee_agent_observation_protocol::{
     AgentListCursor, AgentSafeInteger, AgentSessionId, DEFAULT_LIST_LIMIT, MAXIMUM_LIST_LIMIT,
@@ -84,6 +84,8 @@ pub(crate) enum HelpTopic {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Family {
     Agent,
+    /// `agent integration`: the provider-onboarding sub-family under Agent.
+    AgentIntegration,
     Project,
     Workspace,
     Tab,
@@ -102,6 +104,7 @@ impl Family {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::Agent => "agent",
+            Self::AgentIntegration => "agent integration",
             Self::Project => "project",
             Self::Workspace => "workspace",
             Self::Tab => "tab",
@@ -126,6 +129,10 @@ pub(crate) enum CommandPath {
     AgentExplain,
     AgentWait,
     AgentDoctor,
+    AgentIntegrationList,
+    AgentIntegrationExplain,
+    AgentIntegrationEnable,
+    AgentIntegrationDisable,
     ProjectList,
     ProjectGet,
     ProjectCreate,
@@ -175,6 +182,10 @@ impl CommandPath {
             Self::AgentExplain => "agent explain",
             Self::AgentWait => "agent wait",
             Self::AgentDoctor => "agent doctor",
+            Self::AgentIntegrationList => "agent integration list",
+            Self::AgentIntegrationExplain => "agent integration explain",
+            Self::AgentIntegrationEnable => "agent integration enable",
+            Self::AgentIntegrationDisable => "agent integration disable",
             Self::ProjectList => "project list",
             Self::ProjectGet => "project get",
             Self::ProjectCreate => "project create",
@@ -543,6 +554,31 @@ pub(crate) enum MutationCommand {
     },
 }
 
+/// One `agent integration` command admitted by the grammar — a local
+/// provider-onboarding operation that never touches a Site. `provider` is
+/// optional on `list` (a filter) and required on every other verb;
+/// `adapter_source` is the development/test override already validated as
+/// a literal absolute path.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum AgentIntegrationCommand {
+    List {
+        provider: Option<crate::agent_integrations::IntegrationId>,
+        adapter_source: Option<PathBuf>,
+    },
+    Explain {
+        provider: crate::agent_integrations::IntegrationId,
+        adapter_source: Option<PathBuf>,
+    },
+    Enable {
+        provider: crate::agent_integrations::IntegrationId,
+        adapter_source: Option<PathBuf>,
+    },
+    Disable {
+        provider: crate::agent_integrations::IntegrationId,
+        adapter_source: Option<PathBuf>,
+    },
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
     /// `mouse` is the `--mouse off|on` selection: whether host pointer
@@ -571,6 +607,13 @@ pub(crate) enum Request {
     /// `site diagnose`: the read-only runtime observation command —
     /// neither a Workbench query nor a mutation; it never connects.
     SiteDiagnose {
+        format: OutputFormat,
+    },
+    /// `agent integration`: the local provider-onboarding surface — runs
+    /// entirely off ambient PATH and the cohort sidecar, never contacts a
+    /// Site.
+    AgentIntegration {
+        command: AgentIntegrationCommand,
         format: OutputFormat,
     },
 }
@@ -644,6 +687,10 @@ pub(crate) enum ExpectedValue {
     /// A `launch-profile` selector or `--profile` value: id-first exact
     /// then name cardinality, 1..=512 UTF-8 bytes.
     ProfileSelector,
+    /// `agent integration --provider <id>`: the closed provider vocabulary.
+    Provider,
+    /// `agent integration --adapter-source <abs>`: a literal absolute path.
+    AdapterSource,
 }
 
 /// Why an `invalid-usage` failure was reached. Carried for the localized
@@ -819,12 +866,15 @@ struct Options {
     asset_roots: Vec<String>,
     name: Option<String>,
     profile: Option<String>,
+    provider: Option<String>,
+    adapter_source: Option<String>,
 }
 
 /// Every named option that owns the next argv token as its value, used by
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
+    "--adapter-source",
     "--after-revision",
     "--arg",
     "--asset-root",
@@ -1094,11 +1144,17 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                 // The repeatable value options: every occurrence appends one
                 // verbatim argv value in order — `--arg` builds the launch
                 // argv; `--provider`/`--asset-root` build the doctor's two
-                // declared selector lists.
+                // declared selector lists. `--provider` is additionally
+                // mirrored into the single-use `provider` slot read by the
+                // `agent integration` commands, whose single-use contract is
+                // enforced at resolve time from the list's length.
                 if matches!(token.as_str(), "--arg" | "--provider" | "--asset-root") {
                     match token.as_str() {
                         "--arg" => options.args.push(value),
-                        "--provider" => options.providers.push(value),
+                        "--provider" => {
+                            options.provider = Some(value.clone());
+                            options.providers.push(value);
+                        }
                         _ => options.asset_roots.push(value),
                     }
                     index += 2;
@@ -1132,6 +1188,7 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                     "--after-revision" => &mut options.after_revision,
                     "--name" => &mut options.name,
                     "--profile" => &mut options.profile,
+                    "--adapter-source" => &mut options.adapter_source,
 
                     _ => &mut options.target_panel,
                 };
@@ -1404,6 +1461,50 @@ fn resolve_words(
                 },
                 options,
             ))
+        }
+        ["agent", "integration", "list"] => {
+            let context = UsageContext::Path("agent integration list");
+            check_scope(options, INTEGRATION_SCOPE, context, envelope)?;
+            Ok(Request::AgentIntegration {
+                command: AgentIntegrationCommand::List {
+                    provider: provider_option(options, context, envelope)?,
+                    adapter_source: adapter_source_option(options, context, envelope)?,
+                },
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
+        ["agent", "integration", "explain"] => {
+            let context = UsageContext::Path("agent integration explain");
+            check_scope(options, INTEGRATION_SCOPE, context, envelope)?;
+            Ok(Request::AgentIntegration {
+                command: AgentIntegrationCommand::Explain {
+                    provider: required_provider(options, context, envelope)?,
+                    adapter_source: adapter_source_option(options, context, envelope)?,
+                },
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
+        ["agent", "integration", "enable"] => {
+            let context = UsageContext::Path("agent integration enable");
+            check_scope(options, INTEGRATION_SCOPE, context, envelope)?;
+            Ok(Request::AgentIntegration {
+                command: AgentIntegrationCommand::Enable {
+                    provider: required_provider(options, context, envelope)?,
+                    adapter_source: adapter_source_option(options, context, envelope)?,
+                },
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
+        ["agent", "integration", "disable"] => {
+            let context = UsageContext::Path("agent integration disable");
+            check_scope(options, INTEGRATION_SCOPE, context, envelope)?;
+            Ok(Request::AgentIntegration {
+                command: AgentIntegrationCommand::Disable {
+                    provider: required_provider(options, context, envelope)?,
+                    adapter_source: adapter_source_option(options, context, envelope)?,
+                },
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
         }
         ["project", "list"] => {
             reject_filters(options, UsageContext::Path("project list"), envelope)?;
@@ -1995,6 +2096,35 @@ fn resolve_words(
             extra,
             envelope,
         )),
+        ["agent", "integration"] => Err(missing_command(
+            UsageContext::Path("agent integration"),
+            envelope,
+        )),
+        ["agent", "integration", "list", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("agent integration list"),
+            extra,
+            envelope,
+        )),
+        [
+            "agent",
+            "integration",
+            verb @ ("explain" | "enable" | "disable"),
+            extra,
+            ..,
+        ] => Err(unexpected_argument(
+            UsageContext::Path(match *verb {
+                "explain" => "agent integration explain",
+                "enable" => "agent integration enable",
+                _ => "agent integration disable",
+            }),
+            extra,
+            envelope,
+        )),
+        ["agent", "integration", verb, ..] => Err(unknown_command(
+            UsageContext::Path("agent integration"),
+            verb,
+            envelope,
+        )),
         ["agent", verb, ..] => Err(unknown_command(UsageContext::Path("agent"), verb, envelope)),
         ["project"] => Err(missing_command(UsageContext::Path("project"), envelope)),
         ["project", "list", extra, ..] => Err(unexpected_argument(
@@ -2366,6 +2496,17 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["agent", "explain"] => HelpTopic::Command(CommandPath::AgentExplain),
         ["agent", "wait"] => HelpTopic::Command(CommandPath::AgentWait),
         ["agent", "doctor"] => HelpTopic::Command(CommandPath::AgentDoctor),
+        ["agent", "integration"] => HelpTopic::Family(Family::AgentIntegration),
+        ["agent", "integration", "list"] => HelpTopic::Command(CommandPath::AgentIntegrationList),
+        ["agent", "integration", "explain"] => {
+            HelpTopic::Command(CommandPath::AgentIntegrationExplain)
+        }
+        ["agent", "integration", "enable"] => {
+            HelpTopic::Command(CommandPath::AgentIntegrationEnable)
+        }
+        ["agent", "integration", "disable"] => {
+            HelpTopic::Command(CommandPath::AgentIntegrationDisable)
+        }
         ["project"] => HelpTopic::Family(Family::Project),
         ["workspace"] => HelpTopic::Family(Family::Workspace),
         ["tab"] => HelpTopic::Family(Family::Tab),
@@ -2493,8 +2634,9 @@ struct Scope {
     /// the wait meaning alone — never `terminal wait-output`'s `--match`
     /// or `--rows` peers.
     timeout: bool,
-    /// `agent doctor --provider <id>`: admits the repeatable provider
-    /// selector.
+    /// `agent doctor --provider <id>` / `agent integration * --provider
+    /// <id>`: the provider selector — repeatable on doctor; a filter on
+    /// integration `list` and a required selector on explain/enable/disable.
     provider: bool,
     /// `agent doctor --asset-root <path>`: admits the repeatable declared
     /// asset-root selector.
@@ -2504,6 +2646,9 @@ struct Scope {
     /// `tab create|panel split --profile <sel>`: the catalog-launch
     /// selector, exclusive with the explicit `--exec`/`--arg` form.
     profile: bool,
+    /// `agent integration * --adapter-source <abs>`: the development/test
+    /// capsule-source override (literal absolute path).
+    adapter_source: bool,
 }
 
 const NO_OPTIONS: Scope = Scope {
@@ -2538,6 +2683,7 @@ const NO_OPTIONS: Scope = Scope {
     asset_root: false,
     name: false,
     profile: false,
+    adapter_source: false,
 };
 
 /// The explicit `tui` route: only `--mouse` is admitted on top of the
@@ -2676,6 +2822,14 @@ const LAUNCH_PROFILE_CREATE_SCOPE: Scope = Scope {
     ..NO_OPTIONS
 };
 
+/// `agent integration *`: the provider selector plus the development/test
+/// adapter-source override — the only integration-scoped options.
+const INTEGRATION_SCOPE: Scope = Scope {
+    provider: true,
+    adapter_source: true,
+    ..NO_OPTIONS
+};
+
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
     options.directory.is_some()
@@ -2707,6 +2861,8 @@ fn business_options(options: &Options) -> bool {
         || !options.asset_roots.is_empty()
         || options.name.is_some()
         || options.profile.is_some()
+        || options.provider.is_some()
+        || options.adapter_source.is_some()
 }
 
 /// The first named option present but outside `scope`, in the fixed `Options`
@@ -2819,6 +2975,12 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.profile.is_some() && !scope.profile {
         return Some("--profile");
+    }
+    if options.provider.is_some() && !scope.provider {
+        return Some("--provider");
+    }
+    if options.adapter_source.is_some() && !scope.adapter_source {
+        return Some("--adapter-source");
     }
     None
 }
@@ -3357,6 +3519,78 @@ fn agent_cursor_option(
                 envelope,
             )
         }),
+        None => Ok(None),
+    }
+}
+
+/// `agent integration --provider <id>`: the closed provider vocabulary —
+/// an unknown spelling is a usage failure, never a fuzzy match. `list`
+/// admits it as an optional filter.
+fn provider_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<Option<crate::agent_integrations::IntegrationId>, ParseFailure> {
+    // Single-use on this family: the shared repeatable arm records every
+    // `--provider` into `providers`; a second occurrence is a duplicate here.
+    if options.providers.len() > 1 {
+        return Err(usage_with(
+            UsageReason::DuplicateOption {
+                option: "--provider",
+            },
+            envelope,
+        ));
+    }
+    match &options.provider {
+        Some(value) => crate::agent_integrations::IntegrationId::parse(value)
+            .map(Some)
+            .ok_or_else(|| {
+                usage_with(
+                    UsageReason::InvalidValue {
+                        context,
+                        option: "--provider",
+                        value: value.clone(),
+                        expected: ExpectedValue::Provider,
+                    },
+                    envelope,
+                )
+            }),
+        None => Ok(None),
+    }
+}
+
+/// The required `--provider` on explain/enable/disable.
+fn required_provider(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<crate::agent_integrations::IntegrationId, ParseFailure> {
+    provider_option(options, context, envelope)?
+        .ok_or_else(|| missing_required(context, "'--provider'", envelope))
+}
+
+/// `agent integration --adapter-source <abs>`: a literal absolute path —
+/// never expanded, created, or probed at parse time.
+fn adapter_source_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<Option<PathBuf>, ParseFailure> {
+    match &options.adapter_source {
+        Some(value)
+            if value.is_empty() || !value.starts_with('/') || value.as_bytes().contains(&0) =>
+        {
+            Err(usage_with(
+                UsageReason::InvalidValue {
+                    context,
+                    option: "--adapter-source",
+                    value: value.clone(),
+                    expected: ExpectedValue::AdapterSource,
+                },
+                envelope,
+            ))
+        }
+        Some(value) => Ok(Some(PathBuf::from(value))),
         None => Ok(None),
     }
 }

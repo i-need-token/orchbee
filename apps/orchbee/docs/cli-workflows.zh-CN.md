@@ -27,10 +27,11 @@ shell 片段仅作示意。
 - 角色区分：`config check` 纯属本地检查（不连接、不加锁、无副作用）；
   `site start` 执行唯一一次有副作用的激活；其余每条命令都与*正在运
   行的*本地 Site 通信。
-- 只有当运行中的 Site 从已配置好的受支持 Agent 集成中观察到会话时，
-  Agent 行才会出现。没有专门的 provider 安装/配置命令，也没有
-  `agent launch`；已配置好的 provider 可执行文件与其他程序一样，经
-  第 3 节的通用 `--exec` 途径启动。
+- 只有当运行中的 Site 从已启用的受支持 Agent 集成中观察到会话时，
+  Agent 行才会出现。provider 接入即第 6 节的 `agent integration` 命令
+  族——本地、有界、绝不接触 Site——且没有 `agent launch`；已启用的
+  provider 可执行文件与其他程序一样，经第 3 节的通用 `--exec` 途径
+  启动。
 
 ## 1. 检查本地输入并启动 Site
 
@@ -127,10 +128,24 @@ orchbee worktree list --project "$PROJECT" --directory "$DIR"
 完整的 `refs/heads/…` 形式；全零 `head` 表示未出生的仓库，`null`
 标记裸仓库条目。
 
-## 6. 观察 Agent
+## 6. 接入 provider 并观察 Agent
 
-在受支持的集成已配置好、且 Site 正在观察会话的前提下——这里的任何
-命令都不执行 provider 生命周期或控制操作：
+`agent integration` 管理受支持 provider 的本地接入——检查其状态、解
+释 enable 计划，以及启用或禁用受管集成。这些命令只在调用用户的机器
+与 PATH 上运行：绝不接触 Site，且每次变更都保持有界、非交互。
+
+```sh
+orchbee agent integration list                     # 每个 provider 的本地状态
+orchbee agent integration explain --provider codex # enable 将执行的计划
+orchbee agent integration enable --provider codex
+orchbee agent integration disable --provider codex
+```
+
+只有经核实归 Orchbee 所有的条目才会被安装或移除；外来或更新版本的
+条目在任何效应前被拒绝。
+
+在受支持的集成已启用、且 Site 正在观察会话的前提下——以下任何命令
+都不执行 provider 生命周期或控制操作：
 
 ```sh
 orchbee agent list                          # 仅存活会话

@@ -6,8 +6,8 @@
 //! enumerated.
 //!
 //! Walker state (per completed word):
-//! - `state` — positional position: verb | sub | after | operand | help |
-//!   completion
+//! - `state` — positional position: verb | sub | deep | after | operand | help |
+//!   completion (`deep` is the third level under `agent integration`)
 //! - `done` — the argv can no longer produce a legal request (invalid or
 //!   terminal): no candidates
 //! - `ended` — `--` was seen: option termination, and `--` is never consumed
@@ -34,10 +34,10 @@
 //!    invalid value is usage
 //! 6. business flags → legal iff a command reachable here admits the flag:
 //!    verb records it (checked when the command lands), sub requires the
-//!    flag's owning family, after/operand require membership in the resolved
-//!    command's flag scope (`--workspace`/`--standalone` stay exclusive);
-//!    operand-taking paths consume one positional first; leaf/help/
-//!    completion reject all options
+//!    flag's owning family, deep admits the `agent integration` union scope,
+//!    after/operand require membership in the resolved command's flag scope
+//!    (`--workspace`/`--standalone` stay exclusive); operand-taking paths
+//!    consume one positional first; leaf/help/completion reject all options
 //! 7. `--help`/`--version` → terminal flags: nothing may follow → done
 //! 8. unknown `-x` → usage → done
 //! 9. other word → positional dispatch:
@@ -45,11 +45,12 @@
 //!      `--mouse` was seen) | `tui`→leaf (fails if a business flag or
 //!      `--format` was seen) | `help`→help / `completion`→completion (both
 //!      fail if any option was seen); families fail if `--mouse` was seen
-//!    - sub: family:verb → after; the verb's declared flag scope must cover
-//!      everything already seen
+//!    - sub: family:verb → after, or `agent:integration` → deep; the verb's
+//!      declared flag scope must cover everything already seen
+//!    - deep: `agent:integration:<verb>` → after under the same union scope
 //!    - after: operand-taking paths → operand; anything else → done
 //!    - operand/leaf/completion → done
-//!    - help: HELP_TOPICS / HELP_CHILDREN walk
+//!    - help: HELP_TOPICS / HELP_CHILDREN / HELP_LEVEL3 walk
 //!
 //! Candidate precedence at the cursor (same order as the parser's legality):
 //! - dead consumed prefix → nothing: when the already-typed words leave no
@@ -62,6 +63,7 @@
 //! - value == mouse → off on
 //! - value == direction → the resolved command's direction words
 //! - value == key → the closed `terminal send --key` vocabulary
+//! - value == provider → the closed `agent integration` provider vocabulary
 //! - value == filter → nothing (no resource enumeration)
 //! - cur == `--format=*` → `--format=text`/`--format=json` only where a
 //!   format option is legal and none was consumed — never after
@@ -69,6 +71,8 @@
 //! - verb → root words still viable under the seen business flags + format
 //!   flags + `--help`/`--version` only when nothing was consumed
 //! - sub → verbs whose flag scope covers the seen flags + format flags
+//! - deep → `agent integration` verbs while the seen flags stay inside the
+//!   union scope + format flags
 //! - leaf → `status`: format flags + `--help` when nothing was seen; `tui`:
 //!   `--help` and `--mouse` only while `--mouse` is unconsumed — a consumed
 //!   `--mouse` makes every further token usage; `--mouse` admits no equals
@@ -174,18 +178,30 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--asset-root",
     "--profile",
     "--name",
+    "--adapter-source",
 ];
+
+/// The business flags every `agent integration <verb>` admits — also the
+/// union scope checked when the `agent integration` sub-family itself lands.
+const INTEGRATION_COMMAND_FLAGS: &[&str] = &["--provider", "--adapter-source"];
+
+/// `agent integration`'s third-level verbs, offered at the `deep` state.
+const INTEGRATION_VERBS: &[&str] = &["disable", "enable", "explain", "list"];
 
 /// Business flags whose seen bit never makes a repeat `done` — they stay
 /// offerable and keep consuming values while remaining scope-tracked.
 const REPEATABLE_FLAGS: &[&str] = &["--arg", "--asset-root", "--provider", "--until"];
 
-/// `<family>:<verb>` → the business flags that command admits. Commands not
-/// listed here admit none.
+/// `<family>:<verb>` (or `agent:integration:<verb>`) → the business flags
+/// that command admits. Commands not listed here admit none.
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("agent:list", &["--include-ended", "--limit", "--cursor"]),
     ("agent:doctor", &["--provider", "--asset-root"]),
     ("agent:wait", &["--until", "--after-revision", "--timeout"]),
+    ("agent:integration:list", INTEGRATION_COMMAND_FLAGS),
+    ("agent:integration:explain", INTEGRATION_COMMAND_FLAGS),
+    ("agent:integration:enable", INTEGRATION_COMMAND_FLAGS),
+    ("agent:integration:disable", INTEGRATION_COMMAND_FLAGS),
     ("project:create", &["--label"]),
     ("project:rename", &["--label"]),
     ("workspace:accept-directory", &["--path"]),
@@ -346,7 +362,10 @@ const HELP_TOPICS: &[&str] = &[
 
 /// `help <topic>` → the deeper words that complete a help path.
 const HELP_CHILDREN: &[(&str, &[&str])] = &[
-    ("agent", &["doctor", "explain", "get", "list", "wait"]),
+    (
+        "agent",
+        &["doctor", "explain", "get", "integration", "list", "wait"],
+    ),
     ("api", &["schema", "snapshot"]),
     ("launch-profile", &["create", "delete", "get", "list"]),
     ("config", &["check"]),
@@ -361,6 +380,10 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     ),
     ("worktree", &["list"]),
 ];
+
+/// `help <topic> <child>` → third-level words. Only `agent integration`
+/// reaches a third help level.
+const HELP_LEVEL3: &[(&str, &[&str])] = &[("agent:integration", INTEGRATION_VERBS)];
 
 const SHELLS: &[&str] = &["bash", "fish", "zsh"];
 const FORMAT_VALUES: &[&str] = &["text", "json"];
@@ -409,12 +432,14 @@ fn flag_bit(flag: &str) -> &'static str {
         "--asset-root" => "seen_asset_root",
         "--profile" => "seen_profile",
         "--name" => "seen_name",
+        "--adapter-source" => "seen_adapter_source",
         other => unreachable!("flag {other} lacks a seen bit"),
     }
 }
 
 /// `flag` → the value kind it leaves pending: `direction` candidates are
-/// per-command; every other owned value stays opaque (`filter`).
+/// per-command, `provider`/`key` have closed vocabularies; every other
+/// owned value stays opaque (`filter`).
 fn flag_value(flag: &str) -> Option<&'static str> {
     match flag {
         "--direction" => Some("direction"),
@@ -437,17 +462,97 @@ fn command_flags(command: &str) -> &'static [&'static str] {
         .unwrap_or(&[])
 }
 
-/// `flag` → the families owning it, in `FAMILY_VERBS` order.
+/// `flag` → the families owning it, in `FAMILY_VERBS` order. A flag belongs
+/// to a family when any command under it — including the third-level
+/// `agent integration` paths — declares it.
 fn families_of(flag: &str) -> Vec<&'static str> {
     FAMILY_VERBS
         .iter()
-        .filter(|(family, verbs)| {
-            verbs
-                .iter()
-                .any(|verb| command_flags(&format!("{family}:{verb}")).contains(&flag))
-        })
         .map(|(family, _)| *family)
+        .filter(|family| {
+            COMMAND_FLAGS.iter().any(|(command, flags)| {
+                flags.contains(&flag) && command.split(':').next() == Some(*family)
+            })
+        })
         .collect()
+}
+
+/// bash/zsh: the seen-bits outside the `agent integration` union scope that
+/// could possibly stand when `integration` or one of its verbs lands —
+/// i.e. the flags `agent`'s sub-state admits at all. Flags no `agent` path
+/// owns are already `done` before the landing check can see them.
+fn integration_bad_bits() -> String {
+    BUSINESS_FLAGS
+        .iter()
+        .filter(|flag| {
+            !INTEGRATION_COMMAND_FLAGS.contains(flag) && families_of(flag).contains(&"agent")
+        })
+        .map(|flag| flag_bit(flag))
+        .collect::<Vec<_>>()
+        .join(" || ")
+}
+
+/// `agent:integration:<flag>` patterns — the flags admitted at the `deep`
+/// state, where the resolved command is not yet chosen.
+fn deep_flag_patterns() -> String {
+    INTEGRATION_COMMAND_FLAGS
+        .iter()
+        .map(|flag| format!("agent:integration:{flag}"))
+        .collect::<Vec<_>>()
+        .join("|")
+}
+
+/// `agent:integration:<verb>` patterns — the words legal at the `deep`
+/// state and inside `help agent integration`.
+fn deep_verb_patterns() -> String {
+    INTEGRATION_VERBS
+        .iter()
+        .map(|verb| format!("agent:integration:{verb}"))
+        .collect::<Vec<_>>()
+        .join("|")
+}
+
+/// bash/zsh `help <topic> <child> <TAB>` offers.
+fn help_level3_cases_bash() -> String {
+    HELP_LEVEL3
+        .iter()
+        .map(|(path, words)| format!("            {path}) candidates=\"{}\" ;;", words.join(" ")))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// fish `help <topic> <child> <TAB>` offers.
+fn help_level3_cases_fish() -> String {
+    HELP_LEVEL3
+        .iter()
+        .map(|(path, words)| {
+            format!(
+                "                case '{path}'; set candidates {}",
+                words.join(" ")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// fish `deep`-state flag admission arms — the `agent integration` union
+/// scope while no verb is chosen yet.
+fn deep_flag_cases_fish() -> String {
+    INTEGRATION_COMMAND_FLAGS
+        .iter()
+        .map(|flag| format!("                            case 'agent:integration:{flag}'"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// fish `agent:integration:<verb>` case words — legal at the `deep` state
+/// and inside `help agent integration`.
+fn deep_verb_cases_fish() -> String {
+    INTEGRATION_VERBS
+        .iter()
+        .map(|verb| format!("'agent:integration:{verb}'"))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// `family:verb` pairs, one per line of a shell `case` pattern list.
@@ -519,18 +624,44 @@ fn sub_flag_cases_bash() -> String {
         .join("\n")
 }
 
+/// `<command>:<flag>` admission patterns; the four `agent:integration:*`
+/// commands share one scope, so they fold into a single glob arm.
+fn flag_admission_patterns(flag: &str, separator: &str, quote: bool) -> String {
+    let mut seen_integration = false;
+    COMMAND_FLAGS
+        .iter()
+        .filter(|(_, flags)| flags.contains(&flag))
+        .filter_map(|(command, _)| {
+            if command.starts_with("agent:integration:") {
+                if seen_integration {
+                    return None;
+                }
+                seen_integration = true;
+                let pattern = format!("agent:integration:*:{flag}");
+                return Some(if quote {
+                    format!("'{pattern}'")
+                } else {
+                    pattern
+                });
+            }
+            let pattern = format!("{command}:{flag}");
+            Some(if quote {
+                format!("'{pattern}'")
+            } else {
+                pattern
+            })
+        })
+        .collect::<Vec<_>>()
+        .join(separator)
+}
+
 /// bash/zsh after/operand admission arms: a business flag is legal iff the
 /// resolved command's scope contains it.
 fn after_flag_cases_bash() -> String {
     BUSINESS_FLAGS
         .iter()
         .map(|flag| {
-            let patterns = COMMAND_FLAGS
-                .iter()
-                .filter(|(_, flags)| flags.contains(flag))
-                .map(|(command, _)| format!("{command}:{flag}"))
-                .collect::<Vec<_>>()
-                .join("|");
+            let patterns = flag_admission_patterns(flag, "|", false);
             match *flag {
                 "--workspace" => {
                     format!(
@@ -619,12 +750,14 @@ fn scope_cases_bash() -> String {
 
 /// bash/zsh sub-state offers: a verb stays viable while every consumed
 /// flag is inside that verb's declared scope — the consumed-list `admit`
-/// check — and no scoped exclusive pair stands violated.
+/// check — and no scoped exclusive pair stands violated. `agent`
+/// additionally offers `integration` while the seen flags stay inside the
+/// third level's union scope.
 fn verb_cases_bash() -> String {
     FAMILY_VERBS
         .iter()
         .map(|(family, verbs)| {
-            let lines = verbs
+            let mut lines = verbs
                 .iter()
                 .enumerate()
                 .map(|(index, verb)| {
@@ -650,9 +783,14 @@ fn verb_cases_bash() -> String {
                         "                admit '{allowed}' \"${{seen_flags[@]}}\"{guard} && {assign}"
                     )
                 })
-                .collect::<Vec<_>>()
-                .join("\n");
-            format!("            {family})\n{lines} ;;")
+                .collect::<Vec<_>>();
+            if *family == "agent" {
+                lines.push(format!(
+                    "                (({})) || verbs=\"$verbs integration\"",
+                    integration_bad_bits()
+                ));
+            }
+            format!("            {family})\n{} ;;", lines.join("\n"))
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -681,10 +819,22 @@ fn narrow_lines_bash() -> String {
 
 /// bash/zsh after/operand offers: the resolved command's unused business
 /// flags. An exclusive flag is offered only while its pair is also unseen.
+/// The four `agent:integration:*` commands share one scope, so they emit a
+/// single glob arm.
 fn extras_cases_bash() -> String {
+    let mut integration_done = false;
     COMMAND_FLAGS
         .iter()
-        .map(|(command, flags)| {
+        .filter_map(|(command, flags)| {
+            let label = if command.starts_with("agent:integration:") {
+                if integration_done {
+                    return None;
+                }
+                integration_done = true;
+                "agent:integration:*"
+            } else {
+                command
+            };
             let lines = flags
                 .iter()
                 .map(|flag| {
@@ -720,7 +870,7 @@ fn extras_cases_bash() -> String {
                 })
                 .collect::<Vec<_>>()
                 .join("\n");
-            format!("            {command})\n{lines} ;;")
+            Some(format!("            {label})\n{lines} ;;"))
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -754,7 +904,7 @@ fn bash() -> String {
             "# No dynamic state: no Site, resource, or runtime enumeration.\n",
             "_orchbee() {{\n",
             "    local cur candidates=\"\" extras=\"\" verbs=\"\" possible=\"\"\n",
-            "    local state=verb help_a=\"\" help_b=\"\" family=\"\" sub=\"\" leaf=\"\"\n",
+            "    local state=verb help_a=\"\" help_b=\"\" help_c=\"\" family=\"\" sub=\"\" leaf=\"\"\n",
             "    local seen_format=0 seen_mouse=0 {seen_decls}\n",
             "    local -a seen_flags\n",
             "    local ended=0 done=0 dead=0 value=\"\"\n",
@@ -792,7 +942,7 @@ fn bash() -> String {
             "        case \"$word\" in\n",
             "            --format|--format=*)\n",
             "                case \"$state\" in\n",
-            "                    verb|sub|after|operand) ;;\n",
+            "                    verb|sub|deep|after|operand) ;;\n",
             "                    leaf) [[ $leaf == status ]] || done=1 ;;\n",
             "                    *) done=1 ;;\n",
             "                esac\n",
@@ -826,6 +976,11 @@ fn bash() -> String {
             "{sub_flag_cases}\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
+            "                    deep)\n",
+            "                        case \"$family:$sub:$word\" in\n",
+            "                            {deep_flag_patterns}) ;;\n",
+            "                            *) done=1 ;;\n",
+            "                        esac ;;\n",
             "                    after|operand)\n",
             "                        case \"$family:$sub:$word\" in\n",
             "{after_flag_cases}\n",
@@ -855,6 +1010,11 @@ fn bash() -> String {
             "                        esac ;;\n",
             "                    sub)\n",
             "                        case \"$family:$word\" in\n",
+            "                            agent:integration)\n",
+            "                                sub=integration; state=deep\n",
+            "                                # The sub-family's union scope must cover\n",
+            "                                # every flag already recorded.\n",
+            "                                (({integration_bad})) && done=1 ;;\n",
             "                            {paths})\n",
             "                                sub=$word; state=after\n",
             "                                # The chosen verb's flag scope must cover\n",
@@ -862,6 +1022,15 @@ fn bash() -> String {
             "                                case \"$family:$sub\" in\n",
             "{scope_cases}\n",
             "                                esac ;;\n",
+            "                            *) done=1 ;;\n",
+            "                        esac ;;\n",
+            "                    deep)\n",
+            "                        case \"$family:$sub:$word\" in\n",
+            "                            {deep_verb_patterns})\n",
+            "                                sub=\"integration:$word\"; state=after\n",
+            "                                # Every `agent integration` verb shares the\n",
+            "                                # same flag scope — the union check.\n",
+            "                                (({integration_bad})) && done=1 ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
             "                    after)\n",
@@ -881,13 +1050,19 @@ fn bash() -> String {
             "                                {help_paths}) help_b=$word ;;\n",
             "                                *) done=1 ;;\n",
             "                            esac\n",
+            "                        elif [[ -z $help_c ]]; then\n",
+            "                            case \"$help_a:$help_b:$word\" in\n",
+            "                                {deep_verb_patterns}) help_c=$word ;;\n",
+            "                                *) done=1 ;;\n",
+            "                            esac\n",
             "                        else done=1; fi ;;\n",
             "                esac ;;\n",
             "        esac\n",
             "    done\n",
             "    # A consumed prefix that left no legal root word (verb) or no legal\n",
-            "    # verb (sub) is dead: every candidate is suppressed before pending\n",
-            "    # values, the --format= override, or any offer can resurrect one.\n",
+            "    # verb (sub, deep) is dead: every candidate is suppressed before\n",
+            "    # pending values, the --format= override, or any offer can resurrect\n",
+            "    # one.\n",
             "    if [[ $state == verb ]]; then\n",
             "        possible=\"{roots}\"\n",
             "{narrow_lines}\n",
@@ -898,6 +1073,9 @@ fn bash() -> String {
             "        case \"$family\" in\n",
             "{verb_cases}\n",
             "        esac\n",
+            "        [[ -z $verbs ]] && dead=1\n",
+            "    elif [[ $state == deep ]]; then\n",
+            "        (({integration_bad})) || verbs=\"{integration_verb_words}\"\n",
             "        [[ -z $verbs ]] && dead=1\n",
             "    fi\n",
             "    if ((done || ended || dead)); then candidates=\"\"\n",
@@ -915,7 +1093,7 @@ fn bash() -> String {
             "        if ((!seen_format)); then\n",
             "            case \"$state\" in\n",
             "                verb) ((!seen_mouse)) && candidates=\"--format=text --format=json\" ;;\n",
-            "                sub|after|operand) candidates=\"--format=text --format=json\" ;;\n",
+            "                sub|deep|after|operand) candidates=\"--format=text --format=json\" ;;\n",
             "                leaf) [[ $leaf == status ]] && candidates=\"--format=text --format=json\" ;;\n",
             "            esac\n",
             "        fi\n",
@@ -929,26 +1107,23 @@ fn bash() -> String {
             "    elif [[ $state == sub ]]; then\n",
             "        candidates=\"$verbs\"\n",
             "        ((seen_format)) || candidates=\"$candidates --format --format=\"\n",
+            "    elif [[ $state == deep ]]; then\n",
+            "        candidates=\"$verbs\"\n",
+            "        ((seen_format)) || candidates=\"$candidates --format --format=\"\n",
             "    elif [[ $state == leaf ]]; then\n",
             "        if [[ $leaf == tui ]]; then ((!seen_mouse)) && candidates=\"--help --mouse\"\n",
             "        elif ((!seen_format)); then candidates=\"--format --format= --help\"; fi\n",
-            "    elif [[ $state == after ]]; then\n",
+            "    elif [[ $state == after || $state == operand ]]; then\n",
             "        ((seen_format)) || candidates=\"--format --format=\"\n",
             "        case \"$family:$sub\" in\n",
             "{extras_cases}\n",
             "        esac\n",
             "        # Suffix `--help` is legal on every command path — including the\n",
             "        # operand-owed `get`/`api schema`/mutation paths — while no\n",
-            "        # option was seen.\n",
-            "        if (({no_options})); then\n",
+            "        # option was seen and the operand is still owed.\n",
+            "        if [[ $state == after ]] && (({no_options})); then\n",
             "            candidates=\"$candidates --help\"\n",
             "        fi\n",
-            "        [[ -n $extras ]] && candidates=\"$candidates $extras\"\n",
-            "    elif [[ $state == operand ]]; then\n",
-            "        ((seen_format)) || candidates=\"--format --format=\"\n",
-            "        case \"$family:$sub\" in\n",
-            "{extras_cases}\n",
-            "        esac\n",
             "        [[ -n $extras ]] && candidates=\"$candidates $extras\"\n",
             "    elif [[ $state == completion ]]; then candidates=\"{shells} --help\"\n",
             "    elif [[ $state == help ]]; then\n",
@@ -956,6 +1131,10 @@ fn bash() -> String {
             "        elif [[ -z $help_b ]]; then\n",
             "            case \"$help_a\" in\n",
             "{help_cases}\n",
+            "            esac\n",
+            "        elif [[ -z $help_c ]]; then\n",
+            "            case \"$help_a:$help_b\" in\n",
+            "{help_level3_cases}\n",
             "            esac\n",
             "        fi\n",
             "    fi\n",
@@ -989,6 +1168,10 @@ fn bash() -> String {
             .collect::<Vec<_>>()
             .join(" "),
         sub_flag_cases = sub_flag_cases_bash(),
+        deep_flag_patterns = deep_flag_patterns(),
+        deep_verb_patterns = deep_verb_patterns(),
+        integration_bad = integration_bad_bits(),
+        integration_verb_words = INTEGRATION_VERBS.join(" "),
         after_flag_cases = after_flag_cases_bash(),
         seen_cases = seen_cases_bash(),
         scope_cases = scope_cases_bash(),
@@ -1005,6 +1188,7 @@ fn bash() -> String {
             ))
             .collect::<Vec<_>>()
             .join("\n"),
+        help_level3_cases = help_level3_cases_bash(),
     )
 }
 
@@ -1016,7 +1200,7 @@ fn zsh() -> String {
             "# grammar. No dynamic state: no Site, resource, or runtime enumeration.\n",
             "_orchbee() {{\n",
             "    local candidates=\"\" extras=\"\" verbs=\"\" possible=\"\"\n",
-            "    local state=verb help_a=\"\" help_b=\"\" family=\"\" sub=\"\" leaf=\"\"\n",
+            "    local state=verb help_a=\"\" help_b=\"\" help_c=\"\" family=\"\" sub=\"\" leaf=\"\"\n",
             "    local seen_format=0 seen_mouse=0 {seen_decls}\n",
             "    local -a seen_flags\n",
             "    local ended=0 done=0 dead=0 value=\"\"\n",
@@ -1050,7 +1234,7 @@ fn zsh() -> String {
             "        case \"$word\" in\n",
             "            --format|--format=*)\n",
             "                case \"$state\" in\n",
-            "                    verb|sub|after|operand) ;;\n",
+            "                    verb|sub|deep|after|operand) ;;\n",
             "                    leaf) [[ $leaf == status ]] || done=1 ;;\n",
             "                    *) done=1 ;;\n",
             "                esac\n",
@@ -1084,6 +1268,11 @@ fn zsh() -> String {
             "{sub_flag_cases}\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
+            "                    deep)\n",
+            "                        case \"$family:$sub:$word\" in\n",
+            "                            {deep_flag_patterns}) ;;\n",
+            "                            *) done=1 ;;\n",
+            "                        esac ;;\n",
             "                    after|operand)\n",
             "                        case \"$family:$sub:$word\" in\n",
             "{after_flag_cases}\n",
@@ -1113,11 +1302,21 @@ fn zsh() -> String {
             "                        esac ;;\n",
             "                    sub)\n",
             "                        case \"$family:$word\" in\n",
+            "                            agent:integration)\n",
+            "                                sub=integration; state=deep\n",
+            "                                (({integration_bad})) && done=1 ;;\n",
             "                            {paths})\n",
             "                                sub=$word; state=after\n",
             "                                case \"$family:$sub\" in\n",
             "{scope_cases}\n",
             "                                esac ;;\n",
+            "                            *) done=1 ;;\n",
+            "                        esac ;;\n",
+            "                    deep)\n",
+            "                        case \"$family:$sub:$word\" in\n",
+            "                            {deep_verb_patterns})\n",
+            "                                sub=\"integration:$word\"; state=after\n",
+            "                                (({integration_bad})) && done=1 ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
             "                    after)\n",
@@ -1137,6 +1336,11 @@ fn zsh() -> String {
             "                                {help_paths}) help_b=$word ;;\n",
             "                                *) done=1 ;;\n",
             "                            esac\n",
+            "                        elif [[ -z $help_c ]]; then\n",
+            "                            case \"$help_a:$help_b:$word\" in\n",
+            "                                {deep_verb_patterns}) help_c=$word ;;\n",
+            "                                *) done=1 ;;\n",
+            "                            esac\n",
             "                        else done=1; fi ;;\n",
             "                esac ;;\n",
             "        esac\n",
@@ -1151,6 +1355,9 @@ fn zsh() -> String {
             "        case \"$family\" in\n",
             "{verb_cases}\n",
             "        esac\n",
+            "        [[ -z $verbs ]] && dead=1\n",
+            "    elif [[ $state == deep ]]; then\n",
+            "        (({integration_bad})) || verbs=\"{integration_verb_words}\"\n",
             "        [[ -z $verbs ]] && dead=1\n",
             "    fi\n",
             "    if ((done || ended || dead)); then candidates=\"\"\n",
@@ -1168,7 +1375,7 @@ fn zsh() -> String {
             "        if ((!seen_format)); then\n",
             "            case \"$state\" in\n",
             "                verb) ((!seen_mouse)) && candidates=\"--format=text --format=json\" ;;\n",
-            "                sub|after|operand) candidates=\"--format=text --format=json\" ;;\n",
+            "                sub|deep|after|operand) candidates=\"--format=text --format=json\" ;;\n",
             "                leaf) [[ $leaf == status ]] && candidates=\"--format=text --format=json\" ;;\n",
             "            esac\n",
             "        fi\n",
@@ -1182,23 +1389,20 @@ fn zsh() -> String {
             "    elif [[ $state == sub ]]; then\n",
             "        candidates=\"$verbs\"\n",
             "        ((seen_format)) || candidates=\"$candidates --format --format=\"\n",
+            "    elif [[ $state == deep ]]; then\n",
+            "        candidates=\"$verbs\"\n",
+            "        ((seen_format)) || candidates=\"$candidates --format --format=\"\n",
             "    elif [[ $state == leaf ]]; then\n",
             "        if [[ $leaf == tui ]]; then ((!seen_mouse)) && candidates=\"--help --mouse\"\n",
             "        elif ((!seen_format)); then candidates=\"--format --format= --help\"; fi\n",
-            "    elif [[ $state == after ]]; then\n",
+            "    elif [[ $state == after || $state == operand ]]; then\n",
             "        ((seen_format)) || candidates=\"--format --format=\"\n",
             "        case \"$family:$sub\" in\n",
             "{extras_cases}\n",
             "        esac\n",
-            "        if (({no_options})); then\n",
+            "        if [[ $state == after ]] && (({no_options})); then\n",
             "            candidates=\"$candidates --help\"\n",
             "        fi\n",
-            "        [[ -n $extras ]] && candidates=\"$candidates $extras\"\n",
-            "    elif [[ $state == operand ]]; then\n",
-            "        ((seen_format)) || candidates=\"--format --format=\"\n",
-            "        case \"$family:$sub\" in\n",
-            "{extras_cases}\n",
-            "        esac\n",
             "        [[ -n $extras ]] && candidates=\"$candidates $extras\"\n",
             "    elif [[ $state == completion ]]; then candidates=\"{shells} --help\"\n",
             "    elif [[ $state == help ]]; then\n",
@@ -1206,6 +1410,10 @@ fn zsh() -> String {
             "        elif [[ -z $help_b ]]; then\n",
             "            case \"$help_a\" in\n",
             "{help_cases}\n",
+            "            esac\n",
+            "        elif [[ -z $help_c ]]; then\n",
+            "            case \"$help_a:$help_b\" in\n",
+            "{help_level3_cases}\n",
             "            esac\n",
             "        fi\n",
             "    fi\n",
@@ -1238,6 +1446,10 @@ fn zsh() -> String {
             .collect::<Vec<_>>()
             .join(" "),
         sub_flag_cases = sub_flag_cases_bash(),
+        deep_flag_patterns = deep_flag_patterns(),
+        deep_verb_patterns = deep_verb_patterns(),
+        integration_bad = integration_bad_bits(),
+        integration_verb_words = INTEGRATION_VERBS.join(" "),
         after_flag_cases = after_flag_cases_bash(),
         seen_cases = seen_cases_bash(),
         scope_cases = scope_cases_bash(),
@@ -1254,6 +1466,7 @@ fn zsh() -> String {
             ))
             .collect::<Vec<_>>()
             .join("\n"),
+        help_level3_cases = help_level3_cases_bash(),
     )
 }
 
@@ -1315,12 +1528,7 @@ fn after_flag_cases_fish() -> String {
     BUSINESS_FLAGS
         .iter()
         .map(|flag| {
-            let patterns = COMMAND_FLAGS
-                .iter()
-                .filter(|(_, flags)| flags.contains(flag))
-                .map(|(command, _)| format!("'{command}:{flag}'"))
-                .collect::<Vec<_>>()
-                .join(" ");
+            let patterns = flag_admission_patterns(flag, " ", true);
             match *flag {
                 "--workspace" => {
                     format!("                            case {patterns}; if test $seen_standalone -eq 1; set done 1; end")
@@ -1385,12 +1593,13 @@ fn scope_cases_fish() -> String {
 }
 
 /// fish sub-state verb offers: a verb stays viable while every consumed flag
-/// is inside that verb's declared scope.
+/// is inside that verb's declared scope. `agent` additionally offers
+/// `integration` under the third level's union scope.
 fn verb_cases_fish() -> String {
     FAMILY_VERBS
         .iter()
         .map(|(family, verbs)| {
-            let lines = verbs
+            let mut lines = verbs
                 .iter()
                 .map(|verb| {
                     let command = format!("{family}:{verb}");
@@ -1410,9 +1619,14 @@ fn verb_cases_fish() -> String {
                         format!("                if __orchbee_admit '{allowed}' $seen_flags; set -a verbs {verb}; end")
                     }
                 })
-                .collect::<Vec<_>>()
-                .join("\n");
-            format!("            case {family}\n{lines}")
+                .collect::<Vec<_>>();
+            if *family == "agent" {
+                lines.push(format!(
+                    "                if __orchbee_admit '{}' $seen_flags; set -a verbs integration; end",
+                    INTEGRATION_COMMAND_FLAGS.join(" ")
+                ));
+            }
+            format!("            case {family}\n{}", lines.join("\n"))
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -1440,10 +1654,21 @@ fn narrow_lines_fish() -> String {
 }
 
 /// fish after/operand offers: unused business flags appended to candidates.
+/// The four `agent:integration:*` commands share one scope — one glob arm.
 fn extras_cases_fish() -> String {
+    let mut integration_done = false;
     COMMAND_FLAGS
         .iter()
-        .map(|(command, flags)| {
+        .filter_map(|(command, flags)| {
+            let label = if command.starts_with("agent:integration:") {
+                if integration_done {
+                    return None;
+                }
+                integration_done = true;
+                "agent:integration:*"
+            } else {
+                command
+            };
             let lines = flags
                 .iter()
                 .map(|flag| {
@@ -1483,7 +1708,7 @@ fn extras_cases_fish() -> String {
                 })
                 .collect::<Vec<_>>()
                 .join("\n");
-            format!("            case '{command}'\n{lines}")
+            Some(format!("            case '{label}'\n{lines}"))
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -1534,7 +1759,7 @@ fn fish() -> String {
             "    set -l words (commandline -opc)\n",
             "    set -l cur (commandline -ct)\n",
             "    set -e words[1]\n",
-            "    set -l state verb; set -l help_a \"\"; set -l help_b \"\"\n",
+            "    set -l state verb; set -l help_a \"\"; set -l help_b \"\"; set -l help_c \"\"\n",
             "    set -l family \"\"; set -l sub \"\"; set -l leaf \"\"\n",
             "    set -l seen_format 0; set -l seen_mouse 0; {seen_decls}; set -l seen_flags\n",
             "    set -l ended 0; set -l done 0; set -l value \"\"\n",
@@ -1553,7 +1778,7 @@ fn fish() -> String {
             "        switch \"$word\"\n",
             "            case '--format' '--format=*'\n",
             "                switch \"$state\"\n",
-            "                    case verb sub after operand\n",
+            "                    case verb sub deep after operand\n",
             "                    case leaf; if test \"$leaf\" != status; set done 1; end\n",
             "                    case '*'; set done 1\n",
             "                end\n",
@@ -1581,6 +1806,11 @@ fn fish() -> String {
             "                    case sub\n",
             "                        switch \"$family:$word\"\n",
             "{sub_flag_cases}\n",
+            "                            case '*'; set done 1\n",
+            "                        end\n",
+            "                    case deep\n",
+            "                        switch \"$family:$sub:$word\"\n",
+            "{deep_flag_cases}\n",
             "                            case '*'; set done 1\n",
             "                        end\n",
             "                    case after operand\n",
@@ -1618,11 +1848,21 @@ fn fish() -> String {
             "                        end\n",
             "                    case sub\n",
             "                        switch \"$family:$word\"\n",
+            "                            case 'agent:integration'\n",
+            "                                set sub integration; set state deep\n",
+            "                                if not __orchbee_admit '{integration_allowed}' $seen_flags; set done 1; end\n",
             "                            case {paths}\n",
             "                                set sub $word; set state after\n",
             "                                switch \"$family:$sub\"\n",
             "{scope_cases}\n",
             "                                end\n",
+            "                            case '*'; set done 1\n",
+            "                        end\n",
+            "                    case deep\n",
+            "                        switch \"$family:$sub:$word\"\n",
+            "                            case {deep_verb_cases}\n",
+            "                                set sub \"integration:$word\"; set state after\n",
+            "                                if not __orchbee_admit '{integration_allowed}' $seen_flags; set done 1; end\n",
             "                            case '*'; set done 1\n",
             "                        end\n",
             "                    case after\n",
@@ -1642,6 +1882,11 @@ fn fish() -> String {
             "                                case {help_paths}; set help_b $word\n",
             "                                case '*'; set done 1\n",
             "                            end\n",
+            "                        else if test -z \"$help_c\"\n",
+            "                            switch \"$help_a:$help_b:$word\"\n",
+            "                                case {deep_verb_cases}; set help_c $word\n",
+            "                                case '*'; set done 1\n",
+            "                            end\n",
             "                        else; set done 1; end\n",
             "                end\n",
             "        end\n",
@@ -1657,6 +1902,9 @@ fn fish() -> String {
             "        switch \"$family\"\n",
             "{verb_cases}\n",
             "        end\n",
+            "        if test (count $verbs) -eq 0; set dead 1; end\n",
+            "    else if test \"$state\" = deep\n",
+            "        if __orchbee_admit '{integration_allowed}' $seen_flags; set verbs {integration_verb_words}; end\n",
             "        if test (count $verbs) -eq 0; set dead 1; end\n",
             "    end\n",
             "    set -l candidates\n",
@@ -1675,7 +1923,7 @@ fn fish() -> String {
             "        if test $seen_format -eq 0\n",
             "            switch \"$state\"\n",
             "                case verb; if test $seen_mouse -eq 0; set candidates --format=text --format=json; end\n",
-            "                case sub after operand; set candidates --format=text --format=json\n",
+            "                case sub deep after operand; set candidates --format=text --format=json\n",
             "                case leaf; if test \"$leaf\" = status; set candidates --format=text --format=json; end\n",
             "            end\n",
             "        end\n",
@@ -1689,21 +1937,19 @@ fn fish() -> String {
             "    else if test \"$state\" = sub\n",
             "        set candidates $verbs\n",
             "        if test $seen_format -eq 0; set -a candidates --format --format=; end\n",
+            "    else if test \"$state\" = deep\n",
+            "        set candidates $verbs\n",
+            "        if test $seen_format -eq 0; set -a candidates --format --format=; end\n",
             "    else if test \"$state\" = leaf\n",
             "        if test \"$leaf\" = tui -a $seen_mouse -eq 0; set candidates --help --mouse\n",
             "        else if test $seen_format -eq 0; set candidates --format --format= --help; end\n",
-            "    else if test \"$state\" = after\n",
+            "    else if test \"$state\" = after -o \"$state\" = operand\n",
             "        if test $seen_format -eq 0; set candidates --format --format=; end\n",
             "        switch \"$family:$sub\"\n",
             "{extras_cases}\n",
             "        end\n",
-            "        if {no_options}\n",
+            "        if test \"$state\" = after; and {no_options}\n",
             "            set -a candidates --help\n",
-            "        end\n",
-            "    else if test $state = operand\n",
-            "        if test $seen_format -eq 0; set candidates --format --format=; end\n",
-            "        switch \"$family:$sub\"\n",
-            "{extras_cases}\n",
             "        end\n",
             "    else if test $state = completion; set candidates {shells} --help\n",
             "    else if test $state = help\n",
@@ -1711,6 +1957,10 @@ fn fish() -> String {
             "        else if test -z \"$help_b\"\n",
             "            switch \"$help_a\"\n",
             "{help_cases}\n",
+            "            end\n",
+            "        else if test -z \"$help_c\"\n",
+            "            switch \"$help_a:$help_b\"\n",
+            "{help_level3_cases}\n",
             "            end\n",
             "        end\n",
             "    end\n",
@@ -1745,6 +1995,10 @@ fn fish() -> String {
             .collect::<Vec<_>>()
             .join("; "),
         sub_flag_cases = sub_flag_cases_fish(),
+        deep_flag_cases = deep_flag_cases_fish(),
+        deep_verb_cases = deep_verb_cases_fish(),
+        integration_allowed = INTEGRATION_COMMAND_FLAGS.join(" "),
+        integration_verb_words = INTEGRATION_VERBS.join(" "),
         after_flag_cases = after_flag_cases_fish(),
         seen_cases = seen_cases_fish(),
         scope_cases = scope_cases_fish(),
@@ -1761,6 +2015,7 @@ fn fish() -> String {
             ))
             .collect::<Vec<_>>()
             .join("\n"),
+        help_level3_cases = help_level3_cases_fish(),
     )
 }
 
@@ -1768,7 +2023,8 @@ fn fish() -> String {
 mod tests {
     use super::{
         BUSINESS_FLAGS, COMMAND_FLAGS, DIRECTION_VALUES, FAMILY_VERBS, FORMAT_VALUES,
-        HELP_CHILDREN, HELP_TOPICS, OPERAND_PATHS, ROOT_WORDS, command_flags, families_of, render,
+        HELP_CHILDREN, HELP_LEVEL3, HELP_TOPICS, INTEGRATION_COMMAND_FLAGS, INTEGRATION_VERBS,
+        OPERAND_PATHS, ROOT_WORDS, command_flags, families_of, render,
     };
     use crate::invocation::CompletionShell;
 
@@ -1802,17 +2058,29 @@ mod tests {
             assert!(script.contains("fish"));
             assert!(script.contains("--"), "{shell:?} lacks terminator handling");
         }
-        // Every help child path begins with an implemented topic.
+        // Every help child path begins with an implemented topic; `agent
+        // integration` is a sub-family, not a verb, so it is validated
+        // against INTEGRATION_VERBS' owner instead.
         for (topic, children) in HELP_CHILDREN {
             assert!(HELP_TOPICS.contains(topic), "{topic}");
             for child in *children {
-                assert!(
-                    FAMILY_VERBS
-                        .iter()
-                        .any(|(family, verbs)| family == topic && verbs.contains(child)),
-                    "{topic} {child}"
-                );
+                let implemented = FAMILY_VERBS
+                    .iter()
+                    .any(|(family, verbs)| family == topic && verbs.contains(child))
+                    || (*topic == "agent" && *child == "integration");
+                assert!(implemented, "{topic} {child}");
             }
+        }
+        // Third-level help paths hang off an implemented topic:child pair.
+        for (path, words) in HELP_LEVEL3 {
+            let (topic, child) = path.split_once(':').expect("topic:child");
+            assert!(
+                HELP_CHILDREN
+                    .iter()
+                    .any(|(t, c)| *t == topic && c.contains(&child)),
+                "{path}"
+            );
+            assert!(!words.is_empty(), "{path}");
         }
     }
 
@@ -1829,19 +2097,28 @@ mod tests {
             );
         }
         assert!(OPERAND_PATHS.contains(&"api:schema"));
-        // Every scoped command is an implemented verb, and every scoped flag
-        // is a declared business flag.
+        // Every scoped command is an implemented verb (the third-level
+        // `agent:integration:*` keys split off their last segment), and every
+        // scoped flag is a declared business flag.
         for (command, flags) in COMMAND_FLAGS {
-            let (family, verb) = command.split_once(':').expect("family:verb");
-            assert!(
-                FAMILY_VERBS
-                    .iter()
-                    .any(|(f, verbs)| *f == family && verbs.contains(&verb)),
-                "{command} is not an implemented command"
-            );
+            let (family, verb) = command.rsplit_once(':').expect("family:verb");
+            let implemented = FAMILY_VERBS
+                .iter()
+                .any(|(f, verbs)| *f == family && verbs.contains(&verb))
+                || (family == "agent:integration" && INTEGRATION_VERBS.contains(&verb));
+            assert!(implemented, "{command} is not an implemented command");
             for flag in *flags {
                 assert!(BUSINESS_FLAGS.contains(flag), "{command} lists {flag}");
             }
+        }
+        // The integration union scope is exactly what each of its verbs
+        // declares.
+        for verb in INTEGRATION_VERBS {
+            assert_eq!(
+                command_flags(&format!("agent:integration:{verb}")),
+                INTEGRATION_COMMAND_FLAGS,
+                "agent:integration:{verb} scope"
+            );
         }
         // Direction values hang off commands that actually admit --direction.
         for (command, values) in DIRECTION_VALUES {

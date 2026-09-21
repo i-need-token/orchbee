@@ -40,6 +40,18 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.agent.get.json"),
     ),
     (
+        "orchbee.agent.integration.mutation",
+        include_str!("schemas/orchbee.agent.integration.mutation.json"),
+    ),
+    (
+        "orchbee.agent.integration.plan",
+        include_str!("schemas/orchbee.agent.integration.plan.json"),
+    ),
+    (
+        "orchbee.agent.integrations",
+        include_str!("schemas/orchbee.agent.integrations.json"),
+    ),
+    (
         "orchbee.agent.list",
         include_str!("schemas/orchbee.agent.list.json"),
     ),
@@ -231,9 +243,9 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog envelope v7: registering new schema ids changes the closed
+        // Catalog envelope v8: registering new schema ids changes the closed
         // dictionary's shape; business document versions stay untouched.
-        "version": 7,
+        "version": 8,
         "source": embedded_source(),
         "result": result,
     });

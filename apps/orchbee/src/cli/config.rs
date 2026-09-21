@@ -3,8 +3,10 @@
 
 #[cfg(target_os = "linux")]
 use std::env;
+#[cfg(unix)]
+use std::path::Path;
 #[cfg(target_os = "linux")]
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 #[cfg(target_os = "linux")]
 use std::time::{Duration, Instant};
 
@@ -64,7 +66,7 @@ fn detail(pairs: impl IntoIterator<Item = (String, Value)>) -> Map<String, Value
 
 /// A filesystem path as a machine field: UTF-8 paths are `path`, others are
 /// `pathBytesHex`; never a lossy display string.
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub(crate) fn path_detail(path: &Path) -> (String, Value) {
     match path.to_str() {
         Some(text) => ("path".to_owned(), json!(text)),

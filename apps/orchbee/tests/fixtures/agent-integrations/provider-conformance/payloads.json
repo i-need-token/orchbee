@@ -1,0 +1,217 @@
+{
+	"meta": {
+		"purpose": "Shared substitution variables and named provider-output payloads referenced by cases. '${NAME}' tokens inside any string (argv, fs paths, serialized stdoutJson/contentJson) are substituted with vars values before use. A case using 'stdoutJson' means: JSON.stringify the value, substitute tokens, feed the resulting string as the command's stdout. A case using 'stdout' is a raw string fed verbatim (for malformed-output cases). 'contentJson'/'content' behave identically for filesystem bodies.",
+		"fixtureEnvironment": "home=${HOME}; adapter resourceRoot=${CAPSULE_ROOT} (the materialized stable capsule); legacyResourceRoots=[${LEGACY_ROOT}, ${APP_BUNDLE_ROOT}]; expectedVersion=${VERSION}; capsule contractVersion=3; platform managed-local unless a case overrides."
+	},
+	"vars": {
+		"HOME": "/home/person",
+		"CAPSULE_ROOT": "/home/person/.orchbee/agent-observation-adapters/0.4.0",
+		"BUNDLE": "/home/person/.orchbee/agent-observation-adapters/0.4.0/bundle",
+		"LEGACY_ROOT": "/application/agent-observation-adapters",
+		"APP_BUNDLE_ROOT": "/Applications/Orchbee.app/Contents/Resources/agent-observation-adapters",
+		"OLDER_SIBLING": "/home/person/.orchbee/agent-observation-adapters/0.3.0",
+		"NEWER_SIBLING": "/home/person/.orchbee/agent-observation-adapters/0.5.0",
+		"FOREIGN_ROOT": "/third-party/agent-observation-adapters",
+		"BUNDLE_URL": "file:///home/person/.orchbee/agent-observation-adapters/0.4.0/bundle",
+		"VERSION": "0.4.0",
+		"OLDER_VERSION": "0.3.0",
+		"NEWER_VERSION": "0.5.0",
+		"MARKETPLACE": "orchbee-local",
+		"PLUGIN_ID": "orchbee-agent-observation@orchbee-local",
+		"PLUGIN_NAME": "orchbee-agent-observation"
+	},
+	"payloads": {
+		"claude.plugins.enabled": [
+			{"enabled": true, "id": "other-plugin@orchbee-local", "version": "0.4.0"},
+			{"enabled": true, "id": "${PLUGIN_ID}", "version": "${VERSION}"}
+		],
+		"claude.plugins.disabled": [
+			{"enabled": false, "id": "${PLUGIN_ID}", "version": "${VERSION}"}
+		],
+		"claude.plugins.oldVersion": [
+			{"enabled": true, "id": "${PLUGIN_ID}", "version": "${OLDER_VERSION}"}
+		],
+		"claude.plugins.duplicate": [
+			{"enabled": true, "id": "${PLUGIN_ID}", "version": "${VERSION}"},
+			{"enabled": false, "id": "${PLUGIN_ID}", "version": "${VERSION}"}
+		],
+		"claude.plugins.missingVersion": [
+			{"enabled": true, "id": "${PLUGIN_ID}"}
+		],
+		"claude.plugins.missingEnabled": [
+			{"id": "${PLUGIN_ID}", "version": "${VERSION}"}
+		],
+		"claude.plugins.empty": [],
+		"claude.marketplace.current": [
+			{"name": "${MARKETPLACE}", "path": "${CAPSULE_ROOT}", "source": "directory"}
+		],
+		"claude.marketplace.currentLocalSource": [
+			{"name": "${MARKETPLACE}", "path": "${CAPSULE_ROOT}", "source": "local"}
+		],
+		"claude.marketplace.absent": [],
+		"claude.marketplace.legacy": [
+			{"name": "${MARKETPLACE}", "path": "${LEGACY_ROOT}", "source": "directory"}
+		],
+		"claude.marketplace.appBundle": [
+			{"name": "${MARKETPLACE}", "path": "${APP_BUNDLE_ROOT}", "source": "directory"}
+		],
+		"claude.marketplace.olderSibling": [
+			{"name": "${MARKETPLACE}", "path": "${OLDER_SIBLING}", "source": "directory"}
+		],
+		"claude.marketplace.newerSibling": [
+			{"name": "${MARKETPLACE}", "path": "${NEWER_SIBLING}", "source": "directory"}
+		],
+		"claude.marketplace.foreign": [
+			{"name": "${MARKETPLACE}", "path": "${FOREIGN_ROOT}", "source": "directory"}
+		],
+		"claude.marketplace.foreignKind": [
+			{"name": "${MARKETPLACE}", "path": "${CAPSULE_ROOT}", "source": "registry"}
+		],
+		"claude.marketplace.duplicate": [
+			{"name": "${MARKETPLACE}", "path": "${CAPSULE_ROOT}", "source": "directory"},
+			{"name": "${MARKETPLACE}", "path": "${LEGACY_ROOT}", "source": "directory"}
+		],
+		"grok.plugins.enabled": [
+			{"name": "${PLUGIN_NAME}", "source": "${BUNDLE}", "version": "${VERSION}", "enabled": true}
+		],
+		"grok.plugins.disabledBoolean": [
+			{"name": "${PLUGIN_NAME}", "source": "${BUNDLE}", "version": "${VERSION}", "enabled": false}
+		],
+		"grok.plugins.disabledStatus": [
+			{"name": "${PLUGIN_NAME}", "source": "${BUNDLE}", "version": "${VERSION}", "status": "disabled"}
+		],
+		"grok.plugins.installedStatus": [
+			{"name": "${PLUGIN_NAME}", "source": "${BUNDLE}", "version": "${VERSION}", "status": "installed"}
+		],
+		"grok.plugins.oldVersion": [
+			{"name": "${PLUGIN_NAME}", "source": "${BUNDLE}", "version": "${OLDER_VERSION}", "status": "installed"}
+		],
+		"grok.plugins.legacySource": [
+			{"name": "${PLUGIN_NAME}", "source": "${LEGACY_ROOT}/bundle", "version": "${VERSION}", "status": "installed"}
+		],
+		"grok.plugins.olderSiblingSource": [
+			{"name": "${PLUGIN_NAME}", "source": "${OLDER_SIBLING}/bundle", "version": "${VERSION}", "status": "installed"}
+		],
+		"grok.plugins.newerSiblingSource": [
+			{"name": "${PLUGIN_NAME}", "source": "${NEWER_SIBLING}/bundle", "version": "${NEWER_VERSION}", "status": "installed"}
+		],
+		"grok.plugins.foreignSource": [
+			{"name": "${PLUGIN_NAME}", "source": "${FOREIGN_ROOT}/bundle", "version": "${VERSION}", "status": "installed"}
+		],
+		"grok.plugins.sourceNotBundle": [
+			{"name": "${PLUGIN_NAME}", "source": "${CAPSULE_ROOT}/payload", "version": "${VERSION}", "status": "installed"}
+		],
+		"grok.plugins.missingVersion": [
+			{"name": "${PLUGIN_NAME}", "source": "${BUNDLE}", "status": "installed"}
+		],
+		"grok.plugins.unknownStatus": [
+			{"name": "${PLUGIN_NAME}", "source": "${BUNDLE}", "version": "${VERSION}", "status": "pending"}
+		],
+		"grok.plugins.duplicate": [
+			{"name": "${PLUGIN_NAME}", "source": "${BUNDLE}", "version": "${VERSION}", "status": "installed"},
+			{"name": "${PLUGIN_NAME}", "source": "${BUNDLE}", "version": "${VERSION}", "status": "installed"}
+		],
+		"grok.plugins.empty": [],
+		"copilot.plugins.enabled": {
+			"plugins": [
+				{"enabled": true, "installedFrom": "${CAPSULE_ROOT}", "name": "${PLUGIN_NAME}", "source": "live-marketplace:orchbee-local"}
+			]
+		},
+		"copilot.plugins.disabled": {
+			"plugins": [
+				{"enabled": false, "installedFrom": "${CAPSULE_ROOT}", "name": "${PLUGIN_NAME}", "source": "live-marketplace:orchbee-local"}
+			]
+		},
+		"copilot.plugins.legacyInstalledFrom": {
+			"plugins": [
+				{"enabled": true, "installedFrom": "${LEGACY_ROOT}", "name": "${PLUGIN_NAME}", "source": "live-marketplace:orchbee-local"}
+			]
+		},
+		"copilot.plugins.newerSiblingInstalledFrom": {
+			"plugins": [
+				{"enabled": true, "installedFrom": "${NEWER_SIBLING}", "name": "${PLUGIN_NAME}", "source": "live-marketplace:orchbee-local"}
+			]
+		},
+		"copilot.plugins.foreignInstalledFrom": {
+			"plugins": [
+				{"enabled": true, "installedFrom": "${FOREIGN_ROOT}", "name": "${PLUGIN_NAME}", "source": "live-marketplace:orchbee-local"}
+			]
+		},
+		"copilot.plugins.wrongSource": {
+			"plugins": [
+				{"enabled": true, "installedFrom": "${CAPSULE_ROOT}", "name": "${PLUGIN_NAME}", "source": "registry:orchbee-local"}
+			]
+		},
+		"copilot.plugins.missingInstalledFrom": {
+			"plugins": [
+				{"enabled": true, "name": "${PLUGIN_NAME}", "source": "live-marketplace:orchbee-local"}
+			]
+		},
+		"copilot.plugins.duplicate": {
+			"plugins": [
+				{"enabled": true, "installedFrom": "${CAPSULE_ROOT}", "name": "${PLUGIN_NAME}", "source": "live-marketplace:orchbee-local"},
+				{"enabled": false, "installedFrom": "${CAPSULE_ROOT}", "name": "${PLUGIN_NAME}", "source": "live-marketplace:orchbee-local"}
+			]
+		},
+		"copilot.plugins.empty": {"plugins": []},
+		"copilot.marketplace.current": [
+			{"name": "${MARKETPLACE}", "source": "Local: ${CAPSULE_ROOT}"}
+		],
+		"copilot.marketplace.absent": [],
+		"copilot.marketplace.legacy": [
+			{"name": "${MARKETPLACE}", "source": "Local: ${LEGACY_ROOT}"}
+		],
+		"copilot.marketplace.newerSibling": [
+			{"name": "${MARKETPLACE}", "source": "Local: ${NEWER_SIBLING}"}
+		],
+		"copilot.marketplace.foreign": [
+			{"name": "${MARKETPLACE}", "source": "Local: ${FOREIGN_ROOT}"}
+		],
+		"copilot.marketplace.foreignPrefix": [
+			{"name": "${MARKETPLACE}", "source": "Registry: ${CAPSULE_ROOT}"}
+		],
+		"copilot.marketplace.duplicate": [
+			{"name": "${MARKETPLACE}", "source": "Local: ${CAPSULE_ROOT}"},
+			{"name": "${MARKETPLACE}", "source": "Local: ${LEGACY_ROOT}"}
+		],
+		"codex.toml.enabled": "[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = \"${CAPSULE_ROOT}\"\n\n[plugins.\"${PLUGIN_ID}\"]\nenabled = true\n",
+		"codex.toml.disabled": "[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = \"${CAPSULE_ROOT}\"\n\n[plugins.\"${PLUGIN_ID}\"]\nenabled = false\n",
+		"codex.toml.marketplaceOnly": "[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = \"${CAPSULE_ROOT}\"\n",
+		"codex.toml.pluginOnly": "[plugins.\"${PLUGIN_ID}\"]\nenabled = true\n",
+		"codex.toml.legacy": "[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = \"${LEGACY_ROOT}\"\n\n[plugins.\"${PLUGIN_ID}\"]\nenabled = true\n",
+		"codex.toml.olderSibling": "[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = \"${OLDER_SIBLING}\"\n\n[plugins.\"${PLUGIN_ID}\"]\nenabled = true\n",
+		"codex.toml.newerSibling": "[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = \"${NEWER_SIBLING}\"\n\n[plugins.\"${PLUGIN_ID}\"]\nenabled = true\n",
+		"codex.toml.foreign": "[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = \"${FOREIGN_ROOT}\"\n\n[plugins.\"${PLUGIN_ID}\"]\nenabled = true\n",
+		"codex.toml.duplicateSection": "[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = \"${CAPSULE_ROOT}\"\n\n[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = \"${CAPSULE_ROOT}\"\n",
+		"codex.toml.duplicateKey": "[plugins.\"${PLUGIN_ID}\"]\nenabled = true\nenabled = false\n\n[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = \"${CAPSULE_ROOT}\"\n",
+		"codex.toml.enabledNotBoolean": "[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = \"${CAPSULE_ROOT}\"\n\n[plugins.\"${PLUGIN_ID}\"]\nenabled = \"true\"\n",
+		"codex.toml.singleQuotedSource": "[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = '${CAPSULE_ROOT}'\n\n[plugins.\"${PLUGIN_ID}\"]\nenabled = true\n",
+		"codex.toml.singleQuotedPluginKey": "[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = \"${CAPSULE_ROOT}\"\n\n[plugins.'${PLUGIN_ID}']\nenabled = true\n",
+		"codex.toml.sourceTypeRemote": "[marketplaces.${MARKETPLACE}]\nsource_type = \"git\"\nsource = \"${CAPSULE_ROOT}\"\n\n[plugins.\"${PLUGIN_ID}\"]\nenabled = true\n",
+		"codex.toml.relativeSource": "[marketplaces.${MARKETPLACE}]\nsource_type = \"local\"\nsource = \"relative/path\"\n\n[plugins.\"${PLUGIN_ID}\"]\nenabled = true\n",
+		"cline.package.current": {"name": "${PLUGIN_NAME}", "orchbeeAgentObservation": {"contractVersion": 3}},
+		"cline.package.contract1": {"name": "${PLUGIN_NAME}", "orchbeeAgentObservation": {"contractVersion": 1}},
+		"cline.package.contract4": {"name": "${PLUGIN_NAME}", "orchbeeAgentObservation": {"contractVersion": 4}},
+		"cline.package.contractZero": {"name": "${PLUGIN_NAME}", "orchbeeAgentObservation": {"contractVersion": 0}},
+		"cline.package.contractFloat": {"name": "${PLUGIN_NAME}", "orchbeeAgentObservation": {"contractVersion": 3.5}},
+		"cline.package.contractString": {"name": "${PLUGIN_NAME}", "orchbeeAgentObservation": {"contractVersion": "3"}},
+		"cline.package.noMarker": {"name": "${PLUGIN_NAME}"},
+		"cline.package.wrongName": {"name": "other-plugin", "orchbeeAgentObservation": {"contractVersion": 3}},
+		"guarded.markerV3": {"contractVersion": 3, "files": [{"path": "extension.json", "sha256": "1111111111111111111111111111111111111111111111111111111111111111"}, {"path": "scripts/forward-hook.mjs", "sha256": "2222222222222222222222222222222222222222222222222222222222222222"}, {"path": "scripts/hook-sanitizers.mjs", "sha256": "3333333333333333333333333333333333333333333333333333333333333333"}, {"path": "scripts/observation-transport.mjs", "sha256": "4444444444444444444444444444444444444444444444444444444444444444"}], "integrationId": "${INTEGRATION_ID}", "kind": "guarded-extension"},
+		"guarded.markerV2": {"contractVersion": 2, "files": [{"path": "extension.json", "sha256": "1111111111111111111111111111111111111111111111111111111111111111"}, {"path": "scripts/forward-hook.mjs", "sha256": "2222222222222222222222222222222222222222222222222222222222222222"}, {"path": "scripts/hook-sanitizers.mjs", "sha256": "3333333333333333333333333333333333333333333333333333333333333333"}, {"path": "scripts/observation-transport.mjs", "sha256": "4444444444444444444444444444444444444444444444444444444444444444"}], "integrationId": "${INTEGRATION_ID}", "kind": "guarded-extension"},
+		"guarded.markerV4": {"contractVersion": 4, "files": [{"path": "extension.json", "sha256": "1111111111111111111111111111111111111111111111111111111111111111"}, {"path": "scripts/forward-hook.mjs", "sha256": "2222222222222222222222222222222222222222222222222222222222222222"}, {"path": "scripts/hook-sanitizers.mjs", "sha256": "3333333333333333333333333333333333333333333333333333333333333333"}, {"path": "scripts/observation-transport.mjs", "sha256": "4444444444444444444444444444444444444444444444444444444444444444"}], "integrationId": "${INTEGRATION_ID}", "kind": "guarded-extension"},
+		"capsule.manifest.valid": {"contractVersion": 3, "payloadSha256": "<64-hex digest over the canonical payload walk>", "payloadVersion": "0.4.0"},
+		"capsule.manifest.newerPayload": {"contractVersion": 3, "payloadSha256": "<64-hex>", "payloadVersion": "0.5.0"},
+		"capsule.manifest.olderPayload": {"contractVersion": 3, "payloadSha256": "<64-hex>", "payloadVersion": "0.3.0"},
+		"capsule.manifest.extraKey": {"contractVersion": 3, "extra": true, "payloadSha256": "<64-hex>", "payloadVersion": "0.4.0"},
+		"capsule.manifest.missingKey": {"contractVersion": 3, "payloadVersion": "0.4.0"},
+		"capsule.manifest.contract2": {"contractVersion": 2, "payloadSha256": "<64-hex>", "payloadVersion": "0.4.0"},
+		"cohort.manifest.v2": {"artifacts": {"orchbee": "<64-hex>", "orchbee-server": "<64-hex>", "orchbee-terminal-host": "<64-hex>", "orchbee-worker": "<64-hex>", "agent-observation-adapters": "<declared capsule payloadSha256>"}, "schemaVersion": 2},
+		"cohort.manifest.v1": {"artifacts": {"orchbee": "<64-hex>", "orchbee-server": "<64-hex>", "orchbee-terminal-host": "<64-hex>", "orchbee-worker": "<64-hex>"}, "schemaVersion": 1},
+		"cohort.manifest.v3": {"artifacts": {"orchbee": "<64-hex>", "orchbee-server": "<64-hex>", "orchbee-terminal-host": "<64-hex>", "orchbee-worker": "<64-hex>", "agent-observation-adapters": "<64-hex>"}, "schemaVersion": 3},
+		"cohort.manifest.v2UnknownField": {"artifacts": {"orchbee": "<64-hex>", "orchbee-server": "<64-hex>", "orchbee-terminal-host": "<64-hex>", "orchbee-worker": "<64-hex>", "agent-observation-adapters": "<64-hex>"}, "schemaVersion": 2, "unexpected": true},
+		"guarded.bootstrap.opencode": "// orchbee-agent-observation-bootstrap-v3:opencode\nconst orchbeeAgentObservationModuleUrl = \"${BUNDLE_URL}/opencode/orchbee-agent-observation.mjs\";\nexport async function OrchbeeAgentObservation(...arguments_) {\n\ttry {\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\treturn typeof loaded.OrchbeeAgentObservation === 'function'\n\t\t\t? await loaded.OrchbeeAgentObservation(...arguments_)\n\t\t\t: {};\n\t} catch {\n\t\treturn {};\n\t}\n}\n",
+		"guarded.bootstrap.pi": "// orchbee-agent-observation-bootstrap-v3:pi\nconst orchbeeAgentObservationModuleUrl = \"${BUNDLE_URL}/pi/orchbee-agent-observation.cjs\";\nmodule.exports = async function orchbeeAgentObservation(api) {\n\ttry {\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\tif (typeof loaded.orchbeeAgentObservation === 'function') {\n\t\t\tawait loaded.orchbeeAgentObservation(api);\n\t\t}\n\t} catch {}\n};\n",
+		"guarded.bootstrap.omp": "// orchbee-agent-observation-bootstrap-v3:omp\nconst orchbeeAgentObservationModuleUrl = \"${BUNDLE_URL}/omp/orchbee-agent-observation.cjs\";\nmodule.exports = async function orchbeeAgentObservation(api) {\n\ttry {\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\tif (typeof loaded.orchbeeAgentObservation === 'function') {\n\t\t\tawait loaded.orchbeeAgentObservation(api);\n\t\t}\n\t} catch {}\n};\n"
+	}
+}

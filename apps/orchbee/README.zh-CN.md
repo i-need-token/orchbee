@@ -66,7 +66,11 @@ Site 准入了其探针时报告 `already-running`。该命令即使在拒绝时
 `rejected`/`recovery-required` 报告；它绝不修复、停止或删除运行时状态。
 `site diagnose` 是只读对偶面：它报告运行时目录、标记、锁与有限端点路径的有界事实——
 每行是各自观察瞬间的封闭状态行——共享一个协作式 5 秒预算；它绝不 connect、创建、
-取锁、修复，也不声称任何进程存活或消失。完整语法、
+取锁、修复，也不声称任何进程存活或消失。
+`agent integration`（`list`、`explain`、`enable`、`disable`）是本地 provider
+接入命令族：仅在本机对调用用户的 provider 配置做有界读取与受管修改——
+不建 socket、不取锁、不接触 Site；只有经核实归 Orchbee 所有的条目才会被
+安装或移除。完整语法、
 target 与 filter 规则、修改结果及含退出分类的 failure matrix 由
 [native CLI query](docs/native-cli-query.zh-CN.md) 持有；`orchbee help <family>` 与
 `orchbee help <family> <command>` 直接从二进制输出同一套语法。端到端的无头
@@ -487,6 +491,21 @@ pnpm verify
 ```sh
 ORCHBEE_TEST_NATIVE_COHORT=/tmp/orchbee-native-dev cargo test -p orchbee --test local_startup_process --locked
 ```
+
+### Agent integration 一致性 fixture
+
+`tests/fixtures/agent-integrations/` 保存 `agent_integrations` 单元 harness 重放的两套语料：
+
+- `provider-conformance/` —— `payloads.json` 加 `cases/<provider>.cases.json`：
+  按 provider 组织的 inspect、enable、disable 案例，钉定脚本化命令回复、
+  期望 argv、文件系统效果以及渲染后的 CLI verdict。
+- `provider-effects/` —— `cases.json`：文件系统效果机案例——胶囊发布、
+  move-aside、备份摘要、remove 遍历、cohort 与版本门、预算与取消边界。
+
+两套语料都由 harness 经 `CARGO_MANIFEST_DIR` 解析，任何检出均可直接重放，
+不依赖环境覆盖或本机路径。案例修改即语义契约变更，须与被钉定的引擎行为
+在同一受审变更中提交；新增 provider 在 `provider-conformance/cases/` 下
+增加一个文件。
 
 ## 独立终端意图
 

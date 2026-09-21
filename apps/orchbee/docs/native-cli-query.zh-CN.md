@@ -6,7 +6,10 @@ Workbench mutation 批。查询命令是对已在运行的本地 Site 的只读�
 修复、锁定或激活 Site；查询不创建终端、viewer 或控制授权——唯一例外是 `terminal read`，
 它对已绑定终端持有一个短暂的只读 viewer attachment 并在输出前释放。`agent` 族通过
 Agent Observation Protocol（OBAP）读取 Server 的 canonical Agent session——类型化的
-只读视图，绝不从终端内容推断。任何命令都不猜测 Worker、进程或 PTY 状态，也不要求 TTY。这是未发布的本地开发面；`apps/cli` 仍是
+只读视图，绝不从终端内容推断。`agent integration` 命令是例外：它们是纯本地的
+provider 接入——对调用用户的 provider 配置做有界读取与受管修改，绝不建 socket 连接、
+激活 Site 或发出 OBAP 请求。任何命令都不猜测 Worker、进程或 PTY 状态，也不要求 TTY。
+这是未发布的本地开发面；`apps/cli` 仍是
 已交付的 TypeScript CLI 权威；安装、发布、远端连接与 Site 生命周期操作不在范围内。
 
 归属：本记录拥有 `src/invocation.rs` 与 `src/cli/**` 实现的公共语法、结果 envelope、失败矩阵、
@@ -152,6 +155,13 @@ Agent Observation Protocol（OBAP）读取 Server 的 canonical Agent session—
   capsule 候选根的非空绝对无 NUL 路径，按 flag 次序保留。相对拼写、`~`/`$` 形式、空值
   与第五个值在任何运行时访问之前即 `invalid-usage`——至多受理四个 supplied root，
   任何一个都绝不展开、绝不猜测。
+- `--provider <id>`：带值 flag，单次使用，仅 `agent integration` 命令受理；
+  封闭的受支持 provider id 之一（十个成员，`agent integration list` 报告）。
+  在 `explain`/`enable`/`disable` 上必填，在 `list` 上为可选过滤。其他取值均为
+  `invalid-usage`。
+- `--adapter-source <abs>`：带值 flag，单次使用，仅 `agent integration` 命令受理；
+  一个字面绝对路径，指向开发/测试用的 adapter 负载，替换本次调用内打包的 cohort
+  来源。相对路径或重复使用均为 `invalid-usage`。
 - `--version`：仅在独占根调用时合法；其他位置或与其他参数并存都是 usage。
 - `-h`/`--help`：根级独占 token，或已识别帮助路径（family 或完整命令路径）的单一后缀。
 - `--` 之后的位置参数：`--` 之后的 token 只作位置参数，故 `orchbee -- status` 查询 status，
@@ -193,6 +203,10 @@ orchbee agent list [--include-ended] [--limit <1-100>] [--cursor <v1.…>]
 orchbee agent get <session-id> | agent explain <session-id>
 orchbee agent wait <session-id> [--until <condition>]... [--after-revision <0-9007199254740991>] [--timeout <1-3600000>]
 orchbee agent doctor [--provider <id>]... [--asset-root <path>]...
+orchbee agent integration list [--provider <id>]
+orchbee agent integration explain --provider <id>
+orchbee agent integration enable --provider <id> [--adapter-source <abs>]
+orchbee agent integration disable --provider <id> [--adapter-source <abs>]
 orchbee api snapshot
 orchbee api schema [<schema-id>]
 orchbee site start
@@ -681,7 +695,7 @@ terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresent
 收据与失败——均为 `version:1`，唯 `orchbee.terminal.get` 与 `orchbee.mutation.result`
 例外：前者因在 v2 `launch` 成员之上新增可选 `launchProfile` provenance 成员而为
 `version:3`，后者因新增 launch-profile 动作及其 `catalogRevision`/`profileId`/`name`
-收据字段而为 `version:2`。`orchbee.api.schema` 目录 envelope 为 `version:7`：
+收据字段而为 `version:2`。`orchbee.api.schema` 目录 envelope 为 `version:8`：
 注册新的 schema id 会改变封闭字典的形状，按版本规则属目录形状变化而非业务变化：
 
 - `source.kind="workbench-snapshot"`：带同一份已验证快照的 `siteId` 与十进制字符串

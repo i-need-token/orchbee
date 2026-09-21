@@ -7,7 +7,7 @@
 	"additionalProperties": false,
 	"properties": {
 		"schema": { "const": "orchbee.api.schema" },
-		"version": { "const": 7 },
+		"version": { "const": 8 },
 		"source": {
 			"type": "object",
 			"required": ["kind"],
@@ -36,6 +36,9 @@
 						"orchbee.agent.doctor",
 						"orchbee.agent.explain",
 						"orchbee.agent.get",
+						"orchbee.agent.integration.mutation",
+						"orchbee.agent.integration.plan",
+						"orchbee.agent.integrations",
 						"orchbee.agent.list",
 						"orchbee.agent.wait",
 						"orchbee.api.schema",
@@ -81,6 +84,9 @@
 				"orchbee.agent.doctor",
 				"orchbee.agent.explain",
 				"orchbee.agent.get",
+				"orchbee.agent.integration.mutation",
+				"orchbee.agent.integration.plan",
+				"orchbee.agent.integrations",
 				"orchbee.agent.list",
 				"orchbee.agent.wait",
 				"orchbee.api.schema",

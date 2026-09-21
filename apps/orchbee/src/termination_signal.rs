@@ -6,6 +6,20 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
+#[cfg(all(test, unix))]
+use std::sync::atomic::AtomicBool;
+
+/// Test-only seam: arms the next `install` call to fail before any signal
+/// registration runs, so callers' refusal-before-effect ordering is
+/// observable without a real registration failure.
+#[cfg(all(test, unix))]
+static INSTALL_FAULT: AtomicBool = AtomicBool::new(false);
+
+#[cfg(all(test, unix))]
+pub(crate) fn arm_install_fault() {
+    INSTALL_FAULT.store(true, Ordering::Relaxed);
+}
+
 #[cfg(unix)]
 use signal_hook::{
     SigId,
@@ -27,6 +41,11 @@ pub(crate) struct TerminationSignal {
 
 impl TerminationSignal {
     pub(crate) fn install() -> io::Result<Self> {
+        #[cfg(all(test, unix))]
+        if INSTALL_FAULT.swap(false, Ordering::Relaxed) {
+            return Err(io::Error::other("termination-signal install fault"));
+        }
+
         #[cfg(unix)]
         {
             let mut monitor = Self {

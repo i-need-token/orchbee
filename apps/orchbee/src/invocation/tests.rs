@@ -4592,3 +4592,203 @@ fn agent_doctor_help_paths_resolve() {
         Ok(Request::Help(HelpTopic::Command(CommandPath::AgentDoctor)))
     );
 }
+
+/// `agent integration` parses the four local provider-onboarding commands;
+/// `explain`/`enable`/`disable` owe `--provider`, `list` accepts it as a
+/// filter, and `--adapter-source` must be a literal absolute path.
+#[test]
+fn agent_integration_commands_parse() {
+    use crate::agent_integrations::IntegrationId;
+    use crate::invocation::AgentIntegrationCommand;
+    let integration = |command: AgentIntegrationCommand| Request::AgentIntegration {
+        command,
+        format: OutputFormat::Text,
+    };
+    assert_eq!(
+        parse(&["agent", "integration", "list"]),
+        Ok(integration(AgentIntegrationCommand::List {
+            provider: None,
+            adapter_source: None,
+        }))
+    );
+    assert_eq!(
+        parse(&[
+            "agent",
+            "integration",
+            "list",
+            "--provider",
+            "codex",
+            "--format",
+            "json",
+        ]),
+        Ok(Request::AgentIntegration {
+            command: AgentIntegrationCommand::List {
+                provider: Some(IntegrationId::Codex),
+                adapter_source: None,
+            },
+            format: OutputFormat::Json,
+        })
+    );
+    for (verb, provider) in [
+        ("explain", "claude-code"),
+        ("enable", "github-copilot"),
+        ("disable", "qwen-code"),
+    ] {
+        let parsed = parse(&["agent", "integration", verb, "--provider", provider]);
+        let Request::AgentIntegration { command, .. } = parsed.expect(verb) else {
+            panic!("{verb} must resolve to an integration command")
+        };
+        let (id, ..) = match command {
+            AgentIntegrationCommand::Explain {
+                provider,
+                adapter_source,
+            }
+            | AgentIntegrationCommand::Enable {
+                provider,
+                adapter_source,
+            }
+            | AgentIntegrationCommand::Disable {
+                provider,
+                adapter_source,
+            } => (provider, adapter_source),
+            other => panic!("{verb} resolved to {other:?}"),
+        };
+        assert_eq!(id.as_str(), provider, "{verb} --provider");
+    }
+    assert_eq!(
+        parse(&[
+            "agent",
+            "integration",
+            "explain",
+            "--provider",
+            "omp",
+            "--adapter-source",
+            "/tmp/adapters",
+        ]),
+        Ok(integration(AgentIntegrationCommand::Explain {
+            provider: IntegrationId::Omp,
+            adapter_source: Some(std::path::PathBuf::from("/tmp/adapters")),
+        }))
+    );
+}
+
+/// The integration grammar rejects everything outside its declared shape:
+/// missing verbs, extra positionals, out-of-scope flags, an absent or
+/// invalid `--provider`, and a relative `--adapter-source`.
+#[test]
+fn agent_integration_commands_fail_closed() {
+    for arguments in [
+        // Bare sub-family owes a verb.
+        &["agent", "integration"][..],
+        // Unknown verbs and extra positionals.
+        &["agent", "integration", "bogus"][..],
+        &["agent", "integration", "list", "extra"][..],
+        // `explain`/`enable`/`disable` owe `--provider`.
+        &["agent", "integration", "explain"][..],
+        &["agent", "integration", "enable"][..],
+        &["agent", "integration", "disable"][..],
+        // An unknown provider id is a missing/invalid value, not a topic.
+        &["agent", "integration", "enable", "--provider", "bogus"][..],
+        // `--provider` is single-use and owes its value.
+        &["agent", "integration", "list", "--provider"][..],
+        &[
+            "agent",
+            "integration",
+            "list",
+            "--provider",
+            "codex",
+            "--provider",
+            "pi",
+        ][..],
+        // `--adapter-source` must be absolute and is single-use.
+        &[
+            "agent",
+            "integration",
+            "list",
+            "--adapter-source",
+            "relative/dir",
+        ][..],
+        &[
+            "agent",
+            "integration",
+            "list",
+            "--adapter-source",
+            "/a",
+            "--adapter-source",
+            "/b",
+        ][..],
+        // Out-of-scope business flags.
+        &["agent", "integration", "list", "--confirm"][..],
+        &["agent", "integration", "list", "--project", "x"][..],
+        &[
+            "agent",
+            "integration",
+            "enable",
+            "--provider",
+            "pi",
+            "--label",
+            "x",
+        ][..],
+        &["agent", "integration", "list", "--include-ended"][..],
+        // The equals spelling is not a known option.
+        &["agent", "integration", "list", "--provider=codex"][..],
+        // `--mouse` belongs to `tui` alone.
+        &["agent", "integration", "list", "--mouse"][..],
+    ] {
+        assert_eq!(
+            parse(arguments),
+            Err(usage(FailureEnvelope::Text)),
+            "{arguments:?}"
+        );
+    }
+    // `--format` still applies on the mutation surface.
+    assert_eq!(
+        parse(&[
+            "--format",
+            "json",
+            "agent",
+            "integration",
+            "enable",
+            "--provider",
+            "pi",
+        ]),
+        Ok(Request::AgentIntegration {
+            command: crate::invocation::AgentIntegrationCommand::Enable {
+                provider: crate::agent_integrations::IntegrationId::Pi,
+                adapter_source: None,
+            },
+            format: OutputFormat::Json,
+        })
+    );
+}
+
+/// `agent integration` help resolves on both surfaces for the sub-family
+/// and each of its four commands.
+#[test]
+fn agent_integration_help_paths_resolve() {
+    assert_eq!(
+        parse(&["agent", "integration", "--help"]),
+        Ok(Request::Help(HelpTopic::Family(Family::AgentIntegration)))
+    );
+    assert_eq!(
+        parse(&["help", "agent", "integration"]),
+        Ok(Request::Help(HelpTopic::Family(Family::AgentIntegration)))
+    );
+    for (verb, command) in [
+        ("list", CommandPath::AgentIntegrationList),
+        ("explain", CommandPath::AgentIntegrationExplain),
+        ("enable", CommandPath::AgentIntegrationEnable),
+        ("disable", CommandPath::AgentIntegrationDisable),
+    ] {
+        assert_eq!(
+            parse(&["agent", "integration", verb, "--help"]),
+            Ok(Request::Help(HelpTopic::Command(command))),
+            "agent integration {verb} --help"
+        );
+        assert_eq!(
+            parse(&["help", "agent", "integration", verb]),
+            Ok(Request::Help(HelpTopic::Command(command))),
+            "help agent integration {verb}"
+        );
+    }
+}

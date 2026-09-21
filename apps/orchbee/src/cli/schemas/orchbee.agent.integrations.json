@@ -1,0 +1,105 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.agent.integrations",
+	"title": "orchbee agent integration list envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.agent.integrations" },
+		"version": { "const": 1 },
+		"source": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "local-inspection" }
+			}
+		},
+		"result": {
+			"type": "object",
+			"required": ["complete", "capsule", "integrations"],
+			"additionalProperties": false,
+			"properties": {
+				"complete": { "type": "boolean" },
+				"capsule": { "$ref": "#/$defs/capsule" },
+				"integrations": {
+					"type": "array",
+					"maxItems": 10,
+					"items": { "$ref": "#/$defs/item" }
+				}
+			}
+		}
+	},
+	"$defs": {
+		"item": {
+			"type": "object",
+			"required": ["integrationId", "availability", "managementMode", "state", "issue"],
+			"additionalProperties": false,
+			"properties": {
+				"integrationId": {
+					"enum": [
+						"claude-code",
+						"codex",
+						"grok",
+						"opencode",
+						"pi",
+						"omp",
+						"gemini",
+						"github-copilot",
+						"cline",
+						"qwen-code"
+					]
+				},
+				"availability": { "enum": ["available", "not-found", "unknown"] },
+				"managementMode": { "enum": ["managed-local", "manual-only"] },
+				"state": {
+					"enum": [
+						"conflict",
+						"disabled",
+						"enabled",
+						"not-installed",
+						"stale-side",
+						"update-required",
+						"unknown"
+					]
+				},
+				"issue": {
+					"enum": [
+						"capsule-unsupported-version",
+						"inspection-failed",
+						"manual-action-required",
+						"unsupported-platform",
+						"unsupported-version",
+						null
+					]
+				}
+			}
+		},
+		"capsule": {
+			"type": "object",
+			"required": ["state", "source", "supportedPayloadVersion"],
+			"additionalProperties": false,
+			"properties": {
+				"state": {
+					"enum": [
+						"ready",
+						"not-ready",
+						"unsupported-version",
+						"source-absent",
+						"binding-failed"
+					]
+				},
+				"source": {
+					"enum": ["cohort-sidecar", "adapter-source-override", "absent"]
+				},
+				"supportedPayloadVersion": { "type": "string", "minLength": 1 },
+				"declaredPayloadVersion": { "type": "string", "minLength": 1 },
+				"unsupportedPayloadVersion": { "type": "string", "minLength": 1 },
+				"bindingFailure": { "const": true },
+				"rootPath": { "type": "string", "minLength": 1 },
+				"rootPathBytesHex": { "type": "string", "pattern": "^([0-9a-f]{2})+$" }
+			}
+		}
+	}
+}
