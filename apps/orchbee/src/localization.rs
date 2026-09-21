@@ -897,6 +897,24 @@ impl Locale {
         }
     }
 
+    /// The retained-window position readout: the window's first retained
+    /// row index out of the total retained rows the host reported.
+    pub(crate) fn terminal_history_position(self, start_row: u64, total_rows: u64) -> String {
+        match self {
+            Self::EnUs => format!("Row {start_row} of {total_rows}"),
+            Self::ZhCn => format!("第 {start_row} 行 · 共 {total_rows} 行"),
+        }
+    }
+
+    /// The persistent bottom-line hint for leaving history and returning
+    /// to live output.
+    pub(crate) const fn terminal_history_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "Esc back to live",
+            Self::ZhCn => "Esc 返回实时",
+        }
+    }
+
     fn native_starting_status(
         self,
         position: Option<usize>,

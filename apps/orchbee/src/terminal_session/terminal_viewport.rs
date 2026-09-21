@@ -179,6 +179,10 @@ pub(super) struct TerminalViewport {
     ack: AckState,
     committed: bool,
     read_flight: Option<NonZeroU64>,
+    /// The facts generation the in-flight (or last-emitted) read was issued
+    /// under — evidence for whether a mismatched window's pin was released
+    /// by a generation transition the client already observed.
+    read_generation: Option<NonZeroU64>,
     next_read_sequence: u64,
     pending_nav: PendingNav,
     inflight_nav: InflightNav,
@@ -200,12 +204,17 @@ pub(super) struct TerminalViewport {
 impl TerminalViewport {
     /// A newly admitted Enter: the caller has already validated the pane's
     /// live frame facts and enqueued `ViewportStep::Enter` for `key`.
+    /// `first_read_sequence` continues the owning projection's per-incarnation
+    /// read watermark — the host's `last_row_request_sequence` outlives a
+    /// single history episode, so a re-entered episode must resume above the
+    /// last issued value, never restart at 1.
     pub(super) fn entering(
         attachment: AttachmentId,
         epoch: HostEpoch,
         columns: u16,
         row_count: u16,
         entry_rows_before: u32,
+        first_read_sequence: u64,
         now: Instant,
     ) -> Self {
         Self {
@@ -218,7 +227,8 @@ impl TerminalViewport {
             ack: AckState::None,
             committed: false,
             read_flight: None,
-            next_read_sequence: 1,
+            read_generation: None,
+            next_read_sequence: first_read_sequence,
             pending_nav: PendingNav::None,
             inflight_nav: InflightNav::None,
             refresh: false,
@@ -266,12 +276,27 @@ impl TerminalViewport {
             Some(ViewportStep::Recover) => {
                 self.mode = ViewportMode::Recovering;
                 self.pending_nav = PendingNav::None;
+                self.inflight_nav = InflightNav::None;
+                self.read_flight = None;
+                self.read_generation = None;
                 self.refresh = false;
                 self.facts_deadline = None;
             }
             Some(ViewportStep::Enter) | None => {}
         }
         self.drive_emissions();
+    }
+
+    /// Whether recovery is already decided — Recovering mode, or a Recover
+    /// step still staged for admission. From this point on, late facts,
+    /// windows, and read/ack outcomes are absorbed without installing a
+    /// window or minting further wire commands.
+    fn recovery_pending(&self) -> bool {
+        self.recovering()
+            || self
+                .pending_commands
+                .iter()
+                .any(|step| matches!(step, ViewportStep::Recover))
     }
 
     /// A validated `HistoryChanged` event for this attachment. The caller has
@@ -281,6 +306,12 @@ impl TerminalViewport {
         self.facts = Some(changed);
         self.needs_facts = false;
         let mut effect = ViewportEffect::default();
+        if self.recovery_pending() {
+            // Recovery is already decided: store the facts for the record
+            // but never let a late event re-arm emissions or mint a second
+            // Recover.
+            return effect;
+        }
         if self.committed && changed.anchor_status != HistoryAnchorStatus::Valid {
             // The committed anchor is gone or unverifiable: recover; never
             // fake the position from stale absolute offsets.
@@ -297,8 +328,23 @@ impl TerminalViewport {
     }
 
     /// Local navigation while non-Live. Absolute intents own the next read;
-    /// a delta landing on an absolute intent is dropped.
+    /// a delta landing on an absolute intent is dropped. A call that finds
+    /// no pending and no in-flight intent starts a fresh intent — the
+    /// retry/halving budget is per intent, so only then is it re-armed;
+    /// merges and replacements inside an ongoing intent share its budget.
     pub(super) fn nav(&mut self, nav: ViewportNav) -> ViewportEffect {
+        if self.recovery_pending() {
+            // Recovery decided: further navigation — Exit included — is
+            // absorbed without minting a second Recover.
+            return ViewportEffect::default();
+        }
+        if !matches!(nav, ViewportNav::Exit)
+            && matches!(self.pending_nav, PendingNav::None)
+            && matches!(self.inflight_nav, InflightNav::None)
+        {
+            self.retry_used = false;
+            self.halve_used = false;
+        }
         match nav {
             ViewportNav::Exit => self.queue_recover(),
             ViewportNav::Oldest => {
@@ -326,9 +372,10 @@ impl TerminalViewport {
 
     /// An ordinary typed byte while non-Live: recovery is queued first; the
     /// owner forwards the byte only after `recovering()` reports the command
-    /// was admitted.
+    /// was admitted. A Recover already staged counts as decided — typing
+    /// again must not mint a second one.
     pub(super) fn typed(&mut self) {
-        if !self.recovering() {
+        if !self.recovery_pending() {
             self.queue_recover();
         }
     }
@@ -352,9 +399,10 @@ impl TerminalViewport {
     /// recovery. (Decode failures never reach here: the caller retires them
     /// as protocol faults.)
     pub(super) fn window(&mut self, window: TerminalTextRowWindow, now: Instant) -> ViewportEffect {
-        if !matches!(self.mode, ViewportMode::Entering | ViewportMode::Viewing) {
-            // A demand transition already cleared the host pin this window
-            // came from; discarding it is provably safe.
+        if self.recovery_pending() {
+            // A demand transition — applied or already staged — cleared the
+            // host pin this window came from; discarding it is provably
+            // safe, and it must not install or re-arm anything.
             return ViewportEffect::default();
         }
         if window.attachment_id != self.attachment || window.host_epoch != self.epoch {
@@ -376,13 +424,27 @@ impl TerminalViewport {
             || window.columns != self.columns
             || self.needs_facts
         {
-            // Generation/geometry moved: the host pin this window came from
-            // was cleared by that transition, so the flight is released and
-            // fresh facts are awaited — never replaced by a later read.
             self.read_flight = None;
             self.inflight_nav = InflightNav::None;
-            self.needs_facts = true;
-            self.arm_deadline(now);
+            // Did the held facts advance past the generation this read was
+            // issued under? A kind-53 generation transition that landed
+            // while the read was in flight is the host's pin release for
+            // exactly this pending request — the freshest facts already sit
+            // in hand, so the next read proceeds under them instead of
+            // waiting for an event the host will never re-emit. Facts that
+            // did not move since issue mean the host still owes the event
+            // describing the window's generation: wait, bounded.
+            let released = !self.needs_facts
+                && self
+                    .read_generation
+                    .is_some_and(|issued| facts_generation != Some(issued));
+            self.read_generation = None;
+            if released {
+                self.drive_emissions();
+            } else {
+                self.needs_facts = true;
+                self.arm_deadline(now);
+            }
             return ViewportEffect::default();
         }
         // All gates passed: install. Installing does not commit the anchor —
@@ -391,6 +453,7 @@ impl TerminalViewport {
             (window.sequence, window.generation, window.revision);
         self.window = Some(window);
         self.read_flight = None;
+        self.read_generation = None;
         self.ack = AckState::Pending;
         self.pending_commands.push_back(ViewportStep::Ack {
             request_sequence,
@@ -408,10 +471,11 @@ impl TerminalViewport {
         rejection: ViewportReadRejection,
         now: Instant,
     ) -> ViewportEffect {
-        if self.read_flight != Some(request_sequence) {
+        if self.recovery_pending() || self.read_flight != Some(request_sequence) {
             return ViewportEffect::default();
         }
         self.read_flight = None;
+        self.read_generation = None;
         self.inflight_nav = InflightNav::None;
         let mut effect = ViewportEffect::default();
         let recover = match rejection {
@@ -463,7 +527,7 @@ impl TerminalViewport {
                 .window
                 .as_ref()
                 .is_some_and(|window| window.sequence == request_sequence);
-        if !matches {
+        if self.recovery_pending() || !matches {
             return ViewportEffect::default();
         }
         if accepted {
@@ -527,6 +591,12 @@ impl TerminalViewport {
         }
         self.pending_commands
             .retain(|step| matches!(step, ViewportStep::Recover));
+        // A resize ends the current intent: whatever read the old geometry
+        // staged is gone, and the fresh wait episode carries its own
+        // retry/halving budget rather than inheriting spent flags.
+        self.read_generation = None;
+        self.retry_used = false;
+        self.halve_used = false;
         self.needs_facts = true;
         self.arm_deadline(now);
         if self.committed {
@@ -573,12 +643,13 @@ impl TerminalViewport {
     }
 
     /// The visible position for the indicator: `start_row` and `total_rows`
-    /// of the currently painted window.
+    /// of the currently painted window — only while that window still
+    /// passes the live generation/columns validation the painter relies on.
     pub(super) fn position(&self) -> Option<(u64, u64)> {
-        let window = self.window.as_ref()?;
         if self.recovering() {
             return None;
         }
+        let window = self.current_window()?;
         Some((window.start_row, window.total_rows))
     }
 
@@ -742,6 +813,7 @@ impl TerminalViewport {
             return None;
         };
         self.next_read_sequence = next_sequence;
+        self.read_generation = Some(facts.generation);
         Some(ViewportStep::Read {
             origin,
             row_count,

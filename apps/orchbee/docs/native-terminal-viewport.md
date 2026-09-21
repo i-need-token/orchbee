@@ -31,6 +31,15 @@ while a core exists its `mode` is one of:
 `Live` is the absence of a core. A detached pane has no core; a pane whose viewer is lost is
 parked by the worker's demand path (`settle_pane_viewer_lost`), not by the core.
 
+## Entry availability
+
+`Ctrl+B PageUp` asks the focus pane to enter history. The request is refused — with an honest
+localized `HistoryUnavailable` notice and zero `Enter` commands on the wire — unless the pane's
+last live frame satisfies all of: a known frame exists, `scrollback_rows > 0`, the pane is not on
+the alternate screen, and the frame carries at least one readable row. The screen's own rows are
+never conflated with retained history: `total_rows` comes only from served windows, not from
+`scrollback_rows`.
+
 ## Commands and demand legs
 
 `QueuedCommand::Viewport` carries one logical `ViewportStep` per pane, executed in order by
@@ -70,14 +79,24 @@ regression retires the carrier as a protocol fault. Kind-53 records never re-run
 
 - At most one viewport read is in flight per pane. The Host holds a pending read pin: a second
   read while pending is refused, so the core never emits one.
+- Read request sequences belong to the attachment, not the episode. The host's
+  `last_row_request_sequence` survives `Enter`/`Recover` cycles, so `KeyedProjection` owns the
+  client-side watermark across viewport episodes: a re-entered history session resumes strictly
+  above the last issued sequence — issued, admitted, or cancelled alike — and only a genuinely
+  new attachment incarnation resets it. Kind-53 event sequences are an independent domain.
+  Exhaustion is a terminal fault, never a wraparound.
 - At most one `RowsApplied` acknowledgement is in flight — emitted only after a window passed all
   install gates. While a read is in flight, or an acknowledgement is pending or in flight, no new
   read is emitted; navigation intent coalesces instead.
 - Window install gates, in order: valid decode; matching attachment and host epoch; matching the
   active read sequence; matching the current facts generation; matching the current pane column
   count. A sequence mismatch, or a window arriving with no flight, cannot prove which pending it
-  settled and enters recovery. A generation or column mismatch proves the pending pin was cleared
-  by that transition, so the flight is released and fresh facts are awaited.
+  settled and enters recovery. A discarded window does not automatically mean another event is
+  coming: when the held facts advanced past the generation the read was issued under, that
+  kind-53 transition is itself the pin release, and the next read proceeds under the fresh
+  generation. Only when the facts did not move since issue does the core arm a bounded wait —
+  generation values are compared for equality with the issue generation, never ordered
+  numerically.
 - Installing a window does not commit it. Only an exact accepted `RowsApplied` promotes the
   pending anchor to committed. Acknowledgement rejection loses the anchor and enters recovery
   with a localized notice — the position is never faked from stale absolute offsets.
@@ -89,10 +108,17 @@ regression retires the carrier as a protocol fault. Kind-53 records never re-run
 
 A single bounded budget (3 seconds) covers each wait episode: entry facts, one stale-generation
 or stale-revision retry, and post-resize facts. Expiry queues `Recover` and surfaces the
-recovering notice. `Recovering` ends only when recovery demands were applied _and_ a valid frame
-arrives afterwards — a frame that was already in flight before the recovery demands cannot end it
-early. Loss of the committed anchor (`anchor_status = Evicted`, or none while committed) enters
-recovery the same way.
+recovering notice. The stale-retry and `LimitExceeded` halving budgets are per navigation
+intent: they re-arm when a nav call finds no pending and no in-flight intent, and on resize —
+merging into an ongoing intent shares its budget.
+
+Once recovery is decided — `Recovering` entered or a `Recover` staged — late facts, windows,
+read outcomes, and ack outcomes are absorbed without installing a window or minting further
+`Read`/`Ack`/`Recover` commands; a legal kind-53 event is still acknowledged exactly once
+through its own lane. `Recovering` ends only when recovery demands were applied _and_ a valid
+frame arrives afterwards — a frame that was already in flight before the recovery demands cannot
+end it early. Loss of the committed anchor (`anchor_status = Evicted`, or none while committed)
+enters recovery the same way.
 
 ## Input ordering
 
@@ -104,14 +130,24 @@ navigation keys (`PageUp`, `PageDown`, `Home`, `End`, `Esc`) and mouse wheel loc
 keeps full application input and mouse tracking. `Ctrl+B PageUp` enters history while help keeps
 `PageUp` precedence when open.
 
+Every non-wheel pointer event that targets a non-Live pane is consumed by the client — presses
+on the focused pane, presses that move focus onto it, queued pending-focus replays, gesture
+continuations, and drags that end after a mid-gesture Live→non-Live transition. None of them
+encodes application mouse bytes; a non-Live gesture terminates on release. The wheel keeps its
+own contract: inside the retained window it scrolls locally, and anywhere else over the pane it
+is consumed without dismissing the overlay.
+
 ## Rendering
 
 A valid text row window paints as plain text (no cell styling), bounded by the pane content
 geometry. Old-generation or old-column data never paints: the surface accessor re-validates the
 installed window's generation and columns against current facts on every draw. `Entering` keeps
 the last verified live frame under a history badge; `Viewing` without a current window clears to
-the badge; `Recovering` clears to a recovering indicator. Position reads `top/total` from the
-installed window's `start_row`/`total_rows`.
+the badge; `Recovering` clears to a recovering indicator. The leaf's last row carries a
+localized position readout (`start_row`/`total_rows` of the currently validated window — an
+expired or stale window shows none) on the left and a persistent localized return-to-live hint
+on the right; narrow panes degrade on grapheme boundaries with the hint keeping priority. `Esc`
+returns to live output.
 
 ## Invariants
 
@@ -136,13 +172,13 @@ installed window's `start_row`/`total_rows`.
 | `terminal_session/terminal_viewport.rs`     | `TerminalViewport` core: `Mode`, `facts`, `window`, `ack`, `read_flight`, `committed`, `pending_nav`, `pending_commands`, deadlines |
 | `terminal_session/mailbox.rs`               | `QueuedCommand::Viewport`, `ViewportStep`, `WorkerEvent::ViewportOutcome`                                                    |
 | `terminal_session/connection/native.rs`     | `run_viewport` executor: demand legs, read, ack, recovery with lease fencing                                                  |
-| `terminal_session/ui.rs`                    | `enter_history`, `history_key`, `history_wheel`, kind-53 arm, `KeyedProjection.viewport`/`history_sequence`                    |
+| `terminal_session/ui.rs`                    | `enter_history` gates, `history_key`, `history_wheel`, kind-53 arm, `KeyedProjection.viewport`/`history_sequence`/`read_watermark` |
 | `terminal_input/dispatcher.rs`              | `history_key` port route before ordinary pending bytes; wheel hand-off                                                        |
 | `client_view.rs`, `client_view/bindings.rs` | `ClientAction::EnterHistory`, `Ctrl+B PageUp` binding, help precedence                                                         |
-| `tui_pointer.rs`                            | `PointerProbe.viewport_non_live`, non-Live wheel consumption (three rows per notch)                                            |
-| `tui_render.rs`, `tui_render/viewport.rs`   | Plain-text window painter, history/recovering indicators, generation/column fencing                                            |
-| `localization.rs`                           | History notices and indicator strings (en/zh)                                                                                  |
-| `formal/tla/TerminalClientViewport.tla`     | TLC-checked state machine covering blockage, events, silence, bounds, and recovery                                            |
+| `tui_pointer.rs`                            | `PointerProbe.viewport_non_live`, non-Live wheel scroll and non-wheel event consumption                                        |
+| `tui_render.rs`, `tui_render/viewport.rs`   | Plain-text window painter, indicators, position/hint bottom line, generation/column fencing                                    |
+| `localization.rs`                           | History notices, indicators, position, and hint strings (en/zh)                                                                |
+| `formal/tla/TerminalClientViewport.tla`     | State-machine model covering blockage, watermark, events, silence, bounds, and recovery; registered in `scripts/tla/models.json` |
 
 ## Verification
 

@@ -10,7 +10,7 @@ use ratatui::{Frame, layout::Rect, widgets::Clear};
 use crate::{
     localization::Locale,
     terminal_session::NativeViewportSurface,
-    terminal_text::{display_width, sanitize_terminal_text},
+    terminal_text::{display_width, sanitize_terminal_text, truncate_display},
     tui_theme::{Role, Theme},
 };
 
@@ -30,10 +30,11 @@ pub(super) fn render(
     theme: &Theme,
 ) {
     match surface {
-        NativeViewportSurface::Window(window) => {
+        NativeViewportSurface::Window { window, position } => {
             frame.render_widget(Clear, area);
             paint_rows(frame, area, window);
             badge(frame, area, locale.terminal_history_badge(), theme);
+            bottom_line(frame, area, position, locale, theme);
         }
         NativeViewportSurface::Entering => {
             if let Some(terminal) = live_frame {
@@ -42,14 +43,17 @@ pub(super) fn render(
                 frame.render_widget(Clear, area);
             }
             badge(frame, area, locale.terminal_history_loading(), theme);
+            bottom_line(frame, area, None, locale, theme);
         }
         NativeViewportSurface::AwaitingWindow => {
             frame.render_widget(Clear, area);
             badge(frame, area, locale.terminal_history_loading(), theme);
+            bottom_line(frame, area, None, locale, theme);
         }
         NativeViewportSurface::Recovering => {
             frame.render_widget(Clear, area);
             badge(frame, area, locale.terminal_history_recovering(), theme);
+            bottom_line(frame, area, None, locale, theme);
         }
     }
 }
@@ -129,4 +133,56 @@ fn badge(frame: &mut Frame<'_>, area: Rect, label: &str, theme: &Theme) {
         Rect::new(x, area.y, width, 1),
         theme.style(Role::StatusWarning),
     );
+}
+
+/// The leaf's last row while non-Live: position on the left (only while a
+/// validated window supplies it — never for an expired or stale window),
+/// the return-to-live hint pinned right. The hint keeps priority as the
+/// pane narrows: the position truncates first, then the hint, and both
+/// cuts stay on grapheme boundaries so wide characters never split.
+fn bottom_line(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    position: Option<(u64, u64)>,
+    locale: Locale,
+    theme: &Theme,
+) {
+    if area.width == 0 || area.height == 0 {
+        return;
+    }
+    let y = area.y + area.height - 1;
+    let width = usize::from(area.width);
+    let hint = truncate_display(locale.terminal_history_hint(), width, "…");
+    let hint_width = u16::try_from(display_width(&hint)).unwrap_or(u16::MAX);
+    if let Some((start_row, total_rows)) = position {
+        let position_budget = width.saturating_sub(if hint_width == 0 {
+            0
+        } else {
+            usize::from(hint_width) + 1
+        });
+        let label = truncate_display(
+            &locale.terminal_history_position(start_row, total_rows),
+            position_budget,
+            "…",
+        );
+        let label_width = usize::from(u16::try_from(display_width(&label)).unwrap_or(u16::MAX));
+        if label_width > 0 {
+            frame
+                .buffer_mut()
+                .set_stringn(area.x, y, &label, label_width);
+            frame.buffer_mut().set_style(
+                Rect::new(area.x, y, label_width as u16, 1),
+                theme.style(Role::TextSecondary),
+            );
+        }
+    }
+    if hint_width > 0 {
+        let x = area.x + area.width - hint_width;
+        frame
+            .buffer_mut()
+            .set_stringn(x, y, &hint, usize::from(hint_width));
+        frame
+            .buffer_mut()
+            .set_style(Rect::new(x, y, hint_width, 1), theme.style(Role::HintLabel));
+    }
 }

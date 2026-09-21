@@ -56,6 +56,14 @@ impl TerminalProjection {
     pub(crate) fn receive(&mut self, record: &[u8]) -> Result<Option<Feedback>, ()> {
         self.receive_for_geometry(record, None)
     }
+
+    /// Installs a frame directly — UI-level fixtures that exercise
+    /// frame-dependent gates (history entry availability) without needing
+    /// an OBRW encoder for the receive path.
+    #[cfg(test)]
+    pub(crate) fn install_frame_for_test(&mut self, frame: TerminalTextFrame) {
+        self.frame = Some(frame);
+    }
     pub(crate) fn receive_for_geometry(
         &mut self,
         record: &[u8],

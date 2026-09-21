@@ -67,6 +67,11 @@ struct RecordingPort {
     forwarded: Vec<Vec<u8>>,
     actions: Vec<ClientAction>,
     probe: PointerProbe,
+    wheels: Vec<(PaneRef, bool)>,
+    /// Logical panes holding a non-Live history core — the FocusPanel arm
+    /// recomputes the probe's `viewport_non_live` for the settled focus,
+    /// the way the session's probe reads the focused core's mode.
+    non_live: Vec<PaneKey>,
 }
 
 impl RecordingPort {
@@ -88,6 +93,11 @@ impl TerminalInputPort for RecordingPort {
         self.probe.clone()
     }
 
+    fn history_wheel(&mut self, key: &PaneRef, up: bool) -> bool {
+        self.wheels.push((key.clone(), up));
+        true
+    }
+
     fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
         if let ClientAction::FocusPanel(panel) = &action {
             // Mirror the session's local focus transition: the desired
@@ -102,6 +112,8 @@ impl TerminalInputPort for RecordingPort {
                 .cloned()
             {
                 self.probe.desired = Some(leaf.record.pane().clone());
+                self.probe.viewport_non_live =
+                    self.non_live.iter().any(|key| *key == *leaf.record.pane());
                 self.probe.focus = Some(leaf.record);
             }
         }
@@ -1118,4 +1130,228 @@ fn pixel_format_reports_bounded_notice_instead_of_coordinates() {
         view.notice(),
         Some(crate::client_view::Notice::PointerPixelsUnsupported)
     );
+}
+
+/// A one-pane hit map whose pane is the focused incarnation.
+fn publish_focused_map(pointer: &mut PointerState, pane: PaneRef) {
+    pointer.publish({
+        let mut builder = HitMapBuilder::new();
+        builder.record(
+            HitLayer::Foreground,
+            Rect::new(0, 0, 10, 6),
+            HitTarget::Pane {
+                pane,
+                content: Rect::new(0, 1, 10, 5),
+            },
+        );
+        builder.finish()
+    });
+}
+
+// A non-Live focus owns every non-wheel pointer event locally — even on a
+// pane whose frame reports the pointer, a content press mints no gesture
+// and encodes no bytes.
+#[test]
+fn non_live_focus_consumes_content_press_without_pane_bytes() {
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let mut port = RecordingPort {
+        probe: PointerProbe {
+            frame: Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, false)),
+            viewport_non_live: true,
+            ..active_probe(0, 1, 1, 2)
+        },
+        ..RecordingPort::default()
+    };
+    publish_focused_map(&mut pointer, pane_ref(1, 1, 2, 0));
+    assert!(
+        pointer
+            .event(&mut view, &mut port, now(), press(2, 2))
+            .handled()
+    );
+    assert!(matches!(pointer.gesture, Gesture::Idle));
+    assert!(port.forwarded.is_empty());
+    assert!(port.actions.is_empty());
+    // Motion and release while the press would have been held are dead too.
+    assert!(
+        pointer
+            .event(
+                &mut view,
+                &mut port,
+                now(),
+                event(MouseAction::Motion, MouseButton::Left, 4, 3)
+            )
+            .handled()
+    );
+    assert!(
+        pointer
+            .event(
+                &mut view,
+                &mut port,
+                now(),
+                event(MouseAction::Release, MouseButton::Left, 4, 3)
+            )
+            .handled()
+    );
+    assert!(port.forwarded.is_empty());
+}
+
+// A non-Live focus owns the wheel before any frame contract: the notch
+// reaches `history_wheel` for local scrolling and never encodes.
+#[test]
+fn non_live_focus_wheel_scrolls_locally() {
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let focused = pane_ref(1, 1, 2, 0);
+    let mut port = RecordingPort {
+        probe: PointerProbe {
+            frame: Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, false)),
+            viewport_non_live: true,
+            ..active_probe(0, 1, 1, 2)
+        },
+        ..RecordingPort::default()
+    };
+    publish_focused_map(&mut pointer, focused.clone());
+    assert!(
+        pointer
+            .event(
+                &mut view,
+                &mut port,
+                now(),
+                event(MouseAction::Press, MouseButton::WheelUp, 2, 2)
+            )
+            .handled()
+    );
+    assert!(
+        pointer
+            .event(
+                &mut view,
+                &mut port,
+                now(),
+                event(MouseAction::Press, MouseButton::WheelDown, 2, 2)
+            )
+            .handled()
+    );
+    assert_eq!(
+        port.wheels,
+        vec![(focused.clone(), true), (focused, false)],
+        "each notch scrolls the retained window locally"
+    );
+    assert!(port.forwarded.is_empty());
+}
+
+// A press that moves focus onto a non-Live pane still issues `FocusPanel`
+// — the title row stays interactive — but the content press itself mints
+// no pane gesture and no bytes.
+#[test]
+fn non_live_focus_move_press_consumes_without_gesture() {
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let mut port = RecordingPort {
+        probe: PointerProbe {
+            frame: Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, false)),
+            ..active_probe(0, 0, 1, 2)
+        },
+        non_live: vec![pane_key(1, 1, 2)],
+        ..RecordingPort::default()
+    };
+    publish_two_panel_map(&mut pointer);
+    assert!(
+        pointer
+            .event(&mut view, &mut port, now(), press(2, 2))
+            .handled()
+    );
+    assert_eq!(port.actions, vec![ClientAction::FocusPanel(panel_id(2))]);
+    assert!(matches!(pointer.gesture, Gesture::Idle));
+    assert!(port.forwarded.is_empty());
+}
+
+// A gesture that began on a Live pane is consumed locally the moment the
+// core goes non-Live — drags encode nothing more, and the release ends
+// the gesture without a byte.
+#[test]
+fn non_live_transition_mid_gesture_consumes_until_release() {
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let mut port = RecordingPort {
+        probe: PointerProbe {
+            frame: Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, false)),
+            ..active_probe(0, 1, 1, 2)
+        },
+        ..RecordingPort::default()
+    };
+    publish_focused_map(&mut pointer, pane_ref(1, 1, 2, 0));
+    assert!(
+        pointer
+            .event(&mut view, &mut port, now(), press(2, 2))
+            .handled()
+    );
+    assert!(matches!(pointer.gesture, Gesture::Pane(_)));
+    let live_bytes = port.bytes();
+    assert_eq!(live_bytes, b"\x1b[<0;3;2M".to_vec());
+    // The pane enters history mid-drag: the core flips non-Live.
+    port.probe.viewport_non_live = true;
+    assert!(
+        pointer
+            .event(
+                &mut view,
+                &mut port,
+                now(),
+                event(MouseAction::Motion, MouseButton::Left, 4, 3)
+            )
+            .handled()
+    );
+    assert_eq!(
+        port.bytes(),
+        live_bytes,
+        "no drag bytes after the transition"
+    );
+    assert!(
+        pointer
+            .event(
+                &mut view,
+                &mut port,
+                now(),
+                event(MouseAction::Release, MouseButton::Left, 4, 3)
+            )
+            .handled()
+    );
+    assert!(matches!(pointer.gesture, Gesture::Idle));
+    assert_eq!(port.bytes(), live_bytes, "the release encodes nothing");
+}
+
+// A focus-move press that queued for its first frame settles onto a
+// non-Live core as a dead gesture — the queued press is consumed, never
+// replayed as pane bytes.
+#[test]
+fn non_live_pending_settlement_consumes_queue() {
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let mut port = RecordingPort {
+        probe: {
+            let mut probe = active_probe(0, 0, 1, 2);
+            set_leaf(&mut probe, pane_leaf(1, 1, 2, 0, true, Some(true), false));
+            probe.frame = None;
+            probe
+        },
+        non_live: vec![pane_key(1, 1, 2)],
+        ..RecordingPort::default()
+    };
+    publish_two_panel_map(&mut pointer);
+    pointer.event(&mut view, &mut port, now(), press(2, 2));
+    assert!(matches!(pointer.gesture, Gesture::Pending(_)));
+    // The first frame lands while the pane has already gone non-Live.
+    set_leaf(
+        &mut port.probe,
+        pane_leaf(1, 1, 2, 0, true, Some(true), true),
+    );
+    port.probe.frame = Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, false));
+    pointer.tick(&mut view, &mut port, now());
+    assert!(matches!(pointer.gesture, Gesture::Idle));
+    assert!(port.forwarded.is_empty(), "the queued press never replays");
 }

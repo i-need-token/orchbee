@@ -120,7 +120,12 @@ pub(crate) enum NativeSessionNotice {
 /// out stale row data.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum NativeViewportSurface<'a> {
-    Window(&'a TerminalTextRowWindow),
+    Window {
+        window: &'a TerminalTextRowWindow,
+        /// `(start_row, total_rows)` re-validated at the same instant the
+        /// window was fenced — the only honest position source.
+        position: Option<(u64, u64)>,
+    },
     Entering,
     AwaitingWindow,
     Recovering,
@@ -388,8 +393,12 @@ impl<'a> NativeSessionView<'a> {
             .panes
             .iter()
             .find(|projection| projection.key == record.pane_ref())?;
-        Some(match projection.viewport.as_ref()?.surface() {
-            ViewportSurface::Window(window) => NativeViewportSurface::Window(window),
+        let viewport = projection.viewport.as_ref()?;
+        Some(match viewport.surface() {
+            ViewportSurface::Window(window) => NativeViewportSurface::Window {
+                window,
+                position: viewport.position(),
+            },
             ViewportSurface::Entering => NativeViewportSurface::Entering,
             ViewportSurface::AwaitingWindow => NativeViewportSurface::AwaitingWindow,
             ViewportSurface::Recovering => NativeViewportSurface::Recovering,
@@ -461,6 +470,13 @@ pub(crate) struct KeyedProjection {
     /// Strict per-incarnation kind-53 sequence cursor: the next
     /// `HistoryChanged` must exceed this or the stream is malformed.
     history_sequence: u64,
+    /// Per-incarnation history read watermark: the highest `request_sequence`
+    /// ever staged for this attachment. The host's
+    /// `last_row_request_sequence` is attachment-scoped and survives
+    /// viewport episodes, so a re-entered history episode resumes above it;
+    /// a re-minted `KeyedProjection` starts at 0 because a new attachment
+    /// legitimately resets the space.
+    read_watermark: u64,
 }
 
 #[cfg(test)]
@@ -541,6 +557,8 @@ mod retired_membership_tests;
 mod startup_queue_tests;
 #[cfg(all(test, unix))]
 mod u7_probe;
+#[cfg(all(test, unix))]
+mod viewport_tests;
 #[cfg(test)]
 mod workspace_setup_tests;
 
@@ -1127,12 +1145,19 @@ impl NativeUi {
         if self.projections[index].viewport.is_some() {
             return SessionActionDisposition::KeepNavigator;
         }
-        // History needs a live-tail anchor: a pane that never painted has no
-        // scrollback contract yet.
+        // History needs a live-tail anchor plus retained rows: a pane that
+        // never painted has no scrollback contract, an alternate screen has
+        // no retained history at all, and zero scrollback or zero readable
+        // rows means nothing exists to view. Every refusal is an honest
+        // notice — never a silent drop, never a fabricated Enter command.
         let Some(frame) = self.projections[index].value.frame() else {
-            return SessionActionDisposition::KeepNavigator;
+            return self.history_unavailable(&mailbox);
         };
+        if frame.scrollback_rows == 0 || frame.alternate_screen || frame.rows.is_empty() {
+            return self.history_unavailable(&mailbox);
+        }
         let (columns, row_count) = (frame.geometry.columns, frame.geometry.rows);
+        let first_read_sequence = self.projections[index].read_watermark.saturating_add(1);
         match mailbox.try_enqueue(QueuedCommand::Viewport(Tagged::new(
             key.clone(),
             ViewportStep::Enter,
@@ -1144,6 +1169,7 @@ impl NativeUi {
                     columns,
                     row_count,
                     u32::from(row_count),
+                    first_read_sequence,
                     self.clock.now(),
                 ));
             }
@@ -1156,6 +1182,17 @@ impl NativeUi {
                 | AdmissionError::RefreshGenerationExhausted
                 | AdmissionError::Build(_),
             ) => self.retire(CarrierFailure::Protocol),
+        }
+        SessionActionDisposition::KeepNavigator
+    }
+
+    /// The Enter request cannot honestly proceed: publish
+    /// `HistoryUnavailable` and send nothing on the wire.
+    fn history_unavailable(&mut self, mailbox: &Arc<CommandMailbox>) -> SessionActionDisposition {
+        if let Some(state) = self.state.as_mut() {
+            mailbox.apply_local_for(state, |state| {
+                state.set_notice(SessionNotice::HistoryUnavailable);
+            });
         }
         SessionActionDisposition::KeepNavigator
     }
@@ -1254,6 +1291,15 @@ impl NativeUi {
             let Some(step) = viewport.peek_command() else {
                 return;
             };
+            if let ViewportStep::Read {
+                request_sequence, ..
+            } = step
+            {
+                // The watermark advances when the owner observes the staged
+                // read — admitted or not — so a sequence the core minted is
+                // never reissued to this attachment's host watermark.
+                projection.read_watermark = projection.read_watermark.max(request_sequence.get());
+            }
             match mailbox.try_enqueue(QueuedCommand::Viewport(Tagged::new(key.clone(), step))) {
                 Ok(_) => viewport.command_admitted(),
                 Err(
@@ -2142,6 +2188,7 @@ impl NativeUi {
                             status: NativeProjectionStatus::Empty,
                             viewport: None,
                             history_sequence: 0,
+                            read_watermark: 0,
                         });
                     }
                     UiReply::AttachedSettled(disposition)

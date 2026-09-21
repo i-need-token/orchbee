@@ -71,6 +71,12 @@ fn window(
 }
 
 fn entering(columns: u16, row_count: u16) -> TerminalViewport {
+    entering_at(columns, row_count, 1)
+}
+
+/// A core entered above a previously issued read watermark — the same
+/// attachment's next episode must resume above it, never restart.
+fn entering_at(columns: u16, row_count: u16, first_read_sequence: u64) -> TerminalViewport {
     let (attachment_id, host_epoch) = ids();
     TerminalViewport::entering(
         attachment_id,
@@ -78,6 +84,7 @@ fn entering(columns: u16, row_count: u16) -> TerminalViewport {
         columns,
         row_count,
         u32::from(row_count),
+        first_read_sequence,
         Instant::now(),
     )
 }
@@ -309,13 +316,13 @@ fn t7_enter_rejected_returns_live() {
 fn t8_facts_deadline_recovers() {
     let start = Instant::now();
     let (attachment_id, host_epoch) = ids();
-    let mut viewport = TerminalViewport::entering(attachment_id, host_epoch, 80, 24, 24, start);
+    let mut viewport = TerminalViewport::entering(attachment_id, host_epoch, 80, 24, 24, 1, start);
     let effect = viewport.tick(start + Duration::from_secs(3));
     assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
     assert!(viewport.recovering());
     assert_eq!(effect.notice, Some(SessionNotice::HistoryRecovering));
     // Inside the budget the facts event unblocks the entry read.
-    let mut viewport = TerminalViewport::entering(attachment_id, host_epoch, 80, 24, 24, start);
+    let mut viewport = TerminalViewport::entering(attachment_id, host_epoch, 80, 24, 24, 1, start);
     assert!(
         viewport
             .tick(start + Duration::from_secs(2))
@@ -604,4 +611,301 @@ fn surfaces_track_mode() {
     viewport.nav(ViewportNav::Exit);
     assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
     assert!(matches!(viewport.surface(), ViewportSurface::Recovering));
+}
+
+// A re-entered episode resumes above the projection's read watermark — the
+// host's attachment-scoped `last_row_request_sequence` survives the cycle.
+#[test]
+fn reentry_resumes_above_watermark() {
+    let mut viewport = entering_at(80, 24, 7);
+    viewport.facts(facts_event(1, 1, HistoryAnchorStatus::Valid));
+    let steps = drain(&mut viewport);
+    let sequence = steps
+        .iter()
+        .find_map(|step| match step {
+            ViewportStep::Read {
+                request_sequence, ..
+            } => Some(request_sequence.get()),
+            _ => None,
+        })
+        .expect("entry read");
+    assert_eq!(sequence, 7, "first read resumes at the watermark, not 1");
+}
+
+// A stale window proves its pin was released when the held facts already
+// advanced past the issue generation: the transition is the release, so the
+// next read proceeds under the fresh generation without waiting for an
+// event the host will never re-emit.
+#[test]
+fn advanced_facts_release_stale_window() {
+    let mut viewport = viewing(80, 24);
+    viewport.nav(ViewportNav::Lines(-5));
+    let steps = drain(&mut viewport);
+    let request_sequence = match steps.as_slice() {
+        [
+            ViewportStep::Read {
+                request_sequence,
+                generation,
+                ..
+            },
+        ] => {
+            assert_eq!(generation.get(), 1, "issued under generation 1");
+            *request_sequence
+        }
+        other => panic!("expected one read, got {other:?}"),
+    };
+    // Facts advance mid-flight; the flight stays open so nothing emits yet.
+    viewport.facts(facts_event(2, 2, HistoryAnchorStatus::Valid));
+    assert!(drain(&mut viewport).is_empty());
+    // The generation-1 window lands: the kind-53 transition already proved
+    // this pending's pin was cleared — release and proceed under gen 2.
+    let effect = viewport.window(
+        window(request_sequence.get(), 1, 80, 200, 80, 24),
+        Instant::now(),
+    );
+    assert_eq!(effect, Default::default());
+    assert!(!viewport.recovering());
+    let steps = drain(&mut viewport);
+    assert!(
+        steps.iter().any(
+            |step| matches!(step, ViewportStep::Read { generation, .. } if generation.get() == 2)
+        ),
+        "the released flight re-reads under the fresh generation: {steps:?}"
+    );
+}
+
+// The contrast case: facts that did NOT move since the read was issued
+// mean the host still owes an event — the flight releases into a bounded
+// wait, and only fresh facts re-drive.
+#[test]
+fn unmoved_facts_stale_window_waits_bounded() {
+    let mut viewport = viewing(80, 24);
+    viewport.nav(ViewportNav::Lines(-5));
+    let steps = drain(&mut viewport);
+    let request_sequence = match steps.as_slice() {
+        [
+            ViewportStep::Read {
+                request_sequence, ..
+            },
+        ] => *request_sequence,
+        other => panic!("expected one read, got {other:?}"),
+    };
+    // A window stamped at a generation the facts never reported: no proof
+    // of release — wait, bounded, for the describing event.
+    let effect = viewport.window(
+        window(request_sequence.get(), 9, 80, 200, 80, 24),
+        Instant::now(),
+    );
+    assert_eq!(effect, Default::default());
+    assert!(!viewport.recovering());
+    assert!(
+        drain(&mut viewport).is_empty(),
+        "no read before fresh facts"
+    );
+    assert!(matches!(
+        viewport.surface(),
+        ViewportSurface::AwaitingWindow
+    ));
+    viewport.facts(facts_event(2, 9, HistoryAnchorStatus::Valid));
+    let steps = drain(&mut viewport);
+    assert!(
+        steps.iter().any(
+            |step| matches!(step, ViewportStep::Read { generation, .. } if generation.get() == 9)
+        ),
+        "fresh facts re-drive the intent: {steps:?}"
+    );
+}
+
+// Once recovery is decided — a Recover merely staged, not yet admitted —
+// late facts, windows, and read/ack outcomes are absorbed: nothing
+// installs, nothing re-arms, no second Recover is minted. The staged step
+// remains the only command.
+#[test]
+fn pending_recovery_suppresses_late_arrivals() {
+    let mut viewport = viewing(80, 24);
+    viewport.typed();
+    assert_eq!(viewport.peek_command(), Some(ViewportStep::Recover));
+    assert_eq!(
+        viewport.facts(facts_event(2, 2, HistoryAnchorStatus::Valid)),
+        Default::default()
+    );
+    assert_eq!(viewport.peek_command(), Some(ViewportStep::Recover));
+    // An evicted anchor on top of the decided recovery: still absorbed,
+    // still no second notice.
+    assert_eq!(
+        viewport.facts(facts_event(3, 2, HistoryAnchorStatus::Evicted)),
+        Default::default()
+    );
+    assert_eq!(viewport.peek_command(), Some(ViewportStep::Recover));
+    assert_eq!(
+        viewport.window(window(77, 2, 0, 200, 80, 24), Instant::now()),
+        Default::default()
+    );
+    assert_eq!(viewport.peek_command(), Some(ViewportStep::Recover));
+    assert_eq!(
+        viewport.read_outcome(
+            NonZeroU64::new(1).expect("sequence"),
+            ViewportReadRejection::Host,
+            Instant::now(),
+        ),
+        Default::default()
+    );
+    assert_eq!(
+        viewport.ack_outcome(NonZeroU64::new(1).expect("sequence"), true),
+        Default::default()
+    );
+    // Navigation — Exit included — mints nothing while recovery is staged.
+    viewport.nav(ViewportNav::Exit);
+    viewport.nav(ViewportNav::Oldest);
+    assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
+    assert!(viewport.recovering());
+}
+
+// The same absorption once Recovering is entered: a second Exit or a late
+// window never mints another Recover.
+#[test]
+fn recovering_absorbs_exit_and_late_window() {
+    let mut viewport = viewing(80, 24);
+    viewport.nav(ViewportNav::Exit);
+    assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
+    assert!(viewport.recovering());
+    viewport.nav(ViewportNav::Exit);
+    viewport.typed();
+    assert_eq!(
+        viewport.window(window(3, 1, 0, 200, 80, 24), Instant::now()),
+        Default::default()
+    );
+    assert!(viewport.peek_command().is_none());
+}
+
+// The retry/halving budget is per intent: a completed intent leaves the
+// budget re-armed for the next nav call, while merges inside one intent
+// share it.
+#[test]
+fn intent_budget_rearms_between_intents() {
+    let mut viewport = viewing(80, 24);
+    // First intent: one stale retry inside it, then the window installs
+    // and the intent completes.
+    viewport.nav(ViewportNav::Lines(-1));
+    let steps = drain(&mut viewport);
+    let first = match steps.as_slice() {
+        [
+            ViewportStep::Read {
+                request_sequence, ..
+            },
+        ] => *request_sequence,
+        other => panic!("expected read, got {other:?}"),
+    };
+    let effect = viewport.read_outcome(
+        first,
+        ViewportReadRejection::Typed(ViewerRowsRejectedReason::StaleGeneration),
+        Instant::now(),
+    );
+    assert_eq!(effect, Default::default());
+    viewport.facts(facts_event(2, 2, HistoryAnchorStatus::Valid));
+    let steps = drain(&mut viewport);
+    let second = match steps.as_slice() {
+        [
+            ViewportStep::Read {
+                request_sequence, ..
+            },
+        ] => *request_sequence,
+        other => panic!("expected retry read, got {other:?}"),
+    };
+    viewport.window(window(second.get(), 2, 60, 200, 80, 24), Instant::now());
+    drain(&mut viewport);
+    viewport.ack_outcome(second, true);
+    // A fresh intent re-arms the budget: the next stale rejection retries
+    // rather than recovering, and only its own second stale fails.
+    viewport.nav(ViewportNav::Lines(-1));
+    let steps = drain(&mut viewport);
+    let third = match steps.as_slice() {
+        [
+            ViewportStep::Read {
+                request_sequence, ..
+            },
+        ] => *request_sequence,
+        other => panic!("expected fresh-intent read, got {other:?}"),
+    };
+    let effect = viewport.read_outcome(
+        third,
+        ViewportReadRejection::Typed(ViewerRowsRejectedReason::StaleGeneration),
+        Instant::now(),
+    );
+    assert_eq!(effect, Default::default(), "fresh intent keeps its retry");
+    viewport.facts(facts_event(3, 3, HistoryAnchorStatus::Valid));
+    let steps = drain(&mut viewport);
+    let fourth = match steps.as_slice() {
+        [
+            ViewportStep::Read {
+                request_sequence, ..
+            },
+        ] => *request_sequence,
+        other => panic!("expected second-intent retry, got {other:?}"),
+    };
+    let effect = viewport.read_outcome(
+        fourth,
+        ViewportReadRejection::Typed(ViewerRowsRejectedReason::StaleGeneration),
+        Instant::now(),
+    );
+    assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
+    assert_eq!(effect.notice, Some(SessionNotice::HistoryRecovering));
+}
+
+// `position` reports only the currently validated window: entering has
+// none, a resize-expired window reports none, and recovering reports none.
+#[test]
+fn position_tracks_current_window_only() {
+    let viewport = entering(80, 24);
+    assert_eq!(viewport.position(), None);
+    let mut viewport = viewing(80, 24);
+    assert_eq!(viewport.position(), Some((90, 200)));
+    viewport.resize(120, 30, Instant::now());
+    assert_eq!(viewport.position(), None);
+    // After a committed window is re-established the position returns.
+    viewport.facts(facts_event(2, 1, HistoryAnchorStatus::Valid));
+    let steps = drain(&mut viewport);
+    let request_sequence = match steps.as_slice() {
+        [
+            ViewportStep::Read {
+                request_sequence, ..
+            },
+        ] => *request_sequence,
+        other => panic!("expected post-resize read, got {other:?}"),
+    };
+    viewport.window(
+        window(request_sequence.get(), 1, 40, 200, 120, 30),
+        Instant::now(),
+    );
+    assert_eq!(viewport.position(), Some((40, 200)));
+}
+
+// A resize drops unadmitted wire steps minted under the old geometry —
+// the staged acknowledgement for the discarded window never reaches the
+// wire — while an already-admitted Recover is preserved.
+#[test]
+fn resize_drops_staged_wire_steps() {
+    let mut viewport = viewing(80, 24);
+    viewport.nav(ViewportNav::Lines(-5));
+    let steps = drain(&mut viewport);
+    let request_sequence = match steps.as_slice() {
+        [
+            ViewportStep::Read {
+                request_sequence, ..
+            },
+        ] => *request_sequence,
+        other => panic!("expected one read, got {other:?}"),
+    };
+    // The window installs and stages its Ack — but nothing admits it yet.
+    viewport.window(
+        window(request_sequence.get(), 1, 80, 200, 80, 24),
+        Instant::now(),
+    );
+    assert!(matches!(
+        viewport.peek_command(),
+        Some(ViewportStep::Ack { .. })
+    ));
+    viewport.resize(120, 30, Instant::now());
+    // The staged Ack died with the old geometry: it never emits.
+    assert_eq!(drain(&mut viewport), Vec::<ViewportStep>::new());
 }

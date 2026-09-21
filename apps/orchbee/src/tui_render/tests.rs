@@ -506,3 +506,247 @@ fn the_zoom_badge_rides_the_status_label_in_both_locales() {
         );
     }
 }
+
+// ===== Retained-history pane surface =====
+
+use std::num::NonZeroU64;
+
+use orchbee_terminal_protocol::{
+    AttachmentId, HostEpoch, TerminalFrameRoute, TerminalInteraction, TerminalPixelGeometry,
+    TerminalRowPromptClass, TerminalTextCell, TerminalTextCellMapping, TerminalTextCursor,
+    TerminalTextFrame, TerminalTextRow, TerminalTextRowWindow, TerminalTextStyle,
+    TerminalTextWindowRow,
+};
+use ratatui::layout::Rect;
+
+use crate::terminal_session::NativeViewportSurface;
+
+/// A validated row window with identity-ASCII rows — the shape the core
+/// fences before it ever reaches this painter.
+fn history_window(texts: &[&str], columns: u16) -> TerminalTextRowWindow {
+    TerminalTextRowWindow {
+        attachment_id: AttachmentId::from_bytes([7; 16]).expect("attachment"),
+        host_epoch: HostEpoch::from_bytes([9; 16]).expect("epoch"),
+        sequence: NonZeroU64::new(1).expect("sequence"),
+        revision: 1,
+        generation: NonZeroU64::new(1).expect("generation"),
+        total_rows: 200,
+        start_row: 42,
+        columns,
+        ignored_optional_flags: 0,
+        rows: texts
+            .iter()
+            .enumerate()
+            .map(|(offset, text)| TerminalTextWindowRow {
+                index: 42 + offset as u64,
+                prompt_class: TerminalRowPromptClass::None,
+                wrap: false,
+                wrap_continuation: false,
+                identity_ascii: true,
+                text: (*text).to_owned(),
+                mappings: Vec::<TerminalTextCellMapping>::new(),
+            })
+            .collect(),
+    }
+}
+
+fn render_viewport(
+    width: u16,
+    height: u16,
+    surface: NativeViewportSurface<'_>,
+    live_frame: Option<&TerminalTextFrame>,
+    locale: Locale,
+) -> Vec<String> {
+    let theme = crate::tui_theme::Theme::rgb_test_dark();
+    let mut terminal = infallible(Terminal::new(TestBackend::new(width, height)));
+    infallible(terminal.draw(|frame| {
+        super::viewport::render(
+            frame,
+            Rect::new(0, 0, width, height),
+            surface,
+            live_frame,
+            false,
+            locale,
+            &theme,
+        );
+    }));
+    buffer_rows(&terminal, width, height)
+}
+
+// A validated window paints its retained rows under the mode badge, with
+// the position readout and the persistent return hint on the bottom line.
+#[test]
+fn history_window_paints_rows_position_and_hint() {
+    let window = history_window(&["row-one", "row-two"], 40);
+    let rows = render_viewport(
+        40,
+        8,
+        NativeViewportSurface::Window {
+            window: &window,
+            position: Some((42, 200)),
+        },
+        None,
+        Locale::EnUs,
+    );
+    assert!(rows[0].contains("row-one"), "{rows:?}");
+    assert!(
+        rows[0].contains("HISTORY"),
+        "badge on the first row: {rows:?}"
+    );
+    assert!(rows[1].contains("row-two"), "{rows:?}");
+    assert!(rows[7].contains("Row 42 of 200"), "{rows:?}");
+    assert!(rows[7].contains("Esc back to live"), "{rows:?}");
+}
+
+// The bottom line and indicators localize with the session locale.
+#[test]
+fn history_window_bottom_line_localizes() {
+    let window = history_window(&["row"], 40);
+    let rows = render_viewport(
+        40,
+        8,
+        NativeViewportSurface::Window {
+            window: &window,
+            position: Some((42, 200)),
+        },
+        None,
+        Locale::ZhCn,
+    );
+    let bottom = without_cell_padding(&rows[7]);
+    assert!(bottom.contains("第42行·共200行"), "{rows:?}");
+    assert!(bottom.contains("Esc返回实时"), "{rows:?}");
+    assert!(rows[0].contains("历史"), "{rows:?}");
+}
+
+// A narrow leaf degrades on grapheme boundaries: the return hint keeps
+// priority while the position truncates first.
+#[test]
+fn history_bottom_line_hint_keeps_priority_when_narrow() {
+    let window = history_window(&["row"], 18);
+    let rows = render_viewport(
+        18,
+        6,
+        NativeViewportSurface::Window {
+            window: &window,
+            position: Some((42, 200)),
+        },
+        None,
+        Locale::EnUs,
+    );
+    assert!(
+        rows[5].contains("Esc back to live"),
+        "hint survives the position: {rows:?}"
+    );
+    assert!(
+        !rows[5].contains("Row 42"),
+        "the position yields first: {rows:?}"
+    );
+}
+
+// `AwaitingWindow` and `Recovering` clear the leaf and paint their own
+// indicator — no position without a validated window, never stale rows.
+#[test]
+fn history_indicators_clear_and_show_without_position() {
+    let theme = crate::tui_theme::Theme::rgb_test_dark();
+    for surface in [
+        NativeViewportSurface::AwaitingWindow,
+        NativeViewportSurface::Recovering,
+    ] {
+        let mut terminal = infallible(Terminal::new(TestBackend::new(40, 8)));
+        // Stale content under the leaf: the surface must clear it.
+        infallible(terminal.draw(|frame| {
+            frame
+                .buffer_mut()
+                .set_stringn(0, 0, "stale-live-content", 17);
+        }));
+        infallible(terminal.draw(|frame| {
+            super::viewport::render(
+                frame,
+                Rect::new(0, 0, 40, 8),
+                surface,
+                None,
+                false,
+                Locale::EnUs,
+                &theme,
+            );
+        }));
+        let rows = buffer_rows(&terminal, 40, 8);
+        let joined = rows.concat();
+        assert!(
+            !joined.contains("stale-live-content"),
+            "indicator surface left stale content: {rows:?}"
+        );
+        assert!(rows[7].contains("Esc back to live"), "{rows:?}");
+        assert!(!joined.contains("Row"), "no position shown: {rows:?}");
+        let badge = match surface {
+            NativeViewportSurface::AwaitingWindow => "Loading history…",
+            NativeViewportSurface::Recovering => "Returning to live…",
+            _ => unreachable!(),
+        };
+        assert!(joined.contains(badge), "{rows:?}");
+    }
+}
+
+// `Entering` keeps the last verified live frame beneath the loading badge.
+#[test]
+fn history_entering_keeps_the_live_frame() {
+    let live = TerminalTextFrame {
+        route: TerminalFrameRoute {
+            attachment_id: AttachmentId::from_bytes([7; 16]).expect("attachment"),
+            host_epoch: HostEpoch::from_bytes([9; 16]).expect("epoch"),
+            sequence: NonZeroU64::new(1).expect("sequence"),
+            generation: NonZeroU64::new(1).expect("generation"),
+            revision: 1,
+            base_revision: None,
+        },
+        geometry: TerminalPixelGeometry {
+            cell_pixel_height: 16,
+            cell_pixel_width: 8,
+            columns: 40,
+            rows: 8,
+        },
+        cursor: TerminalTextCursor {
+            column: 0,
+            row: 0,
+            visible: false,
+        },
+        alternate_screen: false,
+        interaction: TerminalInteraction::default(),
+        foreground: 0,
+        background: 0,
+        theme_revision: 1,
+        scrollback_rows: 9,
+        rows: vec![TerminalTextRow {
+            index: 0,
+            flags: 0,
+            cells: "live-tail"
+                .chars()
+                .map(|c| TerminalTextCell {
+                    text: c.to_string(),
+                    style: TerminalTextStyle {
+                        foreground: 0,
+                        background: 0,
+                        underline_color: 0,
+                        flags: 0,
+                        underline: 0,
+                    },
+                    width: 0,
+                })
+                .collect(),
+        }],
+    };
+    let rows = render_viewport(
+        40,
+        8,
+        NativeViewportSurface::Entering,
+        Some(&live),
+        Locale::EnUs,
+    );
+    let joined = rows.concat();
+    assert!(
+        joined.contains("live-tail"),
+        "live frame preserved: {rows:?}"
+    );
+    assert!(joined.contains("Loading history…"), "{rows:?}");
+    assert!(rows[7].contains("Esc back to live"), "{rows:?}");
+}

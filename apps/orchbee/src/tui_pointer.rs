@@ -700,6 +700,12 @@ impl PointerState {
             let Some(frame) = probe.frame else {
                 return PointerOutcome::Ignored;
             };
+            if probe.viewport_non_live {
+                // The focused pane's history core is non-Live: every
+                // non-wheel pointer event belongs to the client overlay,
+                // never to application mouse bytes.
+                return PointerOutcome::Handled;
+            }
             return match pane_owns_pointer(frame.tracking, &event, frame.alternate_screen) {
                 PointerOwner::Pane => {
                     self.gesture = Gesture::Pane(PaneGesture {
@@ -775,8 +781,9 @@ impl PointerState {
                 });
                 return PointerOutcome::RegionsChanged;
             };
-            if let PointerOwner::Pane =
-                pane_owns_pointer(frame.tracking, &event, frame.alternate_screen)
+            if !after.viewport_non_live
+                && let PointerOwner::Pane =
+                    pane_owns_pointer(frame.tracking, &event, frame.alternate_screen)
             {
                 self.gesture = Gesture::Pane(PaneGesture {
                     expected,
@@ -828,9 +835,11 @@ impl PointerState {
         // A non-Live focus core owns the wheel before any frame contract:
         // each notch scrolls its retained window locally, three rows per
         // notch, and nothing encodes to the pane.
-        if probe.viewport_non_live
-            && port.history_wheel(&target.expected, event.button == MouseButton::WheelUp)
-        {
+        if probe.viewport_non_live {
+            // A non-Live focus owns the wheel outright: local scroll when
+            // the core accepts it, silent consumption otherwise — never an
+            // encoded byte, never an overlay dismissal.
+            port.history_wheel(&target.expected, event.button == MouseButton::WheelUp);
             return PointerOutcome::Handled;
         }
         let Some(frame) = probe.frame else {
@@ -880,6 +889,14 @@ impl PointerState {
         if !gesture.alive(probe) {
             self.gesture = Gesture::Idle;
             return PointerOutcome::Ignored;
+        }
+        if probe.viewport_non_live {
+            // The pane entered history mid-gesture: remaining events are
+            // consumed locally; only the release still ends the gesture.
+            if event.action == MouseAction::Release {
+                self.gesture = Gesture::Idle;
+            }
+            return PointerOutcome::Handled;
         }
         if event.mods.shift {
             // Shift hands the gesture to host selection mid-drag: the
@@ -1043,6 +1060,12 @@ impl PointerState {
         let Some(frame) = probe.frame else {
             return false;
         };
+        if probe.viewport_non_live {
+            // The focus settled onto a non-Live history pane: the queued
+            // press and everything behind it belong to the client overlay —
+            // consumed as a dead gesture, never replayed as pane bytes.
+            return true;
+        }
         let mut forwarder = PaneGesture {
             expected: pending.expected,
             viewport: pending.viewport,
