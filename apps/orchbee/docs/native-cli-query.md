@@ -98,9 +98,11 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   (`previous|next|first|last`), `panel split`, and `panel move` (`above|below|left|right`).
   Each word set is closed; a panel word on `tab move` or a missing/unknown word is
   `invalid-usage`.
-- `--cols <n>`, `--rows <n>`, `--cell-width <n>`, `--cell-height <n>`: the explicit terminal
-  geometry set; all four are required together on `tab create` and `panel split`, and each
-  takes one decimal `u16`. The combined grid cells and pixel extents must satisfy the
+- `--cols <n>`, `--rows <n>`, `--cell-width <n>`, `--cell-height <n>`: the terminal
+  geometry group on `tab create` and `panel split`, each taking one decimal `u16`. The
+  group is all-or-none: with all four absent the command requests the documented default
+  (80x24 logical grid, paired-zero unknown cell pixels); supplying any of the four requires
+  all four. The combined grid cells and pixel extents must satisfy the
   protocol `WorkbenchTerminalGeometry` bounds; a partial, repeated, non-numeric, or
   out-of-range set is `invalid-usage` before any runtime access.
 - `--exec <path>` / `--arg <value>`: the ephemeral launch selection, admitted only on
@@ -224,12 +226,12 @@ orchbee workspace rename <target> --label <label>
 orchbee workspace accept-directory <target> --path <path>
 orchbee worktree list --project <target> --directory <directory-id>
 orchbee tab list [--workspace <target> | --standalone] | tab get <target>
-orchbee tab create (--workspace <target> | --standalone) --label <label> <geometry> [--exec <path> [--arg <value>]... | --profile <selector>]
+orchbee tab create (--workspace <target> | --standalone) --label <label> [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>]
 orchbee tab rename <target> --label <label>
 orchbee tab move <target> --direction previous|next|first|last
 orchbee tab close <target> --confirm
 orchbee panel list [--tab <target>] | panel get <target>
-orchbee panel split <target> --direction above|below|left|right --label <label> <geometry> [--exec <path> [--arg <value>]... | --profile <selector>]
+orchbee panel split <target> --direction above|below|left|right --label <label> [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>]
 orchbee panel close <target> --confirm
 orchbee panel move <target> --target-panel <target> --direction above|below|left|right
 orchbee terminal list | terminal get <target> | terminal read <target> [--history --rows <1-1000>]
@@ -267,8 +269,9 @@ arguments or extra tokens (`project get x --help`, `status extra --help` are usa
 targets such as `help help`, `help version`, `help --version` are unknown paths → usage. Help,
 `--version`, `completion`, and `api schema` never touch platform, runtime, cohort, or Site state.
 
-`<geometry>` stands for the four required flags `--cols <n> --rows <n> --cell-width <n>
---cell-height <n>`.
+`[<geometry>]` stands for the optional all-or-none group `--cols <n> --rows <n>
+--cell-width <n> --cell-height <n>`; omitted, the command requests the default 80x24
+grid with unknown cell pixels (0,0).
 
 `help`, `completion`, `tui`, `--version`, and the bare invocation are fixed text outputs that do
 not accept `--format`; a single valid `--format=json` turns the resulting syntax failure into a
@@ -1182,8 +1185,11 @@ nor infers an idempotent success. A `committed` receipt carries the new `revisio
 Server-allocated `directoryId` and `workerId`, the resolved `projectId` and `workspaceId`,
 and the request's literal `path` (never a canonicalized form).
 
-Geometry is always explicit: a non-TTY invocation cannot inherit terminal dimensions, so
-`tab create` and `panel split` require all four flags. `--cols`/`--rows` are grid cells and
+Geometry is always explicit in the request: a non-TTY invocation cannot inherit terminal
+dimensions, so `tab create` and `panel split` accept the four flags as an all-or-none
+group whose omission requests the default 80x24 grid with the paired-zero (unknown)
+pixel pair — a CLI request policy materialized into the wire geometry, never a measured
+display fact. `--cols`/`--rows` are grid cells and
 `--cell-width`/`--cell-height` are per-cell pixel extents; every dimension is a `u16`
 bounded by the protocol `WorkbenchTerminalGeometry` validation before any runtime access.
 

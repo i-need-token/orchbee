@@ -79,10 +79,11 @@ provider 接入——对调用用户的 provider 配置做有界读取与受管�
   （`previous|next|first|last`）、`panel split` 与 `panel move`
   （`above|below|left|right`）上必填。词集各自封闭；`tab move` 上出现 panel 方向词或
   缺失/未知词均为 `invalid-usage`。
-- `--cols <n>`、`--rows <n>`、`--cell-width <n>`、`--cell-height <n>`：显式终端几何组；
-  四者在 `tab create` 与 `panel split` 上必须同时给出，各取一个十进制 `u16`。组合后的
-  格数与像素范围必须满足协议 `WorkbenchTerminalGeometry` 界限；缺项、重复、非数值或越界
-  均在任何运行时访问之前报 `invalid-usage`。
+- `--cols <n>`、`--rows <n>`、`--cell-width <n>`、`--cell-height <n>`：`tab create` 与
+  `panel split` 上的终端几何组，各取一个十进制 `u16`。该组为全有或全无：四个全部省略
+  时命令请求文档化默认值（80x24 逻辑网格、成对零的未知单元像素）；提供任何一个就必须
+  提供全部四个。组合后的格数与像素范围必须满足协议 `WorkbenchTerminalGeometry` 界限；
+  缺项、重复、非数值或越界均在任何运行时访问之前报 `invalid-usage`。
 - `--exec <path>` / `--arg <value>`：临时启动选择，仅 `tab create`、`panel split` 与
   `launch-profile create` 接受（后者必填，前两条 launch-bearing 修改命令上可选）。
   `--exec` 单次使用，取不含 NUL 的非空绝对 UTF-8 可执行文件路径。`--arg` 可重复，
@@ -184,12 +185,12 @@ orchbee workspace rename <target> --label <label>
 orchbee workspace accept-directory <target> --path <path>
 orchbee worktree list --project <target> --directory <directory-id>
 orchbee tab list [--workspace <target> | --standalone] | tab get <target>
-orchbee tab create (--workspace <target> | --standalone) --label <label> <geometry> [--exec <path> [--arg <value>]... | --profile <selector>]
+orchbee tab create (--workspace <target> | --standalone) --label <label> [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>]
 orchbee tab rename <target> --label <label>
 orchbee tab move <target> --direction previous|next|first|last
 orchbee tab close <target> --confirm
 orchbee panel list [--tab <target>] | panel get <target>
-orchbee panel split <target> --direction above|below|left|right --label <label> <geometry> [--exec <path> [--arg <value>]... | --profile <selector>]
+orchbee panel split <target> --direction above|below|left|right --label <label> [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>]
 orchbee panel close <target> --confirm
 orchbee panel move <target> --target-panel <target> --direction above|below|left|right
 orchbee terminal list | terminal get <target> | terminal read <target> [--history --rows <1-1000>]
@@ -226,8 +227,8 @@ orchbee <recognized path> -h|--help
 目标如 `help help`、`help version`、`help --version` 按未知路径 → usage。Help、`--version`、
 `completion` 与 `api schema` 绝不触碰平台、运行、cohort 或 Site 状态。
 
-`<geometry>` 代表四个必填 flag：`--cols <n> --rows <n> --cell-width <n>
---cell-height <n>`。
+`[<geometry>]` 代表可选的全有或全无组 `--cols <n> --rows <n> --cell-width <n>
+--cell-height <n>`；省略时命令请求默认的 80x24 网格与未知单元像素 (0,0)。
 
 `help`、`completion`、`tui`、`--version` 与裸调用是固定文本输出，不接受 `--format`；一个合法
 `--format=json` 会把随后产生的语法失败变成 JSON `invalid-usage` 失败文档，而 text/默认失败仍
@@ -990,9 +991,11 @@ worker 探测与 generation、乐观修订、资源上限保持权威：已持�
 分配的 `directoryId` 与 `workerId`、已解析的 `projectId` 与 `workspaceId`，以及请求的
 字面 `path`（永不为规范化形式）。
 
-几何永远显式：非 TTY 调用无法继承终端尺寸，故 `tab create` 与 `panel split` 要求四个 flag
-全部给出。`--cols`/`--rows` 为格数，`--cell-width`/`--cell-height` 为每格像素尺寸；每个
-维度都是 `u16`，并在任何运行时访问之前经协议 `WorkbenchTerminalGeometry` 校验。
+几何在请求中永远显式：非 TTY 调用无法继承终端尺寸，故 `tab create` 与 `panel split`
+把四个 flag 作为全有或全无组接受，整组省略时请求默认的 80x24 网格与成对零（未知）像素
+对——这是物化进 wire 几何的 CLI 请求策略，而非实测显示事实。`--cols`/`--rows` 为格数，
+`--cell-width`/`--cell-height` 为每格像素尺寸；每个维度都是 `u16`，并在任何运行时访问
+之前经协议 `WorkbenchTerminalGeometry` 校验。
 
 `tab create` 与 `panel split` 的启动经三种选择之一：解析出的默认 shell、显式
 `--exec`/`--arg` 对、或 `--profile <selector>`。selector 在命令中逐字透传——Server 在

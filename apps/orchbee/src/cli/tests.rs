@@ -402,6 +402,26 @@ fn fixed_outputs_are_far_below_the_bound() {
             "{locale:?} terminal family help lost the history explanation"
         );
     }
+    // The geometry-bearing command help must state the all-or-none group
+    // and the exact default so a partial-set refusal reads as intended.
+    for command in [CommandPath::TabCreate, CommandPath::PanelSplit] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let body = super::text::help(HelpTopic::Command(command), locale);
+            assert!(
+                body.contains("[--cols <n> --rows <n> --cell-width <px> --cell-height <px>]"),
+                "{locale:?} {command:?} help lost the optional geometry group"
+            );
+            for needle in match locale {
+                Locale::EnUs => ["all-or-none", "80x24"],
+                Locale::ZhCn => ["全有或全无", "80x24"],
+            } {
+                assert!(
+                    body.contains(needle),
+                    "{locale:?} {command:?} help lost '{needle}'"
+                );
+            }
+        }
+    }
 }
 
 #[test]

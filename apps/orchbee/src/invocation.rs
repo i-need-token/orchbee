@@ -3239,15 +3239,36 @@ fn directory_option(
     })
 }
 
-/// The four geometry flags parse as u16 dimensions and must satisfy the
-/// protocol geometry bounds (columns/rows 1..=4096, cell pixel dimensions
-/// 0..=4096 and both zero or both nonzero, grid ≤ 262144 cells, pixel extents
-/// ≤ 65535).
+/// The four geometry flags are an all-or-none group. With all four absent the
+/// command requests the documented default: an 80x24 logical grid with the
+/// protocol's paired-zero (unknown) cell pixel dimensions — a CLI request
+/// policy, never a probed display fact. With any flag present all four are
+/// required; each parses as a u16 dimension and must satisfy the protocol
+/// geometry bounds (columns/rows 1..=4096, cell pixel dimensions 0..=4096 and
+/// both zero or both nonzero, grid ≤ 262144 cells, pixel extents ≤ 65535).
 fn geometry_option(
     options: &Options,
     context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<WorkbenchTerminalGeometry, ParseFailure> {
+    if options.cols.is_none()
+        && options.rows.is_none()
+        && options.cell_width.is_none()
+        && options.cell_height.is_none()
+    {
+        return WorkbenchTerminalGeometry::new(80, 24, 0, 0).map_err(|_| {
+            usage_with(
+                UsageReason::InvalidGeometry {
+                    context,
+                    cols: 80,
+                    rows: 24,
+                    cell_width: 0,
+                    cell_height: 0,
+                },
+                envelope,
+            )
+        });
+    }
     let dimension = |slot: &Option<String>, flag: &'static str| -> Result<u16, ParseFailure> {
         let value = required(
             slot,

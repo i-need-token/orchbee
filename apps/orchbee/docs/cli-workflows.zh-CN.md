@@ -72,11 +72,14 @@ Workspace。`accept-directory` 返回 `result.directoryId`（以及
 
 ```sh
 TAB=$(orchbee tab create --workspace "$WS" --label shell \
-  --cols 80 --rows 24 --cell-width 8 --cell-height 16 \
   --format json | jq -er .result.tabId)
 ```
 
-四个几何参数均为必填。加 `--exec /abs/path [--arg v]...` 可以为这一次
+四个几何 flag 为全有或全无组：全部省略时请求 80x24 逻辑网格且单元像素
+为未知 (0,0)——这是请求策略而非实测显示事实；提供 `--cols`/`--rows`/
+`--cell-width`/`--cell-height` 中任何一个就必须提供全部四个，例如用
+`--cols 80 --rows 24 --cell-width 8 --cell-height 16` 覆盖默认值。
+加 `--exec /abs/path [--arg v]...` 可以为这一次
 请求替换默认 shell——每个逐字参数重复一次 `--arg`，不做 shell 分词；
 已安装的 provider 可执行文件也经由此途径启动，参数以该程序自身接受
 的为准。用 `--standalone` 代替 `--workspace` 可以选择独立上下文，或

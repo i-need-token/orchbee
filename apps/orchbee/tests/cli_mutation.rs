@@ -823,6 +823,84 @@ fn tab_create_in_workspace_context_resolves_context() -> TestResult {
     Ok(())
 }
 
+/// With all four geometry flags absent the request still carries an explicit
+/// geometry — the documented 80x24@(0,0) default — and the receipt echoes the
+/// spawned geometry back to the operator.
+#[test]
+fn tab_create_without_geometry_requests_the_default() -> TestResult {
+    let base = base_dir("tab-create-default-geometry");
+    let scope = stage_scope(&base);
+    let peer = spawn_peer(&scope, |stream| {
+        let snapshot_request = admit_and_serve_snapshot(&stream);
+        let command = read_command(&stream);
+        assert_command_base(&command, snapshot_request.as_str());
+        let WorkbenchAction::TabCreate {
+            terminal_context_id,
+            geometry,
+            ..
+        } = &command.action
+        else {
+            panic!("expected tab.create, got {:?}", command.action)
+        };
+        assert_eq!(
+            *geometry,
+            WorkbenchTerminalGeometry::new(80, 24, 0, 0).unwrap(),
+            "the request-bound geometry is the documented default"
+        );
+        command_response(
+            &stream,
+            command.request_id,
+            WorkbenchCommandOutcome::TabCreated {
+                revision: revision(8),
+                terminal_context_id: terminal_context_id.clone(),
+                tab_id: orchbee_workbench_protocol::WorkbenchTabId::parse(&id(0x69)).unwrap(),
+                panel_id: orchbee_workbench_protocol::WorkbenchPanelId::parse(&id(0x6a)).unwrap(),
+                presentation_id: orchbee_workbench_protocol::TerminalPresentationId::parse(&id(
+                    0x6b,
+                ))
+                .unwrap(),
+                terminal_outcome: WorkbenchTerminalOutcome::Started {
+                    geometry: *geometry,
+                },
+            },
+        );
+    });
+    let output = run(
+        &base,
+        &[
+            "tab",
+            "create",
+            "--standalone",
+            "--label",
+            "scratch",
+            "--format=json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document = envelope(&output);
+    assert_eq!(document["result"]["action"], "tab.create");
+    assert_eq!(document["result"]["outcome"], "committed");
+    assert_eq!(document["result"]["terminal"]["outcome"], "started");
+    assert_eq!(document["result"]["terminal"]["geometry"]["columns"], 80);
+    assert_eq!(document["result"]["terminal"]["geometry"]["rows"], 24);
+    assert_eq!(
+        document["result"]["terminal"]["geometry"]["cellPixelWidth"],
+        0
+    );
+    assert_eq!(
+        document["result"]["terminal"]["geometry"]["cellPixelHeight"],
+        0
+    );
+    assert!(compiled_schema(&base, "orchbee.mutation.result").is_valid(&document));
+    Ok(())
+}
+
 #[test]
 fn tab_rename_move_and_close_each_submit_one_command() -> TestResult {
     let base = base_dir("tab-ops");
@@ -2711,7 +2789,18 @@ fn mutation_usage_failures_precede_runtime_access() -> TestResult {
     let cases: &[&[&str]] = &[
         &["workspace", "create", "--label", "x"],
         &["workspace", "create", "--project", "p"],
-        &["tab", "create", "--workspace", "w", "--label", "t"],
+        // A partial geometry set is still a usage failure before any
+        // runtime access — the group is all-or-none.
+        &[
+            "tab",
+            "create",
+            "--workspace",
+            "w",
+            "--label",
+            "t",
+            "--cols",
+            "80",
+        ],
         &[
             "tab",
             "create",

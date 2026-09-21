@@ -1152,20 +1152,135 @@ fn geometry_bearing_commands_require_the_whole_geometry() {
         ))
     );
 
-    // Any missing dimension rejects the whole command.
-    for missing in ["--cols", "--rows", "--cell-width", "--cell-height"] {
-        let mut arguments = vec!["tab", "create", "--standalone", "--label", "t"];
-        for pair in GEOMETRY_ARGS.chunks(2) {
-            if pair[0] != missing {
-                arguments.extend(pair);
+    // Every non-empty proper subset of the all-or-none group rejects the
+    // whole command on both geometry-bearing commands — including `--rows`
+    // alone, which keeps its geometry meaning here (never history's).
+    for present in 1u8..0b1111 {
+        for prefix in [
+            vec!["tab", "create", "--standalone", "--label", "t"],
+            vec!["panel", "split", ID, "--direction", "right", "--label", "p"],
+        ] {
+            let mut arguments = prefix;
+            for (bit, pair) in GEOMETRY_ARGS.chunks(2).enumerate() {
+                if present & (1 << bit) != 0 {
+                    arguments.extend(pair);
+                }
             }
+            assert_eq!(
+                parse(&arguments),
+                Err(usage(FailureEnvelope::Text)),
+                "{arguments:?}"
+            );
         }
+    }
+}
+
+#[test]
+fn geometry_bearing_commands_default_the_whole_geometry() {
+    // All four flags absent requests the documented default: an 80x24
+    // logical grid with the paired-zero (unknown) cell pixel pair.
+    let default =
+        WorkbenchTerminalGeometry::new(80, 24, 0, 0).expect("default geometry is protocol-valid");
+    for arguments in [
+        vec!["tab", "create", "--standalone", "--label", "t"],
+        vec!["tab", "create", "--workspace", "main", "--label", "t"],
+    ] {
+        let context = if arguments.contains(&"--standalone") {
+            TabContext::Standalone
+        } else {
+            TabContext::Workspace(Target::Label("main".into()))
+        };
         assert_eq!(
             parse(&arguments),
-            Err(usage(FailureEnvelope::Text)),
+            Ok(mutation(
+                MutationCommand::TabCreate {
+                    context,
+                    label: label("t"),
+                    geometry: default,
+                    launch: None,
+                    profile: None,
+                },
+                OutputFormat::Text
+            )),
             "{arguments:?}"
         );
     }
+    assert_eq!(
+        parse(&["panel", "split", ID, "--direction", "right", "--label", "p"]),
+        Ok(mutation(
+            MutationCommand::PanelSplit {
+                target: Target::Id(ID.into()),
+                direction: WorkbenchPanelSplitDirection::Right,
+                label: label("p"),
+                geometry: default,
+                launch: None,
+                profile: None,
+            },
+            OutputFormat::Text
+        ))
+    );
+
+    // The parsed default is the request-bound value verbatim: the action
+    // document carries the explicit 80x24@(0,0) geometry the protocol
+    // already admits — the same wire form as explicit zero flags.
+    assert_eq!(
+        serde_json::to_value(default).expect("geometry serializes"),
+        serde_json::json!({
+            "columns": 80,
+            "rows": 24,
+            "cellPixelWidth": 0,
+            "cellPixelHeight": 0,
+        })
+    );
+
+    // The default composes with launch selection and output format
+    // unchanged: --exec/--arg, --profile, and --format stay orthogonal.
+    assert_eq!(
+        parse(&[
+            "tab",
+            "create",
+            "--standalone",
+            "--label",
+            "t",
+            "--exec",
+            "/bin/sh",
+            "--arg",
+            "-lc",
+        ]),
+        Ok(mutation(
+            MutationCommand::TabCreate {
+                context: TabContext::Standalone,
+                label: label("t"),
+                geometry: default,
+                launch: launch("/bin/sh", &["-lc"]),
+                profile: None,
+            },
+            OutputFormat::Text
+        ))
+    );
+    assert_eq!(
+        parse(&[
+            "tab",
+            "create",
+            "--standalone",
+            "--label",
+            "t",
+            "--profile",
+            "dev",
+            "--format",
+            "json",
+        ]),
+        Ok(mutation(
+            MutationCommand::TabCreate {
+                context: TabContext::Standalone,
+                label: label("t"),
+                geometry: default,
+                launch: None,
+                profile: Some(profile_selector("dev")),
+            },
+            OutputFormat::Json
+        ))
+    );
 }
 
 #[test]
@@ -2817,7 +2932,17 @@ fn usage_failures_carry_their_concrete_reason() {
             },
         ),
         (
-            &["tab", "create", "--standalone", "--label", "t"],
+            // A partial geometry set still refuses with the fixed
+            // first-missing-flag diagnostic: `--cols` precedes `--rows`.
+            &[
+                "tab",
+                "create",
+                "--standalone",
+                "--label",
+                "t",
+                "--rows",
+                "24",
+            ],
             UsageReason::MissingRequired {
                 context: path("tab create"),
                 requirement: "'--cols'",
