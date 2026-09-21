@@ -952,10 +952,14 @@ RelayHostToWorker(session) ==
        historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes>>
 
 \* The worker poll is a two-source arbitration: the frame record slot and the
-\* history event FIFO. The preferred source wins when both are readable; a
-\* single readable source is always served; a completed take flips the
-\* preference to the other source, so a continuously pending head is overtaken
-\* by the other source at most once.
+\* history event FIFO. The preferred source wins when both are pending; a
+\* single pending source is always served once its destination has room; a
+\* completed take flips the preference to the other source, so a continuously
+\* pending head is overtaken by the other source at most once. Each source
+\* additionally requires room in its own destination queue — a full
+\* destination stalls the abstract transfer and never diverts the poll to the
+\* other source. That stall abstracts a later relay hop and is not an input
+\* to the real preference.
 RelayWorkerToServer(session) ==
   /\ Scenario \in ProjectionScenarios
   /\ TerminalPathAvailable
@@ -963,7 +967,6 @@ RelayWorkerToServer(session) ==
   /\ Len(serverClientQueues[session]) < MaxQueueDepth
   /\ \/ workerPreference[session] = "record"
      \/ workerHistoryQueues[session] = <<>>
-     \/ Len(serverClientHistory[session]) >= MaxHistoryQueueDepth
   /\ serverClientQueues' =
        [serverClientQueues EXCEPT
          ![session] = Append(@, Head(workerServerQueues[session]))]
@@ -1066,6 +1069,10 @@ HistoryOverflowClose(session) ==
        controlKind, controlRequestId, controlSequence, controlRejections,
        workerProgress>>
 
+\* The history half of the two-source arbitration documented at
+\* RelayWorkerToServer: the preference or an empty record queue admits the
+\* take, the event's own destination still requires room, and the frame
+\* queue's state never diverts the poll between sources.
 WorkerPollHistory(session) ==
   /\ Scenario = "history-relay"
   /\ TerminalPathAvailable
@@ -1073,7 +1080,6 @@ WorkerPollHistory(session) ==
   /\ Len(serverClientHistory[session]) < MaxHistoryQueueDepth
   /\ \/ workerPreference[session] = "history"
      \/ workerServerQueues[session] = <<>>
-     \/ Len(serverClientQueues[session]) >= MaxQueueDepth
   /\ serverClientHistory' =
        [serverClientHistory EXCEPT
          ![session] = Append(@, Head(workerHistoryQueues[session]))]
