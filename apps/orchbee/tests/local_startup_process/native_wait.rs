@@ -5,7 +5,7 @@
 //! exits the command contracts. The controlling TUI is never disturbed and
 //! the session stays usable for further queries afterwards.
 
-use super::native_cli_query::{run_json, validate, validators};
+use super::native_cli_query::{expect_success, run_json, validate, validators};
 use super::*;
 use nix::sys::signal::{Signal, kill};
 use nix::unistd::Pid;
@@ -69,7 +69,7 @@ impl Drop for Reap {
 
 fn terminal_ids(fixture: &Fixture) -> Vec<String> {
     let (output, terminals) = run_json(fixture, &["terminal", "list", "--format", "json"]);
-    assert_eq!(output.status.code(), Some(0));
+    expect_success(&["terminal", "list", "--format", "json"], &output);
     terminals["result"]["terminals"]
         .as_array()
         .expect("terminal list rows")

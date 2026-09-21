@@ -64,14 +64,47 @@ pub(super) fn run_cli(fixture: &Fixture, arguments: &[&str]) -> Output {
 pub(super) fn run_json(fixture: &Fixture, arguments: &[&str]) -> (Output, serde_json::Value) {
     let output = run_cli(fixture, arguments);
     let document: serde_json::Value = serde_json::from_slice(&output.stdout)
-        .unwrap_or_else(|error| panic!("{arguments:?} JSON document: {error}"));
+        .unwrap_or_else(|error| panic!("{}: {error}", describe_output(arguments, &output)));
     (output, document)
+}
+
+/// Bounded one-line rendering of a finished CLI call: the arguments, exit
+/// status, and both streams (each capped so a panic message stays small).
+/// A failed setup or parse then carries the typed failure envelope — and its
+/// private diagnostic text — instead of a bare exit code.
+fn describe_output(arguments: &[&str], output: &Output) -> String {
+    const STREAM_BOUND: usize = 4096;
+    let bounded = |bytes: &[u8]| {
+        let text = String::from_utf8_lossy(bytes);
+        match text.char_indices().nth(STREAM_BOUND) {
+            Some((boundary, _)) => format!("{}…<truncated>", &text[..boundary]),
+            None => text.into_owned(),
+        }
+    };
+    format!(
+        "{arguments:?} exited {:?}; stdout: {}; stderr: {}",
+        output.status.code(),
+        bounded(&output.stdout),
+        bounded(&output.stderr),
+    )
+}
+
+/// Assert a captured CLI call exited 0. The panic keeps the bounded
+/// arguments, status, and both streams — a setup failure reports the typed
+/// failure document, not just `left: Some(1)`.
+pub(super) fn expect_success(arguments: &[&str], output: &Output) {
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        describe_output(arguments, output)
+    );
 }
 
 /// One `api schema` call returns every embedded schema; compile them all once.
 pub(super) fn validators(fixture: &Fixture) -> BTreeMap<String, jsonschema::Validator> {
     let (output, document) = run_json(fixture, &["api", "schema", "--format", "json"]);
-    assert_eq!(output.status.code(), Some(0));
+    expect_success(&["api", "schema", "--format", "json"], &output);
     document["result"]["schemas"]
         .as_object()
         .expect("schemas map")

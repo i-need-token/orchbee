@@ -16,7 +16,12 @@ struct SnapshotObserver {
 }
 
 impl SnapshotObserver {
-    fn connect(fixture: &Fixture, deadline: Instant) -> Result<Self, Box<dyn Error>> {
+    /// Connecting is fixture preparation — the cohort load and session
+    /// admission carry their own startup budget; callers must complete it
+    /// before opening the observation window so a slow hash cannot consume
+    /// the budget the test intends to spend watching the shell.
+    fn connect(fixture: &Fixture) -> Result<Self, Box<dyn Error>> {
+        let deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
         let cohort = NativeCohort::load(&fixture.cohort, deadline)
             .map_err(|error| format!("observer cohort: {error}"))?;
         let admitted = ClientSessionConnection::connect_before(
@@ -118,11 +123,14 @@ fn localized_cancel_and_ordinary_exit_keep_the_exact_native_shell() -> TestResul
             Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
             copy,
         );
+        // Observer preparation runs before the observation window opens:
+        // connect carries its own startup budget, then the unchanged 5s
+        // deadline covers exactly the shell proof and the baseline snapshot.
+        let mut observer = SnapshotObserver::connect(&fixture)?;
         let deadline = Instant::now() + OBSERVATION_TIMEOUT;
         client.send(shell_identity_command(&fixture, "retained", "before", true).as_bytes());
         let before = wait_file(&fixture.base.join("before"), &mut [&mut client], deadline);
         require_shell_identity(&before, "retained");
-        let mut observer = SnapshotObserver::connect(&fixture, deadline)?;
         let baseline = observer.snapshot(deadline)?;
 
         prompt(&mut client, copy);
@@ -247,8 +255,10 @@ fn view_only_close_reaches_empty_then_manual_create_survives_bare_reopen() -> Te
         "1",
         ReadyMode::ViewOnly,
     );
+    // Same separation: observer preparation completes before the baseline
+    // observation window is created.
+    let mut observer = SnapshotObserver::connect(&fixture)?;
     let deadline = Instant::now() + OBSERVATION_TIMEOUT;
-    let mut observer = SnapshotObserver::connect(&fixture, deadline)?;
     let baseline = observer.snapshot(deadline)?;
     let context = baseline
         .terminal_contexts

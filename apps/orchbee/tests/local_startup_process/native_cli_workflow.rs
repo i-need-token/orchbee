@@ -417,12 +417,22 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
             &fixture,
             &["terminal", "read", terminal, "--format", "json"],
         );
-        assert_eq!(
-            output.status.code(),
-            Some(0),
-            "terminal read: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        if output.status.code() != Some(0) {
+            // A handled failure still emits its typed document on stdout —
+            // report it alongside stderr. The cohort revalidation below
+            // describes only the fixture directory's LATER state; the
+            // child's original io error kind is not recoverable from the
+            // mapped failure.
+            let recheck =
+                NativeCohort::load(&fixture.cohort, Instant::now() + Duration::from_secs(20))
+                    .map(|_| "ok".to_owned())
+                    .unwrap_or_else(|error| format!("{error:?}"));
+            panic!(
+                "terminal read: {} failure document: {frame} \
+                 fixture cohort state after the failure: {recheck}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
         validate(&validators, "orchbee.terminal.read", &output);
         let rows = frame_rows(&frame);
         assert_eq!(

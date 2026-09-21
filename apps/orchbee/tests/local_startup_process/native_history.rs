@@ -1,4 +1,4 @@
-use super::native_cli_query::{run_cli, run_json, validate, validators};
+use super::native_cli_query::{expect_success, run_cli, run_json, validate, validators};
 use super::pty_client::{COLUMNS, ROWS};
 use super::*;
 use std::process::Output;
@@ -32,7 +32,7 @@ fn scrollback_rows(document: &serde_json::Value) -> u64 {
 
 fn terminal_ids(fixture: &Fixture) -> Vec<String> {
     let (output, terminals) = run_json(fixture, &["terminal", "list", "--format", "json"]);
-    assert_eq!(output.status.code(), Some(0));
+    expect_success(&["terminal", "list", "--format", "json"], &output);
     terminals["result"]["terminals"]
         .as_array()
         .expect("terminal list rows")

@@ -7,7 +7,7 @@
 //! On this base the `send` subcommand does not exist yet, so this file is
 //! compile-checked only and recorded EXPECTED-RED until A9 integrates Send.
 
-use super::native_cli_query::{run_cli, run_json, validate, validators};
+use super::native_cli_query::{expect_success, run_cli, run_json, validate, validators};
 use super::*;
 use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
 use rustix::process::{Pid, PidfdFlags, pidfd_open};
@@ -79,7 +79,7 @@ fn assert_key_bytes(receipt: &serde_json::Value, key: &str) {
 /// Bound terminal ids through the public `terminal list` surface.
 fn terminal_ids(fixture: &Fixture) -> Vec<String> {
     let (output, document) = run_json(fixture, &["terminal", "list", "--format", "json"]);
-    assert_eq!(output.status.code(), Some(0));
+    expect_success(&["terminal", "list", "--format", "json"], &output);
     document["result"]["terminals"]
         .as_array()
         .expect("terminal list rows")

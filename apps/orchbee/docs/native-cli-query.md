@@ -310,7 +310,9 @@ sequence on Linux; the first failing stage wins and determines the failure:
 1. **Cohort** — `NativeCohort::current` under one checked 5-second monotonic deadline
    (`Instant::now().checked_add(5s)`; a failed `checked_add` is `internal-failure`, exit 1).
    Any cohort error (missing, invalid, unsafe, hash mismatch, cooperative deadline) is
-   `check-failed` stage `cohort`.
+   `check-failed` stage `cohort`. The localized stderr diagnostic additionally reports
+   the observed `io::ErrorKind` — and the raw OS error number when one exists — without
+   paths, OS message text, or a causal claim; the machine record is unchanged.
 2. **Discovery** — resolve `ORCHBEE_RUNTIME_BASE`/default, then
    `ModeCheckedLocalSiteRendezvous::validate_mode_checked` (`ExistingOnly`, no mkdir, no lock).
    Classification uses the typed `RendezvousError` path compared with the resolved

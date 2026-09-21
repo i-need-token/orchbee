@@ -346,6 +346,7 @@ fn usage(option: &'static str, value: Option<String>, cause: SendSourceCause) ->
         details: None,
         source: None,
         failure_schema: None,
+        io_diagnostic: None,
         usage: Some(Box::new(UsageReason::SendSource {
             option,
             value,

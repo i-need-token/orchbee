@@ -951,10 +951,32 @@ impl Locale {
             .and_then(|value| value.as_str())
             .unwrap_or("");
         match (self, stage) {
-            (Self::EnUs, "cohort") => {
-                "The native development cohort is missing, changed, or invalid.\n".to_owned()
-            }
-            (Self::ZhCn, "cohort") => "原生开发 cohort 缺失、已修改或无效。\n".to_owned(),
+            // The cohort check retains its observed io::ErrorKind (and the OS
+            // error number when one exists) as private diagnostic data: the
+            // message reports exactly what was observed — never a guess that
+            // the artifacts are missing or corrupted.
+            (Self::EnUs, "cohort") => match &failure.io_diagnostic {
+                Some(observed) => format!(
+                    "The native development cohort could not be validated (I/O kind: {:?}{}).\n",
+                    observed.kind,
+                    observed
+                        .raw_os_error
+                        .map(|code| format!(", OS error: {code}"))
+                        .unwrap_or_default(),
+                ),
+                None => "The native development cohort could not be validated.\n".to_owned(),
+            },
+            (Self::ZhCn, "cohort") => match &failure.io_diagnostic {
+                Some(observed) => format!(
+                    "无法验证原生开发 cohort（I/O 类型：{:?}{}）。\n",
+                    observed.kind,
+                    observed
+                        .raw_os_error
+                        .map(|code| format!("，OS 错误码：{code}"))
+                        .unwrap_or_default(),
+                ),
+                None => "无法验证原生开发 cohort。\n".to_owned(),
+            },
             (Self::EnUs, "platform") => {
                 let command = failure
                     .details

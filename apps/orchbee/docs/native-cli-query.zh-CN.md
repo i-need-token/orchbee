@@ -260,7 +260,8 @@ canonical 遍历次序报告至多前 8 个候选 typed ID 与真实 `totalCount
 1. **Cohort** —— `NativeCohort::current` 在一个 checked 5 秒单调 deadline 下运行
    （`Instant::now().checked_add(5s)`；`checked_add` 失败为 `internal-failure`、退出 1）。
    任何 cohort 错误（缺失、非法、不安全、散列不符、协作式 deadline）都是 `check-failed`、
-   stage `cohort`。
+   stage `cohort`。本地化 stderr 诊断额外报告观测到的 `io::ErrorKind`——存在原始 OS
+   错误码时一并报告——不含路径、OS 消息文本或因果断言；机器记录不变。
 2. **Discovery** —— 解析 `ORCHBEE_RUNTIME_BASE`/默认值，然后
    `ModeCheckedLocalSiteRendezvous::validate_mode_checked`（`ExistingOnly`，不 mkdir、不取锁）。
    分类使用 `RendezvousError` 的 typed path 与已解析 `runtime_base`/`runtime_base.join(scope)`

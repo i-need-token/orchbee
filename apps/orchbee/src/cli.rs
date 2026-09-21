@@ -192,6 +192,20 @@ pub(crate) struct Failure {
     /// bounded command family (`worktree list`); `None` is the shared
     /// `orchbee.cli.failure` document.
     pub(crate) failure_schema: Option<&'static str>,
+    /// Observed I/O detail retained from the native cohort check: the
+    /// technical `io::ErrorKind` plus the OS error number when one exists.
+    /// Carried to the localized stderr diagnostic only and never serialized
+    /// — same rule as `usage`; Boxed so it never enlarges the hot Result.
+    pub(crate) io_diagnostic: Option<Box<IoDiagnostic>>,
+}
+
+/// The bounded technical detail a cohort-check failure observed: the std
+/// `io::ErrorKind` and, when the OS reported one, its error number. This is
+/// observed data, not a classified reason vocabulary.
+#[derive(Debug)]
+pub(crate) struct IoDiagnostic {
+    pub(crate) kind: std::io::ErrorKind,
+    pub(crate) raw_os_error: Option<i32>,
 }
 
 impl Failure {
@@ -202,6 +216,7 @@ impl Failure {
             source: None,
             usage: None,
             failure_schema: None,
+            io_diagnostic: None,
         }
     }
 
@@ -219,6 +234,18 @@ impl Failure {
     /// post-boundary failures carry it.
     pub(crate) fn failure_schema(mut self, schema_id: &'static str) -> Self {
         self.failure_schema = Some(schema_id);
+        self
+    }
+
+    /// Retain the observed I/O kind (and OS error number when one exists) for
+    /// the localized stderr diagnostic. Only the Linux native-cohort check
+    /// produces this today.
+    #[cfg(target_os = "linux")]
+    pub(crate) fn io_diagnostic(mut self, error: &std::io::Error) -> Self {
+        self.io_diagnostic = Some(Box::new(IoDiagnostic {
+            kind: error.kind(),
+            raw_os_error: error.raw_os_error(),
+        }));
         self
     }
 }
@@ -346,6 +373,7 @@ pub(crate) fn parse_failure(failure: ParseFailure, locale: Locale) -> Output {
         source: None,
         usage: failure.usage.map(Box::new),
         failure_schema: None,
+        io_diagnostic: None,
     };
     let format = match failure.envelope {
         crate::invocation::FailureEnvelope::Json => Some(OutputFormat::Json),

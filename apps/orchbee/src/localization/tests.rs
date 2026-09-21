@@ -717,6 +717,7 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
         details: None,
         source: None,
         failure_schema: None,
+        io_diagnostic: None,
         usage: Some(Box::new(usage)),
     };
 
@@ -778,6 +779,7 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
         details: None,
         source: None,
         failure_schema: None,
+        io_diagnostic: None,
         usage: None,
     };
     assert_eq!(
@@ -798,10 +800,95 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
         ])),
         source: None,
         failure_schema: None,
+        io_diagnostic: None,
         usage: None,
     };
     assert_eq!(
         Locale::EnUs.cli_failure(&failure),
         "No tab matches \"x\".\n"
+    );
+}
+
+/// A cohort-check failure retains the observed `io::ErrorKind` — and the OS
+/// error number when one exists — for the localized stderr diagnostic. The
+/// machine document, stage detail, and exit code are the unchanged
+/// `check-failed`/`cohort` contract; the diagnostic never serializes.
+#[cfg(target_os = "linux")]
+#[test]
+fn cli_cohort_failure_reports_the_observed_io_kind() {
+    use crate::cli::{Failure, FailureKind, failure_output, stage_details};
+    use crate::invocation::OutputFormat;
+    use serde_json::json;
+
+    let cohort_failure = |error: &std::io::Error| {
+        Failure::new(FailureKind::CheckFailed)
+            .details(stage_details("cohort"))
+            .io_diagnostic(error)
+    };
+
+    // A real OS error keeps its kind and its number in both locales.
+    let failure = cohort_failure(&std::io::Error::from_raw_os_error(110));
+    assert_eq!(
+        Locale::EnUs.cli_failure(&failure),
+        "The native development cohort could not be validated \
+         (I/O kind: TimedOut, OS error: 110).\n"
+    );
+    assert_eq!(
+        Locale::ZhCn.cli_failure(&failure),
+        "无法验证原生开发 cohort（I/O 类型：TimedOut，OS 错误码：110）。\n"
+    );
+
+    // A permission error reports its own kind — never a missing/corrupt
+    // guess. Exact equality also proves the bound: no path and none of the
+    // OS message's free-form text ("Permission denied (os error 13)") leaks.
+    let failure = cohort_failure(&std::io::Error::from_raw_os_error(13));
+    assert_eq!(
+        Locale::EnUs.cli_failure(&failure),
+        "The native development cohort could not be validated \
+         (I/O kind: PermissionDenied, OS error: 13).\n"
+    );
+
+    // A synthetic error without an OS number reports the observed kind only;
+    // the arbitrary payload string never reaches stderr.
+    let failure = cohort_failure(&std::io::Error::other(
+        "arbitrary free text that must not leak",
+    ));
+    assert_eq!(
+        Locale::EnUs.cli_failure(&failure),
+        "The native development cohort could not be validated (I/O kind: Other).\n"
+    );
+    assert_eq!(
+        Locale::ZhCn.cli_failure(&failure),
+        "无法验证原生开发 cohort（I/O 类型：Other）。\n"
+    );
+
+    // A cohort failure that never carried the diagnostic (an envelope built
+    // without the private data) still answers with the plain message.
+    let failure = Failure::new(FailureKind::CheckFailed).details(stage_details("cohort"));
+    assert_eq!(
+        Locale::EnUs.cli_failure(&failure),
+        "The native development cohort could not be validated.\n"
+    );
+    assert_eq!(
+        Locale::ZhCn.cli_failure(&failure),
+        "无法验证原生开发 cohort。\n"
+    );
+
+    // The emitted document and exit stay exactly the existing contract —
+    // no io detail ever reaches stdout even when the diagnostic is present.
+    let output = failure_output(
+        cohort_failure(&std::io::Error::from_raw_os_error(110)),
+        Some(OutputFormat::Json),
+        Locale::EnUs,
+    );
+    assert_eq!(output.status, 1);
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(
+        document,
+        json!({
+            "schema": "orchbee.cli.failure",
+            "version": 1,
+            "failure": {"kind": "check-failed", "details": {"stage": "cohort"}},
+        })
     );
 }

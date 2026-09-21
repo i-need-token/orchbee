@@ -39,6 +39,10 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
 const EXCHANGE_TIMEOUT: Duration = Duration::from_secs(15);
+/// In-process participants must stamp a first qualified warm success within
+/// this cut of the common warm start; burst (real CLI process) slots share
+/// the same start and are judged at the CLI_CHILD_WATCHDOG envelope instead
+/// — one fixed boundary per slot class, never an adaptive extension.
 const WARM_WINDOW: Duration = Duration::from_secs(4);
 /// In-process participants must stamp a first qualified success within this
 /// cut of the common armed start; burst (real CLI process) slots share the
@@ -139,6 +143,12 @@ struct Counters {
     unknown: AtomicUsize,
     cycles: AtomicUsize,
     progress: Vec<AtomicUsize>,
+    /// Warm-phase first-success ledger: one `Instant` per initial
+    /// participant, stamped inside this lock only on the same qualified
+    /// served-success branches that bump `progress`. The first stamp is
+    /// retained for the whole warm phase — never overwritten or cleared —
+    /// and stays distinct from the recovery oracle's armed ledger.
+    warm_first: Mutex<Vec<Option<Instant>>>,
     epoch: Instant,
     cycle_begin: Vec<AtomicU64>,
     cycle_end: Vec<AtomicU64>,
@@ -160,6 +170,7 @@ impl Counters {
             unknown: AtomicUsize::new(0),
             cycles: AtomicUsize::new(0),
             progress: (0..participants).map(|_| AtomicUsize::new(0)).collect(),
+            warm_first: Mutex::new(vec![None; participants]),
             epoch: Instant::now(),
             cycle_begin: (0..participants).map(|_| AtomicU64::new(0)).collect(),
             cycle_end: (0..participants).map(|_| AtomicU64::new(0)).collect(),
@@ -176,6 +187,38 @@ impl Counters {
 
     fn mark_end(&self, slot: usize) {
         self.cycle_end[slot].store(self.since_epoch(), Ordering::Relaxed);
+    }
+
+    /// Record one qualified warm success for `slot` at an explicit instant —
+    /// the deterministic oracle drives this directly; only the first stamp
+    /// is ever retained.
+    fn record_warm_success(&self, slot: usize, now: Instant) {
+        let mut stamps = self.warm_first.lock().unwrap();
+        if stamps[slot].is_none() {
+            stamps[slot] = Some(now);
+        }
+    }
+
+    /// Stamp the current instant as `slot`'s first qualified warm success —
+    /// called only from the same branches that bump `progress`. The clock
+    /// is sampled inside the ledger lock: the stamp is the observation
+    /// itself, not a reading taken before it.
+    fn mark_warm_served(&self, slot: usize) {
+        let mut stamps = self.warm_first.lock().unwrap();
+        if stamps[slot].is_none() {
+            stamps[slot] = Some(Instant::now());
+        }
+    }
+
+    /// The retained first qualified warm-success stamp for `slot`, if any.
+    fn warm_stamp(&self, slot: usize) -> Option<Instant> {
+        self.warm_first.lock().unwrap()[slot]
+    }
+
+    /// Whether `slot` retains a first success at or before `cut` — a stamp
+    /// recorded after the cut is kept in the ledger but cannot qualify.
+    fn warm_qualified(&self, slot: usize, cut: Instant) -> bool {
+        self.warm_stamp(slot).is_some_and(|stamp| stamp <= cut)
     }
 
     /// Per-participant phase state at a cut: progress value, last cycle
@@ -945,6 +988,7 @@ fn wait_like(slot: usize, index: usize, rows: &[Binding], ctx: &LaneCtx<'_>) -> 
                 bump(&counters.cycles);
                 if served {
                     bump(&counters.progress[slot]);
+                    counters.mark_warm_served(slot);
                     recovery.record_success(slot);
                 }
             }
@@ -1081,6 +1125,7 @@ fn tui_like(
             bump(&counters.cycles);
             if served {
                 bump(&counters.progress[slot]);
+                counters.mark_warm_served(slot);
                 recovery.record_success(slot);
             }
             counters.mark_end(slot);
@@ -1159,6 +1204,7 @@ fn coordinator(slot: usize, dedicated: &Binding, ctx: &LaneCtx<'_>) -> Result<()
             bump(&counters.detached);
             bump(&counters.cycles);
             bump(&counters.progress[slot]);
+            counters.mark_warm_served(slot);
             recovery.record_success(slot);
         } else {
             bump(&counters.unavailable);
@@ -1237,6 +1283,7 @@ fn burst(
                         bump(&counters.records);
                         bump(&counters.cycles);
                         bump(&counters.progress[slot]);
+                        counters.mark_warm_served(slot);
                         recovery.record_success(slot);
                     }
                     Some(4) if kind == "session-capacity" && stage == "admission" => {
@@ -1583,9 +1630,11 @@ fn c1_capacity_process_witness() -> TestResult {
         }
 
         let witness = (|| -> Result<(), String> {
-            // Admission itself is serial server work: the warm window only
-            // starts once every promised participant is actually in service,
-            // so connect latency can never be misread as stalled progress.
+            // Admission itself is serial server work: the warm observation
+            // budget opens only after every promised participant is in
+            // flight. `ready` marks in-process lanes admitted and burst
+            // lanes begun — a burst child's own admission runs inside its
+            // lifecycle envelope, inside the shared warm budget.
             let ready_deadline = Instant::now() + PROBE_TIMEOUT * 2;
             while ready.load(Ordering::Relaxed) < participants {
                 if failed.load(Ordering::Relaxed) > 0 {
@@ -1603,16 +1652,84 @@ fn c1_capacity_process_witness() -> TestResult {
                 }
                 thread::sleep(Duration::from_millis(50));
             }
-            let warm_deadline = Instant::now() + WARM_WINDOW;
-            while Instant::now() < warm_deadline {
+            // One common warm start after all ready stamps: in-process lanes
+            // keep the 4s warm window; real CLI burst lanes are judged at
+            // the same 12s CLI_CHILD_WATCHDOG envelope that bounds each
+            // burst child's own run — one fixed cut per slot class, never an
+            // adaptive extension or per-slot reset.
+            let warm_start = Instant::now();
+            let in_process = profile.wait_like + 1 + profile.tui_like;
+            let in_process_cut = warm_start + WARM_WINDOW;
+            let burst_cut = warm_start + CLI_CHILD_WATCHDOG;
+
+            // In-process cut: hold the full fixed 4s observation interval —
+            // no lane is judged before the cut regardless of how early its
+            // stamp lands; only a real participant failure ends the wait
+            // early. Verdicts are then frozen on the retained first-success
+            // stamps: a lane that wakes after the cut cannot launder a late
+            // success into a pass.
+            while Instant::now() < in_process_cut {
+                if failed.load(Ordering::Relaxed) > 0 {
+                    return Err(format!(
+                        "{} participant(s) failed during the warm window",
+                        failed.load(Ordering::Relaxed)
+                    ));
+                }
                 thread::sleep(Duration::from_millis(50));
             }
-            // End-ledger first half: every promised participant — not only the
-            // aggregate — made progress inside the warm window.
-            for (participant, progressed) in counters.progress.iter().enumerate() {
-                if progressed.load(Ordering::Relaxed) == 0 {
-                    return Err(format!("participant {participant} made no warm progress"));
+            let mut missed = Vec::new();
+            for slot in 0..in_process {
+                if !counters.warm_qualified(slot, in_process_cut) {
+                    let stamp = counters
+                        .warm_stamp(slot)
+                        .map(|instant| format!("+{:?}", instant.duration_since(warm_start)))
+                        .unwrap_or_else(|| "missing".to_owned());
+                    missed.push(format!(
+                        "participant {slot} first={stamp} {}",
+                        counters.phase_line(slot)
+                    ));
                 }
+            }
+            if !missed.is_empty() {
+                return Err(format!(
+                    "in-process participants missed the 4s warm cut: {}",
+                    missed.join("; ")
+                ));
+            }
+
+            // Burst lanes: every promised real-CLI slot — not only the
+            // aggregate — must retain a first served success at or before
+            // the 12s envelope before quiescence begins; the recovery phase
+            // is separate evidence and never substitutes for this check.
+            loop {
+                let done =
+                    (in_process..participants).all(|slot| counters.warm_stamp(slot).is_some());
+                if done || Instant::now() >= burst_cut || failed.load(Ordering::Relaxed) > 0 {
+                    break;
+                }
+                thread::sleep(Duration::from_millis(25));
+            }
+            if failed.load(Ordering::Relaxed) > 0 {
+                return Err("a participant failed during the burst warm window".into());
+            }
+            let mut missed = Vec::new();
+            for slot in in_process..participants {
+                if !counters.warm_qualified(slot, burst_cut) {
+                    let stamp = counters
+                        .warm_stamp(slot)
+                        .map(|instant| format!("+{:?}", instant.duration_since(warm_start)))
+                        .unwrap_or_else(|| "missing".to_owned());
+                    missed.push(format!(
+                        "participant {slot} first={stamp} {}",
+                        counters.phase_line(slot)
+                    ));
+                }
+            }
+            if !missed.is_empty() {
+                return Err(format!(
+                    "burst participants missed the 12s warm envelope: {}",
+                    missed.join("; ")
+                ));
             }
 
             // Freeze transient traffic, then require a real quiescence
@@ -2351,6 +2468,54 @@ fn recovery_observation_oracle_boundaries() {
     assert!(observation.first(2).is_none());
     assert!(!observation.qualified(2, in_process_cut));
     assert!(!observation.qualified(13, burst_cut));
+}
+
+/// Warm-phase oracle boundaries, driven deterministically through
+/// `Counters::record_warm_success`: an exact-cut stamp qualifies and one
+/// nanosecond later does not; a burst first success after the in-process
+/// cut still qualifies at the shared-start 12s envelope; a missing or
+/// refusal-only slot fails; the first stamp is immutable; and warm stamps
+/// never enter the recovery oracle.
+#[test]
+fn warm_phase_oracle_boundaries() {
+    let start = Instant::now();
+    let counters = Counters::with_participants(15);
+    let in_process_cut = start + WARM_WINDOW;
+    let burst_cut = start + CLI_CHILD_WATCHDOG;
+
+    // In-process boundary: a stamp exactly at the 4s cut qualifies, one
+    // nanosecond later does not.
+    counters.record_warm_success(0, in_process_cut);
+    assert!(counters.warm_qualified(0, in_process_cut));
+    counters.record_warm_success(1, in_process_cut + Duration::from_nanos(1));
+    assert!(!counters.warm_qualified(1, in_process_cut));
+
+    // A burst first success after the in-process cut still qualifies at the
+    // 12s envelope — the initial requirement is kept, not dropped.
+    counters.record_warm_success(11, start + Duration::from_secs(5));
+    assert!(counters.warm_qualified(11, burst_cut));
+
+    // The exact 12s boundary qualifies; +1ns, a missing slot, and a
+    // refusal-only slot (nothing recorded) all fail their verdict.
+    counters.record_warm_success(12, burst_cut);
+    assert!(counters.warm_qualified(12, burst_cut));
+    counters.record_warm_success(13, burst_cut + Duration::from_nanos(1));
+    assert!(!counters.warm_qualified(13, burst_cut));
+    assert!(counters.warm_stamp(14).is_none());
+    assert!(!counters.warm_qualified(14, burst_cut));
+
+    // The first stamp is immutable — a later observation never overwrites.
+    counters.record_warm_success(0, burst_cut + Duration::from_secs(1));
+    assert_eq!(counters.warm_stamp(0), Some(in_process_cut));
+
+    // Warm stamps never enter the recovery oracle: an unarmed
+    // RecoveryObservation holds nothing, and a re-armed phase starts clean —
+    // an initial stamp can never satisfy a re-armed observation.
+    let mut observation = RecoveryObservation::new(15);
+    assert!(observation.first(0).is_none());
+    observation.arm_at(start);
+    assert!(observation.first(0).is_none());
+    assert!(!observation.qualified(0, start + RECOVERY_WINDOW));
 }
 
 /// Acceptance-44 child-lifetime evidence: a controlled held child is ended

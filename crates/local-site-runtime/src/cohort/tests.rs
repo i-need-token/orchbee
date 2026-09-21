@@ -108,7 +108,7 @@ fn observation_adapters_sidecar_is_declared_and_lazily_admitted() {
     // A damaged sidecar — even a file where the directory belongs or garbage
     // content — still does not block cohort admission.
     fs::write(
-        &fixture.path.join("agent-observation-adapters"),
+        fixture.path.join("agent-observation-adapters"),
         b"not a capsule",
     )
     .unwrap();

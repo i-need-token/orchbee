@@ -632,8 +632,11 @@ fn session_preamble(
 ) -> Result<(NativeCohort, ModeCheckedLocalSiteRendezvous), Failure> {
     let cohort = NativeCohort::current(cohort_deadline);
     settle(gate)?;
-    let cohort = cohort
-        .map_err(|_| Failure::new(FailureKind::CheckFailed).details(stage_details("cohort")))?;
+    let cohort = cohort.map_err(|error| {
+        Failure::new(FailureKind::CheckFailed)
+            .details(stage_details("cohort"))
+            .io_diagnostic(&error)
+    })?;
     let site = rendezvous();
     settle(gate)?;
     let site = site?;
