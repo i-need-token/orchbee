@@ -218,6 +218,16 @@ impl LocalTerminalService {
             .ok()?
             .execute_terminal_panel_move(command)
     }
+
+    pub(crate) fn execute_terminal_panel_relocate(
+        &self,
+        command: orchbee_workbench_protocol::WorkbenchCommand,
+    ) -> Option<orchbee_workbench_protocol::WorkbenchCommandResult> {
+        self.coordinator
+            .lock()
+            .ok()?
+            .execute_terminal_panel_relocate(command)
+    }
 }
 
 fn random_site_id() -> std::io::Result<orchbee_workbench_protocol::SiteId> {

@@ -1314,10 +1314,13 @@ fn unique_structural_ids(tabs: &[NativeSimpleTab]) -> bool {
     })
 }
 
-/// One immutable member record: a leaf Panel member or the tab-level primary Presentation
-/// projection. Overlap on any Panel, Presentation or terminal identity requires the complete
-/// tuple to match; the Tab identity is a compared field so a changed Tab ID cannot disguise
-/// reassignment as removal plus addition, and a Worker ID alone is not a member identity.
+/// One member record: a leaf Panel member or the tab-level primary Presentation
+/// projection. Overlap on any Panel, Presentation or terminal identity requires every
+/// identity-bearing field to match — Panel, Presentation, label, and the complete binding
+/// — while the owning Tab field is the one authorized delta: `panel.relocate` moves a
+/// member between Tabs inside this same TerminalContext, so a changed Tab identity is the
+/// legitimate signature of a cross-Tab relocation, never of identity replacement. A Worker
+/// ID alone is still not a member identity.
 type MemberTuple<'a> = (
     &'a WorkbenchTabId,
     &'a WorkbenchPanelId,
@@ -1345,9 +1348,13 @@ fn member_tuples(tab: &NativeSimpleTab) -> impl Iterator<Item = MemberTuple<'_>>
     }))
 }
 
-/// Every current member identity still present in the candidate must carry the complete original
-/// tuple, and a Tab whose identity survives must retain at least one member: genuinely removed
-/// members and entirely fresh identities need no comparison.
+/// Every current member identity still present in the candidate must carry the original
+/// Panel, Presentation, label, and complete binding fields; the owning Tab field may differ
+/// — exactly the authorized same-context relocation delta, which composes across any number
+/// of sequential moves between publications because the rule is per member identity rather
+/// than per Tab roster. A Tab whose identity survives must still retain at least one member
+/// wherever it landed: genuinely removed members and entirely fresh identities need no
+/// comparison.
 fn retained_member_tuples(current: &[NativeSimpleTab], candidate: &[NativeSimpleTab]) -> bool {
     let mut panels: HashMap<&WorkbenchPanelId, Vec<MemberTuple>> = HashMap::new();
     let mut presentations: HashMap<&TerminalPresentationId, Vec<MemberTuple>> = HashMap::new();
@@ -1363,6 +1370,9 @@ fn retained_member_tuples(current: &[NativeSimpleTab], candidate: &[NativeSimple
         }
     }
     current.iter().all(|tab| {
+        // A surviving Tab identity must still own at least one of its current
+        // members — the same floor the authority's `last-panel-in-tab`
+        // rejection enforces on the producer side.
         let mut retains_member = false;
         for member in member_tuples(tab) {
             for hit in panels
@@ -1372,10 +1382,11 @@ fn retained_member_tuples(current: &[NativeSimpleTab], candidate: &[NativeSimple
                 .chain(presentations.get(member.2).into_iter().flatten())
                 .chain(terminals.get(&member.4.terminal_id).into_iter().flatten())
             {
-                if *hit != member {
+                if hit.1 != member.1 || hit.2 != member.2 || hit.3 != member.3 || hit.4 != member.4
+                {
                     return false;
                 }
-                retains_member = true;
+                retains_member = retains_member || hit.0 == member.0;
             }
         }
         retains_member || candidate.iter().all(|entry| entry.tab_id != tab.tab_id)

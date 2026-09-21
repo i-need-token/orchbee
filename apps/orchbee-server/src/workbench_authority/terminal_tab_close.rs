@@ -271,6 +271,16 @@ impl CloseRecord {
         self.members().any(|existing| existing == member)
     }
 
+    /// An unsettled Close — either scope — covers this exact leaf member. A
+    /// leaf-scoped Close re-proves the captured `(Tab, Panel, Presentation,
+    /// binding)` tuple at publication, so relocating that member under a
+    /// different Tab would strand the proof; aggregate members are covered
+    /// for completeness even though `aggregate_close_fences_tab` already
+    /// fences them.
+    fn open_covers_member(&self, member: &WorkbenchTerminalTab) -> bool {
+        !self.is_closed() && self.covers_member(member)
+    }
+
     fn matches_members(&self, members: &[WorkbenchTerminalTab]) -> bool {
         self.members().eq(members.iter())
     }
@@ -550,6 +560,16 @@ impl WorkbenchAuthority {
         self.ledger.values().any(|entry| {
             matches!(entry, RetainedRequest::TabClose(record)
                 if record.fences_tab_structure(context_id, tab_id))
+        })
+    }
+
+    /// Whether an unsettled Close of either scope covers this exact leaf
+    /// member — `panel.relocate` fences the moved leaf this way because the
+    /// Close publication re-proves the member tuple captured at admission.
+    pub(super) fn open_close_covers_member(&self, member: &WorkbenchTerminalTab) -> bool {
+        self.ledger.values().any(|entry| {
+            matches!(entry, RetainedRequest::TabClose(record)
+                if record.open_covers_member(member))
         })
     }
 

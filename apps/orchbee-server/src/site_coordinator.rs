@@ -181,6 +181,37 @@ impl SiteCoordinator {
         })
     }
 
+    /// `panel.relocate`: same-context leaf relocation keeps the context's
+    /// binding multiset identical, so the same standalone composition check
+    /// `panel move` runs holds through the single atomic commit.
+    pub(crate) fn execute_terminal_panel_relocate(
+        &mut self,
+        command: orchbee_workbench_protocol::WorkbenchCommand,
+    ) -> Option<orchbee_workbench_protocol::WorkbenchCommandResult> {
+        use orchbee_server::{WorkbenchPanelRelocateBegin, WorkbenchPanelRelocatePreparation};
+        let Self {
+            terminals,
+            workbench,
+            standalone,
+        } = self;
+        let workbench = workbench.as_mut()?;
+        let grant = WorkbenchGrant::manage_navigation(workbench.site_id().clone());
+        let admission = match workbench.begin_terminal_panel_relocate(Some(&grant), command) {
+            WorkbenchPanelRelocateBegin::Ready(result) => return Some(result),
+            WorkbenchPanelRelocateBegin::Admitted(admission) => admission,
+        };
+        if admission
+            .standalone_membership()
+            .is_some_and(|membership| !composition_matches(membership, standalone, terminals))
+        {
+            return Some(admission.retire_composition_failure());
+        }
+        Some(match admission.finish() {
+            WorkbenchPanelRelocatePreparation::Ready(result) => result,
+            WorkbenchPanelRelocatePreparation::Prepared(prepared) => prepared.commit(),
+        })
+    }
+
     pub(crate) fn complete(
         &mut self,
         pending: Box<PendingOperation>,

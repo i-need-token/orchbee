@@ -361,7 +361,9 @@ fn run(steps: &[Step]) -> Result<(), String> {
                 WorkbenchAction::TabClose { .. } | WorkbenchAction::PanelClose { .. } => {
                     return Err("pure trace generated lifecycle close".to_owned());
                 }
-                WorkbenchAction::TabMove { .. } | WorkbenchAction::PanelMove { .. } => {
+                WorkbenchAction::TabMove { .. }
+                | WorkbenchAction::PanelMove { .. }
+                | WorkbenchAction::PanelRelocate { .. } => {
                     return Err("direct navigation trace generated Site-composed move".to_owned());
                 }
                 WorkbenchAction::LaunchProfileCreate { .. }

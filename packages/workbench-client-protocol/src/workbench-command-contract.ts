@@ -173,6 +173,26 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 			direction: WorkbenchPanelSplitDirectionSchema,
 		})
 		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('panel.relocate'),
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			panelId: WorkbenchPanelIdSchema,
+			destination: z.discriminatedUnion('kind', [
+				z
+					.strictObject({
+						kind: z.literal('tab'),
+						tabId: WorkbenchTabIdSchema,
+						direction: WorkbenchPanelSplitDirectionSchema,
+					})
+					.readonly(),
+				z
+					.strictObject({ kind: z.literal('new-tab'), label: WorkbenchLabelSchema })
+					.readonly(),
+			]),
+		})
+		.readonly(),
 ]);
 
 const correlation = {
@@ -221,6 +241,9 @@ export const WorkbenchRejectionReasonSchema = z.enum([
 	'terminal-context-unavailable',
 	'tab-unavailable',
 	'panel-unavailable',
+	'panel-not-leaf',
+	'last-panel-in-tab',
+	'same-tab',
 	'resource-limit',
 	'identity-exhausted',
 	'revision-exhausted',
@@ -374,6 +397,29 @@ export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
 			tabId: WorkbenchTabIdSchema,
 			panelId: WorkbenchPanelIdSchema,
 			targetPanelId: WorkbenchPanelIdSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('panel-relocated'),
+			revision: WorkbenchRevisionSchema,
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			panelId: WorkbenchPanelIdSchema,
+			targetTabId: WorkbenchTabIdSchema,
+			splitId: WorkbenchSplitIdSchema,
+			firstSlotId: WorkbenchPanelSlotIdSchema,
+			secondSlotId: WorkbenchPanelSlotIdSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('panel-relocated-to-new-tab'),
+			revision: WorkbenchRevisionSchema,
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			panelId: WorkbenchPanelIdSchema,
+			newTabId: WorkbenchTabIdSchema,
 		})
 		.readonly(),
 	z

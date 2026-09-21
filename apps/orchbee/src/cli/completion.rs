@@ -169,6 +169,8 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--cell-height",
     "--confirm",
     "--target-panel",
+    "--into-tab",
+    "--new-tab",
     "--history",
     "--path",
     "--match",
@@ -255,7 +257,16 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         ],
     ),
     ("panel:close", &["--confirm"]),
-    ("panel:move", &["--target-panel", "--direction"]),
+    (
+        "panel:move",
+        &[
+            "--target-panel",
+            "--into-tab",
+            "--new-tab",
+            "--direction",
+            "--label",
+        ],
+    ),
     ("terminal:read", &["--history", "--rows"]),
     (
         "terminal:send",
@@ -423,6 +434,8 @@ fn flag_bit(flag: &str) -> &'static str {
         "--cell-height" => "seen_cell_height",
         "--confirm" => "seen_confirm",
         "--target-panel" => "seen_target_panel",
+        "--into-tab" => "seen_into_tab",
+        "--new-tab" => "seen_new_tab",
         "--history" => "seen_history",
         "--path" => "seen_path",
         "--match" => "seen_match",
@@ -458,9 +471,8 @@ fn flag_value(flag: &str) -> Option<&'static str> {
         "--key" => Some("key"),
         "--until" => Some("until"),
         "--provider" => Some("provider"),
-        "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin" | "--include-ended" => {
-            None
-        }
+        "--standalone" | "--confirm" | "--new-tab" | "--history" | "--enter" | "--stdin"
+        | "--include-ended" => None,
         _ => Some("filter"),
     }
 }

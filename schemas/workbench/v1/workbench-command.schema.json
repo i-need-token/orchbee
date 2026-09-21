@@ -279,6 +279,65 @@
 						"direction"
 					],
 					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "panel.relocate"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+						},
+						"destination": {
+							"$comment": "panel.relocate destination: `tab` inserts the moved leaf and the destination Tab's previous root as the children of a fresh root Split; `new-tab` appends a fresh Tab whose root is the moved leaf.",
+							"oneOf": [
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "tab"
+										},
+										"tabId": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+										},
+										"direction": {
+											"enum": ["above", "below", "left", "right"]
+										}
+									},
+									"required": ["kind", "tabId", "direction"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "new-tab"
+										},
+										"label": {
+											"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+										}
+									},
+									"required": ["kind", "label"],
+									"additionalProperties": false
+								}
+							]
+						}
+					},
+					"required": [
+						"kind",
+						"terminalContextId",
+						"tabId",
+						"panelId",
+						"destination"
+					],
+					"additionalProperties": false
 				}
 			]
 		},
@@ -321,6 +380,9 @@
 				"terminal-context-unavailable",
 				"tab-unavailable",
 				"panel-unavailable",
+				"panel-not-leaf",
+				"last-panel-in-tab",
+				"same-tab",
 				"resource-limit",
 				"identity-exhausted",
 				"revision-exhausted",
@@ -816,6 +878,82 @@
 						"tabId",
 						"panelId",
 						"targetPanelId"
+					],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "panel-relocated"
+						},
+						"revision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+						},
+						"targetTabId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						},
+						"splitId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/splitId"
+						},
+						"firstSlotId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelSlotId"
+						},
+						"secondSlotId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelSlotId"
+						}
+					},
+					"required": [
+						"kind",
+						"revision",
+						"terminalContextId",
+						"tabId",
+						"panelId",
+						"targetTabId",
+						"splitId",
+						"firstSlotId",
+						"secondSlotId"
+					],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "panel-relocated-to-new-tab"
+						},
+						"revision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+						},
+						"newTabId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						}
+					},
+					"required": [
+						"kind",
+						"revision",
+						"terminalContextId",
+						"tabId",
+						"panelId",
+						"newTabId"
 					],
 					"additionalProperties": false
 				}

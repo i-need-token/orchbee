@@ -634,6 +634,14 @@ pub(super) struct PendingTabCreateEntry {
     seal: Arc<SettlementSeal>,
 }
 
+impl PendingTabCreateEntry {
+    /// The committed metadata — `panel.relocate` fences the minted leaf while
+    /// its terminal settlement is outstanding.
+    pub(super) fn metadata(&self) -> &CommittedWorkbenchTabCreateMetadata {
+        &self.metadata
+    }
+}
+
 struct SettlementSeal;
 
 struct PrebuiltResult {

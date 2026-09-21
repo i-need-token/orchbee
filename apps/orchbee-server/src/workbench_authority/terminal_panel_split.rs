@@ -534,6 +534,14 @@ pub(super) struct PendingPanelSplitEntry {
     seal: Arc<PanelSplitSettlementSeal>,
 }
 
+impl PendingPanelSplitEntry {
+    /// The committed metadata — `panel.relocate` fences the minted leaf while
+    /// its terminal settlement is outstanding.
+    pub(super) fn metadata(&self) -> &CommittedWorkbenchPanelSplitMetadata {
+        &self.metadata
+    }
+}
+
 fn clone_prebuilt(
     value: &(WorkbenchTerminalOutcome, PrebuiltResult),
 ) -> (WorkbenchTerminalOutcome, PrebuiltResult) {

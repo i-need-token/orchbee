@@ -24,6 +24,7 @@ pub(crate) mod panel_close;
 // product shortcut presents it.
 #[allow(dead_code)]
 pub(crate) mod panel_move;
+pub(crate) mod panel_relocate;
 // The typed launch-profile transport is admitted the same way: compiled and tested before the
 // CLI launch-profile surface consumes it.
 #[allow(dead_code)]

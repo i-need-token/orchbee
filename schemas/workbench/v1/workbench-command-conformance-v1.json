@@ -2013,6 +2013,86 @@
 			}
 		},
 		{
+			"name": "panel-relocate-command-tab",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.relocate",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"destination": {
+						"kind": "tab",
+						"tabId": "00000000000000000000000000000007",
+						"direction": "below"
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-command-new-tab",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.relocate",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"destination": {
+						"kind": "new-tab",
+						"label": "Logs"
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocated",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "panel-relocated",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"targetTabId": "00000000000000000000000000000007",
+					"splitId": "00000000000000000000000000000008",
+					"firstSlotId": "0000000000000000000000000000000a",
+					"secondSlotId": "0000000000000000000000000000000b"
+				}
+			}
+		},
+		{
+			"name": "panel-relocated-to-new-tab",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "panel-relocated-to-new-tab",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"newTabId": "00000000000000000000000000000007"
+				}
+			}
+		},
+		{
 			"name": "tab-create-unknown-pixels",
 			"direction": "request",
 			"document": {
@@ -7154,6 +7234,129 @@
 					"panelId": "00000000000000000000000000000006",
 					"targetPanelId": "00000000000000000000000000000007",
 					"extra": true
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-missing-action-destination",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.relocate",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006"
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-unknown-destination-kind",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.relocate",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"destination": {
+						"kind": "elsewhere"
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-tab-destination-missing-direction",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.relocate",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"destination": {
+						"kind": "tab",
+						"tabId": "00000000000000000000000000000007"
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocate-new-tab-destination-extra-direction",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.relocate",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"destination": {
+						"kind": "new-tab",
+						"label": "Logs",
+						"direction": "below"
+					}
+				}
+			}
+		},
+		{
+			"name": "panel-relocated-extra-outcome",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "panel-relocated",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"targetTabId": "00000000000000000000000000000007",
+					"splitId": "00000000000000000000000000000008",
+					"firstSlotId": "0000000000000000000000000000000a",
+					"secondSlotId": "0000000000000000000000000000000b",
+					"extra": true
+				}
+			}
+		},
+		{
+			"name": "panel-relocated-to-new-tab-missing-newTabId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "panel-relocated-to-new-tab",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006"
 				}
 			}
 		},

@@ -8,9 +8,9 @@ use orchbee_workbench_protocol::{
 
 use super::{
     CommandPath, CompletionShell, ExpectedValue, FailureEnvelope, Family, HelpTopic,
-    MutationCommand, OutputFormat, ParseFailure, ParseFailureKind, QueryCommand, Request, Resource,
-    TabContext, Target, TerminalSendInput, TerminalSendKey, UsageContext, UsageReason,
-    parse_request,
+    MutationCommand, OutputFormat, PanelMoveDestination, ParseFailure, ParseFailureKind,
+    QueryCommand, Request, Resource, TabContext, Target, TerminalSendInput, TerminalSendKey,
+    UsageContext, UsageReason, parse_request,
 };
 
 fn parse(arguments: &[&str]) -> Result<Request, ParseFailure> {
@@ -1291,8 +1291,10 @@ fn accepts_every_mutation_path() {
             ],
             MutationCommand::PanelMove {
                 target: Target::Id(ID.into()),
-                into: Target::Id(ID2.into()),
-                direction: WorkbenchPanelSplitDirection::Left,
+                destination: PanelMoveDestination::Adjacent {
+                    into: Target::Id(ID2.into()),
+                    direction: WorkbenchPanelSplitDirection::Left,
+                },
             },
         ),
     ];
@@ -2312,8 +2314,10 @@ fn mutation_direction_values_follow_the_command_family() {
             Ok(mutation(
                 MutationCommand::PanelMove {
                     target: Target::Id(ID.into()),
-                    into: Target::Id(ID2.into()),
-                    direction,
+                    destination: PanelMoveDestination::Adjacent {
+                        into: Target::Id(ID2.into()),
+                        direction,
+                    },
                 },
                 OutputFormat::Text
             )),

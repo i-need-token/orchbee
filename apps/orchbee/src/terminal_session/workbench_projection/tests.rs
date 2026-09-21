@@ -17,6 +17,7 @@ mod panel_close;
 mod panel_expectation;
 mod panel_move;
 mod projector;
+mod relocated_member;
 mod renamed_tab;
 mod reorder;
 

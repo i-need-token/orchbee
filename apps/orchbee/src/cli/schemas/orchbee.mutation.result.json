@@ -7,7 +7,7 @@
 	"additionalProperties": false,
 	"properties": {
 		"schema": { "const": "orchbee.mutation.result" },
-		"version": { "const": 2 },
+		"version": { "const": 3 },
 		"source": { "$ref": "#/$defs/commandSource" },
 		"result": {
 			"type": "object",
@@ -20,6 +20,7 @@
 						"launch-profile.delete",
 						"panel.close",
 						"panel.move",
+						"panel.relocate",
 						"panel.split",
 						"project.create",
 						"tab.close",
@@ -42,6 +43,7 @@
 				"panelId": { "$ref": "#/$defs/id" },
 				"newPanelId": { "$ref": "#/$defs/id" },
 				"targetPanelId": { "$ref": "#/$defs/id" },
+				"targetTabId": { "$ref": "#/$defs/id" },
 				"splitId": { "$ref": "#/$defs/id" },
 				"firstSlotId": { "$ref": "#/$defs/id" },
 				"secondSlotId": { "$ref": "#/$defs/id" },

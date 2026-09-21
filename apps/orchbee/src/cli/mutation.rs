@@ -91,14 +91,14 @@ impl Receipt {
         }
         json!({
             "schema": self.schema_id,
-            // Envelope v2: the launch-profile actions plus the `profileId`,
-            // `catalogRevision`, and `name` members extend the closed result
-            // shape; version-1 validators stay behind. `project rename` keeps
-            // its dedicated v1 document — the shared action enum stays closed.
+            // Envelope v3: `panel.relocate` and its `targetTabId` member extend
+            // the closed result shape past v2's launch-profile additions;
+            // version-2 validators stay behind. `project rename` keeps its
+            // dedicated v1 document — the shared action enum stays closed.
             "version": if self.schema_id == super::schema::PROJECT_RENAME_RESULT_ID {
                 1
             } else {
-                2
+                3
             },
             "source": self.source(),
             "result": Value::Object(result),
@@ -279,10 +279,11 @@ mod linux {
     use std::time::Instant;
 
     use orchbee_workbench_protocol::{
-        LaunchProfileId, Project, ProtocolVersion, SiteId, Snapshot, Tab, TerminalContext,
-        WorkbenchAction, WorkbenchCommand, WorkbenchCommandUnavailableReason, WorkbenchPanelId,
-        WorkbenchPanelSplitDirection, WorkbenchRejectionReason, WorkbenchRequestId,
-        WorkbenchRevision, WorkbenchTabMoveDirection, WorkbenchTerminalFailureReason,
+        LaunchProfileId, PanelNode, Project, ProtocolVersion, SiteId, Snapshot, Tab,
+        TerminalContext, WorkbenchAction, WorkbenchCommand, WorkbenchCommandUnavailableReason,
+        WorkbenchPanelId, WorkbenchPanelRelocateDestination, WorkbenchPanelSplitDirection,
+        WorkbenchRejectionReason, WorkbenchRequestId, WorkbenchRevision,
+        WorkbenchTabMoveDirection, WorkbenchTerminalFailureReason,
         WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason, WorkbenchWireError,
         Workspace,
     };
@@ -297,7 +298,9 @@ mod linux {
         stage_reason_details,
     };
     use super::{Receipt, TerminalFact, command_source};
-    use crate::invocation::{MutationCommand, OutputFormat, Resource, TabContext, Target};
+    use crate::invocation::{
+        MutationCommand, OutputFormat, PanelMoveDestination, Resource, TabContext, Target,
+    };
     use crate::local_client::LocalClient;
     use crate::local_client::workbench::launch_profile::{
         LaunchProfileMutationNotSubmitted, LaunchProfileOutcomeUnknownReason,
@@ -312,6 +315,11 @@ mod linux {
         WorkbenchPanelMoveCommit, WorkbenchPanelMoveNotSubmitted,
         WorkbenchPanelMoveOutcomeUnknownReason, WorkbenchPanelMovePrecommit,
         WorkbenchPanelMoveRequest, WorkbenchPanelMoveSubmission,
+    };
+    use crate::local_client::workbench::panel_relocate::{
+        WorkbenchPanelRelocateCommit, WorkbenchPanelRelocateNotSubmitted,
+        WorkbenchPanelRelocateOutcomeUnknownReason, WorkbenchPanelRelocatePrecommit,
+        WorkbenchPanelRelocateRequest, WorkbenchPanelRelocateSubmission,
     };
     use crate::local_client::workbench::panel_split::{
         WorkbenchPanelSplitCommit, WorkbenchPanelSplitNotSubmitted,
@@ -474,6 +482,7 @@ mod linux {
         (WorkbenchTabCloseNotSubmitted, WorkbenchTabClosePrecommit, WorkbenchTabCloseFailure);
         (WorkbenchPanelCloseNotSubmitted, WorkbenchPanelClosePrecommit, WorkbenchPanelCloseFailure);
         (WorkbenchPanelMoveNotSubmitted, WorkbenchPanelMovePrecommit, WorkbenchPanelMoveOutcomeUnknownReason);
+        (WorkbenchPanelRelocateNotSubmitted, WorkbenchPanelRelocatePrecommit, WorkbenchPanelRelocateOutcomeUnknownReason);
     }
 
     submissions_with_profile! {
@@ -632,20 +641,51 @@ mod linux {
             }
             MutationCommand::PanelMove {
                 target,
-                into,
-                direction,
+                destination,
             } => {
                 let (context, tab, panel_id) = resolve_panel(snapshot, target)?;
-                // The wire shape binds both panels into one tab, so the target
-                // panel resolves inside the source panel's own tab.
-                let target_panel_id = resolve_panel_in(tab, into)?;
-                Ok(WorkbenchAction::PanelMove {
-                    terminal_context_id: context.terminal_context_id.clone(),
-                    tab_id: tab.tab_id.clone(),
-                    panel_id,
-                    target_panel_id,
-                    direction: *direction,
-                })
+                match destination {
+                    PanelMoveDestination::Adjacent { into, direction } => {
+                        // The wire shape binds both panels into one tab, so the
+                        // target panel resolves inside the source panel's own
+                        // tab.
+                        let target_panel_id = resolve_panel_in(tab, into)?;
+                        Ok(WorkbenchAction::PanelMove {
+                            terminal_context_id: context.terminal_context_id.clone(),
+                            tab_id: tab.tab_id.clone(),
+                            panel_id,
+                            target_panel_id,
+                            direction: *direction,
+                        })
+                    }
+                    PanelMoveDestination::Tab {
+                        tab: into_tab,
+                        direction,
+                    } => {
+                        // Relocation is bounded to the source TerminalContext:
+                        // the destination Tab resolves inside it alone, so a
+                        // same-labelled Tab elsewhere is never a candidate and
+                        // ambiguity is decided within the context.
+                        let destination_tab = resolve_tab_in(context, into_tab)?;
+                        Ok(WorkbenchAction::PanelRelocate {
+                            terminal_context_id: context.terminal_context_id.clone(),
+                            tab_id: tab.tab_id.clone(),
+                            panel_id,
+                            destination: WorkbenchPanelRelocateDestination::Tab {
+                                tab_id: destination_tab.tab_id.clone(),
+                                direction: *direction,
+                            },
+                        })
+                    }
+                    PanelMoveDestination::NewTab { label } => Ok(WorkbenchAction::PanelRelocate {
+                        terminal_context_id: context.terminal_context_id.clone(),
+                        tab_id: tab.tab_id.clone(),
+                        panel_id,
+                        destination: WorkbenchPanelRelocateDestination::NewTab {
+                            label: label.clone(),
+                        },
+                    }),
+                }
             }
             MutationCommand::LaunchProfileCreate { name, launch } => {
                 Ok(WorkbenchAction::LaunchProfileCreate {
@@ -714,9 +754,25 @@ mod linux {
         )
     }
 
-    /// Panels have no label; typed IDs and `@panel:` selectors resolve
-    /// through the shared resolver over the snapshot's complete panel set,
-    /// exactly like `panel get`.
+    /// The `--into-tab` destination resolves inside the source context alone
+    /// — same grammar as `resolve_tab` (typed id or label, ambiguity
+    /// rejected) scoped to that context's Tabs.
+    fn resolve_tab_in<'a>(
+        context: &'a TerminalContext,
+        target: &Target,
+    ) -> Result<&'a Tab, Failure> {
+        results::resolve_or_fail(
+            context
+                .tabs
+                .iter()
+                .map(|tab| (tab.tab_id.as_str(), tab.label.as_str(), tab)),
+            target,
+            Resource::Tab,
+        )
+    }
+
+    /// Panels have no label; complete typed IDs and @panel selectors resolve
+    /// through the snapshot panel set, exactly like `panel get`.
     fn resolve_panel<'a>(
         snapshot: &'a Snapshot,
         target: &Target,
@@ -1247,6 +1303,50 @@ mod linux {
                         Err(unknown_failure(request_id, reason.reason()))
                     }
                 }
+            }
+            WorkbenchAction::PanelRelocate {
+                terminal_context_id,
+                tab_id,
+                panel_id,
+                destination,
+            } => {
+                let request = WorkbenchPanelRelocateRequest::try_from(command)
+                    .map_err(|_| internal())?;
+                let base = receipt(&resolved, "panel.relocate", "committed")
+                    .id("terminalContextId", terminal_context_id.as_str())
+                    .id("tabId", tab_id.as_str())
+                    .id("panelId", panel_id.as_str());
+                match client.submit_workbench_panel_relocate(request, deadline) {
+                    WorkbenchPanelRelocateSubmission::Committed(WorkbenchPanelRelocateCommit {
+                        revision,
+                        target_tab_id,
+                        split,
+                        ..
+                    }) => {
+                        // The receipt echoes the direction only for the
+                        // existing-Tab form; `new-tab` has no direction and
+                        // reports its Server-minted Tab identity.
+                        let receipt = base.revision(revision).id("targetTabId", target_tab_id.as_str());
+                        Ok(match destination {
+                            WorkbenchPanelRelocateDestination::Tab { direction, .. } => {
+                                receipt.direction(panel_direction(*direction))
+                            }
+                            WorkbenchPanelRelocateDestination::NewTab { label } => {
+                                let _ = split;
+                                receipt.label(label.as_str())
+                            }
+                        })
+                    }
+                    WorkbenchPanelRelocateSubmission::DefinitePrecommit(precommit) => {
+                        Err(precommit_failure(precommit.into(), &resolved.action))
+                    }
+                    WorkbenchPanelRelocateSubmission::DefinitelyNotSubmitted(reason) => {
+                        Err(not_submitted_failure(reason.into()))
+                    }
+                    WorkbenchPanelRelocateSubmission::OutcomeUnknown { request_id, reason } => {
+                        Err(unknown_failure(request_id, reason.reason()))
+                    }
+                }
             } // The grammar's mutation cohort now exhausts every wire action; a
               // new variant fails to compile here until it is modeled.
         }
@@ -1444,6 +1544,9 @@ mod linux {
             WorkbenchRejectionReason::TerminalContextUnavailable => "terminal-context-unavailable",
             WorkbenchRejectionReason::TabUnavailable => "tab-unavailable",
             WorkbenchRejectionReason::PanelUnavailable => "panel-unavailable",
+            WorkbenchRejectionReason::PanelNotLeaf => "panel-not-leaf",
+            WorkbenchRejectionReason::LastPanelInTab => "last-panel-in-tab",
+            WorkbenchRejectionReason::SameTab => "same-tab",
             WorkbenchRejectionReason::ResourceLimit => "resource-limit",
             WorkbenchRejectionReason::IdentityExhausted => "identity-exhausted",
             WorkbenchRejectionReason::RevisionExhausted => "revision-exhausted",

@@ -154,7 +154,10 @@ fn compatible_rejection(action: &WorkbenchAction, reason: WorkbenchRejectionReas
         WorkbenchRejectionReason::WorkspaceDirectoryUnavailable
         | WorkbenchRejectionReason::TerminalContextUnavailable
         | WorkbenchRejectionReason::TabUnavailable
-        | WorkbenchRejectionReason::PanelUnavailable => false,
+        | WorkbenchRejectionReason::PanelUnavailable
+        | WorkbenchRejectionReason::PanelNotLeaf
+        | WorkbenchRejectionReason::LastPanelInTab
+        | WorkbenchRejectionReason::SameTab => false,
     }
 }
 

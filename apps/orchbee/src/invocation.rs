@@ -560,8 +560,7 @@ pub(crate) enum MutationCommand {
     },
     PanelMove {
         target: Target,
-        into: Target,
-        direction: WorkbenchPanelSplitDirection,
+        destination: PanelMoveDestination,
     },
     /// `launch-profile create --name <n> --exec <abs> [--arg <v>]...`: one
     /// new ephemeral catalog entry; the launch selection passes the same
@@ -578,6 +577,25 @@ pub(crate) enum MutationCommand {
     TerminalSend {
         target: Target,
         input: TerminalSendInput,
+    },
+}
+
+/// The three exclusive `panel move` destinations. `Adjacent` keeps the
+/// original same-Tab `--target-panel --direction` grammar; `Tab` and
+/// `NewTab` are the cross-Tab relocation destinations, bounded to the
+/// source TerminalContext.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum PanelMoveDestination {
+    Adjacent {
+        into: Target,
+        direction: WorkbenchPanelSplitDirection,
+    },
+    Tab {
+        tab: Target,
+        direction: WorkbenchPanelSplitDirection,
+    },
+    NewTab {
+        label: WorkbenchLabel,
     },
 }
 
@@ -866,6 +884,10 @@ struct Options {
     cell_height: Option<String>,
     confirm: bool,
     target_panel: Option<String>,
+    /// `panel move --into-tab <t>`: the sibling-Tab relocation target.
+    into_tab: Option<String>,
+    /// `panel move --new-tab`: the new-Tab relocation destination flag.
+    new_tab: bool,
     history: bool,
     path: Option<String>,
     match_text: Option<String>,
@@ -913,6 +935,7 @@ const VALUE_FLAGS: &[&str] = &[
     "--directory",
     "--exec",
     "--file",
+    "--into-tab",
     "--key",
     "--label",
     "--limit",
@@ -1219,7 +1242,7 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                 index += 1;
             }
             "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
-            | "--include-ended" => {
+            | "--include-ended" | "--new-tab" => {
                 let (seen, option) = if token == "--standalone" {
                     (&mut options.standalone, "--standalone")
                 } else if token == "--confirm" {
@@ -1230,6 +1253,8 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                     (&mut options.stdin, "--stdin")
                 } else if token == "--include-ended" {
                     (&mut options.include_ended, "--include-ended")
+                } else if token == "--new-tab" {
+                    (&mut options.new_tab, "--new-tab")
                 } else {
                     (&mut options.enter, "--enter")
                 };
@@ -1348,6 +1373,7 @@ fn apply_value_flag(
         "--profile" => &mut options.profile,
         "--adapter-source" => &mut options.adapter_source,
         "--target-panel" => &mut options.target_panel,
+        "--into-tab" => &mut options.into_tab,
 
         // Every reachable `option` is a `VALUE_FLAGS` member and the match
         // is total over that list — `--mouse` is the sole member diverted
@@ -1924,21 +1950,7 @@ fn resolve_words(
             Ok(mutation(
                 MutationCommand::PanelMove {
                     target: target((*value).to_owned(), Resource::Panel, envelope)?,
-                    into: target(
-                        required(
-                            &options.target_panel,
-                            UsageContext::Path("panel move"),
-                            "'--target-panel'",
-                            envelope,
-                        )?,
-                        Resource::Panel,
-                        envelope,
-                    )?,
-                    direction: panel_direction(
-                        options,
-                        UsageContext::Path("panel move"),
-                        envelope,
-                    )?,
+                    destination: panel_move_destination(options, envelope)?,
                 },
                 options,
             ))
@@ -2688,6 +2700,12 @@ struct Scope {
     geometry: bool,
     confirm: bool,
     target_panel: bool,
+    /// `panel move --into-tab <t>`: admits the sibling-Tab relocation
+    /// destination selector.
+    into_tab: bool,
+    /// `panel move --new-tab`: admits the new-Tab relocation destination
+    /// flag.
+    new_tab: bool,
     /// `terminal read --history --rows <n>`: admits the flag and the
     /// history-row meaning of the shared `--rows` value option.
     history: bool,
@@ -2757,6 +2775,8 @@ const NO_OPTIONS: Scope = Scope {
     geometry: false,
     confirm: false,
     target_panel: false,
+    into_tab: false,
+    new_tab: false,
     history: false,
     path: false,
     wait: false,
@@ -2880,6 +2900,9 @@ const PANEL_SPLIT_SCOPE: Scope = Scope {
 const PANEL_MOVE_SCOPE: Scope = Scope {
     direction: true,
     target_panel: true,
+    into_tab: true,
+    new_tab: true,
+    label: true,
     ..NO_OPTIONS
 };
 
@@ -2936,6 +2959,8 @@ fn business_options(options: &Options) -> bool {
         || options.cell_height.is_some()
         || options.confirm
         || options.target_panel.is_some()
+        || options.into_tab.is_some()
+        || options.new_tab
         || options.history
         || options.path.is_some()
         || options.match_text.is_some()
@@ -3004,6 +3029,12 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.target_panel.is_some() && !scope.target_panel {
         return Some("--target-panel");
+    }
+    if options.into_tab.is_some() && !scope.into_tab {
+        return Some("--into-tab");
+    }
+    if options.new_tab && !scope.new_tab {
+        return Some("--new-tab");
     }
     if options.history && !scope.history {
         return Some("--history");
@@ -3900,6 +3931,97 @@ fn tab_direction(
                 option: "--direction",
                 value,
                 expected: ExpectedValue::TabDirection,
+            },
+            envelope,
+        )),
+    }
+}
+
+/// `panel move` admits exactly one destination selector: `--target-panel`
+/// (the original same-Tab adjacent insert), `--into-tab` (an existing
+/// sibling Tab), or `--new-tab` (a fresh Tab appended to the source
+/// TerminalContext). Each form pins its own required and forbidden peers
+/// before any target resolution runs; a stray `--label`/`--direction`
+/// outside its owning form is a usage conflict, never silently ignored.
+fn panel_move_destination(
+    options: &Options,
+    envelope: FailureEnvelope,
+) -> Result<PanelMoveDestination, ParseFailure> {
+    let context = UsageContext::Path("panel move");
+    let declared = [
+        options.target_panel.is_some().then_some("--target-panel"),
+        options.into_tab.is_some().then_some("--into-tab"),
+        options.new_tab.then_some("--new-tab"),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>();
+    match declared[..] {
+        ["--target-panel"] => {
+            if options.label.is_some() {
+                return Err(usage_with(
+                    UsageReason::ConflictingOptions {
+                        context,
+                        first: "--target-panel",
+                        second: "--label",
+                    },
+                    envelope,
+                ));
+            }
+            Ok(PanelMoveDestination::Adjacent {
+                into: target(
+                    required(&options.target_panel, context, "'--target-panel'", envelope)?,
+                    Resource::Panel,
+                    envelope,
+                )?,
+                direction: panel_direction(options, context, envelope)?,
+            })
+        }
+        ["--into-tab"] => {
+            if options.label.is_some() {
+                return Err(usage_with(
+                    UsageReason::ConflictingOptions {
+                        context,
+                        first: "--into-tab",
+                        second: "--label",
+                    },
+                    envelope,
+                ));
+            }
+            Ok(PanelMoveDestination::Tab {
+                tab: target(
+                    required(&options.into_tab, context, "'--into-tab'", envelope)?,
+                    Resource::Tab,
+                    envelope,
+                )?,
+                direction: panel_direction(options, context, envelope)?,
+            })
+        }
+        ["--new-tab"] => {
+            if options.direction.is_some() {
+                return Err(usage_with(
+                    UsageReason::ConflictingOptions {
+                        context,
+                        first: "--new-tab",
+                        second: "--direction",
+                    },
+                    envelope,
+                ));
+            }
+            Ok(PanelMoveDestination::NewTab {
+                label: label_option(options, context, envelope)?,
+            })
+        }
+        [] => Err(missing_required(
+            context,
+            "'--target-panel', '--into-tab', or '--new-tab'",
+            envelope,
+        )),
+        _ => Err(usage_with(
+            UsageReason::ConflictingOptions {
+                context,
+                first: declared[0],
+                second: declared[1],
             },
             envelope,
         )),

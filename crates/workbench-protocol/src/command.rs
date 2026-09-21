@@ -424,6 +424,17 @@ pub enum WorkbenchAction {
         target_panel_id: WorkbenchPanelId,
         direction: WorkbenchPanelSplitDirection,
     },
+    /// Relocate one leaf Panel inside its own TerminalContext: insert it at
+    /// the root of another existing Tab or append it as a new Tab. The leaf
+    /// is retained whole — Panel, Presentation, and terminal binding
+    /// identities move unchanged.
+    #[serde(rename = "panel.relocate")]
+    PanelRelocate {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        destination: WorkbenchPanelRelocateDestination,
+    },
     /// Create one ephemeral per-Site Launch Profile catalog entry. The
     /// selection passes the same closed lexical contract as an explicit
     /// `launch`, so a stored profile is always launchable.
@@ -436,6 +447,29 @@ pub enum WorkbenchAction {
     /// name cardinality (not-found/single/ambiguous).
     #[serde(rename = "launch-profile.delete")]
     LaunchProfileDelete { selector: LaunchProfileSelector },
+}
+
+/// The `panel.relocate` destination, resolved entirely inside the source
+/// Panel's own TerminalContext. `tab` names an existing sibling Tab: the
+/// moved leaf and that Tab's previous root become the children of a fresh
+/// root Split in the direction-implied order and orientation. `new-tab`
+/// appends a fresh Tab whose root is the moved leaf itself; no split or slot
+/// identities are minted for it.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum WorkbenchPanelRelocateDestination {
+    #[serde(rename = "tab")]
+    Tab {
+        tab_id: WorkbenchTabId,
+        direction: WorkbenchPanelSplitDirection,
+    },
+    #[serde(rename = "new-tab")]
+    NewTab { label: WorkbenchLabel },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -501,6 +535,14 @@ pub enum WorkbenchRejectionReason {
     IdentityExhausted,
     RevisionExhausted,
     RequestIdentityConflict,
+    /// The named Panel exists but carries stacked child Presentations; only a
+    /// leaf Panel relocates.
+    PanelNotLeaf,
+    /// The named Panel is its Tab's last leaf; moving it out would leave an
+    /// empty Tab, which the Close lifecycle owns.
+    LastPanelInTab,
+    /// The relocation destination resolved to the source Tab itself.
+    SameTab,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -639,6 +681,28 @@ pub enum WorkbenchCommandOutcome {
         tab_id: WorkbenchTabId,
         panel_id: WorkbenchPanelId,
         target_panel_id: WorkbenchPanelId,
+    },
+    /// The leaf relocated into an existing sibling Tab: `tab_id` stays the
+    /// source Tab, `target_tab_id` names the destination, and the fresh root
+    /// Split's identities are echoed.
+    PanelRelocated {
+        revision: WorkbenchRevision,
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        target_tab_id: WorkbenchTabId,
+        split_id: WorkbenchSplitId,
+        first_slot_id: WorkbenchPanelSlotId,
+        second_slot_id: WorkbenchPanelSlotId,
+    },
+    /// The leaf relocated into a freshly appended Tab: `new_tab_id` is the
+    /// minted Tab identity; the moved leaf is that Tab's root.
+    PanelRelocatedToNewTab {
+        revision: WorkbenchRevision,
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        new_tab_id: WorkbenchTabId,
     },
     /// One catalog entry committed; `revision` is the new Workbench revision
     /// (every committed command advances it) and `catalog_revision` is the
