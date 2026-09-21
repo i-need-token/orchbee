@@ -398,6 +398,32 @@ canonical request/result JSON 合计 8 MiB。这是序列化计数上限，不�
 | 新请求超过任一 ledger 上限                                      | unavailable: request-ledger-full                                               |
 | Service 已停用或意外内部 candidate/serialization invariant 失败 | unavailable: service-unavailable；停用 service，不把程序错误表示为 Client 拒绝 |
 
+## Launch Profile 目录
+
+authority 还拥有一个按 Site 划分、易失的 Launch Profile 目录：为 `tab.create` 与 `panel.split`
+命名可复用自定义可执行文件启动选择的私有 Server 状态。目录仅存在于内存，随 Site 进程消亡；
+它从不进入公开 snapshot，因此导航提交既看不到也改不了它，`deny_unknown_fields` 也把旧读取方
+与新形状完全隔开。
+
+| 字段   | 约定                                                                                                                                                                                                                                                                                                                                         |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题   | 已接纳 Client 必须能列出、解析、创建、删除命名的自定义可执行文件选择，并在创建终端时消费它们，而不引入第二个目录写方或持久化注册表。                                                                                                                                                                                                         |
+| 输入   | 严格的 `workbench.launch-profile-catalog.read` 意图（请求 identity + 可选 selector），或严格的 `launch-profile.create`/`launch-profile.delete` 命令。selector 是 1–512 字节不透明文本；name 复用 label 信封；selection 是封闭的 launch 契约。                                                                                                |
+| 数据   | 有界条目向量（64 条、序列化总量 256 KiB）、私有单调递增的目录 revision，以及与导航组共用的同一请求/结果 ledger。Profile 由 Site identity 与既有 Server identity cursor 铸造不透明 id `<siteHex>:<counterHex>`。                                                                                                                              |
+| 输出   | 读返回 catalog { entries }、profile { entry }、not-found、ambiguous { candidateIds }、denied 或 unavailable。命令返回 launch-profile-created/deleted { revision, catalogRevision, profileId }、落账的 selector 解析结果 launch-profile-unavailable 与 launch-profile-ambiguous { candidateIds }，以及常规 rejected/denied/unavailable 集合。 |
+| 不变量 | 只有 Server 提交目录状态。已提交的 create/delete 同时推进 Workbench revision 与私有目录 revision，并与 projection、ledger、保留请求更新原子完成。精确 profile-id 匹配先于任何 name 查找；否则零个 name 匹配为 not-found，一个为 found，多于一个为 ambiguous 并携带同一次解析捕获的有界 id 列表。                                             |
+| 决策   | 读与 snapshot 读使用相同的 site-identity grant 语义，从不进入命令 ledger。selector 失败与其他已决结果一样落账，因此相同请求重放相同应答。字节容量与 revision 耗尽拒绝先于任何目录变更。已消亡 Site 的 id 内嵌该 Site identity，构造上不可能别名到另一个 Site 的条目。                                                                        |
+| 模型   | 同一个确定性串行迁移：candidate 状态在提交闸内暂存，首次变更之后没有可恢复的检查。                                                                                                                                                                                                                                                           |
+| 属主   | authority 拥有目录条目、私有目录 revision 与铸造。service 拥有策略映射（读走 read grant、变更走 navigation）与调用序列化。终端创建消费已解析的 `LaunchProfileUse` —— 绝不是 selector 文本 —— 因此 Worker 启动载荷仍只携带 executable 与 arguments。                                                                                          |
+| 验证   | authority 有状态测试覆盖 id-first/基数解析、重放与冲突、数量与序列化边界、零变更的 revision 耗尽、跨 Site id 不可别名；协调器测试覆盖 prepare 期冻结与 provenance 发布。                                                                                                                                                                     |
+
+`tab.create` 与 `panel.split` 接受既有显式 `launch` 选择或 `profile` selector，二者绝不同现
+—— 线形在解析与序列化两个方向都拒绝该组合。`profile` selector 在命令接纳内、于拥有目录的
+同一个协调器锁下解析：解析出的选择与 `{profileId, catalogRevision}` provenance 对在异步
+Worker 间隙之前冻结，因此派发后才被删除的 profile 仍按捕获载荷启动，终端的 launch read 也
+仍发布其 provenance。解析失败落账为类型化结果，歧义载荷只携带同一次解析的候选 id ——
+绝不携带来自其他解析时刻的可执行文件文本。
+
 ## 证据与 refinement
 
 | 主张                                              | 必需证据                                                       | 边界                                                       |

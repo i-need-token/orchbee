@@ -158,6 +158,7 @@ fn maximum_legal_launch_commands_fit_the_intent_bound() {
             label: label.clone(),
             geometry,
             launch: Some(maximum_escape_launch()),
+            profile: None,
         }),
         maximum_command(WorkbenchAction::PanelSplit {
             terminal_context_id: context,
@@ -167,6 +168,7 @@ fn maximum_legal_launch_commands_fit_the_intent_bound() {
             label,
             geometry,
             launch: Some(maximum_escape_launch()),
+            profile: None,
         }),
     ];
     for command in commands {
@@ -238,6 +240,7 @@ fn launch_selection_wire_shape_is_closed_and_default_omits_the_key() {
                 label: WorkbenchLabel::parse("t").unwrap(),
                 geometry,
                 launch,
+                profile: None,
             },
         })
     };

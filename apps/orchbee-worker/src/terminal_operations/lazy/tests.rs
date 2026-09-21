@@ -33,6 +33,9 @@ const ARTIFACTS: [&str; 4] = [
 ];
 const ARTIFACT_CONTENT: &[u8] = b"native fixture\n";
 const ARTIFACT_SHA256: &str = "396cfec2d1c795ce71dce2d9c92f29cddec638632050c17861d771936a99282d";
+// Controlled dummy digest declared for the adapters payload — the fixture
+// stages no sidecar; cohort admission stays lazy.
+const ADAPTERS_SHA256: &str = "c6ee8257e95c140bc8e1ddbd7ab30ffa42b52e4550176be88905f0ec8e4a6f5e";
 const WORKER_ID: WorkerId = WorkerId::from_bytes([7; 16]);
 const GENERATION: NonZeroU64 = NonZeroU64::MIN;
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(1);
@@ -293,8 +296,8 @@ impl TestCohort {
         fs::write(
             &manifest,
             format!(
-                r#"{{"schemaVersion":1,"artifacts":{{"orchbee":"{}","orchbee-server":"{}","orchbee-worker":"{}","orchbee-terminal-host":"{}"}}}}"#,
-                ARTIFACT_SHA256, ARTIFACT_SHA256, ARTIFACT_SHA256, ARTIFACT_SHA256
+                r#"{{"schemaVersion":2,"artifacts":{{"orchbee":"{}","orchbee-server":"{}","orchbee-worker":"{}","orchbee-terminal-host":"{}","agent-observation-adapters":"{}"}}}}"#,
+                ARTIFACT_SHA256, ARTIFACT_SHA256, ARTIFACT_SHA256, ARTIFACT_SHA256, ADAPTERS_SHA256
             ),
         )?;
         fs::set_permissions(&manifest, fs::Permissions::from_mode(0o600))?;
@@ -1485,8 +1488,8 @@ impl TestCohort {
         fs::write(
             &manifest,
             format!(
-                r#"{{"schemaVersion":1,"artifacts":{{"orchbee":"{}","orchbee-server":"{}","orchbee-worker":"{}","orchbee-terminal-host":"{}"}}}}"#,
-                hashes[0], hashes[1], hashes[2], hashes[3]
+                r#"{{"schemaVersion":2,"artifacts":{{"orchbee":"{}","orchbee-server":"{}","orchbee-worker":"{}","orchbee-terminal-host":"{}","agent-observation-adapters":"{}"}}}}"#,
+                hashes[0], hashes[1], hashes[2], hashes[3], ADAPTERS_SHA256
             ),
         )?;
         fs::set_permissions(&manifest, fs::Permissions::from_mode(0o600))?;

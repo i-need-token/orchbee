@@ -5,7 +5,9 @@
 //! Nothing is retried or replayed: an ambiguous post-submission outcome
 //! retires the session and surfaces as a typed `outcome-unknown` failure.
 
-use orchbee_workbench_protocol::{WorkbenchRevision, WorkbenchTerminalGeometry};
+use orchbee_workbench_protocol::{
+    LaunchProfileCatalogRevision, WorkbenchRevision, WorkbenchTerminalGeometry,
+};
 use serde_json::{Map, Value, json};
 
 use super::Output;
@@ -32,6 +34,12 @@ pub(super) struct Receipt {
     label: Option<String>,
     path: Option<String>,
     terminal: Option<TerminalFact>,
+    /// The catalog-private revision a launch-profile command committed —
+    /// sibling of `revision`, present only on profile create/delete.
+    catalog_revision: Option<LaunchProfileCatalogRevision>,
+    /// The profile name a `launch-profile create` stored — the catalog's
+    /// `name`, distinct from a Workbench `label`.
+    name: Option<String>,
 }
 
 impl Receipt {
@@ -72,9 +80,26 @@ impl Receipt {
         if let Some(terminal) = &self.terminal {
             result.insert("terminal".to_owned(), terminal.document());
         }
+        if let Some(catalog_revision) = self.catalog_revision {
+            result.insert(
+                "catalogRevision".to_owned(),
+                json!(catalog_revision.to_string()),
+            );
+        }
+        if let Some(name) = &self.name {
+            result.insert("name".to_owned(), json!(name));
+        }
         json!({
             "schema": self.schema_id,
-            "version": 1,
+            // Envelope v2: the launch-profile actions plus the `profileId`,
+            // `catalogRevision`, and `name` members extend the closed result
+            // shape; version-1 validators stay behind. `project rename` keeps
+            // its dedicated v1 document — the shared action enum stays closed.
+            "version": if self.schema_id == super::schema::PROJECT_RENAME_RESULT_ID {
+                1
+            } else {
+                2
+            },
             "source": self.source(),
             "result": Value::Object(result),
         })
@@ -126,6 +151,18 @@ impl Receipt {
         self
     }
 
+    /// The catalog-private revision the launch-profile command committed.
+    fn catalog_revision(mut self, catalog_revision: LaunchProfileCatalogRevision) -> Self {
+        self.catalog_revision = Some(catalog_revision);
+        self
+    }
+
+    /// The catalog name a `launch-profile create` stored — echoed verbatim.
+    fn name(mut self, name: &str) -> Self {
+        self.name = Some(name.to_owned());
+        self
+    }
+
     /// Ordered `(JSON name, text value)` rows for the text rendering; the
     /// text output names the same fields as the JSON envelope.
     pub(super) fn text_fields(&self) -> Vec<(&'static str, String)> {
@@ -157,6 +194,12 @@ impl Receipt {
         }
         if let Some(path) = &self.path {
             rows.push(("path", path.clone()));
+        }
+        if let Some(catalog_revision) = self.catalog_revision {
+            rows.push(("catalogRevision", catalog_revision.to_string()));
+        }
+        if let Some(name) = &self.name {
+            rows.push(("name", name.clone()));
         }
         rows
     }
@@ -236,17 +279,19 @@ mod linux {
     use std::time::Instant;
 
     use orchbee_workbench_protocol::{
-        PanelNode, Project, ProtocolVersion, SiteId, Snapshot, Tab, TerminalContext,
-        WorkbenchAction, WorkbenchCommand, WorkbenchCommandUnavailableReason, WorkbenchPanelId,
-        WorkbenchPanelSplitDirection, WorkbenchRejectionReason, WorkbenchRequestId,
-        WorkbenchRevision, WorkbenchTabMoveDirection, WorkbenchTerminalFailureReason,
-        WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason, WorkbenchWireError,
-        Workspace,
+        LaunchProfileId, PanelNode, Project, ProtocolVersion, SiteId, Snapshot, Tab,
+        TerminalContext, WorkbenchAction, WorkbenchCommand, WorkbenchCommandUnavailableReason,
+        WorkbenchPanelId, WorkbenchPanelSplitDirection, WorkbenchRejectionReason,
+        WorkbenchRequestId, WorkbenchRevision, WorkbenchTabMoveDirection,
+        WorkbenchTerminalFailureReason, WorkbenchTerminalOutcome,
+        WorkbenchTerminalUnavailableReason, WorkbenchWireError, Workspace,
     };
     use serde_json::{Map, json};
 
     use super::super::query::{request_id, snapshot_session};
-    use super::super::schema::{MUTATION_RESULT_ID, PROJECT_RENAME_RESULT_ID};
+    use super::super::schema::{
+        LAUNCH_PROFILE_FAILURE_ID, MUTATION_RESULT_ID, PROJECT_RENAME_RESULT_ID,
+    };
     use super::super::{
         Failure, FailureKind, Output, failure_output, output, present, results, stage_details,
         stage_reason_details,
@@ -254,6 +299,11 @@ mod linux {
     use super::{Receipt, TerminalFact, command_source};
     use crate::invocation::{MutationCommand, OutputFormat, Resource, TabContext, Target};
     use crate::local_client::LocalClient;
+    use crate::local_client::workbench::launch_profile::{
+        LaunchProfileMutationNotSubmitted, LaunchProfileOutcomeUnknownReason,
+        WorkbenchLaunchProfileCreateRequest, WorkbenchLaunchProfileDeleteRequest,
+        WorkbenchLaunchProfileMutationPrecommit, WorkbenchLaunchProfileMutationSubmission,
+    };
     use crate::local_client::workbench::panel_close::{
         WorkbenchPanelCloseAccepted, WorkbenchPanelCloseFailure, WorkbenchPanelCloseNotSubmitted,
         WorkbenchPanelClosePrecommit, WorkbenchPanelCloseRequest, WorkbenchPanelCloseSubmission,
@@ -305,7 +355,9 @@ mod linux {
         Request,
     }
 
-    /// Every family's definite pre-commit outcome collapses the same way.
+    /// Every family's definite pre-commit outcome collapses the same way;
+    /// `tab create`/`panel split` additionally settle on the typed
+    /// launch-profile resolution outcomes when `--profile` was selected.
     enum Precommit {
         Rejected {
             revision: WorkbenchRevision,
@@ -314,6 +366,10 @@ mod linux {
         Denied,
         Unavailable {
             reason: WorkbenchCommandUnavailableReason,
+        },
+        ProfileUnavailable,
+        ProfileAmbiguous {
+            candidate_ids: Vec<LaunchProfileId>,
         },
     }
 
@@ -366,15 +422,63 @@ mod linux {
         )+};
     }
 
+    /// The two profile-selecting families collapse identically plus the two
+    /// typed profile-resolution settlements only their precommit enums carry.
+    macro_rules! submissions_with_profile {
+        ($(($not_submitted:ident, $precommit:ident, $unknown:ident);)+) => {$(
+            impl From<$not_submitted> for NotSubmitted {
+                fn from(reason: $not_submitted) -> Self {
+                    match reason {
+                        $not_submitted::SessionUnavailable => Self::SessionUnavailable,
+                        $not_submitted::RequestEncoding(_) => Self::RequestEncoding,
+                        $not_submitted::RequestNotSubmitted(_) => Self::Request,
+                    }
+                }
+            }
+            impl From<$precommit> for Precommit {
+                fn from(precommit: $precommit) -> Self {
+                    match precommit {
+                        $precommit::Rejected { revision, reason } => {
+                            Self::Rejected { revision, reason }
+                        }
+                        $precommit::Denied => Self::Denied,
+                        $precommit::Unavailable { reason } => Self::Unavailable { reason },
+                        $precommit::ProfileUnavailable => Self::ProfileUnavailable,
+                        $precommit::ProfileAmbiguous { candidate_ids } => {
+                            Self::ProfileAmbiguous { candidate_ids }
+                        }
+                    }
+                }
+            }
+            impl UnknownReason for $unknown {
+                fn reason(&self) -> &'static str {
+                    match self {
+                        Self::Write(_) => "write-failure",
+                        Self::Response(WorkbenchWireError::Io(_))
+                        | Self::ResponseDeadline(_) => "response-loss",
+                        Self::Response(_) | Self::UnexpectedResponse => "response-invalid",
+                        Self::CorrelationMismatch { .. } => "correlation-mismatch",
+                        Self::ActionIncompatible => "action-incompatible",
+                        _ => "validation-failed",
+                    }
+                }
+            }
+        )+};
+    }
+
     submissions! {
         (WorkbenchSetupNotSubmitted, WorkbenchSetupPrecommit, WorkbenchSetupOutcomeUnknownReason);
-        (WorkbenchTabCreateNotSubmitted, WorkbenchTabCreatePrecommit, WorkbenchTabCreateOutcomeUnknownReason);
+        (LaunchProfileMutationNotSubmitted, WorkbenchLaunchProfileMutationPrecommit, LaunchProfileOutcomeUnknownReason);
         (WorkbenchTabRenameNotSubmitted, WorkbenchTabRenamePrecommit, WorkbenchTabRenameOutcomeUnknownReason);
         (WorkbenchTabMoveNotSubmitted, WorkbenchTabMovePrecommit, WorkbenchTabMoveOutcomeUnknownReason);
         (WorkbenchTabCloseNotSubmitted, WorkbenchTabClosePrecommit, WorkbenchTabCloseFailure);
-        (WorkbenchPanelSplitNotSubmitted, WorkbenchPanelSplitPrecommit, WorkbenchPanelSplitOutcomeUnknownReason);
         (WorkbenchPanelCloseNotSubmitted, WorkbenchPanelClosePrecommit, WorkbenchPanelCloseFailure);
         (WorkbenchPanelMoveNotSubmitted, WorkbenchPanelMovePrecommit, WorkbenchPanelMoveOutcomeUnknownReason);
+    }
+
+    submissions_with_profile! {
+        (WorkbenchTabCreateNotSubmitted, WorkbenchTabCreatePrecommit, WorkbenchTabCreateOutcomeUnknownReason);
+        (WorkbenchPanelSplitNotSubmitted, WorkbenchPanelSplitPrecommit, WorkbenchPanelSplitOutcomeUnknownReason);
     }
 
     pub(super) fn run(command: &MutationCommand, format: OutputFormat, locale: Locale) -> Output {
@@ -456,6 +560,7 @@ mod linux {
                 label,
                 geometry,
                 launch,
+                profile,
             } => {
                 let terminal_context_id = match context {
                     TabContext::Standalone => {
@@ -471,6 +576,7 @@ mod linux {
                     label: label.clone(),
                     geometry: *geometry,
                     launch: launch.clone(),
+                    profile: profile.clone(),
                 })
             }
             MutationCommand::TabRename { target, label } => {
@@ -502,6 +608,7 @@ mod linux {
                 label,
                 geometry,
                 launch,
+                profile,
             } => {
                 let (context, tab, panel_id) = resolve_panel(snapshot, target)?;
                 Ok(WorkbenchAction::PanelSplit {
@@ -512,6 +619,7 @@ mod linux {
                     label: label.clone(),
                     geometry: *geometry,
                     launch: launch.clone(),
+                    profile: profile.clone(),
                 })
             }
             MutationCommand::PanelClose { target } => {
@@ -537,6 +645,17 @@ mod linux {
                     panel_id,
                     target_panel_id,
                     direction: *direction,
+                })
+            }
+            MutationCommand::LaunchProfileCreate { name, launch } => {
+                Ok(WorkbenchAction::LaunchProfileCreate {
+                    name: name.clone(),
+                    launch: launch.clone(),
+                })
+            }
+            MutationCommand::LaunchProfileDelete { selector } => {
+                Ok(WorkbenchAction::LaunchProfileDelete {
+                    selector: selector.clone(),
                 })
             }
             // `terminal send` never becomes a Workbench action; `cli::mutation`
@@ -741,7 +860,7 @@ mod linux {
                     // transport already classifies them as unknown.
                     WorkbenchSetupSubmission::Committed(_) => Err(internal()),
                     WorkbenchSetupSubmission::DefinitePrecommit(precommit) => {
-                        Err(precommit_failure(precommit.into()))
+                        Err(precommit_failure(precommit.into(), &resolved.action))
                     }
                     WorkbenchSetupSubmission::DefinitelyNotSubmitted(reason) => {
                         Err(not_submitted_failure(reason.into()))
@@ -808,7 +927,7 @@ mod linux {
                             .terminal(terminal))
                     }
                     WorkbenchTabCreateSubmission::DefinitePrecommit(precommit) => {
-                        Err(precommit_failure(precommit.into()))
+                        Err(precommit_failure(precommit.into(), &resolved.action))
                     }
                     WorkbenchTabCreateSubmission::DefinitelyNotSubmitted(reason) => {
                         Err(not_submitted_failure(reason.into()))
@@ -839,7 +958,7 @@ mod linux {
                     }
                     .revision(revision)),
                     WorkbenchTabRenameSubmission::DefinitePrecommit(precommit) => {
-                        Err(precommit_failure(precommit.into()))
+                        Err(precommit_failure(precommit.into(), &resolved.action))
                     }
                     WorkbenchTabRenameSubmission::DefinitelyNotSubmitted(reason) => {
                         Err(not_submitted_failure(reason.into()))
@@ -870,7 +989,7 @@ mod linux {
                     }
                     .revision(revision)),
                     WorkbenchTabMoveSubmission::DefinitePrecommit(precommit) => {
-                        Err(precommit_failure(precommit.into()))
+                        Err(precommit_failure(precommit.into(), &resolved.action))
                     }
                     WorkbenchTabMoveSubmission::DefinitelyNotSubmitted(reason) => {
                         Err(not_submitted_failure(reason.into()))
@@ -894,7 +1013,7 @@ mod linux {
                         .id("terminalContextId", terminal_context_id.as_str())
                         .id("tabId", tab_id.as_str())),
                     WorkbenchTabCloseSubmission::DefinitePrecommit(precommit) => {
-                        Err(precommit_failure(precommit.into()))
+                        Err(precommit_failure(precommit.into(), &resolved.action))
                     }
                     WorkbenchTabCloseSubmission::DefinitelyNotSubmitted(reason) => {
                         Err(not_submitted_failure(reason.into()))
@@ -981,7 +1100,7 @@ mod linux {
                             .terminal(terminal))
                     }
                     WorkbenchPanelSplitSubmission::DefinitePrecommit(precommit) => {
-                        Err(precommit_failure(precommit.into()))
+                        Err(precommit_failure(precommit.into(), &resolved.action))
                     }
                     WorkbenchPanelSplitSubmission::DefinitelyNotSubmitted(reason) => {
                         Err(not_submitted_failure(reason.into()))
@@ -989,6 +1108,84 @@ mod linux {
                     WorkbenchPanelSplitSubmission::OutcomeUnknown { request_id, reason } => {
                         Err(unknown_failure(request_id, reason.reason()))
                     }
+                }
+            }
+            WorkbenchAction::LaunchProfileCreate { .. } => {
+                let request = WorkbenchLaunchProfileCreateRequest::try_from(command)
+                    .map_err(|_| internal())?;
+                match client.submit_workbench_launch_profile_create(request, deadline) {
+                    WorkbenchLaunchProfileMutationSubmission::Created {
+                        revision,
+                        catalog_revision,
+                        profile_id,
+                    } => Ok(receipt(&resolved, "launch-profile.create", "committed")
+                        .revision(revision)
+                        .catalog_revision(catalog_revision)
+                        .id("profileId", profile_id.as_str())
+                        .name(resolved_profile_name(&resolved.action))),
+                    WorkbenchLaunchProfileMutationSubmission::Deleted {
+                        revision,
+                        catalog_revision,
+                        profile_id,
+                    } => Ok(receipt(&resolved, "launch-profile.delete", "committed")
+                        .revision(revision)
+                        .catalog_revision(catalog_revision)
+                        .id("profileId", profile_id.as_str())),
+                    WorkbenchLaunchProfileMutationSubmission::ProfileUnavailable => {
+                        Err(profile_unavailable_failure(&resolved.action))
+                    }
+                    WorkbenchLaunchProfileMutationSubmission::ProfileAmbiguous {
+                        candidate_ids,
+                    } => Err(profile_ambiguous_failure(&resolved.action, &candidate_ids)),
+                    WorkbenchLaunchProfileMutationSubmission::DefinitePrecommit(precommit) => {
+                        Err(precommit_failure(precommit.into(), &resolved.action))
+                    }
+                    WorkbenchLaunchProfileMutationSubmission::DefinitelyNotSubmitted(reason) => {
+                        Err(not_submitted_failure(reason.into()))
+                    }
+                    WorkbenchLaunchProfileMutationSubmission::OutcomeUnknown {
+                        request_id,
+                        reason,
+                    } => Err(unknown_failure(request_id, reason.reason())),
+                }
+            }
+            WorkbenchAction::LaunchProfileDelete { .. } => {
+                let request = WorkbenchLaunchProfileDeleteRequest::try_from(command)
+                    .map_err(|_| internal())?;
+                match client.submit_workbench_launch_profile_delete(request, deadline) {
+                    WorkbenchLaunchProfileMutationSubmission::Created {
+                        revision,
+                        catalog_revision,
+                        profile_id,
+                    } => Ok(receipt(&resolved, "launch-profile.create", "committed")
+                        .revision(revision)
+                        .catalog_revision(catalog_revision)
+                        .id("profileId", profile_id.as_str())
+                        .name(resolved_profile_name(&resolved.action))),
+                    WorkbenchLaunchProfileMutationSubmission::Deleted {
+                        revision,
+                        catalog_revision,
+                        profile_id,
+                    } => Ok(receipt(&resolved, "launch-profile.delete", "committed")
+                        .revision(revision)
+                        .catalog_revision(catalog_revision)
+                        .id("profileId", profile_id.as_str())),
+                    WorkbenchLaunchProfileMutationSubmission::ProfileUnavailable => {
+                        Err(profile_unavailable_failure(&resolved.action))
+                    }
+                    WorkbenchLaunchProfileMutationSubmission::ProfileAmbiguous {
+                        candidate_ids,
+                    } => Err(profile_ambiguous_failure(&resolved.action, &candidate_ids)),
+                    WorkbenchLaunchProfileMutationSubmission::DefinitePrecommit(precommit) => {
+                        Err(precommit_failure(precommit.into(), &resolved.action))
+                    }
+                    WorkbenchLaunchProfileMutationSubmission::DefinitelyNotSubmitted(reason) => {
+                        Err(not_submitted_failure(reason.into()))
+                    }
+                    WorkbenchLaunchProfileMutationSubmission::OutcomeUnknown {
+                        request_id,
+                        reason,
+                    } => Err(unknown_failure(request_id, reason.reason())),
                 }
             }
             WorkbenchAction::PanelClose { .. } => {
@@ -1007,7 +1204,7 @@ mod linux {
                         .id("tabId", tab_id.as_str())
                         .id("panelId", panel_id.as_str())),
                     WorkbenchPanelCloseSubmission::DefinitePrecommit(precommit) => {
-                        Err(precommit_failure(precommit.into()))
+                        Err(precommit_failure(precommit.into(), &resolved.action))
                     }
                     WorkbenchPanelCloseSubmission::DefinitelyNotSubmitted(reason) => {
                         Err(not_submitted_failure(reason.into()))
@@ -1043,7 +1240,7 @@ mod linux {
                     }
                     .revision(revision)),
                     WorkbenchPanelMoveSubmission::DefinitePrecommit(precommit) => {
-                        Err(precommit_failure(precommit.into()))
+                        Err(precommit_failure(precommit.into(), &resolved.action))
                     }
                     WorkbenchPanelMoveSubmission::DefinitelyNotSubmitted(reason) => {
                         Err(not_submitted_failure(reason.into()))
@@ -1114,6 +1311,8 @@ mod linux {
             label: None,
             path: None,
             terminal: None,
+            catalog_revision: None,
+            name: None,
         }
     }
 
@@ -1131,8 +1330,12 @@ mod linux {
         }
     }
 
-    /// A definite pre-commit answer the Server typed itself.
-    fn precommit_failure(precommit: Precommit) -> Failure {
+    /// A definite pre-commit answer the Server typed itself. The typed
+    /// profile-resolution settlements project the selector the action
+    /// carried — under the launch-profile failure envelope, since the
+    /// generic failure schema's resource and candidate grammars are closed
+    /// without it.
+    fn precommit_failure(precommit: Precommit, action: &WorkbenchAction) -> Failure {
         match precommit {
             Precommit::Rejected { revision, reason } => Failure::new(FailureKind::Rejected)
                 .details(Map::from_iter([
@@ -1143,7 +1346,79 @@ mod linux {
             Precommit::Denied => Failure::new(FailureKind::Denied),
             Precommit::Unavailable { reason } => Failure::new(FailureKind::ServiceUnavailable)
                 .details(stage_reason_details("command", unavailable_reason(reason))),
+            Precommit::ProfileUnavailable => profile_unavailable_failure(action),
+            Precommit::ProfileAmbiguous { candidate_ids } => {
+                profile_ambiguous_failure(action, &candidate_ids)
+            }
         }
+    }
+
+    /// The selector the action carried — `tab create`/`panel split` only
+    /// admit one when `--profile` was selected; `launch-profile delete`
+    /// always has one.
+    fn resolved_profile_selector(action: &WorkbenchAction) -> &str {
+        match action {
+            WorkbenchAction::TabCreate {
+                profile: Some(selector),
+                ..
+            }
+            | WorkbenchAction::PanelSplit {
+                profile: Some(selector),
+                ..
+            } => selector.as_str(),
+            WorkbenchAction::LaunchProfileDelete { selector } => selector.as_str(),
+            _ => "",
+        }
+    }
+
+    /// The name a `launch-profile create` carried — echoed on the committed
+    /// receipt exactly as the catalog stored it.
+    fn resolved_profile_name(action: &WorkbenchAction) -> &str {
+        match action {
+            WorkbenchAction::LaunchProfileCreate { name, .. } => name.as_str(),
+            _ => "",
+        }
+    }
+
+    /// The Server resolved the selector to nothing: the launch-profile
+    /// family's `not-found` — no candidates, just the resource and the
+    /// selector it refused.
+    fn profile_unavailable_failure(action: &WorkbenchAction) -> Failure {
+        Failure::new(FailureKind::NotFound)
+            .details(Map::from_iter([
+                ("resource".to_owned(), json!("launch-profile")),
+                (
+                    "target".to_owned(),
+                    json!(resolved_profile_selector(action)),
+                ),
+            ]))
+            .failure_schema(LAUNCH_PROFILE_FAILURE_ID)
+    }
+
+    /// The selector's name cardinality exceeded one: the family's
+    /// `ambiguous` — the bounded same-resolution candidate ids plus the true
+    /// total, capped like every other ambiguity list.
+    fn profile_ambiguous_failure(
+        action: &WorkbenchAction,
+        candidate_ids: &[LaunchProfileId],
+    ) -> Failure {
+        let total = candidate_ids.len();
+        let candidates: Vec<&str> = candidate_ids
+            .iter()
+            .take(8)
+            .map(LaunchProfileId::as_str)
+            .collect();
+        Failure::new(FailureKind::Ambiguous)
+            .details(Map::from_iter([
+                ("resource".to_owned(), json!("launch-profile")),
+                (
+                    "target".to_owned(),
+                    json!(resolved_profile_selector(action)),
+                ),
+                ("candidates".to_owned(), json!(candidates)),
+                ("totalCount".to_owned(), json!(total)),
+            ]))
+            .failure_schema(LAUNCH_PROFILE_FAILURE_ID)
     }
 
     /// Any post-submission outcome the transport could not settle: the

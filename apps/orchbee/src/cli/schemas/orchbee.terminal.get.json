@@ -7,7 +7,7 @@
 	"additionalProperties": false,
 	"properties": {
 		"schema": { "const": "orchbee.terminal.get" },
-		"version": { "const": 2 },
+		"version": { "const": 3 },
 		"source": { "$ref": "#/$defs/launchReadSource" },
 		"result": {
 			"type": "object",
@@ -30,6 +30,18 @@
 				"terminalId": { "$ref": "#/$defs/id" },
 				"workerId": { "$ref": "#/$defs/id" },
 				"launch": { "$ref": "#/$defs/launch" },
+				"launchProfile": {
+					"type": "object",
+					"required": ["profileId", "catalogRevision"],
+					"additionalProperties": false,
+					"properties": {
+						"profileId": {
+							"type": "string",
+							"pattern": "^[0-9A-Za-z][0-9A-Za-z._:-]{0,127}$"
+						},
+						"catalogRevision": { "$ref": "#/$defs/decimal" }
+					}
+				},
 				"boundTo": {
 					"type": "object",
 					"required": ["presentationId", "panelId", "tabId", "terminalContextId"],

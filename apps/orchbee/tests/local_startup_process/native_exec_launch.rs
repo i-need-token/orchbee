@@ -232,6 +232,7 @@ fn cli_tab_create_launch_selection_runs_verbatim_and_replays_by_identity() -> Te
                     "漢字".to_owned(),
                 ],
             )?),
+            profile: None,
         },
     };
 
@@ -265,6 +266,7 @@ fn cli_tab_create_launch_selection_runs_verbatim_and_replays_by_identity() -> Te
             "/bin/sh".to_owned(),
             vec!["-c".to_owned(), conflict_script],
         )?),
+        profile: None,
     };
     let outcome = replay_command(&fixture, &conflicted)?;
     assert!(

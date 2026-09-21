@@ -31,9 +31,11 @@ use orchbee_local_site_runtime::{
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch, TerminalTextFrame};
 #[cfg(target_os = "linux")]
 use orchbee_workbench_protocol::{
-    ProtocolVersion, Snapshot, SnapshotReadIntent, WorkbenchDirectoryId, WorkbenchRequestId,
-    WorkbenchSnapshotOutcome, WorkbenchWorktreeListOutcome, WorkbenchWorktreeListRead,
-    WorktreeListStage, WorktreeListTooLargeOrigin, WorktreeListUnavailableReason,
+    LaunchProfileCatalogOutcome, LaunchProfileSelector, ProtocolVersion, Snapshot,
+    SnapshotReadIntent, WorkbenchDirectoryId, WorkbenchLaunchProfileCatalogRead,
+    WorkbenchRequestId, WorkbenchSnapshotOutcome, WorkbenchSnapshotUnavailableReason,
+    WorkbenchWorktreeListOutcome, WorkbenchWorktreeListRead, WorktreeListStage,
+    WorktreeListTooLargeOrigin, WorktreeListUnavailableReason,
 };
 
 #[cfg(target_os = "linux")]
@@ -50,7 +52,8 @@ use crate::invocation::{Resource, Target};
 use crate::local_client::agent::{AgentReadError, AgentReadFailure, AgentReadOperation};
 #[cfg(target_os = "linux")]
 use crate::local_client::workbench::{
-    SnapshotReadError, SnapshotReadFailure, WorktreeListReadError, WorktreeListReadFailure,
+    LaunchProfileCatalogReadError, LaunchProfileCatalogReadFailure, SnapshotReadError,
+    SnapshotReadFailure, WorktreeListReadError, WorktreeListReadFailure,
 };
 #[cfg(target_os = "linux")]
 use crate::local_client::{
@@ -60,6 +63,11 @@ use crate::local_client::{
 use crate::terminal_projection::TerminalProjection;
 #[cfg(target_os = "linux")]
 use crate::termination_signal::{TerminationSignal, TerminationSource};
+
+#[cfg(target_os = "linux")]
+mod agent_wait;
+#[cfg(target_os = "linux")]
+pub(crate) use agent_wait::agent_wait;
 
 #[cfg(target_os = "linux")]
 const COHORT_BUDGET: Duration = Duration::from_secs(5);
@@ -119,6 +127,7 @@ pub(crate) fn terminal_get(target: &Target) -> Result<(serde_json::Value, Projec
             workbench_revision,
             terminal,
             launch,
+            launch_profile,
         } => {
             let bound_to = terminal.bound_to();
             let row = super::results::TerminalRow {
@@ -134,6 +143,7 @@ pub(crate) fn terminal_get(target: &Target) -> Result<(serde_json::Value, Projec
                 Projection::TerminalGet(super::results::TerminalGetDoc {
                     terminal: row,
                     launch: (**launch).clone(),
+                    launch_profile: launch_profile.clone(),
                 }),
             ))
         }
@@ -387,6 +397,167 @@ fn classify_worktree_read(error: WorktreeListReadError) -> Failure {
             WorktreeListReadFailure::CorrelationMismatch { .. } => {
                 failure(FailureKind::ProtocolInvalid).details(stage_reason_details(
                     "worktree-list",
+                    "correlation-mismatch",
+                ))
+            }
+        },
+    }
+}
+
+/// `launch-profile list`/`get`: one typed catalog read on the admitted
+/// session. `selector` absent lists the whole per-Site catalog; present
+/// resolves exactly one entry under the Server's coordinator lock — the
+/// CLI never pre-reads the catalog or resolves a selector locally. Every
+/// failure past the session boundary carries the dedicated launch-profile
+/// failure envelope: the generic schema's resource and candidate-id
+/// grammars are closed without it.
+#[cfg(target_os = "linux")]
+pub(crate) fn launch_profile_catalog(
+    selector: Option<LaunchProfileSelector>,
+) -> Result<(serde_json::Value, Projection), Failure> {
+    let deadline = deadline_after(NETWORK_BUDGET)?;
+    let (mut client, deadline, snapshot) = snapshot_session_until(deadline)?;
+    let source = super::results::snapshot_source(&snapshot);
+    let request = WorkbenchLaunchProfileCatalogRead {
+        protocol_version: ProtocolVersion,
+        request_id: request_id()?,
+        selector: selector.clone(),
+    };
+    let outcome = client
+        .submit_workbench_launch_profile_catalog_read_before(request, deadline)
+        .map_err(|error| classify_launch_profile_catalog_read(error).source(source.clone()));
+    // The Client Session is fully dropped before the answer is mapped into
+    // the bounded document or any output is prepared.
+    drop(client);
+    let result = outcome?;
+    match result.outcome {
+        LaunchProfileCatalogOutcome::Catalog {
+            site_id,
+            catalog_revision,
+            entries,
+        } => Ok((
+            launch_profile_catalog_source(site_id.as_str(), catalog_revision),
+            Projection::LaunchProfileCatalog(super::results::LaunchProfileCatalogDoc {
+                catalog_revision,
+                selection: super::results::LaunchProfileCatalogSelection::List(entries),
+            }),
+        )),
+        LaunchProfileCatalogOutcome::Profile {
+            site_id,
+            catalog_revision,
+            profile,
+        } => Ok((
+            launch_profile_catalog_source(site_id.as_str(), catalog_revision),
+            Projection::LaunchProfileCatalog(super::results::LaunchProfileCatalogDoc {
+                catalog_revision,
+                selection: super::results::LaunchProfileCatalogSelection::Profile(profile),
+            }),
+        )),
+        outcome => Err(classify_launch_profile_outcome(outcome, selector.as_ref()).source(source)),
+    }
+}
+
+/// The `launch-profile-catalog` authority source: the same Server
+/// resolution the answer came from.
+#[cfg(target_os = "linux")]
+fn launch_profile_catalog_source(
+    site_id: &str,
+    catalog_revision: orchbee_workbench_protocol::LaunchProfileCatalogRevision,
+) -> serde_json::Value {
+    serde_json::json!({
+        "kind": "launch-profile-catalog",
+        "siteId": site_id,
+        "catalogRevision": catalog_revision.to_string(),
+    })
+}
+
+/// The catalog read's typed outcomes → the CLI failure kinds, all under the
+/// launch-profile failure envelope.
+#[cfg(target_os = "linux")]
+fn classify_launch_profile_outcome(
+    outcome: LaunchProfileCatalogOutcome,
+    selector: Option<&LaunchProfileSelector>,
+) -> Failure {
+    let failure =
+        |kind| Failure::new(kind).failure_schema(super::schema::LAUNCH_PROFILE_FAILURE_ID);
+    let target = selector.map_or("", LaunchProfileSelector::as_str);
+    match outcome {
+        LaunchProfileCatalogOutcome::NotFound {} => {
+            failure(FailureKind::NotFound).details(serde_json::Map::from_iter([
+                ("resource".to_owned(), serde_json::json!("launch-profile")),
+                ("target".to_owned(), serde_json::json!(target)),
+            ]))
+        }
+        LaunchProfileCatalogOutcome::Ambiguous { candidate_ids } => {
+            let total = candidate_ids.len();
+            let candidates: Vec<&str> = candidate_ids
+                .iter()
+                .take(8)
+                .map(orchbee_workbench_protocol::LaunchProfileId::as_str)
+                .collect();
+            failure(FailureKind::Ambiguous).details(serde_json::Map::from_iter([
+                ("resource".to_owned(), serde_json::json!("launch-profile")),
+                ("target".to_owned(), serde_json::json!(target)),
+                ("candidates".to_owned(), serde_json::json!(candidates)),
+                ("totalCount".to_owned(), serde_json::json!(total)),
+            ]))
+        }
+        LaunchProfileCatalogOutcome::Denied {} => {
+            failure(FailureKind::Denied).details(stage_details("launch-profile-catalog"))
+        }
+        LaunchProfileCatalogOutcome::Unavailable { reason } => {
+            let reason = match reason {
+                WorkbenchSnapshotUnavailableReason::ServiceUnavailable => "service-unavailable",
+            };
+            failure(FailureKind::ServiceUnavailable)
+                .details(stage_reason_details("launch-profile-catalog", reason))
+        }
+        LaunchProfileCatalogOutcome::Catalog { .. }
+        | LaunchProfileCatalogOutcome::Profile { .. } => {
+            unreachable!("catalog and profile answers return before classification")
+        }
+    }
+}
+
+/// The typed catalog exchange failures, classified under the launch-profile
+/// failure envelope: a deadline-expired response is the command's own
+/// timeout, never a transport guess.
+#[cfg(target_os = "linux")]
+fn classify_launch_profile_catalog_read(error: LaunchProfileCatalogReadError) -> Failure {
+    use orchbee_workbench_protocol::WorkbenchWireError;
+    let failure =
+        |kind| Failure::new(kind).failure_schema(super::schema::LAUNCH_PROFILE_FAILURE_ID);
+    match error {
+        LaunchProfileCatalogReadError::SessionUnavailable
+        | LaunchProfileCatalogReadError::RequestEncoding(_) => {
+            failure(FailureKind::InternalFailure)
+        }
+        LaunchProfileCatalogReadError::RequestNotSubmitted(_) => {
+            failure(FailureKind::TransportLoss).details(stage_details("launch-profile-catalog"))
+        }
+        LaunchProfileCatalogReadError::Failed { reason, .. } => match reason {
+            LaunchProfileCatalogReadFailure::Write(_) => {
+                failure(FailureKind::TransportLoss).details(stage_details("launch-profile-catalog"))
+            }
+            LaunchProfileCatalogReadFailure::ResponseDeadline(_) => failure(FailureKind::Timeout)
+                .details(serde_json::Map::from_iter([
+                    (
+                        "stage".to_owned(),
+                        serde_json::json!("launch-profile-catalog"),
+                    ),
+                    ("timeoutMs".to_owned(), serde_json::json!(5000)),
+                ])),
+            LaunchProfileCatalogReadFailure::Response(WorkbenchWireError::Io(_)) => {
+                failure(FailureKind::TransportLoss).details(stage_details("launch-profile-catalog"))
+            }
+            LaunchProfileCatalogReadFailure::Response(_)
+            | LaunchProfileCatalogReadFailure::UnexpectedResponse => {
+                failure(FailureKind::ProtocolInvalid)
+                    .details(stage_details("launch-profile-catalog"))
+            }
+            LaunchProfileCatalogReadFailure::CorrelationMismatch { .. } => {
+                failure(FailureKind::ProtocolInvalid).details(stage_reason_details(
+                    "launch-profile-catalog",
                     "correlation-mismatch",
                 ))
             }
@@ -2518,6 +2689,17 @@ pub(crate) fn worktree_list(
 }
 
 #[cfg(not(target_os = "linux"))]
+pub(crate) fn launch_profile_catalog(
+    _selector: Option<orchbee_workbench_protocol::LaunchProfileSelector>,
+) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
+    Err(
+        super::Failure::new(super::FailureKind::ServiceUnavailable).details(
+            super::stage_reason_details("platform", "unsupported-platform"),
+        ),
+    )
+}
+
+#[cfg(not(target_os = "linux"))]
 pub(crate) fn wait_output(
     _target: &crate::invocation::Target,
     _match_text: &str,
@@ -2567,6 +2749,20 @@ pub(crate) fn agent_get(
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn agent_explain(
     _session_id: &orchbee_agent_observation_protocol::AgentSessionId,
+) -> Result<(serde_json::Value, super::results::Projection), AgentQueryError> {
+    Err(AgentQueryError::Admission(
+        super::Failure::new(super::FailureKind::ServiceUnavailable).details(
+            super::stage_reason_details("platform", "unsupported-platform"),
+        ),
+    ))
+}
+
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn agent_wait(
+    _session_id: &orchbee_agent_observation_protocol::AgentSessionId,
+    _until: &[crate::invocation::AgentWaitCondition],
+    _after_revision: Option<orchbee_agent_observation_protocol::AgentSafeInteger>,
+    _timeout_ms: u32,
 ) -> Result<(serde_json::Value, super::results::Projection), AgentQueryError> {
     Err(AgentQueryError::Admission(
         super::Failure::new(super::FailureKind::ServiceUnavailable).details(

@@ -4,6 +4,7 @@ use orchbee_workbench_protocol::{
     WorkbenchLabel, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, WorkerId,
 };
 
+mod launch_profile;
 mod stateful;
 mod workspace_directory;
 
@@ -111,6 +112,7 @@ fn install_two_tabs(
             label: WorkbenchLabel::parse("\0duplicate\u{2028}\u{2029}\n").unwrap(),
             geometry,
             launch: None,
+            profile: None,
         },
     );
     let terminal_grant =

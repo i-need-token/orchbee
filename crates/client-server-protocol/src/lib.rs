@@ -37,7 +37,7 @@ pub use identity::{
     SiteId, TabId, TerminalContextId, TerminalId, ViewerId, WorkerId,
 };
 pub use launch_read::{
-    TerminalLaunchBoundTo, TerminalLaunchFact, TerminalLaunchReadOutcome,
+    LaunchProfileProvenance, TerminalLaunchBoundTo, TerminalLaunchFact, TerminalLaunchReadOutcome,
     TerminalLaunchReadRequest, TerminalLaunchReadResult, TerminalLaunchReadUnavailableReason,
     TerminalLaunchRoute, TerminalLaunchState,
 };

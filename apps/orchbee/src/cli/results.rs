@@ -5,18 +5,20 @@
 use std::collections::HashMap;
 
 use orchbee_agent_observation_protocol::{
-    AgentExplainOutcome, AgentGetOutcome, AgentListOutcome, ObapRequestId,
+    AgentExplainOutcome, AgentGetOutcome, AgentListOutcome, AgentSafeInteger, AgentSessionDetail,
+    ObapRequestId,
 };
-use orchbee_client_server_protocol::TerminalLaunchFact;
+use orchbee_client_server_protocol::{LaunchProfileProvenance, TerminalLaunchFact};
 use orchbee_terminal_protocol::MAXIMUM_FRAME_ROWS;
 use orchbee_workbench_protocol::{
-    PanelNode, PanelSlot, Presentation, Project, Snapshot, Tab, TerminalContext,
-    WorkbenchProtocolDocument, Workspace, WorktreeEntry, WorktreeEntryText,
+    LaunchProfileCatalogRevision, LaunchProfileEntry, PanelNode, PanelSlot, Presentation, Project,
+    Snapshot, Tab, TerminalContext, WorkbenchProtocolDocument, Workspace, WorktreeEntry,
+    WorktreeEntryText,
 };
 use serde_json::{Map, Value, json};
 
 use super::{Failure, FailureKind, target_details};
-use crate::invocation::{QueryCommand, Resource, Target};
+use crate::invocation::{AgentWaitCondition, QueryCommand, Resource, Target};
 
 pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
     match command {
@@ -24,6 +26,8 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
         QueryCommand::AgentList { .. } => "orchbee.agent.list",
         QueryCommand::AgentGet(_) => "orchbee.agent.get",
         QueryCommand::AgentExplain(_) => "orchbee.agent.explain",
+        QueryCommand::AgentWait { .. } => "orchbee.agent.wait",
+        QueryCommand::AgentDoctor { .. } => "orchbee.agent.doctor",
         QueryCommand::ProjectList => "orchbee.project.list",
         QueryCommand::ProjectGet(_) => "orchbee.project.get",
         QueryCommand::WorkspaceList { .. } => "orchbee.workspace.list",
@@ -43,18 +47,21 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
         }
         QueryCommand::TerminalWaitOutput { .. } => "orchbee.terminal.wait-output",
         QueryCommand::WorktreeList { .. } => "orchbee.worktree.list",
+        QueryCommand::LaunchProfileList => "orchbee.launch-profile.list",
+        QueryCommand::LaunchProfileGet(_) => "orchbee.launch-profile.get",
         QueryCommand::ApiSnapshot => "orchbee.api.snapshot",
         QueryCommand::ApiSchema { .. } => "orchbee.api.schema",
         QueryCommand::ConfigCheck => "orchbee.config.check",
     }
 }
 
-/// `terminal get` is the one document at `version:2`: it gained the `launch`
-/// member and a Server-joined source, a deliberate break older `version:1`
-/// validators reject. Every other envelope stays at `1`.
+/// `terminal get` is the one document past `version:1`: v2 added the
+/// `launch` member and a Server-joined source, v3 adds the `launchProfile`
+/// provenance sibling — each a deliberate break older validators reject.
+/// Every other envelope stays at `1`.
 pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
     match command {
-        QueryCommand::TerminalGet(_) => 2,
+        QueryCommand::TerminalGet(_) => 3,
         _ => 1,
     }
 }
@@ -210,14 +217,16 @@ pub(crate) struct TerminalRow {
     pub(crate) terminal_context_id: String,
 }
 
-/// `terminal get` v2: the Server's point-in-time join — the current routing
-/// row plus the retained launch fact under one coordinator lock. `terminal`
-/// keeps the shared identity shape; only this document version carries
-/// `launch`.
+/// `terminal get` v3: the Server's point-in-time join — the current routing
+/// row plus the retained launch fact under one coordinator lock, and the
+/// launch-profile provenance when the terminal was launched through a named
+/// profile. `terminal` keeps the shared identity shape; only this document
+/// version carries `launch`/`launchProfile`.
 #[derive(Clone, Debug)]
 pub(crate) struct TerminalGetDoc {
     pub(crate) terminal: TerminalRow,
     pub(crate) launch: TerminalLaunchFact,
+    pub(crate) launch_profile: Option<LaunchProfileProvenance>,
 }
 
 /// Routing metadata of the applied projection, re-encoded as decimal strings
@@ -630,6 +639,10 @@ pub(crate) enum Projection {
     AgentGet(AgentGetOutcome),
     /// The typed `found` outcome carrying session plus explanation.
     AgentExplain(AgentExplainOutcome),
+    /// The `agent wait` matched answer: the satisfying session detail
+    /// verbatim plus the requested-order matched conditions and the
+    /// effective wait echo.
+    AgentWait(AgentWaitDoc),
     ProjectList(Vec<ProjectRow>),
     ProjectGet(ProjectDoc),
     WorkspaceList(Vec<WorkspaceRow>),
@@ -646,7 +659,27 @@ pub(crate) enum Projection {
     /// The `worktree list` answer: the registered directory identity plus the
     /// observed Git entries, exactly as the workbench response carried them.
     WorktreeList(WorktreeListDoc),
+    /// The `launch-profile list`/`get` answer: the catalog-private revision
+    /// plus either the whole catalog or the single resolved entry, exactly
+    /// as the Server settled them under its lock.
+    LaunchProfileCatalog(LaunchProfileCatalogDoc),
     ApiSnapshot(Value),
+}
+
+/// The `agent wait` result body: the satisfying `sessionDetail` verbatim,
+/// the matched conditions in the caller's requested order, and the
+/// effective wait parameters plus honest observation accounting — the
+/// poll that matched is the one `source.requestId` names.
+#[derive(Debug)]
+pub(crate) struct AgentWaitDoc {
+    pub(crate) matched: Vec<AgentWaitCondition>,
+    pub(crate) revision: AgentSafeInteger,
+    pub(crate) session: Box<AgentSessionDetail>,
+    pub(crate) until: Vec<AgentWaitCondition>,
+    pub(crate) after_revision: Option<AgentSafeInteger>,
+    pub(crate) timeout_ms: u32,
+    pub(crate) observations: u64,
+    pub(crate) elapsed_ms: u64,
 }
 
 /// The `worktree list` result body. `path` is the registered Workbench
@@ -659,6 +692,22 @@ pub(crate) struct WorktreeListDoc {
     pub(crate) entries: Vec<WorktreeEntry>,
 }
 
+/// The `launch-profile` catalog answer body: the catalog-private revision
+/// the Server resolved under, plus the settled selection.
+#[derive(Clone, Debug)]
+pub(crate) struct LaunchProfileCatalogDoc {
+    pub(crate) catalog_revision: LaunchProfileCatalogRevision,
+    pub(crate) selection: LaunchProfileCatalogSelection,
+}
+
+/// `list` carries every retained entry; `get` carries the single resolved
+/// one — both verbatim wire entries, never re-resolved client-side.
+#[derive(Clone, Debug)]
+pub(crate) enum LaunchProfileCatalogSelection {
+    List(Vec<LaunchProfileEntry>),
+    Profile(LaunchProfileEntry),
+}
+
 impl Projection {
     /// The `result` member of the machine envelope.
     pub(crate) fn result(&self) -> Value {
@@ -668,6 +717,37 @@ impl Projection {
             Self::AgentList(outcome) => json!(outcome),
             Self::AgentGet(outcome) => json!(outcome),
             Self::AgentExplain(outcome) => json!(outcome),
+            Self::AgentWait(doc) => {
+                // The wait echo carries every effective parameter the poll
+                // ran under — the condition list in requested order, the
+                // fence only when present, and the honest accounting.
+                let mut wait = Map::new();
+                wait.insert(
+                    "until".to_owned(),
+                    json!(
+                        doc.until
+                            .iter()
+                            .map(|condition| condition.as_str())
+                            .collect::<Vec<_>>()
+                    ),
+                );
+                if let Some(fence) = doc.after_revision {
+                    wait.insert("afterRevision".to_owned(), json!(fence));
+                }
+                wait.insert("timeoutMs".to_owned(), json!(doc.timeout_ms));
+                wait.insert("observations".to_owned(), json!(doc.observations));
+                wait.insert("elapsedMs".to_owned(), json!(doc.elapsed_ms));
+                json!({
+                    "matchedConditions": doc
+                        .matched
+                        .iter()
+                        .map(|condition| condition.as_str())
+                        .collect::<Vec<_>>(),
+                    "revision": doc.revision,
+                    "session": doc.session,
+                    "wait": Value::Object(wait),
+                })
+            }
             Self::Status(doc) => json!({
                 "site": {
                     "reachable": true,
@@ -796,9 +876,20 @@ impl Projection {
             Self::TerminalGet(doc) => {
                 // `terminal` keeps the shared routing row and gains `launch`
                 // inside it — only this document nests the retained fact.
+                // `launchProfile` is its sibling: emitted exactly when the
+                // launch named a profile, never for explicit/default launches.
                 let mut terminal = terminal_row_json(&doc.terminal);
                 if let Value::Object(members) = &mut terminal {
                     members.insert("launch".to_owned(), launch_fact_json(&doc.launch));
+                    if let Some(provenance) = &doc.launch_profile {
+                        members.insert(
+                            "launchProfile".to_owned(),
+                            json!({
+                                "profileId": provenance.profile_id(),
+                                "catalogRevision": provenance.catalog_revision().to_string(),
+                            }),
+                        );
+                    }
                 }
                 json!({ "terminal": terminal })
             }
@@ -917,9 +1008,39 @@ impl Projection {
                     .map(worktree_entry_json)
                     .collect::<Vec<_>>(),
             }),
+            Self::LaunchProfileCatalog(doc) => {
+                let catalog_revision = doc.catalog_revision.to_string();
+                match &doc.selection {
+                    LaunchProfileCatalogSelection::List(entries) => json!({
+                        "catalogRevision": catalog_revision,
+                        "profiles": entries
+                            .iter()
+                            .map(launch_profile_entry_json)
+                            .collect::<Vec<_>>(),
+                    }),
+                    LaunchProfileCatalogSelection::Profile(profile) => json!({
+                        "catalogRevision": catalog_revision,
+                        "profile": launch_profile_entry_json(profile),
+                    }),
+                }
+            }
             Self::ApiSnapshot(document) => json!({ "snapshot": document }),
         }
     }
+}
+
+/// One catalog entry as its machine-document value — the same member names
+/// the wire contract serializes (`profileId`, `name`, `launch.exec/args`),
+/// shared by the list and get documents and the text name/value block.
+pub(crate) fn launch_profile_entry_json(entry: &LaunchProfileEntry) -> Value {
+    json!({
+        "profileId": entry.profile_id.as_str(),
+        "name": entry.name.as_str(),
+        "launch": {
+            "exec": entry.launch.executable(),
+            "args": entry.launch.arguments(),
+        },
+    })
 }
 
 /// The wire-faithful entry encoding: `worktreePath`/`worktreePathBytesHex`
@@ -1335,13 +1456,18 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
         // after the snapshot resolves the project; `api schema`/`config
         // check` never reach a snapshot projection, and Agent reads are
         // answered by the OBAP exchange, never a snapshot projection.
+        // `launch-profile list`/`get` ride their own typed catalog read.
         QueryCommand::AgentList { .. }
         | QueryCommand::AgentGet(_)
         | QueryCommand::AgentExplain(_)
+        | QueryCommand::AgentWait { .. }
+        | QueryCommand::AgentDoctor { .. }
         | QueryCommand::TerminalGet(_)
         | QueryCommand::TerminalRead { .. }
         | QueryCommand::TerminalWaitOutput { .. }
         | QueryCommand::WorktreeList { .. }
+        | QueryCommand::LaunchProfileList
+        | QueryCommand::LaunchProfileGet(_)
         | QueryCommand::ApiSchema { .. }
         | QueryCommand::ConfigCheck => Err(Failure::new(FailureKind::InternalFailure)),
     }

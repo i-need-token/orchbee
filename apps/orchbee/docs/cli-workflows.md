@@ -19,7 +19,8 @@ end-to-end path only — option and target wording matches what
   ```
 
   Then run `/tmp/orchbee-native-dev/orchbee`. The staged cohort is four
-  artifacts (CLI, Server, Worker, Host) that must come from one build;
+  executables (CLI, Server, Worker, Host) that must come from one build plus
+  the observation-adapters payload directory, all pinned by the manifest;
   non-Linux platforms are not admitted (`unsupported-platform`), and this
   is not an installed product or a system service.
 
@@ -144,6 +145,8 @@ orchbee agent list                          # live sessions only
 orchbee agent list --include-ended --limit 20
 orchbee agent get <session-id>
 orchbee agent explain <session-id>          # how status/freshness were derived
+orchbee agent wait <session-id>             # poll until a condition matches
+orchbee agent wait <session-id> --until ended --until failed
 ```
 
 A session id is the opaque identity printed by `agent list`, never a label;
@@ -151,6 +154,12 @@ a page's `nextCursor` token continues with `--cursor`. These reads submit
 no Workbench mutation and no provider command — nothing is created,
 activated, or mutated — and an ended session stays queryable only while
 the Site retains it. A terminal binding that has closed is not navigable.
+`agent wait` polls one session on a held Client Session until an `--until`
+condition matches or `--timeout` lands (default 600000 ms): status
+conditions need `fresh` freshness, `fresh`/`stale`/`disconnected` match the
+observation directly, and `--after-revision` fences against the first
+returned global revision. It samples state at each poll — a transition
+that begins and ends between two completed observations is missed.
 
 ## 7. Close cleanly
 

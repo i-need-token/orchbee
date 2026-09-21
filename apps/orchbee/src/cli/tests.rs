@@ -215,6 +215,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         Family::Api,
         Family::Completion,
         Family::Config,
+        Family::LaunchProfile,
         Family::Panel,
         Family::Project,
         Family::Site,
@@ -228,12 +229,18 @@ fn fixed_outputs_are_far_below_the_bound() {
     // Every `CommandPath` variant, in both locales — the bound must cover the
     // mutation helps as well as the queries.
     let commands = [
+        CommandPath::AgentDoctor,
         CommandPath::AgentExplain,
         CommandPath::AgentGet,
         CommandPath::AgentList,
+        CommandPath::AgentWait,
         CommandPath::ApiSchema,
         CommandPath::ApiSnapshot,
         CommandPath::ConfigCheck,
+        CommandPath::LaunchProfileCreate,
+        CommandPath::LaunchProfileDelete,
+        CommandPath::LaunchProfileGet,
+        CommandPath::LaunchProfileList,
         CommandPath::PanelClose,
         CommandPath::PanelGet,
         CommandPath::PanelList,
@@ -243,6 +250,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::ProjectGet,
         CommandPath::ProjectList,
         CommandPath::ProjectRename,
+        CommandPath::SiteDiagnose,
         CommandPath::SiteStart,
         CommandPath::Status,
         CommandPath::TabClose,
@@ -283,6 +291,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         "completion",
         "config",
         "help",
+        "launch-profile",
         "panel",
         "project",
         "site",
@@ -297,6 +306,9 @@ fn fixed_outputs_are_far_below_the_bound() {
         "check",
         "close",
         "create",
+        "delete",
+        "diagnose",
+        "doctor",
         "explain",
         "get",
         "list",
@@ -308,6 +320,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         "snapshot",
         "split",
         "start",
+        "wait",
         "wait-output",
     ];
     let mut topics: Vec<CommandPath> = Vec::new();
@@ -347,8 +360,14 @@ fn fixed_outputs_are_far_below_the_bound() {
         "the grammar walk must resolve real mutation help topics"
     );
     for body in &bodies {
+        // Heuristic guardrail, not a protocol contract: the real emission
+        // bound is `output::LIMIT` (8 MiB). 128 KiB keeps fixed bodies ~64x
+        // under it while leaving honest headroom for grammar growth — the
+        // completion walker emits per-command forbidden-bit arms, so each new
+        // family adds a proportional slice (the launch-profile family moved
+        // the largest script from ~62 KiB to ~70 KiB).
         assert!(
-            body.len() < 64 * 1024,
+            body.len() < 128 * 1024,
             "fixed output {} bytes must stay far under the bound",
             body.len()
         );

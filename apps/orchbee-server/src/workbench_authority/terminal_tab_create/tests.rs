@@ -48,6 +48,7 @@ fn command(
             label: WorkbenchLabel::parse(label).unwrap(),
             geometry,
             launch: None,
+            profile: None,
         },
     }
 }

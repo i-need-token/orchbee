@@ -319,6 +319,11 @@ enum DecodedTerminalLaunchReadOutcome {
         workbench_revision: u64,
         terminal: Box<crate::TerminalLaunchRoute>,
         launch: Box<DecodedTerminalLaunchFact>,
+        /// The additive provenance member: present only on profile-launched
+        /// terminals, absent (not null) otherwise — `default` keeps readers
+        /// tolerant of senders that predate it.
+        #[serde(default)]
+        launch_profile: Option<crate::LaunchProfileProvenance>,
     },
     NotFound,
     Unavailable {
@@ -561,6 +566,7 @@ pub(crate) fn decode_server_payload(payload: &[u8]) -> Result<ServerMessage, Pro
                     workbench_revision,
                     terminal,
                     launch,
+                    launch_profile,
                 } => crate::TerminalLaunchReadOutcome::Found {
                     site_id,
                     workbench_revision,
@@ -571,6 +577,7 @@ pub(crate) fn decode_server_payload(payload: &[u8]) -> Result<ServerMessage, Pro
                         launch.create_outcome.map(Into::into),
                         launch.geometry,
                     )?),
+                    launch_profile,
                 },
                 DecodedTerminalLaunchReadOutcome::NotFound => {
                     crate::TerminalLaunchReadOutcome::NotFound

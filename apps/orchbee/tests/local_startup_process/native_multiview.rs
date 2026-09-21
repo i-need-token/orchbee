@@ -60,6 +60,7 @@ fn split_panel(
             label: WorkbenchLabel::parse(label)?,
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
             launch: None,
+            profile: None,
         },
         deadline,
     )? {

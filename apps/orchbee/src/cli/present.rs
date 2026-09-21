@@ -9,13 +9,14 @@ use orchbee_agent_observation_protocol::{
     AgentExplainOutcome, AgentGetOutcome, AgentListOutcome, AgentSessionDetail,
     AgentSessionExplanation,
 };
-use orchbee_workbench_protocol::{WorktreeEntry, WorktreeEntryText};
+use orchbee_workbench_protocol::{LaunchProfileEntry, WorktreeEntry, WorktreeEntryText};
 
 use super::config::CheckReport;
 use super::escape::{display_width, escape, quoted, table_label};
 use super::output::{Bounded, TooLarge};
 use super::results::{
-    ContextRef, PanelDoc, PresentationRow, Projection, StatusDoc, TerminalRow, hex_encode,
+    AgentWaitDoc, ContextRef, LaunchProfileCatalogSelection, PanelDoc, PresentationRow, Projection,
+    StatusDoc, TerminalRow, hex_encode,
 };
 use crate::invocation::QueryCommand;
 use crate::localization::{CliLabels, Locale};
@@ -133,6 +134,21 @@ fn worktree_state(entry: &WorktreeEntry) -> String {
     } else {
         flags.join(",")
     }
+}
+
+/// One catalog row: the minted id, the escaped name, and the launch spelled
+/// as the exec plus its verbatim arguments on one escaped cell.
+fn launch_profile_cells(entry: &LaunchProfileEntry) -> Vec<String> {
+    let mut launch = entry.launch.executable().to_owned();
+    for argument in entry.launch.arguments() {
+        launch.push(' ');
+        launch.push_str(argument);
+    }
+    vec![
+        entry.profile_id.as_str().to_owned(),
+        table_label(entry.name.as_str()),
+        escape(&launch),
+    ]
 }
 
 fn worktree_cells(entry: &WorktreeEntry) -> Vec<String> {
@@ -318,7 +334,18 @@ pub(crate) fn render(
             out.write(format_args!("{}\n", text.launch))?;
             // The launch fact renders as its own `name  value` block — the
             // same validated projection the machine document carries.
-            name_value_block(out, &super::results::launch_fact_json(&doc.launch))
+            name_value_block(out, &super::results::launch_fact_json(&doc.launch))?;
+            // A profile-launched terminal carries its provenance under the
+            // launch block — present exactly when the Server resolved one.
+            if let Some(provenance) = &doc.launch_profile {
+                field(out, text.launch_profile, provenance.profile_id())?;
+                field(
+                    out,
+                    text.catalog_revision,
+                    &provenance.catalog_revision().to_string(),
+                )?;
+            }
+            Ok(())
         }
         // `worktree list` prints the resolved identity block, then one row
         // per observed Git worktree: the escaped path (or its hex byte
@@ -330,6 +357,27 @@ pub(crate) fn render(
             field(out, text.path, &quoted(&doc.path))?;
             table(out, &text.worktree_headers, &doc.entries, worktree_cells)
         }
+        // `launch-profile list` prints the catalog revision line, then one
+        // row per entry; `get` renders the resolved entry as the same
+        // name/value members the machine document carries.
+        Projection::LaunchProfileCatalog(doc) => {
+            field(
+                out,
+                text.catalog_revision,
+                &doc.catalog_revision.to_string(),
+            )?;
+            match &doc.selection {
+                LaunchProfileCatalogSelection::List(entries) => table(
+                    out,
+                    &text.launch_profile_headers,
+                    entries,
+                    launch_profile_cells,
+                ),
+                LaunchProfileCatalogSelection::Profile(entry) => {
+                    name_value_block(out, &super::results::launch_profile_entry_json(entry))
+                }
+            }
+        }
         // `api snapshot` answers a machine document in every format; the text
         // projection is unreachable by contract, not a second surface.
         Projection::ApiSnapshot(_) => {
@@ -340,7 +388,27 @@ pub(crate) fn render(
         Projection::AgentList(outcome) => agent_list(out, outcome, text, locale),
         Projection::AgentGet(outcome) => agent_get(out, outcome, text, locale),
         Projection::AgentExplain(outcome) => agent_explain(out, outcome, text, locale),
+        Projection::AgentWait(doc) => agent_wait(out, doc, locale),
     }
+}
+
+/// `agent wait`: the single matched line — session identity, the matched
+/// conditions in requested order, the satisfied revision, and the honest
+/// elapsed milliseconds. The session detail itself stays in the machine
+/// document; the text surface is the wait's own verdict.
+fn agent_wait(out: &mut Bounded, doc: &AgentWaitDoc, locale: Locale) -> Result<(), TooLarge> {
+    let conditions = doc
+        .matched
+        .iter()
+        .map(|condition| condition.as_str())
+        .collect::<Vec<_>>()
+        .join(",");
+    out.push(&locale.cli_agent_wait_matched(
+        doc.session.snapshot.session_id.as_str(),
+        &conditions,
+        doc.revision.value(),
+        doc.elapsed_ms,
+    ))
 }
 
 /// `agent list`: the SESSION/PROVIDER/STATUS/FRESHNESS/LOCATION table, an
@@ -662,6 +730,49 @@ pub(crate) fn config_checks(
     Ok(())
 }
 
+/// `site diagnose` rows stream in the same `name  state  k=v` shape as
+/// `config check`: one line per leaf row whose name is the machine
+/// document's own dotted field path (`locks.activation`,
+/// `endpoints.client`), and advisory tokens append their localized note
+/// lines after the rows.
+pub(crate) fn site_diagnose(
+    out: &mut Bounded,
+    document: &super::site_diagnose::DiagnoseDocument,
+    locale: Locale,
+) -> Result<(), TooLarge> {
+    for (name, row) in &document.rows {
+        let nested = row.values().all(|value| matches!(value, Value::Object(_)));
+        if nested && !row.is_empty() {
+            for (inner_key, inner) in row {
+                if let Value::Object(inner_row) = inner {
+                    diagnose_row(out, &format!("{name}.{inner_key}"), inner_row)?;
+                }
+            }
+        } else {
+            diagnose_row(out, name, row)?;
+        }
+    }
+    for advisory in &document.advisories {
+        out.push(locale.cli_site_diagnose_advisory(advisory))?;
+    }
+    Ok(())
+}
+
+/// One `site diagnose` leaf row: `name  key=value …` on its own line.
+fn diagnose_row(
+    out: &mut Bounded,
+    name: &str,
+    row: &serde_json::Map<String, Value>,
+) -> Result<(), TooLarge> {
+    out.write(format_args!("{name:<28}"))?;
+    for (key, value) in row {
+        out.write(format_args!("{key}="))?;
+        detail(out, value)?;
+        out.push(" ")?;
+    }
+    out.push("\n")
+}
+
 /// A detail value written recursively: strings are quoted and objects nest —
 /// the pieces stream into the sink, no joined intermediate per level.
 fn detail(out: &mut Bounded, value: &Value) -> Result<(), TooLarge> {
@@ -685,7 +796,7 @@ fn detail(out: &mut Bounded, value: &Value) -> Result<(), TooLarge> {
 /// A mutation receipt renders as one `name  value` block using the JSON
 /// field names verbatim so text and JSON name identical fields; the label
 /// value is the only user-controlled text and is escaped through `quoted`.
-pub(crate) fn receipt(
+pub(super) fn receipt(
     out: &mut Bounded,
     receipt: &super::mutation::Receipt,
 ) -> Result<(), TooLarge> {
@@ -734,4 +845,139 @@ fn name_value_block(out: &mut Bounded, result: &Value) -> Result<(), TooLarge> {
         out.push("\n")?;
     }
     Ok(())
+}
+
+/// `agent doctor` text rendering: one block per provider (executable, node,
+/// hook rows), then the endpoint, environment, asset-root, and hint
+/// sections. Field names render verbatim like `config check`; hint text
+/// comes from the locale, and every fact streams through the shared detail
+/// writer into the bounded sink.
+#[cfg(target_os = "linux")]
+pub(crate) fn agent_doctor(
+    out: &mut Bounded,
+    result: &Value,
+    locale: Locale,
+) -> Result<(), TooLarge> {
+    let text = locale.cli_labels();
+    out.push(text.agent_doctor_providers)?;
+    out.push("\n")?;
+    if let Some(providers) = result["providers"].as_array() {
+        for provider in providers {
+            out.push("  ")?;
+            out.push(provider["id"].as_str().unwrap_or("?"))?;
+            out.push("\n")?;
+            for (name, fact) in [
+                ("executable", &provider["executable"]),
+                ("node", &provider["runtime"]["node"]),
+                ("hook", &provider["hook"]),
+            ] {
+                out.write(format_args!("    {name:<11}"))?;
+                doctor_fact(out, fact)?;
+            }
+        }
+    }
+
+    out.push(text.agent_doctor_endpoint)?;
+    out.push("\n  socket  ")?;
+    doctor_fact(out, &result["endpoint"]["socket"])?;
+
+    out.push(text.agent_doctor_environment)?;
+    out.push("\n  ORCHBEE_AGENT_OBSERVATION_SOCKET_V3  ")?;
+    doctor_fact(out, &result["environment"]["observationSocketEnv"])?;
+
+    out.push(text.agent_doctor_asset_roots)?;
+    out.push("\n")?;
+    if let Some(roots) = result["asset"]["roots"].as_array() {
+        for root in roots {
+            out.push("  ")?;
+            if let Some(path) = root["path"].as_str() {
+                out.push(&quoted(path))?;
+            } else {
+                out.push("pathBytesHex=")?;
+                detail(out, &root["pathBytesHex"])?;
+            }
+            out.push("  origin=")?;
+            detail(out, &root["origin"])?;
+            out.push("  state=")?;
+            detail(out, &root["state"])?;
+            if let Some(details) = root["detail"].as_object() {
+                for (key, value) in details {
+                    out.write(format_args!("  {key}="))?;
+                    detail(out, value)?;
+                }
+            }
+            out.push("\n")?;
+        }
+    }
+
+    out.push(text.agent_doctor_hints)?;
+    out.push("\n")?;
+    if let Some(hints) = result["hints"].as_array() {
+        for hint in hints {
+            out.push("  ")?;
+            let id = hint["id"].as_str().unwrap_or_default();
+            out.push(&locale.cli_agent_doctor_hint_text(id, &doctor_hint_subjects(result, hint)))?;
+            if let Some(evidence) = hint["evidence"].as_array()
+                && !evidence.is_empty()
+            {
+                out.push(" (")?;
+                for (index, row) in evidence.iter().enumerate() {
+                    if index > 0 {
+                        out.push(", ")?;
+                    }
+                    detail(out, row)?;
+                }
+                out.push(")")?;
+            }
+            out.push("\n")?;
+        }
+    }
+    Ok(())
+}
+
+/// Re-derives a hint's subject list from its `evidence` rows for localized
+/// text rendering — `providers.<id>.<field>` rows name their provider and
+/// `asset.roots[<i>]` rows name their root path (or `origin` when the path
+/// is not UTF-8). Mirrors the subjects the emitter cited.
+#[cfg(target_os = "linux")]
+fn doctor_hint_subjects(result: &Value, hint: &Value) -> Vec<String> {
+    let mut subjects = Vec::new();
+    for row in hint["evidence"].as_array().into_iter().flatten() {
+        let Some(row) = row.as_str() else { continue };
+        if let Some(rest) = row.strip_prefix("providers.") {
+            if let Some(id) = rest.split('.').next() {
+                subjects.push(id.to_owned());
+            }
+        } else if let Some(index) = row
+            .strip_prefix("asset.roots[")
+            .and_then(|rest| rest.strip_suffix(']'))
+            .and_then(|rest| rest.parse::<usize>().ok())
+        {
+            let root = &result["asset"]["roots"][index];
+            subjects.push(
+                root["path"]
+                    .as_str()
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| root["origin"].as_str().unwrap_or_default().to_owned()),
+            );
+        }
+    }
+    subjects
+}
+
+/// One doctor fact row: `state`, then `reason` when present, then every
+/// detail field through the shared writer.
+#[cfg(target_os = "linux")]
+fn doctor_fact(out: &mut Bounded, fact: &Value) -> Result<(), TooLarge> {
+    out.push(fact["state"].as_str().unwrap_or("unknown"))?;
+    if let Some(reason) = fact["reason"].as_str() {
+        out.write(format_args!("  reason={reason}"))?;
+    }
+    if let Some(details) = fact["detail"].as_object() {
+        for (key, value) in details {
+            out.write(format_args!("  {key}="))?;
+            detail(out, value)?;
+        }
+    }
+    out.push("\n")
 }

@@ -105,6 +105,7 @@ impl Fixture {
                 label: WorkbenchLabel::parse("send routing")?,
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
                 launch: None,
+                profile: None,
             },
         };
         let mut site = self.service.coordinator.lock().map_err(|_| "poisoned")?;

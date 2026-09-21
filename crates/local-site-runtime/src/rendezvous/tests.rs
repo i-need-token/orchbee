@@ -739,3 +739,219 @@ fn activation_marker_aliases_and_socket_impostors_are_rejected() -> TestResult {
     );
     Ok(())
 }
+
+/// `site diagnose` descriptors: every named observation answers raw facts
+/// through the validated directory descriptor — absent, present-with-kind,
+/// symlinks never followed — and creates nothing of its own.
+#[test]
+fn named_observations_report_raw_facts_and_create_nothing() -> TestResult {
+    let fixture = TestDirectory::new("observe")?;
+    let site = ModeCheckedLocalSiteRendezvous::prepare_mode_checked(
+        fixture.path(),
+        SiteScope::parse("orchbee-observe")?,
+    )?;
+    let runtime = site.runtime_directory().to_path_buf();
+
+    // An empty validated directory answers `Absent` everywhere.
+    for observation in [
+        site.observe_activation_marker(),
+        site.observe_activation_lock(),
+        site.observe_client_socket(),
+        site.observe_worker_socket(),
+        site.observe_client_pending_socket(),
+        site.observe_agent_observation_socket(),
+        site.observe_host_directory(),
+        site.observe_host_endpoint(),
+    ] {
+        assert_eq!(observation?, EntryObservation::Absent);
+    }
+    assert_eq!(
+        site.observe_site_lifetime_lock()?,
+        SiteLifetimeObservation::Absent
+    );
+
+    // A committed marker reports its own facts: regular, owned, 0600,
+    // empty, single link.
+    site.commit_activation()?;
+    assert_eq!(
+        site.observe_activation_marker()?,
+        EntryObservation::Present {
+            kind: EntryKind::RegularFile,
+            owner_matches: true,
+            mode: 0o600,
+            size: 0,
+            link_count: 1,
+        }
+    );
+
+    // A real socket leaf reports `Socket`; a regular file reports its own
+    // kind — the verdict stays with the caller.
+    let listener = std::os::unix::net::UnixListener::bind(runtime.join(CLIENT_SOCKET_NAME))?;
+    fs::set_permissions(
+        runtime.join(CLIENT_SOCKET_NAME),
+        fs::Permissions::from_mode(0o600),
+    )?;
+    assert_eq!(
+        site.observe_client_socket()?,
+        EntryObservation::Present {
+            kind: EntryKind::Socket,
+            owner_matches: true,
+            mode: 0o600,
+            size: 0,
+            link_count: 1,
+        }
+    );
+    fs::write(
+        runtime.join(CLIENT_PENDING_SOCKET_NAME),
+        b"pending sentinel\n",
+    )?;
+    fs::set_permissions(
+        runtime.join(CLIENT_PENDING_SOCKET_NAME),
+        fs::Permissions::from_mode(0o644),
+    )?;
+    assert_eq!(
+        site.observe_client_pending_socket()?,
+        EntryObservation::Present {
+            kind: EntryKind::RegularFile,
+            owner_matches: true,
+            mode: 0o644,
+            size: 17,
+            link_count: 1,
+        }
+    );
+
+    // A symlink is reported as a symlink — never followed, never opened.
+    symlink(CLIENT_SOCKET_NAME, runtime.join(WORKER_SOCKET_NAME))?;
+    let observed = site.observe_worker_socket()?;
+    assert!(matches!(
+        observed,
+        EntryObservation::Present {
+            kind: EntryKind::Symlink,
+            owner_matches: true,
+            ..
+        }
+    ));
+    assert_eq!(
+        fs::read_link(runtime.join(WORKER_SOCKET_NAME))?,
+        Path::new(CLIENT_SOCKET_NAME)
+    );
+
+    // Host endpoint: an absent parent is `Absent`; a validated parent
+    // traverses; anything else is refused instead of followed.
+    let host_directory = runtime.join(HOST_SCOPE_NAME);
+    fs::create_dir(&host_directory)?;
+    fs::set_permissions(&host_directory, fs::Permissions::from_mode(0o700))?;
+    assert_eq!(
+        site.observe_host_directory()?,
+        EntryObservation::Present {
+            kind: EntryKind::Directory,
+            owner_matches: true,
+            mode: 0o700,
+            size: fs::metadata(&host_directory)?.len(),
+            link_count: fs::metadata(&host_directory)?.nlink(),
+        }
+    );
+    assert_eq!(site.observe_host_endpoint()?, EntryObservation::Absent);
+    let host_listener =
+        std::os::unix::net::UnixListener::bind(host_directory.join(HOST_ENDPOINT_NAME))?;
+    assert!(matches!(
+        site.observe_host_endpoint()?,
+        EntryObservation::Present {
+            kind: EntryKind::Socket,
+            owner_matches: true,
+            ..
+        }
+    ));
+    drop(host_listener);
+    drop(listener);
+    fs::remove_file(host_directory.join(HOST_ENDPOINT_NAME))?;
+    fs::remove_dir(&host_directory)?;
+    symlink("client.sock", &host_directory)?;
+    assert_eq!(
+        site.observe_host_endpoint().unwrap_err().kind(),
+        io::ErrorKind::PermissionDenied
+    );
+    fs::remove_file(&host_directory)?;
+    fs::write(&host_directory, b"host sentinel\n")?;
+    assert_eq!(
+        site.observe_host_endpoint().unwrap_err().kind(),
+        io::ErrorKind::PermissionDenied
+    );
+
+    // A hard-linked or non-empty lock still reports facts — `Unsafe` is the
+    // verdict, never an open attempt on an unadmitted name.
+    fs::write(&site.paths.site_lifetime_lock, b"stale\n")?;
+    fs::set_permissions(
+        &site.paths.site_lifetime_lock,
+        fs::Permissions::from_mode(0o600),
+    )?;
+    assert_eq!(
+        site.observe_site_lifetime_lock()?,
+        SiteLifetimeObservation::Free
+    );
+    fs::remove_file(&site.paths.site_lifetime_lock)?;
+    fs::create_dir(&site.paths.site_lifetime_lock)?;
+    assert_eq!(
+        site.observe_site_lifetime_lock()?,
+        SiteLifetimeObservation::Unsafe
+    );
+    fs::remove_dir(&site.paths.site_lifetime_lock)?;
+    symlink("activation.started", &site.paths.site_lifetime_lock)?;
+    assert_eq!(
+        site.observe_site_lifetime_lock()?,
+        SiteLifetimeObservation::Unsafe
+    );
+    fs::remove_file(&site.paths.site_lifetime_lock)?;
+
+    // No observation created anything: exactly the leaves the test itself
+    // made remain, with their bytes intact.
+    let mut leaves: Vec<String> = fs::read_dir(&runtime)?
+        .map(|entry| entry.map(|e| e.file_name().to_string_lossy().into_owned()))
+        .collect::<Result<_, io::Error>>()?;
+    leaves.sort();
+    assert_eq!(
+        leaves,
+        [
+            "activation.started",
+            "client-pending.sock",
+            "client.sock",
+            "host",
+            "worker.sock",
+        ]
+        .map(str::to_owned)
+    );
+    assert_eq!(
+        fs::read(runtime.join(CLIENT_PENDING_SOCKET_NAME))?,
+        b"pending sentinel\n"
+    );
+    Ok(())
+}
+
+/// A contended lifetime lock observes `Held` without acquiring; releasing
+/// the owner answers `Free` — a fact about the lock, never about a process.
+#[test]
+fn lifetime_observation_reports_held_free_and_unsafe() -> TestResult {
+    let fixture = TestDirectory::new("observe-lifetime")?;
+    let scope = SiteScope::parse("orchbee-lifetime")?;
+    let owner =
+        ModeCheckedLocalSiteRendezvous::prepare_mode_checked(fixture.path(), scope.clone())?;
+    let observer = ModeCheckedLocalSiteRendezvous::validate_mode_checked(fixture.path(), scope)?;
+
+    let held = acquired(owner.try_acquire_site_lifetime_lock()?)?;
+    assert_eq!(
+        observer.observe_site_lifetime_lock()?,
+        SiteLifetimeObservation::Held
+    );
+    // The observer never takes the lock itself: probing it twice still
+    // answers Held, and the owner's guard is untouched.
+    assert_eq!(
+        observer.observe_site_lifetime_lock()?,
+        SiteLifetimeObservation::Held
+    );
+    drop(held);
+    assert_eq!(
+        observer.observe_site_lifetime_lock()?,
+        SiteLifetimeObservation::Free
+    );
+    Ok(())
+}

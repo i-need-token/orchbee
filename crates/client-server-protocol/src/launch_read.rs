@@ -220,6 +220,47 @@ pub enum TerminalLaunchReadUnavailableReason {
     ServerBusy,
 }
 
+/// The retained provenance of a profile-launched terminal: the opaque
+/// Site-scoped profile identity and the catalog-private revision captured
+/// when the launch command resolved the profile. It records history — the
+/// entry may since have been deleted — and is absent for launches that never
+/// named a profile.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LaunchProfileProvenance {
+    pub(crate) profile_id: String,
+    #[serde(
+        serialize_with = "crate::number::decimal::serialize",
+        deserialize_with = "crate::number::decimal::deserialize"
+    )]
+    pub(crate) catalog_revision: u64,
+}
+
+impl LaunchProfileProvenance {
+    /// `profile_id` is the opaque `<siteHex>:<counterHex>` grammar minted by
+    /// the Server; the boundary re-checks the shared identity envelope (at
+    /// most 128 bytes, non-empty) without re-parsing the opaque interior.
+    pub fn new(profile_id: String, catalog_revision: u64) -> Result<Self, ProtocolError> {
+        if profile_id.is_empty() || profile_id.len() > 128 {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        Ok(Self {
+            profile_id,
+            catalog_revision,
+        })
+    }
+
+    #[must_use]
+    pub fn profile_id(&self) -> &str {
+        &self.profile_id
+    }
+
+    #[must_use]
+    pub const fn catalog_revision(&self) -> u64 {
+        self.catalog_revision
+    }
+}
+
 /// `terminal.launch.read.result` — `found` answers with the resolved routing
 /// and retained fact; `not-found` covers both an absent binding and a site with
 /// no Workbench at all.
@@ -236,6 +277,11 @@ pub enum TerminalLaunchReadOutcome {
         workbench_revision: u64,
         terminal: Box<TerminalLaunchRoute>,
         launch: Box<TerminalLaunchFact>,
+        /// Sibling of `launch`: the profile provenance retained at prepare,
+        /// present exactly when the terminal was launched through a named
+        /// profile. Absent members stay off the wire entirely.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        launch_profile: Option<LaunchProfileProvenance>,
     },
     NotFound,
     Unavailable {

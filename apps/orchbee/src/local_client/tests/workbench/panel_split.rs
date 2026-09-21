@@ -12,10 +12,32 @@ fn panel_split_preserves_every_compatible_precommit_and_keeps_the_carrier() -> T
     // aggregate-close fence reports the Tab busy, and the worker joint can be
     // unavailable. Rejection revisions pass through unvalidated — they carry
     // the authority's current revision, not the command's successor.
-    let mut cases = vec![(
-        WorkbenchCommandOutcome::Denied {},
-        WorkbenchPanelSplitPrecommit::Denied,
-    )];
+    let mut cases = vec![
+        (
+            WorkbenchCommandOutcome::Denied {},
+            WorkbenchPanelSplitPrecommit::Denied,
+        ),
+        // The profile-selector resolutions are definite precommits too: the
+        // carrier stays admitted for the next command.
+        (
+            WorkbenchCommandOutcome::LaunchProfileUnavailable {},
+            WorkbenchPanelSplitPrecommit::ProfileUnavailable,
+        ),
+        (
+            WorkbenchCommandOutcome::LaunchProfileAmbiguous {
+                candidate_ids: vec![
+                    LaunchProfileId::parse(&format!("{}:1", id(20))).unwrap(),
+                    LaunchProfileId::parse(&format!("{}:2", id(20))).unwrap(),
+                ],
+            },
+            WorkbenchPanelSplitPrecommit::ProfileAmbiguous {
+                candidate_ids: vec![
+                    LaunchProfileId::parse(&format!("{}:1", id(20))).unwrap(),
+                    LaunchProfileId::parse(&format!("{}:2", id(20))).unwrap(),
+                ],
+            },
+        ),
+    ];
     for reason in [
         WorkbenchRejectionReason::SiteMismatch,
         WorkbenchRejectionReason::RevisionMismatch,
@@ -550,6 +572,7 @@ fn panel_split_command(expected_revision: u64) -> WorkbenchCommand {
             label: workbench_label(),
             geometry: terminal_geometry(),
             launch: None,
+            profile: None,
         },
     )
 }

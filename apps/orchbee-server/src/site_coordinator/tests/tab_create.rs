@@ -82,6 +82,7 @@ pub(super) fn context_tab_command(
             label: WorkbenchLabel::parse(label).unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
+            profile: None,
         },
     }
 }
@@ -568,6 +569,7 @@ fn pending_and_final_replay_precede_missing_candidates_worker_and_conflict() {
         label: WorkbenchLabel::parse("different").unwrap(),
         geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
         launch: None,
+        profile: None,
     };
     assert!(matches!(
         ready(coordinator.prepare_terminal_tab_create(conflict, None, None, None)).outcome,
@@ -720,6 +722,7 @@ fn missing_retired_and_inconsistent_workbench_use_service_unavailable_without_te
             label: WorkbenchLabel::parse("missing").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
+            profile: None,
         },
     };
     let mut missing = SiteCoordinator::new(None);

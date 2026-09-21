@@ -99,6 +99,7 @@ const ROOT_WORDS: &[&str] = &[
     "tui",
     "workspace",
     "worktree",
+    "launch-profile",
 ];
 
 /// Root words that still parse when a `--format` selection was consumed:
@@ -116,16 +117,18 @@ const FORMAT_ROOT_WORDS: &[&str] = &[
     "terminal",
     "workspace",
     "worktree",
+    "launch-profile",
 ];
 
 /// family → the verbs it implements.
 const FAMILY_VERBS: &[(&str, &[&str])] = &[
-    ("agent", &["explain", "get", "list"]),
+    ("agent", &["doctor", "explain", "get", "list", "wait"]),
     ("api", &["schema", "snapshot"]),
+    ("launch-profile", &["create", "delete", "get", "list"]),
     ("config", &["check"]),
     ("panel", &["close", "get", "list", "move", "split"]),
     ("project", &["create", "get", "list", "rename"]),
-    ("site", &["start"]),
+    ("site", &["diagnose", "start"]),
     ("tab", &["close", "create", "get", "list", "move", "rename"]),
     ("terminal", &["get", "list", "read", "send", "wait-output"]),
     (
@@ -165,16 +168,24 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--include-ended",
     "--limit",
     "--cursor",
+    "--until",
+    "--after-revision",
+    "--provider",
+    "--asset-root",
+    "--profile",
+    "--name",
 ];
 
 /// Business flags whose seen bit never makes a repeat `done` — they stay
 /// offerable and keep consuming values while remaining scope-tracked.
-const REPEATABLE_FLAGS: &[&str] = &["--arg"];
+const REPEATABLE_FLAGS: &[&str] = &["--arg", "--asset-root", "--provider", "--until"];
 
 /// `<family>:<verb>` → the business flags that command admits. Commands not
 /// listed here admit none.
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("agent:list", &["--include-ended", "--limit", "--cursor"]),
+    ("agent:doctor", &["--provider", "--asset-root"]),
+    ("agent:wait", &["--until", "--after-revision", "--timeout"]),
     ("project:create", &["--label"]),
     ("project:rename", &["--label"]),
     ("workspace:accept-directory", &["--path"]),
@@ -194,6 +205,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--cell-height",
             "--exec",
             "--arg",
+            "--profile",
         ],
     ),
     ("tab:rename", &["--label"]),
@@ -211,6 +223,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--cell-height",
             "--exec",
             "--arg",
+            "--profile",
         ],
     ),
     ("panel:close", &["--confirm"]),
@@ -222,6 +235,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ),
     ("terminal:wait-output", &["--match", "--rows", "--timeout"]),
     ("worktree:list", &["--project", "--directory"]),
+    ("launch-profile:create", &["--name", "--exec", "--arg"]),
 ];
 
 /// `<family>:<verb>` → the words its `--direction` flag accepts. Only
@@ -252,11 +266,46 @@ const KEY_VALUES: &[&str] = &[
     "ctrl-d",
 ];
 
+/// The twelve canonical `agent wait --until` condition names — the same
+/// vocabulary `invocation::AgentWaitCondition` parses.
+const UNTIL_VALUES: &[&str] = &[
+    "needs-attention",
+    "failed",
+    "succeeded",
+    "canceled",
+    "interrupted",
+    "working",
+    "idle",
+    "unknown",
+    "ended",
+    "fresh",
+    "stale",
+    "disconnected",
+];
+
+/// The canonical provider ids `agent doctor --provider` accepts — the same
+/// closed vocabulary `invocation` validates.
+const PROVIDER_VALUES: &[&str] = &[
+    "claude-code",
+    "codex",
+    "gemini",
+    "github-copilot",
+    "grok",
+    "cline",
+    "opencode",
+    "pi",
+    "omp",
+    "qwen-code",
+];
+
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
     "agent:explain",
     "agent:get",
+    "agent:wait",
     "api:schema",
+    "launch-profile:delete",
+    "launch-profile:get",
     "panel:close",
     "panel:get",
     "panel:move",
@@ -292,16 +341,18 @@ const HELP_TOPICS: &[&str] = &[
     "tui",
     "workspace",
     "worktree",
+    "launch-profile",
 ];
 
 /// `help <topic>` → the deeper words that complete a help path.
 const HELP_CHILDREN: &[(&str, &[&str])] = &[
-    ("agent", &["explain", "get", "list"]),
+    ("agent", &["doctor", "explain", "get", "list", "wait"]),
     ("api", &["schema", "snapshot"]),
+    ("launch-profile", &["create", "delete", "get", "list"]),
     ("config", &["check"]),
     ("panel", &["close", "get", "list", "move", "split"]),
     ("project", &["create", "get", "list", "rename"]),
-    ("site", &["start"]),
+    ("site", &["diagnose", "start"]),
     ("tab", &["close", "create", "get", "list", "move", "rename"]),
     ("terminal", &["get", "list", "read", "send", "wait-output"]),
     (
@@ -352,6 +403,12 @@ fn flag_bit(flag: &str) -> &'static str {
         "--include-ended" => "seen_include_ended",
         "--limit" => "seen_limit",
         "--cursor" => "seen_cursor",
+        "--until" => "seen_until",
+        "--after-revision" => "seen_after_revision",
+        "--provider" => "seen_provider",
+        "--asset-root" => "seen_asset_root",
+        "--profile" => "seen_profile",
+        "--name" => "seen_name",
         other => unreachable!("flag {other} lacks a seen bit"),
     }
 }
@@ -362,6 +419,8 @@ fn flag_value(flag: &str) -> Option<&'static str> {
     match flag {
         "--direction" => Some("direction"),
         "--key" => Some("key"),
+        "--until" => Some("until"),
+        "--provider" => Some("provider"),
         "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin" | "--include-ended" => {
             None
         }
@@ -391,16 +450,6 @@ fn families_of(flag: &str) -> Vec<&'static str> {
         .collect()
 }
 
-/// The flags a resolved command does NOT admit, as walker seen-bits.
-fn forbidden_bits(command: &str) -> Vec<&'static str> {
-    let scope = command_flags(command);
-    BUSINESS_FLAGS
-        .iter()
-        .filter(|flag| !scope.contains(flag))
-        .map(|flag| flag_bit(flag))
-        .collect()
-}
-
 /// `family:verb` pairs, one per line of a shell `case` pattern list.
 fn path_patterns(families: &[(&str, &[&str])]) -> String {
     families
@@ -412,14 +461,16 @@ fn path_patterns(families: &[(&str, &[&str])]) -> String {
 
 /// bash/zsh `seen` bookkeeping arms, one per business flag. A repeatable
 /// flag sets its bit — scope checks still see it — but never turns `done`.
+/// Every consumed flag also joins `seen_flags`, the consumed-name list the
+/// command-scope admission checks walk (the same model fish uses).
 fn seen_cases_bash() -> String {
     BUSINESS_FLAGS
         .iter()
         .map(|flag| {
             let bit = flag_bit(flag);
             let assign = match flag_value(flag) {
-                Some(kind) => format!("{bit}=1; value={kind}"),
-                None => format!("{bit}=1"),
+                Some(kind) => format!("{bit}=1; value={kind}; seen_flags+=({flag})"),
+                None => format!("{bit}=1; seen_flags+=({flag})"),
             };
             if REPEATABLE_FLAGS.contains(flag) {
                 format!("                        {flag})\n                            {assign} ;;")
@@ -452,6 +503,14 @@ fn sub_flag_cases_bash() -> String {
                     format!(
                         "                            {patterns}) ((seen_workspace)) && done=1 ;;"
                     )
+                }
+                "--profile" => {
+                    format!(
+                        "                            {patterns}) ((seen_exec || seen_arg)) && done=1 ;;"
+                    )
+                }
+                "--exec" | "--arg" => {
+                    format!("                            {patterns}) ((seen_profile)) && done=1 ;;")
                 }
                 _ => format!("                            {patterns}) ;;"),
             }
@@ -506,6 +565,16 @@ fn after_flag_cases_bash() -> String {
                         "                            {patterns}) ((seen_text || seen_key || seen_file)) && done=1 ;;"
                     )
                 }
+                // `--profile` excludes the explicit `--exec`/`--arg` launch;
+                // either explicit half excludes it back.
+                "--profile" => {
+                    format!(
+                        "                            {patterns}) ((seen_exec || seen_arg)) && done=1 ;;"
+                    )
+                }
+                "--exec" | "--arg" => {
+                    format!("                            {patterns}) ((seen_profile)) && done=1 ;;")
+                }
                 _ => format!("                            {patterns}) ;;"),
             }
         })
@@ -513,36 +582,44 @@ fn after_flag_cases_bash() -> String {
         .join("\n")
 }
 
-/// bash/zsh verb-landing arms: the chosen command's scope must cover every
-/// business flag already recorded.
+/// bash/zsh verb-landing arms: the chosen command's own declared flags
+/// admit the consumed set — no per-command enumeration of the flags it
+/// rejects. `admit` is the same consumed-list check fish runs.
 fn scope_cases_bash() -> String {
     FAMILY_VERBS
         .iter()
         .flat_map(|(family, verbs)| {
             verbs.iter().map(move |verb| {
                 let command = format!("{family}:{verb}");
-                let bad = forbidden_bits(&command).join(" || ");
+                let allowed = command_flags(&command).join(" ");
                 // `--workspace`/`--standalone` stay exclusive wherever both
                 // are admitted — only tab commands admit them. `terminal
                 // send` is dead once two payload sources stand, or `--key`
                 // stands next to `--enter`; a lone `--enter` stays viable
-                // because a text-bearing source may still follow.
-                let exclusive = if *family == "tab" {
-                    "((seen_workspace && seen_standalone)) && done=1\n                                        "
-                } else if command == "terminal:send" {
-                    "(((seen_text + seen_key + seen_file + seen_stdin) >= 2 || (seen_key && seen_enter))) && done=1\n                                        "
-                } else {
-                    ""
-                };
-                format!("                                    {command})\n                                        {exclusive}(({bad})) && done=1 ;;")
+                // because a text-bearing source may still follow. The
+                // `--profile`/explicit-launch pair is exclusive on the two
+                // profile-selecting commands.
+                let mut exclusive = String::new();
+                if *family == "tab" {
+                    exclusive.push_str("((seen_workspace && seen_standalone)) && done=1\n                                        ");
+                }
+                if command == "tab:create" || command == "panel:split" {
+                    exclusive.push_str("((seen_profile && (seen_exec || seen_arg))) && done=1\n                                        ");
+                }
+                if command == "terminal:send" {
+                    exclusive.push_str("(((seen_text + seen_key + seen_file + seen_stdin) >= 2 || (seen_key && seen_enter))) && done=1\n                                        ");
+                }
+                let exclusive = exclusive.as_str();
+                format!("                                    {command})\n                                        {exclusive}admit '{allowed}' \"${{seen_flags[@]}}\" || done=1 ;;")
             })
         })
         .collect::<Vec<_>>()
         .join("\n")
 }
 
-/// bash/zsh sub-state offers: the verbs still viable under the flags
-/// already consumed.
+/// bash/zsh sub-state offers: a verb stays viable while every consumed
+/// flag is inside that verb's declared scope — the consumed-list `admit`
+/// check — and no scoped exclusive pair stands violated.
 fn verb_cases_bash() -> String {
     FAMILY_VERBS
         .iter()
@@ -551,11 +628,16 @@ fn verb_cases_bash() -> String {
                 .iter()
                 .enumerate()
                 .map(|(index, verb)| {
-                    let bad = forbidden_bits(&format!("{family}:{verb}")).join(" || ");
-                    let exclusive = if *family == "tab" {
-                        " || (seen_workspace && seen_standalone)"
+                    let command = format!("{family}:{verb}");
+                    let allowed = command_flags(&command).join(" ");
+                    let guard = if command == "tab:create" {
+                        " && ((!seen_workspace || !seen_standalone)) && ((!seen_profile || (!seen_exec && !seen_arg)))"
+                    } else if *family == "tab" {
+                        " && ((!seen_workspace || !seen_standalone))"
+                    } else if command == "panel:split" {
+                        " && ((!seen_profile || (!seen_exec && !seen_arg)))"
                     } else if *verb == "send" {
-                        " || ((seen_text + seen_key + seen_file + seen_stdin) >= 2 || (seen_key && seen_enter))"
+                        " && (((seen_text + seen_key + seen_file + seen_stdin) < 2) && (!seen_key || !seen_enter))"
                     } else {
                         ""
                     };
@@ -564,7 +646,9 @@ fn verb_cases_bash() -> String {
                     } else {
                         format!("verbs=\"$verbs {verb}\"")
                     };
-                    format!("                (({bad}{exclusive})) || {assign}")
+                    format!(
+                        "                admit '{allowed}' \"${{seen_flags[@]}}\"{guard} && {assign}"
+                    )
                 })
                 .collect::<Vec<_>>()
                 .join("\n");
@@ -620,9 +704,16 @@ fn extras_cases_bash() -> String {
                         "--file" | "--stdin" => {
                             "seen_text || seen_key || seen_file || seen_stdin".to_owned()
                         }
-                        // `--arg` is only legal next to `--exec`; the bit
-                        // never dedups it, so repeats stay offerable.
-                        "--arg" => "!seen_exec".to_owned(),
+                        // `--arg` is only legal next to `--exec` and never
+                        // beside `--profile`; the bit never dedups it, so
+                        // repeats stay offerable.
+                        "--arg" => "!seen_exec || seen_profile".to_owned(),
+                        // `--profile` excludes the explicit launch pair.
+                        "--profile" => "seen_profile || seen_exec || seen_arg".to_owned(),
+                        "--exec" => "seen_exec || seen_profile".to_owned(),
+                        // `--until` is repeatable — it stays offerable on
+                        // every pass so another condition can follow.
+                        "--until" => "0".to_owned(),
                         _ => flag_bit(flag).to_owned(),
                     };
                     format!("                (({cond})) || extras=\"$extras {flag}\"")
@@ -650,14 +741,10 @@ fn direction_cases_bash() -> String {
 }
 
 /// The bash/zsh "no option was consumed" condition that keeps `--help`
-/// offers legal.
-fn no_options_bash() -> String {
-    let mut bits = vec!["seen_format", "seen_mouse"];
-    bits.extend(BUSINESS_FLAGS.iter().map(|flag| flag_bit(flag)));
-    bits.iter()
-        .map(|bit| format!("!{bit}"))
-        .collect::<Vec<_>>()
-        .join(" && ")
+/// offers legal: the consumed-flag list is empty and neither orthogonal
+/// option bit stands.
+fn no_options_bash() -> &'static str {
+    "!seen_format && !seen_mouse && !${#seen_flags[@]}"
 }
 
 fn bash() -> String {
@@ -669,6 +756,7 @@ fn bash() -> String {
             "    local cur candidates=\"\" extras=\"\" verbs=\"\" possible=\"\"\n",
             "    local state=verb help_a=\"\" help_b=\"\" family=\"\" sub=\"\" leaf=\"\"\n",
             "    local seen_format=0 seen_mouse=0 {seen_decls}\n",
+            "    local -a seen_flags\n",
             "    local ended=0 done=0 dead=0 value=\"\"\n",
             "    local i word\n",
             "    # Each consumed business flag narrows the viable root words to the\n",
@@ -679,6 +767,14 @@ fn bash() -> String {
             "            [[ $keep == *\" $word \"* ]] && out=\"$out $word\"\n",
             "        done\n",
             "        possible=\"${{out# }}\"\n",
+            "    }}\n",
+            "    # $1 is the resolved command's allowed flags joined by spaces; the\n",
+            "    # rest are every consumed business flag. Succeeds iff each consumed\n",
+            "    # flag is inside the allowed list.\n",
+            "    admit() {{\n",
+            "        local allowed=\" $1 \" flag\n",
+            "        shift\n",
+            "        for flag in \"$@\"; do [[ $allowed == *\" $flag \"* ]] || return 1; done\n",
             "    }}\n",
             "    cur=\"${{COMP_WORDS[COMP_CWORD]}}\"\n",
             "    for ((i = 1; i < COMP_CWORD; i++)); do\n",
@@ -749,11 +845,11 @@ fn bash() -> String {
             "                    verb)\n",
             "                        case \"$word\" in\n",
             "                            status)\n",
-            "                                if (({business_bits} || seen_mouse)); then done=1; else leaf=status; state=leaf; fi ;;\n",
+            "                                if ((${{#seen_flags[@]}} || seen_mouse)); then done=1; else leaf=status; state=leaf; fi ;;\n",
             "                            tui)\n",
-            "                                if ((seen_format || {business_bits})); then done=1; else leaf=tui; state=leaf; fi ;;\n",
+            "                                if ((seen_format || ${{#seen_flags[@]}})); then done=1; else leaf=tui; state=leaf; fi ;;\n",
             "                            help|completion)\n",
-            "                                if ((seen_format || {business_bits} || seen_mouse)); then done=1; else state=$word; fi ;;\n",
+            "                                if ((seen_format || ${{#seen_flags[@]}} || seen_mouse)); then done=1; else state=$word; fi ;;\n",
             "                            {families}) if ((seen_mouse)); then done=1; else family=$word; state=sub; fi ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
@@ -812,6 +908,8 @@ fn bash() -> String {
             "{direction_cases}\n",
             "        esac\n",
             "    elif [[ $value == key ]]; then candidates=\"{key_values}\"\n",
+            "    elif [[ $value == until ]]; then candidates=\"{until_values}\"\n",
+            "    elif [[ $value == provider ]]; then candidates=\"{provider_values}\"\n",
             "    elif [[ -n $value ]]; then candidates=\"\"\n",
             "    elif [[ $cur == --format=* ]]; then\n",
             "        if ((!seen_format)); then\n",
@@ -879,6 +977,8 @@ fn bash() -> String {
         help_paths = path_patterns(HELP_CHILDREN),
         format_values = FORMAT_VALUES.join(" "),
         key_values = KEY_VALUES.join(" "),
+        until_values = UNTIL_VALUES.join(" "),
+        provider_values = PROVIDER_VALUES.join(" "),
         roots = ROOT_WORDS.join(" "),
         format_roots = FORMAT_ROOT_WORDS.join(" "),
         shells = SHELLS.join(" "),
@@ -888,11 +988,6 @@ fn bash() -> String {
             .map(|flag| format!("{}=0", flag_bit(flag)))
             .collect::<Vec<_>>()
             .join(" "),
-        business_bits = BUSINESS_FLAGS
-            .iter()
-            .map(|flag| flag_bit(flag))
-            .collect::<Vec<_>>()
-            .join(" || "),
         sub_flag_cases = sub_flag_cases_bash(),
         after_flag_cases = after_flag_cases_bash(),
         seen_cases = seen_cases_bash(),
@@ -923,6 +1018,7 @@ fn zsh() -> String {
             "    local candidates=\"\" extras=\"\" verbs=\"\" possible=\"\"\n",
             "    local state=verb help_a=\"\" help_b=\"\" family=\"\" sub=\"\" leaf=\"\"\n",
             "    local seen_format=0 seen_mouse=0 {seen_decls}\n",
+            "    local -a seen_flags\n",
             "    local ended=0 done=0 dead=0 value=\"\"\n",
             "    local i word cur\n",
             "    narrow() {{\n",
@@ -931,6 +1027,14 @@ fn zsh() -> String {
             "            [[ $keep == *\" $word \"* ]] && out=\"$out $word\"\n",
             "        done\n",
             "        possible=\"${{out# }}\"\n",
+            "    }}\n",
+            "    # $1 is the resolved command's allowed flags joined by spaces; the\n",
+            "    # rest are every consumed business flag. Succeeds iff each consumed\n",
+            "    # flag is inside the allowed list.\n",
+            "    admit() {{\n",
+            "        local allowed=\" $1 \" flag\n",
+            "        shift\n",
+            "        for flag in \"$@\"; do [[ $allowed == *\" $flag \"* ]] || return 1; done\n",
             "    }}\n",
             "    cur=\"${{words[CURRENT]}}\"\n",
             "    for ((i = 2; i < CURRENT; i++)); do\n",
@@ -999,11 +1103,11 @@ fn zsh() -> String {
             "                    verb)\n",
             "                        case \"$word\" in\n",
             "                            status)\n",
-            "                                if (({business_bits} || seen_mouse)); then done=1; else leaf=status; state=leaf; fi ;;\n",
+            "                                if ((${{#seen_flags[@]}} || seen_mouse)); then done=1; else leaf=status; state=leaf; fi ;;\n",
             "                            tui)\n",
-            "                                if ((seen_format || {business_bits})); then done=1; else leaf=tui; state=leaf; fi ;;\n",
+            "                                if ((seen_format || ${{#seen_flags[@]}})); then done=1; else leaf=tui; state=leaf; fi ;;\n",
             "                            help|completion)\n",
-            "                                if ((seen_format || {business_bits} || seen_mouse)); then done=1; else state=$word; fi ;;\n",
+            "                                if ((seen_format || ${{#seen_flags[@]}} || seen_mouse)); then done=1; else state=$word; fi ;;\n",
             "                            {families}) if ((seen_mouse)); then done=1; else family=$word; state=sub; fi ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
@@ -1057,6 +1161,8 @@ fn zsh() -> String {
             "{direction_cases}\n",
             "        esac\n",
             "    elif [[ $value == key ]]; then candidates=\"{key_values}\"\n",
+            "    elif [[ $value == until ]]; then candidates=\"{until_values}\"\n",
+            "    elif [[ $value == provider ]]; then candidates=\"{provider_values}\"\n",
             "    elif [[ -n $value ]]; then candidates=\"\"\n",
             "    elif [[ $cur == --format=* ]]; then\n",
             "        if ((!seen_format)); then\n",
@@ -1120,6 +1226,8 @@ fn zsh() -> String {
         help_paths = path_patterns(HELP_CHILDREN),
         format_values = FORMAT_VALUES.join(" "),
         key_values = KEY_VALUES.join(" "),
+        until_values = UNTIL_VALUES.join(" "),
+        provider_values = PROVIDER_VALUES.join(" "),
         roots = ROOT_WORDS.join(" "),
         format_roots = FORMAT_ROOT_WORDS.join(" "),
         shells = SHELLS.join(" "),
@@ -1129,11 +1237,6 @@ fn zsh() -> String {
             .map(|flag| format!("{}=0", flag_bit(flag)))
             .collect::<Vec<_>>()
             .join(" "),
-        business_bits = BUSINESS_FLAGS
-            .iter()
-            .map(|flag| flag_bit(flag))
-            .collect::<Vec<_>>()
-            .join(" || "),
         sub_flag_cases = sub_flag_cases_bash(),
         after_flag_cases = after_flag_cases_bash(),
         seen_cases = seen_cases_bash(),
@@ -1194,6 +1297,12 @@ fn sub_flag_cases_fish() -> String {
                 "--standalone" => {
                     format!("                            case {patterns}; if test $seen_workspace -eq 1; set done 1; end")
                 }
+                "--profile" => {
+                    format!("                            case {patterns}; if test $seen_exec -eq 1 -o $seen_arg -eq 1; set done 1; end")
+                }
+                "--exec" | "--arg" => {
+                    format!("                            case {patterns}; if test $seen_profile -eq 1; set done 1; end")
+                }
                 _ => format!("                            case {patterns}"),
             }
         })
@@ -1234,6 +1343,12 @@ fn after_flag_cases_fish() -> String {
                 "--stdin" => {
                     format!("                            case {patterns}; if test $seen_text -eq 1 -o $seen_key -eq 1 -o $seen_file -eq 1; set done 1; end")
                 }
+                "--profile" => {
+                    format!("                            case {patterns}; if test $seen_exec -eq 1 -o $seen_arg -eq 1; set done 1; end")
+                }
+                "--exec" | "--arg" => {
+                    format!("                            case {patterns}; if test $seen_profile -eq 1; set done 1; end")
+                }
                 _ => format!("                            case {patterns}"),
             }
         })
@@ -1257,6 +1372,11 @@ fn scope_cases_fish() -> String {
                 } else {
                     String::new()
                 };
+                let exclusive = if command == "tab:create" || command == "panel:split" {
+                    format!("{exclusive}\n                                        if test $seen_profile -eq 1 -a $seen_exec -eq 1; set done 1; end\n                                        if test $seen_profile -eq 1 -a $seen_arg -eq 1; set done 1; end")
+                } else {
+                    exclusive
+                };
                 format!("                                    case '{command}'\n                                        if not __orchbee_admit '{allowed}' $seen_flags; set done 1; end{exclusive}")
             })
         })
@@ -1273,12 +1393,17 @@ fn verb_cases_fish() -> String {
             let lines = verbs
                 .iter()
                 .map(|verb| {
-                    let allowed = command_flags(&format!("{family}:{verb}")).join(" ");
+                    let command = format!("{family}:{verb}");
+                    let allowed = command_flags(&command).join(" ");
                     // The exclusive pair must not both be seen for a tab verb
                     // to remain viable; `send` dies once `--key` stands next
                     // to a text payload bit.
-                    if *family == "tab" {
+                    if command == "tab:create" {
+                        format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test $seen_workspace -eq 0 -o $seen_standalone -eq 0\n                        if test $seen_profile -eq 0 -o $seen_exec -eq 0\n                            if test $seen_profile -eq 0 -o $seen_arg -eq 0; set -a verbs {verb}; end\n                        end\n                    end\n                end")
+                    } else if *family == "tab" {
                         format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test $seen_workspace -eq 0 -o $seen_standalone -eq 0; set -a verbs {verb}; end\n                end")
+                    } else if command == "panel:split" {
+                        format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test $seen_profile -eq 0 -o $seen_exec -eq 0\n                        if test $seen_profile -eq 0 -o $seen_arg -eq 0; set -a verbs {verb}; end\n                    end\n                end")
                     } else if *verb == "send" {
                         format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test (math \"$seen_text + $seen_key + $seen_file + $seen_stdin\") -lt 2\n                        if test $seen_key -eq 0 -o $seen_enter -eq 0; set -a verbs {verb}; end\n                    end\n                end")
                     } else {
@@ -1341,8 +1466,17 @@ fn extras_cases_fish() -> String {
                             "$seen_text -eq 0 -a $seen_key -eq 0 -a $seen_file -eq 0 -a $seen_stdin -eq 0"
                                 .to_owned()
                         }
-                        // `--arg` is offered only while `--exec` stands.
-                        "--arg" => "$seen_exec -eq 1".to_owned(),
+                        // `--arg` is offered only while `--exec` stands and
+                        // never beside `--profile`.
+                        "--arg" => "$seen_exec -eq 1 -a $seen_profile -eq 0".to_owned(),
+                        // `--profile` excludes the explicit launch pair.
+                        "--profile" => {
+                            "$seen_profile -eq 0 -a $seen_exec -eq 0 -a $seen_arg -eq 0".to_owned()
+                        }
+                        "--exec" => "$seen_exec -eq 0 -a $seen_profile -eq 0".to_owned(),
+                        // `--until` is repeatable — it stays offerable on
+                        // every pass so another condition can follow.
+                        "--until" => "0 -eq 1".to_owned(),
                         _ => format!("${} -eq 0", flag_bit(flag)),
                     };
                     format!("                if test {cond}; set -a candidates {flag}; end")
@@ -1534,6 +1668,8 @@ fn fish() -> String {
             "{direction_cases}\n",
             "        end\n",
             "    else if test \"$value\" = key; set candidates {key_values}\n",
+            "    else if test \"$value\" = until; set candidates {until_values}\n",
+            "    else if test \"$value\" = provider; set candidates {provider_values}\n",
             "    else if test -n \"$value\"; set candidates\n",
             "    else if string match -q -- '--format=*' $cur\n",
             "        if test $seen_format -eq 0\n",
@@ -1593,6 +1729,8 @@ fn fish() -> String {
         help_paths = path_patterns(HELP_CHILDREN).replace('|', " "),
         format_values = FORMAT_VALUES.join(" "),
         key_values = KEY_VALUES.join(" "),
+        until_values = UNTIL_VALUES.join(" "),
+        provider_values = PROVIDER_VALUES.join(" "),
         roots = ROOT_WORDS.join(" "),
         format_roots = FORMAT_ROOT_WORDS.join(" "),
         shells = SHELLS.join(" "),
@@ -1723,7 +1861,9 @@ mod tests {
     fn launch_flags_are_scoped_and_repeatable() {
         // `--exec`/`--arg` are admitted only by tab:create and panel:split.
         for (command, flags) in COMMAND_FLAGS {
-            let admits = *command == "tab:create" || *command == "panel:split";
+            let admits = *command == "tab:create"
+                || *command == "panel:split"
+                || *command == "launch-profile:create";
             assert_eq!(flags.contains(&"--exec"), admits, "{command} --exec");
             assert_eq!(flags.contains(&"--arg"), admits, "{command} --arg");
         }
@@ -1740,12 +1880,12 @@ mod tests {
                 CompletionShell::Fish => (
                     "case '--exec'\n                            if test $seen_exec -eq 1; set done 1",
                     "case '--arg'\n                            set seen_arg 1; set -a seen_flags '--arg'; set value filter",
-                    "if test $seen_exec -eq 1; set -a candidates --arg; end",
+                    "if test $seen_exec -eq 1 -a $seen_profile -eq 0; set -a candidates --arg; end",
                 ),
                 _ => (
                     "--exec)\n                            if ((seen_exec)); then done=1",
-                    "--arg)\n                            seen_arg=1; value=filter ;;",
-                    "((!seen_exec)) || extras=\"$extras --arg\"",
+                    "--arg)\n                            seen_arg=1; value=filter; seen_flags+=(--arg) ;;",
+                    "((!seen_exec || seen_profile)) || extras=\"$extras --arg\"",
                 ),
             };
             assert!(script.contains(exec_arm), "{shell:?} --exec arm");

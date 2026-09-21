@@ -364,6 +364,10 @@ fn run(steps: &[Step]) -> Result<(), String> {
                 WorkbenchAction::TabMove { .. } | WorkbenchAction::PanelMove { .. } => {
                     return Err("direct navigation trace generated Site-composed move".to_owned());
                 }
+                WorkbenchAction::LaunchProfileCreate { .. }
+                | WorkbenchAction::LaunchProfileDelete { .. } => {
+                    return Err("navigation trace generated a launch-profile mutation".to_owned());
+                }
             }
         } else {
             require(

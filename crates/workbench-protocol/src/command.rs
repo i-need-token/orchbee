@@ -5,8 +5,16 @@ pub use publication::{
     MAXIMUM_RESULT_PUBLICATIONS, PublicationReadIntent, WorkbenchPublicationOutcome,
     WorkbenchPublicationResult,
 };
+mod launch_profile;
 mod tab_close;
 mod worktree_list;
+pub use launch_profile::{
+    LaunchProfileCatalogOutcome, LaunchProfileCatalogRevision, LaunchProfileEntry, LaunchProfileId,
+    LaunchProfileName, LaunchProfileSelector, MAXIMUM_ENCODED_LAUNCH_PROFILE_CATALOG_RESULT_BYTES,
+    MAXIMUM_LAUNCH_PROFILE_CANDIDATES, MAXIMUM_LAUNCH_PROFILE_CATALOG_BYTES,
+    MAXIMUM_LAUNCH_PROFILE_ENTRIES, WorkbenchLaunchProfileCatalogRead,
+    WorkbenchLaunchProfileCatalogResult,
+};
 pub use tab_close::{
     WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason, WorkbenchTabClosePhase,
     WorkbenchTabClosePublicationReason, WorkbenchTabCloseRead, WorkbenchTabCloseReadOutcome,
@@ -374,9 +382,14 @@ pub enum WorkbenchAction {
         geometry: WorkbenchTerminalGeometry,
         /// An explicit launch program; absent runs the resolved default
         /// shell. Serialized only when present — a default launch emits
-        /// no key rather than a null placeholder.
+        /// no key rather than a null placeholder. Mutually exclusive
+        /// with `profile`; the pair is rejected at request decode.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         launch: Option<LaunchSelection>,
+        /// A Launch Profile selector resolved Server-side into the same
+        /// explicit launch selection; mutually exclusive with `launch`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        profile: Option<LaunchProfileSelector>,
     },
     #[serde(rename = "panel.split")]
     PanelSplit {
@@ -388,9 +401,14 @@ pub enum WorkbenchAction {
         geometry: WorkbenchTerminalGeometry,
         /// An explicit launch program; absent runs the resolved default
         /// shell. Serialized only when present — a default launch emits
-        /// no key rather than a null placeholder.
+        /// no key rather than a null placeholder. Mutually exclusive
+        /// with `profile`; the pair is rejected at request decode.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         launch: Option<LaunchSelection>,
+        /// A Launch Profile selector resolved Server-side into the same
+        /// explicit launch selection; mutually exclusive with `launch`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        profile: Option<LaunchProfileSelector>,
     },
     #[serde(rename = "panel.close")]
     PanelClose {
@@ -406,6 +424,18 @@ pub enum WorkbenchAction {
         target_panel_id: WorkbenchPanelId,
         direction: WorkbenchPanelSplitDirection,
     },
+    /// Create one ephemeral per-Site Launch Profile catalog entry. The
+    /// selection passes the same closed lexical contract as an explicit
+    /// `launch`, so a stored profile is always launchable.
+    #[serde(rename = "launch-profile.create")]
+    LaunchProfileCreate {
+        name: LaunchProfileName,
+        launch: LaunchSelection,
+    },
+    /// Delete one catalog entry by selector: exact profile id first, then
+    /// name cardinality (not-found/single/ambiguous).
+    #[serde(rename = "launch-profile.delete")]
+    LaunchProfileDelete { selector: LaunchProfileSelector },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -451,6 +481,8 @@ pub enum WorkbenchRequest {
     PublicationRead(PublicationReadIntent),
     #[serde(rename = "workbench.worktree-list.read")]
     WorktreeListRead(WorkbenchWorktreeListRead),
+    #[serde(rename = "workbench.launch-profile-catalog.read")]
+    LaunchProfileCatalogRead(WorkbenchLaunchProfileCatalogRead),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -608,6 +640,27 @@ pub enum WorkbenchCommandOutcome {
         panel_id: WorkbenchPanelId,
         target_panel_id: WorkbenchPanelId,
     },
+    /// One catalog entry committed; `revision` is the new Workbench revision
+    /// (every committed command advances it) and `catalog_revision` is the
+    /// new catalog-private counter.
+    LaunchProfileCreated {
+        revision: WorkbenchRevision,
+        catalog_revision: LaunchProfileCatalogRevision,
+        profile_id: LaunchProfileId,
+    },
+    LaunchProfileDeleted {
+        revision: WorkbenchRevision,
+        catalog_revision: LaunchProfileCatalogRevision,
+        profile_id: LaunchProfileId,
+    },
+    /// The selector resolved to nothing at this Server resolution — a
+    /// legitimate settled outcome journaled like every other result.
+    LaunchProfileUnavailable {},
+    /// The selector's name cardinality exceeded one; the bounded candidate
+    /// id list (at most the catalog cap) is captured at this same resolution.
+    LaunchProfileAmbiguous {
+        candidate_ids: Vec<LaunchProfileId>,
+    },
     Rejected {
         revision: WorkbenchRevision,
         reason: WorkbenchRejectionReason,
@@ -662,14 +715,42 @@ pub enum WorkbenchResponse {
     Publication(WorkbenchPublicationResult),
     #[serde(rename = "workbench.worktree-list.result")]
     WorktreeList(WorkbenchWorktreeListResult),
+    #[serde(rename = "workbench.launch-profile-catalog.result")]
+    LaunchProfileCatalog(WorkbenchLaunchProfileCatalogResult),
 }
 
 pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, ContractError> {
     enforce_encoded_limit(encoded, MAXIMUM_ENCODED_INTENT_BYTES)?;
-    serde_json::from_slice(encoded).map_err(|_error| ContractError::InvalidDocument)
+    let request: WorkbenchRequest =
+        serde_json::from_slice(encoded).map_err(|_error| ContractError::InvalidDocument)?;
+    validate_request(&request)?;
+    Ok(request)
+}
+
+/// Wire-level invariants serde cannot express inside the action enum: an
+/// explicit `launch` and a `profile` selector are mutually exclusive on the
+/// terminal-launch actions.
+fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
+    let WorkbenchRequest::Command(command) = request else {
+        return Ok(());
+    };
+    let conflicting = match &command.action {
+        WorkbenchAction::TabCreate {
+            launch, profile, ..
+        }
+        | WorkbenchAction::PanelSplit {
+            launch, profile, ..
+        } => launch.is_some() && profile.is_some(),
+        _ => false,
+    };
+    if conflicting {
+        return Err(ContractError::InvalidDocument);
+    }
+    Ok(())
 }
 
 pub fn serialize_workbench_request(request: &WorkbenchRequest) -> Result<Vec<u8>, ContractError> {
+    validate_request(request)?;
     let encoded = serde_json::to_vec(request).map_err(|_error| ContractError::InvalidDocument)?;
     enforce_encoded_limit(&encoded, MAXIMUM_ENCODED_INTENT_BYTES)?;
     Ok(encoded)
@@ -733,6 +814,10 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
             // The dedicated 32 KiB variant cap is enforced on parse and
             // serialize alike; entry structure is part of the contract.
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKTREE_LIST_RESULT_BYTES)?;
+            result.validate()
+        }
+        WorkbenchResponse::LaunchProfileCatalog(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_LAUNCH_PROFILE_CATALOG_RESULT_BYTES)?;
             result.validate()
         }
     }

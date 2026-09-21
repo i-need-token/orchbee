@@ -31,9 +31,9 @@ fn direction_kind_version_and_size_fail_before_body_allocation_or_read() {
         Err(WorkbenchWireError::InvalidHeader)
     ));
     assert_eq!(reader.position(), 12);
-    // Byte 7 must stay a kind no direction admits: 11 is a valid request
-    // kind, so the fixture uses a value outside both kind sets.
-    for (offset, byte) in [(0, b'X'), (5, 2), (7, 13)] {
+    // Byte 7 must stay a kind no direction admits: request kinds now run to
+    // 13 and response kinds to 14, so the fixture uses 15.
+    for (offset, byte) in [(0, b'X'), (5, 2), (7, 15)] {
         let mut invalid = frame.clone();
         invalid[offset] = byte;
         let mut reader = Cursor::new(invalid);

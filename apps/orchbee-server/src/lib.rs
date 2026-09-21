@@ -10,9 +10,9 @@ mod workbench_projection;
 pub use workbench_authority::{
     CloseContinuationNext, CloseStepObservation, CloseStepPrequeueFailure, CloseStepToken,
     CloseStepTokenMismatch, CommittedWorkbenchPanelSplitMetadata, CommittedWorkbenchTabCreate,
-    CommittedWorkbenchTabCreateMetadata, PendingWorkbenchPanelSplit, PendingWorkbenchTabCreate,
-    PreparedStandaloneIntent, PreparedWorkbenchPanelMove, PreparedWorkbenchPanelSplit,
-    PreparedWorkbenchPanelSplitSettlement, PreparedWorkbenchTabClose,
+    CommittedWorkbenchTabCreateMetadata, LaunchProfileUse, PendingWorkbenchPanelSplit,
+    PendingWorkbenchTabCreate, PreparedStandaloneIntent, PreparedWorkbenchPanelMove,
+    PreparedWorkbenchPanelSplit, PreparedWorkbenchPanelSplitSettlement, PreparedWorkbenchTabClose,
     PreparedWorkbenchTabClosePublication, PreparedWorkbenchTabCloseResume,
     PreparedWorkbenchTabCreate, PreparedWorkbenchTabMove, PreparedWorkbenchTabSettlement,
     StagedWorkbenchPanelSplitMetadata, StagedWorkbenchTabCreateMetadata, StandaloneIntentError,

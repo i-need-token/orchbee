@@ -26,23 +26,34 @@ orchbee status                   # the running Site's Workbench snapshot
 orchbee <family> <command>       # queries and Workbench mutations
 orchbee api snapshot|schema      # machine snapshot and embedded schemas
 orchbee site start               # ensure the local Site is running (no TTY)
+orchbee site diagnose            # read-only local Site runtime facts
 orchbee config check             # local runtime inspection
 orchbee help [<family>|<command>]
 orchbee completion bash|zsh|fish
 orchbee --help | --version
 ```
 
-Query families are `project`, `workspace`, `tab`, `panel`, `terminal`, `worktree`, and
+Query families are `project`, `workspace`, `tab`, `panel`, `terminal`, `worktree`,
+`launch-profile`, and
 `agent` (`list`/`get`, plus `terminal read`; `worktree` offers only `list`, which requires
 `--project <target>` and `--directory <directory-id>` — a strict nonzero 32-lowercase-hex
-Workbench directory id, never a filesystem path or label; `agent` offers `list` with
+Workbench directory id, never a filesystem path or label; `launch-profile` offers `list`
+and `get <selector>` — a typed read of the running Site's launch profile catalog, resolved
+Server-side with no local pre-read; `agent` offers `list` with
 `--include-ended`/`--limit`/`--cursor` paging, `get <session-id>`, and `explain
 <session-id>` — a read-only typed view of the Server's canonical Agent sessions over OBAP,
-never inferred from terminal contents). Mutation commands against the
+never inferred from terminal contents — plus `doctor [--provider <id>]... [--asset-root
+<path>]...`, an offline bounded-filesystem diagnostic that explains from local facts alone
+why Agent observations may not arrive (no provider execution, no socket connect, no writes).
+Mutation commands against the
 running Site are `project create`/`rename`,
-`workspace create`/`rename`/`accept-directory`, `tab create`/`rename`/`move`/`close`, and
-`panel split`/`move`/`close` — `tab create` and `panel split` additionally accept an ephemeral
-`--exec <path> [--arg <value>]...` launch selection that replaces the resolved default shell for
+`workspace create`/`rename`/`accept-directory`, `tab create`/`rename`/`move`/`close`,
+`panel split`/`move`/`close`, and `launch-profile create`/`delete` —
+`launch-profile create --name <name> --exec <path> [--arg <value>]...` stores one named
+launch selection in the catalog and `launch-profile delete <selector>` removes it. `tab
+create` and `panel split` additionally accept either an ephemeral
+`--exec <path> [--arg <value>]...` launch selection or a `--profile <selector>` catalog
+launch — mutually exclusive — that replaces the resolved default shell for
 that one request only. `terminal send <id> (--text <utf8> [--enter] | --key <name>)`
 delivers exactly one input record — literal text with an optional folded carriage return, or
 one of fifteen semantic keys — to a bound terminal over the same admitted session, without
@@ -63,7 +74,11 @@ when this invocation actually spawned the child and `already-running` when an ex
 admitted its probe. The command is effectful even on refusal: only a grammar failure is
 guaranteed zero-effect, an interrupted or timed-out start may leave committed activation
 state the next invocation reports as `rejected`/`recovery-required`, and it never repairs,
-stops, or deletes runtime state. The complete grammar, target and
+stops, or deletes runtime state. `site diagnose` is the read-only complement: it reports
+bounded facts about the runtime directory, marker, locks, and finite endpoint paths — each
+a closed-state row at its own observation instant — under one cooperative 5-second budget,
+and it never connects, creates, locks, repairs, or claims any process is alive or gone.
+The complete grammar, target and
 filter rules, mutation outcomes, and the failure matrix with exit classes are owned by
 [native CLI query](docs/native-cli-query.md); `orchbee help <family>` and
 `orchbee help <family> <command>` print the same grammar from the binary itself.
@@ -87,14 +102,17 @@ node scripts/stage-native-site.mjs --wsl Ubuntu --output /tmp/orchbee-native-dev
 ```
 
 Then run `/tmp/orchbee-native-dev/orchbee` in an interactive Linux terminal.
-The script rebuilds three Rust release binaries and the Zig ReleaseSafe Host from locked inputs;
+The script rebuilds three Rust release binaries and the Zig ReleaseSafe Host from locked inputs,
+copies the canonical observation-adapters capsule as the cohort's lazily validated sidecar,
+and verifies its declared payload digest before writing the manifest;
 existing output directories are rejected. `--cargo-target-dir <absolute-directory>` can reuse a
 Cargo build cache. This does not install a system service or replace the existing TypeScript CLI.
 
 The default Site is `/tmp/orchbee-native-<effective-uid>`; development/tests can isolate a Site
 by setting `ORCHBEE_RUNTIME_BASE` to another existing absolute directory.
 The [shared runtime contract](../../crates/local-site-runtime/README.md) owns the 0700 directory,
-0600 locks/sockets/immutable attempt marker, exact four-artifact cohort, shared 20-second deadline,
+0600 locks/sockets/immutable attempt marker, exact four-executable cohort with its declared
+adapters sidecar, shared 20-second deadline,
 and delayed 500-ms progress notice. Server + Worker readiness and first terminal frame readiness
 are distinct phases. Initial Open, snapshot read, attach, acquire, authorized resize, and first-frame Poll all
 consume the original startup deadline. Native Ready requires a drawn full frame, its exact accepted

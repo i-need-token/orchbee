@@ -291,6 +291,7 @@ fn native_standalone_panel_split_refreshes_and_moves_focus_between_live_leaves()
             label: WorkbenchLabel::parse("Split peer")?,
             geometry: split_geometry,
             launch: None,
+            profile: None,
         },
         split_deadline,
     )? {
@@ -491,6 +492,7 @@ fn native_standalone_panel_close_collapses_the_split_and_releases_only_that_shel
             label: WorkbenchLabel::parse("Split peer")?,
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
             launch: None,
+            profile: None,
         },
         split_deadline,
     )? {
@@ -714,6 +716,7 @@ fn native_standalone_panel_move_relocates_a_leaf_without_touching_either_shell()
             label: WorkbenchLabel::parse("Split peer")?,
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
             launch: None,
+            profile: None,
         },
         split_deadline,
     )? {
@@ -893,6 +896,7 @@ fn native_standalone_refresh_catches_up_across_two_committed_peer_splits() -> Te
             label: WorkbenchLabel::parse("Peer one")?,
             geometry: split_geometry,
             launch: None,
+            profile: None,
         },
         deadline,
     )? {
@@ -910,6 +914,7 @@ fn native_standalone_refresh_catches_up_across_two_committed_peer_splits() -> Te
             label: WorkbenchLabel::parse("Peer two")?,
             geometry: split_geometry,
             launch: None,
+            profile: None,
         },
         deadline,
     )? {
@@ -1349,6 +1354,7 @@ fn native_bare_reentry_replays_the_settled_anchor_across_a_split_leaf() -> TestR
             label: WorkbenchLabel::parse("Split peer")?,
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
             launch: None,
+            profile: None,
         },
         deadline,
     )? {

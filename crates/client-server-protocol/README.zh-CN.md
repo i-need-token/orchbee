@@ -155,7 +155,10 @@ membership 解析目标，并一趟返回。
 
 `found` outcome 携带当前路由行（`terminalId`、`workerId`、`boundTo` 的
 presentation/panel/tab/context identity）、`siteId`、join 观测到的 decimal-string
-`workbenchRevision` 以及一个 `launch` fact 对象。其余 outcome 只有 `not-found` 与
+`workbenchRevision` 以及一个 `launch` fact 对象。若终端经具名 Launch Profile 启动，
+`found` 还携带可选成员 `launchProfile` `{profileId, catalogRevision}`——在 launch
+prepare 时冻结的 provenance；其他方式启动的终端该成员整体缺席，且即便 profile 在其
+选择被捕获后遭删除，该成员仍保持准确。其余 outcome 只有 `not-found` 与
 `unavailable{reason:"server-busy"}`；无 Workbench 的 Site 一律回答 `not-found`，包括
 仅存的 orphan retained 记录。
 

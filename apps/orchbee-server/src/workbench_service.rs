@@ -1,13 +1,13 @@
 use crate::local_terminal_service::LocalTerminalService;
 use orchbee_server::WorkbenchReadOrNavigationRequest;
 use orchbee_workbench_protocol::{
-    ProtocolVersion, WorkbenchAction, WorkbenchCommandOutcome, WorkbenchCommandResult,
-    WorkbenchCommandUnavailableReason, WorkbenchPublicationOutcome, WorkbenchPublicationResult,
-    WorkbenchRequest, WorkbenchResponse, WorkbenchSnapshotOutcome, WorkbenchSnapshotResult,
-    WorkbenchSnapshotUnavailableReason, WorkbenchTabCloseReadOutcome, WorkbenchTabCloseReadResult,
-    WorkbenchTabCloseResumeOutcome, WorkbenchTabCloseResumeResult,
-    WorkbenchTabCloseUnavailableReason, WorkbenchWorktreeListOutcome, WorkbenchWorktreeListResult,
-    WorktreeListUnavailableReason,
+    LaunchProfileCatalogOutcome, ProtocolVersion, WorkbenchAction, WorkbenchCommandOutcome,
+    WorkbenchCommandResult, WorkbenchCommandUnavailableReason, WorkbenchLaunchProfileCatalogResult,
+    WorkbenchPublicationOutcome, WorkbenchPublicationResult, WorkbenchRequest, WorkbenchResponse,
+    WorkbenchSnapshotOutcome, WorkbenchSnapshotResult, WorkbenchSnapshotUnavailableReason,
+    WorkbenchTabCloseReadOutcome, WorkbenchTabCloseReadResult, WorkbenchTabCloseResumeOutcome,
+    WorkbenchTabCloseResumeResult, WorkbenchTabCloseUnavailableReason,
+    WorkbenchWorktreeListOutcome, WorkbenchWorktreeListResult, WorktreeListUnavailableReason,
 };
 use std::sync::Arc;
 
@@ -46,7 +46,8 @@ impl WorkbenchService {
             WorkbenchRequest::SnapshotRead(_)
             | WorkbenchRequest::PublicationRead(_)
             | WorkbenchRequest::TabCloseRead(_)
-            | WorkbenchRequest::WorktreeListRead(_) => self.policy.read,
+            | WorkbenchRequest::WorktreeListRead(_)
+            | WorkbenchRequest::LaunchProfileCatalogRead(_) => self.policy.read,
             WorkbenchRequest::TabCloseResume(_) => self.policy.manage_terminal_lifecycle,
             WorkbenchRequest::Command(command)
                 if matches!(
@@ -139,6 +140,7 @@ impl WorkbenchService {
             }
             WorkbenchRequest::SnapshotRead(_)
             | WorkbenchRequest::PublicationRead(_)
+            | WorkbenchRequest::LaunchProfileCatalogRead(_)
             | WorkbenchRequest::Command(_) => {}
         }
         let fallback = request.clone();
@@ -200,6 +202,19 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                 } else {
                     WorkbenchWorktreeListOutcome::Unavailable {
                         reason: WorktreeListUnavailableReason::ServerBusy,
+                    }
+                },
+            })
+        }
+        WorkbenchRequest::LaunchProfileCatalogRead(read) => {
+            WorkbenchResponse::LaunchProfileCatalog(WorkbenchLaunchProfileCatalogResult {
+                protocol_version: ProtocolVersion,
+                request_id: read.request_id,
+                outcome: if denied {
+                    LaunchProfileCatalogOutcome::Denied {}
+                } else {
+                    LaunchProfileCatalogOutcome::Unavailable {
+                        reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
                     }
                 },
             })

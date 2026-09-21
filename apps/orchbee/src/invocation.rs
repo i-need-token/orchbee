@@ -1,11 +1,13 @@
 use std::ffi::OsString;
 
 use orchbee_agent_observation_protocol::{
-    AgentListCursor, AgentSessionId, DEFAULT_LIST_LIMIT, MAXIMUM_LIST_LIMIT,
+    AgentListCursor, AgentSafeInteger, AgentSessionId, DEFAULT_LIST_LIMIT, MAXIMUM_LIST_LIMIT,
+    MAXIMUM_SAFE_INTEGER,
 };
 use orchbee_workbench_protocol::{
-    LaunchSelection, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel,
-    WorkbenchPanelSplitDirection, WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
+    LaunchProfileName, LaunchProfileSelector, LaunchSelection, WorkbenchDirectoryId,
+    WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
+    WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
 };
 
 /// Legacy three-variant invocation consumed by `presentation::present`.
@@ -88,6 +90,7 @@ pub(crate) enum Family {
     Panel,
     Terminal,
     Worktree,
+    LaunchProfile,
     Site,
     Api,
     Config,
@@ -105,6 +108,7 @@ impl Family {
             Self::Panel => "panel",
             Self::Terminal => "terminal",
             Self::Worktree => "worktree",
+            Self::LaunchProfile => "launch-profile",
             Self::Site => "site",
             Self::Api => "api",
             Self::Config => "config",
@@ -120,6 +124,8 @@ pub(crate) enum CommandPath {
     AgentList,
     AgentGet,
     AgentExplain,
+    AgentWait,
+    AgentDoctor,
     ProjectList,
     ProjectGet,
     ProjectCreate,
@@ -146,11 +152,16 @@ pub(crate) enum CommandPath {
     TerminalWaitOutput,
     TerminalSend,
     WorktreeList,
+    LaunchProfileList,
+    LaunchProfileGet,
+    LaunchProfileCreate,
+    LaunchProfileDelete,
 
     ApiSnapshot,
     ApiSchema,
     ConfigCheck,
     SiteStart,
+    SiteDiagnose,
 }
 
 impl CommandPath {
@@ -162,6 +173,8 @@ impl CommandPath {
             Self::AgentList => "agent list",
             Self::AgentGet => "agent get",
             Self::AgentExplain => "agent explain",
+            Self::AgentWait => "agent wait",
+            Self::AgentDoctor => "agent doctor",
             Self::ProjectList => "project list",
             Self::ProjectGet => "project get",
             Self::ProjectCreate => "project create",
@@ -188,14 +201,89 @@ impl CommandPath {
             Self::TerminalWaitOutput => "terminal wait-output",
             Self::TerminalSend => "terminal send",
             Self::WorktreeList => "worktree list",
+            Self::LaunchProfileList => "launch-profile list",
+            Self::LaunchProfileGet => "launch-profile get",
+            Self::LaunchProfileCreate => "launch-profile create",
+            Self::LaunchProfileDelete => "launch-profile delete",
 
             Self::ApiSnapshot => "api snapshot",
             Self::ApiSchema => "api schema",
             Self::ConfigCheck => "config check",
             Self::SiteStart => "site start",
+            Self::SiteDiagnose => "site diagnose",
         }
     }
 }
+
+/// One canonical `agent wait` condition: the twelve-value vocabulary the
+/// canonical wait schema admits — nine fresh-gated status conditions plus
+/// the three direct freshness conditions. `as_str` is the canonical
+/// kebab-case name used on the command line, inside `matchedConditions`,
+/// and in the emitted wait document's `until` echo.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AgentWaitCondition {
+    NeedsAttention,
+    Failed,
+    Succeeded,
+    Canceled,
+    Interrupted,
+    Working,
+    Idle,
+    Unknown,
+    Ended,
+    Fresh,
+    Stale,
+    Disconnected,
+}
+
+impl AgentWaitCondition {
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::NeedsAttention => "needs-attention",
+            Self::Failed => "failed",
+            Self::Succeeded => "succeeded",
+            Self::Canceled => "canceled",
+            Self::Interrupted => "interrupted",
+            Self::Working => "working",
+            Self::Idle => "idle",
+            Self::Unknown => "unknown",
+            Self::Ended => "ended",
+            Self::Fresh => "fresh",
+            Self::Stale => "stale",
+            Self::Disconnected => "disconnected",
+        }
+    }
+
+    fn parse(value: &str) -> Option<Self> {
+        Some(match value {
+            "needs-attention" => Self::NeedsAttention,
+            "failed" => Self::Failed,
+            "succeeded" => Self::Succeeded,
+            "canceled" => Self::Canceled,
+            "interrupted" => Self::Interrupted,
+            "working" => Self::Working,
+            "idle" => Self::Idle,
+            "unknown" => Self::Unknown,
+            "ended" => Self::Ended,
+            "fresh" => Self::Fresh,
+            "stale" => Self::Stale,
+            "disconnected" => Self::Disconnected,
+            _ => return None,
+        })
+    }
+}
+
+/// The canonical default condition set `agent wait` applies when `--until`
+/// is absent: the seven conditions, verbatim and in canonical order.
+pub(crate) const DEFAULT_AGENT_WAIT_CONDITIONS: [AgentWaitCondition; 7] = [
+    AgentWaitCondition::NeedsAttention,
+    AgentWaitCondition::Failed,
+    AgentWaitCondition::Succeeded,
+    AgentWaitCondition::Canceled,
+    AgentWaitCondition::Interrupted,
+    AgentWaitCondition::Idle,
+    AgentWaitCondition::Ended,
+];
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum QueryCommand {
@@ -207,6 +295,30 @@ pub(crate) enum QueryCommand {
     },
     AgentGet(AgentSessionId),
     AgentExplain(AgentSessionId),
+    /// `agent wait`: one held Client Session polls the canonical session
+    /// document until a requested condition matches, the fence refuses, or
+    /// the shared absolute deadline lands.
+    AgentWait {
+        session: AgentSessionId,
+        /// The effective condition list — `DEFAULT_AGENT_WAIT_CONDITIONS`
+        /// verbatim when `--until` is absent. Requested order is preserved
+        /// for matching and the emitted echo.
+        until: Vec<AgentWaitCondition>,
+        /// The optional global-revision fence (`--after-revision`) — a
+        /// caller-supplied bound, never a turn-scoped causal promise.
+        after_revision: Option<AgentSafeInteger>,
+        /// The total wait budget in milliseconds measured from command
+        /// start, 1..=3600000, defaulting to 600000 — never `wait-output`'s
+        /// 30000.
+        timeout_ms: u32,
+    },
+    /// `agent doctor`: the offline provider-diagnostics read — validated
+    /// provider selectors in flag order and supplied asset roots in flag
+    /// order; it never opens a session.
+    AgentDoctor {
+        providers: Vec<String>,
+        asset_roots: Vec<String>,
+    },
     ProjectList,
     ProjectGet(Target),
     WorkspaceList {
@@ -247,6 +359,12 @@ pub(crate) enum QueryCommand {
         project: Target,
         directory: WorkbenchDirectoryId,
     },
+    /// `launch-profile list`: the whole ephemeral catalog as one bounded
+    /// typed read — no selector, no snapshot resolution.
+    LaunchProfileList,
+    /// `launch-profile get <selector>`: one catalog entry resolved
+    /// Server-side by the same selector rule get/delete/use share.
+    LaunchProfileGet(LaunchProfileSelector),
     ApiSnapshot,
     ApiSchema {
         schema_id: Option<String>,
@@ -374,6 +492,9 @@ pub(crate) enum MutationCommand {
         label: WorkbenchLabel,
         geometry: WorkbenchTerminalGeometry,
         launch: Option<LaunchSelection>,
+        /// `--profile <selector>`: a catalog launch resolved Server-side;
+        /// the grammar admits it only when `--exec`/`--arg` are absent.
+        profile: Option<LaunchProfileSelector>,
     },
     TabRename {
         target: Target,
@@ -392,6 +513,9 @@ pub(crate) enum MutationCommand {
         label: WorkbenchLabel,
         geometry: WorkbenchTerminalGeometry,
         launch: Option<LaunchSelection>,
+        /// `--profile <selector>`: a catalog launch resolved Server-side;
+        /// the grammar admits it only when `--exec`/`--arg` are absent.
+        profile: Option<LaunchProfileSelector>,
     },
     PanelClose {
         target: Target,
@@ -400,6 +524,18 @@ pub(crate) enum MutationCommand {
         target: Target,
         into: Target,
         direction: WorkbenchPanelSplitDirection,
+    },
+    /// `launch-profile create --name <n> --exec <abs> [--arg <v>]...`: one
+    /// new ephemeral catalog entry; the launch selection passes the same
+    /// closed validation as the explicit `--exec`/`--arg` form.
+    LaunchProfileCreate {
+        name: LaunchProfileName,
+        launch: LaunchSelection,
+    },
+    /// `launch-profile delete <selector>`: removes the entry the Server
+    /// resolves under the shared selector rule.
+    LaunchProfileDelete {
+        selector: LaunchProfileSelector,
     },
     TerminalSend {
         target: Target,
@@ -430,6 +566,11 @@ pub(crate) enum Request {
     /// `site start`: the headless connect-or-activate command — neither a
     /// Workbench query nor a mutation; it runs the shared activation core.
     SiteStart {
+        format: OutputFormat,
+    },
+    /// `site diagnose`: the read-only runtime observation command —
+    /// neither a Workbench query nor a mutation; it never connects.
+    SiteDiagnose {
         format: OutputFormat,
     },
 }
@@ -487,6 +628,22 @@ pub(crate) enum ExpectedValue {
     AgentSessionId,
     AgentListLimit,
     AgentCursor,
+    /// The `agent wait --until` operand: one of the twelve canonical
+    /// condition names.
+    AgentWaitUntil,
+    /// The `agent wait --after-revision` operand: a nonnegative
+    /// safe-integer global runtime revision.
+    AgentAfterRevision,
+    /// The `agent doctor --provider` value: one canonical provider id.
+    ProviderId,
+    /// The `agent doctor --asset-root` value: a nonempty absolute path.
+    AssetRootPath,
+    /// The `launch-profile create --name` value: a required non-unique
+    /// catalog name, 1..=512 UTF-8 bytes.
+    ProfileName,
+    /// A `launch-profile` selector or `--profile` value: id-first exact
+    /// then name cardinality, 1..=512 UTF-8 bytes.
+    ProfileSelector,
 }
 
 /// Why an `invalid-usage` failure was reached. Carried for the localized
@@ -650,13 +807,27 @@ struct Options {
     include_ended: bool,
     limit: Option<String>,
     cursor: Option<String>,
+    /// `agent wait --until <condition>`: the repeatable condition value —
+    /// every occurrence appends one raw argv value in order, validated and
+    /// deduplicated when the command binds it.
+    until: Vec<String>,
+    /// `agent wait --after-revision <n>`: the revision-fence value option.
+    after_revision: Option<String>,
+    /// `agent doctor --provider <id>`: repeatable, append-ordered.
+    providers: Vec<String>,
+    /// `agent doctor --asset-root <path>`: repeatable, append-ordered.
+    asset_roots: Vec<String>,
+    name: Option<String>,
+    profile: Option<String>,
 }
 
 /// Every named option that owns the next argv token as its value, used by
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
+    "--after-revision",
     "--arg",
+    "--asset-root",
     "--cell-height",
     "--cell-width",
     "--cols",
@@ -671,12 +842,16 @@ const VALUE_FLAGS: &[&str] = &[
     "--path",
     "--match",
     "--mouse",
+    "--name",
     "--project",
+    "--provider",
+    "--profile",
     "--rows",
     "--tab",
     "--target-panel",
     "--timeout",
     "--text",
+    "--until",
     "--workspace",
 ];
 
@@ -916,10 +1091,21 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                         return Err(usage_with(UsageReason::MissingValue { option }, envelope));
                     }
                 };
-                // `--arg` is the sole repeatable value option: every
-                // occurrence appends one verbatim argv value in order.
-                if token.as_str() == "--arg" {
-                    options.args.push(value);
+                // The repeatable value options: every occurrence appends one
+                // verbatim argv value in order — `--arg` builds the launch
+                // argv; `--provider`/`--asset-root` build the doctor's two
+                // declared selector lists.
+                if matches!(token.as_str(), "--arg" | "--provider" | "--asset-root") {
+                    match token.as_str() {
+                        "--arg" => options.args.push(value),
+                        "--provider" => options.providers.push(value),
+                        _ => options.asset_roots.push(value),
+                    }
+                    index += 2;
+                    continue;
+                }
+                if token.as_str() == "--until" {
+                    options.until.push(value);
                     index += 2;
                     continue;
                 }
@@ -943,6 +1129,9 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                     "--exec" => &mut options.exec,
                     "--limit" => &mut options.limit,
                     "--cursor" => &mut options.cursor,
+                    "--after-revision" => &mut options.after_revision,
+                    "--name" => &mut options.name,
+                    "--profile" => &mut options.profile,
 
                     _ => &mut options.target_panel,
                 };
@@ -1187,6 +1376,35 @@ fn resolve_words(
                 options,
             ))
         }
+        ["agent", "wait", value] => {
+            check_scope(
+                options,
+                AGENT_WAIT_SCOPE,
+                UsageContext::Path("agent wait"),
+                envelope,
+            )?;
+            let context = UsageContext::Path("agent wait");
+            Ok(query(
+                QueryCommand::AgentWait {
+                    session: agent_session_id(value, context, envelope)?,
+                    until: agent_until_option(options, context, envelope)?,
+                    after_revision: agent_after_revision_option(options, context, envelope)?,
+                    timeout_ms: agent_wait_timeout_option(options, context, envelope)?,
+                },
+                options,
+            ))
+        }
+        ["agent", "doctor"] => {
+            let context = UsageContext::Path("agent doctor");
+            check_scope(options, AGENT_DOCTOR_SCOPE, context, envelope)?;
+            Ok(query(
+                QueryCommand::AgentDoctor {
+                    providers: doctor_providers_option(options, context, envelope)?,
+                    asset_roots: doctor_asset_roots_option(options, context, envelope)?,
+                },
+                options,
+            ))
+        }
         ["project", "list"] => {
             reject_filters(options, UsageContext::Path("project list"), envelope)?;
             Ok(query(QueryCommand::ProjectList, options))
@@ -1354,6 +1572,7 @@ fn resolve_words(
                 UsageContext::Path("tab create"),
                 envelope,
             )?;
+            reject_launch_profile_conflict(options, UsageContext::Path("tab create"), envelope)?;
             let context = if options.standalone {
                 TabContext::Standalone
             } else {
@@ -1373,6 +1592,7 @@ fn resolve_words(
                     label: label_option(options, UsageContext::Path("tab create"), envelope)?,
                     geometry: geometry_option(options, UsageContext::Path("tab create"), envelope)?,
                     launch: launch_option(options, UsageContext::Path("tab create"), envelope)?,
+                    profile: profile_option(options, UsageContext::Path("tab create"), envelope)?,
                 },
                 options,
             ))
@@ -1456,6 +1676,7 @@ fn resolve_words(
                 UsageContext::Path("panel split"),
                 envelope,
             )?;
+            reject_launch_profile_conflict(options, UsageContext::Path("panel split"), envelope)?;
             Ok(mutation(
                 MutationCommand::PanelSplit {
                     target: target((*value).to_owned(), Resource::Panel, envelope)?,
@@ -1471,6 +1692,7 @@ fn resolve_words(
                         envelope,
                     )?,
                     launch: launch_option(options, UsageContext::Path("panel split"), envelope)?,
+                    profile: profile_option(options, UsageContext::Path("panel split"), envelope)?,
                 },
                 options,
             ))
@@ -1620,6 +1842,49 @@ fn resolve_words(
                 options,
             ))
         }
+        ["launch-profile", "list"] => {
+            reject_filters(options, UsageContext::Path("launch-profile list"), envelope)?;
+            Ok(query(QueryCommand::LaunchProfileList, options))
+        }
+        ["launch-profile", "get", value] => {
+            reject_filters(options, UsageContext::Path("launch-profile get"), envelope)?;
+            Ok(query(
+                QueryCommand::LaunchProfileGet(profile_selector(
+                    value,
+                    UsageContext::Path("launch-profile get"),
+                    envelope,
+                )?),
+                options,
+            ))
+        }
+        ["launch-profile", "create"] => {
+            let context = UsageContext::Path("launch-profile create");
+            check_scope(options, LAUNCH_PROFILE_CREATE_SCOPE, context, envelope)?;
+            Ok(mutation(
+                MutationCommand::LaunchProfileCreate {
+                    name: profile_name_option(options, context, envelope)?,
+                    launch: required_launch_option(options, context, envelope)?,
+                },
+                options,
+            ))
+        }
+        ["launch-profile", "delete", value] => {
+            reject_filters(
+                options,
+                UsageContext::Path("launch-profile delete"),
+                envelope,
+            )?;
+            Ok(mutation(
+                MutationCommand::LaunchProfileDelete {
+                    selector: profile_selector(
+                        value,
+                        UsageContext::Path("launch-profile delete"),
+                        envelope,
+                    )?,
+                },
+                options,
+            ))
+        }
         ["api", "snapshot"] => {
             reject_filters(options, UsageContext::Path("api snapshot"), envelope)?;
             Ok(query(QueryCommand::ApiSnapshot, options))
@@ -1647,6 +1912,12 @@ fn resolve_words(
         ["site", "start"] => {
             reject_filters(options, UsageContext::Path("site start"), envelope)?;
             Ok(Request::SiteStart {
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
+        ["site", "diagnose"] => {
+            reject_filters(options, UsageContext::Path("site diagnose"), envelope)?;
+            Ok(Request::SiteDiagnose {
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
@@ -1706,6 +1977,21 @@ fn resolve_words(
         )),
         ["agent", "explain", _, extra, ..] => Err(unexpected_argument(
             UsageContext::Path("agent explain"),
+            extra,
+            envelope,
+        )),
+        ["agent", "wait"] => Err(missing_required(
+            UsageContext::Path("agent wait"),
+            "<session>",
+            envelope,
+        )),
+        ["agent", "wait", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("agent wait"),
+            extra,
+            envelope,
+        )),
+        ["agent", "doctor", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("agent doctor"),
             extra,
             envelope,
         )),
@@ -1953,6 +2239,45 @@ fn resolve_words(
             verb,
             envelope,
         )),
+        ["launch-profile"] => Err(missing_command(
+            UsageContext::Path("launch-profile"),
+            envelope,
+        )),
+        ["launch-profile", "list", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("launch-profile list"),
+            extra,
+            envelope,
+        )),
+        ["launch-profile", "get"] => Err(missing_required(
+            UsageContext::Path("launch-profile get"),
+            "<profile>",
+            envelope,
+        )),
+        ["launch-profile", "get", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("launch-profile get"),
+            extra,
+            envelope,
+        )),
+        ["launch-profile", "create", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("launch-profile create"),
+            extra,
+            envelope,
+        )),
+        ["launch-profile", "delete"] => Err(missing_required(
+            UsageContext::Path("launch-profile delete"),
+            "<profile>",
+            envelope,
+        )),
+        ["launch-profile", "delete", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("launch-profile delete"),
+            extra,
+            envelope,
+        )),
+        ["launch-profile", verb, ..] => Err(unknown_command(
+            UsageContext::Path("launch-profile"),
+            verb,
+            envelope,
+        )),
         ["api"] => Err(missing_command(UsageContext::Path("api"), envelope)),
         ["api", "snapshot", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("api snapshot"),
@@ -1979,6 +2304,11 @@ fn resolve_words(
         ["site"] => Err(missing_command(UsageContext::Path("site"), envelope)),
         ["site", "start", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("site start"),
+            extra,
+            envelope,
+        )),
+        ["site", "diagnose", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("site diagnose"),
             extra,
             envelope,
         )),
@@ -2034,6 +2364,8 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["agent", "list"] => HelpTopic::Command(CommandPath::AgentList),
         ["agent", "get"] => HelpTopic::Command(CommandPath::AgentGet),
         ["agent", "explain"] => HelpTopic::Command(CommandPath::AgentExplain),
+        ["agent", "wait"] => HelpTopic::Command(CommandPath::AgentWait),
+        ["agent", "doctor"] => HelpTopic::Command(CommandPath::AgentDoctor),
         ["project"] => HelpTopic::Family(Family::Project),
         ["workspace"] => HelpTopic::Family(Family::Workspace),
         ["tab"] => HelpTopic::Family(Family::Tab),
@@ -2074,10 +2406,17 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["worktree"] => HelpTopic::Family(Family::Worktree),
         ["worktree", "list"] => HelpTopic::Command(CommandPath::WorktreeList),
 
+        ["launch-profile"] => HelpTopic::Family(Family::LaunchProfile),
+        ["launch-profile", "list"] => HelpTopic::Command(CommandPath::LaunchProfileList),
+        ["launch-profile", "get"] => HelpTopic::Command(CommandPath::LaunchProfileGet),
+        ["launch-profile", "create"] => HelpTopic::Command(CommandPath::LaunchProfileCreate),
+        ["launch-profile", "delete"] => HelpTopic::Command(CommandPath::LaunchProfileDelete),
+
         ["api", "snapshot"] => HelpTopic::Command(CommandPath::ApiSnapshot),
         ["api", "schema"] => HelpTopic::Command(CommandPath::ApiSchema),
         ["config", "check"] => HelpTopic::Command(CommandPath::ConfigCheck),
         ["site", "start"] => HelpTopic::Command(CommandPath::SiteStart),
+        ["site", "diagnose"] => HelpTopic::Command(CommandPath::SiteDiagnose),
         _ => return None,
     })
 }
@@ -2144,6 +2483,27 @@ struct Scope {
     limit: bool,
     /// `agent list --cursor <c>`: admits the page cursor value option.
     cursor: bool,
+    /// `agent wait --until <c>`: admits the repeatable wait-condition value
+    /// option.
+    until: bool,
+    /// `agent wait --after-revision <n>`: admits the revision-fence value
+    /// option.
+    after_revision: bool,
+    /// `agent wait --timeout <ms>`: admits the shared `--timeout` flag under
+    /// the wait meaning alone — never `terminal wait-output`'s `--match`
+    /// or `--rows` peers.
+    timeout: bool,
+    /// `agent doctor --provider <id>`: admits the repeatable provider
+    /// selector.
+    provider: bool,
+    /// `agent doctor --asset-root <path>`: admits the repeatable declared
+    /// asset-root selector.
+    asset_root: bool,
+    /// `launch-profile create --name <n>`: the required catalog name.
+    name: bool,
+    /// `tab create|panel split --profile <sel>`: the catalog-launch
+    /// selector, exclusive with the explicit `--exec`/`--arg` form.
+    profile: bool,
 }
 
 const NO_OPTIONS: Scope = Scope {
@@ -2171,6 +2531,13 @@ const NO_OPTIONS: Scope = Scope {
     include_ended: false,
     limit: false,
     cursor: false,
+    until: false,
+    after_revision: false,
+    timeout: false,
+    provider: false,
+    asset_root: false,
+    name: false,
+    profile: false,
 };
 
 /// The explicit `tui` route: only `--mouse` is admitted on top of the
@@ -2185,6 +2552,24 @@ const AGENT_LIST_SCOPE: Scope = Scope {
     include_ended: true,
     limit: true,
     cursor: true,
+    ..NO_OPTIONS
+};
+
+/// `agent wait`: the condition list, the revision fence, and the shared
+/// timeout flag under the canonical wait meaning — the sole Agent scope
+/// that admits `--timeout`.
+const AGENT_WAIT_SCOPE: Scope = Scope {
+    until: true,
+    after_revision: true,
+    timeout: true,
+    ..NO_OPTIONS
+};
+
+/// `agent doctor`: the two repeatable declared selectors — provider ids and
+/// supplied asset roots.
+const AGENT_DOCTOR_SCOPE: Scope = Scope {
+    provider: true,
+    asset_root: true,
     ..NO_OPTIONS
 };
 
@@ -2227,6 +2612,7 @@ const TAB_CREATE_SCOPE: Scope = Scope {
     geometry: true,
     exec: true,
     args: true,
+    profile: true,
     ..NO_OPTIONS
 };
 
@@ -2246,6 +2632,7 @@ const PANEL_SPLIT_SCOPE: Scope = Scope {
     geometry: true,
     exec: true,
     args: true,
+    profile: true,
     ..NO_OPTIONS
 };
 
@@ -2280,6 +2667,15 @@ const WORKTREE_LIST_SCOPE: Scope = Scope {
     ..NO_OPTIONS
 };
 
+/// `launch-profile create --name <n> --exec <abs> [--arg <v>]...`: the
+/// catalog entry's name plus the same explicit launch selection grammar.
+const LAUNCH_PROFILE_CREATE_SCOPE: Scope = Scope {
+    name: true,
+    exec: true,
+    args: true,
+    ..NO_OPTIONS
+};
+
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
     options.directory.is_some()
@@ -2305,6 +2701,12 @@ fn business_options(options: &Options) -> bool {
         || options.include_ended
         || options.limit.is_some()
         || options.cursor.is_some()
+        || !options.until.is_empty()
+        || options.after_revision.is_some()
+        || !options.providers.is_empty()
+        || !options.asset_roots.is_empty()
+        || options.name.is_some()
+        || options.profile.is_some()
 }
 
 /// The first named option present but outside `scope`, in the fixed `Options`
@@ -2361,7 +2763,10 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     if options.match_text.is_some() && !scope.wait {
         return Some("--match");
     }
-    if options.timeout.is_some() && !scope.wait {
+    // `--timeout` belongs to `terminal wait-output` through `wait` scope and
+    // to `agent wait` through its own `timeout` scope; the two never share
+    // their other flags.
+    if options.timeout.is_some() && !scope.wait && !scope.timeout {
         return Some("--timeout");
     }
     if options.text.is_some() && !scope.text {
@@ -2396,6 +2801,24 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.cursor.is_some() && !scope.cursor {
         return Some("--cursor");
+    }
+    if !options.until.is_empty() && !scope.until {
+        return Some("--until");
+    }
+    if options.after_revision.is_some() && !scope.after_revision {
+        return Some("--after-revision");
+    }
+    if !options.providers.is_empty() && !scope.provider {
+        return Some("--provider");
+    }
+    if !options.asset_roots.is_empty() && !scope.asset_root {
+        return Some("--asset-root");
+    }
+    if options.name.is_some() && !scope.name {
+        return Some("--name");
+    }
+    if options.profile.is_some() && !scope.profile {
+        return Some("--profile");
     }
     None
 }
@@ -2478,6 +2901,112 @@ fn launch_option(
                 envelope,
             )
         })
+}
+
+/// A `launch-profile` positional selector: id-first exact then name
+/// cardinality, validated only against the shared selector bound — the
+/// Server owns resolution, the CLI never pre-reads the catalog.
+fn profile_selector(
+    value: &str,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<LaunchProfileSelector, ParseFailure> {
+    LaunchProfileSelector::parse(value).map_err(|_| {
+        usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "<profile>",
+                value: value.to_owned(),
+                expected: ExpectedValue::ProfileSelector,
+            },
+            envelope,
+        )
+    })
+}
+
+/// The `--profile <selector>` launch option on `tab create`/`panel split`:
+/// the same selector grammar as the positional form, named by its flag.
+fn profile_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<Option<LaunchProfileSelector>, ParseFailure> {
+    let Some(value) = options.profile.clone() else {
+        return Ok(None);
+    };
+    LaunchProfileSelector::parse(&value).map(Some).map_err(|_| {
+        usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "--profile",
+                value,
+                expected: ExpectedValue::ProfileSelector,
+            },
+            envelope,
+        )
+    })
+}
+
+/// `--profile` and the explicit `--exec`/`--arg` launch are mutually
+/// exclusive — the wire decodes the pair as one rejection, so the grammar
+/// refuses it first with the concrete flag pair named.
+fn reject_launch_profile_conflict(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<(), ParseFailure> {
+    if options.profile.is_none() {
+        return Ok(());
+    }
+    let explicit = if options.exec.is_some() {
+        Some("--exec")
+    } else {
+        (!options.args.is_empty()).then_some("--arg")
+    };
+    match explicit {
+        Some(first) => Err(usage_with(
+            UsageReason::ConflictingOptions {
+                context,
+                first,
+                second: "--profile",
+            },
+            envelope,
+        )),
+        None => Ok(()),
+    }
+}
+
+/// `launch-profile create --name <n>`: the required, non-unique catalog
+/// name under the protocol's 512-byte bound.
+fn profile_name_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<LaunchProfileName, ParseFailure> {
+    let value = required(&options.name, context, "'--name'", envelope)?;
+    LaunchProfileName::parse(&value).map_err(|_| {
+        usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "--name",
+                value,
+                expected: ExpectedValue::ProfileName,
+            },
+            envelope,
+        )
+    })
+}
+
+/// `launch-profile create` stores exactly one explicit launch selection:
+/// `--exec` is required here even though it is optional on tab/panel
+/// launches — a profile has no default-shell meaning.
+fn required_launch_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<LaunchSelection, ParseFailure> {
+    launch_option(options, context, envelope)?
+        .ok_or_else(|| missing_required(context, "'--exec'", envelope))
 }
 
 /// `--label` carries a wire-ready Workbench label: non-empty and at most the
@@ -2832,7 +3361,7 @@ fn agent_cursor_option(
     }
 }
 
-/// The `agent get|explain` operand: a wire-ready Agent session identity —
+/// The `agent get|explain|wait` operand: a wire-ready Agent session identity —
 /// opaque `1..=128` `[A-Za-z0-9._:-]+`, never an id/label split.
 fn agent_session_id(
     value: &str,
@@ -2850,6 +3379,158 @@ fn agent_session_id(
             envelope,
         )
     })
+}
+
+/// `agent wait --until <condition>`: the repeatable canonical condition
+/// vocabulary — every value must be one of the twelve names, a repeated
+/// value is a duplicate flag, and an absent flag means the canonical
+/// default seven in canonical order.
+fn agent_until_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<Vec<AgentWaitCondition>, ParseFailure> {
+    if options.until.is_empty() {
+        return Ok(DEFAULT_AGENT_WAIT_CONDITIONS.to_vec());
+    }
+    let mut conditions = Vec::with_capacity(options.until.len());
+    for value in &options.until {
+        let Some(condition) = AgentWaitCondition::parse(value) else {
+            return Err(usage_with(
+                UsageReason::InvalidValue {
+                    context,
+                    option: "--until",
+                    value: value.clone(),
+                    expected: ExpectedValue::AgentWaitUntil,
+                },
+                envelope,
+            ));
+        };
+        if conditions.contains(&condition) {
+            return Err(usage_with(
+                UsageReason::DuplicateOption { option: "--until" },
+                envelope,
+            ));
+        }
+        conditions.push(condition);
+    }
+    Ok(conditions)
+}
+
+/// `agent wait --after-revision <n>`: the optional global-revision fence —
+/// a nonnegative safe integer echoed verbatim into the emitted document.
+fn agent_after_revision_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<Option<AgentSafeInteger>, ParseFailure> {
+    match &options.after_revision {
+        Some(value) => match value.parse::<u64>() {
+            Ok(revision) if revision <= MAXIMUM_SAFE_INTEGER => {
+                Ok(Some(AgentSafeInteger::new(revision)))
+            }
+            _ => Err(usage_with(
+                UsageReason::InvalidValue {
+                    context,
+                    option: "--after-revision",
+                    value: value.clone(),
+                    expected: ExpectedValue::AgentAfterRevision,
+                },
+                envelope,
+            )),
+        },
+        None => Ok(None),
+    }
+}
+
+/// `agent wait --timeout`: the total wait budget in milliseconds measured
+/// from command start. 1..=3600000, defaulting to 600000 — the canonical
+/// wait default, never `wait-output`'s 30000.
+fn agent_wait_timeout_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<u32, ParseFailure> {
+    let Some(value) = options.timeout.clone() else {
+        return Ok(600_000);
+    };
+    match value.parse::<u32>() {
+        Ok(timeout) if (1..=3_600_000).contains(&timeout) => Ok(timeout),
+        _ => Err(usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "--timeout",
+                value,
+                expected: ExpectedValue::WaitTimeout,
+            },
+            envelope,
+        )),
+    }
+}
+
+/// `agent doctor --provider <id>`: each repeatable value must be one
+/// canonical provider id — an unknown id is a typed parse failure, never a
+/// silently empty selection.
+fn doctor_providers_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<Vec<String>, ParseFailure> {
+    options
+        .providers
+        .iter()
+        .map(|value| {
+            if crate::agent_doctor::PROVIDER_IDS.contains(&value.as_str()) {
+                Ok(value.clone())
+            } else {
+                Err(usage_with(
+                    UsageReason::InvalidValue {
+                        context,
+                        option: "--provider",
+                        value: value.clone(),
+                        expected: ExpectedValue::ProviderId,
+                    },
+                    envelope,
+                ))
+            }
+        })
+        .collect()
+}
+
+/// `agent doctor --asset-root <path>`: each repeatable value must be a
+/// nonempty absolute NUL-free path — relative spellings are usage failures
+/// at this boundary, never `~`/`$`-expanded and never probed as guesses.
+/// At most four supplied roots may be declared.
+fn doctor_asset_roots_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<Vec<String>, ParseFailure> {
+    for value in &options.asset_roots {
+        if value.is_empty() || !value.starts_with('/') || value.as_bytes().contains(&0) {
+            return Err(usage_with(
+                UsageReason::InvalidValue {
+                    context,
+                    option: "--asset-root",
+                    value: value.clone(),
+                    expected: ExpectedValue::AssetRootPath,
+                },
+                envelope,
+            ));
+        }
+    }
+    if options.asset_roots.len() > 4 {
+        return Err(usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "--asset-root",
+                value: options.asset_roots.join(" "),
+                expected: ExpectedValue::AssetRootPath,
+            },
+            envelope,
+        ));
+    }
+    Ok(options.asset_roots.clone())
 }
 
 fn tab_direction(

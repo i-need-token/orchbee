@@ -63,6 +63,7 @@ impl<'a> WorkbenchTabMoveAdmission<'a> {
             Err(PlanFailure::Rejected(reason)) => CommitPlan {
                 projection: None,
                 last_identity: None,
+                catalog_next: None,
                 outcome: self.authority.rejected(reason),
             },
             Err(PlanFailure::Internal) => {
@@ -136,6 +137,7 @@ impl<'a> WorkbenchTabMoveAdmission<'a> {
         Ok(CommitPlan {
             projection: Some(projection),
             last_identity: None,
+            catalog_next: None,
             outcome: WorkbenchCommandOutcome::TabMoved {
                 revision,
                 terminal_context_id: self.terminal_context_id.clone(),

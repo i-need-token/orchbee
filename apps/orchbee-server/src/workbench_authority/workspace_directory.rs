@@ -159,6 +159,7 @@ impl WorkbenchAuthority {
         Ok(CommitPlan {
             projection: Some(projection),
             last_identity: Some(last_identity),
+            catalog_next: None,
             outcome: WorkbenchCommandOutcome::WorkspacePrimaryDirectoryAccepted {
                 revision,
                 directory_id,

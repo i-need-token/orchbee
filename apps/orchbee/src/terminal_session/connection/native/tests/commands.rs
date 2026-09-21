@@ -557,6 +557,7 @@ fn create_drains_busy_input_resize_and_drawn_feedback_before_one_submission() ->
         label,
         geometry: requested_geometry,
         launch: None,
+        ..
     } = &command.action
     else {
         return Err(test_error("expected one tab.create action"));

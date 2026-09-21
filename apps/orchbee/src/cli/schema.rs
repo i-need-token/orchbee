@@ -17,11 +17,20 @@ pub(crate) const WORKTREE_FAILURE_ID: &str = "orchbee.cli.failure.worktree";
 /// semantic failures plus the signal-cancelled kind, kept off the generic
 /// failure schema.
 pub(crate) const AGENT_FAILURE_ID: &str = "orchbee.cli.failure.agent";
+/// The dedicated launch-profile failure envelope: the catalog read's typed
+/// states and exchange faults plus the mutations' profile-resolution
+/// settlements — the generic schema's resource and candidate grammars are
+/// closed without it.
+pub(crate) const LAUNCH_PROFILE_FAILURE_ID: &str = "orchbee.cli.failure.launch-profile";
 pub(crate) const MUTATION_RESULT_ID: &str = "orchbee.mutation.result";
 pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
+    (
+        "orchbee.agent.doctor",
+        include_str!("schemas/orchbee.agent.doctor.json"),
+    ),
     (
         "orchbee.agent.explain",
         include_str!("schemas/orchbee.agent.explain.json"),
@@ -33,6 +42,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
     (
         "orchbee.agent.list",
         include_str!("schemas/orchbee.agent.list.json"),
+    ),
+    (
+        "orchbee.agent.wait",
+        include_str!("schemas/orchbee.agent.wait.json"),
     ),
     (
         "orchbee.api.schema",
@@ -48,6 +61,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.cli.failure.agent.json"),
     ),
     (
+        LAUNCH_PROFILE_FAILURE_ID,
+        include_str!("schemas/orchbee.cli.failure.launch-profile.json"),
+    ),
+    (
         SOURCE_FAILURE_ID,
         include_str!("schemas/orchbee.cli.failure.source.json"),
     ),
@@ -58,6 +75,14 @@ const DOCUMENTS: &[(&str, &str)] = &[
     (
         "orchbee.config.check",
         include_str!("schemas/orchbee.config.check.json"),
+    ),
+    (
+        "orchbee.launch-profile.get",
+        include_str!("schemas/orchbee.launch-profile.get.json"),
+    ),
+    (
+        "orchbee.launch-profile.list",
+        include_str!("schemas/orchbee.launch-profile.list.json"),
     ),
     (
         MUTATION_RESULT_ID,
@@ -82,6 +107,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
     (
         PROJECT_RENAME_RESULT_ID,
         include_str!("schemas/orchbee.project.rename.json"),
+    ),
+    (
+        "orchbee.site.diagnose",
+        include_str!("schemas/orchbee.site.diagnose.json"),
     ),
     (
         "orchbee.site.start",
@@ -202,9 +231,9 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog envelope v6: registering new schema ids changes the closed
+        // Catalog envelope v7: registering new schema ids changes the closed
         // dictionary's shape; business document versions stay untouched.
-        "version": 6,
+        "version": 7,
         "source": embedded_source(),
         "result": result,
     });

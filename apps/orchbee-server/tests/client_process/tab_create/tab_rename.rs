@@ -160,6 +160,7 @@ fn tab_rename_commits_during_parked_create_and_both_replays_keep_their_revision(
             label: WorkbenchLabel::parse(SECOND_TAB_LABEL)?,
             geometry: tab_geometry,
             launch: None,
+            profile: None,
         },
     );
     let parked_deadline = deadline();

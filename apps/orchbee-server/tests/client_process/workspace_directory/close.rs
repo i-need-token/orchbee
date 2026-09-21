@@ -372,6 +372,7 @@ fn real_workspace_panel_split_and_aggregate_close_releases_both_terminals() -> T
                 label: WorkbenchLabel::parse("Workspace split source")?,
                 geometry,
                 launch: None,
+                profile: None,
             },
         ),
     )?;
@@ -398,6 +399,7 @@ fn real_workspace_panel_split_and_aggregate_close_releases_both_terminals() -> T
                 label: WorkbenchLabel::parse("Workspace split peer")?,
                 geometry,
                 launch: None,
+                profile: None,
             },
         ),
     )?;
@@ -518,6 +520,7 @@ fn real_workspace_panel_move_relocates_a_leaf_without_touching_either_terminal()
                 label: WorkbenchLabel::parse("Workspace move source")?,
                 geometry,
                 launch: None,
+                profile: None,
             },
         ),
     )?;
@@ -544,6 +547,7 @@ fn real_workspace_panel_move_relocates_a_leaf_without_touching_either_terminal()
                 label: WorkbenchLabel::parse("Workspace move peer")?,
                 geometry,
                 launch: None,
+                profile: None,
             },
         ),
     )?;
@@ -748,6 +752,7 @@ fn real_workspace_multileaf_tab_move_reorders_without_retiring() -> TestResult {
                 label: WorkbenchLabel::parse("Workspace multileaf source")?,
                 geometry,
                 launch: None,
+                profile: None,
             },
         ),
     )?;
@@ -774,6 +779,7 @@ fn real_workspace_multileaf_tab_move_reorders_without_retiring() -> TestResult {
                 label: WorkbenchLabel::parse("Workspace multileaf peer")?,
                 geometry,
                 launch: None,
+                profile: None,
             },
         ),
     )?;
@@ -796,6 +802,7 @@ fn real_workspace_multileaf_tab_move_reorders_without_retiring() -> TestResult {
                 label: WorkbenchLabel::parse("Workspace move sibling")?,
                 geometry,
                 launch: None,
+                profile: None,
             },
         ),
     )?;
@@ -862,6 +869,7 @@ fn real_workspace_close_preserves_standalone_and_can_recreate() -> TestResult {
             label: WorkbenchLabel::parse("Workspace shell")?,
             geometry: geometry()?,
             launch: None,
+            profile: None,
         },
     );
     let workspace_created = exchange_command(&mut first, &workspace_create)?;
@@ -1084,6 +1092,7 @@ fn real_workspace_close_preserves_standalone_and_can_recreate() -> TestResult {
             label: WorkbenchLabel::parse("Workspace shell recreated")?,
             geometry: geometry()?,
             launch: None,
+            profile: None,
         },
     );
     let recreated = exchange_command(&mut second, &recreate)?;
@@ -1134,6 +1143,7 @@ fn real_workspace_aggregate_close_fences_same_tab_split_and_move() -> TestResult
                 label: WorkbenchLabel::parse("Workspace fenced source")?,
                 geometry,
                 launch: None,
+                profile: None,
             },
         ),
     )?;
@@ -1162,6 +1172,7 @@ fn real_workspace_aggregate_close_fences_same_tab_split_and_move() -> TestResult
                 label: WorkbenchLabel::parse("Workspace fenced peer")?,
                 geometry,
                 launch: None,
+                profile: None,
             },
         ),
     )?;
@@ -1186,6 +1197,7 @@ fn real_workspace_aggregate_close_fences_same_tab_split_and_move() -> TestResult
                 label: WorkbenchLabel::parse("Workspace unrelated Tab")?,
                 geometry,
                 launch: None,
+                profile: None,
             },
         ),
     )?;
@@ -1233,6 +1245,7 @@ fn real_workspace_aggregate_close_fences_same_tab_split_and_move() -> TestResult
             label: WorkbenchLabel::parse("Workspace fenced during close")?,
             geometry,
             launch: None,
+            profile: None,
         },
     );
     for attempt in 0..2 {
@@ -1287,6 +1300,7 @@ fn real_workspace_aggregate_close_fences_same_tab_split_and_move() -> TestResult
                 label: WorkbenchLabel::parse("Workspace unrelated split")?,
                 geometry,
                 launch: None,
+                profile: None,
             },
         ),
     )?;

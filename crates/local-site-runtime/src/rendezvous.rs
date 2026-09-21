@@ -16,6 +16,16 @@ use nix::{
 
 const MAX_SITE_SCOPE_BYTES: usize = 63;
 const ACTIVATION_LOCK_NAME: &str = "activation.lock";
+const ACTIVATION_MARKER_NAME: &str = "activation.started";
+/// The managed Agent observation leaf the Server binds inside the Site
+/// runtime directory — a private known-path convention shared with the
+/// endpoint binder, not a general socket API.
+const AGENT_OBSERVATION_SOCKET_NAME: &str = "agent-observation-v3.sock";
+/// The Host endpoint's name relative to the Site runtime directory —
+/// `host/{HOST_ENDPOINT_NAME}` — for descriptor-relative observation.
+fn host_endpoint_relative_name() -> String {
+    format!("{HOST_SCOPE_NAME}/{HOST_ENDPOINT_NAME}")
+}
 const SITE_LIFETIME_LOCK_NAME: &str = "site-lifetime.lock";
 const CLIENT_SOCKET_NAME: &str = "client.sock";
 const WORKER_SOCKET_NAME: &str = "worker.sock";
@@ -260,7 +270,7 @@ impl ModeCheckedLocalSiteRendezvous {
     pub fn activation_started(&self) -> std::io::Result<bool> {
         match openat(
             &self.directory,
-            "activation.started",
+            ACTIVATION_MARKER_NAME,
             LOCK_OPEN_FLAGS,
             Mode::empty(),
         ) {
@@ -277,7 +287,7 @@ impl ModeCheckedLocalSiteRendezvous {
     pub fn commit_activation(&self) -> std::io::Result<()> {
         let fd = openat(
             &self.directory,
-            "activation.started",
+            ACTIVATION_MARKER_NAME,
             LOCK_OPEN_FLAGS | OFlag::O_CREAT | OFlag::O_EXCL,
             exact_mode(LOCK_FILE_MODE),
         )?;
@@ -380,6 +390,169 @@ impl ModeCheckedLocalSiteRendezvous {
             expected_uid,
         )
     }
+
+    /// `site diagnose` observations: finite named facts through the same
+    /// validated directory descriptor and owner policy the rendezvous
+    /// enforces everywhere else. Nothing here creates, writes, connects,
+    /// or follows an unadmitted object; every answer is a pathname or
+    /// descriptor fact at its own instant, never a process claim.
+    fn inspect(&self, name: &str) -> std::io::Result<EntryObservation> {
+        match fstatat(&self.directory, name, AtFlags::AT_SYMLINK_NOFOLLOW) {
+            Ok(status) => Ok(EntryObservation::Present {
+                kind: EntryKind::of(status.st_mode),
+                owner_matches: status.st_uid == self.expected_uid,
+                mode: status.st_mode & 0o7777,
+                size: status.st_size.max(0) as u64,
+                link_count: status.st_nlink,
+            }),
+            Err(Errno::ENOENT) => Ok(EntryObservation::Absent),
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    pub fn observe_activation_marker(&self) -> std::io::Result<EntryObservation> {
+        self.inspect(ACTIVATION_MARKER_NAME)
+    }
+
+    /// The activation lock is metadata only for diagnostics: presence,
+    /// kind, owner, and mode — it is never acquired by an observation.
+    pub fn observe_activation_lock(&self) -> std::io::Result<EntryObservation> {
+        self.inspect(ACTIVATION_LOCK_NAME)
+    }
+
+    pub fn observe_client_socket(&self) -> std::io::Result<EntryObservation> {
+        self.inspect(CLIENT_SOCKET_NAME)
+    }
+
+    pub fn observe_worker_socket(&self) -> std::io::Result<EntryObservation> {
+        self.inspect(WORKER_SOCKET_NAME)
+    }
+
+    pub fn observe_client_pending_socket(&self) -> std::io::Result<EntryObservation> {
+        self.inspect(CLIENT_PENDING_SOCKET_NAME)
+    }
+
+    pub fn observe_agent_observation_socket(&self) -> std::io::Result<EntryObservation> {
+        self.inspect(AGENT_OBSERVATION_SOCKET_NAME)
+    }
+
+    pub fn observe_host_directory(&self) -> std::io::Result<EntryObservation> {
+        self.inspect(HOST_SCOPE_NAME)
+    }
+
+    /// The Host endpoint name lives inside the Host directory: the parent
+    /// is inspected first and only a validated owner-owned directory is
+    /// traversed — an absent parent means the endpoint is absent, and any
+    /// other unadmitted parent fails instead of being followed.
+    pub fn observe_host_endpoint(&self) -> std::io::Result<EntryObservation> {
+        match self.inspect(HOST_SCOPE_NAME)? {
+            EntryObservation::Absent => return Ok(EntryObservation::Absent),
+            EntryObservation::Present {
+                kind: EntryKind::Directory,
+                owner_matches: true,
+                ..
+            } => {}
+            EntryObservation::Present { .. } => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "unadmitted local Site host directory",
+                ));
+            }
+        }
+        self.inspect(&host_endpoint_relative_name())
+    }
+
+    /// Observes the Site lifetime lock without creating it: a name that
+    /// does not stat as a same-owner regular file is `Unsafe` without ever
+    /// being opened; a validated lock is opened, probed with `try_lock`,
+    /// and released on the same descriptor. A contended lock is `Held` —
+    /// some owner held it at that instant, which is never proof that the
+    /// owner is a Site or that any process is alive.
+    pub fn observe_site_lifetime_lock(&self) -> std::io::Result<SiteLifetimeObservation> {
+        match self.inspect(LockKind::SiteLifetime.name())? {
+            EntryObservation::Absent => return Ok(SiteLifetimeObservation::Absent),
+            EntryObservation::Present {
+                kind: EntryKind::RegularFile,
+                owner_matches: true,
+                mode: LOCK_FILE_MODE,
+                link_count: 1,
+                ..
+            } => {}
+            EntryObservation::Present { .. } => return Ok(SiteLifetimeObservation::Unsafe),
+        }
+        let descriptor = match openat(
+            &self.directory,
+            LockKind::SiteLifetime.name(),
+            LOCK_OPEN_FLAGS,
+            Mode::empty(),
+        ) {
+            Ok(descriptor) => descriptor,
+            Err(Errno::ENOENT) => return Ok(SiteLifetimeObservation::Absent),
+            Err(error) => return Err(error.into()),
+        };
+        if validate_lock_file(
+            &descriptor,
+            LockKind::SiteLifetime,
+            &self.paths.site_lifetime_lock,
+            self.expected_uid,
+            false,
+        )
+        .is_err()
+        {
+            return Ok(SiteLifetimeObservation::Unsafe);
+        }
+        let file = File::from(descriptor);
+        match file.try_lock() {
+            Ok(()) => Ok(SiteLifetimeObservation::Free),
+            Err(TryLockError::WouldBlock) => Ok(SiteLifetimeObservation::Held),
+            Err(TryLockError::Error(source)) => Err(source),
+        }
+    }
+}
+
+/// One observed rendezvous entry: raw pathname facts for the caller's
+/// own verdict — never a judgment about what the entry means.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EntryObservation {
+    Absent,
+    Present {
+        kind: EntryKind,
+        owner_matches: bool,
+        mode: u32,
+        size: u64,
+        link_count: u64,
+    },
+}
+
+/// The observed kind of one pathname entry.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EntryKind {
+    Socket,
+    RegularFile,
+    Directory,
+    Symlink,
+    Other,
+}
+
+impl EntryKind {
+    fn of(mode: u32) -> Self {
+        match SFlag::from_bits_truncate(mode) & SFlag::S_IFMT {
+            SFlag::S_IFSOCK => Self::Socket,
+            SFlag::S_IFREG => Self::RegularFile,
+            SFlag::S_IFDIR => Self::Directory,
+            SFlag::S_IFLNK => Self::Symlink,
+            _ => Self::Other,
+        }
+    }
+}
+
+/// The observation result of the Site lifetime lock.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SiteLifetimeObservation {
+    Absent,
+    Free,
+    Held,
+    Unsafe,
 }
 
 #[derive(Debug)]

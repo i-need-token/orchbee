@@ -491,6 +491,7 @@ fn move_admission_cannot_use_its_navigation_grant_to_replay_a_terminal_create() 
         geometry: orchbee_workbench_protocol::WorkbenchTerminalGeometry::new(80, 24, 8, 16)
             .unwrap(),
         launch: None,
+        profile: None,
     };
     let crate::workbench_authority::WorkbenchTabCreateBegin::Admitted(admission) =
         authority.begin_terminal_tab_create(Some(&create_grant), create.clone())

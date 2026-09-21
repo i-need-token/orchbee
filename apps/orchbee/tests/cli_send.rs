@@ -79,10 +79,16 @@ fn cohort() -> &'static Path {
                 let digest = Sha256::digest(fs::read(&target).expect("read artifact"));
                 artifacts.insert((*name).to_owned(), format!("{digest:x}").into());
             }
+            // A controlled dummy digest stands in for the adapters payload —
+            // this fixture stages no sidecar; admission stays lazy.
+            artifacts.insert(
+                "agent-observation-adapters".to_owned(),
+                format!("{:x}", Sha256::digest(b"staged stand-in adapters\n")).into(),
+            );
             let manifest = directory.join("cohort.json");
             fs::write(
                 &manifest,
-                serde_json::json!({"schemaVersion": 1, "artifacts": artifacts}).to_string(),
+                serde_json::json!({"schemaVersion": 2, "artifacts": artifacts}).to_string(),
             )
             .expect("write cohort manifest");
             fs::set_permissions(&manifest, fs::Permissions::from_mode(0o600))

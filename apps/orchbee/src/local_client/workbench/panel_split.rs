@@ -1,12 +1,12 @@
 use std::{fmt, io, time::Instant};
 
 use orchbee_workbench_protocol::{
-    TerminalPresentationId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
-    WorkbenchCommandUnavailableReason, WorkbenchPanelId, WorkbenchPanelSlotId,
-    WorkbenchRejectionReason, WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse,
-    WorkbenchRevision, WorkbenchSplitId, WorkbenchTabId, WorkbenchTerminalContextId,
-    WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, WorkbenchWireError,
-    read_workbench_response, write_workbench_request,
+    LaunchProfileId, TerminalPresentationId, WorkbenchAction, WorkbenchCommand,
+    WorkbenchCommandOutcome, WorkbenchCommandUnavailableReason, WorkbenchPanelId,
+    WorkbenchPanelSlotId, WorkbenchRejectionReason, WorkbenchRequest, WorkbenchRequestId,
+    WorkbenchResponse, WorkbenchRevision, WorkbenchSplitId, WorkbenchTabId,
+    WorkbenchTerminalContextId, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
+    WorkbenchWireError, read_workbench_response, write_workbench_request,
 };
 
 use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
@@ -156,6 +156,10 @@ pub(crate) enum WorkbenchPanelSplitPrecommit {
     Denied,
     Unavailable {
         reason: WorkbenchCommandUnavailableReason,
+    },
+    ProfileUnavailable,
+    ProfileAmbiguous {
+        candidate_ids: Vec<LaunchProfileId>,
     },
 }
 
@@ -358,6 +362,16 @@ fn classify_outcome(
                 WorkbenchPanelSplitPrecommit::Unavailable { reason },
             ))
         }
+        WorkbenchCommandOutcome::LaunchProfileUnavailable {} => {
+            Ok(WorkbenchPanelSplitSubmission::DefinitePrecommit(
+                WorkbenchPanelSplitPrecommit::ProfileUnavailable,
+            ))
+        }
+        WorkbenchCommandOutcome::LaunchProfileAmbiguous { candidate_ids } => {
+            Ok(WorkbenchPanelSplitSubmission::DefinitePrecommit(
+                WorkbenchPanelSplitPrecommit::ProfileAmbiguous { candidate_ids },
+            ))
+        }
         WorkbenchCommandOutcome::PanelSplitPending {
             revision,
             terminal_context_id,
@@ -536,6 +550,7 @@ mod tests {
                 label: orchbee_workbench_protocol::WorkbenchLabel::parse("new").unwrap(),
                 geometry: WorkbenchTerminalGeometry::new(120, 40, 10, 20).unwrap(),
                 launch: None,
+                profile: None,
             },
         }
     }

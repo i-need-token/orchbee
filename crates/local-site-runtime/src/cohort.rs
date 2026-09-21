@@ -15,6 +15,8 @@ use std::{
 use crate::rendezvous::{open_runtime_base, validate_directory};
 
 const MANIFEST_LIMIT: u64 = 16 * 1024;
+const SCHEMA_VERSION: u32 = 2;
+const OBSERVATION_ADAPTERS: &str = "agent-observation-adapters";
 const ARTIFACTS: [NativeArtifact; 4] = [
     NativeArtifact::Client,
     NativeArtifact::Server,
@@ -43,11 +45,42 @@ impl NativeArtifact {
 pub struct NativeCohort {
     directory: PathBuf,
     identity: String,
+    observation_adapters: ObservationAdaptersSidecar,
 }
 
+/// The observation-adapters payload a schema-2 cohort manifest declares. Startup
+/// never opens, traverses, or validates it; the first integration consumer
+/// validates the directory privately against the declared digest and answers a
+/// typed unavailable/invalid result, so an absent or damaged sidecar cannot
+/// block Site startup or Agent reads.
+#[derive(Debug)]
+pub struct ObservationAdaptersSidecar {
+    directory: PathBuf,
+    declared_payload_sha256: String,
+}
+impl ObservationAdaptersSidecar {
+    /// The fixed sibling directory the staged payload occupies.
+    pub fn directory(&self) -> &Path {
+        &self.directory
+    }
+    /// The lowercase SHA-256 payload digest the manifest declares.
+    pub fn declared_payload_sha256(&self) -> &str {
+        &self.declared_payload_sha256
+    }
+}
+
+/// The version gate runs before the schema-2 shape so a schema-1 or
+/// unknown-version manifest answers `incompatible` rather than the generic
+/// invalid result its missing members would also produce.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ManifestVersion {
+    schema_version: u32,
+}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct Manifest {
+    #[allow(dead_code)]
     schema_version: u32,
     artifacts: Artifacts,
 }
@@ -61,6 +94,8 @@ struct Artifacts {
     worker: String,
     #[serde(rename = "orchbee-terminal-host")]
     host: String,
+    #[serde(rename = "agent-observation-adapters")]
+    observation_adapters: String,
 }
 impl Artifacts {
     fn hash(&self, artifact: NativeArtifact) -> &str {
@@ -90,19 +125,19 @@ impl NativeCohort {
         if encoded.len() as u64 > MANIFEST_LIMIT {
             return Err(invalid());
         }
+        let version: ManifestVersion = serde_json::from_slice(&encoded).map_err(|_| invalid())?;
+        if version.schema_version != SCHEMA_VERSION {
+            return Err(incompatible());
+        }
         let manifest: Manifest = serde_json::from_slice(&encoded).map_err(|_| invalid())?;
-        if manifest.schema_version != 1 {
+        if !declared_hash(&manifest.artifacts.observation_adapters) {
             return Err(invalid());
         }
         let mut identity = Sha256::new();
         identity.update(b"orchbee-native-cohort-v1\n");
         for artifact in ARTIFACTS {
             let expected = manifest.artifacts.hash(artifact);
-            if expected.len() != 64
-                || !expected
-                    .bytes()
-                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-            {
+            if !declared_hash(expected) {
                 return Err(invalid());
             }
             let mut file = open_file(&descriptor, artifact.file_name(), true)?;
@@ -128,6 +163,10 @@ impl NativeCohort {
         Ok(Self {
             directory: directory.to_path_buf(),
             identity: format!("{:x}", identity.finalize()),
+            observation_adapters: ObservationAdaptersSidecar {
+                directory: directory.join(OBSERVATION_ADAPTERS),
+                declared_payload_sha256: manifest.artifacts.observation_adapters,
+            },
         })
     }
     pub fn identity(&self) -> &str {
@@ -135,6 +174,11 @@ impl NativeCohort {
     }
     pub fn executable(&self, artifact: NativeArtifact) -> PathBuf {
         self.directory.join(artifact.file_name())
+    }
+    /// The lazily admitted observation-adapters declaration: path and declared
+    /// digest only — never an opened or validated payload.
+    pub fn observation_adapters_sidecar(&self) -> &ObservationAdaptersSidecar {
+        &self.observation_adapters
     }
 }
 fn open_file(directory: &std::os::fd::OwnedFd, name: &str, executable: bool) -> io::Result<File> {
@@ -166,10 +210,22 @@ fn remaining(deadline: Instant) -> io::Result<()> {
     }
     Ok(())
 }
+fn declared_hash(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
 fn invalid() -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidData,
         "invalid native development cohort",
+    )
+}
+fn incompatible() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        "incompatible native cohort manifest version",
     )
 }
 

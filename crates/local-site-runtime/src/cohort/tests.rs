@@ -36,10 +36,16 @@ impl Fixture {
                 serde_json::Value::String(format!("{:x}", Sha256::digest(b"native fixture\n"))),
             );
         }
+        // The declared adapters digest is a controlled dummy: the fixture
+        // stages no sidecar directory, proving admission stays lazy.
+        artifacts.insert(
+            OBSERVATION_ADAPTERS.into(),
+            serde_json::Value::String(format!("{:x}", Sha256::digest(b"fixture adapters\n"))),
+        );
         fs::write(
             path.join("cohort.json"),
             serde_json::to_vec(&serde_json::json!({
-                "schemaVersion": 1, "artifacts": artifacts,
+                "schemaVersion": 2, "artifacts": artifacts,
             }))
             .unwrap(),
         )
@@ -81,6 +87,101 @@ fn exact_cohort_verifies_every_role_and_has_a_canonical_identity() {
         io::ErrorKind::InvalidData
     );
 }
+
+#[test]
+fn observation_adapters_sidecar_is_declared_and_lazily_admitted() {
+    let fixture = Fixture::new();
+    let cohort = fixture.load().unwrap();
+    let sidecar = cohort.observation_adapters_sidecar();
+    assert_eq!(
+        sidecar.directory(),
+        fixture.path.join("agent-observation-adapters").as_path()
+    );
+    assert_eq!(
+        sidecar.declared_payload_sha256(),
+        format!("{:x}", Sha256::digest(b"fixture adapters\n"))
+    );
+    // The fixture stages no sidecar at all; startup verification still
+    // succeeds — the payload is admitted lazily by its first consumer.
+    assert!(!sidecar.directory().exists());
+
+    // A damaged sidecar — even a file where the directory belongs or garbage
+    // content — still does not block cohort admission.
+    fs::write(
+        &fixture.path.join("agent-observation-adapters"),
+        b"not a capsule",
+    )
+    .unwrap();
+    let cohort = fixture.load().unwrap();
+    assert_eq!(
+        cohort
+            .observation_adapters_sidecar()
+            .declared_payload_sha256(),
+        format!("{:x}", Sha256::digest(b"fixture adapters\n"))
+    );
+}
+
+#[test]
+fn incompatible_and_incomplete_manifests_fail_typed() {
+    // A schema-1 or unknown-version manifest is incompatible even when every
+    // artifact member is present and well-formed — and a true schema-1 shape
+    // (no adapters member) is incompatible on its version, not merely invalid
+    // on its missing member.
+    for version in [serde_json::json!(1), serde_json::json!(3)] {
+        let fixture = Fixture::new();
+        let manifest = fixture.path.join("cohort.json");
+        let mut encoded: serde_json::Value =
+            serde_json::from_slice(&fs::read(&manifest).unwrap()).unwrap();
+        encoded["schemaVersion"] = version;
+        fs::write(&manifest, encoded.to_string()).unwrap();
+        let error = fixture.load().unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert_eq!(
+            error.to_string(),
+            "incompatible native cohort manifest version"
+        );
+    }
+    {
+        let fixture = Fixture::new();
+        let manifest = fixture.path.join("cohort.json");
+        let mut encoded: serde_json::Value =
+            serde_json::from_slice(&fs::read(&manifest).unwrap()).unwrap();
+        encoded["schemaVersion"] = serde_json::json!(1);
+        encoded["artifacts"]
+            .as_object_mut()
+            .unwrap()
+            .remove("agent-observation-adapters");
+        fs::write(&manifest, encoded.to_string()).unwrap();
+        let error = fixture.load().unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "incompatible native cohort manifest version"
+        );
+    }
+    // A schema-2 manifest missing the required adapters member, or declaring a
+    // malformed digest, is an invalid manifest — never defaulted.
+    for mutate in [
+        |manifest: &mut serde_json::Value| {
+            manifest["artifacts"]
+                .as_object_mut()
+                .unwrap()
+                .remove("agent-observation-adapters");
+        },
+        |manifest: &mut serde_json::Value| {
+            manifest["artifacts"]["agent-observation-adapters"] = serde_json::json!("not-a-hash");
+        },
+    ] {
+        let fixture = Fixture::new();
+        let manifest = fixture.path.join("cohort.json");
+        let mut encoded: serde_json::Value =
+            serde_json::from_slice(&fs::read(&manifest).unwrap()).unwrap();
+        mutate(&mut encoded);
+        fs::write(&manifest, encoded.to_string()).unwrap();
+        let error = fixture.load().unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert_eq!(error.to_string(), "invalid native development cohort");
+    }
+}
 #[test]
 fn missing_symlink_hardlink_and_writable_artifacts_fail_admission() {
     for violation in [
@@ -111,7 +212,7 @@ fn missing_symlink_hardlink_and_writable_artifacts_fail_admission() {
 fn malformed_duplicate_unknown_and_oversized_manifests_fail_closed() {
     for encoded in [
         b"{}".to_vec(),
-        b"{\"schemaVersion\":1,\"schemaVersion\":1,\"artifacts\":{}}".to_vec(),
+        b"{\"schemaVersion\":2,\"schemaVersion\":2,\"artifacts\":{}}".to_vec(),
         b"{\"schemaVersion\":2,\"artifacts\":{},\"extra\":true}".to_vec(),
         vec![b' '; MANIFEST_LIMIT as usize + 1],
     ] {

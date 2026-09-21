@@ -49,6 +49,7 @@ fn navigation_permission_alone_denies_tab_create_before_terminal_or_ledger_effec
             label: WorkbenchLabel::parse("denied").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
+            profile: None,
         },
     };
 

@@ -1,3 +1,4 @@
+mod agent_doctor;
 mod cli;
 mod client_view;
 mod invocation;
@@ -100,6 +101,7 @@ fn main() -> ExitCode {
                 cli::mutation(command, format, locale)
             }
             Ok(invocation::Request::SiteStart { format }) => cli::site_start(format, locale),
+            Ok(invocation::Request::SiteDiagnose { format }) => cli::site_diagnose(format, locale),
         },
         locale,
     )

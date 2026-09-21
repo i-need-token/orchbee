@@ -44,6 +44,7 @@ export function checkSteps(task) {
 						'test:storage-contract',
 						'test:experience-contract',
 						'test:ssh-environment-release',
+						'test:stage-native-site',
 					].map((name) => pnpmStep(name)),
 				},
 				// Native process witnesses spend real deadlines on startup and cohort verification.
@@ -94,6 +95,10 @@ export function checkSteps(task) {
 					'scripts/ssh-environment-release.test.mjs',
 				]),
 			],
+		],
+		[
+			'test:stage-native-site',
+			[nodeStep('native-site staging tests', ['--test', 'scripts/stage-native-site.test.mjs'])],
 		],
 		[
 			'test:tla:inventory',

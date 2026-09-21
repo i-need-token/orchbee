@@ -280,6 +280,7 @@ test('the root gate preserves its ordered stages and every automatic test scope'
 			'test:storage-contract',
 			'test:experience-contract',
 			'test:ssh-environment-release',
+			'test:stage-native-site',
 		],
 	);
 	assert.equal(steps[1].name, 'workspace tests');

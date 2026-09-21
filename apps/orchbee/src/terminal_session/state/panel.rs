@@ -326,6 +326,12 @@ impl From<WorkbenchPanelSplitPrecommit> for PanelPrecommit {
             }
             WorkbenchPanelSplitPrecommit::Denied => Self::Denied,
             WorkbenchPanelSplitPrecommit::Unavailable { reason } => Self::Unavailable { reason },
+            // The TUI never submits a `--profile` selector, so the Server has
+            // no profile to resolve for its commands; either profile refusal
+            // is still an honest "refused" answer rather than a fabricated
+            // revision or unavailable reason.
+            WorkbenchPanelSplitPrecommit::ProfileUnavailable
+            | WorkbenchPanelSplitPrecommit::ProfileAmbiguous { .. } => Self::Denied,
         }
     }
 }

@@ -64,7 +64,8 @@ impl RenameServer {
                         let command = match request {
                             WorkbenchRequest::TabCloseRead(_)
                             | WorkbenchRequest::TabCloseResume(_)
-                            | WorkbenchRequest::WorktreeListRead(_) => {
+                            | WorkbenchRequest::WorktreeListRead(_)
+                            | WorkbenchRequest::LaunchProfileCatalogRead(_) => {
                                 return Err(io::Error::other(
                                     "Rename unexpectedly issued a non-command request",
                                 ));

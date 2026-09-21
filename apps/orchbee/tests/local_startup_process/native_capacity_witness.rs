@@ -1309,6 +1309,7 @@ fn provision(
                     geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)
                         .map_err(|error| error.to_string())?,
                     launch: None,
+                    profile: None,
                 },
                 deadline,
             )
@@ -1352,6 +1353,7 @@ fn provision(
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)
                     .map_err(|error| error.to_string())?,
                 launch: None,
+                profile: None,
             },
             deadline,
         )
@@ -1381,6 +1383,7 @@ fn provision(
                     geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)
                         .map_err(|error| error.to_string())?,
                     launch: None,
+                    profile: None,
                 },
                 deadline,
             )

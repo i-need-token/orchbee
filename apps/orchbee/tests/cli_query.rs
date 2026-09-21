@@ -90,10 +90,16 @@ fn cohort() -> &'static Path {
                 let digest = Sha256::digest(fs::read(&target).expect("read artifact"));
                 artifacts.insert((*name).to_owned(), format!("{digest:x}").into());
             }
+            // A controlled dummy digest stands in for the adapters payload —
+            // this fixture stages no sidecar; admission stays lazy.
+            artifacts.insert(
+                "agent-observation-adapters".to_owned(),
+                format!("{:x}", Sha256::digest(b"staged stand-in adapters\n")).into(),
+            );
             let manifest = directory.join("cohort.json");
             fs::write(
                 &manifest,
-                serde_json::json!({"schemaVersion": 1, "artifacts": artifacts}).to_string(),
+                serde_json::json!({"schemaVersion": 2, "artifacts": artifacts}).to_string(),
             )
             .expect("write cohort manifest");
             // NativeCohort rejects group/other-writable manifests; pin the
@@ -915,12 +921,12 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
     );
 
     // Terminals: both bound ids are listed; `terminal get` answers the
-    // Server's launch-read join — version 2 envelope, its own source kind,
+    // Server's launch-read join — version 3 envelope, its own source kind,
     // the same routing, and the retained launch fact.
     let terminals = documents[11]["result"]["terminals"].as_array().unwrap();
     assert_eq!(terminals.len(), 2);
     let get = &documents[12];
-    assert_eq!(get["version"], 2);
+    assert_eq!(get["version"], 3);
     assert_eq!(
         get["source"],
         serde_json::json!({
@@ -2117,6 +2123,7 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
                 "--format",
                 "--format=",
                 "--help",
+                "--profile",
             ]
             .iter()
             .map(|s| s.to_string())
@@ -2144,6 +2151,114 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
         0,
         "{engine} re-offers --exec"
     );
+    // `agent wait`: the verb completes, its scoped flags offer, `--until`
+    // stays repeatable and completes all twelve conditions, and the fence
+    // and timeout values stay opaque.
+    assert_eq!(
+        sorted(complete(&["agent", ""])),
+        sorted(
+            [
+                "doctor",
+                "explain",
+                "get",
+                "list",
+                "wait",
+                "--format",
+                "--format="
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
+        ),
+        "{engine} agent verbs"
+    );
+    assert_eq!(
+        sorted(complete(&["agent", "wait", ""])),
+        sorted(
+            [
+                "--until",
+                "--after-revision",
+                "--timeout",
+                "--format",
+                "--format=",
+                "--help",
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
+        ),
+        "{engine} agent wait flags"
+    );
+    let until_values = sorted(
+        [
+            "needs-attention",
+            "failed",
+            "succeeded",
+            "canceled",
+            "interrupted",
+            "working",
+            "idle",
+            "unknown",
+            "ended",
+            "fresh",
+            "stale",
+            "disconnected",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<_>>(),
+    );
+    assert_eq!(
+        sorted(complete(&["agent", "wait", "s", "--until", ""])),
+        until_values,
+        "{engine} agent wait --until values"
+    );
+    // `--until` is repeatable: still offered after one use and still
+    // completing the same condition vocabulary.
+    let after_until = sorted(complete(&["agent", "wait", "s", "--until", "idle", ""]));
+    assert!(
+        after_until.contains(&"--until".to_owned()),
+        "{engine} --until must stay offerable: {after_until:?}"
+    );
+    assert_eq!(
+        sorted(complete(&[
+            "agent", "wait", "s", "--until", "idle", "--until", ""
+        ])),
+        until_values,
+        "{engine} repeated --until values"
+    );
+    // The fence and timeout values are opaque — never enumerated.
+    assert_eq!(
+        complete(&["agent", "wait", "s", "--after-revision", ""]).len(),
+        0,
+        "{engine} must not invent revisions"
+    );
+    assert_eq!(
+        complete(&["agent", "wait", "s", "--timeout", ""]).len(),
+        0,
+        "{engine} must not invent timeouts"
+    );
+    // `--until` is scoped to `agent wait`: on `agent list` it is a dead
+    // position, and a second `--after-revision` is a dead duplicate.
+    assert_eq!(
+        complete(&["agent", "list", "--until", "x", ""]).len(),
+        0,
+        "{engine} --until on agent list"
+    );
+    assert_eq!(
+        complete(&[
+            "agent",
+            "wait",
+            "s",
+            "--after-revision",
+            "1",
+            "--after-revision",
+            ""
+        ])
+        .len(),
+        0,
+        "{engine} re-offers --after-revision"
+    );
     // The pair is scoped: `tab close` admits neither flag.
     assert_eq!(
         complete(&["tab", "close", "--exec", "/bin/sh", ""]).len(),
@@ -2163,6 +2278,7 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
                 "--exec",
                 "--format",
                 "--format=",
+                "--profile",
             ]
             .iter()
             .map(|s| s.to_string())
@@ -2786,6 +2902,7 @@ fn launch_read_reply(
                 workbench_revision: 7,
                 terminal: Box::new(route),
                 launch: Box::new(launch),
+                launch_profile: None,
             },
         )),
     )
@@ -5536,29 +5653,29 @@ fn project_rename_schema_is_strict_and_distinct() -> TestResult {
     Ok(())
 }
 
-// ---- catalog envelope v6 ------------------------------------------------------
+// ---- catalog envelope v7 ------------------------------------------------------
 
-/// The `orchbee.api.schema` catalog is its own versioned document: v6 now that
-/// the closed dictionary gained the four Agent read schemas alongside the v5
-/// `orchbee.worktree.list` and `orchbee.cli.failure.worktree`. The
-/// listing self-validates, names exactly the registered ids, and every
-/// embedded document's `$id` equals its key; the older v1..v5 shapes are
-/// refused. Business schemas are untouched — `orchbee.mutation.result` still
-/// receipt schema retrieves offline under either locale, byte-identical.
+/// The `orchbee.api.schema` catalog is its own versioned document: v7 now
+/// that `orchbee.agent.wait` and `orchbee.site.diagnose` join the closed
+/// dictionary alongside the v6 Agent read schemas. The listing self-validates, names exactly the
+/// registered ids, and every embedded document's `$id` equals its key; the
+/// older v1..v6 shapes are refused. Business schemas are untouched —
+/// `orchbee.mutation.result` still receipt schema retrieves offline under
+/// either locale, byte-identical.
 #[test]
-fn api_schema_catalog_is_v6_closed_and_self_consistent() -> TestResult {
-    let base = base_dir("catalog-v6");
+fn api_schema_catalog_is_v7_closed_and_self_consistent() -> TestResult {
+    let base = base_dir("catalog-v7");
     let api_schema = compiled_schema(&base, "orchbee.api.schema");
 
     let output = run(&base, &["api", "schema", "--format", "json"]);
     assert_eq!(output.status.code(), Some(0));
     let listed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(listed["schema"], "orchbee.api.schema");
-    assert_eq!(listed["version"], 6, "catalog envelope is v6");
+    assert_eq!(listed["version"], 7, "catalog envelope is v7");
     assert_eq!(listed["source"]["kind"], "embedded");
     assert!(api_schema.is_valid(&listed), "listing self-validates");
     let schemas = listed["result"]["schemas"].as_object().unwrap();
-    assert_eq!(schemas.len(), 29, "closed dictionary has 29 members");
+    assert_eq!(schemas.len(), 35, "closed dictionary has 35 members");
     assert!(
         schemas.contains_key("orchbee.project.rename"),
         "the rename receipt schema is registered"
@@ -5583,6 +5700,12 @@ fn api_schema_catalog_is_v6_closed_and_self_consistent() -> TestResult {
         "orchbee.agent.list",
         "orchbee.agent.get",
         "orchbee.agent.explain",
+        "orchbee.agent.wait",
+        "orchbee.agent.doctor",
+        "orchbee.site.diagnose",
+        "orchbee.launch-profile.list",
+        "orchbee.launch-profile.get",
+        "orchbee.cli.failure.launch-profile",
     ] {
         assert!(schemas.contains_key(id), "the {id} schema is registered");
     }
@@ -5601,12 +5724,13 @@ fn api_schema_catalog_is_v6_closed_and_self_consistent() -> TestResult {
         serde_json::json!(3),
         serde_json::json!(4),
         serde_json::json!(5),
+        serde_json::json!(6),
     ] {
         let mut stale = listed.clone();
         stale["version"] = stale_version.clone();
         assert!(
             !api_schema.is_valid(&stale),
-            "stale catalog {stale_version} fails under v6"
+            "stale catalog {stale_version} fails under v7"
         );
     }
 
@@ -5628,7 +5752,7 @@ fn api_schema_catalog_is_v6_closed_and_self_consistent() -> TestResult {
         "embedded schema retrieval is locale-neutral"
     );
     let named: serde_json::Value = serde_json::from_slice(&english.stdout)?;
-    assert_eq!(named["version"], 6);
+    assert_eq!(named["version"], 7);
     assert_eq!(
         named["result"]["schema"]["schemaId"],
         "orchbee.project.rename"

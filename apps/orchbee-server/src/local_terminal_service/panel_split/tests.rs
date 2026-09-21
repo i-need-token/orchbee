@@ -144,6 +144,7 @@ fn settle_first_terminal(
                     label: WorkbenchLabel::parse("first").unwrap(),
                     geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
                     launch: None,
+                    profile: None,
                 },
             },
             Some(request_id(2401)),
@@ -216,6 +217,7 @@ fn retargeted_split_completion_notifies_a_parked_bare_open_waiter() -> TestResul
             label: WorkbenchLabel::parse("split").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
+            profile: None,
         },
     };
 

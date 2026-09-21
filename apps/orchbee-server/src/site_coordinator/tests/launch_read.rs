@@ -66,11 +66,13 @@ fn launch_read_joins_the_committed_route_and_retained_fact() {
         workbench_revision,
         terminal,
         launch,
+        launch_profile,
     } = coordinator.terminal_launch_read(&terminal_id)
     else {
         panic!("committed binding expected")
     };
     assert_eq!(site_id.as_str(), format!("{:032x}", 999));
+    assert_eq!(launch_profile, None);
     assert_eq!(
         workbench_revision,
         snapshot(&mut coordinator).revision.value()
@@ -323,4 +325,117 @@ fn launch_read_reports_the_retained_failed_or_unknown_launch_on_the_still_visibl
     );
     assert_eq!(unknown.worker_generation(), NonZeroU64::new(1));
     assert_eq!(unknown.geometry(), None);
+}
+
+#[test]
+fn profile_launched_tab_retains_frozen_payload_and_provenance_across_interleaved_delete() {
+    use super::tab_create::{dispatch_tab, tab_command};
+    use orchbee_workbench_protocol::{
+        LaunchProfileName, LaunchProfileSelector, LaunchSelection, WorkbenchRequest,
+        WorkbenchResponse, WorkbenchRevision,
+    };
+
+    let mut coordinator = site();
+    let workbench_command = |coordinator: &mut SiteCoordinator,
+                             request: u128,
+                             revision: u64,
+                             action: WorkbenchAction|
+     -> orchbee_workbench_protocol::WorkbenchCommandResult {
+        let command = WorkbenchCommand {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse(&format!("{request:032x}")).unwrap(),
+            site_id: coordinator.workbench.as_ref().unwrap().site_id().clone(),
+            expected_revision: WorkbenchRevision::new(revision),
+            action,
+        };
+        let Some(WorkbenchResponse::Command(result)) = coordinator
+            .execute_workbench(WorkbenchRequest::Command(command).try_into().unwrap(), true)
+        else {
+            panic!("workbench command result expected")
+        };
+        result
+    };
+
+    // The catalog mutation commits under the same coordinator lock the launch
+    // read later joins against.
+    let WorkbenchCommandOutcome::LaunchProfileCreated {
+        profile_id,
+        catalog_revision,
+        ..
+    } = workbench_command(
+        &mut coordinator,
+        500,
+        0,
+        WorkbenchAction::LaunchProfileCreate {
+            name: LaunchProfileName::parse("dev-shell").unwrap(),
+            launch: LaunchSelection::new("/bin/zsh".to_owned(), vec!["--no-globalrcs".to_owned()])
+                .unwrap(),
+        },
+    )
+    .outcome
+    else {
+        panic!("launch-profile created outcome expected")
+    };
+
+    // A selector resolves at prepare: the pending Worker command already
+    // carries the profile's frozen selection, never the selector text.
+    let mut command = tab_command(&coordinator, 501, 1, "profiled");
+    let WorkbenchAction::TabCreate { profile, .. } = &mut command.action else {
+        panic!("tab.create action expected")
+    };
+    *profile = Some(LaunchProfileSelector::parse("dev-shell").unwrap());
+    let pending = dispatch_tab(&mut coordinator, command, 502);
+    let CapabilityNodeMessage::AuthorizedTerminalLaunch(authorized) = pending.command() else {
+        panic!("terminal Launch expected")
+    };
+    let selected = authorized
+        .launch()
+        .expect("profile-resolved launch selection");
+    assert_eq!(selected.executable(), "/bin/zsh");
+    assert_eq!(
+        selected.arguments(),
+        ["--no-globalrcs".to_owned()].as_slice()
+    );
+    let terminal_id = terminal_hex(authorized.authorization());
+
+    // Deleting the profile after dispatch must not rewrite the frozen payload
+    // or the provenance the eventual launch read publishes.
+    let WorkbenchCommandOutcome::LaunchProfileDeleted {
+        catalog_revision: deleted_catalog_revision,
+        profile_id: deleted_id,
+        ..
+    } = workbench_command(
+        &mut coordinator,
+        503,
+        2,
+        WorkbenchAction::LaunchProfileDelete {
+            selector: LaunchProfileSelector::parse(profile_id.as_str()).unwrap(),
+        },
+    )
+    .outcome
+    else {
+        panic!("launch-profile deleted outcome expected")
+    };
+    assert_eq!(deleted_id, profile_id);
+    assert!(deleted_catalog_revision > catalog_revision);
+
+    let completion = immediate_completion(pending.command());
+    coordinator
+        .complete_terminal_tab_create(pending, completion, Some(worker(1)))
+        .unwrap();
+
+    let Outcome::Found {
+        launch,
+        launch_profile,
+        ..
+    } = coordinator.terminal_launch_read(&terminal_id)
+    else {
+        panic!("committed binding expected")
+    };
+    assert_eq!(launch.state(), TerminalLaunchState::Started);
+    let provenance = launch_profile.expect("profile provenance retained");
+    assert_eq!(provenance.profile_id(), profile_id.as_str());
+    // The published catalog revision is the one frozen at prepare — not the
+    // later delete's revision.
+    assert_eq!(provenance.catalog_revision(), catalog_revision.value());
 }

@@ -112,6 +112,37 @@ impl SiteCoordinator {
             }
             WorkbenchPanelSplitBegin::Admitted(admission) => admission,
         };
+        // A `profile` selector resolved inside admission under the coordinator
+        // lock; its frozen stored selection substitutes for the explicit
+        // launch and its provenance rides alongside, immutable across the gap.
+        let (launch, profile_provenance) = match admission.profile_use() {
+            Some(profile_use) => {
+                let launch = match orchbee_client_server_protocol::LaunchSelection::new(
+                    profile_use.launch.executable().to_owned(),
+                    profile_use.launch.arguments().to_vec(),
+                ) {
+                    Ok(launch) => Some(launch),
+                    Err(_) => {
+                        return PreparedTerminalPanelSplit::Ready(
+                            admission.retire_composition_failure(),
+                        );
+                    }
+                };
+                let provenance = match orchbee_client_server_protocol::LaunchProfileProvenance::new(
+                    profile_use.profile_id.as_str().to_owned(),
+                    profile_use.catalog_revision.value(),
+                ) {
+                    Ok(provenance) => Some(provenance),
+                    Err(_) => {
+                        return PreparedTerminalPanelSplit::Ready(
+                            admission.retire_composition_failure(),
+                        );
+                    }
+                };
+                (launch, provenance)
+            }
+            None => (launch, None),
+        };
         if admission
             .staged_metadata()
             .standalone_membership()
@@ -161,7 +192,7 @@ impl SiteCoordinator {
                 admission.runtime_unavailable(WorkbenchCommandUnavailableReason::ServerBusy),
             );
         };
-        let terminal = match terminals.plan_create(
+        let mut terminal = match terminals.plan_create(
             TerminalCreateRequest::new(
                 reference.clone(),
                 worker_constraint,
@@ -180,6 +211,7 @@ impl SiteCoordinator {
                 );
             }
         };
+        terminal.set_profile_provenance(profile_provenance);
         let authorization = terminal.authorization();
         let Some(binding) = presentation_binding(authorization) else {
             drop(terminal);

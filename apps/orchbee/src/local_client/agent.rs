@@ -95,12 +95,16 @@ impl LocalClient {
     }
 }
 
-/// The OBAP operation a request or result document carries.
+/// The OBAP operation a request or result document carries — plus `Wait`,
+/// the CLI-side composite that drives `Get` polls on one held session.
+/// `of`/`of_result` only ever produce the three wire operations; `Wait`
+/// exists so failure details name the command the poll belonged to.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum AgentReadOperation {
     List,
     Get,
     Explain,
+    Wait,
 }
 
 impl AgentReadOperation {
@@ -125,6 +129,7 @@ impl AgentReadOperation {
             Self::List => "list",
             Self::Get => "get",
             Self::Explain => "explain",
+            Self::Wait => "wait",
         }
     }
 }

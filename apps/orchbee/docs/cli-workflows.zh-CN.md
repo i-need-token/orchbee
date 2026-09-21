@@ -18,7 +18,8 @@ shell 片段仅作示意。
   ```
 
   然后运行 `/tmp/orchbee-native-dev/orchbee`。staged cohort 是四个必须
-  出自同一次构建的产物（CLI、Server、Worker、Host）；非 Linux 平台不
+  出自同一次构建的可执行文件（CLI、Server、Worker、Host），外加观察适配器
+  负载目录，全部由清单钉住；非 Linux 平台不
   被准入（`unsupported-platform`），且这不是已安装产品或系统服务。
 
 - 若按下方片段提取 ID，需要 `PATH` 上有 `jq`；否则请手动从
@@ -136,12 +137,19 @@ orchbee agent list                          # 仅存活会话
 orchbee agent list --include-ended --limit 20
 orchbee agent get <session-id>
 orchbee agent explain <session-id>          # 状态与新鲜度的推导依据
+orchbee agent wait <session-id>             # 轮询直到条件命中
+orchbee agent wait <session-id> --until ended --until failed
 ```
 
 会话 ID 是 `agent list` 打印的不透明身份，绝不是 label；某页的
 `nextCursor` 令牌用 `--cursor` 继续。这些读取不提交任何 Workbench 修
 改命令或 provider 命令——不创建、不激活、不修改任何状态——已结束会
 话只在 Site 保留期间可查询。已关闭的终端绑定不可导航。
+`agent wait` 在一个持有的 Client Session 上轮询单个会话，直到某个
+`--until` 条件命中或 `--timeout` 到达（默认 600000 毫秒）：状态条件
+要求 `fresh` 新鲜度，`fresh`/`stale`/`disconnected` 直接匹配观察，
+`--after-revision` 以首个返回的全局修订为栅栏。它在每次轮询采样当
+前状态——在两次已完成观察之间开始又结束的跃迁会被错过。
 
 ## 7. 干净地关闭
 

@@ -4207,6 +4207,7 @@ fn create_marker(
             label: label.clone(),
             geometry: workbench_geometry,
             launch: None,
+            profile: None,
         },
     };
     let request = WorkbenchTabCreateRequest::try_from(command)

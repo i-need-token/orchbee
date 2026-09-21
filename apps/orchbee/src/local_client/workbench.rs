@@ -1,13 +1,13 @@
 use std::{fmt, io, time::Instant};
 
 use orchbee_workbench_protocol::{
-    PublicationReadIntent, SnapshotReadIntent, TerminalPresentationId, WorkbenchAction,
-    WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandUnavailableReason, WorkbenchPanelId,
-    WorkbenchPublicationResult, WorkbenchRejectionReason, WorkbenchRequest, WorkbenchRequestId,
-    WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotResult, WorkbenchTabId,
-    WorkbenchTerminalContextId, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
-    WorkbenchWireError, WorkbenchWorktreeListRead, WorkbenchWorktreeListResult,
-    read_workbench_response, write_workbench_request,
+    LaunchProfileId, PublicationReadIntent, SnapshotReadIntent, TerminalPresentationId,
+    WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandUnavailableReason,
+    WorkbenchPanelId, WorkbenchPublicationResult, WorkbenchRejectionReason, WorkbenchRequest,
+    WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotResult,
+    WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchTerminalGeometry,
+    WorkbenchTerminalOutcome, WorkbenchWireError, WorkbenchWorktreeListRead,
+    WorkbenchWorktreeListResult, read_workbench_response, write_workbench_request,
 };
 
 use super::{ExchangeAttempt, LocalClient, exchange_once};
@@ -24,10 +24,15 @@ pub(crate) mod panel_close;
 // product shortcut presents it.
 #[allow(dead_code)]
 pub(crate) mod panel_move;
+// The typed launch-profile transport is admitted the same way: compiled and tested before the
+// CLI launch-profile surface consumes it.
+#[allow(dead_code)]
+pub(crate) mod launch_profile;
 mod tab_close;
 mod tab_move;
 pub(crate) mod tab_rename;
 pub(crate) mod workspace_setup;
+pub(crate) use launch_profile::{LaunchProfileCatalogReadError, LaunchProfileCatalogReadFailure};
 pub(crate) use tab_close::{
     WorkbenchTabCloseAccepted, WorkbenchTabCloseFailure, WorkbenchTabCloseNotSubmitted,
     WorkbenchTabClosePrecommit, WorkbenchTabCloseReadError, WorkbenchTabCloseRequest,
@@ -479,6 +484,10 @@ pub(crate) enum WorkbenchTabCreatePrecommit {
     Unavailable {
         reason: WorkbenchCommandUnavailableReason,
     },
+    ProfileUnavailable,
+    ProfileAmbiguous {
+        candidate_ids: Vec<LaunchProfileId>,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -654,6 +663,16 @@ fn classify_tab_create_outcome(
         {
             Ok(WorkbenchTabCreateSubmission::DefinitePrecommit(
                 WorkbenchTabCreatePrecommit::Unavailable { reason },
+            ))
+        }
+        WorkbenchCommandOutcome::LaunchProfileUnavailable {} => {
+            Ok(WorkbenchTabCreateSubmission::DefinitePrecommit(
+                WorkbenchTabCreatePrecommit::ProfileUnavailable,
+            ))
+        }
+        WorkbenchCommandOutcome::LaunchProfileAmbiguous { candidate_ids } => {
+            Ok(WorkbenchTabCreateSubmission::DefinitePrecommit(
+                WorkbenchTabCreatePrecommit::ProfileAmbiguous { candidate_ids },
             ))
         }
         WorkbenchCommandOutcome::TabCreatePending {

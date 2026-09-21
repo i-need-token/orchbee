@@ -171,7 +171,11 @@ membership inside the coordinator lock and answers in one pass.
 
 The `found` outcome carries the current routing row (`terminalId`, `workerId`, `boundTo`
 presentation/panel/tab/context identities), the `siteId`, the decimal-string
-`workbenchRevision` the join observed, and a `launch` fact object. `not-found` and
+`workbenchRevision` the join observed, and a `launch` fact object. When the terminal was
+launched through a named Launch Profile, `found` also carries an optional `launchProfile`
+member `{profileId, catalogRevision}` — the provenance frozen when the launch was prepared;
+the member is absent entirely for terminals launched another way, and it stays accurate even
+if the profile was deleted after its selection was captured. `not-found` and
 `unavailable{reason:"server-busy"}` are the only other outcomes; a site without a Workbench
 answers `not-found`, including for orphaned retained records.
 

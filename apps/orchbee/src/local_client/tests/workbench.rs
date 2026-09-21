@@ -1,4 +1,5 @@
 use super::*;
+mod launch_profile;
 mod panel_close;
 mod panel_move;
 mod panel_split;
@@ -16,10 +17,11 @@ use crate::local_client::{
     },
 };
 use orchbee_workbench_protocol::{
-    ContractError, MAXIMUM_ENCODED_INTENT_BYTES, MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES, Navigation,
-    PanelNode, Presentation, PresentationBinding, ProtocolVersion, PublicationReadIntent, SiteId,
-    Snapshot, SnapshotReadIntent, Tab, TerminalContext, TerminalId, TerminalPresentationId,
-    WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
+    ContractError, LaunchProfileId, MAXIMUM_ENCODED_INTENT_BYTES,
+    MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES, Navigation, PanelNode, Presentation,
+    PresentationBinding, ProtocolVersion, PublicationReadIntent, SiteId, Snapshot,
+    SnapshotReadIntent, Tab, TerminalContext, TerminalId, TerminalPresentationId, WorkbenchAction,
+    WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
     WorkbenchCommandUnavailableReason, WorkbenchLabel, WorkbenchPanelId, WorkbenchProjectId,
     WorkbenchPublicationDocument, WorkbenchPublicationOutcome, WorkbenchPublicationResult,
     WorkbenchRejectionReason, WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse,
@@ -70,10 +72,32 @@ fn tab_create_request_is_an_opaque_action_specific_conversion() {
 
 #[test]
 fn tab_create_preserves_every_compatible_precommit_on_the_same_carrier() -> TestResult {
-    let mut cases = vec![(
-        WorkbenchCommandOutcome::Denied {},
-        WorkbenchTabCreatePrecommit::Denied,
-    )];
+    let mut cases = vec![
+        (
+            WorkbenchCommandOutcome::Denied {},
+            WorkbenchTabCreatePrecommit::Denied,
+        ),
+        // The profile-selector resolutions are definite precommits too: the
+        // carrier stays admitted for the next command.
+        (
+            WorkbenchCommandOutcome::LaunchProfileUnavailable {},
+            WorkbenchTabCreatePrecommit::ProfileUnavailable,
+        ),
+        (
+            WorkbenchCommandOutcome::LaunchProfileAmbiguous {
+                candidate_ids: vec![
+                    LaunchProfileId::parse(&format!("{}:1", id(20))).unwrap(),
+                    LaunchProfileId::parse(&format!("{}:2", id(20))).unwrap(),
+                ],
+            },
+            WorkbenchTabCreatePrecommit::ProfileAmbiguous {
+                candidate_ids: vec![
+                    LaunchProfileId::parse(&format!("{}:1", id(20))).unwrap(),
+                    LaunchProfileId::parse(&format!("{}:2", id(20))).unwrap(),
+                ],
+            },
+        ),
+    ];
     for reason in [
         WorkbenchCommandUnavailableReason::RequestLedgerFull,
         WorkbenchCommandUnavailableReason::NoCompatibleWorker,
@@ -1233,6 +1257,7 @@ fn tab_create_command(request_id: &str, expected_revision: u64) -> WorkbenchComm
             label: workbench_label(),
             geometry: terminal_geometry(),
             launch: None,
+            profile: None,
         },
     )
 }

@@ -152,6 +152,7 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
                 let plan = CommitPlan {
                     projection: None,
                     last_identity: None,
+                    catalog_next: None,
                     outcome: record.result.outcome.clone(),
                 };
                 return WorkbenchTabCloseResolution::Ready(

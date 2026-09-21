@@ -404,6 +404,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
             label: WorkbenchLabel::parse("Must have directory")?,
             geometry: geometry()?,
             launch: None,
+            profile: None,
         },
     );
     assert!(matches!(
@@ -529,6 +530,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
             label: WorkbenchLabel::parse("Directory shell")?,
             geometry: geometry()?,
             launch: None,
+            profile: None,
         },
     );
     let first_tab_result = exchange_command(&mut second, &first_tab_request)?;
@@ -635,6 +637,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
             label: WorkbenchLabel::parse("Deleted directory")?,
             geometry: geometry()?,
             launch: None,
+            profile: None,
         },
     );
     let deleted_tab_result = exchange_command(&mut first, &deleted_tab_request)?;
@@ -784,6 +787,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
             label: WorkbenchLabel::parse("Worker unavailable")?,
             geometry: geometry()?,
             launch: None,
+            profile: None,
         },
     );
     assert!(matches!(

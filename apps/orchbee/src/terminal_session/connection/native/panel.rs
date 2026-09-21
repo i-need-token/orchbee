@@ -65,6 +65,7 @@ impl NativeExecutor {
                         label: label.clone(),
                         geometry: *geometry,
                         launch: None,
+                        profile: None,
                     }))
                     .map_err(|_command| CarrierFailure::Protocol)?;
                 match self.client.submit_workbench_panel_split(request, cutoff) {

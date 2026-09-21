@@ -218,7 +218,7 @@ fn classify_paths(
             ),
         ),
         Err(error) => {
-            let path = rendezvous_path(error);
+            let path = rendezvous_error_path(error);
             let scoped = path == Some(scope_directory);
             let absent = matches!(
                 error,
@@ -298,8 +298,10 @@ fn classify_paths(
     }
 }
 
+/// The path one `RendezvousError` names, when it names one — shared with
+/// `site diagnose`, which classifies the same error family onto rows.
 #[cfg(target_os = "linux")]
-fn rendezvous_path(error: &RendezvousError) -> Option<&Path> {
+pub(crate) fn rendezvous_error_path(error: &RendezvousError) -> Option<&Path> {
     match error {
         RendezvousError::InvalidSiteScope => None,
         RendezvousError::RuntimeBaseNotAbsolute { path }
@@ -715,10 +717,16 @@ mod tests {
             let digest = Sha256::digest(fs::read(&path).unwrap());
             artifacts.insert(name.into(), format!("{digest:x}").into());
         }
+        // A controlled dummy digest stands in for the adapters payload — the
+        // fixture stages no sidecar; cohort admission stays lazy.
+        artifacts.insert(
+            "agent-observation-adapters".into(),
+            format!("{:x}", Sha256::digest(b"staged stand-in adapters\n")).into(),
+        );
         let manifest = cohort.join("cohort.json");
         fs::write(
             &manifest,
-            serde_json::json!({"schemaVersion": 1, "artifacts": artifacts}).to_string(),
+            serde_json::json!({"schemaVersion": 2, "artifacts": artifacts}).to_string(),
         )
         .unwrap();
         fs::set_permissions(&manifest, fs::Permissions::from_mode(0o600)).unwrap();

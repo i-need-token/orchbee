@@ -58,21 +58,33 @@ Host 端点的绝对地址在 `host` 目录或 Host 进程出现之前先按平�
 
 ## 开发 cohort 契约
 
-`cohort.json` 最大 16 KiB，采用严格 JSON，包含 `schemaVersion: 1` 和恰好四个
+`cohort.json` 最大 16 KiB，采用严格 JSON，包含 `schemaVersion: 2` 和恰好五个
 `artifacts` 字段，规范顺序为：`orchbee`、`orchbee-server`、
-`orchbee-worker`、`orchbee-terminal-host`。值为完整可执行文件的 64 字符小写 SHA-256。
-目录属于有效用户且权限为 0700。文件必须是单链接、属于用户的普通文件，
+`orchbee-worker`、`orchbee-terminal-host`、`agent-observation-adapters`。前四个值是各自完整可执行文件的
+64 字符小写 SHA-256；第五个声明与可执行文件同目录暂存的观察适配器胶囊的 SHA-256 负载摘要——
+即其 `capsule.json` 中 `payloadSha256` 所载的同一值。携带任何其他 `schemaVersion`（包括 `1`）的清单不兼容；
+`schemaVersion: 2` 清单缺失必填成员、携带重复或未知成员、或声明格式错误的摘要则为无效清单。
+两者都经现有类型化拒绝闭合失败。目录属于有效用户且权限为 0700。文件必须是单链接、属于用户的普通文件，
 组及其他用户不可写；可执行文件需要所有者执行位。清单和可执行文件均相对于已校验目录
-以 NOFOLLOW 和 CLOEXEC 打开。每个托管 Rust 角色（Client、Server、Worker）都校验全部四个产物，热启动也如此。
+以 NOFOLLOW 和 CLOEXEC 打开。每个托管 Rust 角色（Client、Server、Worker）都校验全部四个可执行文件，热启动也如此。
 Host 消费已验证的相邻可执行文件，不实现清单读取。
 
+`agent-observation-adapters` 相邻目录是惰性准入的 sidecar。`NativeCohort` 在启动期间不打开、不遍历、
+不校验负载；仅通过 `observation_adapters_sidecar()` 暴露固定的 sidecar 目录与清单声明的摘要。
+首个集成消费者在首次使用时私有校验该目录，并返回类型化的 unavailable 或 invalid 结果；
+缺失或损坏的 sidecar 不阻断 Site 启动或 Agent 读取。
+
 精确 cohort 身份是以下 UTF-8 字节的 SHA-256 小写形式：
-`orchbee-native-cohort-v1\n`，随后按上述固定顺序连接每个产物名、
-一个 NUL 字节、其十六进制哈希和 LF。JSON 键顺序不影响身份。
+`orchbee-native-cohort-v1\n`，随后按上述固定顺序连接每个可执行文件名、
+一个 NUL 字节、其十六进制哈希和 LF——仅四个可执行文件；适配器声明被有意排除，
+使负载更新不搅动准入身份。JSON 键顺序不影响身份。
 相邻文件路径只来自这些固定名称。缺失、修改、混装、格式错误或不安全产物在激活前被拒绝。
 显式端点测试模式保留原版本 cohort，不获得托管启动权限。
 
-暂存脚本构建并复制四个可执行文件到新建私有目录，最后写入清单。
+暂存脚本构建并复制四个可执行文件到新建私有目录，将规范的
+`apps/desktop/resources/agent-observation-adapters` 胶囊原样复制到 sidecar 目录，校验其严格
+`capsule.json` 成员（`contractVersion` 为 3、声明的 `payloadSha256`、必备负载条目，且重算的规范摘要
+与声明值一致），最后写入清单。未通过该校验的胶囊会中止暂存，而不是产出坏包。
 这属于未签名、单用户的开发暂存；发布签名、安装器、同用户恶意修改以及校验到执行之间的
 竞态均不在范围内。清单确定一致的精确产物集合，不证明发布者身份。
 
@@ -146,6 +158,14 @@ retry 或推断 process health。File creation 与 advisory-lock acquisition 是
 Contended attempt 绝不会 truncate、replace、unlink 或改变 existing inode 的 ownership，也不会修复
 pre-existing invalid entry。Drop guard 只释放其 advisory lock。该 module 绝不移除 runtime
 directory、durable lock file、socket path 或这些 path 上的任何 entry。
+
+`observe_*` entry 探针把同一组固定名称开放给只读诊断：描述符相对的 `fstatat` 配合
+`AT_SYMLINK_NOFOLLOW` 回答每个 entry 的原始 kind、ownership、mode、size 和 link count——
+每个判定均由 caller 负责。`observe_host_endpoint` 仅在 `host/` 父级自身校验为拥有的目录后
+才向其内部遍历，对其他任何类型一律拒绝而非跟随。`observe_site_lifetime_lock` 绝不创建
+leaf：只有先经 stat 检查为拥有的 regular `0600` 单链接文件的 entry 才会被打开，接受一次
+`try_lock` 探测，并在同一描述符上释放——`Held` 仅是那一瞬的锁事实，绝非进程断言。所有
+观察均不 connect、不创建、不写、不 unlink、不修复，也不推断进程健康。
 
 该 primitive 在其他 Unix 系统上仍只检查 mode。Linux 在目录、锁、标记和 cohort 准入前加入上述
 受限文件系统与无 ACL 边界；托管消费者执行 socket 元数据及同用户 peer 校验。

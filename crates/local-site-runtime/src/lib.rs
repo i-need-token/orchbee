@@ -7,11 +7,12 @@ mod rendezvous;
 mod retained_child;
 
 #[cfg(unix)]
-pub use cohort::{NativeArtifact, NativeCohort};
+pub use cohort::{NativeArtifact, NativeCohort, ObservationAdaptersSidecar};
 #[cfg(unix)]
 pub use rendezvous::{
-    CLIENT_PENDING_SOCKET_NAME, HOST_ENDPOINT_ID, HOST_ENDPOINT_NAME, HOST_SCOPE_NAME, LockAttempt,
-    LockKind, ModeCheckedLocalSiteRendezvous, ModeCheckedSiteLock, RendezvousError, SiteScope,
+    CLIENT_PENDING_SOCKET_NAME, EntryKind, EntryObservation, HOST_ENDPOINT_ID, HOST_ENDPOINT_NAME,
+    HOST_SCOPE_NAME, LockAttempt, LockKind, ModeCheckedLocalSiteRendezvous, ModeCheckedSiteLock,
+    RendezvousError, SiteLifetimeObservation, SiteScope,
 };
 #[cfg(unix)]
 pub use retained_child::RetainedChild;

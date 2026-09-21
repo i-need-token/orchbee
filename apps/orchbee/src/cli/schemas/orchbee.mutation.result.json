@@ -7,7 +7,7 @@
 	"additionalProperties": false,
 	"properties": {
 		"schema": { "const": "orchbee.mutation.result" },
-		"version": { "const": 1 },
+		"version": { "const": 2 },
 		"source": { "$ref": "#/$defs/commandSource" },
 		"result": {
 			"type": "object",
@@ -16,6 +16,8 @@
 			"properties": {
 				"action": {
 					"enum": [
+						"launch-profile.create",
+						"launch-profile.delete",
 						"panel.close",
 						"panel.move",
 						"panel.split",
@@ -51,6 +53,9 @@
 				},
 				"label": { "type": "string" },
 				"path": { "type": "string" },
+				"profileId": { "$ref": "#/$defs/profileId" },
+				"catalogRevision": { "$ref": "#/$defs/revision" },
+				"name": { "type": "string", "minLength": 1, "maxLength": 512 },
 				"terminal": {
 					"type": "object",
 					"required": ["outcome"],
@@ -80,12 +85,32 @@
 						"required": ["outcome"]
 					},
 					"then": { "required": ["acceptedRevision", "closeRequestId"] }
+				},
+				{
+					"if": {
+						"properties": {
+							"action": { "enum": ["launch-profile.create", "launch-profile.delete"] }
+						},
+						"required": ["action"]
+					},
+					"then": { "required": ["profileId", "catalogRevision"] }
+				},
+				{
+					"if": {
+						"properties": { "action": { "const": "launch-profile.create" } },
+						"required": ["action"]
+					},
+					"then": { "required": ["name"] }
 				}
 			]
 		}
 	},
 	"$defs": {
 		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+		"profileId": {
+			"type": "string",
+			"pattern": "^[0-9A-Za-z][0-9A-Za-z._:-]{0,127}$"
+		},
 		"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
 		"geometry": {
 			"type": "object",

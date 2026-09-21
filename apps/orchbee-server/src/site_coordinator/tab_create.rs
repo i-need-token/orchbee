@@ -109,12 +109,14 @@ impl SiteCoordinator {
         // The selection is part of the committed command's identity; it is
         // extracted before admission so the same value reaches the Worker
         // verbatim. A decoded selection already passed the closed lexical
-        // contract, so conversion failure is an invariant break.
-        let launch = match &command.action {
+        // contract, so conversion failure is an invariant break. A `profile`
+        // selector resolves inside admission under the coordinator lock; the
+        // frozen stored selection then substitutes for the explicit launch.
+        let explicit_launch = match &command.action {
             WorkbenchAction::TabCreate { launch, .. } => launch.clone(),
             _ => None,
         };
-        let launch = match launch
+        let launch = match explicit_launch
             .map(|selection| {
                 orchbee_client_server_protocol::LaunchSelection::new(
                     selection.executable().to_owned(),
@@ -138,6 +140,34 @@ impl SiteCoordinator {
                 return PreparedTerminalTabCreate::Ready(result);
             }
             WorkbenchTabCreateBegin::Admitted(admission) => admission,
+        };
+        let (launch, profile_provenance) = match admission.profile_use() {
+            Some(profile_use) => {
+                let launch = match orchbee_client_server_protocol::LaunchSelection::new(
+                    profile_use.launch.executable().to_owned(),
+                    profile_use.launch.arguments().to_vec(),
+                ) {
+                    Ok(launch) => Some(launch),
+                    Err(_) => {
+                        return PreparedTerminalTabCreate::Ready(
+                            admission.retire_composition_failure(),
+                        );
+                    }
+                };
+                let provenance = match orchbee_client_server_protocol::LaunchProfileProvenance::new(
+                    profile_use.profile_id.as_str().to_owned(),
+                    profile_use.catalog_revision.value(),
+                ) {
+                    Ok(provenance) => Some(provenance),
+                    Err(_) => {
+                        return PreparedTerminalTabCreate::Ready(
+                            admission.retire_composition_failure(),
+                        );
+                    }
+                };
+                (launch, provenance)
+            }
+            None => (launch, None),
         };
         let (worker_constraint, workspace_cwd, settles_first) = if let Some(membership) =
             admission.staged_metadata().standalone_membership()
@@ -187,7 +217,7 @@ impl SiteCoordinator {
                     .runtime_unavailable(WorkbenchTabCreateRuntimeUnavailableReason::ServerBusy),
             );
         };
-        let terminal = match terminals.plan_create(
+        let mut terminal = match terminals.plan_create(
             TerminalCreateRequest::new(
                 reference.clone(),
                 worker_constraint,
@@ -204,6 +234,7 @@ impl SiteCoordinator {
                 return PreparedTerminalTabCreate::Ready(admission.runtime_unavailable(reason));
             }
         };
+        terminal.set_profile_provenance(profile_provenance);
         let authorization = terminal.authorization();
         let Some(binding) = presentation_binding(authorization) else {
             drop(terminal);

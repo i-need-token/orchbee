@@ -91,6 +91,7 @@ fn request_kind(request: &WorkbenchRequest) -> u16 {
         WorkbenchRequest::TabCloseResume(_) => 7,
         WorkbenchRequest::PublicationRead(_) => 9,
         WorkbenchRequest::WorktreeListRead(_) => 11,
+        WorkbenchRequest::LaunchProfileCatalogRead(_) => 13,
     }
 }
 
@@ -102,6 +103,7 @@ fn response_kind(response: &WorkbenchResponse) -> u16 {
         WorkbenchResponse::TabCloseResume(_) => 8,
         WorkbenchResponse::Publication(_) => 10,
         WorkbenchResponse::WorktreeList(_) => 12,
+        WorkbenchResponse::LaunchProfileCatalog(_) => 14,
     }
 }
 
@@ -113,8 +115,8 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
     let kind = u16::from_be_bytes([header[6], header[7]]);
     if header[..4] != WORKBENCH_MAGIC
         || u16::from_be_bytes([header[4], header[5]]) != VERSION
-        || (request && !matches!(kind, 1 | 2 | 5 | 7 | 9 | 11))
-        || (!request && !matches!(kind, 3 | 4 | 6 | 8 | 10 | 12))
+        || (request && !matches!(kind, 1 | 2 | 5 | 7 | 9 | 11 | 13))
+        || (!request && !matches!(kind, 3 | 4 | 6 | 8 | 10 | 12 | 14))
     {
         return Err(WorkbenchWireError::InvalidHeader);
     }

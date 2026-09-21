@@ -65,23 +65,42 @@ No Host reconnect/adoption is allowed.
 
 ## Development cohort contract
 
-`cohort.json` is bounded to 16 KiB, strict JSON with `schemaVersion: 1` and exactly four
+`cohort.json` is bounded to 16 KiB, strict JSON with `schemaVersion: 2` and exactly five
 `artifacts` fields, in this canonical order: `orchbee`, `orchbee-server`,
-`orchbee-worker`, `orchbee-terminal-host`. Each value is the lowercase 64-character SHA-256
-of the complete executable. The directory is effective-user-owned 0700. Files are regular,
-single-link, owned, and not writable by group/other; executables have an owner execute bit.
+`orchbee-worker`, `orchbee-terminal-host`, `agent-observation-adapters`. The first four values are
+the lowercase 64-character SHA-256 of each complete executable. The fifth declares the lowercase
+SHA-256 payload digest of the observation-adapters capsule staged beside the executables — the same
+value its `capsule.json` carries as `payloadSha256`. A manifest carrying any other `schemaVersion`,
+including `1`, is incompatible; a `schemaVersion: 2` manifest missing a required member, carrying
+duplicated or unknown members, or declaring a malformed digest is an invalid manifest. Both fail
+closed through the existing typed rejection. The directory is effective-user-owned 0700. Files are
+regular, single-link, owned, and not writable by group/other; executables have an owner execute bit.
 Manifest and executables are opened relative to the verified directory with NOFOLLOW and
-CLOEXEC. Each managed Rust role (Client, Server, Worker) validates all four artifacts, including on warm startup.
+CLOEXEC. Each managed Rust role (Client, Server, Worker) validates all four executables, including
+on warm startup.
 Host consumes the verified sibling executable; it does not implement the manifest reader.
 
+The `agent-observation-adapters` sibling directory is a lazily admitted sidecar. `NativeCohort`
+never opens, traverses, or validates the payload during startup; it exposes only the fixed sidecar
+directory and the manifest-declared digest through `observation_adapters_sidecar()`. The first
+integration consumer validates that directory privately and answers a typed unavailable or invalid
+result, so an absent or damaged sidecar never blocks Site startup or Agent reads.
+
 The exact cohort identity is lowercase SHA-256 of UTF-8 `orchbee-native-cohort-v1\n` followed,
-in the above fixed order, by each artifact name, one NUL byte, its hexadecimal hash, and LF.
+in the above fixed order, by each executable name, one NUL byte, its hexadecimal hash, and LF —
+the four executables only; the adapters declaration is deliberately excluded so a payload bump does
+not churn admission identity.
 JSON key order is immaterial. Sibling paths come only from these fixed names. Missing, changed,
 mixed, malformed, or unsafe artifacts fail admission before activation. Explicit endpoint test
 modes retain their existing version cohort and do not acquire managed startup authority.
 
-The staging script builds and copies all four executables into a new private directory and writes
-the manifest last. This is unsigned, per-user development staging: release signing, installers,
+The staging script builds and copies all four executables into a new private directory, copies the
+canonical `apps/desktop/resources/agent-observation-adapters` capsule verbatim to the sidecar
+directory, verifies its strict `capsule.json` members (`contractVersion` 3, a declared
+`payloadSha256`, the required payload entries, and a recomputed canonical digest equal to the
+declared one), then writes the manifest last. A capsule that fails that verification stops staging
+rather than emitting a bad package. This is unsigned, per-user development staging: release signing,
+installers,
 same-user malicious mutation, and verification-to-exec races are excluded. The manifest establishes
 a coherent exact artifact set, not publisher authenticity.
 
@@ -160,6 +179,16 @@ inode before another descriptor won the lock. A contended attempt never truncate
 unlinks, or changes the ownership of an existing inode, and never repairs a pre-existing invalid
 entry. Dropping a guard releases only its advisory lock. The runtime directory, durable lock files,
 socket paths, and any entries at those paths are never removed by this module.
+
+`observe_*` entry probes expose the same finite names to read-only diagnostics: a
+descriptor-relative `fstatat` with `AT_SYMLINK_NOFOLLOW` answers each entry's raw kind,
+ownership, mode, size, and link count — the caller owns every verdict. `observe_host_endpoint`
+traverses into `host/` only after the parent itself validates as an owned directory and refuses
+rather than follows anything else. `observe_site_lifetime_lock` never creates the leaf: only an
+entry already stat-checked as an owned regular `0600` single-link file is opened, probed with one
+`try_lock`, and released on the same descriptor — `Held` is a lock fact at that instant, never a
+process claim. No observation connects, creates, writes, unlinks, repairs, or infers process
+health.
 
 The primitive remains mode-checked on other Unix systems. Linux adds the restricted-filesystem
 and ACL-absence boundary above before directory, lock, marker, or cohort admission; socket metadata

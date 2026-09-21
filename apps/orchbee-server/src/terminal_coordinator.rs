@@ -128,6 +128,16 @@ impl PlannedCreate<'_> {
         self.pending.command()
     }
 
+    /// Attaches the Server-side profile provenance to the binding being
+    /// committed. Called only when the launch command resolved a named
+    /// profile at prepare; the Worker-facing request never carries it.
+    pub(crate) fn set_profile_provenance(
+        &mut self,
+        provenance: Option<orchbee_client_server_protocol::LaunchProfileProvenance>,
+    ) {
+        self.binding.profile_provenance = provenance;
+    }
+
     pub(crate) fn commit(self) -> Box<PendingOperation> {
         let Self {
             coordinator,
@@ -212,6 +222,10 @@ struct TerminalBinding {
     deferred: bool,
     create_outcome: Option<CreateOutcome>,
     phase: TerminalPhase,
+    /// Server-side provenance frozen at prepare when the launch named a
+    /// profile; never part of the Worker-facing request and immutable once
+    /// the binding commits.
+    profile_provenance: Option<orchbee_client_server_protocol::LaunchProfileProvenance>,
 }
 
 pub(crate) struct RetainedTerminalCreate<'coordinator> {
@@ -219,6 +233,7 @@ pub(crate) struct RetainedTerminalCreate<'coordinator> {
     pub(crate) outcome: Option<CreateOutcome>,
     pub(crate) phase: TerminalPhase,
     pub(crate) worker_generation: WorkerGeneration,
+    pub(crate) profile_provenance: Option<orchbee_client_server_protocol::LaunchProfileProvenance>,
 }
 
 /// Resolution of a binding identity pair against the retained creates. `Absent` is a
@@ -313,6 +328,7 @@ impl TerminalCoordinator {
             outcome: binding.create_outcome,
             phase: binding.phase,
             worker_generation: binding.authorization.worker_generation(),
+            profile_provenance: binding.profile_provenance.clone(),
         })
     }
 
@@ -612,6 +628,7 @@ impl TerminalCoordinator {
                 deferred: matches!(mode, TerminalLaunchMode::Deferred),
                 create_outcome: None,
                 phase: TerminalPhase::Creating,
+                profile_provenance: None,
             },
             next_identity: identity.checked_add(1),
         })

@@ -27,6 +27,8 @@ unicode-segmentation = "1.13.3"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 nix = { workspace = true, features = ["signal"] }
+# `agent doctor` capsule/fingerprint digests run at CLI runtime.
+sha2.workspace = true
 
 [target.'cfg(unix)'.dev-dependencies]
 jsonschema = { version = "0.53.0", default-features = false }
@@ -39,4 +41,3 @@ orchbee-capability-node-protocol = { path = "../../crates/capability-node-protoc
 orchbee-local-site-protocol = { path = "../../crates/local-site-protocol" }
 rustix = { workspace = true, features = ["process"] }
 serde_json = "1.0.151"
-sha2.workspace = true

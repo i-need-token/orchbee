@@ -1,8 +1,8 @@
 use std::io::{self, Cursor, Read, Write};
 
 use crate::{
-    CreateAcceptedState, CreateOutcome, Geometry, PanelId, PresentationId, RequestId,
-    ServerMessage, SiteId, StartMode, TabId, TerminalContextId, TerminalCreateRequest,
+    CreateAcceptedState, CreateOutcome, Geometry, LaunchProfileProvenance, PanelId, PresentationId,
+    RequestId, ServerMessage, SiteId, StartMode, TabId, TerminalContextId, TerminalCreateRequest,
     TerminalCreateResult, TerminalId, TerminalLaunchBoundTo, TerminalLaunchFact,
     TerminalLaunchReadOutcome, TerminalLaunchReadResult, TerminalLaunchRoute, TerminalLaunchState,
     WorkerId, WorkingDirectory,
@@ -246,6 +246,7 @@ fn maximum_launch_read_result_stays_inside_the_frame_bound()
                 }),
                 Some(Geometry::new(255, 255, 257, 257)?),
             )?),
+            launch_profile: Some(LaunchProfileProvenance::new("f".repeat(128), u64::MAX)?),
         },
     ));
     let encoded = encode_server_frame(&message)?;

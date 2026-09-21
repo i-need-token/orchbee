@@ -1,6 +1,7 @@
 use super::*;
 
 mod bounds;
+mod launch_profile;
 use serde::Deserialize;
 use serde_json::Value;
 use std::io::Cursor;

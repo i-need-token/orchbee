@@ -67,10 +67,16 @@ fn cohort() -> &'static Path {
                 let digest = Sha256::digest(fs::read(&target).expect("read artifact"));
                 artifacts.insert((*name).to_owned(), format!("{digest:x}").into());
             }
+            // A controlled dummy digest stands in for the adapters payload —
+            // this fixture stages no sidecar; admission stays lazy.
+            artifacts.insert(
+                "agent-observation-adapters".to_owned(),
+                format!("{:x}", Sha256::digest(b"staged stand-in adapters\n")).into(),
+            );
             let manifest = directory.join("cohort.json");
             fs::write(
                 &manifest,
-                serde_json::json!({"schemaVersion": 1, "artifacts": artifacts}).to_string(),
+                serde_json::json!({"schemaVersion": 2, "artifacts": artifacts}).to_string(),
             )
             .expect("write cohort manifest");
             fs::set_permissions(&manifest, fs::Permissions::from_mode(0o600))
@@ -1502,6 +1508,618 @@ fn agent_envelopes_validate_and_loose_variants_fail() -> TestResult {
     assert!(
         explain_schema.is_valid(&valid_explain(explanation)),
         "unique capabilityCeiling entries must pass"
+    );
+    Ok(())
+}
+
+// ---- agent wait: held-session polling --------------------------------------
+//
+// `agent wait` composes repeated `agent.session.get.request` polls on ONE
+// admitted Client Session — never a new wire verb. One `spawn_peer`
+// connection proves the session is held: a reconnect would strand on the
+// unserved accept backlog and fail admission. The scripted answers drive
+// the loop's freshness-gated predicate, revision fence, and two distinct
+// deadline classes over real documents.
+
+/// A wire-shaped detail with the caller's freshness and status — the wait
+/// tests exercise the freshness gate over real decoded documents.
+fn session_detail_shaped(
+    session_id: &str,
+    freshness: &str,
+    status: serde_json::Value,
+) -> serde_json::Value {
+    let mut detail = session_detail(session_id);
+    detail["snapshot"]["observation"]["freshness"] = serde_json::json!(freshness);
+    detail["status"] = status;
+    detail
+}
+
+/// A `found` get answer at the caller's revision — the fence tests need
+/// revisions other than the shared fixture's 7.
+fn found_at(request_id: &str, revision: u64, session: serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "kind": "agent.session.get.result",
+        "requestId": request_id,
+        "result": {"outcome": {"kind": "found", "revision": revision, "session": session}}
+    })
+}
+
+/// A non-matching fresh `working` sample: outside the canonical default
+/// seven, so the default wait keeps polling.
+fn working_detail(session_id: &str) -> serde_json::Value {
+    session_detail_shaped(
+        session_id,
+        "fresh",
+        serde_json::json!({"kind": "working", "activity": null, "phase": "working"}),
+    )
+}
+
+/// One held session, two polls: the first non-matching `found` is just a
+/// sample, the matching poll is the decisive answer — its requestId is the
+/// emitted source, its revision the published one, and the whole effective
+/// wait run echoes under `wait`.
+#[test]
+fn wait_matched_emits_wait_envelope_on_one_held_session() -> TestResult {
+    let base = base_dir("await-hit");
+    let scope = stage_scope(&base);
+    let schema = compiled_schema(&base, "orchbee.agent.wait");
+    let peer = spawn_peer(&scope, 1, |stream| {
+        admit(&stream);
+        let first = read_request(&stream);
+        let AgentReadRequest::Get {
+            request_id: first_id,
+            session_id,
+        } = &first
+        else {
+            panic!("wait polls must be get requests");
+        };
+        assert_eq!(session_id.as_str(), "sess-alpha");
+        answer(
+            &stream,
+            found_document(
+                "agent.session.get.result",
+                first_id.as_str(),
+                working_detail("sess-alpha"),
+                None,
+            ),
+        );
+        let second = read_request(&stream);
+        let AgentReadRequest::Get {
+            request_id: second_id,
+            ..
+        } = &second
+        else {
+            panic!("wait polls must be get requests");
+        };
+        assert_ne!(first_id, second_id, "each poll mints a fresh request id");
+        answer(
+            &stream,
+            found_document(
+                "agent.session.get.result",
+                second_id.as_str(),
+                session_detail_shaped(
+                    "sess-alpha",
+                    "fresh",
+                    serde_json::json!({"kind": "succeeded"}),
+                ),
+                None,
+            ),
+        );
+    });
+    let output = run(&base, &["agent", "wait", "sess-alpha", "--format", "json"]);
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(0));
+    let document = document(&output);
+    assert!(
+        schema.is_valid(&document),
+        "emitted envelope validates: {document}"
+    );
+    assert_eq!(document["schema"], "orchbee.agent.wait");
+    assert_eq!(document["source"]["kind"], "agent-read");
+    assert_eq!(
+        document["result"]["matchedConditions"],
+        serde_json::json!(["succeeded"])
+    );
+    assert_eq!(document["result"]["revision"], 7);
+    assert_eq!(
+        document["result"]["session"]["snapshot"]["sessionId"],
+        "sess-alpha"
+    );
+    assert_eq!(
+        document["result"]["wait"]["until"],
+        serde_json::json!([
+            "needs-attention",
+            "failed",
+            "succeeded",
+            "canceled",
+            "interrupted",
+            "idle",
+            "ended"
+        ])
+    );
+    assert_eq!(document["result"]["wait"]["timeoutMs"], 600_000);
+    assert_eq!(document["result"]["wait"]["observations"], 2);
+    assert!(document["result"]["wait"]["elapsedMs"].is_u64());
+    assert!(
+        document["result"]["wait"].get("afterRevision").is_none(),
+        "afterRevision is omitted when the fence was not supplied"
+    );
+    Ok(())
+}
+
+/// Status conditions are freshness-gated: a `stale` `idle` sample does not
+/// satisfy `--until idle`, while the same document under `fresh` does —
+/// and `matchedConditions` keeps the caller's requested order.
+#[test]
+fn wait_freshness_gates_status_and_preserves_requested_order() -> TestResult {
+    let base = base_dir("await-order");
+    let scope = stage_scope(&base);
+    let peer = spawn_peer(&scope, 1, |stream| {
+        admit(&stream);
+        let first = read_request(&stream);
+        answer(
+            &stream,
+            found_document(
+                "agent.session.get.result",
+                first.request_id().as_str(),
+                session_detail_shaped("sess-alpha", "stale", serde_json::json!({"kind": "idle"})),
+                None,
+            ),
+        );
+        let second = read_request(&stream);
+        answer(
+            &stream,
+            found_document(
+                "agent.session.get.result",
+                second.request_id().as_str(),
+                session_detail_shaped("sess-alpha", "fresh", serde_json::json!({"kind": "idle"})),
+                None,
+            ),
+        );
+    });
+    let output = run(
+        &base,
+        &[
+            "agent",
+            "wait",
+            "sess-alpha",
+            "--until",
+            "idle",
+            "--until",
+            "fresh",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(0));
+    let document = document(&output);
+    assert_eq!(
+        document["result"]["matchedConditions"],
+        serde_json::json!(["idle", "fresh"]),
+        "both conditions hit the fresh idle document in requested order"
+    );
+    assert_eq!(
+        document["result"]["wait"]["until"],
+        serde_json::json!(["idle", "fresh"])
+    );
+    assert_eq!(document["result"]["wait"]["observations"], 2);
+    Ok(())
+}
+
+/// `--after-revision` ahead of the first returned revision is the typed
+/// `rejected` refusal after exactly one observation — revision is monotonic,
+/// so the refusal can never fire later.
+#[test]
+fn wait_fence_ahead_refuses_after_one_observation() -> TestResult {
+    let base = base_dir("await-fence");
+    let scope = stage_scope(&base);
+    let polls = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+    let peer_polls = polls.clone();
+    let peer = spawn_peer(&scope, 1, move |stream| {
+        admit(&stream);
+        let request = read_request(&stream);
+        peer_polls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        answer(
+            &stream,
+            found_at(
+                request.request_id().as_str(),
+                7,
+                session_detail("sess-alpha"),
+            ),
+        );
+        // A second request must never arrive: the refusal follows the
+        // first observation and drops the held session.
+        let mut sink = [0_u8; 64];
+        let _ = (&stream).read(&mut sink);
+    });
+    let output = run(
+        &base,
+        &[
+            "agent",
+            "wait",
+            "sess-alpha",
+            "--after-revision",
+            "9",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(3));
+    assert_eq!(
+        polls.load(std::sync::atomic::Ordering::SeqCst),
+        1,
+        "the fence refuses after exactly one observation"
+    );
+    let document = document(&output);
+    assert_eq!(document["schema"], "orchbee.cli.failure.agent");
+    assert_eq!(document["failure"]["kind"], "rejected");
+    let details = &document["failure"]["details"];
+    assert_eq!(details["stage"], "agent-read");
+    assert_eq!(details["operation"], "wait");
+    assert_eq!(details["sessionId"], "sess-alpha");
+    assert_eq!(details["afterRevision"], 9);
+    assert_eq!(details["revision"], 7);
+    assert_eq!(
+        document["source"]["kind"], "agent-read",
+        "the answering poll's identity is the honest source"
+    );
+    Ok(())
+}
+
+/// A fence equal to the first revision is not ahead — the wait keeps
+/// sampling until a strictly later revision satisfies the condition.
+#[test]
+fn wait_fence_equal_waits_for_later_revision() -> TestResult {
+    let base = base_dir("await-fencelater");
+    let scope = stage_scope(&base);
+    let peer = spawn_peer(&scope, 1, |stream| {
+        admit(&stream);
+        let first = read_request(&stream);
+        answer(
+            &stream,
+            found_at(
+                first.request_id().as_str(),
+                7,
+                session_detail_shaped(
+                    "sess-alpha",
+                    "fresh",
+                    serde_json::json!({"kind": "succeeded"}),
+                ),
+            ),
+        );
+        let second = read_request(&stream);
+        answer(
+            &stream,
+            found_at(
+                second.request_id().as_str(),
+                8,
+                session_detail_shaped(
+                    "sess-alpha",
+                    "fresh",
+                    serde_json::json!({"kind": "succeeded"}),
+                ),
+            ),
+        );
+    });
+    let output = run(
+        &base,
+        &[
+            "agent",
+            "wait",
+            "sess-alpha",
+            "--after-revision",
+            "7",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(0));
+    let document = document(&output);
+    assert_eq!(
+        document["result"]["matchedConditions"],
+        serde_json::json!(["succeeded"])
+    );
+    assert_eq!(document["result"]["revision"], 8);
+    assert_eq!(document["result"]["wait"]["afterRevision"], 7);
+    assert_eq!(document["result"]["wait"]["observations"], 2);
+    Ok(())
+}
+
+/// A `rejected{not-found}` answer mid-wait is the same `not-found` family a
+/// first-poll refusal is — the answering poll's identity is the source.
+#[test]
+fn wait_mid_wait_not_found_is_agent_failure() -> TestResult {
+    let base = base_dir("await-gone");
+    let scope = stage_scope(&base);
+    let peer = spawn_peer(&scope, 1, |stream| {
+        admit(&stream);
+        let first = read_request(&stream);
+        answer(
+            &stream,
+            found_document(
+                "agent.session.get.result",
+                first.request_id().as_str(),
+                working_detail("sess-gone"),
+                None,
+            ),
+        );
+        let second = read_request(&stream);
+        answer(
+            &stream,
+            serde_json::json!({
+                "kind": "agent.session.get.result",
+                "requestId": second.request_id().as_str(),
+                "result": {"outcome": {"kind": "rejected", "reason": "not-found"}}
+            }),
+        );
+    });
+    let output = run(&base, &["agent", "wait", "sess-gone", "--format", "json"]);
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(3));
+    let document = document(&output);
+    assert_eq!(document["schema"], "orchbee.cli.failure.agent");
+    assert_eq!(document["failure"]["kind"], "not-found");
+    assert_eq!(document["failure"]["details"]["operation"], "wait");
+    assert_eq!(document["failure"]["details"]["sessionId"], "sess-gone");
+    assert_eq!(document["source"]["kind"], "agent-read");
+    Ok(())
+}
+
+/// A mid-wait `unavailable` answer is `service-unavailable`, and a mid-wait
+/// `read-denied` is `denied` — each carries its answering poll's source and
+/// names `operation: "wait"`.
+#[test]
+fn wait_mid_wait_refusal_kinds_keep_their_family() -> TestResult {
+    for (outcome, kind, code) in [
+        (
+            serde_json::json!({"kind": "unavailable", "reason": "runtime-unavailable"}),
+            "service-unavailable",
+            4,
+        ),
+        (
+            serde_json::json!({"kind": "rejected", "reason": "read-denied"}),
+            "denied",
+            3,
+        ),
+    ] {
+        let base = base_dir(&format!("await-{kind}"));
+        let scope = stage_scope(&base);
+        let schema = compiled_schema(&base, "orchbee.cli.failure.agent");
+        let peer = spawn_peer(&scope, 1, move |stream| {
+            admit(&stream);
+            let request = read_request(&stream);
+            answer(
+                &stream,
+                serde_json::json!({
+                    "kind": "agent.session.get.result",
+                    "requestId": request.request_id().as_str(),
+                    "result": {"outcome": outcome}
+                }),
+            );
+        });
+        let output = run(&base, &["agent", "wait", "sess-alpha", "--format", "json"]);
+        peer.join().expect("peer finished");
+        assert_eq!(output.status.code(), Some(code), "{kind}");
+        let document = document(&output);
+        assert!(
+            schema.is_valid(&document),
+            "{kind} failure validates: {document}"
+        );
+        assert_eq!(document["failure"]["kind"], kind, "{kind}");
+        assert_eq!(document["failure"]["details"]["operation"], "wait");
+        assert_eq!(document["source"]["kind"], "agent-read", "{kind}");
+    }
+    Ok(())
+}
+
+/// A held first exchange under a roomy total budget is the `read-deadline`
+/// arm: the per-poll `min(5 s, remaining)` bound fires, never the whole
+/// wait's `timeoutMs`. Zero completed observations means no `last*` facts —
+/// the document does not claim the conditions were absent for the wait.
+#[test]
+fn wait_read_deadline_records_the_admitted_budget() -> TestResult {
+    let base = base_dir("await-read");
+    let scope = stage_scope(&base);
+    let failure_schema = compiled_schema(&base, "orchbee.cli.failure.agent");
+    let peer = spawn_peer(&scope, 1, |stream| {
+        admit(&stream);
+        let _request = read_request(&stream);
+        // Hold without answering: the per-read bound fires near 5s while the
+        // 60s total still has room; the session close ends this read.
+        let mut sink = [0_u8; 64];
+        let _ = (&stream).read(&mut sink);
+    });
+    let started = Instant::now();
+    let output = run(
+        &base,
+        &[
+            "agent",
+            "wait",
+            "sess-alpha",
+            "--timeout",
+            "60000",
+            "--format",
+            "json",
+        ],
+    );
+    let elapsed = started.elapsed();
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(7));
+    assert!(
+        elapsed >= Duration::from_secs(4) && elapsed < Duration::from_secs(15),
+        "the ~5s per-read bound fires inside the roomy total: {elapsed:?}"
+    );
+    let document = document(&output);
+    assert!(
+        failure_schema.is_valid(&document),
+        "timeout document validates: {document}"
+    );
+    let details = &document["failure"]["details"];
+    assert_eq!(document["failure"]["kind"], "timeout");
+    assert_eq!(details["stage"], "agent-read");
+    assert_eq!(details["operation"], "wait");
+    assert_eq!(details["reason"], "read-deadline");
+    assert_eq!(details["timeoutMs"], 60_000);
+    assert_eq!(details["readBudgetMs"], 5_000);
+    assert_eq!(details["completedObservations"], 0);
+    assert!(details.get("lastStatusKind").is_none());
+    assert!(details.get("lastFreshness").is_none());
+    assert!(details.get("lastRevision").is_none());
+    assert!(
+        document.get("source").is_none() || document["source"].is_null(),
+        "a deadline failure carries no source"
+    );
+    Ok(())
+}
+
+/// A stream of non-matching samples spends the whole `--timeout` budget:
+/// the `wait-deadline` arm with honest accounting — the completed
+/// observation count and the last sample's facts, never `readBudgetMs`.
+/// The 4 s budget comfortably covers cohort admission yet stays below the
+/// per-poll 5 s bound, so the expiry can only be the shared total.
+#[test]
+fn wait_deadline_reports_completed_observations() -> TestResult {
+    let base = base_dir("await-total");
+    let scope = stage_scope(&base);
+    let peer = spawn_peer(&scope, 1, |stream| {
+        admit(&stream);
+        // Answer every poll with a non-matching `working` sample until the
+        // CLI's shared total lands and drops the session.
+        while let Ok(request) = read_agent_request(&mut &stream) {
+            answer(
+                &stream,
+                found_document(
+                    "agent.session.get.result",
+                    request.request_id().as_str(),
+                    working_detail("sess-alpha"),
+                    None,
+                ),
+            );
+        }
+    });
+    let started = Instant::now();
+    let output = run(
+        &base,
+        &[
+            "agent",
+            "wait",
+            "sess-alpha",
+            "--timeout",
+            "4000",
+            "--format",
+            "json",
+        ],
+    );
+    let elapsed = started.elapsed();
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(7));
+    assert!(
+        elapsed >= Duration::from_millis(3900) && elapsed < Duration::from_secs(12),
+        "the shared ~4s total lands, never a per-poll 5s bound: {elapsed:?}"
+    );
+    let document = document(&output);
+    let details = &document["failure"]["details"];
+    assert_eq!(document["failure"]["kind"], "timeout");
+    assert_eq!(details["reason"], "wait-deadline");
+    assert_eq!(details["timeoutMs"], 4000);
+    assert!(
+        details["completedObservations"].as_u64().unwrap_or(0) >= 1,
+        "at least one observation completed: {details}"
+    );
+    assert_eq!(details["lastStatusKind"], "working");
+    assert_eq!(details["lastFreshness"], "fresh");
+    assert_eq!(details["lastRevision"], 7);
+    assert!(
+        details.get("readBudgetMs").is_none(),
+        "wait-deadline carries no per-read budget"
+    );
+    Ok(())
+}
+
+/// SIGINT parked inside a held wait exchange is the typed Agent
+/// cancellation: exit status 130, `operation: "wait"`, no source.
+#[test]
+fn wait_sigint_during_held_exchange_is_typed_cancellation() -> TestResult {
+    require_eligible(nix::sys::signal::Signal::SIGINT);
+    let base = base_dir("await-int");
+    let scope = stage_scope(&base);
+    let (peer, ready) = held_exchange_peer(&scope);
+    let child = spawn_cli(&base, &["agent", "wait", "sess-alpha", "--format", "json"]);
+    ready
+        .recv_timeout(Duration::from_secs(15))
+        .expect("the request reached the held peer");
+    signal_child(&child, nix::sys::signal::Signal::SIGINT);
+    let output = wait(child);
+    peer.join().expect("peer finished");
+    assert_typed_cancellation(&output, &base, "wait");
+    Ok(())
+}
+
+/// The published `orchbee.agent.wait` schema restates the wire contract:
+/// real emitted answers validate, and wire-impossible variants — an empty
+/// `matchedConditions`, duplicated condition names, a non-vocabulary name,
+/// or a negative fence — are refused.
+#[test]
+fn wait_envelope_schema_admits_real_answers_only() -> TestResult {
+    let base = base_dir("await-schema");
+    let schema = compiled_schema(&base, "orchbee.agent.wait");
+    let valid_wait = |matched: serde_json::Value, fence: serde_json::Value| {
+        let mut wait = serde_json::json!({
+            "until": ["idle"],
+            "timeoutMs": 600000,
+            "observations": 1,
+            "elapsedMs": 12
+        });
+        if !fence.is_null() {
+            wait["afterRevision"] = fence;
+        }
+        serde_json::json!({
+            "schema": "orchbee.agent.wait",
+            "version": 1,
+            "source": {"kind": "agent-read", "requestId": "11111111111111111111111111111111"},
+            "result": {
+                "matchedConditions": matched,
+                "revision": 7,
+                "session": session_detail("sess-alpha"),
+                "wait": wait
+            }
+        })
+    };
+    assert!(schema.is_valid(&valid_wait(
+        serde_json::json!(["idle"]),
+        serde_json::Value::Null
+    )));
+    assert!(schema.is_valid(&valid_wait(
+        serde_json::json!(["idle", "fresh"]),
+        serde_json::json!(7)
+    )));
+    assert!(
+        !schema.is_valid(&valid_wait(serde_json::json!([]), serde_json::Value::Null)),
+        "an empty matchedConditions is wire-impossible"
+    );
+    assert!(
+        !schema.is_valid(&valid_wait(
+            serde_json::json!(["idle", "idle"]),
+            serde_json::Value::Null
+        )),
+        "duplicate conditions are wire-impossible"
+    );
+    assert!(
+        !schema.is_valid(&valid_wait(
+            serde_json::json!(["running"]),
+            serde_json::Value::Null
+        )),
+        "a non-vocabulary condition is wire-impossible"
+    );
+    assert!(
+        !schema.is_valid(&valid_wait(
+            serde_json::json!(["idle"]),
+            serde_json::json!(-1)
+        )),
+        "a negative fence is wire-impossible"
     );
     Ok(())
 }

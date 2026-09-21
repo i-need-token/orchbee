@@ -35,6 +35,7 @@ fn committed_move_finishes_while_another_owner_holds_the_worker_registry() {
                 label: WorkbenchLabel::parse("pending").unwrap(),
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
                 launch: None,
+                profile: None,
             },
         };
         assert!(matches!(

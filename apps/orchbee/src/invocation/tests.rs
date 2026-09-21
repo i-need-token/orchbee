@@ -1,8 +1,9 @@
 use std::ffi::OsString;
 
 use orchbee_workbench_protocol::{
-    LaunchSelection, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel,
-    WorkbenchPanelSplitDirection, WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
+    LaunchProfileName, LaunchProfileSelector, LaunchSelection, WorkbenchDirectoryId,
+    WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
+    WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
 };
 
 use super::{
@@ -225,6 +226,65 @@ fn site_start_admits_only_format() {
     assert_eq!(
         parse(&["help", "site", "start"]),
         Ok(Request::Help(HelpTopic::Command(CommandPath::SiteStart)))
+    );
+}
+
+#[test]
+fn site_diagnose_admits_only_format() {
+    // The bare path defaults to text; `--format` is the sole option.
+    assert_eq!(
+        parse(&["site", "diagnose"]),
+        Ok(Request::SiteDiagnose {
+            format: OutputFormat::Text
+        })
+    );
+    assert_eq!(
+        parse(&["site", "diagnose", "--format", "json"]),
+        Ok(Request::SiteDiagnose {
+            format: OutputFormat::Json
+        })
+    );
+    assert_eq!(
+        parse(&["--format=json", "site", "diagnose"]),
+        Ok(Request::SiteDiagnose {
+            format: OutputFormat::Json
+        })
+    );
+    let cases: &[&[&str]] = &[
+        // Operands, filters, and business flags are all out of scope —
+        // the command needs no `--confirm`: it performs no effect.
+        &["site", "diagnose", "extra"],
+        &["site", "diagnose", "--project", "x"],
+        &["site", "diagnose", "--confirm"],
+        &["site", "diagnose", "--mouse", "off"],
+    ];
+    for arguments in cases {
+        assert_eq!(
+            parse(arguments),
+            Err(usage(FailureEnvelope::Text)),
+            "{arguments:?}"
+        );
+    }
+    // A json envelope selection survives into the usage failure.
+    assert_eq!(
+        parse(&["site", "diagnose", "extra", "--format", "json"]),
+        Err(ParseFailure {
+            kind: ParseFailureKind::InvalidUsage,
+            envelope: FailureEnvelope::Json,
+            usage: Some(UsageReason::UnexpectedArgument {
+                context: UsageContext::Path("site diagnose"),
+                value: "extra".to_owned(),
+            }),
+        })
+    );
+    // Help-path resolution: command help is its own topic.
+    assert_eq!(
+        parse(&["site", "diagnose", "--help"]),
+        Ok(Request::Help(HelpTopic::Command(CommandPath::SiteDiagnose)))
+    );
+    assert_eq!(
+        parse(&["help", "site", "diagnose"]),
+        Ok(Request::Help(HelpTopic::Command(CommandPath::SiteDiagnose)))
     );
 }
 
@@ -1069,6 +1129,7 @@ fn geometry_bearing_commands_require_the_whole_geometry() {
                 label: label("t"),
                 geometry: geometry(),
                 launch: None,
+                profile: None,
             },
             OutputFormat::Text
         ))
@@ -1085,6 +1146,7 @@ fn geometry_bearing_commands_require_the_whole_geometry() {
                 label: label("p"),
                 geometry: geometry(),
                 launch: None,
+                profile: None,
             },
             OutputFormat::Text
         ))
@@ -1119,6 +1181,7 @@ fn tab_create_admits_exactly_one_context() {
                 label: label("t"),
                 geometry: geometry(),
                 launch: None,
+                profile: None,
             },
             OutputFormat::Text
         ))
@@ -1179,6 +1242,7 @@ fn launch_selection_options_parse_in_every_spelling() {
                     label: label("t"),
                     geometry: geometry(),
                     launch: launch("/bin/sh", arguments),
+                    profile: None,
                 },
                 OutputFormat::Text
             )),
@@ -1219,6 +1283,7 @@ fn launch_selection_options_parse_in_every_spelling() {
                 label: label("p"),
                 geometry: geometry(),
                 launch: launch("/bin/sh", &["-l"]),
+                profile: None,
             },
             OutputFormat::Text
         ))
@@ -1300,6 +1365,299 @@ fn launch_selection_enforces_count_and_byte_bounds() {
         parse_request(over.iter().map(OsString::from)),
         Err(usage(FailureEnvelope::Text))
     );
+}
+
+fn profile_selector(value: &str) -> LaunchProfileSelector {
+    LaunchProfileSelector::parse(value).expect("test selector is protocol-valid")
+}
+
+/// `launch-profile list|get|create|delete`: the four paths, the verbatim
+/// selector operand, and the required `--name`/`--exec` pair on create.
+#[test]
+fn launch_profile_grammar() {
+    assert_eq!(
+        parse(&["launch-profile", "list"]),
+        Ok(query(QueryCommand::LaunchProfileList, OutputFormat::Text))
+    );
+    // The selector is verbatim: ID-shaped, name-shaped, and spaced names all
+    // pass through as the same opaque operand resolved Server-side.
+    for selector in ["abc123:0001a", "dev", "dev shell"] {
+        assert_eq!(
+            parse(&["launch-profile", "get", selector]),
+            Ok(query(
+                QueryCommand::LaunchProfileGet(profile_selector(selector)),
+                OutputFormat::Text
+            )),
+            "{selector:?}"
+        );
+        assert_eq!(
+            parse(&["launch-profile", "delete", selector]),
+            Ok(mutation(
+                MutationCommand::LaunchProfileDelete {
+                    selector: profile_selector(selector),
+                },
+                OutputFormat::Text
+            )),
+            "{selector:?}"
+        );
+    }
+    assert_eq!(
+        parse(&[
+            "launch-profile",
+            "create",
+            "--name",
+            "dev shell",
+            "--exec",
+            "/bin/sh",
+            "--arg",
+            "-l",
+        ]),
+        Ok(mutation(
+            MutationCommand::LaunchProfileCreate {
+                name: LaunchProfileName::parse("dev shell").expect("valid name"),
+                launch: launch("/bin/sh", &["-l"]).expect("valid launch"),
+            },
+            OutputFormat::Text
+        ))
+    );
+    // Option order is free inside the command scope; `--exec`/`--arg` keep
+    // their equals spellings while `--name` only takes the two-token form.
+    assert_eq!(
+        parse(&[
+            "launch-profile",
+            "create",
+            "--arg=-l",
+            "--exec=/bin/sh",
+            "--name",
+            "dev",
+        ]),
+        Ok(mutation(
+            MutationCommand::LaunchProfileCreate {
+                name: LaunchProfileName::parse("dev").expect("valid name"),
+                launch: launch("/bin/sh", &["-l"]).expect("valid launch"),
+            },
+            OutputFormat::Text
+        ))
+    );
+}
+
+#[test]
+fn launch_profile_grammar_fails_closed_on_misuse() {
+    let usage = |arguments: &[&str]| {
+        assert_eq!(
+            parse(arguments),
+            Err(self::usage(FailureEnvelope::Text)),
+            "{arguments:?}"
+        );
+    };
+    // Missing verb, unknown verb, missing/extra operands.
+    usage(&["launch-profile"]);
+    usage(&["launch-profile", "rename", "x"]);
+    usage(&["launch-profile", "get"]);
+    usage(&["launch-profile", "get", "a", "b"]);
+    usage(&["launch-profile", "delete"]);
+    usage(&["launch-profile", "delete", "a", "b"]);
+    usage(&["launch-profile", "list", "x"]);
+    usage(&["launch-profile", "create", "x"]);
+    // Empty and overlong selectors are invalid values.
+    usage(&["launch-profile", "get", ""]);
+    let overlong = "a".repeat(513);
+    usage(&["launch-profile", "get", &overlong]);
+    usage(&["launch-profile", "delete", &overlong]);
+    // Out-of-scope options fail the same generic way.
+    usage(&["launch-profile", "list", "--name", "x"]);
+    usage(&["launch-profile", "get", "a", "--profile", "x"]);
+    usage(&["launch-profile", "delete", "a", "--exec", "/bin/sh"]);
+    usage(&["launch-profile", "delete", "a", "--arg", "x"]);
+    // Create requires both `--name` and `--exec`; each is single-use.
+    usage(&["launch-profile", "create", "--exec", "/bin/sh"]);
+    usage(&["launch-profile", "create", "--name", "n"]);
+    usage(&[
+        "launch-profile",
+        "create",
+        "--name",
+        "n",
+        "--exec",
+        "/bin/sh",
+        "--name",
+        "m",
+    ]);
+    usage(&[
+        "launch-profile",
+        "create",
+        "--name",
+        "n",
+        "--exec",
+        "/bin/sh",
+        "--exec=/bin/zsh",
+    ]);
+    // Empty/overlong names and non-absolute executables are invalid values.
+    usage(&[
+        "launch-profile",
+        "create",
+        "--name",
+        "",
+        "--exec",
+        "/bin/sh",
+    ]);
+    usage(&[
+        "launch-profile",
+        "create",
+        "--name",
+        &overlong,
+        "--exec",
+        "/bin/sh",
+    ]);
+    usage(&["launch-profile", "create", "--name", "n", "--exec", "sh"]);
+    // `--arg` without `--exec` is a missing requirement on create too.
+    usage(&["launch-profile", "create", "--name", "n", "--arg", "-l"]);
+    // `--profile` is scoped to the launch-bearing commands only.
+    usage(&[
+        "launch-profile",
+        "create",
+        "--name",
+        "n",
+        "--exec",
+        "/bin/sh",
+        "--profile",
+        "p",
+    ]);
+    usage(&["launch-profile", "list", "--profile", "p"]);
+    usage(&["tab", "rename", ID, "--label", "x", "--profile", "p"]);
+    // `--name` is scoped to create only.
+    let mut scoped = tab_create_invocation(&[]);
+    scoped.extend(["--name".to_owned(), "n".to_owned()]);
+    assert_eq!(
+        parse_request(scoped.iter().map(OsString::from)),
+        Err(self::usage(FailureEnvelope::Text))
+    );
+}
+
+/// `--profile <selector>` threads into `tab create`/`panel split` and is
+/// mutually exclusive with the explicit `--exec`/`--arg` selection.
+#[test]
+fn profile_option_threads_into_launch_bearing_mutations() {
+    let mut arguments = tab_create_invocation(&["--profile", "dev shell"]);
+    assert_eq!(
+        parse_request(arguments.iter().map(OsString::from)),
+        Ok(mutation(
+            MutationCommand::TabCreate {
+                context: TabContext::Standalone,
+                label: label("t"),
+                geometry: geometry(),
+                launch: None,
+                profile: Some(profile_selector("dev shell")),
+            },
+            OutputFormat::Text
+        ))
+    );
+    // ID-shaped selectors pass through the same two-token form.
+    arguments = tab_create_invocation(&["--profile", "abc123:0001a"]);
+    assert_eq!(
+        parse_request(arguments.iter().map(OsString::from)),
+        Ok(mutation(
+            MutationCommand::TabCreate {
+                context: TabContext::Standalone,
+                label: label("t"),
+                geometry: geometry(),
+                launch: None,
+                profile: Some(profile_selector("abc123:0001a")),
+            },
+            OutputFormat::Text
+        ))
+    );
+
+    let mut split: Vec<String> = ["panel", "split", ID, "--direction", "right", "--label", "p"]
+        .iter()
+        .map(|word| (*word).to_owned())
+        .collect();
+    split.extend(GEOMETRY_ARGS.iter().map(|word| (*word).to_owned()));
+    split.push("--profile".to_owned());
+    split.push("dev".to_owned());
+    assert_eq!(
+        parse_request(split.iter().map(OsString::from)),
+        Ok(mutation(
+            MutationCommand::PanelSplit {
+                target: Target::Id(ID.into()),
+                direction: WorkbenchPanelSplitDirection::Right,
+                label: label("p"),
+                geometry: geometry(),
+                launch: None,
+                profile: Some(profile_selector("dev")),
+            },
+            OutputFormat::Text
+        ))
+    );
+
+    // `--profile` rejects alongside either explicit-launch flag.
+    for extra in [
+        &["--profile", "p", "--exec", "/bin/sh"][..],
+        &["--exec", "/bin/sh", "--profile", "p"][..],
+        &["--profile", "p", "--arg", "-l"][..],
+        &["--arg", "-l", "--profile", "p"][..],
+        // `--profile` is single-use and never admits an equals spelling.
+        &["--profile", "p", "--profile", "q"][..],
+        &["--profile="][..],
+        &["--profile=p"][..],
+    ] {
+        let arguments = tab_create_invocation(extra);
+        assert_eq!(
+            parse_request(arguments.iter().map(OsString::from)),
+            Err(usage(FailureEnvelope::Text)),
+            "{extra:?}"
+        );
+        let mut split: Vec<String> = ["panel", "split", ID, "--direction", "right", "--label", "p"]
+            .iter()
+            .map(|word| (*word).to_owned())
+            .collect();
+        split.extend(GEOMETRY_ARGS.iter().map(|word| (*word).to_owned()));
+        split.extend(extra.iter().map(|word| (*word).to_owned()));
+        assert_eq!(
+            parse_request(split.iter().map(OsString::from)),
+            Err(usage(FailureEnvelope::Text)),
+            "{extra:?}"
+        );
+    }
+}
+
+#[test]
+fn launch_profile_help_paths_resolve() {
+    for (arguments, topic) in [
+        (
+            &["help", "launch-profile"][..],
+            HelpTopic::Family(Family::LaunchProfile),
+        ),
+        (
+            &["help", "launch-profile", "list"][..],
+            HelpTopic::Command(CommandPath::LaunchProfileList),
+        ),
+        (
+            &["help", "launch-profile", "get"][..],
+            HelpTopic::Command(CommandPath::LaunchProfileGet),
+        ),
+        (
+            &["help", "launch-profile", "create"][..],
+            HelpTopic::Command(CommandPath::LaunchProfileCreate),
+        ),
+        (
+            &["help", "launch-profile", "delete"][..],
+            HelpTopic::Command(CommandPath::LaunchProfileDelete),
+        ),
+        (
+            &["launch-profile", "--help"][..],
+            HelpTopic::Family(Family::LaunchProfile),
+        ),
+        (
+            &["launch-profile", "list", "--help"][..],
+            HelpTopic::Command(CommandPath::LaunchProfileList),
+        ),
+        (
+            &["launch-profile", "create", "--help"][..],
+            HelpTopic::Command(CommandPath::LaunchProfileCreate),
+        ),
+    ] {
+        assert_eq!(parse(arguments), Ok(Request::Help(topic)), "{arguments:?}");
+    }
 }
 
 #[test]
@@ -1446,6 +1804,7 @@ fn mutation_required_options_cannot_be_dropped() {
                 label: label("p"),
                 geometry: geometry(),
                 launch: None,
+                profile: None,
             },
             OutputFormat::Text
         ))
@@ -1719,6 +2078,7 @@ fn mutation_values_are_bounded() {
                 geometry: WorkbenchTerminalGeometry::new(512, 512, 64, 63)
                     .expect("geometry inside bounds"),
                 launch: None,
+                profile: None,
             },
             OutputFormat::Text
         ))
@@ -1749,6 +2109,7 @@ fn mutation_values_are_bounded() {
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 0, 0)
                     .expect("paired-zero geometry is protocol-valid"),
                 launch: None,
+                profile: None,
             },
             OutputFormat::Text
         ))
@@ -3692,6 +4053,284 @@ fn agent_read_usage_failures() {
     );
 }
 
+/// `agent wait`: the held-session wait grammar — the canonical default
+/// seven when `--until` is absent, the twelve-name vocabulary in requested
+/// order, the safe-integer revision fence, and the 600000 ms default.
+#[test]
+fn agent_wait_grammar() {
+    use orchbee_agent_observation_protocol::AgentSessionId;
+    let session = || AgentSessionId::parse("sess-alpha").expect("valid session id");
+    let defaults = crate::invocation::DEFAULT_AGENT_WAIT_CONDITIONS.to_vec();
+
+    // Absent every option: the canonical default seven in canonical order,
+    // no fence, and the wait's own 600000 ms budget — never wait-output's.
+    assert_eq!(
+        parse(&["agent", "wait", "sess-alpha"]),
+        Ok(query(
+            QueryCommand::AgentWait {
+                session: session(),
+                until: defaults.clone(),
+                after_revision: None,
+                timeout_ms: 600_000,
+            },
+            OutputFormat::Text
+        ))
+    );
+    // Every declared option in any order; `--until` repeats in requested
+    // order verbatim.
+    assert_eq!(
+        parse(&[
+            "agent",
+            "wait",
+            "sess-alpha",
+            "--until",
+            "stale",
+            "--after-revision",
+            "42",
+            "--timeout",
+            "1200",
+            "--until",
+            "failed",
+            "--format",
+            "json",
+        ]),
+        Ok(query(
+            QueryCommand::AgentWait {
+                session: session(),
+                until: vec![
+                    crate::invocation::AgentWaitCondition::Stale,
+                    crate::invocation::AgentWaitCondition::Failed,
+                ],
+                after_revision: Some(orchbee_agent_observation_protocol::AgentSafeInteger::new(
+                    42
+                )),
+                timeout_ms: 1_200,
+            },
+            OutputFormat::Json
+        ))
+    );
+    // The whole twelve-name condition vocabulary parses, one per flag.
+    for (name, condition) in [
+        (
+            "needs-attention",
+            crate::invocation::AgentWaitCondition::NeedsAttention,
+        ),
+        ("failed", crate::invocation::AgentWaitCondition::Failed),
+        (
+            "succeeded",
+            crate::invocation::AgentWaitCondition::Succeeded,
+        ),
+        ("canceled", crate::invocation::AgentWaitCondition::Canceled),
+        (
+            "interrupted",
+            crate::invocation::AgentWaitCondition::Interrupted,
+        ),
+        ("working", crate::invocation::AgentWaitCondition::Working),
+        ("idle", crate::invocation::AgentWaitCondition::Idle),
+        ("unknown", crate::invocation::AgentWaitCondition::Unknown),
+        ("ended", crate::invocation::AgentWaitCondition::Ended),
+        ("fresh", crate::invocation::AgentWaitCondition::Fresh),
+        ("stale", crate::invocation::AgentWaitCondition::Stale),
+        (
+            "disconnected",
+            crate::invocation::AgentWaitCondition::Disconnected,
+        ),
+    ] {
+        let Ok(request) = parse(&["agent", "wait", "sess-alpha", "--until", name]) else {
+            panic!("--until {name} must parse");
+        };
+        let Request::Query { command, .. } = request else {
+            panic!("--until {name} resolves to a query");
+        };
+        assert_eq!(
+            command,
+            QueryCommand::AgentWait {
+                session: session(),
+                until: vec![condition],
+                after_revision: None,
+                timeout_ms: 600_000,
+            },
+            "--until {name}"
+        );
+    }
+    // Fence and timeout bounds are inclusive on both ends.
+    for value in ["0", "9007199254740991"] {
+        assert_eq!(
+            parse(&["agent", "wait", "sess-alpha", "--after-revision", value]),
+            Ok(query(
+                QueryCommand::AgentWait {
+                    session: session(),
+                    until: defaults.clone(),
+                    after_revision: Some(
+                        orchbee_agent_observation_protocol::AgentSafeInteger::new(
+                            value.parse().expect("bound literal")
+                        )
+                    ),
+                    timeout_ms: 600_000,
+                },
+                OutputFormat::Text
+            )),
+            "--after-revision {value}"
+        );
+    }
+    for value in ["1", "3600000"] {
+        assert_eq!(
+            parse(&["agent", "wait", "sess-alpha", "--timeout", value]),
+            Ok(query(
+                QueryCommand::AgentWait {
+                    session: session(),
+                    until: defaults.clone(),
+                    after_revision: None,
+                    timeout_ms: value.parse().expect("bound literal"),
+                },
+                OutputFormat::Text
+            )),
+            "--timeout {value}"
+        );
+    }
+}
+
+/// `agent wait` usage failures: wrong arity, out-of-scope options, unknown
+/// or duplicated conditions, and out-of-range values all stay usage
+/// failures — the wire never sees them.
+#[test]
+fn agent_wait_usage_failures() {
+    let usage_reason = |arguments: &[&str]| {
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.kind,
+            ParseFailureKind::InvalidUsage,
+            "{arguments:?}"
+        );
+        failure.usage.expect("usage reason recorded")
+    };
+    let path = |spelling: &'static str| UsageContext::Path(spelling);
+
+    assert_eq!(
+        usage_reason(&["agent", "wait"]),
+        UsageReason::MissingRequired {
+            context: path("agent wait"),
+            requirement: "<session>",
+        }
+    );
+    assert_eq!(
+        usage_reason(&["agent", "wait", "a", "b"]),
+        UsageReason::UnexpectedArgument {
+            context: path("agent wait"),
+            value: "b".to_owned(),
+        }
+    );
+    // Out-of-scope options, including the wait-output peers `--timeout`
+    // does not bring along.
+    for (arguments, option) in [
+        (&["agent", "wait", "sess", "--match", "x"][..], "--match"),
+        (&["agent", "wait", "sess", "--rows", "5"][..], "--rows"),
+        (
+            &["agent", "wait", "sess", "--include-ended"][..],
+            "--include-ended",
+        ),
+        (&["agent", "wait", "sess", "--limit", "5"][..], "--limit"),
+        (
+            &["agent", "wait", "sess", "--cursor", AGENT_CURSOR][..],
+            "--cursor",
+        ),
+        (&["agent", "wait", "sess", "--label", "x"][..], "--label"),
+    ] {
+        assert_eq!(
+            usage_reason(arguments),
+            UsageReason::UnexpectedOption {
+                context: path("agent wait"),
+                option,
+            },
+            "{arguments:?}"
+        );
+    }
+    // Unknown condition names name the closed vocabulary.
+    for value in ["running", "done", "Idle", ""] {
+        assert_eq!(
+            usage_reason(&["agent", "wait", "sess", "--until", value]),
+            UsageReason::InvalidValue {
+                context: path("agent wait"),
+                option: "--until",
+                value: value.to_owned(),
+                expected: ExpectedValue::AgentWaitUntil,
+            },
+            "--until {value}"
+        );
+    }
+    // A repeated condition is a duplicate option, distinct from a repeat
+    // of the flag itself carrying a different value.
+    assert_eq!(
+        usage_reason(&[
+            "agent", "wait", "sess", "--until", "idle", "--until", "idle"
+        ]),
+        UsageReason::DuplicateOption { option: "--until" }
+    );
+    // Fence values outside the safe-integer range fail; the flag itself is
+    // single-use.
+    for value in ["-1", "9007199254740992", "1.5", "abc"] {
+        assert_eq!(
+            usage_reason(&["agent", "wait", "sess", "--after-revision", value]),
+            UsageReason::InvalidValue {
+                context: path("agent wait"),
+                option: "--after-revision",
+                value: value.to_owned(),
+                expected: ExpectedValue::AgentAfterRevision,
+            },
+            "--after-revision {value}"
+        );
+    }
+    assert_eq!(
+        usage_reason(&[
+            "agent",
+            "wait",
+            "sess",
+            "--after-revision",
+            "1",
+            "--after-revision",
+            "2"
+        ]),
+        UsageReason::DuplicateOption {
+            option: "--after-revision",
+        }
+    );
+    // The shared `--timeout` flag under the wait meaning: the same
+    // 1..=3600000 vocabulary `wait-output` uses.
+    for value in ["0", "3600001", "1.5", "abc"] {
+        assert_eq!(
+            usage_reason(&["agent", "wait", "sess", "--timeout", value]),
+            UsageReason::InvalidValue {
+                context: path("agent wait"),
+                option: "--timeout",
+                value: value.to_owned(),
+                expected: ExpectedValue::WaitTimeout,
+            },
+            "--timeout {value}"
+        );
+    }
+    assert_eq!(
+        usage_reason(&["agent", "wait", "sess", "--timeout", "5", "--timeout", "6"]),
+        UsageReason::DuplicateOption {
+            option: "--timeout"
+        }
+    );
+    assert_eq!(
+        usage_reason(&["agent", "wait", "sess", "--until"]),
+        UsageReason::MissingValue { option: "--until" }
+    );
+    assert_eq!(
+        usage_reason(&["agent", "wait", "bad id!"]),
+        UsageReason::InvalidValue {
+            context: path("agent wait"),
+            option: "<session>",
+            value: "bad id!".to_owned(),
+            expected: ExpectedValue::AgentSessionId,
+        }
+    );
+}
+
 /// Agent help resolves on both surfaces and lands on the pinned topics.
 #[test]
 fn agent_help_paths_resolve() {
@@ -3707,6 +4346,7 @@ fn agent_help_paths_resolve() {
         ("list", CommandPath::AgentList),
         ("get", CommandPath::AgentGet),
         ("explain", CommandPath::AgentExplain),
+        ("wait", CommandPath::AgentWait),
     ] {
         assert_eq!(
             parse(&["agent", verb, "--help"]),
@@ -3719,4 +4359,236 @@ fn agent_help_paths_resolve() {
             "help agent {verb}"
         );
     }
+}
+
+/// `agent doctor` grammar: provider and asset-root selectors are repeatable
+/// and order-preserving, `--format` stays orthogonal, and no flag selects a
+/// network path — the query variant is the whole result.
+#[test]
+fn agent_doctor_grammar() {
+    // Defaults: all providers, no supplied roots, text output.
+    assert_eq!(
+        parse(&["agent", "doctor"]),
+        Ok(query(
+            QueryCommand::AgentDoctor {
+                providers: Vec::new(),
+                asset_roots: Vec::new(),
+            },
+            OutputFormat::Text
+        ))
+    );
+    // Both selectors repeat and keep flag order; duplicates pass through the
+    // grammar layer untouched (canonical-order dedup lives in the probe).
+    assert_eq!(
+        parse(&[
+            "agent",
+            "doctor",
+            "--provider",
+            "qwen-code",
+            "--asset-root",
+            "/opt/capsule-a",
+            "--provider",
+            "codex",
+            "--provider",
+            "codex",
+            "--asset-root",
+            "/opt/capsule-b",
+        ]),
+        Ok(query(
+            QueryCommand::AgentDoctor {
+                providers: vec![
+                    "qwen-code".to_owned(),
+                    "codex".to_owned(),
+                    "codex".to_owned(),
+                ],
+                asset_roots: vec!["/opt/capsule-a".to_owned(), "/opt/capsule-b".to_owned()],
+            },
+            OutputFormat::Text
+        ))
+    );
+    // Every canonical provider id admits.
+    for id in [
+        "claude-code",
+        "codex",
+        "gemini",
+        "github-copilot",
+        "grok",
+        "cline",
+        "opencode",
+        "pi",
+        "omp",
+        "qwen-code",
+    ] {
+        assert_eq!(
+            parse(&["agent", "doctor", "--provider", id]),
+            Ok(query(
+                QueryCommand::AgentDoctor {
+                    providers: vec![id.to_owned()],
+                    asset_roots: Vec::new(),
+                },
+                OutputFormat::Text
+            )),
+            "--provider {id}"
+        );
+    }
+    // Exactly four supplied roots is the admitted ceiling.
+    assert_eq!(
+        parse(&[
+            "agent",
+            "doctor",
+            "--asset-root",
+            "/a",
+            "--asset-root",
+            "/b",
+            "--asset-root",
+            "/c",
+            "--asset-root",
+            "/d",
+        ]),
+        Ok(query(
+            QueryCommand::AgentDoctor {
+                providers: Vec::new(),
+                asset_roots: vec![
+                    "/a".to_owned(),
+                    "/b".to_owned(),
+                    "/c".to_owned(),
+                    "/d".to_owned()
+                ],
+            },
+            OutputFormat::Text
+        ))
+    );
+    // Format selection applies like every other query.
+    assert_eq!(
+        parse(&["agent", "doctor", "--format", "json"]),
+        Ok(query(
+            QueryCommand::AgentDoctor {
+                providers: Vec::new(),
+                asset_roots: Vec::new(),
+            },
+            OutputFormat::Json
+        ))
+    );
+}
+
+/// `agent doctor` usage failures: unknown provider ids, non-absolute or
+/// over-limit asset roots, missing option values, and out-of-scope options
+/// are all typed usage failures — nothing reaches the probe layer.
+#[test]
+fn agent_doctor_usage_failures() {
+    let usage_reason = |arguments: &[&str]| {
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.kind,
+            ParseFailureKind::InvalidUsage,
+            "{arguments:?}"
+        );
+        failure.usage.expect("usage reason recorded")
+    };
+    let path = |spelling: &'static str| UsageContext::Path(spelling);
+
+    for value in ["claude", "CODEX", "codex ", "", "gpt-5"] {
+        assert_eq!(
+            usage_reason(&["agent", "doctor", "--provider", value]),
+            UsageReason::InvalidValue {
+                context: path("agent doctor"),
+                option: "--provider",
+                value: value.to_owned(),
+                expected: ExpectedValue::ProviderId,
+            },
+            "--provider {value:?}"
+        );
+    }
+    // Relative spellings, empties, and ~/$ forms are usage failures at the
+    // grammar boundary — never expanded and never probed as guesses.
+    for value in ["", "rel/path", "./x", "../x", "~/x", "$HOME/x", "x/"] {
+        assert_eq!(
+            usage_reason(&["agent", "doctor", "--asset-root", value]),
+            UsageReason::InvalidValue {
+                context: path("agent doctor"),
+                option: "--asset-root",
+                value: value.to_owned(),
+                expected: ExpectedValue::AssetRootPath,
+            },
+            "--asset-root {value:?}"
+        );
+    }
+    // A fifth supplied root overruns the declared ceiling.
+    assert_eq!(
+        usage_reason(&[
+            "agent",
+            "doctor",
+            "--asset-root",
+            "/a",
+            "--asset-root",
+            "/b",
+            "--asset-root",
+            "/c",
+            "--asset-root",
+            "/d",
+            "--asset-root",
+            "/e",
+        ]),
+        UsageReason::InvalidValue {
+            context: path("agent doctor"),
+            option: "--asset-root",
+            value: "/a /b /c /d /e".to_owned(),
+            expected: ExpectedValue::AssetRootPath,
+        }
+    );
+    for option in ["--provider", "--asset-root"] {
+        assert_eq!(
+            usage_reason(&["agent", "doctor", option]),
+            UsageReason::MissingValue { option },
+            "{option} alone"
+        );
+    }
+    // Out-of-scope options and stray operands stay usage failures.
+    for (arguments, reason) in [
+        (
+            &["agent", "doctor", "--include-ended"][..],
+            UsageReason::UnexpectedOption {
+                context: path("agent doctor"),
+                option: "--include-ended",
+            },
+        ),
+        (
+            &["agent", "doctor", "--cursor", AGENT_CURSOR][..],
+            UsageReason::UnexpectedOption {
+                context: path("agent doctor"),
+                option: "--cursor",
+            },
+        ),
+        (
+            &["agent", "doctor", "--label", "x"][..],
+            UsageReason::UnexpectedOption {
+                context: path("agent doctor"),
+                option: "--label",
+            },
+        ),
+        (
+            &["agent", "doctor", "extra"][..],
+            UsageReason::UnexpectedArgument {
+                context: path("agent doctor"),
+                value: "extra".to_owned(),
+            },
+        ),
+    ] {
+        assert_eq!(usage_reason(arguments), reason, "{arguments:?}");
+    }
+}
+
+/// `agent doctor` help resolves on both surfaces to the pinned command topic.
+#[test]
+fn agent_doctor_help_paths_resolve() {
+    assert_eq!(
+        parse(&["agent", "doctor", "--help"]),
+        Ok(Request::Help(HelpTopic::Command(CommandPath::AgentDoctor)))
+    );
+    assert_eq!(
+        parse(&["help", "agent", "doctor"]),
+        Ok(Request::Help(HelpTopic::Command(CommandPath::AgentDoctor)))
+    );
 }

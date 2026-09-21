@@ -1,0 +1,105 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.site.diagnose",
+	"title": "orchbee site diagnose envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.site.diagnose" },
+		"version": { "const": 1 },
+		"source": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "local-runtime" }
+			}
+		},
+		"result": {
+			"type": "object",
+			"required": [
+				"complete",
+				"scope",
+				"runtimeBase",
+				"runtimeDirectory",
+				"marker",
+				"locks",
+				"endpoints",
+				"hostScope",
+				"advisories"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"complete": { "type": "boolean" },
+				"scope": { "type": "string", "pattern": "^orchbee-native-[0-9]+$" },
+				"runtimeBase": { "$ref": "#/$defs/row" },
+				"runtimeDirectory": { "$ref": "#/$defs/row" },
+				"marker": { "$ref": "#/$defs/row" },
+				"locks": {
+					"type": "object",
+					"required": ["activation", "siteLifetime"],
+					"additionalProperties": false,
+					"properties": {
+						"activation": { "$ref": "#/$defs/row" },
+						"siteLifetime": { "$ref": "#/$defs/row" }
+					}
+				},
+				"endpoints": {
+					"type": "object",
+					"required": ["client", "worker", "clientPending", "agentObservation", "hostEndpoint"],
+					"additionalProperties": false,
+					"properties": {
+						"client": { "$ref": "#/$defs/row" },
+						"worker": { "$ref": "#/$defs/row" },
+						"clientPending": { "$ref": "#/$defs/row" },
+						"agentObservation": { "$ref": "#/$defs/row" },
+						"hostEndpoint": { "$ref": "#/$defs/row" }
+					}
+				},
+				"hostScope": { "$ref": "#/$defs/row" },
+				"advisories": {
+					"type": "array",
+					"items": { "enum": ["activation-recorded", "socket-residue"] }
+				}
+			}
+		}
+	},
+	"$defs": {
+		"row": {
+			"type": "object",
+			"required": ["state"],
+			"additionalProperties": false,
+			"properties": {
+				"state": {
+					"enum": ["known", "absent", "unsafe", "uninspectable", "free", "held"]
+				},
+				"reason": {
+					"enum": [
+						"symlink",
+						"invalid-kind",
+						"foreign-owner",
+						"invalid-mode",
+						"invalid-size",
+						"invalid-link-count",
+						"invalid-lock",
+						"denied",
+						"io-error",
+						"invalid-path",
+						"identity-changed",
+						"unsafe-parent",
+						"parent-unavailable",
+						"deadline"
+					]
+				},
+				"kind": { "enum": ["socket", "regular", "directory", "symlink", "other"] },
+				"ownerMatch": { "type": "boolean" },
+				"mode": { "type": "string", "pattern": "^[0-7]{4,}$" },
+				"size": { "type": "integer", "minimum": 0 },
+				"linkCount": { "type": "integer", "minimum": 0 },
+				"path": { "type": "string", "minLength": 1 },
+				"pathBytesHex": { "type": "string", "pattern": "^([0-9a-f]{2})+$" }
+			}
+		}
+	}
+}

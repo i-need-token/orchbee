@@ -270,6 +270,7 @@ fn add_terminal(service: &LocalTerminalService, index: u8) -> WorkbenchCommand {
             label: WorkbenchLabel::parse("viewer routing").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
+            profile: None,
         },
     };
     let mut site = service.coordinator.lock().unwrap();

@@ -229,12 +229,21 @@ pub struct WorkbenchPanelSplitAdmission<'a> {
     label: String,
     staged: StagedWorkbenchPanelSplitMetadata,
     last_identity: u128,
+    profile_use: Option<super::LaunchProfileUse>,
 }
 
 impl<'a> WorkbenchPanelSplitAdmission<'a> {
     #[must_use]
     pub fn staged_metadata(&self) -> &StagedWorkbenchPanelSplitMetadata {
         &self.staged
+    }
+
+    /// The catalog resolution frozen at prepare: `Some` carries the stored
+    /// launch selection plus profile provenance, `None` means the command's
+    /// explicit `launch` (or the default launch) applies.
+    #[must_use]
+    pub const fn profile_use(&self) -> Option<&super::LaunchProfileUse> {
+        self.profile_use.as_ref()
     }
 
     #[must_use]
@@ -262,6 +271,7 @@ impl<'a> WorkbenchPanelSplitAdmission<'a> {
             label,
             staged,
             last_identity,
+            profile_use: _,
         } = self;
         let mut candidate = authority.projection.snapshot().clone();
         let Some(context) = candidate
@@ -606,6 +616,7 @@ impl WorkbenchAuthority {
             label,
             geometry,
             launch: _,
+            profile,
         } = command.action.clone()
         else {
             return WorkbenchPanelSplitBegin::Ready(result(
@@ -726,6 +737,35 @@ impl WorkbenchAuthority {
                 unavailable(WorkbenchCommandUnavailableReason::TerminalBusy),
             ));
         }
+        // A `profile` selector resolves here — at prepare, under the
+        // coordinator lock that owns the catalog — so the stored selection and
+        // its provenance are frozen before the asynchronous gap. Resolution
+        // failures are journaled like every other settled outcome, so an
+        // identical request replays the same answer.
+        let profile_use = match &profile {
+            None => None,
+            Some(selector) => match super::resolve_profile_selector(&self.catalog, selector) {
+                super::ProfileSelectorResolution::Found(entry) => Some(super::LaunchProfileUse {
+                    launch: entry.launch.clone(),
+                    profile_id: entry.profile_id.clone(),
+                    catalog_revision: orchbee_workbench_protocol::LaunchProfileCatalogRevision::new(
+                        self.catalog_revision,
+                    ),
+                }),
+                super::ProfileSelectorResolution::NotFound => {
+                    return WorkbenchPanelSplitBegin::Ready(self.retain_outcome(
+                        command,
+                        WorkbenchCommandOutcome::LaunchProfileUnavailable {},
+                    ));
+                }
+                super::ProfileSelectorResolution::Ambiguous(candidate_ids) => {
+                    return WorkbenchPanelSplitBegin::Ready(self.retain_outcome(
+                        command,
+                        WorkbenchCommandOutcome::LaunchProfileAmbiguous { candidate_ids },
+                    ));
+                }
+            },
+        };
         WorkbenchPanelSplitBegin::Admitted(Box::new(WorkbenchPanelSplitAdmission {
             authority: self,
             command,
@@ -745,6 +785,7 @@ impl WorkbenchAuthority {
                 target,
             },
             last_identity,
+            profile_use,
         }))
     }
 

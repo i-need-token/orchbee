@@ -1,0 +1,66 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.launch-profile.list",
+	"title": "orchbee launch profile list envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.launch-profile.list" },
+		"version": { "const": 1 },
+		"source": { "$ref": "#/$defs/catalogSource" },
+		"result": {
+			"type": "object",
+			"required": ["catalogRevision", "profiles"],
+			"additionalProperties": false,
+			"properties": {
+				"catalogRevision": { "$ref": "#/$defs/revision" },
+				"profiles": {
+					"type": "array",
+					"maxItems": 64,
+					"items": { "$ref": "#/$defs/profile" }
+				}
+			}
+		}
+	},
+	"$defs": {
+		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+		"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+		"profileId": {
+			"type": "string",
+			"pattern": "^[0-9A-Za-z][0-9A-Za-z._:-]{0,127}$"
+		},
+		"profile": {
+			"type": "object",
+			"required": ["profileId", "name", "launch"],
+			"additionalProperties": false,
+			"properties": {
+				"profileId": { "$ref": "#/$defs/profileId" },
+				"name": { "type": "string", "minLength": 1, "maxLength": 512 },
+				"launch": {
+					"type": "object",
+					"required": ["exec", "args"],
+					"additionalProperties": false,
+					"properties": {
+						"exec": { "type": "string", "minLength": 1, "pattern": "^/" },
+						"args": {
+							"type": "array",
+							"maxItems": 128,
+							"items": { "type": "string" }
+						}
+					}
+				}
+			}
+		},
+		"catalogSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "catalogRevision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "launch-profile-catalog" },
+				"siteId": { "$ref": "#/$defs/id" },
+				"catalogRevision": { "$ref": "#/$defs/revision" }
+			}
+		}
+	}
+}

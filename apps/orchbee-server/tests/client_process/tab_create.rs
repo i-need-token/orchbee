@@ -437,6 +437,7 @@ fn tab_create_commits_before_parked_launch_and_another_client_can_read_navigate_
             label: WorkbenchLabel::parse(SECOND_TAB_LABEL)?,
             geometry: tab_geometry,
             launch: None,
+            profile: None,
         },
     );
     let parked_deadline = deadline();

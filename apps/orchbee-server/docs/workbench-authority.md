@@ -488,6 +488,35 @@ cross-restart request replay. A new Site identity rejects requests addressed to 
 | New request exceeds either ledger bound                                        | unavailable: request-ledger-full                                                                           |
 | Service retired or unexpected internal candidate/serialization invariant fails | unavailable: service-unavailable; the service retires rather than representing a bug as a client rejection |
 
+## Launch Profile catalog
+
+The authority also owns one ephemeral, per-Site Launch Profile catalog: private Server state that
+names reusable custom-executable launch selections for `tab.create` and `panel.split`. The catalog
+is memory-only and dies with the Site process; it never enters the public snapshot, so a
+navigation commit cannot observe or mutate it and `deny_unknown_fields` fences old readers from
+new shapes entirely.
+
+| Field        | Contract                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | Admitted Clients must list, resolve, create and delete named custom-executable selections and consume them at terminal creation without a second catalog writer or a persisted registry.                                                                                                                                                                                                                              |
+| Inputs       | A strict `workbench.launch-profile-catalog.read` intent with request identity and an optional selector, or a strict `launch-profile.create`/`launch-profile.delete` command. A selector is opaque 1–512-byte text; a name shares the label envelope; a selection is the closed launch contract.                                                                                                                       |
+| Data         | A bounded entry vector (64 entries, 256 KiB serialized aggregate), a private monotonically increasing catalog revision, and the same request/result ledger the navigation group uses. Profiles mint opaque ids `<siteHex>:<counterHex>` from the Site identity and the existing Server identity cursor.                                                                                                               |
+| Outputs      | Read returns catalog { entries }, profile { entry }, not-found, ambiguous { candidateIds }, denied, or unavailable. Commands return launch-profile-created/deleted { revision, catalogRevision, profileId }, the journaled selector resolutions launch-profile-unavailable and launch-profile-ambiguous { candidateIds }, plus the ordinary rejected/denied/unavailable set.                                          |
+| Invariants   | Only Server commits catalog state. A committed create/delete advances the Workbench revision and the private catalog revision together, atomically with projection, ledger and retained-request updates. An exact profile-id match resolves before any name lookup; otherwise zero name matches is not-found, one is found, and more than one is ambiguous with the bounded id list captured at that same resolution. |
+| Decisions    | Reads carry the same site-identity grant semantics as snapshot reads and never enter the command ledger. Selector failures journal like every other settled outcome, so an identical request replays the same answer. Byte-capacity and revision-exhaustion rejections precede any catalog mutation. A dead Site's ids embed that Site identity and can never alias a different Site's entries.                       |
+| Model        | The same deterministic serialized transition: candidate state is staged under the commit gate, and no recoverable check follows the first mutation.                                                                                                                                                                                                                                                                   |
+| Ownership    | The authority owns catalog entries, the private catalog revision and minting. The service owns policy mapping (reads under the read grant, mutations under navigation) and call serialization. Terminal creation consumes a resolved `LaunchProfileUse` — never the selector text — so the Worker launch payload still carries only executable and arguments.                                                         |
+| Verification | Authority stateful tests covering id-first/cardinality resolution, replay and conflict, count and serialized bounds, revision exhaustion with zero mutation, and cross-Site id non-aliasing; coordinator tests covering prepare-time freeze and provenance publication.                                                                                                                                               |
+
+`tab.create` and `panel.split` accept either the existing explicit `launch` selection or a `profile`
+selector, never both — the wire shape rejects the combination at parse and at serialize. A `profile`
+selector resolves inside command admission under the same coordinator lock that owns the catalog:
+the resolved selection and a `{profileId, catalogRevision}` provenance pair are frozen before the
+asynchronous Worker gap, so a profile deleted after dispatch still launches its captured payload and
+the terminal's launch read still publishes its provenance. Resolution failures settle as journaled
+typed outcomes, and the ambiguity payload carries only candidate ids, captured at that resolution —
+never executable text from another resolution.
+
 ## Evidence and refinement
 
 | Claim                                                                                             | Required witness                                                               | Bounds                                                                        |

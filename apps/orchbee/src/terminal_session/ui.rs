@@ -2105,9 +2105,11 @@ const fn create_precommit_notice(outcome: &CreatePrecommitOutcome) -> SessionNot
         CreatePrecommitOutcome::NotSubmitted
         | CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::Rejected { .. })
         | CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::Denied)
-        | CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::Unavailable { .. }) => {
-            SessionNotice::CreateNotCreated
-        }
+        | CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::Unavailable { .. })
+        | CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::ProfileUnavailable)
+        | CreatePrecommitOutcome::Returned(WorkbenchTabCreatePrecommit::ProfileAmbiguous {
+            ..
+        }) => SessionNotice::CreateNotCreated,
     }
 }
 
@@ -2161,6 +2163,7 @@ fn build_create(
             label,
             geometry: workbench_geometry,
             launch: None,
+            profile: None,
         },
     };
     let request = WorkbenchTabCreateRequest::try_from(command)

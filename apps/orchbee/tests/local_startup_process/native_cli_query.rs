@@ -267,7 +267,7 @@ fn cli_query_reads_real_state_while_a_tui_keeps_the_site() -> TestResult {
         "terminal get: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(get["version"], 2);
+    assert_eq!(get["version"], 3);
     assert_eq!(get["source"]["kind"], "terminal-launch-read");
     let get_terminal = &get["result"]["terminal"];
     assert_eq!(get_terminal["terminalId"], terminal_id);

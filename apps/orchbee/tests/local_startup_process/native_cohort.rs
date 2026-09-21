@@ -181,10 +181,21 @@ impl Fixture {
                 )),
             );
         }
+        // A controlled dummy digest stands in for the adapters payload — the
+        // fixture stages no sidecar, so cohort admission stays lazy. A real
+        // staged cohort under ORCHBEE_TEST_NATIVE_COHORT is only validated by
+        // the load above; its manifest is never copied into the fixture.
+        artifacts.insert(
+            "agent-observation-adapters".into(),
+            serde_json::Value::String(format!(
+                "{:x}",
+                Sha256::digest(b"staged stand-in adapters\n")
+            )),
+        );
         let manifest = self.cohort.join("cohort.json");
         fs::write(
             &manifest,
-            serde_json::to_vec(&serde_json::json!({"schemaVersion":1,"artifacts":artifacts}))
+            serde_json::to_vec(&serde_json::json!({"schemaVersion":2,"artifacts":artifacts}))
                 .unwrap(),
         )
         .unwrap();

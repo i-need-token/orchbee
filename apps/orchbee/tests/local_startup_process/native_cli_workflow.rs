@@ -437,7 +437,7 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
     }
 
     // 8.5. `terminal get` on the live first terminal — the Server-authoritative
-    //     launch-read witness. The envelope is `version: 2` sourced by the
+    //     launch-read witness. The envelope is `version: 3` sourced by the
     //     Server-joined read (not a client snapshot), `launch` nests inside
     //     `result.terminal`, and the joined revision equals the revision an
     //     adjacent `terminal list` observed (nothing mutates between the two
@@ -457,7 +457,7 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
         String::from_utf8_lossy(&output.stderr)
     );
     validate(&validators, "orchbee.terminal.get", &output);
-    assert_eq!(got["version"], 2, "get answers with the v2 envelope: {got}");
+    assert_eq!(got["version"], 3, "get answers with the v3 envelope: {got}");
     assert_eq!(got["source"]["kind"], "terminal-launch-read");
     assert_eq!(
         got["source"]["siteId"],
@@ -887,7 +887,7 @@ fn cli_get_reads_the_retained_failed_launch_without_tui() -> TestResult {
         String::from_utf8_lossy(&output.stderr)
     );
     validate(&validators, "orchbee.terminal.get", &output);
-    assert_eq!(got["version"], 2);
+    assert_eq!(got["version"], 3);
     assert_eq!(got["source"]["kind"], "terminal-launch-read");
     assert_eq!(got["source"]["siteId"], site_id.as_str());
     let terminal = &got["result"]["terminal"];

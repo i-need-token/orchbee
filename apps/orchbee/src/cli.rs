@@ -1,14 +1,15 @@
 mod completion;
-mod config;
+pub(crate) mod config;
 pub(crate) mod escape;
 mod mutation;
-mod output;
-mod present;
+pub(crate) mod output;
+pub(crate) mod present;
 mod query;
 pub(crate) mod results;
 pub(crate) mod schema;
 pub(crate) mod send;
 mod site;
+mod site_diagnose;
 #[cfg(target_os = "linux")]
 pub(crate) mod source;
 mod text;
@@ -229,11 +230,11 @@ fn target_details(resource: crate::invocation::Resource, target: &str) -> Map<St
     ])
 }
 
-fn stage_details(stage: &str) -> Map<String, Value> {
+pub(crate) fn stage_details(stage: &str) -> Map<String, Value> {
     Map::from_iter([("stage".to_owned(), json!(stage))])
 }
 
-fn stage_reason_details(stage: &str, reason: &str) -> Map<String, Value> {
+pub(crate) fn stage_reason_details(stage: &str, reason: &str) -> Map<String, Value> {
     Map::from_iter([
         ("stage".to_owned(), json!(stage)),
         ("reason".to_owned(), json!(reason)),
@@ -242,7 +243,11 @@ fn stage_reason_details(stage: &str, reason: &str) -> Map<String, Value> {
 
 /// Encode a failure into its process answer. `format` is the format selected by
 /// a valid selector before the failure; `None` keeps stdout empty.
-fn failure_output(failure: Failure, format: Option<OutputFormat>, locale: Locale) -> Output {
+pub(crate) fn failure_output(
+    failure: Failure,
+    format: Option<OutputFormat>,
+    locale: Locale,
+) -> Output {
     let status = failure.kind.exit_code();
     let stderr = locale.cli_failure(&failure);
     match format {
@@ -396,12 +401,26 @@ pub(crate) fn site_start(format: OutputFormat, locale: Locale) -> Output {
     site::start(format, locale)
 }
 
+/// `site diagnose` is neither a query nor a mutation: it reports bounded
+/// local runtime facts and the limits of those observations — it never
+/// connects, creates, repairs, or predicts a later start.
+pub(crate) fn site_diagnose(format: OutputFormat, locale: Locale) -> Output {
+    site_diagnose::run(format, locale)
+}
+
 pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale) -> Output {
     match &command {
         QueryCommand::ApiSchema { schema_id } => {
             schema::answer(schema_id.as_deref(), format, locale)
         }
         QueryCommand::ConfigCheck => config::check(format, locale),
+        // `agent doctor` is fully offline: it answers bounded filesystem
+        // facts itself and never opens a session or touches the network
+        // query path.
+        QueryCommand::AgentDoctor {
+            providers,
+            asset_roots,
+        } => crate::agent_doctor::run(providers, asset_roots, format, locale),
         // `terminal get` answers the Server's own launch-read join on the
         // admitted session; the snapshot supplies only the typed target id.
         QueryCommand::TerminalGet(target) => match query::terminal_get(target) {
@@ -428,6 +447,17 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
         QueryCommand::AgentExplain(session_id) => {
             agent_output(query::agent_explain(session_id), &command, format, locale)
         }
+        QueryCommand::AgentWait {
+            session,
+            until,
+            after_revision,
+            timeout_ms,
+        } => agent_output(
+            query::agent_wait(session, until, *after_revision, *timeout_ms),
+            &command,
+            format,
+            locale,
+        ),
         // `terminal read` couples the snapshot to one viewer observation on
         // the same session; its answer arrives already projected.
         QueryCommand::TerminalRead { target, history } => {
@@ -457,6 +487,23 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
         // membership is the Server's call, never the CLI's.
         QueryCommand::WorktreeList { project, directory } => {
             match query::worktree_list(project, directory) {
+                Err(failure) => failure_output(failure, Some(format), locale),
+                Ok((source, projection)) => {
+                    success_output(projection, source, &command, format, locale)
+                }
+            }
+        }
+        // `launch-profile list`/`get` ride one typed catalog read on the
+        // admitted session; selector resolution is the Server's call under
+        // its lock — the CLI carries the intent verbatim.
+        QueryCommand::LaunchProfileList => match query::launch_profile_catalog(None) {
+            Err(failure) => failure_output(failure, Some(format), locale),
+            Ok((source, projection)) => {
+                success_output(projection, source, &command, format, locale)
+            }
+        },
+        QueryCommand::LaunchProfileGet(selector) => {
+            match query::launch_profile_catalog(Some(selector.clone())) {
                 Err(failure) => failure_output(failure, Some(format), locale),
                 Ok((source, projection)) => {
                     success_output(projection, source, &command, format, locale)

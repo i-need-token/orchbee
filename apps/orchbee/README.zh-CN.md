@@ -23,22 +23,32 @@ orchbee status                   # 运行中 Site 的 Workbench 快照
 orchbee <family> <command>       # 查询与 Workbench 修改命令
 orchbee api snapshot|schema      # 机器快照与内嵌 schema
 orchbee site start               # 确保本地 Site 正在运行（无需 TTY）
+orchbee site diagnose            # 只读的本地 Site 运行时事实
 orchbee config check             # 本地运行时检查
 orchbee help [<family>|<command>]
 orchbee completion bash|zsh|fish
 orchbee --help | --version
 ```
 
-查询 family 为 `project`、`workspace`、`tab`、`panel`、`terminal`、`worktree`、`agent`（`list`/`get`，另有
+查询 family 为 `project`、`workspace`、`tab`、`panel`、`terminal`、`worktree`、
+`launch-profile`、`agent`（`list`/`get`，另有
 `terminal read`；`worktree` 仅提供 `list`，且要求 `--project <target>` 与
 `--directory <directory-id>`——严格非零 32 位小写十六进制 Workbench 目录 id，绝非文件系统路径或标签；
+`launch-profile` 提供 `list` 与 `get <selector>`——对运行中 Site 启动配置目录的一次类型化读取，
+由 Server 端解析、CLI 不做本地预读；
 `agent` 提供 `list`（支持 `--include-ended`/`--limit`/`--cursor` 分页）、`get <session-id>` 与
-`explain <session-id>`——经 OBAP 读取 Server 权威 Agent session 的只读类型化视图，绝不从终端内容推断）。
+`explain <session-id>`——经 OBAP 读取 Server 权威 Agent session 的只读类型化视图，绝不从终端
+内容推断——以及 `doctor [--provider <id>]... [--asset-root <path>]...`，一个离线有界文件系统
+诊断，仅凭本地事实解释 Agent 观察为何可能无法到达（不执行 provider 命令、不 connect socket、
+不做任何写入）。
 作用于运行中 Site 的修改命令为 `project create`/`rename`、
-`workspace create`/`rename`/`accept-directory`、`tab create`/`rename`/`move`/`close` 与
-`panel split`/`move`/`close`——其中 `tab create` 与 `panel split` 还接受临时的
-`--exec <path> [--arg <value>]...` launch selection，仅为该次请求替换解析出的默认
-shell。`terminal send <id> (--text <utf8> [--enter] | --key <name>)`
+`workspace create`/`rename`/`accept-directory`、`tab create`/`rename`/`move`/`close`、
+`panel split`/`move`/`close` 与 `launch-profile create`/`delete`——
+`launch-profile create --name <name> --exec <path> [--arg <value>]...` 在目录中存储一个命名
+launch selection，`launch-profile delete <selector>` 将其移除。其中 `tab create` 与
+`panel split` 还接受临时的
+`--exec <path> [--arg <value>]...` launch selection 或 `--profile <selector>` 目录启动——二者互斥——
+仅为该次请求替换解析出的默认 shell。`terminal send <id> (--text <utf8> [--enter] | --key <name>)`
 经同一已准入 session 向已绑定终端投递恰好一条输入记录——字面文本加可选折叠回车，或十五个语义键之一——不接管 TUI
 controller/viewer 所有权；其两轴收据分别报告 Server 的输入判定与 cleanup 状态。`project create`
 提交既有 `ProjectCreate` 动作——一条导航记录，无目录或文件系统副作用——并返回
@@ -53,7 +63,10 @@ Server 权威探测该字面绝对路径——使 CLI 创建的 Workspace 无需
 20 秒绝对 deadline，然后仅当本次调用实际拉起了子进程时报告 `started`，当既有
 Site 准入了其探针时报告 `already-running`。该命令即使在拒绝时也有副作用：只有
 语法失败保证零副作用；被中断或超时的启动可能遗留已提交的激活状态，后续调用会以
-`rejected`/`recovery-required` 报告；它绝不修复、停止或删除运行时状态。完整语法、
+`rejected`/`recovery-required` 报告；它绝不修复、停止或删除运行时状态。
+`site diagnose` 是只读对偶面：它报告运行时目录、标记、锁与有限端点路径的有界事实——
+每行是各自观察瞬间的封闭状态行——共享一个协作式 5 秒预算；它绝不 connect、创建、
+取锁、修复，也不声称任何进程存活或消失。完整语法、
 target 与 filter 规则、修改结果及含退出分类的 failure matrix 由
 [native CLI query](docs/native-cli-query.zh-CN.md) 持有；`orchbee help <family>` 与
 `orchbee help <family> <command>` 直接从二进制输出同一套语法。端到端的无头
@@ -76,14 +89,16 @@ node scripts/stage-native-site.mjs --wsl Ubuntu --output /tmp/orchbee-native-dev
 ```
 
 随后在交互式 Linux 终端执行 `/tmp/orchbee-native-dev/orchbee`。
-脚本从锁定输入重新构建三个 Rust release 二进制和 Zig ReleaseSafe Host；
+脚本从锁定输入重新构建三个 Rust release 二进制和 Zig ReleaseSafe Host，
+将规范的观察适配器胶囊复制为 cohort 的惰性校验 sidecar，并在写清单前校验其声明的负载摘要；
 已有输出目录会被拒绝。可用 `--cargo-target-dir <absolute-directory>` 复用 Cargo 构建缓存。
 这不是系统安装，也不替换现有 TypeScript CLI。
 
 默认 Site 位于 `/tmp/orchbee-native-<effective-uid>`；开发和测试可将
 `ORCHBEE_RUNTIME_BASE` 指向另一个已有绝对目录来隔离 Site。
 [共享运行时契约](../../crates/local-site-runtime/README.zh-CN.md) 定义 0700 目录、
-0600 锁/socket/不可变启动标记、四产物精确 cohort、20 秒共用截止时间和 500 毫秒延迟提示。
+0600 锁/socket/不可变启动标记、声明适配器 sidecar 的四可执行文件精确 cohort、
+20 秒共用截止时间和 500 毫秒延迟提示。
 Server + Worker 就绪与终端首帧就绪是不同阶段。初始 Open、snapshot read、attach、acquire、
 获权后的 resize 以及首帧 Poll 都使用原启动截止时间。原生 Ready 要求完整帧已绘制、其精确反馈已获接受，
 并满足当前控制模式尺寸。Worker 消费 Ready reply 后才恢复常规请求预算。

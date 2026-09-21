@@ -74,10 +74,16 @@ fn cohort() -> &'static Path {
                 let digest = Sha256::digest(fs::read(&target).expect("read artifact"));
                 artifacts.insert((*name).to_owned(), format!("{digest:x}").into());
             }
+            // A controlled dummy digest stands in for the adapters payload —
+            // this fixture stages no sidecar; admission stays lazy.
+            artifacts.insert(
+                "agent-observation-adapters".to_owned(),
+                format!("{:x}", Sha256::digest(b"staged stand-in adapters\n")).into(),
+            );
             let manifest = directory.join("cohort.json");
             fs::write(
                 &manifest,
-                serde_json::json!({"schemaVersion": 1, "artifacts": artifacts}).to_string(),
+                serde_json::json!({"schemaVersion": 2, "artifacts": artifacts}).to_string(),
             )
             .expect("write cohort manifest");
             // The verifier rejects group/other-writable cohort files; the
@@ -489,7 +495,7 @@ fn project_create_commits_under_a_fresh_request() -> TestResult {
     );
     let document = envelope(&output);
     assert_eq!(document["schema"], "orchbee.mutation.result");
-    assert_eq!(document["version"], 1);
+    assert_eq!(document["version"], 2);
     assert_eq!(document["source"]["kind"], "workbench-command");
     assert_eq!(document["source"]["siteId"], SITE);
     assert_eq!(document["source"]["expectedRevision"], "7");
@@ -563,7 +569,7 @@ fn workspace_create_commits_under_a_fresh_request() -> TestResult {
     );
     let document = envelope(&output);
     assert_eq!(document["schema"], "orchbee.mutation.result");
-    assert_eq!(document["version"], 1);
+    assert_eq!(document["version"], 2);
     assert_eq!(document["source"]["kind"], "workbench-command");
     assert_eq!(document["source"]["siteId"], SITE);
     assert_eq!(document["source"]["expectedRevision"], "7");
@@ -679,6 +685,7 @@ fn tab_create_against_standalone_context_reports_terminal() -> TestResult {
             label,
             geometry,
             launch: None,
+            profile: None,
         } = &command.action
         else {
             panic!("expected tab.create, got {:?}", command.action)
@@ -961,6 +968,7 @@ fn panel_split_close_and_move_each_submit_one_command() -> TestResult {
                 label,
                 geometry,
                 launch: None,
+                profile: None,
             } => {
                 assert_eq!(terminal_context_id.as_str(), CONTEXT);
                 assert_eq!(tab_id.as_str(), LOGS_TAB);
