@@ -311,6 +311,7 @@ mod imp {
                 residuals: Vec::new(),
                 observed: Some(observed),
                 provenance: Provenance::PreEffect,
+                effect_begun: false,
                 verdict: Verdict::Refused(Refusal::Conflict),
             };
         }

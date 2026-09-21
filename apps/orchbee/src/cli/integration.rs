@@ -405,9 +405,13 @@ pub(crate) fn mutation_status(report: &MutationReport) -> u8 {
     match report.verdict {
         Verdict::Completed => 0,
         Verdict::Refused(refusal) => {
-            if !report.attempted.is_empty() {
+            if report.effect_begun {
+                // The frontier is already crossed — a refusal named after
+                // a pre-effect class is a determinate post-effect failure
+                // (9), while the observation-incomplete family (deadline,
+                // unclassifiable read) stays undetermined (8).
                 return match refusal {
-                    Refusal::Deadline => 8,
+                    Refusal::Deadline | Refusal::InspectionFailed => 8,
                     _ => 9,
                 };
             }

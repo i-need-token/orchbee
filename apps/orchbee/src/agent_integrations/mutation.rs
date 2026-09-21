@@ -219,6 +219,12 @@ pub(crate) struct MutationReport {
     pub(crate) residuals: Vec<PathBuf>,
     pub(crate) observed: Option<SnapshotItem>,
     pub(crate) provenance: Provenance,
+    /// Whether any Orchbee-owned effect could already exist — capsule
+    /// staging/publication, a spawned provider command, or a guarded fs
+    /// write. This is the private frontier the exit map classifies by; a
+    /// deadline-refused step recorded in `attempted` is a log entry, not
+    /// proof the frontier was crossed.
+    pub(crate) effect_begun: bool,
     pub(crate) verdict: Verdict,
 }
 
@@ -233,6 +239,11 @@ pub(crate) fn mutate(
 ) -> MutationReport {
     let mut attempted: Vec<AttemptedStep> = Vec::new();
     let mut residuals: Vec<PathBuf> = Vec::new();
+    // The private effect frontier: set immediately before every real
+    // possibly-effectful call (capsule publish, provider spawn, guarded fs
+    // write) and carried monotonically — a deadline-refused step logged in
+    // `attempted` never sets it.
+    let mut effect_begun = false;
     // Entry gates precede the boundary witness — a run refused before the
     // first step records an empty attempted[].
     if cancelled(context) {
@@ -243,6 +254,7 @@ pub(crate) fn mutate(
             residuals,
             observed: None,
             provenance: Provenance::PreEffect,
+            effect_begun,
             verdict: Verdict::Cancelled,
         };
     }
@@ -254,6 +266,7 @@ pub(crate) fn mutate(
             residuals,
             observed: None,
             provenance: Provenance::PreEffect,
+            effect_begun,
             verdict: Verdict::Refused(Refusal::Deadline),
         };
     }
@@ -267,6 +280,7 @@ pub(crate) fn mutate(
             residuals,
             observed: None,
             provenance: Provenance::PreEffect,
+            effect_begun,
             verdict: Verdict::Cancelled,
         };
     }
@@ -280,6 +294,7 @@ pub(crate) fn mutate(
             residuals,
             observed: None,
             provenance: Provenance::PreEffect,
+            effect_begun,
             verdict: Verdict::Refused(Refusal::ManualActionRequired),
         };
     }
@@ -296,13 +311,14 @@ pub(crate) fn mutate(
                 residuals,
                 observed: None,
                 provenance: Provenance::PreEffect,
+                effect_begun,
                 verdict: Verdict::Refused(Refusal::AgentUnavailable),
             };
         }
         // The wrapper publishes the adapter capsule before the provider
         // delegate — inspection reads included — ever runs. A publish
         // failure is already post-effect: no provider state was observed.
-        match prepare_capsule(context, &mut attempted, &mut residuals) {
+        match prepare_capsule(context, &mut attempted, &mut residuals, &mut effect_begun) {
             CapsuleStep::Ready => {}
             CapsuleStep::Refused(refusal) => {
                 return MutationReport {
@@ -312,6 +328,7 @@ pub(crate) fn mutate(
                     residuals,
                     observed: None,
                     provenance: Provenance::PreEffect,
+                    effect_begun,
                     verdict: Verdict::Refused(refusal),
                 };
             }
@@ -323,23 +340,30 @@ pub(crate) fn mutate(
                     residuals,
                     observed: None,
                     provenance: Provenance::Unavailable,
+                    effect_begun,
                     verdict: Verdict::Failed(code),
                 };
             }
         }
     }
 
+    let (initial, detail) = providers::inspect_full(id, context, legacy_roots);
     // Whether the capsule publish step already ran decides what `initial`
     // proves: a snapshot taken behind an Orchbee-owned effect can never be
     // reported as admission-before-effect, even when the provider state it
-    // observed predates the provider mutation itself.
-    let initial_provenance = if attempted.is_empty() {
+    // observed predates the provider mutation itself. And a fresh read
+    // attempt is not a complete observation — a snapshot that failed to
+    // classify behind an effect is partial post-effect evidence, not the
+    // determinate picture `post-effect` claims.
+    let initial_provenance = if !effect_begun {
         Provenance::PreEffect
+    } else if initial.state == State::Unknown
+        && initial.issue == Some(super::model::Issue::InspectionFailed)
+    {
+        Provenance::Partial
     } else {
         Provenance::PostEffect
     };
-
-    let (initial, detail) = providers::inspect_full(id, context, legacy_roots);
     if cancelled(context) {
         return MutationReport {
             integration_id: id,
@@ -348,6 +372,7 @@ pub(crate) fn mutate(
             residuals,
             observed: Some(initial),
             provenance: initial_provenance,
+            effect_begun,
             verdict: Verdict::Cancelled,
         };
     }
@@ -363,6 +388,7 @@ pub(crate) fn mutate(
             residuals,
             observed: Some(initial),
             provenance: Provenance::Unavailable,
+            effect_begun,
             verdict: Verdict::Refused(Refusal::Deadline),
         };
     }
@@ -385,6 +411,7 @@ pub(crate) fn mutate(
             residuals,
             observed: Some(initial),
             provenance: initial_provenance,
+            effect_begun,
             verdict: Verdict::Refused(refusal),
         };
     }
@@ -402,6 +429,7 @@ pub(crate) fn mutate(
             residuals,
             observed: Some(initial),
             provenance: initial_provenance,
+            effect_begun,
             verdict: Verdict::Completed,
         };
     }
@@ -417,6 +445,7 @@ pub(crate) fn mutate(
             residuals,
             observed: Some(initial),
             provenance: initial_provenance,
+            effect_begun,
             verdict: Verdict::Refused(Refusal::Deadline),
         };
     }
@@ -430,10 +459,17 @@ pub(crate) fn mutate(
             &detail,
             &mut attempted,
             &mut residuals,
+            &mut effect_begun,
         ),
-        Direction::Disable => {
-            disable_vector(id, context, legacy_roots, &initial, &detail, &mut attempted)
-        }
+        Direction::Disable => disable_vector(
+            id,
+            context,
+            legacy_roots,
+            &initial,
+            &detail,
+            &mut attempted,
+            &mut effect_begun,
+        ),
     };
 
     match attempt {
@@ -447,6 +483,7 @@ pub(crate) fn mutate(
                 residuals,
                 observed: None,
                 provenance: Provenance::Unavailable,
+                effect_begun,
                 verdict: Verdict::Refused(refusal),
             };
         }
@@ -460,6 +497,7 @@ pub(crate) fn mutate(
                 residuals,
                 observed: None,
                 provenance: Provenance::Unavailable,
+                effect_begun,
                 verdict: Verdict::Failed(FailureCode::Conflict),
             };
         }
@@ -476,6 +514,7 @@ pub(crate) fn mutate(
             residuals,
             observed: Some(initial),
             provenance: initial_provenance,
+            effect_begun,
             verdict: Verdict::Cancelled,
         };
     }
@@ -500,6 +539,7 @@ pub(crate) fn mutate(
                     residuals,
                     observed: Some(item),
                     provenance: Provenance::PostEffect,
+                    effect_begun,
                     verdict,
                 };
             }
@@ -512,6 +552,7 @@ pub(crate) fn mutate(
                 residuals,
                 observed: None,
                 provenance: Provenance::Unavailable,
+                effect_begun,
                 verdict: Verdict::Completed,
             };
         }
@@ -536,6 +577,7 @@ pub(crate) fn mutate(
             residuals,
             observed: None,
             provenance,
+            effect_begun,
             verdict,
         };
     }
@@ -581,6 +623,7 @@ pub(crate) fn mutate(
                     residuals,
                     observed,
                     provenance,
+                    effect_begun,
                     verdict: Verdict::Refused(refusal),
                 };
             }
@@ -592,6 +635,7 @@ pub(crate) fn mutate(
                     residuals,
                     observed,
                     provenance,
+                    effect_begun,
                     verdict: Verdict::Cancelled,
                 };
             }
@@ -608,6 +652,7 @@ pub(crate) fn mutate(
         residuals,
         observed,
         provenance,
+        effect_begun,
         verdict,
     }
 }
@@ -637,6 +682,7 @@ fn prepare_capsule(
     context: &ProviderContext,
     attempted: &mut Vec<AttemptedStep>,
     residuals: &mut Vec<PathBuf>,
+    effect: &mut bool,
 ) -> CapsuleStep {
     if capsule::is_ready(context.capsule_root, context.adapter_source) {
         return CapsuleStep::Ready;
@@ -657,6 +703,9 @@ fn prepare_capsule(
     if let CapsuleValidity::UnsupportedVersion { .. } = capsule::validate(source) {
         return CapsuleStep::Refused(Refusal::CapsuleUnsupportedVersion);
     }
+    // Staging is the first real effect — the frontier crosses here, even
+    // if a later same-call cleanup removes every byte again.
+    *effect = true;
     let publish = publish_capsule(source, context.capsule_root);
     attempted.push(AttemptedStep {
         step: StepKind::Filesystem {
@@ -679,8 +728,12 @@ fn prepare_capsule(
             #[cfg(test)]
             super::inject::boundary("capsule-isvalid-existing", context.capsule_root);
             if capsule::is_ready(context.capsule_root, Some(source)) {
-                if let Some(retained) = &publish.residual {
-                    let _ = files::remove_owned(retained, true);
+                // The retained stage drops from `residuals` only on an
+                // affirmative removal — a failed cleanup leaves the owned
+                // bytes on disk and the report must keep naming them.
+                if let Some(retained) = &publish.residual
+                    && files::remove_owned(retained, true) == FsStep::Done
+                {
                     residuals.retain(|path| path != retained);
                 }
                 CapsuleStep::Ready
@@ -785,9 +838,13 @@ fn run_step(
     context: &ProviderContext,
     reserve_slots: usize,
     attempted: &mut Vec<AttemptedStep>,
+    effect: &mut bool,
 ) -> Attempt {
     let deadline_ok = now() + SLOT * (reserve_slots.saturating_add(1) as u32) <= context.deadline;
     if !deadline_ok {
+        // Slot admission refused: the command was never spawned, so the
+        // log entry is a planned-step record, not an effect — the refusal
+        // keeps the deadline class and crosses no frontier.
         attempted.push(AttemptedStep {
             step: StepKind::Command {
                 executable: executable.to_string_lossy().into_owned(),
@@ -795,7 +852,7 @@ fn run_step(
             },
             outcome: StepOutcome::Deadline,
         });
-        return Attempt::Failed(FailureCode::TimedOut);
+        return Attempt::Refused(Refusal::Deadline);
     }
     if cancelled(context) {
         return Attempt::Cancelled;
@@ -803,6 +860,9 @@ fn run_step(
     #[cfg(test)]
     super::inject::boundary("provider-command", Path::new(""));
     let argv_owned: Vec<String> = argv.iter().map(|arg| (*arg).to_owned()).collect();
+    // A spawned provider command may have mutated state before any
+    // outcome is known — the frontier crosses at the spawn.
+    *effect = true;
     let result = exec::run_command(
         executable,
         &argv_owned,
@@ -844,10 +904,11 @@ fn run_sequence(
     context: &ProviderContext,
     reserve_slots: usize,
     attempted: &mut Vec<AttemptedStep>,
+    effect: &mut bool,
 ) -> Attempt {
     for command in commands {
         let argv: Vec<&str> = command.iter().map(String::as_str).collect();
-        let result = run_step(executable, &argv, context, reserve_slots, attempted);
+        let result = run_step(executable, &argv, context, reserve_slots, attempted, effect);
         if result != Attempt::Attempted {
             return result;
         }
@@ -893,6 +954,7 @@ fn vector_inspection(
     }
 }
 
+#[expect(clippy::too_many_arguments)]
 fn enable_vector(
     id: IntegrationId,
     context: &ProviderContext,
@@ -901,6 +963,7 @@ fn enable_vector(
     detail: &providers::InspectionDetail,
     attempted: &mut Vec<AttemptedStep>,
     residuals: &mut Vec<PathBuf>,
+    effect: &mut bool,
 ) -> Attempt {
     let options = providers::resource_options(context, legacy_roots);
     let resource_root = context.capsule_root.to_string_lossy().into_owned();
@@ -929,6 +992,7 @@ fn enable_vector(
                         context,
                         reserve,
                         attempted,
+                        effect,
                     )
                 }
                 State::NotInstalled | State::UpdateRequired => {
@@ -979,7 +1043,7 @@ fn enable_vector(
                         "--scope".into(),
                         "user".into(),
                     ]);
-                    run_sequence(&exe, &commands, context, reserve, attempted)
+                    run_sequence(&exe, &commands, context, reserve, attempted, effect)
                 }
                 _ => Attempt::Failed(FailureCode::OperationFailed),
             }
@@ -1029,7 +1093,7 @@ fn enable_vector(
                         inspect::CODEX_PLUGIN_ID.into(),
                         "--json".into(),
                     ]);
-                    run_sequence(&exe, &commands, context, reserve, attempted)
+                    run_sequence(&exe, &commands, context, reserve, attempted, effect)
                 }
             }
         }
@@ -1051,6 +1115,7 @@ fn enable_vector(
                         context,
                         reserve,
                         attempted,
+                        effect,
                     )
                 }
                 State::NotInstalled | State::UpdateRequired => {
@@ -1072,7 +1137,7 @@ fn enable_vector(
                         bundle_root.to_string_lossy().into_owned(),
                         "--trust".into(),
                     ]);
-                    run_sequence(&exe, &commands, context, reserve, attempted)
+                    run_sequence(&exe, &commands, context, reserve, attempted, effect)
                 }
                 _ => Attempt::Failed(FailureCode::OperationFailed),
             }
@@ -1099,6 +1164,7 @@ fn enable_vector(
                         context,
                         reserve,
                         attempted,
+                        effect,
                     )
                 }
                 State::NotInstalled | State::UpdateRequired => {
@@ -1135,7 +1201,7 @@ fn enable_vector(
                         "install".into(),
                         inspect::GITHUB_COPILOT_PLUGIN_ID.into(),
                     ]);
-                    run_sequence(&exe, &commands, context, reserve, attempted)
+                    run_sequence(&exe, &commands, context, reserve, attempted, effect)
                 }
                 _ => Attempt::Failed(FailureCode::OperationFailed),
             }
@@ -1174,7 +1240,7 @@ fn enable_vector(
                 bundle_root.to_string_lossy().into_owned(),
                 "--json".into(),
             ]);
-            run_sequence(&exe, &commands, context, reserve, attempted)
+            run_sequence(&exe, &commands, context, reserve, attempted, effect)
         }
         IntegrationId::Opencode
         | IntegrationId::Pi
@@ -1184,7 +1250,9 @@ fn enable_vector(
             let Some(spec) = providers::guarded_spec(id) else {
                 return Attempt::Failed(FailureCode::OperationFailed);
             };
-            guarded_enable(id, spec, context, &options, initial, attempted, residuals)
+            guarded_enable(
+                id, spec, context, &options, initial, attempted, residuals, effect,
+            )
         }
     }
 }
@@ -1196,6 +1264,7 @@ fn disable_vector(
     initial: &SnapshotItem,
     detail: &providers::InspectionDetail,
     attempted: &mut Vec<AttemptedStep>,
+    effect: &mut bool,
 ) -> Attempt {
     let options = providers::resource_options(context, legacy_roots);
     let reserve = providers::inspect_slots(id);
@@ -1223,6 +1292,7 @@ fn disable_vector(
                         context,
                         reserve,
                         attempted,
+                        effect,
                     )
                 }
                 State::UpdateRequired => {
@@ -1252,7 +1322,7 @@ fn disable_vector(
                     if commands.is_empty() {
                         Attempt::Failed(FailureCode::OperationFailed)
                     } else {
-                        run_sequence(&exe, &commands, context, reserve, attempted)
+                        run_sequence(&exe, &commands, context, reserve, attempted, effect)
                     }
                 }
                 _ => Attempt::Failed(FailureCode::OperationFailed),
@@ -1290,7 +1360,7 @@ fn disable_vector(
                     if commands.is_empty() {
                         Attempt::Attempted
                     } else {
-                        run_sequence(&exe, &commands, context, reserve, attempted)
+                        run_sequence(&exe, &commands, context, reserve, attempted, effect)
                     }
                 }
             }
@@ -1318,6 +1388,7 @@ fn disable_vector(
                         context,
                         reserve,
                         attempted,
+                        effect,
                     )
                 }
             }
@@ -1344,6 +1415,7 @@ fn disable_vector(
                         context,
                         reserve,
                         attempted,
+                        effect,
                     )
                 }
                 State::UpdateRequired => {
@@ -1370,7 +1442,7 @@ fn disable_vector(
                     if commands.is_empty() {
                         Attempt::Failed(FailureCode::OperationFailed)
                     } else {
-                        run_sequence(&exe, &commands, context, reserve, attempted)
+                        run_sequence(&exe, &commands, context, reserve, attempted, effect)
                     }
                 }
                 _ => Attempt::Failed(FailureCode::OperationFailed),
@@ -1392,6 +1464,7 @@ fn disable_vector(
                 context,
                 reserve,
                 attempted,
+                effect,
             )
         }
         IntegrationId::Opencode
@@ -1402,7 +1475,7 @@ fn disable_vector(
             let Some(spec) = providers::guarded_spec(id) else {
                 return Attempt::Failed(FailureCode::OperationFailed);
             };
-            guarded_disable(id, spec, context, &options, attempted)
+            guarded_disable(id, spec, context, &options, attempted, effect)
         }
     }
 }
@@ -1412,6 +1485,7 @@ fn disable_vector(
 /// Canonical guarded `enable`: source-ready → inspect → stage → re-inspect
 /// (state must not have moved) → remove owned → publish — strengthened to
 /// move-aside + no-replace publish + publish verification + backup restore.
+#[expect(clippy::too_many_arguments)]
 fn guarded_enable(
     id: IntegrationId,
     spec: providers::GuardedSpec,
@@ -1420,6 +1494,7 @@ fn guarded_enable(
     _initial: &SnapshotItem,
     attempted: &mut Vec<AttemptedStep>,
     residuals: &mut Vec<PathBuf>,
+    effect: &mut bool,
 ) -> Attempt {
     let source_path = context.capsule_root.join(spec.source_relative);
     let runtime_source = spec
@@ -1450,10 +1525,12 @@ fn guarded_enable(
             Attempt::Failed(FailureCode::OperationFailed)
         };
     }
-    // Stage the entry in a sibling container.
+    // Stage the entry in a sibling container — the first possibly
+    // effectful call of the guarded vector, so the frontier crosses here.
     let Some(parent) = target.parent().map(|parent| parent.to_path_buf()) else {
         return Attempt::Failed(FailureCode::OperationFailed);
     };
+    *effect = true;
     let container = match files::stage_directory(&parent, "entry") {
         Ok(container) => container,
         Err(_) => return Attempt::Failed(FailureCode::OperationFailed),
@@ -1753,6 +1830,7 @@ fn guarded_disable(
     context: &ProviderContext,
     options: &inspect::ResourceOptions,
     attempted: &mut Vec<AttemptedStep>,
+    effect: &mut bool,
 ) -> Attempt {
     let source_path = context.capsule_root.join(spec.source_relative);
     let target = context.home.join(spec.target_relative);
@@ -1785,6 +1863,8 @@ fn guarded_disable(
         },
         &target,
     );
+    // The owned removal is the guarded-disable vector's first effect.
+    *effect = true;
     let step = files::remove_owned(&target, is_directory);
     attempted.push(AttemptedStep {
         step: StepKind::Filesystem {

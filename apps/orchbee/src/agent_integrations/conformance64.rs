@@ -20,7 +20,7 @@ use serde_json::Value;
 use sha2::Digest;
 
 use super::capsule;
-use super::inject::{self, BoundaryAction, InjectCancel, Plan, ScriptedResult};
+use super::inject::{self, BoundaryAction, InjectCancel, Plan, Prim, ScriptedResult};
 use super::inspect;
 use super::model::{IntegrationId, ManagementMode};
 use super::mutation::{self, Direction, StepKind, StepOutcome, Verdict};
@@ -49,6 +49,7 @@ struct Case {
     deadline_ms: Option<u64>,
     fs: Vec<Value>,
     commands: Vec<Value>,
+    inject: Value,
     expect: Value,
 }
 
@@ -111,6 +112,7 @@ fn load_cases() -> Vec<Case> {
                 deadline_ms: given["deadlineMs"].as_u64(),
                 fs: given["fs"].as_array().cloned().unwrap_or_default(),
                 commands: given["commands"].as_array().cloned().unwrap_or_default(),
+                inject: given["inject"].clone(),
                 expect: entry["expect"].clone(),
             });
         }
@@ -564,6 +566,39 @@ fn home_scan(home: &Path) -> BTreeMap<String, String> {
 // Scripted command queue
 // ---------------------------------------------------------------------------
 
+/// Install the case's `inject` plan — mid-window interposition plus
+/// step-scoped primitive faults, mapped once onto the pack's named kinds.
+fn install_injections(case: &Case, dirs: &Dirs, plan: &mut Plan) {
+    let inject = &case.inject;
+    if inject.is_null() {
+        return;
+    }
+    match inject["kind"].as_str().expect("inject.kind") {
+        // A concurrent install lands a valid capsule between the staged
+        // verify and the no-replace publish; the retained stage's same-call
+        // cleanup then fails — the residue must survive the report.
+        "concurrent-valid-capsule-cleanup-fails" => {
+            let capsule_root = dirs.capsule_root.clone();
+            plan.on(
+                "capsule-verify",
+                BoundaryAction::Act(Box::new(move |_| {
+                    materialize_capsule(&capsule_root, &[], None, false);
+                    true
+                })),
+            );
+            let errno = match inject["errno"].as_str().expect("inject.errno") {
+                "EIO" => nix::libc::EIO,
+                "EACCES" => nix::libc::EACCES,
+                "EPERM" => nix::libc::EPERM,
+                "ENOTEMPTY" => nix::libc::ENOTEMPTY,
+                other => panic!("{}: unknown inject.errno {other}", case.id),
+            };
+            plan.prim_fault_at("capsule-isvalid-existing", Prim::WalkUnlink, errno, 1);
+        }
+        other => panic!("{}: unknown inject.kind {other}", case.id),
+    }
+}
+
 fn script_commands(
     case: &Case,
     vars: &[(String, String)],
@@ -579,7 +614,16 @@ fn script_commands(
                 } else {
                     resolve_text(&result["stdout"], vars, payloads).into_bytes()
                 };
-                plan.script_command(ScriptedResult::Completed(stdout));
+                if let Some(advance_ms) = result["advanceMs"].as_u64() {
+                    // A real command's wall time — the clock spends it so a
+                    // later slot-admission consult sees the elapsed budget.
+                    plan.script_command(ScriptedResult::CompletedAdvance(
+                        stdout,
+                        Duration::from_millis(advance_ms),
+                    ));
+                } else {
+                    plan.script_command(ScriptedResult::Completed(stdout));
+                }
             }
             "failed" => plan.script_command(ScriptedResult::Failed),
             "timed-out" => plan.script_command(ScriptedResult::TimedOut),
@@ -867,6 +911,7 @@ fn run_case(case: &Case) {
     }
 
     materialize_fs(&dirs, case.provider, &case.fs, &vars, &payloads, &mut plan);
+    install_injections(case, &dirs, &mut plan);
     script_commands(case, &vars, &payloads, &mut plan);
     inject::install(plan);
 
@@ -931,10 +976,10 @@ fn run_case(case: &Case) {
                 );
             }
             if let Some(frontier) = cli["frontier"].as_str() {
-                let actual = if report.attempted.is_empty() {
-                    "pre-effect"
-                } else {
+                let actual = if report.effect_begun {
                     "post-effect"
+                } else {
+                    "pre-effect"
                 };
                 assert_eq!(actual, frontier, "{}: cli.frontier", case.id);
             }
@@ -971,6 +1016,48 @@ fn run_case(case: &Case) {
             }
         }
         assert_fs_effect(case, &dirs, &vars, &report);
+        // `residue[]`: each pattern must name a real survivor — present on
+        // disk AND still named in the report. A cleanup that failed but
+        // vanished from `residuals` is exactly the dishonesty this pins.
+        for residue in case.expect["residue"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+        {
+            let pattern = residue["pattern"].as_str().expect("residue.pattern");
+            let prefix = pattern.trim_end_matches('*');
+            let named = report.residuals.iter().any(|path| {
+                path.file_name()
+                    .and_then(std::ffi::OsStr::to_str)
+                    .is_some_and(|name| name.starts_with(prefix))
+            });
+            assert!(
+                named,
+                "{}: residue pattern '{pattern}' not named in {:?}",
+                case.id, report.residuals
+            );
+            let base = dirs
+                .capsule_root
+                .parent()
+                .unwrap_or(&dirs.home)
+                .to_path_buf();
+            let survivor = fs::read_dir(&base)
+                .into_iter()
+                .flatten()
+                .flatten()
+                .map(|entry| entry.path())
+                .any(|path| {
+                    path.file_name()
+                        .and_then(std::ffi::OsStr::to_str)
+                        .is_some_and(|name| name.starts_with(prefix))
+                });
+            assert!(
+                survivor,
+                "{}: residue pattern '{pattern}' matched nothing under {}",
+                case.id,
+                base.display()
+            );
+        }
         if let Some(before) = before {
             let after = home_scan(&dirs.home);
             assert_eq!(before, after, "{}: mustNotMutate", case.id);
@@ -982,7 +1069,7 @@ fn run_case(case: &Case) {
 #[test]
 fn provider_conformance64_replay() {
     let cases = load_cases();
-    assert_eq!(cases.len(), 246, "frozen corpus is 246 cases");
+    assert_eq!(cases.len(), 250, "frozen corpus is 250 cases");
     let mut failures = Vec::new();
     for case in &cases {
         let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_case(case)));

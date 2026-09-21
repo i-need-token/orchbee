@@ -695,6 +695,7 @@ fn integration_cancelled_mutation_document_validates_against_schema() {
         residuals: vec![],
         observed: None,
         provenance: Provenance::PreEffect,
+        effect_begun: false,
         verdict: Verdict::Cancelled,
     };
     let output = Prepared::Mutation { report }.render(OutputFormat::Json, Locale::EnUs);

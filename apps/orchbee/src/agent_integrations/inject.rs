@@ -43,6 +43,10 @@ pub(crate) enum Prim {
 #[derive(Debug)]
 pub(crate) enum ScriptedResult {
     Completed(Vec<u8>),
+    /// Completed, then the test clock advances — a real command's wall
+    /// time the harness needs so a later slot-admission consult sees the
+    /// spend.
+    CompletedAdvance(Vec<u8>, Duration),
     Failed,
     /// Scripted timeout — wired for the Report64 harness's command
     /// outcomes; no Root57 case injects one.
@@ -297,6 +301,10 @@ pub(crate) fn run_scripted(
         .collect();
     match next_command(&argv).unwrap_or(ScriptedResult::Failed) {
         ScriptedResult::Completed(stdout) => super::exec::CommandResult::Completed { stdout },
+        ScriptedResult::CompletedAdvance(stdout, advance) => {
+            advance_clock(advance);
+            super::exec::CommandResult::Completed { stdout }
+        }
         ScriptedResult::Failed => super::exec::CommandResult::Failed,
         ScriptedResult::TimedOut => {
             // A timed-out command occupied its full slot — run plus the

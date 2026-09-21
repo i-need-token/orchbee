@@ -626,7 +626,14 @@ fn report_outcome(report: &mutation::MutationReport) -> Outcome {
     let (verdict, determinate) = match &report.verdict {
         Verdict::Completed if !attempted_any => ("no-op", Some(true)),
         Verdict::Completed => ("applied", Some(true)),
-        Verdict::Refused(refusal) => (refusal.as_str(), Some(true)),
+        Verdict::Refused(refusal) => {
+            // The observation-incomplete family stays undetermined once the
+            // frontier is crossed — a deadline slot refusal mid-vector
+            // cannot prove what earlier steps left behind.
+            let determinate = !(report.effect_begun
+                && matches!(refusal, Refusal::Deadline | Refusal::InspectionFailed));
+            (refusal.as_str(), Some(determinate))
+        }
         Verdict::Failed(
             FailureCode::VerificationFailed | FailureCode::TimedOut | FailureCode::Leaked,
         ) => ("failed", Some(false)),
@@ -656,9 +663,9 @@ fn report_outcome(report: &mutation::MutationReport) -> Outcome {
         | Verdict::Refused(Refusal::AgentUnavailable) => "manual-action-required",
         _ => verdict,
     };
-    // The frontier is the honest attempted[] record — a mid-window
-    // refusal after a landed staging effect is still post-effect.
-    let frontier = if attempted_any {
+    // The frontier is the private effect marker — a deadline-refused
+    // planned step logged in `attempted` never proves an effect ran.
+    let frontier = if report.effect_begun {
         "post-effect"
     } else {
         "pre-effect"

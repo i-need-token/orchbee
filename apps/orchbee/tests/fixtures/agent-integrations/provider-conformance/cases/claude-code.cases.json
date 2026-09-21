@@ -2976,6 +2976,428 @@
 				"design:complete53§3.2"
 			],
 			"notes": "The same input on canonical Desktop produces update-required and WOULD emit uninstall+marketplace-remove on disable — the CLI must refuse instead. Both enable and disable refuse for stale-side."
+		},
+		{
+			"id": "claude-code.enable.slot-deadline-before-first-command",
+			"operation": "enable",
+			"class": "cli-divergence",
+			"covers": [
+				"timeout",
+				"budget-deadline",
+				"slot-admission"
+			],
+			"dims": {
+				"state": "update-required",
+				"budget": "reserve gate passes but the first command slot refuses"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"deadlineMs": 9000,
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.oldVersion"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.legacy"
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "failed",
+				"commands": [
+					[
+						"plugin",
+						"list",
+						"--json"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"list",
+						"--json"
+					]
+				],
+				"planCommands": [
+					[
+						"plugin",
+						"uninstall",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"remove",
+						"${MARKETPLACE}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"add",
+						"${CAPSULE_ROOT}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"install",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"enable",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					]
+				],
+				"mustNotMutate": true,
+				"cli": {
+					"exit": 7,
+					"verdict": "timed-out",
+					"frontier": "pre-effect",
+					"observedProvenance": "unavailable",
+					"attemptedSteps": [
+						"plugin uninstall (deadline)"
+					],
+					"note": "root97-A: remaining lands inside (reserve*SLOT, (reserve+1)*SLOT) \u2014 the reserve gate passes but the FIRST command's slot admission refuses before exec::run_command ever runs. The deadline step in attempted[] is a planned-step record, not an effect \u2014 deadline-before-first-effect stays exit 7."
+				}
+			},
+			"anchors": [
+				"root97:A"
+			],
+			"notes": "Slot-admission refusal on the first vector command: attempted[] logs the refused step but no provider command was spawned \u2014 no Orchbee effect could exist, so the accepted deadline-before-first-effect class (7) applies, not the post-effect uncertain 8."
+		},
+		{
+			"id": "claude-code.enable.slot-deadline-mid-vector",
+			"operation": "enable",
+			"class": "cli-divergence",
+			"covers": [
+				"timeout",
+				"budget-deadline",
+				"slot-admission",
+				"partial-completion"
+			],
+			"dims": {
+				"state": "update-required",
+				"budget": "first command lands, second command's slot refuses"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"deadlineMs": 14500,
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.oldVersion"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.legacy"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"uninstall",
+							"${PLUGIN_ID}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": "",
+							"advanceMs": 4200
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "failed",
+				"commands": [
+					[
+						"plugin",
+						"list",
+						"--json"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"list",
+						"--json"
+					],
+					[
+						"plugin",
+						"uninstall",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					]
+				],
+				"planCommands": [
+					[
+						"plugin",
+						"uninstall",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"remove",
+						"${MARKETPLACE}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"add",
+						"${CAPSULE_ROOT}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"install",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					],
+					[
+						"plugin",
+						"enable",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					]
+				],
+				"cli": {
+					"exit": 8,
+					"verdict": "timed-out",
+					"frontier": "post-effect",
+					"observedProvenance": "unavailable",
+					"attemptedSteps": [
+						"plugin uninstall",
+						"plugin marketplace remove (deadline)"
+					],
+					"note": "root97-A second half: the SAME slot refusal after a completed provider command is post-effect \u2014 the frontier crossed at the first spawn, so the deadline refusal reports undetermined 8, never 7."
+				}
+			},
+			"anchors": [
+				"root97:A"
+			],
+			"notes": "The slot-admission refusal mid-vector: uninstall really ran (advanceMs models its wall time), so the second command's refused slot lands behind the frontier \u2014 undetermined post-effect exit 8."
+		},
+		{
+			"id": "claude-code.enable.capsule-published-then-inspection-failed",
+			"operation": "enable",
+			"class": "cli-divergence",
+			"covers": [
+				"refusal",
+				"inspection-failed",
+				"capsule-frontier"
+			],
+			"dims": {
+				"capsule": "unpublished \u2192 published this invocation",
+				"state": "unknown \u2014 read failed"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "unpublished",
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "failed"
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "failed",
+				"commands": [
+					[
+						"plugin",
+						"list",
+						"--json"
+					]
+				],
+				"planCommands": [],
+				"mustNotMutate": true,
+				"cli": {
+					"exit": 8,
+					"verdict": "inspection-failed",
+					"frontier": "post-effect",
+					"observedProvenance": "partial",
+					"attemptedSteps": [
+						"publish-capsule"
+					],
+					"note": "root97-B: a fresh read attempt behind the capsule effect is not a complete observation \u2014 the unclassifiable snapshot is partial post-effect evidence and the refusal reports uncertainty (8), not the determinate 9."
+				}
+			},
+			"anchors": [
+				"root97:B"
+			],
+			"notes": "The capsule published, then the only provider read failed \u2014 the snapshot never classified. Partial provenance plus the inspection-failed refusal: undetermined 8 behind the crossed frontier, while the zero-effect baseline keeps its determinate 9."
+		},
+		{
+			"id": "claude-code.enable.capsule-publish-conflict-valid-occupant-cleanup-fails",
+			"operation": "enable",
+			"class": "cli-divergence",
+			"covers": [
+				"capsule",
+				"residue",
+				"conflict-recovery"
+			],
+			"dims": {
+				"capsule": "unpublished \u2192 publish conflicted by a concurrent VALID capsule",
+				"cleanup": "retained stage removal fails"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "unpublished",
+				"inject": {
+					"kind": "concurrent-valid-capsule-cleanup-fails",
+					"errno": "EIO"
+				},
+				"commands": [
+					{
+						"argv": [
+							"plugin",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.disabled"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"marketplace",
+							"list",
+							"--json"
+						],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					},
+					{
+						"argv": [
+							"plugin",
+							"enable",
+							"${PLUGIN_ID}",
+							"--scope",
+							"user"
+						],
+						"result": {
+							"kind": "completed",
+							"stdout": ""
+						}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "attempted",
+				"commands": [
+					[
+						"plugin",
+						"list",
+						"--json"
+					],
+					[
+						"plugin",
+						"marketplace",
+						"list",
+						"--json"
+					],
+					[
+						"plugin",
+						"enable",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					]
+				],
+				"planCommands": [
+					[
+						"plugin",
+						"enable",
+						"${PLUGIN_ID}",
+						"--scope",
+						"user"
+					]
+				],
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect",
+					"observedProvenance": "post-effect",
+					"attemptedSteps": [
+						"publish-capsule (conflict)",
+						"plugin enable"
+					],
+					"note": "root97-C: the publish conflicted but the concurrent occupant verifies as ours \u2014 the run completes; the retained stage's cleanup FAILED so the residue must stay named, not be silently dropped."
+				},
+				"residue": [
+					{
+						"pattern": ".orchbee-agent-capsule-*",
+						"namedInResult": true
+					}
+				]
+			},
+			"anchors": [
+				"root97:C"
+			],
+			"notes": "Concurrent valid capsule absorbs the publish conflict; the owned stage's same-call cleanup fails (EIO on the walk unlink) \u2014 the residue survives the report instead of being removed by an unchecked cleanup result."
 		}
 	]
 }
