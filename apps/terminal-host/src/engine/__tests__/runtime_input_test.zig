@@ -61,6 +61,7 @@ const waitForWriterStop = harness.waitForWriterStop;
 const createIdleRuntime = harness.createIdleRuntime;
 const destroyRuntimeWithIdentityRetry = harness.destroyRuntimeWithIdentityRetry;
 const createIdleRuntimeWithGeometry = harness.createIdleRuntimeWithGeometry;
+const createIdleRuntimeWithGeometryAndHooks = harness.createIdleRuntimeWithGeometryAndHooks;
 const parseTerminalInput = harness.parseTerminalInput;
 const WriterPause = harness.WriterPause;
 const WriterProbe = harness.WriterProbe;
@@ -1077,8 +1078,19 @@ test "paste encoding requires the reviewed bracketed mode under the terminal loc
     try runtime.forceTerminate();
 }
 test "auto paste keeps opaque bytes, applies ghostty transforms, and snapshots the authoritative bracketed mode" {
-    const runtime = try createIdleRuntime(.{});
-    defer runtime.destroy();
+    var probe: PasteWriterProbe = .{};
+    const runtime = try createIdleRuntimeWithGeometryAndHooks(
+        80,
+        24,
+        .{},
+        probe.hooks(),
+    );
+    // Every exit path releases the writer gate before the runtime joins its
+    // threads, so a parked slice can never deadlock teardown.
+    defer {
+        probe.detach();
+        runtime.destroy();
+    }
 
     // Ctrl-B is not in the Ghostty strip list; ESC and NUL are replaced by
     // spaces, and an unbracketed paste maps LF to CR.
@@ -1093,7 +1105,7 @@ test "auto paste keeps opaque bytes, applies ghostty transforms, and snapshots t
     parseTerminalInput(runtime, "\x1b[?2004h");
     try std.testing.expectEqualSlices(u8, plain_encoded, plain.bytes.?);
     try std.testing.expectEqual(plain_encoded.len, try plain.commit());
-    try expectNextQueuedClientBytes(runtime, plain_encoded);
+    try expectNextQueuedClientBytes(runtime, &probe, plain_encoded);
     try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
 
     // Prepare under bracketed mode, flip it off, then commit for real: the
@@ -1103,7 +1115,7 @@ test "auto paste keeps opaque bytes, applies ghostty transforms, and snapshots t
     parseTerminalInput(runtime, "\x1b[?2004l");
     try std.testing.expectEqualSlices(u8, wrapped_encoded, wrapped.bytes.?);
     try std.testing.expectEqual(wrapped_encoded.len, try wrapped.commit());
-    try expectNextQueuedClientBytes(runtime, wrapped_encoded);
+    try expectNextQueuedClientBytes(runtime, &probe, wrapped_encoded);
     try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
 
     // With linefeed mode on, each carriage return in the encoded bytes
@@ -1112,13 +1124,13 @@ test "auto paste keeps opaque bytes, applies ghostty transforms, and snapshots t
     var linefeed_plain = try runtime.preparePasteAutoInput("a\rb", std.math.maxInt(usize));
     try std.testing.expectEqualSlices(u8, "a\r\nb", linefeed_plain.bytes.?);
     try std.testing.expectEqual(@as(usize, 4), try linefeed_plain.commit());
-    try expectNextQueuedClientBytes(runtime, "a\r\nb");
+    try expectNextQueuedClientBytes(runtime, &probe, "a\r\nb");
 
     parseTerminalInput(runtime, "\x1b[?2004h");
     var linefeed_wrapped = try runtime.preparePasteAutoInput("a\rb", std.math.maxInt(usize));
     try std.testing.expectEqualSlices(u8, "\x1b[200~a\r\nb\x1b[201~", linefeed_wrapped.bytes.?);
     try std.testing.expectEqual(@as(usize, 16), try linefeed_wrapped.commit());
-    try expectNextQueuedClientBytes(runtime, "\x1b[200~a\r\nb\x1b[201~");
+    try expectNextQueuedClientBytes(runtime, &probe, "\x1b[200~a\r\nb\x1b[201~");
     try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
 
     // The lower cap applies to the final encoded size: 3 content bytes
@@ -1129,7 +1141,7 @@ test "auto paste keeps opaque bytes, applies ghostty transforms, and snapshots t
     );
     var fitted = try runtime.preparePasteAutoInput("a\rb", 16);
     try std.testing.expectEqual(@as(usize, 16), try fitted.commit());
-    try expectNextQueuedClientBytes(runtime, "\x1b[200~a\r\nb\x1b[201~");
+    try expectNextQueuedClientBytes(runtime, &probe, "\x1b[200~a\r\nb\x1b[201~");
 
     try std.testing.expectError(
         error.InputLimitExceeded,
@@ -2374,23 +2386,108 @@ test "mode-effect reply exhaustion fences reader and attachment resize commits" 
     }
 }
 
+/// Parks the real writer at its post-copy seam once per slice so a test can
+/// inspect the queued entry deterministically while the writer still owns
+/// the slice, then releases it to perform the real start/write/account
+/// cycle. `detach` must run before runtime teardown so a parked writer can
+/// always drain and the runtime can join it.
+const PasteWriterProbe = struct {
+    gate: RepeatingGate = .{},
+    detached: std.atomic.Value(bool) = .init(false),
+
+    fn fromContext(context: *anyopaque) *PasteWriterProbe {
+        return @ptrCast(@alignCast(context));
+    }
+
+    fn sliceCopied(context: *anyopaque) void {
+        const self = fromContext(context);
+        self.gate.mutex.lock();
+        defer self.gate.mutex.unlock();
+        // The detached check shares the gate mutex so detach() can never
+        // strand the writer between the check and the park decision.
+        if (self.detached.load(.acquire)) return;
+        self.gate.release = false;
+        self.gate.generation += 1;
+        self.gate.condition.broadcast();
+        while (!self.gate.release) self.gate.condition.wait(&self.gate.mutex);
+    }
+
+    pub fn hooks(self: *PasteWriterProbe) RuntimeTestingHooks {
+        return .{
+            .context = self,
+            .writer_slice_copied = sliceCopied,
+        };
+    }
+
+    /// Stop parking and release any currently parked slice so the writer can
+    /// finish its real work and exit. Safe to call more than once.
+    pub fn detach(self: *PasteWriterProbe) void {
+        self.detached.store(true, .release);
+        self.gate.unpause();
+    }
+
+    /// Wait for the writer to park on its next copied slice, with the same
+    /// bounded deadline convention as semantic_wait: a writer that never
+    /// parks is a test failure, not a hang.
+    pub fn waitParked(self: *PasteWriterProbe) !void {
+        var timer = try platform_boundary.monotonic.Timer.start();
+        self.gate.mutex.lock();
+        defer self.gate.mutex.unlock();
+        while (self.gate.release or
+            self.gate.generation == self.gate.last_returned)
+        {
+            const elapsed = timer.read();
+            if (elapsed >= writer_park_timeout_ns) {
+                return error.WriterParkTimedOut;
+            }
+            self.gate.condition.timedWait(
+                &self.gate.mutex,
+                writer_park_timeout_ns - elapsed,
+            ) catch return error.WriterParkTimedOut;
+        }
+        self.gate.last_returned = self.gate.generation;
+    }
+};
+
+const writer_park_timeout_ns: u64 = 10 * std.time.ns_per_s;
+const queued_client_drain_timeout_ns: u64 = 10 * std.time.ns_per_s;
+
 fn expectNextQueuedClientBytes(
     runtime: *TerminalRuntime,
+    probe: *PasteWriterProbe,
     expected: []const u8,
 ) !void {
     var buffer: [512]u8 = undefined;
     const runtime_state = runtimeState(runtime);
+    // The writer parked after copying this slice, so the entry it copied is
+    // still queued: this read-only check observes exactly the slice the real
+    // writer is holding instead of racing its copy.
+    try probe.waitParked();
+    {
+        runtime_state.input_mutex.lock();
+        defer runtime_state.input_mutex.unlock();
+        try std.testing.expect(runtime_state.input_queue.hasWritableEntry());
+        const slice = runtime_state.input_queue.copyNextWriterSlice(&buffer);
+        try std.testing.expectEqual(InputSource.client, slice.source);
+        try std.testing.expectEqual(expected.len, slice.length);
+        try std.testing.expectEqualStrings(expected, buffer[0..slice.length]);
+    }
+    probe.gate.unpause();
+    // The real writer now runs start/write/account; only its accounting
+    // removes the entry, so an empty queue proves this round completed.
+    var timer = try platform_boundary.monotonic.Timer.start();
     runtime_state.input_mutex.lock();
     defer runtime_state.input_mutex.unlock();
-    try std.testing.expect(runtime_state.input_queue.hasWritableEntry());
-    const slice = runtime_state.input_queue.copyNextWriterSlice(&buffer);
-    try std.testing.expectEqual(InputSource.client, slice.source);
-    try std.testing.expectEqual(expected.len, slice.length);
-    try std.testing.expectEqualStrings(expected, buffer[0..slice.length]);
-    try std.testing.expect(
-        runtime_state.input_queue.accountWriterSlice(slice, slice.length) == .completed,
-    );
-    try std.testing.expect(!runtime_state.input_queue.hasWritableEntry());
+    while (runtime_state.input_queue.hasWritableEntry()) {
+        const elapsed = timer.read();
+        if (elapsed >= queued_client_drain_timeout_ns) {
+            return error.WriterDrainTimedOut;
+        }
+        runtime_state.input_condition.timedWait(
+            &runtime_state.input_mutex,
+            queued_client_drain_timeout_ns - elapsed,
+        ) catch return error.WriterDrainTimedOut;
+    }
 }
 
 fn expectNextQueuedTerminalBytes(
