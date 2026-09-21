@@ -3431,6 +3431,37 @@ fn project_rename_text_receipt_rows() -> TestResult {
 
 // ---- workspace close route ---------------------------------------------------
 
+/// The runtime base this test mints under TMPDIR, reclaimed on every exit:
+/// `Drop` runs on the normal path and during unwind alike, so a panic —
+/// including one inside the peer script surfaced through `peer.join` —
+/// cannot leave the directory behind. Deliberately best-effort and
+/// Unix-only like the rest of this file: no handle-release semantics are
+/// needed because the CLI child is always reaped by `support`'s bounded
+/// wait and the peer thread retires on its own accept/IO deadlines — the
+/// guard never joins it, so a drop cannot block the suite. Not a shared
+/// fixture: it exists for this test's owned directory only.
+struct BaseGuard(PathBuf);
+
+impl BaseGuard {
+    fn new(tag: &str) -> Self {
+        Self(base_dir(tag))
+    }
+}
+
+impl std::ops::Deref for BaseGuard {
+    type Target = Path;
+
+    fn deref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for BaseGuard {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
 /// `workspace close` → `workspace close-status` → `workspace close-resume` →
 /// `workspace close-status`: four real CLI invocations against one scripted
 /// peer prove the command route end to end — argv parse, `main` label →
@@ -3442,7 +3473,7 @@ fn project_rename_text_receipt_rows() -> TestResult {
 /// attempt-generation fence on every frame.
 #[test]
 fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResult {
-    let base = base_dir("ws-close-route");
+    let base = BaseGuard::new("ws-close-route");
     let scope = stage_scope(&base);
     // The stable close operation id the Server allocates; the chain then
     // keys status and resume by it.
@@ -3708,6 +3739,5 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
     assert!(compiled_schema(&base, "orchbee.workspace.close-status").is_valid(&document));
 
     peer.join().expect("peer finished");
-    let _ = fs::remove_dir_all(&base);
     Ok(())
 }
