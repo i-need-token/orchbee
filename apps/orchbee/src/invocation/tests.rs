@@ -10,7 +10,7 @@ use super::{
     CommandPath, CompletionShell, ExpectedValue, FailureEnvelope, Family, HelpTopic,
     MutationCommand, OutputFormat, PanelMoveDestination, ParseFailure, ParseFailureKind,
     ParsedSendKey, QueryCommand, Request, Resource, TabContext, Target, TerminalSendInput,
-    TerminalSendKey, UsageContext, UsageReason, parse_request,
+    TerminalSendKey, UsageContext, UsageReason, WaitPattern, parse_request,
 };
 
 fn parse(arguments: &[&str]) -> Result<Request, ParseFailure> {
@@ -133,6 +133,8 @@ fn accepts_every_query_path_with_default_text() {
             QueryCommand::TerminalRead {
                 target: Target::Id(ID.into()),
                 history: None,
+                unwrap: false,
+                lines: None,
             },
         ),
         (&["api", "snapshot"], QueryCommand::ApiSnapshot),
@@ -3593,6 +3595,8 @@ fn terminal_read_history_grammar() {
             QueryCommand::TerminalRead {
                 target: Target::Id(ID.into()),
                 history,
+                unwrap: false,
+                lines: None,
             },
             OutputFormat::Text,
         )
@@ -3637,6 +3641,8 @@ fn terminal_read_history_grammar() {
             command: QueryCommand::TerminalRead {
                 target: Target::Id(ID.into()),
                 history: Some(7),
+                unwrap: false,
+                lines: None,
             },
             format: OutputFormat::Json,
         })
@@ -3774,13 +3780,139 @@ fn terminal_read_history_grammar() {
     }
 }
 
+/// `terminal read --unwrap`/`--lines <n>`: presentation-only transforms
+/// scoped to `terminal read` alone — `--lines` admits 1..=65535, composes
+/// with history mode, and both flags stay illegal on every other command.
+#[test]
+fn terminal_read_presentation_grammar() {
+    let read = |history: Option<u16>, unwrap: bool, lines: Option<u16>| {
+        query(
+            QueryCommand::TerminalRead {
+                target: Target::Id(ID.into()),
+                history,
+                unwrap,
+                lines,
+            },
+            OutputFormat::Text,
+        )
+    };
+    for (arguments, expected) in [
+        (
+            &["terminal", "read", ID, "--unwrap"][..],
+            read(None, true, None),
+        ),
+        (
+            &["terminal", "read", ID, "--lines", "5"][..],
+            read(None, false, Some(5)),
+        ),
+        (
+            &["terminal", "read", ID, "--lines", "1"][..],
+            read(None, false, Some(1)),
+        ),
+        (
+            &["terminal", "read", ID, "--lines", "65535"][..],
+            read(None, false, Some(65535)),
+        ),
+        // All three transforms compose; flag order is free.
+        (
+            &[
+                "terminal",
+                "read",
+                ID,
+                "--lines",
+                "10",
+                "--unwrap",
+                "--history",
+                "--rows",
+                "100",
+            ][..],
+            read(Some(100), true, Some(10)),
+        ),
+    ] {
+        assert_eq!(parse(arguments), Ok(expected), "{arguments:?}");
+    }
+    // The tail value shape: 1..=65535, the shared unsigned-integer spelling.
+    for value in ["0", "65536", "abc", "-1", "5.0", "", " 5", "5 "] {
+        let arguments = ["terminal", "read", ID, "--lines", value];
+        let Err(failure) = parse(&arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.usage.as_ref(),
+            Some(&UsageReason::InvalidValue {
+                context: UsageContext::Path("terminal read"),
+                option: "--lines",
+                value: value.to_owned(),
+                expected: ExpectedValue::TailLines,
+            }),
+            "{arguments:?}"
+        );
+    }
+    // `--unwrap` and `--lines` are out of scope everywhere else.
+    for (arguments, context, option) in [
+        (
+            &["terminal", "get", ID, "--unwrap"][..],
+            UsageContext::Path("terminal get"),
+            "--unwrap",
+        ),
+        (
+            &[
+                "terminal",
+                "wait-output",
+                ID,
+                "--match",
+                "m",
+                "--lines",
+                "3",
+            ][..],
+            UsageContext::Path("terminal wait-output"),
+            "--lines",
+        ),
+        (
+            &["terminal", "list", "--lines", "3"][..],
+            UsageContext::Path("terminal list"),
+            "--lines",
+        ),
+        (
+            &["status", "--unwrap"][..],
+            UsageContext::Path("status"),
+            "--unwrap",
+        ),
+    ] {
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.usage.as_ref(),
+            Some(&UsageReason::UnexpectedOption { context, option }),
+            "{arguments:?}"
+        );
+    }
+    // Repeats stay duplicates before resolution.
+    for (arguments, expected) in [
+        (
+            &["terminal", "read", ID, "--unwrap", "--unwrap"][..],
+            UsageReason::DuplicateOption { option: "--unwrap" },
+        ),
+        (
+            &["terminal", "read", ID, "--lines", "1", "--lines", "2"][..],
+            UsageReason::DuplicateOption { option: "--lines" },
+        ),
+    ] {
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(failure.usage.as_ref(), Some(&expected), "{arguments:?}");
+    }
+}
+
 #[test]
 fn terminal_wait_output_grammar() {
     let wait = |match_text: &str, rows: u16, timeout_ms: u32| {
         query(
             QueryCommand::TerminalWaitOutput {
                 target: Target::Id(ID.into()),
-                match_text: match_text.to_owned(),
+                matcher: WaitPattern::Literal(match_text.to_owned()),
                 rows,
                 timeout_ms,
             },
@@ -3841,14 +3973,14 @@ fn terminal_wait_output_grammar() {
         Ok(Request::Query {
             command: QueryCommand::TerminalWaitOutput {
                 target: Target::Id(ID.into()),
-                match_text: "ready".into(),
+                matcher: WaitPattern::Literal("ready".to_owned()),
                 rows: 1000,
                 timeout_ms: 30_000,
             },
             format: OutputFormat::Json,
         })
     );
-    // `--match` is required — never a default.
+    // Exactly one search input is required — never a default, never both.
     for arguments in [
         &["terminal", "wait-output", ID][..],
         &["terminal", "wait-output", ID, "--rows", "5"][..],
@@ -3861,11 +3993,107 @@ fn terminal_wait_output_grammar() {
             failure.usage.as_ref(),
             Some(&UsageReason::MissingRequired {
                 context: UsageContext::Path("terminal wait-output"),
-                requirement: "'--match'",
+                requirement: "'--match' or '--regex'",
             }),
             "{arguments:?}"
         );
     }
+    assert_eq!(
+        parse(&[
+            "terminal",
+            "wait-output",
+            ID,
+            "--match",
+            "a",
+            "--regex",
+            "b"
+        ])
+        .expect_err("both search inputs must conflict")
+        .usage
+        .as_ref(),
+        Some(&UsageReason::ConflictingOptions {
+            context: UsageContext::Path("terminal wait-output"),
+            first: "--match",
+            second: "--regex",
+        })
+    );
+    // The regex arm parses and compiles to the compiled pattern.
+    let compiled = regex::Regex::new("re[a-z]+dy").expect("regex");
+    assert_eq!(
+        parse(&[
+            "terminal",
+            "wait-output",
+            ID,
+            "--regex",
+            "re[a-z]+dy",
+            "--rows",
+            "3"
+        ]),
+        Ok(query(
+            QueryCommand::TerminalWaitOutput {
+                target: Target::Id(ID.into()),
+                matcher: WaitPattern::Regex(compiled),
+                rows: 3,
+                timeout_ms: 30_000,
+            },
+            OutputFormat::Text,
+        ))
+    );
+    // `--regex` value shape: nonempty, ≤1024 bytes, and a program that
+    // compiles inside the declared budgets.
+    let over = "x".repeat(1025);
+    for value in ["", over.as_str(), "[", "(", "a{999999999999}"] {
+        let arguments = ["terminal", "wait-output", ID, "--regex", value];
+        let Err(failure) = parse(&arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.usage.as_ref(),
+            Some(&UsageReason::InvalidValue {
+                context: UsageContext::Path("terminal wait-output"),
+                option: "--regex",
+                value: value.to_owned(),
+                expected: ExpectedValue::RegexPattern,
+            }),
+            "{arguments:?}"
+        );
+    }
+    // `--regex` is out of scope everywhere else.
+    for (arguments, context) in [
+        (
+            &["terminal", "read", ID, "--regex", "a"][..],
+            "terminal read",
+        ),
+        (&["terminal", "list", "--regex", "a"][..], "terminal list"),
+        (&["status", "--regex", "a"][..], "status"),
+    ] {
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.usage.as_ref(),
+            Some(&UsageReason::UnexpectedOption {
+                context: UsageContext::Path(context),
+                option: "--regex",
+            }),
+            "{arguments:?}"
+        );
+    }
+    assert_eq!(
+        parse(&[
+            "terminal",
+            "wait-output",
+            ID,
+            "--regex",
+            "a",
+            "--regex",
+            "b"
+        ])
+        .expect_err("repeat must fail")
+        .usage
+        .as_ref(),
+        Some(&UsageReason::DuplicateOption { option: "--regex" })
+    );
     // `--match` value shape: non-empty, ≤4096 bytes (a 4097-byte value fails).
     let over = "x".repeat(4097);
     for value in ["", over.as_str()] {

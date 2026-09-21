@@ -129,9 +129,15 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   the launch for that one request; it is not persisted anywhere else.
 - `--confirm`: valueless boolean, required on `tab close` and `panel close`; absent there or
   present on any other command is `invalid-usage`.
-- `--match <text>`: single-use value flag, required on `terminal wait-output`; a nonempty
-  UTF-8 literal up to 4096 bytes, matched case-sensitively. A missing, empty, non-UTF-8, or
-  oversized value is `invalid-usage`.
+- `--match <text>`: single-use value flag on `terminal wait-output`, one of the two search
+  inputs — exactly one of `--match` or `--regex` is required. A nonempty UTF-8 literal up to
+  4096 bytes, matched case-sensitively. A missing, empty, non-UTF-8, or oversized value —
+  or supplying both search flags — is `invalid-usage`.
+- `--regex <pattern>`: single-use value flag, the alternate `terminal wait-output` search
+  input; a nonempty UTF-8 regular expression of at most 1024 bytes compiled once before
+  any runtime access under a 1 MiB program-size limit and a 1 MiB lazy-DFA cache limit.
+  A missing, empty, oversized, or non-compiling value — or coexistence with `--match` — is
+  `invalid-usage`.
 - `--timeout <ms>`: single-use value flag, optional on `terminal wait-output` (default
   `30000`) and on `agent wait` (default `600000`); one decimal `u32` in `1..=3600000`.
   A repeated, non-numeric, or out-of-range value is `invalid-usage`.
@@ -147,6 +153,15 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   and `panel split`. Either flag without the other, a repeat, a non-numeric or
   out-of-range count, or `--history` on any other command is `invalid-usage` before
   any runtime access.
+- `--unwrap`: valueless flag admitted only on `terminal read`; a read-only presentation
+  transform that joins verified soft-wrap row chains into logical lines. Hard breaks and
+  empty lines are preserved; a window edge inside a wrapped line reports
+  `startsMidLine`/`endsMidLine` instead of claiming a complete line.
+- `--lines <n>`: single-use value flag admitted only on `terminal read`; a
+  presentation-only tail of the last `n` emitted entries `1..=65535` — logical lines under
+  `--unwrap`, physical rows otherwise. It never widens the fetched window, and its
+  `tail{requested,omitted,entries}` accounting stays separate from the byte-budget's
+  `omittedRows`. A repeated, non-numeric, zero, or out-of-range value is `invalid-usage`.
 - `--text <utf8>`, `--key <name>`, `--file <path>`, `--stdin`: the four mutually
   exclusive `terminal send` input sources, single-use each and valid on no other
   command. `--text` and `--file` consume the next token as their value under the
@@ -235,8 +250,8 @@ orchbee panel list [--tab <target>] | panel get <target>
 orchbee panel split <target> --direction above|below|left|right --label <label> [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>]
 orchbee panel close <target> --confirm
 orchbee panel move <target> --target-panel <target> --direction above|below|left|right
-orchbee terminal list | terminal get <target> | terminal read <target> [--history --rows <1-1000>]
-orchbee terminal wait-output <target> --match <text> [--rows <1-1000>] [--timeout <1-3600000>]
+orchbee terminal list | terminal get <target> | terminal read <target> [--history --rows <1-1000>] [--unwrap] [--lines <1-65535>]
+orchbee terminal wait-output <target> (--match <text> | --regex <pattern>) [--rows <1-1000>] [--timeout <1-3600000>]
 orchbee terminal send <target> (--text <utf8> | --file <path> | --stdin) [--enter] | --key <name>
 orchbee launch-profile list | launch-profile get <selector>
 orchbee launch-profile create --name <name> --exec <path> [--arg <value>]...
@@ -427,6 +442,23 @@ min(n, scrollback, 262144/columns)` and `startRow = scrollback - rowCount`, so t
   produce are `protocol-invalid`. There is no retry, and no `RowsApplied`/feedback anchor is
   ever sent for the read.
 
+`terminal read --unwrap`/`--lines` are presentation transforms applied to the already
+materialized emitted rows — they change neither the fetched window nor the read bound:
+
+- `--unwrap` joins only adjacent, verified soft-wrap-compatible rows (`wrap` and
+  `wrap_continuation` agreeing pairwise) into logical lines; the JSON `content` then emits
+  `lines[]` — `{firstRow,lastRow,text,startsMidLine,endsMidLine}` — instead of `rows[]`,
+  plus `lineCount` counted over the observed fragments only (never the retained-history
+  total). `rowCount` keeps counting physical rows. A window that opens or ends inside a
+  wrapped line yields a flagged fragment, never a claimed complete line.
+- `--lines <n>` tails the emitted entries: physical `rows[]` without `--unwrap`, logical
+  `lines[]` with it. The `tail{requested,omitted,entries}` member reports the presentation
+  drop separately from `omittedRows` (the fetch/budget omissions). Text output prints one
+  line per emitted entry and a localized `… earlier rows/lines not shown` marker distinct
+  from the read-limit marker.
+- Either flag lifts the envelope to `version:2` (`orchbee.terminal.read` /
+  `orchbee.terminal.history`); flag-free output stays `version:1` byte-identical.
+
 `terminal wait-output` reuses the same snapshot admission and attach preamble, then keeps the
 read-only viewer alive for a bounded observation loop instead of a single frame:
 
@@ -456,10 +488,19 @@ read-only viewer alive for a bounded observation loop instead of a single frame:
   `rows-rejected` — it is never silently truncated.
 - **Match** — window rows join into logical lines only when `wrap` and `wrap_continuation`
   agree pairwise; disagreement is a hard boundary and window-edge fragments stay honest
-  partials (never padded from outside the window). The first logical line containing the
-  literal, case-sensitive `--match` text wins; the returned `excerpt` is a ≤4096-byte slice
-  of that line that always contains the complete pattern, with `excerptTruncated` and its
-  byte offset inside the logical line. A match ends the command with the physical
+  partials (never padded from outside the window). Each observed fragment is searched
+  independently — nothing matches across a hard boundary or an unfetched gap. The first
+  fragment containing the pattern wins: the literal, case-sensitive `--match` substring, or
+  the regex engine's leftmost match under `--regex`. `^`/`$` anchor at the observed
+  fragment's edges only, and a valid zero-length match (`^$` on an empty observed line) is
+  a hit. The returned `excerpt` is a ≤4096-byte slice of that fragment that always contains
+  a complete `--match` literal; a `--regex` match may exceed the bound, in which case the
+  excerpt leads with the match's start and the extended members carry the truth —
+  `matchLength` the complete byte length, `matched`/`matchedTruncated` the ≤4096-byte match
+  text, `startsMidLine`/`endsMidLine` the fragment-edge facts, all under
+  `patternKind:"regex"` (envelope `version:2`; a literal hit stays `version:1`). Offsets
+  (`matchOffset`, `excerptOffset`) are UTF-8 byte offsets into the joined fragment, never
+  terminal columns. A match ends the command with the physical
   `rowStart`/`rowEnd` (observation-scoped, not a cursor), the frame `revision`/`generation`,
   the resolved terminal/worker/site identity, and the observed `hostEpoch`/`attachmentId`;
   `observed.completedObservations` counts only consistent window+match passes, and
@@ -857,8 +898,14 @@ Canonical traversal order: `navigation.projects` order; each project's `workspac
 Success envelopes are `{schema, version, source, result}`. Every business document —
 query, mutation, receipt, and failure — is `version:1` except `orchbee.terminal.get`
 (`version:3` since it gained the optional `launchProfile` provenance member on top of
-the v2 `launch` member) and `orchbee.mutation.result` (`version:2` since it gained the
-launch-profile actions and their `catalogRevision`/`profileId`/`name` receipt fields).
+the v2 `launch` member), `orchbee.mutation.result` (`version:2` since it gained the
+launch-profile actions and their `catalogRevision`/`profileId`/`name` receipt fields),
+and three conditional `version:2`s that report the higher version only when the emitted
+shape actually carries the new members: `orchbee.terminal.read` and
+`orchbee.terminal.history` when `--unwrap` or `--lines` was given (the `lines`/`lineCount`/`tail`
+content members), and `orchbee.terminal.wait-output` when `--regex` produced the match
+(the `patternKind`/`matchLength`/`matched`/`matchedTruncated`/`startsMidLine`/`endsMidLine`
+match members). Flag-free output of all three stays `version:1` byte-identical.
 The `orchbee.api.schema` catalog
 envelope is `version:8`: registering a new schema id changes the closed dictionary's
 shape, which is a catalog shape change under the version rule, not a business one:
@@ -947,9 +994,14 @@ tabId,terminalContextId}}]}`; `terminal get` returns the same identity facts und
   grid rows as `{index,text,continuation:{fromPrevious,intoNext}}` — `text` joins the row's
   cells, dropping wide-cell spacer tails and trimming grid padding), `rowCount` (every row the
   applied frame held), `truncated`/`omittedRows`, and `limits` `{rows:4096,textBytes:4194304}`.
-  Emitted rows are bounded by a 4 MiB summed JSON-encoded-text budget; rows past the budget are
-  counted in `omittedRows` and `truncated` is true. Under text output each emitted row prints as
-  one escaped line followed by a localized truncation marker when `omittedRows>0`. The read is a
+  Under `--unwrap` the emitted `rows` member is replaced by `lines` — each
+  `{firstRow,lastRow,text,startsMidLine,endsMidLine}` a joined logical line or a flagged
+  window-edge fragment — plus `lineCount`; under `--lines` a `tail` member reports
+  `{requested,omitted,entries:"rows"|"lines"}`. Emitted rows are bounded by a 4 MiB summed
+  JSON-encoded-text budget; rows past the budget are
+  counted in `omittedRows` and `truncated` is true. Under text output each emitted row (or
+  logical line) prints as one escaped line, followed by the localized tail marker when
+  `tail.omitted>0` and the truncation marker when `omittedRows>0`. The read is a
   single point-in-time frame: `revision`/`generation`/`sequence` are the host's counters at that
   observation, not a CLI freshness claim.
 - `orchbee.terminal.history` → `{terminal,history,content}`: `history` carries the priced
@@ -957,8 +1009,10 @@ tabId,terminalContextId}}]}`; `terminal get` returns the same identity facts und
   decimal-string `scrollbackRows`/`totalRows`/`startRow`, `requestedRows`, and `windowRows` (the
   Host window's complete row count); `content` carries `rows` (`{index,text,continuation}` with
   `index` the absolute retained-plus-screen row coordinate as a decimal string), `rowCount`
-  (emitted rows), `truncated`/`omittedRows`, and `limits` `{rows:1000,textBytes:4194304}`.
-  `omittedRows` honestly counts `min(requestedRows,scrollbackRows)` minus emitted rows — rows the
+  (emitted rows), `truncated`/`omittedRows`, and `limits` `{rows:1000,textBytes:4194304}` —
+  with the same `--unwrap`/`--lines` substitutions as `terminal read` (`lines` with
+  decimal-string `firstRow`/`lastRow`, `lineCount`, `tail`). `omittedRows` honestly counts
+  `min(requestedRows,scrollbackRows)` minus emitted rows — rows the
   `MAXIMUM_FRAME_CELLS/columns` cap or the text budget never emitted — while rows older than
   `startRow` were never requested, not omitted. Text output matches `terminal read`: one escaped
   line per emitted row plus the marker.

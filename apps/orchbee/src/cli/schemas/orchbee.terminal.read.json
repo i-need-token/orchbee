@@ -7,7 +7,7 @@
 	"additionalProperties": false,
 	"properties": {
 		"schema": { "const": "orchbee.terminal.read" },
-		"version": { "const": 1 },
+		"version": { "enum": [1, 2] },
 		"source": { "$ref": "#/$defs/snapshotSource" },
 		"result": {
 			"type": "object",
@@ -20,6 +20,43 @@
 			}
 		}
 	},
+	"allOf": [
+		{
+			"if": { "properties": { "version": { "const": 1 } }, "required": ["version"] },
+			"then": {
+				"properties": {
+					"result": {
+						"properties": {
+							"content": {
+								"required": ["rows"],
+								"not": {
+									"anyOf": [
+										{ "required": ["lines"] },
+										{ "required": ["lineCount"] },
+										{ "required": ["tail"] }
+									]
+								}
+							}
+						}
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"result": {
+						"properties": {
+							"content": {
+								"anyOf": [
+									{ "required": ["lines"] },
+									{ "required": ["tail"] }
+								]
+							}
+						}
+					}
+				}
+			}
+		}
+	],
 	"$defs": {
 		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
 		"decimal": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
@@ -76,7 +113,7 @@
 		},
 		"content": {
 			"type": "object",
-			"required": ["rows", "rowCount", "truncated", "omittedRows", "limits"],
+			"required": ["rowCount", "truncated", "omittedRows", "limits"],
 			"additionalProperties": false,
 			"properties": {
 				"rows": {
@@ -84,6 +121,13 @@
 					"maxItems": 4096,
 					"items": { "$ref": "#/$defs/contentRow" }
 				},
+				"lines": {
+					"type": "array",
+					"maxItems": 4096,
+					"items": { "$ref": "#/$defs/logicalLine" }
+				},
+				"lineCount": { "type": "integer", "minimum": 0, "maximum": 4096 },
+				"tail": { "$ref": "#/$defs/tail" },
 				"rowCount": { "type": "integer", "minimum": 1, "maximum": 4096 },
 				"truncated": { "type": "boolean" },
 				"omittedRows": { "type": "integer", "minimum": 0, "maximum": 4096 },
@@ -99,11 +143,50 @@
 			},
 			"allOf": [
 				{
+					"if": { "required": ["lines"] },
+					"then": {
+						"required": ["lineCount"],
+						"not": { "required": ["rows"] },
+						"properties": {
+							"tail": { "properties": { "entries": { "const": "lines" } } }
+						}
+					},
+					"else": {
+						"required": ["rows"],
+						"not": { "required": ["lineCount"] },
+						"properties": {
+							"tail": { "properties": { "entries": { "const": "rows" } } }
+						}
+					}
+				},
+				{
 					"if": { "properties": { "truncated": { "const": true } } },
 					"then": { "properties": { "omittedRows": { "minimum": 1 } } },
 					"else": { "properties": { "omittedRows": { "const": 0 } } }
 				}
 			]
+		},
+		"logicalLine": {
+			"type": "object",
+			"required": ["firstRow", "lastRow", "text", "startsMidLine", "endsMidLine"],
+			"additionalProperties": false,
+			"properties": {
+				"firstRow": { "type": "integer", "minimum": 0, "maximum": 4095 },
+				"lastRow": { "type": "integer", "minimum": 0, "maximum": 4095 },
+				"text": { "type": "string" },
+				"startsMidLine": { "type": "boolean" },
+				"endsMidLine": { "type": "boolean" }
+			}
+		},
+		"tail": {
+			"type": "object",
+			"required": ["requested", "omitted", "entries"],
+			"additionalProperties": false,
+			"properties": {
+				"requested": { "type": "integer", "minimum": 1, "maximum": 65535 },
+				"omitted": { "type": "integer", "minimum": 0, "maximum": 4095 },
+				"entries": { "enum": ["rows", "lines"] }
+			}
 		},
 		"contentRow": {
 			"type": "object",

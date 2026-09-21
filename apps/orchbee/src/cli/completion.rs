@@ -174,6 +174,9 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--history",
     "--path",
     "--match",
+    "--regex",
+    "--unwrap",
+    "--lines",
     "--timeout",
     "--text",
     "--enter",
@@ -259,20 +262,17 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("panel:close", &["--confirm"]),
     (
         "panel:move",
-        &[
-            "--target-panel",
-            "--into-tab",
-            "--new-tab",
-            "--direction",
-            "--label",
-        ],
+        &["--target-panel", "--into-tab", "--new-tab", "--direction", "--label"],
     ),
-    ("terminal:read", &["--history", "--rows"]),
+    ("terminal:read", &["--history", "--lines", "--rows", "--unwrap"]),
     (
         "terminal:send",
         &["--text", "--enter", "--key", "--file", "--stdin"],
     ),
-    ("terminal:wait-output", &["--match", "--rows", "--timeout"]),
+    (
+        "terminal:wait-output",
+        &["--match", "--regex", "--rows", "--timeout"],
+    ),
     ("worktree:list", &["--project", "--directory"]),
     ("launch-profile:create", &["--name", "--exec", "--arg"]),
 ];
@@ -439,6 +439,9 @@ fn flag_bit(flag: &str) -> &'static str {
         "--history" => "seen_history",
         "--path" => "seen_path",
         "--match" => "seen_match",
+        "--regex" => "seen_regex",
+        "--unwrap" => "seen_unwrap",
+        "--lines" => "seen_lines",
         "--timeout" => "seen_timeout",
         "--text" => "seen_text",
         "--enter" => "seen_enter",
@@ -472,7 +475,7 @@ fn flag_value(flag: &str) -> Option<&'static str> {
         "--until" => Some("until"),
         "--provider" => Some("provider"),
         "--standalone" | "--confirm" | "--new-tab" | "--history" | "--enter" | "--stdin"
-        | "--include-ended" => None,
+        | "--include-ended" | "--unwrap" => None,
         _ => Some("filter"),
     }
 }

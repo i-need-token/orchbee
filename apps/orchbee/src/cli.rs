@@ -499,8 +499,20 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
         ),
         // `terminal read` couples the snapshot to one viewer observation on
         // the same session; its answer arrives already projected.
-        QueryCommand::TerminalRead { target, history } => {
-            match query::read_terminal(target, *history) {
+        QueryCommand::TerminalRead {
+            target,
+            history,
+            unwrap,
+            lines,
+        } => {
+            match query::read_terminal(
+                target,
+                *history,
+                results::ReadPresentation {
+                    unwrap: *unwrap,
+                    tail: *lines,
+                },
+            ) {
                 Err(failure) => failure_output(failure, Some(format), locale),
                 Ok((source, projection)) => {
                     success_output(projection, source, &command, format, locale)
@@ -512,10 +524,10 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
         // already projected, like `terminal read`.
         QueryCommand::TerminalWaitOutput {
             target,
-            match_text,
+            matcher,
             rows,
             timeout_ms,
-        } => match query::wait_output(target, match_text, *rows, *timeout_ms) {
+        } => match query::wait_output(target, matcher, *rows, *timeout_ms) {
             Err(failure) => failure_output(failure, Some(format), locale),
             Ok((source, projection)) => {
                 success_output(projection, source, &command, format, locale)

@@ -282,13 +282,29 @@ pub(crate) fn render(
         Projection::PanelGet(doc) => panel_doc(out, doc, text),
         Projection::TerminalList(rows) => terminal_table(out, text, rows),
         // `terminal read` emits the observed content itself: one output line
-        // per emitted grid row, each escaped the same way as every other
-        // user-controlled value, then a localized marker when the read
-        // budget omitted rows.
+        // per emitted grid row — or, under `--unwrap`, per joined logical
+        // line — each escaped the same way as every other user-controlled
+        // value, then the localized markers for tail-omitted entries and
+        // budget-omitted rows.
         Projection::TerminalRead(doc) => {
-            for row in &doc.rows {
-                out.push(&escape(&row.text))?;
-                out.push("\n")?;
+            match &doc.lines {
+                Some(lines) => {
+                    for line in lines {
+                        out.push(&escape(&line.text))?;
+                        out.push("\n")?;
+                    }
+                }
+                None => {
+                    for row in &doc.rows {
+                        out.push(&escape(&row.text))?;
+                        out.push("\n")?;
+                    }
+                }
+            }
+            if let Some(tail) = &doc.tail
+                && tail.omitted > 0
+            {
+                out.push(&locale.cli_read_tail_omitted(tail.omitted, doc.lines.is_some()))?;
             }
             if doc.omitted_rows > 0 {
                 out.push(&locale.cli_read_truncated(doc.omitted_rows))?;
@@ -296,12 +312,27 @@ pub(crate) fn render(
             Ok(())
         }
         // `terminal read --history` prints the retained rows the same way:
-        // escaped text, one line per emitted row, then the localized marker
-        // when the window cap or read budget omitted rows.
+        // escaped text, one line per emitted row (or joined logical line
+        // under `--unwrap`), then the localized markers.
         Projection::TerminalHistory(doc) => {
-            for row in &doc.rows {
-                out.push(&escape(&row.text))?;
-                out.push("\n")?;
+            match &doc.lines {
+                Some(lines) => {
+                    for line in lines {
+                        out.push(&escape(&line.text))?;
+                        out.push("\n")?;
+                    }
+                }
+                None => {
+                    for row in &doc.rows {
+                        out.push(&escape(&row.text))?;
+                        out.push("\n")?;
+                    }
+                }
+            }
+            if let Some(tail) = &doc.tail
+                && tail.omitted > 0
+            {
+                out.push(&locale.cli_read_tail_omitted(tail.omitted, doc.lines.is_some()))?;
             }
             if doc.omitted_rows > 0 {
                 out.push(

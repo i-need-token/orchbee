@@ -103,9 +103,14 @@ provider 接入——对调用用户的 provider 配置做有界读取与受管�
   猜测匹配。解析出的 profile 仅为该次请求提供启动，不在任何其他地方持久化。
 - `--confirm`：无值布尔 flag，`tab close` 与 `panel close` 上必填；该处缺失或出现在任何
   其他命令上均为 `invalid-usage`。
-- `--match <text>`：带值 flag，单次使用，`terminal wait-output` 上必填；非空 UTF-8
-  字面量，最长 4096 字节，匹配时区分大小写。缺失、空、非 UTF-8 或超长值均为
+- `--match <text>`：带值 flag，单次使用，`terminal wait-output` 的两个搜索输入之一
+  ——`--match` 与 `--regex` 必须且只能提供一个。非空 UTF-8 字面量，最长 4096 字节，
+  匹配时区分大小写。缺失、空、非 UTF-8 或超长值——或两个搜索 flag 同时出现——均为
   `invalid-usage`。
+- `--regex <pattern>`：带值 flag，单次使用，`terminal wait-output` 的另一搜索输入；
+  非空 UTF-8 正则表达式，至多 1024 字节，在任何运行时访问之前以 1 MiB 程序大小上限
+  与 1 MiB 惰性 DFA 缓存上限编译一次。缺失、空、超长或编译失败的值——或与 `--match`
+  并存——均为 `invalid-usage`。
 - `--timeout <ms>`：带值 flag，单次使用，`terminal wait-output`（默认 `30000`）与
   `agent wait`（默认 `600000`）上可选；取一个 `1..=3600000` 的十进制 `u32`。
   重复、非数值或越界值均为 `invalid-usage`。
@@ -117,6 +122,13 @@ provider 接入——对调用用户的 provider 配置做有界读取与受管�
   在 `terminal read` 上 `--rows` 拼写携带 `1..=1000` 的保留行数，替代其几何含义，
   该含义在 `tab create` 与 `panel split` 上不变。两者缺一、重复、非数值或越界
   计数、或 `--history` 出现在其他命令上，均在任何运行时访问之前报 `invalid-usage`。
+- `--unwrap`：无值 flag，仅 `terminal read` 受理；只读呈现变换，把经验证的软换行
+  行链拼接为逻辑行。硬换行与空行保留；窗口边缘落在换行行内部时以
+  `startsMidLine`/`endsMidLine` 如实标记，而非声称完整行。
+- `--lines <n>`：带值 flag，单次使用，仅 `terminal read` 受理；仅呈现层的尾部截取，
+  保留最后 `n` 条已发出条目 `1..=65535`——`--unwrap` 下为逻辑行，否则为物理行。
+  绝不扩大抓取窗口，其 `tail{requested,omitted,entries}` 计数与字节预算的
+  `omittedRows` 分开报告。重复、非数值、零或越界值均为 `invalid-usage`。
 - `--text <utf8>`、`--key <name>`、`--file <path>`、`--stdin`：`terminal send`
   四个互斥输入源，各单次使用且在其他命令上均非法。`--text` 与 `--file` 按标准
   取值规则消费下一个 token 作为值（以减号开头的 token 也会被消费，裸 `--`
@@ -194,8 +206,8 @@ orchbee panel list [--tab <target>] | panel get <target>
 orchbee panel split <target> --direction above|below|left|right --label <label> [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>]
 orchbee panel close <target> --confirm
 orchbee panel move <target> --target-panel <target> --direction above|below|left|right
-orchbee terminal list | terminal get <target> | terminal read <target> [--history --rows <1-1000>]
-orchbee terminal wait-output <target> --match <text> [--rows <1-1000>] [--timeout <1-3600000>]
+orchbee terminal list | terminal get <target> | terminal read <target> [--history --rows <1-1000>] [--unwrap] [--lines <1-65535>]
+orchbee terminal wait-output <target> (--match <text> | --regex <pattern>) [--rows <1-1000>] [--timeout <1-3600000>]
 orchbee terminal send <target> (--text <utf8> | --file <path> | --stdin) [--enter] | --key <name>
 orchbee launch-profile list | launch-profile get <selector>
 orchbee launch-profile create --name <name> --exec <path> [--arg <value>]...
@@ -358,6 +370,20 @@ connect、绝不创建锁或标记、绝不修复——共享一个在有界文�
   `{stage:"viewer",operation:"read-history",reason}`；固定请求形状不可能产生的 reason 为
   `protocol-invalid`。不重试，也绝不为此读取发送 `RowsApplied`/feedback 锚点。
 
+`terminal read --unwrap`/`--lines` 是作用于已物化发出行的呈现变换——既不改变抓取
+窗口，也不改变读取上限：
+
+- `--unwrap` 只把相邻且经验证软换行相容的行（`wrap` 与 `wrap_continuation` 两两一致）
+  拼成逻辑行；JSON `content` 随之发出 `lines[]`——`{firstRow,lastRow,text,startsMidLine,endsMidLine}`——替代 `rows[]`，并附只对观测片段计数的 `lineCount`（绝不是
+  保留历史总行数）。`rowCount` 仍计物理行。窗口开头或结尾落在换行行内部时产出的是
+  带标记的片段，绝不谎称完整行。
+- `--lines <n>` 对已发出条目做尾部截取：无 `--unwrap` 时为物理 `rows[]`，有
+  `--unwrap` 时为逻辑 `lines[]`。`tail{requested,omitted,entries}` 成员与
+  `omittedRows`（抓取/预算省略）分开报告这次呈现省略。text 输出每条已发出条目打印
+  一行，并附一条本地化的"… 未显示前 N 行/逻辑行"标记，与读取上限标记相区分。
+- 任一 flag 使封套升为 `version:2`（`orchbee.terminal.read` /
+  `orchbee.terminal.history`）；不带 flag 的输出保持 `version:1` 逐字节不变。
+
 `terminal wait-output` 沿用同一快照准入与 attach 前导，但只读 viewer 在单次帧之后继续
 保持存活，进入有界观察循环：
 
@@ -382,9 +408,16 @@ connect、绝不创建锁或标记、绝不修复——共享一个在有界文�
   typed 词汇映射（operation `"wait-output"`）。行编码器无法编码的载荷以 typed
   `rows-rejected` 失败——绝不静默截断。
 - **匹配**——仅当 `wrap` 与 `wrap_continuation` 两两一致时窗口行才拼成逻辑行；不一致即
-  硬边界，窗口边缘的残缺行保持诚实的部分行（绝不拿窗口外文本补齐）。首个包含 `--match`
-  字面量（区分大小写）的逻辑行胜出；返回的 `excerpt` 是该行内始终包含完整 pattern 的
-  ≤4096 字节片段，附 `excerptTruncated` 及其在逻辑行内的字节偏移。命中后命令返回物理
+  硬边界，窗口边缘的残缺行保持诚实的部分行（绝不拿窗口外文本补齐）。每个观测片段
+  独立搜索——硬边界或未抓取的缺口两侧绝不互相匹配。首个包含模式的片段胜出：
+  `--match` 为字面、区分大小写的子串，`--regex` 为正则引擎的最左匹配。`^`/`$` 只锚定
+  观测片段的边缘，合法的零长度匹配（观测空行上的 `^$`）也算命中。返回的 `excerpt`
+  是该片段内 ≤4096 字节的片段，始终包含完整的 `--match` 字面量；`--regex` 命中可超过
+  该上限，此时 excerpt 以命中起点开头，由扩展成员如实报告——`matchLength` 为完整字节
+  长度，`matched`/`matchedTruncated` 为 ≤4096 字节的命中文本，`startsMidLine`/
+  `endsMidLine` 为片段边缘事实，均随 `patternKind:"regex"` 出现（封套 `version:2`；
+  字面命中保持 `version:1`）。`matchOffset`、`excerptOffset` 是拼接片段内的 UTF-8 字节
+  偏移，绝非终端列。命中后命令返回物理
   `rowStart`/`rowEnd`（仅观察期有效，不是游标）、帧 `revision`/`generation`、已解析的
   terminal/worker/site 身份，以及观察到的 `hostEpoch`/`attachmentId`；
   `observed.completedObservations` 只计一致的窗口+匹配通过次数，
@@ -705,10 +738,15 @@ terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresent
 过滤后的列表与 `ambiguous` 候选都保持该次序。
 
 成功 envelope 为 `{schema, version, source, result}`。所有业务文档——查询、mutation、
-收据与失败——均为 `version:1`，唯 `orchbee.terminal.get` 与 `orchbee.mutation.result`
-例外：前者因在 v2 `launch` 成员之上新增可选 `launchProfile` provenance 成员而为
-`version:3`，后者因新增 launch-profile 动作及其 `catalogRevision`/`profileId`/`name`
-收据字段而为 `version:2`。`orchbee.api.schema` 目录 envelope 为 `version:8`：
+收据与失败——均为 `version:1`，例外为 `orchbee.terminal.get`（因在 v2 `launch` 成员之上
+新增可选 `launchProfile` provenance 成员而为 `version:3`）、`orchbee.mutation.result`
+（因新增 launch-profile 动作及其 `catalogRevision`/`profileId`/`name` 收据字段而为
+`version:2`），以及三个条件式 `version:2`——仅当发出形状确实携带新成员时才报高版本：
+`orchbee.terminal.read` 与 `orchbee.terminal.history` 在给出 `--unwrap` 或 `--lines` 时
+（`content` 的 `lines`/`lineCount`/`tail` 成员），`orchbee.terminal.wait-output` 在
+`--regex` 命中时（`match` 的 `patternKind`/`matchLength`/`matched`/`matchedTruncated`/
+`startsMidLine`/`endsMidLine` 成员）。三者不带 flag 的输出保持 `version:1` 逐字节不变。
+`orchbee.api.schema` 目录 envelope 为 `version:8`：
 注册新的 schema id 会改变封闭字典的形状，按版本规则属目录形状变化而非业务变化：
 
 - `source.kind="workbench-snapshot"`：带同一份已验证快照的 `siteId` 与十进制字符串
@@ -785,9 +823,13 @@ tabId,terminalContextId}}]}`；`terminal get` 在 `terminal` 下返回同一身�
   `{columns,rows}` 与 `cursor` `{row,column,visible}`；`content` 携带 `rows`（发出的网格行，
   形如 `{index,text,continuation:{fromPrevious,intoNext}}`——`text` 拼接该行各 cell，
   丢弃宽字符占位尾并裁剪网格填充）、`rowCount`（已应用帧持有的全部行数）、
-  `truncated`/`omittedRows` 与 `limits` `{rows:4096,textBytes:4194304}`。发出的行受累计 4 MiB
+  `truncated`/`omittedRows` 与 `limits` `{rows:4096,textBytes:4194304}`。`--unwrap` 下
+  `rows` 成员被 `lines` 替代——每条为 `{firstRow,lastRow,text,startsMidLine,endsMidLine}`
+  的拼接逻辑行或带标记的窗口边缘片段——并附 `lineCount`；`--lines` 下附 `tail` 成员报告
+  `{requested,omitted,entries:"rows"|"lines"}`。发出的行受累计 4 MiB
   JSON 编码文本预算约束；超出预算的行计入 `omittedRows` 且 `truncated` 为 true。text 输出下每
-  个发出的行渲染为一行转义文本，`omittedRows>0` 时末尾追加本地化截断标记。本次读取是单一
+  个发出的行（或逻辑行）渲染为一行转义文本，`tail.omitted>0` 时追加本地化尾部标记，
+  `omittedRows>0` 时末尾追加本地化截断标记。本次读取是单一
   时间点帧：`revision`/`generation`/`sequence` 是宿主在该观察时刻的计数器，不是 CLI 的
   freshness 声明。
 - `orchbee.terminal.history` → `{terminal,history,content}`：`history` 携带已定价窗口的
@@ -795,7 +837,9 @@ tabId,terminalContextId}}]}`；`terminal get` 在 `terminal` 下返回同一身�
   `scrollbackRows`/`totalRows`/`startRow`、`requestedRows` 与 `windowRows`（Host 窗口的完整
   行数）；`content` 携带 `rows`（`{index,text,continuation}`，`index` 为"保留区+屏幕"绝对行
   坐标的十进制字符串）、`rowCount`（发出的行数）、`truncated`/`omittedRows` 与 `limits`
-  `{rows:1000,textBytes:4194304}`。`omittedRows` 诚实计为 `min(requestedRows,scrollbackRows)` 减去已发出行数——即被 `MAXIMUM_FRAME_CELLS/columns` 上限或文本预算截掉的
+  `{rows:1000,textBytes:4194304}`——并做与 `terminal read` 相同的 `--unwrap`/`--lines`
+  替换（`lines` 的 `firstRow`/`lastRow` 为十进制字符串，附 `lineCount` 与 `tail`）。
+  `omittedRows` 诚实计为 `min(requestedRows,scrollbackRows)` 减去已发出行数——即被 `MAXIMUM_FRAME_CELLS/columns` 上限或文本预算截掉的
   行——而早于 `startRow` 的行从未被请求，不算遗漏。text 输出与 `terminal read` 一致：每个
   发出的行渲染为一行转义文本加标记。
 - `orchbee.terminal.send` → `{action:"terminal.send",requestId,siteId,workerId,terminalId,

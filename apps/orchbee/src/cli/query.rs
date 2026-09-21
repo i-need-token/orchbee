@@ -173,6 +173,7 @@ pub(crate) fn terminal_get(target: &Target) -> Result<(serde_json::Value, Projec
 pub(crate) fn read_terminal(
     target: &Target,
     history: Option<u16>,
+    presentation: super::results::ReadPresentation,
 ) -> Result<(serde_json::Value, Projection), Failure> {
     let (mut client, deadline, snapshot) = snapshot_session()?;
     let source = super::results::snapshot_source(&snapshot);
@@ -193,17 +194,25 @@ pub(crate) fn read_terminal(
     // prepared.
     drop(client);
     match outcome {
-        Ok(Observed::Visible(row, frame)) => super::results::terminal_read_doc(row, &frame)
-            .map(|doc| (source.clone(), Projection::TerminalRead(doc)))
-            .map_err(|failure| failure.source(source)),
+        Ok(Observed::Visible(row, frame)) => {
+            super::results::terminal_read_doc(row, &frame, presentation)
+                .map(|doc| (source.clone(), Projection::TerminalRead(doc)))
+                .map_err(|failure| failure.source(source))
+        }
         Ok(Observed::History {
             row,
             frame,
             window,
             requested,
-        }) => super::results::terminal_history_doc(row, &frame, requested, window.as_ref())
-            .map(|doc| (source.clone(), Projection::TerminalHistory(doc)))
-            .map_err(|failure| failure.source(source)),
+        }) => super::results::terminal_history_doc(
+            row,
+            &frame,
+            requested,
+            window.as_ref(),
+            presentation,
+        )
+        .map(|doc| (source.clone(), Projection::TerminalHistory(doc)))
+        .map_err(|failure| failure.source(source)),
         // Every failure after this point had a validated snapshot: the
         // failure envelope may honestly cite it as the source.
         Err(failure) => Err(failure.source(source)),
@@ -1553,10 +1562,18 @@ impl WaitRun<'_> {
 #[cfg(target_os = "linux")]
 pub(crate) fn wait_output(
     target: &Target,
-    match_text: &str,
+    pattern: &crate::invocation::WaitPattern,
     rows: u16,
     timeout_ms: u32,
 ) -> Result<(serde_json::Value, Projection), Failure> {
+    // The pattern was already validated — and for `--regex`, compiled —
+    // before this command caused any effect; matching reuses it as-is.
+    let matcher = match pattern {
+        crate::invocation::WaitPattern::Literal(text) => {
+            super::results::WaitMatcher::Literal(text.as_str())
+        }
+        crate::invocation::WaitPattern::Regex(regex) => super::results::WaitMatcher::Regex(regex),
+    };
     let started = Instant::now();
     let deadline_total = started
         .checked_add(Duration::from_millis(u64::from(timeout_ms)))
@@ -1615,7 +1632,7 @@ pub(crate) fn wait_output(
             &mut run,
             &viewer_id,
             projection,
-            match_text,
+            &matcher,
             rows,
         )
     });
@@ -1687,7 +1704,7 @@ fn wait_observe(
     run: &mut WaitRun<'_>,
     viewer_id: &ViewerId,
     mut projection: TerminalProjection,
-    match_text: &str,
+    matcher: &super::results::WaitMatcher<'_>,
     rows: u16,
 ) -> Result<super::results::WaitObservation, Failure> {
     loop {
@@ -1735,9 +1752,12 @@ fn wait_observe(
                                 wait_read_window(client, run, viewer_id, frame, rows)?
                             {
                                 run.observations += 1;
-                                if let Some(matched) =
-                                    super::results::match_window(&window, match_text)
-                                {
+                                // One bounded match pass over the pinned
+                                // window; a cancel or expiry observed right
+                                // after it still wins over continuing.
+                                let matched = super::results::match_window(&window, matcher);
+                                run.check()?;
+                                if let Some(matched) = matched {
                                     return Ok(super::results::WaitObservation {
                                         matched,
                                         revision: window.revision,
@@ -2675,6 +2695,7 @@ pub(crate) fn terminal_get(
 pub(crate) fn read_terminal(
     _target: &crate::invocation::Target,
     _history: Option<u16>,
+    _presentation: super::results::ReadPresentation,
 ) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
     Err(
         super::Failure::new(super::FailureKind::ServiceUnavailable).details(
@@ -2709,7 +2730,7 @@ pub(crate) fn launch_profile_catalog(
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn wait_output(
     _target: &crate::invocation::Target,
-    _match_text: &str,
+    _pattern: &crate::invocation::WaitPattern,
     _rows: u16,
     _timeout_ms: u32,
 ) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {

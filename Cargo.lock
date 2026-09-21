@@ -685,6 +685,7 @@ dependencies = [
  "orchbee-terminal-protocol",
  "orchbee-workbench-protocol",
  "ratatui",
+ "regex",
  "rustix",
  "serde_json",
  "sha2",

@@ -456,14 +456,17 @@ fn terminal_send_usage_failures() -> TestResult {
 // ---- terminal wait-output --------------------------------------------------
 
 /// CLI-FIRST-FLOW-ACCEPTED admits
-/// `terminal wait-output <terminal-id> --match <text> [--rows <n>]
-/// [--timeout <ms>] [--format text|json]` with `--match` required, non-empty,
-/// and at most 4096 bytes; `--rows` 1..=1000 (default 1000); `--timeout`
-/// 1..=3600000 (default 30000).
+/// `terminal wait-output <terminal-id> (--match <text> | --regex <pattern>)
+/// [--rows <n>] [--timeout <ms>] [--format text|json]` with exactly one
+/// matcher required: `--match` is a non-empty literal of at most 4096 bytes,
+/// `--regex` a non-empty pattern of at most 1024 bytes compiled at parse
+/// under the declared program and DFA budgets; `--rows` 1..=1000
+/// (default 1000); `--timeout` 1..=3600000 (default 30000).
 #[test]
 fn terminal_wait_output_admitted_forms() -> TestResult {
     let probe = probe();
     let match_at_bound = "m".repeat(4096);
+    let regex_at_bound = "r".repeat(1024);
     for arguments in [
         ["terminal", "wait-output", TERMINAL_ID, "--match", "ready"].as_slice(),
         [
@@ -520,6 +523,31 @@ fn terminal_wait_output_admitted_forms() -> TestResult {
             "--match",
             "ready",
             "--",
+        ]
+        .as_slice(),
+        // `--regex` is the alternative matcher: same required-exactly-one
+        // grammar, compiled at parse under the declared budgets.
+        ["terminal", "wait-output", TERMINAL_ID, "--regex", "ready"].as_slice(),
+        [
+            "terminal",
+            "wait-output",
+            TERMINAL_ID,
+            "--regex",
+            "build (ok|FAILED)",
+            "--rows",
+            "50",
+            "--timeout",
+            "5000",
+        ]
+        .as_slice(),
+        // Zero-width patterns are admissible grammar.
+        ["terminal", "wait-output", TERMINAL_ID, "--regex", "^$"].as_slice(),
+        [
+            "terminal",
+            "wait-output",
+            TERMINAL_ID,
+            "--regex",
+            regex_at_bound.as_str(),
         ]
         .as_slice(),
     ] {
@@ -597,6 +625,7 @@ fn admitted_wait_min_timeout(probe: &Probe) {
 fn terminal_wait_output_usage_failures() -> TestResult {
     let probe = probe();
     let match_over_bound = "m".repeat(4097);
+    let regex_over_bound = "r".repeat(1025);
     for arguments in [
         ["terminal", "wait-output"].as_slice(),
         ["terminal", "wait-output", TERMINAL_ID].as_slice(),
@@ -618,6 +647,50 @@ fn terminal_wait_output_usage_failures() -> TestResult {
             "--match",
             "a",
             "--match",
+            "b",
+        ]
+        .as_slice(),
+        // The two matchers are mutually exclusive — in either order — and
+        // `--regex` carries its own bound, compile, and duplicate rules.
+        [
+            "terminal",
+            "wait-output",
+            TERMINAL_ID,
+            "--match",
+            "x",
+            "--regex",
+            "y",
+        ]
+        .as_slice(),
+        [
+            "terminal",
+            "wait-output",
+            TERMINAL_ID,
+            "--regex",
+            "y",
+            "--match",
+            "x",
+        ]
+        .as_slice(),
+        ["terminal", "wait-output", TERMINAL_ID, "--regex"].as_slice(),
+        ["terminal", "wait-output", TERMINAL_ID, "--regex", "--"].as_slice(),
+        ["terminal", "wait-output", TERMINAL_ID, "--regex", ""].as_slice(),
+        [
+            "terminal",
+            "wait-output",
+            TERMINAL_ID,
+            "--regex",
+            regex_over_bound.as_str(),
+        ]
+        .as_slice(),
+        ["terminal", "wait-output", TERMINAL_ID, "--regex", "("].as_slice(),
+        [
+            "terminal",
+            "wait-output",
+            TERMINAL_ID,
+            "--regex",
+            "a",
+            "--regex",
             "b",
         ]
         .as_slice(),
@@ -711,7 +784,27 @@ fn terminal_wait_output_usage_failures() -> TestResult {
             "99999999999",
         ]
         .as_slice(),
-        // wait-output never admits send's payload flags or read's --history.
+        // wait-output never admits send's payload flags, read's --history,
+        // or read's presentation flags.
+        [
+            "terminal",
+            "wait-output",
+            TERMINAL_ID,
+            "--match",
+            "x",
+            "--unwrap",
+        ]
+        .as_slice(),
+        [
+            "terminal",
+            "wait-output",
+            TERMINAL_ID,
+            "--match",
+            "x",
+            "--lines",
+            "5",
+        ]
+        .as_slice(),
         [
             "terminal",
             "wait-output",
@@ -801,6 +894,119 @@ fn terminal_wait_output_usage_failures() -> TestResult {
             "wait-output",
             TERMINAL_ID,
             "--frobnicate",
+            "--format",
+            "json",
+        ],
+    );
+    Ok(())
+}
+
+// ---- terminal read ---------------------------------------------------------
+
+/// The read grammar admits
+/// `terminal read <terminal-id> [--history --rows <n>] [--unwrap]
+/// [--lines <n>] [--format text|json]`: `--history` and `--rows` stay a
+/// required pair with `--rows` 1..=1000, and the two presentation options
+/// compose with either source — `--unwrap` joins verified soft-wrap chains
+/// into logical lines, `--lines` keeps the last 1..=65535 emitted entries.
+/// Neither widens the fetched window.
+#[test]
+fn terminal_read_admitted_forms() -> TestResult {
+    let probe = probe();
+    for arguments in [
+        ["terminal", "read", TERMINAL_ID].as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--unwrap"].as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--lines", "1"].as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--lines", "65535"].as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--unwrap", "--lines", "20"].as_slice(),
+        [
+            "terminal",
+            "read",
+            TERMINAL_ID,
+            "--history",
+            "--rows",
+            "100",
+            "--unwrap",
+            "--lines",
+            "10",
+        ]
+        .as_slice(),
+        ["terminal", "read", "--lines", "5", TERMINAL_ID].as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--unwrap", "--"].as_slice(),
+    ] {
+        admitted(&probe, arguments);
+    }
+    admitted_json(
+        &probe,
+        &[
+            "terminal",
+            "read",
+            TERMINAL_ID,
+            "--lines",
+            "3",
+            "--format",
+            "json",
+        ],
+    );
+    Ok(())
+}
+
+#[test]
+fn terminal_read_usage_failures() -> TestResult {
+    let probe = probe();
+    for arguments in [
+        // `--lines` is a bounded count, never a bare flag or a duplicate.
+        ["terminal", "read", TERMINAL_ID, "--lines"].as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--lines", "--"].as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--lines", "0"].as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--lines", "65536"].as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--lines", "abc"].as_slice(),
+        [
+            "terminal",
+            "read",
+            TERMINAL_ID,
+            "--lines",
+            "1",
+            "--lines",
+            "2",
+        ]
+        .as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--unwrap", "--unwrap"].as_slice(),
+        // `--rows` still requires `--history`, and the pair stays bound to
+        // the retained-row limit.
+        ["terminal", "read", TERMINAL_ID, "--rows", "5"].as_slice(),
+        [
+            "terminal",
+            "read",
+            TERMINAL_ID,
+            "--history",
+            "--rows",
+            "1001",
+        ]
+        .as_slice(),
+        // Read never admits the matcher or send flags.
+        ["terminal", "read", TERMINAL_ID, "--regex", "x"].as_slice(),
+        [
+            "terminal",
+            "read",
+            TERMINAL_ID,
+            "--unwrap",
+            "--timeout",
+            "5",
+        ]
+        .as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--lines=5"].as_slice(),
+    ] {
+        usage(&probe, arguments);
+    }
+    usage_json(
+        &probe,
+        &[
+            "terminal",
+            "read",
+            TERMINAL_ID,
+            "--lines",
+            "x",
             "--format",
             "json",
         ],
@@ -1128,6 +1334,32 @@ fn cross_command_scope_and_help_boundaries() -> TestResult {
         ]
         .as_slice(),
         ["workspace", "list", "--match", "x"].as_slice(),
+        // Read's presentation flags and wait-output's matcher stay scoped:
+        // they are usage failures on send and on unrelated commands.
+        ["terminal", "send", TERMINAL_ID, "--text", "x", "--unwrap"].as_slice(),
+        [
+            "terminal",
+            "send",
+            TERMINAL_ID,
+            "--text",
+            "x",
+            "--lines",
+            "5",
+        ]
+        .as_slice(),
+        [
+            "terminal",
+            "send",
+            TERMINAL_ID,
+            "--text",
+            "x",
+            "--regex",
+            "y",
+        ]
+        .as_slice(),
+        ["status", "--unwrap"].as_slice(),
+        ["status", "--lines", "5"].as_slice(),
+        ["status", "--regex", "x"].as_slice(),
         ["tab", "list", "--standalone", "--path", "/x"].as_slice(),
         ["help", "terminal", "frobnicate"].as_slice(),
         ["terminal", "frobnicate", "--help"].as_slice(),

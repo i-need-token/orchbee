@@ -379,11 +379,18 @@ pub(crate) enum QueryCommand {
         /// `Some(n)` selects the `--history --rows n` form: retained
         /// scrollback rows instead of the visible frame.
         history: Option<u16>,
+        /// `--unwrap`: present joined logical lines instead of physical
+        /// rows; a read-only projection of the same emitted rows.
+        unwrap: bool,
+        /// `--lines <n>`: present only the last n emitted entries — logical
+        /// lines under `--unwrap`, physical rows otherwise.
+        lines: Option<u16>,
     },
     TerminalWaitOutput {
         target: Target,
-        /// The literal, case-sensitive text the wait searches for.
-        match_text: String,
+        /// The searched pattern: the literal `--match` text or the
+        /// pre-compiled `--regex`, exactly one admitted by the grammar.
+        matcher: WaitPattern,
         /// The searched retained-row window (visible + history as one
         /// range), 1..=1000 — `--rows` defaults to 1000.
         rows: u16,
@@ -409,6 +416,31 @@ pub(crate) enum QueryCommand {
     },
     ConfigCheck,
 }
+
+/// The `terminal wait-output` search input the grammar admits: the literal
+/// `--match` text, or the `--regex` pattern already compiled inside the
+/// declared size budgets — the compiled program exists before any session,
+/// socket, or viewer effect runs.
+#[derive(Clone, Debug)]
+pub(crate) enum WaitPattern {
+    /// `--match <text>`: a literal, case-sensitive substring.
+    Literal(String),
+    /// `--regex <pattern>`: a linear-time `regex` program compiled once at
+    /// parse; equality compares the source pattern.
+    Regex(regex::Regex),
+}
+
+impl PartialEq for WaitPattern {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Literal(left), Self::Literal(right)) => left == right,
+            (Self::Regex(left), Self::Regex(right)) => left.as_str() == right.as_str(),
+            _ => false,
+        }
+    }
+}
+
+impl Eq for WaitPattern {}
 
 /// The `tab create` context selector: exactly one Workspace context or the
 /// standalone Terminal Context.
@@ -810,6 +842,11 @@ pub(crate) enum ExpectedValue {
     /// lowercase hexadecimal Workbench directory ID.
     DirectoryId,
     MatchText,
+    /// The `terminal wait-output --regex` operand: a nonempty UTF-8 pattern
+    /// of at most 1024 bytes that compiles inside the declared budgets.
+    RegexPattern,
+    /// The `terminal read --lines` operand: the presentation tail length.
+    TailLines,
     WaitTimeout,
     SendText,
     SendKey,
@@ -993,8 +1030,16 @@ struct Options {
     /// `panel move --new-tab`: the new-Tab relocation destination flag.
     new_tab: bool,
     history: bool,
+    /// `terminal read --unwrap`: join verified soft-wrap rows into logical
+    /// lines for presentation only.
+    unwrap: bool,
+    /// `terminal read --lines <n>`: presentation tail over emitted entries.
+    lines: Option<String>,
     path: Option<String>,
     match_text: Option<String>,
+    /// `terminal wait-output --regex <pattern>`: the XOR alternative to the
+    /// literal `--match` value; compiled once before any runtime effect.
+    regex: Option<String>,
     timeout: Option<String>,
     text: Option<String>,
     enter: bool,
@@ -1048,6 +1093,7 @@ const VALUE_FLAGS: &[&str] = &[
     "--key",
     "--label",
     "--limit",
+    "--lines",
     "--path",
     "--match",
     "--mouse",
@@ -1055,6 +1101,7 @@ const VALUE_FLAGS: &[&str] = &[
     "--project",
     "--provider",
     "--profile",
+    "--regex",
     "--rows",
     "--tab",
     "--target-panel",
@@ -1351,7 +1398,7 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                 index += 1;
             }
             "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
-            | "--include-ended" | "--new-tab" | "--paste" => {
+            | "--include-ended" | "--new-tab" | "--paste" | "--unwrap" => {
                 let (seen, option) = if token == "--standalone" {
                     (&mut options.standalone, "--standalone")
                 } else if token == "--confirm" {
@@ -1360,6 +1407,8 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                     (&mut options.history, "--history")
                 } else if token == "--stdin" {
                     (&mut options.stdin, "--stdin")
+                } else if token == "--unwrap" {
+                    (&mut options.unwrap, "--unwrap")
                 } else if token == "--include-ended" {
                     (&mut options.include_ended, "--include-ended")
                 } else if token == "--new-tab" {
@@ -1486,6 +1535,8 @@ fn apply_value_flag(
         "--name" => &mut options.name,
         "--profile" => &mut options.profile,
         "--adapter-source" => &mut options.adapter_source,
+        "--regex" => &mut options.regex,
+        "--lines" => &mut options.lines,
         "--target-panel" => &mut options.target_panel,
         "--into-tab" => &mut options.into_tab,
 
@@ -2108,6 +2159,8 @@ fn resolve_words(
                 QueryCommand::TerminalRead {
                     target: target((*value).to_owned(), Resource::Terminal, envelope)?,
                     history,
+                    unwrap: options.unwrap,
+                    lines: tail_lines_option(options, context, envelope)?,
                 },
                 options,
             ))
@@ -2120,13 +2173,14 @@ fn resolve_words(
                 envelope,
             )?;
             let context = UsageContext::Path("terminal wait-output");
-            // `--match` is required; `--rows` and `--timeout` carry their
-            // documented defaults. Everything resolves before any cohort,
+            // Exactly one of `--match`/`--regex` is required; `--rows` and
+            // `--timeout` carry their documented defaults, and a regex
+            // compiles here — everything resolves before any cohort,
             // socket, session, viewer, or terminal effect.
             Ok(query(
                 QueryCommand::TerminalWaitOutput {
                     target: target((*value).to_owned(), Resource::Terminal, envelope)?,
-                    match_text: wait_match_option(options, context, envelope)?,
+                    matcher: wait_matcher_option(options, context, envelope)?,
                     rows: wait_rows_option(options, context, envelope)?,
                     timeout_ms: wait_timeout_option(options, context, envelope)?,
                 },
@@ -2823,12 +2877,19 @@ struct Scope {
     /// `terminal read --history --rows <n>`: admits the flag and the
     /// history-row meaning of the shared `--rows` value option.
     history: bool,
+    /// `terminal read --unwrap`: admits the logical-line presentation flag.
+    unwrap: bool,
+    /// `terminal read --lines <n>`: admits the presentation tail option.
+    lines: bool,
     /// `workspace accept-directory --path <p>`: admits the literal directory
     /// path value option.
     path: bool,
     /// `terminal wait-output --match <t> [--rows <n>] [--timeout <ms>]`:
     /// admits all three flags and the wait-window meaning of `--rows`.
     wait: bool,
+    /// `terminal wait-output --regex <pattern>`: admits the compiled-pattern
+    /// alternative to `--match`.
+    regex: bool,
     /// `terminal send --text <t>`: the literal input-bytes value option.
     text: bool,
     /// `terminal send --enter`: the text form's same-record CR modifier.
@@ -2892,8 +2953,11 @@ const NO_OPTIONS: Scope = Scope {
     into_tab: false,
     new_tab: false,
     history: false,
+    unwrap: false,
+    lines: false,
     path: false,
     wait: false,
+    regex: false,
     text: false,
     enter: false,
     key: false,
@@ -3020,13 +3084,18 @@ const PANEL_MOVE_SCOPE: Scope = Scope {
     ..NO_OPTIONS
 };
 
+/// `terminal read`: the paired history selector plus the two read-only
+/// presentation transforms — logical-line joining and the entry tail.
 const TERMINAL_READ_SCOPE: Scope = Scope {
     history: true,
+    unwrap: true,
+    lines: true,
     ..NO_OPTIONS
 };
 
 const TERMINAL_WAIT_OUTPUT_SCOPE: Scope = Scope {
     wait: true,
+    regex: true,
     ..NO_OPTIONS
 };
 
@@ -3076,8 +3145,11 @@ fn business_options(options: &Options) -> bool {
         || options.into_tab.is_some()
         || options.new_tab
         || options.history
+        || options.unwrap
+        || options.lines.is_some()
         || options.path.is_some()
         || options.match_text.is_some()
+        || options.regex.is_some()
         || options.timeout.is_some()
         || options.text.is_some()
         || options.enter
@@ -3153,11 +3225,20 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     if options.history && !scope.history {
         return Some("--history");
     }
+    if options.unwrap && !scope.unwrap {
+        return Some("--unwrap");
+    }
+    if options.lines.is_some() && !scope.lines {
+        return Some("--lines");
+    }
     if options.path.is_some() && !scope.path {
         return Some("--path");
     }
     if options.match_text.is_some() && !scope.wait {
         return Some("--match");
+    }
+    if options.regex.is_some() && !scope.regex {
+        return Some("--regex");
     }
     // `--timeout` belongs to `terminal wait-output` through `wait` scope and
     // to `agent wait` through its own `timeout` scope; the two never share
@@ -3573,27 +3654,110 @@ fn history_rows_option(
     }
 }
 
-/// `--match` under `wait-output` is required: literal, case-sensitive,
-/// non-empty UTF-8 text of at most 4096 bytes. Nothing is interpreted — no
-/// regex, escape sequences, or ANSI processing.
-fn wait_match_option(
+/// `terminal read --lines <n>`: the presentation tail length over the
+/// already-emitted entries — logical lines under `--unwrap`, physical rows
+/// otherwise. 1..=65535; it never widens the fetched window.
+fn tail_lines_option(
     options: &Options,
     context: UsageContext,
     envelope: FailureEnvelope,
-) -> Result<String, ParseFailure> {
-    let value = required(&options.match_text, context, "'--match'", envelope)?;
-    if value.is_empty() || value.len() > 4096 {
-        return Err(usage_with(
+) -> Result<Option<u16>, ParseFailure> {
+    let Some(value) = options.lines.clone() else {
+        return Ok(None);
+    };
+    match value.parse::<u16>() {
+        Ok(lines) if lines >= 1 => Ok(Some(lines)),
+        _ => Err(usage_with(
             UsageReason::InvalidValue {
                 context,
-                option: "--match",
+                option: "--lines",
                 value,
-                expected: ExpectedValue::MatchText,
+                expected: ExpectedValue::TailLines,
             },
             envelope,
-        ));
+        )),
     }
-    Ok(value)
+}
+
+/// The `--regex` pattern bound: a nonempty UTF-8 pattern of at most this
+/// many bytes, compiled once before any effect.
+pub(crate) const MAXIMUM_WAIT_PATTERN_BYTES: usize = 1024;
+
+/// The compiled-program bound the `regex` builder enforces at compile time.
+const REGEX_SIZE_LIMIT: usize = 1024 * 1024;
+
+/// The regex engine's lazy DFA cache bound during matching.
+const REGEX_DFA_SIZE_LIMIT: usize = 1024 * 1024;
+
+/// `wait-output` admits exactly one search input: `--match` keeps the
+/// literal, case-sensitive substring semantics (nonempty, ≤4096 bytes —
+/// nothing is interpreted); `--regex` is a nonempty ≤1024-byte pattern
+/// compiled once here under the declared program and DFA budgets, so an
+/// invalid or oversized program is a usage failure before any runtime
+/// access. Both present is a conflict; neither is a missing requirement.
+fn wait_matcher_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<WaitPattern, ParseFailure> {
+    match (&options.match_text, &options.regex) {
+        (Some(_), Some(_)) => Err(usage_with(
+            UsageReason::ConflictingOptions {
+                context,
+                first: "--match",
+                second: "--regex",
+            },
+            envelope,
+        )),
+        (None, None) => Err(missing_required(
+            context,
+            "'--match' or '--regex'",
+            envelope,
+        )),
+        (Some(text), None) => {
+            if text.is_empty() || text.len() > 4096 {
+                return Err(usage_with(
+                    UsageReason::InvalidValue {
+                        context,
+                        option: "--match",
+                        value: text.clone(),
+                        expected: ExpectedValue::MatchText,
+                    },
+                    envelope,
+                ));
+            }
+            Ok(WaitPattern::Literal(text.clone()))
+        }
+        (None, Some(pattern)) => {
+            if pattern.is_empty() || pattern.len() > MAXIMUM_WAIT_PATTERN_BYTES {
+                return Err(usage_with(
+                    UsageReason::InvalidValue {
+                        context,
+                        option: "--regex",
+                        value: pattern.clone(),
+                        expected: ExpectedValue::RegexPattern,
+                    },
+                    envelope,
+                ));
+            }
+            let compiled = regex::RegexBuilder::new(pattern)
+                .size_limit(REGEX_SIZE_LIMIT)
+                .dfa_size_limit(REGEX_DFA_SIZE_LIMIT)
+                .build()
+                .map_err(|_| {
+                    usage_with(
+                        UsageReason::InvalidValue {
+                            context,
+                            option: "--regex",
+                            value: pattern.clone(),
+                            expected: ExpectedValue::RegexPattern,
+                        },
+                        envelope,
+                    )
+                })?;
+            Ok(WaitPattern::Regex(compiled))
+        }
+    }
 }
 
 /// `--rows` under `wait-output`: the searched retained-row window spanning

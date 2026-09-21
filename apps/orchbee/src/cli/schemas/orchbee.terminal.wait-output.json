@@ -7,7 +7,7 @@
 	"additionalProperties": false,
 	"properties": {
 		"schema": { "const": "orchbee.terminal.wait-output" },
-		"version": { "const": 1 },
+		"version": { "enum": [1, 2] },
 		"source": { "$ref": "#/$defs/snapshotSource" },
 		"result": {
 			"type": "object",
@@ -21,6 +21,29 @@
 			}
 		}
 	},
+	"allOf": [
+		{
+			"if": { "properties": { "version": { "const": 1 } }, "required": ["version"] },
+			"then": {
+				"properties": {
+					"result": {
+						"properties": {
+							"match": { "not": { "required": ["patternKind"] } }
+						}
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"result": {
+						"properties": {
+							"match": { "required": ["patternKind"] }
+						}
+					}
+				}
+			}
+		}
+	],
 	"$defs": {
 		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
 		"decimal": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
@@ -66,8 +89,39 @@
 				"rowStart": { "$ref": "#/$defs/decimal" },
 				"rowEnd": { "$ref": "#/$defs/decimal" },
 				"revision": { "$ref": "#/$defs/decimal" },
-				"generation": { "$ref": "#/$defs/positiveDecimal" }
-			}
+				"generation": { "$ref": "#/$defs/positiveDecimal" },
+				"patternKind": { "const": "regex" },
+				"matchLength": { "$ref": "#/$defs/decimal" },
+				"matched": { "type": "string" },
+				"matchedTruncated": { "type": "boolean" },
+				"startsMidLine": { "type": "boolean" },
+				"endsMidLine": { "type": "boolean" }
+			},
+			"allOf": [
+				{
+					"if": { "required": ["patternKind"] },
+					"then": {
+						"required": [
+							"matchLength",
+							"matched",
+							"matchedTruncated",
+							"startsMidLine",
+							"endsMidLine"
+						]
+					},
+					"else": {
+						"not": {
+							"anyOf": [
+								{ "required": ["matchLength"] },
+								{ "required": ["matched"] },
+								{ "required": ["matchedTruncated"] },
+								{ "required": ["startsMidLine"] },
+								{ "required": ["endsMidLine"] }
+							]
+						}
+					}
+				}
+			]
 		},
 		"observed": {
 			"type": "object",

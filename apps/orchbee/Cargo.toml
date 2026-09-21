@@ -6,6 +6,9 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
+# `terminal wait-output --regex`: linear-time engine compiled once at parse;
+# the builder pins compiled-program and DFA cache budgets.
+regex = "1.13.1"
 serde_json = "1.0.151"
 
 [target.'cfg(unix)'.dependencies]

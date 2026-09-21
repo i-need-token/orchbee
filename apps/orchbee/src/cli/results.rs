@@ -58,10 +58,18 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
 /// `terminal get` is the one document past `version:1`: v2 added the
 /// `launch` member and a Server-joined source, v3 adds the `launchProfile`
 /// provenance sibling — each a deliberate break older validators reject.
-/// Every other envelope stays at `1`.
+/// `terminal read`/`--history` and `terminal wait-output` carry a
+/// conditional v2: the envelope only reports `2` when the document actually
+/// bears the new members — `lines`/`lineCount`/`tail` on a read, the regex
+/// match detail on a wait — so flag-free output stays byte-identical.
 pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
     match command {
         QueryCommand::TerminalGet(_) => 3,
+        QueryCommand::TerminalRead { unwrap, lines, .. } if *unwrap || lines.is_some() => 2,
+        QueryCommand::TerminalWaitOutput {
+            matcher: crate::invocation::WaitPattern::Regex(_),
+            ..
+        } => 2,
         _ => 1,
     }
 }
@@ -254,14 +262,56 @@ pub(crate) struct TerminalContentRow {
     pub(crate) into_next: bool,
 }
 
+/// One logical line presented under `--unwrap`: the joined text of a maximal
+/// verified soft-wrap chain plus the first and last physical rows it spans.
+/// A window opening or ending inside a wrapped line yields a fragment, never
+/// a claimed complete line — `starts_mid_line`/`ends_mid_line` carry that.
+#[derive(Clone, Debug)]
+pub(crate) struct LogicalLine {
+    pub(crate) first_row: u64,
+    pub(crate) last_row: u64,
+    pub(crate) text: String,
+    pub(crate) starts_mid_line: bool,
+    pub(crate) ends_mid_line: bool,
+}
+
+/// The `--lines <n>` presentation tail accounting: how many entries the
+/// caller asked to keep and how many leading emitted entries the tail
+/// dropped — physical rows, or logical lines under `--unwrap`. This count is
+/// deliberately separate from `omitted_rows`, which measures rows lost to
+/// the fetch window or the encoded-text budget.
+#[derive(Clone, Debug)]
+pub(crate) struct ReadTail {
+    pub(crate) requested: u16,
+    pub(crate) omitted: usize,
+}
+
+/// The read-only presentation transforms `terminal read` admits:
+/// `--unwrap` joins verified soft-wrap chains into logical lines; `--lines`
+/// tails the emitted entries. Neither changes the fetched window.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ReadPresentation {
+    pub(crate) unwrap: bool,
+    pub(crate) tail: Option<u16>,
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct TerminalReadDoc {
     pub(crate) terminal: TerminalRow,
     pub(crate) frame: TerminalFrameDoc,
     /// Emitted rows only; `row_count` counts every row in the applied frame.
+    /// Under `--unwrap` the rows stay the join's source but the document
+    /// emits `lines` instead.
     pub(crate) rows: Vec<TerminalContentRow>,
     pub(crate) row_count: usize,
     pub(crate) omitted_rows: usize,
+    /// `--unwrap` output: logical lines joined over the emitted rows.
+    pub(crate) lines: Option<Vec<LogicalLine>>,
+    /// Logical lines the emitted rows formed before any tail — observed
+    /// fragments only, never the retained-history total.
+    pub(crate) line_count: Option<usize>,
+    /// `--lines` tail accounting over the emitted entries.
+    pub(crate) tail: Option<ReadTail>,
 }
 
 /// One history row emitted in the answer: absolute index into the complete
@@ -294,6 +344,12 @@ pub(crate) struct TerminalHistoryDoc {
     pub(crate) window_rows: usize,
     pub(crate) rows: Vec<HistoryContentRow>,
     pub(crate) omitted_rows: u64,
+    /// `--unwrap` output: logical lines joined over the emitted window rows.
+    pub(crate) lines: Option<Vec<LogicalLine>>,
+    /// Logical lines the emitted rows formed before any tail.
+    pub(crate) line_count: Option<usize>,
+    /// `--lines` tail accounting over the emitted entries.
+    pub(crate) tail: Option<ReadTail>,
 }
 
 /// The read bound: the summed JSON-encoded `text` member length of emitted
@@ -301,13 +357,67 @@ pub(crate) struct TerminalHistoryDoc {
 /// 8 MiB preparation cap even on hostile cell content.
 pub(crate) const READ_TEXT_BYTES: usize = 4 * 1024 * 1024;
 
+/// Join verified soft-wrap chains into logical lines over already-emitted
+/// rows. Each item is `(index, text, from_previous, into_next)`; a row joins
+/// the open line only when its own `wrap_continuation` bit is set — the
+/// decoder already proved every adjacent pair agrees — so a hard boundary
+/// always completes the open line and an empty row still forms a line of
+/// its own. Boundary flags report the window edges honestly: a line opens
+/// mid-line when its first row continues from a row outside the window.
+fn join_logical_lines<'a, I>(rows: I) -> Vec<LogicalLine>
+where
+    I: IntoIterator<Item = (u64, &'a str, bool, bool)>,
+{
+    let mut lines = Vec::new();
+    let mut current: Option<LogicalLine> = None;
+    for (index, text, from_previous, into_next) in rows {
+        match current.as_mut() {
+            Some(line) if from_previous => {
+                line.text.push_str(text);
+                line.last_row = index;
+                line.ends_mid_line = into_next;
+            }
+            _ => {
+                if let Some(line) = current.take() {
+                    lines.push(line);
+                }
+                current = Some(LogicalLine {
+                    first_row: index,
+                    last_row: index,
+                    text: text.to_owned(),
+                    starts_mid_line: from_previous,
+                    ends_mid_line: into_next,
+                });
+            }
+        }
+    }
+    if let Some(line) = current {
+        lines.push(line);
+    }
+    lines
+}
+
+/// The `--lines` tail: keep the last `requested` emitted entries and record
+/// the honestly counted leading omissions.
+fn apply_tail<T>(entries: &mut Vec<T>, requested: u16) -> ReadTail {
+    let omitted = entries.len().saturating_sub(usize::from(requested));
+    if omitted > 0 {
+        entries.drain(..omitted);
+    }
+    ReadTail { requested, omitted }
+}
+
 /// Project the applied frame into the bounded answer: rows are emitted in
 /// frame order until the encoded-text budget would overflow, and every
-/// omitted row is counted honestly.
+/// omitted row is counted honestly. The presentation transforms then apply
+/// over the emitted rows only — `--unwrap` re-presents them as joined
+/// logical lines, `--lines` keeps the tail — without touching the bound or
+/// the physical-row facts.
 #[cfg(unix)]
 pub(crate) fn terminal_read_doc(
     terminal: TerminalRow,
     frame: &orchbee_terminal_protocol::TerminalTextFrame,
+    presentation: ReadPresentation,
 ) -> Result<TerminalReadDoc, Failure> {
     let row_count = frame.rows.len();
     let mut budget = READ_TEXT_BYTES;
@@ -358,13 +468,34 @@ pub(crate) fn terminal_read_doc(
         cursor_column: frame.cursor.column,
         cursor_visible: frame.cursor.visible,
     };
-    Ok(TerminalReadDoc {
+    let mut doc = TerminalReadDoc {
         terminal,
         frame: doc,
         omitted_rows: row_count - rows.len(),
         rows,
         row_count,
-    })
+        lines: None,
+        line_count: None,
+        tail: None,
+    };
+    if presentation.unwrap {
+        let mut lines = join_logical_lines(doc.rows.iter().map(|row| {
+            (
+                u64::from(row.index),
+                row.text.as_str(),
+                row.from_previous,
+                row.into_next,
+            )
+        }));
+        doc.line_count = Some(lines.len());
+        if let Some(requested) = presentation.tail {
+            doc.tail = Some(apply_tail(&mut lines, requested));
+        }
+        doc.lines = Some(lines);
+    } else if let Some(requested) = presentation.tail {
+        doc.tail = Some(apply_tail(&mut doc.rows, requested));
+    }
+    Ok(doc)
 }
 
 /// The history read bound admitted by the `--rows` grammar: 1..=1000.
@@ -381,6 +512,7 @@ pub(crate) fn terminal_history_doc(
     frame: &orchbee_terminal_protocol::TerminalTextFrame,
     requested_rows: u16,
     window: Option<&orchbee_terminal_protocol::TerminalTextRowWindow>,
+    presentation: ReadPresentation,
 ) -> Result<TerminalHistoryDoc, Failure> {
     let scrollback_rows = frame.scrollback_rows;
     let screen_rows = frame.geometry.rows;
@@ -412,7 +544,7 @@ pub(crate) fn terminal_history_doc(
     // the caller's `min(requested, scrollback)` expectation.
     let entitled = u64::from(requested_rows).min(scrollback_rows);
     let omitted_rows = entitled.saturating_sub(u64::try_from(rows.len()).unwrap_or(u64::MAX));
-    Ok(TerminalHistoryDoc {
+    let mut doc = TerminalHistoryDoc {
         terminal,
         revision: frame.route.revision,
         generation: frame.route.generation.get(),
@@ -426,22 +558,76 @@ pub(crate) fn terminal_history_doc(
         window_rows,
         rows,
         omitted_rows,
-    })
+        lines: None,
+        line_count: None,
+        tail: None,
+    };
+    if presentation.unwrap {
+        let mut lines = join_logical_lines(doc.rows.iter().map(|row| {
+            (
+                row.index,
+                row.text.as_str(),
+                row.from_previous,
+                row.into_next,
+            )
+        }));
+        doc.line_count = Some(lines.len());
+        if let Some(requested) = presentation.tail {
+            doc.tail = Some(apply_tail(&mut lines, requested));
+        }
+        doc.lines = Some(lines);
+    } else if let Some(requested) = presentation.tail {
+        doc.tail = Some(apply_tail(&mut doc.rows, requested));
+    }
+    Ok(doc)
 }
 
-/// One literal-substring hit inside a joined logical line, plus the bounded
-/// excerpt that always contains the complete match.
+/// The regex-only match detail: a `--regex` hit reports the complete match
+/// length, the match text bounded like the excerpt, and whether the observed
+/// fragment is an edge fragment — `^`/`$` anchors bound the observed
+/// fragment, never unseen text outside it.
+#[derive(Clone, Debug)]
+pub(crate) struct RegexMatchDetail {
+    /// Byte length of the complete match inside the joined fragment; may
+    /// exceed the excerpt bound.
+    pub(crate) match_length: u64,
+    /// The match text itself, bounded to `MAXIMUM_EXCERPT_BYTES` — the
+    /// leading slice on a char boundary when the match is longer.
+    pub(crate) matched: String,
+    /// `true` when `matched` is a prefix of the complete match.
+    pub(crate) matched_truncated: bool,
+    /// The fragment's first observed row continues a logical line whose
+    /// head was never fetched.
+    pub(crate) starts_mid_line: bool,
+    /// The fragment's last observed row continues into a row that was never
+    /// fetched.
+    pub(crate) ends_mid_line: bool,
+}
+
+/// One hit inside a joined logical line, plus the bounded excerpt that
+/// contains the complete match whenever the match fits the excerpt bound.
 #[derive(Clone, Debug)]
 pub(crate) struct WaitMatch {
     pub(crate) excerpt: String,
+    /// `true` when the excerpt is a slice, not the whole observed fragment.
     pub(crate) excerpt_truncated: bool,
-    /// Byte offset of the excerpt within the matched logical line.
+    /// Byte offset of the excerpt within the matched logical fragment.
     pub(crate) excerpt_offset: u64,
-    /// Byte offset of the pattern within the matched logical line.
+    /// Byte offset of the match start within the matched logical fragment.
     pub(crate) match_offset: u64,
     /// First and last physical rows the matched logical line spans.
     pub(crate) row_start: u64,
     pub(crate) row_end: u64,
+    /// The `--regex` extension members; absent for a literal `--match` hit.
+    pub(crate) regex: Option<RegexMatchDetail>,
+}
+
+/// The compiled search input `wait-output` matches with: the literal
+/// `--match` text, or the `--regex` program compiled once before any effect.
+#[cfg(unix)]
+pub(crate) enum WaitMatcher<'a> {
+    Literal(&'a str),
+    Regex(&'a regex::Regex),
 }
 
 /// The observed-window facts a successful wait reports: the consistent
@@ -481,75 +667,164 @@ pub(crate) struct TerminalWaitOutputDoc {
     pub(crate) elapsed_ms: u64,
 }
 
-/// The match excerpt bound: at most this many UTF-8 bytes, always
-/// containing the complete pattern.
+/// The match excerpt bound: at most this many UTF-8 bytes. It always
+/// contains a complete `--match` literal; a `--regex` match may exceed it,
+/// in which case the excerpt leads with the match's start and the extended
+/// members carry the truth.
 pub(crate) const MAXIMUM_EXCERPT_BYTES: usize = 4096;
 
-/// Join every wrap-compatible row pair into logical lines — the decoder
+/// Join every wrap-compatible row pair into logical fragments — the decoder
 /// already proved `wrap`/`wrap_continuation` agree on every adjacent pair —
-/// then find the first logical line containing `pattern` as a literal,
-/// case-sensitive substring. Window-edge fragments never reach outside the
-/// window and a hard boundary never joins.
+/// then find the first fragment the matcher hits. A fragment boundary is a
+/// row's own `wrap_continuation` bit, never accumulated-text emptiness, so
+/// empty logical lines are observed and matchable (`^$` included). Window
+/// edges are reported honestly: a fragment that begins or ends inside a
+/// wrapped line marks `starts_mid_line`/`ends_mid_line` on a regex hit, and
+/// `^`/`$` anchor at the observed fragment edges only.
 #[cfg(unix)]
 pub(crate) fn match_window(
     window: &orchbee_terminal_protocol::TerminalTextRowWindow,
-    pattern: &str,
+    matcher: &WaitMatcher<'_>,
 ) -> Option<WaitMatch> {
     let mut text = String::new();
     let mut row_start = 0_u64;
     let mut row_end = 0_u64;
+    let mut starts_mid_line = false;
+    let mut ends_mid_line = false;
+    // A fragment is accumulating whenever `open` holds — independent of
+    // whether the joined text is empty.
+    let mut open = false;
     for row in &window.rows {
-        if !row.wrap_continuation && !text.is_empty() {
-            // A hard boundary completes the previous logical line; it is
+        if open && !row.wrap_continuation {
+            // A hard boundary completes the previous logical fragment; it is
             // matched before the new one accumulates.
-            if let Some(matched) = match_line(&text, row_start, row_end, pattern) {
+            if let Some(matched) = match_line(
+                &text,
+                row_start,
+                row_end,
+                starts_mid_line,
+                ends_mid_line,
+                matcher,
+            ) {
                 return Some(matched);
             }
             text.clear();
+            open = false;
         }
-        if text.is_empty() {
+        if !open {
             // A hard boundary — or a window opening mid-line on a
-            // continuation fragment — starts the visible logical line here.
+            // continuation fragment — starts the observed fragment here.
             row_start = row.index;
+            starts_mid_line = row.wrap_continuation;
+            open = true;
         }
         text.push_str(&row.text);
         row_end = row.index;
+        // Only the window-final fragment can still continue past its end;
+        // an interior boundary's predecessor never does (adjacent flags
+        // were verified to agree).
+        ends_mid_line = row.wrap;
     }
-    if !text.is_empty() {
-        return match_line(&text, row_start, row_end, pattern);
+    if open {
+        return match_line(
+            &text,
+            row_start,
+            row_end,
+            starts_mid_line,
+            ends_mid_line,
+            matcher,
+        );
     }
     None
 }
 
-/// The literal position of `pattern` inside one complete logical line, plus
-/// the bounded excerpt around it.
+/// The first hit of `matcher` inside one observed logical fragment — the
+/// literal substring position, or the regex engine's leftmost match — plus
+/// the bounded excerpt around it. Offsets are UTF-8 byte offsets into the
+/// joined fragment, not terminal columns.
 #[cfg(unix)]
-fn match_line(text: &str, row_start: u64, row_end: u64, pattern: &str) -> Option<WaitMatch> {
-    text.find(pattern).map(|offset| {
-        let (excerpt, truncated, excerpt_offset) = match_excerpt(text, offset, pattern.len());
-        WaitMatch {
-            excerpt,
-            excerpt_truncated: truncated,
-            excerpt_offset,
-            match_offset: u64::try_from(offset).unwrap_or(u64::MAX),
-            row_start,
-            row_end,
-        }
+fn match_line(
+    text: &str,
+    row_start: u64,
+    row_end: u64,
+    starts_mid_line: bool,
+    ends_mid_line: bool,
+    matcher: &WaitMatcher<'_>,
+) -> Option<WaitMatch> {
+    let (offset, match_len) = match matcher {
+        WaitMatcher::Literal(pattern) => text.find(pattern).map(|found| (found, pattern.len())),
+        WaitMatcher::Regex(regex) => regex.find(text).map(|hit| (hit.start(), hit.len())),
+    }?;
+    let (excerpt, truncated, excerpt_offset) = match_excerpt(text, offset, match_len);
+    Some(WaitMatch {
+        excerpt,
+        excerpt_truncated: truncated,
+        excerpt_offset,
+        match_offset: u64::try_from(offset).unwrap_or(u64::MAX),
+        row_start,
+        row_end,
+        regex: match matcher {
+            WaitMatcher::Literal(_) => None,
+            WaitMatcher::Regex(_) => {
+                let (matched, matched_truncated) = bounded_match(text, offset, match_len);
+                Some(RegexMatchDetail {
+                    match_length: u64::try_from(match_len).unwrap_or(u64::MAX),
+                    matched,
+                    matched_truncated,
+                    starts_mid_line,
+                    ends_mid_line,
+                })
+            }
+        },
     })
 }
 
-/// A ≤4096-byte slice of `line` that always contains the complete match at
-/// `match_start..match_start+pattern_len`, on UTF-8 boundaries: the match
-/// is centered inside the budget, and the window re-anchors on the match
-/// when a tail hit would otherwise lose bytes to boundary alignment. No
-/// code point is ever split.
+/// The match text bounded to the excerpt budget: the complete match when it
+/// fits, else its leading slice on a char boundary plus the truncation flag.
+/// Never subtracts past the bound — an oversized match yields a prefix, not
+/// an underflow.
 #[cfg(unix)]
-fn match_excerpt(line: &str, match_start: usize, pattern_len: usize) -> (String, bool, u64) {
+fn bounded_match(line: &str, match_start: usize, match_len: usize) -> (String, bool) {
+    if match_len <= MAXIMUM_EXCERPT_BYTES {
+        return (line[match_start..match_start + match_len].to_owned(), false);
+    }
+    let mut end = match_start + MAXIMUM_EXCERPT_BYTES;
+    while !line.is_char_boundary(end) {
+        end -= 1;
+    }
+    (line[match_start..end].to_owned(), true)
+}
+
+/// A ≤4096-byte slice of `line` covering the match at
+/// `match_start..match_start+match_len`, on UTF-8 boundaries: a match that
+/// fits is centered inside the budget, and the window re-anchors on the
+/// match when a tail hit would otherwise lose bytes to boundary alignment.
+/// A match longer than the budget cannot sit inside the excerpt — the
+/// excerpt then leads with the match's own start instead of claiming the
+/// whole. No code point is ever split.
+#[cfg(unix)]
+fn match_excerpt(line: &str, match_start: usize, match_len: usize) -> (String, bool, u64) {
     if line.len() <= MAXIMUM_EXCERPT_BYTES {
         return (line.to_owned(), false, 0);
     }
-    let match_end = match_start + pattern_len;
-    let context = (MAXIMUM_EXCERPT_BYTES - pattern_len) / 2;
+    if match_len > MAXIMUM_EXCERPT_BYTES {
+        // Over-budget match: the excerpt is the slice leading with the
+        // match's start — a prefix of the match, explicitly truncated.
+        let mut end = match_start + MAXIMUM_EXCERPT_BYTES;
+        if end > line.len() {
+            end = line.len();
+        }
+        while !line.is_char_boundary(end) {
+            end -= 1;
+        }
+        return (
+            line[match_start..end].to_owned(),
+            true,
+            u64::try_from(match_start).unwrap_or(u64::MAX),
+        );
+    }
+    let match_end = match_start + match_len;
+    let context = (MAXIMUM_EXCERPT_BYTES - match_len) / 2;
     let mut start = match_start.saturating_sub(context);
     while !line.is_char_boundary(start) {
         start -= 1;
@@ -939,111 +1214,237 @@ impl Projection {
                 }
                 json!({ "terminal": terminal })
             }
-            Self::TerminalRead(doc) => json!({
-                "terminal": terminal_row_json(&doc.terminal),
-                "frame": {
-                    "revision": doc.frame.revision.to_string(),
-                    "generation": doc.frame.generation.to_string(),
-                    "sequence": doc.frame.sequence.to_string(),
-                    "alternateScreen": doc.frame.alternate_screen,
-                    "geometry": {
-                        "columns": doc.frame.columns,
-                        "rows": doc.frame.rows,
-                    },
-                    "cursor": {
-                        "row": doc.frame.cursor_row,
-                        "column": doc.frame.cursor_column,
-                        "visible": doc.frame.cursor_visible,
-                    },
-                },
-                "content": {
-                    "rows": doc
-                        .rows
-                        .iter()
-                        .map(|row| {
-                            json!({
-                                "index": row.index,
-                                "text": row.text,
-                                "continuation": {
-                                    "fromPrevious": row.from_previous,
-                                    "intoNext": row.into_next,
-                                },
-                            })
-                        })
-                        .collect::<Vec<_>>(),
-                    "rowCount": doc.row_count,
-                    "truncated": doc.omitted_rows > 0,
-                    "omittedRows": doc.omitted_rows,
-                    "limits": {
+            Self::TerminalRead(doc) => {
+                let mut content = Map::new();
+                // `--unwrap` emits joined `lines` in place of `rows`; both
+                // shapes keep the physical `rowCount` and the fetch-bound
+                // `omittedRows` facts, and `--lines` adds its own `tail`
+                // accounting — presentation omission is never folded into
+                // `omittedRows`.
+                match &doc.lines {
+                    Some(lines) => {
+                        content.insert(
+                            "lines".to_owned(),
+                            json!(
+                                lines
+                                    .iter()
+                                    .map(|line| {
+                                        json!({
+                                            "firstRow": line.first_row,
+                                            "lastRow": line.last_row,
+                                            "text": line.text,
+                                            "startsMidLine": line.starts_mid_line,
+                                            "endsMidLine": line.ends_mid_line,
+                                        })
+                                    })
+                                    .collect::<Vec<_>>()
+                            ),
+                        );
+                        content.insert("lineCount".to_owned(), json!(doc.line_count));
+                    }
+                    None => {
+                        content.insert(
+                            "rows".to_owned(),
+                            json!(
+                                doc.rows
+                                    .iter()
+                                    .map(|row| {
+                                        json!({
+                                            "index": row.index,
+                                            "text": row.text,
+                                            "continuation": {
+                                                "fromPrevious": row.from_previous,
+                                                "intoNext": row.into_next,
+                                            },
+                                        })
+                                    })
+                                    .collect::<Vec<_>>()
+                            ),
+                        );
+                    }
+                }
+                content.insert("rowCount".to_owned(), json!(doc.row_count));
+                if let Some(tail) = &doc.tail {
+                    content.insert(
+                        "tail".to_owned(),
+                        json!({
+                            "requested": tail.requested,
+                            "omitted": tail.omitted,
+                            "entries": if doc.lines.is_some() { "lines" } else { "rows" },
+                        }),
+                    );
+                }
+                content.insert("truncated".to_owned(), json!(doc.omitted_rows > 0));
+                content.insert("omittedRows".to_owned(), json!(doc.omitted_rows));
+                content.insert(
+                    "limits".to_owned(),
+                    json!({
                         "rows": MAXIMUM_FRAME_ROWS,
                         "textBytes": READ_TEXT_BYTES,
+                    }),
+                );
+                json!({
+                    "terminal": terminal_row_json(&doc.terminal),
+                    "frame": {
+                        "revision": doc.frame.revision.to_string(),
+                        "generation": doc.frame.generation.to_string(),
+                        "sequence": doc.frame.sequence.to_string(),
+                        "alternateScreen": doc.frame.alternate_screen,
+                        "geometry": {
+                            "columns": doc.frame.columns,
+                            "rows": doc.frame.rows,
+                        },
+                        "cursor": {
+                            "row": doc.frame.cursor_row,
+                            "column": doc.frame.cursor_column,
+                            "visible": doc.frame.cursor_visible,
+                        },
                     },
-                },
-            }),
-            Self::TerminalHistory(doc) => json!({
-                "terminal": terminal_row_json(&doc.terminal),
-                "history": {
-                    "revision": doc.revision.to_string(),
-                    "generation": doc.generation.to_string(),
-                    "alternateScreen": doc.alternate_screen,
-                    "columns": doc.columns,
-                    "screenRows": doc.screen_rows,
-                    "scrollbackRows": doc.scrollback_rows.to_string(),
-                    "totalRows": doc.total_rows.to_string(),
-                    "startRow": doc.start_row.to_string(),
-                    "requestedRows": doc.requested_rows,
-                    "windowRows": doc.window_rows,
-                },
-                "content": {
-                    "rows": doc
-                        .rows
-                        .iter()
-                        .map(|row| {
-                            json!({
-                                "index": row.index.to_string(),
-                                "text": row.text,
-                                "continuation": {
-                                    "fromPrevious": row.from_previous,
-                                    "intoNext": row.into_next,
-                                },
-                            })
-                        })
-                        .collect::<Vec<_>>(),
-                    "rowCount": doc.rows.len(),
-                    "truncated": doc.omitted_rows > 0,
-                    "omittedRows": doc.omitted_rows,
-                    "limits": {
+                    "content": Value::Object(content),
+                })
+            }
+            Self::TerminalHistory(doc) => {
+                let mut content = Map::new();
+                match &doc.lines {
+                    Some(lines) => {
+                        // History row indexes are u64 — decimal strings like
+                        // every large coordinate in a machine document.
+                        content.insert(
+                            "lines".to_owned(),
+                            json!(
+                                lines
+                                    .iter()
+                                    .map(|line| {
+                                        json!({
+                                            "firstRow": line.first_row.to_string(),
+                                            "lastRow": line.last_row.to_string(),
+                                            "text": line.text,
+                                            "startsMidLine": line.starts_mid_line,
+                                            "endsMidLine": line.ends_mid_line,
+                                        })
+                                    })
+                                    .collect::<Vec<_>>()
+                            ),
+                        );
+                        content.insert("lineCount".to_owned(), json!(doc.line_count));
+                    }
+                    None => {
+                        content.insert(
+                            "rows".to_owned(),
+                            json!(
+                                doc.rows
+                                    .iter()
+                                    .map(|row| {
+                                        json!({
+                                            "index": row.index.to_string(),
+                                            "text": row.text,
+                                            "continuation": {
+                                                "fromPrevious": row.from_previous,
+                                                "intoNext": row.into_next,
+                                            },
+                                        })
+                                    })
+                                    .collect::<Vec<_>>()
+                            ),
+                        );
+                    }
+                }
+                content.insert("rowCount".to_owned(), json!(doc.rows.len()));
+                if let Some(tail) = &doc.tail {
+                    content.insert(
+                        "tail".to_owned(),
+                        json!({
+                            "requested": tail.requested,
+                            "omitted": tail.omitted,
+                            "entries": if doc.lines.is_some() { "lines" } else { "rows" },
+                        }),
+                    );
+                }
+                content.insert("truncated".to_owned(), json!(doc.omitted_rows > 0));
+                content.insert("omittedRows".to_owned(), json!(doc.omitted_rows));
+                content.insert(
+                    "limits".to_owned(),
+                    json!({
                         "rows": MAXIMUM_HISTORY_ROWS,
                         "textBytes": READ_TEXT_BYTES,
+                    }),
+                );
+                json!({
+                    "terminal": terminal_row_json(&doc.terminal),
+                    "history": {
+                        "revision": doc.revision.to_string(),
+                        "generation": doc.generation.to_string(),
+                        "alternateScreen": doc.alternate_screen,
+                        "columns": doc.columns,
+                        "screenRows": doc.screen_rows,
+                        "scrollbackRows": doc.scrollback_rows.to_string(),
+                        "totalRows": doc.total_rows.to_string(),
+                        "startRow": doc.start_row.to_string(),
+                        "requestedRows": doc.requested_rows,
+                        "windowRows": doc.window_rows,
                     },
-                },
-            }),
-            Self::TerminalWaitOutput(doc) => json!({
-                "terminal": terminal_row_json(&doc.terminal),
-                "matched": true,
-                "match": {
-                    "excerpt": doc.matched.excerpt,
-                    "excerptTruncated": doc.matched.excerpt_truncated,
-                    "excerptOffset": doc.matched.excerpt_offset.to_string(),
-                    "matchOffset": doc.matched.match_offset.to_string(),
-                    "rowStart": doc.matched.row_start.to_string(),
-                    "rowEnd": doc.matched.row_end.to_string(),
-                    "revision": doc.revision.to_string(),
-                    "generation": doc.generation.to_string(),
-                },
-                "observed": {
-                    "attachmentId": doc.attachment_id,
-                    "hostEpoch": doc.host_epoch,
-                    "completedObservations": doc.observations,
-                    "windowStart": doc.window_start.to_string(),
-                    "windowRows": doc.window_rows.to_string(),
-                    "windowTruncated": doc.window_truncated,
-                    "totalRows": doc.total_rows.to_string(),
-                    "requestedRows": doc.requested_rows,
-                    "timeoutMs": doc.timeout_ms,
-                    "elapsedMs": doc.elapsed_ms,
-                },
-            }),
+                    "content": Value::Object(content),
+                })
+            }
+            Self::TerminalWaitOutput(doc) => {
+                // A `--regex` hit adds the extended members — `patternKind`,
+                // the bounded `matched` text with its honest truncation flag
+                // and complete length, and the fragment-edge flags — while a
+                // literal `--match` hit keeps the v1 object byte-identical.
+                let mut matched = Map::from_iter([
+                    ("excerpt".to_owned(), json!(doc.matched.excerpt)),
+                    (
+                        "excerptTruncated".to_owned(),
+                        json!(doc.matched.excerpt_truncated),
+                    ),
+                    (
+                        "excerptOffset".to_owned(),
+                        json!(doc.matched.excerpt_offset.to_string()),
+                    ),
+                    (
+                        "matchOffset".to_owned(),
+                        json!(doc.matched.match_offset.to_string()),
+                    ),
+                    (
+                        "rowStart".to_owned(),
+                        json!(doc.matched.row_start.to_string()),
+                    ),
+                    ("rowEnd".to_owned(), json!(doc.matched.row_end.to_string())),
+                    ("revision".to_owned(), json!(doc.revision.to_string())),
+                    ("generation".to_owned(), json!(doc.generation.to_string())),
+                ]);
+                if let Some(regex) = &doc.matched.regex {
+                    matched.insert("patternKind".to_owned(), json!("regex"));
+                    matched.insert(
+                        "matchLength".to_owned(),
+                        json!(regex.match_length.to_string()),
+                    );
+                    matched.insert("matched".to_owned(), json!(regex.matched));
+                    matched.insert(
+                        "matchedTruncated".to_owned(),
+                        json!(regex.matched_truncated),
+                    );
+                    matched.insert("startsMidLine".to_owned(), json!(regex.starts_mid_line));
+                    matched.insert("endsMidLine".to_owned(), json!(regex.ends_mid_line));
+                }
+                json!({
+                    "terminal": terminal_row_json(&doc.terminal),
+                    "matched": true,
+                    "match": Value::Object(matched),
+                    "observed": {
+                        "attachmentId": doc.attachment_id,
+                        "hostEpoch": doc.host_epoch,
+                        "completedObservations": doc.observations,
+                        "windowStart": doc.window_start.to_string(),
+                        "windowRows": doc.window_rows.to_string(),
+                        "windowTruncated": doc.window_truncated,
+                        "totalRows": doc.total_rows.to_string(),
+                        "requestedRows": doc.requested_rows,
+                        "timeoutMs": doc.timeout_ms,
+                        "elapsedMs": doc.elapsed_ms,
+                    },
+                })
+            }
             Self::WorktreeList(doc) => json!({
                 "projectId": doc.project_id,
                 "directoryId": doc.directory_id,
@@ -2617,7 +3018,7 @@ mod tests {
     /// cross the wire in the scripted-peer witnesses in `tests/cli_query.rs`.
     #[cfg(unix)]
     mod terminal_read {
-        use super::super::{Projection, TerminalRow, terminal_read_doc};
+        use super::super::{Projection, ReadPresentation, TerminalRow, terminal_read_doc};
         use crate::cli::{output::render_text, present};
         use crate::invocation::{QueryCommand, Target};
         use crate::localization::Locale;
@@ -2821,7 +3222,8 @@ mod tests {
                     cells: last_cells,
                 },
             ]);
-            let doc = terminal_read_doc(terminal(), &frame).expect("document");
+            let doc = terminal_read_doc(terminal(), &frame, ReadPresentation::default())
+                .expect("document");
             assert_eq!(doc.row_count, 4);
             assert_eq!(doc.rows.len(), 4);
             assert_eq!(doc.omitted_rows, 0);
@@ -2869,7 +3271,8 @@ mod tests {
                     cells: last_cells,
                 },
             ]);
-            let doc = terminal_read_doc(terminal(), &frame).expect("document");
+            let doc = terminal_read_doc(terminal(), &frame, ReadPresentation::default())
+                .expect("document");
             assert_eq!(doc.row_count, 4);
             assert_eq!(doc.rows.len(), 3);
             assert_eq!(doc.omitted_rows, 1);
@@ -2894,7 +3297,8 @@ mod tests {
                 .map(|index| shared_row(index, 0, &control))
                 .collect();
             let frame = frame(rows);
-            let doc = terminal_read_doc(terminal(), &frame).expect("document");
+            let doc = terminal_read_doc(terminal(), &frame, ReadPresentation::default())
+                .expect("document");
             assert!(doc.rows.is_empty());
             assert_eq!(doc.row_count, 4096);
             assert_eq!(doc.omitted_rows, 4096);
@@ -2955,7 +3359,8 @@ mod tests {
             let decoded = decode_terminal_text_frame(&wire(&frame)).expect("fixture decodes");
             assert_eq!(decoded.geometry, frame.geometry);
             assert_eq!(decoded.rows, frame.rows);
-            let doc = terminal_read_doc(terminal(), &frame).expect("document");
+            let doc = terminal_read_doc(terminal(), &frame, ReadPresentation::default())
+                .expect("document");
             let texts: Vec<&str> = doc.rows.iter().map(|row| row.text.as_str()).collect();
             assert_eq!(texts, ["xx", "中界", " x", ""]);
             assert!(doc.rows[0].into_next && doc.rows[1].from_previous);
@@ -3018,7 +3423,8 @@ mod tests {
             let decoded = decode_terminal_text_frame(&wire(&frame)).expect("fixture decodes");
             assert_eq!(decoded.geometry, frame.geometry);
             assert_eq!(decoded.rows, frame.rows);
-            let doc = terminal_read_doc(terminal(), &frame).expect("document");
+            let doc = terminal_read_doc(terminal(), &frame, ReadPresentation::default())
+                .expect("document");
             assert_eq!(doc.row_count, 3);
             assert_eq!(doc.rows.len(), 1);
             assert_eq!(doc.rows[0].index, 0);
@@ -3041,6 +3447,8 @@ mod tests {
             let command = QueryCommand::TerminalRead {
                 target: Target::Id(hex(0x01)),
                 history: None,
+                unwrap: false,
+                lines: None,
             };
             let body = render_text(|out| present::render(out, &projection, &command, Locale::EnUs))
                 .expect("text output fits the preparation bound");
@@ -3048,6 +3456,161 @@ mod tests {
             assert!(body.contains("head\\u{001b}row"));
             assert!(!body.contains("tail-marker-row"));
             assert!(body.ends_with("… 2 more rows truncated at the read limit\n"));
+        }
+
+        /// A narrow-column frame of short text rows with explicit wrap bits:
+        /// bit 0 `intoNext`, bit 1 `fromPrevious`.
+        fn narrow_frame(rows: &[(u16, u8, &str)]) -> TerminalTextFrame {
+            let blank: Arc<str> = Arc::from("");
+            frame_with_columns(
+                rows.iter()
+                    .map(|(index, flags, text)| {
+                        let mut cells = vec![cell(&Arc::from(*text), 0)];
+                        cells.extend((1..3).map(|_| cell(&blank, 0)));
+                        TerminalTextRow {
+                            index: *index,
+                            flags: *flags,
+                            cells,
+                        }
+                    })
+                    .collect(),
+                3,
+            )
+        }
+
+        /// `--unwrap`: only verified soft-wrap chains join — hard breaks and
+        /// empty rows stay their own logical lines, physical row indexes
+        /// span the join, and a window opening or ending inside a wrap marks
+        /// the fragment instead of claiming a complete line.
+        #[test]
+        fn unwrap_joins_wraps_and_marks_fragments() {
+            let frame = narrow_frame(&[
+                (0, 2, "tail of wrapped"), // continues from an unfetched row
+                (1, 0, "hard"),
+                (2, 1, "soft-"),
+                (3, 3, "wrap-"),
+                (4, 2, "done"),
+                (5, 0, ""),
+                (6, 1, "open"),
+            ]);
+            let doc = terminal_read_doc(
+                terminal(),
+                &frame,
+                ReadPresentation {
+                    unwrap: true,
+                    tail: None,
+                },
+            )
+            .expect("document");
+            // Physical facts stay: 7 rows applied, 0 omitted.
+            assert_eq!(doc.row_count, 7);
+            assert_eq!(doc.rows.len(), 7);
+            let lines = doc.lines.as_ref().expect("lines emitted");
+            assert_eq!(doc.line_count, Some(5));
+            assert_eq!(
+                lines
+                    .iter()
+                    .map(|line| (
+                        line.first_row,
+                        line.last_row,
+                        line.text.as_str(),
+                        line.starts_mid_line,
+                        line.ends_mid_line,
+                    ))
+                    .collect::<Vec<_>>(),
+                [
+                    (0, 0, "tail of wrapped", true, false),
+                    (1, 1, "hard", false, false),
+                    (2, 4, "soft-wrap-done", false, false),
+                    (5, 5, "", false, false),
+                    (6, 6, "open", false, true),
+                ]
+            );
+            let content = &Projection::TerminalRead(doc).result()["content"];
+            assert_eq!(content["rowCount"], 7);
+            assert_eq!(content["lineCount"], 5);
+            assert!(content.get("rows").is_none());
+            let emitted = content["lines"].as_array().expect("lines array");
+            assert_eq!(emitted[0]["firstRow"], 0);
+            assert_eq!(emitted[0]["startsMidLine"], true);
+            assert_eq!(emitted[4]["endsMidLine"], true);
+        }
+
+        /// `--lines` without `--unwrap` tails physical rows and reports the
+        /// presentation omission separately from the budget's `omittedRows`.
+        #[test]
+        fn lines_tails_physical_rows() {
+            let frame = narrow_frame(&[(0, 0, "a"), (1, 0, "b"), (2, 0, "c")]);
+            let doc = terminal_read_doc(
+                terminal(),
+                &frame,
+                ReadPresentation {
+                    unwrap: false,
+                    tail: Some(2),
+                },
+            )
+            .expect("document");
+            assert_eq!(doc.row_count, 3);
+            assert_eq!(
+                doc.rows.iter().map(|row| row.index).collect::<Vec<_>>(),
+                [1, 2]
+            );
+            let tail = doc.tail.as_ref().expect("tail accounting");
+            assert_eq!((tail.requested, tail.omitted), (2, 1));
+            let content = &Projection::TerminalRead(doc).result()["content"];
+            assert_eq!(content["tail"]["requested"], 2);
+            assert_eq!(content["tail"]["omitted"], 1);
+            assert_eq!(content["tail"]["entries"], "rows");
+            assert_eq!(content["rowCount"], 3);
+            assert_eq!(content["omittedRows"], 0);
+            // A tail wider than the window omits nothing.
+            let doc = terminal_read_doc(
+                terminal(),
+                &frame,
+                ReadPresentation {
+                    unwrap: false,
+                    tail: Some(9),
+                },
+            )
+            .expect("document");
+            assert_eq!(doc.rows.len(), 3);
+            assert_eq!(doc.tail.expect("tail").omitted, 0);
+        }
+
+        /// `--unwrap --lines`: the tail counts logical lines, including the
+        /// observed edge fragments, never the retained-history total.
+        #[test]
+        fn lines_tails_logical_lines() {
+            let frame = narrow_frame(&[
+                (0, 1, "wrap "),
+                (1, 2, "head"),
+                (2, 0, "mid"),
+                (3, 0, "last"),
+            ]);
+            let doc = terminal_read_doc(
+                terminal(),
+                &frame,
+                ReadPresentation {
+                    unwrap: true,
+                    tail: Some(2),
+                },
+            )
+            .expect("document");
+            let lines = doc.lines.as_ref().expect("lines");
+            assert_eq!(doc.line_count, Some(3));
+            assert_eq!(
+                lines
+                    .iter()
+                    .map(|line| line.text.as_str())
+                    .collect::<Vec<_>>(),
+                ["mid", "last"]
+            );
+            let tail = doc.tail.as_ref().expect("tail");
+            assert_eq!((tail.requested, tail.omitted), (2, 1));
+            let content = &Projection::TerminalRead(doc).result()["content"];
+            assert_eq!(content["tail"]["entries"], "lines");
+            assert_eq!(content["tail"]["omitted"], 1);
+            assert_eq!(content["lineCount"], 3);
         }
     }
 
@@ -3058,8 +3621,8 @@ mod tests {
     #[cfg(unix)]
     mod terminal_wait {
         use super::super::{
-            MAXIMUM_EXCERPT_BYTES, TerminalRow, WaitMatch, WaitObservation, match_window,
-            terminal_wait_output_doc,
+            MAXIMUM_EXCERPT_BYTES, TerminalRow, WaitMatch, WaitMatcher, WaitObservation,
+            match_window, terminal_wait_output_doc,
         };
         use orchbee_terminal_protocol::{
             AttachmentId, HostEpoch, TerminalRowPromptClass, TerminalTextRowWindow,
@@ -3107,7 +3670,7 @@ mod tests {
                     ],
                     8,
                 ),
-                "abcdef",
+                &WaitMatcher::Literal("abcdef"),
             )
             .expect("joined line matches");
             assert_eq!(hit.row_start, 5);
@@ -3130,7 +3693,7 @@ mod tests {
                     ],
                     3,
                 ),
-                "hit",
+                &WaitMatcher::Literal("hit"),
             )
             .expect("earliest line matches");
             assert_eq!(hit.row_start, 0);
@@ -3143,10 +3706,10 @@ mod tests {
         #[test]
         fn literal_case_sensitive_substring() {
             let window = window(vec![row(0, false, false, "Foo a.b")], 1);
-            assert!(match_window(&window, "foo").is_none());
-            assert!(match_window(&window, "a.b").is_some());
-            assert!(match_window(&window, "a[x]b").is_none());
-            assert!(match_window(&window, "a.*b").is_none());
+            assert!(match_window(&window, &WaitMatcher::Literal("foo")).is_none());
+            assert!(match_window(&window, &WaitMatcher::Literal("a.b")).is_some());
+            assert!(match_window(&window, &WaitMatcher::Literal("a[x]b")).is_none());
+            assert!(match_window(&window, &WaitMatcher::Literal("a.*b")).is_none());
         }
 
         /// A window that opens mid-line (leading `wrap_continuation`) still
@@ -3162,7 +3725,7 @@ mod tests {
                     ],
                     12,
                 ),
-                "earlier marker",
+                &WaitMatcher::Literal("earlier marker"),
             )
             .expect("fragment plus continuation matches");
             assert_eq!(hit.row_start, 9);
@@ -3238,6 +3801,7 @@ mod tests {
                 match_offset: 0,
                 row_start: 3,
                 row_end: 3,
+                regex: None,
             };
             let doc = |window_rows, total_rows, requested| {
                 terminal_wait_output_doc(
@@ -3273,6 +3837,132 @@ mod tests {
             assert!(!doc(24, 24, 1000).window_truncated);
             // Fewer requested rows than retained: the request bound the window.
             assert!(!doc(10, 24, 10).window_truncated);
+        }
+
+        fn program(pattern: &str) -> regex::Regex {
+            regex::Regex::new(pattern).expect("regex compiles")
+        }
+
+        /// `--regex` searches the same joined fragments: the hit is the
+        /// engine's leftmost match inside the first matching fragment, and
+        /// the extended members carry the complete length, the bounded
+        /// matched text, and the honest fragment-edge flags.
+        #[test]
+        fn regex_matches_joined_fragment() {
+            let program = program("[a-z]+ done");
+            let hit = match_window(
+                &window(
+                    vec![
+                        row(5, true, false, "prompt$ echo abc"),
+                        row(6, false, true, "def done"),
+                        row(7, false, false, "unrelated"),
+                    ],
+                    8,
+                ),
+                &WaitMatcher::Regex(&program),
+            )
+            .expect("joined fragment matches");
+            assert_eq!((hit.row_start, hit.row_end), (5, 6));
+            assert_eq!(hit.match_offset, 13);
+            let detail = hit.regex.expect("regex detail");
+            assert_eq!(detail.match_length, 11);
+            assert_eq!(detail.matched, "abcdef done");
+            assert!(!detail.matched_truncated);
+            assert!(!detail.starts_mid_line && !detail.ends_mid_line);
+        }
+
+        /// A window-edge fragment flags both ends: `^`/`$` anchors bind only
+        /// the observed fragment, never unseen text outside it.
+        #[test]
+        fn regex_fragment_edges_flagged() {
+            let program = program("^earlier marker$");
+            let hit = match_window(
+                &window(
+                    vec![
+                        row(9, true, true, "earlier "),
+                        row(10, true, true, "marker"),
+                    ],
+                    12,
+                ),
+                &WaitMatcher::Regex(&program),
+            )
+            .expect("anchored fragment matches");
+            let detail = hit.regex.expect("regex detail");
+            assert!(detail.starts_mid_line && detail.ends_mid_line);
+            assert_eq!(hit.excerpt, "earlier marker");
+        }
+
+        /// An empty observed line is a real fragment: `^$` matches it at
+        /// offset 0 with length 0 — zero-length matches are hits.
+        #[test]
+        fn regex_empty_match_on_empty_line() {
+            let program = program("^$");
+            let hit = match_window(
+                &window(
+                    vec![
+                        row(0, false, false, "content"),
+                        row(1, false, false, ""),
+                        row(2, false, false, "later"),
+                    ],
+                    3,
+                ),
+                &WaitMatcher::Regex(&program),
+            )
+            .expect("empty line matches ^$");
+            assert_eq!((hit.row_start, hit.row_end), (1, 1));
+            assert_eq!(hit.match_offset, 0);
+            let detail = hit.regex.expect("regex detail");
+            assert_eq!(detail.match_length, 0);
+            assert_eq!(detail.matched, "");
+            assert!(!detail.matched_truncated);
+        }
+
+        /// Unicode text: offsets are UTF-8 byte offsets into the joined
+        /// fragment, and a first-fragment hit wins ordering.
+        #[test]
+        fn regex_unicode_offsets_and_first_fragment() {
+            let program = program("目标\\d+");
+            let hit = match_window(
+                &window(
+                    vec![
+                        row(0, false, false, "前面目标42后面"),
+                        row(1, false, false, "目标99 second"),
+                    ],
+                    2,
+                ),
+                &WaitMatcher::Regex(&program),
+            )
+            .expect("first fragment wins");
+            assert_eq!(hit.row_start, 0);
+            // "前面" is 6 bytes; the match starts at byte 6.
+            assert_eq!(hit.match_offset, 6);
+            let detail = hit.regex.expect("regex detail");
+            assert_eq!(detail.matched, "目标42");
+            assert_eq!(detail.match_length, 8);
+        }
+
+        /// A regex match longer than the excerpt bound reports its complete
+        /// length honestly, a bounded `matched` prefix, and an excerpt that
+        /// leads with the match — never an underflow or a false whole.
+        #[test]
+        fn regex_oversized_match_is_bounded() {
+            let program = program("x+");
+            let line = format!("pre{}", "x".repeat(8000));
+            let hit = match_window(
+                &window(vec![row(0, false, false, &line)], 1),
+                &WaitMatcher::Regex(&program),
+            )
+            .expect("long match hits");
+            assert_eq!(hit.match_offset, 3);
+            let detail = hit.regex.expect("regex detail");
+            assert_eq!(detail.match_length, 8000);
+            assert!(detail.matched_truncated);
+            assert!(detail.matched.len() <= MAXIMUM_EXCERPT_BYTES);
+            assert!(detail.matched.bytes().all(|byte| byte == b'x'));
+            // The excerpt leads with the match start, explicitly truncated.
+            assert!(hit.excerpt_truncated);
+            assert_eq!(hit.excerpt_offset, 3);
+            assert!(hit.excerpt.len() <= MAXIMUM_EXCERPT_BYTES);
         }
     }
 }

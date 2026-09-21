@@ -3553,6 +3553,171 @@ fn terminal_read_text_output_escapes_grid_content() -> TestResult {
     Ok(())
 }
 
+/// `--unwrap` is pure presentation over the same fetched window: the
+/// fixture's row0→row1 soft-wrap pair joins into one logical line, the
+/// physical `rowCount` is unchanged, and the version-2 document validates
+/// against its published schema.
+#[test]
+fn terminal_read_unwrap_joins_the_wrap_chain() -> TestResult {
+    let base = base_dir("tread-unwrap");
+    let scope = stage_scope(&base);
+    let record = obtf_record();
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
+        answer_detach(stream, &attachment);
+    });
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "read",
+            TERMINAL_ID,
+            "--unwrap",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(document["schema"], "orchbee.terminal.read");
+    assert_eq!(document["version"], 2);
+    let content = &document["result"]["content"];
+    assert_eq!(content["rowCount"], 6);
+    let lines = content["lines"].as_array().unwrap();
+    assert_eq!(content["lineCount"], lines.len());
+    assert_eq!(lines.len(), 5);
+    // The wrap pair joins; every other physical row is its own line.
+    assert_eq!(lines[0]["text"], "A中e\u{301}👩🏽\u{200d}💻x界");
+    assert_eq!(lines[0]["rowStart"], 0);
+    assert_eq!(lines[0]["rowEnd"], 1);
+    assert_eq!(lines[0]["startsMidLine"], false);
+    assert_eq!(lines[0]["endsMidLine"], false);
+    assert_eq!(lines[1]["text"], "H");
+    assert_eq!(lines[1]["rowStart"], 2);
+    assert_eq!(lines[1]["rowEnd"], 2);
+    assert_eq!(lines[4]["text"], "^P.");
+    assert!(content.get("rows").is_none());
+    let schema = compiled_schema(&base, "orchbee.terminal.read");
+    assert!(schema.is_valid(&document), "unwrap document: {document}");
+    Ok(())
+}
+
+/// `--lines` tails the emitted entries without widening the fetch: with
+/// `--unwrap` the entries are logical lines, `tail` reports the omitted
+/// leading lines separately from `omittedRows`, and the fetched `rowCount`
+/// is untouched.
+#[test]
+fn terminal_read_lines_tails_logical_lines() -> TestResult {
+    let base = base_dir("tread-lines");
+    let scope = stage_scope(&base);
+    let record = obtf_record();
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
+        answer_detach(stream, &attachment);
+    });
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "read",
+            TERMINAL_ID,
+            "--unwrap",
+            "--lines",
+            "2",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(document["version"], 2);
+    let content = &document["result"]["content"];
+    assert_eq!(content["rowCount"], 6);
+    let tail = &content["tail"];
+    assert_eq!(tail["requested"], 2);
+    assert_eq!(tail["entries"], 2);
+    assert_eq!(tail["omitted"], 3);
+    let lines = content["lines"].as_array().unwrap();
+    assert_eq!(lines.len(), 2);
+    assert_eq!(lines[0]["text"], "12345UDE");
+    assert_eq!(lines[1]["text"], "^P.");
+    assert_eq!(content["omittedRows"], 0);
+    let schema = compiled_schema(&base, "orchbee.terminal.read");
+    assert!(schema.is_valid(&document), "lines document: {document}");
+    Ok(())
+}
+
+/// `--lines` without `--unwrap` tails physical rows on the same window.
+#[test]
+fn terminal_read_lines_tails_physical_rows() -> TestResult {
+    let base = base_dir("tread-rows-tail");
+    let scope = stage_scope(&base);
+    let record = obtf_record();
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
+        answer_detach(stream, &attachment);
+    });
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "read",
+            TERMINAL_ID,
+            "--lines",
+            "1",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(0));
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(document["version"], 2);
+    let content = &document["result"]["content"];
+    let rows = content["rows"].as_array().unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["index"], 5);
+    assert_eq!(rows[0]["text"], "^P.");
+    assert_eq!(content["tail"]["requested"], 1);
+    assert_eq!(content["tail"]["omitted"], 5);
+    assert!(content.get("lines").is_none());
+    let schema = compiled_schema(&base, "orchbee.terminal.read");
+    assert!(schema.is_valid(&document), "rows tail document: {document}");
+    Ok(())
+}
+
 #[test]
 fn terminal_read_unknown_target_is_not_found() -> TestResult {
     let base = base_dir("tread-miss");

@@ -117,6 +117,8 @@ Independent reads and the remaining send forms:
 ```sh
 orchbee terminal read "$TERM_ID"                          # visible frame
 orchbee terminal read "$TERM_ID" --history --rows 50      # retained scrollback
+orchbee terminal read "$TERM_ID" --unwrap --lines 20      # last 20 logical lines
+orchbee terminal wait-output "$TERM_ID" --regex 'build (ok|FAILED)'  # alternate search
 orchbee terminal send "$TERM_ID" --key ctrl-c
 printf 'summarize this\n' | orchbee terminal send "$TERM_ID" --stdin --enter
 orchbee terminal send "$TERM_ID" --file prompt.txt --enter
