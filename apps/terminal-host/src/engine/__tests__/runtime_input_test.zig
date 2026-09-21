@@ -2386,11 +2386,12 @@ test "mode-effect reply exhaustion fences reader and attachment resize commits" 
     }
 }
 
-/// Parks the real writer at its post-copy seam once per slice so a test can
-/// inspect the queued entry deterministically while the writer still owns
-/// the slice, then releases it to perform the real start/write/account
-/// cycle. `detach` must run before runtime teardown so a parked writer can
-/// always drain and the runtime can join it.
+/// Parks the real writer at its post-copy seam for the first slice of each
+/// observed queue entry so a test can inspect that entry deterministically
+/// while the writer still owns the slice, then releases it to perform the
+/// real start/write/account cycle — including any short-write continuation
+/// slices, which flow without parking. `detach` must run before runtime
+/// teardown so a parked writer can always drain and the runtime can join it.
 const PasteWriterProbe = struct {
     gate: RepeatingGate = .{},
     detached: std.atomic.Value(bool) = .init(false),
@@ -2406,6 +2407,10 @@ const PasteWriterProbe = struct {
         // The detached check shares the gate mutex so detach() can never
         // strand the writer between the check and the park decision.
         if (self.detached.load(.acquire)) return;
+        // gate.release doubles as the arm state: after an unpause it stays
+        // set until the next rearm(), so short-write continuation slices of
+        // the released entry flow through the real cycle without parking.
+        if (self.gate.release) return;
         self.gate.release = false;
         self.gate.generation += 1;
         self.gate.condition.broadcast();
@@ -2424,6 +2429,16 @@ const PasteWriterProbe = struct {
     pub fn detach(self: *PasteWriterProbe) void {
         self.detached.store(true, .release);
         self.gate.unpause();
+    }
+
+    /// Re-arm the gate for the next observed entry. Called only after the
+    /// drain was confirmed under input_mutex and that mutex was released, so
+    /// no caller can hold gate.mutex and input_mutex at the same time and the
+    /// next commit always follows the arm.
+    pub fn rearm(self: *PasteWriterProbe) void {
+        self.gate.mutex.lock();
+        defer self.gate.mutex.unlock();
+        self.gate.release = false;
     }
 
     /// Wait for the writer to park on its next copied slice, with the same
@@ -2473,21 +2488,30 @@ fn expectNextQueuedClientBytes(
         try std.testing.expectEqualStrings(expected, buffer[0..slice.length]);
     }
     probe.gate.unpause();
-    // The real writer now runs start/write/account; only its accounting
-    // removes the entry, so an empty queue proves this round completed.
-    var timer = try platform_boundary.monotonic.Timer.start();
-    runtime_state.input_mutex.lock();
-    defer runtime_state.input_mutex.unlock();
-    while (runtime_state.input_queue.hasWritableEntry()) {
-        const elapsed = timer.read();
-        if (elapsed >= queued_client_drain_timeout_ns) {
-            return error.WriterDrainTimedOut;
+    // The real writer now runs start/write/account on this slice and any
+    // short-write continuations, which skip the gate while it stays released.
+    // Only the writer can retire the entry; waiting for an empty queue
+    // covers this round's accounting before the next arm. A failure fence
+    // would clear the queue too and is then surfaced by the following
+    // prepare assertions, which keep verifying runtime health.
+    {
+        var timer = try platform_boundary.monotonic.Timer.start();
+        runtime_state.input_mutex.lock();
+        defer runtime_state.input_mutex.unlock();
+        while (runtime_state.input_queue.hasWritableEntry()) {
+            const elapsed = timer.read();
+            if (elapsed >= queued_client_drain_timeout_ns) {
+                return error.WriterDrainTimedOut;
+            }
+            runtime_state.input_condition.timedWait(
+                &runtime_state.input_mutex,
+                queued_client_drain_timeout_ns - elapsed,
+            ) catch return error.WriterDrainTimedOut;
         }
-        runtime_state.input_condition.timedWait(
-            &runtime_state.input_mutex,
-            queued_client_drain_timeout_ns - elapsed,
-        ) catch return error.WriterDrainTimedOut;
     }
+    // input_mutex is released before the gate is re-armed for the next
+    // round's first slice; the next commit therefore cannot precede the arm.
+    probe.rearm();
 }
 
 fn expectNextQueuedTerminalBytes(
