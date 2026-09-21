@@ -9,6 +9,7 @@ mod cursor;
 mod frame;
 mod identity;
 mod model;
+mod names;
 mod read;
 
 pub use contract::{
@@ -20,14 +21,15 @@ pub use cursor::{
     AGENT_LIST_CURSOR_MAXIMUM_CHARACTERS, AgentCursorError, AgentCursorPayload, AgentListCursor,
 };
 pub use frame::{
-    AGENT_MAGIC, AgentWireError, MAXIMUM_AGENT_LIST_RESULT_BYTES, MAXIMUM_AGENT_REQUEST_BYTES,
+    AGENT_MAGIC, AgentWireError, MAXIMUM_AGENT_LIST_RESULT_BYTES,
+    MAXIMUM_AGENT_NAMES_RESULT_BYTES, MAXIMUM_AGENT_REQUEST_BYTES,
     MAXIMUM_AGENT_SESSION_RESULT_BYTES, MAXIMUM_AGENT_SMALL_OUTCOME_BYTES, read_agent_request,
     read_agent_result, write_agent_request, write_agent_result,
 };
 pub use identity::{
     AgentAttachmentGeneration, AgentAttentionRequestId, AgentEventId, AgentExecutionLocationId,
-    AgentIdentityError, AgentPresentationId, AgentProviderId, AgentSafeInteger, AgentSessionId,
-    AgentTurnId, MAXIMUM_SAFE_INTEGER, ObapRequestId,
+    AgentIdentityError, AgentName, AgentPresentationId, AgentProviderId, AgentSafeInteger,
+    AgentSessionId, AgentTurnId, MAXIMUM_SAFE_INTEGER, ObapRequestId,
 };
 pub use model::{
     AgentActivity, AgentAttentionKind, AgentAttentionRequest, AgentCapability,
@@ -38,12 +40,20 @@ pub use model::{
     AgentSessionSummary, AgentStatusBasis, AgentTurnOutcome, AgentTurnOutcomeKind, AgentTurnPhase,
     AgentTurnState, ContentUnavailable, NavigateOnly,
 };
+pub use names::{
+    AgentNameAssignOutcome, AgentNameAssignOutcomeEnvelope, AgentNameAssignRejectionReason,
+    AgentNameBinding, AgentNameReleaseOutcome, AgentNameReleaseOutcomeEnvelope,
+    AgentNameReleaseRejectionReason, AgentNamesListOutcome, AgentNamesListOutcomeEnvelope,
+    AgentNamesListRejectionReason, AgentNamesRequest, AgentNamesResult, AgentResolveOutcome,
+    AgentResolveOutcomeEnvelope, AgentResolveRejectionReason, AgentResolvedBy,
+    AgentSessionSelector, MAXIMUM_NAME_BINDINGS,
+};
 pub use read::{
     AgentExplainOutcome, AgentExplainOutcomeEnvelope, AgentGetOutcome, AgentGetOutcomeEnvelope,
     AgentListOutcome, AgentListOutcomeEnvelope, AgentListRejectionReason, AgentReadRequest,
-    AgentReadResult, AgentSessionRejectionReason, AgentUnavailableReason, DEFAULT_LIST_LIMIT,
-    MAXIMUM_CAPABILITIES, MAXIMUM_LIST_ITEMS, MAXIMUM_LIST_LIMIT, MAXIMUM_PENDING_REQUESTS,
-    MAXIMUM_PRESENTATION_ATTACHMENTS,
+    AgentReadResult, AgentRequest, AgentResult, AgentSessionRejectionReason,
+    AgentUnavailableReason, DEFAULT_LIST_LIMIT, MAXIMUM_CAPABILITIES, MAXIMUM_LIST_ITEMS,
+    MAXIMUM_LIST_LIMIT, MAXIMUM_PENDING_REQUESTS, MAXIMUM_PRESENTATION_ATTACHMENTS,
 };
 
 #[cfg(test)]

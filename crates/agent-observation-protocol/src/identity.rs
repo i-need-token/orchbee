@@ -64,6 +64,11 @@ macro_rules! define_opaque_identity {
 }
 
 define_opaque_identity!(AgentSessionId);
+impl std::borrow::Borrow<str> for AgentSessionId {
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
 define_opaque_identity!(AgentTurnId);
 define_opaque_identity!(AgentAttentionRequestId);
 define_opaque_identity!(AgentEventId);
@@ -152,6 +157,60 @@ impl<'de> Deserialize<'de> for AgentProviderId {
 impl fmt::Display for AgentProviderId {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(self.as_str())
+    }
+}
+
+/// The Agent session alias charset: ASCII `[a-z][a-z0-9_-]{0,31}` — the typed
+/// constructor is the single admission point for the names sidecar, on the
+/// wire and inside the canonical cell alike.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(transparent)]
+pub struct AgentName(String);
+
+impl AgentName {
+    pub fn parse(value: &str) -> Result<Self, AgentIdentityError> {
+        let bytes = value.as_bytes();
+        let valid = !bytes.is_empty()
+            && bytes.len() <= 32
+            && bytes[0].is_ascii_lowercase()
+            && bytes.iter().all(|byte| {
+                byte.is_ascii_lowercase()
+                    || byte.is_ascii_digit()
+                    || matches!(byte, b'_' | b'-')
+            });
+        if !valid {
+            return Err(AgentIdentityError::InvalidFormat);
+        }
+        Ok(Self(value.to_owned()))
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for AgentName {
+    fn deserialize<DeserializerType>(
+        deserializer: DeserializerType,
+    ) -> Result<Self, DeserializerType::Error>
+    where
+        DeserializerType: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Self::parse(&value).map_err(de::Error::custom)
+    }
+}
+
+impl fmt::Display for AgentName {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl std::borrow::Borrow<str> for AgentName {
+    fn borrow(&self) -> &str {
+        self.as_str()
     }
 }
 

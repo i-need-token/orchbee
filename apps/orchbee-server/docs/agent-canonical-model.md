@@ -96,7 +96,7 @@ frame:
 
 | Path                                                      | Responsibility                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/agent_service.rs`                                    | `AgentPolicy`, `AgentService` (one `Mutex<AgentState>` cell + boot-scoped cursor authority), the shared prepared-read executor `execute_prepared` for list/get/explain, `open_observing` construction-time socket binding, `shutdown`, `AgentReadFault` loud-failure type, `PreparedUnavailable` provider-decline marker, the production `Instant` clock seams (`admit_envelope`, `tick`, `next_deadline`), the production native carrier seams (`native_admit_carrier`, `native_retire_carrier`) and drain/fence seams (`native_apply_drain_page`, `native_fenced_final_snapshot`), `#[cfg(test)]` `seed`, test-only bridge seams (`admit_hook_envelope`, `observe_hook_signal`, `hook_environment_overlay`, `retire_hook_presentation`, `advance_hook_settlement`), and test-only native seams (`native_apply_event`, `native_apply_gap`, `native_reconcile_bindings`, `native_reconcile_and_snapshot`, `native_sweep`, `native_held_count`, `native_poison_after_mutation_for_test`) |
+| `src/agent_service.rs`                                    | `AgentPolicy`, `AgentService` (one `Mutex<AgentState>` cell + boot-scoped cursor authority), the shared prepared-read executor `execute_prepared` for list/get/explain plus the names sidecar's in-fold `resolve`/`names.list`/`name.assign`/`name.release` operations (no provider, pure cell work), `open_observing` construction-time socket binding, `shutdown`, `AgentReadFault` loud-failure type, `PreparedUnavailable` provider-decline marker, the production `Instant` clock seams (`admit_envelope`, `tick`, `next_deadline`), the production native carrier seams (`native_admit_carrier`, `native_retire_carrier`) and drain/fence seams (`native_apply_drain_page`, `native_fenced_final_snapshot`), `#[cfg(test)]` `seed`, test-only bridge seams (`admit_hook_envelope`, `observe_hook_signal`, `hook_environment_overlay`, `retire_hook_presentation`, `advance_hook_settlement`), and test-only native seams (`native_apply_event`, `native_apply_gap`, `native_reconcile_bindings`, `native_reconcile_and_snapshot`, `native_sweep`, `native_held_count`, `native_poison_after_mutation_for_test`) |
 | `src/agent_service/map.rs`                                | Explicit typed canonical-to-wire mapper; every unrepresentable canonical value fails loudly rather than being filtered or fabricated                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `src/agent_service/cursor.rs`                             | Private boot-scoped HMAC list-cursor authority: mint, canonical base64url shape, MAC/shape/semantic verification order                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `src/agent_service/tests.rs` + `cursor/tests.rs`          | Policy, ordering, pagination, cursor invalid/stale/boot-scope, ended filtering, disposal, and mapping-fidelity coverage                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -144,6 +144,99 @@ the ingress `socket_path` kept for the test-only overlay seam,
 `#[cfg_attr(test, allow(unused_imports))]` instead — `expect` would be unfulfilled in
 the bin-test target where `agent_service::map` does consume them. No module-wide
 suppression, no fake use, no const tables, no variant narrowing.
+
+## Session names sidecar
+
+The names sidecar is a per-Site, runtime-scoped alias table owned by the
+canonical `AgentState` cell — never a canonical-model field, never persisted, and
+empty again after every runtime disposal. It exists so clients can address a
+session by a short operator-assigned alias instead of the opaque session
+identity; the canonical session document itself is unchanged and never carries
+a name.
+
+### Carrier and invariants
+
+- `AgentState` holds `names: BTreeMap<AgentName, AgentSessionId>` plus the
+  reverse index `sessions_named: BTreeMap<AgentSessionId, AgentName>` — one
+  forward/reverse pair under the same `Mutex` the runtime already lives in.
+  `names` order is the emitted order (byte-sorted by name).
+- A name is ASCII `[a-z][a-z0-9_-]{0,31}`; the `AgentName` typed constructor is
+  the only admission point, so no path can store a malformed alias.
+- At most one name per session and at most one session per name; the forward
+  and reverse maps agree at every fold boundary.
+- Bindings only ever point at live sessions: every `with_state` fold ends with
+  a reconcile sweep that drops bindings whose session is absent or no longer
+  `live`. Hook `session-ended`, native presentation retirement,
+  settlement/tick expiry folds, and any future removal path all converge on the
+  same in-fold cleanup, so a binding can never outlive the fold that ended its
+  session — and can never be observed after it.
+- The table is bounded by `MAX_AGENT_SESSIONS` (512). The bound applies to NEW
+  bindings only: renaming an already-named session frees and takes a slot
+  atomically inside the same fold, so a rename at full capacity succeeds.
+- A disposed or poisoned cell answers `runtime-unavailable`, never a
+  fabricated empty table or a stale last-good binding.
+
+### Selector resolution
+
+Every targeted operation carries an `AgentSessionSelector` — `session` (a typed
+`AgentSessionId`), `name` (a typed `AgentName`), or `auto` (the CLI positional
+token). Resolution runs inside the same `with_state` fold that reads or
+mutates:
+
+- `session` — exact session-identity existence, any lifecycle. Never falls
+  back to names.
+- `name` — the complete names map only.
+- `auto` — exact session-identity existence first, then the names map. Session
+  identities can equal valid names, so existence decides, not the charset: a
+  name that equals a live session's id resolves to the id; `--name` is the
+  only escape onto the names table.
+
+`resolve` reports `resolved{sessionId, resolvedBy}` where `resolvedBy` records
+which rule hit (`session-id` or `name`); a miss is `not-found`. `assign` and
+`release` resolve their `target` the same way — inside the mutating fold — so
+a session that ended between request and fold yields `session-ended`, never a
+ghost binding.
+
+### Finite transitions
+
+| Wire request kind | Policy | Fold semantics | Outcomes |
+| --- | --- | --- | --- |
+| `agent.session.resolve.request` | `policy.read` | Selector resolution only; zero mutation | `resolved{sessionId,resolvedBy}` / `rejected{not-found\|read-denied}` / `unavailable` |
+| `agent.session.names.list.request` | `policy.read` | Enumerate the whole table after the in-fold sweep | `listed{bindings:[{name,sessionId,lifecycle}]}` / `rejected{read-denied}` / `unavailable` |
+| `agent.session.name.assign.request` | `policy.manage` | Resolve target; liveness and collision checks; commit the binding (or atomic swap when renaming) | `assigned{sessionId,name,previousName}` / `unchanged{sessionId,name}` / `rejected{name-in-use\|session-not-found\|session-ended\|name-not-found\|capacity-exceeded\|manage-denied}` / `unavailable` |
+| `agent.session.name.release.request` | `policy.manage` | Resolve target; drop the binding if present | `released{sessionId,name}` / `unchanged{sessionId}` / `rejected{name-not-found\|session-not-found\|manage-denied}` / `unavailable` |
+
+- `assigned` carries `previousName` when the session already held an alias —
+  the old binding is released and the new one committed in the same fold, so a
+  concurrent `names.list` can never observe both or neither.
+- `unchanged` is state idempotence (`assign` of the pair already bound,
+  `release` of a session that has no name), not a requestId replay promise —
+  there is no write ledger and a lost reply is `outcome-unknown` to the
+  caller, never retried by the transport.
+- `name-in-use` keeps the incumbent binding; the rejection carries the
+  incumbent `conflictSessionId` so the caller can see the true owner.
+- `names.list` is a bounded-read payload (≤512 typed bindings), not a small
+  outcome — it is bounded and validated like `listed` sessions, and
+  `is_small_outcome` admits only `rejected`/`unavailable` and the one-shot
+  manage answers (`resolved`, `assigned`, `unchanged`, `released`).
+
+### Bounded falsification notes
+
+- A `name` that collides with a live session id: positional `auto` resolution
+  picks the session; `--name` is the only path to the alias. A binding is
+  released on its session's end, so the freed name can later bind a different
+  session.
+- `assign` on an ended or absent session is `session-ended`/`session-not-found`
+  inside the fold — no pre-fold read is ever trusted as liveness proof.
+- `release` on a `--name` that is not bound is `name-not-found`; on a session
+  with no alias it is `unchanged`; on an absent session `session-not-found`.
+- A `rename` committed while another client holds a `wait` poll never
+  retargets the wait: the waiter pinned the resolved full session id.
+- `dispose` clears the table with the runtime; every names operation then
+  answers `unavailable{runtime-unavailable}`.
+- When a `delete.request` ever lands, session removal MUST route through the
+  same in-fold release — recorded here so its future owner cannot bypass the
+  sweep.
 
 ## Authoritative semantics (claims)
 
@@ -435,8 +528,12 @@ thread before the identity-gated unlink.
 
 ## Explicitly out of scope
 
-Persistence/durable state, remote (non-managed) Agent observation and any remote Agent
-extension, waits/watches, `changes`, Agent mutations beyond the observation folds, TUI
+Persistence/durable state (names included — the sidecar dies with the runtime),
+remote (non-managed) Agent observation and any remote Agent
+extension, waits/watches, `changes`, canonical-model mutations beyond the
+observation folds (the names sidecar is the single accepted non-observation
+cell state), session deletion (`delete.request` is reserved and MUST route
+through the name-release fold when it lands), TUI
 consumers, wire framing/codec ownership (the `orchbee-agent-observation-protocol`
 crate), cursor secrets and their rotation policy (`agent_service`), CLI grammar,
 rendering, and localization, TypeScript behavior changes, and listener/wait

@@ -2,13 +2,17 @@ use std::collections::HashSet;
 use std::fmt;
 
 use crate::model::{
-    AgentCapability, AgentObservationSource, AgentSessionDetail, AgentSessionExplanation,
-    AgentSessionSnapshot, AgentSessionSummary, AgentTurnState,
+    AgentCapability, AgentLifecycle, AgentObservationSource, AgentSessionDetail,
+    AgentSessionExplanation, AgentSessionSnapshot, AgentSessionSummary, AgentTurnState,
+};
+use crate::names::{
+    AgentNameAssignOutcome, AgentNameAssignRejectionReason, AgentNamesRequest, AgentNamesResult,
+    AgentNamesListOutcome, MAXIMUM_NAME_BINDINGS,
 };
 use crate::read::{
     AgentExplainOutcome, AgentGetOutcome, AgentListOutcome, AgentReadRequest, AgentReadResult,
-    MAXIMUM_CAPABILITIES, MAXIMUM_LIST_ITEMS, MAXIMUM_LIST_LIMIT, MAXIMUM_PENDING_REQUESTS,
-    MAXIMUM_PRESENTATION_ATTACHMENTS,
+    AgentRequest, AgentResult, MAXIMUM_CAPABILITIES, MAXIMUM_LIST_ITEMS, MAXIMUM_LIST_LIMIT,
+    MAXIMUM_PENDING_REQUESTS, MAXIMUM_PRESENTATION_ATTACHMENTS,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -39,40 +43,75 @@ impl fmt::Display for AgentContractError {
 
 impl std::error::Error for AgentContractError {}
 
-pub fn parse_agent_request(encoded: &[u8]) -> Result<AgentReadRequest, AgentContractError> {
-    let request = serde_json::from_slice::<AgentReadRequest>(encoded)
-        .map_err(|_error| AgentContractError::InvalidDocument)?;
+/// Parses one request payload into the closed union. The read and names
+/// families carry disjoint `kind` values, so the family is decided by which
+/// typed decode succeeds.
+pub fn parse_agent_request(encoded: &[u8]) -> Result<AgentRequest, AgentContractError> {
+    let request = if let Ok(request) = serde_json::from_slice::<AgentReadRequest>(encoded) {
+        AgentRequest::Read(request)
+    } else {
+        AgentRequest::Names(
+            serde_json::from_slice::<AgentNamesRequest>(encoded)
+                .map_err(|_error| AgentContractError::InvalidDocument)?,
+        )
+    };
     validate_request(&request)?;
     Ok(request)
 }
 
-pub fn parse_agent_result(encoded: &[u8]) -> Result<AgentReadResult, AgentContractError> {
-    let result = serde_json::from_slice::<AgentReadResult>(encoded)
-        .map_err(|_error| AgentContractError::InvalidDocument)?;
+pub fn parse_agent_result(encoded: &[u8]) -> Result<AgentResult, AgentContractError> {
+    let result = if let Ok(result) = serde_json::from_slice::<AgentReadResult>(encoded) {
+        AgentResult::Read(result)
+    } else {
+        AgentResult::Names(
+            serde_json::from_slice::<AgentNamesResult>(encoded)
+                .map_err(|_error| AgentContractError::InvalidDocument)?,
+        )
+    };
     validate_result(&result)?;
     Ok(result)
 }
 
-pub fn serialize_agent_request(request: &AgentReadRequest) -> Result<Vec<u8>, AgentContractError> {
+pub fn serialize_agent_request(request: &AgentRequest) -> Result<Vec<u8>, AgentContractError> {
     validate_request(request)?;
-    serde_json::to_vec(request).map_err(|_error| AgentContractError::InvalidDocument)
+    let encoded = match request {
+        AgentRequest::Read(request) => serde_json::to_vec(request),
+        AgentRequest::Names(request) => serde_json::to_vec(request),
+    };
+    encoded.map_err(|_error| AgentContractError::InvalidDocument)
 }
 
-pub fn serialize_agent_result(result: &AgentReadResult) -> Result<Vec<u8>, AgentContractError> {
+pub fn serialize_agent_result(result: &AgentResult) -> Result<Vec<u8>, AgentContractError> {
     validate_result(result)?;
-    serde_json::to_vec(result).map_err(|_error| AgentContractError::InvalidDocument)
+    let encoded = match result {
+        AgentResult::Read(result) => serde_json::to_vec(result),
+        AgentResult::Names(result) => serde_json::to_vec(result),
+    };
+    encoded.map_err(|_error| AgentContractError::InvalidDocument)
 }
 
-fn validate_request(request: &AgentReadRequest) -> Result<(), AgentContractError> {
-    if let AgentReadRequest::List { limit, .. } = request
-        && !(1..=MAXIMUM_LIST_LIMIT).contains(&limit.value())
-    {
-        return Err(AgentContractError::InvalidDocument);
+fn validate_request(request: &AgentRequest) -> Result<(), AgentContractError> {
+    match request {
+        AgentRequest::Read(AgentReadRequest::List { limit, .. }) => {
+            if !(1..=MAXIMUM_LIST_LIMIT).contains(&limit.value()) {
+                return Err(AgentContractError::InvalidDocument);
+            }
+        }
+        // Selectors and names are already typed at construction; no further
+        // request invariant exists beyond the schema.
+        AgentRequest::Read(_) | AgentRequest::Names(_) => {}
     }
     Ok(())
 }
 
-fn validate_result(result: &AgentReadResult) -> Result<(), AgentContractError> {
+fn validate_result(result: &AgentResult) -> Result<(), AgentContractError> {
+    match result {
+        AgentResult::Read(result) => validate_read_result(result),
+        AgentResult::Names(result) => validate_names_result(result),
+    }
+}
+
+fn validate_read_result(result: &AgentReadResult) -> Result<(), AgentContractError> {
     match result {
         AgentReadResult::List { result, .. } => match &result.outcome {
             AgentListOutcome::Listed { items, .. } => {
@@ -100,6 +139,40 @@ fn validate_result(result: &AgentReadResult) -> Result<(), AgentContractError> {
             }
             AgentExplainOutcome::Rejected { .. } | AgentExplainOutcome::Unavailable { .. } => {}
         },
+    }
+    Ok(())
+}
+
+fn validate_names_result(result: &AgentNamesResult) -> Result<(), AgentContractError> {
+    match result {
+        AgentNamesResult::NamesList { result, .. } => {
+            if let AgentNamesListOutcome::Listed { bindings } = &result.outcome {
+                if bindings.len() > MAXIMUM_NAME_BINDINGS {
+                    return Err(AgentContractError::InvalidDocument);
+                }
+                // Only live sessions hold bindings: an emitted ended row is
+                // outside the fold contract, never silently tolerated.
+                if bindings
+                    .iter()
+                    .any(|binding| binding.lifecycle != AgentLifecycle::Live)
+                {
+                    return Err(AgentContractError::InvalidDocument);
+                }
+            }
+        }
+        AgentNamesResult::NameAssign { result, .. } => {
+            if let AgentNameAssignOutcome::Rejected {
+                reason,
+                conflict_session_id,
+            } = &result.outcome
+            {
+                let conflicted = *reason == AgentNameAssignRejectionReason::NameInUse;
+                if conflict_session_id.is_some() != conflicted {
+                    return Err(AgentContractError::InvalidDocument);
+                }
+            }
+        }
+        AgentNamesResult::Resolve { .. } | AgentNamesResult::NameRelease { .. } => {}
     }
     Ok(())
 }

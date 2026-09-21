@@ -5,6 +5,7 @@ use crate::identity::{AgentSafeInteger, AgentSessionId, ObapRequestId};
 use crate::model::{
     AgentSessionDetail, AgentSessionExplanation, AgentSessionSummary, deserialize_required_nullable,
 };
+use crate::names::{AgentNamesRequest, AgentNamesResult};
 
 /// The `limit` default applied when a list request omits the field, matching
 /// the canonical input contract.
@@ -258,5 +259,77 @@ impl AgentReadResult {
                 AgentExplainOutcome::Rejected { .. } | AgentExplainOutcome::Unavailable { .. }
             ),
         }
+    }
+}
+
+/// The closed request union every OBAP frame on this channel carries: the
+/// session reads or the names sidecar's own read/manage family. A manage is
+/// never typed as a session read — it enters through `Names`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AgentRequest {
+    Read(AgentReadRequest),
+    Names(AgentNamesRequest),
+}
+
+impl AgentRequest {
+    #[must_use]
+    pub fn request_id(&self) -> &ObapRequestId {
+        match self {
+            Self::Read(request) => request.request_id(),
+            Self::Names(request) => request.request_id(),
+        }
+    }
+}
+
+impl From<AgentReadRequest> for AgentRequest {
+    fn from(request: AgentReadRequest) -> Self {
+        Self::Read(request)
+    }
+}
+
+impl From<AgentNamesRequest> for AgentRequest {
+    fn from(request: AgentNamesRequest) -> Self {
+        Self::Names(request)
+    }
+}
+
+/// The closed result union — each variant carries the same `requestId`
+/// correlation shape as its request family.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AgentResult {
+    Read(AgentReadResult),
+    Names(AgentNamesResult),
+}
+
+impl AgentResult {
+    #[must_use]
+    pub fn request_id(&self) -> &ObapRequestId {
+        match self {
+            Self::Read(result) => result.request_id(),
+            Self::Names(result) => result.request_id(),
+        }
+    }
+
+    /// Whether the outcome is a small terminal answer; producers bound these
+    /// bodies at 1,024 bytes before serialization. Only `list`-family
+    /// enumerations are bounded-read payloads.
+    #[must_use]
+    pub fn is_small_outcome(&self) -> bool {
+        match self {
+            Self::Read(result) => result.is_small_outcome(),
+            Self::Names(result) => result.is_small_outcome(),
+        }
+    }
+}
+
+impl From<AgentReadResult> for AgentResult {
+    fn from(result: AgentReadResult) -> Self {
+        Self::Read(result)
+    }
+}
+
+impl From<AgentNamesResult> for AgentResult {
+    fn from(result: AgentNamesResult) -> Self {
+        Self::Names(result)
     }
 }

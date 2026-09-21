@@ -88,7 +88,7 @@ poison——不存在任何 `into_inner`/`clear_poison`——部分变更永不�
 
 | 路径                                                      | 职责                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/agent_service.rs`                                    | `AgentPolicy`、`AgentService`（一把 `Mutex<AgentState>` cell + 按启动期游标权威）、list/get/explain 共享 prepared-read 执行器 `execute_prepared`、`open_observing` 构造期套接字绑定、`shutdown`、`AgentReadFault` 响亮失败类型、`PreparedUnavailable` provider 拒绝标记、生产 `Instant` 时钟缝（`admit_envelope`、`tick`、`next_deadline`）、生产原生载体缝（`native_admit_carrier`、`native_retire_carrier`）与 drain/栅栏缝（`native_apply_drain_page`、`native_fenced_final_snapshot`）、`#[cfg(test)]` `seed`、仅测试桥缝（`admit_hook_envelope`、`observe_hook_signal`、`hook_environment_overlay`、`retire_hook_presentation`、`advance_hook_settlement`）与仅测试原生缝（`native_apply_event`、`native_apply_gap`、`native_reconcile_bindings`、`native_reconcile_and_snapshot`、`native_sweep`、`native_held_count`、`native_poison_after_mutation_for_test`） |
+| `src/agent_service.rs`                                    | `AgentPolicy`、`AgentService`（一把 `Mutex<AgentState>` cell + 按启动期游标权威）、list/get/explain 共享 prepared-read 执行器 `execute_prepared`，以及 names 侧表的 fold 内 `resolve`/`names.list`/`name.assign`/`name.release` 操作（无 provider，纯 cell 工作）、`open_observing` 构造期套接字绑定、`shutdown`、`AgentReadFault` 响亮失败类型、`PreparedUnavailable` provider 拒绝标记、生产 `Instant` 时钟缝（`admit_envelope`、`tick`、`next_deadline`）、生产原生载体缝（`native_admit_carrier`、`native_retire_carrier`）与 drain/栅栏缝（`native_apply_drain_page`、`native_fenced_final_snapshot`）、`#[cfg(test)]` `seed`、仅测试桥缝（`admit_hook_envelope`、`observe_hook_signal`、`hook_environment_overlay`、`retire_hook_presentation`、`advance_hook_settlement`）与仅测试原生缝（`native_apply_event`、`native_apply_gap`、`native_reconcile_bindings`、`native_reconcile_and_snapshot`、`native_sweep`、`native_held_count`、`native_poison_after_mutation_for_test`） |
 | `src/agent_service/map.rs`                                | 显式定型的规范→wire 映射器；任何不可表示的规范值响亮失败，绝不过滤或捏造                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `src/agent_service/cursor.rs`                             | 私有按启动期 HMAC 列表游标权威：铸造、规范 base64url 形状、MAC/形状/语义校验顺序                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `src/agent_service/tests.rs` + `cursor/tests.rs`          | 策略、排序、分页、游标 invalid/stale/启动期边界、已结束过滤、销毁与映射保真覆盖                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -129,6 +129,82 @@ ingress `socket_path`、`RegistrationFact::binding`，以及 drain exchange 的 
 `#[cfg_attr(test, allow(unused_imports))]`——`expect` 在 bin-test 目标中
 `agent_service::map` 真实消费它们时会未达成。无模块级抑制、无虚假使用、
 无常量表、无变体收窄。
+
+## 会话命名侧表
+
+names 侧表是按 Site、随运行时存续的别名表，由规范的 `AgentState` cell 持有——
+绝不写入规范模型字段、绝不持久化，每次运行时 dispose 后重新为空。它让客户端可以
+用短的操作者指派别名寻址会话，而非不透明会话身份；规范会话文档本身不变且从不
+携带名字。
+
+### 载体与不变量
+
+- `AgentState` 持有 `names: BTreeMap<AgentName, AgentSessionId>` 与反向索引
+  `sessions_named: BTreeMap<AgentSessionId, AgentName>`——一对正/反映射与运行时
+  共处于同一把 `Mutex` 之下。`names` 的顺序即发射顺序（按 name 字节序）。
+- 名字为 ASCII `[a-z][a-z0-9_-]{0,31}`；`AgentName` 定型构造器是唯一准入点，
+  任何路径都无法存入畸形别名。
+- 每个会话至多一个名字、每个名字至多绑定一个会话；正/反映射在每个 fold 边界
+  保持一致。
+- 绑定永远只指向 live 会话：每个 `with_state` fold 末尾做 reconcile 清扫，丢弃其
+  会话缺席或不再 `live` 的绑定。hook `session-ended`、原生 presentation 退役、
+  settlement/tick 过期 fold 以及任何未来的移除路径都收敛到同一个 fold 内清理，
+  因此绑定绝不会比结束其会话的 fold 多存活一步——也绝不会在那之后被观察到。
+- 表以 `MAX_AGENT_SESSIONS`（512）为上界。该上界只约束新增绑定：给已命名会话
+  改名在同一 fold 内原子地释放旧位并占新位，因此满载时改名成功。
+- dispose 或 poison 的 cell 应答 `runtime-unavailable`，绝不伪造空表或陈旧绑定。
+
+### Selector 解析
+
+每个带目标的操作携带 `AgentSessionSelector`——`session`（定型
+`AgentSessionId`）、`name`（定型 `AgentName`）或 `auto`（CLI 位置词）。解析在读取
+或变更所在的同一 `with_state` fold 内进行：
+
+- `session`——仅做精确会话身份存在性检查（任意生命周期），绝不回落到 names。
+- `name`——只查完整 names 表。
+- `auto`——先查精确会话身份存在性，再查 names 表。会话身份可以恰好是合法名字，
+  因此决定因素是存在性而非字符集：等于某个 live 会话 id 的名字解析到该 id；
+  `--name` 是进入 names 表的唯一逃逸通道。
+
+`resolve` 报告 `resolved{sessionId, resolvedBy}`，`resolvedBy` 记录命中的是哪条
+规则（`session-id` 或 `name`）；未命中为 `not-found`。`assign` 与 `release` 以同样
+方式在变更 fold 内解析 `target`——在请求与 fold 之间结束的会话得到
+`session-ended`，绝不产生幽灵绑定。
+
+### 有限迁移
+
+| Wire 请求 kind | 权限 | Fold 语义 | 结果 |
+| --- | --- | --- | --- |
+| `agent.session.resolve.request` | `policy.read` | 仅 selector 解析，零变更 | `resolved{sessionId,resolvedBy}` / `rejected{not-found\|read-denied}` / `unavailable` |
+| `agent.session.names.list.request` | `policy.read` | fold 内清扫后枚举全表 | `listed{bindings:[{name,sessionId,lifecycle}]}` / `rejected{read-denied}` / `unavailable` |
+| `agent.session.name.assign.request` | `policy.manage` | 解析目标；活性与冲突检查；提交绑定（改名时原子换绑） | `assigned{sessionId,name,previousName}` / `unchanged{sessionId,name}` / `rejected{name-in-use\|session-not-found\|session-ended\|name-not-found\|capacity-exceeded\|manage-denied}` / `unavailable` |
+| `agent.session.name.release.request` | `policy.manage` | 解析目标；存在则丢弃绑定 | `released{sessionId,name}` / `unchanged{sessionId}` / `rejected{name-not-found\|session-not-found\|manage-denied}` / `unavailable` |
+
+- 会话已持有别名时 `assigned` 携带 `previousName`——旧绑定在同一 fold 内释放、
+  新绑定提交，并发 `names.list` 绝不可能观察到两个都缺或两个并存。
+- `unchanged` 是状态幂等（`assign` 已绑定的同名对、`release` 无别名的会话），
+  不是 requestId 重放承诺——不存在写入账本；回复丢失对调用方是
+  `outcome-unknown`，传输层绝不重试。
+- `name-in-use` 保留在册绑定；拒绝携带在册方的 `conflictSessionId`，调用方可见
+  真实属主。
+- `names.list` 是有界读取载荷（≤512 条定型绑定），不属于小结果——与 `listed`
+  会话同等地有界并校验；`is_small_outcome` 只收纳 `rejected`/`unavailable` 与
+  一次性 manage 应答（`resolved`、`assigned`、`unchanged`、`released`）。
+
+### 有界证伪要点
+
+- 与 live 会话 id 撞名的 `name`：位置 `auto` 解析选中会话；`--name` 是唯一指向
+  别名的路径。绑定随其会话结束而释放，因此释放的名字之后可以绑定别的会话。
+- 对 ended 或缺席会话的 `assign` 在 fold 内得到 `session-ended`/`session-not-found`
+  ——任何 fold 前读取都不被当作活性证明。
+- 对未绑定 `--name` 的 `release` 为 `name-not-found`；对无别名会话为 `unchanged`；
+  对缺席会话为 `session-not-found`。
+- 另一个客户端持有 `wait` 轮询时提交的 `rename` 绝不使 wait 换目标：等待方已钉住
+  解析出的完整会话 id。
+- `dispose` 随运行时清空该表；此后所有 names 操作应答
+  `unavailable{runtime-unavailable}`。
+- 未来 `delete.request` 落地时，会话移除必须路由经过同一个 fold 内 release——
+  记录于此以免未来 owner 绕过清扫。
 
 ## 权威语义（断言）
 
@@ -364,8 +440,10 @@ Server 代码的依赖，远端（非托管）路径保持既有行为。被替�
 
 ## 明确超出范围
 
-持久化/持久状态、远端（非托管）Agent 观察与任何远端 Agent 扩展、wait/watch、
-`changes`、观察 fold 之外的 Agent 变更、TUI 消费者、wire 帧/编解码归属
+持久化/持久状态（含 names——侧表随运行时消亡）、远端（非托管）Agent 观察与
+任何远端 Agent 扩展、wait/watch、`changes`、观察 fold 之外的规范模型变更
+（names 侧表是唯一接受的非观察 cell 状态）、会话删除（`delete.request` 保留，
+落地时必须路由经过 name-release fold）、TUI 消费者、wire 帧/编解码归属
 （`orchbee-agent-observation-protocol` crate）、游标秘密及其轮换策略
 （`agent_service`）、CLI 语法、渲染与本地化、TypeScript 行为变更，以及监听器/
 wait 并发。面向客户端的读取预算不变；私有泵窗口是服务器内部常量，不是产品设置
