@@ -49,8 +49,15 @@ freshness condition matches or its deadline lands — plus `doctor [--provider <
 why Agent observations may not arrive (no provider execution, no socket connect, no writes).
 Mutation commands against the
 running Site are `project create`/`rename`,
-`workspace create`/`rename`/`accept-directory`, `tab create`/`rename`/`move`/`close`,
+`workspace create`/`rename`/`accept-directory`/`close`, `tab create`/`rename`/`move`/`close`,
 `panel split`/`move`/`close`, and `launch-profile create`/`delete` —
+`workspace close <target> --confirm` closes every terminal in the Workspace's context under
+the same tab-close lifecycle while preserving the Workspace, its checkout, branch, and
+directories; its asynchronous operation stays answerable through
+`workspace close-status --project <id> --workspace <id>` (strict stable IDs, tombstone
+included) and resumable through
+`workspace close-resume --project <id> --workspace <id> --request <close-id>
+--generation <n> --confirm`.
 `launch-profile create --name <name> --exec <path> [--arg <value>]...` stores one named
 launch selection in the catalog and `launch-profile delete <selector>` removes it. `tab
 create` and `panel split` additionally accept either an ephemeral

@@ -193,10 +193,27 @@ that begins and ends between two completed observations is missed.
 ```sh
 orchbee tab close "$TAB" --confirm          # accepted; the Site finishes async
 orchbee panel close <panel-id> --confirm
+orchbee workspace close "$WS" --confirm     # closes the whole context's terminals
 ```
 
 `--confirm` is required. An `accepted` receipt carries `closeRequestId`
-while the Site completes the close asynchronously. Closing tabs does not
+while the Site completes the close asynchronously. `workspace close` reuses
+the same lifecycle at the Workspace's context scope and preserves the
+Workspace, its checkout, branch, and directories — only the terminal
+membership closes. The retained operation stays answerable by strict stable
+IDs even after the Workspace leaves the active projection:
+
+```sh
+orchbee workspace close-status --project <project-id> --workspace <workspace-id>
+orchbee workspace close-resume --project <project-id> --workspace <workspace-id> \
+  --request <close-request-id> --generation <n> --confirm
+```
+
+`close-status` reports the scope lifecycle plus every captured member's
+status, ending in a `closed` tombstone revision; `close-resume` opens one
+fresh attempt window only on a resumable retained operation — a stale
+`--generation` answers `rejected`/`stale-generation`, and unknown outcomes
+are non-resumable. Closing tabs does not
 stop the Site, and nothing in this guide deletes runtime state.
 
 ## JSON and automation notes

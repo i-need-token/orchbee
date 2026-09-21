@@ -69,11 +69,16 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   begins with a dash; a bare `--` is never consumed as a value (missing value →
   `invalid-usage`). A consumed filter value is not a format selector. Each flag is valid only
   on a command that declares it (`--project` on `workspace list`/`workspace create`/
-  `worktree list`,
-  `--workspace` on `tab list`/`tab create`, `--tab` on `panel list`); anywhere else,
+  `worktree list`/`workspace close-status`/`workspace close-resume`,
+  `--workspace` on `tab list`/`tab create`/`workspace close-status`/`workspace close-resume`,
+  `--tab` on `panel list`); anywhere else,
   including `get` commands, is `invalid-usage`. Filters are never silently dropped: a filter
   flag on a command that does not declare it is `invalid-usage` before any runtime access, so
-  `workspace list` rejects `--workspace`, `--tab`, and `--standalone`.
+  `workspace list` rejects `--workspace`, `--tab`, and `--standalone`. On `workspace
+  close-status` and `workspace close-resume` both flags are strict stable IDs instead of
+  targets: a complete nonzero 32-lowercase-hex Workbench identifier only — never a label or
+  selector — because the retained close record outlives the Workspace's active-projection
+  membership and must be re-proved by stable identity.
 - `--directory <directory-id>`: single-use value flag, required on `worktree list` and valid
   nowhere else. The value is a `WorkbenchDirectoryId` only — a strict nonzero 32-lowercase-hex
   identifier, never a filesystem path, label, or prefix. A missing, malformed, uppercase,
@@ -127,7 +132,19 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   verbatim to the Server, which resolves it under the catalog's ID-first/name-cardinality
   rule — the CLI never reads the catalog or guesses a match. A resolved profile supplies
   the launch for that one request; it is not persisted anywhere else.
-- `--confirm`: valueless boolean, required on `tab close` and `panel close`; absent there or
+- `--request <close-id>`: single-use value flag, required on `workspace close-resume` and
+  valid nowhere else. The value is the close operation's own `WorkbenchRequestId` — a strict
+  nonzero 32-lowercase-hex identifier, the operation identity the Server re-verifies, never
+  the resume request's fresh identity. A missing, malformed, uppercase, or zero-valued value
+  is `invalid-usage` before any runtime access.
+- `--generation <n>`: single-use value flag, required on `workspace close-resume` and valid
+  nowhere else. The value is the explicit attempt-generation fence: a nonzero decimal `u64`
+  without a leading zero — the protocol's `WorkbenchTabCloseAttemptGeneration` spelling. A
+  stale-but-valid generation is a semantic request the Server answers `stale`, never a
+  grammar concern; a missing, empty, zero, non-numeric, or overflowing value is
+  `invalid-usage` before any runtime access.
+- `--confirm`: valueless boolean, required on `tab close`, `panel close`,
+  `workspace close`, and `workspace close-resume`; absent there or
   present on any other command is `invalid-usage`.
 - `--match <text>`: single-use value flag on `terminal wait-output`, one of the two search
   inputs — exactly one of `--match` or `--regex` is required. A nonempty UTF-8 literal up to
@@ -240,6 +257,9 @@ orchbee workspace list [--project <target>] | workspace get <target>
 orchbee workspace create --project <target> --label <label>
 orchbee workspace rename <target> --label <label>
 orchbee workspace accept-directory <target> --path <path>
+orchbee workspace close <target> --confirm
+orchbee workspace close-status --project <id> --workspace <id>
+orchbee workspace close-resume --project <id> --workspace <id> --request <close-id> --generation <n> --confirm
 orchbee worktree list --project <target> --directory <directory-id>
 orchbee tab list [--workspace <target> | --standalone] | tab get <target>
 orchbee tab create (--workspace <target> | --standalone) --label <label> [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>]
@@ -292,7 +312,8 @@ grid with unknown cell pixels (0,0).
 `help`, `completion`, `tui`, `--version`, and the bare invocation are fixed text outputs that do
 not accept `--format`; a single valid `--format=json` turns the resulting syntax failure into a
 JSON `invalid-usage` failure document, while a text/default failure keeps stdout empty. Data
-commands (`status`, all `list`/`get`, `agent explain`, `agent doctor`, `agent wait`, `api snapshot`, `api schema`, `site start`,
+commands (`status`, all `list`/`get`, `workspace close-status`, `agent explain`,
+`agent doctor`, `agent wait`, `api snapshot`, `api schema`, `site start`,
 `site diagnose`, `config check`, and all four `agent integration` commands) and every
 mutation command accept `--format`. The `api` commands are the machine surface: a successful `api snapshot` or
 `api schema` emits the identical JSON document under both formats, while an `api` failure
@@ -898,8 +919,9 @@ Canonical traversal order: `navigation.projects` order; each project's `workspac
 Success envelopes are `{schema, version, source, result}`. Every business document —
 query, mutation, receipt, and failure — is `version:1` except `orchbee.terminal.get`
 (`version:3` since it gained the optional `launchProfile` provenance member on top of
-the v2 `launch` member), `orchbee.mutation.result` (`version:2` since it gained the
-launch-profile actions and their `catalogRevision`/`profileId`/`name` receipt fields),
+the v2 `launch` member), `orchbee.mutation.result` (`version:4` since it gained the
+`workspace.close`/`workspace.close-resume` actions, the `resumed` outcome, and the
+`attemptGeneration` receipt field on top of v3's `panel.relocate` additions),
 and three conditional `version:2`s that report the higher version only when the emitted
 shape actually carries the new members: `orchbee.terminal.read` and
 `orchbee.terminal.history` when `--unwrap` or `--lines` was given (the `content`
@@ -907,7 +929,7 @@ shape actually carries the new members: `orchbee.terminal.read` and
 (the `match` `patternKind`/`matchLength`/`matched`/`matchedTruncated`/`startsMidLine`/`endsMidLine`
 match members). Flag-free output of all three stays `version:1` byte-identical.
 The `orchbee.api.schema` catalog
-envelope is `version:8`: registering a new schema id changes the closed dictionary's
+envelope is `version:9`: registering a new schema id changes the closed dictionary's
 shape, which is a catalog shape change under the version rule, not a business one:
 
 - `source.kind="workbench-snapshot"` with `siteId` and decimal-string `revision` from the same
@@ -932,6 +954,10 @@ shape, which is a catalog shape change under the version rule, not a business on
 - `source.kind="launch-profile-catalog"` — `siteId` and the decimal-string
   `catalogRevision` of the resolved catalog, on `launch-profile list`/`get` results and
   their post-session failures.
+- `source.kind="workspace-close-resume"` — `siteId`, the resume `requestId`, the
+  `closeRequestId` it names, and the decimal-string `expectedAttemptGeneration` fence the
+  request carried, on `workspace close-resume` answers: no `workbench.command` exists for a
+  retained lifecycle resume, so the resume request's own echo is the honest source.
 - There is no freshness field; one consistent read is not a liveness guarantee.
 
 Result payloads (schema IDs are stable machine names):
@@ -947,6 +973,16 @@ workspaces:[{workspaceId,label}]}}`.
 - `orchbee.workspace.list` → `{workspaces:[{workspaceId,label,projectId,
 primaryDirectoryId|null,terminalContextId}]}` flattened across projects; `workspace get` adds
   `tabs:[{tabId,label}]` resolved through `terminalContextId`.
+- `orchbee.workspace.close-status` → the verbatim retained `WorkbenchWorkspaceCloseReadOutcome`:
+  `{kind:"not-closing"}` when no retained operation covers the scope, or
+  `{kind:"available",closeRequestId,projectId,workspaceId,terminalContextId,
+attemptGeneration,status,counts:{closing,cleanupBlocked,outcomeUnknown,
+disposedAwaitingPublication},members:[{tabId,panelId,presentationId,status}…]}`. `status` is
+  the scope lifecycle (`kind` `closing`|`cleanup-blocked`|`outcome-unknown`|
+  `disposed-awaiting-publication`|`closed` with its tombstone `revision`), each member's
+  `status` is the captured per-member lifecycle truth without `closed` (the closed tombstone
+  is scope-level only), `attemptGeneration` is the decimal-string attempt fence, and the
+  record stays answerable after the Workspace leaves the active projection.
 - `orchbee.tab.list` → `{tabs:[{tabId,label,pinned,groupId|null,
 context:{kind:"standalone",terminalContextId}|{kind:"workspace",terminalContextId,
 workspaceId}}]}`; `workspaceId` is absent on standalone, never null. `tab get` adds `root`, the
@@ -1096,12 +1132,29 @@ version:1,failure:{kind,details?},source?}`: the dedicated envelope for every
   `workbench-snapshot` source on read failures and the `workbench-command` source on
   mutation-side failures.
 - `orchbee.mutation.result` → `{action,outcome,revision?,acceptedRevision?,closeRequestId?,
-<resolved typed IDs>,direction?,label?,terminal?,catalogRevision?,profileId?,name?}` per
+attemptGeneration?,<resolved typed IDs>,direction?,label?,terminal?,catalogRevision?,
+profileId?,name?}` per
   the mutation matrix above:
   `revision` on `committed`/`unchanged`, `acceptedRevision`+`closeRequestId` on `accepted`,
+  `closeRequestId`+`attemptGeneration` on `resumed`,
   and `terminal:{outcome,reason?,geometry?}` on `tab create`/`panel split`. The
   launch-profile actions add `catalogRevision` plus `profileId` on both receipts and
-  `name` on `launch-profile.create`; the envelope is `version:2`.
+  `name` on `launch-profile.create`; the envelope is `version:4`.
+- `orchbee.cli.failure.close` → `{schema:"orchbee.cli.failure.close",version:1,
+failure:{kind,details?},source?}`: the dedicated failure envelope for every
+  `workspace close-status` and `workspace close-resume` failure past the admitted session
+  (pre-boundary grammar, preamble, and the initial `workspace close` command's own failures
+  keep `orchbee.cli.failure`). Its `details` vocabulary is closed:
+  `{stage:"close-status"|"close-resume"}` on `denied`/`transport-loss` and bare
+  `protocol-invalid`, the same plus `reason:"server-busy"` on `service-unavailable`,
+  `{stage:"close-status",timeoutMs:5000}` on `timeout`, `{stage,reason}` with `reason`
+  `correlation-mismatch`|`scope-mismatch` on classified `protocol-invalid`,
+  `{stage:"close-resume",reason}` on `rejected` where `reason` is the typed resume
+  verdict (`stale-generation`|`operation-unavailable`|`operation-mismatch`|
+  `request-identity-conflict`|`generation-mismatch`|`not-resumable`|
+  `generation-exhausted`), and `{stage:"close-resume",requestId,reason}` on
+  `outcome-unknown`. `source` is the `workbench-snapshot` source on close-status
+  failures and the `workspace-close-resume` source on resume failures.
 - `orchbee.project.rename` → `{action:"project.rename",outcome,revision,projectId,label}`
   with `outcome` in `committed|unchanged`: the dedicated v1 document for `project rename`
   receipts, so the shared `orchbee.mutation.result` action enum stays closed and untouched.
@@ -1181,8 +1234,8 @@ platform socket-address capacity). No cross-file atomic health claim is made.
 session's OBCS `terminal.send` exchange described above and does not touch `expectedRevision`,
 the Workbench command channel, or the TUI's controller/viewer/resize ownership.
 
-Fourteen commands mutate Workbench state through the admitted OBWP `workbench.command` channel:
-`project create`/`rename`, `workspace create`/`rename`/`accept-directory`,
+Fifteen commands mutate Workbench state through the admitted OBWP `workbench.command` channel:
+`project create`/`rename`, `workspace create`/`rename`/`accept-directory`/`close`,
 `tab create`/`rename`/`move`/`close`, `panel split`/`close`/`move`, and
 `launch-profile create`/`delete`. Each invocation runs
 the query state machine's stages 1–5
@@ -1218,13 +1271,16 @@ Safety contract:
   applied; it is never resent. The localized diagnostic says so and directs the operator to
   inspect Workbench state (`status`, `tab list`, `panel list`, …) before deciding whether
   to repeat the command.
-- **Close confirmation.** `tab close` and `panel close` are destructive; the parser
-  requires the explicit `--confirm` flag so a noninteractive invocation can never close
-  by default.
+- **Close confirmation.** `tab close`, `panel close`, and `workspace close` are
+  destructive; the parser requires the explicit `--confirm` flag so a noninteractive
+  invocation can never close by default. `workspace close-resume` owes the same flag:
+  opening a fresh attempt window on a retained close is itself an effect.
 
 Outcomes: `committed` reports the new `revision` (base + 1); `unchanged` — a rename or move
-that changed nothing — reports the current revision; `accepted` — both closes — reports
-`acceptedRevision` plus the Server's `closeRequestId` for the asynchronous close.
+that changed nothing — reports the current revision; `accepted` — the closes — reports
+`acceptedRevision` plus the Server's `closeRequestId` for the asynchronous close;
+`resumed` — `workspace close-resume` — reports `closeRequestId` plus the new
+`attemptGeneration` the Server opened.
 `tab create` and `panel split` additionally carry `terminal`: `pending` while the Server
 still owes a spawn, or the typed spawn outcome (`started` with the echoed `geometry`,
 `unavailable`/`failed` with a reason, `unknown`).
@@ -1280,18 +1336,44 @@ and `ProfileAmbiguous` maps to `ambiguous` with the bounded candidate IDs — bo
 the launch-profile failure envelope; catalog capacity refusals arrive as ordinary
 command-stage rejections under the generic envelope.
 
-Mutation results use `schema:"orchbee.mutation.result"`, `version:2`, with
+Mutation results use `schema:"orchbee.mutation.result"`, `version:4`, with
 `source:{kind:"workbench-command",siteId,requestId,expectedRevision}` and a `result` carrying
 `action` (the dotted command name), `outcome`, the outcome's revision fields, the resolved
 typed IDs, and `direction`/`label`/`terminal`/`catalogRevision`/`profileId`/`name` where
-the command has them. Text output
+the command has them. `workspace close-resume` is the single source exception: no
+`workbench.command` exists for a retained lifecycle resume, so its `resumed` receipt and
+its post-submission failures report `source.kind="workspace-close-resume"` — the resume
+request's own echo with `siteId`, `requestId`, `closeRequestId`, and
+`expectedAttemptGeneration`. Text output
 renders the same fields one per line under the same escaping rules as queries.
 `project rename` is the single exception: its receipt uses the dedicated
 `schema:"orchbee.project.rename"`, `version:1` document — the same `workbench-command`
 `source` shape, and a `result` closed to `action:"project.rename"`, `outcome`
 (`committed`/`unchanged`), `revision`, `projectId`, and `label`.
 
-Deliberately not delivered: `project close`, `workspace close`/`workspace focus`,
+`workspace close` submits the `WorkspaceClose` action — the Server-authoritative close of
+every terminal the Workspace's Clients use, reusing the same terminal-tab-close lifecycle
+machinery as `tab close`/`panel close` at the whole-context scope. The Workspace itself,
+its checkout, branch, and directories are preserved: only the terminal membership inside
+its context closes. An `accepted` receipt carries `acceptedRevision`, the operation's
+`closeRequestId`, and the resolved `projectId`/`workspaceId`/`terminalContextId`; the Site
+finishes the close asynchronously and the retained operation record outlives the
+Workspace's active projection. Re-running `workspace close` is never a resume — a resumable
+retained operation is continued only through `workspace close-resume`.
+
+`workspace close-status` reads that retained record by strict stable IDs alone: it shares
+the query state machine's session admission but never resolves Workspace membership
+locally — the record outlives the projection row, so a completed close still answers
+`available` with its `closed` tombstone `revision`, while a scope that never saw a close
+answers `not-closing`. `workspace close-resume` is a retained-lifecycle request, not a
+`workbench.command`: it runs the same admission discipline and submits exactly one resume
+exchange carrying the close operation's `closeRequestId` and the caller's last-observed
+`expectedAttemptGeneration` fence. Only resumable lifecycle states resume — unknown
+outcomes are non-resumable — and a stale fence settles as the typed `stale` answer,
+reported as `rejected` with `reason:"stale-generation"` under the close failure envelope,
+never as a second attempt.
+
+Deliberately not delivered: `project close`, `workspace focus`,
 `tab focus`, `panel resize`/`panel focus`, terminal open operations, Site lifecycle
 commands beyond `site start`/`site diagnose` (no stop, restart, disable, recovery, or
 repair verb exists), and every remote operation.
@@ -1353,6 +1435,18 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | command `Denied` precommit                                                                                                                | `denied`                                                                   | 3         | omitted                                                                                       |
 | command `Unavailable` precommit                                                                                                           | `service-unavailable`                                                      | 4         | `{stage:"command",reason}`                                                                    |
 | `OutcomeUnknown` (any reason)                                                                                                             | `outcome-unknown`                                                          | 8         | `{stage:"command",requestId,reason}`                                                          |
+| close-status `RequestNotSubmitted`, write/io response failure                                                                              | `transport-loss`                                                           | 5         | `{stage:"close-status"}` under `orchbee.cli.failure.close`                                     |
+| close-status invalid/unexpected response, or a scope-mismatched answer                                                                    | `protocol-invalid`                                                         | 5         | `{stage:"close-status"[,reason:"correlation-mismatch"\|"scope-mismatch"]}` under the close envelope |
+| close-status response deadline, or the shared 5 s command deadline expiring                                                               | `timeout`                                                                  | 7         | `{stage:"close-status",timeoutMs:5000}` under the close envelope                               |
+| close-status outcome `Denied`                                                                                                             | `denied`                                                                   | 3         | `{stage:"close-status"}` under the close envelope                                             |
+| close-status outcome `Unavailable`                                                                                                        | `service-unavailable`                                                      | 4         | `{stage:"close-status",reason:"server-busy"}` under the close envelope                         |
+| close-resume `RequestNotSubmitted`, write/io response failure                                                                              | `transport-loss`                                                           | 5         | `{stage:"close-resume"}` under the close envelope                                              |
+| close-resume invalid/unexpected response                                                                                                  | `protocol-invalid`                                                         | 5         | `{stage:"close-resume"}` under the close envelope                                              |
+| close-resume outcome `Denied`                                                                                                             | `denied`                                                                   | 3         | `{stage:"close-resume"}` under the close envelope                                             |
+| close-resume outcome `Unavailable`                                                                                                        | `service-unavailable`                                                      | 4         | `{stage:"close-resume",reason:"server-busy"}` under the close envelope                         |
+| close-resume outcome `Stale`                                                                                                              | `rejected`                                                                 | 3         | `{stage:"close-resume",reason:"stale-generation",attemptGeneration}` under the close envelope  |
+| close-resume outcome `Rejected` (typed reason)                                                                                            | `rejected`                                                                 | 3         | `{stage:"close-resume",reason}` under the close envelope                                      |
+| close-resume `OutcomeUnknown` (any reason)                                                                                                 | `outcome-unknown`                                                          | 8         | `{stage:"close-resume",requestId,reason}` under the close envelope                             |
 | worktree-list `RequestNotSubmitted`, write/io response failure, or the `TransportLoss` outcome (post-delivery response loss)              | `transport-loss`                                                           | 5         | `{stage:"worktree-list"}` under `orchbee.cli.failure.worktree`                                |
 | worktree-list invalid/unexpected response                                                                                                 | `protocol-invalid`                                                         | 5         | `{stage:"worktree-list"[,reason:"correlation-mismatch"]}` under the worktree envelope         |
 | worktree-list response deadline, or the shared 5 s command deadline expiring                                                              | `timeout`                                                                  | 7         | `{stage:"worktree-list",timeoutMs:5000}` under the worktree envelope                          |
@@ -1409,6 +1503,9 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 The dedicated `orchbee.cli.failure.worktree` envelope admits `resource:"directory"` and the
 `worktree-list|probe|list|parse` stage vocabulary documented with its schema above — those
 values belong to that envelope only, not to the generic `orchbee.cli.failure` vocabulary.
+The dedicated `orchbee.cli.failure.close` envelope admits the `close-status|close-resume`
+stage vocabulary documented with its schema above — those values likewise belong to that
+envelope only.
 The source-stage `input` stage lives only in the `orchbee.cli.failure.source` envelope —
 it is not admitted into the standard `orchbee.cli.failure` stage vocabulary.
 Stages and reasons are finite schema values; no exception text becomes a machine field. `details`
@@ -1550,7 +1647,9 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 | Real staged-cohort Server + live TUI terminal: `wait-output` matches existing/later/scrolled-off/UTF-8 output, short deadline exits 7, cancel frees the slot                                                      | public wait observation coexisting with the TUI's own viewer                                     | `tests/local_startup_process`                                       |
 | Real staged-cohort Server + live TUI terminal: `terminal read` returns its grid and schema-validates                                                                                                              | real read-only observation coexisting with the TUI's own viewer                                  | `tests/local_startup_process`                                       |
 | Mutation grammar: every command, target rules, `--confirm`, geometry bounds, flag scopes                                                                                                                          | exact parse/failure kinds before runtime access                                                  | `src/invocation` tests                                              |
-| Mutation scripted peers: all fourteen commands, precommit verdicts, ambiguous and unapplied outcomes                                                                                                              | one command per call; `outcome-unknown` never replayed                                           | `tests/cli_mutation.rs`                                             |
+| Mutation scripted peers: all fifteen commands, precommit verdicts, ambiguous and unapplied outcomes                                                                                                               | one command per call; `outcome-unknown` never replayed                                           | `tests/cli_mutation.rs`                                             |
+| Workspace close grammar: `close` target+`--confirm`; `close-status`/`close-resume` strict stable IDs, `--request`/`--generation` fences, stale-but-valid generation parses                                          | exact parse/`invalid-usage` before runtime access                                                | `src/invocation` tests                                              |
+| Workspace close envelopes: close-status verbatim outcome incl. tombstone, resume source echo, closed close-envelope details                                                                                        | every fixture validates; rejected variants fail                                                  | schema contrast tests                                               |
 | Worktree list grammar: `--project`/`--directory` both required, strict directory-ID value rule, flag scopes                                                                                                       | exact parse/`invalid-usage` before runtime access                                                | `src/invocation` tests                                              |
 | Launch-profile grammar: four command paths, verbatim selector, `--name`/`--exec` required pair, `--profile` exclusivity and scope                                                                                 | exact parse/`invalid-usage` before runtime access                                                | `src/invocation` tests                                              |
 | Launch-profile document/failure envelopes: entry member names, closed details vocabulary, dual `source` shapes                                                                                                    | every fixture validates; rejected variants fail                                                  | schema contrast tests                                               |

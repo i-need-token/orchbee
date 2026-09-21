@@ -52,12 +52,17 @@ provider 接入——对调用用户的 provider 配置做有界读取与受管�
 - `--project <target>`、`--workspace <target>`、`--tab <target>`：带值的具名过滤器与上下文
   操作数，各只能用一次。下一个 token 即作为值被消费，即使以减号开头；裸 `--` 永不被当作值
   （缺值 → `invalid-usage`）。被消费的过滤值不再充当 format 选择器。每个 flag 只在声明它
-  的命令上合法（`--project` 仅 `workspace list`/`workspace create`/`worktree list`，
+  的命令上合法（`--project` 仅 `workspace list`/`workspace create`/`worktree list`/
+  `workspace close-status`/`workspace close-resume`，
   `--workspace` 仅
-  `tab list`/`tab create`，`--tab` 仅 `panel list`），出现在任何其他位置（包括 `get`
+  `tab list`/`tab create`/`workspace close-status`/`workspace close-resume`，`--tab`
+  仅 `panel list`），出现在任何其他位置（包括 `get`
   命令）都是 `invalid-usage`。过滤器绝不静默丢弃：出现在未声明的命令上即在任何运行时访问
   之前报 `invalid-usage`，故 `workspace list` 拒绝 `--workspace`、`--tab` 与
-  `--standalone`。
+  `--standalone`。在 `workspace close-status` 与 `workspace close-resume` 上，两个 flag
+  都是严格稳定 ID 而非 target：只接受完整的非零 32 位小写十六进制 Workbench 标识符——
+  绝不接受 label 或 selector——因为保留的 close 记录比 Workspace 的 active-projection
+  membership 活得更久，必须按稳定身份重新证明。
 - `--directory <directory-id>`：带值 flag，单次使用，`worktree list` 上必填、其他任何
   命令上均非法。值仅为 `WorkbenchDirectoryId`——严格非零 32 位小写十六进制标识符，
   绝非文件系统路径、标签或前缀。缺失、畸形、大写、全零或宽度错误的值在任何运行时访问
@@ -101,7 +106,17 @@ provider 接入——对调用用户的 provider 配置做有界读取与受管�
   `invalid-usage`。值为 `LaunchProfileSelector`：非空 UTF-8 字面量、至多 512 字节，
   逐字传给 Server，由其在目录锁下按"先 ID 后名称基数"规则解析——CLI 绝不读目录或
   猜测匹配。解析出的 profile 仅为该次请求提供启动，不在任何其他地方持久化。
-- `--confirm`：无值布尔 flag，`tab close` 与 `panel close` 上必填；该处缺失或出现在任何
+- `--request <close-id>`：带值 flag，单次使用，`workspace close-resume` 上必填、其他任何
+  命令上均非法。值为该 close 操作自身的 `WorkbenchRequestId`——严格非零 32 位小写十六
+  进制标识符，由 Server 重新校验的操作身份，绝非 resume 请求的新鲜身份。缺失、畸形、
+  大写或全零的值在任何运行时访问之前即为 `invalid-usage`。
+- `--generation <n>`：带值 flag，单次使用，`workspace close-resume` 上必填、其他任何
+  命令上均非法。值为显式 attempt-generation 栅栏：不带前导零的非零十进制 `u64`——协议
+  `WorkbenchTabCloseAttemptGeneration` 的拼写。陈旧但合法的 generation 是语义请求，由
+  Server 以 `stale` 作答，绝非语法问题；缺失、空、零、非数值或溢出值在任何运行时访问
+  之前均为 `invalid-usage`。
+- `--confirm`：无值布尔 flag，`tab close`、`panel close`、`workspace close` 与
+  `workspace close-resume` 上必填；该处缺失或出现在任何
   其他命令上均为 `invalid-usage`。
 - `--match <text>`：带值 flag，单次使用，`terminal wait-output` 的两个搜索输入之一
   ——`--match` 与 `--regex` 必须且只能提供一个。非空 UTF-8 字面量，最长 4096 字节，
@@ -196,6 +211,9 @@ orchbee workspace list [--project <target>] | workspace get <target>
 orchbee workspace create --project <target> --label <label>
 orchbee workspace rename <target> --label <label>
 orchbee workspace accept-directory <target> --path <path>
+orchbee workspace close <target> --confirm
+orchbee workspace close-status --project <id> --workspace <id>
+orchbee workspace close-resume --project <id> --workspace <id> --request <close-id> --generation <n> --confirm
 orchbee worktree list --project <target> --directory <directory-id>
 orchbee tab list [--workspace <target> | --standalone] | tab get <target>
 orchbee tab create (--workspace <target> | --standalone) --label <label> [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>]
@@ -245,7 +263,7 @@ orchbee <recognized path> -h|--help
 
 `help`、`completion`、`tui`、`--version` 与裸调用是固定文本输出，不接受 `--format`；一个合法
 `--format=json` 会把随后产生的语法失败变成 JSON `invalid-usage` 失败文档，而 text/默认失败仍
-保持 stdout 为空。数据命令（`status`、全部 `list`/`get`、`agent explain`、`agent doctor`、`agent wait`、
+保持 stdout 为空。数据命令（`status`、全部 `list`/`get`、`workspace close-status`、`agent explain`、`agent doctor`、`agent wait`、
 `api snapshot`、`api schema`、`site start`、`site diagnose`、`config check`，以及全部四条 `agent integration` 命令）与全部 mutation 命令接受 `--format`。`api` 命令是机器面：`api snapshot` 或 `api schema` 成功时在
 两种 format 下输出同一份 JSON 文档；`api` 失败则与其他命令一样跟随所选 format——text/默认下
 只写 stderr、stdout 为空，只有 `--format json` 才产出失败 envelope。
@@ -739,13 +757,14 @@ terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresent
 成功 envelope 为 `{schema, version, source, result}`。所有业务文档——查询、mutation、
 收据与失败——均为 `version:1`，例外为 `orchbee.terminal.get`（因在 v2 `launch` 成员之上
 新增可选 `launchProfile` provenance 成员而为 `version:3`）、`orchbee.mutation.result`
-（因新增 launch-profile 动作及其 `catalogRevision`/`profileId`/`name` 收据字段而为
-`version:2`），以及三个条件式 `version:2`——仅当发出形状确实携带新成员时才报高版本：
+（因在 v3 `panel.relocate` 增补之上新增 `workspace.close`/`workspace.close-resume` 动作、
+`resumed` 结果与 `attemptGeneration` 收据字段而为 `version:4`），以及三个条件式
+`version:2`——仅当发出形状确实携带新成员时才报高版本：
 `orchbee.terminal.read` 与 `orchbee.terminal.history` 在给出 `--unwrap` 或 `--lines` 时
 （`content` 的 `lines`/`lineCount`/`tail` 成员），`orchbee.terminal.wait-output` 在
 `--regex` 命中时（`match` 的 `patternKind`/`matchLength`/`matched`/`matchedTruncated`/
 `startsMidLine`/`endsMidLine` 成员）。三者不带 flag 的输出保持 `version:1` 逐字节不变。
-`orchbee.api.schema` 目录 envelope 为 `version:8`：
+`orchbee.api.schema` 目录 envelope 为 `version:9`：
 注册新的 schema id 会改变封闭字典的形状，按版本规则属目录形状变化而非业务变化：
 
 - `source.kind="workbench-snapshot"`：带同一份已验证快照的 `siteId` 与十进制字符串
@@ -767,6 +786,10 @@ terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresent
   agent 读取结果与准入后语义拒答上。
 - `source.kind="launch-profile-catalog"`：`siteId` 与已解析目录的十进制字符串
   `catalogRevision`——出现在 `launch-profile list`/`get` 结果及其会话后失败上。
+- `source.kind="workspace-close-resume"`：`siteId`、resume `requestId`、所指
+  `closeRequestId`，以及请求携带的十进制字符串 `expectedAttemptGeneration` 栅栏——
+  出现在 `workspace close-resume` 应答上：保留 lifecycle 的 resume 没有
+  `workbench.command`，resume 请求自身的回显即诚实来源。
 - 不存在 freshness 字段；一次一致读取不等于持续活性保证。
 
 结果载荷（schema ID 为稳定机器名）：
@@ -782,6 +805,16 @@ workspaces:[{workspaceId,label}]}}`。
 - `orchbee.workspace.list` → `{workspaces:[{workspaceId,label,projectId,
 primaryDirectoryId|null,terminalContextId}]}`，跨 project 展平；`workspace get` 增加经
   `terminalContextId` 反查的 `tabs:[{tabId,label}]`。
+- `orchbee.workspace.close-status` → 逐字的保留 `WorkbenchWorkspaceCloseReadOutcome`：
+  无覆盖该 scope 的保留操作时为 `{kind:"not-closing"}`，否则
+  `{kind:"available",closeRequestId,projectId,workspaceId,terminalContextId,
+attemptGeneration,status,counts:{closing,cleanupBlocked,outcomeUnknown,
+disposedAwaitingPublication},members:[{tabId,panelId,presentationId,status}…]}`。`status`
+  是 scope lifecycle（`kind` 为 `closing`|`cleanup-blocked`|`outcome-unknown`|
+  `disposed-awaiting-publication`|`closed`，后者带 tombstone `revision`），每个 member
+  的 `status` 是捕获时的逐成员 lifecycle 事实、不含 `closed`（closed tombstone 仅属
+  scope 级），`attemptGeneration` 是十进制字符串的尝试栅栏；Workspace 离开 active
+  projection 后该记录仍可应答。
 - `orchbee.tab.list` → `{tabs:[{tabId,label,pinned,groupId|null,
 context:{kind:"standalone",terminalContextId}|{kind:"workspace",terminalContextId,
 workspaceId}}]}`；standalone 上 `workspaceId` 键不存在而非 null。`tab get` 增加 `root`——
@@ -912,12 +945,28 @@ version:1,failure:{kind,details?},source?}`：`launch-profile` 查询越过 sess
   `{stage:"launch-profile-catalog",timeoutMs:5000}`。`source` 在读取失败时是
   `workbench-snapshot` 源、在 mutation 侧失败时是 `workbench-command` 源。
 - `orchbee.mutation.result` → `{action,outcome,revision?,acceptedRevision?,closeRequestId?,
-<resolved typed IDs>,direction?,label?,terminal?,catalogRevision?,profileId?,name?}`，
+attemptGeneration?,<resolved typed IDs>,direction?,label?,terminal?,catalogRevision?,
+profileId?,name?}`，
   按上文 mutation 矩阵：`committed`/
   `unchanged` 带 `revision`，`accepted` 带 `acceptedRevision`+`closeRequestId`，
+  `resumed` 带 `closeRequestId`+`attemptGeneration`，
   `tab create`/`panel split` 带 `terminal:{outcome,reason?,geometry?}`。launch-profile
   动作在两份收据上都追加 `catalogRevision` 与 `profileId`，`launch-profile.create`
-  另带 `name`；envelope 为 `version:2`。
+  另带 `name`；envelope 为 `version:4`。
+- `orchbee.cli.failure.close` → `{schema:"orchbee.cli.failure.close",version:1,
+failure:{kind,details?},source?}`：`workspace close-status` 与 `workspace close-resume`
+  越过 admitted session 后一切失败的专用 envelope（边界前的语法、前导失败与
+  `workspace close` 命令自身的失败保持 `orchbee.cli.failure`）。其 `details` 词汇
+  封闭：`denied`/`transport-loss` 与裸 `protocol-invalid` 为
+  `{stage:"close-status"|"close-resume"}`；`service-unavailable` 同形加
+  `reason:"server-busy"`；`timeout` 为 `{stage:"close-status",timeoutMs:5000}`；
+  已分类的 `protocol-invalid` 为 `{stage,reason}`、`reason` 取
+  `correlation-mismatch`|`scope-mismatch`；`rejected` 为 `{stage:"close-resume",reason}`、
+  `reason` 为类型化 resume 判定（`stale-generation`|`operation-unavailable`|
+  `operation-mismatch`|`request-identity-conflict`|`generation-mismatch`|
+  `not-resumable`|`generation-exhausted`）；`outcome-unknown` 为
+  `{stage:"close-resume",requestId,reason}`。`source` 在 close-status 失败上是
+  `workbench-snapshot` 源、在 resume 失败上是 `workspace-close-resume` 源。
 - `orchbee.project.rename` → `{action:"project.rename",outcome,revision,projectId,label}`，
   `outcome` 取值 `committed|unchanged`：`project rename` 收据的专用 v1 文档，
   共享 `orchbee.mutation.result` 的 action 枚举保持封闭、不改动。
@@ -991,8 +1040,8 @@ runtime-unavailable,address-too-long,presence-not-inspected}`。`clientPending`/
 上的 OBCS `terminal.send` 交换，不触碰 `expectedRevision`、Workbench 命令通道，或 TUI 的
 controller/viewer/resize 所有权。
 
-十四条命令经已 admitted 的 OBWP `workbench.command` 通道修改 Workbench 状态：
-`project create`/`rename`、`workspace create`/`rename`/`accept-directory`、
+十五条命令经已 admitted 的 OBWP `workbench.command` 通道修改 Workbench 状态：
+`project create`/`rename`、`workspace create`/`rename`/`accept-directory`/`close`、
 `tab create`/`rename`/`move`/`close`、`panel split`/`close`/`move` 与
 `launch-profile create`/`delete`。每次调用原样执行查询状态机的第 1–5 阶段——一次 cohort 检查、
 一次 discovery 与 admission、一次有界快照读取——然后在同一 5 秒 deadline 下再执行两个阶段：
@@ -1019,12 +1068,15 @@ revision 比对，不符即拒绝且不应用任何效果，故"读取一次并�
   或答案未通过校验——会 retire 该 session 并以 `outcome-unknown`（退出 8）呈现。命令可能
   已应用也可能未应用；绝不重发。本地化诊断会明确说明这一点，并指示操作员先检查
   Workbench 状态（`status`、`tab list`、`panel list` 等）再决定是否重复该命令。
-- **关闭确认。** `tab close` 与 `panel close` 是破坏性操作；解析器要求显式 `--confirm`
-  flag，故非交互调用绝不会默认执行关闭。
+- **关闭确认。** `tab close`、`panel close` 与 `workspace close` 是破坏性操作；解析器
+  要求显式 `--confirm` flag，故非交互调用绝不会默认执行关闭。`workspace close-resume`
+  同样要求该 flag：为保留的 close 开启新的尝试窗口本身也是 effect。
 
 结果：`committed` 报告新 `revision`（base + 1）；`unchanged`——未造成变化的 rename 或
-move——报告当前 revision；`accepted`——两条 close——报告 `acceptedRevision` 及 Server 为
-异步关闭给出的 `closeRequestId`。`tab create` 与 `panel split` 另携带 `terminal`：Server
+move——报告当前 revision；`accepted`——各条 close——报告 `acceptedRevision` 及 Server 为
+异步关闭给出的 `closeRequestId`；`resumed`——`workspace close-resume`——报告
+`closeRequestId` 与 Server 开启的新 `attemptGeneration`。`tab create` 与 `panel split`
+另携带 `terminal`：Server
 仍欠 spawn 时为 `pending`，否则为类型化 spawn 结果（`started` 带回显的 `geometry`，
 `unavailable`/`failed` 带 reason，`unknown`）。
 
@@ -1069,16 +1121,37 @@ worker 探测与 generation、乐观修订、资源上限保持权威：已持�
 `ambiguous`——均走
 launch-profile 失败 envelope；目录容量拒绝走通用 envelope 下的普通 command 阶段拒绝。
 
-Mutation 结果使用 `schema:"orchbee.mutation.result"`、`version:2`，
+Mutation 结果使用 `schema:"orchbee.mutation.result"`、`version:4`，
 `source:{kind:"workbench-command",siteId,requestId,expectedRevision}`，`result` 携带 `action`
 （点分命令名）、`outcome`、该结果的 revision 字段、已解析 typed ID，以及命令具备时的
-`direction`/`label`/`terminal`/`catalogRevision`/`profileId`/`name`。文本输出按与查询相同的转义规则逐行渲染同样字段。
+`direction`/`label`/`terminal`/`catalogRevision`/`profileId`/`name`。`workspace
+close-resume` 是唯一的来源例外：保留 lifecycle 的 resume 没有 `workbench.command`，故其
+`resumed` 收据与提交后失败报告 `source.kind="workspace-close-resume"`——resume 请求自身的
+回显，带 `siteId`、`requestId`、`closeRequestId` 与 `expectedAttemptGeneration`。
+文本输出按与查询相同的转义规则逐行渲染同样字段。
 `project rename` 是唯一例外：其收据使用专用的 `schema:"orchbee.project.rename"`、
 `version:1` 文档——`source` 仍为同一 `workbench-command` 形态，`result` 封闭于
 `action:"project.rename"`、`outcome`（`committed`/`unchanged`）、`revision`、
 `projectId` 与 `label`。
 
-明确不交付：`project close`、`workspace close`/`workspace focus`、`tab focus`、
+`workspace close` 提交 `WorkspaceClose` 动作——由 Server 权威地关闭该 Workspace 的
+Client 使用的全部终端，在整个 context scope 上复用与 `tab close`/`panel close` 相同的
+terminal-tab-close lifecycle 机械。Workspace 本身、其 checkout、branch 与目录全部保留：
+关闭的只有其 context 内的终端 membership。`accepted` 收据携带 `acceptedRevision`、该
+操作的 `closeRequestId` 与已解析的 `projectId`/`workspaceId`/`terminalContextId`；Site
+异步完成关闭，保留的操作记录比 Workspace 的 active projection 活得更久。重复运行
+`workspace close` 绝不是 resume——可恢复的保留操作只能经 `workspace close-resume` 继续。
+
+`workspace close-status` 仅凭严格稳定 ID 读取该保留记录：它共享查询状态机的 session
+准入但绝不在本地解析 Workspace membership——记录比 projection 行活得更久，故已完成的
+close 仍以 `available` 连同其 `closed` tombstone `revision` 作答，而从未发生 close 的
+scope 以 `not-closing` 作答。`workspace close-resume` 是保留 lifecycle 请求而非
+`workbench.command`：它执行同样的准入纪律并恰好提交一次 resume 交换，携带该 close 操作的
+`closeRequestId` 与调用方最后观察到的 `expectedAttemptGeneration` 栅栏。只有可恢复的
+lifecycle 状态可以 resume——未知结果不可恢复——陈旧栅栏以类型化 `stale` 应答落定，在
+close 失败 envelope 下报告为 `rejected`、`reason:"stale-generation"`，绝不产生第二次尝试。
+
+明确不交付：`project close`、`workspace focus`、`tab focus`、
 `panel resize`/`panel focus`、终端 open 操作、`site start`/`site diagnose` 之外的 Site
 生命周期命令（不存在 stop、restart、disable 或修复动词），以及一切远端操作。
 
@@ -1136,6 +1209,18 @@ disposition 交付——OS 默认终止遵循 shell 的 `128 + signal` 约定，
 | command `Denied` precommit                                                                                                          | `denied`                                                                   | 3         | 省略                                                                                      |
 | command `Unavailable` precommit                                                                                                     | `service-unavailable`                                                      | 4         | `{stage:"command",reason}`                                                                |
 | `OutcomeUnknown`（任意原因）                                                                                                        | `outcome-unknown`                                                          | 8         | `{stage:"command",requestId,reason}`                                                      |
+| close-status `RequestNotSubmitted`、写/io 响应失败                                                                                   | `transport-loss`                                                           | 5         | `{stage:"close-status"}`，属 `orchbee.cli.failure.close`                                  |
+| close-status 非法/意外响应或 scope 不符的应答                                                                                        | `protocol-invalid`                                                         | 5         | `{stage:"close-status"[,reason:"correlation-mismatch"\|"scope-mismatch"]}`，属 close envelope |
+| close-status 响应 deadline 到期，或共享 5 秒命令 deadline 到期                                                                       | `timeout`                                                                  | 7         | `{stage:"close-status",timeoutMs:5000}`，属 close envelope                                |
+| close-status outcome `Denied`                                                                                                        | `denied`                                                                   | 3         | `{stage:"close-status"}`，属 close envelope                                               |
+| close-status outcome `Unavailable`                                                                                                   | `service-unavailable`                                                      | 4         | `{stage:"close-status",reason:"server-busy"}`，属 close envelope                          |
+| close-resume `RequestNotSubmitted`、写/io 响应失败                                                                                   | `transport-loss`                                                           | 5         | `{stage:"close-resume"}`，属 close envelope                                               |
+| close-resume 非法/意外响应                                                                                                           | `protocol-invalid`                                                         | 5         | `{stage:"close-resume"}`，属 close envelope                                               |
+| close-resume outcome `Denied`                                                                                                        | `denied`                                                                   | 3         | `{stage:"close-resume"}`，属 close envelope                                               |
+| close-resume outcome `Unavailable`                                                                                                   | `service-unavailable`                                                      | 4         | `{stage:"close-resume",reason:"server-busy"}`，属 close envelope                          |
+| close-resume outcome `Stale`                                                                                                         | `rejected`                                                                 | 3         | `{stage:"close-resume",reason:"stale-generation",attemptGeneration}`，属 close envelope   |
+| close-resume outcome `Rejected`（类型化 reason）                                                                                     | `rejected`                                                                 | 3         | `{stage:"close-resume",reason}`，属 close envelope                                        |
+| close-resume `OutcomeUnknown`（任意原因）                                                                                            | `outcome-unknown`                                                          | 8         | `{stage:"close-resume",requestId,reason}`，属 close envelope                              |
 | worktree-list `RequestNotSubmitted`、写/io 响应失败、或 `TransportLoss` outcome（投递后响应丢失）                                   | `transport-loss`                                                           | 5         | `{stage:"worktree-list"}`，属 `orchbee.cli.failure.worktree`                              |
 | worktree-list 非法/意外响应                                                                                                         | `protocol-invalid`                                                         | 5         | `{stage:"worktree-list"[,reason:"correlation-mismatch"]}`，属 worktree envelope           |
 | worktree-list 响应 deadline 到期，或共享 5 秒命令 deadline 到期                                                                     | `timeout`                                                                  | 7         | `{stage:"worktree-list",timeoutMs:5000}`，属 worktree envelope                            |
@@ -1192,6 +1277,8 @@ disposition 交付——OS 默认终止遵循 shell 的 `128 + signal` 约定，
 专用 `orchbee.cli.failure.worktree` envelope 接纳 `resource:"directory"` 与上文随其
 schema 记录的 `worktree-list|probe|list|parse` stage 词汇——这些值仅属该 envelope，
 不进入通用 `orchbee.cli.failure` 词汇。
+专用 `orchbee.cli.failure.close` envelope 接纳上文随其 schema 记录的
+`close-status|close-resume` stage 词汇——这些值同样仅属该 envelope。
 源阶段的 `input` stage 只存在于 `orchbee.cli.failure.source` envelope——不进入标准
 `orchbee.cli.failure` 的 stage 词汇。
 stage 与 reason 是有限 schema 值；任何异常文本都不进入机器字段。`details` 是按 kind 封闭的词汇——`{resource,target}`、
@@ -1310,7 +1397,9 @@ deadline 到期在 wire 请求尚不存在时即退出。
 | 真实 staged-cohort Server + 活跃 TUI 终端：`wait-output` 命中已有/后到/滚出屏/UTF-8 输出，短期限退出 7，取消后槽位可复用                                                 | 公共等待观察与 TUI 自身 viewer 共存                                              | `tests/local_startup_process`                                     |
 | 真实 staged-cohort Server + 活跃 TUI 终端：`terminal read` 返回其网格并通过 schema 校验                                                                                  | 真实只读观察与 TUI 自身 viewer 共存                                              | `tests/local_startup_process`                                     |
 | Mutation 语法：全部命令、target 规则、`--confirm`、几何界限、flag 范围                                                                                                   | 运行时访问前的精确 parse/失败类别                                                | `src/invocation` 测试                                             |
-| Mutation 脚本化 peer：全部十四条命令、precommit 判定、不可判定与未提交结果                                                                                               | 每次调用一条命令；`outcome-unknown` 绝不重放                                     | `tests/cli_mutation.rs`                                           |
+| Mutation 脚本化 peer：全部十五条命令、precommit 判定、不可判定与未提交结果                                                                                               | 每次调用一条命令；`outcome-unknown` 绝不重放                                     | `tests/cli_mutation.rs`                                           |
+| Workspace close 语法：`close` target+`--confirm`；`close-status`/`close-resume` 严格稳定 ID、`--request`/`--generation` 栅栏、陈旧但合法的 generation 可解析                | 在任何运行时访问之前给出精确 parse/`invalid-usage`                               | `src/invocation` 测试                                              |
+| Workspace close envelope：close-status 逐字 outcome（含 tombstone）、resume 源回显、封闭的 close-envelope details                                                            | 每个 fixture 通过校验；被拒变体失败                                              | schema 对照测试                                                    |
 | Worktree list 语法：`--project`/`--directory` 双必填、严格目录 ID 值规则、flag 作用域                                                                                    | 运行时访问前即精确 parse/`invalid-usage`                                         | `src/invocation` 测试                                             |
 | Launch-profile 语法：四条命令路径、逐字 selector、`--name`/`--exec` 必填对、`--profile` 互斥与作用域                                                                     | 运行时访问前即精确 parse/`invalid-usage`                                         | `src/invocation` 测试                                             |
 | Launch-profile 文档/失败 envelope：条目成员名、封闭 details 词汇、双 `source` 形态                                                                                       | 每个 fixture 校验通过；被拒变体失败                                              | schema 对照测试                                                   |

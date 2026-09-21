@@ -179,10 +179,25 @@ orchbee agent wait <session-id> --until ended --until failed
 ```sh
 orchbee tab close "$TAB" --confirm          # accepted；Site 异步完成关闭
 orchbee panel close <panel-id> --confirm
+orchbee workspace close "$WS" --confirm     # 关闭整个 context 的终端
 ```
 
 `--confirm` 为必填。`accepted` 回执携带 `closeRequestId`，由 Site
-异步完成关闭。关闭 Tab 不会停止 Site，本指南中也没有任何删除运行时
+异步完成关闭。`workspace close` 在 Workspace 的 context scope 上复用同一
+lifecycle，并保留 Workspace 本体、其 checkout、branch 与目录——关闭的只有
+终端 membership。保留的操作即使在 Workspace 离开 active projection 之后仍可
+凭严格稳定 ID 查询：
+
+```sh
+orchbee workspace close-status --project <project-id> --workspace <workspace-id>
+orchbee workspace close-resume --project <project-id> --workspace <workspace-id> \
+  --request <close-request-id> --generation <n> --confirm
+```
+
+`close-status` 报告 scope lifecycle 及每个被捕获 member 的状态，最终以
+`closed` tombstone revision 落定；`close-resume` 仅在可恢复的保留操作上开启
+一个新的尝试窗口——陈旧的 `--generation` 以 `rejected`/`stale-generation` 作答，
+未知结果不可恢复。关闭 Tab 不会停止 Site，本指南中也没有任何删除运行时
 状态的步骤。
 
 ## JSON 与自动化说明

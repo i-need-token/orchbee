@@ -44,8 +44,13 @@ Client Session 上有界轮询，直到命名的状态或新鲜度条件命中�
 诊断，仅凭本地事实解释 Agent 观察为何可能无法到达（不执行 provider 命令、不 connect socket、
 不做任何写入）。
 作用于运行中 Site 的修改命令为 `project create`/`rename`、
-`workspace create`/`rename`/`accept-directory`、`tab create`/`rename`/`move`/`close`、
+`workspace create`/`rename`/`accept-directory`/`close`、`tab create`/`rename`/`move`/`close`、
 `panel split`/`move`/`close` 与 `launch-profile create`/`delete`——
+`workspace close <target> --confirm` 在同一 tab-close lifecycle 下关闭 Workspace context 内
+的全部终端，同时保留 Workspace 本体、其 checkout、branch 与目录；其异步操作可经
+`workspace close-status --project <id> --workspace <id>`（严格稳定 ID，含 tombstone）查询，
+并可经 `workspace close-resume --project <id> --workspace <id> --request <close-id>
+--generation <n> --confirm` 恢复。
 `launch-profile create --name <name> --exec <path> [--arg <value>]...` 在目录中存储一个命名
 launch selection，`launch-profile delete <selector>` 将其移除。其中 `tab create` 与
 `panel split` 还接受临时的
