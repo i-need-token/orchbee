@@ -435,15 +435,22 @@ fn page_keys_page_an_open_help_and_reset_on_close_and_reopen() {
 
 #[test]
 fn page_keys_without_help_follow_the_unknown_prefix_rules() {
-    for page_key in [KeyCode::PageUp, KeyCode::PageDown] {
-        let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
-        enter_prefix(&mut view);
-        let transition = commit(&mut view, key(page_key));
-        assert_eq!(transition.action(), Some(ClientAction::UnknownPrefix));
-        assert_eq!(transition.shell(), ShellCommand::None);
-        assert_eq!(view.notice(), Some(Notice::UnknownPrefix));
-        assert_eq!(view.help_page(), 0);
-    }
+    // `Ctrl+B PageUp` with help closed is the retained-history entry
+    // gesture; the session owns admission from there.
+    let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
+    enter_prefix(&mut view);
+    let transition = commit(&mut view, key(KeyCode::PageUp));
+    assert_eq!(transition.action(), Some(ClientAction::EnterHistory));
+    assert_eq!(transition.shell(), ShellCommand::None);
+    assert_eq!(view.help_page(), 0);
+
+    let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
+    enter_prefix(&mut view);
+    let transition = commit(&mut view, key(KeyCode::PageDown));
+    assert_eq!(transition.action(), Some(ClientAction::UnknownPrefix));
+    assert_eq!(transition.shell(), ShellCommand::None);
+    assert_eq!(view.notice(), Some(Notice::UnknownPrefix));
+    assert_eq!(view.help_page(), 0);
 
     // An overlay other than help does not claim the page keys either.
     let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);

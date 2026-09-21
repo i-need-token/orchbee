@@ -566,6 +566,12 @@ pub(super) enum SessionNotice {
     /// A modal surface or armed confirmation owns the input layer — the
     /// Agent board refused to open rather than fight for capture.
     ModalOwnsInput,
+    /// The viewport lost its facts/anchor and is returning to live —
+    /// shown while the recovery demand pair is in flight.
+    HistoryRecovering,
+    /// Retained history could not be entered (demand refused or reset);
+    /// the pane stayed Live.
+    HistoryUnavailable,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

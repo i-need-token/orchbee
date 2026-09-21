@@ -102,6 +102,10 @@ pub(crate) enum ClientAction {
     ClosePanel,
     MovePanel(PanelDirection),
     TogglePointerCapture,
+    /// `Ctrl+B PageUp` while help is closed: enter retained-history mode on
+    /// the focus pane. The session owns admission; an unenterable pane
+    /// simply stays Live.
+    EnterHistory,
     ForwardLiteralPrefix,
     DismissPrefix,
     UnknownPrefix,
@@ -213,6 +217,7 @@ impl ClientAction {
             | Self::CloseWorkbenchNavigator
             | Self::ToggleAgentBoard
             | Self::TogglePointerCapture
+            | Self::EnterHistory
             | Self::ForwardLiteralPrefix
             | Self::DismissPrefix
             | Self::UnknownPrefix
@@ -476,6 +481,10 @@ impl ClientView {
                         _ => self.help_page() + 1,
                     });
                     (ClientAction::PageShortcutHelp, ShellCommand::None)
+                } else if member.action == PrefixAction::HelpPagePrevious {
+                    // With help closed, `Ctrl+B PageUp` is the history
+                    // entry gesture; the session owns admission.
+                    (ClientAction::EnterHistory, ShellCommand::None)
                 } else {
                     // With help closed the chord is inert — the same
                     // unknown-prefix outcome any unbound member key gets.

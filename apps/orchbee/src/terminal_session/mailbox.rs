@@ -8,6 +8,7 @@ use super::{
         PendingRefreshStage, ReadyDecision, ReconcileStep, ReconcileTarget, RefreshDecision,
         SetupEventDisposition,
     },
+    terminal_viewport::{ViewportReadRejection, ViewportStep},
     workbench_projection::NativeContextTabs,
 };
 use crate::{
@@ -184,6 +185,11 @@ pub(super) enum QueuedCommand {
     Input(Tagged<ControlInput>),
     Resize(Tagged<Geometry>),
     Poll(Tagged<()>),
+    /// One logical retained-history step for a pane incarnation — the S2
+    /// viewport's ordered demand legs, reads, acknowledgements, and
+    /// recovery rides the ordinary FIFO so recovery always precedes the
+    /// input that follows it.
+    Viewport(Tagged<ViewportStep>),
     /// Set-level pane reconciliation: the executor attaches the listed pane
     /// incarnations and canonically disposes every attachment of the anchor it
     /// holds that the list does not name — one absolute deadline, bounded steps.
@@ -743,6 +749,43 @@ pub(super) enum WorkerEvent {
         poll_key: PollKey,
         record: Option<Vec<u8>>,
     },
+    /// One `QueuedCommand::Viewport` step resolved — the S2 core's only
+    /// worker→UI channel. Fire-and-forget like `PaneDetached`: the UI's
+    /// incarnation check drops stale outcomes.
+    ViewportOutcome {
+        key: PaneRef,
+        outcome: ViewportOutcome,
+    },
+}
+
+/// The outcome of one `QueuedCommand::Viewport` step as the executor
+/// observed it. The core — not the worker — decides what each outcome
+/// means; the worker only guarantees the pane's incarnation was still
+/// admitted when the action ran.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) enum ViewportOutcome {
+    /// The Enter demand legs settled. `applied:false` means the pane is
+    /// back at the live demand pair: the first leg refused, or the second
+    /// leg failed and its reset leg succeeded.
+    Enter { applied: bool },
+    /// `ReadViewportRows` served an OBRW record for `request_sequence`.
+    Window {
+        request_sequence: std::num::NonZeroU64,
+        record: Vec<u8>,
+    },
+    /// The read was refused: a typed `rows-rejected` reason, or the opaque
+    /// host rejection that also covers pending-pin blockage.
+    ReadRejected {
+        request_sequence: std::num::NonZeroU64,
+        rejection: ViewportReadRejection,
+    },
+    /// The `RowsApplied` acknowledgement outcome.
+    Ack {
+        request_sequence: std::num::NonZeroU64,
+        accepted: bool,
+    },
+    /// The recovery demand pair was applied.
+    Recovered,
 }
 
 pub(super) enum CreatePrecommitOutcome {
@@ -864,7 +907,10 @@ impl WorkerEvent {
                 UiCorrelation::Attachment(key.clone()),
                 UiReplyKind::CleanupApplied,
             ),
-            Self::PaneDetached { .. } | Self::PaneFailed { .. } | Self::PollResult { .. } => {
+            Self::PaneDetached { .. }
+            | Self::PaneFailed { .. }
+            | Self::PollResult { .. }
+            | Self::ViewportOutcome { .. } => {
                 return None;
             }
         };
@@ -1351,6 +1397,10 @@ impl CommandMailbox {
             // Ordinary polls may serve any pane in the last reconciled set —
             // exact incarnation membership, so background viewers keep polling.
             QueuedCommand::Poll(tagged) => state.desired.admits(tagged.key()),
+            // Viewport steps ride the same exact-incarnation admission: a
+            // non-Live pane keeps its membership until reconcile disposes
+            // it, and recovery must stay admissible even if focus moved.
+            QueuedCommand::Viewport(tagged) => state.desired.admits(tagged.key()),
             QueuedCommand::Switch(_)
             | QueuedCommand::Create(_)
             | QueuedCommand::Refresh(_)
@@ -2336,7 +2386,9 @@ impl CommandMailbox {
     ) -> Result<MutationResult, EventError> {
         debug_assert!(matches!(
             event,
-            WorkerEvent::PaneDetached { .. } | WorkerEvent::PaneFailed { .. }
+            WorkerEvent::PaneDetached { .. }
+                | WorkerEvent::PaneFailed { .. }
+                | WorkerEvent::ViewportOutcome { .. }
         ));
         let (mut state, mut observed_at) = self.lock_with_fresh_sample(clock);
         if state.desired.awaiting_bootstrap() {

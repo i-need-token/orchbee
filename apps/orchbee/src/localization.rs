@@ -860,6 +860,40 @@ impl Locale {
                 Self::EnUs => "Close the active dialog first".to_owned(),
                 Self::ZhCn => "请先关闭当前对话框".to_owned(),
             },
+            NativeSessionNotice::HistoryRecovering => match self {
+                Self::EnUs => "History position lost · returning to live".to_owned(),
+                Self::ZhCn => "历史位置已失效 · 正在返回实时".to_owned(),
+            },
+            NativeSessionNotice::HistoryUnavailable => match self {
+                Self::EnUs => "History is not available on this pane".to_owned(),
+                Self::ZhCn => "此窗格历史不可用".to_owned(),
+            },
+        }
+    }
+
+    /// The right-edge badge a pane carries while its retained-history core
+    /// owns the leaf.
+    pub(crate) const fn terminal_history_badge(self) -> &'static str {
+        match self {
+            Self::EnUs => "HISTORY",
+            Self::ZhCn => "历史",
+        }
+    }
+
+    /// The loading indicator while entry or a row window is still in
+    /// flight — no retained content may show yet.
+    pub(crate) const fn terminal_history_loading(self) -> &'static str {
+        match self {
+            Self::EnUs => "Loading history…",
+            Self::ZhCn => "正在加载历史…",
+        }
+    }
+
+    /// The recovering indicator while the core returns the pane to live.
+    pub(crate) const fn terminal_history_recovering(self) -> &'static str {
+        match self {
+            Self::EnUs => "Returning to live…",
+            Self::ZhCn => "正在返回实时…",
         }
     }
 

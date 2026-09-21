@@ -109,6 +109,10 @@ pub(crate) struct PointerProbe {
     /// The focus pane's current interaction facts; `None` while no
     /// current frame exists for the focused incarnation.
     pub(crate) frame: Option<PointerFrameFacts>,
+    /// The focus pane currently owns a non-Live retained-history core:
+    /// wheel gestures over it scroll locally instead of encoding to the
+    /// pane. Read fresh per event, like every other probe fact.
+    pub(crate) viewport_non_live: bool,
 }
 
 impl PointerProbe {
@@ -164,6 +168,20 @@ pub(crate) trait TerminalInputPort {
 
     fn apply_client_action(&mut self, _action: ClientAction) -> Option<SessionActionDisposition> {
         None
+    }
+
+    /// Whether the focus pane's non-Live history core consumes this key
+    /// locally. Ports without history always report `false`: the event
+    /// then follows the ordinary byte path untouched.
+    fn history_key(&mut self, _event: &crate::client_view::KeyEvent) -> bool {
+        false
+    }
+
+    /// Whether a wheel notch over `key` is consumed by that pane's
+    /// non-Live history core (three rows per notch). The pointer layer
+    /// only calls this for the exact focus incarnation it already probed.
+    fn history_wheel(&mut self, _key: &crate::terminal_session::state::PaneRef, _up: bool) -> bool {
+        false
     }
 
     fn observe_geometry(&mut self, _geometry: Geometry) {}

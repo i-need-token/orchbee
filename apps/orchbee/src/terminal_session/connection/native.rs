@@ -13,7 +13,8 @@ use crate::{
         mailbox::{
             AdmissionError, BarrierKind, CausalSettlement, CommandLease, CommandMailbox,
             CreatePrecommitOutcome, EventDeadline, EventError, MailboxClosed, MutationResult,
-            PollKey, QueuedCommand, ReconcileMarker, SetupPollKey, Tagged, UiReply, WorkerEvent,
+            PollKey, QueuedCommand, ReconcileMarker, SetupPollKey, Tagged, UiReply,
+            ViewportOutcome, WorkerEvent,
         },
         state::{
             AttachTarget, BootstrapTarget, CarrierFailure, CleanupContinuation, ControllerMode,
@@ -22,13 +23,15 @@ use crate::{
             PendingCreateCommit, PendingMoveCommit, ReadyDecision, ReconcileStep, ReconcileTarget,
             RefreshDecision, SetupEventDisposition,
         },
+        terminal_viewport::{ViewportReadRejection, ViewportStep},
         workbench_projection::project_native_standalone_tabs,
     },
 };
 use orchbee_client_server_protocol::{
-    ControlRejectedReason, ControlUnavailableReason, Geometry, OpenOutcome, TerminalControlAction,
-    TerminalControlOutcome, TerminalControlRequest, TerminalOpenRequest, TerminalViewerAction,
-    TerminalViewerOutcome, TerminalViewerRequest, ViewerRejectedReason, ViewerUnavailableReason,
+    ControlRejectedReason, ControlUnavailableReason, Geometry, HistoryDemand, OpenOutcome,
+    ProjectionDemand, TerminalControlAction, TerminalControlOutcome, TerminalControlRequest,
+    TerminalOpenRequest, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
+    ViewerRejectedReason, ViewerUnavailableReason,
 };
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch};
 use orchbee_workbench_protocol::{
@@ -734,6 +737,10 @@ impl NativeExecutor {
                         let deadline = self.client.next_operation_deadline();
                         settle_ready_flow(self.run_poll(&lease, deadline))
                     }
+                    QueuedCommand::Viewport(tagged) => {
+                        let deadline = self.client.next_operation_deadline();
+                        settle_ready_flow(self.run_viewport(&lease, tagged, deadline))
+                    }
                     QueuedCommand::Switch(marker) => {
                         self.run_switch(&lease, marker.target().clone())
                     }
@@ -879,6 +886,260 @@ impl NativeExecutor {
         self.set_accepted_geometry(&key, geometry)?;
         let cutoff = self.effective_lease_cutoff(lease, deadline)?;
         self.publish_ready_setup_configuration(lease, &key, deadline, cutoff)
+    }
+
+    /// One retained-history step for a pane incarnation. Every leg runs
+    /// under the ready-lease fences — the pane must still be the canonical
+    /// record with a live attachment — and each step's outcome publishes as
+    /// a fire-and-forget `ViewportOutcome` notice. The S2 core in the UI
+    /// owns the state machine; this executor only guarantees the action ran
+    /// against a still-admitted attachment and reports what the host said.
+    fn run_viewport(
+        &mut self,
+        lease: &CommandLease,
+        tagged: &Tagged<ViewportStep>,
+        deadline: Instant,
+    ) -> ReadyResult<()> {
+        let key = tagged.key().clone();
+        let step = *tagged.value();
+        if self.attached_ref(&key).is_err() || !self.pane_admitted(lease, &key)? {
+            return Ok(());
+        }
+        let attachment_id = self.viewer_id_for(&key)?;
+        let outcome = match step {
+            ViewportStep::Enter => {
+                let Some(outcome) = self.viewport_enter(lease, &key, &attachment_id, deadline)?
+                else {
+                    return Ok(());
+                };
+                outcome
+            }
+            ViewportStep::Read {
+                origin,
+                row_count,
+                revision,
+                generation,
+                request_sequence,
+                maximum_bytes,
+            } => {
+                let Some((_, outcome)) = self.viewer_for_ready_lease(
+                    lease,
+                    &key,
+                    TerminalViewerAction::ReadViewportRows {
+                        attachment_id,
+                        origin,
+                        row_count,
+                        revision,
+                        generation,
+                        request_sequence,
+                        maximum_bytes,
+                    },
+                    deadline,
+                )?
+                else {
+                    return Ok(());
+                };
+                match outcome {
+                    TerminalViewerOutcome::Record(record) => ViewportOutcome::Window {
+                        request_sequence,
+                        record,
+                    },
+                    TerminalViewerOutcome::RowsRejected { reason } => {
+                        ViewportOutcome::ReadRejected {
+                            request_sequence,
+                            rejection: ViewportReadRejection::Typed(reason),
+                        }
+                    }
+                    TerminalViewerOutcome::Rejected { .. } => ViewportOutcome::ReadRejected {
+                        request_sequence,
+                        rejection: ViewportReadRejection::Host,
+                    },
+                    TerminalViewerOutcome::Unavailable { .. } => {
+                        return self.settle_pane_viewer_lost(lease, &key, deadline);
+                    }
+                    TerminalViewerOutcome::Attached { .. }
+                    | TerminalViewerOutcome::FeedbackAccepted {}
+                    | TerminalViewerOutcome::Detached {}
+                    | TerminalViewerOutcome::Empty {} => {
+                        return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
+                    }
+                }
+            }
+            ViewportStep::Ack {
+                request_sequence,
+                generation,
+                revision,
+            } => {
+                let Some((_, outcome)) = self.viewer_for_ready_lease(
+                    lease,
+                    &key,
+                    TerminalViewerAction::RowsApplied {
+                        attachment_id,
+                        request_sequence,
+                        generation,
+                        revision,
+                    },
+                    deadline,
+                )?
+                else {
+                    return Ok(());
+                };
+                match outcome {
+                    TerminalViewerOutcome::FeedbackAccepted {} => ViewportOutcome::Ack {
+                        request_sequence,
+                        accepted: true,
+                    },
+                    TerminalViewerOutcome::RowsRejected { .. }
+                    | TerminalViewerOutcome::Rejected { .. } => ViewportOutcome::Ack {
+                        request_sequence,
+                        accepted: false,
+                    },
+                    TerminalViewerOutcome::Unavailable { .. } => {
+                        return self.settle_pane_viewer_lost(lease, &key, deadline);
+                    }
+                    TerminalViewerOutcome::Attached { .. }
+                    | TerminalViewerOutcome::Detached {}
+                    | TerminalViewerOutcome::Empty {}
+                    | TerminalViewerOutcome::Record(_) => {
+                        return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
+                    }
+                }
+            }
+            ViewportStep::Recover => {
+                let Some(outcome) = self.viewport_recover(lease, &key, &attachment_id, deadline)?
+                else {
+                    return Ok(());
+                };
+                outcome
+            }
+        };
+        let cutoff = self.effective_lease_cutoff(lease, deadline)?;
+        self.mailbox
+            .publish_notice_before(
+                WorkerEvent::ViewportOutcome {
+                    key: key.clone(),
+                    outcome,
+                },
+                cutoff,
+                &self.clock,
+            )
+            .map_err(|error| self.ready_event_error(lease, &key, deadline, error))?;
+        Ok(())
+    }
+
+    /// One demand-setting leg: `Some(true)` applied, `Some(false)` refused
+    /// or unavailable, `None` when the pane left the admitted set mid-flight
+    /// and the caller must drop the whole step.
+    fn viewport_leg(
+        &mut self,
+        lease: &CommandLease,
+        key: &PaneRef,
+        action: TerminalViewerAction,
+        deadline: Instant,
+    ) -> ReadyResult<Option<bool>> {
+        let Some((_, outcome)) = self.viewer_for_ready_lease(lease, key, action, deadline)? else {
+            return Ok(None);
+        };
+        match outcome {
+            TerminalViewerOutcome::FeedbackAccepted {} => Ok(Some(true)),
+            TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. } => {
+                Ok(Some(false))
+            }
+            TerminalViewerOutcome::Attached { .. }
+            | TerminalViewerOutcome::Detached {}
+            | TerminalViewerOutcome::Empty {}
+            | TerminalViewerOutcome::Record(_)
+            | TerminalViewerOutcome::RowsRejected { .. } => {
+                Err(ReadyFlowError::Carrier(CarrierFailure::Protocol))
+            }
+        }
+    }
+
+    /// `Enter`'s demand pair: `ViewingHistory` then `Paused`. A refused first
+    /// leg settles `applied:false` without the second; a failed second leg
+    /// runs the single reset leg (`FollowingBottom`), and a reset that fails
+    /// or comes back unavailable faults the pane instead of guessing.
+    fn viewport_enter(
+        &mut self,
+        lease: &CommandLease,
+        key: &PaneRef,
+        attachment_id: &orchbee_client_server_protocol::ViewerId,
+        deadline: Instant,
+    ) -> ReadyResult<Option<ViewportOutcome>> {
+        let applied = self.viewport_leg(
+            lease,
+            key,
+            TerminalViewerAction::SetHistoryDemand {
+                attachment_id: attachment_id.clone(),
+                demand: HistoryDemand::ViewingHistory,
+            },
+            deadline,
+        )?;
+        let outcome = match applied {
+            None => return Ok(None),
+            Some(false) => ViewportOutcome::Enter { applied: false },
+            Some(true) => match self.viewport_leg(
+                lease,
+                key,
+                TerminalViewerAction::SetProjectionDemand {
+                    attachment_id: attachment_id.clone(),
+                    demand: ProjectionDemand::Paused,
+                },
+                deadline,
+            )? {
+                None => return Ok(None),
+                Some(true) => ViewportOutcome::Enter { applied: true },
+                Some(false) => match self.viewport_leg(
+                    lease,
+                    key,
+                    TerminalViewerAction::SetHistoryDemand {
+                        attachment_id: attachment_id.clone(),
+                        demand: HistoryDemand::FollowingBottom,
+                    },
+                    deadline,
+                )? {
+                    Some(true) => ViewportOutcome::Enter { applied: false },
+                    Some(false) => {
+                        self.settle_pane_viewer_lost(lease, key, deadline)?;
+                        return Ok(None);
+                    }
+                    None => return Ok(None),
+                },
+            },
+        };
+        Ok(Some(outcome))
+    }
+
+    /// `Recover`'s demand pair: `FollowingBottom` then `Active`. Any leg
+    /// failure faults the pane — recovery is the exit ramp itself and has
+    /// nothing left to fall back to.
+    fn viewport_recover(
+        &mut self,
+        lease: &CommandLease,
+        key: &PaneRef,
+        attachment_id: &orchbee_client_server_protocol::ViewerId,
+        deadline: Instant,
+    ) -> ReadyResult<Option<ViewportOutcome>> {
+        for demand in [
+            TerminalViewerAction::SetHistoryDemand {
+                attachment_id: attachment_id.clone(),
+                demand: HistoryDemand::FollowingBottom,
+            },
+            TerminalViewerAction::SetProjectionDemand {
+                attachment_id: attachment_id.clone(),
+                demand: ProjectionDemand::Active,
+            },
+        ] {
+            match self.viewport_leg(lease, key, demand, deadline)? {
+                Some(true) => {}
+                Some(false) => {
+                    self.settle_pane_viewer_lost(lease, key, deadline)?;
+                    return Ok(None);
+                }
+                None => return Ok(None),
+            }
+        }
+        Ok(Some(ViewportOutcome::Recovered))
     }
 
     /// Polls run per pane incarnation: any exact member of the reconciled set

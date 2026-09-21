@@ -32,6 +32,7 @@ mod tab_close;
 mod tab_rename;
 mod tabs;
 mod terminal_cells;
+mod viewport;
 mod workspace_setup;
 
 #[cfg(test)]
@@ -555,7 +556,38 @@ fn render_native_workbench(
         } else {
             None
         };
-        if let Some(terminal) = terminal {
+        let viewport = native
+            .focus_panel_id()
+            .and_then(|panel_id| native.pane_viewport(panel_id));
+        if let Some(surface) = viewport {
+            // A non-Live core owns the whole content area the same way a
+            // split leaf does — validated window or mode indicator.
+            viewport::render(
+                frame,
+                content_area,
+                surface,
+                terminal,
+                client_view.overlay().is_none()
+                    && native.close_confirmation().is_none()
+                    && native.rename_draft().is_none()
+                    && native.setup_draft().is_none(),
+                locale,
+                theme,
+            );
+            if let Some(pane) = active_tab
+                .and_then(|tab| tab.active_panel().and_then(|index| tab.panel(index)))
+                .and_then(|panel| native.pane_ref_for_panel(panel.panel_id()))
+            {
+                hits.record(
+                    HitLayer::Foreground,
+                    content_area,
+                    HitTarget::Pane {
+                        pane,
+                        content: content_area,
+                    },
+                );
+            }
+        } else if let Some(terminal) = terminal {
             terminal_cells::render(
                 frame,
                 content_area,
@@ -748,7 +780,22 @@ fn render_leaf(
             })
             .flatten()
     });
-    if let Some(terminal) = terminal {
+    let viewport = panel
+        .map(|panel| panel.panel_id())
+        .and_then(|panel_id| native.pane_viewport(panel_id));
+    if let Some(surface) = viewport {
+        // A non-Live core owns the leaf: its validated window or its mode
+        // indicator paints instead of the live frame path.
+        viewport::render(
+            frame,
+            content,
+            surface,
+            terminal,
+            input_enabled && active,
+            locale,
+            theme,
+        );
+    } else if let Some(terminal) = terminal {
         terminal_cells::render(frame, content, terminal, input_enabled && active);
     } else {
         let status = if matches!(

@@ -825,6 +825,14 @@ impl PointerState {
             // re-minted record — is a dead notch.
             return PointerOutcome::Ignored;
         }
+        // A non-Live focus core owns the wheel before any frame contract:
+        // each notch scrolls its retained window locally, three rows per
+        // notch, and nothing encodes to the pane.
+        if probe.viewport_non_live
+            && port.history_wheel(&target.expected, event.button == MouseButton::WheelUp)
+        {
+            return PointerOutcome::Handled;
+        }
         let Some(frame) = probe.frame else {
             return PointerOutcome::Ignored;
         };

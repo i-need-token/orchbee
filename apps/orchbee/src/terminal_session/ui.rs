@@ -2,7 +2,7 @@ use super::{
     mailbox::{
         AdmissionError, CausalSettlement, CommandMailbox, CreateMarker, CreatePrecommitOutcome,
         EventError, MoveAdmissionError, MutationResult, QueuedCommand, RefreshSettlement,
-        SwitchMarker, Tagged, UiReply, WorkerEvent,
+        SwitchMarker, Tagged, UiReply, ViewportOutcome, WorkerEvent,
     },
     state::{
         AttachmentKey, CarrierFailure, ControllerMode, CreateOperation, CreateOperationKey,
@@ -11,6 +11,10 @@ use super::{
         NavigatorRefreshStatus, OperationDeadlines, PaneKey, PaneRef, PanelRequestKind,
         PendingCreateCommit, PendingMoveCommit, PendingPanelCommit, RefreshDecision, SelectionPlan,
         SessionNotice, SessionPhaseKind, SetupEventDisposition,
+    },
+    terminal_viewport::{
+        TerminalViewport, ViewportEffect, ViewportNav, ViewportStep, ViewportSurface,
+        decode_history_changed,
     },
 };
 use crate::{
@@ -22,6 +26,7 @@ use crate::{
     terminal_projection::TerminalProjection,
 };
 use orchbee_client_server_protocol::{ControlInput, Geometry, TerminalViewerAction};
+use orchbee_terminal_protocol::{TerminalTextRowWindow, decode_terminal_text_row_window};
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchLabel, WorkbenchPanelId,
     WorkbenchTabId, WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
@@ -105,6 +110,20 @@ pub(crate) enum NativeSessionNotice {
     ConfirmationCancelled,
     DraftCancelled,
     ModalOwnsInput,
+    HistoryRecovering,
+    HistoryUnavailable,
+}
+
+/// What one pane's retained-history surface paints right now. `Window`
+/// hands out a row window the core re-validated against current geometry
+/// and facts; the other cases overlay their own indicator and never hand
+/// out stale row data.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum NativeViewportSurface<'a> {
+    Window(&'a TerminalTextRowWindow),
+    Entering,
+    AwaitingWindow,
+    Recovering,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -280,6 +299,8 @@ impl<'a> NativeSessionView<'a> {
             SessionNotice::ConfirmationCancelled => NativeSessionNotice::ConfirmationCancelled,
             SessionNotice::DraftCancelled => NativeSessionNotice::DraftCancelled,
             SessionNotice::ModalOwnsInput => NativeSessionNotice::ModalOwnsInput,
+            SessionNotice::HistoryRecovering => NativeSessionNotice::HistoryRecovering,
+            SessionNotice::HistoryUnavailable => NativeSessionNotice::HistoryUnavailable,
         })
     }
 
@@ -353,6 +374,28 @@ impl<'a> NativeSessionView<'a> {
             })
     }
 
+    /// One panel's retained-history surface, or `None` while its pane is
+    /// Live. The returned window is already fenced to the pane's current
+    /// generation and column geometry — the renderer only clips it to the
+    /// leaf bounds.
+    pub(crate) fn pane_viewport(
+        &self,
+        panel: &WorkbenchPanelId,
+    ) -> Option<NativeViewportSurface<'_>> {
+        let state = self.state.as_ref()?;
+        let record = state.pane_by_panel(panel)?;
+        let projection = self
+            .panes
+            .iter()
+            .find(|projection| projection.key == record.pane_ref())?;
+        Some(match projection.viewport.as_ref()?.surface() {
+            ViewportSurface::Window(window) => NativeViewportSurface::Window(window),
+            ViewportSurface::Entering => NativeViewportSurface::Entering,
+            ViewportSurface::AwaitingWindow => NativeViewportSurface::AwaitingWindow,
+            ViewportSurface::Recovering => NativeViewportSurface::Recovering,
+        })
+    }
+
     /// The panel identity of the focus pane — the leaf that takes input,
     /// resize and the focused-frame chrome.
     pub(crate) const fn focus_panel_id(&self) -> Option<&'a WorkbenchPanelId> {
@@ -412,6 +455,12 @@ pub(crate) struct KeyedProjection {
     key: PaneRef,
     value: TerminalProjection,
     status: NativeProjectionStatus,
+    /// The retained-history core. `None` is exactly the Live mode — a pane
+    /// carries no viewport state at all until its `Enter` step is admitted.
+    viewport: Option<TerminalViewport>,
+    /// Strict per-incarnation kind-53 sequence cursor: the next
+    /// `HistoryChanged` must exceed this or the stream is malformed.
+    history_sequence: u64,
 }
 
 #[cfg(test)]
@@ -739,6 +788,9 @@ impl NativeUi {
             // The board lane and the jump stage machine live on the same
             // fair tick as every other scheduled admission.
             changed |= self.drive_agent_board();
+            // Viewport deadline episodes and staged steps advance on the
+            // same fair tick as the ordinary schedulers.
+            changed |= self.tick_viewports(&mailbox);
         }
         acknowledged || changed || !self.pending_draws.is_empty()
     }
@@ -881,6 +933,22 @@ impl NativeUi {
                         self.retire(CarrierFailure::Protocol);
                         return;
                     }
+                    // The host applies the emitted geometry to this
+                    // incarnation: a non-Live core's window can never paint
+                    // under it again, so its geometry tracks the request.
+                    if let Some(viewport) = self
+                        .projections
+                        .iter_mut()
+                        .find(|projection| projection.key == key)
+                        .and_then(|projection| projection.viewport.as_mut())
+                    {
+                        let effect =
+                            viewport.resize(geometry.columns(), geometry.rows(), sampled_at);
+                        self.settle_viewport_effect(&mailbox, &key, effect);
+                        if self.retirement_failure.is_some() {
+                            return;
+                        }
+                    }
                 }
                 Err(AdmissionError::Full | AdmissionError::Busy) => {}
                 Err(AdmissionError::Closed(closed)) => {
@@ -981,6 +1049,37 @@ impl NativeUi {
         let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
             return false;
         };
+        // A non-Live focus pane never receives raw bytes: Entering/Viewing
+        // stage `Recover` first and the byte follows only once that step is
+        // admitted onto the wire queue; Recovering already holds its
+        // admission and forwards immediately. A byte that cannot get behind
+        // an admitted Recover is dropped — never replayed, never forwarded
+        // while the pane still scrolls.
+        let recovering = self
+            .projections
+            .iter()
+            .find(|projection| projection.key == desired)
+            .and_then(|projection| projection.viewport.as_ref())
+            .is_some_and(TerminalViewport::recovering);
+        if !recovering
+            && let Some(viewport) = self
+                .projections
+                .iter_mut()
+                .find(|projection| projection.key == desired)
+                .and_then(|projection| projection.viewport.as_mut())
+        {
+            viewport.typed();
+            self.admit_viewport_steps(&mailbox, &desired);
+            let admitted = self
+                .projections
+                .iter()
+                .find(|projection| projection.key == desired)
+                .and_then(|projection| projection.viewport.as_ref())
+                .is_some_and(TerminalViewport::recovering);
+            if !admitted {
+                return false;
+            }
+        }
         match mailbox.try_enqueue(QueuedCommand::Input(Tagged::new(desired, input))) {
             Ok(_serial) => true,
             Err(AdmissionError::Full) => false,
@@ -1000,6 +1099,287 @@ impl NativeUi {
                 false
             }
         }
+    }
+
+    /// Enters retained-history mode on the exact focus incarnation: the
+    /// `Enter` step must be admitted before the deterministic core installs
+    /// — a refused enqueue leaves the pane Live, and no input is ever
+    /// replayed on its behalf.
+    fn enter_history(&mut self) -> SessionActionDisposition {
+        let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        let Some(state) = self.state.as_ref() else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        if state.ready().is_none() {
+            return SessionActionDisposition::KeepNavigator;
+        }
+        let Some(key) = state.focus_pane_ref() else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        if state.close_suppresses_attachment(key.pane().anchor()) {
+            return SessionActionDisposition::KeepNavigator;
+        }
+        let Some(index) = self.projections.iter().position(|p| p.key == key) else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        if self.projections[index].viewport.is_some() {
+            return SessionActionDisposition::KeepNavigator;
+        }
+        // History needs a live-tail anchor: a pane that never painted has no
+        // scrollback contract yet.
+        let Some(frame) = self.projections[index].value.frame() else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        let (columns, row_count) = (frame.geometry.columns, frame.geometry.rows);
+        match mailbox.try_enqueue(QueuedCommand::Viewport(Tagged::new(
+            key.clone(),
+            ViewportStep::Enter,
+        ))) {
+            Ok(_) => {
+                self.projections[index].viewport = Some(TerminalViewport::entering(
+                    self.projections[index].value.attachment().clone(),
+                    *self.projections[index].value.epoch(),
+                    columns,
+                    row_count,
+                    u32::from(row_count),
+                    self.clock.now(),
+                ));
+            }
+            Err(AdmissionError::Full | AdmissionError::Busy) => {}
+            Err(AdmissionError::Closed(closed)) => self.retire(closed.failure()),
+            Err(
+                AdmissionError::BootstrapPending
+                | AdmissionError::StaleAttachment
+                | AdmissionError::AttachmentGenerationExhausted
+                | AdmissionError::RefreshGenerationExhausted
+                | AdmissionError::Build(_),
+            ) => self.retire(CarrierFailure::Protocol),
+        }
+        SessionActionDisposition::KeepNavigator
+    }
+
+    /// Whether the focus pane's non-Live core consumes this key locally.
+    /// The five history keys scroll or exit; every other key reports
+    /// `false` so the ordinary byte path forwards (and exits history
+    /// first). Live panes always report `false` — their passthrough is
+    /// untouched.
+    pub(super) fn history_key(&mut self, event: &crate::client_view::KeyEvent) -> bool {
+        let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
+            return false;
+        };
+        let Some(key) = self.state.as_ref().and_then(|state| state.focus_pane_ref()) else {
+            return false;
+        };
+        let Some(index) = self.projections.iter().position(|p| p.key == key) else {
+            return false;
+        };
+        let Some(viewport) = self.projections[index].viewport.as_mut() else {
+            return false;
+        };
+        let (_, row_count) = viewport.geometry();
+        let nav = match event.normalized() {
+            (crate::client_view::KeyCode::PageUp, mods)
+                if mods == crate::client_view::Modifiers::NONE =>
+            {
+                ViewportNav::Lines(i64::from(row_count))
+            }
+            (crate::client_view::KeyCode::PageDown, mods)
+                if mods == crate::client_view::Modifiers::NONE =>
+            {
+                ViewportNav::Lines(-i64::from(row_count))
+            }
+            (crate::client_view::KeyCode::Home, mods)
+                if mods == crate::client_view::Modifiers::NONE =>
+            {
+                ViewportNav::Oldest
+            }
+            (crate::client_view::KeyCode::End, mods) | (crate::client_view::KeyCode::Esc, mods)
+                if mods == crate::client_view::Modifiers::NONE =>
+            {
+                ViewportNav::Exit
+            }
+            _ => return false,
+        };
+        let effect = viewport.nav(nav);
+        self.settle_viewport_effect(&mailbox, &key, effect);
+        true
+    }
+
+    /// A wheel notch over the focus pane while its core is non-Live scrolls
+    /// three rows locally. The pointer layer already proved the gesture
+    /// targets this exact focus incarnation.
+    pub(super) fn history_wheel(&mut self, key: &PaneRef, up: bool) -> bool {
+        let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
+            return false;
+        };
+        let Some(index) = self.projections.iter().position(|p| &p.key == key) else {
+            return false;
+        };
+        let Some(viewport) = self.projections[index].viewport.as_mut() else {
+            return false;
+        };
+        let effect = viewport.nav(ViewportNav::Lines(if up { 3 } else { -3 }));
+        self.settle_viewport_effect(&mailbox, key, effect);
+        true
+    }
+
+    /// Whether the exact focus incarnation currently carries a non-Live
+    /// core — the pointer probe's fast fact for wheel ownership.
+    fn focus_viewport_non_live(&self) -> bool {
+        self.state
+            .as_ref()
+            .and_then(|state| state.focus_pane_ref())
+            .is_some_and(|key| {
+                self.projections
+                    .iter()
+                    .any(|projection| projection.key == key && projection.viewport.is_some())
+            })
+    }
+
+    /// Admits the viewport's next staged step onto the wire queue, in FIFO
+    /// order. Busy/Full keeps the step staged for a later tick; a stale
+    /// admission means the incarnation left the canonical set and its core
+    /// is about to be disposed with the projection anyway, so the step
+    /// simply stays pending.
+    fn admit_viewport_steps(&mut self, mailbox: &Arc<CommandMailbox>, key: &PaneRef) {
+        loop {
+            let Some(projection) = self.projections.iter_mut().find(|p| &p.key == key) else {
+                return;
+            };
+            let Some(viewport) = projection.viewport.as_mut() else {
+                return;
+            };
+            let Some(step) = viewport.peek_command() else {
+                return;
+            };
+            match mailbox.try_enqueue(QueuedCommand::Viewport(Tagged::new(key.clone(), step))) {
+                Ok(_) => viewport.command_admitted(),
+                Err(
+                    AdmissionError::Full | AdmissionError::Busy | AdmissionError::StaleAttachment,
+                ) => {
+                    return;
+                }
+                Err(AdmissionError::Closed(closed)) => {
+                    self.retire(closed.failure());
+                    return;
+                }
+                Err(
+                    AdmissionError::BootstrapPending
+                    | AdmissionError::AttachmentGenerationExhausted
+                    | AdmissionError::RefreshGenerationExhausted
+                    | AdmissionError::Build(_),
+                ) => {
+                    self.retire(CarrierFailure::Protocol);
+                    return;
+                }
+            }
+        }
+    }
+
+    /// Applies one core-produced effect: a protocol fault retires the
+    /// carrier, a notice surfaces through the session lane, `live` retires
+    /// the core back to Live, and every surviving transition tries to admit
+    /// its staged steps.
+    fn settle_viewport_effect(
+        &mut self,
+        mailbox: &Arc<CommandMailbox>,
+        key: &PaneRef,
+        effect: ViewportEffect,
+    ) {
+        if effect.protocol_error {
+            self.retire(CarrierFailure::Protocol);
+            return;
+        }
+        if let Some(notice) = effect.notice
+            && let Some(state) = self.state.as_mut()
+        {
+            mailbox.apply_local_for(state, |state| state.set_notice(notice));
+        }
+        if effect.live {
+            if let Some(projection) = self.projections.iter_mut().find(|p| &p.key == key) {
+                projection.viewport = None;
+            }
+            return;
+        }
+        self.admit_viewport_steps(mailbox, key);
+    }
+
+    /// One fire-and-forget worker outcome applies to the exact incarnation
+    /// it names. The core re-validates request sequences and staleness
+    /// itself; a pane whose core already retired drops the outcome
+    /// entirely.
+    fn apply_viewport_outcome(
+        &mut self,
+        mailbox: &Arc<CommandMailbox>,
+        key: PaneRef,
+        outcome: ViewportOutcome,
+    ) -> bool {
+        let now = self.clock.now();
+        let Some(index) = self.projections.iter().position(|p| p.key == key) else {
+            return false;
+        };
+        if self.projections[index].viewport.is_none() {
+            return false;
+        }
+        let effect = {
+            let viewport = self.projections[index]
+                .viewport
+                .as_mut()
+                .expect("viewport presence checked above");
+            match outcome {
+                ViewportOutcome::Enter { applied } => viewport.enter_outcome(applied),
+                ViewportOutcome::Window { record, .. } => {
+                    match decode_terminal_text_row_window(&record) {
+                        Ok(window) => viewport.window(window, now),
+                        Err(_) => {
+                            self.retire(CarrierFailure::Protocol);
+                            return true;
+                        }
+                    }
+                }
+                ViewportOutcome::ReadRejected {
+                    request_sequence,
+                    rejection,
+                } => viewport.read_outcome(request_sequence, rejection, now),
+                ViewportOutcome::Ack {
+                    request_sequence,
+                    accepted,
+                } => viewport.ack_outcome(request_sequence, accepted),
+                ViewportOutcome::Recovered => {
+                    viewport.recovered();
+                    ViewportEffect::default()
+                }
+            }
+        };
+        self.settle_viewport_effect(mailbox, &key, effect);
+        true
+    }
+
+    /// Advances every live core's deadline episode and drains its staged
+    /// steps — the per-tick driver that turns expired waits into recovery
+    /// and idle intents into wire commands.
+    fn tick_viewports(&mut self, mailbox: &Arc<CommandMailbox>) -> bool {
+        let now = self.clock.now();
+        let mut changed = false;
+        for index in 0..self.projections.len() {
+            if self.retirement_failure.is_some() {
+                break;
+            }
+            let key = self.projections[index].key.clone();
+            let Some(viewport) = self.projections[index].viewport.as_mut() else {
+                continue;
+            };
+            let effect = viewport.tick(now);
+            if effect != ViewportEffect::default() {
+                changed = true;
+                self.settle_viewport_effect(mailbox, &key, effect);
+            } else {
+                self.admit_viewport_steps(mailbox, &key);
+            }
+        }
+        changed
     }
 
     /// The pointer-resolution facts the dispatcher probes per event:
@@ -1036,6 +1416,7 @@ impl NativeUi {
                 .is_some_and(|focus| !state.close_suppresses_attachment(focus.pane().anchor()));
         probe.focus = state.focus_pane_ref();
         probe.desired = state.desired().cloned();
+        probe.viewport_non_live = self.focus_viewport_non_live();
         probe.panes = state
             .pane_facts()
             .map(|(record, attached, mode)| PointerPane {
@@ -1125,6 +1506,7 @@ impl NativeUi {
             ClientAction::SelectNextTab
             | ClientAction::SelectPreviousTab
             | ClientAction::SelectTab(_) => self.select_tab(action),
+            ClientAction::EnterHistory => self.enter_history(),
             ClientAction::MovePanelFocus(direction) => self.move_panel_focus(direction),
             ClientAction::FocusPanel(panel) => self.move_panel_focus_to(&panel),
             ClientAction::ToggleZoom => self.toggle_zoom(),
@@ -1547,6 +1929,13 @@ impl NativeUi {
             return self.apply_poll_result(mailbox, poll_key, record);
         }
         if wait_key.is_none() {
+            // Viewport outcomes are fire-and-forget publications: a stale
+            // incarnation's outcome (or one for a core that already retired)
+            // drops silently — unlike pane facts it never diverges
+            // canonical state, so a drop is not a protocol fault.
+            if let WorkerEvent::ViewportOutcome { key, outcome } = event {
+                return self.apply_viewport_outcome(mailbox, key, outcome);
+            }
             // Notice events carry no wait key: they are canonical pane-fact
             // publications that settle state directly instead of depositing a
             // causal reply.
@@ -1751,6 +2140,8 @@ impl NativeUi {
                             key,
                             value: projection,
                             status: NativeProjectionStatus::Empty,
+                            viewport: None,
+                            history_sequence: 0,
                         });
                     }
                     UiReply::AttachedSettled(disposition)
@@ -2020,6 +2411,49 @@ impl NativeUi {
             .value
             .receive_for_geometry(&record, expected);
         let (settlement, frame, status) = match result {
+            Ok(Some(feedback @ TerminalViewerAction::HistoryObserved { .. })) => {
+                // kind-53 intake — the unique S1 sink: the projection owns
+                // envelope/attachment validation and mints the single
+                // `HistoryObserved` acknowledgement; every state — Live
+                // included — acks exactly once through the ordinary causal
+                // lane. S2 merges its consumption here: the same validated
+                // event feeds the viewport core, strictly in sequence.
+                match decode_history_changed(
+                    &record,
+                    self.projections[index].value.attachment(),
+                    self.projections[index].value.epoch(),
+                ) {
+                    Ok(Some(changed)) => {
+                        if changed.sequence.get() <= self.projections[index].history_sequence {
+                            // Kind-53 sequences are strictly monotonic per
+                            // incarnation: a repeat or regression makes the
+                            // stream undecidable.
+                            self.retire(CarrierFailure::Protocol);
+                            return true;
+                        }
+                        self.projections[index].history_sequence = changed.sequence.get();
+                        if let Some(viewport) = self.projections[index].viewport.as_mut() {
+                            let effect = viewport.facts(changed);
+                            self.settle_viewport_effect(mailbox, poll_key.pane_ref(), effect);
+                            if self.retirement_failure.is_some() {
+                                return true;
+                            }
+                        }
+                    }
+                    // The projection already accepted this event, so S2's
+                    // identical decode can only succeed; anything else is a
+                    // fault, not a silent skip.
+                    _ => {
+                        self.retire(CarrierFailure::Protocol);
+                        return true;
+                    }
+                }
+                (
+                    CausalSettlement::Feedback(feedback),
+                    None,
+                    self.projections[index].status,
+                )
+            }
             Ok(Some(feedback @ TerminalViewerAction::FrameApplied { .. })) => (
                 CausalSettlement::Feedback(feedback),
                 Some(FrameIdentity::new(poll_key.serial())),
@@ -2077,6 +2511,33 @@ impl NativeUi {
             }
         };
         self.projections[index].status = status;
+        if frame.is_some() {
+            // A settled live frame ends an admitted recovery, and a
+            // host-side geometry change inside that frame re-geometries a
+            // surviving core. Only a real FrameApplied arm reaches here —
+            // kind-53 events never re-run frame hooks.
+            if let Some(viewport) = self.projections[index].viewport.as_mut() {
+                let effect = viewport.frame_applied();
+                self.settle_viewport_effect(mailbox, poll_key.pane_ref(), effect);
+            }
+            if self.retirement_failure.is_none() {
+                let geometry = self
+                    .projections
+                    .get(index)
+                    .and_then(|projection| projection.value.frame())
+                    .map(|frame| (frame.geometry.columns, frame.geometry.rows));
+                if let Some((columns, rows)) = geometry
+                    && let Some(viewport) = self
+                        .projections
+                        .get_mut(index)
+                        .and_then(|projection| projection.viewport.as_mut())
+                    && viewport.geometry() != (columns, rows)
+                {
+                    let effect = viewport.resize(columns, rows, self.clock.now());
+                    self.settle_viewport_effect(mailbox, poll_key.pane_ref(), effect);
+                }
+            }
+        }
         self.pending_draws.push(PendingDraw {
             poll_key,
             settlement,

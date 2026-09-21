@@ -26,6 +26,7 @@ mod mailbox;
 pub(crate) mod state;
 #[cfg(target_os = "linux")]
 mod status_recovery;
+mod terminal_viewport;
 mod ui;
 mod workbench_projection;
 
@@ -41,7 +42,8 @@ pub(crate) use ui::{
     NativeProjectionStatus, NativeRefreshStatus, NativeRenameDraftToken, NativeRenameDraftView,
     NativeRenameEdit, NativeRenameInputContext, NativeSessionNotice, NativeSessionView,
     NativeSetupDraftView, NativeSetupEdit, NativeSetupInputContext, NativeSetupStage,
-    NativeSetupStatus, NativeSetupToken, NativeTabView, PresentationPlacement,
+    NativeSetupStatus, NativeSetupToken, NativeTabView, NativeViewportSurface,
+    PresentationPlacement,
 };
 
 #[derive(Clone, Debug)]
@@ -578,6 +580,26 @@ impl TerminalInputPort for TerminalSession {
             #[cfg(test)]
             SessionBackend::Legacy(legacy) => legacy.pointer_probe(),
         }
+    }
+
+    fn history_key(&mut self, event: &crate::client_view::KeyEvent) -> bool {
+        let consumed = match &mut self.backend {
+            SessionBackend::Native(native) => native.history_key(event),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => false,
+        };
+        self.finalize_native_retirement();
+        consumed
+    }
+
+    fn history_wheel(&mut self, key: &state::PaneRef, up: bool) -> bool {
+        let consumed = match &mut self.backend {
+            SessionBackend::Native(native) => native.history_wheel(key, up),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => false,
+        };
+        self.finalize_native_retirement();
+        consumed
     }
 
     fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {

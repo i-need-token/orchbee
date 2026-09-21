@@ -261,6 +261,19 @@ impl InputDispatcher {
             }
             return self.decide(view, port, now, item, after_layout, mode);
         }
+        // A non-Live focus pane owns its history navigation keys locally:
+        // the port scrolls or exits without encoding anything, then pending
+        // pane bytes flush in order — a stale read outcome the flush's
+        // recovery turn produces is discarded by the core. Live panes always
+        // report `false`, so their keys keep the ordinary byte path
+        // untouched.
+        if let DecodedKind::Key(event) = item.kind
+            && event.kind != KeyKind::Release
+            && port.history_key(&event)
+        {
+            self.flush_pending(view, port);
+            return Ok(DispatchOutcome::Continue);
+        }
         match item.kind {
             DecodedKind::Key(event)
                 if event.kind != KeyKind::Release && PREFIX_CHORD.matches(event) =>

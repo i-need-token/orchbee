@@ -31,6 +31,15 @@ impl TerminalProjection {
     pub(crate) const fn frame(&self) -> Option<&TerminalTextFrame> {
         self.frame.as_ref()
     }
+    /// The attachment identity this projection is bound to — the route key
+    /// history events and row windows validate against.
+    pub(crate) const fn attachment(&self) -> &AttachmentId {
+        &self.attachment
+    }
+    /// The host epoch this projection's attachment was minted under.
+    pub(crate) const fn epoch(&self) -> &HostEpoch {
+        &self.epoch
+    }
     /// Hand the applied frame to a consumer that must outlive the
     /// projection — the CLI read path maps it after the session drops.
     pub(crate) fn take_frame(&mut self) -> Option<TerminalTextFrame> {
