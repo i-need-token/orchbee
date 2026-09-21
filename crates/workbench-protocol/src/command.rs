@@ -7,6 +7,7 @@ pub use publication::{
 };
 mod launch_profile;
 mod tab_close;
+mod workspace_close;
 mod worktree_list;
 pub use launch_profile::{
     LaunchProfileCatalogOutcome, LaunchProfileCatalogRevision, LaunchProfileEntry, LaunchProfileId,
@@ -22,6 +23,13 @@ pub use tab_close::{
     WorkbenchTabCloseResumeRejectionReason, WorkbenchTabCloseResumeResult, WorkbenchTabCloseStatus,
     WorkbenchTabCloseUnavailableReason, WorkbenchTabCloseUnknownPhase,
     WorkbenchTabCloseUnknownReason,
+};
+pub use workspace_close::{
+    MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES, WorkbenchWorkspaceCloseCounts,
+    WorkbenchWorkspaceCloseMember, WorkbenchWorkspaceCloseMemberStatus,
+    WorkbenchWorkspaceCloseRead, WorkbenchWorkspaceCloseReadOutcome,
+    WorkbenchWorkspaceCloseReadResult, WorkbenchWorkspaceCloseResume,
+    WorkbenchWorkspaceCloseResumeOutcome, WorkbenchWorkspaceCloseResumeResult,
 };
 pub use worktree_list::{
     MAXIMUM_ENCODED_WORKTREE_LIST_RESULT_BYTES, WorkbenchWorktreeListOutcome,
@@ -352,6 +360,16 @@ pub enum WorkbenchAction {
         workspace_id: WorkbenchWorkspaceId,
         label: WorkbenchLabel,
     },
+    /// Close one Workspace semantically: every captured terminal leaf member
+    /// runs the retained Close lifecycle, then one authoritative commit
+    /// removes the Workspace and its TerminalContext together. The Project,
+    /// its directories, the directory association, and the Git checkout are
+    /// never touched.
+    #[serde(rename = "workspace.close")]
+    WorkspaceClose {
+        project_id: WorkbenchProjectId,
+        workspace_id: WorkbenchWorkspaceId,
+    },
     #[serde(rename = "workspace.primary-directory.accept")]
     WorkspacePrimaryDirectoryAccept {
         project_id: WorkbenchProjectId,
@@ -517,6 +535,10 @@ pub enum WorkbenchRequest {
     WorktreeListRead(WorkbenchWorktreeListRead),
     #[serde(rename = "workbench.launch-profile-catalog.read")]
     LaunchProfileCatalogRead(WorkbenchLaunchProfileCatalogRead),
+    #[serde(rename = "workbench.workspace-close.read")]
+    WorkspaceCloseRead(WorkbenchWorkspaceCloseRead),
+    #[serde(rename = "workbench.workspace-close.resume")]
+    WorkspaceCloseResume(WorkbenchWorkspaceCloseResume),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -628,6 +650,16 @@ pub enum WorkbenchCommandOutcome {
         close_request_id: WorkbenchRequestId,
         terminal_context_id: WorkbenchTerminalContextId,
         tab_id: WorkbenchTabId,
+        accepted_revision: WorkbenchRevision,
+    },
+    /// The Workspace Close was retained: `close_request_id` names the
+    /// operation for `workspace-close.read`/`resume`, and the echoed scope
+    /// triple is the join identity later requests replay or join against.
+    WorkspaceCloseAccepted {
+        close_request_id: WorkbenchRequestId,
+        project_id: WorkbenchProjectId,
+        workspace_id: WorkbenchWorkspaceId,
+        terminal_context_id: WorkbenchTerminalContextId,
         accepted_revision: WorkbenchRevision,
     },
     TabCreatePending {
@@ -781,6 +813,10 @@ pub enum WorkbenchResponse {
     WorktreeList(WorkbenchWorktreeListResult),
     #[serde(rename = "workbench.launch-profile-catalog.result")]
     LaunchProfileCatalog(WorkbenchLaunchProfileCatalogResult),
+    #[serde(rename = "workbench.workspace-close.result")]
+    WorkspaceCloseRead(WorkbenchWorkspaceCloseReadResult),
+    #[serde(rename = "workbench.workspace-close.resume.result")]
+    WorkspaceCloseResume(WorkbenchWorkspaceCloseResumeResult),
 }
 
 pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, ContractError> {
@@ -840,8 +876,14 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
     match response {
         WorkbenchResponse::Command(_)
         | WorkbenchResponse::TabCloseRead(_)
-        | WorkbenchResponse::TabCloseResume(_) => {
+        | WorkbenchResponse::TabCloseResume(_)
+        | WorkbenchResponse::WorkspaceCloseResume(_) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_INTENT_BYTES)
+        }
+        WorkbenchResponse::WorkspaceCloseRead(result) => {
+            // Dedicated variant cap; member structure is part of the contract.
+            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES)?;
+            result.validate()
         }
         WorkbenchResponse::Snapshot(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES)?;

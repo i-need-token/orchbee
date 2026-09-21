@@ -2139,6 +2139,361 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "workspace-close-command",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "workspace.close",
+					"projectId": "00000000000000000000000000000002",
+					"workspaceId": "00000000000000000000000000000003"
+				}
+			}
+		},
+		{
+			"name": "workspace-close-accepted",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "workspace-close-accepted",
+					"closeRequestId": "00000000000000000000000000000009",
+					"projectId": "00000000000000000000000000000002",
+					"workspaceId": "00000000000000000000000000000003",
+					"terminalContextId": "00000000000000000000000000000004",
+					"acceptedRevision": "2"
+				}
+			}
+		},
+		{
+			"name": "workspace-close-read",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-close.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"projectId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003"
+			}
+		},
+		{
+			"name": "workspace-close-resume",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"projectId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "1"
+			}
+		},
+		{
+			"name": "workspace-close-read-closing",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"projectId": "00000000000000000000000000000002",
+					"workspaceId": "00000000000000000000000000000003",
+					"terminalContextId": "00000000000000000000000000000004",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "closing",
+						"phase": "waiting-outcome"
+					},
+					"counts": {
+						"closing": 1,
+						"cleanupBlocked": 0,
+						"outcomeUnknown": 0,
+						"disposedAwaitingPublication": 1
+					},
+					"members": [
+						{
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"presentationId": "00000000000000000000000000000007",
+							"status": {
+								"kind": "closing",
+								"phase": "waiting-outcome"
+							}
+						},
+						{
+							"tabId": "0000000000000000000000000000000a",
+							"panelId": "0000000000000000000000000000000b",
+							"presentationId": "0000000000000000000000000000000c",
+							"status": {
+								"kind": "disposed-awaiting-publication",
+								"reason": "target-cleanup-pending",
+								"resumable": true
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "workspace-close-read-empty-membership",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"projectId": "00000000000000000000000000000002",
+					"workspaceId": "00000000000000000000000000000003",
+					"terminalContextId": "00000000000000000000000000000004",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					},
+					"counts": {
+						"closing": 0,
+						"cleanupBlocked": 0,
+						"outcomeUnknown": 0,
+						"disposedAwaitingPublication": 0
+					},
+					"members": []
+				}
+			}
+		},
+		{
+			"name": "workspace-close-read-closed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"projectId": "00000000000000000000000000000002",
+					"workspaceId": "00000000000000000000000000000003",
+					"terminalContextId": "00000000000000000000000000000004",
+					"attemptGeneration": "3",
+					"status": {
+						"kind": "closed",
+						"revision": "8"
+					},
+					"counts": {
+						"closing": 0,
+						"cleanupBlocked": 0,
+						"outcomeUnknown": 0,
+						"disposedAwaitingPublication": 2
+					},
+					"members": [
+						{
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"presentationId": "00000000000000000000000000000007",
+							"status": {
+								"kind": "disposed-awaiting-publication",
+								"reason": "preparing",
+								"resumable": false
+							}
+						},
+						{
+							"tabId": "0000000000000000000000000000000a",
+							"panelId": "0000000000000000000000000000000b",
+							"presentationId": "0000000000000000000000000000000c",
+							"status": {
+								"kind": "disposed-awaiting-publication",
+								"reason": "preparing",
+								"resumable": false
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "workspace-close-read-blocked",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"projectId": "00000000000000000000000000000002",
+					"workspaceId": "00000000000000000000000000000003",
+					"terminalContextId": "00000000000000000000000000000004",
+					"attemptGeneration": "2",
+					"status": {
+						"kind": "cleanup-blocked",
+						"reason": "worker-unavailable",
+						"resumable": true
+					},
+					"counts": {
+						"closing": 0,
+						"cleanupBlocked": 1,
+						"outcomeUnknown": 1,
+						"disposedAwaitingPublication": 0
+					},
+					"members": [
+						{
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"presentationId": "00000000000000000000000000000007",
+							"status": {
+								"kind": "cleanup-blocked",
+								"reason": "worker-unavailable",
+								"resumable": true
+							}
+						},
+						{
+							"tabId": "0000000000000000000000000000000a",
+							"panelId": "0000000000000000000000000000000b",
+							"presentationId": "0000000000000000000000000000000c",
+							"status": {
+								"kind": "outcome-unknown",
+								"phase": "terminate",
+								"reason": "transport-lost"
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "workspace-close-read-not-closing",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "not-closing"
+				}
+			}
+		},
+		{
+			"name": "workspace-close-read-denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "denied"
+				}
+			}
+		},
+		{
+			"name": "workspace-close-read-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "server-busy"
+				}
+			}
+		},
+		{
+			"name": "workspace-close-resume-resumed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"projectId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "2"
+				}
+			}
+		},
+		{
+			"name": "workspace-close-resume-stale",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"projectId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "stale",
+					"attemptGeneration": "3"
+				}
+			}
+		},
+		{
+			"name": "workspace-close-resume-denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"projectId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "denied"
+				}
+			}
+		},
+		{
+			"name": "workspace-close-resume-server-busy",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"projectId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "server-busy"
+				}
+			}
+		},
+		{
+			"name": "workspace-close-resume-rejected",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"projectId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "rejected",
+					"reason": "not-resumable"
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -7407,6 +7762,171 @@
 							"cellPixelHeight": 18
 						}
 					}
+				}
+			}
+		},
+		{
+			"name": "workspace-close-command-missing-workspace",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "workspace.close",
+					"projectId": "00000000000000000000000000000002"
+				}
+			}
+		},
+		{
+			"name": "workspace-close-read-extra-field",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.workspace-close.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"projectId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"extra": "x"
+			}
+		},
+		{
+			"name": "workspace-close-resume-missing-generation",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.workspace-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"projectId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"closeRequestId": "00000000000000000000000000000008"
+			}
+		},
+		{
+			"name": "workspace-close-resume-generation-zero",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.workspace-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"projectId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "0"
+			}
+		},
+		{
+			"name": "workspace-close-member-closed-status",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.workspace-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"projectId": "00000000000000000000000000000002",
+					"workspaceId": "00000000000000000000000000000003",
+					"terminalContextId": "00000000000000000000000000000004",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "closed",
+						"revision": "8"
+					},
+					"counts": {
+						"closing": 0,
+						"cleanupBlocked": 0,
+						"outcomeUnknown": 0,
+						"disposedAwaitingPublication": 1
+					},
+					"members": [
+						{
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"presentationId": "00000000000000000000000000000007",
+							"status": {
+								"kind": "closed",
+								"revision": "8"
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "workspace-close-member-missing-presentation",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.workspace-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"projectId": "00000000000000000000000000000002",
+					"workspaceId": "00000000000000000000000000000003",
+					"terminalContextId": "00000000000000000000000000000004",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					},
+					"counts": {
+						"closing": 0,
+						"cleanupBlocked": 0,
+						"outcomeUnknown": 0,
+						"disposedAwaitingPublication": 0
+					},
+					"members": [
+						{
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"status": {
+								"kind": "closing",
+								"phase": "queued"
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "workspace-close-read-counts-exceed-u32",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.workspace-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"projectId": "00000000000000000000000000000002",
+					"workspaceId": "00000000000000000000000000000003",
+					"terminalContextId": "00000000000000000000000000000004",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					},
+					"counts": {
+						"closing": 4294967296,
+						"cleanupBlocked": 0,
+						"outcomeUnknown": 0,
+						"disposedAwaitingPublication": 0
+					},
+					"members": []
 				}
 			}
 		}

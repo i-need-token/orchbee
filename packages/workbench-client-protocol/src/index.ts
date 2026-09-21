@@ -213,3 +213,28 @@ export type {
 	WorkbenchTabCloseResumeOutcome,
 	WorkbenchTabCloseResumeResult,
 } from './workbench-tab-close-contract';
+
+export {
+	WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES,
+	WORKBENCH_MAXIMUM_WORKSPACE_CLOSE_MEMBERS,
+	WorkbenchWorkspaceCloseCountsSchema,
+	WorkbenchWorkspaceCloseMemberSchema,
+	WorkbenchWorkspaceCloseMemberStatusSchema,
+	WorkbenchWorkspaceCloseReadSchema,
+	WorkbenchWorkspaceCloseReadOutcomeSchema,
+	WorkbenchWorkspaceCloseReadResultSchema,
+	WorkbenchWorkspaceCloseResumeSchema,
+	WorkbenchWorkspaceCloseResumeOutcomeSchema,
+	WorkbenchWorkspaceCloseResumeResultSchema,
+} from './workbench-workspace-close-contract';
+export type {
+	WorkbenchWorkspaceCloseCounts,
+	WorkbenchWorkspaceCloseMember,
+	WorkbenchWorkspaceCloseMemberStatus,
+	WorkbenchWorkspaceCloseRead,
+	WorkbenchWorkspaceCloseReadOutcome,
+	WorkbenchWorkspaceCloseReadResult,
+	WorkbenchWorkspaceCloseResume,
+	WorkbenchWorkspaceCloseResumeOutcome,
+	WorkbenchWorkspaceCloseResumeResult,
+} from './workbench-workspace-close-contract';

@@ -32,6 +32,18 @@
 		},
 		{
 			"$ref": "#/$defs/publicationResult"
+		},
+		{
+			"$ref": "#/$defs/workspaceCloseRead"
+		},
+		{
+			"$ref": "#/$defs/workspaceCloseReadResult"
+		},
+		{
+			"$ref": "#/$defs/workspaceCloseResume"
+		},
+		{
+			"$ref": "#/$defs/workspaceCloseResumeResult"
 		}
 	],
 	"$defs": {
@@ -99,6 +111,22 @@
 						}
 					},
 					"required": ["kind", "projectId", "workspaceId", "label"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "workspace.close"
+						},
+						"projectId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/projectId"
+						},
+						"workspaceId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
+						}
+					},
+					"required": ["kind", "projectId", "workspaceId"],
 					"additionalProperties": false
 				},
 				{
@@ -815,6 +843,38 @@
 					"type": "object",
 					"properties": {
 						"kind": {
+							"const": "workspace-close-accepted"
+						},
+						"closeRequestId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+						},
+						"projectId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/projectId"
+						},
+						"workspaceId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"acceptedRevision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						}
+					},
+					"required": [
+						"kind",
+						"closeRequestId",
+						"projectId",
+						"workspaceId",
+						"terminalContextId",
+						"acceptedRevision"
+					],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
 							"const": "panel-close-accepted"
 						},
 						"closeRequestId": {
@@ -1396,6 +1456,405 @@
 				"siteId",
 				"terminalContextId",
 				"tabId",
+				"closeRequestId",
+				"outcome"
+			],
+			"additionalProperties": false
+		},
+		"workspaceCloseMemberStatus": {
+			"$comment": "A member entry carries only its own terminal disposition; the close revision lives solely in the scope-level status.",
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "closing"
+						},
+						"phase": {
+							"$ref": "#/$defs/tabClosePhase"
+						}
+					},
+					"required": ["kind", "phase"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "cleanup-blocked"
+						},
+						"reason": {
+							"$ref": "#/$defs/tabCloseBlockedReason"
+						},
+						"resumable": {
+							"type": "boolean"
+						}
+					},
+					"required": ["kind", "reason", "resumable"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "outcome-unknown"
+						},
+						"phase": {
+							"$ref": "#/$defs/tabCloseUnknownPhase"
+						},
+						"reason": {
+							"$ref": "#/$defs/tabCloseUnknownReason"
+						}
+					},
+					"required": ["kind", "phase", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "disposed-awaiting-publication"
+						},
+						"reason": {
+							"$ref": "#/$defs/tabClosePublicationReason"
+						},
+						"resumable": {
+							"type": "boolean"
+						}
+					},
+					"required": ["kind", "reason", "resumable"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"workspaceCloseMember": {
+			"type": "object",
+			"properties": {
+				"tabId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+				},
+				"panelId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+				},
+				"presentationId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/presentationId"
+				},
+				"status": {
+					"$ref": "#/$defs/workspaceCloseMemberStatus"
+				}
+			},
+			"required": ["tabId", "panelId", "presentationId", "status"],
+			"additionalProperties": false
+		},
+		"workspaceCloseCounts": {
+			"type": "object",
+			"properties": {
+				"closing": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4294967295
+				},
+				"cleanupBlocked": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4294967295
+				},
+				"outcomeUnknown": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4294967295
+				},
+				"disposedAwaitingPublication": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4294967295
+				}
+			},
+			"required": [
+				"closing",
+				"cleanupBlocked",
+				"outcomeUnknown",
+				"disposedAwaitingPublication"
+			],
+			"additionalProperties": false
+		},
+		"workspaceCloseRead": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "workbench.workspace-close.read"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+				},
+				"siteId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+				},
+				"projectId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/projectId"
+				},
+				"workspaceId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
+				}
+			},
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"siteId",
+				"projectId",
+				"workspaceId"
+			],
+			"additionalProperties": false
+		},
+		"workspaceCloseReadOutcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "not-closing"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "denied"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"$ref": "#/$defs/tabCloseUnavailableReason"
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "available"
+						},
+						"closeRequestId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+						},
+						"projectId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/projectId"
+						},
+						"workspaceId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"attemptGeneration": {
+							"$ref": "#/$defs/tabCloseAttemptGeneration"
+						},
+						"status": {
+							"$ref": "#/$defs/tabCloseStatus"
+						},
+						"counts": {
+							"$ref": "#/$defs/workspaceCloseCounts"
+						},
+						"members": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/workspaceCloseMember"
+							},
+							"maxItems": 4096
+						}
+					},
+					"required": [
+						"kind",
+						"closeRequestId",
+						"projectId",
+						"workspaceId",
+						"terminalContextId",
+						"attemptGeneration",
+						"status",
+						"counts",
+						"members"
+					],
+					"additionalProperties": false
+				}
+			]
+		},
+		"workspaceCloseReadResult": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "workbench.workspace-close.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+				},
+				"outcome": {
+					"$ref": "#/$defs/workspaceCloseReadOutcome"
+				}
+			},
+			"required": ["kind", "protocolVersion", "requestId", "outcome"],
+			"additionalProperties": false
+		},
+		"workspaceCloseResume": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "workbench.workspace-close.resume"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+				},
+				"siteId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+				},
+				"projectId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/projectId"
+				},
+				"workspaceId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
+				},
+				"closeRequestId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+				},
+				"expectedAttemptGeneration": {
+					"$ref": "#/$defs/tabCloseAttemptGeneration"
+				}
+			},
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"siteId",
+				"projectId",
+				"workspaceId",
+				"closeRequestId",
+				"expectedAttemptGeneration"
+			],
+			"additionalProperties": false
+		},
+		"workspaceCloseResumeOutcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "resumed"
+						},
+						"attemptGeneration": {
+							"$ref": "#/$defs/tabCloseAttemptGeneration"
+						}
+					},
+					"required": ["kind", "attemptGeneration"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "stale"
+						},
+						"attemptGeneration": {
+							"$ref": "#/$defs/tabCloseAttemptGeneration"
+						}
+					},
+					"required": ["kind", "attemptGeneration"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "denied"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"$ref": "#/$defs/tabCloseUnavailableReason"
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "rejected"
+						},
+						"reason": {
+							"$ref": "#/$defs/tabCloseResumeRejectionReason"
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"workspaceCloseResumeResult": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "workbench.workspace-close.resume.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+				},
+				"siteId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+				},
+				"projectId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/projectId"
+				},
+				"workspaceId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
+				},
+				"closeRequestId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+				},
+				"outcome": {
+					"$ref": "#/$defs/workspaceCloseResumeOutcome"
+				}
+			},
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"siteId",
+				"projectId",
+				"workspaceId",
 				"closeRequestId",
 				"outcome"
 			],

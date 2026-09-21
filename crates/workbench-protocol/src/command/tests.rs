@@ -301,4 +301,5 @@ fn typed_workspace_primary_directory_acceptance_preserves_exact_fields() {
 }
 
 mod tab_close;
+mod workspace_close;
 mod worktree_list;

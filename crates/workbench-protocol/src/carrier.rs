@@ -92,6 +92,8 @@ fn request_kind(request: &WorkbenchRequest) -> u16 {
         WorkbenchRequest::PublicationRead(_) => 9,
         WorkbenchRequest::WorktreeListRead(_) => 11,
         WorkbenchRequest::LaunchProfileCatalogRead(_) => 13,
+        WorkbenchRequest::WorkspaceCloseRead(_) => 15,
+        WorkbenchRequest::WorkspaceCloseResume(_) => 17,
     }
 }
 
@@ -104,6 +106,8 @@ fn response_kind(response: &WorkbenchResponse) -> u16 {
         WorkbenchResponse::Publication(_) => 10,
         WorkbenchResponse::WorktreeList(_) => 12,
         WorkbenchResponse::LaunchProfileCatalog(_) => 14,
+        WorkbenchResponse::WorkspaceCloseRead(_) => 16,
+        WorkbenchResponse::WorkspaceCloseResume(_) => 18,
     }
 }
 
@@ -115,8 +119,8 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
     let kind = u16::from_be_bytes([header[6], header[7]]);
     if header[..4] != WORKBENCH_MAGIC
         || u16::from_be_bytes([header[4], header[5]]) != VERSION
-        || (request && !matches!(kind, 1 | 2 | 5 | 7 | 9 | 11 | 13))
-        || (!request && !matches!(kind, 3 | 4 | 6 | 8 | 10 | 12 | 14))
+        || (request && !matches!(kind, 1 | 2 | 5 | 7 | 9 | 11 | 13 | 15 | 17))
+        || (!request && !matches!(kind, 3 | 4 | 6 | 8 | 10 | 12 | 14 | 16 | 18))
     {
         return Err(WorkbenchWireError::InvalidHeader);
     }
@@ -126,6 +130,8 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
         MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES
     } else if kind == 12 {
         crate::MAXIMUM_ENCODED_WORKTREE_LIST_RESULT_BYTES
+    } else if kind == 16 {
+        crate::MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES
     } else {
         MAXIMUM_ENCODED_INTENT_BYTES
     };

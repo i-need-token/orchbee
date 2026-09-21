@@ -6,6 +6,13 @@ import {
 	WorkbenchTabCloseResumeSchema,
 	WorkbenchTabCloseResumeResultSchema,
 } from './workbench-tab-close-contract';
+import {
+	WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES,
+	WorkbenchWorkspaceCloseReadResultSchema,
+	WorkbenchWorkspaceCloseReadSchema,
+	WorkbenchWorkspaceCloseResumeResultSchema,
+	WorkbenchWorkspaceCloseResumeSchema,
+} from './workbench-workspace-close-contract';
 
 import {
 	SiteIdSchema,
@@ -110,6 +117,13 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 			projectId: WorkbenchProjectIdSchema,
 			workspaceId: WorkbenchWorkspaceIdSchema,
 			label: WorkbenchLabelSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('workspace.close'),
+			projectId: WorkbenchProjectIdSchema,
+			workspaceId: WorkbenchWorkspaceIdSchema,
 		})
 		.readonly(),
 	z
@@ -223,6 +237,8 @@ export const WorkbenchRequestSchema = z
 		WorkbenchTabCloseReadSchema,
 		WorkbenchTabCloseResumeSchema,
 		WorkbenchPublicationReadIntentSchema,
+		WorkbenchWorkspaceCloseReadSchema,
+		WorkbenchWorkspaceCloseResumeSchema,
 	])
 	.refine(
 		(value) => encodedBytes(value) <= WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES,
@@ -389,6 +405,16 @@ export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	z
 		.strictObject({
+			kind: z.literal('workspace-close-accepted'),
+			closeRequestId: WorkbenchRequestIdSchema,
+			projectId: WorkbenchProjectIdSchema,
+			workspaceId: WorkbenchWorkspaceIdSchema,
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			acceptedRevision: WorkbenchRevisionSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
 			kind: z.literal('panel-moved'),
 			revision: WorkbenchRevisionSchema,
 			terminalContextId: WorkbenchTerminalContextIdSchema,
@@ -500,12 +526,16 @@ export const WorkbenchResponseSchema = z
 		WorkbenchTabCloseReadResultSchema,
 		WorkbenchTabCloseResumeResultSchema,
 		WorkbenchPublicationResultSchema,
+		WorkbenchWorkspaceCloseReadResultSchema,
+		WorkbenchWorkspaceCloseResumeResultSchema,
 	])
 	.superRefine((value, context) => {
 		const maximum =
 			value.kind === 'workbench.snapshot.result' || value.kind === 'workbench.publication.result'
 				? WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES
-				: WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES;
+				: value.kind === 'workbench.workspace-close.result'
+					? WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES
+					: WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES;
 		if (encodedBytes(value) > maximum)
 			context.addIssue({ code: 'custom', message: 'Workbench result exceeds its encoded limit' });
 		if (
