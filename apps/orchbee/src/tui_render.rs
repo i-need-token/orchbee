@@ -10,9 +10,9 @@ use crate::{
     client_view::{ClientView, Overlay},
     localization::{Locale, ShellText},
     terminal_session::{
-        ModalPresentation, NativeCloseStatusToken, NativeDisplayPhase, NativeDrawReceipt,
-        NativeProjectionStatus, NativeRefreshStatus, NativeSessionView, NativeTabView,
-        TerminalSessionView,
+        AgentBoardDraw, ModalPresentation, NativeCloseStatusToken, NativeDisplayPhase,
+        NativeDrawReceipt, NativeProjectionStatus, NativeRefreshStatus, NativeSessionView,
+        NativeTabView, TerminalSessionView,
     },
     terminal_text::{display_width, sanitize_terminal_text, truncate_display},
     tui_layout::{
@@ -25,6 +25,7 @@ use crate::{
 
 use crate::terminal_session::TerminalStatus;
 
+mod agent_board;
 mod contexts;
 mod panel_close;
 mod tab_close;
@@ -69,6 +70,7 @@ pub(crate) fn render_terminal_shell(
     let mut setup = None;
     let mut overlay_refused = false;
     let mut help_page = None;
+    let mut board_draw = None;
     let sidebar_status;
     let status_text;
     let mut secondary_notice = None;
@@ -144,7 +146,13 @@ pub(crate) fn render_terminal_shell(
 
     if tier != ViewportTier::TooSmall {
         if let Some(sidebar) = areas.sidebar {
-            render_sidebar(frame, sidebar, text, &sidebar_status, theme);
+            let agent_line = match session.as_ref() {
+                Some(TerminalSessionView::Native(native)) => native
+                    .agent_board_summary()
+                    .map(|summary| locale.agent_sidebar_line(summary, summary.at.elapsed())),
+                _ => None,
+            };
+            render_sidebar(frame, sidebar, text, &sidebar_status, agent_line, theme);
         }
 
         let overlay = match view.overlay() {
@@ -192,6 +200,26 @@ pub(crate) fn render_terminal_shell(
             // the backdrop that dismisses it.
             hits.mark_overlay_active();
             hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
+        }
+
+        // The Agent board is session-owned rather than a ClientView
+        // overlay: it paints above the workbench (and any chrome overlay)
+        // but below armed modals, and its painted truth settles input
+        // capture through the draw receipt.
+        if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+            && let Some(board) = native.agent_board()
+        {
+            let draw = agent_board::render(
+                frame,
+                overlay_area(&areas),
+                text,
+                locale,
+                board,
+                theme,
+                hits,
+            );
+            overlay_refused |= !draw.presented;
+            board_draw = Some(draw);
         }
 
         if let Some(TerminalSessionView::Native(native)) = session.as_ref()
@@ -271,6 +299,20 @@ pub(crate) fn render_terminal_shell(
         }
     }
 
+    // An open board that could not paint at all (too-small viewport)
+    // still reports its verdict — input capture never settles on an
+    // unpainted surface.
+    if board_draw.is_none()
+        && let Some(TerminalSessionView::Native(native)) = session.as_ref()
+        && native.agent_board().is_some()
+    {
+        board_draw = Some(AgentBoardDraw {
+            presented: false,
+            viewport_rows: 0,
+        });
+        overlay_refused = true;
+    }
+
     let notice = if overlay_refused {
         Some(text.overlay_refused)
     } else {
@@ -303,6 +345,7 @@ pub(crate) fn render_terminal_shell(
         .with_panel_close(panel_prompt)
         .with_rename(rename)
         .with_setup(setup)
+        .with_agent_board(board_draw)
 }
 
 fn render_too_small_notice(frame: &mut Frame<'_>, body: Rect, text: ShellText, theme: &Theme) {
@@ -857,6 +900,7 @@ fn render_sidebar(
     sidebar: SidebarArea,
     text: ShellText,
     backend_status: &str,
+    agent_line: Option<String>,
     theme: &Theme,
 ) {
     if sidebar.layer == SidebarLayer::Overlay {
@@ -902,6 +946,13 @@ fn render_sidebar(
             fit(format!("  {}", text.agents)),
             theme.style(Role::TextSecondary),
         )),
+        // The last *completed* read's count plus age/completeness marks —
+        // absent entirely when no read ever completed (never an implied
+        // zero, never live data).
+        agent_line.map_or_else(
+            || ListItem::new(""),
+            |line| ListItem::new(Line::styled(fit(line), theme.style(Role::TextSecondary))),
+        ),
         ListItem::new(""),
         ListItem::new(Line::styled(
             fit(text.sidebar_hint.to_owned()),

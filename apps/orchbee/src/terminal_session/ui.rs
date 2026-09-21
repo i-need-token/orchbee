@@ -28,6 +28,7 @@ use orchbee_workbench_protocol::{
 };
 use std::sync::Arc;
 
+mod agent_board;
 mod close_reconciliation;
 mod membership;
 mod move_membership;
@@ -53,6 +54,11 @@ pub(crate) use tab_rename::{
 };
 mod create_membership;
 mod switch_membership;
+
+pub(crate) use super::agent_board::{
+    AgentBoardDraw, AgentBoardRead, AgentBoardReadFailure, AgentBoardRow, AgentBoardSummary,
+    JumpFailure, NativeAgentBoardView, PresentationPlacement,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum NativeDisplayPhase {
@@ -98,6 +104,7 @@ pub(crate) enum NativeSessionNotice {
     CloseRequestNotApplied,
     ConfirmationCancelled,
     DraftCancelled,
+    ModalOwnsInput,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -168,6 +175,8 @@ pub(crate) struct NativeSessionView<'a> {
     focus: Option<&'a WorkbenchPanelId>,
     projection_status: NativeProjectionStatus,
     retirement: Option<NativeDisplayRetirement>,
+    board: Option<NativeAgentBoardView<'a>>,
+    board_summary: Option<AgentBoardSummary>,
 }
 
 impl<'a> NativeSessionView<'a> {
@@ -270,6 +279,7 @@ impl<'a> NativeSessionView<'a> {
             SessionNotice::CloseRequestNotApplied => NativeSessionNotice::CloseRequestNotApplied,
             SessionNotice::ConfirmationCancelled => NativeSessionNotice::ConfirmationCancelled,
             SessionNotice::DraftCancelled => NativeSessionNotice::DraftCancelled,
+            SessionNotice::ModalOwnsInput => NativeSessionNotice::ModalOwnsInput,
         })
     }
 
@@ -361,6 +371,18 @@ impl<'a> NativeSessionView<'a> {
     pub(crate) const fn retirement(&self) -> Option<NativeDisplayRetirement> {
         self.retirement
     }
+
+    /// The Agent board's read handle — `Some` only while the board is
+    /// open, so a closed board never paints and never claims hits.
+    pub(crate) const fn agent_board(&self) -> Option<&NativeAgentBoardView<'a>> {
+        self.board.as_ref()
+    }
+
+    /// The sidebar's summary of the last completed Agent read — `None`
+    /// when no read has completed, never an implied zero.
+    pub(crate) const fn agent_board_summary(&self) -> Option<AgentBoardSummary> {
+        self.board_summary
+    }
 }
 
 #[cfg(test)]
@@ -424,6 +446,11 @@ pub(super) struct NativeUi {
     mailbox: Option<Arc<CommandMailbox>>,
     clock: LocalOperationClock,
     state: Option<NativeSessionState>,
+    board: super::agent_board::AgentBoard,
+    /// `presentation_id → workbench placement` over the freshest observed
+    /// canonical snapshot — a pure function of that snapshot, rebuilt
+    /// whole on every snapshot-bearing event.
+    agent_index: super::agent_board::PresentationIndex,
     projections: Vec<KeyedProjection>,
     pending_draws: Vec<PendingDraw>,
     poll_cursor: usize,
@@ -470,6 +497,8 @@ impl NativeUi {
     pub(super) fn new(mailbox: Arc<CommandMailbox>, clock: LocalOperationClock) -> Self {
         Self {
             mailbox: Some(mailbox),
+            board: super::agent_board::AgentBoard::new(clock.clone()),
+            agent_index: super::agent_board::PresentationIndex::default(),
             clock,
             state: None,
             projections: Vec::new(),
@@ -515,6 +544,8 @@ impl NativeUi {
             focus,
             projection_status: focus_status,
             retirement: self.retirement,
+            board: self.agent_board_view(),
+            board_summary: self.board.summary(),
         }
     }
 
@@ -703,6 +734,9 @@ impl NativeUi {
             self.schedule_close_read(&mailbox);
             self.schedule_pane_reconcile(&mailbox);
             self.schedule_poll(&mailbox);
+            // The board lane and the jump stage machine live on the same
+            // fair tick as every other scheduled admission.
+            changed |= self.drive_agent_board();
         }
         acknowledged || changed || !self.pending_draws.is_empty()
     }
@@ -1044,6 +1078,13 @@ impl NativeUi {
         if let Some(state) = self.state.as_mut() {
             state.clear_settled_setup_status();
         }
+        // The board and every other surface are mutually exclusive: any
+        // action that is not the board's own toggle closes it first —
+        // navigator, help, sidebar, modals, and pane operations all take
+        // the overlay slot back.
+        if !matches!(action, ClientAction::ToggleAgentBoard) {
+            self.board.close();
+        }
         match action {
             ClientAction::RequestWorkspaceCreate
             | ClientAction::RequestWorkspaceDirectory
@@ -1093,6 +1134,7 @@ impl NativeUi {
                 self.panel_operation(PanelRequestKind::Move { direction })
             }
             ClientAction::OpenWorkbenchNavigator => self.open_navigator(),
+            ClientAction::ToggleAgentBoard => self.toggle_agent_board(),
             ClientAction::ToggleBusinessSidebar
             | ClientAction::OpenShortcutHelp
             | ClientAction::CloseShortcutHelp
@@ -1534,6 +1576,8 @@ impl NativeUi {
                 self.retire(CarrierFailure::Protocol);
                 return true;
             }
+            // The first canonical projection seeds the board's index.
+            self.agent_index.install_context(&cache);
             let mut installed = None;
             let result = mailbox.deposit_bootstrap_reply_before(
                 &wait_key,
@@ -1553,6 +1597,18 @@ impl NativeUi {
                 Ok(MutationResult::Stale) => return false,
                 Err(error) => return self.handle_event_error(error),
             }
+        }
+        // Every canonical snapshot rebuilds the board's presentation index
+        // whole — the index is a pure function of the freshest observed
+        // snapshot, never an accumulated second authority.
+        if let WorkerEvent::CreateSnapshotResult { outcome, .. }
+        | WorkerEvent::CloseReconciliationSnapshot { outcome, .. }
+        | WorkerEvent::SwitchSnapshotResult { outcome, .. }
+        | WorkerEvent::RefreshSnapshotResult { outcome, .. } = &event
+            && let orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available { snapshot } =
+                outcome
+        {
+            self.agent_index = super::agent_board::PresentationIndex::rebuild(snapshot);
         }
         let event = match event {
             WorkerEvent::CreateSnapshotResult { operation, outcome } => {
@@ -2167,6 +2223,7 @@ impl NativeUi {
         if self.retirement_failure.is_none() {
             self.retirement_poll_serial = self.ordinary_poll_serial;
         }
+        self.board.close();
         if let Some(state) = &mut self.state {
             state.close_carrier_retired();
             state.cancel_panel_close_confirmation();
@@ -2282,6 +2339,42 @@ fn build_switch(
     let key = AttachmentKey::new(generation, tab_id);
     let target = state
         .target_for_switch(index, key, deadlines)
+        .ok_or(ActionBuildError::Protocol)?;
+    if !state.begin_switch(target.clone()) {
+        return Err(ActionBuildError::Protocol);
+    }
+    Ok(SwitchMarker::new(target))
+}
+
+/// `build_switch` carrying the stable panel identity the Agent board's
+/// jump wants focused after the tab switch lands — the same admission
+/// checks, the same `begin_switch`, only the selected pane differs: it
+/// resolves `panel_id` to its current index instead of `panel(0)`.
+fn build_switch_for_panel(
+    state: &mut NativeSessionState,
+    action: ClientAction,
+    panel_id: &orchbee_workbench_protocol::WorkbenchPanelId,
+    generation: u64,
+    deadlines: OperationDeadlines,
+) -> Result<SwitchMarker, ActionBuildError> {
+    if !state.invariant_holds() {
+        return Err(ActionBuildError::Protocol);
+    }
+    let index = match state.plan_selection(action) {
+        SelectionPlan::Busy => return Err(ActionBuildError::Busy),
+        SelectionPlan::NoOp => return Err(ActionBuildError::NoOp),
+        SelectionPlan::OutOfRange(position) => {
+            return Err(ActionBuildError::OutOfRange(position));
+        }
+        SelectionPlan::Switch { index } => index,
+    };
+    let tab_id = state
+        .tab(index)
+        .map(|tab| tab.tab_id().clone())
+        .ok_or(ActionBuildError::Protocol)?;
+    let key = AttachmentKey::new(generation, tab_id);
+    let target = state
+        .target_for_switch_for_panel(index, key, deadlines, panel_id)
         .ok_or(ActionBuildError::Protocol)?;
     if !state.begin_switch(target.clone()) {
         return Err(ActionBuildError::Protocol);

@@ -19,6 +19,7 @@ pub(crate) enum PrefixAction {
     SelectTabDigit,
     SidebarToggle,
     NavigatorToggle,
+    BoardToggle,
     ShowHelp,
     HelpPagePrevious,
     HelpPageNext,
@@ -83,6 +84,7 @@ pub(crate) enum PrefixDesc {
     MovePanel,
     SidebarToggle,
     NavigatorToggle,
+    BoardToggle,
     ShowHelp,
     HelpPage,
     PointerCapture,
@@ -274,6 +276,14 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
             shell: ShellCommand::None,
         }],
         desc: PrefixDesc::NavigatorToggle,
+    },
+    PrefixGroup {
+        members: &[PrefixMember {
+            keys: key(KeyCode::Char('g')),
+            action: PrefixAction::BoardToggle,
+            shell: ShellCommand::None,
+        }],
+        desc: PrefixDesc::BoardToggle,
     },
     PrefixGroup {
         members: &[PrefixMember {

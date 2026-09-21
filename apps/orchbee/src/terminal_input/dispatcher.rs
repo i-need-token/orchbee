@@ -273,6 +273,16 @@ impl InputDispatcher {
                 // completed: pointer protocol consumed whole — never keys,
                 // never pending, never forwarded raw to the pane.
             }
+            _ if port.agent_board_input() => {
+                // The painted Agent board owns keyboard input between the
+                // armed prefix and the pane: keys feed its capture
+                // handler, paste and non-decision items are swallowed —
+                // nothing typed here ever reaches the pane.
+                self.flush_pending(view, port);
+                if let DecodedKind::Key(event) = item.kind {
+                    let _captured = port.capture_agent_board_key(event);
+                }
+            }
             _ => self.pending.extend_from_slice(&item.raw),
         }
         Ok(DispatchOutcome::Continue)

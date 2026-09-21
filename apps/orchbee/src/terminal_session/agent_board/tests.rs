@@ -1,0 +1,641 @@
+//! Board unit tests: the key map, selection/scroll bounds, the
+//! painted-verdict input gate, jump refusal and expiry paths, the pure
+//! staged-jump planner, and the presentation index join — plus the
+//! Linux-only lane outcome application. Nothing here needs a live OBAP
+//! endpoint; lane outcomes are injected as data.
+
+use super::*;
+use crate::client_view::{KeyCode, KeyEvent, Modifiers};
+use crate::local_client::test_server::adjustable_operation_clock;
+use crate::terminal_session::workbench_projection::NativeContextLocation;
+use orchbee_agent_observation_protocol::{
+    AgentAttachmentGeneration, AgentExecutionLocation, AgentExecutionLocationId, AgentObservation,
+    AgentObservationFidelity, AgentObservationSource, AgentPresentationId, AgentSafeInteger,
+};
+use orchbee_workbench_protocol::{
+    Navigation, PanelNode, Presentation, PresentationBinding, ProtocolVersion, SiteId, Snapshot,
+    Tab, TerminalContext, TerminalId, TerminalPresentationId, WorkbenchPanelId, WorkbenchProjectId,
+    WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId,
+};
+use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
+
+fn clock() -> crate::local_client::LocalOperationClock {
+    adjustable_operation_clock(Arc::new(AtomicU64::new(0)))
+}
+
+fn hex(seed: u64) -> String {
+    format!("{seed:032x}")
+}
+
+fn session_id(text: &str) -> AgentSessionId {
+    AgentSessionId::parse(text).expect("valid session id")
+}
+
+fn attachment(presentation: &str, navigable: bool) -> AgentPresentationAttachment {
+    AgentPresentationAttachment {
+        generation: AgentAttachmentGeneration::parse("gen-1").unwrap(),
+        navigable,
+        presentation_id: AgentPresentationId::parse(presentation).unwrap(),
+        visibility: AgentPresentationVisibility::Visible,
+    }
+}
+
+fn summary(session: &str, attachments: Vec<AgentPresentationAttachment>) -> AgentSessionSummary {
+    AgentSessionSummary {
+        execution_location: AgentExecutionLocation {
+            execution_location_id: AgentExecutionLocationId::parse("local").unwrap(),
+        },
+        lifecycle: AgentLifecycle::Live,
+        observation: AgentObservation {
+            fidelity: AgentObservationFidelity::Rich,
+            freshness: AgentObservationFreshness::Fresh,
+            generation: AgentSafeInteger::new(7),
+            sequence: AgentSafeInteger::new(3),
+            source: AgentObservationSource::Native,
+        },
+        parent_session_id: None,
+        pending_request_count: AgentSafeInteger::new(0),
+        presentation_attachments: attachments,
+        provider_id: AgentProviderId::parse("devin").unwrap(),
+        session_id: session_id(session),
+        status: AgentSemanticStatus::Idle {},
+    }
+}
+
+fn board_with(sessions: &[&str]) -> AgentBoard {
+    let mut board = AgentBoard::new(clock());
+    board.rows = sessions
+        .iter()
+        .map(|id| AgentBoardRow::from_summary(summary(id, vec![])))
+        .collect();
+    board
+}
+
+fn tab_id(seed: u64) -> WorkbenchTabId {
+    WorkbenchTabId::parse(&hex(seed)).unwrap()
+}
+
+fn panel_id(seed: u64) -> WorkbenchPanelId {
+    WorkbenchPanelId::parse(&hex(seed)).unwrap()
+}
+
+fn context_id(seed: u64) -> WorkbenchTerminalContextId {
+    WorkbenchTerminalContextId::parse(&hex(seed)).unwrap()
+}
+
+fn workspace_location(seed: u64) -> NativeContextLocation {
+    NativeContextLocation::Workspace {
+        project_id: WorkbenchProjectId::parse(&hex(seed + 100)).unwrap(),
+        workspace_id: WorkbenchWorkspaceId::parse(&hex(seed + 200)).unwrap(),
+        terminal_context_id: context_id(seed),
+    }
+}
+
+fn placement(location: NativeContextLocation, tab: u64, panel: u64) -> PresentationPlacement {
+    PresentationPlacement {
+        location,
+        tab_id: tab_id(tab),
+        panel_id: panel_id(panel),
+        tab_position: 1,
+        tab_label: "tab".into(),
+        panel_label: "panel".into(),
+        project_label: None,
+        workspace_label: None,
+    }
+}
+
+#[test]
+fn key_map_decodes_the_board_contract() {
+    let press = KeyEvent::press;
+    assert_eq!(
+        board_key_action(press(KeyCode::Up, Modifiers::NONE)),
+        Some(AgentBoardKeyAction::SelectUp)
+    );
+    assert_eq!(
+        board_key_action(press(KeyCode::Char('k'), Modifiers::NONE)),
+        Some(AgentBoardKeyAction::SelectUp)
+    );
+    assert_eq!(
+        board_key_action(press(KeyCode::Down, Modifiers::NONE)),
+        Some(AgentBoardKeyAction::SelectDown)
+    );
+    assert_eq!(
+        board_key_action(press(KeyCode::Char('j'), Modifiers::NONE)),
+        Some(AgentBoardKeyAction::SelectDown)
+    );
+    assert_eq!(
+        board_key_action(press(KeyCode::Enter, Modifiers::NONE)),
+        Some(AgentBoardKeyAction::Jump)
+    );
+    assert_eq!(
+        board_key_action(press(KeyCode::Char('r'), Modifiers::NONE)),
+        Some(AgentBoardKeyAction::Refresh)
+    );
+    assert_eq!(
+        board_key_action(press(KeyCode::Esc, Modifiers::NONE)),
+        Some(AgentBoardKeyAction::Close)
+    );
+    // Everything else — including the prefix chord's second key and any
+    // modified key — is swallowed by capture, never an action.
+    assert_eq!(
+        board_key_action(press(KeyCode::Char('g'), Modifiers::NONE)),
+        None
+    );
+    assert_eq!(board_key_action(press(KeyCode::Up, Modifiers::CTRL)), None);
+    assert_eq!(
+        board_key_action(press(KeyCode::Char('x'), Modifiers::NONE)),
+        None
+    );
+}
+
+#[test]
+fn open_queues_refresh_and_close_invalidates_everything() {
+    let mut board = board_with(&["s-1"]);
+    board.open();
+    assert!(board.is_open());
+    assert!(matches!(board.intent, Some(BoardIntent::Refresh)));
+    let epoch = board.epoch;
+    board.jump = Some(BoardJump {
+        serial: 1,
+        stage: JumpStage::Checking,
+        deadline: Instant::now(),
+    });
+    board.notice = Some(JumpFailure::Gone);
+    board.close();
+    assert!(!board.is_open());
+    assert!(!board.owns_input());
+    assert_eq!(board.epoch, epoch + 1);
+    assert!(board.intent.is_none());
+    assert!(board.inflight.is_none());
+    assert!(board.jump.is_none());
+    assert!(board.notice.is_none());
+}
+
+#[test]
+fn selection_and_scroll_clamp_to_the_row_window() {
+    let mut board = board_with(&["s-1", "s-2", "s-3", "s-4", "s-5"]);
+    board.viewport_rows = 2;
+    board.move_selection(10);
+    assert_eq!(board.selection, 4);
+    assert_eq!(board.scroll, 3);
+    board.move_selection(-10);
+    assert_eq!(board.selection, 0);
+    assert_eq!(board.scroll, 0);
+    board.scroll_by(100);
+    assert_eq!(board.scroll, 3);
+    board.scroll_by(-100);
+    assert_eq!(board.scroll, 0);
+}
+
+#[test]
+fn pointer_select_resolves_by_stable_identity() {
+    let mut board = board_with(&["s-1", "s-2", "s-3"]);
+    board.open();
+    assert!(board.select_session(&session_id("s-2")));
+    assert_eq!(board.selection, 1);
+    // A stale-map click on a session that left resolves to nothing and
+    // leaves the selection untouched — never a positional guess.
+    assert!(!board.select_session(&session_id("s-9")));
+    assert_eq!(board.selection, 1);
+}
+
+#[test]
+fn settle_draw_gates_input_on_the_painted_verdict() {
+    let mut board = board_with(&["s-1"]);
+    board.open();
+    assert!(!board.owns_input());
+    board.settle_draw(Some(AgentBoardDraw {
+        presented: true,
+        viewport_rows: 4,
+    }));
+    assert!(board.owns_input());
+    assert_eq!(board.viewport_rows, 4);
+    // An unpainted verdict withdraws input ownership immediately.
+    board.settle_draw(Some(AgentBoardDraw {
+        presented: false,
+        viewport_rows: 0,
+    }));
+    assert!(!board.owns_input());
+    assert_eq!(board.viewport_rows, 4);
+    board.close();
+    // A stale receipt after close can never reopen ownership.
+    board.settle_draw(Some(AgentBoardDraw {
+        presented: true,
+        viewport_rows: 4,
+    }));
+    assert!(!board.owns_input());
+}
+
+#[test]
+fn request_jump_refuses_a_row_without_navigable_attachment() {
+    let mut board = AgentBoard::new(clock());
+    board.rows = vec![AgentBoardRow::from_summary(summary(
+        "s-1",
+        vec![attachment(&hex(9), false)],
+    ))];
+    board.open();
+    board.request_jump();
+    assert_eq!(board.notice, Some(JumpFailure::NoPlacement));
+    assert!(board.jump.is_none());
+    assert!(board.inflight.is_none());
+    assert!(!matches!(board.intent, Some(BoardIntent::Jump { .. })));
+}
+
+#[test]
+fn request_jump_on_a_navigable_row_queues_the_intent() {
+    let mut board = AgentBoard::new(clock());
+    board.rows = vec![AgentBoardRow::from_summary(summary(
+        "s-1",
+        vec![attachment(&hex(9), true)],
+    ))];
+    board.open();
+    board.request_jump();
+    assert!(board.notice.is_none());
+    assert!(matches!(board.intent, Some(BoardIntent::Jump { .. })));
+}
+
+#[test]
+fn expire_jump_reports_budget_exhaustion() {
+    let mut board = AgentBoard::new(clock());
+    board.open();
+    let deadline = Instant::now();
+    board.jump = Some(BoardJump {
+        serial: 1,
+        stage: JumpStage::Checking,
+        deadline,
+    });
+    assert!(!board.expire_jump(deadline - Duration::from_secs(1)));
+    assert!(board.expire_jump(deadline + Duration::from_secs(1)));
+    assert_eq!(board.notice, Some(JumpFailure::Expired));
+    assert!(board.jump.is_none());
+}
+
+#[test]
+fn jump_plan_walks_context_then_tab_then_panel() {
+    let standalone = NativeContextLocation::Standalone(context_id(1));
+    let workspace = workspace_location(2);
+    let target = placement(workspace.clone(), 5, 6);
+    let contexts = vec![standalone.clone(), workspace.clone()];
+    // Wrong context: select the owning 0-based position.
+    assert_eq!(
+        plan_jump_step(
+            &target,
+            Some(&standalone),
+            &contexts,
+            Some(0),
+            None,
+            None,
+            false,
+            false
+        ),
+        JumpStep::SelectContext(1)
+    );
+    // A context selection already in flight waits.
+    assert_eq!(
+        plan_jump_step(
+            &target,
+            Some(&standalone),
+            &contexts,
+            Some(0),
+            None,
+            None,
+            true,
+            false
+        ),
+        JumpStep::Wait
+    );
+    // The owning context vanished from navigation: candidate advances.
+    assert_eq!(
+        plan_jump_step(
+            &target,
+            Some(&standalone),
+            &[standalone.clone()],
+            Some(0),
+            None,
+            None,
+            false,
+            false
+        ),
+        JumpStep::Advance
+    );
+    // Right context, but the tab no longer resolves in the cache.
+    assert_eq!(
+        plan_jump_step(
+            &target,
+            Some(&workspace),
+            &contexts,
+            None,
+            None,
+            None,
+            false,
+            false
+        ),
+        JumpStep::Advance
+    );
+    // Right context, other tab active: select the tab's 1-based position.
+    let other_tab = tab_id(7);
+    assert_eq!(
+        plan_jump_step(
+            &target,
+            Some(&workspace),
+            &contexts,
+            Some(1),
+            Some(&other_tab),
+            None,
+            false,
+            false
+        ),
+        JumpStep::SelectTab(2)
+    );
+    // A tab switch already in flight waits rather than double-issuing.
+    assert_eq!(
+        plan_jump_step(
+            &target,
+            Some(&workspace),
+            &contexts,
+            Some(1),
+            Some(&other_tab),
+            None,
+            false,
+            true
+        ),
+        JumpStep::Wait
+    );
+    // Right context and tab, wrong panel focus: focus the target panel.
+    let other_panel = panel_id(8);
+    assert_eq!(
+        plan_jump_step(
+            &target,
+            Some(&workspace),
+            &contexts,
+            Some(1),
+            Some(&target.tab_id),
+            Some(&other_panel),
+            false,
+            false
+        ),
+        JumpStep::FocusPanel(target.panel_id.clone())
+    );
+    // Right context, tab, and focus: the jump landed.
+    assert_eq!(
+        plan_jump_step(
+            &target,
+            Some(&workspace),
+            &contexts,
+            Some(1),
+            Some(&target.tab_id),
+            Some(&target.panel_id),
+            false,
+            false
+        ),
+        JumpStep::Landed
+    );
+}
+
+#[test]
+fn presentation_index_resolves_only_live_panel_identities() {
+    let context = context_id(2);
+    let presentation = TerminalPresentationId::parse(&hex(42)).unwrap();
+    let snapshot = Snapshot {
+        navigation: Navigation {
+            projects: Vec::new(),
+            standalone_terminal_context_id: context.clone(),
+        },
+        protocol_version: ProtocolVersion,
+        revision: WorkbenchRevision::new(1),
+        site_id: SiteId::parse(&hex(1)).unwrap(),
+        terminal_contexts: vec![TerminalContext {
+            groups: Vec::new(),
+            terminal_context_id: context,
+            tabs: vec![Tab {
+                group_id: None,
+                pinned: false,
+                label: "Tab".into(),
+                tab_id: tab_id(5),
+                root: PanelNode::Panel {
+                    child_presentations: Vec::new(),
+                    panel_id: panel_id(6),
+                    primary_presentation: Presentation {
+                        label: "Terminal".to_owned(),
+                        presentation_id: presentation.clone(),
+                        binding: Some(PresentationBinding {
+                            terminal_id: TerminalId::parse(&hex(7)).unwrap(),
+                            worker_id: WorkerId::parse(&hex(8)).unwrap(),
+                        }),
+                    },
+                },
+            }],
+        }],
+    };
+    let index = PresentationIndex::rebuild(&snapshot);
+    assert_eq!(index.len(), 1);
+    // The attachment's stable presentation identity lands on the exact
+    // context/tab/panel the canonical snapshot projects.
+    let hit = index
+        .placement(&attachment(&hex(42), true))
+        .expect("registered presentation resolves");
+    assert_eq!(hit.tab_id, tab_id(5));
+    assert_eq!(hit.panel_id, panel_id(6));
+    assert_eq!(
+        hit.location,
+        NativeContextLocation::Standalone(context_id(2))
+    );
+    // An identity the snapshot never painted resolves to nothing — the
+    // jump's Gone path, never a guess.
+    assert!(index.placement(&attachment(&hex(43), true)).is_none());
+}
+
+#[cfg(target_os = "linux")]
+mod lane_outcomes {
+    use super::*;
+    use orchbee_agent_observation_protocol::{
+        AgentCapability, AgentSessionDetail, AgentSessionSnapshot, AgentTurnState,
+    };
+
+    #[test]
+    fn list_outcome_replaces_rows_and_marks_incomplete() {
+        let mut board = AgentBoard::new(clock());
+        board.open();
+        board.inflight = Some(BoardInflight::ListRound);
+        let epoch = board.epoch;
+        board.apply_list_outcome(
+            epoch,
+            Ok(lane::ListRound {
+                items: vec![summary("s-1", vec![]), summary("s-2", vec![])],
+                complete: false,
+            }),
+            Instant::now(),
+        );
+        assert_eq!(board.rows.len(), 2);
+        assert!(matches!(
+            board.read,
+            AgentBoardRead::Ready {
+                complete: false,
+                ..
+            }
+        ));
+        assert!(board.inflight.is_none());
+    }
+
+    #[test]
+    fn stale_epoch_outcome_is_dropped_without_touching_rows() {
+        let mut board = AgentBoard::new(clock());
+        board.open();
+        board.inflight = Some(BoardInflight::ListRound);
+        board.apply_list_outcome(
+            board.epoch + 1,
+            Ok(lane::ListRound {
+                items: vec![summary("s-1", vec![])],
+                complete: true,
+            }),
+            Instant::now(),
+        );
+        assert!(board.rows.is_empty());
+        // The in-flight marker stays: the current epoch's request is
+        // still owed an outcome.
+        assert!(matches!(board.inflight, Some(BoardInflight::ListRound)));
+    }
+
+    fn detail(
+        session: &str,
+        lifecycle: AgentLifecycle,
+        attachments: Vec<AgentPresentationAttachment>,
+    ) -> AgentSessionDetail {
+        AgentSessionDetail {
+            snapshot: AgentSessionSnapshot {
+                activity_hint: None,
+                capabilities: vec![AgentCapability::SessionLifecycle],
+                execution_location: AgentExecutionLocation {
+                    execution_location_id: AgentExecutionLocationId::parse("local").unwrap(),
+                },
+                last_outcome: None,
+                lifecycle,
+                observation: AgentObservation {
+                    fidelity: AgentObservationFidelity::Basic,
+                    freshness: AgentObservationFreshness::Stale,
+                    generation: AgentSafeInteger::new(2),
+                    sequence: AgentSafeInteger::new(9),
+                    source: AgentObservationSource::Hook,
+                },
+                parent_session_id: None,
+                pending_requests: Vec::new(),
+                presentation_attachments: attachments,
+                provider_id: AgentProviderId::parse("devin").unwrap(),
+                session_id: session_id(session),
+                turn: AgentTurnState::Idle {},
+            },
+            status: AgentSemanticStatus::Idle {},
+        }
+    }
+
+    #[test]
+    fn get_outcome_orders_candidates_and_starts_navigating() {
+        let mut board = AgentBoard::new(clock());
+        board.open();
+        board.jump = Some(BoardJump {
+            serial: 7,
+            stage: JumpStage::Checking,
+            deadline: Instant::now() + Duration::from_secs(5),
+        });
+        board.inflight = Some(BoardInflight::JumpGet { serial: 7 });
+        let epoch = board.epoch;
+        board.apply_get_outcome(
+            epoch,
+            7,
+            Ok(AgentGetOutcome::Found {
+                revision: AgentSafeInteger::new(1),
+                session: Box::new(detail(
+                    "s-1",
+                    AgentLifecycle::Live,
+                    vec![attachment(&hex(9), true), attachment(&hex(10), true)],
+                )),
+            }),
+            &mut |_: &orchbee_agent_observation_protocol::AgentPresentationAttachment| false,
+        );
+        let Some(jump) = board.jump.as_ref() else {
+            panic!("jump survives the verified get");
+        };
+        let JumpStage::Navigating { candidates, index } = &jump.stage else {
+            panic!("found outcome enters navigation");
+        };
+        assert_eq!(*index, 0);
+        assert_eq!(candidates.len(), 2);
+        // Deterministic order: ascending stable presentation identity
+        // when nothing prefers the active tab.
+        assert_eq!(candidates[0].presentation_id.as_str(), hex(9).as_str());
+        assert_eq!(candidates[1].presentation_id.as_str(), hex(10).as_str());
+    }
+
+    #[test]
+    fn get_outcome_candidate_exhaustion_fails_gone() {
+        let mut board = AgentBoard::new(clock());
+        board.open();
+        board.jump = Some(BoardJump {
+            serial: 7,
+            stage: JumpStage::Navigating {
+                candidates: vec![attachment(&hex(9), true)].into_boxed_slice(),
+                index: 0,
+            },
+            deadline: Instant::now() + Duration::from_secs(5),
+        });
+        assert!(board.advance_jump_candidate());
+        assert_eq!(board.notice, Some(JumpFailure::Gone));
+        assert!(board.jump.is_none());
+    }
+
+    #[test]
+    fn get_outcome_ended_lifecycle_refuses_before_navigation() {
+        let mut board = AgentBoard::new(clock());
+        board.open();
+        board.jump = Some(BoardJump {
+            serial: 7,
+            stage: JumpStage::Checking,
+            deadline: Instant::now() + Duration::from_secs(5),
+        });
+        board.inflight = Some(BoardInflight::JumpGet { serial: 7 });
+        let epoch = board.epoch;
+        board.apply_get_outcome(
+            epoch,
+            7,
+            Ok(AgentGetOutcome::Found {
+                revision: AgentSafeInteger::new(1),
+                session: Box::new(detail("s-1", AgentLifecycle::Ended, vec![])),
+            }),
+            &mut |_: &orchbee_agent_observation_protocol::AgentPresentationAttachment| false,
+        );
+        assert_eq!(board.notice, Some(JumpFailure::Ended));
+        assert!(board.jump.is_none());
+    }
+
+    #[test]
+    fn get_outcome_for_a_superseded_serial_is_dropped() {
+        let mut board = AgentBoard::new(clock());
+        board.open();
+        board.jump = Some(BoardJump {
+            serial: 8,
+            stage: JumpStage::Checking,
+            deadline: Instant::now() + Duration::from_secs(5),
+        });
+        board.inflight = Some(BoardInflight::JumpGet { serial: 8 });
+        let epoch = board.epoch;
+        // Serial 7's outcome arrives after serial 8 took over — dropped.
+        board.apply_get_outcome(
+            epoch,
+            7,
+            Ok(AgentGetOutcome::Found {
+                revision: AgentSafeInteger::new(1),
+                session: Box::new(detail("s-1", AgentLifecycle::Live, vec![])),
+            }),
+            &mut |_: &orchbee_agent_observation_protocol::AgentPresentationAttachment| false,
+        );
+        assert!(matches!(
+            board.inflight,
+            Some(BoardInflight::JumpGet { serial: 8 })
+        ));
+        assert!(matches!(
+            board.jump.as_ref().map(|jump| &jump.stage),
+            Some(JumpStage::Checking)
+        ));
+    }
+}

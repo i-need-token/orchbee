@@ -6,7 +6,7 @@ mod keys;
 pub(crate) use bindings::{
     PREFIX_CHORD, PREFIX_GROUPS, PrefixAction, PrefixDesc, PrefixGroup, match_prefix,
 };
-pub(crate) use keys::{KeyCode, KeyEvent, KeyKind, LabelStyle, Modifiers, format_binding};
+pub(crate) use keys::{Binding, KeyCode, KeyEvent, KeyKind, LabelStyle, Modifiers, format_binding};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ViewportClass {
@@ -80,6 +80,8 @@ pub(crate) enum ClientAction {
     PageShortcutHelp,
     OpenWorkbenchNavigator,
     CloseWorkbenchNavigator,
+    /// `Ctrl+B g` — toggles the session-owned Agent board overlay.
+    ToggleAgentBoard,
     CreateTab,
     SelectNextTab,
     SelectPreviousTab,
@@ -209,6 +211,7 @@ impl ClientAction {
             | Self::PageShortcutHelp
             | Self::OpenWorkbenchNavigator
             | Self::CloseWorkbenchNavigator
+            | Self::ToggleAgentBoard
             | Self::TogglePointerCapture
             | Self::ForwardLiteralPrefix
             | Self::DismissPrefix
@@ -440,6 +443,13 @@ impl ClientView {
                     self.overlay = Some(Overlay::WorkbenchNavigator);
                     (ClientAction::OpenWorkbenchNavigator, ShellCommand::None)
                 }
+            }
+            PrefixAction::BoardToggle => {
+                // The board lives session-side and is mutually exclusive
+                // with every client overlay: toggling it always takes the
+                // overlay slot — the session decides open vs. close.
+                self.overlay = None;
+                (ClientAction::ToggleAgentBoard, ShellCommand::None)
             }
             PrefixAction::ShowHelp => {
                 // The same binding opens and closes the help overlay so the

@@ -83,6 +83,12 @@ pub(crate) enum HitTarget {
     /// Painted overlay body with no action — swallows the click so it
     /// cannot reach the layer beneath.
     OverlaySurface,
+    /// An Agent board row — carries the row's stable session identity so
+    /// a later click resolves against current rows, never a position.
+    AgentBoardRow(orchbee_agent_observation_protocol::AgentSessionId),
+    /// The Agent board's painted body outside its rows — swallows the
+    /// press, and a wheel notch scrolls the row window.
+    AgentBoardSurface,
 }
 
 #[derive(Clone, Debug)]
@@ -541,11 +547,50 @@ impl PointerState {
                 // dies here — nothing reaches the regions beneath.
                 if event.action == MouseAction::Press {
                     view.dismiss_overlay();
+                    // The board's own wheel guard: an outside wheel notch
+                    // is swallowed whole — only an ordinary outside Press
+                    // dismisses the board. Other overlays keep their
+                    // existing backdrop semantics above.
+                    if !matches!(event.button, MouseButton::WheelUp | MouseButton::WheelDown) {
+                        port.agent_board_dismiss();
+                    }
                     return PointerOutcome::RegionsChanged;
                 }
                 PointerOutcome::Ignored
             }
             HitResolution::Region(HitTarget::OverlaySurface) => PointerOutcome::Ignored,
+            HitResolution::Region(HitTarget::AgentBoardRow(session)) => {
+                if event.action != MouseAction::Press {
+                    return PointerOutcome::Ignored;
+                }
+                match event.button {
+                    MouseButton::WheelUp | MouseButton::WheelDown => {
+                        // Wheel scrolls the board's row window — the map
+                        // stays valid because row targets re-resolve by
+                        // stable session identity, never position.
+                        let _scrolled =
+                            port.agent_board_scroll(event.button == MouseButton::WheelUp);
+                        PointerOutcome::Handled
+                    }
+                    _ => {
+                        // Identity re-resolution makes a stale-map click
+                        // safe: the session is selected wherever it now
+                        // sits, or the click dies cleanly if it left.
+                        let _selected = port.agent_board_select(session);
+                        PointerOutcome::Handled
+                    }
+                }
+            }
+            HitResolution::Region(HitTarget::AgentBoardSurface) => {
+                if event.action == MouseAction::Press
+                    && matches!(event.button, MouseButton::WheelUp | MouseButton::WheelDown)
+                {
+                    let _scrolled = port.agent_board_scroll(event.button == MouseButton::WheelUp);
+                    PointerOutcome::Handled
+                } else {
+                    PointerOutcome::Ignored
+                }
+            }
             HitResolution::Region(HitTarget::Tab(tab)) => {
                 if event.action != MouseAction::Press {
                     return PointerOutcome::Ignored;

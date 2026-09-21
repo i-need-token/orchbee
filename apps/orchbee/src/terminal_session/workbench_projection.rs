@@ -203,7 +203,8 @@ impl NativePanel {
         &self.panel_id
     }
 
-    #[cfg(test)]
+    /// The panel's stable presentation identity — the join key the Agent
+    /// board's presentation index resolves `AgentPresentationId` against.
     pub(super) fn presentation_id(&self) -> &TerminalPresentationId {
         &self.presentation_id
     }

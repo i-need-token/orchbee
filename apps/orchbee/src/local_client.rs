@@ -61,6 +61,22 @@ impl LocalClientOrigin {
         client.clock = clock;
         Ok(client)
     }
+
+    /// `reconnect_before` with the owner's borrowed wake descriptor joined
+    /// into the admission wait set — the narrow second-lane variant: it only
+    /// forwards the private endpoint/cohort to the existing cancellable
+    /// admission and reinstates the caller's clock, copying nothing else.
+    pub(crate) fn reconnect_before_cancellable(
+        &self,
+        deadline: Instant,
+        clock: LocalOperationClock,
+        wake: Option<BorrowedFd<'_>>,
+    ) -> Result<LocalClient, LocalClientConnectError> {
+        let mut client =
+            LocalClient::connect_before_cancellable(&self.endpoint, &self.cohort, deadline, wake)?;
+        client.clock = clock;
+        Ok(client)
+    }
 }
 
 impl LocalClient {

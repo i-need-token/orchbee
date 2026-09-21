@@ -45,6 +45,7 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::MovePanel => "Move focused Panel to that side (requires Site)",
         PrefixDesc::SidebarToggle => "Toggle business sidebar",
         PrefixDesc::NavigatorToggle => "Toggle Workbench navigator",
+        PrefixDesc::BoardToggle => "Toggle the Agent board",
         PrefixDesc::ShowHelp => "Open or close this shortcut help",
         PrefixDesc::HelpPage => "Page this shortcut help while it is open",
         PrefixDesc::PointerCapture => "Release or restore mouse capture",
@@ -75,6 +76,7 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::MovePanel => "将焦点 Panel 移向该侧（需要 Site）",
         PrefixDesc::SidebarToggle => "切换业务侧边栏",
         PrefixDesc::NavigatorToggle => "切换 Workbench 导航器",
+        PrefixDesc::BoardToggle => "切换智能体看板",
         PrefixDesc::ShowHelp => "打开或关闭此快捷键帮助",
         PrefixDesc::HelpPage => "在帮助打开时翻看此快捷键帮助的页面",
         PrefixDesc::PointerCapture => "释放或恢复鼠标捕获",
@@ -109,10 +111,42 @@ fn group_chord(group: &PrefixGroup) -> String {
     format!("{prefix} {}", labels.join(separator))
 }
 
+/// The Agent board's localized copy. Read-state lines, jump-refusal
+/// notices, and the input hint all live behind this struct so the
+/// renderer never hard-codes product copy.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct AgentBoardText {
+    pub(crate) title: &'static str,
+    /// No completed read yet — never rendered as "no Agents".
+    pub(crate) unread: &'static str,
+    pub(crate) in_flight: &'static str,
+    /// The page walk exhausted its bound — shown, never hidden.
+    pub(crate) incomplete: &'static str,
+    pub(crate) read_denied: &'static str,
+    pub(crate) read_unavailable: &'static str,
+    pub(crate) read_transport: &'static str,
+    pub(crate) lane_unavailable: &'static str,
+    /// A completed read found zero sessions.
+    pub(crate) empty: &'static str,
+    pub(crate) jumping: &'static str,
+    pub(crate) footer: &'static str,
+    pub(crate) stale: &'static str,
+    pub(crate) disconnected: &'static str,
+    pub(crate) ended: &'static str,
+    pub(crate) standalone: &'static str,
+    pub(crate) jump_gone: &'static str,
+    pub(crate) jump_unavailable: &'static str,
+    pub(crate) jump_denied: &'static str,
+    pub(crate) jump_ended: &'static str,
+    pub(crate) jump_no_placement: &'static str,
+    pub(crate) jump_expired: &'static str,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ShellText {
     pub(crate) agents: &'static str,
     pub(crate) app_title: &'static str,
+    pub(crate) board: AgentBoardText,
     pub(crate) backend_status: &'static str,
     pub(crate) business_section: &'static str,
     pub(crate) exit_hint: &'static str,
@@ -177,9 +211,34 @@ impl ShellText {
     }
 }
 
+const EN_US_BOARD: AgentBoardText = AgentBoardText {
+    title: "Agent board",
+    unread: "No completed Agent read yet · press r to read",
+    in_flight: "Reading Agent sessions…",
+    incomplete: "listing incomplete",
+    read_denied: "Agent read denied",
+    read_unavailable: "Agent runtime unavailable",
+    read_transport: "Agent read failed · transport",
+    lane_unavailable: "Agent board unavailable · no read lane",
+    empty: "No Agent sessions",
+    jumping: "Jumping…",
+    footer: "↑/k ↓/j select · Enter jump · r refresh · Esc close",
+    stale: "stale",
+    disconnected: "disconnected",
+    ended: "ended",
+    standalone: "Standalone",
+    jump_gone: "Session or its panel is gone",
+    jump_unavailable: "Cannot verify session · read unavailable",
+    jump_denied: "Session read denied",
+    jump_ended: "Session has ended",
+    jump_no_placement: "Session has no navigable panel",
+    jump_expired: "Jump timed out",
+};
+
 const EN_US_SHELL: ShellText = ShellText {
     agents: "Agents",
     app_title: "ORCHBEE",
+    board: EN_US_BOARD,
     backend_status: "Backend unavailable",
     business_section: "BUSINESS",
     exit_hint: "Ctrl+B q · exit",
@@ -212,9 +271,34 @@ const EN_US_SHELL: ShellText = ShellText {
     zoom_badge: "zoomed · Ctrl+B z restores",
 };
 
+const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
+    title: "智能体看板",
+    unread: "尚未完成智能体读取 · 按 r 读取",
+    in_flight: "正在读取智能体会话…",
+    incomplete: "列表不完整",
+    read_denied: "智能体读取被拒绝",
+    read_unavailable: "智能体运行时不可用",
+    read_transport: "智能体读取失败 · 传输错误",
+    lane_unavailable: "看板不可用 · 无读取通道",
+    empty: "没有智能体会话",
+    jumping: "正在跳转…",
+    footer: "↑/k ↓/j 选择 · Enter 跳转 · r 刷新 · Esc 关闭",
+    stale: "已过期",
+    disconnected: "已断连",
+    ended: "已结束",
+    standalone: "独立终端",
+    jump_gone: "会话或其面板已不存在",
+    jump_unavailable: "无法验证会话 · 读取不可用",
+    jump_denied: "会话读取被拒绝",
+    jump_ended: "会话已结束",
+    jump_no_placement: "会话没有可跳转的面板",
+    jump_expired: "跳转超时",
+};
+
 const ZH_CN_SHELL: ShellText = ShellText {
     agents: "智能体",
     app_title: "ORCHBEE",
+    board: ZH_CN_BOARD,
     backend_status: "后端不可用",
     business_section: "业务",
     exit_hint: "Ctrl+B q · 退出",
@@ -624,6 +708,121 @@ impl Locale {
         }
     }
 
+    /// One board row's canonical semantic status, rendered verbatim —
+    /// the board localizes the server's verdict, never reinterprets it.
+    #[cfg(unix)]
+    pub(crate) fn agent_status(
+        self,
+        status: &orchbee_agent_observation_protocol::AgentSemanticStatus,
+    ) -> String {
+        use orchbee_agent_observation_protocol::AgentSemanticStatus;
+        match status {
+            AgentSemanticStatus::NeedsAttention { count } => match self {
+                Self::EnUs => format!("needs attention · {}", count.value()),
+                Self::ZhCn => format!("需要关注 · {}", count.value()),
+            },
+            AgentSemanticStatus::Failed {} => match self {
+                Self::EnUs => "failed".to_owned(),
+                Self::ZhCn => "失败".to_owned(),
+            },
+            AgentSemanticStatus::Succeeded {} => match self {
+                Self::EnUs => "succeeded".to_owned(),
+                Self::ZhCn => "已完成".to_owned(),
+            },
+            AgentSemanticStatus::Canceled {} => match self {
+                Self::EnUs => "canceled".to_owned(),
+                Self::ZhCn => "已取消".to_owned(),
+            },
+            AgentSemanticStatus::Interrupted {} => match self {
+                Self::EnUs => "interrupted".to_owned(),
+                Self::ZhCn => "已中断".to_owned(),
+            },
+            AgentSemanticStatus::Working { .. } => match self {
+                Self::EnUs => "working".to_owned(),
+                Self::ZhCn => "工作中".to_owned(),
+            },
+            AgentSemanticStatus::Idle {} => match self {
+                Self::EnUs => "idle".to_owned(),
+                Self::ZhCn => "空闲".to_owned(),
+            },
+            AgentSemanticStatus::Unknown { .. } => match self {
+                Self::EnUs => "unknown".to_owned(),
+                Self::ZhCn => "未知".to_owned(),
+            },
+            AgentSemanticStatus::Ended {} => match self {
+                Self::EnUs => "ended".to_owned(),
+                Self::ZhCn => "已结束".to_owned(),
+            },
+        }
+    }
+
+    /// The board body's line for a non-ready read state.
+    #[cfg(unix)]
+    pub(crate) fn agent_board_read_line(
+        self,
+        read: crate::terminal_session::AgentBoardRead,
+    ) -> &'static str {
+        use crate::terminal_session::{AgentBoardRead, AgentBoardReadFailure};
+        let board = self.shell().board;
+        match read {
+            AgentBoardRead::Unread => board.unread,
+            AgentBoardRead::InFlight => board.in_flight,
+            AgentBoardRead::Failed(AgentBoardReadFailure::Denied) => board.read_denied,
+            AgentBoardRead::Failed(AgentBoardReadFailure::Unavailable) => board.read_unavailable,
+            AgentBoardRead::Failed(AgentBoardReadFailure::Transport) => board.read_transport,
+            AgentBoardRead::Failed(AgentBoardReadFailure::LaneUnavailable) => {
+                board.lane_unavailable
+            }
+            AgentBoardRead::Ready { .. } => board.empty,
+        }
+    }
+
+    /// A jump refusal's board notice.
+    #[cfg(unix)]
+    pub(crate) fn agent_board_notice(
+        self,
+        failure: crate::terminal_session::JumpFailure,
+    ) -> &'static str {
+        use crate::terminal_session::JumpFailure;
+        let board = self.shell().board;
+        match failure {
+            JumpFailure::Gone => board.jump_gone,
+            JumpFailure::Unavailable => board.jump_unavailable,
+            JumpFailure::Denied => board.jump_denied,
+            JumpFailure::Ended => board.jump_ended,
+            JumpFailure::NoPlacement => board.jump_no_placement,
+            JumpFailure::Expired => board.jump_expired,
+        }
+    }
+
+    /// The sidebar's one-line Agent summary: the last *completed* read's
+    /// count plus its completeness and age marks — `None` input means no
+    /// completed read ever ran and the line must not exist at all.
+    #[cfg(unix)]
+    pub(crate) fn agent_sidebar_line(
+        self,
+        summary: crate::terminal_session::AgentBoardSummary,
+        elapsed: std::time::Duration,
+    ) -> String {
+        let seconds = elapsed.as_secs();
+        let mark = if summary.complete { "" } else { "+" };
+        match self {
+            Self::EnUs => {
+                format!(
+                    "  {} {} · {}s ago",
+                    summary.sessions,
+                    if summary.sessions == 1 {
+                        "agent"
+                    } else {
+                        "agents"
+                    },
+                    seconds,
+                ) + mark
+            }
+            Self::ZhCn => format!("  智能体 {} · {}秒前", summary.sessions, seconds) + mark,
+        }
+    }
+
     pub(crate) fn native_notice(
         self,
         notice: crate::terminal_session::NativeSessionNotice,
@@ -656,6 +855,10 @@ impl Locale {
             NativeSessionNotice::DraftCancelled => match self {
                 Self::EnUs => "Draft cancelled".to_owned(),
                 Self::ZhCn => "草稿已取消".to_owned(),
+            },
+            NativeSessionNotice::ModalOwnsInput => match self {
+                Self::EnUs => "Close the active dialog first".to_owned(),
+                Self::ZhCn => "请先关闭当前对话框".to_owned(),
             },
         }
     }

@@ -172,6 +172,36 @@ pub(crate) trait TerminalInputPort {
         false
     }
 
+    /// Whether the session's Agent board currently owns input — the
+    /// painted-verdict flag the dispatcher consults between the armed
+    /// prefix and the pane-forward layer.
+    fn agent_board_input(&mut self) -> bool {
+        false
+    }
+
+    /// One decoded key while the board owns input. Consumed regardless of
+    /// outcome — capture guarantees nothing typed reaches the pane.
+    fn capture_agent_board_key(&mut self, _key: crate::client_view::KeyEvent) -> bool {
+        false
+    }
+
+    /// A press on a painted board row — resolves by stable session
+    /// identity, never by position.
+    fn agent_board_select(
+        &mut self,
+        _session: &orchbee_agent_observation_protocol::AgentSessionId,
+    ) -> bool {
+        false
+    }
+
+    /// A wheel notch over the board surface — scrolls its row window.
+    fn agent_board_scroll(&mut self, _up: bool) -> bool {
+        false
+    }
+
+    /// An outside press dismissed the board's capturing overlay.
+    fn agent_board_dismiss(&mut self) {}
+
     fn invalidate_close_display(&mut self) {}
 
     fn rename_input_context(&mut self) -> Option<NativeRenameInputContext> {

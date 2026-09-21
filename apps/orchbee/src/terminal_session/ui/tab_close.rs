@@ -42,6 +42,10 @@ pub(crate) struct NativeDrawReceipt {
     rename: Option<ModalPresentation<super::NativeRenameDraftToken>>,
     setup: Option<ModalPresentation<super::NativeSetupToken>>,
     panel_prompt: Option<ModalPresentation<NativePanelCloseConfirmationToken>>,
+    /// The Agent board's painted verdict: `Some` while the board is open —
+    /// `presented` gates its input capture and `viewport_rows` bounds its
+    /// selection window. `None` means the board is closed.
+    agent_board: Option<super::AgentBoardDraw>,
     /// The shortcut-help page the renderer actually presented, reported back
     /// to the ClientView through the draw receipt so the dispatcher's page
     /// state settles on the clamped value (render never mutates it).
@@ -52,8 +56,18 @@ impl NativeDrawReceipt {
     pub(crate) const fn help_page(self) -> Option<usize> {
         self.help_page
     }
+    pub(crate) const fn agent_board(self) -> Option<super::AgentBoardDraw> {
+        self.agent_board
+    }
     pub(crate) const fn with_help_page(mut self, help_page: Option<usize>) -> Self {
         self.help_page = help_page;
+        self
+    }
+    pub(crate) const fn with_agent_board(
+        mut self,
+        agent_board: Option<super::AgentBoardDraw>,
+    ) -> Self {
+        self.agent_board = agent_board;
         self
     }
     pub(crate) const fn with_setup(
@@ -73,6 +87,7 @@ impl NativeDrawReceipt {
             rename: None,
             setup: None,
             panel_prompt: None,
+            agent_board: None,
             help_page: None,
         }
     }
@@ -357,6 +372,7 @@ impl NativeUi {
         self.after_panel_close_draw(receipt.panel_prompt);
         self.after_rename_draw(receipt.rename);
         self.after_setup_draw(receipt.setup);
+        self.after_agent_board_draw(receipt.agent_board);
     }
     pub(in crate::terminal_session) fn invalidate_close_display(&mut self) {
         if let Some(state) = &mut self.state {

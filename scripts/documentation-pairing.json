@@ -145,6 +145,10 @@
 			"englishSha256": "a0e0d6d17b998fdb2b9393079d40168ebe128325f4cc8222b645060d866e7dec",
 			"zhCnSha256": "d765fc451056ac4fb51abcd8b3b5c12cc1a0541cf17e28699be977d7783af72c"
 		},
+		"apps/orchbee/docs/agent-board.md": {
+			"englishSha256": "9bb55de01f18dcd1b5d63b3b7f8bbf17b2b857faa3b2cfcaf597ad08c5813813",
+			"zhCnSha256": "85b7534db4090268c397f54ff36674fa80eb6193a1e85488dbd536472b4261c9"
+		},
 		"apps/orchbee/docs/cli-workflows.md": {
 			"englishSha256": "03a76e0f0ef7e187bf924adcdffcadea57bee60f3a8e07eecc473b8d71b2976e",
 			"zhCnSha256": "433459be824520322704dea95cd5a94edb40ac18d12bcda04fa453e912362a31"

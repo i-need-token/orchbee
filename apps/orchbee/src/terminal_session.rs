@@ -20,6 +20,7 @@ use std::{
 #[cfg(test)]
 use std::sync::mpsc::{self, Receiver, SyncSender, TryRecvError};
 
+mod agent_board;
 mod connection;
 mod mailbox;
 pub(crate) mod state;
@@ -31,15 +32,16 @@ mod workbench_projection;
 pub(crate) use workbench_projection::{NativeContextLocation, NativePanel, NativePanelTree};
 
 pub(crate) use ui::{
-    ModalPresentation, NativeCloseConfirmationKind, NativeCloseConfirmationToken,
-    NativeCloseConfirmationView, NativeCloseStatusKind, NativeCloseStatusToken,
-    NativeCloseStatusView, NativeDisplayController, NativeDisplayPhase, NativeDisplayProvenance,
-    NativeDisplayRetirement, NativeDrawReceipt, NativeLocationLabelStatus,
+    AgentBoardDraw, AgentBoardRead, AgentBoardReadFailure, AgentBoardRow, AgentBoardSummary,
+    JumpFailure, ModalPresentation, NativeAgentBoardView, NativeCloseConfirmationKind,
+    NativeCloseConfirmationToken, NativeCloseConfirmationView, NativeCloseStatusKind,
+    NativeCloseStatusToken, NativeCloseStatusView, NativeDisplayController, NativeDisplayPhase,
+    NativeDisplayProvenance, NativeDisplayRetirement, NativeDrawReceipt, NativeLocationLabelStatus,
     NativeLocationLabelTarget, NativePanelCloseConfirmationToken, NativePanelCloseConfirmationView,
     NativeProjectionStatus, NativeRefreshStatus, NativeRenameDraftToken, NativeRenameDraftView,
     NativeRenameEdit, NativeRenameInputContext, NativeSessionNotice, NativeSessionView,
     NativeSetupDraftView, NativeSetupEdit, NativeSetupInputContext, NativeSetupStage,
-    NativeSetupStatus, NativeSetupToken, NativeTabView,
+    NativeSetupStatus, NativeSetupToken, NativeTabView, PresentationPlacement,
 };
 
 #[derive(Clone, Debug)]
@@ -157,8 +159,14 @@ impl TerminalSession {
                 let task = thread::Builder::new()
                     .name("orchbee-terminal-session".into())
                     .spawn(move || connection::run_native(client, geometry, worker_mailbox))?;
+                let mut native = ui::NativeUi::new(mailbox, clock);
+                // The Agent board's read lane reconnects on its own admitted
+                // session so an OBAP ambiguity retires the lane, never the
+                // primary carrier.
+                #[cfg(target_os = "linux")]
+                native.set_agent_board_origin(origin.clone());
                 Ok(Self {
-                    backend: SessionBackend::Native(Box::new(ui::NativeUi::new(mailbox, clock))),
+                    backend: SessionBackend::Native(Box::new(native)),
                     task: Some(SessionTask::Native(task)),
                     shutdown,
                     retirement_redraw_pending: false,
@@ -389,6 +397,9 @@ impl TerminalSession {
         let _accepted_setup_and_rename = (rename_accepted, setup_accepted, queued_setup_accepted);
         let _accepted =
             native.finalize_retirement(pending_create, pending_move, pending_panel, close_return);
+        // The board lane's blocked thread join precedes mailbox release —
+        // draining lane outcomes is over before the mailbox can retire.
+        native.release_agent_lane();
         native.release_mailbox();
         // Geometry observation can finalize retirement before the shell asks tick for a redraw.
         self.retirement_redraw_pending = true;
@@ -509,6 +520,48 @@ impl TerminalInputPort for TerminalSession {
             native.invalidate_close_display();
         }
     }
+
+    fn agent_board_input(&mut self) -> bool {
+        match &mut self.backend {
+            SessionBackend::Native(native) => native.agent_board_input(),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => false,
+        }
+    }
+
+    fn capture_agent_board_key(&mut self, key: crate::client_view::KeyEvent) -> bool {
+        match &mut self.backend {
+            SessionBackend::Native(native) => native.capture_agent_board_key(&key),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => false,
+        }
+    }
+
+    fn agent_board_select(
+        &mut self,
+        session: &orchbee_agent_observation_protocol::AgentSessionId,
+    ) -> bool {
+        match &mut self.backend {
+            SessionBackend::Native(native) => native.agent_board_select(session),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => false,
+        }
+    }
+
+    fn agent_board_scroll(&mut self, up: bool) -> bool {
+        match &mut self.backend {
+            SessionBackend::Native(native) => native.agent_board_scroll(up),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => false,
+        }
+    }
+
+    fn agent_board_dismiss(&mut self) {
+        if let Some(native) = self.backend.native_mut() {
+            native.agent_board_dismiss();
+        }
+    }
+
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable> {
         let accepted = match &mut self.backend {
             SessionBackend::Native(native) => native.forward(input),
@@ -557,7 +610,13 @@ impl TerminalInputPort for TerminalSession {
 impl Drop for TerminalSession {
     fn drop(&mut self) {
         match &mut self.backend {
-            SessionBackend::Native(native) => native.close(state::CarrierFailure::Closed),
+            SessionBackend::Native(native) => {
+                native.close(state::CarrierFailure::Closed);
+                // The lane's blocked read must finish before the mailbox is
+                // released — the join happens inside finalize_retirement too,
+                // but a retired-already session still owes the lane close.
+                native.release_agent_lane();
+            }
             #[cfg(test)]
             SessionBackend::Legacy(legacy) => legacy.retire(legacy.status, &self.shutdown),
         }

@@ -563,6 +563,9 @@ pub(super) enum SessionNotice {
     PanelNotApplied,
     ConfirmationCancelled,
     DraftCancelled,
+    /// A modal surface or armed confirmation owns the input layer — the
+    /// Agent board refused to open rather than fight for capture.
+    ModalOwnsInput,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1696,6 +1699,13 @@ impl NativeSessionState {
     /// and projection lookups against the focus.
     pub(super) fn focus_panel_id(&self) -> Option<&WorkbenchPanelId> {
         self.desired.as_ref().map(PaneKey::panel)
+    }
+
+    /// Whether a context-selection admission is currently in flight —
+    /// the Agent board's jump planner waits it out instead of stacking
+    /// a second selection behind it.
+    pub(super) fn context_selecting(&self) -> bool {
+        self.context_selection.is_some()
     }
 
     pub(super) fn pane_projected(&self, key: &PaneRef) -> bool {
@@ -3159,6 +3169,38 @@ impl NativeSessionState {
         let pane = PaneKey::new(key, panel.panel_id().clone());
         self.attach_target(
             SelectedTab::new_panel(pane, index, 0),
+            provenance,
+            deadlines,
+        )
+    }
+
+    /// `target_for_switch` carrying the stable panel identity the caller
+    /// wants focused after landing — the Agent board's jump variant. The
+    /// identity is re-resolved to the at-that-moment `panel_index` here,
+    /// so the switch can never fall back to `panel(0)` for a known target.
+    /// `None` when the panel is not currently present in that tab.
+    pub(super) fn target_for_switch_for_panel(
+        &mut self,
+        index: usize,
+        key: AttachmentKey,
+        deadlines: OperationDeadlines,
+        panel_id: &orchbee_workbench_protocol::WorkbenchPanelId,
+    ) -> Option<AttachTarget> {
+        if key.generation() <= self.desired.as_ref()?.anchor().generation()
+            || self.cache.tabs().get(index)?.tab_id() != key.tab_id()
+        {
+            return None;
+        }
+        let provenance = self.provenance.get(index)?.clone();
+        let tab = self.cache.tabs().get(index)?;
+        let panel_index = (0..tab.panel_count()).find(|panel_index| {
+            tab.panel(*panel_index)
+                .is_some_and(|panel| panel.panel_id() == panel_id)
+        })?;
+        let panel = tab.panel(panel_index)?;
+        let pane = PaneKey::new(key, panel.panel_id().clone());
+        self.attach_target(
+            SelectedTab::new_panel(pane, index, panel_index),
             provenance,
             deadlines,
         )
