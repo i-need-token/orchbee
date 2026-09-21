@@ -4,12 +4,12 @@ use std::{
 };
 
 use orchbee_agent_observation_protocol::{
-    AGENT_MAGIC, AgentReadRequest, AgentReadResult, AgentWireError, read_agent_request,
-    write_agent_result,
+    AGENT_MAGIC, AgentContractError, AgentReadRequest, AgentReadResult, AgentRequest, AgentResult,
+    AgentWireError, read_agent_request, write_agent_result,
 };
 use orchbee_client_server_protocol::{
-    ClientMessage, FRAME_MAGIC, PASTE_RECORD_MAGIC, ReadMessageError, ServerMessage,
-    WriteMessageError, read_client_message, write_server_message,
+    ClientMessage, FRAME_MAGIC, PASTE_RECORD_MAGIC, ReadMessageError, SEND_RECORD_MAGIC,
+    ServerMessage, WriteMessageError, read_client_message, write_server_message,
 };
 use orchbee_workbench_protocol::{
     WORKBENCH_MAGIC, WorkbenchRequest, WorkbenchWireError, read_workbench_request,
@@ -34,7 +34,7 @@ where
             .read_exact(&mut prefix)
             .map_err(ApplicationSessionError::Prefix)?;
         match prefix {
-            FRAME_MAGIC | PASTE_RECORD_MAGIC => {
+            FRAME_MAGIC | PASTE_RECORD_MAGIC | SEND_RECORD_MAGIC => {
                 let request = read_client_message(&mut Cursor::new(prefix).chain(&mut *stream))
                     .map_err(ApplicationSessionError::Read)?;
                 let result = execute(request);
@@ -50,10 +50,17 @@ where
                     .map_err(ApplicationSessionError::Workbench)?;
             }
             AGENT_MAGIC => {
-                let request = read_agent_request(&mut Cursor::new(prefix).chain(&mut *stream))
-                    .map_err(ApplicationSessionError::Agent)?;
+                let AgentRequest::Read(request) =
+                    read_agent_request(&mut Cursor::new(prefix).chain(&mut *stream))
+                        .map_err(ApplicationSessionError::Agent)?
+                else {
+                    return Err(ApplicationSessionError::Agent(AgentWireError::Contract(
+                        AgentContractError::WrongDocumentKind,
+                    )));
+                };
                 let result = execute_agent(request).map_err(ApplicationSessionError::AgentFault)?;
-                write_agent_result(stream, &result).map_err(ApplicationSessionError::Agent)?;
+                write_agent_result(stream, &AgentResult::Read(result))
+                    .map_err(ApplicationSessionError::Agent)?;
             }
             _ => return Err(ApplicationSessionError::UnknownProtocol),
         }

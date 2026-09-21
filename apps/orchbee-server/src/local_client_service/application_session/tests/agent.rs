@@ -7,9 +7,10 @@
 use std::io::Cursor;
 
 use orchbee_agent_observation_protocol::{
-    AgentListOutcome, AgentListOutcomeEnvelope, AgentListRejectionReason, AgentReadRequest,
-    AgentReadResult, AgentSafeInteger, AgentWireError, ObapRequestId, read_agent_result,
-    write_agent_request, write_agent_result,
+    AgentContractError, AgentListOutcome, AgentListOutcomeEnvelope, AgentListRejectionReason,
+    AgentNamesRequest, AgentReadRequest, AgentReadResult, AgentRequest, AgentResult,
+    AgentSafeInteger, AgentWireError, ObapRequestId, read_agent_result, write_agent_request,
+    write_agent_result,
 };
 use orchbee_client_server_protocol::{ClientMessage, ServerMessage, read_server_message};
 
@@ -56,9 +57,9 @@ fn routes_agent_records_through_the_agent_executor_and_writes_the_correlated_res
     let request = list_request();
     let result = denied_list_result(&request);
     let mut input = Vec::new();
-    write_agent_request(&mut input, &request).unwrap();
+    write_agent_request(&mut input, &AgentRequest::Read(request)).unwrap();
     let mut expected = Vec::new();
-    write_agent_result(&mut expected, &result).unwrap();
+    write_agent_result(&mut expected, &AgentResult::Read(result.clone())).unwrap();
 
     let mut stream = super::MemoryStream::new(input).with_chunks(1, 2);
     let error = run_agent(&mut stream, result).expect_err("EOF must end the session");
@@ -79,14 +80,14 @@ fn interleaves_agent_and_obcs_records_preserving_response_before_next_request() 
 
     let terminal_frame = orchbee_client_server_protocol::encode_client_frame(&terminal).unwrap();
     let mut agent_record = Vec::new();
-    write_agent_request(&mut agent_record, &request).unwrap();
+    write_agent_request(&mut agent_record, &AgentRequest::Read(request.clone())).unwrap();
     let start_frame = orchbee_client_server_protocol::encode_client_frame(&start).unwrap();
 
     let terminal_result =
         orchbee_client_server_protocol::encode_server_frame(&super::denied_result(&terminal))
             .unwrap();
     let mut agent_result_bytes = Vec::new();
-    write_agent_result(&mut agent_result_bytes, &result).unwrap();
+    write_agent_result(&mut agent_result_bytes, &AgentResult::Read(result.clone())).unwrap();
 
     let mut input = terminal_frame.clone();
     input.extend_from_slice(&agent_record);
@@ -121,7 +122,10 @@ fn interleaves_agent_and_obcs_records_preserving_response_before_next_request() 
         read_server_message(&mut output).unwrap(),
         super::denied_result(&terminal)
     );
-    assert_eq!(read_agent_result(&mut output).unwrap(), result);
+    assert_eq!(
+        read_agent_result(&mut output).unwrap(),
+        AgentResult::Read(result)
+    );
     assert_eq!(
         read_server_message(&mut output).unwrap(),
         super::denied_result(&start)
@@ -191,10 +195,41 @@ fn ends_on_malformed_agent_records_without_reaching_the_executor() {
     assert!(stream.output.is_empty());
 }
 
+/// A well-formed names-family request is a loud contract rejection at the
+/// demux: the session ends, the read executor never runs, and no result —
+/// let alone a fabricated names answer — is written.
+#[test]
+fn ends_on_names_family_requests_without_reaching_the_executor() {
+    let executor = |_request: AgentReadRequest| -> Result<AgentReadResult, AgentReadFault> {
+        unreachable!("names requests must not reach the read executor")
+    };
+    let mut input = Vec::new();
+    write_agent_request(
+        &mut input,
+        &AgentRequest::Names(AgentNamesRequest::NamesList {
+            request_id: ObapRequestId::parse(super::FIRST_REQUEST_ID).unwrap(),
+        }),
+    )
+    .unwrap();
+    let mut stream = super::MemoryStream::new(input);
+    assert!(matches!(
+        super::super::run(
+            &mut stream,
+            |_request| panic!("unexpected OBCS request"),
+            |_request| panic!("unexpected Workbench request"),
+            executor,
+        ),
+        Err(ApplicationSessionError::Agent(AgentWireError::Contract(
+            AgentContractError::WrongDocumentKind
+        )))
+    ));
+    assert!(stream.output.is_empty());
+}
+
 #[test]
 fn maps_executor_faults_to_agent_fault_session_errors() {
     let mut input = Vec::new();
-    write_agent_request(&mut input, &list_request()).unwrap();
+    write_agent_request(&mut input, &AgentRequest::Read(list_request())).unwrap();
     let mut stream = super::MemoryStream::new(input);
     assert!(matches!(
         super::super::run(
@@ -215,9 +250,9 @@ fn ends_on_agent_result_write_failure() {
     let request = list_request();
     let result = denied_list_result(&request);
     let mut input = Vec::new();
-    write_agent_request(&mut input, &request).unwrap();
+    write_agent_request(&mut input, &AgentRequest::Read(request)).unwrap();
     let mut expected = Vec::new();
-    write_agent_result(&mut expected, &result).unwrap();
+    write_agent_result(&mut expected, &AgentResult::Read(result.clone())).unwrap();
     let failure_offset = expected.len() / 2;
 
     let mut stream = super::MemoryStream::new(input)

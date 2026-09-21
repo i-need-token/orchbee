@@ -13,7 +13,9 @@ use std::{
 
 use nix::poll::PollFlags;
 use orchbee_agent_observation_protocol::{
-    AgentReadRequest, AgentSafeInteger, AgentWireError, ObapRequestId, read_agent_request,
+    AgentNamesListOutcome, AgentNamesListOutcomeEnvelope, AgentNamesResult, AgentReadRequest,
+    AgentResult, AgentSafeInteger, AgentUnavailableReason, AgentWireError, ObapRequestId,
+    read_agent_request, write_agent_result,
 };
 use orchbee_client_server_protocol::{
     ClientMessage, CreateOutcome, CreateRejectedReason, FRAME_VERSION as OBCS_FRAME_VERSION,
@@ -1403,6 +1405,63 @@ fn agent_read_wake_ready_mid_response_surfaces_through_io() -> TestResult {
         },
         other => panic!("expected Failed(Response(Io)), got {other:?}"),
     }
+    drop(client);
+    server.finish()?;
+    Ok(())
+}
+
+/// A names-family result inside a read exchange is an unexpected response:
+/// requestId correlation is verified first, then the session retires with
+/// `UnexpectedResponse` and the connection is taken — the request is never
+/// replayed on a session whose answer shape is already wrong.
+#[test]
+fn agent_read_names_family_result_retires_the_session() -> TestResult {
+    let server = FakeServer::start(|mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 7)?;
+        let request = read_agent_request(&mut stream).map_err(io::Error::other)?;
+        write_agent_result(
+            &mut stream,
+            &AgentResult::Names(AgentNamesResult::NamesList {
+                request_id: request.request_id().clone(),
+                result: AgentNamesListOutcomeEnvelope {
+                    outcome: AgentNamesListOutcome::Unavailable {
+                        reason: AgentUnavailableReason::RuntimeUnavailable,
+                    },
+                },
+            }),
+        )
+        .map_err(io::Error::other)?;
+        // The client retires the session on the family mismatch; the peer
+        // observes the drop as EOF.
+        let mut sink = [0_u8; 8];
+        stream.read(&mut sink).map(|_| ())
+    })?;
+    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let request = AgentReadRequest::List {
+        request_id: ObapRequestId::parse(FIRST_REQUEST_ID).expect("request id"),
+        include_ended: false,
+        limit: AgentSafeInteger::new(50),
+        cursor: None,
+    };
+    match client.submit_agent_read_before_cancellable(
+        request,
+        Instant::now() + Duration::from_secs(5),
+        None,
+    ) {
+        Err(AgentReadError::Failed { request_id, reason }) => {
+            assert_eq!(request_id.as_str(), FIRST_REQUEST_ID);
+            assert!(
+                matches!(reason, AgentReadFailure::UnexpectedResponse),
+                "expected UnexpectedResponse, got {reason:?}"
+            );
+        }
+        other => panic!("expected Failed(UnexpectedResponse), got {other:?}"),
+    }
+    assert!(
+        client.connection.is_none(),
+        "the session connection is taken"
+    );
     drop(client);
     server.finish()?;
     Ok(())

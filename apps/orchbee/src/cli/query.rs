@@ -988,7 +988,9 @@ mod tests {
     /// was closed before the signal arbitration read ran.
     #[test]
     fn session_socket_drops_before_finish_arbitration() {
-        use orchbee_agent_observation_protocol::{read_agent_request, write_agent_result};
+        use orchbee_agent_observation_protocol::{
+            AgentResult, read_agent_request, write_agent_result,
+        };
         use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 
         let (eof, eof_rx) = std::sync::mpsc::channel();
@@ -1013,7 +1015,8 @@ mod tests {
                 "result": {"outcome": {"kind": "listed", "items": [], "nextCursor": null, "revision": 7}}
             }))
             .map_err(std::io::Error::other)?;
-            write_agent_result(&mut stream, &result).map_err(std::io::Error::other)?;
+            write_agent_result(&mut stream, &AgentResult::Read(result))
+                .map_err(std::io::Error::other)?;
             // Read until the client session closes — EOF is the drop mark.
             let mut sink = [0_u8; 64];
             let _ = std::io::Read::read(&mut stream, &mut sink);

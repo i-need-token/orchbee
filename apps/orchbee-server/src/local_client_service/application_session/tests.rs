@@ -326,6 +326,117 @@ fn rejects_malformed_paste_records_without_reaching_the_executor()
     Ok(())
 }
 
+#[test]
+fn routes_send_records_through_the_control_executor() -> Result<(), Box<dyn std::error::Error>> {
+    use orchbee_client_server_protocol::{
+        SendRecord, SendRecords, SendText, SendTextInput, SiteId, TerminalId, TerminalSendRequest,
+    };
+
+    let request = ClientMessage::TerminalSend(TerminalSendRequest::new(
+        RequestId::parse(FIRST_REQUEST_ID)?,
+        SiteId::parse("33333333333333333333333333333333")?,
+        WorkerId::parse(WORKER_ID)?,
+        TerminalId::parse("55555555555555555555555555555555")?,
+        SendRecords::new(vec![SendRecord::Text(SendTextInput::new(
+            SendText::new("echo ok".to_owned())?,
+            true,
+        )?)])?,
+    ));
+    let record = encode_client_frame(&request)?;
+    assert!(record.starts_with(b"OBSN"));
+    let expected_request = request.clone();
+    let result = denied_result(&request);
+
+    let mut stream = MemoryStream::new(record).with_chunks(1, 2);
+    let error = super::run(
+        &mut stream,
+        |message| {
+            assert_eq!(message, expected_request);
+            result.clone()
+        },
+        |_request| panic!("unexpected Workbench request"),
+        |_request| panic!("unexpected Agent request"),
+    )
+    .expect_err("EOF must end the OBCS Session");
+    assert!(matches!(
+        error,
+        ApplicationSessionError::Read(ReadMessageError::Io(error)) | ApplicationSessionError::Prefix(error)
+            if error.kind() == io::ErrorKind::UnexpectedEof
+    ));
+    assert_eq!(stream.output, encode_server_frame(&result)?);
+    assert_eq!(stream.flush_count, 0);
+    Ok(())
+}
+
+#[test]
+fn rejects_malformed_send_records_without_reaching_the_executor()
+-> Result<(), Box<dyn std::error::Error>> {
+    use orchbee_client_server_protocol::{
+        SendRecord, SendRecords, SendText, SendTextInput, SiteId, TerminalId, TerminalSendRequest,
+    };
+
+    let request = ClientMessage::TerminalSend(TerminalSendRequest::new(
+        RequestId::parse(FIRST_REQUEST_ID)?,
+        SiteId::parse("33333333333333333333333333333333")?,
+        WorkerId::parse(WORKER_ID)?,
+        TerminalId::parse("55555555555555555555555555555555")?,
+        SendRecords::new(vec![SendRecord::Text(SendTextInput::new(
+            SendText::new("echo ok".to_owned())?,
+            true,
+        )?)])?,
+    ));
+    let executor = |_message: ClientMessage| -> ServerMessage {
+        unreachable!("malformed records must not execute")
+    };
+    let record = encode_client_frame(&request)?;
+    assert!(record.starts_with(b"OBSN"));
+
+    for mutated in [
+        {
+            let mut record = record.clone();
+            record[5] = 2;
+            record
+        },
+        {
+            let mut record = record.clone();
+            record[7] = 1;
+            record
+        },
+        record[..record.len() - 1].to_vec(),
+    ] {
+        let mut stream = MemoryStream::new(mutated);
+        assert!(
+            super::run(
+                &mut stream,
+                executor,
+                |_request| { panic!("unexpected Workbench request") },
+                |_request| { panic!("unexpected Agent request") }
+            )
+            .is_err()
+        );
+        assert!(stream.output.is_empty());
+    }
+
+    // A declared body length past the send-record bound fails before any
+    // allocation — the same boundary the oversized-paste case exercises.
+    let mut oversized = Vec::from(&b"OBSN\0\x01\0\0"[..]);
+    oversized.extend_from_slice(&u32::MAX.to_be_bytes());
+    let mut stream = MemoryStream::new(oversized);
+    assert!(matches!(
+        super::run(
+            &mut stream,
+            executor,
+            |_request| { panic!("unexpected Workbench request") },
+            |_request| { panic!("unexpected Agent request") }
+        ),
+        Err(ApplicationSessionError::Read(ReadMessageError::Protocol(
+            ProtocolError::PayloadTooLarge { .. }
+        )))
+    ));
+    assert!(stream.output.is_empty());
+    Ok(())
+}
+
 fn denied_result(request: &ClientMessage) -> ServerMessage {
     match request {
         ClientMessage::TerminalOpen(_)

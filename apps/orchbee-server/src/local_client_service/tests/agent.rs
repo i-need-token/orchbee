@@ -17,9 +17,9 @@ use std::{
 
 use orchbee_agent_observation_protocol::{
     AgentExplainOutcome, AgentGetOutcome, AgentListOutcome, AgentReadRequest, AgentReadResult,
-    AgentSafeInteger, AgentSemanticStatus, AgentSessionId, AgentSessionRejectionReason,
-    AgentStatusBasis, AgentUnavailableReason, ObapRequestId, read_agent_result,
-    write_agent_request,
+    AgentRequest, AgentResult, AgentSafeInteger, AgentSemanticStatus, AgentSessionId,
+    AgentSessionRejectionReason, AgentStatusBasis, AgentUnavailableReason, ObapRequestId,
+    read_agent_result, write_agent_request,
 };
 use orchbee_local_client_protocol::{ClientHello, LocalClientMessage, read_message, write_message};
 
@@ -79,11 +79,11 @@ fn a_real_listener_serves_seeded_agent_reads_over_the_socket() -> io::Result<()>
     client.set_write_timeout(Some(Duration::from_secs(5)))?;
     handshake(&mut client, "agent-test-cohort");
 
-    write_agent_request(&mut client, &list_request(1)).unwrap();
-    let AgentReadResult::List {
+    write_agent_request(&mut client, &AgentRequest::Read(list_request(1))).unwrap();
+    let AgentResult::Read(AgentReadResult::List {
         request_id: echoed,
         result,
-    } = read_agent_result(&mut client).unwrap()
+    }) = read_agent_result(&mut client).unwrap()
     else {
         panic!("expected a list result");
     };
@@ -110,13 +110,15 @@ fn a_real_listener_serves_seeded_agent_reads_over_the_socket() -> io::Result<()>
 
     write_agent_request(
         &mut client,
-        &AgentReadRequest::Get {
+        &AgentRequest::Read(AgentReadRequest::Get {
             request_id: request_id(2),
             session_id: session_id("sock.absent"),
-        },
+        }),
     )
     .unwrap();
-    let AgentReadResult::Get { result, .. } = read_agent_result(&mut client).unwrap() else {
+    let AgentResult::Read(AgentReadResult::Get { result, .. }) =
+        read_agent_result(&mut client).unwrap()
+    else {
         panic!("expected a get result");
     };
     assert_eq!(
@@ -128,13 +130,15 @@ fn a_real_listener_serves_seeded_agent_reads_over_the_socket() -> io::Result<()>
 
     write_agent_request(
         &mut client,
-        &AgentReadRequest::Explain {
+        &AgentRequest::Read(AgentReadRequest::Explain {
             request_id: request_id(3),
             session_id: session_id("sock.a"),
-        },
+        }),
     )
     .unwrap();
-    let AgentReadResult::Explain { result, .. } = read_agent_result(&mut client).unwrap() else {
+    let AgentResult::Read(AgentReadResult::Explain { result, .. }) =
+        read_agent_result(&mut client).unwrap()
+    else {
         panic!("expected an explain result");
     };
     let AgentExplainOutcome::Found { explanation, .. } = result.outcome else {
@@ -156,16 +160,20 @@ fn an_admitted_connection_observes_runtime_unavailable_after_the_owner_drops() -
     let agents = agent_harness::seeded(&[agent_harness::session_observed("sock.b", 1.0)])?;
     let mut client = agent_harness::admitted(Arc::clone(&agents), "agent-test-cohort")?;
 
-    write_agent_request(client.stream(), &list_request(1)).unwrap();
-    let AgentReadResult::List { result, .. } = read_agent_result(client.stream()).unwrap() else {
+    write_agent_request(client.stream(), &AgentRequest::Read(list_request(1))).unwrap();
+    let AgentResult::Read(AgentReadResult::List { result, .. }) =
+        read_agent_result(client.stream()).unwrap()
+    else {
         panic!("expected a list result");
     };
     assert!(matches!(result.outcome, AgentListOutcome::Listed { .. }));
 
     drop(AgentRuntimeOwner::new(Arc::clone(&agents)));
 
-    write_agent_request(client.stream(), &list_request(2)).unwrap();
-    let AgentReadResult::List { result, .. } = read_agent_result(client.stream()).unwrap() else {
+    write_agent_request(client.stream(), &AgentRequest::Read(list_request(2))).unwrap();
+    let AgentResult::Read(AgentReadResult::List { result, .. }) =
+        read_agent_result(client.stream()).unwrap()
+    else {
         panic!("expected a list result");
     };
     assert_eq!(
@@ -212,8 +220,10 @@ fn a_real_listener_reports_the_genuine_empty_state() -> io::Result<()> {
     client.set_read_timeout(Some(Duration::from_secs(5)))?;
     handshake(&mut client, "agent-test-cohort");
 
-    write_agent_request(&mut client, &list_request(1)).unwrap();
-    let AgentReadResult::List { result, .. } = read_agent_result(&mut client).unwrap() else {
+    write_agent_request(&mut client, &AgentRequest::Read(list_request(1))).unwrap();
+    let AgentResult::Read(AgentReadResult::List { result, .. }) =
+        read_agent_result(&mut client).unwrap()
+    else {
         panic!("expected a list result");
     };
     let AgentListOutcome::Listed {

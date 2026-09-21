@@ -5,7 +5,8 @@
 use std::{fmt, io, os::fd::BorrowedFd, time::Instant};
 
 use orchbee_agent_observation_protocol::{
-    AgentReadRequest, AgentReadResult, AgentWireError, ObapRequestId, write_agent_request,
+    AgentReadRequest, AgentReadResult, AgentRequest, AgentResult, AgentWireError, ObapRequestId,
+    write_agent_request,
 };
 
 use super::{ExchangeAttempt, LocalClient, exchange_once};
@@ -31,7 +32,8 @@ impl LocalClient {
         let request_id = request.request_id().clone();
         let operation = AgentReadOperation::of(&request);
         let mut frame = Vec::new();
-        write_agent_request(&mut frame, &request).map_err(AgentReadError::RequestEncoding)?;
+        write_agent_request(&mut frame, &AgentRequest::Read(request))
+            .map_err(AgentReadError::RequestEncoding)?;
         let deadline = self
             .submission_deadline_before(deadline)
             .map_err(AgentReadError::RequestNotSubmitted)?;
@@ -78,6 +80,10 @@ impl LocalClient {
                 },
             );
         }
+        let AgentResult::Read(result) = result else {
+            return self
+                .retire_with_agent_failure(request_id, AgentReadFailure::UnexpectedResponse);
+        };
         if AgentReadOperation::of_result(&result) != operation {
             return self
                 .retire_with_agent_failure(request_id, AgentReadFailure::UnexpectedResponse);

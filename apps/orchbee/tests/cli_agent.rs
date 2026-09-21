@@ -19,7 +19,8 @@ use std::{
 };
 
 use orchbee_agent_observation_protocol::{
-    AgentReadRequest, AgentReadResult, read_agent_request, write_agent_result,
+    AgentReadRequest, AgentReadResult, AgentRequest, AgentResult, read_agent_request,
+    write_agent_result,
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use sha2::{Digest, Sha256};
@@ -153,7 +154,10 @@ fn admit(stream: &UnixStream) {
 
 /// Read the OBAP request record off the admitted session.
 fn read_request(stream: &UnixStream) -> AgentReadRequest {
-    read_agent_request(&mut &*stream).expect("peer reads one OBAP request")
+    match read_agent_request(&mut &*stream).expect("peer reads one OBAP request") {
+        AgentRequest::Read(request) => request,
+        AgentRequest::Names(_) => panic!("peer expected a session read request, got names"),
+    }
 }
 
 /// Build a typed result document from its wire JSON and frame it back; the
@@ -162,7 +166,7 @@ fn read_request(stream: &UnixStream) -> AgentReadRequest {
 fn answer(stream: &UnixStream, document: serde_json::Value) {
     let result: AgentReadResult =
         serde_json::from_value(document).expect("fixture decodes as an AgentReadResult");
-    write_agent_result(&mut &*stream, &result).expect("peer writes OBAP result");
+    write_agent_result(&mut &*stream, &AgentResult::Read(result)).expect("peer writes OBAP result");
 }
 
 fn run(base: &Path, arguments: &[&str]) -> Output {
