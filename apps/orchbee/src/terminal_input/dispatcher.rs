@@ -247,8 +247,12 @@ impl InputDispatcher {
                 DecodedKind::Paste { .. } => {
                     // Paste is exclusive-capture data, never a binding key;
                     // the pane owns it in original order and the prefix
-                    // stays armed.
-                    forward_or_report(view, &item.raw, port);
+                    // stays armed — unless the open board owns input, in
+                    // which case the whole run is swallowed like every
+                    // other item under its capture.
+                    if !port.agent_board_input() {
+                        forward_or_report(view, &item.raw, port);
+                    }
                     return Ok(DispatchOutcome::Continue);
                 }
                 DecodedKind::Mouse(_) => {}

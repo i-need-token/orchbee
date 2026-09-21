@@ -817,6 +817,11 @@ impl TerminalInputPort for BoardPort {
         Ok(())
     }
 
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+        self.calls.borrow_mut().push(Call::Action(action));
+        None
+    }
+
     fn agent_board_input(&mut self) -> bool {
         self.owned.get()
     }
@@ -954,4 +959,52 @@ fn the_board_open_edge_also_invalidates_so_a_click_cannot_miss_the_overlay() {
         calls.borrow().is_empty(),
         "the stale foreground region must not resolve past the open board"
     );
+}
+
+#[test]
+fn an_open_board_swallows_a_paste_inside_the_armed_prefix() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let owned = Rc::new(std::cell::Cell::new(true));
+    let mut port = BoardPort {
+        calls: Rc::clone(&calls),
+        owned: Rc::clone(&owned),
+    };
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    // A real input stream: the chord arms the prefix, then a bracketed
+    // paste completes in the same read. The painted board owns the run
+    // whole — no bytes forward, no binding decides it, and the prefix
+    // stays armed for the next key.
+    dispatcher
+        .dispatch(
+            &mut view,
+            b"\x02\x1b[200~payload\x1b[201~",
+            &mut port,
+            Instant::now(),
+            |_, _| Ok::<(), io::Error>(()),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert!(
+        calls.borrow().is_empty(),
+        "the board swallows the paste whole: nothing may reach the pane"
+    );
+    assert!(view.prefix_active());
+    // The arm was never spent: the next key still resolves its binding —
+    // `g` is the board's own toggle.
+    dispatcher
+        .dispatch(
+            &mut view,
+            b"g",
+            &mut port,
+            Instant::now(),
+            |_, _| Ok::<(), io::Error>(()),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert_eq!(
+        *calls.borrow(),
+        [Call::Action(ClientAction::ToggleAgentBoard)]
+    );
+    assert!(!view.prefix_active());
 }
