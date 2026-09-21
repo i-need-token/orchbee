@@ -32,13 +32,15 @@ orchbee --help | --version
 
 查询 family 为 `project`、`workspace`、`tab`、`panel`、`terminal`、`worktree`、
 `launch-profile`、`agent`（`list`/`get`，另有
-`terminal read`；`worktree` 仅提供 `list`，且要求 `--project <target>` 与
+`terminal read`/`wait-output`；`worktree` 仅提供 `list`，且要求 `--project <target>` 与
 `--directory <directory-id>`——严格非零 32 位小写十六进制 Workbench 目录 id，绝非文件系统路径或标签；
 `launch-profile` 提供 `list` 与 `get <selector>`——对运行中 Site 启动配置目录的一次类型化读取，
 由 Server 端解析、CLI 不做本地预读；
 `agent` 提供 `list`（支持 `--include-ended`/`--limit`/`--cursor` 分页）、`get <session-id>` 与
 `explain <session-id>`——经 OBAP 读取 Server 权威 Agent session 的只读类型化视图，绝不从终端
-内容推断——以及 `doctor [--provider <id>]... [--asset-root <path>]...`，一个离线有界文件系统
+内容推断——`wait <session-id> [--until <condition>]... [--timeout <ms>]`，在持有的
+Client Session 上有界轮询，直到命名的状态或新鲜度条件命中或截止到达——以及
+`doctor [--provider <id>]... [--asset-root <path>]...`，一个离线有界文件系统
 诊断，仅凭本地事实解释 Agent 观察为何可能无法到达（不执行 provider 命令、不 connect socket、
 不做任何写入）。
 作用于运行中 Site 的修改命令为 `project create`/`rename`、
@@ -48,8 +50,9 @@ orchbee --help | --version
 launch selection，`launch-profile delete <selector>` 将其移除。其中 `tab create` 与
 `panel split` 还接受临时的
 `--exec <path> [--arg <value>]...` launch selection 或 `--profile <selector>` 目录启动——二者互斥——
-仅为该次请求替换解析出的默认 shell。`terminal send <id> (--text <utf8> [--enter] | --key <name>)`
-经同一已准入 session 向已绑定终端投递恰好一条输入记录——字面文本加可选折叠回车，或十五个语义键之一——不接管 TUI
+仅为该次请求替换解析出的默认 shell。`terminal send <id> (--text <utf8> | --file <path> | --stdin) [--enter] | --key <name>`
+经同一已准入 session 向已绑定终端投递恰好一条输入记录——字面文本、常规文件内容或管道
+stdin，均可加可选折叠回车，或十五个语义键之一——不接管 TUI
 controller/viewer 所有权；其两轴收据分别报告 Server 的输入判定与 cleanup 状态。`project create`
 提交既有 `ProjectCreate` 动作——一条导航记录，无目录或文件系统副作用——并返回
 Server 分配的 project id，供 `workspace create`/`tab create` 链使用；
@@ -77,6 +80,26 @@ target 与 filter 规则、修改结果及含退出分类的 failure matrix 由
 序列——启动 Site、创建 Project/Workspace/目录、拉起并驱动终端、查看
 worktree、观察 Agent 并干净地关闭——见
 [原生 CLI 工作流](docs/cli-workflows.zh-CN.md)。
+
+按一次会话通常需要的顺序列出日常入口——cohort 暂存完成后每一行都可
+直接照抄运行：
+
+```sh
+orchbee site start                        # 激活一次本地 Site（无需 TTY）
+orchbee status                            # Workbench 是否可达？
+orchbee project create --label demo       # 随后 workspace create / accept-directory
+orchbee tab create --workspace <ws> --label shell \
+  --cols 80 --rows 24 --cell-width 8 --cell-height 16
+orchbee terminal send <terminal-id> --text 'make test' --enter
+orchbee terminal wait-output <terminal-id> --match 'PASS'
+orchbee agent integration enable --provider <id>   # 一次性本地接入
+orchbee agent list                        # 运行中 Site 观察到的会话
+orchbee agent wait <session-id> --until ended
+```
+
+`orchbee help <family>` 直接从二进制输出同一套语法，
+`orchbee completion <shell>` 打印对应的按键发现脚本，由你的 shell
+自行 source。
 
 Help 只写 stdout，失败只写 stderr；Version 写入一行与 locale 无关的 `orchbee <version>`。
 正常关闭 TUI、help、version 以及查询、修改、检查成功的开发退出状态为 `0`；usage failure 为 `2`；

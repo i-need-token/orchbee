@@ -195,7 +195,6 @@ orchbee panel move <target> --target-panel <target> --direction above|below|left
 orchbee terminal list | terminal get <target> | terminal read <target> [--history --rows <1-1000>]
 orchbee terminal wait-output <target> --match <text> [--rows <1-1000>] [--timeout <1-3600000>]
 orchbee terminal send <target> (--text <utf8> | --file <path> | --stdin) [--enter] | --key <name>
-orchbee terminal send <target> (--text <utf8> [--enter] | --key <name>)
 orchbee launch-profile list | launch-profile get <selector>
 orchbee launch-profile create --name <name> --exec <path> [--arg <value>]...
 orchbee launch-profile delete <selector>
@@ -217,8 +216,9 @@ orchbee help <recognized path>
 orchbee <recognized path> -h|--help
 ```
 
-帮助主题：根级；`project`、`workspace`、`worktree`、`tab`、`panel`、`terminal`、`launch-profile`、`agent`、`api`、`site`、
-`config`、`completion` 十二个族；以及包括 `tui` 在内的每条完整命令路径。`help` 只接受已识别的路径（不带
+帮助主题：根级；`project`、`workspace`、`worktree`、`tab`、`panel`、`terminal`、`launch-profile`、`agent`、
+`agent integration`、`api`、`site`、
+`config`、`completion` 十三个族；以及包括 `tui` 在内的每条完整命令路径。`help` 只接受已识别的路径（不带
 过滤器、不带 format）。路径末尾的 `-h` 或 `--help` 是同一路径上的同一请求：`orchbee --help`、
 `project --help`、`project get --help` 输出的内容与 `help`、`help project`、`help project get`
 完全相同。后缀 help 优先于缺失的业务参数（`project get --help` 描述 `project get`），但不优先于
@@ -232,7 +232,7 @@ orchbee <recognized path> -h|--help
 `help`、`completion`、`tui`、`--version` 与裸调用是固定文本输出，不接受 `--format`；一个合法
 `--format=json` 会把随后产生的语法失败变成 JSON `invalid-usage` 失败文档，而 text/默认失败仍
 保持 stdout 为空。数据命令（`status`、全部 `list`/`get`、`agent explain`、`agent doctor`、`agent wait`、
-`api snapshot`、`api schema`、`site start`、`site diagnose`、`config check`）与全部 mutation 命令接受 `--format`。`api` 命令是机器面：`api snapshot` 或 `api schema` 成功时在
+`api snapshot`、`api schema`、`site start`、`site diagnose`、`config check`，以及全部四条 `agent integration` 命令）与全部 mutation 命令接受 `--format`。`api` 命令是机器面：`api snapshot` 或 `api schema` 成功时在
 两种 format 下输出同一份 JSON 文档；`api` 失败则与其他命令一样跟随所选 format——text/默认下
 只写 stderr、stdout 为空，只有 `--format json` 才产出失败 envelope。
 

@@ -235,7 +235,6 @@ orchbee panel move <target> --target-panel <target> --direction above|below|left
 orchbee terminal list | terminal get <target> | terminal read <target> [--history --rows <1-1000>]
 orchbee terminal wait-output <target> --match <text> [--rows <1-1000>] [--timeout <1-3600000>]
 orchbee terminal send <target> (--text <utf8> | --file <path> | --stdin) [--enter] | --key <name>
-orchbee terminal send <target> (--text <utf8> [--enter] | --key <name>)
 orchbee launch-profile list | launch-profile get <selector>
 orchbee launch-profile create --name <name> --exec <path> [--arg <value>]...
 orchbee launch-profile delete <selector>
@@ -257,7 +256,8 @@ orchbee help <recognized path>
 orchbee <recognized path> -h|--help
 ```
 
-Help topics: root; families `project`, `workspace`, `worktree`, `tab`, `panel`, `terminal`, `launch-profile`, `agent`, `api`,
+Help topics: root; families `project`, `workspace`, `worktree`, `tab`, `panel`, `terminal`, `launch-profile`, `agent`,
+`agent integration`, `api`,
 `site`, `config`, `completion`; and every complete command path including `tui`. `help` takes only a recognized
 path (no filters, no format). A trailing `-h` or `--help` is the same request on the same path:
 `orchbee --help`, `project --help`, and `project get --help` emit exactly what `help`,
@@ -274,7 +274,7 @@ targets such as `help help`, `help version`, `help --version` are unknown paths 
 not accept `--format`; a single valid `--format=json` turns the resulting syntax failure into a
 JSON `invalid-usage` failure document, while a text/default failure keeps stdout empty. Data
 commands (`status`, all `list`/`get`, `agent explain`, `agent doctor`, `agent wait`, `api snapshot`, `api schema`, `site start`,
-`site diagnose`, `config check`) and every
+`site diagnose`, `config check`, and all four `agent integration` commands) and every
 mutation command accept `--format`. The `api` commands are the machine surface: a successful `api snapshot` or
 `api schema` emits the identical JSON document under both formats, while an `api` failure
 follows the selected format like any other command — under text/default it reports on stderr

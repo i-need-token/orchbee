@@ -24,9 +24,12 @@ shell 片段仅作示意。
 
 - 若按下方片段提取 ID，需要 `PATH` 上有 `jq`；否则请手动从
   `--format json` 输出中读取相同字段。
-- 角色区分：`config check` 纯属本地检查（不连接、不加锁、无副作用）；
-  `site start` 执行唯一一次有副作用的激活；其余每条命令都与*正在运
-  行的*本地 Site 通信。
+- 角色区分：`config check`、`site diagnose`、`api schema`、
+  `agent doctor` 与整个 `agent integration` 命令族纯属本地（不连接、
+  不加锁、无 Site 副作用）；`help`、`completion` 与 `--version` 输出
+  固定文本，不触碰运行时状态；`site start` 执行唯一一次有副作用的
+  激活；其余每条命令——包括裸 orchbee/`tui` 入口的
+  connect-or-activate——都与本地 Site 通信。
 - 只有当运行中的 Site 从已启用的受支持 Agent 集成中观察到会话时，
   Agent 行才会出现。provider 接入即第 6 节的 `agent integration` 命令
   族——本地、有界、绝不接触 Site——且没有 `agent launch`；已启用的

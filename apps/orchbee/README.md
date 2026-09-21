@@ -35,14 +35,16 @@ orchbee --help | --version
 
 Query families are `project`, `workspace`, `tab`, `panel`, `terminal`, `worktree`,
 `launch-profile`, and
-`agent` (`list`/`get`, plus `terminal read`; `worktree` offers only `list`, which requires
+`agent` (`list`/`get`, plus `terminal read`/`wait-output`; `worktree` offers only `list`, which requires
 `--project <target>` and `--directory <directory-id>` — a strict nonzero 32-lowercase-hex
 Workbench directory id, never a filesystem path or label; `launch-profile` offers `list`
 and `get <selector>` — a typed read of the running Site's launch profile catalog, resolved
 Server-side with no local pre-read; `agent` offers `list` with
 `--include-ended`/`--limit`/`--cursor` paging, `get <session-id>`, and `explain
 <session-id>` — a read-only typed view of the Server's canonical Agent sessions over OBAP,
-never inferred from terminal contents — plus `doctor [--provider <id>]... [--asset-root
+never inferred from terminal contents — `wait <session-id> [--until <condition>]...
+[--timeout <ms>]`, a bounded poll on a held Client Session until a named status or
+freshness condition matches or its deadline lands — plus `doctor [--provider <id>]... [--asset-root
 <path>]...`, an offline bounded-filesystem diagnostic that explains from local facts alone
 why Agent observations may not arrive (no provider execution, no socket connect, no writes).
 Mutation commands against the
@@ -54,9 +56,10 @@ launch selection in the catalog and `launch-profile delete <selector>` removes i
 create` and `panel split` additionally accept either an ephemeral
 `--exec <path> [--arg <value>]...` launch selection or a `--profile <selector>` catalog
 launch — mutually exclusive — that replaces the resolved default shell for
-that one request only. `terminal send <id> (--text <utf8> [--enter] | --key <name>)`
-delivers exactly one input record — literal text with an optional folded carriage return, or
-one of fifteen semantic keys — to a bound terminal over the same admitted session, without
+that one request only. `terminal send <id> (--text <utf8> | --file <path> | --stdin) [--enter] | --key <name>`
+delivers exactly one input record — literal text, a regular file's contents, or piped
+standard input, each with an optional folded carriage return, or one of fifteen semantic
+keys — to a bound terminal over the same admitted session, without
 taking over TUI controller/viewer ownership; its two-axis receipt reports the Server's input
 verdict and cleanup status separately. `project create` submits the existing `ProjectCreate` action —
 one navigation record, no directory or filesystem effect — and returns the Server-allocated
@@ -89,6 +92,26 @@ filter rules, mutation outcomes, and the failure matrix with exit classes are ow
 For an end-to-end headless sequence — start a Site, create a
 Project/Workspace/directory, launch and drive a terminal, inspect worktrees,
 observe Agents, and close cleanly — see [native CLI workflows](docs/cli-workflows.md).
+
+The everyday entries, in the order one session usually needs them — every line
+runs as written once a development cohort is staged:
+
+```sh
+orchbee site start                        # activate the local Site once (no TTY)
+orchbee status                            # is the Workbench reachable?
+orchbee project create --label demo       # then workspace create / accept-directory
+orchbee tab create --workspace <ws> --label shell \
+  --cols 80 --rows 24 --cell-width 8 --cell-height 16
+orchbee terminal send <terminal-id> --text 'make test' --enter
+orchbee terminal wait-output <terminal-id> --match 'PASS'
+orchbee agent integration enable --provider <id>   # one-time local onboarding
+orchbee agent list                        # sessions the running Site observes
+orchbee agent wait <session-id> --until ended
+```
+
+`orchbee help <family>` prints the same grammar from the binary itself, and
+`orchbee completion <shell>` prints the matching key-driven discovery script
+for your shell to source.
 
 Help writes stdout, failures write stderr, and version writes one locale-neutral
 `orchbee <version>` line. Development status is `0` for normal TUI close/help/version and for
