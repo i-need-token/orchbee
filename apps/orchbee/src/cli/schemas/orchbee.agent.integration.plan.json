@@ -84,13 +84,7 @@
 			"additionalProperties": false,
 			"properties": {
 				"state": {
-					"enum": [
-						"ready",
-						"not-ready",
-						"unsupported-version",
-						"source-absent",
-						"binding-failed"
-					]
+					"enum": ["ready", "not-ready", "unsupported-version", "source-absent", "binding-failed"]
 				},
 				"source": {
 					"enum": ["cohort-sidecar", "adapter-source-override", "absent"]
@@ -133,12 +127,7 @@
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
-					"enum": [
-						"capsule-publish",
-						"provider-command",
-						"guarded-write",
-						"guarded-remove"
-					]
+					"enum": ["capsule-publish", "provider-command", "guarded-write", "guarded-remove"]
 				},
 				"executable": { "type": "string", "minLength": 1 },
 				"argv": {

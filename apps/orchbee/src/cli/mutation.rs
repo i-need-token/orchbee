@@ -279,10 +279,10 @@ mod linux {
     use std::time::Instant;
 
     use orchbee_workbench_protocol::{
-        LaunchProfileId, PanelNode, Project, ProtocolVersion, SiteId, Snapshot, Tab,
-        TerminalContext, WorkbenchAction, WorkbenchCommand, WorkbenchCommandUnavailableReason,
-        WorkbenchPanelId, WorkbenchPanelRelocateDestination, WorkbenchPanelSplitDirection,
-        WorkbenchRejectionReason, WorkbenchRequestId, WorkbenchRevision, WorkbenchTabMoveDirection,
+        LaunchProfileId, Project, ProtocolVersion, SiteId, Snapshot, Tab, TerminalContext,
+        WorkbenchAction, WorkbenchCommand, WorkbenchCommandUnavailableReason, WorkbenchPanelId,
+        WorkbenchPanelRelocateDestination, WorkbenchPanelSplitDirection, WorkbenchRejectionReason,
+        WorkbenchRequestId, WorkbenchRevision, WorkbenchTabMoveDirection,
         WorkbenchTerminalFailureReason, WorkbenchTerminalOutcome,
         WorkbenchTerminalUnavailableReason, WorkbenchWireError, Workspace,
     };
@@ -1946,8 +1946,10 @@ mod linux {
             let snapshot = parse_snapshot(&serde_json::to_vec(&document).unwrap()).unwrap();
             let move_command = |into: &str| MutationCommand::PanelMove {
                 target: Target::Selector("@panel:0f2".into()),
-                into: Target::Selector(into.into()),
-                direction: WorkbenchPanelSplitDirection::Left,
+                destination: PanelMoveDestination::Adjacent {
+                    into: Target::Selector(into.into()),
+                    direction: WorkbenchPanelSplitDirection::Left,
+                },
             };
 
             // Unique in-scope tail: the action carries the resolved full id.

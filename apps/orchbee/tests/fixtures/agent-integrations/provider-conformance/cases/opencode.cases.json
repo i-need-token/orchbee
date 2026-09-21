@@ -12,16 +12,28 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["current"],
-			"dims": {"target": "exact-owned current bootstrap"},
+			"dims": { "target": "exact-owned current bootstrap" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/opencode",
 				"capsule": "ready",
-				"fs": [{"path": ".config/opencode/plugins/orchbee-agent-observation.mjs", "kind": "file", "content": "@guarded.bootstrap.opencode", "mode": "0600"}],
+				"fs": [
+					{
+						"path": ".config/opencode/plugins/orchbee-agent-observation.mjs",
+						"kind": "file",
+						"content": "@guarded.bootstrap.opencode",
+						"mode": "0600"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
-				"snapshot": {"state": "enabled", "issue": null, "availability": "available", "managementMode": "managed-local"},
+				"snapshot": {
+					"state": "enabled",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
 				"commands": []
 			},
 			"anchors": ["guarded-adapter:196-229,313-324", "create-adapters:96-112"],
@@ -32,10 +44,21 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["not-installed"],
-			"dims": {"target": "absent"},
-			"given": {"managementMode": "managed-local", "exe": "/usr/bin/opencode", "capsule": "ready", "fs": [], "commands": []},
+			"dims": { "target": "absent" },
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/opencode",
+				"capsule": "ready",
+				"fs": [],
+				"commands": []
+			},
 			"expect": {
-				"snapshot": {"state": "not-installed", "issue": null, "availability": "available", "managementMode": "managed-local"},
+				"snapshot": {
+					"state": "not-installed",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
 				"commands": []
 			},
 			"anchors": ["guarded-adapter:135,199-202"]
@@ -45,16 +68,27 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict", "foreign"],
-			"dims": {"target": "regular file, content mismatch"},
+			"dims": { "target": "regular file, content mismatch" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/opencode",
 				"capsule": "ready",
-				"fs": [{"path": ".config/opencode/plugins/orchbee-agent-observation.mjs", "kind": "file", "content": "// user configuration\n"}],
+				"fs": [
+					{
+						"path": ".config/opencode/plugins/orchbee-agent-observation.mjs",
+						"kind": "file",
+						"content": "// user configuration\n"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
-				"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["guarded-adapter:226-228"],
 			"notes": "Even one byte different from the generated bootstrap → conflict; never repaired silently."
@@ -64,16 +98,21 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict", "foreign"],
-			"dims": {"target": "directory (wrong type)"},
+			"dims": { "target": "directory (wrong type)" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/opencode",
 				"capsule": "ready",
-				"fs": [{"path": ".config/opencode/plugins/orchbee-agent-observation.mjs", "kind": "dir"}],
+				"fs": [{ "path": ".config/opencode/plugins/orchbee-agent-observation.mjs", "kind": "dir" }],
 				"commands": []
 			},
 			"expect": {
-				"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["guarded-adapter:221-225"]
 		},
@@ -82,16 +121,27 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["update-required", "legacy-symlink"],
-			"dims": {"target": "symlink → legacy root source"},
+			"dims": { "target": "symlink → legacy root source" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/opencode",
 				"capsule": "ready",
-				"fs": [{"path": ".config/opencode/plugins/orchbee-agent-observation.mjs", "kind": "symlink", "target": "${APP_BUNDLE_ROOT}/bundle/opencode/orchbee-agent-observation.mjs"}],
+				"fs": [
+					{
+						"path": ".config/opencode/plugins/orchbee-agent-observation.mjs",
+						"kind": "symlink",
+						"target": "${APP_BUNDLE_ROOT}/bundle/opencode/orchbee-agent-observation.mjs"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
-				"snapshot": {"state": "update-required", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "update-required",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["guarded-adapter:203-219,441-447", "state-parsers:164-172"],
 			"notes": "Symlink resolving to a recognized legacy resource root → update-required (migration candidate); the relative source path must still line up (resourceRootForSource)."
@@ -101,16 +151,27 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["update-required", "legacy-symlink"],
-			"dims": {"target": "symlink → older versioned sibling source"},
+			"dims": { "target": "symlink → older versioned sibling source" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/opencode",
 				"capsule": "ready",
-				"fs": [{"path": ".config/opencode/plugins/orchbee-agent-observation.mjs", "kind": "symlink", "target": "${OLDER_SIBLING}/bundle/opencode/orchbee-agent-observation.mjs"}],
+				"fs": [
+					{
+						"path": ".config/opencode/plugins/orchbee-agent-observation.mjs",
+						"kind": "symlink",
+						"target": "${OLDER_SIBLING}/bundle/opencode/orchbee-agent-observation.mjs"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
-				"snapshot": {"state": "update-required", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "update-required",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["guarded-adapter:203-219", "state-parsers:173-180"]
 		},
@@ -119,18 +180,31 @@
 			"operation": "inspect",
 			"class": "cli-divergence",
 			"covers": ["stale-side", "newer-sibling"],
-			"dims": {"target": "symlink → NEWER versioned sibling source"},
+			"dims": { "target": "symlink → NEWER versioned sibling source" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/opencode",
 				"capsule": "ready",
-				"fs": [{"path": ".config/opencode/plugins/orchbee-agent-observation.mjs", "kind": "symlink", "target": "${NEWER_SIBLING}/bundle/opencode/orchbee-agent-observation.mjs"}],
+				"fs": [
+					{
+						"path": ".config/opencode/plugins/orchbee-agent-observation.mjs",
+						"kind": "symlink",
+						"target": "${NEWER_SIBLING}/bundle/opencode/orchbee-agent-observation.mjs"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
-				"snapshot": {"state": "stale-side", "issue": null, "availability": "available", "managementMode": "managed-local"},
-				"desktopCanonical": {"state": "update-required", "issue": null},
-				"cli": {"note": "symlink into a semver-greater sibling capsule → stale-side; enable/disable refuse pre-effect exit 3 (§3.2). Canonical classifies it legacy→update-required."}
+				"snapshot": {
+					"state": "stale-side",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
+				"desktopCanonical": { "state": "update-required", "issue": null },
+				"cli": {
+					"note": "symlink into a semver-greater sibling capsule → stale-side; enable/disable refuse pre-effect exit 3 (§3.2). Canonical classifies it legacy→update-required."
+				}
 			},
 			"anchors": ["guarded-adapter:203-219", "state-parsers:173-180", "design:complete53§3.2"]
 		},
@@ -139,16 +213,27 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["foreign", "conflict"],
-			"dims": {"target": "symlink → foreign root"},
+			"dims": { "target": "symlink → foreign root" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/opencode",
 				"capsule": "ready",
-				"fs": [{"path": ".config/opencode/plugins/orchbee-agent-observation.mjs", "kind": "symlink", "target": "${FOREIGN_ROOT}/bundle/opencode/orchbee-agent-observation.mjs"}],
+				"fs": [
+					{
+						"path": ".config/opencode/plugins/orchbee-agent-observation.mjs",
+						"kind": "symlink",
+						"target": "${FOREIGN_ROOT}/bundle/opencode/orchbee-agent-observation.mjs"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
-				"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["guarded-adapter:203-216"]
 		},
@@ -157,16 +242,21 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["unreadable", "unknown"],
-			"dims": {"target": "lstat EACCES"},
+			"dims": { "target": "lstat EACCES" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/opencode",
 				"capsule": "ready",
-				"fs": [{"path": ".config/opencode/plugins", "kind": "dir", "mode": "0000"}],
+				"fs": [{ "path": ".config/opencode/plugins", "kind": "dir", "mode": "0000" }],
 				"commands": []
 			},
 			"expect": {
-				"snapshot": {"state": "unknown", "issue": "inspection-failed", "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "unknown",
+					"issue": "inspection-failed",
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["guarded-adapter:199-202,147"]
 		},
@@ -175,16 +265,28 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["capsule-drift", "update-required"],
-			"dims": {"target": "exact-owned current", "sourceReady": false},
+			"dims": { "target": "exact-owned current", "sourceReady": false },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/opencode",
 				"capsule": "absent",
-				"fs": [{"path": ".config/opencode/plugins/orchbee-agent-observation.mjs", "kind": "file", "content": "@guarded.bootstrap.opencode", "mode": "0600"}],
+				"fs": [
+					{
+						"path": ".config/opencode/plugins/orchbee-agent-observation.mjs",
+						"kind": "file",
+						"content": "@guarded.bootstrap.opencode",
+						"mode": "0600"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
-				"snapshot": {"state": "update-required", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "update-required",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["guarded-adapter:136-141,246-258", "capsule-adapter:36-42"],
 			"notes": "Current target + missing capsule source → update-required on BOTH layers (adapter's own sourceReady check AND the capsule wrapper)."
@@ -194,16 +296,28 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["agent-unavailable"],
-			"dims": {"exe": "not-found", "target": "exact-owned current"},
+			"dims": { "exe": "not-found", "target": "exact-owned current" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": null,
 				"capsule": "ready",
-				"fs": [{"path": ".config/opencode/plugins/orchbee-agent-observation.mjs", "kind": "file", "content": "@guarded.bootstrap.opencode", "mode": "0600"}],
+				"fs": [
+					{
+						"path": ".config/opencode/plugins/orchbee-agent-observation.mjs",
+						"kind": "file",
+						"content": "@guarded.bootstrap.opencode",
+						"mode": "0600"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
-				"snapshot": {"state": "enabled", "issue": null, "availability": "not-found", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "enabled",
+					"issue": null,
+					"availability": "not-found",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["guarded-adapter:127-151"],
 			"notes": "Executable presence affects availability only — the fs contract still classifies."
@@ -213,7 +327,7 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["enable"],
-			"dims": {"target": "absent", "sourceReady": true},
+			"dims": { "target": "absent", "sourceReady": true },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/opencode",
@@ -225,8 +339,18 @@
 				"attempt": "attempted",
 				"commands": [],
 				"planCommands": [],
-				"fsEffect": {"kind": "publish-file", "path": ".config/opencode/plugins/orchbee-agent-observation.mjs", "content": "@guarded.bootstrap.opencode", "mode": "0600", "noReplace": true},
-				"cli": {"exit": 0, "frontier": "post-effect", "note": "CLI publishes via mkdtemp stage + link(2)+unlink no-replace (§5); EEXIST → conflict"}
+				"fsEffect": {
+					"kind": "publish-file",
+					"path": ".config/opencode/plugins/orchbee-agent-observation.mjs",
+					"content": "@guarded.bootstrap.opencode",
+					"mode": "0600",
+					"noReplace": true
+				},
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect",
+					"note": "CLI publishes via mkdtemp stage + link(2)+unlink no-replace (§5); EEXIST → conflict"
+				}
 			},
 			"anchors": ["guarded-adapter:153-184,260-310,296-300", "design:complete53§5"],
 			"notes": "ZERO provider commands for fs providers — the effect is a guarded write, not argv."
@@ -236,20 +360,27 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["noop", "enable"],
-			"dims": {"target": "exact-owned current"},
+			"dims": { "target": "exact-owned current" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/opencode",
 				"capsule": "ready",
-				"fs": [{"path": ".config/opencode/plugins/orchbee-agent-observation.mjs", "kind": "file", "content": "@guarded.bootstrap.opencode", "mode": "0600"}],
+				"fs": [
+					{
+						"path": ".config/opencode/plugins/orchbee-agent-observation.mjs",
+						"kind": "file",
+						"content": "@guarded.bootstrap.opencode",
+						"mode": "0600"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
 				"attempt": "attempted",
 				"commands": [],
 				"mustNotMutate": true,
-				"fsEffect": {"kind": "none"},
-				"cli": {"exit": 0, "frontier": "pre-effect"}
+				"fsEffect": { "kind": "none" },
+				"cli": { "exit": 0, "frontier": "pre-effect" }
 			},
 			"anchors": ["guarded-adapter:157"]
 		},
@@ -258,19 +389,32 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["enable", "legacy-symlink"],
-			"dims": {"target": "symlink → legacy root"},
+			"dims": { "target": "symlink → legacy root" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/opencode",
 				"capsule": "ready",
-				"fs": [{"path": ".config/opencode/plugins/orchbee-agent-observation.mjs", "kind": "symlink", "target": "${APP_BUNDLE_ROOT}/bundle/opencode/orchbee-agent-observation.mjs"}],
+				"fs": [
+					{
+						"path": ".config/opencode/plugins/orchbee-agent-observation.mjs",
+						"kind": "symlink",
+						"target": "${APP_BUNDLE_ROOT}/bundle/opencode/orchbee-agent-observation.mjs"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
 				"attempt": "attempted",
 				"commands": [],
-				"fsEffect": {"kind": "replace", "path": ".config/opencode/plugins/orchbee-agent-observation.mjs", "content": "@guarded.bootstrap.opencode", "mode": "0600", "noReplace": true, "backupPrefix": ".orchbee-agent-backup-"},
-				"cli": {"exit": 0, "frontier": "post-effect"}
+				"fsEffect": {
+					"kind": "replace",
+					"path": ".config/opencode/plugins/orchbee-agent-observation.mjs",
+					"content": "@guarded.bootstrap.opencode",
+					"mode": "0600",
+					"noReplace": true,
+					"backupPrefix": ".orchbee-agent-backup-"
+				},
+				"cli": { "exit": 0, "frontier": "post-effect" }
 			},
 			"anchors": ["guarded-adapter:172-180,231-244", "design:complete53§5"],
 			"notes": "Desktop removes the legacy symlink then renames the staged file. CLI: no-replace move-aside to a bounded fresh backup name (≤8 nonce attempts) → no-replace install → restore on ANY install failure."
@@ -280,20 +424,26 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["refusal", "conflict", "no-else-uninstall"],
-			"dims": {"target": "modified content"},
+			"dims": { "target": "modified content" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/opencode",
 				"capsule": "ready",
-				"fs": [{"path": ".config/opencode/plugins/orchbee-agent-observation.mjs", "kind": "file", "content": "// user configuration\n"}],
+				"fs": [
+					{
+						"path": ".config/opencode/plugins/orchbee-agent-observation.mjs",
+						"kind": "file",
+						"content": "// user configuration\n"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
 				"attempt": "conflict",
 				"commands": [],
 				"mustNotMutate": true,
-				"fsEffect": {"kind": "none"},
-				"cli": {"exit": 3, "frontier": "pre-effect"}
+				"fsEffect": { "kind": "none" },
+				"cli": { "exit": 3, "frontier": "pre-effect" }
 			},
 			"anchors": ["guarded-adapter:158-164"]
 		},
@@ -302,20 +452,20 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["refusal", "no-else-uninstall", "unknown"],
-			"dims": {"target": "lstat EACCES"},
+			"dims": { "target": "lstat EACCES" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/opencode",
 				"capsule": "ready",
-				"fs": [{"path": ".config/opencode/plugins", "kind": "dir", "mode": "0000"}],
+				"fs": [{ "path": ".config/opencode/plugins", "kind": "dir", "mode": "0000" }],
 				"commands": []
 			},
 			"expect": {
 				"attempt": "failed",
 				"commands": [],
 				"mustNotMutate": true,
-				"fsEffect": {"kind": "none"},
-				"cli": {"exit": 9, "frontier": "pre-effect"}
+				"fsEffect": { "kind": "none" },
+				"cli": { "exit": 9, "frontier": "pre-effect" }
 			},
 			"anchors": ["guarded-adapter:158-164", "disposition55:29-31"]
 		},
@@ -324,14 +474,24 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["refusal", "capsule-drift"],
-			"dims": {"sourceReady": false, "target": "absent"},
-			"given": {"managementMode": "managed-local", "exe": "/usr/bin/opencode", "capsule": "absent", "fs": [], "commands": []},
+			"dims": { "sourceReady": false, "target": "absent" },
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/opencode",
+				"capsule": "absent",
+				"fs": [],
+				"commands": []
+			},
 			"expect": {
 				"attempt": "failed",
 				"commands": [],
 				"mustNotMutate": true,
-				"fsEffect": {"kind": "none"},
-				"cli": {"exit": 9, "frontier": "post-effect", "note": "capsule publish attempted and failed → post-effect determinate"}
+				"fsEffect": { "kind": "none" },
+				"cli": {
+					"exit": 9,
+					"frontier": "post-effect",
+					"note": "capsule publish attempted and failed → post-effect determinate"
+				}
 			},
 			"anchors": ["guarded-adapter:155", "capsule-adapter:31-35"]
 		},
@@ -340,19 +500,31 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["refusal", "partial-completion"],
-			"dims": {"target": "changed between stage and publish"},
+			"dims": { "target": "changed between stage and publish" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/opencode",
 				"capsule": "ready",
-				"fs": [{"path": ".config/opencode/plugins/orchbee-agent-observation.mjs", "kind": "file", "content": "@guarded.bootstrap.opencode", "mode": "0600", "mutateDuringOp": "write-foreign"}],
+				"fs": [
+					{
+						"path": ".config/opencode/plugins/orchbee-agent-observation.mjs",
+						"kind": "file",
+						"content": "@guarded.bootstrap.opencode",
+						"mode": "0600",
+						"mutateDuringOp": "write-foreign"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
 				"attempt": "conflict",
 				"commands": [],
-				"fsEffect": {"kind": "none", "residue": "staged container removed by finally clause"},
-				"cli": {"exit": 9, "frontier": "post-effect", "note": "re-inspection after staging found a different state → abort; staged residue cleaned; the frontier was already crossed so a determinate refusal is failed→9, never the pre-effect conflict class"}
+				"fsEffect": { "kind": "none", "residue": "staged container removed by finally clause" },
+				"cli": {
+					"exit": 9,
+					"frontier": "post-effect",
+					"note": "re-inspection after staging found a different state → abort; staged residue cleaned; the frontier was already crossed so a determinate refusal is failed→9, never the pre-effect conflict class"
+				}
 			},
 			"anchors": ["guarded-adapter:165-183"],
 			"notes": "The staged entry is created BEFORE re-verifying the target state; a mid-window change aborts without touching the target."
@@ -362,19 +534,29 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["disable"],
-			"dims": {"target": "exact-owned current"},
+			"dims": { "target": "exact-owned current" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/opencode",
 				"capsule": "ready",
-				"fs": [{"path": ".config/opencode/plugins/orchbee-agent-observation.mjs", "kind": "file", "content": "@guarded.bootstrap.opencode", "mode": "0600"}],
+				"fs": [
+					{
+						"path": ".config/opencode/plugins/orchbee-agent-observation.mjs",
+						"kind": "file",
+						"content": "@guarded.bootstrap.opencode",
+						"mode": "0600"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
 				"attempt": "attempted",
 				"commands": [],
-				"fsEffect": {"kind": "unlink", "path": ".config/opencode/plugins/orchbee-agent-observation.mjs"},
-				"cli": {"exit": 0, "frontier": "post-effect"}
+				"fsEffect": {
+					"kind": "unlink",
+					"path": ".config/opencode/plugins/orchbee-agent-observation.mjs"
+				},
+				"cli": { "exit": 0, "frontier": "post-effect" }
 			},
 			"anchors": ["guarded-adapter:186-194,231-244"]
 		},
@@ -383,14 +565,20 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["noop", "disable"],
-			"dims": {"target": "absent"},
-			"given": {"managementMode": "managed-local", "exe": "/usr/bin/opencode", "capsule": "ready", "fs": [], "commands": []},
+			"dims": { "target": "absent" },
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/opencode",
+				"capsule": "ready",
+				"fs": [],
+				"commands": []
+			},
 			"expect": {
 				"attempt": "attempted",
 				"commands": [],
 				"mustNotMutate": true,
-				"fsEffect": {"kind": "none"},
-				"cli": {"exit": 0, "frontier": "pre-effect"}
+				"fsEffect": { "kind": "none" },
+				"cli": { "exit": 0, "frontier": "pre-effect" }
 			},
 			"anchors": ["guarded-adapter:189"]
 		},
@@ -399,19 +587,28 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["disable", "legacy-symlink"],
-			"dims": {"target": "symlink → legacy root"},
+			"dims": { "target": "symlink → legacy root" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/opencode",
 				"capsule": "ready",
-				"fs": [{"path": ".config/opencode/plugins/orchbee-agent-observation.mjs", "kind": "symlink", "target": "${OLDER_SIBLING}/bundle/opencode/orchbee-agent-observation.mjs"}],
+				"fs": [
+					{
+						"path": ".config/opencode/plugins/orchbee-agent-observation.mjs",
+						"kind": "symlink",
+						"target": "${OLDER_SIBLING}/bundle/opencode/orchbee-agent-observation.mjs"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
 				"attempt": "attempted",
 				"commands": [],
-				"fsEffect": {"kind": "unlink", "path": ".config/opencode/plugins/orchbee-agent-observation.mjs"},
-				"cli": {"exit": 0, "frontier": "post-effect"}
+				"fsEffect": {
+					"kind": "unlink",
+					"path": ".config/opencode/plugins/orchbee-agent-observation.mjs"
+				},
+				"cli": { "exit": 0, "frontier": "post-effect" }
 			},
 			"anchors": ["guarded-adapter:190-194,235-236"],
 			"notes": "Legacy symlink is exact-owned → unlink removes the LINK, never the pointed-at capsule content."
@@ -421,20 +618,26 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["refusal", "conflict", "no-else-uninstall"],
-			"dims": {"target": "foreign content"},
+			"dims": { "target": "foreign content" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/opencode",
 				"capsule": "ready",
-				"fs": [{"path": ".config/opencode/plugins/orchbee-agent-observation.mjs", "kind": "file", "content": "// user configuration\n"}],
+				"fs": [
+					{
+						"path": ".config/opencode/plugins/orchbee-agent-observation.mjs",
+						"kind": "file",
+						"content": "// user configuration\n"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
 				"attempt": "conflict",
 				"commands": [],
 				"mustNotMutate": true,
-				"fsEffect": {"kind": "none"},
-				"cli": {"exit": 3, "frontier": "pre-effect"}
+				"fsEffect": { "kind": "none" },
+				"cli": { "exit": 3, "frontier": "pre-effect" }
 			},
 			"anchors": ["guarded-adapter:190-192"]
 		},
@@ -443,20 +646,20 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["refusal", "no-else-uninstall", "unknown"],
-			"dims": {"target": "lstat EACCES"},
+			"dims": { "target": "lstat EACCES" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/opencode",
 				"capsule": "ready",
-				"fs": [{"path": ".config/opencode/plugins", "kind": "dir", "mode": "0000"}],
+				"fs": [{ "path": ".config/opencode/plugins", "kind": "dir", "mode": "0000" }],
 				"commands": []
 			},
 			"expect": {
 				"attempt": "failed",
 				"commands": [],
 				"mustNotMutate": true,
-				"fsEffect": {"kind": "none"},
-				"cli": {"exit": 9, "frontier": "pre-effect"}
+				"fsEffect": { "kind": "none" },
+				"cli": { "exit": 9, "frontier": "pre-effect" }
 			},
 			"anchors": ["guarded-adapter:190-192", "disposition55:29-31"]
 		},
@@ -465,22 +668,32 @@
 			"operation": "disable",
 			"class": "cli-divergence",
 			"covers": ["stale-side", "newer-sibling", "refusal"],
-			"dims": {"target": "symlink → newer sibling"},
+			"dims": { "target": "symlink → newer sibling" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/opencode",
 				"capsule": "ready",
-				"fs": [{"path": ".config/opencode/plugins/orchbee-agent-observation.mjs", "kind": "symlink", "target": "${NEWER_SIBLING}/bundle/opencode/orchbee-agent-observation.mjs"}],
+				"fs": [
+					{
+						"path": ".config/opencode/plugins/orchbee-agent-observation.mjs",
+						"kind": "symlink",
+						"target": "${NEWER_SIBLING}/bundle/opencode/orchbee-agent-observation.mjs"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
-				"snapshot": {"state": "stale-side"},
+				"snapshot": { "state": "stale-side" },
 				"attempt": "stale-side",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"fsEffect": {"kind": "none"},
-				"desktopCanonical": {"state": "update-required", "attempt": "attempted", "fsEffect": {"kind": "unlink"}},
-				"cli": {"exit": 3, "verdict": "stale-side", "frontier": "pre-effect"}
+				"fsEffect": { "kind": "none" },
+				"desktopCanonical": {
+					"state": "update-required",
+					"attempt": "attempted",
+					"fsEffect": { "kind": "unlink" }
+				},
+				"cli": { "exit": 3, "verdict": "stale-side", "frontier": "pre-effect" }
 			},
 			"anchors": ["guarded-adapter:203-219", "design:complete53§3.2"],
 			"notes": "Desktop would unlink the newer sibling's symlink (update-required→remove). CLI refuses."

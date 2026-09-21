@@ -940,6 +940,8 @@ fn selector_targets_parse_for_their_own_resource() {
             QueryCommand::TerminalRead {
                 target: Target::Selector("@terminal:beef".into()),
                 history: None,
+                unwrap: false,
+                lines: None,
             },
         ),
     ];

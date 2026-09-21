@@ -330,13 +330,7 @@
 							]
 						}
 					},
-					"required": [
-						"kind",
-						"terminalContextId",
-						"tabId",
-						"panelId",
-						"destination"
-					],
+					"required": ["kind", "terminalContextId", "tabId", "panelId", "destination"],
 					"additionalProperties": false
 				}
 			]
@@ -947,14 +941,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
 						}
 					},
-					"required": [
-						"kind",
-						"revision",
-						"terminalContextId",
-						"tabId",
-						"panelId",
-						"newTabId"
-					],
+					"required": ["kind", "revision", "terminalContextId", "tabId", "panelId", "newTabId"],
 					"additionalProperties": false
 				}
 			]

@@ -187,9 +187,7 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 						direction: WorkbenchPanelSplitDirectionSchema,
 					})
 					.readonly(),
-				z
-					.strictObject({ kind: z.literal('new-tab'), label: WorkbenchLabelSchema })
-					.readonly(),
+				z.strictObject({ kind: z.literal('new-tab'), label: WorkbenchLabelSchema }).readonly(),
 			]),
 		})
 		.readonly(),

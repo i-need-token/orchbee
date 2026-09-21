@@ -9,17 +9,30 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["current"],
-			"dims": {"pluginPresent": true, "ownership": "current", "versionMatch": true, "enabled": true},
+			"dims": {
+				"pluginPresent": true,
+				"ownership": "current",
+				"versionMatch": true,
+				"enabled": true
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.enabled"}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.enabled" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "enabled", "issue": null, "availability": "available", "managementMode": "managed-local"},
+				"snapshot": {
+					"state": "enabled",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
 				"commands": [["plugin", "list", "--json"]]
 			},
 			"anchors": ["state-parsers:75-106", "create-adapters:426-437"]
@@ -29,17 +42,25 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["disabled", "disabled-path"],
-			"dims": {"pluginPresent": true, "ownership": "current", "enabled": false},
+			"dims": { "pluginPresent": true, "ownership": "current", "enabled": false },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.disabledBoolean"}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.disabledBoolean" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "disabled", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "disabled",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:96-99"]
 		},
@@ -48,17 +69,25 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["disabled", "disabled-path"],
-			"dims": {"pluginPresent": true, "ownership": "current", "status": "disabled"},
+			"dims": { "pluginPresent": true, "ownership": "current", "status": "disabled" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.disabledStatus"}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.disabledStatus" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "disabled", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "disabled",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:100-101"],
 			"notes": "Grok's disabled state has TWO wire shapes (enabled:false OR status:'disabled'); both must classify disabled — the enable path is a real 'plugin enable', not a no-op."
@@ -68,17 +97,25 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["current"],
-			"dims": {"pluginPresent": true, "ownership": "current", "status": "installed"},
+			"dims": { "pluginPresent": true, "ownership": "current", "status": "installed" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.installedStatus"}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.installedStatus" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "enabled", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "enabled",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:102-104"]
 		},
@@ -87,17 +124,25 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["unreadable"],
-			"dims": {"pluginPresent": true, "ownership": "current", "status": "pending"},
+			"dims": { "pluginPresent": true, "ownership": "current", "status": "pending" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.unknownStatus"}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.unknownStatus" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "unknown", "issue": "inspection-failed", "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "unknown",
+					"issue": "inspection-failed",
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:96-105"]
 		},
@@ -106,17 +151,25 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["not-installed"],
-			"dims": {"pluginPresent": false},
+			"dims": { "pluginPresent": false },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.empty"}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.empty" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "not-installed", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "not-installed",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:82"]
 		},
@@ -125,17 +178,20 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["unreadable"],
-			"dims": {"read": "failed"},
+			"dims": { "read": "failed" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
-				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "failed"}}
-				]
+				"commands": [{ "argv": ["plugin", "list", "--json"], "result": { "kind": "failed" } }]
 			},
 			"expect": {
-				"snapshot": {"state": "unknown", "issue": "inspection-failed", "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "unknown",
+					"issue": "inspection-failed",
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["create-adapters:429-436", "cli-adapter:70-83"]
 		},
@@ -144,17 +200,25 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict"],
-			"dims": {"pluginMatches": 2},
+			"dims": { "pluginMatches": 2 },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.duplicate"}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.duplicate" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:83"]
 		},
@@ -163,17 +227,25 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["foreign", "conflict"],
-			"dims": {"pluginPresent": true, "ownership": "foreign"},
+			"dims": { "pluginPresent": true, "ownership": "foreign" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.foreignSource"}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.foreignSource" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:91-92"]
 		},
@@ -182,17 +254,25 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict"],
-			"dims": {"pluginPresent": true, "sourceBasename": "payload"},
+			"dims": { "pluginPresent": true, "sourceBasename": "payload" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.sourceNotBundle"}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.sourceNotBundle" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:86-90"],
 			"notes": "source basename must be exactly 'bundle' — a path inside the capsule root but not the bundle dir is conflict."
@@ -202,17 +282,25 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["update-required"],
-			"dims": {"pluginPresent": true, "ownership": "legacy"},
+			"dims": { "pluginPresent": true, "ownership": "legacy" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.legacySource"}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.legacySource" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "update-required", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "update-required",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:91-95"]
 		},
@@ -221,17 +309,25 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["update-required"],
-			"dims": {"pluginPresent": true, "ownership": "current", "versionMatch": false},
+			"dims": { "pluginPresent": true, "ownership": "current", "versionMatch": false },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.oldVersion"}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.oldVersion" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "update-required", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "update-required",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:93-95"]
 		},
@@ -240,19 +336,29 @@
 			"operation": "inspect",
 			"class": "cli-divergence",
 			"covers": ["stale-side", "newer-sibling"],
-			"dims": {"pluginPresent": true, "ownership": "newer-sibling"},
+			"dims": { "pluginPresent": true, "ownership": "newer-sibling" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.newerSiblingSource"}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.newerSiblingSource" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "stale-side", "issue": null, "availability": "available", "managementMode": "managed-local"},
-				"desktopCanonical": {"state": "update-required", "issue": null},
-				"cli": {"note": "dirname(source) resolves to a semver-greater versioned sibling → stale-side (§3.2); canonical maps it to legacy→update-required."}
+				"snapshot": {
+					"state": "stale-side",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
+				"desktopCanonical": { "state": "update-required", "issue": null },
+				"cli": {
+					"note": "dirname(source) resolves to a semver-greater versioned sibling → stale-side (§3.2); canonical maps it to legacy→update-required."
+				}
 			},
 			"anchors": ["state-parsers:88-95,173-180", "design:complete53§3.2"]
 		},
@@ -261,17 +367,25 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict"],
-			"dims": {"pluginPresent": true, "version": "absent"},
+			"dims": { "pluginPresent": true, "version": "absent" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.missingVersion"}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.missingVersion" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:86-90"],
 			"notes": "missing source OR version → conflict (entry present but unverifiable), NOT inspection-failed."
@@ -281,10 +395,20 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["agent-unavailable"],
-			"dims": {"exe": "not-found"},
-			"given": {"managementMode": "managed-local", "exe": null, "capsule": "ready", "commands": []},
+			"dims": { "exe": "not-found" },
+			"given": {
+				"managementMode": "managed-local",
+				"exe": null,
+				"capsule": "ready",
+				"commands": []
+			},
 			"expect": {
-				"snapshot": {"state": "unknown", "issue": null, "availability": "not-found", "managementMode": "managed-local"},
+				"snapshot": {
+					"state": "unknown",
+					"issue": null,
+					"availability": "not-found",
+					"managementMode": "managed-local"
+				},
 				"commands": []
 			},
 			"anchors": ["cli-adapter:58-68"]
@@ -294,17 +418,25 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["capsule-drift"],
-			"dims": {"capsule": "absent", "state": "enabled"},
+			"dims": { "capsule": "absent", "state": "enabled" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "absent",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.enabled"}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.enabled" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "update-required", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "update-required",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["capsule-adapter:36-42"]
 		},
@@ -313,20 +445,23 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["noop", "enable"],
-			"dims": {"state": "enabled"},
+			"dims": { "state": "enabled" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.enabled"}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.enabled" }
+					}
 				]
 			},
 			"expect": {
 				"attempt": "attempted",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"cli": {"exit": 0, "frontier": "pre-effect"}
+				"cli": { "exit": 0, "frontier": "pre-effect" }
 			},
 			"anchors": ["create-adapters:284"]
 		},
@@ -335,20 +470,26 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["enable", "disabled-path"],
-			"dims": {"state": "disabled"},
+			"dims": { "state": "disabled" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.disabledStatus"}},
-					{"argv": ["plugin", "enable", "${PLUGIN_NAME}"], "result": {"kind": "completed", "stdout": ""}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.disabledStatus" }
+					},
+					{
+						"argv": ["plugin", "enable", "${PLUGIN_NAME}"],
+						"result": { "kind": "completed", "stdout": "" }
+					}
 				]
 			},
 			"expect": {
 				"attempt": "attempted",
 				"planCommands": [["plugin", "enable", "${PLUGIN_NAME}"]],
-				"cli": {"exit": 0, "frontier": "post-effect"}
+				"cli": { "exit": 0, "frontier": "post-effect" }
 			},
 			"anchors": ["create-adapters:286-293"],
 			"notes": "Grok disabled enable is a REAL command — 'plugin enable orchbee-agent-observation' with NO --scope and NO --confirm (literal argv pinned)."
@@ -358,20 +499,26 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["enable"],
-			"dims": {"state": "not-installed"},
+			"dims": { "state": "not-installed" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.empty"}},
-					{"argv": ["plugin", "install", "${BUNDLE}", "--trust"], "result": {"kind": "completed", "stdout": ""}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.empty" }
+					},
+					{
+						"argv": ["plugin", "install", "${BUNDLE}", "--trust"],
+						"result": { "kind": "completed", "stdout": "" }
+					}
 				]
 			},
 			"expect": {
 				"attempt": "attempted",
 				"planCommands": [["plugin", "install", "${BUNDLE}", "--trust"]],
-				"cli": {"exit": 0, "frontier": "post-effect"}
+				"cli": { "exit": 0, "frontier": "post-effect" }
 			},
 			"anchors": ["create-adapters:295-303"],
 			"notes": "install path = <capsuleRoot>/bundle with --trust (literal, not the root itself)."
@@ -381,15 +528,24 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["enable", "update-required"],
-			"dims": {"state": "update-required", "pluginPresent": true},
+			"dims": { "state": "update-required", "pluginPresent": true },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.legacySource"}},
-					{"argv": ["plugin", "uninstall", "${PLUGIN_NAME}", "--confirm"], "result": {"kind": "completed", "stdout": ""}},
-					{"argv": ["plugin", "install", "${BUNDLE}", "--trust"], "result": {"kind": "completed", "stdout": ""}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.legacySource" }
+					},
+					{
+						"argv": ["plugin", "uninstall", "${PLUGIN_NAME}", "--confirm"],
+						"result": { "kind": "completed", "stdout": "" }
+					},
+					{
+						"argv": ["plugin", "install", "${BUNDLE}", "--trust"],
+						"result": { "kind": "completed", "stdout": "" }
+					}
 				]
 			},
 			"expect": {
@@ -398,7 +554,7 @@
 					["plugin", "uninstall", "${PLUGIN_NAME}", "--confirm"],
 					["plugin", "install", "${BUNDLE}", "--trust"]
 				],
-				"cli": {"exit": 0, "frontier": "post-effect"}
+				"cli": { "exit": 0, "frontier": "post-effect" }
 			},
 			"anchors": ["create-adapters:298-303"]
 		},
@@ -407,20 +563,23 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["refusal", "conflict", "no-else-uninstall"],
-			"dims": {"state": "conflict"},
+			"dims": { "state": "conflict" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.foreignSource"}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.foreignSource" }
+					}
 				]
 			},
 			"expect": {
 				"attempt": "conflict",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"cli": {"exit": 3, "frontier": "pre-effect"}
+				"cli": { "exit": 3, "frontier": "pre-effect" }
 			},
 			"anchors": ["create-adapters:285"]
 		},
@@ -429,20 +588,18 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["refusal", "no-else-uninstall", "unknown"],
-			"dims": {"state": "unknown"},
+			"dims": { "state": "unknown" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
-				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "timed-out"}}
-				]
+				"commands": [{ "argv": ["plugin", "list", "--json"], "result": { "kind": "timed-out" } }]
 			},
 			"expect": {
 				"attempt": "failed",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"cli": {"exit": 9, "frontier": "pre-effect"}
+				"cli": { "exit": 9, "frontier": "pre-effect" }
 			},
 			"anchors": ["create-adapters:295-296", "disposition55:29-31"]
 		},
@@ -451,20 +608,26 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["disable"],
-			"dims": {"state": "enabled"},
+			"dims": { "state": "enabled" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.enabled"}},
-					{"argv": ["plugin", "uninstall", "${PLUGIN_NAME}", "--confirm"], "result": {"kind": "completed", "stdout": ""}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.enabled" }
+					},
+					{
+						"argv": ["plugin", "uninstall", "${PLUGIN_NAME}", "--confirm"],
+						"result": { "kind": "completed", "stdout": "" }
+					}
 				]
 			},
 			"expect": {
 				"attempt": "attempted",
 				"planCommands": [["plugin", "uninstall", "${PLUGIN_NAME}", "--confirm"]],
-				"cli": {"exit": 0, "frontier": "post-effect"}
+				"cli": { "exit": 0, "frontier": "post-effect" }
 			},
 			"anchors": ["create-adapters:306-323"],
 			"notes": "Grok has no 'plugin disable' verb — disable IS uninstall --confirm (disabled-state cases are no-ops above)."
@@ -474,20 +637,23 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["noop", "disable"],
-			"dims": {"state": "disabled"},
+			"dims": { "state": "disabled" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.disabledStatus"}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.disabledStatus" }
+					}
 				]
 			},
 			"expect": {
 				"attempt": "attempted",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"cli": {"exit": 0, "frontier": "pre-effect"}
+				"cli": { "exit": 0, "frontier": "pre-effect" }
 			},
 			"anchors": ["create-adapters:311-313"]
 		},
@@ -496,20 +662,23 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["refusal", "conflict", "no-else-uninstall"],
-			"dims": {"state": "conflict"},
+			"dims": { "state": "conflict" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.duplicate"}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.duplicate" }
+					}
 				]
 			},
 			"expect": {
 				"attempt": "conflict",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"cli": {"exit": 3, "frontier": "pre-effect"}
+				"cli": { "exit": 3, "frontier": "pre-effect" }
 			},
 			"anchors": ["create-adapters:314"]
 		},
@@ -518,22 +687,29 @@
 			"operation": "disable",
 			"class": "cli-divergence",
 			"covers": ["stale-side", "newer-sibling", "refusal"],
-			"dims": {"ownership": "newer-sibling"},
+			"dims": { "ownership": "newer-sibling" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/grok",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugin", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@grok.plugins.newerSiblingSource"}}
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@grok.plugins.newerSiblingSource" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "stale-side"},
+				"snapshot": { "state": "stale-side" },
 				"attempt": "stale-side",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"desktopCanonical": {"state": "update-required", "attempt": "attempted", "planCommands": [["plugin", "uninstall", "${PLUGIN_NAME}", "--confirm"]]},
-				"cli": {"exit": 3, "verdict": "stale-side", "frontier": "pre-effect"}
+				"desktopCanonical": {
+					"state": "update-required",
+					"attempt": "attempted",
+					"planCommands": [["plugin", "uninstall", "${PLUGIN_NAME}", "--confirm"]]
+				},
+				"cli": { "exit": 3, "verdict": "stale-side", "frontier": "pre-effect" }
 			},
 			"anchors": ["state-parsers:88-95", "design:complete53§3.2"]
 		}

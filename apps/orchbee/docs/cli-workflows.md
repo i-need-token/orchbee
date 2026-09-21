@@ -30,7 +30,7 @@ end-to-end path only — option and target wording matches what
   `agent doctor`, and the whole `agent integration` family are purely
   local (no connection, lock, or Site effect); `help`, `completion`, and
   `--version` print fixed text without touching runtime state; `site
-  start` performs the one effectful activation; every other command —
+start` performs the one effectful activation; every other command —
   and the bare/`tui` entry's connect-or-activate — talks to the local
   Site.
 - Agent rows appear only when the running Site observes sessions from a

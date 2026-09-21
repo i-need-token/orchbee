@@ -12,17 +12,34 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["current"],
-			"dims": {"target": "dir, marker v3 + fingerprint match"},
+			"dims": { "target": "dir, marker v3 + fingerprint match" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/gemini",
 				"capsule": "ready",
-				"capsuleSources": ["bundle/gemini/**", "bundle/scripts/forward-hook.mjs", "bundle/scripts/hook-sanitizers.mjs", "bundle/scripts/observation-transport.mjs"],
-				"fs": [{"path": ".gemini/extensions/orchbee-agent-observation", "kind": "dir-owned", "ownedKind": "extension-directory", "capsuleVersion": "0.4.0"}],
+				"capsuleSources": [
+					"bundle/gemini/**",
+					"bundle/scripts/forward-hook.mjs",
+					"bundle/scripts/hook-sanitizers.mjs",
+					"bundle/scripts/observation-transport.mjs"
+				],
+				"fs": [
+					{
+						"path": ".gemini/extensions/orchbee-agent-observation",
+						"kind": "dir-owned",
+						"ownedKind": "extension-directory",
+						"capsuleVersion": "0.4.0"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
-				"snapshot": {"state": "enabled", "issue": null, "availability": "available", "managementMode": "managed-local"},
+				"snapshot": {
+					"state": "enabled",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
 				"commands": []
 			},
 			"anchors": ["guarded-adapter:127-151,330-345", "create-adapters:147-163"],
@@ -33,9 +50,23 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["not-installed"],
-			"dims": {"target": "absent"},
-			"given": {"managementMode": "managed-local", "exe": "/usr/bin/gemini", "capsule": "ready", "fs": [], "commands": []},
-			"expect": {"snapshot": {"state": "not-installed", "issue": null, "availability": "available", "managementMode": "managed-local"}, "commands": []},
+			"dims": { "target": "absent" },
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/gemini",
+				"capsule": "ready",
+				"fs": [],
+				"commands": []
+			},
+			"expect": {
+				"snapshot": {
+					"state": "not-installed",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
+				"commands": []
+			},
 			"anchors": ["guarded-adapter:135,199-202"]
 		},
 		{
@@ -43,15 +74,28 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict", "foreign"],
-			"dims": {"target": "dir, marker absent"},
+			"dims": { "target": "dir, marker absent" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/gemini",
 				"capsule": "ready",
-				"fs": [{"path": ".gemini/extensions/orchbee-agent-observation/some-file.txt", "kind": "file", "content": "user"}],
+				"fs": [
+					{
+						"path": ".gemini/extensions/orchbee-agent-observation/some-file.txt",
+						"kind": "file",
+						"content": "user"
+					}
+				],
 				"commands": []
 			},
-			"expect": {"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}},
+			"expect": {
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
 			"anchors": ["guarded-adapter:330-341"]
 		},
 		{
@@ -59,16 +103,35 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["update-required"],
-			"dims": {"target": "dir, marker contractVersion=2 + fingerprint match"},
+			"dims": { "target": "dir, marker contractVersion=2 + fingerprint match" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/gemini",
 				"capsule": "ready",
-				"capsuleSources": ["bundle/gemini/**", "bundle/scripts/forward-hook.mjs", "bundle/scripts/hook-sanitizers.mjs", "bundle/scripts/observation-transport.mjs"],
-				"fs": [{"path": ".gemini/extensions/orchbee-agent-observation", "kind": "dir-owned", "ownedKind": "extension-directory", "markerContractVersion": 2}],
+				"capsuleSources": [
+					"bundle/gemini/**",
+					"bundle/scripts/forward-hook.mjs",
+					"bundle/scripts/hook-sanitizers.mjs",
+					"bundle/scripts/observation-transport.mjs"
+				],
+				"fs": [
+					{
+						"path": ".gemini/extensions/orchbee-agent-observation",
+						"kind": "dir-owned",
+						"ownedKind": "extension-directory",
+						"markerContractVersion": 2
+					}
+				],
 				"commands": []
 			},
-			"expect": {"snapshot": {"state": "update-required", "issue": null, "availability": "available", "managementMode": "managed-local"}},
+			"expect": {
+				"snapshot": {
+					"state": "update-required",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
 			"anchors": ["guarded-adapter:343-345,355-357"],
 			"notes": "Older positive contract + intact fingerprints → update-required (migratable); contractVersion must be a safe integer in [1,3] to parse at all."
 		},
@@ -77,18 +140,36 @@
 			"operation": "inspect",
 			"class": "cli-divergence",
 			"covers": ["stale-side", "newer-contract"],
-			"dims": {"target": "dir, marker contractVersion=4"},
+			"dims": { "target": "dir, marker contractVersion=4" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/gemini",
 				"capsule": "ready",
-				"fs": [{"path": ".gemini/extensions/orchbee-agent-observation/.orchbee-agent-observation.json", "kind": "file", "contentJson": {"contractVersion": 4, "files": [], "integrationId": "gemini", "kind": "guarded-extension"}}],
+				"fs": [
+					{
+						"path": ".gemini/extensions/orchbee-agent-observation/.orchbee-agent-observation.json",
+						"kind": "file",
+						"contentJson": {
+							"contractVersion": 4,
+							"files": [],
+							"integrationId": "gemini",
+							"kind": "guarded-extension"
+						}
+					}
+				],
 				"commands": []
 			},
 			"expect": {
-				"snapshot": {"state": "stale-side", "issue": null, "availability": "available", "managementMode": "managed-local"},
-				"desktopCanonical": {"state": "conflict", "issue": null},
-				"cli": {"note": "marker contractVersion >3 parses as null on canonical → conflict; CLI maps a recognizable-but-newer guarded-extension marker to stale-side (§3.2). Both refuse mutation; only the surfaced state differs."}
+				"snapshot": {
+					"state": "stale-side",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
+				"desktopCanonical": { "state": "conflict", "issue": null },
+				"cli": {
+					"note": "marker contractVersion >3 parses as null on canonical → conflict; CLI maps a recognizable-but-newer guarded-extension marker to stale-side (§3.2). Both refuse mutation; only the surfaced state differs."
+				}
 			},
 			"anchors": ["guarded-adapter:357", "design:complete53§3.2"]
 		},
@@ -97,15 +178,33 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict", "foreign"],
-			"dims": {"target": "dir, marker integrationId='qwen-code'"},
+			"dims": { "target": "dir, marker integrationId='qwen-code'" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/gemini",
 				"capsule": "ready",
-				"fs": [{"path": ".gemini/extensions/orchbee-agent-observation/.orchbee-agent-observation.json", "kind": "file", "contentJson": {"contractVersion": 3, "files": [], "integrationId": "qwen-code", "kind": "guarded-extension"}}],
+				"fs": [
+					{
+						"path": ".gemini/extensions/orchbee-agent-observation/.orchbee-agent-observation.json",
+						"kind": "file",
+						"contentJson": {
+							"contractVersion": 3,
+							"files": [],
+							"integrationId": "qwen-code",
+							"kind": "guarded-extension"
+						}
+					}
+				],
 				"commands": []
 			},
-			"expect": {"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}},
+			"expect": {
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
 			"anchors": ["guarded-adapter:354-355"],
 			"notes": "Marker bound to a different integrationId is foreign even though Orchbee wrote it."
 		},
@@ -114,16 +213,35 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict", "foreign"],
-			"dims": {"target": "dir, marker ok, content drifted"},
+			"dims": { "target": "dir, marker ok, content drifted" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/gemini",
 				"capsule": "ready",
-				"capsuleSources": ["bundle/gemini/**", "bundle/scripts/forward-hook.mjs", "bundle/scripts/hook-sanitizers.mjs", "bundle/scripts/observation-transport.mjs"],
-				"fs": [{"path": ".gemini/extensions/orchbee-agent-observation", "kind": "dir-owned", "ownedKind": "extension-directory", "mutate": {"path": "runtime.js", "content": "// user modified\n"}}],
+				"capsuleSources": [
+					"bundle/gemini/**",
+					"bundle/scripts/forward-hook.mjs",
+					"bundle/scripts/hook-sanitizers.mjs",
+					"bundle/scripts/observation-transport.mjs"
+				],
+				"fs": [
+					{
+						"path": ".gemini/extensions/orchbee-agent-observation",
+						"kind": "dir-owned",
+						"ownedKind": "extension-directory",
+						"mutate": { "path": "runtime.js", "content": "// user modified\n" }
+					}
+				],
 				"commands": []
 			},
-			"expect": {"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}},
+			"expect": {
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
 			"anchors": ["guarded-adapter:343-344,376-407"],
 			"notes": "Marker valid but actual fingerprint ≠ marker.files → conflict. Covers modified/extra/missing file and inner symlink."
 		},
@@ -132,16 +250,35 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict"],
-			"dims": {"target": "dir, marker ok, inner symlink"},
+			"dims": { "target": "dir, marker ok, inner symlink" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/gemini",
 				"capsule": "ready",
-				"capsuleSources": ["bundle/gemini/**", "bundle/scripts/forward-hook.mjs", "bundle/scripts/hook-sanitizers.mjs", "bundle/scripts/observation-transport.mjs"],
-				"fs": [{"path": ".gemini/extensions/orchbee-agent-observation", "kind": "dir-owned", "ownedKind": "extension-directory", "mutate": {"addSymlink": {"path": "evil.js", "target": "/etc/passwd"}}}],
+				"capsuleSources": [
+					"bundle/gemini/**",
+					"bundle/scripts/forward-hook.mjs",
+					"bundle/scripts/hook-sanitizers.mjs",
+					"bundle/scripts/observation-transport.mjs"
+				],
+				"fs": [
+					{
+						"path": ".gemini/extensions/orchbee-agent-observation",
+						"kind": "dir-owned",
+						"ownedKind": "extension-directory",
+						"mutate": { "addSymlink": { "path": "evil.js", "target": "/etc/passwd" } }
+					}
+				],
 				"commands": []
 			},
-			"expect": {"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}},
+			"expect": {
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
 			"anchors": ["guarded-adapter:390"],
 			"notes": "fingerprintDirectory returns null on ANY inner symlink → conflict."
 		},
@@ -150,15 +287,24 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict", "foreign"],
-			"dims": {"target": "regular file at dir path"},
+			"dims": { "target": "regular file at dir path" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/gemini",
 				"capsule": "ready",
-				"fs": [{"path": ".gemini/extensions/orchbee-agent-observation", "kind": "file", "content": "x"}],
+				"fs": [
+					{ "path": ".gemini/extensions/orchbee-agent-observation", "kind": "file", "content": "x" }
+				],
 				"commands": []
 			},
-			"expect": {"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}},
+			"expect": {
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
 			"anchors": ["guarded-adapter:221-222"]
 		},
 		{
@@ -166,15 +312,28 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["update-required", "legacy-symlink"],
-			"dims": {"target": "symlink → legacy root dir"},
+			"dims": { "target": "symlink → legacy root dir" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/gemini",
 				"capsule": "ready",
-				"fs": [{"path": ".gemini/extensions/orchbee-agent-observation", "kind": "symlink", "target": "${APP_BUNDLE_ROOT}/bundle/gemini"}],
+				"fs": [
+					{
+						"path": ".gemini/extensions/orchbee-agent-observation",
+						"kind": "symlink",
+						"target": "${APP_BUNDLE_ROOT}/bundle/gemini"
+					}
+				],
 				"commands": []
 			},
-			"expect": {"snapshot": {"state": "update-required", "issue": null, "availability": "available", "managementMode": "managed-local"}},
+			"expect": {
+				"snapshot": {
+					"state": "update-required",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
 			"anchors": ["guarded-adapter:203-219"],
 			"notes": "Linked dir must satisfy resourceRootForSource (i.e. resolve to <root>/<sourceRelativePath> where sourceRelativePath='bundle/gemini'). A symlink into the CURRENT capsule root also classifies 'legacy' → update-required (root classification is only foreign|legacy here)."
 		},
@@ -183,15 +342,28 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["foreign", "conflict"],
-			"dims": {"target": "symlink → foreign root"},
+			"dims": { "target": "symlink → foreign root" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/gemini",
 				"capsule": "ready",
-				"fs": [{"path": ".gemini/extensions/orchbee-agent-observation", "kind": "symlink", "target": "${FOREIGN_ROOT}/bundle/gemini"}],
+				"fs": [
+					{
+						"path": ".gemini/extensions/orchbee-agent-observation",
+						"kind": "symlink",
+						"target": "${FOREIGN_ROOT}/bundle/gemini"
+					}
+				],
 				"commands": []
 			},
-			"expect": {"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}},
+			"expect": {
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
 			"anchors": ["guarded-adapter:203-216"]
 		},
 		{
@@ -199,15 +371,22 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["unreadable", "unknown"],
-			"dims": {"target": "lstat EACCES"},
+			"dims": { "target": "lstat EACCES" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/gemini",
 				"capsule": "ready",
-				"fs": [{"path": ".gemini/extensions", "kind": "dir", "mode": "0000"}],
+				"fs": [{ "path": ".gemini/extensions", "kind": "dir", "mode": "0000" }],
 				"commands": []
 			},
-			"expect": {"snapshot": {"state": "unknown", "issue": "inspection-failed", "availability": "available", "managementMode": "managed-local"}},
+			"expect": {
+				"snapshot": {
+					"state": "unknown",
+					"issue": "inspection-failed",
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
 			"anchors": ["guarded-adapter:199-202,147"]
 		},
 		{
@@ -215,16 +394,30 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["capsule-drift", "update-required"],
-			"dims": {"target": "exact-owned current", "runtimeSource": "missing file"},
+			"dims": { "target": "exact-owned current", "runtimeSource": "missing file" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/gemini",
 				"capsule": "ready",
 				"capsuleSourcesMissing": ["bundle/scripts/observation-transport.mjs"],
-				"fs": [{"path": ".gemini/extensions/orchbee-agent-observation", "kind": "dir-owned", "ownedKind": "extension-directory", "capsuleVersion": "0.4.0"}],
+				"fs": [
+					{
+						"path": ".gemini/extensions/orchbee-agent-observation",
+						"kind": "dir-owned",
+						"ownedKind": "extension-directory",
+						"capsuleVersion": "0.4.0"
+					}
+				],
 				"commands": []
 			},
-			"expect": {"snapshot": {"state": "update-required", "issue": null, "availability": "available", "managementMode": "managed-local"}},
+			"expect": {
+				"snapshot": {
+					"state": "update-required",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
 			"anchors": ["guarded-adapter:136-141,246-258"],
 			"notes": "current target + sourceReady false (missing required runtime file) → update-required."
 		},
@@ -233,13 +426,32 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["enable"],
-			"dims": {"target": "absent"},
-			"given": {"managementMode": "managed-local", "exe": "/usr/bin/gemini", "capsule": "ready", "fs": [], "commands": []},
+			"dims": { "target": "absent" },
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/gemini",
+				"capsule": "ready",
+				"fs": [],
+				"commands": []
+			},
 			"expect": {
 				"attempt": "attempted",
 				"commands": [],
-				"fsEffect": {"kind": "publish-dir", "path": ".gemini/extensions/orchbee-agent-observation", "stage": "mkdtemp .orchbee-agent-entry-* in parent dir (0700)", "copies": ["bundle/gemini → entry", "bundle/scripts → entry/scripts"], "marker": {"kind": "guarded-extension", "integrationId": "gemini", "contractVersion": 3, "files": "<fingerprint>"}, "publish": "rename entryPath → targetPath; EEXIST|ENOTEMPTY → conflict", "noReplace": true},
-				"cli": {"exit": 0, "frontier": "post-effect"}
+				"fsEffect": {
+					"kind": "publish-dir",
+					"path": ".gemini/extensions/orchbee-agent-observation",
+					"stage": "mkdtemp .orchbee-agent-entry-* in parent dir (0700)",
+					"copies": ["bundle/gemini → entry", "bundle/scripts → entry/scripts"],
+					"marker": {
+						"kind": "guarded-extension",
+						"integrationId": "gemini",
+						"contractVersion": 3,
+						"files": "<fingerprint>"
+					},
+					"publish": "rename entryPath → targetPath; EEXIST|ENOTEMPTY → conflict",
+					"noReplace": true
+				},
+				"cli": { "exit": 0, "frontier": "post-effect" }
 			},
 			"anchors": ["guarded-adapter:153-184,260-310", "create-adapters:147-163"]
 		},
@@ -248,16 +460,34 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["noop", "enable"],
-			"dims": {"target": "dir, exact-owned"},
+			"dims": { "target": "dir, exact-owned" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/gemini",
 				"capsule": "ready",
-				"capsuleSources": ["bundle/gemini/**", "bundle/scripts/forward-hook.mjs", "bundle/scripts/hook-sanitizers.mjs", "bundle/scripts/observation-transport.mjs"],
-				"fs": [{"path": ".gemini/extensions/orchbee-agent-observation", "kind": "dir-owned", "ownedKind": "extension-directory", "capsuleVersion": "0.4.0"}],
+				"capsuleSources": [
+					"bundle/gemini/**",
+					"bundle/scripts/forward-hook.mjs",
+					"bundle/scripts/hook-sanitizers.mjs",
+					"bundle/scripts/observation-transport.mjs"
+				],
+				"fs": [
+					{
+						"path": ".gemini/extensions/orchbee-agent-observation",
+						"kind": "dir-owned",
+						"ownedKind": "extension-directory",
+						"capsuleVersion": "0.4.0"
+					}
+				],
 				"commands": []
 			},
-			"expect": {"attempt": "attempted", "commands": [], "mustNotMutate": true, "fsEffect": {"kind": "none"}, "cli": {"exit": 0, "frontier": "pre-effect"}},
+			"expect": {
+				"attempt": "attempted",
+				"commands": [],
+				"mustNotMutate": true,
+				"fsEffect": { "kind": "none" },
+				"cli": { "exit": 0, "frontier": "pre-effect" }
+			},
 			"anchors": ["guarded-adapter:157"]
 		},
 		{
@@ -265,15 +495,27 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["refusal", "conflict", "no-else-uninstall"],
-			"dims": {"target": "dir, marker absent"},
+			"dims": { "target": "dir, marker absent" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/gemini",
 				"capsule": "ready",
-				"fs": [{"path": ".gemini/extensions/orchbee-agent-observation/some-file.txt", "kind": "file", "content": "user"}],
+				"fs": [
+					{
+						"path": ".gemini/extensions/orchbee-agent-observation/some-file.txt",
+						"kind": "file",
+						"content": "user"
+					}
+				],
 				"commands": []
 			},
-			"expect": {"attempt": "conflict", "commands": [], "mustNotMutate": true, "fsEffect": {"kind": "none"}, "cli": {"exit": 3, "frontier": "pre-effect"}},
+			"expect": {
+				"attempt": "conflict",
+				"commands": [],
+				"mustNotMutate": true,
+				"fsEffect": { "kind": "none" },
+				"cli": { "exit": 3, "frontier": "pre-effect" }
+			},
 			"anchors": ["guarded-adapter:158-164"]
 		},
 		{
@@ -281,20 +523,42 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["enable", "update-required", "partial-completion"],
-			"dims": {"target": "dir, marker v2 + fingerprint match"},
+			"dims": { "target": "dir, marker v2 + fingerprint match" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/gemini",
 				"capsule": "ready",
-				"capsuleSources": ["bundle/gemini/**", "bundle/scripts/forward-hook.mjs", "bundle/scripts/hook-sanitizers.mjs", "bundle/scripts/observation-transport.mjs"],
-				"fs": [{"path": ".gemini/extensions/orchbee-agent-observation", "kind": "dir-owned", "ownedKind": "extension-directory", "markerContractVersion": 2}],
+				"capsuleSources": [
+					"bundle/gemini/**",
+					"bundle/scripts/forward-hook.mjs",
+					"bundle/scripts/hook-sanitizers.mjs",
+					"bundle/scripts/observation-transport.mjs"
+				],
+				"fs": [
+					{
+						"path": ".gemini/extensions/orchbee-agent-observation",
+						"kind": "dir-owned",
+						"ownedKind": "extension-directory",
+						"markerContractVersion": 2
+					}
+				],
 				"commands": []
 			},
 			"expect": {
 				"attempt": "attempted",
 				"commands": [],
-				"fsEffect": {"kind": "replace", "path": ".gemini/extensions/orchbee-agent-observation", "steps": ["stage new dir in mkdtemp", "re-inspect target (must still be update-required)", "removeOwnedTarget → rm recursive (dir proven owned)", "rename staged → target"], "noReplace": true},
-				"cli": {"exit": 0, "frontier": "post-effect"}
+				"fsEffect": {
+					"kind": "replace",
+					"path": ".gemini/extensions/orchbee-agent-observation",
+					"steps": [
+						"stage new dir in mkdtemp",
+						"re-inspect target (must still be update-required)",
+						"removeOwnedTarget → rm recursive (dir proven owned)",
+						"rename staged → target"
+					],
+					"noReplace": true
+				},
+				"cli": { "exit": 0, "frontier": "post-effect" }
 			},
 			"anchors": ["guarded-adapter:172-183,231-244"],
 			"notes": "Same-invocation partial recovery: stale contract dir removed only AFTER re-inspection re-confirms ownership; staged residue always cleaned by finally."
@@ -304,20 +568,36 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["disable"],
-			"dims": {"target": "dir, exact-owned"},
+			"dims": { "target": "dir, exact-owned" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/gemini",
 				"capsule": "ready",
-				"capsuleSources": ["bundle/gemini/**", "bundle/scripts/forward-hook.mjs", "bundle/scripts/hook-sanitizers.mjs", "bundle/scripts/observation-transport.mjs"],
-				"fs": [{"path": ".gemini/extensions/orchbee-agent-observation", "kind": "dir-owned", "ownedKind": "extension-directory", "capsuleVersion": "0.4.0"}],
+				"capsuleSources": [
+					"bundle/gemini/**",
+					"bundle/scripts/forward-hook.mjs",
+					"bundle/scripts/hook-sanitizers.mjs",
+					"bundle/scripts/observation-transport.mjs"
+				],
+				"fs": [
+					{
+						"path": ".gemini/extensions/orchbee-agent-observation",
+						"kind": "dir-owned",
+						"ownedKind": "extension-directory",
+						"capsuleVersion": "0.4.0"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
 				"attempt": "attempted",
 				"commands": [],
-				"fsEffect": {"kind": "remove-dir", "path": ".gemini/extensions/orchbee-agent-observation", "operation": "rm recursive — safe because fingerprint+marker proved every byte owned"},
-				"cli": {"exit": 0, "frontier": "post-effect"}
+				"fsEffect": {
+					"kind": "remove-dir",
+					"path": ".gemini/extensions/orchbee-agent-observation",
+					"operation": "rm recursive — safe because fingerprint+marker proved every byte owned"
+				},
+				"cli": { "exit": 0, "frontier": "post-effect" }
 			},
 			"anchors": ["guarded-adapter:186-194,236-243"],
 			"notes": "Recursive rm runs ONLY after inspectOwnedDirectory proved the whole tree (marker+fingerprint). Any drift → conflict → nothing removed."
@@ -327,9 +607,21 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["noop", "disable"],
-			"dims": {"target": "absent"},
-			"given": {"managementMode": "managed-local", "exe": "/usr/bin/gemini", "capsule": "ready", "fs": [], "commands": []},
-			"expect": {"attempt": "attempted", "commands": [], "mustNotMutate": true, "fsEffect": {"kind": "none"}, "cli": {"exit": 0, "frontier": "pre-effect"}},
+			"dims": { "target": "absent" },
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/gemini",
+				"capsule": "ready",
+				"fs": [],
+				"commands": []
+			},
+			"expect": {
+				"attempt": "attempted",
+				"commands": [],
+				"mustNotMutate": true,
+				"fsEffect": { "kind": "none" },
+				"cli": { "exit": 0, "frontier": "pre-effect" }
+			},
 			"anchors": ["guarded-adapter:189"]
 		},
 		{
@@ -337,19 +629,25 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["disable", "legacy-symlink"],
-			"dims": {"target": "symlink → legacy root"},
+			"dims": { "target": "symlink → legacy root" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/gemini",
 				"capsule": "ready",
-				"fs": [{"path": ".gemini/extensions/orchbee-agent-observation", "kind": "symlink", "target": "${OLDER_SIBLING}/bundle/gemini"}],
+				"fs": [
+					{
+						"path": ".gemini/extensions/orchbee-agent-observation",
+						"kind": "symlink",
+						"target": "${OLDER_SIBLING}/bundle/gemini"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
 				"attempt": "attempted",
 				"commands": [],
-				"fsEffect": {"kind": "unlink", "path": ".gemini/extensions/orchbee-agent-observation"},
-				"cli": {"exit": 0, "frontier": "post-effect"}
+				"fsEffect": { "kind": "unlink", "path": ".gemini/extensions/orchbee-agent-observation" },
+				"cli": { "exit": 0, "frontier": "post-effect" }
 			},
 			"anchors": ["guarded-adapter:190-194,234-236"],
 			"notes": "legacy → unlink only (never rm -r through a symlink)."
@@ -359,16 +657,34 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["disable", "refusal", "conflict", "no-else-uninstall"],
-			"dims": {"target": "dir, marker ok, extra file"},
+			"dims": { "target": "dir, marker ok, extra file" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/gemini",
 				"capsule": "ready",
-				"capsuleSources": ["bundle/gemini/**", "bundle/scripts/forward-hook.mjs", "bundle/scripts/hook-sanitizers.mjs", "bundle/scripts/observation-transport.mjs"],
-				"fs": [{"path": ".gemini/extensions/orchbee-agent-observation", "kind": "dir-owned", "ownedKind": "extension-directory", "mutate": {"addFile": "notes.txt"}}],
+				"capsuleSources": [
+					"bundle/gemini/**",
+					"bundle/scripts/forward-hook.mjs",
+					"bundle/scripts/hook-sanitizers.mjs",
+					"bundle/scripts/observation-transport.mjs"
+				],
+				"fs": [
+					{
+						"path": ".gemini/extensions/orchbee-agent-observation",
+						"kind": "dir-owned",
+						"ownedKind": "extension-directory",
+						"mutate": { "addFile": "notes.txt" }
+					}
+				],
 				"commands": []
 			},
-			"expect": {"attempt": "conflict", "commands": [], "mustNotMutate": true, "fsEffect": {"kind": "none"}, "cli": {"exit": 3, "frontier": "pre-effect"}},
+			"expect": {
+				"attempt": "conflict",
+				"commands": [],
+				"mustNotMutate": true,
+				"fsEffect": { "kind": "none" },
+				"cli": { "exit": 3, "frontier": "pre-effect" }
+			},
 			"anchors": ["guarded-adapter:190-192,343-344"],
 			"notes": "Fingerprint mismatch → conflict → NOTHING removed (no partial uninstall)."
 		},
@@ -377,15 +693,21 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["refusal", "no-else-uninstall", "unknown"],
-			"dims": {"target": "lstat EACCES"},
+			"dims": { "target": "lstat EACCES" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/gemini",
 				"capsule": "ready",
-				"fs": [{"path": ".gemini/extensions", "kind": "dir", "mode": "0000"}],
+				"fs": [{ "path": ".gemini/extensions", "kind": "dir", "mode": "0000" }],
 				"commands": []
 			},
-			"expect": {"attempt": "failed", "commands": [], "mustNotMutate": true, "fsEffect": {"kind": "none"}, "cli": {"exit": 9, "frontier": "pre-effect"}},
+			"expect": {
+				"attempt": "failed",
+				"commands": [],
+				"mustNotMutate": true,
+				"fsEffect": { "kind": "none" },
+				"cli": { "exit": 9, "frontier": "pre-effect" }
+			},
 			"anchors": ["guarded-adapter:190-192", "disposition55:29-31"]
 		}
 	]

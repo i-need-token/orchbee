@@ -82,13 +82,7 @@
 			"additionalProperties": false,
 			"properties": {
 				"state": {
-					"enum": [
-						"ready",
-						"not-ready",
-						"unsupported-version",
-						"source-absent",
-						"binding-failed"
-					]
+					"enum": ["ready", "not-ready", "unsupported-version", "source-absent", "binding-failed"]
 				},
 				"source": {
 					"enum": ["cohort-sidecar", "adapter-source-override", "absent"]

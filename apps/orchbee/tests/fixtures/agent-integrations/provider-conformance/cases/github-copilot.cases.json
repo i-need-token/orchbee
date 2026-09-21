@@ -9,19 +9,38 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["current", "two-read-slots"],
-			"dims": {"marketplace": "current", "pluginPresent": true, "enabled": true, "installedFromOwnership": "current"},
+			"dims": {
+				"marketplace": "current",
+				"pluginPresent": true,
+				"enabled": true,
+				"installedFromOwnership": "current"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.enabled"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.current"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.enabled" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.current" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "enabled", "issue": null, "availability": "available", "managementMode": "managed-local"},
-				"commands": [["plugins", "list", "--kind", "plugin", "--json"], ["plugins", "marketplace", "list", "--json"]]
+				"snapshot": {
+					"state": "enabled",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
+				"commands": [
+					["plugins", "list", "--kind", "plugin", "--json"],
+					["plugins", "marketplace", "list", "--json"]
+				]
 			},
 			"anchors": ["state-parsers:108-151", "create-adapters:445-468"]
 		},
@@ -30,18 +49,29 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["disabled"],
-			"dims": {"marketplace": "current", "pluginPresent": true, "enabled": false},
+			"dims": { "marketplace": "current", "pluginPresent": true, "enabled": false },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.disabled"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.current"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.disabled" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.current" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "disabled", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "disabled",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:148-150"]
 		},
@@ -50,18 +80,29 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["not-installed"],
-			"dims": {"marketplace": "absent", "pluginPresent": false},
+			"dims": { "marketplace": "absent", "pluginPresent": false },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.empty"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.absent"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.empty" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.absent" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "not-installed", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "not-installed",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:129-135"]
 		},
@@ -70,18 +111,29 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["update-required", "partial-shape"],
-			"dims": {"marketplace": "legacy", "pluginPresent": false},
+			"dims": { "marketplace": "legacy", "pluginPresent": false },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.empty"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.legacy"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.empty" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.legacy" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "update-required", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "update-required",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:129-134"],
 			"notes": "Copilot-specific: plugin absent + LEGACY marketplace → update-required (stale marketplace cleanup is still owed); marketplace absent → not-installed."
@@ -91,17 +143,25 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["unreadable", "two-read-slots"],
-			"dims": {"firstRead": "failed"},
+			"dims": { "firstRead": "failed" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "failed"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "failed" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "unknown", "issue": "inspection-failed", "availability": "available", "managementMode": "managed-local"},
+				"snapshot": {
+					"state": "unknown",
+					"issue": "inspection-failed",
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
 				"commands": [["plugins", "list", "--kind", "plugin", "--json"]]
 			},
 			"anchors": ["create-adapters:448-455", "cli-adapter:70-83"]
@@ -111,19 +171,30 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["unreadable", "two-read-slots"],
-			"dims": {"firstRead": "completed", "secondRead": "failed"},
+			"dims": { "firstRead": "completed", "secondRead": "failed" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.enabled"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "failed"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.enabled" }
+					},
+					{ "argv": ["plugins", "marketplace", "list", "--json"], "result": { "kind": "failed" } }
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "unknown", "issue": "inspection-failed", "availability": "available", "managementMode": "managed-local"},
-				"commands": [["plugins", "list", "--kind", "plugin", "--json"], ["plugins", "marketplace", "list", "--json"]]
+				"snapshot": {
+					"state": "unknown",
+					"issue": "inspection-failed",
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
+				"commands": [
+					["plugins", "list", "--kind", "plugin", "--json"],
+					["plugins", "marketplace", "list", "--json"]
+				]
 			},
 			"anchors": ["create-adapters:456-468", "cli-adapter:70-83"]
 		},
@@ -132,18 +203,29 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["unreadable"],
-			"dims": {"parse": "array-not-record"},
+			"dims": { "parse": "array-not-record" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdout": "[]"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.current"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdout": "[]" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.current" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "unknown", "issue": "inspection-failed", "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "unknown",
+					"issue": "inspection-failed",
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:113-116,196-203"],
 			"notes": "Copilot plugins read MUST be an object with .plugins[]; a bare array is rejected (contrast claude which requires the bare array)."
@@ -153,18 +235,29 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["foreign", "conflict"],
-			"dims": {"installedFromOwnership": "foreign"},
+			"dims": { "installedFromOwnership": "foreign" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.foreignInstalledFrom"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.current"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.foreignInstalledFrom" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.current" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:141-144"]
 		},
@@ -173,18 +266,29 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict"],
-			"dims": {"pluginSource": "registry:orchbee-local"},
+			"dims": { "pluginSource": "registry:orchbee-local" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.wrongSource"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.current"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.wrongSource" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.current" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:136-140"],
 			"notes": "plugin.source must equal 'live-marketplace:orchbee-local' exactly."
@@ -194,18 +298,29 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["foreign", "conflict"],
-			"dims": {"marketplace": "foreign", "sourcePrefix": "Registry:"},
+			"dims": { "marketplace": "foreign", "sourcePrefix": "Registry:" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.enabled"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.foreignPrefix"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.enabled" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.foreignPrefix" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:233-242"]
 		},
@@ -214,18 +329,29 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict"],
-			"dims": {"pluginMatches": 2},
+			"dims": { "pluginMatches": 2 },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.duplicate"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.current"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.duplicate" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.current" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:121-123"]
 		},
@@ -234,18 +360,33 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict"],
-			"dims": {"marketplace": "absent", "pluginPresent": true, "installedFromOwnership": "current"},
+			"dims": {
+				"marketplace": "absent",
+				"pluginPresent": true,
+				"installedFromOwnership": "current"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.enabled"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.absent"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.enabled" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.absent" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:141-144"],
 			"notes": "installedFrom current + marketplace absent → conflict (ownership held but its marketplace declaration is gone)."
@@ -255,18 +396,29 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["update-required"],
-			"dims": {"marketplace": "legacy", "installedFromOwnership": "legacy"},
+			"dims": { "marketplace": "legacy", "installedFromOwnership": "legacy" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.legacyInstalledFrom"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.legacy"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.legacyInstalledFrom" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.legacy" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "update-required", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "update-required",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:145-147"]
 		},
@@ -275,20 +427,36 @@
 			"operation": "inspect",
 			"class": "cli-divergence",
 			"covers": ["stale-side", "newer-sibling"],
-			"dims": {"installedFromOwnership": "newer-sibling", "marketplace": "newer-sibling"},
+			"dims": { "installedFromOwnership": "newer-sibling", "marketplace": "newer-sibling" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.newerSiblingInstalledFrom"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.newerSibling"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@copilot.plugins.newerSiblingInstalledFrom"
+						}
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.newerSibling" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "stale-side", "issue": null, "availability": "available", "managementMode": "managed-local"},
-				"desktopCanonical": {"state": "update-required", "issue": null},
-				"cli": {"note": "versioned sibling newer than supported payloadVersion → stale-side; enable/disable refuse pre-effect exit 3 (§3.2)."}
+				"snapshot": {
+					"state": "stale-side",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				},
+				"desktopCanonical": { "state": "update-required", "issue": null },
+				"cli": {
+					"note": "versioned sibling newer than supported payloadVersion → stale-side; enable/disable refuse pre-effect exit 3 (§3.2)."
+				}
 			},
 			"anchors": ["state-parsers:141-147,173-180", "design:complete53§3.2"]
 		},
@@ -297,18 +465,29 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict"],
-			"dims": {"installedFrom": "absent"},
+			"dims": { "installedFrom": "absent" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.missingInstalledFrom"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.current"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.missingInstalledFrom" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.current" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "conflict", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "conflict",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["state-parsers:136-140"],
 			"notes": "installedFrom absent → conflict (ownership unverifiable), not inspection-failed."
@@ -318,10 +497,20 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["agent-unavailable"],
-			"dims": {"exe": "not-found"},
-			"given": {"managementMode": "managed-local", "exe": null, "capsule": "ready", "commands": []},
+			"dims": { "exe": "not-found" },
+			"given": {
+				"managementMode": "managed-local",
+				"exe": null,
+				"capsule": "ready",
+				"commands": []
+			},
 			"expect": {
-				"snapshot": {"state": "unknown", "issue": null, "availability": "not-found", "managementMode": "managed-local"},
+				"snapshot": {
+					"state": "unknown",
+					"issue": null,
+					"availability": "not-found",
+					"managementMode": "managed-local"
+				},
 				"commands": []
 			},
 			"anchors": ["cli-adapter:58-68"]
@@ -331,18 +520,29 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["capsule-drift"],
-			"dims": {"capsule": "absent", "state": "enabled"},
+			"dims": { "capsule": "absent", "state": "enabled" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "absent",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.enabled"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.current"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.enabled" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.current" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "update-required", "issue": null, "availability": "available", "managementMode": "managed-local"}
+				"snapshot": {
+					"state": "update-required",
+					"issue": null,
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
 			},
 			"anchors": ["capsule-adapter:36-42"]
 		},
@@ -351,21 +551,27 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["noop", "enable"],
-			"dims": {"state": "enabled"},
+			"dims": { "state": "enabled" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.enabled"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.current"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.enabled" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.current" }
+					}
 				]
 			},
 			"expect": {
 				"attempt": "attempted",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"cli": {"exit": 0, "frontier": "pre-effect"}
+				"cli": { "exit": 0, "frontier": "pre-effect" }
 			},
 			"anchors": ["create-adapters:331"]
 		},
@@ -374,21 +580,30 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["enable", "disabled-path"],
-			"dims": {"state": "disabled"},
+			"dims": { "state": "disabled" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.disabled"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.current"}},
-					{"argv": ["plugins", "enable", "${PLUGIN_ID}", "--plugin"], "result": {"kind": "completed", "stdout": ""}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.disabled" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.current" }
+					},
+					{
+						"argv": ["plugins", "enable", "${PLUGIN_ID}", "--plugin"],
+						"result": { "kind": "completed", "stdout": "" }
+					}
 				]
 			},
 			"expect": {
 				"attempt": "attempted",
 				"planCommands": [["plugins", "enable", "${PLUGIN_ID}", "--plugin"]],
-				"cli": {"exit": 0, "frontier": "post-effect"}
+				"cli": { "exit": 0, "frontier": "post-effect" }
 			},
 			"anchors": ["create-adapters:333-341"]
 		},
@@ -397,16 +612,28 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["enable"],
-			"dims": {"state": "not-installed", "marketplace": "absent"},
+			"dims": { "state": "not-installed", "marketplace": "absent" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.empty"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.absent"}},
-					{"argv": ["plugins", "marketplace", "add", "${CAPSULE_ROOT}"], "result": {"kind": "completed", "stdout": ""}},
-					{"argv": ["plugins", "install", "${PLUGIN_ID}"], "result": {"kind": "completed", "stdout": ""}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.empty" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.absent" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "add", "${CAPSULE_ROOT}"],
+						"result": { "kind": "completed", "stdout": "" }
+					},
+					{
+						"argv": ["plugins", "install", "${PLUGIN_ID}"],
+						"result": { "kind": "completed", "stdout": "" }
+					}
 				]
 			},
 			"expect": {
@@ -415,7 +642,7 @@
 					["plugins", "marketplace", "add", "${CAPSULE_ROOT}"],
 					["plugins", "install", "${PLUGIN_ID}"]
 				],
-				"cli": {"exit": 0, "frontier": "post-effect"}
+				"cli": { "exit": 0, "frontier": "post-effect" }
 			},
 			"anchors": ["create-adapters:343-357"],
 			"notes": "Copilot enable does NOT emit a separate enable step — install is the terminal command (contrast claude's install+enable pair). No '--scope user' on copilot argv."
@@ -425,18 +652,41 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["enable", "update-required"],
-			"dims": {"state": "update-required", "pluginPresent": true, "marketplace": "legacy", "installedFromOwnership": "legacy"},
+			"dims": {
+				"state": "update-required",
+				"pluginPresent": true,
+				"marketplace": "legacy",
+				"installedFromOwnership": "legacy"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.legacyInstalledFrom"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.legacy"}},
-					{"argv": ["plugins", "remove", "${PLUGIN_ID}", "--plugin"], "result": {"kind": "completed", "stdout": ""}},
-					{"argv": ["plugins", "marketplace", "remove", "${MARKETPLACE}"], "result": {"kind": "completed", "stdout": ""}},
-					{"argv": ["plugins", "marketplace", "add", "${CAPSULE_ROOT}"], "result": {"kind": "completed", "stdout": ""}},
-					{"argv": ["plugins", "install", "${PLUGIN_ID}"], "result": {"kind": "completed", "stdout": ""}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.legacyInstalledFrom" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.legacy" }
+					},
+					{
+						"argv": ["plugins", "remove", "${PLUGIN_ID}", "--plugin"],
+						"result": { "kind": "completed", "stdout": "" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "remove", "${MARKETPLACE}"],
+						"result": { "kind": "completed", "stdout": "" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "add", "${CAPSULE_ROOT}"],
+						"result": { "kind": "completed", "stdout": "" }
+					},
+					{
+						"argv": ["plugins", "install", "${PLUGIN_ID}"],
+						"result": { "kind": "completed", "stdout": "" }
+					}
 				]
 			},
 			"expect": {
@@ -447,7 +697,7 @@
 					["plugins", "marketplace", "add", "${CAPSULE_ROOT}"],
 					["plugins", "install", "${PLUGIN_ID}"]
 				],
-				"cli": {"exit": 0, "frontier": "post-effect"}
+				"cli": { "exit": 0, "frontier": "post-effect" }
 			},
 			"anchors": ["create-adapters:343-357"]
 		},
@@ -456,21 +706,27 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["refusal", "conflict", "no-else-uninstall"],
-			"dims": {"state": "conflict"},
+			"dims": { "state": "conflict" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.enabled"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.foreign"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.enabled" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.foreign" }
+					}
 				]
 			},
 			"expect": {
 				"attempt": "conflict",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"cli": {"exit": 3, "frontier": "pre-effect"}
+				"cli": { "exit": 3, "frontier": "pre-effect" }
 			},
 			"anchors": ["create-adapters:332"]
 		},
@@ -479,20 +735,23 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["refusal", "no-else-uninstall", "unknown"],
-			"dims": {"state": "unknown"},
+			"dims": { "state": "unknown" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "failed"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "failed" }
+					}
 				]
 			},
 			"expect": {
 				"attempt": "failed",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"cli": {"exit": 9, "frontier": "pre-effect"}
+				"cli": { "exit": 9, "frontier": "pre-effect" }
 			},
 			"anchors": ["create-adapters:343-344", "disposition55:29-31"]
 		},
@@ -501,17 +760,37 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["partial-recovery"],
-			"dims": {"state": "update-required", "pluginPresent": false, "marketplace": "legacy", "prior": "mid-sequence timeout after plugins remove"},
+			"dims": {
+				"state": "update-required",
+				"pluginPresent": false,
+				"marketplace": "legacy",
+				"prior": "mid-sequence timeout after plugins remove"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.empty"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.legacy"}},
-					{"argv": ["plugins", "marketplace", "remove", "${MARKETPLACE}"], "result": {"kind": "completed", "stdout": ""}},
-					{"argv": ["plugins", "marketplace", "add", "${CAPSULE_ROOT}"], "result": {"kind": "completed", "stdout": ""}},
-					{"argv": ["plugins", "install", "${PLUGIN_ID}"], "result": {"kind": "completed", "stdout": ""}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.empty" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.legacy" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "remove", "${MARKETPLACE}"],
+						"result": { "kind": "completed", "stdout": "" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "add", "${CAPSULE_ROOT}"],
+						"result": { "kind": "completed", "stdout": "" }
+					},
+					{
+						"argv": ["plugins", "install", "${PLUGIN_ID}"],
+						"result": { "kind": "completed", "stdout": "" }
+					}
 				]
 			},
 			"expect": {
@@ -521,7 +800,7 @@
 					["plugins", "marketplace", "add", "${CAPSULE_ROOT}"],
 					["plugins", "install", "${PLUGIN_ID}"]
 				],
-				"cli": {"exit": 0, "frontier": "post-effect"}
+				"cli": { "exit": 0, "frontier": "post-effect" }
 			},
 			"anchors": ["create-adapters:343-357", "state-parsers:129-134"],
 			"notes": "Partial state (plugin removed, legacy marketplace still present) re-evaluates to update-required with the REMAINING vector only — no plugins remove (plugin absent)."
@@ -531,21 +810,30 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["disable"],
-			"dims": {"state": "enabled"},
+			"dims": { "state": "enabled" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.enabled"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.current"}},
-					{"argv": ["plugins", "disable", "${PLUGIN_ID}", "--plugin"], "result": {"kind": "completed", "stdout": ""}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.enabled" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.current" }
+					},
+					{
+						"argv": ["plugins", "disable", "${PLUGIN_ID}", "--plugin"],
+						"result": { "kind": "completed", "stdout": "" }
+					}
 				]
 			},
 			"expect": {
 				"attempt": "attempted",
 				"planCommands": [["plugins", "disable", "${PLUGIN_ID}", "--plugin"]],
-				"cli": {"exit": 0, "frontier": "post-effect"}
+				"cli": { "exit": 0, "frontier": "post-effect" }
 			},
 			"anchors": ["create-adapters:369-378"]
 		},
@@ -554,21 +842,27 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["noop", "disable"],
-			"dims": {"state": "disabled"},
+			"dims": { "state": "disabled" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.disabled"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.current"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.disabled" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.current" }
+					}
 				]
 			},
 			"expect": {
 				"attempt": "attempted",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"cli": {"exit": 0, "frontier": "pre-effect"}
+				"cli": { "exit": 0, "frontier": "pre-effect" }
 			},
 			"anchors": ["create-adapters:365-367"]
 		},
@@ -577,16 +871,28 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["disable", "update-required"],
-			"dims": {"state": "update-required", "pluginPresent": true, "marketplace": "legacy"},
+			"dims": { "state": "update-required", "pluginPresent": true, "marketplace": "legacy" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.legacyInstalledFrom"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.legacy"}},
-					{"argv": ["plugins", "remove", "${PLUGIN_ID}", "--plugin"], "result": {"kind": "completed", "stdout": ""}},
-					{"argv": ["plugins", "marketplace", "remove", "${MARKETPLACE}"], "result": {"kind": "completed", "stdout": ""}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.legacyInstalledFrom" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.legacy" }
+					},
+					{
+						"argv": ["plugins", "remove", "${PLUGIN_ID}", "--plugin"],
+						"result": { "kind": "completed", "stdout": "" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "remove", "${MARKETPLACE}"],
+						"result": { "kind": "completed", "stdout": "" }
+					}
 				]
 			},
 			"expect": {
@@ -595,7 +901,7 @@
 					["plugins", "remove", "${PLUGIN_ID}", "--plugin"],
 					["plugins", "marketplace", "remove", "${MARKETPLACE}"]
 				],
-				"cli": {"exit": 0, "frontier": "post-effect"}
+				"cli": { "exit": 0, "frontier": "post-effect" }
 			},
 			"anchors": ["create-adapters:379-387"]
 		},
@@ -604,21 +910,27 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["refusal", "conflict", "no-else-uninstall"],
-			"dims": {"state": "conflict"},
+			"dims": { "state": "conflict" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.enabled"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.foreign"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.plugins.enabled" }
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.foreign" }
+					}
 				]
 			},
 			"expect": {
 				"attempt": "conflict",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"cli": {"exit": 3, "frontier": "pre-effect"}
+				"cli": { "exit": 3, "frontier": "pre-effect" }
 			},
 			"anchors": ["create-adapters:368"]
 		},
@@ -627,23 +939,41 @@
 			"operation": "enable",
 			"class": "cli-divergence",
 			"covers": ["stale-side", "newer-sibling", "refusal"],
-			"dims": {"installedFromOwnership": "newer-sibling", "marketplace": "newer-sibling"},
+			"dims": { "installedFromOwnership": "newer-sibling", "marketplace": "newer-sibling" },
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/copilot",
 				"capsule": "ready",
 				"commands": [
-					{"argv": ["plugins", "list", "--kind", "plugin", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.plugins.newerSiblingInstalledFrom"}},
-					{"argv": ["plugins", "marketplace", "list", "--json"], "result": {"kind": "completed", "stdoutJson": "@copilot.marketplace.newerSibling"}}
+					{
+						"argv": ["plugins", "list", "--kind", "plugin", "--json"],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@copilot.plugins.newerSiblingInstalledFrom"
+						}
+					},
+					{
+						"argv": ["plugins", "marketplace", "list", "--json"],
+						"result": { "kind": "completed", "stdoutJson": "@copilot.marketplace.newerSibling" }
+					}
 				]
 			},
 			"expect": {
-				"snapshot": {"state": "stale-side"},
+				"snapshot": { "state": "stale-side" },
 				"attempt": "stale-side",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"desktopCanonical": {"state": "update-required", "attempt": "attempted", "planCommands": [["plugins", "remove", "${PLUGIN_ID}", "--plugin"], ["plugins", "marketplace", "remove", "${MARKETPLACE}"], ["plugins", "marketplace", "add", "${CAPSULE_ROOT}"], ["plugins", "install", "${PLUGIN_ID}"]]},
-				"cli": {"exit": 3, "verdict": "stale-side", "frontier": "pre-effect"}
+				"desktopCanonical": {
+					"state": "update-required",
+					"attempt": "attempted",
+					"planCommands": [
+						["plugins", "remove", "${PLUGIN_ID}", "--plugin"],
+						["plugins", "marketplace", "remove", "${MARKETPLACE}"],
+						["plugins", "marketplace", "add", "${CAPSULE_ROOT}"],
+						["plugins", "install", "${PLUGIN_ID}"]
+					]
+				},
+				"cli": { "exit": 3, "verdict": "stale-side", "frontier": "pre-effect" }
 			},
 			"anchors": ["state-parsers:173-180", "design:complete53§3.2"]
 		}

@@ -46,10 +46,7 @@
 					"result": {
 						"properties": {
 							"content": {
-								"anyOf": [
-									{ "required": ["lines"] },
-									{ "required": ["tail"] }
-								]
+								"anyOf": [{ "required": ["lines"] }, { "required": ["tail"] }]
 							}
 						}
 					}

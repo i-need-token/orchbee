@@ -21,14 +21,14 @@ reference is a defect, and so is the reverse.
 
 ## Command paths
 
-| Rule        | Contract                                                                                                                                                                                                                                               |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Shape       | `<executable> [global options] <resource> <verb> [operands] [options]`; a resource names a domain noun and a verb names one effect class. A root-level word such as `status` is a complete path.                                                       |
-| Words       | Fixed lowercase words with no abbreviations, aliases, or alternate spellings. Adding a synonym is a grammar change, not a convenience.                                                                                                                 |
-| Verbs       | Reuse an existing verb before adding one. Read verbs never mutate; mutation verbs submit at most one effect; wait verbs observe until a condition or a deadline; activation verbs converge a runtime toward readiness and may create persistent state. |
+| Rule        | Contract                                                                                                                                                                                                                                                                                                                                      |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shape       | `<executable> [global options] <resource> <verb> [operands] [options]`; a resource names a domain noun and a verb names one effect class. A root-level word such as `status` is a complete path.                                                                                                                                              |
+| Words       | Fixed lowercase words with no abbreviations, aliases, or alternate spellings. Adding a synonym is a grammar change, not a convenience.                                                                                                                                                                                                        |
+| Verbs       | Reuse an existing verb before adding one. Read verbs never mutate; mutation verbs submit at most one effect; wait verbs observe until a condition or a deadline; activation verbs converge a runtime toward readiness and may create persistent state.                                                                                        |
 | Families    | A resource path without a verb, or a verb without its required operand, is a usage failure whose diagnostic names the exact `--help` path. Nothing executes with defaults — this clause covers verb and operand inference only; an omittable option group may declare a default when the command's `--help` text states that default exactly. |
-| Root        | The bare executable and its root-level modes such as launching an interface, `--version`, and `--help` are enumerated by the grammar authority like any command.                                                                                       |
-| Offline set | `help`, `--help`, `--version`, `completion`, and the machine schema listing are offline: they read no configuration, discover no runtime, and open no endpoint.                                                                                        |
+| Root        | The bare executable and its root-level modes such as launching an interface, `--version`, and `--help` are enumerated by the grammar authority like any command.                                                                                                                                                                              |
+| Offline set | `help`, `--help`, `--version`, `completion`, and the machine schema listing are offline: they read no configuration, discover no runtime, and open no endpoint.                                                                                                                                                                               |
 
 | Verb class | Verbs                                                            | Effect                                                                                                                                                    |
 | ---------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -72,7 +72,7 @@ reference is a defect, and so is the reverse.
   suffix can name a different member, and a command needing stable identity uses the full
   typed identifier. Selector candidates are the members visible in that snapshot under the
   command's declared scope; an operand scoped to a context (such as `panel move
-  --target-panel`) resolves inside that scope only, with no global fallback.
+--target-panel`) resolves inside that scope only, with no global fallback.
 - Resources whose labels are not unique by contract accept identifiers and their own selectors
   only.
 - Filters use the same target rules as operands and are declared per command. A filter naming an

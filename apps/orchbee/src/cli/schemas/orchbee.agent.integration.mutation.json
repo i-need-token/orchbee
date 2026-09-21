@@ -18,14 +18,7 @@
 		},
 		"result": {
 			"type": "object",
-			"required": [
-				"invocationId",
-				"provider",
-				"direction",
-				"outcome",
-				"attempted",
-				"observed"
-			],
+			"required": ["invocationId", "provider", "direction", "outcome", "attempted", "observed"],
 			"additionalProperties": false,
 			"properties": {
 				"invocationId": { "type": "string", "minLength": 1 },
@@ -79,10 +72,7 @@
 					"additionalProperties": false,
 					"properties": {
 						"item": {
-							"oneOf": [
-								{ "type": "null" },
-								{ "$ref": "#/$defs/item" }
-							]
+							"oneOf": [{ "type": "null" }, { "$ref": "#/$defs/item" }]
 						},
 						"provenance": {
 							"enum": ["pre-effect", "post-effect", "partial", "unavailable"]
