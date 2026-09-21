@@ -123,6 +123,17 @@ impl WorkbenchTerminalMembership {
     pub const fn is_empty(&self) -> bool {
         self.members.is_empty()
     }
+
+    /// The post-publication membership of a removed Workspace Context: the
+    /// identity stays addressable for evidence, the member set is canonically
+    /// empty because the Context itself left the projection.
+    pub(crate) fn removed_workspace(context_id: WorkbenchTerminalContextId) -> Self {
+        Self {
+            terminal_context_id: context_id,
+            context_kind: ContextKind::Workspace,
+            members: Vec::new(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

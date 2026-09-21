@@ -32,5 +32,7 @@ pub use workbench_authority::{
     WorkbenchTabCreatePreparation, WorkbenchTabCreateRuntimeUnavailableReason,
     WorkbenchTabMoveAdmission, WorkbenchTabMoveBegin, WorkbenchTabMovePreparation,
     WorkbenchTerminalInvariantError, WorkbenchTerminalMembership, WorkbenchTerminalTab,
-    WorktreeListResolution, WorktreeListTarget,
+    WorkbenchWorkspaceCloseAdmission, WorkbenchWorkspaceCloseBegin,
+    WorkbenchWorkspaceCloseResumeAdmission, WorkbenchWorkspaceCloseResumeBegin,
+    WorkbenchWorkspaceCloseResumePreparation, WorktreeListResolution, WorktreeListTarget,
 };

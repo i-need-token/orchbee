@@ -28,7 +28,7 @@ pub struct PreparedWorkbenchTabClosePublication<'a> {
     prepared: PreparedProjectionAdvance,
     before: WorkbenchTerminalMembership,
     after: WorkbenchTerminalMembership,
-    removed: WorkbenchTerminalTab,
+    removed: Option<WorkbenchTerminalTab>,
     removed_members: Vec<WorkbenchTerminalTab>,
     revision: WorkbenchRevision,
     status: WorkbenchTabCloseStatus,
@@ -43,9 +43,12 @@ impl PreparedWorkbenchTabClosePublication<'_> {
     pub fn after_membership(&self) -> &WorkbenchTerminalMembership {
         &self.after
     }
+    /// The single removed leaf member — meaningful for the Tab and Panel
+    /// scopes only; a Context scope removes its Workspace and reports the
+    /// complete member set through `exact_removed_members`.
     #[must_use]
-    pub fn exact_removed_member(&self) -> &WorkbenchTerminalTab {
-        &self.removed
+    pub fn exact_removed_member(&self) -> Option<&WorkbenchTerminalTab> {
+        self.removed.as_ref()
     }
     #[must_use]
     pub fn exact_removed_members(&self) -> &[WorkbenchTerminalTab] {
@@ -100,17 +103,24 @@ impl WorkbenchAuthority {
             );
         }
         let targets: Vec<_> = record.targets().cloned().collect();
-        let target = targets
-            .first()
-            .cloned()
-            .ok_or(WorkbenchTabClosePublicationError::CompositionMismatch)?;
+        let scope = record.scope.clone();
+        // The scope-level Context identity — never a member — is the
+        // publication address; a zero-member Context scope has no first leaf.
+        let context_id = record.terminal_context_id.clone();
+        let target = targets.first().cloned();
         if self.ledger_bytes < record.reserved_bytes {
             return self.fail_close_publication(
                 close_request_id,
                 WorkbenchTabClosePublicationError::CompositionMismatch,
             );
         }
-        let before = match self.terminal_tree_membership(&target.terminal_context_id) {
+        if matches!(scope, CloseScope::Tab | CloseScope::Panel) && target.is_none() {
+            return self.fail_close_publication(
+                close_request_id,
+                WorkbenchTabClosePublicationError::CompositionMismatch,
+            );
+        }
+        let before = match self.terminal_tree_membership(&context_id) {
             Ok(membership) => membership,
             Err(_error) => {
                 return self.fail_close_publication(
@@ -119,12 +129,11 @@ impl WorkbenchAuthority {
                 );
             }
         };
-        let scope = self
-            .close_record(close_request_id)
-            .ok_or(WorkbenchTabClosePublicationError::OperationUnavailable)?
-            .scope;
-        let actual_tab_members: Vec<_> = before.members_for_tab(target.member.tab_id()).collect();
-        if before.terminal_context_id() != &target.terminal_context_id {
+        let actual_tab_members: Vec<_> = target
+            .as_ref()
+            .map(|target| before.members_for_tab(target.member.tab_id()).collect())
+            .unwrap_or_default();
+        if before.terminal_context_id() != &context_id {
             return self.fail_close_publication(
                 close_request_id,
                 WorkbenchTabClosePublicationError::CompositionMismatch,
@@ -135,6 +144,20 @@ impl WorkbenchAuthority {
                 || !actual_tab_members
                     .into_iter()
                     .eq(targets.iter().map(|target| &target.member)))
+        {
+            return self.fail_close_publication(
+                close_request_id,
+                WorkbenchTabClosePublicationError::CompositionMismatch,
+            );
+        }
+        // The Context scope re-proves the complete captured ordered leaf
+        // membership — every member, in admission order, exactly as the live
+        // Context still composes it. An empty capture proves an empty Context.
+        if matches!(scope, CloseScope::Context { .. })
+            && !before
+                .members()
+                .iter()
+                .eq(targets.iter().map(|target| &target.member))
         {
             return self.fail_close_publication(
                 close_request_id,
@@ -153,24 +176,40 @@ impl WorkbenchAuthority {
                 WorkbenchTabClosePublicationError::CompositionMismatch,
             );
         };
-        let Some(context) = candidate
-            .terminal_contexts
-            .iter_mut()
-            .find(|context| context.terminal_context_id == target.terminal_context_id)
-        else {
-            return self.fail_close_publication(
-                close_request_id,
-                WorkbenchTabClosePublicationError::CompositionMismatch,
-            );
-        };
-        match scope {
+        match &scope {
             // Strict membership proved the exact Tab/Panel/Presentation/binding tuple above.
             CloseScope::Tab => {
+                let target = target
+                    .as_ref()
+                    .ok_or(WorkbenchTabClosePublicationError::CompositionMismatch)?;
+                let Some(context) = candidate
+                    .terminal_contexts
+                    .iter_mut()
+                    .find(|context| context.terminal_context_id == context_id)
+                else {
+                    return self.fail_close_publication(
+                        close_request_id,
+                        WorkbenchTabClosePublicationError::CompositionMismatch,
+                    );
+                };
                 context
                     .tabs
                     .retain(|tab| &tab.tab_id != target.member.tab_id());
             }
             CloseScope::Panel => {
+                let target = target
+                    .as_ref()
+                    .ok_or(WorkbenchTabClosePublicationError::CompositionMismatch)?;
+                let Some(context) = candidate
+                    .terminal_contexts
+                    .iter_mut()
+                    .find(|context| context.terminal_context_id == context_id)
+                else {
+                    return self.fail_close_publication(
+                        close_request_id,
+                        WorkbenchTabClosePublicationError::CompositionMismatch,
+                    );
+                };
                 let Some(tab_index) = context
                     .tabs
                     .iter()
@@ -213,18 +252,65 @@ impl WorkbenchAuthority {
                     }
                 }
             }
+            CloseScope::Context {
+                project_id,
+                workspace_id,
+            } => {
+                // One authoritative projection commit removes the Workspace
+                // and its Terminal Context; Project, Directories, checkout,
+                // and branch are not touched by construction.
+                if candidate
+                    .terminal_contexts
+                    .iter()
+                    .position(|context| context.terminal_context_id == context_id)
+                    .is_none()
+                {
+                    return self.fail_close_publication(
+                        close_request_id,
+                        WorkbenchTabClosePublicationError::CompositionMismatch,
+                    );
+                }
+                let Some(project) = candidate
+                    .navigation
+                    .projects
+                    .iter_mut()
+                    .find(|project| project.project_id == *project_id)
+                else {
+                    return self.fail_close_publication(
+                        close_request_id,
+                        WorkbenchTabClosePublicationError::CompositionMismatch,
+                    );
+                };
+                let Some(workspace_index) = project.workspaces.iter().position(|workspace| {
+                    workspace.workspace_id == *workspace_id
+                        && workspace.terminal_context_id == context_id
+                }) else {
+                    return self.fail_close_publication(
+                        close_request_id,
+                        WorkbenchTabClosePublicationError::CompositionMismatch,
+                    );
+                };
+                project.workspaces.remove(workspace_index);
+                candidate
+                    .terminal_contexts
+                    .retain(|context| context.terminal_context_id != context_id);
+            }
         }
         candidate.revision = revision;
-        let after = match super::super::terminal_membership::tree_terminal_membership(
-            &candidate,
-            &target.terminal_context_id,
-        ) {
-            Ok(membership) => membership,
-            Err(_error) => {
-                return self.fail_close_publication(
-                    close_request_id,
-                    WorkbenchTabClosePublicationError::CompositionMismatch,
-                );
+        let after = if matches!(scope, CloseScope::Context { .. }) {
+            WorkbenchTerminalMembership::removed_workspace(context_id.clone())
+        } else {
+            match super::super::terminal_membership::tree_terminal_membership(
+                &candidate,
+                &context_id,
+            ) {
+                Ok(membership) => membership,
+                Err(_error) => {
+                    return self.fail_close_publication(
+                        close_request_id,
+                        WorkbenchTabClosePublicationError::CompositionMismatch,
+                    );
+                }
             }
         };
         let prepared = serialize_document(&WorkbenchProtocolDocument::Snapshot(candidate))
@@ -247,7 +333,7 @@ impl WorkbenchAuthority {
             prepared,
             before,
             after,
-            removed: target.member,
+            removed: target.map(|target| target.member),
             removed_members: targets.into_iter().map(|target| target.member).collect(),
             revision,
             status,

@@ -10,10 +10,14 @@ use orchbee_server::{
     CloseStepToken, WorkbenchGrant, WorkbenchTabCloseBegin, WorkbenchTabClosePreparation,
     WorkbenchTabCloseResolution, WorkbenchTabCloseResumeBegin, WorkbenchTabCloseResumePreparation,
     WorkbenchTabCloseRuntimeUnavailableReason, WorkbenchTabCloseTarget,
+    WorkbenchWorkspaceCloseBegin, WorkbenchWorkspaceCloseResumeBegin,
+    WorkbenchWorkspaceCloseResumePreparation,
 };
 use orchbee_workbench_protocol::{
     WorkbenchCommand, WorkbenchCommandResult, WorkbenchRequestId, WorkbenchTabCloseRead,
     WorkbenchTabCloseReadResult, WorkbenchTabCloseResume, WorkbenchTabCloseResumeResult,
+    WorkbenchWorkspaceCloseRead, WorkbenchWorkspaceCloseReadResult, WorkbenchWorkspaceCloseResume,
+    WorkbenchWorkspaceCloseResumeResult,
 };
 
 use super::{PostcommitCoordinationError, SiteCoordinator, tree_composition_matches};
@@ -66,6 +70,108 @@ impl SiteCoordinator {
         Some(match admission.finish_members(runtimes, now) {
             WorkbenchTabClosePreparation::Ready(result) => result,
             WorkbenchTabClosePreparation::Prepared(prepared) => prepared.commit(),
+        })
+    }
+
+    /// `workspace.close` execution: the Workspace Close admits a Context
+    /// scope — never standalone — then shares the identical runtime
+    /// resolution, admission finish, and commit as the leaf scopes. The
+    /// contract is all-or-nothing at admission: an empty membership asks for
+    /// no runtime; a populated one fails fast on the first unresolvable
+    /// member with zero retained effect.
+    pub(crate) fn execute_workspace_close(
+        &mut self,
+        command: WorkbenchCommand,
+        worker: Option<WorkerPlacement>,
+        owner_available: bool,
+        now: Instant,
+    ) -> Option<WorkbenchCommandResult> {
+        let Self {
+            terminals,
+            workbench,
+            ..
+        } = self;
+        let workbench = workbench.as_mut()?;
+        let grant =
+            WorkbenchGrant::read_only(workbench.site_id().clone()).with_terminal_lifecycle();
+        let admission = match workbench.begin_workspace_close(Some(&grant), command) {
+            WorkbenchWorkspaceCloseBegin::Ready(result) => return Some(result),
+            WorkbenchWorkspaceCloseBegin::Admitted(admission) => admission,
+        };
+        let admission = match admission.resolve_after_composition() {
+            WorkbenchTabCloseResolution::Ready(result) => return Some(result),
+            WorkbenchTabCloseResolution::Primary(admission) => admission,
+        };
+        if !owner_available && !admission.members().is_empty() {
+            return Some(
+                admission
+                    .runtime_unavailable(WorkbenchTabCloseRuntimeUnavailableReason::ServerBusy),
+            );
+        }
+        let runtimes = admission
+            .members()
+            .iter()
+            .map(|member| Self::terminal_tab_close_runtime(terminals, member.binding(), worker))
+            .collect::<Result<Vec<_>, _>>();
+        let runtimes = match runtimes {
+            Ok(runtimes) => runtimes,
+            Err(reason) => return Some(admission.runtime_unavailable(reason)),
+        };
+        Some(match admission.finish_members(runtimes, now) {
+            WorkbenchTabClosePreparation::Ready(result) => result,
+            WorkbenchTabClosePreparation::Prepared(prepared) => prepared.commit(),
+        })
+    }
+
+    pub(crate) fn read_workspace_close(
+        &self,
+        request: WorkbenchWorkspaceCloseRead,
+    ) -> Option<WorkbenchWorkspaceCloseReadResult> {
+        let workbench = self.workbench.as_ref()?;
+        let grant = WorkbenchGrant::read_only(workbench.site_id().clone());
+        Some(workbench.read_workspace_close(Some(&grant), request))
+    }
+
+    pub(crate) fn resume_workspace_close(
+        &mut self,
+        request: WorkbenchWorkspaceCloseResume,
+        worker: Option<WorkerPlacement>,
+        owner_available: bool,
+        local_cleanup_available: bool,
+        now: Instant,
+    ) -> Option<WorkbenchWorkspaceCloseResumeResult> {
+        let Self {
+            terminals,
+            workbench,
+            ..
+        } = self;
+        let workbench = workbench.as_mut()?;
+        let grant =
+            WorkbenchGrant::read_only(workbench.site_id().clone()).with_terminal_lifecycle();
+        let admission = match workbench.begin_workspace_close_resume(Some(&grant), request) {
+            WorkbenchWorkspaceCloseResumeBegin::Ready(result) => return Some(result),
+            WorkbenchWorkspaceCloseResumeBegin::Admitted(admission) => admission,
+        };
+        let runtime_targets = admission.runtime_targets();
+        if !runtime_targets.is_empty() && !owner_available {
+            return Some(admission.runtime_unavailable());
+        }
+        if admission.needs_local_cleanup() && !local_cleanup_available {
+            return Some(admission.runtime_unavailable());
+        }
+        if runtime_targets.iter().any(|target| {
+            !Self::terminal_tab_close_runtime_matches(
+                terminals,
+                target.member().binding(),
+                target.runtime(),
+                worker,
+            )
+        }) {
+            return Some(admission.runtime_unavailable());
+        }
+        Some(match admission.finish(now) {
+            WorkbenchWorkspaceCloseResumePreparation::Ready(result) => result,
+            WorkbenchWorkspaceCloseResumePreparation::Prepared(prepared) => prepared.commit(),
         })
     }
 

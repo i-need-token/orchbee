@@ -176,7 +176,7 @@ fn panel_close_on_the_only_leaf_closes_the_whole_tab() {
     let prepared = authority
         .prepare_terminal_tab_close_publication(&close.request_id, now)
         .unwrap();
-    assert_eq!(prepared.exact_removed_member(), &member);
+    assert_eq!(prepared.exact_removed_member(), Some(&member));
     let _ = prepared.commit();
     let context = &authority.projection.snapshot().terminal_contexts[0];
     assert!(context.tabs.is_empty());

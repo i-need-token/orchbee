@@ -5,7 +5,7 @@ use orchbee_workbench_protocol::{
     WorkbenchProjectId, WorkbenchWorkspaceId, Workspace,
 };
 
-fn workspace_fixture(count: u128) -> (WorkbenchAuthority, WorkbenchGrant) {
+pub(super) fn workspace_fixture(count: u128) -> (WorkbenchAuthority, WorkbenchGrant) {
     let (mut authority, grant) = fixture(1);
     let mut snapshot = authority.projection.snapshot().clone();
     for index in 0..2_u128 {

@@ -67,7 +67,9 @@ pub use terminal_tab_close::{
     WorkbenchTabCloseResumeAdmission, WorkbenchTabCloseResumeBegin,
     WorkbenchTabCloseResumePreparation, WorkbenchTabCloseRuntimeTarget,
     WorkbenchTabCloseRuntimeUnavailableReason, WorkbenchTabCloseStepTarget,
-    WorkbenchTabCloseTarget,
+    WorkbenchTabCloseTarget, WorkbenchWorkspaceCloseAdmission, WorkbenchWorkspaceCloseBegin,
+    WorkbenchWorkspaceCloseResumeAdmission, WorkbenchWorkspaceCloseResumeBegin,
+    WorkbenchWorkspaceCloseResumePreparation,
 };
 
 const MAXIMUM_LEDGER_ENTRIES: usize = 4096;
@@ -117,6 +119,8 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             }
             request @ (WorkbenchRequest::TabCloseRead(_)
             | WorkbenchRequest::TabCloseResume(_)
+            | WorkbenchRequest::WorkspaceCloseRead(_)
+            | WorkbenchRequest::WorkspaceCloseResume(_)
             | WorkbenchRequest::WorktreeListRead(_)) => Err(request),
         }
     }
@@ -986,7 +990,8 @@ impl PureWorkbenchAction {
             | WorkbenchAction::TabClose { .. }
             | WorkbenchAction::PanelClose { .. }
             | WorkbenchAction::PanelMove { .. }
-            | WorkbenchAction::PanelRelocate { .. } => return None,
+            | WorkbenchAction::PanelRelocate { .. }
+            | WorkbenchAction::WorkspaceClose { .. } => return None,
         })
     }
 }

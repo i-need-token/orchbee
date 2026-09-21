@@ -518,6 +518,15 @@ impl WorkbenchAuthority {
                 WorkbenchRejectionReason::ResourceLimit,
             ));
         }
+        // An open Context Close fences every membership change in its
+        // Terminal Context: a new member would invalidate the captured
+        // ordered re-proof its publication performs.
+        if self.open_close_fences_context(&terminal_context_id) {
+            return WorkbenchTabCreateBegin::Ready(result(
+                &command,
+                unavailable(WorkbenchCommandUnavailableReason::TerminalBusy),
+            ));
+        }
         let last_identity = match allocate(self.last_identity, 3) {
             Ok(last_identity) => last_identity,
             Err(super::PlanFailure::Rejected(reason)) => {

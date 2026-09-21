@@ -143,6 +143,7 @@ fn navigation_permission_admits_move_without_terminal_create_permission() {
 }
 
 mod tab_close;
+mod workspace_close;
 
 #[test]
 fn directory_association_requires_its_own_grant_and_navigation_without_launch_permission() {

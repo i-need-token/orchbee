@@ -196,6 +196,15 @@ impl WorkbenchAuthority {
         if let Some(reason) = rejection {
             return WorkbenchTabMoveBegin::Ready(self.retain_rejection(command, reason));
         }
+        // An open Context Close fences every membership change in its
+        // Terminal Context: a reorder would invalidate the captured ordered
+        // re-proof its publication performs.
+        if self.open_close_fences_context(&terminal_context_id) {
+            return WorkbenchTabMoveBegin::Ready(result(
+                &command,
+                unavailable(WorkbenchCommandUnavailableReason::TerminalBusy),
+            ));
+        }
         let membership = if terminal_context_id
             == snapshot.navigation.standalone_terminal_context_id
         {

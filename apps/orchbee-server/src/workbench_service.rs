@@ -7,6 +7,8 @@ use orchbee_workbench_protocol::{
     WorkbenchSnapshotOutcome, WorkbenchSnapshotResult, WorkbenchSnapshotUnavailableReason,
     WorkbenchTabCloseReadOutcome, WorkbenchTabCloseReadResult, WorkbenchTabCloseResumeOutcome,
     WorkbenchTabCloseResumeResult, WorkbenchTabCloseUnavailableReason,
+    WorkbenchWorkspaceCloseReadOutcome, WorkbenchWorkspaceCloseReadResult,
+    WorkbenchWorkspaceCloseResumeOutcome, WorkbenchWorkspaceCloseResumeResult,
     WorkbenchWorktreeListOutcome, WorkbenchWorktreeListResult, WorktreeListUnavailableReason,
 };
 use std::sync::Arc;
@@ -46,13 +48,18 @@ impl WorkbenchService {
             WorkbenchRequest::SnapshotRead(_)
             | WorkbenchRequest::PublicationRead(_)
             | WorkbenchRequest::TabCloseRead(_)
+            | WorkbenchRequest::WorkspaceCloseRead(_)
             | WorkbenchRequest::WorktreeListRead(_)
             | WorkbenchRequest::LaunchProfileCatalogRead(_) => self.policy.read,
-            WorkbenchRequest::TabCloseResume(_) => self.policy.manage_terminal_lifecycle,
+            WorkbenchRequest::TabCloseResume(_) | WorkbenchRequest::WorkspaceCloseResume(_) => {
+                self.policy.manage_terminal_lifecycle
+            }
             WorkbenchRequest::Command(command)
                 if matches!(
                     &command.action,
-                    WorkbenchAction::TabClose { .. } | WorkbenchAction::PanelClose { .. }
+                    WorkbenchAction::TabClose { .. }
+                        | WorkbenchAction::PanelClose { .. }
+                        | WorkbenchAction::WorkspaceClose { .. }
                 ) =>
             {
                 self.policy.manage_terminal_lifecycle
@@ -113,6 +120,43 @@ impl WorkbenchService {
                 };
                 return WorkbenchExecution::Response(
                     response.unwrap_or_else(|| unavailable_or_denied(request, denied)),
+                );
+            }
+            WorkbenchRequest::WorkspaceCloseRead(read) => {
+                let denied = self.terminals.workbench_site_matches(&read.site_id) == Some(false);
+                let response = if denied {
+                    None
+                } else {
+                    self.terminals
+                        .read_workspace_close(read.clone())
+                        .map(WorkbenchResponse::WorkspaceCloseRead)
+                };
+                return WorkbenchExecution::Response(
+                    response.unwrap_or_else(|| unavailable_or_denied(request, denied)),
+                );
+            }
+            WorkbenchRequest::WorkspaceCloseResume(resume) => {
+                let denied = self.terminals.workbench_site_matches(&resume.site_id) == Some(false);
+                let response = if denied {
+                    None
+                } else {
+                    self.terminals
+                        .resume_workspace_close(resume.clone())
+                        .map(WorkbenchResponse::WorkspaceCloseResume)
+                };
+                return WorkbenchExecution::Response(
+                    response.unwrap_or_else(|| unavailable_or_denied(request, denied)),
+                );
+            }
+            WorkbenchRequest::Command(command)
+                if matches!(&command.action, WorkbenchAction::WorkspaceClose { .. }) =>
+            {
+                let response = self
+                    .terminals
+                    .execute_workspace_close(command.clone())
+                    .map(WorkbenchResponse::Command);
+                return WorkbenchExecution::Response(
+                    response.unwrap_or_else(|| unavailable_or_denied(request, false)),
                 );
             }
             WorkbenchRequest::Command(command)
@@ -254,6 +298,36 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                     WorkbenchTabCloseResumeOutcome::Denied {}
                 } else {
                     WorkbenchTabCloseResumeOutcome::Unavailable {
+                        reason: WorkbenchTabCloseUnavailableReason::ServerBusy,
+                    }
+                },
+            })
+        }
+        WorkbenchRequest::WorkspaceCloseRead(read) => {
+            WorkbenchResponse::WorkspaceCloseRead(WorkbenchWorkspaceCloseReadResult {
+                protocol_version: ProtocolVersion,
+                request_id: read.request_id,
+                outcome: if denied {
+                    WorkbenchWorkspaceCloseReadOutcome::Denied {}
+                } else {
+                    WorkbenchWorkspaceCloseReadOutcome::Unavailable {
+                        reason: WorkbenchTabCloseUnavailableReason::ServerBusy,
+                    }
+                },
+            })
+        }
+        WorkbenchRequest::WorkspaceCloseResume(resume) => {
+            WorkbenchResponse::WorkspaceCloseResume(WorkbenchWorkspaceCloseResumeResult {
+                protocol_version: ProtocolVersion,
+                request_id: resume.request_id,
+                site_id: resume.site_id,
+                project_id: resume.project_id,
+                workspace_id: resume.workspace_id,
+                close_request_id: resume.close_request_id,
+                outcome: if denied {
+                    WorkbenchWorkspaceCloseResumeOutcome::Denied {}
+                } else {
+                    WorkbenchWorkspaceCloseResumeOutcome::Unavailable {
                         reason: WorkbenchTabCloseUnavailableReason::ServerBusy,
                     }
                 },

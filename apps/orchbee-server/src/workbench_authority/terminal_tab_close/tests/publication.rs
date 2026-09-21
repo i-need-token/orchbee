@@ -55,7 +55,7 @@ fn finalization_removes_only_current_exact_member_after_create_move_and_rename()
         .unwrap();
     assert_eq!(prepared.before_membership().members().len(), 3);
     assert_eq!(prepared.after_membership().members().len(), 2);
-    let removed = prepared.exact_removed_member().clone();
+    let removed = prepared.exact_removed_member().unwrap().clone();
     assert_eq!(
         prepared.after_membership().members(),
         prepared

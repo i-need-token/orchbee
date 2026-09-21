@@ -5,6 +5,8 @@ use orchbee_server::{CloseContinuationNext, CloseStepObservation, CloseStepPrequ
 use orchbee_workbench_protocol::{
     WorkbenchCommand, WorkbenchCommandResult, WorkbenchRequestId, WorkbenchTabCloseRead,
     WorkbenchTabCloseReadResult, WorkbenchTabCloseResume, WorkbenchTabCloseResumeResult,
+    WorkbenchWorkspaceCloseRead, WorkbenchWorkspaceCloseReadResult, WorkbenchWorkspaceCloseResume,
+    WorkbenchWorkspaceCloseResumeResult,
 };
 
 use super::{LocalTerminalService, lease_expiry, placement};
@@ -38,6 +40,58 @@ impl LocalTerminalService {
             )
         };
         // Replays can harmlessly notify, but never change an attempt or wait for IPC.
+        self.close_maintenance.notify();
+        result
+    }
+
+    pub(crate) fn execute_workspace_close(
+        &self,
+        command: WorkbenchCommand,
+    ) -> Option<WorkbenchCommandResult> {
+        let result = {
+            let workers = self.workers.lock().ok();
+            let handle = workers
+                .as_ref()
+                .and_then(|workers| workers.request_handle());
+            let mut coordinator = self.coordinator.lock().ok()?;
+            coordinator.execute_workspace_close(
+                command,
+                placement(handle.as_ref()),
+                self.close_maintenance.available(),
+                Instant::now(),
+            )
+        };
+        // Replays can harmlessly notify, but never change an attempt or wait for IPC.
+        self.close_maintenance.notify();
+        result
+    }
+
+    pub(crate) fn read_workspace_close(
+        &self,
+        request: WorkbenchWorkspaceCloseRead,
+    ) -> Option<WorkbenchWorkspaceCloseReadResult> {
+        self.coordinator.lock().ok()?.read_workspace_close(request)
+    }
+
+    pub(crate) fn resume_workspace_close(
+        &self,
+        request: WorkbenchWorkspaceCloseResume,
+    ) -> Option<WorkbenchWorkspaceCloseResumeResult> {
+        let result = {
+            let workers = self.workers.lock().ok();
+            let handle = workers
+                .as_ref()
+                .and_then(|workers| workers.request_handle());
+            let mut coordinator = self.coordinator.lock().ok()?;
+            let local_cleanup_available = self.controllers.lock().is_ok();
+            coordinator.resume_workspace_close(
+                request,
+                placement(handle.as_ref()),
+                self.close_maintenance.available(),
+                local_cleanup_available,
+                Instant::now(),
+            )
+        };
         self.close_maintenance.notify();
         result
     }

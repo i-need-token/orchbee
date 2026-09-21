@@ -66,7 +66,7 @@ impl WorkbenchAuthority {
         close_request_id: &WorkbenchRequestId,
     ) -> Option<&WorkbenchTabCloseTarget> {
         self.close_record(close_request_id)
-            .map(|record| &record.target)
+            .and_then(|record| record.targets().next())
     }
 
     #[must_use]

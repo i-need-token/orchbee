@@ -5,9 +5,11 @@ use orchbee_capability_node_protocol::{
     WorkerId,
 };
 use orchbee_workbench_protocol::{
-    WorkbenchCommand, WorkbenchCommandResult, WorkbenchRequestId, WorkbenchRevision,
-    WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseResume, WorkbenchTabCloseResumeResult,
+    WorkbenchCommand, WorkbenchCommandResult, WorkbenchProjectId, WorkbenchRequestId,
+    WorkbenchRevision, WorkbenchTabCloseAttemptGeneration, WorkbenchTabClosePhase,
+    WorkbenchTabClosePublicationReason, WorkbenchTabCloseResume, WorkbenchTabCloseResumeResult,
     WorkbenchTabCloseStatus, WorkbenchTabId, WorkbenchTerminalContextId,
+    WorkbenchWorkspaceCloseResume, WorkbenchWorkspaceCloseResumeResult, WorkbenchWorkspaceId,
 };
 
 use super::{PlanFailure, RetainedRequest, WorkbenchAuthority, WorkbenchTerminalTab};
@@ -22,7 +24,8 @@ mod reservation;
 pub use admission::{
     PreparedWorkbenchTabClose, WorkbenchTabCloseAdmission, WorkbenchTabCloseBegin,
     WorkbenchTabClosePreparation, WorkbenchTabClosePrimaryAdmission, WorkbenchTabCloseResolution,
-    WorkbenchTabCloseRuntimeUnavailableReason,
+    WorkbenchTabCloseRuntimeUnavailableReason, WorkbenchWorkspaceCloseAdmission,
+    WorkbenchWorkspaceCloseBegin,
 };
 use continuation::CloseContinuation;
 pub use continuation::{
@@ -33,6 +36,8 @@ use continuation::{CloseContinuationResumeError, PreparedCloseContinuationResume
 pub use control::{
     PreparedWorkbenchTabCloseResume, WorkbenchTabCloseResumeAdmission,
     WorkbenchTabCloseResumeBegin, WorkbenchTabCloseResumePreparation,
+    WorkbenchWorkspaceCloseResumeAdmission, WorkbenchWorkspaceCloseResumeBegin,
+    WorkbenchWorkspaceCloseResumePreparation,
 };
 pub use publication::{PreparedWorkbenchTabClosePublication, WorkbenchTabClosePublicationError};
 
@@ -141,31 +146,52 @@ impl WorkbenchTabCloseStepTarget {
     }
 }
 
-/// Whether the Close removes the whole Tab or one leaf Panel inside it.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// Whether the Close removes one Tab, one leaf Panel, or a whole Workspace
+/// Terminal Context. The Context scope carries its Workspace join identity:
+/// coverage, join, status, and publication all key on this triple, never on
+/// `members.any` — a Workspace with zero leaf members still owns a scope.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) enum CloseScope {
     Tab,
     Panel,
+    Context {
+        project_id: WorkbenchProjectId,
+        workspace_id: WorkbenchWorkspaceId,
+    },
 }
 
 pub(super) struct CloseRecord {
     pub(super) command: WorkbenchCommand,
     pub(super) result: WorkbenchCommandResult,
-    pub(super) scope: CloseScope,
-    target: WorkbenchTabCloseTarget,
-    additional_targets: Vec<WorkbenchTabCloseTarget>,
+    scope: CloseScope,
+    /// The scope's Terminal Context — retained separately from `targets` so an
+    /// empty Context membership still has an addressable scope.
+    terminal_context_id: WorkbenchTerminalContextId,
+    targets: Vec<WorkbenchTabCloseTarget>,
     generation: WorkbenchTabCloseAttemptGeneration,
     resume_receipt: Option<AcceptedResumeReceipt>,
     reserved_bytes: usize,
-    continuation: CloseContinuation,
-    additional_continuations: Vec<CloseContinuation>,
+    continuations: Vec<CloseContinuation>,
     scheduler_cursor: usize,
+    /// Zero-member Context scope publication-only marker: the first scheduled
+    /// Publication flips this, transitioning `closing(queued)` into
+    /// `disposed-awaiting-publication(preparing)`.
+    publication_attempted: bool,
+    /// A failed publication on a zero-member Context scope parks the same
+    /// `(reason, resumable)` truth a member continuation would carry.
+    parked_publication: Option<(WorkbenchTabClosePublicationReason, bool)>,
     closed_revision: Option<WorkbenchRevision>,
 }
 
-struct AcceptedResumeReceipt {
-    request: WorkbenchTabCloseResume,
-    result: WorkbenchTabCloseResumeResult,
+pub(super) enum AcceptedResumeReceipt {
+    Tab {
+        request: WorkbenchTabCloseResume,
+        result: WorkbenchTabCloseResumeResult,
+    },
+    Workspace {
+        request: WorkbenchWorkspaceCloseResume,
+        result: WorkbenchWorkspaceCloseResumeResult,
+    },
 }
 
 impl CloseRecord {
@@ -174,64 +200,48 @@ impl CloseRecord {
     }
 
     fn target_count(&self) -> usize {
-        1 + self.additional_targets.len()
+        self.targets.len()
     }
 
     fn target(&self, index: usize) -> Option<&WorkbenchTabCloseTarget> {
-        if index == 0 {
-            Some(&self.target)
-        } else {
-            self.additional_targets.get(index - 1)
-        }
+        self.targets.get(index)
     }
 
     fn continuation(&self, index: usize) -> Option<&CloseContinuation> {
-        if index == 0 {
-            Some(&self.continuation)
-        } else {
-            self.additional_continuations.get(index - 1)
-        }
+        self.continuations.get(index)
     }
 
     fn continuation_mut(&mut self, index: usize) -> Option<&mut CloseContinuation> {
-        if index == 0 {
-            Some(&mut self.continuation)
-        } else {
-            self.additional_continuations.get_mut(index - 1)
-        }
+        self.continuations.get_mut(index)
     }
 
     fn target_index_for_binding(
         &self,
         binding: &orchbee_workbench_protocol::PresentationBinding,
     ) -> Option<usize> {
-        (0..self.target_count()).find(|index| {
-            self.target(*index)
-                .is_some_and(|target| target.member.binding() == binding)
-        })
+        self.targets
+            .iter()
+            .position(|target| target.member.binding() == binding)
     }
 
     fn target_index_for_runtime(&self, runtime: WorkbenchTabCloseRuntimeTarget) -> Option<usize> {
-        (0..self.target_count()).find(|index| {
-            self.target(*index)
-                .is_some_and(|target| target.runtime == runtime)
-        })
+        self.targets
+            .iter()
+            .position(|target| target.runtime == runtime)
     }
 
     fn target_index_for_request(&self, request: &TerminalLifecycleRequest) -> Option<usize> {
-        (0..self.target_count()).find(|index| {
-            self.target(*index)
-                .is_some_and(|target| target.runtime.matches_request(request))
-        })
+        self.targets
+            .iter()
+            .position(|target| target.runtime.matches_request(request))
     }
 
     fn members(&self) -> impl Iterator<Item = &WorkbenchTerminalTab> {
-        std::iter::once(&self.target.member)
-            .chain(self.additional_targets.iter().map(|target| &target.member))
+        self.targets.iter().map(|target| &target.member)
     }
 
     fn targets(&self) -> impl Iterator<Item = &WorkbenchTabCloseTarget> {
-        std::iter::once(&self.target).chain(self.additional_targets.iter())
+        self.targets.iter()
     }
 
     fn target_for_binding(
@@ -242,28 +252,68 @@ impl CloseRecord {
             .and_then(|index| self.target(index))
     }
 
+    fn matches_context(&self, context_id: &WorkbenchTerminalContextId) -> bool {
+        self.terminal_context_id == *context_id
+    }
+
+    /// The Close covers this exact `(context, tab)` pair — all its captured
+    /// members sit under one Tab. An empty Context scope matches nothing here;
+    /// workspace-close reads key on `matches_context_scope` instead.
     fn matches_context_tab(
         &self,
         context_id: &WorkbenchTerminalContextId,
         tab_id: &WorkbenchTabId,
     ) -> bool {
-        self.targets().all(|target| {
-            target.terminal_context_id() == context_id && target.member().tab_id() == tab_id
-        })
+        !self.targets.is_empty()
+            && self.targets().all(|target| {
+                target.terminal_context_id() == context_id && target.member().tab_id() == tab_id
+            })
+    }
+
+    /// The `(project, workspace)` pair a `workspace.close` names — only
+    /// `CloseScope::Context` carries it; the pair identifies the scope's
+    /// Terminal Context uniquely, tombstone reads included.
+    fn matches_context_scope(
+        &self,
+        project_id: &WorkbenchProjectId,
+        workspace_id: &WorkbenchWorkspaceId,
+    ) -> bool {
+        matches!(
+            &self.scope,
+            CloseScope::Context {
+                project_id: project,
+                workspace_id: workspace,
+            } if project == project_id && workspace == workspace_id
+        )
     }
 
     /// An open aggregate Close fences same-Tab structural admission: its publication
     /// re-proves the complete captured ordered leaf membership, which a same-Tab
     /// split/move would invalidate. A leaf-scoped Close re-proves only its own captured
-    /// leaf tuple and fences neither operation.
+    /// leaf tuple and fences neither operation. An open Context Close re-proves the
+    /// whole captured Context membership and therefore fences every Tab in it.
     fn fences_tab_structure(
         &self,
         context_id: &WorkbenchTerminalContextId,
         tab_id: &WorkbenchTabId,
     ) -> bool {
-        self.scope == CloseScope::Tab
-            && !self.is_closed()
-            && self.matches_context_tab(context_id, tab_id)
+        if self.is_closed() {
+            return false;
+        }
+        match self.scope {
+            CloseScope::Tab => self.matches_context_tab(context_id, tab_id),
+            CloseScope::Panel => false,
+            CloseScope::Context { .. } => self.matches_context(context_id),
+        }
+    }
+
+    /// An open Context Close fences any membership-changing admission inside
+    /// its Terminal Context — including `tab.create`, which appends a member
+    /// no aggregate-Tab fence would see.
+    fn fences_context_structure(&self, context_id: &WorkbenchTerminalContextId) -> bool {
+        !self.is_closed()
+            && matches!(self.scope, CloseScope::Context { .. })
+            && self.matches_context(context_id)
     }
 
     /// An open or settled Close covers this exact leaf member.
@@ -289,6 +339,24 @@ impl CloseRecord {
         if let Some(revision) = self.closed_revision {
             return WorkbenchTabCloseStatus::Closed { revision };
         }
+        if self.targets.is_empty() {
+            // A zero-member Context scope is its own publication-only
+            // continuation: queued, then preparing, then parked — the close
+            // revision exists only after `commit_closed` lands.
+            if let Some((reason, resumable)) = self.parked_publication {
+                return WorkbenchTabCloseStatus::DisposedAwaitingPublication { reason, resumable };
+            }
+            return if self.publication_attempted {
+                WorkbenchTabCloseStatus::DisposedAwaitingPublication {
+                    reason: WorkbenchTabClosePublicationReason::Preparing,
+                    resumable: false,
+                }
+            } else {
+                WorkbenchTabCloseStatus::Closing {
+                    phase: WorkbenchTabClosePhase::Queued,
+                }
+            };
+        }
         let statuses: Vec<_> = (0..self.target_count())
             .filter_map(|index| self.continuation(index).map(CloseContinuation::status))
             .collect();
@@ -307,12 +375,12 @@ impl CloseRecord {
                 return status.clone();
             }
         }
-        statuses
-            .into_iter()
-            .next()
-            .unwrap_or(WorkbenchTabCloseStatus::Closed {
-                revision: WorkbenchRevision::new(0),
-            })
+        statuses.into_iter().next().unwrap_or(
+            WorkbenchTabCloseStatus::DisposedAwaitingPublication {
+                reason: WorkbenchTabClosePublicationReason::Preparing,
+                resumable: false,
+            },
+        )
     }
 
     fn has_outstanding(&self) -> bool {
@@ -330,12 +398,18 @@ impl CloseRecord {
     }
 
     fn is_resumable(&self) -> bool {
-        !self.has_unknown()
-            && !self.has_outstanding()
-            && (0..self.target_count()).any(|index| {
-                self.continuation(index)
-                    .is_some_and(CloseContinuation::is_resumable)
-            })
+        if self.has_unknown() || self.has_outstanding() {
+            return false;
+        }
+        if self.targets.is_empty() {
+            return self
+                .parked_publication
+                .is_some_and(|(_, resumable)| resumable);
+        }
+        (0..self.target_count()).any(|index| {
+            self.continuation(index)
+                .is_some_and(CloseContinuation::is_resumable)
+        })
     }
 
     fn prepare_resumes(
@@ -354,7 +428,12 @@ impl CloseRecord {
                 prepared.push((index, continuation.prepare_resume(now)?));
             }
         }
-        if prepared.is_empty() {
+        if prepared.is_empty()
+            && !(self.targets.is_empty()
+                && self
+                    .parked_publication
+                    .is_some_and(|(_, resumable)| resumable))
+        {
             return Err(CloseContinuationResumeError::NotResumable);
         }
         Ok(prepared)
@@ -366,6 +445,9 @@ impl CloseRecord {
                 continuation.commit_resume(prepared);
             }
         }
+        if self.targets.is_empty() {
+            self.parked_publication = None;
+        }
     }
 
     fn generation_exhausted(&mut self) {
@@ -373,6 +455,9 @@ impl CloseRecord {
             if let Some(continuation) = self.continuation_mut(index) {
                 continuation.generation_exhausted();
             }
+        }
+        if let Some((_, resumable)) = &mut self.parked_publication {
+            *resumable = false;
         }
     }
 
@@ -387,6 +472,22 @@ impl CloseRecord {
             return WorkbenchTabCloseStepTarget {
                 target: None,
                 next: CloseContinuationNext::Outstanding,
+            };
+        }
+        if self.targets.is_empty() {
+            // Zero-member Context scope has no lifecycle steps — a parked
+            // publication waits for resume, otherwise the next scheduled step
+            // is the scope commit itself.
+            if self.parked_publication.is_some() {
+                return WorkbenchTabCloseStepTarget {
+                    target: None,
+                    next: CloseContinuationNext::Parked,
+                };
+            }
+            self.publication_attempted = true;
+            return WorkbenchTabCloseStepTarget {
+                target: None,
+                next: CloseContinuationNext::Publication,
             };
         }
         let count = self.target_count();
@@ -476,6 +577,9 @@ impl CloseRecord {
     }
 
     fn publication_ready(&self) -> bool {
+        if self.targets.is_empty() {
+            return self.parked_publication.is_none();
+        }
         (0..self.target_count()).all(|index| {
             self.continuation(index)
                 .is_some_and(CloseContinuation::publication_ready)
@@ -490,6 +594,15 @@ impl CloseRecord {
             if let Some(continuation) = self.continuation_mut(index) {
                 continuation.publication_failed(reason);
             }
+        }
+        if self.targets.is_empty() {
+            self.parked_publication = Some((
+                reason,
+                !matches!(
+                    reason,
+                    orchbee_workbench_protocol::WorkbenchTabClosePublicationReason::AuthorityRetired
+                ),
+            ));
         }
     }
 
@@ -570,6 +683,37 @@ impl WorkbenchAuthority {
         self.ledger.values().any(|entry| {
             matches!(entry, RetainedRequest::TabClose(record)
                 if record.open_covers_member(member))
+        })
+    }
+
+    /// Whether an open Context Close fences structural admission anywhere in
+    /// this Terminal Context — `tab.create` appends membership the captured
+    /// re-proof never saw, so it refuses `terminal-busy` until publication.
+    pub(super) fn open_close_fences_context(
+        &self,
+        context_id: &WorkbenchTerminalContextId,
+    ) -> bool {
+        self.ledger.values().any(|entry| {
+            matches!(entry, RetainedRequest::TabClose(record)
+                if record.fences_context_structure(context_id))
+        })
+    }
+
+    /// Whether an unsettled terminal create/split settlement owes this
+    /// Context a member — a Workspace Close fences those pending records
+    /// instead of capturing a membership their outcomes would mutate.
+    pub(super) fn pending_terminal_covers_context(
+        &self,
+        context_id: &WorkbenchTerminalContextId,
+    ) -> bool {
+        self.ledger.values().any(|entry| match entry {
+            RetainedRequest::PendingTabCreate(entry) => {
+                entry.metadata().terminal_context_id() == context_id
+            }
+            RetainedRequest::PendingPanelSplit(entry) => {
+                entry.metadata().terminal_context_id() == context_id
+            }
+            _ => false,
         })
     }
 

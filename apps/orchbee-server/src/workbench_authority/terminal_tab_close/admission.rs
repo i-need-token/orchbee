@@ -31,6 +31,18 @@ pub struct WorkbenchTabCloseAdmission<'a> {
 }
 
 #[allow(clippy::large_enum_variant)]
+pub enum WorkbenchWorkspaceCloseBegin<'a> {
+    Ready(WorkbenchCommandResult),
+    Admitted(Box<WorkbenchWorkspaceCloseAdmission<'a>>),
+}
+
+pub struct WorkbenchWorkspaceCloseAdmission<'a> {
+    authority: &'a mut WorkbenchAuthority,
+    command: WorkbenchCommand,
+    membership: WorkbenchTerminalMembership,
+}
+
+#[allow(clippy::large_enum_variant)]
 pub enum WorkbenchTabCloseResolution<'a> {
     Ready(WorkbenchCommandResult),
     Primary(Box<WorkbenchTabClosePrimaryAdmission<'a>>),
@@ -178,6 +190,117 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
     }
 }
 
+impl<'a> WorkbenchWorkspaceCloseAdmission<'a> {
+    #[must_use]
+    pub fn terminal_membership(&self) -> &WorkbenchTerminalMembership {
+        &self.membership
+    }
+
+    #[must_use]
+    pub fn retire_composition_failure(self) -> WorkbenchCommandResult {
+        self.authority.retire(&self.command)
+    }
+
+    /// The captured scope is the whole Context membership — possibly empty.
+    /// Judgment order: identical scope joins the retained operation; any other
+    /// retained Close covering a captured member refuses busy; a pending
+    /// create/split owing this Context a member refuses busy.
+    #[must_use]
+    pub fn resolve_after_composition(self) -> WorkbenchTabCloseResolution<'a> {
+        let (project_id, workspace_id) = match &self.command.action {
+            WorkbenchAction::WorkspaceClose {
+                project_id,
+                workspace_id,
+            } => (project_id.clone(), workspace_id.clone()),
+            _ => return WorkbenchTabCloseResolution::Ready(self.authority.retire(&self.command)),
+        };
+        let members: Vec<_> = self.membership.members().to_vec();
+        let context_id = self.membership.terminal_context_id().clone();
+        // Scope join precedes member conflict: an open Context Close on this
+        // exact triple replays its original acknowledgement with no further
+        // close credit, even while members sit inside it.
+        let same_scope = self
+            .authority
+            .ledger
+            .values()
+            .find_map(|entry| match entry {
+                RetainedRequest::TabClose(record)
+                    if record.matches_context_scope(&project_id, &workspace_id) =>
+                {
+                    Some(record)
+                }
+                _ => None,
+            });
+        if let Some(record) = same_scope {
+            if record.is_closed() {
+                // A completed Context Close cannot coexist with the projected scope.
+                return WorkbenchTabCloseResolution::Ready(self.authority.retire(&self.command));
+            }
+            let same_action = std::mem::discriminant(&record.command.action)
+                == std::mem::discriminant(&self.command.action);
+            if same_action {
+                // Joining retained facts is effect-free even when the runtime is now unavailable.
+                let plan = CommitPlan {
+                    projection: None,
+                    last_identity: None,
+                    catalog_next: None,
+                    outcome: record.result.outcome.clone(),
+                };
+                return WorkbenchTabCloseResolution::Ready(
+                    match self.authority.prepare_command_commit(self.command, plan) {
+                        Ok(prepared) => prepared.commit(),
+                        Err(response) => *response,
+                    },
+                );
+            }
+            // A Context Close under a different action owns this scope.
+            return WorkbenchTabCloseResolution::Ready(result(
+                &self.command,
+                unavailable(WorkbenchCommandUnavailableReason::TerminalBusy),
+            ));
+        }
+        let covering = self
+            .authority
+            .ledger
+            .values()
+            .find_map(|entry| match entry {
+                RetainedRequest::TabClose(record)
+                    if members.iter().any(|member| record.covers_member(member)) =>
+                {
+                    Some(record)
+                }
+                _ => None,
+            });
+        if let Some(record) = covering {
+            if record.is_closed() {
+                // A completed Close cannot still cover a projected member.
+                return WorkbenchTabCloseResolution::Ready(self.authority.retire(&self.command));
+            }
+            // A member sits inside an open incompatible Close.
+            return WorkbenchTabCloseResolution::Ready(result(
+                &self.command,
+                unavailable(WorkbenchCommandUnavailableReason::TerminalBusy),
+            ));
+        }
+        if self.authority.pending_terminal_covers_context(&context_id) {
+            return WorkbenchTabCloseResolution::Ready(result(
+                &self.command,
+                unavailable(WorkbenchCommandUnavailableReason::TerminalBusy),
+            ));
+        }
+        WorkbenchTabCloseResolution::Primary(Box::new(WorkbenchTabClosePrimaryAdmission {
+            authority: self.authority,
+            command: self.command,
+            membership: self.membership,
+            members,
+            scope: CloseScope::Context {
+                project_id,
+                workspace_id,
+            },
+        }))
+    }
+}
+
 impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
     #[must_use]
     pub fn member(&self) -> &super::super::WorkbenchTerminalTab {
@@ -260,11 +383,22 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
                     accepted_revision: self.command.expected_revision,
                 }
             }
+            WorkbenchAction::WorkspaceClose {
+                project_id,
+                workspace_id,
+            } => WorkbenchCommandOutcome::WorkspaceCloseAccepted {
+                close_request_id: self.command.request_id.clone(),
+                project_id: project_id.clone(),
+                workspace_id: workspace_id.clone(),
+                terminal_context_id: self.membership.terminal_context_id().clone(),
+                accepted_revision: self.command.expected_revision,
+            },
             _ => return WorkbenchTabClosePreparation::Ready(self.authority.retire(&self.command)),
         };
         let response = result(&self.command, outcome);
+        let member_count = self.members.len();
         let Some(reserved_bytes) =
-            super::reservation::maximum_primary_charge(&self.command, &response)
+            super::reservation::maximum_primary_charge(&self.command, &response, member_count)
         else {
             return WorkbenchTabClosePreparation::Ready(self.authority.retire(&self.command));
         };
@@ -279,8 +413,8 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
             ));
         }
         let request_id = self.command.request_id.clone();
-        let mut targets = Vec::with_capacity(self.members.len());
-        let mut continuations = Vec::with_capacity(self.members.len());
+        let mut targets = Vec::with_capacity(member_count);
+        let mut continuations = Vec::with_capacity(member_count);
         for (member, (runtime, observed_phase)) in self.members.into_iter().zip(runtimes) {
             let Some(continuation) = CloseContinuation::prepare(now, observed_phase) else {
                 return WorkbenchTabClosePreparation::Ready(self.authority.retire(&self.command));
@@ -292,22 +426,19 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
             });
             continuations.push(continuation);
         }
-        let mut targets = targets.into_iter();
-        let mut continuations = continuations.into_iter();
-        let target = targets.next().expect("Close membership is nonempty");
-        let continuation = continuations.next().expect("Close membership is nonempty");
         let record = Box::new(CloseRecord {
             command: self.command,
             result: response.clone(),
             scope: self.scope,
-            target,
-            additional_targets: targets.collect(),
+            terminal_context_id: self.membership.terminal_context_id().clone(),
+            targets,
             generation,
             resume_receipt: None,
             reserved_bytes,
-            continuation,
-            additional_continuations: continuations.collect(),
+            continuations,
             scheduler_cursor: 0,
+            publication_attempted: false,
+            parked_publication: None,
             closed_revision: None,
         });
         WorkbenchTabClosePreparation::Prepared(Box::new(PreparedWorkbenchTabClose {
@@ -326,8 +457,8 @@ impl PreparedWorkbenchTabClose<'_> {
         &self.response
     }
     #[must_use]
-    pub fn target(&self) -> &WorkbenchTabCloseTarget {
-        &self.record.target
+    pub fn target(&self) -> Option<&WorkbenchTabCloseTarget> {
+        self.record.targets().next()
     }
     #[must_use]
     pub fn commit(self) -> WorkbenchCommandResult {
@@ -420,6 +551,105 @@ impl WorkbenchAuthority {
             membership,
             tab_id,
             panel_id,
+        }))
+    }
+
+    /// `workspace.close` admission: the same Close lifecycle machinery scoped
+    /// to a Workspace's whole Terminal Context — empty membership included.
+    /// Site supplies runtime resolution; this stage resolves the named
+    /// `(project, workspace)` scope against the authoritative snapshot.
+    pub fn begin_workspace_close(
+        &mut self,
+        grant: Option<&WorkbenchGrant>,
+        command: WorkbenchCommand,
+    ) -> WorkbenchWorkspaceCloseBegin<'_> {
+        let authorized = matches!(&command.action, WorkbenchAction::WorkspaceClose { .. })
+            && grant.is_some_and(|grant| grant.site_id == *self.site_id() && grant.close_terminal);
+        if !authorized {
+            return WorkbenchWorkspaceCloseBegin::Ready(result(
+                &command,
+                WorkbenchCommandOutcome::Denied {},
+            ));
+        }
+        if let Some(retained) = self.ledger.get(&command.request_id) {
+            return WorkbenchWorkspaceCloseBegin::Ready(if retained.command() == &command {
+                retained.replay_result().clone()
+            } else {
+                result(
+                    &command,
+                    self.rejected(WorkbenchRejectionReason::RequestIdentityConflict),
+                )
+            });
+        }
+        if self.retired {
+            return WorkbenchWorkspaceCloseBegin::Ready(result(
+                &command,
+                unavailable(WorkbenchCommandUnavailableReason::ServiceUnavailable),
+            ));
+        }
+        if self.ledger.len() >= MAXIMUM_LEDGER_ENTRIES {
+            return WorkbenchWorkspaceCloseBegin::Ready(result(
+                &command,
+                unavailable(WorkbenchCommandUnavailableReason::RequestLedgerFull),
+            ));
+        }
+        let WorkbenchAction::WorkspaceClose {
+            project_id,
+            workspace_id,
+        } = command.action.clone()
+        else {
+            return WorkbenchWorkspaceCloseBegin::Ready(self.retire(&command));
+        };
+        let snapshot = self.projection.snapshot();
+        let rejection = if command.site_id != snapshot.site_id {
+            Some(WorkbenchRejectionReason::SiteMismatch)
+        } else if command.expected_revision != snapshot.revision {
+            Some(WorkbenchRejectionReason::RevisionMismatch)
+        } else {
+            match snapshot
+                .navigation
+                .projects
+                .iter()
+                .find(|project| project.project_id == project_id)
+            {
+                None => Some(WorkbenchRejectionReason::ProjectUnavailable),
+                Some(project)
+                    if !project
+                        .workspaces
+                        .iter()
+                        .any(|workspace| workspace.workspace_id == workspace_id) =>
+                {
+                    Some(WorkbenchRejectionReason::WorkspaceUnavailable)
+                }
+                _ => None,
+            }
+        };
+        if let Some(reason) = rejection {
+            return WorkbenchWorkspaceCloseBegin::Ready(self.retain_rejection(command, reason));
+        }
+        let workspace = snapshot
+            .navigation
+            .projects
+            .iter()
+            .find(|project| project.project_id == project_id)
+            .and_then(|project| {
+                project
+                    .workspaces
+                    .iter()
+                    .find(|workspace| workspace.workspace_id == workspace_id)
+            });
+        let Some(workspace) = workspace else {
+            return WorkbenchWorkspaceCloseBegin::Ready(self.retire(&command));
+        };
+        let terminal_context_id = workspace.terminal_context_id.clone();
+        let membership = match self.terminal_tree_membership(&terminal_context_id) {
+            Ok(membership) => membership,
+            Err(_invariant) => return WorkbenchWorkspaceCloseBegin::Ready(self.retire(&command)),
+        };
+        WorkbenchWorkspaceCloseBegin::Admitted(Box::new(WorkbenchWorkspaceCloseAdmission {
+            authority: self,
+            command,
+            membership,
         }))
     }
 }

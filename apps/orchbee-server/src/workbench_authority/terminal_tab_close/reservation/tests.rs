@@ -14,7 +14,8 @@ fn reservation_covers_simultaneous_maximum_tombstone_status_and_resume_receipt()
     let record = authority.close_record_mut(&close.request_id).unwrap();
     record.generation = WorkbenchTabCloseAttemptGeneration::new(u64::MAX).unwrap();
     record
-        .continuation
+        .continuation_mut(0)
+        .unwrap()
         .commit_closed(WorkbenchRevision::new(u64::MAX));
     let WorkbenchAction::TabClose {
         terminal_context_id,
@@ -50,7 +51,7 @@ fn reservation_covers_simultaneous_maximum_tombstone_status_and_resume_receipt()
     .len();
     assert!(reserved >= ledger_size(&close, &acknowledgment).unwrap() + read + control);
     assert_eq!(
-        maximum_primary_charge(&close, &acknowledgment),
+        maximum_primary_charge(&close, &acknowledgment, 1),
         Some(reserved)
     );
 }
