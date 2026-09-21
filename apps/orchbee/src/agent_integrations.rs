@@ -45,7 +45,8 @@ mod conformance64;
 
 /// The one real process-tree teardown witness for `exec::run_command` —
 /// fake executables only, owned temporary roots, no scripted injection.
-#[cfg(all(test, unix))]
+/// Linux only: its owned-identity pinning is built on pidfd.
+#[cfg(all(test, target_os = "linux"))]
 mod exec_witness;
 
 pub(crate) use model::{IntegrationId, Issue, SnapshotItem, State};

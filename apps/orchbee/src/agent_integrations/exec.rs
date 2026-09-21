@@ -217,7 +217,11 @@ fn drain(stdout: &mut impl Read, output: &mut Vec<u8>) -> Drain {
 /// reap window lapses is `Leaked`, never a blocking wait. The leader exiting
 /// during the TERM grace does NOT close the termination path: in-group
 /// descendants outlive it, so the KILL is still owed to the group before the
-/// reap — the group identity stays valid while any member stands.
+/// reap — the group identity stays valid while any member stands. The grace
+/// never calls `try_wait`: reaping the leader early would free its pid and
+/// group id while members still stand, and a recycled group id could then
+/// receive a KILL meant for the owned group. The `Child` stays unreaped
+/// until after the group KILL — only then does the bounded reap run.
 fn terminate(
     mut child: Child,
     stdout: impl Read,
@@ -226,18 +230,14 @@ fn terminate(
 ) -> CommandResult {
     let group = Pid::from_raw(child.id() as i32);
     let _ = killpg(group, Signal::SIGTERM);
+    // The clipped grace is a fixed window — no `try_wait` observation, so
+    // the leader cannot be reaped before the group KILL below.
     let grace_deadline = deadline.min(Instant::now() + TERM_GRACE);
-    loop {
-        match child.try_wait() {
-            // Leader gone or unobservable — still owe the group KILL.
-            Ok(Some(_)) | Err(_) => break,
-            Ok(None) => {}
-        }
-        if Instant::now() >= grace_deadline {
-            break;
-        }
+    while Instant::now() < grace_deadline {
         thread::sleep(POLL_INTERVAL.min(grace_deadline.saturating_duration_since(Instant::now())));
     }
+    // `child` is still unreaped: its pid is reserved and remains the owned
+    // group's id, so this KILL reaches exactly the group that was created.
     let _ = killpg(group, Signal::SIGKILL);
     let reap_deadline = deadline.min(Instant::now() + REAP_BOUND);
     loop {
