@@ -140,8 +140,9 @@ impl NativeUi {
         self.board.summary()
     }
 
-    /// The draw receipt's verdict: only an actually-painted board may own
-    /// input, and the painted viewport height bounds selection scrolling.
+    /// The draw receipt's verdict: a board the paint could not present
+    /// closes itself rather than owning input invisibly, and the painted
+    /// viewport height bounds selection scrolling.
     pub(in crate::terminal_session) fn after_agent_board_draw(
         &mut self,
         draw: Option<AgentBoardDraw>,
@@ -284,6 +285,15 @@ impl NativeUi {
         let JumpStage::Navigating { candidates, index } = stage else {
             return false;
         };
+        if !self.agent_index.ready() {
+            // No canonical snapshot has fed the index yet — resolving
+            // anything now could only guess, and guessing reports `Gone`
+            // for sessions that exist. The jump waits inside its own
+            // deadline while the refresh machinery keeps trying; expiry
+            // reports `Expired` honestly through `expire_jump`.
+            self.enqueue_board_snapshot_refresh();
+            return false;
+        }
         let Some(attachment) = candidates.get(index) else {
             return self.board.advance_jump_candidate();
         };
@@ -313,6 +323,10 @@ impl NativeUi {
         let focus = state.focus_panel_id().cloned();
         let context_selecting = state.context_selecting();
         let switching = state.phase_kind() == SessionPhaseKind::Switching;
+        // `Landed` must name a live viewer: resolved placement plus an
+        // attached, projected, non-departing record under the current
+        // anchor — a dead viewer routes to the same-tab reattach instead.
+        let target_live = state.panel_viewer_live(&placement.panel_id);
         match plan_jump_step(
             &placement,
             active_location.as_ref(),
@@ -320,6 +334,7 @@ impl NativeUi {
             target_tab_index,
             active_tab.as_ref(),
             focus.as_ref(),
+            target_live,
             context_selecting,
             switching,
         ) {
@@ -334,6 +349,14 @@ impl NativeUi {
                 // identity — the landing pane re-resolves inside the
                 // admission, never the `panel(0)` fallback.
                 let _disposition = self.select_tab_for_panel(position, placement.panel_id.clone());
+                true
+            }
+            JumpStep::Reattach { position, panel_id } => {
+                // Same tab, dead viewer: `SelectTab` on the current
+                // position is a NoOp to the ordinary planner, so the
+                // builder's dedicated arm mints the fresh-generation
+                // reattach only for a genuinely dead panel.
+                let _disposition = self.select_tab_for_panel(position, panel_id);
                 true
             }
             JumpStep::FocusPanel(panel) => {

@@ -204,26 +204,32 @@ fn pointer_select_resolves_by_stable_identity() {
 fn settle_draw_gates_input_on_the_painted_verdict() {
     let mut board = board_with(&["s-1"]);
     board.open();
-    assert!(!board.owns_input());
+    // Ownership is synchronous from open — a key arriving before the
+    // first paint already belongs to the board.
+    assert!(board.owns_input());
     board.settle_draw(Some(AgentBoardDraw {
         presented: true,
         viewport_rows: 4,
     }));
     assert!(board.owns_input());
     assert_eq!(board.viewport_rows, 4);
-    // An unpainted verdict withdraws input ownership immediately.
+    // A paint that could not present the board at all closes it: the
+    // same frame shows the refusal notice and the invisible surface
+    // keeps nothing.
     board.settle_draw(Some(AgentBoardDraw {
         presented: false,
         viewport_rows: 0,
     }));
+    assert!(!board.is_open());
     assert!(!board.owns_input());
     assert_eq!(board.viewport_rows, 4);
-    board.close();
-    // A stale receipt after close can never reopen ownership.
+    // A stale presented verdict after the close can never reopen
+    // ownership.
     board.settle_draw(Some(AgentBoardDraw {
         presented: true,
         viewport_rows: 4,
     }));
+    assert!(!board.is_open());
     assert!(!board.owns_input());
 }
 
@@ -286,6 +292,7 @@ fn jump_plan_walks_context_then_tab_then_panel() {
             Some(0),
             None,
             None,
+            true,
             false,
             false
         ),
@@ -301,6 +308,7 @@ fn jump_plan_walks_context_then_tab_then_panel() {
             None,
             None,
             true,
+            true,
             false
         ),
         JumpStep::Wait
@@ -314,6 +322,7 @@ fn jump_plan_walks_context_then_tab_then_panel() {
             Some(0),
             None,
             None,
+            true,
             false,
             false
         ),
@@ -328,6 +337,7 @@ fn jump_plan_walks_context_then_tab_then_panel() {
             None,
             None,
             None,
+            true,
             false,
             false
         ),
@@ -343,6 +353,7 @@ fn jump_plan_walks_context_then_tab_then_panel() {
             Some(1),
             Some(&other_tab),
             None,
+            true,
             false,
             false
         ),
@@ -357,12 +368,73 @@ fn jump_plan_walks_context_then_tab_then_panel() {
             Some(1),
             Some(&other_tab),
             None,
+            true,
             false,
             true
         ),
         JumpStep::Wait
     );
-    // Right context and tab, wrong panel focus: focus the target panel.
+    // Right context and tab, wrong panel focus on a live target: focus it.
+    let other_panel = panel_id(8);
+    assert_eq!(
+        plan_jump_step(
+            &target,
+            Some(&workspace),
+            &contexts,
+            Some(1),
+            Some(&target.tab_id),
+            Some(&other_panel),
+            true,
+            false,
+            false
+        ),
+        JumpStep::FocusPanel(target.panel_id.clone())
+    );
+    // Right context, tab, and focus on a live viewer: the jump landed.
+    assert_eq!(
+        plan_jump_step(
+            &target,
+            Some(&workspace),
+            &contexts,
+            Some(1),
+            Some(&target.tab_id),
+            Some(&target.panel_id),
+            true,
+            false,
+            false
+        ),
+        JumpStep::Landed
+    );
+}
+
+#[test]
+fn jump_plan_reattaches_a_dead_viewer_and_never_lands_on_it() {
+    let workspace = workspace_location(2);
+    let target = placement(workspace.clone(), 5, 6);
+    let contexts = vec![workspace.clone()];
+    // The resolved placement is already the active context+tab with the
+    // target focused — but its viewer is dead. A `Landed` verdict here
+    // would strand the user on a corpse pane; the planner demands the
+    // same-tab reattach instead.
+    assert_eq!(
+        plan_jump_step(
+            &target,
+            Some(&workspace),
+            &contexts,
+            Some(1),
+            Some(&target.tab_id),
+            Some(&target.panel_id),
+            false,
+            false,
+            false
+        ),
+        JumpStep::Reattach {
+            position: 2,
+            panel_id: target.panel_id.clone()
+        }
+    );
+    // A different focused panel with a dead target reattaches too —
+    // focusing a dead record is not a legal step either.
     let other_panel = panel_id(8);
     assert_eq!(
         plan_jump_step(
@@ -373,11 +445,15 @@ fn jump_plan_walks_context_then_tab_then_panel() {
             Some(&target.tab_id),
             Some(&other_panel),
             false,
+            false,
             false
         ),
-        JumpStep::FocusPanel(target.panel_id.clone())
+        JumpStep::Reattach {
+            position: 2,
+            panel_id: target.panel_id.clone()
+        }
     );
-    // Right context, tab, and focus: the jump landed.
+    // A switch already in flight waits — the reattach never double-mints.
     assert_eq!(
         plan_jump_step(
             &target,
@@ -387,10 +463,124 @@ fn jump_plan_walks_context_then_tab_then_panel() {
             Some(&target.tab_id),
             Some(&target.panel_id),
             false,
-            false
+            false,
+            true
         ),
-        JumpStep::Landed
+        JumpStep::Wait
     );
+}
+
+#[test]
+fn a_new_jump_supersedes_at_request_time_while_the_lane_credit_stays_held() {
+    let mut board = AgentBoard::new(clock());
+    board.rows = vec![
+        AgentBoardRow::from_summary(summary("s-1", vec![attachment(&hex(9), true)])),
+        AgentBoardRow::from_summary(summary("s-2", vec![attachment(&hex(10), true)])),
+    ];
+    board.open();
+    // The prior jump is issued: serial 7's Get is in flight on the lane.
+    board.jump = Some(BoardJump {
+        serial: 7,
+        stage: JumpStage::Checking,
+        deadline: Instant::now() + Duration::from_secs(8),
+    });
+    board.inflight = Some(BoardInflight::JumpGet { serial: 7 });
+    board.selection = 1;
+    board.request_jump();
+    // Superseded immediately — the old stage dies at the request, not
+    // when its outcome happens to arrive.
+    assert!(board.jump.is_none());
+    assert!(matches!(
+        board.intent,
+        Some(BoardIntent::Jump { ref target }) if *target == session_id("s-2")
+    ));
+    // The physical credit stays held: the lane's serial-7 Get still owes
+    // an outcome, and the queued jump may not overlap it.
+    assert!(matches!(
+        board.inflight,
+        Some(BoardInflight::JumpGet { serial: 7 })
+    ));
+    assert!(!board.drive_intent(Instant::now()));
+    assert!(matches!(board.intent, Some(BoardIntent::Jump { .. })));
+}
+
+#[test]
+fn a_refused_enter_preserves_the_prior_jump() {
+    let mut board = AgentBoard::new(clock());
+    board.rows = vec![AgentBoardRow::from_summary(summary(
+        "s-1",
+        vec![attachment(&hex(9), false)],
+    ))];
+    board.open();
+    board.jump = Some(BoardJump {
+        serial: 7,
+        stage: JumpStage::Checking,
+        deadline: Instant::now() + Duration::from_secs(8),
+    });
+    board.request_jump();
+    assert_eq!(board.notice, Some(JumpFailure::NoPlacement));
+    // The rejected request never touched the live jump or its intent.
+    assert!(board.jump.as_ref().is_some_and(|jump| jump.serial == 7));
+    assert!(!matches!(board.intent, Some(BoardIntent::Jump { .. })));
+}
+
+#[test]
+fn fail_jump_drops_the_stage_but_never_the_lane_credit() {
+    let mut board = AgentBoard::new(clock());
+    board.open();
+    board.jump = Some(BoardJump {
+        serial: 7,
+        stage: JumpStage::Checking,
+        deadline: Instant::now() + Duration::from_secs(8),
+    });
+    board.inflight = Some(BoardInflight::JumpGet { serial: 7 });
+    board.fail_jump(JumpFailure::Expired);
+    assert_eq!(board.notice, Some(JumpFailure::Expired));
+    assert!(board.jump.is_none());
+    // The credit is physical — only the matching outcome or the lane
+    // thread's exit releases it, never a logical failure.
+    assert!(matches!(
+        board.inflight,
+        Some(BoardInflight::JumpGet { serial: 7 })
+    ));
+}
+
+#[test]
+fn reopen_preserves_last_good_age_and_rides_out_the_residual_cooldown() {
+    let elapsed = Arc::new(AtomicU64::new(0));
+    let mut board = AgentBoard::new(adjustable_operation_clock(elapsed.clone()));
+    board.open();
+    board.rows = vec![AgentBoardRow::from_summary(summary("s-1", vec![]))];
+    board.rows_from_complete = true;
+    let installed = board.clock.now();
+    board.rows_at = Some(installed);
+    board.last_read_end = Some(installed);
+    board.last_summary = Some(AgentBoardSummary {
+        sessions: 1,
+        complete: true,
+        at: installed,
+    });
+    board.close();
+    // Reopen inside the cooldown window: last-good rows, their install
+    // age, and the sidebar summary all survive the close.
+    elapsed.store(1_000, Ordering::SeqCst);
+    board.open();
+    assert_eq!(board.rows_at, Some(installed));
+    let summary = board.summary().expect("summary survives the reopen");
+    assert_eq!(
+        (summary.sessions, summary.complete, summary.at),
+        (1, true, installed)
+    );
+    // The open-time refresh waits out the residual cooldown instead of
+    // issuing early or being dropped.
+    assert!(!board.drive_intent(board.clock.now()));
+    assert!(matches!(board.intent, Some(BoardIntent::Refresh)));
+    // Past the cooldown the same queued intent issues for real — on this
+    // lane-less board the attempt reports the honest lane failure.
+    elapsed.store(3_000, Ordering::SeqCst);
+    assert!(board.drive_intent(board.clock.now()));
+    assert!(matches!(board.read, AgentBoardRead::Failed(_)));
+    assert!(board.intent.is_none());
 }
 
 #[test]
@@ -764,5 +954,107 @@ mod lane_outcomes {
             board.jump.as_ref().map(|jump| &jump.stage),
             Some(JumpStage::Checking)
         ));
+    }
+
+    #[test]
+    fn a_dead_lane_delivers_its_last_matching_outcome_before_release() {
+        // The thread already exited, but its final outcome was still
+        // queued: the drain applies it first — the serial match releases
+        // the credit and the outcome's own verdict (Gone, not the
+        // witness's Unavailable) reaches the user — and finished() then
+        // has nothing left to fail.
+        let mut board = AgentBoard::new(clock());
+        board.open();
+        let epoch = board.epoch;
+        board.install_lane_t(AgentBoardLane::for_test(vec![LaneOutcome::Get {
+            epoch,
+            serial: 5,
+            result: Ok(AgentGetOutcome::Rejected {
+                reason: orchbee_agent_observation_protocol::AgentSessionRejectionReason::NotFound,
+            }),
+        }]));
+        board.jump = Some(BoardJump {
+            serial: 5,
+            stage: JumpStage::Checking,
+            deadline: Instant::now() + Duration::from_secs(8),
+        });
+        board.inflight = Some(BoardInflight::JumpGet { serial: 5 });
+        assert!(board.drain_lane(Instant::now(), &mut |_: &AgentPresentationAttachment| false));
+        assert_eq!(board.notice, Some(JumpFailure::Gone));
+        assert!(board.jump.is_none());
+        assert!(board.inflight.is_none());
+        assert!(board.lane.is_none());
+    }
+
+    #[test]
+    fn a_dead_lane_releases_residual_credit_as_unavailable_only_after_finished() {
+        // An issued Get whose outcome will never arrive: the command
+        // landed on a channel whose thread was already gone. The drain
+        // finds nothing matching; the thread's exit is the only witness,
+        // and it releases the credit into the honest Unavailable verdict.
+        let mut board = AgentBoard::new(clock());
+        board.open();
+        board.install_lane_t(AgentBoardLane::for_test(vec![]));
+        board.jump = Some(BoardJump {
+            serial: 5,
+            stage: JumpStage::Checking,
+            deadline: Instant::now() + Duration::from_secs(8),
+        });
+        board.inflight = Some(BoardInflight::JumpGet { serial: 5 });
+        assert!(board.drain_lane(Instant::now(), &mut |_: &AgentPresentationAttachment| false));
+        assert_eq!(board.notice, Some(JumpFailure::Unavailable));
+        assert!(board.jump.is_none());
+        assert!(board.inflight.is_none());
+        assert!(board.lane.is_none());
+    }
+
+    #[test]
+    fn a_dead_lane_drops_stale_outcomes_before_releasing_the_held_credit() {
+        // A superseded serial's outcome drains first and is dropped by
+        // its own correlation — it must not release the live credit nor
+        // fail the live jump. The finished() witness then releases the
+        // still-held credit into Unavailable.
+        let mut board = AgentBoard::new(clock());
+        board.open();
+        let epoch = board.epoch;
+        board.install_lane_t(AgentBoardLane::for_test(vec![LaneOutcome::Get {
+            epoch,
+            serial: 4,
+            result: Ok(AgentGetOutcome::Unavailable {
+                reason:
+                    orchbee_agent_observation_protocol::AgentUnavailableReason::RuntimeUnavailable,
+            }),
+        }]));
+        board.jump = Some(BoardJump {
+            serial: 5,
+            stage: JumpStage::Checking,
+            deadline: Instant::now() + Duration::from_secs(8),
+        });
+        board.inflight = Some(BoardInflight::JumpGet { serial: 5 });
+        assert!(board.drain_lane(Instant::now(), &mut |_: &AgentPresentationAttachment| false));
+        assert_eq!(board.notice, Some(JumpFailure::Unavailable));
+        assert!(board.jump.is_none());
+        assert!(board.inflight.is_none());
+    }
+
+    #[test]
+    fn a_dead_lane_releases_a_held_list_credit_as_unavailable() {
+        // The same residual-credit witness for the read side: the
+        // outstanding ListRound fails Unavailable — not Transport and
+        // never silently InFlight — once the exit is witnessed, and the
+        // cooldown starts from the witnessed failure.
+        let mut board = AgentBoard::new(clock());
+        board.open();
+        board.install_lane_t(AgentBoardLane::for_test(vec![]));
+        board.inflight = Some(BoardInflight::ListRound);
+        board.read = AgentBoardRead::InFlight;
+        let now = Instant::now();
+        assert!(board.drain_lane(now, &mut |_: &AgentPresentationAttachment| false));
+        assert_eq!(
+            board.read,
+            AgentBoardRead::Failed(AgentBoardReadFailure::Unavailable)
+        );
+        assert!(board.inflight.is_none());
+        assert_eq!(board.last_read_end, Some(now));
     }
 }

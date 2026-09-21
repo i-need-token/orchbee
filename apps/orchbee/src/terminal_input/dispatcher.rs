@@ -25,6 +25,10 @@ pub(crate) struct InputDispatcher {
     /// An open confirmation captured the current packet whole, so every
     /// later item of the same read stays swallowed.
     confirm_packet: bool,
+    /// The board's input ownership as last observed — an open or close
+    /// edge rewrites what the painted regions mean, so the recorded hit
+    /// map drops until the next frame publishes.
+    board_owned: bool,
     /// Pointer ownership: capture flag, last-drawn hit map, gesture
     /// lifecycle, and the bounded wheel stream.
     pointer: PointerState,
@@ -93,6 +97,20 @@ impl InputDispatcher {
     /// until the next publish, pointer events drop instead of misrouting.
     pub(crate) fn invalidate_hit_map(&mut self) {
         self.pointer.invalidate_map();
+    }
+
+    /// The board's open or close edge changes what the recorded regions
+    /// mean the same way a resize does: the surface they describe is no
+    /// longer what is on screen. Dropping the map makes pointer events
+    /// fall out until the next frame publishes fresh regions — a stale
+    /// map could otherwise route a click into a board that is no longer
+    /// there, or past one that just appeared.
+    fn settle_board_edge<Port: TerminalInputPort + ?Sized>(&mut self, port: &mut Port) {
+        let owned = port.agent_board_input();
+        if owned != self.board_owned {
+            self.board_owned = owned;
+            self.pointer.invalidate_map();
+        }
     }
 
     #[cfg(test)]
@@ -258,6 +276,7 @@ impl InputDispatcher {
                 // also stales the map — the gesture that owns the pointer
                 // survives either way.
                 self.flush_pending(view, port);
+                self.settle_board_edge(port);
                 match self.pointer.event(view, port, now, event) {
                     PointerOutcome::Ignored => {}
                     outcome => {
@@ -384,6 +403,7 @@ impl InputDispatcher {
         port: &mut (impl TerminalInputPort + ?Sized),
         now: Instant,
     ) -> bool {
+        self.settle_board_edge(port);
         let setup = port.setup_input_context();
         let current = setup
             .as_ref()

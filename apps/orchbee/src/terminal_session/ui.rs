@@ -469,6 +469,8 @@ pub(super) struct NativeUi {
 }
 
 #[cfg(all(test, unix))]
+mod agent_board_tests;
+#[cfg(all(test, unix))]
 mod context_selection_tests;
 #[cfg(test)]
 mod create_membership_tests;
@@ -1576,8 +1578,6 @@ impl NativeUi {
                 self.retire(CarrierFailure::Protocol);
                 return true;
             }
-            // The first canonical projection seeds the board's index.
-            self.agent_index.install_context(&cache);
             let mut installed = None;
             let result = mailbox.deposit_bootstrap_reply_before(
                 &wait_key,
@@ -1592,23 +1592,17 @@ impl NativeUi {
             match result {
                 Ok(MutationResult::Applied) => {
                     self.state = installed;
+                    // The accepted bootstrap seeds the board's index —
+                    // only installed canonical state may feed it.
+                    self.agent_index = super::agent_board::PresentationIndex::default();
+                    if let Some(state) = self.state.as_ref() {
+                        self.agent_index.install_context(state.cache());
+                    }
                     return self.validate_state();
                 }
                 Ok(MutationResult::Stale) => return false,
                 Err(error) => return self.handle_event_error(error),
             }
-        }
-        // Every canonical snapshot rebuilds the board's presentation index
-        // whole — the index is a pure function of the freshest observed
-        // snapshot, never an accumulated second authority.
-        if let WorkerEvent::CreateSnapshotResult { outcome, .. }
-        | WorkerEvent::CloseReconciliationSnapshot { outcome, .. }
-        | WorkerEvent::SwitchSnapshotResult { outcome, .. }
-        | WorkerEvent::RefreshSnapshotResult { outcome, .. } = &event
-            && let orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available { snapshot } =
-                outcome
-        {
-            self.agent_index = super::agent_board::PresentationIndex::rebuild(snapshot);
         }
         let event = match event {
             WorkerEvent::CreateSnapshotResult { operation, outcome } => {
@@ -1836,6 +1830,15 @@ impl NativeUi {
             self.retire(CarrierFailure::Protocol);
             return true;
         };
+        // The board's presentation index may only consume a snapshot the
+        // session itself accepted — keep it until the verdict proves the
+        // snapshot drove a Membership/Append application.
+        let index_snapshot = match &outcome {
+            orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available { snapshot } => {
+                Some(snapshot.clone())
+            }
+            _ => None,
+        };
         // Projection and append-only validation are bounded but intentionally run outside the
         // mailbox mutex. Only the prepared value is committed in the exact reply transaction.
         let prepared = state.prepare_refresh(generation, outcome);
@@ -1861,12 +1864,22 @@ impl NativeUi {
                 operation,
                 prepared,
                 recovery_deadlines,
+                index_snapshot,
             );
         }
         let Some(state) = self.state.as_mut() else {
             self.retire(CarrierFailure::Protocol);
             return true;
         };
+        // Only a snapshot that actually drove the accepted refresh may
+        // rebuild the index — a Stale, DefiniteFailure or Divergent
+        // verdict never feeds it.
+        let rebuild_index = index_snapshot.is_some()
+            && matches!(
+                prepared,
+                super::state::PreparedRefresh::Membership { .. }
+                    | super::state::PreparedRefresh::Append { .. }
+            );
         let mut clear_projection = false;
         let mut retire_after_reply = None;
         let result = mailbox.deposit_ui_reply_before(&wait_key, &self.clock, |transaction| {
@@ -1942,6 +1955,9 @@ impl NativeUi {
         });
         match result {
             Ok(MutationResult::Applied) => {
+                if rebuild_index && let Some(snapshot) = &index_snapshot {
+                    self.agent_index = super::agent_board::PresentationIndex::rebuild(snapshot);
+                }
                 if clear_projection {
                     self.clear_projections();
                 }
@@ -2362,7 +2378,22 @@ fn build_switch_for_panel(
     }
     let index = match state.plan_selection(action) {
         SelectionPlan::Busy => return Err(ActionBuildError::Busy),
-        SelectionPlan::NoOp => return Err(ActionBuildError::NoOp),
+        SelectionPlan::NoOp => {
+            // Same-tab target the ordinary planner calls a NoOp: for the
+            // jump it may still mean "reattach a dead viewer on this
+            // tab". The state re-checks every guard — a live target
+            // stays a NoOp, and only a genuinely dead panel mints a
+            // fresh-generation attach on the same anchor.
+            let Some(target) =
+                state.target_for_dead_panel_reattach(panel_id, generation, deadlines)
+            else {
+                return Err(ActionBuildError::NoOp);
+            };
+            if !state.begin_switch(target.clone()) {
+                return Err(ActionBuildError::Protocol);
+            }
+            return Ok(SwitchMarker::new(target));
+        }
         SelectionPlan::OutOfRange(position) => {
             return Err(ActionBuildError::OutOfRange(position));
         }

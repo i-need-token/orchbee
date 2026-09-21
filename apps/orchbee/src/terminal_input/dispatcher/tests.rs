@@ -9,6 +9,7 @@ enum Call {
     Forward(Vec<u8>),
     Mode(ModeRequest),
     Action(ClientAction),
+    BoardSelect(orchbee_agent_observation_protocol::AgentSessionId),
 }
 
 struct UnavailablePort(Rc<RefCell<Vec<Call>>>);
@@ -750,7 +751,7 @@ fn prefixed_z_issues_the_client_local_zoom_action() {
     dispatcher
         .dispatch(
             &mut view,
-            b"\x02z",
+            b"z",
             &mut port,
             Instant::now(),
             |_, _| Ok::<(), io::Error>(()),
@@ -786,7 +787,7 @@ fn a_layout_changed_disposition_reobserves_layout_and_stales_the_pointer_map() {
     dispatcher
         .dispatch(
             &mut view,
-            b"\x02z",
+            b"z",
             &mut port,
             Instant::now(),
             |_, _| {
@@ -800,4 +801,157 @@ fn a_layout_changed_disposition_reobserves_layout_and_stales_the_pointer_map() {
     // The transition itself did not flag a layout change, so the layout pass
     // is attributed to the returned disposition alone.
     assert_eq!(*layout_passes.borrow(), 1);
+}
+
+/// A port whose board-ownership flag the test flips directly — the same
+/// value the session's painted-verdict flag drives in production — plus
+/// a record of the board select calls the pointer path produces.
+struct BoardPort {
+    calls: Rc<RefCell<Vec<Call>>>,
+    owned: Rc<std::cell::Cell<bool>>,
+}
+
+impl TerminalInputPort for BoardPort {
+    fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
+        self.calls.borrow_mut().push(Call::Forward(bytes.to_vec()));
+        Ok(())
+    }
+
+    fn agent_board_input(&mut self) -> bool {
+        self.owned.get()
+    }
+
+    fn agent_board_select(
+        &mut self,
+        session: &orchbee_agent_observation_protocol::AgentSessionId,
+    ) -> bool {
+        self.calls
+            .borrow_mut()
+            .push(Call::BoardSelect(session.clone()));
+        true
+    }
+}
+
+#[test]
+fn a_board_close_edge_invalidates_the_published_hit_map() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let owned = Rc::new(std::cell::Cell::new(true));
+    let mut port = BoardPort {
+        calls: Rc::clone(&calls),
+        owned: Rc::clone(&owned),
+    };
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    let session = orchbee_agent_observation_protocol::AgentSessionId::parse("s-1").unwrap();
+    dispatcher.set_pointer_capture(&mut view, true);
+    // The open edge settles first so the map published below is the
+    // current authority, matching the painted board.
+    dispatcher
+        .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
+            Ok::<(), io::Error>(())
+        })
+        .unwrap();
+    let mut hits = crate::tui_pointer::HitMapBuilder::new();
+    hits.mark_overlay_active();
+    hits.record(
+        crate::tui_pointer::HitLayer::Overlay,
+        ratatui::layout::Rect::new(0, 0, 10, 1),
+        crate::tui_pointer::HitTarget::AgentBoardRow(session.clone()),
+    );
+    dispatcher.publish_hit_map(hits.finish());
+    // Baseline: the press resolves the painted row.
+    dispatcher
+        .dispatch(
+            &mut view,
+            b"[<0;1;1M",
+            &mut port,
+            Instant::now(),
+            |_, _| Ok::<(), io::Error>(()),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert_eq!(*calls.borrow(), [Call::BoardSelect(session.clone())]);
+    // The close edge turns the recorded regions into lies about a
+    // surface that is no longer painted: the next synchronize drops the
+    // whole map and the same press resolves nothing.
+    owned.set(false);
+    dispatcher
+        .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
+            Ok::<(), io::Error>(())
+        })
+        .unwrap();
+    calls.borrow_mut().clear();
+    dispatcher
+        .dispatch(
+            &mut view,
+            b"[<0;1;1M",
+            &mut port,
+            Instant::now(),
+            |_, _| Ok::<(), io::Error>(()),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert!(
+        calls.borrow().is_empty(),
+        "the stale row must not resolve after the close edge"
+    );
+}
+
+#[test]
+fn the_board_open_edge_also_invalidates_so_a_click_cannot_miss_the_overlay() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let owned = Rc::new(std::cell::Cell::new(false));
+    let mut port = BoardPort {
+        calls: Rc::clone(&calls),
+        owned: Rc::clone(&owned),
+    };
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    let session = orchbee_agent_observation_protocol::AgentSessionId::parse("s-1").unwrap();
+    dispatcher.set_pointer_capture(&mut view, true);
+    // A foreground region the last frame recorded under where the board
+    // is about to paint — resolving by identity, it still answers while
+    // the map is current.
+    let mut hits = crate::tui_pointer::HitMapBuilder::new();
+    hits.record(
+        crate::tui_pointer::HitLayer::Foreground,
+        ratatui::layout::Rect::new(0, 0, 10, 1),
+        crate::tui_pointer::HitTarget::AgentBoardRow(session.clone()),
+    );
+    dispatcher.publish_hit_map(hits.finish());
+    dispatcher
+        .dispatch(
+            &mut view,
+            b"[<0;1;1M",
+            &mut port,
+            Instant::now(),
+            |_, _| Ok::<(), io::Error>(()),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert_eq!(*calls.borrow(), [Call::BoardSelect(session.clone())]);
+    // Opening the board stales that map: the region it describes now
+    // sits under a capturing overlay, so the same press must drop
+    // instead of reaching through.
+    owned.set(true);
+    dispatcher
+        .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
+            Ok::<(), io::Error>(())
+        })
+        .unwrap();
+    calls.borrow_mut().clear();
+    dispatcher
+        .dispatch(
+            &mut view,
+            b"[<0;1;1M",
+            &mut port,
+            Instant::now(),
+            |_, _| Ok::<(), io::Error>(()),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert!(
+        calls.borrow().is_empty(),
+        "the stale foreground region must not resolve past the open board"
+    );
 }

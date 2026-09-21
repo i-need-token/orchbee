@@ -124,6 +124,30 @@ impl AgentBoardLane {
             .is_some_and(|commands| commands.send(command).is_ok())
     }
 
+    /// A lane whose thread already exited, carrying a pre-queued outcome
+    /// stream — tests drain real `LaneOutcome`s and exercise the
+    /// `finished()` witness without a socket or a live thread. The
+    /// command receiver is deliberately leaked so `send` still reports
+    /// success: that is exactly a dead lane holding an issued credit.
+    #[cfg(test)]
+    pub(super) fn for_test(outcomes: Vec<LaneOutcome>) -> Self {
+        let (commands, command_rx) = mpsc::channel();
+        let (outcome_tx, outcome_rx) = mpsc::channel();
+        for outcome in outcomes {
+            let _ = outcome_tx.send(outcome);
+        }
+        drop(outcome_tx);
+        std::mem::forget(command_rx);
+        let (_wake_read, wake_write) = nix::unistd::pipe().expect("test wake pipe");
+        Self {
+            commands: Some(commands),
+            outcomes: outcome_rx,
+            wake: wake_write,
+            shutdown: Arc::new(AtomicBool::new(true)),
+            join: None,
+        }
+    }
+
     /// Non-blocking liveness probe: the spawn path defers while a
     /// predecessor thread is still exiting so at most one lane thread is
     /// alive at a time — the UI never blocks on a join outside `close`.

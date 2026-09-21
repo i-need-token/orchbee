@@ -35,6 +35,15 @@ impl NativeUi {
         marker: CloseReconciliationMarker,
         outcome: orchbee_workbench_protocol::WorkbenchSnapshotOutcome,
     ) -> bool {
+        // The board's index consumes the snapshot only when this reply
+        // installs a membership candidate from it — a failed
+        // reconciliation's `Continue` never feeds it.
+        let index_snapshot = match &outcome {
+            orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available { snapshot } => {
+                Some(snapshot.clone())
+            }
+            _ => None,
+        };
         let prepared = self
             .state
             .as_ref()
@@ -56,8 +65,10 @@ impl NativeUi {
             return true;
         };
         let mut clear = false;
+        let mut snapshot_consumed = false;
         let result = mailbox.deposit_ui_reply_before(&wait, &self.clock, |transaction| {
             let decision = if let Some(prepared) = prepared {
+                snapshot_consumed = true;
                 if (!prepared.preserves_selection() || marker.membership_recovery())
                     && deadlines.is_none()
                 {
@@ -123,6 +134,10 @@ impl NativeUi {
         });
         match result {
             Ok(MutationResult::Applied) => {
+                if snapshot_consumed && let Some(snapshot) = &index_snapshot {
+                    self.agent_index =
+                        super::super::agent_board::PresentationIndex::rebuild(snapshot);
+                }
                 if clear {
                     self.clear_projections();
                 }

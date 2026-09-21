@@ -178,14 +178,23 @@ pub(crate) struct PresentationPlacement {
 /// the index is a function of canonical state, never a second authority.
 #[derive(Default)]
 pub(super) struct PresentationIndex {
+    /// `false` until a canonical snapshot (or the bootstrap cache) has
+    /// actually fed the index — a jump resolving against a never-fed
+    /// index must wait for one, never conclude `Gone` from an empty map.
+    ready: bool,
     placements: std::collections::HashMap<String, PresentationPlacement>,
 }
 
 impl PresentationIndex {
     /// Rebuild the whole index from a freshly arrived canonical snapshot:
     /// every navigation location's tabs, every panel's presentation id.
+    /// Called only after the snapshot passed the session's acceptance
+    /// fences — the index is a function of accepted canonical state.
     pub(super) fn rebuild(snapshot: &orchbee_workbench_protocol::Snapshot) -> Self {
-        let mut index = Self::default();
+        let mut index = Self {
+            ready: true,
+            ..Self::default()
+        };
         for location in navigation_locations(snapshot) {
             if let Ok(tabs) =
                 super::workbench_projection::project_native_context_tabs(snapshot, &location)
@@ -196,6 +205,13 @@ impl PresentationIndex {
         index
     }
 
+    /// Whether any canonical feed has ever built this index — the
+    /// jump's honesty gate: `false` means "no snapshot yet", never
+    /// "no placements exist".
+    pub(super) const fn ready(&self) -> bool {
+        self.ready
+    }
+
     /// Fold one context's projected tabs into the index (used for the
     /// bootstrap cache, which arrives already projected rather than as a
     /// raw snapshot).
@@ -203,6 +219,7 @@ impl PresentationIndex {
         &mut self,
         tabs: &super::workbench_projection::NativeContextTabs,
     ) {
+        self.ready = true;
         let (project_label, workspace_label) = tabs
             .navigation()
             .iter()
@@ -333,7 +350,15 @@ pub(super) enum JumpStep {
     SelectTab(u8),
     /// Right context and tab; focus the panel if the record is ready.
     FocusPanel(orchbee_workbench_protocol::WorkbenchPanelId),
-    /// Already focused on the exact target — the jump landed.
+    /// Right context and tab, but the target panel's viewer record is
+    /// dead — reattach through the same switch admission, still naming
+    /// the stable panel identity (1-based `SelectTab` position + panel).
+    Reattach {
+        position: u8,
+        panel_id: orchbee_workbench_protocol::WorkbenchPanelId,
+    },
+    /// Already focused on the exact target *and* its viewer is live —
+    /// the jump landed.
     Landed,
     /// This candidate's identity no longer resolves (or its owning context
     /// or tab vanished); try the next attachment.
@@ -351,6 +376,7 @@ pub(super) fn plan_jump_step(
     target_tab_index: Option<usize>,
     active_tab: Option<&orchbee_workbench_protocol::WorkbenchTabId>,
     focus_panel: Option<&orchbee_workbench_protocol::WorkbenchPanelId>,
+    target_live: bool,
     context_selecting: bool,
     switching: bool,
 ) -> JumpStep {
@@ -374,6 +400,18 @@ pub(super) fn plan_jump_step(
             JumpStep::Wait
         } else {
             JumpStep::SelectTab((tab_index + 1) as u8)
+        };
+    }
+    if switching {
+        return JumpStep::Wait;
+    }
+    if !target_live {
+        // The resolved panel has no live viewer under the current
+        // anchor — landing here would strand the user on a dead pane.
+        // Reattach on the same tab instead of ever reporting `Landed`.
+        return JumpStep::Reattach {
+            position: (tab_index + 1) as u8,
+            panel_id: placement.panel_id.clone(),
         };
     }
     if focus_panel == Some(&placement.panel_id) {
@@ -424,7 +462,6 @@ pub(super) enum JumpStage {
 
 pub(super) struct AgentBoard {
     open: bool,
-    presented: bool,
     /// Bump on every open/close — lane outcomes carrying an older epoch
     /// are stale by construction and dropped.
     epoch: u64,
@@ -470,7 +507,6 @@ impl AgentBoard {
     pub(super) fn new(clock: crate::local_client::LocalOperationClock) -> Self {
         Self {
             open: false,
-            presented: false,
             epoch: 0,
             rows: Vec::new(),
             selection: 0,
@@ -504,11 +540,14 @@ impl AgentBoard {
     pub(super) const fn is_open(&self) -> bool {
         self.open
     }
-    /// Input ownership: the board captures keys only while open *and* its
-    /// last paint actually presented — an unpainted overlay never eats
-    /// input for a surface the user cannot see.
+    /// Input ownership is synchronous from `open`: a key arriving before
+    /// the first paint still belongs to the board — it can never fall
+    /// through to a pane or an overlay underneath. A paint that cannot
+    /// present the board at all closes it (see `settle_draw`), so the
+    /// only invisible capture window is the one frame that carries that
+    /// verdict — and that same frame already shows the refusal notice.
     pub(super) const fn owns_input(&self) -> bool {
-        self.open && self.presented
+        self.open
     }
 
     pub(super) fn open(&mut self) {
@@ -523,7 +562,6 @@ impl AgentBoard {
 
     pub(super) fn close(&mut self) {
         self.open = false;
-        self.presented = false;
         self.epoch += 1;
         self.intent = None;
         self.inflight = None;
@@ -541,17 +579,25 @@ impl AgentBoard {
         }
     }
 
-    /// Settle the renderer's verdict: only an actually-painted board may
-    /// own input. `None` (the draw ran before the board's paint site, or
-    /// the board is closed) leaves the last verdict.
+    /// Settle the renderer's verdict: a board the draw could not present
+    /// at all closes itself instead of surviving as an invisible input
+    /// owner — the same frame already carries the `overlay_refused`
+    /// status line as the honest notice. `None` (the draw ran before
+    /// the board's paint site, or the board is closed) changes nothing.
     pub(super) fn settle_draw(&mut self, draw: Option<AgentBoardDraw>) {
-        if let Some(draw) = draw {
-            self.presented = draw.presented;
-            if draw.viewport_rows > 0 {
-                self.viewport_rows = draw.viewport_rows;
+        let Some(draw) = draw else {
+            return;
+        };
+        if !draw.presented {
+            if self.open {
+                self.close();
             }
-            self.clamp_selection();
+            return;
         }
+        if draw.viewport_rows > 0 {
+            self.viewport_rows = draw.viewport_rows;
+        }
+        self.clamp_selection();
     }
 
     pub(super) fn rows(&self) -> &[AgentBoardRow] {
@@ -651,7 +697,13 @@ impl AgentBoard {
     }
 
     /// Enter on the selected row. A row without a navigable attachment
-    /// refuses here — before any lane request — with the honest notice.
+    /// refuses here — before any lane request — with the honest notice,
+    /// and never disturbs a jump already in progress. An accepted jump
+    /// supersedes the previous one *at request time*: the superseded
+    /// jump dies now, while its in-flight Get keeps the physical lane
+    /// credit until the matching outcome drains or the lane thread's
+    /// exit releases it — a stale outcome can never displace the newer
+    /// jump (the serial check in `apply_get_outcome`).
     pub(super) fn request_jump(&mut self) {
         let Some(row) = self.selected_row() else {
             return;
@@ -662,6 +714,7 @@ impl AgentBoard {
         }
         let target = row.session_id.clone();
         self.notice = None;
+        self.jump = None;
         self.intent = Some(BoardIntent::Jump { target });
     }
 
@@ -673,6 +726,18 @@ impl AgentBoard {
         }
         match self.intent.take() {
             Some(BoardIntent::Refresh) => {
+                // A queued refresh still honors the read cooldown — the
+                // intent waits out the remainder instead of issuing early
+                // or being dropped. `open()` queues its first refresh even
+                // while a previous round's cooldown still runs; rearming
+                // each tick is what makes the residual honest.
+                if self
+                    .last_read_end
+                    .is_some_and(|at| now < at + AGENT_READ_COOLDOWN)
+                {
+                    self.intent = Some(BoardIntent::Refresh);
+                    return false;
+                }
                 self.issue_list_round(now);
                 true
             }
@@ -795,6 +860,29 @@ impl AgentBoard {
                 }
             }
         }
+        // Dead-lane honesty: every queued outcome drained above; the
+        // thread's exit is the only remaining witness, and it proves no
+        // outcome will ever arrive for a residual credit. Release that
+        // credit into the honest failure now — never leave the board
+        // waiting on a lane that no longer exists.
+        if self.lane.as_ref().is_some_and(AgentBoardLane::finished)
+            && let Some(lane) = self.lane.take()
+        {
+            lane.close();
+            match self.inflight.take() {
+                Some(BoardInflight::ListRound) => {
+                    self.last_read_end = Some(now);
+                    self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Unavailable);
+                }
+                Some(BoardInflight::JumpGet { serial }) => {
+                    if self.jump.as_ref().is_some_and(|jump| jump.serial == serial) {
+                        self.fail_jump(JumpFailure::Unavailable);
+                    }
+                }
+                None => {}
+            }
+            changed = true;
+        }
         changed
     }
 
@@ -830,12 +918,22 @@ impl AgentBoard {
                 let replace = round.complete || !self.rows_from_complete;
                 if replace {
                     let held = self.selected_row().map(|row| row.session_id.clone());
-                    self.rows = round
+                    let mut rows: Vec<AgentBoardRow> = round
                         .items
                         .into_iter()
                         .map(AgentBoardRow::from_summary)
-                        .take(MAXIMUM_ROWS)
                         .collect();
+                    // Needs-attention rows surface first — a stable lift,
+                    // never a reorder: the canonical order inside each
+                    // group stays exactly what the Server returned.
+                    rows.sort_by_key(|row| {
+                        usize::from(!matches!(
+                            row.status(),
+                            AgentSemanticStatus::NeedsAttention { .. }
+                        ))
+                    });
+                    rows.truncate(MAXIMUM_ROWS);
+                    self.rows = rows;
                     // The selection follows the opaque session identity —
                     // never a stale row index. A vanished selection
                     // repairs deterministically to the first row in the
@@ -892,9 +990,13 @@ impl AgentBoard {
         result: Result<AgentGetOutcome, lane::LaneFailure>,
         prefer: &mut impl FnMut(&AgentPresentationAttachment) -> bool,
     ) {
+        // The physical lane credit is bound to the outcome itself: a
+        // matching serial always releases it — even when the jump that
+        // issued it was superseded at request time or already failed.
+        // What the credit must never do is clear a *different* jump:
+        // that check happens only after the release.
         if epoch != self.epoch
             || !matches!(self.inflight, Some(BoardInflight::JumpGet { serial: held }) if held == serial)
-            || self.jump.as_ref().is_none_or(|jump| jump.serial != serial)
         {
             return;
         }
@@ -902,6 +1004,9 @@ impl AgentBoard {
         let Some(jump) = self.jump.as_mut() else {
             return;
         };
+        if jump.serial != serial {
+            return;
+        }
         match result {
             Ok(AgentGetOutcome::Found { session, .. }) => {
                 if session.snapshot.lifecycle == AgentLifecycle::Ended {
@@ -978,12 +1083,14 @@ impl AgentBoard {
         false
     }
 
+    /// A failed jump is finished logically, but its lane credit is
+    /// physical: an in-flight Get keeps the credit until the matching
+    /// outcome drains (released by `apply_get_outcome`'s serial match)
+    /// or the dead-lane witness releases it — never an unconditional
+    /// clear that would let a fresh request overlap the lane's work.
     pub(super) fn fail_jump(&mut self, kind: JumpFailure) {
         self.notice = Some(kind);
         self.jump = None;
-        if matches!(self.inflight, Some(BoardInflight::JumpGet { .. })) {
-            self.inflight = None;
-        }
     }
 
     /// The jump landed on the exact panel — the user is where they asked
@@ -991,6 +1098,33 @@ impl AgentBoard {
     pub(super) fn jump_landed(&mut self) {
         self.jump = None;
         self.close();
+    }
+
+    /// Test seam: install a jump in a chosen stage without driving the
+    /// lane — the UI drive tests stage navigation directly.
+    #[cfg(test)]
+    pub(super) fn force_jump_t(&mut self, jump: BoardJump) {
+        self.jump = Some(jump);
+    }
+
+    /// Test seam: install rows as if a complete read had landed.
+    #[cfg(test)]
+    pub(super) fn install_rows_t(&mut self, rows: Vec<AgentBoardRow>) {
+        self.rows = rows;
+        self.rows_from_complete = true;
+        self.rows_at = Some(self.clock.now());
+        self.read = AgentBoardRead::Ready {
+            complete: true,
+            at: self.clock.now(),
+        };
+        self.clamp_selection();
+    }
+
+    /// Test seam: hand the board a prepared lane (queued outcomes or a
+    /// real spawned thread) so drains run against it without an origin.
+    #[cfg(all(test, target_os = "linux"))]
+    pub(super) fn install_lane_t(&mut self, lane: AgentBoardLane) {
+        self.lane = Some(lane);
     }
 
     /// Bounded lane close for session teardown: the wake write interrupts

@@ -97,6 +97,13 @@ impl NativeUi {
         }
         let origin = attempt.origin.clone();
         let deadlines = attempt.deadlines;
+        // The board's index consumes the snapshot only when the install
+        // below actually commits it — a failed recovery's Retire verdict
+        // never feeds it.
+        let index_snapshot = match &outcome {
+            WorkbenchSnapshotOutcome::Available { snapshot } => Some(snapshot.clone()),
+            _ => None,
+        };
         let prepared = match outcome {
             WorkbenchSnapshotOutcome::Available { snapshot } => {
                 let state = self.state.as_ref().ok_or(CarrierFailure::Protocol);
@@ -171,6 +178,10 @@ impl NativeUi {
         });
         match result {
             Ok(MutationResult::Applied) if installed => {
+                if let Some(snapshot) = &index_snapshot {
+                    self.agent_index =
+                        super::super::agent_board::PresentationIndex::rebuild(snapshot);
+                }
                 self.retired_peer = None;
                 self.retired_peer_attempt = None;
                 self.retirement = None;

@@ -166,6 +166,9 @@ fn render_row(
         AgentObservationFreshness::Disconnected => text.board.disconnected,
     };
     let ended = row.lifecycle() == AgentLifecycle::Ended;
+    // The row's identity is the opaque session id — shown verbatim, never
+    // replaced by a label or a position.
+    let session = sanitize_terminal_text(row.session_id().as_str());
     let provider = sanitize_terminal_text(row.provider_id().as_str());
     let location = row
         .attachments()
@@ -173,11 +176,16 @@ fn render_row(
         .find(|attachment| attachment.navigable)
         .and_then(|attachment| board.placement(attachment))
         .map_or_else(String::new, |placement| location_label(text, placement));
-    let detail = [provider.into_owned(), freshness.to_owned(), location]
-        .into_iter()
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join(" · ");
+    let detail = [
+        session.into_owned(),
+        provider.into_owned(),
+        freshness.to_owned(),
+        location,
+    ]
+    .into_iter()
+    .filter(|part| !part.is_empty())
+    .collect::<Vec<_>>()
+    .join(" · ");
     let line = truncate_display(
         &format!("{marker} {status} · {detail}"),
         width,

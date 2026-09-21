@@ -3255,6 +3255,70 @@ impl NativeSessionState {
             .then_some(pane)
     }
 
+    /// Whether the named panel's viewer is live under the current desired
+    /// anchor — attached, projected, not departing, and holding a
+    /// controller mode. The Agent board's jump requires this for its
+    /// `Landed` verdict: a resolved placement with a dead viewer record
+    /// must reattach, never land.
+    pub(super) fn panel_viewer_live(&self, panel: &WorkbenchPanelId) -> bool {
+        let Some(anchor) = self.desired.as_ref().map(PaneKey::anchor) else {
+            return false;
+        };
+        self.pane_record(&PaneKey::new(anchor.clone(), panel.clone()))
+            .is_some_and(|record| {
+                record.attached && record.projected && !record.departing && record.mode.is_some()
+            })
+    }
+
+    /// The Agent board's same-tab dead-viewer repair: the selected tab is
+    /// already the anchor, but the target panel has no live viewer under
+    /// it — a fresh-generation attach target on the same tab re-creates
+    /// the viewer through the ordinary switch machinery (`begin_switch`),
+    /// never `panel(0)`, never a different tab. `None` when the panel's
+    /// viewer is already live, the panel is absent, the anchor moved, or
+    /// the phase cannot legally mint an attach — the caller keeps its
+    /// `NoOp` verdict in that case.
+    pub(super) fn target_for_dead_panel_reattach(
+        &mut self,
+        panel_id: &WorkbenchPanelId,
+        generation: u64,
+        deadlines: OperationDeadlines,
+    ) -> Option<AttachTarget> {
+        // Only the plain no-op phases may reuse the anchor this way —
+        // `RetryableAttachUnavailable` already mints its own same-index
+        // switch in `plan_selection`, and every other phase is Busy
+        // rather than a reattach candidate.
+        if self.pending_refresh.is_some()
+            || !matches!(
+                &self.phase,
+                SessionPhase::Ready(_) | SessionPhase::SelectedWithoutAttachment(_)
+            )
+        {
+            return None;
+        }
+        let active = self.active()?;
+        let index = active.index();
+        let tab = self.cache.tabs().get(index)?;
+        let panel_index = (0..tab.panel_count()).find(|panel_index| {
+            tab.panel(*panel_index)
+                .is_some_and(|panel| panel.panel_id() == panel_id)
+        })?;
+        let panel = tab.panel(panel_index)?;
+        // A pane already live under the current anchor needs no repair —
+        // refusing here keeps `SelectTab` on the current tab a NoOp.
+        let pane = PaneKey::new(active.key().anchor().clone(), panel.panel_id().clone());
+        if let Some(record) = self.pane_record(&pane)
+            && record.attached
+            && record.projected
+            && !record.departing
+            && record.mode.is_some()
+        {
+            return None;
+        }
+        let key = AttachmentKey::new(generation, tab.tab_id().clone());
+        self.target_for_switch_for_panel(index, key, deadlines, panel_id)
+    }
+
     /// Installs a local focus move approved by [`plan_panel_focus_local`]: the
     /// focus pane, its observed geometry, and its controller mode swap without
     /// touching any attachment. Queued input/resize commands keep their frozen

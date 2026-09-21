@@ -9,6 +9,7 @@ impl NativeUi {
         operation: CreateOperationKey,
         prepared: super::super::state::PreparedMembershipCandidate,
         deadlines: Option<OperationDeadlines>,
+        index_snapshot: Option<orchbee_workbench_protocol::Snapshot>,
     ) -> bool {
         let Some(state) = self.state.as_mut() else {
             self.retire(CarrierFailure::Protocol);
@@ -80,6 +81,12 @@ impl NativeUi {
         });
         match result {
             Ok(MutationResult::Applied) => {
+                // The snapshot that drove this accepted recovery is the
+                // freshest canonical feed the board's index may see.
+                if let Some(snapshot) = &index_snapshot {
+                    self.agent_index =
+                        super::super::agent_board::PresentationIndex::rebuild(snapshot);
+                }
                 if installed {
                     self.clear_projections();
                 }
@@ -100,6 +107,15 @@ impl NativeUi {
         let Some(state) = self.state.as_mut() else {
             self.retire(CarrierFailure::Protocol);
             return true;
+        };
+        // The board's presentation index consumes the snapshot only when
+        // the accepted reply used it — a refused or divergent create
+        // outcome never feeds it.
+        let index_snapshot = match &outcome {
+            orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available { snapshot } => {
+                Some(snapshot.clone())
+            }
+            _ => None,
         };
         let prepared = state.prepare_create_snapshot(&operation, outcome);
         if let super::super::state::PreparedCreateSnapshot::Available {
@@ -177,6 +193,10 @@ impl NativeUi {
             });
             return match result {
                 Ok(MutationResult::Applied) => {
+                    if let Some(snapshot) = &index_snapshot {
+                        self.agent_index =
+                            super::super::agent_board::PresentationIndex::rebuild(snapshot);
+                    }
                     if installed {
                         self.clear_projections();
                     }
