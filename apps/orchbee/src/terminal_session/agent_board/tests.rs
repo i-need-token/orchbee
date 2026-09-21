@@ -18,7 +18,7 @@ use orchbee_workbench_protocol::{
     WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId,
 };
 use std::sync::Arc;
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 fn clock() -> crate::local_client::LocalOperationClock {
     adjustable_operation_clock(Arc::new(AtomicU64::new(0)))
@@ -446,9 +446,35 @@ fn presentation_index_resolves_only_live_panel_identities() {
     assert!(index.placement(&attachment(&hex(43), true)).is_none());
 }
 
+#[test]
+fn request_refresh_preserves_a_queued_jump_intent() {
+    let elapsed = Arc::new(AtomicU64::new(0));
+    let mut board = AgentBoard::new(adjustable_operation_clock(elapsed.clone()));
+    board.rows = vec![AgentBoardRow::from_summary(summary("s-1", vec![]))];
+    board.open();
+    // Enter queued a jump behind a busy round — `r` is consumed, never
+    // a replacement.
+    board.intent = Some(BoardIntent::Jump {
+        target: session_id("s-1"),
+    });
+    board.request_refresh();
+    assert!(matches!(board.intent, Some(BoardIntent::Jump { .. })));
+    // A completed round then a fully elapsed cooldown — the queued jump
+    // still holds the single intent slot.
+    board.last_read_end = Some(Instant::now());
+    elapsed.store(10_000, Ordering::SeqCst);
+    board.request_refresh();
+    assert!(matches!(board.intent, Some(BoardIntent::Jump { .. })));
+    // With no jump queued the same request still queues a refresh.
+    board.intent = None;
+    board.request_refresh();
+    assert!(matches!(board.intent, Some(BoardIntent::Refresh)));
+}
+
 #[cfg(target_os = "linux")]
 mod lane_outcomes {
     use super::*;
+    use crate::local_client::test_server::disconnected_origin;
     use orchbee_agent_observation_protocol::{
         AgentCapability, AgentSessionDetail, AgentSessionSnapshot, AgentTurnState,
     };
@@ -495,6 +521,107 @@ mod lane_outcomes {
         // The in-flight marker stays: the current epoch's request is
         // still owed an outcome.
         assert!(matches!(board.inflight, Some(BoardInflight::ListRound)));
+    }
+
+    #[test]
+    fn an_incomplete_round_keeps_the_last_good_rows_install_age() {
+        // The bug lived on the real path: issue_list_round's InFlight
+        // transition hid the installed rows' timestamp from
+        // apply_list_outcome. This drives spawn → send → InFlight for
+        // real instead of fabricating a Ready read state.
+        let elapsed = Arc::new(AtomicU64::new(0));
+        let mut board = AgentBoard::new(adjustable_operation_clock(elapsed.clone()));
+        board.open();
+        board.set_origin(disconnected_origin());
+        let t0 = Instant::now();
+        board.issue_list_round(t0);
+        assert!(matches!(board.read, AgentBoardRead::InFlight));
+        assert!(matches!(board.inflight, Some(BoardInflight::ListRound)));
+        let epoch = board.epoch;
+        board.apply_list_outcome(
+            epoch,
+            Ok(lane::ListRound {
+                items: vec![summary("s-1", vec![]), summary("s-2", vec![])],
+                complete: true,
+            }),
+            t0,
+        );
+        assert!(matches!(
+            board.read,
+            AgentBoardRead::Ready {
+                complete: true,
+                at
+            } if at == t0
+        ));
+        // Past the cooldown, `r` queues a second real round.
+        elapsed.store(10_000, Ordering::SeqCst);
+        board.request_refresh();
+        let t1 = t0 + Duration::from_secs(5);
+        assert!(board.drive_intent(t1));
+        assert!(matches!(board.read, AgentBoardRead::InFlight));
+        board.apply_list_outcome(
+            epoch,
+            Ok(lane::ListRound {
+                items: vec![summary("s-1", vec![])],
+                complete: false,
+            }),
+            t1,
+        );
+        // The kept last_good rows carry their install age — not the
+        // partial's landing time — through the read state and the
+        // sidebar summary alike.
+        assert!(matches!(
+            board.read,
+            AgentBoardRead::Ready {
+                complete: false,
+                at
+            } if at == t0
+        ));
+        let summary = board.summary().expect("a completed round leaves a summary");
+        assert_eq!(
+            (summary.sessions, summary.complete, summary.at),
+            (2, false, t0)
+        );
+    }
+
+    #[test]
+    fn a_refresh_repairs_selection_by_identity_not_the_old_index() {
+        let mut board = AgentBoard::new(clock());
+        board.open();
+        board.inflight = Some(BoardInflight::ListRound);
+        let epoch = board.epoch;
+        board.apply_list_outcome(
+            epoch,
+            Ok(lane::ListRound {
+                items: vec![
+                    summary("s-1", vec![]),
+                    summary("s-2", vec![]),
+                    summary("s-3", vec![]),
+                ],
+                complete: true,
+            }),
+            Instant::now(),
+        );
+        assert!(board.select_session(&session_id("s-3")));
+        assert_eq!(board.selection, 2);
+        // The refresh drops s-3 and fills the list so a *different*
+        // session occupies index 2 — an index-following repair would
+        // land on it.
+        board.inflight = Some(BoardInflight::ListRound);
+        board.apply_list_outcome(
+            epoch,
+            Ok(lane::ListRound {
+                items: vec![
+                    summary("s-1", vec![]),
+                    summary("s-4", vec![]),
+                    summary("s-5", vec![]),
+                ],
+                complete: true,
+            }),
+            Instant::now(),
+        );
+        assert_eq!(board.selection, 0);
+        assert_eq!(board.rows[board.selection].session_id(), &session_id("s-1"));
     }
 
     fn detail(

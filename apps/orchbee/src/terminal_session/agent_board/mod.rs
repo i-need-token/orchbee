@@ -384,8 +384,8 @@ pub(super) fn plan_jump_step(
 }
 
 /// A queued board intent — the arbitration model's single intent slot:
-/// a later intent replaces an unissued earlier one (Enter while a refresh
-/// is queued replaces it).
+/// Enter replaces an unissued refresh, while a refresh request is
+/// consumed rather than displacing a queued jump.
 #[derive(Clone, Debug)]
 enum BoardIntent {
     Refresh,
@@ -438,6 +438,10 @@ pub(super) struct AgentBoard {
     /// Whether the rows on screen came from a complete read — the
     /// last_good marker F6's incomplete path preserves.
     rows_from_complete: bool,
+    /// When the rows on screen were installed — held independently of
+    /// the read state so a partial round landing on last_good never
+    /// rewrites the kept rows' age.
+    rows_at: Option<Instant>,
     /// The sidebar's summary of the last completed read — survives
     /// failed attempts, absent until the first completed read ever.
     last_summary: Option<AgentBoardSummary>,
@@ -474,6 +478,7 @@ impl AgentBoard {
             viewport_rows: 0,
             read: AgentBoardRead::Unread,
             rows_from_complete: false,
+            rows_at: None,
             last_summary: None,
             intent: None,
             inflight: None,
@@ -634,6 +639,11 @@ impl AgentBoard {
             .last_read_end
             .is_some_and(|at| self.clock.now() < at + AGENT_READ_COOLDOWN)
         {
+            return;
+        }
+        // A queued jump holds the single intent slot — a refresh
+        // request is consumed without displacing it.
+        if matches!(self.intent, Some(BoardIntent::Jump { .. })) {
             return;
         }
         self.notice = None;
@@ -827,22 +837,26 @@ impl AgentBoard {
                         .take(MAXIMUM_ROWS)
                         .collect();
                     // The selection follows the opaque session identity —
-                    // never a stale row index.
+                    // never a stale row index. A vanished selection
+                    // repairs deterministically to the first row in the
+                    // current display order.
                     if let Some(held) = held {
                         self.selection = self
                             .rows
                             .iter()
                             .position(|row| row.session_id() == &held)
-                            .unwrap_or(self.selection);
+                            .unwrap_or(0);
                     }
                     self.rows_from_complete = round.complete;
+                    self.rows_at = Some(now);
                     self.clamp_selection();
                 }
-                // When last_good rows are kept, their original age is the
+                // When last_good rows are kept, their install time is the
                 // honest freshness — not the moment this partial landed.
-                let at = match (round.complete, replace, self.read) {
-                    (false, false, AgentBoardRead::Ready { at, .. }) => at,
-                    _ => now,
+                let at = if replace {
+                    now
+                } else {
+                    self.rows_at.unwrap_or(now)
                 };
                 self.read = AgentBoardRead::Ready {
                     complete: round.complete,
