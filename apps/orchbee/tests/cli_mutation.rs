@@ -2832,7 +2832,6 @@ fn mutation_usage_failures_precede_runtime_access() -> TestResult {
         &["workspace", "rename", "w", "--label", "x", "--confirm"],
         &["workspace", "accept-directory", "w"],
         &["workspace", "accept-directory", "w", "--path", "rel/dir"],
-        &["workspace", "accept-directory", "w", "--path=/a"],
         &[
             "workspace",
             "accept-directory",

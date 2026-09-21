@@ -1141,80 +1141,23 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                         return Err(usage_with(UsageReason::MissingValue { option }, envelope));
                     }
                 };
-                // The repeatable value options: every occurrence appends one
-                // verbatim argv value in order — `--arg` builds the launch
-                // argv; `--provider`/`--asset-root` build the doctor's two
-                // declared selector lists. `--provider` is additionally
-                // mirrored into the single-use `provider` slot read by the
-                // `agent integration` commands, whose single-use contract is
-                // enforced at resolve time from the list's length.
-                if matches!(token.as_str(), "--arg" | "--provider" | "--asset-root") {
-                    match token.as_str() {
-                        "--arg" => options.args.push(value),
-                        "--provider" => {
-                            options.provider = Some(value.clone());
-                            options.providers.push(value);
-                        }
-                        _ => options.asset_roots.push(value),
-                    }
-                    index += 2;
-                    continue;
-                }
-                if token.as_str() == "--until" {
-                    options.until.push(value);
-                    index += 2;
-                    continue;
-                }
-                let slot = match token.as_str() {
-                    "--project" => &mut options.project,
-                    "--directory" => &mut options.directory,
-                    "--workspace" => &mut options.workspace,
-                    "--tab" => &mut options.tab,
-                    "--label" => &mut options.label,
-                    "--direction" => &mut options.direction,
-                    "--cols" => &mut options.cols,
-                    "--rows" => &mut options.rows,
-                    "--cell-width" => &mut options.cell_width,
-                    "--cell-height" => &mut options.cell_height,
-                    "--path" => &mut options.path,
-                    "--match" => &mut options.match_text,
-                    "--timeout" => &mut options.timeout,
-                    "--text" => &mut options.text,
-                    "--key" => &mut options.key,
-                    "--file" => &mut options.file,
-                    "--exec" => &mut options.exec,
-                    "--limit" => &mut options.limit,
-                    "--cursor" => &mut options.cursor,
-                    "--after-revision" => &mut options.after_revision,
-                    "--name" => &mut options.name,
-                    "--profile" => &mut options.profile,
-                    "--adapter-source" => &mut options.adapter_source,
-
-                    _ => &mut options.target_panel,
-                };
-                if slot.replace(value).is_some() {
-                    return Err(usage_with(
-                        UsageReason::DuplicateOption { option },
-                        envelope,
-                    ));
-                }
+                apply_value_flag(&mut options, option, value, envelope)?;
                 index += 2;
             }
-            // Equals spellings exist only for the launch selection options:
-            // `--exec=<value>` once, `--arg=<value>` repeatable, and `--arg=--`
-            // is the literal terminator value — never option syntax.
-            _ if token.starts_with("--exec=") => {
-                let value = token["--exec=".len()..].to_owned();
-                if options.exec.replace(value).is_some() {
-                    return Err(usage_with(
-                        UsageReason::DuplicateOption { option: "--exec" },
-                        envelope,
-                    ));
-                }
-                index += 1;
-            }
-            _ if token.starts_with("--arg=") => {
-                options.args.push(token["--arg=".len()..].to_owned());
+            // The joined spelling `--name=<value>` is the declared twin of
+            // `--name <value>` for every value option (command-surface
+            // Options.Values): the token splits at the FIRST `=` and the
+            // remainder is the verbatim value — embedded `=`, spaces,
+            // Unicode, and leading `-` are all data, so `--arg=--` keeps
+            // its literal terminator value and `--arg=` keeps the empty
+            // argv element. `--mouse` keeps its documented two-token-only
+            // grammar and `--format=` is consumed by the envelope phase;
+            // any other `--x=y` falls through to the unknown-option
+            // rejection below.
+            _ if joined_value_option(token).is_some() => {
+                let option = joined_value_option(token).expect("admitted by guard");
+                let value = token[option.len() + 1..].to_owned();
+                apply_value_flag(&mut options, option, value, envelope)?;
                 index += 1;
             }
             "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
@@ -1268,6 +1211,92 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
         }
     }
     resolve(positionals, options)
+}
+
+/// The joined-spelling counterpart of `VALUE_FLAGS`: returns the declared
+/// value flag when `token` is `--<flag>=<value>` — the `=` immediately
+/// follows the flag name so a name that is merely a flag prefix
+/// (`--argx=v`) never matches. `--mouse` is excluded: its owning grammar is
+/// documented two-token-only. `--format` is absent from `VALUE_FLAGS` by
+/// construction, so the envelope-phase spelling never reaches here.
+fn joined_value_option(token: &str) -> Option<&'static str> {
+    if !token.starts_with("--") {
+        return None;
+    }
+    VALUE_FLAGS.iter().copied().find(|flag| {
+        *flag != "--mouse"
+            && token.len() >= flag.len() + 1
+            && token.starts_with(flag)
+            && token.as_bytes()[flag.len()] == b'='
+    })
+}
+
+/// Apply one collected value-option occurrence from either spelling: the
+/// repeatable options append one verbatim value each and every other slot
+/// is single-use — a second occurrence in either spelling is the same
+/// duplicate usage failure. The repeatable value options: every occurrence
+/// appends one verbatim argv value in order — `--arg` builds the launch
+/// argv; `--provider`/`--asset-root` build the doctor's two declared
+/// selector lists. `--provider` is additionally mirrored into the
+/// single-use `provider` slot read by the `agent integration` commands,
+/// whose single-use contract is enforced at resolve time from the list's
+/// length. Value validation itself belongs to resolve; this layer only
+/// assigns.
+fn apply_value_flag(
+    options: &mut Options,
+    option: &'static str,
+    value: String,
+    envelope: FailureEnvelope,
+) -> Result<(), ParseFailure> {
+    if matches!(option, "--arg" | "--provider" | "--asset-root") {
+        match option {
+            "--arg" => options.args.push(value),
+            "--provider" => {
+                options.provider = Some(value.clone());
+                options.providers.push(value);
+            }
+            _ => options.asset_roots.push(value),
+        }
+        return Ok(());
+    }
+    if option == "--until" {
+        options.until.push(value);
+        return Ok(());
+    }
+    let slot = match option {
+        "--project" => &mut options.project,
+        "--directory" => &mut options.directory,
+        "--workspace" => &mut options.workspace,
+        "--tab" => &mut options.tab,
+        "--label" => &mut options.label,
+        "--direction" => &mut options.direction,
+        "--cols" => &mut options.cols,
+        "--rows" => &mut options.rows,
+        "--cell-width" => &mut options.cell_width,
+        "--cell-height" => &mut options.cell_height,
+        "--path" => &mut options.path,
+        "--match" => &mut options.match_text,
+        "--timeout" => &mut options.timeout,
+        "--text" => &mut options.text,
+        "--key" => &mut options.key,
+        "--file" => &mut options.file,
+        "--exec" => &mut options.exec,
+        "--limit" => &mut options.limit,
+        "--cursor" => &mut options.cursor,
+        "--after-revision" => &mut options.after_revision,
+        "--name" => &mut options.name,
+        "--profile" => &mut options.profile,
+        "--adapter-source" => &mut options.adapter_source,
+
+        _ => &mut options.target_panel,
+    };
+    if slot.replace(value).is_some() {
+        return Err(usage_with(
+            UsageReason::DuplicateOption { option },
+            envelope,
+        ));
+    }
+    Ok(())
 }
 
 fn resolve(positionals: Vec<Token>, options: Options) -> Result<Request, ParseFailure> {

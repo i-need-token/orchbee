@@ -413,9 +413,9 @@ fn terminal_send_usage_failures() -> TestResult {
             "--enter",
         ]
         .as_slice(),
-        // Joined `--flag=value` exists only for `--format`.
-        ["terminal", "send", TERMINAL_ID, "--text=x"].as_slice(),
-        ["terminal", "send", TERMINAL_ID, "--key=enter"].as_slice(),
+        // Joined `--flag=value` is admitted for value options; a boolean
+        // never takes one.
+        ["terminal", "send", TERMINAL_ID, "--enter=x"].as_slice(),
         // Options of other commands are outside the send scope.
         ["terminal", "send", TERMINAL_ID, "--match", "x"].as_slice(),
         ["terminal", "send", TERMINAL_ID, "--rows", "5"].as_slice(),
@@ -789,7 +789,7 @@ fn terminal_wait_output_usage_failures() -> TestResult {
             "x",
         ]
         .as_slice(),
-        ["terminal", "wait-output", TERMINAL_ID, "--match=x"].as_slice(),
+        ["terminal", "wait-output", TERMINAL_ID, "--history=x"].as_slice(),
         ["terminal", "wait-output", TERMINAL_ID, "--match", "x", "-"].as_slice(),
     ] {
         usage(&probe, arguments);
@@ -993,13 +993,6 @@ fn workspace_accept_directory_usage_failures() -> TestResult {
             "/repo",
         ]
         .as_slice(),
-        [
-            "workspace",
-            "accept-directory",
-            WORKSPACE_ID,
-            "--path=/repo",
-        ]
-        .as_slice(),
         ["workspace", "accept-directory", ZERO_ID, "--path", "/repo"].as_slice(),
         [
             "workspace",
@@ -1084,12 +1077,12 @@ fn shared_option_rules_on_existing_commands() -> TestResult {
     // Value flags own the next token but never `--`.
     usage(&probe, &["project", "create", "--label"]);
     usage(&probe, &["project", "create", "--label", "--"]);
-    // Joined `--flag=value` exists only for `--format`.
+    // Joined `--flag=value` is admitted for declared value options; a
+    // boolean flag still never takes a value.
     usage(
         &probe,
-        &["workspace", "create", "--project", "p", "--label=x"],
+        &["workspace", "rename", "w", "--label", "x", "--confirm=true"],
     );
-    usage(&probe, &["workspace", "list", "--project=p"]);
     // `--version` is the sole root invocation.
     let output = run(&probe, &["--version"]);
     assert_eq!(output.status.code(), Some(0));

@@ -563,8 +563,7 @@ fn filters_have_declared_scope_single_use_and_values() {
         &["workspace", "list", "--project"],
         &["workspace", "list", "--project", "--"],
         &["--project"],
-        // Filters never use the equals spelling.
-        &["workspace", "list", "--project=x"],
+        // A boolean never takes a joined value.
         &["tab", "list", "--standalone=true"],
     ];
     for arguments in cases {
@@ -1405,6 +1404,267 @@ fn launch_selection_options_parse_in_every_spelling() {
     );
 }
 
+/// `--name value` and `--name=value` are the declared equivalent spellings
+/// for every value option (command-surface Options.Values): the joined token
+/// splits at the first `=` and the remainder is the verbatim value — embedded
+/// `=`, leading `-`, spaces, and Unicode are all data. Equivalence covers the
+/// produced invocation AND the failure class.
+#[test]
+fn joined_value_spelling_is_equivalent() {
+    for (space, joined) in [
+        // Selectors and filters across families.
+        (
+            &["workspace", "list", "--project", "proj"][..],
+            &["workspace", "list", "--project=proj"][..],
+        ),
+        (
+            &["tab", "list", "--workspace", "ws"][..],
+            &["tab", "list", "--workspace=ws"][..],
+        ),
+        (
+            &["panel", "list", "--tab", "t"][..],
+            &["panel", "list", "--tab=t"][..],
+        ),
+        (
+            &["worktree", "list", "--project", "p", "--directory", "d"][..],
+            &["worktree", "list", "--project=p", "--directory=d"][..],
+        ),
+        (
+            &["workspace", "create", "--project", "p", "--label", "l"][..],
+            &["workspace", "create", "--project=p", "--label=l"][..],
+        ),
+        (
+            &["workspace", "rename", "w", "--label", "x", "--confirm"][..],
+            &["workspace", "rename", "w", "--label=x", "--confirm"][..],
+        ),
+        (
+            &["workspace", "accept-directory", "w", "--path", "/srv/repo"][..],
+            &["workspace", "accept-directory", "w", "--path=/srv/repo"][..],
+        ),
+        // Geometry values.
+        (
+            &[
+                "tab",
+                "create",
+                "--workspace",
+                "w",
+                "--label",
+                "t",
+                "--cols",
+                "80",
+            ][..],
+            &["tab", "create", "--workspace=w", "--label=t", "--cols=80"][..],
+        ),
+        // Direction, name, launch selection.
+        (
+            &["tab", "move", "t", "--direction", "next"][..],
+            &["tab", "move", "t", "--direction=next"][..],
+        ),
+        (
+            &[
+                "panel",
+                "move",
+                "p",
+                "--target-panel",
+                "q",
+                "--direction",
+                "left",
+            ][..],
+            &["panel", "move", "p", "--target-panel=q", "--direction=left"][..],
+        ),
+        (
+            &[
+                "launch-profile",
+                "create",
+                "--name",
+                "n",
+                "--exec",
+                "/bin/sh",
+            ][..],
+            &["launch-profile", "create", "--name=n", "--exec=/bin/sh"][..],
+        ),
+        // Terminal send sources and modifiers.
+        (
+            &["terminal", "send", ID, "--text", "hi", "--enter"][..],
+            &["terminal", "send", ID, "--text=hi", "--enter"][..],
+        ),
+        (
+            &["terminal", "send", ID, "--key", "enter"][..],
+            &["terminal", "send", ID, "--key=enter"][..],
+        ),
+        (
+            &["terminal", "send", ID, "--file", "/tmp/x"][..],
+            &["terminal", "send", ID, "--file=/tmp/x"][..],
+        ),
+        (
+            &[
+                "terminal",
+                "wait-output",
+                ID,
+                "--match",
+                "x",
+                "--timeout",
+                "5",
+            ][..],
+            &["terminal", "wait-output", ID, "--match=x", "--timeout=5"][..],
+        ),
+        (
+            &["terminal", "read", ID, "--history", "--rows", "10"][..],
+            &["terminal", "read", ID, "--history", "--rows=10"][..],
+        ),
+        // Agent families: paging, wait conditions, doctor selectors,
+        // integration flags.
+        (
+            &["agent", "list", "--limit", "10", "--cursor", "c"][..],
+            &["agent", "list", "--limit=10", "--cursor=c"][..],
+        ),
+        (
+            &["agent", "wait", "a", "--until", "idle", "--timeout", "30"][..],
+            &["agent", "wait", "a", "--until=idle", "--timeout=30"][..],
+        ),
+        (
+            &["agent", "wait", "a", "--after-revision", "7"][..],
+            &["agent", "wait", "a", "--after-revision=7"][..],
+        ),
+        (
+            &[
+                "agent",
+                "doctor",
+                "--provider",
+                "codex",
+                "--asset-root",
+                "/r",
+            ][..],
+            &["agent", "doctor", "--provider=codex", "--asset-root=/r"][..],
+        ),
+        (
+            &[
+                "agent",
+                "integration",
+                "list",
+                "--provider",
+                "pi",
+                "--adapter-source",
+                "s",
+            ][..],
+            &[
+                "agent",
+                "integration",
+                "list",
+                "--provider=pi",
+                "--adapter-source=s",
+            ][..],
+        ),
+        // Repeatables accumulate identically in either spelling, mixed freely.
+        (
+            &[
+                "tab",
+                "create",
+                "--standalone",
+                "--exec",
+                "/x",
+                "--arg",
+                "a",
+                "--arg",
+                "b",
+            ][..],
+            &[
+                "tab",
+                "create",
+                "--standalone",
+                "--exec=/x",
+                "--arg=a",
+                "--arg=b",
+            ][..],
+        ),
+        (
+            &["agent", "wait", "a", "--until", "idle", "--until", "failed"][..],
+            &["agent", "wait", "a", "--until=idle", "--until=failed"][..],
+        ),
+        // Value text that embeds `=` or begins with a dash stays verbatim.
+        (
+            &["terminal", "send", ID, "--text", "a=b=c"][..],
+            &["terminal", "send", ID, "--text=a=b=c"][..],
+        ),
+        (
+            &["terminal", "send", ID, "--text", "--help"][..],
+            &["terminal", "send", ID, "--text=--help"][..],
+        ),
+        (
+            &["workspace", "list", "--project", "--format"][..],
+            &["workspace", "list", "--project=--format"][..],
+        ),
+        (
+            &["terminal", "send", ID, "--text", "值 "][..],
+            &["terminal", "send", ID, "--text=值 "][..],
+        ),
+        // Scope failures are identical in either spelling.
+        (
+            &["workspace", "list", "--label", "x"][..],
+            &["workspace", "list", "--label=x"][..],
+        ),
+        (
+            &["project", "list", "--workspace", "w"][..],
+            &["project", "list", "--workspace=w"][..],
+        ),
+        // Spelling-blind duplicates.
+        (
+            &["workspace", "list", "--project", "a", "--project=b"][..],
+            &["workspace", "list", "--project=a", "--project", "b"][..],
+        ),
+        // Empty and invalid values resolve identically.
+        (
+            &[
+                "tab",
+                "create",
+                "--workspace",
+                "w",
+                "--label",
+                "t",
+                "--cols",
+                "",
+            ][..],
+            &["tab", "create", "--workspace=w", "--label=t", "--cols="][..],
+        ),
+        (
+            &["workspace", "list", "--project", ""][..],
+            &["workspace", "list", "--project="][..],
+        ),
+        (
+            &["terminal", "wait-output", ID, "--timeout", "bogus"][..],
+            &["terminal", "wait-output", ID, "--timeout=bogus"][..],
+        ),
+    ] {
+        assert_eq!(parse(space), parse(joined), "{space:?} vs {joined:?}");
+    }
+    // `--mouse` keeps its documented two-token-only grammar: every joined
+    // spelling is usage, on every route.
+    for arguments in [
+        &["tui", "--mouse=off"][..],
+        &["tui", "--mouse=bogus"][..],
+        &["--mouse=off"][..],
+    ] {
+        assert_eq!(
+            parse(arguments),
+            Err(usage(FailureEnvelope::Text)),
+            "{arguments:?}"
+        );
+    }
+    // A joined token after `--` is a positional word, never an option —
+    // `status` takes no operand, so the word is an unexpected argument
+    // rather than a project filter.
+    for arguments in [
+        &["status", "--", "--project=x"][..],
+        &["--", "status", "--project=x"][..],
+    ] {
+        assert_eq!(
+            parse(arguments),
+            Err(usage(FailureEnvelope::Text)),
+            "{arguments:?}"
+        );
+    }
+}
+
 #[test]
 fn launch_selection_options_fail_closed_on_misuse() {
     let usage = |launch_args: &[&str]| {
@@ -1710,10 +1970,10 @@ fn profile_option_threads_into_launch_bearing_mutations() {
         &["--exec", "/bin/sh", "--profile", "p"][..],
         &["--profile", "p", "--arg", "-l"][..],
         &["--arg", "-l", "--profile", "p"][..],
-        // `--profile` is single-use and never admits an equals spelling.
+        // `--profile` is single-use in either spelling.
         &["--profile", "p", "--profile", "q"][..],
-        &["--profile="][..],
-        &["--profile=p"][..],
+        &["--profile", "p", "--profile=q"][..],
+        &["--profile=p", "--profile", "q"][..],
     ] {
         let arguments = tab_create_invocation(extra);
         assert_eq!(
@@ -2127,9 +2387,17 @@ fn mutation_values_are_bounded() {
             OutputFormat::Text
         ))
     );
+    // The joined spelling is the same option: `--label=x` parses exactly as
+    // `--label x`.
     assert_eq!(
         parse(&["workspace", "rename", "w", "--label=x"]),
-        Err(usage(FailureEnvelope::Text))
+        Ok(mutation(
+            MutationCommand::WorkspaceRename {
+                target: Target::Label("w".into()),
+                label: label("x"),
+            },
+            OutputFormat::Text
+        ))
     );
 
     // Geometry: u16 shape plus the protocol's product bounds.
@@ -2300,7 +2568,6 @@ fn accept_directory_path_is_a_literal_protocol_value() {
             "--path",
             "/b",
         ][..],
-        &["workspace", "accept-directory", "w", "--path=/srv/repo"][..],
         &["workspace", "accept-directory", "w", "--path"][..],
         &["workspace", "accept-directory", "w", "--path", "--"][..],
         &["workspace", "accept-directory"][..],
@@ -3072,20 +3339,28 @@ fn usage_failures_carry_their_concrete_reason() {
 }
 
 /// `--` ownership: a dash-leading token consumed as a value is never an
-/// option, and an equals spelling stays an unknown option.
+/// option, and a joined spelling whose name is not a declared value option
+/// stays an unknown option.
 #[test]
 fn ownership_and_terminator_keep_their_reasons() {
-    // The equals spelling stays an unknown option even on a command that
-    // declares the flag.
-    let Err(failure) = parse(&["workspace", "list", "--project=x"]) else {
-        panic!("equals spelling must fail");
-    };
-    assert_eq!(
-        failure.usage.as_ref(),
-        Some(&UsageReason::UnknownOption {
-            option: "--project=x".to_owned(),
-        })
-    );
+    // A joined spelling on an undeclared name stays an unknown option —
+    // `--bogus=x`, `--=x`, and a boolean `--standalone=x` all land here.
+    for arguments in [
+        &["workspace", "list", "--bogus=x"][..],
+        &["workspace", "list", "--=x"][..],
+        &["tab", "list", "--standalone=x"][..],
+    ] {
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.usage.as_ref(),
+            Some(&UsageReason::UnknownOption {
+                option: arguments.last().expect("listed").to_string(),
+            }),
+            "{arguments:?}"
+        );
+    }
     // A consumed dash-leading value is never reclassified as an option.
     let Err(failure) = parse(&["status", "--bogus", "--project", "x"]) else {
         panic!("unknown option must fail");
@@ -4855,8 +5130,8 @@ fn agent_integration_commands_fail_closed() {
             "x",
         ][..],
         &["agent", "integration", "list", "--include-ended"][..],
-        // The equals spelling is not a known option.
-        &["agent", "integration", "list", "--provider=codex"][..],
+        // A joined spelling on an undeclared name is not a known option.
+        &["agent", "integration", "list", "--bogus=codex"][..],
         // `--mouse` belongs to `tui` alone.
         &["agent", "integration", "list", "--mouse"][..],
     ] {
