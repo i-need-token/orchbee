@@ -68,7 +68,7 @@ submits the existing `WorkspacePrimaryDirectoryAccept` action — the Server aut
 probes the literal absolute path — which makes a CLI-created Workspace tab-admissible
 without the TUI directory wizard. `project rename <target> --label <label>` submits the
 existing `ProjectRename` action — the same one-snapshot/one-command envelope resolves the
-target by exact id or exact label first — and reports `committed`/`unchanged` under the
+target by exact id, an explicit `@<kind>:<suffix>` selector, or exact label first — and reports `committed`/`unchanged` under the
 dedicated `orchbee.project.rename` document. `site start` is the headless activation path:
 it runs the same connect-or-activate sequence the TUI startup uses — validate the cohort,
 prepare the runtime directory, take the locks, commit the marker, spawn the Server when no

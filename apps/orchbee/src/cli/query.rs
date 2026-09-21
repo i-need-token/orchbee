@@ -104,15 +104,24 @@ pub(crate) fn read_snapshot() -> Result<Snapshot, Failure> {
 /// retained launch fact. A stale snapshot route is never echoed back.
 #[cfg(target_os = "linux")]
 pub(crate) fn terminal_get(target: &Target) -> Result<(serde_json::Value, Projection), Failure> {
-    let (mut client, deadline, _snapshot) = snapshot_session()?;
+    let (mut client, deadline, snapshot) = snapshot_session()?;
+    // A typed ID passes through to the Server's launch read unchanged — it
+    // answers binding state itself. A `@terminal:` selector resolves against
+    // the snapshot's complete bound set first; the request then carries the
+    // resolved full id.
     let identity = match target {
-        Target::Id(identity) => identity.as_str(),
-        // The parser admits only typed IDs for terminal targets.
+        Target::Id(identity) => identity.clone(),
+        Target::Selector(_) => super::results::terminal_select(&snapshot, target)
+            .map_err(|failure| failure.source(super::results::snapshot_source(&snapshot)))?
+            .terminal_id
+            .clone(),
+        // The parser admits only typed IDs and selectors for terminal targets.
         Target::Label(_) => return Err(Failure::new(FailureKind::InternalFailure)),
     };
     let request = TerminalLaunchReadRequest::new(
         obcs_request_id()?,
-        ObcsTerminalId::parse(identity).map_err(|_| Failure::new(FailureKind::InternalFailure))?,
+        ObcsTerminalId::parse(identity.as_str())
+            .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
     );
     let outcome = client
         .submit_terminal_launch_read_before(request, deadline)
@@ -148,7 +157,7 @@ pub(crate) fn terminal_get(target: &Target) -> Result<(serde_json::Value, Projec
             ))
         }
         TerminalLaunchReadOutcome::NotFound => Err(Failure::new(FailureKind::NotFound)
-            .details(target_details(Resource::Terminal, identity))),
+            .details(target_details(Resource::Terminal, identity.as_str()))),
         TerminalLaunchReadOutcome::Unavailable { .. } => {
             Err(Failure::new(FailureKind::ServiceUnavailable).details(stage_details("launch-read")))
         }
@@ -1102,8 +1111,8 @@ fn read_terminal_history(
     outcome.map(|(frame, window)| (row, frame, window))
 }
 
-/// Resolve the typed binding from the snapshot and attach a read-only viewer
-/// to it inside the shared deadline.
+/// Resolve the binding from the snapshot — typed ID or `@terminal:` selector
+/// — and attach a read-only viewer to it inside the shared deadline.
 #[cfg(target_os = "linux")]
 fn attach_viewer(
     client: &mut LocalClient,
@@ -1120,14 +1129,9 @@ fn attach_viewer(
     ),
     Failure,
 > {
-    let identity = match target {
-        Target::Id(identity) => identity.as_str(),
-        // The parser admits only typed IDs for terminal targets.
-        Target::Label(_) => return Err(Failure::new(FailureKind::InternalFailure)),
-    };
-    let row = super::results::terminal_binding(snapshot, identity).ok_or_else(|| {
-        Failure::new(FailureKind::NotFound).details(target_details(Resource::Terminal, identity))
-    })?;
+    // Typed IDs and `@terminal:` selectors resolve against the snapshot's
+    // complete bound set; the attach request carries the resolved full id.
+    let row = super::results::terminal_select(snapshot, target)?;
     let attach = TerminalViewerRequest::new(
         obcs_request_id()?,
         TerminalViewerAction::AttachBinding {

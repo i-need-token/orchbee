@@ -293,16 +293,22 @@ names, or runtime data, and never guesses a freeform value.
 
 ### Targets and filters
 
-`<target>` for `project`/`workspace`/`tab` is first parsed as a complete typed ID (exactly 32
-lowercase hexadecimal characters, nonzero). A valid ID matches by identity only. Any other token
-is an exact, case-sensitive label candidate requiring 1–512 Unicode scalars; empty or overlong
-tokens and the all-zero ID shape are `invalid-identifier` (exit 2). A label that itself has valid
-ID shape can never be reached by label matching — IDs take precedence by construction; the entity
-remains reachable through its real ID. `panel` and `terminal` accept only complete typed IDs;
-anything else is `invalid-identifier`. Filters (`--project`, `--workspace`, `--tab`) use the same
-per-resource target rules, and so do every mutation operand and `--target-panel` (the `panel`
-rule: typed IDs only, resolved inside the moved panel's own tab). `api schema` takes a nonempty
-schema ID; an empty one is
+`<target>` operands parse in three forms. First a complete typed ID (exactly 32 lowercase
+hexadecimal characters, nonzero), which matches by identity only. Second, an explicit selector
+`@<kind>:<suffix>` — `<kind>` one of `project`, `workspace`, `tab`, `panel`, `terminal`, and
+`<suffix>` one to thirty-one lowercase hexadecimal characters — which resolves to the one
+member of that kind in the read snapshot whose identifier ends with the suffix. A recognized
+selector prefix with an empty, uppercase, or 32-digit suffix, or a kind that does not match the
+operand's resource, is `invalid-identifier` (exit 2) before any runtime access; any other `@`
+token keeps the label reading — only the five prefixes are selector syntax. Any other token is
+an exact, case-sensitive label candidate requiring 1–512 Unicode scalars when the resource
+admits labels; empty or overlong tokens and the all-zero ID shape are `invalid-identifier`
+(exit 2). A label that itself has ID or selector shape can never be reached by label or selector
+matching — the entity remains reachable through its real ID. `panel` and `terminal` accept
+complete typed IDs and their own `@panel:`/`@terminal:` selectors only; anything else is
+`invalid-identifier`. Filters (`--project`, `--workspace`, `--tab`) use the same per-resource
+target rules, and so do every mutation operand and `--target-panel` (the `panel` rule, resolved
+inside the moved panel's own tab). `api schema` takes a nonempty schema ID; an empty one is
 `invalid-identifier` with `resource="schema"`, an unmatched one is `not-found`.
 `agent get`, `agent explain`, and `agent wait` take an Agent session identity: an opaque token of 1–128
 characters drawn from `[A-Za-z0-9._:-]` — never an id/label split, and a malformed token
@@ -317,10 +323,14 @@ name matching more than one entry answers `ambiguous` with at most the first 8 c
 profile IDs plus the true `totalCount` — both under the dedicated launch-profile failure
 envelope.
 
-Resolution after a successful read: zero matches → `not-found` (3); multiple exact label matches
-→ `ambiguous` (3) reporting at most the first 8 candidate typed IDs in canonical traversal order
-plus the true `totalCount`. A filter naming an absent entity is `not-found`; an existing entity
-with an empty result set is a successful empty list.
+Resolution after a successful read: zero matches → `not-found` (3); multiple exact label or
+selector-suffix matches → `ambiguous` (3) reporting at most the first 8 candidate typed IDs in
+canonical traversal order plus the true `totalCount`. Selector candidates are the members
+visible in the one snapshot the command already read — complete for every operand's declared
+scope, never an extra fetch — and a selector is a momentary handle, not a durable one: deletion
+and recreation can put the same suffix on a different member, so commands needing stable
+identity use the full typed ID. A filter naming an absent entity is `not-found`; an existing
+entity with an empty result set is a successful empty list.
 
 ## Query state machine and budgets
 

@@ -59,7 +59,8 @@ Server 分配的 project id，供 `workspace create`/`tab create` 链使用；
 `workspace accept-directory` 提交既有 `WorkspacePrimaryDirectoryAccept` 动作——由
 Server 权威探测该字面绝对路径——使 CLI 创建的 Workspace 无需 TUI 目录向导即可接纳 Tab。
 `project rename <target> --label <label>` 提交既有 `ProjectRename` 动作——同一
-"一次快照/一条命令" 信封先按精确 ID 或精确 label 解析 target——并在专用
+"一次快照/一条命令" 信封先按精确 ID、显式 `@<kind>:<suffix>` selector 或精确 label
+解析 target——并在专用
 `orchbee.project.rename` 文档下报告 `committed`/`unchanged`。`site start` 是无头
 激活路径：它执行与 TUI 启动相同的 connect-or-activate 序列——验证 cohort、准备
 运行时目录、取锁、提交标记、在没有运行中 Site 应答时拉起 Server——全程共享一个

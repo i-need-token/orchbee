@@ -30,17 +30,31 @@ pub(crate) enum OutputFormat {
 }
 
 /// A `get`/filter target validated at parse time. `Id` carries the canonical
-/// 32-lowercase-hex text; `Label` carries an exact case-sensitive label.
+/// 32-lowercase-hex text; `Label` carries an exact case-sensitive label;
+/// `Selector` carries an explicit `@<kind>:<suffix>` token whose kind was
+/// already checked against the operand's resource — resolution reads only
+/// the suffix, since the candidate set is always kind-scoped by the caller.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Target {
     Id(String),
     Label(String),
+    Selector(String),
 }
 
 impl Target {
     pub(crate) fn text(&self) -> &str {
         match self {
-            Self::Id(value) | Self::Label(value) => value,
+            Self::Id(value) | Self::Label(value) | Self::Selector(value) => value,
+        }
+    }
+
+    /// The validated lowercase-hex tail of a `@<kind>:<suffix>` selector; the
+    /// parser admitted the token, so the split is structural. Non-selector
+    /// targets have no suffix.
+    pub(crate) fn suffix(&self) -> Option<&str> {
+        match self {
+            Self::Selector(token) => token.split_once(':').map(|(_, suffix)| suffix),
+            _ => None,
         }
     }
 }
@@ -65,6 +79,19 @@ impl Resource {
             Self::Terminal => "terminal",
             Self::Schema => "schema",
         }
+    }
+
+    /// The recognized `@<kind>:` selector prefix. `Schema` has none; any
+    /// other token is not selector syntax and keeps its label reading.
+    fn selector_token(token: &str) -> Option<Self> {
+        Some(match token {
+            "project" => Self::Project,
+            "workspace" => Self::Workspace,
+            "tab" => Self::Tab,
+            "panel" => Self::Panel,
+            "terminal" => Self::Terminal,
+            _ => return None,
+        })
     }
 }
 
@@ -908,11 +935,20 @@ const VALUE_FLAGS: &[&str] = &[
 const MAXIMUM_LABEL_SCALARS: usize = 512;
 const ZERO_IDENTITY: &str = "00000000000000000000000000000000";
 
+fn lowercase_hex(bytes: &[u8]) -> bool {
+    bytes
+        .iter()
+        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
+}
+
 fn valid_typed_id(value: &str) -> bool {
-    value.len() == 32
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    value.len() == 32 && lowercase_hex(value.as_bytes())
+}
+
+/// A selector suffix is one to thirty-one lowercase hex characters — a tail
+/// of a member's typed identifier, never the full 32-character id shape.
+fn valid_selector_suffix(suffix: &str) -> bool {
+    (1..32).contains(&suffix.len()) && lowercase_hex(suffix.as_bytes())
 }
 
 fn valid_label(value: &str) -> bool {
@@ -930,6 +966,23 @@ fn target(
         envelope,
         usage: None,
     };
+    // A recognized `@<kind>:` prefix claims selector syntax wherever it
+    // appears: the kind must equal the operand's resource and the suffix must
+    // be a short lowercase-hex tail — both are parse-time `invalid-identifier`
+    // failures. An `@` token without a recognized prefix falls through to the
+    // label rule unchanged.
+    let selector = value
+        .strip_prefix('@')
+        .and_then(|rest| rest.split_once(':'))
+        .and_then(|(kind, suffix)| {
+            Resource::selector_token(kind).map(|kind| (kind, valid_selector_suffix(suffix)))
+        });
+    if let Some((kind, admitted)) = selector {
+        if !admitted || kind != resource {
+            return Err(identifier(value));
+        }
+        return Ok(Target::Selector(value));
+    }
     if valid_typed_id(&value) {
         if value == ZERO_IDENTITY {
             return Err(identifier(value));

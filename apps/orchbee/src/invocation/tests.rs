@@ -910,6 +910,184 @@ fn target_rules_follow_each_resource() {
 }
 
 #[test]
+fn selector_targets_parse_for_their_own_resource() {
+    // Every recognized `@<kind>:<suffix>` operand yields a selector target.
+    let cases: &[(&[&str], QueryCommand)] = &[
+        (
+            &["project", "get", "@project:abc"],
+            QueryCommand::ProjectGet(Target::Selector("@project:abc".into())),
+        ),
+        (
+            &["workspace", "get", "@workspace:def"],
+            QueryCommand::WorkspaceGet(Target::Selector("@workspace:def".into())),
+        ),
+        (
+            &["tab", "get", "@tab:1"],
+            QueryCommand::TabGet(Target::Selector("@tab:1".into())),
+        ),
+        (
+            &["panel", "get", "@panel:face"],
+            QueryCommand::PanelGet(Target::Selector("@panel:face".into())),
+        ),
+        (
+            &["terminal", "get", "@terminal:0"],
+            QueryCommand::TerminalGet(Target::Selector("@terminal:0".into())),
+        ),
+        (
+            &["terminal", "read", "@terminal:beef"],
+            QueryCommand::TerminalRead {
+                target: Target::Selector("@terminal:beef".into()),
+                history: None,
+            },
+        ),
+    ];
+    for (arguments, command) in cases {
+        assert_eq!(
+            parse(arguments),
+            Ok(query(command.clone(), OutputFormat::Text)),
+            "{arguments:?}"
+        );
+    }
+    // The longest admissible suffix is 31 lowercase hex characters; a
+    // 32-hex tail is the full-id shape and never a selector suffix.
+    let longest = format!("@tab:{}", "f".repeat(31));
+    assert_eq!(
+        parse(&["tab", "get", longest.as_str()]),
+        Ok(query(
+            QueryCommand::TabGet(Target::Selector(longest)),
+            OutputFormat::Text
+        ))
+    );
+    // Filters and mutation operands share the same target grammar.
+    for arguments in [
+        &["workspace", "list", "--project", "@project:aa"][..],
+        &["tab", "list", "--workspace", "@workspace:bb"][..],
+        &["panel", "list", "--tab", "@tab:cc"][..],
+        &[
+            "panel",
+            "move",
+            "@panel:dd",
+            "--target-panel",
+            "@panel:ee",
+            "--direction",
+            "left",
+        ][..],
+        &["tab", "close", "@tab:ff", "--confirm"][..],
+        &["panel", "close", "@panel:11", "--confirm"][..],
+        &["terminal", "send", "@terminal:22", "--key", "enter"][..],
+        &[
+            "worktree",
+            "list",
+            "--project",
+            "@project:33",
+            "--directory",
+            ID,
+        ][..],
+    ] {
+        assert!(parse(arguments).is_ok(), "{arguments:?}");
+    }
+}
+
+#[test]
+fn selector_targets_reject_malformed_and_foreign_forms() {
+    // A recognized `@<kind>:` prefix with an empty, uppercase, non-hex, or
+    // full-length (32) suffix is an invalid identifier before any runtime
+    // access — and so is a selector whose kind is not the operand's
+    // resource. Panel and terminal additionally reject every label.
+    for (arguments, resource, value) in [
+        (
+            &["project", "get", "@project:"][..],
+            Resource::Project,
+            "@project:",
+        ),
+        (
+            &["project", "get", "@project:AB"][..],
+            Resource::Project,
+            "@project:AB",
+        ),
+        (
+            &["project", "get", "@project:xy"][..],
+            Resource::Project,
+            "@project:xy",
+        ),
+        (
+            &[
+                "project",
+                "get",
+                "@project:0123456789abcdef0123456789abcdef",
+            ][..],
+            Resource::Project,
+            "@project:0123456789abcdef0123456789abcdef",
+        ),
+        (
+            &["project", "get", "@workspace:a"][..],
+            Resource::Project,
+            "@workspace:a",
+        ),
+        (&["tab", "get", "@panel:a"][..], Resource::Tab, "@panel:a"),
+        (&["panel", "get", "@tab:a"][..], Resource::Panel, "@tab:a"),
+        (
+            &["terminal", "get", "@terminal:"][..],
+            Resource::Terminal,
+            "@terminal:",
+        ),
+        (
+            &["terminal", "read", "@terminal:G"][..],
+            Resource::Terminal,
+            "@terminal:G",
+        ),
+        (
+            &["panel", "get", "@panel:0123456789abcdef0123456789abcdef"][..],
+            Resource::Panel,
+            "@panel:0123456789abcdef0123456789abcdef",
+        ),
+    ] {
+        assert_eq!(
+            parse(arguments),
+            Err(identifier(resource, value, FailureEnvelope::Text)),
+            "{arguments:?}"
+        );
+    }
+    // `@` tokens without a recognized `<kind>:` prefix keep their label
+    // reading where labels are admitted — no `@` namespace is reserved.
+    for (arguments, command) in [
+        (
+            &["project", "get", "@foo:a"][..],
+            QueryCommand::ProjectGet(Target::Label("@foo:a".into())),
+        ),
+        (
+            &["project", "get", "@project"][..],
+            QueryCommand::ProjectGet(Target::Label("@project".into())),
+        ),
+        (
+            &["project", "get", "@PROJECT:a"][..],
+            QueryCommand::ProjectGet(Target::Label("@PROJECT:a".into())),
+        ),
+        (
+            &["tab", "get", "@"][..],
+            QueryCommand::TabGet(Target::Label("@".into())),
+        ),
+    ] {
+        assert_eq!(
+            parse(arguments),
+            Ok(query(command, OutputFormat::Text)),
+            "{arguments:?}"
+        );
+    }
+    // Bare hex-looking words stay labels; only the explicit prefixes claim
+    // selector syntax. `face`, `a`, and `1` are still exact labels.
+    for value in ["face", "a", "1"] {
+        assert_eq!(
+            parse(&["project", "get", value]),
+            Ok(query(
+                QueryCommand::ProjectGet(Target::Label(value.into())),
+                OutputFormat::Text
+            ))
+        );
+    }
+}
+
+#[test]
 fn single_dash_is_a_positional_label() {
     assert_eq!(
         parse(&["project", "get", "-"]),

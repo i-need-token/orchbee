@@ -12,8 +12,8 @@ use orchbee_client_server_protocol::{LaunchProfileProvenance, TerminalLaunchFact
 use orchbee_terminal_protocol::MAXIMUM_FRAME_ROWS;
 use orchbee_workbench_protocol::{
     LaunchProfileCatalogRevision, LaunchProfileEntry, PanelNode, PanelSlot, Presentation, Project,
-    Snapshot, Tab, TerminalContext, WorkbenchProtocolDocument, Workspace, WorktreeEntry,
-    WorktreeEntryText,
+    Snapshot, Tab, TerminalContext, WorkbenchPanelId, WorkbenchProtocolDocument, Workspace,
+    WorktreeEntry, WorktreeEntryText,
 };
 use serde_json::{Map, Value, json};
 
@@ -622,12 +622,58 @@ pub(crate) fn terminal_wait_output_doc(
     }
 }
 
-/// The bound terminal row for a typed identity, or `None` when no
-/// presentation binds it — the same visibility rule as `terminal get`.
-pub(crate) fn terminal_binding(snapshot: &Snapshot, identity: &str) -> Option<TerminalRow> {
-    terminal_rows(snapshot)
-        .into_iter()
-        .find(|row| row.terminal_id == identity)
+/// Every panel id inside one panel tree, in canonical traversal order — the
+/// complete candidate set a `panel` operand resolves over within that scope.
+pub(crate) fn panel_ids_in(node: &PanelNode) -> Vec<&WorkbenchPanelId> {
+    fn collect<'a>(node: &'a PanelNode, ids: &mut Vec<&'a WorkbenchPanelId>) {
+        match node {
+            PanelNode::Panel { panel_id, .. } => ids.push(panel_id),
+            PanelNode::Split { children, .. } => {
+                for slot in children.iter() {
+                    collect(&slot.node, ids);
+                }
+            }
+        }
+    }
+    let mut ids = Vec::new();
+    collect(node, &mut ids);
+    ids
+}
+
+/// Every panel id with its owning context and tab, in canonical traversal
+/// order — the complete candidate set for globally scoped `panel` operands.
+pub(crate) fn panel_entries(
+    snapshot: &Snapshot,
+) -> Vec<(&WorkbenchPanelId, &TerminalContext, &Tab)> {
+    let mut entries = Vec::new();
+    for context in &snapshot.terminal_contexts {
+        for tab in &context.tabs {
+            for panel_id in panel_ids_in(&tab.root) {
+                entries.push((panel_id, context, tab));
+            }
+        }
+    }
+    entries
+}
+
+/// One bound terminal row resolved by typed identity or `@terminal:<suffix>`
+/// over the snapshot's complete bound set. Panels and terminals admit no
+/// labels, so a `Label` target is parser-impossible and stays a defensive
+/// internal failure rather than a silent empty match.
+pub(crate) fn terminal_select(
+    snapshot: &Snapshot,
+    target: &Target,
+) -> Result<TerminalRow, Failure> {
+    if let Target::Label(_) = target {
+        return Err(Failure::new(FailureKind::InternalFailure));
+    }
+    let rows = terminal_rows(snapshot);
+    resolve_or_fail(
+        rows.iter().map(|row| (row.terminal_id.as_str(), "", row)),
+        target,
+        Resource::Terminal,
+    )
+    .cloned()
 }
 
 #[derive(Debug)]
@@ -1201,26 +1247,39 @@ impl<'a> ContextIndex<'a> {
     }
 }
 
-/// A typed target hits identity first; only a non-ID token becomes an exact
-/// case-sensitive label search.
+/// A typed target hits identity first; a `@<kind>:<suffix>` selector tails
+/// the member ids; only a non-ID, non-selector token becomes an exact
+/// case-sensitive label search. Multi-match arms share one epilogue: zero is
+/// an empty candidate set, one is the answer, several return every matching
+/// id for the bounded ambiguity envelope.
 fn resolve<'a, Item>(
     mut items: impl Iterator<Item = (&'a str, &'a str, Item)>,
     target: &Target,
 ) -> Result<Item, Vec<&'a str>> {
+    fn settle<'a, Item>(mut matches: Vec<(&'a str, &'a str, Item)>) -> Result<Item, Vec<&'a str>> {
+        match matches.len() {
+            0 => Err(Vec::new()),
+            1 => Ok(matches.pop().expect("len checked").2),
+            _ => Err(matches.into_iter().map(|(id, _label, _item)| id).collect()),
+        }
+    }
     match target {
         Target::Id(identity) => items
             .find(|(id, _label, _item)| *id == identity.as_str())
             .map(|(_id, _label, item)| item)
             .ok_or_else(Vec::new),
-        Target::Label(label) => {
-            let mut matches = items
+        Target::Label(label) => settle(
+            items
                 .filter(|(_id, item_label, _item)| *item_label == label.as_str())
-                .collect::<Vec<_>>();
-            match matches.len() {
-                0 => Err(Vec::new()),
-                1 => Ok(matches.pop().expect("len checked").2),
-                _ => Err(matches.into_iter().map(|(id, _label, _item)| id).collect()),
-            }
+                .collect(),
+        ),
+        Target::Selector(_) => {
+            let suffix = target.suffix().unwrap_or_default();
+            settle(
+                items
+                    .filter(|(id, _label, _item)| id.ends_with(suffix))
+                    .collect(),
+            )
         }
     }
 }
@@ -1412,37 +1471,39 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
             Ok(Projection::PanelList(rows))
         }
         QueryCommand::PanelGet(target) => {
-            let identity = match target {
-                Target::Id(identity) => identity.as_str(),
-                Target::Label(_) => {
-                    return Err(Failure::new(FailureKind::InternalFailure));
-                }
-            };
-            for context in &snapshot.terminal_contexts {
-                for tab in &context.tabs {
-                    let mut path = Vec::new();
-                    let mut found = None;
-                    collect_panels(&tab.root, context, tab, &mut path, &mut |row, slot_path| {
-                        if row.panel_id == identity {
-                            found = Some((row, slot_path.to_vec()));
-                        }
-                    });
-                    if let Some((row, slot_path)) = found {
-                        let Some((primary, children)) = panel_presentations(&tab.root, identity)
-                        else {
-                            return Err(Failure::new(FailureKind::InternalFailure));
-                        };
-                        return Ok(Projection::PanelGet(PanelDoc {
-                            row,
-                            context: index.reference(context),
-                            slot_path,
-                            primary_presentation: primary,
-                            child_presentations: children,
-                        }));
-                    }
-                }
+            // The grammar admits only typed IDs and `@panel:` selectors for
+            // panel targets; a label cannot arrive here.
+            if let Target::Label(_) = target {
+                return Err(Failure::new(FailureKind::InternalFailure));
             }
-            Err(not_found(Resource::Panel, target))
+            let (panel_id, context, tab) = resolve_or_fail(
+                panel_entries(snapshot)
+                    .into_iter()
+                    .map(|(id, context, tab)| (id.as_str(), "", (id, context, tab))),
+                target,
+                Resource::Panel,
+            )?;
+            let mut path = Vec::new();
+            let mut found = None;
+            collect_panels(&tab.root, context, tab, &mut path, &mut |row, slot_path| {
+                if row.panel_id == panel_id.as_str() {
+                    found = Some((row, slot_path.to_vec()));
+                }
+            });
+            let Some((row, slot_path)) = found else {
+                return Err(Failure::new(FailureKind::InternalFailure));
+            };
+            let Some((primary, children)) = panel_presentations(&tab.root, panel_id.as_str())
+            else {
+                return Err(Failure::new(FailureKind::InternalFailure));
+            };
+            Ok(Projection::PanelGet(PanelDoc {
+                row,
+                context: index.reference(context),
+                slot_path,
+                primary_presentation: primary,
+                child_presentations: children,
+            }))
         }
         QueryCommand::TerminalList => Ok(Projection::TerminalList(terminal_rows(snapshot))),
         QueryCommand::ApiSnapshot => Ok(Projection::ApiSnapshot(
@@ -2055,6 +2116,434 @@ mod tests {
         });
         assert_eq!(missed.kind, FailureKind::NotFound);
         assert_eq!(details(&missed)["resource"], json!("tab"));
+    }
+
+    /// A 32-hex id whose high half and trailing hex tail are controlled —
+    /// the selector surface is the tail, so `tid(0, 0xaa)` and
+    /// `tid(1, 0xaa)` share tail `aa` while staying distinct identities.
+    fn tid(high: u64, tail: u64) -> String {
+        format!("{high:016x}{tail:016x}")
+    }
+
+    /// Selector fixture: projects `…00aa`/`…10aa`/`…00bb`, workspaces
+    /// `…00cc`/`…10cc`/`…00dd`, standalone tabs `…00ee`/`…10ee`, panels
+    /// `…00ff`/`…10ff` (bound terminals `…00210`/`…11210`), `…00f1`, a
+    /// workspace tab `…00e1` whose split holds `…00f2`/`…10f2`, and a second
+    /// workspace tab `…00e3` whose right-deep split holds nine panels ending
+    /// in `42` plus one panel `…00f4`.
+    fn selector_snapshot() -> Snapshot {
+        let leaf = |panel: String, pres: String, terminal: Option<String>| {
+            json!({
+                "kind": "panel",
+                "panelId": panel,
+                "primaryPresentation": {
+                    "presentationId": pres,
+                    "label": "p",
+                    "binding": terminal.map(|terminal| json!({
+                        "terminalId": terminal,
+                        "workerId": WORKER,
+                    })),
+                },
+                "childPresentations": [],
+            })
+        };
+        fn deep(tails: &[u64], seed: &mut u64) -> Value {
+            let node = |panel: u64, pres: u64| {
+                json!({
+                    "kind": "panel",
+                    "panelId": tid(0, panel),
+                    "primaryPresentation": {
+                        "presentationId": tid(0xa, pres),
+                        "label": "p",
+                        "binding": null,
+                    },
+                    "childPresentations": [],
+                })
+            };
+            *seed += 1;
+            let slot = *seed;
+            if tails.len() == 1 {
+                return node(tails[0], slot + 0x100);
+            }
+            json!({
+                "kind": "split",
+                "splitId": tid(9, slot),
+                "orientation": "horizontal",
+                "children": [
+                    {"slotId": tid(8, slot), "node": node(tails[0], slot + 0x100)},
+                    {"slotId": tid(8, slot + 0x100), "node": deep(&tails[1..], seed)},
+                ],
+            })
+        }
+        let mut seed = 0_u64;
+        let document = json!({
+            "kind": "workbench.snapshot",
+            "protocolVersion": 1,
+            "revision": "9",
+            "siteId": tid(0, 0xaa00),
+            "navigation": {
+                "projects": [
+                    {
+                        "projectId": tid(0, 0xaa),
+                        "label": "p-a",
+                        "directories": [],
+                        "workspaces": [{
+                            "workspaceId": tid(0, 0xcc),
+                            "label": "w",
+                            "primaryDirectoryId": null,
+                            "terminalContextId": tid(0, 0x50),
+                        }],
+                    },
+                    {
+                        "projectId": tid(0, 0xbb),
+                        "label": "face",
+                        "directories": [],
+                        "workspaces": [{
+                            "workspaceId": tid(0, 0xdd),
+                            "label": "w3",
+                            "primaryDirectoryId": null,
+                            "terminalContextId": tid(0, 0x60),
+                        }],
+                    },
+                    {
+                        "projectId": tid(1, 0xaa),
+                        "label": "p-b",
+                        "directories": [],
+                        "workspaces": [{
+                            "workspaceId": tid(1, 0xcc),
+                            "label": "w",
+                            "primaryDirectoryId": null,
+                            "terminalContextId": tid(0, 0x51),
+                        }],
+                    },
+                ],
+                "standaloneTerminalContextId": tid(0, 0x01),
+            },
+            "terminalContexts": [
+                {
+                    "terminalContextId": tid(0, 0x01),
+                    "groups": [],
+                    "tabs": [
+                        {
+                            "tabId": tid(0, 0xee),
+                            "label": "t",
+                            "pinned": false,
+                            "groupId": null,
+                            "root": {
+                                "kind": "split",
+                                "splitId": tid(9, 0x90),
+                                "orientation": "horizontal",
+                                "children": [
+                                    {"slotId": tid(8, 0x90), "node": leaf(tid(0, 0xff), tid(0xa, 0x90), Some(tid(0, 0x210)))},
+                                    {"slotId": tid(8, 0x91), "node": leaf(tid(1, 0xff), tid(0xa, 0x91), Some(tid(1, 0x1210)))},
+                                ],
+                            },
+                        },
+                        {
+                            "tabId": tid(1, 0xee),
+                            "label": "t",
+                            "pinned": false,
+                            "groupId": null,
+                            "root": leaf(tid(0, 0xf1), tid(0xa, 0xf1), None),
+                        },
+                    ],
+                },
+                {
+                    "terminalContextId": tid(0, 0x50),
+                    "groups": [],
+                    "tabs": [{
+                        "tabId": tid(0, 0xe8),
+                        "label": "w1",
+                        "pinned": false,
+                        "groupId": null,
+                        "root": leaf(tid(0, 0xf8), tid(0xa, 0xf8), None),
+                    }],
+                },
+                {
+                    "terminalContextId": tid(0, 0x51),
+                    "groups": [],
+                    "tabs": [{
+                        "tabId": tid(0, 0xe9),
+                        "label": "w2",
+                        "pinned": false,
+                        "groupId": null,
+                        "root": leaf(tid(0, 0xf9), tid(0xa, 0xf9), None),
+                    }],
+                },
+                {
+                    "terminalContextId": tid(0, 0x60),
+                    "groups": [],
+                    "tabs": [
+                        {
+                            "tabId": tid(0, 0xe1),
+                            "label": "t3",
+                            "pinned": false,
+                            "groupId": null,
+                            "root": {
+                                "kind": "split",
+                                "splitId": tid(9, 0x92),
+                                "orientation": "horizontal",
+                                "children": [
+                                    {"slotId": tid(8, 0x92), "node": leaf(tid(0, 0xf2), tid(0xa, 0xf2), None)},
+                                    {"slotId": tid(8, 0x93), "node": leaf(tid(1, 0xf2), tid(0xa, 0xf3), None)},
+                                ],
+                            },
+                        },
+                        {
+                            "tabId": tid(0, 0xe3),
+                            "label": "t4",
+                            "pinned": false,
+                            "groupId": null,
+                            "root": {
+                                "kind": "split",
+                                "splitId": tid(9, 0x94),
+                                "orientation": "horizontal",
+                                "children": [
+                                    {"slotId": tid(8, 0x94), "node": leaf(tid(0, 0xf4), tid(0xa, 0xf4), None)},
+                                    {"slotId": tid(8, 0x95), "node": deep(&[0x42, 0x142, 0x242, 0x342, 0x442, 0x542, 0x642, 0x742, 0x842], &mut seed)},
+                                ],
+                            },
+                        },
+                    ],
+                },
+            ],
+        });
+        parse_snapshot(&serde_json::to_vec(&document).expect("fixture encodes"))
+            .expect("selector fixture snapshot validates")
+    }
+
+    #[test]
+    fn selectors_resolve_unique_tails_to_full_ids() {
+        let snapshot = selector_snapshot();
+        // One unique-tail hit per selector kind; the resolved document carries
+        // the full canonical id, never the selector token.
+        let projection = project(
+            &QueryCommand::ProjectGet(Target::Selector("@project:bb".into())),
+            &snapshot,
+        )
+        .expect("project selector");
+        let Projection::ProjectGet(document) = projection else {
+            panic!("project get projection");
+        };
+        assert_eq!(document.row.project_id, tid(0, 0xbb));
+
+        let projection = project(
+            &QueryCommand::WorkspaceGet(Target::Selector("@workspace:dd".into())),
+            &snapshot,
+        )
+        .expect("workspace selector");
+        let Projection::WorkspaceGet(document) = projection else {
+            panic!("workspace get projection");
+        };
+        assert_eq!(document.row.workspace_id, tid(0, 0xdd));
+
+        let projection = project(
+            &QueryCommand::TabGet(Target::Selector("@tab:e1".into())),
+            &snapshot,
+        )
+        .expect("tab selector");
+        let Projection::TabGet(document) = projection else {
+            panic!("tab get projection");
+        };
+        assert_eq!(document.row.tab_id, tid(0, 0xe1));
+
+        let projection = project(
+            &QueryCommand::PanelGet(Target::Selector("@panel:f4".into())),
+            &snapshot,
+        )
+        .expect("panel selector");
+        let Projection::PanelGet(document) = projection else {
+            panic!("panel get projection");
+        };
+        assert_eq!(document.row.panel_id, tid(0, 0xf4));
+
+        // Terminals resolve over the snapshot's complete bound set.
+        let row = terminal_select(&snapshot, &Target::Selector("@terminal:00210".into()))
+            .expect("terminal selector");
+        assert_eq!(row.terminal_id, tid(0, 0x210));
+    }
+
+    #[test]
+    fn selectors_match_inside_their_own_kind_only() {
+        let snapshot = selector_snapshot();
+        // Tail `aa` exists on two projects but no workspace — a foreign-kind
+        // selector is a miss, never a cross-kind hit.
+        let failure = project(
+            &QueryCommand::WorkspaceGet(Target::Selector("@workspace:aa".into())),
+            &snapshot,
+        )
+        .expect_err("cross-kind tail must not resolve");
+        assert_eq!(failure.kind, FailureKind::NotFound);
+        assert_eq!(details(&failure)["resource"], json!("workspace"));
+        assert_eq!(details(&failure)["target"], json!("@workspace:aa"));
+        // The same tail the terminals carry (`210`) is not a panel tail.
+        let failure = project(
+            &QueryCommand::PanelGet(Target::Selector("@panel:210".into())),
+            &snapshot,
+        )
+        .expect_err("terminal tails are not panel candidates");
+        assert_eq!(failure.kind, FailureKind::NotFound);
+        // A hex-shaped label still resolves as a label; a selector with the
+        // same spelling only looks at identifier tails.
+        let projection = project(
+            &QueryCommand::ProjectGet(Target::Label("face".into())),
+            &snapshot,
+        )
+        .expect("hex-looking label");
+        let Projection::ProjectGet(document) = projection else {
+            panic!("project get projection");
+        };
+        assert_eq!(document.row.project_id, tid(0, 0xbb));
+        let failure = project(
+            &QueryCommand::ProjectGet(Target::Selector("@project:face".into())),
+            &snapshot,
+        )
+        .expect_err("no project id ends in `face`");
+        assert_eq!(failure.kind, FailureKind::NotFound);
+    }
+
+    #[test]
+    fn selector_ambiguity_reports_bounded_candidates_and_the_true_total() {
+        let snapshot = selector_snapshot();
+        // Two-member collisions per kind, in canonical traversal order.
+        for (command, resource, expected) in [
+            (
+                QueryCommand::ProjectGet(Target::Selector("@project:aa".into())),
+                "project",
+                vec![tid(0, 0xaa), tid(1, 0xaa)],
+            ),
+            (
+                QueryCommand::WorkspaceGet(Target::Selector("@workspace:cc".into())),
+                "workspace",
+                vec![tid(0, 0xcc), tid(1, 0xcc)],
+            ),
+            (
+                QueryCommand::TabGet(Target::Selector("@tab:ee".into())),
+                "tab",
+                vec![tid(0, 0xee), tid(1, 0xee)],
+            ),
+            (
+                QueryCommand::PanelGet(Target::Selector("@panel:ff".into())),
+                "panel",
+                vec![tid(0, 0xff), tid(1, 0xff)],
+            ),
+        ] {
+            let failure = project(&command, &snapshot).expect_err("colliding selector tail");
+            assert_eq!(failure.kind, FailureKind::Ambiguous, "{resource}");
+            assert_eq!(details(&failure)["resource"], json!(resource));
+            assert_eq!(details(&failure)["totalCount"], json!(2));
+            assert_eq!(candidates(&failure), expected, "{resource}");
+        }
+        // Terminals share the same rule over bound rows.
+        let failure = terminal_select(&snapshot, &Target::Selector("@terminal:210".into()))
+            .expect_err("colliding terminal tail");
+        assert_eq!(failure.kind, FailureKind::Ambiguous);
+        assert_eq!(candidates(&failure), vec![tid(0, 0x210), tid(1, 0x1210)],);
+        // Nine panels end in `42`: the envelope caps the candidate list at
+        // eight while the total stays truthful.
+        let failure = project(
+            &QueryCommand::PanelGet(Target::Selector("@panel:42".into())),
+            &snapshot,
+        )
+        .expect_err("nine-way tail collision");
+        assert_eq!(failure.kind, FailureKind::Ambiguous);
+        assert_eq!(details(&failure)["totalCount"], json!(9));
+        assert_eq!(
+            candidates(&failure),
+            [0x42, 0x142, 0x242, 0x342, 0x442, 0x542, 0x642, 0x742]
+                .iter()
+                .map(|&tail| tid(0, tail))
+                .collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn selector_misses_are_not_found_without_candidates() {
+        let snapshot = selector_snapshot();
+        for (command, resource, target) in [
+            (
+                QueryCommand::TabGet(Target::Selector("@tab:999".into())),
+                "tab",
+                "@tab:999",
+            ),
+            (
+                QueryCommand::PanelGet(Target::Selector("@panel:999".into())),
+                "panel",
+                "@panel:999",
+            ),
+        ] {
+            let failure = project(&command, &snapshot).expect_err("selector miss");
+            assert_eq!(failure.kind, FailureKind::NotFound, "{resource}");
+            assert_eq!(details(&failure)["resource"], json!(resource));
+            assert_eq!(details(&failure)["target"], json!(target));
+            assert!(details(&failure).get("candidates").is_none());
+        }
+        let failure = terminal_select(&snapshot, &Target::Selector("@terminal:999".into()))
+            .expect_err("terminal selector miss");
+        assert_eq!(failure.kind, FailureKind::NotFound);
+        // A full 32-hex id is still an exact identity lookup, unchanged.
+        let projection = project(&QueryCommand::TabGet(Target::Id(tid(0, 0xe1))), &snapshot)
+            .expect("full id resolves");
+        let Projection::TabGet(document) = projection else {
+            panic!("tab get projection");
+        };
+        assert_eq!(document.row.tab_id, tid(0, 0xe1));
+    }
+
+    #[test]
+    fn selector_filters_share_operand_semantics() {
+        let snapshot = selector_snapshot();
+        // `--project` on `workspace list` resolves the same suffix grammar.
+        let projection = project(
+            &QueryCommand::WorkspaceList {
+                project: Some(Target::Selector("@project:bb".into())),
+            },
+            &snapshot,
+        )
+        .expect("filtered workspace list");
+        let Projection::WorkspaceList(rows) = projection else {
+            panic!("workspace list projection");
+        };
+        assert_eq!(
+            rows.iter()
+                .map(|row| row.workspace_id.clone())
+                .collect::<Vec<_>>(),
+            vec![tid(0, 0xdd)],
+        );
+        // `--workspace` on `tab list` and `--tab` on `panel list` likewise.
+        let projection = project(
+            &QueryCommand::TabList {
+                workspace: Some(Target::Selector("@workspace:dd".into())),
+                standalone: false,
+            },
+            &snapshot,
+        )
+        .expect("filtered tab list");
+        let Projection::TabList(rows) = projection else {
+            panic!("tab list projection");
+        };
+        assert_eq!(
+            rows.iter()
+                .map(|row| row.tab_id.clone())
+                .collect::<Vec<_>>(),
+            vec![tid(0, 0xe1), tid(0, 0xe3)],
+        );
+        let projection = project(
+            &QueryCommand::PanelList {
+                tab: Some(Target::Selector("@tab:e1".into())),
+            },
+            &snapshot,
+        )
+        .expect("filtered panel list");
+        let Projection::PanelList(rows) = projection else {
+            panic!("panel list projection");
+        };
+        assert_eq!(
+            rows.iter()
+                .map(|row| row.panel_id.clone())
+                .collect::<Vec<_>>(),
+            vec![tid(0, 0xf2), tid(1, 0xf2)],
+        );
     }
 
     #[test]

@@ -52,14 +52,29 @@ reference is a defect, and so is the reverse.
 
 ## Targets and filters
 
-- A `<target>` operand is parsed first as a complete typed identifier. A token that is not a
-  valid identifier is an exact, case-sensitive label candidate when the resource admits labels.
-  There is no prefix, fuzzy, or case-insensitive matching.
-- An identifier matches by identity only. A label that also has identifier shape is reachable only
-  through its real identifier.
-- Zero matches is a not-found refusal. Several exact matches is an ambiguous refusal that reports
-  a bounded candidate list and the true total; the command never picks one.
-- Resources whose labels are not unique by contract accept identifiers only.
+- A `<target>` operand is parsed first as a complete typed identifier, then as an explicit
+  selector `@<kind>:<suffix>` — `<kind>` one of `project`, `workspace`, `tab`, `panel`,
+  `terminal`, and `<suffix>` one to thirty-one lowercase hexadecimal characters — resolved
+  against the snapshot the command already reads to the one member of that kind whose
+  identifier ends with the suffix. A token that is neither is an exact, case-sensitive label
+  candidate when the resource admits labels. There is no prefix, fuzzy, or case-insensitive
+  matching.
+- An identifier matches by identity only. A selector whose kind does not match the operand's
+  resource, or whose suffix is empty, uppercase, or a full 32-digit identifier, is a usage
+  failure before any runtime access; any other `@` token keeps its label reading — only the
+  five recognized prefixes are selector syntax. A label that itself has identifier or selector
+  shape is reachable only through its real identifier.
+- Zero matches is a not-found refusal. Several matches — exact labels or selector suffixes —
+  is an ambiguous refusal that reports a bounded candidate list and the true total; the
+  command never picks one.
+- A selector names the member whose identifier ends with the suffix in that invocation's
+  snapshot — a momentary handle, never a durable one: after deletion and recreation the same
+  suffix can name a different member, and a command needing stable identity uses the full
+  typed identifier. Selector candidates are the members visible in that snapshot under the
+  command's declared scope; an operand scoped to a context (such as `panel move
+  --target-panel`) resolves inside that scope only, with no global fallback.
+- Resources whose labels are not unique by contract accept identifiers and their own selectors
+  only.
 - Filters use the same target rules as operands and are declared per command. A filter naming an
   absent entity is not-found; an existing entity with an empty result is a successful empty list.
 - Pagination options, when a command declares them, are `--limit <n>` with declared bounds and an

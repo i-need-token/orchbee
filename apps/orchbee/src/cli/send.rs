@@ -79,10 +79,10 @@ mod linux {
     use super::super::source::{self, ArmedSignals, Finish, SourceFailure, source_details};
     use super::super::{
         Failure, FailureKind, Output, SourceFinalization, failure_output, output, present, results,
-        source_failure_output, stage_details, target_details,
+        source_failure_output, stage_details,
     };
     use super::{SendVerdict, TERMINAL_SEND_ID};
-    use crate::invocation::{OutputFormat, Resource, Target, TerminalSendInput, TerminalSendKey};
+    use crate::invocation::{OutputFormat, Target, TerminalSendInput, TerminalSendKey};
     use crate::local_client::{OutcomeUnknownReason, SubmissionError};
     use crate::localization::Locale;
 
@@ -285,16 +285,10 @@ mod linux {
         input: &TerminalSendInput,
         snapshot: &Snapshot,
     ) -> Result<(TerminalSendRequest, PayloadFact, RequestFacts), Failure> {
-        let identity = match target {
-            Target::Id(identity) => identity.as_str(),
-            // The grammar admits only typed IDs for terminal targets.
-            Target::Label(_) => return Err(Failure::new(FailureKind::InternalFailure)),
-        };
-        let row = results::terminal_binding(snapshot, identity).ok_or_else(|| {
-            Failure::new(FailureKind::NotFound)
-                .details(target_details(Resource::Terminal, identity))
-                .source(results::snapshot_source(snapshot))
-        })?;
+        // Typed IDs and `@terminal:` selectors resolve against the snapshot's
+        // complete bound set; the request then carries the resolved full id.
+        let row = results::terminal_select(snapshot, target)
+            .map_err(|failure| failure.source(results::snapshot_source(snapshot)))?;
         let (payload, fact) = match input {
             TerminalSendInput::Text { text, enter } => {
                 let record_bytes = text.len() + usize::from(*enter);

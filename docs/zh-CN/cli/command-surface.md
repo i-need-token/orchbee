@@ -47,12 +47,22 @@ target、帮助、版本、补全，以及面向人和 Agent 的可发现性契�
 
 ## Target 与过滤器
 
-- `<target>` 操作数首先按完整的类型化标识符解析。不是合法标识符的 token，在该 resource 允许
-  label 时，是精确、区分大小写的 label 候选。不存在前缀、模糊或不区分大小写的匹配。
-- 标识符只按身份匹配。同时具有标识符形状的 label 只能通过其真实标识符到达。
-- 零匹配是 not-found 拒绝。多个精确匹配是 ambiguous 拒绝，报告有界的候选列表和真实总数；
-  命令绝不替用户挑选一个。
-- 按契约 label 不唯一的 resource 只接受标识符。
+- `<target>` 操作数首先按完整的类型化标识符解析，其次按显式 selector `@<kind>:<suffix>`
+  解析——`<kind>` 为 `project`、`workspace`、`tab`、`panel`、`terminal` 之一，`<suffix>`
+  为一至三十一个小写十六进制字符——selector 在命令本就读取的快照上解析到该 kind 中
+  标识符以该后缀结尾的唯一成员。两者都不是的 token，在该 resource 允许 label 时，是
+  精确、区分大小写的 label 候选。不存在前缀、模糊或不区分大小写的匹配。
+- 标识符只按身份匹配。kind 与操作数 resource 不符，或后缀为空、含大写、为完整 32 位
+  数字的 selector，在任何运行时访问之前就是用法失败；其余 `@` token 保持 label
+  解读——只有五个已识别前缀是 selector 语法。本身具有标识符或 selector 形状的 label
+  只能通过其真实标识符到达。
+- 零匹配是 not-found 拒绝。多个匹配——精确 label 或 selector 后缀——是 ambiguous
+  拒绝，报告有界的候选列表和真实总数；命令绝不替用户挑选一个。
+- selector 指名的是该次调用快照中标识符以该后缀结尾的成员——是当下句柄而非持久句柄：
+  删除再创建后同一后缀可能指名不同成员；需要稳定身份的命令使用完整类型化标识符。
+  selector 候选是该快照中可见的成员，且服从命令声明的作用域；限定于某上下文的操作数
+  （如 `panel move --target-panel`）只在该作用域内解析，无全局回退。
+- 按契约 label 不唯一的 resource 只接受标识符及其自身 selector。
 - 过滤器使用与操作数相同的 target 规则，并按命令声明。指向不存在实体的过滤器是 not-found；
   存在的实体但结果为空是成功的空列表。
 - 命令声明分页选项时，使用带声明边界的 `--limit <n>` 和上一页返回的不透明 `--cursor <cursor>`。

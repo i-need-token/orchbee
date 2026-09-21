@@ -246,13 +246,19 @@ orchbee <recognized path> -h|--help
 
 ### 目标与过滤器
 
-`project`/`workspace`/`tab` 的 `<target>` 先按完整 typed ID 解析（恰好 32 位小写十六进制、
-非零）。合法 ID 只按身份匹配。其他 token 视为精确、区分大小写的 label 候选，要求 1–512 个
-Unicode scalar；空或过长的 token 与全零 ID 形值都是 `invalid-identifier`（退出 2）。本身恰为
-合法 ID 形的 label 永远无法按 label 命中——ID 天然优先；该实体仍可通过其真实 ID 访问。
-`panel` 与 `terminal` 只接受完整 typed ID，其余一律 `invalid-identifier`。过滤器
+`<target>` 操作数有三种解析形态。第一种是完整 typed ID（恰好 32 位小写十六进制、非零），
+只按身份匹配。第二种是显式 selector `@<kind>:<suffix>`——`<kind>` 为 `project`、
+`workspace`、`tab`、`panel`、`terminal` 之一，`<suffix>` 为一至三十一个小写十六进制
+字符——在已读快照上解析到该 kind 中标识符以该后缀结尾的唯一成员。已识别 selector
+前缀但后缀为空、含大写、为 32 位数字，或 kind 与操作数 resource 不符，在任何运行时访问
+之前即 `invalid-identifier`（退出 2）；其余 `@` token 保持 label 解读——只有五个前缀是
+selector 语法。其他 token 在 resource 允许 label 时视为精确、区分大小写的 label 候选，
+要求 1–512 个 Unicode scalar；空或过长的 token 与全零 ID 形值都是 `invalid-identifier`
+（退出 2）。本身恰为合法 ID 或 selector 形状的 label 永远无法按 label 或 selector
+命中——该实体仍可通过其真实 ID 访问。`panel` 与 `terminal` 只接受完整 typed ID 及各自的
+`@panel:`/`@terminal:` selector，其余一律 `invalid-identifier`。过滤器
 （`--project`、`--workspace`、`--tab`）使用各自资源相同的 target 规则；所有 mutation 位置
-操作数与 `--target-panel` 同样遵守（`panel` 规则：仅 typed ID，并在被移动 panel 自身所在
+操作数与 `--target-panel` 同样遵守（`panel` 规则，并在被移动 panel 自身所在
 tab 内解析）。`api schema` 接受非空
 schema ID；空串是 `invalid-identifier`（`resource="schema"`），无匹配是 `not-found`。
 `agent get`、`agent explain` 与 `agent wait` 接受 Agent session 身份：取自 `[A-Za-z0-9._:-]` 的
@@ -266,8 +272,11 @@ profile ID，再按名称、匹配基数必须恰为一。零匹配应答 `not-f
 条目应答 `ambiguous`，报告至多前 8 个候选 profile ID 加真实 `totalCount`——两者均走
 专用 launch-profile 失败 envelope。
 
-读取成功后的解析：零匹配 → `not-found`（3）；多个精确 label 匹配 → `ambiguous`（3），按
-canonical 遍历次序报告至多前 8 个候选 typed ID 与真实 `totalCount`。命名不存在实体的过滤器是
+读取成功后的解析：零匹配 → `not-found`（3）；多个精确 label 或 selector 后缀匹配 →
+`ambiguous`（3），按 canonical 遍历次序报告至多前 8 个候选 typed ID 与真实 `totalCount`。
+selector 候选是命令本已读取的那份快照中可见的成员——对每个操作数声明的作用域都是完整
+集合，绝不追加抓取——且 selector 是当下句柄而非持久句柄：删除再创建可能让同一后缀落到
+不同成员上，需要稳定身份的命令使用完整 typed ID。命名不存在实体的过滤器是
 `not-found`；实体存在但结果为空是成功的空表。
 
 ## 查询状态机与预算

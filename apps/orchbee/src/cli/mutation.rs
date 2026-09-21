@@ -279,12 +279,12 @@ mod linux {
     use std::time::Instant;
 
     use orchbee_workbench_protocol::{
-        LaunchProfileId, PanelNode, Project, ProtocolVersion, SiteId, Snapshot, Tab,
-        TerminalContext, WorkbenchAction, WorkbenchCommand, WorkbenchCommandUnavailableReason,
-        WorkbenchPanelId, WorkbenchPanelSplitDirection, WorkbenchRejectionReason,
-        WorkbenchRequestId, WorkbenchRevision, WorkbenchTabMoveDirection,
-        WorkbenchTerminalFailureReason, WorkbenchTerminalOutcome,
-        WorkbenchTerminalUnavailableReason, WorkbenchWireError, Workspace,
+        LaunchProfileId, Project, ProtocolVersion, SiteId, Snapshot, Tab, TerminalContext,
+        WorkbenchAction, WorkbenchCommand, WorkbenchCommandUnavailableReason, WorkbenchPanelId,
+        WorkbenchPanelSplitDirection, WorkbenchRejectionReason, WorkbenchRequestId,
+        WorkbenchRevision, WorkbenchTabMoveDirection, WorkbenchTerminalFailureReason,
+        WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason, WorkbenchWireError,
+        Workspace,
     };
     use serde_json::{Map, json};
 
@@ -714,46 +714,44 @@ mod linux {
         )
     }
 
-    /// Panels have no label; only complete typed IDs resolve, exactly like
-    /// `panel get`.
+    /// Panels have no label; typed IDs and `@panel:` selectors resolve
+    /// through the shared resolver over the snapshot's complete panel set,
+    /// exactly like `panel get`.
     fn resolve_panel<'a>(
         snapshot: &'a Snapshot,
         target: &Target,
     ) -> Result<(&'a TerminalContext, &'a Tab, WorkbenchPanelId), Failure> {
-        // The grammar admits only typed IDs for `Resource::Panel` targets, so
-        // a non-`Id` target cannot arrive here; keep the arm defensive anyway.
-        let Target::Id(identity) = target else {
+        // A `Label` target is parser-impossible for `Resource::Panel`; keep
+        // the arm defensive anyway.
+        if let Target::Label(_) = target {
             return Err(Failure::new(FailureKind::InternalFailure));
-        };
-        for context in &snapshot.terminal_contexts {
-            for tab in &context.tabs {
-                if let Some(panel_id) = panel_id_in(&tab.root, identity) {
-                    return Ok((context, tab, panel_id.clone()));
-                }
-            }
         }
-        Err(results::not_found(Resource::Panel, target))
+        let (panel_id, context, tab) = results::resolve_or_fail(
+            results::panel_entries(snapshot)
+                .into_iter()
+                .map(|(id, context, tab)| (id.as_str(), "", (id, context, tab))),
+            target,
+            Resource::Panel,
+        )?;
+        Ok((context, tab, panel_id.clone()))
     }
 
+    /// `--target-panel` resolves inside the moved panel's own tab — the local
+    /// scope is the complete candidate set; there is no global fallback after
+    /// a miss.
     fn resolve_panel_in(tab: &Tab, target: &Target) -> Result<WorkbenchPanelId, Failure> {
-        // Same typed-ID-only invariant as `resolve_panel`: unreachable unless
-        // the parser's panel target rule ever widens.
-        let Target::Id(identity) = target else {
+        // Same parser-impossible `Label` arm as `resolve_panel`.
+        if let Target::Label(_) = target {
             return Err(Failure::new(FailureKind::InternalFailure));
-        };
-        panel_id_in(&tab.root, identity)
-            .cloned()
-            .ok_or_else(|| results::not_found(Resource::Panel, target))
-    }
-
-    fn panel_id_in<'a>(node: &'a PanelNode, identity: &str) -> Option<&'a WorkbenchPanelId> {
-        match node {
-            PanelNode::Panel { panel_id, .. } if panel_id.as_str() == identity => Some(panel_id),
-            PanelNode::Panel { .. } => None,
-            PanelNode::Split { children, .. } => children
-                .iter()
-                .find_map(|slot| panel_id_in(&slot.node, identity)),
         }
+        results::resolve_or_fail(
+            results::panel_ids_in(&tab.root)
+                .into_iter()
+                .map(|id| (id.as_str(), "", id)),
+            target,
+            Resource::Panel,
+        )
+        .cloned()
     }
 
     /// Submit exactly one command on the admitted session and map the typed
@@ -1763,6 +1761,115 @@ mod linux {
                 assert_eq!(fact.reason, expected_reason, "{outcome:?}");
                 assert_eq!(fact.geometry.is_some(), has_geometry, "{outcome:?}");
             }
+        }
+
+        /// `panel move --target-panel` resolves inside the moved panel's own
+        /// tab — a selector tail that only exists on another tab's panel is a
+        /// miss, never a cross-tab fallback.
+        #[test]
+        fn panel_move_scopes_target_panel_to_the_source_tab() {
+            use orchbee_workbench_protocol::parse_snapshot;
+
+            fn tid(high: u64, tail: u64) -> String {
+                format!("{high:016x}{tail:016x}")
+            }
+            let leaf = |panel: &str, pres: &str| {
+                json!({
+                    "kind": "panel",
+                    "panelId": panel,
+                    "primaryPresentation": {
+                        "presentationId": pres,
+                        "label": "p",
+                        "binding": null,
+                    },
+                    "childPresentations": [],
+                })
+            };
+            let document = json!({
+                "kind": "workbench.snapshot",
+                "protocolVersion": 1,
+                "revision": "9",
+                "siteId": tid(0, 0xaa00),
+                "navigation": {
+                    "projects": [{
+                        "projectId": tid(0, 0xbb),
+                        "label": "p",
+                        "directories": [],
+                        "workspaces": [{
+                            "workspaceId": tid(0, 0xdd),
+                            "label": "w",
+                            "primaryDirectoryId": null,
+                            "terminalContextId": tid(0, 0x60),
+                        }],
+                    }],
+                    "standaloneTerminalContextId": tid(0, 0x01),
+                },
+                "terminalContexts": [
+                    {
+                        "terminalContextId": tid(0, 0x01),
+                        "groups": [],
+                        "tabs": [{
+                            "tabId": tid(0, 0xee),
+                            "label": "t",
+                            "pinned": false,
+                            "groupId": null,
+                            // A panel ending `ff` lives here — outside the
+                            // source tab's scope.
+                            "root": leaf(&tid(0, 0xff), &tid(0xa, 0x01)),
+                        }],
+                    },
+                    {
+                        "terminalContextId": tid(0, 0x60),
+                        "groups": [],
+                        "tabs": [{
+                            "tabId": tid(0, 0xe1),
+                            "label": "t3",
+                            "pinned": false,
+                            "groupId": null,
+                            "root": {
+                                "kind": "split",
+                                "splitId": tid(9, 0x92),
+                                "orientation": "horizontal",
+                                "children": [
+                                    {"slotId": tid(8, 0x92), "node": leaf(&tid(0, 0xf2), &tid(0xa, 0x02))},
+                                    {"slotId": tid(8, 0x93), "node": leaf(&tid(1, 0x1f2), &tid(0xa, 0x03))},
+                                ],
+                            },
+                        }],
+                    },
+                ],
+            });
+            let snapshot = parse_snapshot(&serde_json::to_vec(&document).unwrap()).unwrap();
+            let move_command = |into: &str| MutationCommand::PanelMove {
+                target: Target::Selector("@panel:0f2".into()),
+                into: Target::Selector(into.into()),
+                direction: WorkbenchPanelSplitDirection::Left,
+            };
+
+            // Unique in-scope tail: the action carries the resolved full id.
+            let resolved =
+                action(&move_command("@panel:1f2"), &snapshot).expect("in-scope selector resolves");
+            let WorkbenchAction::PanelMove {
+                panel_id,
+                target_panel_id,
+                ..
+            } = resolved
+            else {
+                panic!("panel move action");
+            };
+            assert_eq!(panel_id.as_str(), tid(0, 0xf2));
+            assert_eq!(target_panel_id.as_str(), tid(1, 0x1f2));
+
+            // In-scope collision: both sibling panels end in `f2`.
+            let failure =
+                action(&move_command("@panel:f2"), &snapshot).expect_err("in-scope collision");
+            assert_eq!(failure.kind, FailureKind::Ambiguous);
+
+            // `ff` exists globally (the standalone tab) but not inside the
+            // source tab — no global fallback.
+            let failure = action(&move_command("@panel:ff"), &snapshot)
+                .expect_err("out-of-scope tail must miss");
+            assert_eq!(failure.kind, FailureKind::NotFound);
         }
     }
 }
