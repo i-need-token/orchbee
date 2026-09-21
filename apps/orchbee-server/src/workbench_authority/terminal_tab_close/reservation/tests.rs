@@ -39,7 +39,12 @@ fn reservation_covers_simultaneous_maximum_tombstone_status_and_resume_receipt()
             attempt_generation: resume.expected_attempt_generation,
         },
     );
-    let control = receipt_charge(&resume, &response).unwrap();
+    let control = serialize_workbench_request(&WorkbenchRequest::TabCloseResume(resume))
+        .unwrap()
+        .len()
+        + serialize_workbench_response(&WorkbenchResponse::TabCloseResume(response))
+            .unwrap()
+            .len();
     let read = serialize_workbench_response(&WorkbenchResponse::TabCloseRead(
         WorkbenchTabCloseReadResult {
             protocol_version: ProtocolVersion,
@@ -50,10 +55,14 @@ fn reservation_covers_simultaneous_maximum_tombstone_status_and_resume_receipt()
     .unwrap()
     .len();
     assert!(reserved >= ledger_size(&close, &acknowledgment).unwrap() + read + control);
+    // The committed charge = the exact wire cells plus the record's actual
+    // controlled heap, the ledger key, and both receipt payload slots.
+    let record = authority.close_record(&close.request_id).unwrap();
     assert_eq!(
-        maximum_primary_charge(&close, &acknowledgment, 1),
+        entry_reservation(&close, &acknowledgment, 1, record, &close.request_id),
         Some(reserved)
     );
+    assert_eq!(record.reserved_bytes, reserved);
 }
 
 #[test]

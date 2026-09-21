@@ -70,12 +70,41 @@ controller 权限；仅受信本地组合显式设置它。Close 和 Resume 需�
 保留重放/别名/回执判定之后约束新主操作接受及全新 Resume，不清除旧确认或状态。既有 Create/Move
 adapter 将 Close 专属原因、已接受结果及响应信封拒绝为 action 不兼容。
 
+### Workspace 范围 Close
+
+`workspace.close {projectId, workspaceId}` 在与成员级 Close 相同的生命周期授权、指纹、
+重放/加入优先级及修订额度规则下，对指定 Workspace 的 Terminal Context 准入一次范围级
+Close。准入解析当前 `(project, workspace, terminalContext)` 三元组，冻结该上下文完整的
+有序叶子成员关系——零成员的 Empty 上下文也是有效范围——并预留一份额度及有界保留记录。
+开启中的成员级 Close、已准入但未提交的结构写入，或覆盖该上下文的另一个范围级 Close
+返回 `terminal-busy`；随后保留记录在发布或终态前隔离该上下文上的后续成员级 close 与
+结构写入。相同范围的新命令携自己的固定账本确认加入该操作；完全相同的保留指纹重放其
+原确认。
+
+接受返回 `workspace-close-accepted {closeRequestId, projectId, workspaceId,
+terminalContextId, acceptedRevision}`：主命令请求 ID 即 `closeRequestId`，
+`acceptedRevision` 为准入基础修订，与成员级 Close 完全一致。无副作用的
+`workbench.workspace-close.read {protocolVersion, requestId, siteId, projectId, workspaceId}`
+不分配账本条目，返回 `not-closing`、`denied`、`unavailable {reason:server-busy}` 或
+`available {closeRequestId, projectId, workspaceId, terminalContextId,
+attemptGeneration, status, counts, members}`：`members` 按冻结的准入顺序保留，仅携带
+每成员生命周期事实——close 修订只属于范围级 `status`——`counts` 对相同的行聚合。
+范围查询包含 closed 墓碑，因此已被发布移除的范围仍返回 `available`。
+`workbench.workspace-close.resume {protocolVersion, requestId, siteId, projectId,
+workspaceId, closeRequestId, expectedAttemptGeneration}` 应用相同的代次纪律与预留控制
+存储，每个结果均回显范围字段。
+
+当每个被捕获成员均已知销毁且精确清理完成后，发布在一次规范提交中同时移除该
+Workspace 及其 Terminal Context，并记录 Closed 墓碑。Project、其目录、目录关联及
+Git checkout 均不受影响，且任何成员行都不携带 close 修订。
+
 ## Close 命令与保留状态
 
 既有 `workbench.command` 信封及完整指纹
 `(requestId, siteId, expectedRevision, action)` 准入
-`{kind:"tab.close", terminalContextId, tabId}` 与
-`{kind:"panel.close", terminalContextId, tabId, panelId}`。优先级依次为：生命周期授权；精确重放/冲突；
+`{kind:"tab.close", terminalContextId, tabId}`、
+`{kind:"panel.close", terminalContextId, tabId, panelId}` 及
+`{kind:"workspace.close", projectId, workspaceId}`。优先级依次为：生命周期授权；精确重放/冲突；
 新变更的退役检查；账本条目容量；Site/基础修订/上下文/严格成员关系；精确目标及终端关联；
 Busy/运行时身份不可用；资源预留；共同接受。已接受 Close 的重放在 Workbench 退役后仍可读取。
 重放没有副作用。
@@ -143,7 +172,10 @@ Retry Close 要求已显示的可恢复状态及重新确认。接受回复丢�
 
 主操作准入预留一个有界控制单元及最后一次已接受 Resume 回执，包含最大编码响应存储。
 恢复无需普通账本条目或别名分配。Close 专属控制为
-`workbench.tab-close.resume {protocolVersion,requestId,siteId,terminalContextId,tabId,closeRequestId,expectedAttemptGeneration}`。
+`workbench.tab-close.resume {protocolVersion,requestId,siteId,terminalContextId,tabId,closeRequestId,expectedAttemptGeneration}`；
+Workspace 范围控制 `workbench.workspace-close.resume
+{protocolVersion,requestId,siteId,projectId,workspaceId,closeRequestId,expectedAttemptGeneration}`
+遵循相同规则并回显其范围字段。
 它使用既有请求 ID 类型、生命周期授权及再次面向所有 Client 的确认。
 `workbench.tab-close.resume.result` 回显请求 ID 及规范目标，返回
 `resumed {attemptGeneration}`、`stale {attemptGeneration}`、`denied`、
@@ -318,6 +350,16 @@ Host 效果前，预留主命令及最大编码 command/ack/status/tombstone 费
 所有写入计算已预留条目/字节。读取不消耗，最终完成无需后续账本插入。序列化字节预留不证明
 分配、panic 或崩溃原子性。
 
+保留预留量按实测计算，绝不使用统一费率：以一次经检查的加法合计最大合法 wire 单元
+——主命令加确认、最坏合法状态文档（范围级 Close 的文档还须按每个被捕获成员各一行
+最坏拼写加分隔符计费）、最坏 Resume 请求及最坏 Resume 结果——加上账本键的自有容量、
+已提交记录的实际受控堆（记录本体、各自有身份缓冲区、continuation/target 两个 `Vec`
+按元素大小计的容量，以及每个被捕获成员一份有界生命周期请求负载），以及两个同形态
+最大回执负载槽。叶子级或聚合成员级 Close 对自身捕获成员应用同一公式；Empty 范围
+Close 仅计固定份额、零成员负载。Resume 在任何状态变更前实测真实候选回执：它必须
+装入其预留负载槽，且保留记录——含既有回执——加候选必须仍在原预留量内；超预算返回
+busy，绝不视为格式错误。
+
 先保留 KnownDisposed 并完成精确本地清理。在 Site 门锁内验证当前适用的成员关系及精确目标
 元组，再从**当前** snapshot 准备：聚合 Close 将整棵捕获树的每个 leaf 作为一次 Tab 发布移除，
 保留其他 Tab、顺序及标签。叶子级 Close 恰好移除其捕获的叶子：该叶子的父 Split 被兄弟子树
@@ -419,10 +461,10 @@ Close 事实由原生状态消费者负责。运行时集成仍需要原生模�
 
 ### Server 有限证据及细化
 
-从仓库根目录运行这三个已注册检查：
+从仓库根目录运行已注册检查：
 
 ```sh
-node scripts/tla/run-models.mjs --models workbench-tab-close-coordination,workbench-tab-close-create-reference,workbench-panel-split --jobs 1
+node scripts/tla/run-models.mjs --models workbench-tab-close-coordination,workbench-tab-close-create-reference,workbench-panel-split,workspace-tab-close --jobs 1
 ```
 
 `WorkbenchPanelSplit` 同时覆盖叶子 close 切点：Panel 级 close 冻结一个叶子成员，经同一
@@ -447,6 +489,21 @@ node scripts/tla/run-models.mjs --models workbench-tab-close-coordination,workbe
 Worker Disposed 抽象独立生命周期模型的精确 Host/Worker 清理结果；发布前仍须 Server 清理。
 读取/重放是无效果观察。授权检查、无效 wire 输入、原因枚举、完整元组转换及载体解析
 仍属于具体测试，而非额外的抽象协议主张。
+
+[`WorkspaceTabClose`](../formal/tla/WorkspaceTabClose.tla) 拥有有界 Workspace 范围
+Close：一次准入在结构写入栅栏下冻结完整有序叶子成员关系——Empty 上下文亦然——
+该栅栏在操作开启期间双向成立；一个有界尝试窗口配合代次栅栏的 Resume；以及一次
+原子发布，在 Project、目录、目录关联及 checkout 均存活的前提下同时移除 Workspace
+与其 Terminal Context。成员进入 Unknown 终态后永不能发布，但记录保持加入、受栅栏
+保护且计费：`ScopeMemberUnknown` 与 open/blocked 一样保留预留修订额度，
+`ScopeStateOwnsRecord` 仅对 absent 或已发布 closed 记录释放额度。必需覆盖现包含
+`StructuralWriteAdmitted` 及范围族 `ScopeCloseAcceptance`、`ScopeMemberCleaned`、
+`ScopeMemberBlocked`、`ScopeMemberUnknown`、`ScopeResume`、`ScopePublication`、
+`ScopeCloseJoin`、`ScopeRerunRejected`、`ScopeResumeStaleRejected`、
+`ScopeResumeNonResumableRejected`、`ScopeStatusNotClosing`、`ScopeStatusTombstone`、
+`ObserveScopeVacuousClose`、`ObserveScopeMembershipCaptured`、`ObserveScopeResumed`
+与 `ObserveScopeTombstoneAfterRemoval`。这些动作是已注册的要求；对扩展覆盖的
+TLC 记录通过仍待完成，本文不声称已通过。
 
 [`WorkbenchTabCloseCreateReference`](../formal/tla/WorkbenchTabCloseCreateReference.tla) 探索
 三个永不复用的生命周期身份、最多两个存活成员、三个保留 Create 记录、一次 Move、一次 Rename

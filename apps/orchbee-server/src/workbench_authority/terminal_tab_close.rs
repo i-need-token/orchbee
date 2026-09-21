@@ -170,6 +170,9 @@ pub(super) struct CloseRecord {
     targets: Vec<WorkbenchTabCloseTarget>,
     generation: WorkbenchTabCloseAttemptGeneration,
     resume_receipt: Option<AcceptedResumeReceipt>,
+    /// One receipt payload slot — the measured owned-buffer budget any
+    /// single accepted-resume receipt must fit; the reservation holds two.
+    receipt_slot_bytes: usize,
     reserved_bytes: usize,
     continuations: Vec<CloseContinuation>,
     scheduler_cursor: usize,

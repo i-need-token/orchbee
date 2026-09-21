@@ -6,6 +6,7 @@ mod panel_split;
 mod tab_close;
 mod tab_move;
 mod tab_rename;
+mod workspace_close;
 mod workspace_setup;
 use crate::local_client::{
     SystemMonotonicClock,

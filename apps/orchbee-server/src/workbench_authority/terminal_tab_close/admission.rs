@@ -397,21 +397,6 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
         };
         let response = result(&self.command, outcome);
         let member_count = self.members.len();
-        let Some(reserved_bytes) =
-            super::reservation::maximum_primary_charge(&self.command, &response, member_count)
-        else {
-            return WorkbenchTabClosePreparation::Ready(self.authority.retire(&self.command));
-        };
-        let Some(next_ledger_bytes) = self.authority.ledger_bytes.checked_add(reserved_bytes)
-        else {
-            return WorkbenchTabClosePreparation::Ready(self.authority.retire(&self.command));
-        };
-        if next_ledger_bytes > MAXIMUM_LEDGER_BYTES {
-            return WorkbenchTabClosePreparation::Ready(result(
-                &self.command,
-                unavailable(WorkbenchCommandUnavailableReason::RequestLedgerFull),
-            ));
-        }
         let request_id = self.command.request_id.clone();
         let mut targets = Vec::with_capacity(member_count);
         let mut continuations = Vec::with_capacity(member_count);
@@ -426,7 +411,14 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
             });
             continuations.push(continuation);
         }
-        let record = Box::new(CloseRecord {
+        // Resolve, build, then measure: the bounded record exists before the
+        // ledger cap check so the reservation charges actual owned payloads,
+        // never a sampled constant. Any failure below drops the temporaries
+        // with no retained effect.
+        let Some(receipt_slot_bytes) = super::reservation::receipt_slot_bytes(&self.scope) else {
+            return WorkbenchTabClosePreparation::Ready(self.authority.retire(&self.command));
+        };
+        let mut record = Box::new(CloseRecord {
             command: self.command,
             result: response.clone(),
             scope: self.scope,
@@ -434,13 +426,34 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
             targets,
             generation,
             resume_receipt: None,
-            reserved_bytes,
+            receipt_slot_bytes,
+            reserved_bytes: 0,
             continuations,
             scheduler_cursor: 0,
             publication_attempted: false,
             parked_publication: None,
             closed_revision: None,
         });
+        let Some(reserved_bytes) = super::reservation::entry_reservation(
+            &record.command,
+            &response,
+            member_count,
+            &record,
+            &request_id,
+        ) else {
+            return WorkbenchTabClosePreparation::Ready(self.authority.retire(&record.command));
+        };
+        let Some(next_ledger_bytes) = self.authority.ledger_bytes.checked_add(reserved_bytes)
+        else {
+            return WorkbenchTabClosePreparation::Ready(self.authority.retire(&record.command));
+        };
+        if next_ledger_bytes > MAXIMUM_LEDGER_BYTES {
+            return WorkbenchTabClosePreparation::Ready(result(
+                &record.command,
+                unavailable(WorkbenchCommandUnavailableReason::RequestLedgerFull),
+            ));
+        }
+        record.reserved_bytes = reserved_bytes;
         WorkbenchTabClosePreparation::Prepared(Box::new(PreparedWorkbenchTabClose {
             authority: self.authority,
             record,

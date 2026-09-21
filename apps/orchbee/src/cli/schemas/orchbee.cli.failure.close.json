@@ -265,6 +265,10 @@
 			"type": "string",
 			"pattern": "^(0|[1-9][0-9]*)$"
 		},
+		"generation": {
+			"type": "string",
+			"pattern": "^[1-9][0-9]*$"
+		},
 		"closeStageDetails": {
 			"type": "object",
 			"required": ["stage"],
@@ -308,7 +312,7 @@
 					]
 				},
 				"attemptGeneration": {
-					"$ref": "#/$defs/revision"
+					"$ref": "#/$defs/generation"
 				}
 			}
 		},
@@ -413,7 +417,7 @@
 							"$ref": "#/$defs/id"
 						},
 						"expectedAttemptGeneration": {
-							"$ref": "#/$defs/revision"
+							"$ref": "#/$defs/generation"
 						}
 					}
 				}

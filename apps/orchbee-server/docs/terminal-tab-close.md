@@ -89,12 +89,49 @@ primary acceptance and fresh Resume after retained replay/alias/receipt decision
 erase old acknowledgments or status. Existing Create/Move adapters
 reject Close-only reasons, accepted outcomes and response envelopes as action-incompatible.
 
+### Workspace scope Close
+
+`workspace.close {projectId, workspaceId}` admits a scope Close over the named
+Workspace's Terminal Context under the same lifecycle grant, fingerprint,
+replay/join precedence and revision-credit rules as a member Close. Admission
+resolves the current `(project, workspace, terminalContext)` triple, freezes the
+context's complete ordered leaf membership — an Empty context with zero members is
+a valid scope — and reserves one credit plus the bounded retained record. An open
+member Close, an admitted-but-uncommitted structural write, or another scope Close
+covering the context refuses `terminal-busy`; the retained record then fences
+later member closes and structural writes on that context until publication or a
+terminal status. A same-scope fresh command joins the operation with its own fixed
+ledger acknowledgment; an identical retained fingerprint replays it.
+
+Acceptance returns `workspace-close-accepted {closeRequestId, projectId,
+workspaceId, terminalContextId, acceptedRevision}`: the primary command request ID
+is `closeRequestId`, and `acceptedRevision` is the admitted base, exactly as for a
+member Close. The effect-free `workbench.workspace-close.read {protocolVersion,
+requestId, siteId, projectId, workspaceId}` allocates no ledger entry and returns
+`not-closing`, `denied`, `unavailable {reason:server-busy}`, or
+`available {closeRequestId, projectId, workspaceId, terminalContextId,
+attemptGeneration, status, counts, members}`: `members` preserves the frozen
+admission order with per-member lifecycle truth only — the close revision belongs
+solely to the scope `status` — and `counts` aggregates the same rows. Scope lookup
+includes the closed tombstone, so a scope already removed by publication still
+answers `available`. `workbench.workspace-close.resume {protocolVersion,
+requestId, siteId, projectId, workspaceId, closeRequestId,
+expectedAttemptGeneration}` applies the identical generation discipline and
+reserved control storage, echoing the scope fields in every result.
+
+Once every captured member is known-disposed and exact cleanup is done,
+publication removes the Workspace and its Terminal Context together in one
+canonical commit and records the Closed tombstone. The Project, its directories,
+the directory association and the Git checkout are never touched, and no member
+row carries the close revision.
+
 ## Close command and retained status
 
 The existing `workbench.command` envelope and full fingerprint
 `(requestId, siteId, expectedRevision, action)` admit
-`{kind:"tab.close", terminalContextId, tabId}` and
-`{kind:"panel.close", terminalContextId, tabId, panelId}`. Precedence is lifecycle grant; exact
+`{kind:"tab.close", terminalContextId, tabId}`,
+`{kind:"panel.close", terminalContextId, tabId, panelId}` and
+`{kind:"workspace.close", projectId, workspaceId}`. Precedence is lifecycle grant; exact
 replay/conflict; retirement for a new mutation; ledger entry capacity; Site/base/context/strict
 membership; exact target and terminal association; Busy/unavailable runtime identity; resource
 reservations; joint acceptance. Accepted Close replay remains readable after Workbench retirement.
@@ -170,7 +207,10 @@ This does not change the Close command's existing SiteMismatch precedence.
 Primary admission reserves one bounded control cell and one last-accepted Resume receipt, including
 maximum encoded response storage. Recovery requires no ordinary ledger entry or alias allocation.
 The Close-specific control is
-`workbench.tab-close.resume {protocolVersion,requestId,siteId,terminalContextId,tabId,closeRequestId,expectedAttemptGeneration}`.
+`workbench.tab-close.resume {protocolVersion,requestId,siteId,terminalContextId,tabId,closeRequestId,expectedAttemptGeneration}`;
+the Workspace-scope control `workbench.workspace-close.resume
+{protocolVersion,requestId,siteId,projectId,workspaceId,closeRequestId,expectedAttemptGeneration}`
+follows the identical rules and echoes its scope fields.
 It uses existing request-ID types, the lifecycle grant and renewed all-Clients confirmation.
 `workbench.tab-close.resume.result` echoes request ID and canonical target and returns
 `resumed {attemptGeneration}`, `stale {attemptGeneration}`, `denied`,
@@ -378,6 +418,21 @@ Prebuild fixed acknowledgment/classification storage. Aliases reserve their own 
 all writers account for reserved entries/bytes. Reads spend none; finalization needs no later ledger
 insertion. Serialized-byte reservation does not prove allocation, panic or crash atomicity.
 
+The retained reservation is measured, never flat-rated: one checked sum of the
+maximum legal wire cells — primary command plus acknowledgment, the worst legal
+status document (a scope Close's document additionally charges one worst-spelling
+member row per captured member plus separators), the worst Resume request and the
+worst Resume result — plus the ledger key's owned capacity, the committed record's
+actual controlled heap (the record body, every owned identity buffer, both
+continuation/target `Vec` capacities at element size, and one bounded
+lifecycle-request payload per captured member), and two same-shape maximum
+receipt payload slots. A leaf or aggregate member Close applies the same formula
+over its own captured membership; an Empty scope Close charges the fixed share
+with zero member payloads. Resume measures the real candidate receipt before any
+state change: it must fit its reserved payload slot, and the retained record —
+existing receipt included — plus the candidate must stay inside the original
+reservation; over budget is busy, never malformed.
+
 Retain KnownDisposed and complete exact local cleanup first. Under the Site gate, validate current
 applicable membership and the exact target tuple, then prepare from the **current** snapshot: an
 aggregate Close removes every captured tree leaf as one Tab publication, preserving other Tabs,
@@ -504,10 +559,10 @@ cleanup, Server continuation or recovery carrier is supplied by this adapter cut
 
 ### Server finite evidence and refinement
 
-Run the three registered checks from the repository root:
+Run the registered checks from the repository root:
 
 ```sh
-node scripts/tla/run-models.mjs --models workbench-tab-close-coordination,workbench-tab-close-create-reference,workbench-panel-split --jobs 1
+node scripts/tla/run-models.mjs --models workbench-tab-close-coordination,workbench-tab-close-create-reference,workbench-panel-split,workspace-tab-close --jobs 1
 ```
 
 `WorkbenchPanelSplit` also covers the leaf close cut: a Panel-scoped close freezes one leaf member,
@@ -536,6 +591,27 @@ is retained even after expiry. Worker Disposed abstracts the separate lifecycle 
 Host/Worker-cleanup result; Server cleanup is still required before publication. Reads/replay are
 effect-free observations. Grant checking, invalid wire input, reason enumeration, full tuple
 conversion and carrier parsing remain concrete tests, not additional abstract protocol claims.
+
+[`WorkspaceTabClose`](../formal/tla/WorkspaceTabClose.tla) owns the bounded
+Workspace-scope Close: one admission freezes the complete ordered leaf
+membership — an Empty context included — under a structural-write fence that
+holds in both directions while the operation is open, one bounded attempt window
+with generation-fenced Resume, and one atomic publication that removes the
+Workspace and its Terminal Context while the Project, directories, association
+and checkout survive. A member reaching an Unknown terminal never publishes, but
+the record stays joined, fenced and charged: `ScopeMemberUnknown` preserves the
+reserved revision credit exactly like open/blocked, and `ScopeStateOwnsRecord`
+releases credit only for absent or published-closed records. Required coverage
+now includes `StructuralWriteAdmitted` plus the scope family
+`ScopeCloseAcceptance`, `ScopeMemberCleaned`, `ScopeMemberBlocked`,
+`ScopeMemberUnknown`, `ScopeResume`, `ScopePublication`, `ScopeCloseJoin`,
+`ScopeRerunRejected`, `ScopeResumeStaleRejected`,
+`ScopeResumeNonResumableRejected`, `ScopeStatusNotClosing`,
+`ScopeStatusTombstone`, `ObserveScopeVacuousClose`,
+`ObserveScopeMembershipCaptured`, `ObserveScopeResumed` and
+`ObserveScopeTombstoneAfterRemoval`. These actions are registered requirements;
+a recorded TLC pass over the extended coverage is still owed and is not claimed
+here.
 
 [`WorkbenchTabCloseCreateReference`](../formal/tla/WorkbenchTabCloseCreateReference.tla) explores
 three never-reused lifetime identities, at most two live members, three retained Create records,

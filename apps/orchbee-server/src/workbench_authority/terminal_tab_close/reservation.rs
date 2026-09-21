@@ -1,30 +1,38 @@
+use std::mem::size_of;
+
+use orchbee_capability_node_protocol::TerminalLifecycleRequest;
 use orchbee_workbench_protocol::{
-    ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
-    WorkbenchCommandResult, WorkbenchRequest, WorkbenchResponse, WorkbenchRevision,
-    WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason, WorkbenchTabClosePhase,
-    WorkbenchTabClosePublicationReason, WorkbenchTabCloseReadOutcome, WorkbenchTabCloseReadResult,
-    WorkbenchTabCloseResume, WorkbenchTabCloseResumeOutcome,
-    WorkbenchTabCloseResumeRejectionReason, WorkbenchTabCloseResumeResult, WorkbenchTabCloseStatus,
-    WorkbenchTabCloseUnavailableReason, WorkbenchTabCloseUnknownPhase,
-    WorkbenchTabCloseUnknownReason, WorkbenchWorkspaceCloseCounts, WorkbenchWorkspaceCloseMember,
+    ProtocolVersion, SiteId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
+    WorkbenchCommandResult, WorkbenchProjectId, WorkbenchRequest, WorkbenchRequestId,
+    WorkbenchResponse, WorkbenchRevision, WorkbenchTabCloseAttemptGeneration,
+    WorkbenchTabCloseBlockedReason, WorkbenchTabClosePhase, WorkbenchTabClosePublicationReason,
+    WorkbenchTabCloseReadOutcome, WorkbenchTabCloseReadResult, WorkbenchTabCloseResume,
+    WorkbenchTabCloseResumeOutcome, WorkbenchTabCloseResumeRejectionReason,
+    WorkbenchTabCloseResumeResult, WorkbenchTabCloseStatus, WorkbenchTabCloseUnavailableReason,
+    WorkbenchTabCloseUnknownPhase, WorkbenchTabCloseUnknownReason, WorkbenchTabId,
+    WorkbenchTerminalContextId, WorkbenchWorkspaceCloseCounts, WorkbenchWorkspaceCloseMember,
     WorkbenchWorkspaceCloseMemberStatus, WorkbenchWorkspaceCloseReadOutcome,
     WorkbenchWorkspaceCloseReadResult, WorkbenchWorkspaceCloseResume,
     WorkbenchWorkspaceCloseResumeOutcome, WorkbenchWorkspaceCloseResumeResult,
-    serialize_workbench_request, serialize_workbench_response,
+    WorkbenchWorkspaceId, serialize_workbench_request, serialize_workbench_response,
 };
 
 use super::super::ledger_size;
+use super::continuation::CloseContinuation;
+use super::{AcceptedResumeReceipt, CloseRecord, CloseScope, WorkbenchTabCloseTarget};
 
-/// Retained heap per captured member — target plus continuation plus the
-/// member's owned identity strings and its pending-step cell, per the
-/// Workspace Close accounting model; never assumed, summed under checked
-/// arithmetic at admission.
-const RETAINED_HEAP_PER_MEMBER: usize = 1024;
+/// Two receipt payload slots are reserved per record: the retained receipt
+/// and the freshly constructed candidate coexist inside one resume commit
+/// window before the old value is replaced.
+const RECEIPT_SLOTS: usize = 2;
 
-/// Sum simultaneously retained categories; maximize alternatives within each bounded cell.
-/// `member_count` is the frozen captured membership — only the Context scope's
-/// member-dependent status wire and retained-heap charges consume it.
-pub(super) fn maximum_primary_charge(
+/// The wire-budget cells of one primary reservation — command plus
+/// acknowledgment, the worst legal status document, and the worst legal
+/// resume request plus result — maximized within each bounded cell.
+/// `member_count` is the frozen captured membership — only the Context
+/// scope's member-dependent status wire consumes it. Retained heap is a
+/// separate, independently checked budget measured off the real record.
+pub(super) fn maximum_wire_charge(
     command: &WorkbenchCommand,
     acknowledgment: &WorkbenchCommandResult,
     member_count: usize,
@@ -104,39 +112,252 @@ pub(super) fn maximum_primary_charge(
         .checked_add(resume_response_charge)
 }
 
-pub(super) fn receipt_charge(
+/// The complete ledger reservation for one admitted Close: the exact wire
+/// cells, the committed record's actual controlled heap, the ledger key
+/// clone, and both receipt payload slots — one checked sum, nothing sampled.
+pub(super) fn entry_reservation(
+    command: &WorkbenchCommand,
+    acknowledgment: &WorkbenchCommandResult,
+    member_count: usize,
+    record: &CloseRecord,
+    ledger_key: &WorkbenchRequestId,
+) -> Option<usize> {
+    maximum_wire_charge(command, acknowledgment, member_count)?
+        .checked_add(ledger_key.owned_capacity())?
+        .checked_add(record_controlled_heap(record)?)?
+        .checked_add(RECEIPT_SLOTS.checked_mul(receipt_slot_bytes(&record.scope)?)?)
+}
+
+/// The record's actual controlled-payload heap: the boxed record body —
+/// which already covers every inline field — plus every owned `String`
+/// capacity, both `Vec` capacities at element size, one future
+/// `Arc<TerminalLifecycleRequest>` payload per member, and the stored
+/// receipt's owned payload buffers. `Arc` headers, `BTreeMap` internals,
+/// and allocator metadata are outside this budget by contract.
+pub(super) fn record_controlled_heap(record: &CloseRecord) -> Option<usize> {
+    let mut charge = size_of::<CloseRecord>();
+    charge = charge.checked_add(command_owned_bytes(&record.command)?)?;
+    charge = charge.checked_add(result_owned_bytes(&record.result)?)?;
+    if let CloseScope::Context {
+        project_id,
+        workspace_id,
+    } = &record.scope
+    {
+        charge = charge
+            .checked_add(project_id.owned_capacity())?
+            .checked_add(workspace_id.owned_capacity())?;
+    }
+    charge = charge.checked_add(record.terminal_context_id.owned_capacity())?;
+    for target in &record.targets {
+        charge = charge.checked_add(target_owned_bytes(target)?)?;
+    }
+    charge = charge.checked_add(
+        record
+            .targets
+            .capacity()
+            .checked_mul(size_of::<WorkbenchTabCloseTarget>())?,
+    )?;
+    charge = charge.checked_add(
+        record
+            .continuations
+            .capacity()
+            .checked_mul(size_of::<CloseContinuation>())?,
+    )?;
+    charge = charge.checked_add(
+        record
+            .targets
+            .len()
+            .checked_mul(size_of::<TerminalLifecycleRequest>())?,
+    )?;
+    if let Some(receipt) = &record.resume_receipt {
+        charge = charge.checked_add(receipt_owned_bytes(receipt)?)?;
+    }
+    Some(charge)
+}
+
+/// Owned payload buffer bytes inside a Tab/Panel-scoped resume receipt —
+/// the request and result envelopes' identity buffers only.
+pub(super) fn tab_receipt_owned_bytes(
     request: &WorkbenchTabCloseResume,
     result: &WorkbenchTabCloseResumeResult,
 ) -> Option<usize> {
-    serialize_workbench_request(&WorkbenchRequest::TabCloseResume(request.clone()))
-        .ok()?
-        .len()
-        .checked_add(
-            serialize_workbench_response(&WorkbenchResponse::TabCloseResume(result.clone()))
-                .ok()?
-                .len(),
-        )
+    request
+        .request_id
+        .owned_capacity()
+        .checked_add(request.site_id.owned_capacity())?
+        .checked_add(request.terminal_context_id.owned_capacity())?
+        .checked_add(request.tab_id.owned_capacity())?
+        .checked_add(request.close_request_id.owned_capacity())?
+        .checked_add(result.request_id.owned_capacity())?
+        .checked_add(result.site_id.owned_capacity())?
+        .checked_add(result.terminal_context_id.owned_capacity())?
+        .checked_add(result.tab_id.owned_capacity())?
+        .checked_add(result.close_request_id.owned_capacity())
 }
 
-pub(super) fn workspace_receipt_charge(
+/// Owned payload buffer bytes inside a Workspace-scoped resume receipt —
+/// the request and result envelopes' identity buffers only.
+pub(super) fn workspace_receipt_owned_bytes(
     request: &WorkbenchWorkspaceCloseResume,
     result: &WorkbenchWorkspaceCloseResumeResult,
 ) -> Option<usize> {
-    serialize_workbench_request(&WorkbenchRequest::WorkspaceCloseResume(request.clone()))
-        .ok()?
-        .len()
-        .checked_add(
-            serialize_workbench_response(&WorkbenchResponse::WorkspaceCloseResume(result.clone()))
-                .ok()?
-                .len(),
-        )
+    request
+        .request_id
+        .owned_capacity()
+        .checked_add(request.site_id.owned_capacity())?
+        .checked_add(request.project_id.owned_capacity())?
+        .checked_add(request.workspace_id.owned_capacity())?
+        .checked_add(request.close_request_id.owned_capacity())?
+        .checked_add(result.request_id.owned_capacity())?
+        .checked_add(result.site_id.owned_capacity())?
+        .checked_add(result.project_id.owned_capacity())?
+        .checked_add(result.workspace_id.owned_capacity())?
+        .checked_add(result.close_request_id.owned_capacity())
 }
 
-/// The Workspace Close charge = the same wire/control cells as the Tab Close
+/// Owned payload buffers of whichever receipt shape the record stores.
+fn receipt_owned_bytes(receipt: &AcceptedResumeReceipt) -> Option<usize> {
+    match receipt {
+        AcceptedResumeReceipt::Tab { request, result } => tab_receipt_owned_bytes(request, result),
+        AcceptedResumeReceipt::Workspace { request, result } => {
+            workspace_receipt_owned_bytes(request, result)
+        }
+    }
+}
+
+/// One receipt payload slot: the same-shape maximum legal receipt for this
+/// scope — a real template built through the same result constructor the
+/// commit path uses, then measured for its actual owned buffers.
+pub(super) fn receipt_slot_bytes(scope: &CloseScope) -> Option<usize> {
+    let maximum_generation = WorkbenchTabCloseAttemptGeneration::new(u64::MAX).ok()?;
+    match scope {
+        CloseScope::Context { .. } => {
+            let request = WorkbenchWorkspaceCloseResume {
+                protocol_version: ProtocolVersion,
+                request_id: WorkbenchRequestId::parse(&id_max()).ok()?,
+                site_id: SiteId::parse(&id_max()).ok()?,
+                project_id: WorkbenchProjectId::parse(&id_max()).ok()?,
+                workspace_id: WorkbenchWorkspaceId::parse(&id_max()).ok()?,
+                close_request_id: WorkbenchRequestId::parse(&id_max()).ok()?,
+                expected_attempt_generation: maximum_generation,
+            };
+            let result = super::control::workspace_resume_result(
+                &request,
+                WorkbenchWorkspaceCloseResumeOutcome::Resumed {
+                    attempt_generation: maximum_generation,
+                },
+            );
+            workspace_receipt_owned_bytes(&request, &result)
+        }
+        CloseScope::Tab | CloseScope::Panel => {
+            let request = WorkbenchTabCloseResume {
+                protocol_version: ProtocolVersion,
+                request_id: WorkbenchRequestId::parse(&id_max()).ok()?,
+                site_id: SiteId::parse(&id_max()).ok()?,
+                terminal_context_id: WorkbenchTerminalContextId::parse(&id_max()).ok()?,
+                tab_id: WorkbenchTabId::parse(&id_max()).ok()?,
+                close_request_id: WorkbenchRequestId::parse(&id_max()).ok()?,
+                expected_attempt_generation: maximum_generation,
+            };
+            let result = super::control::resume_result(
+                &request,
+                WorkbenchTabCloseResumeOutcome::Resumed {
+                    attempt_generation: maximum_generation,
+                },
+            );
+            tab_receipt_owned_bytes(&request, &result)
+        }
+    }
+}
+
+fn command_owned_bytes(command: &WorkbenchCommand) -> Option<usize> {
+    let action = match &command.action {
+        WorkbenchAction::TabClose {
+            terminal_context_id,
+            tab_id,
+        } => terminal_context_id
+            .owned_capacity()
+            .checked_add(tab_id.owned_capacity()),
+        WorkbenchAction::PanelClose {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+        } => terminal_context_id
+            .owned_capacity()
+            .checked_add(tab_id.owned_capacity())?
+            .checked_add(panel_id.owned_capacity()),
+        WorkbenchAction::WorkspaceClose {
+            project_id,
+            workspace_id,
+        } => project_id
+            .owned_capacity()
+            .checked_add(workspace_id.owned_capacity()),
+        // A retained Close record only ever carries a close action.
+        _ => None,
+    }?;
+    command
+        .request_id
+        .owned_capacity()
+        .checked_add(command.site_id.owned_capacity())?
+        .checked_add(action?)
+}
+
+fn result_owned_bytes(result: &WorkbenchCommandResult) -> Option<usize> {
+    let outcome = match &result.outcome {
+        WorkbenchCommandOutcome::TabCloseAccepted {
+            close_request_id,
+            terminal_context_id,
+            tab_id,
+            ..
+        } => close_request_id
+            .owned_capacity()
+            .checked_add(terminal_context_id.owned_capacity())?
+            .checked_add(tab_id.owned_capacity()),
+        WorkbenchCommandOutcome::PanelCloseAccepted {
+            close_request_id,
+            terminal_context_id,
+            tab_id,
+            panel_id,
+            ..
+        } => close_request_id
+            .owned_capacity()
+            .checked_add(terminal_context_id.owned_capacity())?
+            .checked_add(tab_id.owned_capacity())?
+            .checked_add(panel_id.owned_capacity()),
+        WorkbenchCommandOutcome::WorkspaceCloseAccepted {
+            close_request_id,
+            project_id,
+            workspace_id,
+            terminal_context_id,
+            ..
+        } => close_request_id
+            .owned_capacity()
+            .checked_add(project_id.owned_capacity())?
+            .checked_add(workspace_id.owned_capacity())?
+            .checked_add(terminal_context_id.owned_capacity()),
+        // A retained Close record only ever carries an accepted outcome.
+        _ => None,
+    }?;
+    result.request_id.owned_capacity().checked_add(outcome?)
+}
+
+fn target_owned_bytes(target: &WorkbenchTabCloseTarget) -> Option<usize> {
+    let member = &target.member;
+    let binding = member.binding();
+    target
+        .terminal_context_id
+        .owned_capacity()
+        .checked_add(member.tab_id().owned_capacity())?
+        .checked_add(member.panel_id().owned_capacity())?
+        .checked_add(member.presentation_id().owned_capacity())?
+        .checked_add(binding.terminal_id.owned_capacity())?
+        .checked_add(binding.worker_id.owned_capacity())
+}
+
+/// The Workspace Close wire charge = the same wire cells as the Tab Close
 /// (command+ack, worst status document, resume request+result) plus the
-/// member-dependent cells the Context scope adds: `member_count` member
-/// entries at their worst spelling inside the status document, and the
-/// per-member retained heap the record owns.
+/// member-dependent status-document cells the Context scope adds:
+/// `member_count` member entries at their worst spelling.
 fn maximum_workspace_charge(
     command: &WorkbenchCommand,
     acknowledgment: &WorkbenchCommandResult,
@@ -261,8 +482,7 @@ fn maximum_workspace_charge(
     command_charge
         .checked_add(status_charge)?
         .checked_add(resume_request_charge)?
-        .checked_add(resume_response_charge)?
-        .checked_add(member_count.checked_mul(RETAINED_HEAP_PER_MEMBER)?)
+        .checked_add(resume_response_charge)
 }
 
 fn id_max() -> String {

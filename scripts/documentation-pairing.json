@@ -114,8 +114,8 @@
 			"zhCnSha256": "755c9fc0459eadf1ef806e4a793008a424c3e42c89adae68c1e3abec21119f65"
 		},
 		"apps/orchbee-server/docs/terminal-tab-close.md": {
-			"englishSha256": "966600cde4865285d2294b4effc7a0fee7025b726b282436376ede55c506c861",
-			"zhCnSha256": "d26b8f8853ea50d35f65419dd4a5870070001099392af0dd9e0eecc609ee8a89"
+			"englishSha256": "551b80f676575b9639305962908af8f18919c0f8459b2a2a5a4e0095c1ad141a",
+			"zhCnSha256": "90b1ba78601972ca09e519aaf0ad684779dcebc8e15882ca335d753f6378d154"
 		},
 		"apps/orchbee-server/docs/workbench-authority.md": {
 			"englishSha256": "3b400d050e39648f28224ea4a4f0ec5c7a9aecc7f1a24d18a13b1ca66d4fb9e6",
@@ -142,20 +142,16 @@
 			"zhCnSha256": "1cfa176de04d501d86657382328f222e49820fe5c92977416a7edf81f23ea2b2"
 		},
 		"apps/orchbee/README.md": {
-			"englishSha256": "a0e0d6d17b998fdb2b9393079d40168ebe128325f4cc8222b645060d866e7dec",
-			"zhCnSha256": "d765fc451056ac4fb51abcd8b3b5c12cc1a0541cf17e28699be977d7783af72c"
-		},
-		"apps/orchbee/docs/agent-board.md": {
-			"englishSha256": "53721fe948c8f02fd1a0ae93c1857300f6bf8382b83bb741d6d11046bf519aed",
-			"zhCnSha256": "496617759cb648c6626b474b3f7c0f32791fa01bcac6f5d1bdf19e426b53d47b"
+			"englishSha256": "063faa30a91986912452cf10f237ab378423107d811a437a2ec97669934fed90",
+			"zhCnSha256": "f04b9a299f012f17d3c54462919cc859cb7cccc91d3cb4c515af37c835ee1010"
 		},
 		"apps/orchbee/docs/cli-workflows.md": {
-			"englishSha256": "316ce616dbd901c813a53f47145357b669661a987d2ad95e3709f149c337cd1f",
-			"zhCnSha256": "433459be824520322704dea95cd5a94edb40ac18d12bcda04fa453e912362a31"
+			"englishSha256": "2d97795673494e834c00dfb036128ae6e2522306b5acbba4b91ecff389f336c6",
+			"zhCnSha256": "14c9d22794a0f0a526c99f48f948cb127de706e03ccc821faf90f24a53c157a6"
 		},
 		"apps/orchbee/docs/native-cli-query.md": {
-			"englishSha256": "045ef915f28377e2c506abdee73832d54c200320131f7c4d2ee3123ee623eed6",
-			"zhCnSha256": "afe92ba431251559410d22a133386a0b41ebef4a813e997ca89185e878c60179"
+			"englishSha256": "697190942ec8b1cb7f76f29c06dd141b3571b228b19ca373076641784e3c2821",
+			"zhCnSha256": "6376394dd7a1066acf5c087ec660d8ee8da2fd802689a4e82724b84efc0af091"
 		},
 		"apps/orchbee/docs/native-cli-wait-model.md": {
 			"englishSha256": "2f847c74877ecd971ab0be6f98d8250d2180a427ad26a21fff90d5a14eeaea69",
@@ -190,8 +186,8 @@
 			"zhCnSha256": "c1270feca497dfde9cff7e4bd642bf6f647a93d15b0e65df49aac32240d18890"
 		},
 		"apps/orchbee/docs/native-tab-session.md": {
-			"englishSha256": "8818e380761c48f74a338e0faae9d527a6c296e204f249dc7c47703f3df69b20",
-			"zhCnSha256": "d2533c18d6a54cf57d15fb34684b466c8a1dec0d451f52d7288f98923603b679"
+			"englishSha256": "fd0174bd6d0508292fe345eb13075afabd7fa5405e1bdf9593582b1f25317d43",
+			"zhCnSha256": "67e829f007ef4658b393768873222da8ddcab31cfbc30c40eabc91fe8c85b7b5"
 		},
 		"apps/orchbee/docs/native-terminal-environment.md": {
 			"englishSha256": "0cce77cf1f41d85cf9793cb2d1f29f61395dc4a11ed32ac373c83488d08f6fad",
@@ -334,8 +330,8 @@
 			"zhCnSha256": "eca21f3f0c442c402e55b08b1c98ed42e0e2316f9c7e59adce1a1684889e14fd"
 		},
 		"docs/cli/command-surface.md": {
-			"englishSha256": "1658b81ff794ddc2505ee44e1589a835cefdb39e55be3c322fa7f8dbcde129da",
-			"zhCnSha256": "c30a595a8d55c097f4d15848c6cf7794062724591165410a64ed6630ed64f7da"
+			"englishSha256": "02093b9a4fef37bb5ee6fdda2392f5ae2c4d96e0ec89910ccb06c3d2233db513",
+			"zhCnSha256": "c5d2b1dd71e922f37127085189b28a36a3a8122f25584f15791cec55a7e4824a"
 		},
 		"docs/cli/output.md": {
 			"englishSha256": "cac57901c01e858029e3664503e750be1e67eed5740d37348bbcbabd2721a9c2",
@@ -586,8 +582,8 @@
 			"zhCnSha256": "ab3f4eef6a88ee8100c516717b76ab94b26e8cbc1d565e9af83da8ae42907d34"
 		},
 		"proposals/agent/session-names.md": {
-			"englishSha256": "93743351f289f3dbe4db44e249b1d116716366b477b6f1616027b99f6c60c5eb",
-			"zhCnSha256": "a7c2f526bdc8a5888a142aed6eefd4f229ff71a4db4ff9cb209777c5ad8fc51b"
+			"englishSha256": "9436bf4b461fd3165e1f9994fef204fa71179355bb557413b334ac2c231bc634",
+			"zhCnSha256": "529f19dcce45a16e88a85f2ec7e732f553217b6f081eb4dfbd6fd2616c24f483"
 		},
 		"proposals/cli/native-command-surface.md": {
 			"englishSha256": "1a747a510bc58097ab4870fc6e50370662dc3d9fc24d270b06f45f0b9bf6484e",

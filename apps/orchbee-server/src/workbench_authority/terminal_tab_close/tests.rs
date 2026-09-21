@@ -25,6 +25,7 @@ use super::*;
 use crate::workbench_projection::WorkbenchProjectionStore;
 
 mod aggregate;
+mod budget;
 mod context;
 mod credit;
 mod panel;

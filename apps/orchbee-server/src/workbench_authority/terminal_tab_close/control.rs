@@ -116,9 +116,22 @@ impl<'a> WorkbenchTabCloseResumeAdmission<'a> {
                 attempt_generation: generation,
             },
         );
-        if !super::reservation::receipt_charge(&self.request, &response)
-            .is_some_and(|charge| charge <= self.record.reserved_bytes)
-        {
+        // Measure the real candidate receipt before any state changes: it
+        // must fit its reserved payload slot, and the retained record —
+        // existing receipt included — plus the candidate must stay inside
+        // the original reservation. Over budget is busy, never malformed.
+        let Some(candidate_payload) =
+            super::reservation::tab_receipt_owned_bytes(&self.request, &response)
+        else {
+            return WorkbenchTabCloseResumePreparation::Ready(resume_result(&self.request, busy()));
+        };
+        if candidate_payload > self.record.receipt_slot_bytes {
+            return WorkbenchTabCloseResumePreparation::Ready(resume_result(&self.request, busy()));
+        }
+        let within_reservation = super::reservation::record_controlled_heap(self.record)
+            .and_then(|retained| retained.checked_add(candidate_payload))
+            .is_some_and(|peak| peak <= self.record.reserved_bytes);
+        if !within_reservation {
             return WorkbenchTabCloseResumePreparation::Ready(resume_result(&self.request, busy()));
         }
         let receipt = AcceptedResumeReceipt::Tab {
@@ -193,9 +206,28 @@ impl<'a> WorkbenchWorkspaceCloseResumeAdmission<'a> {
                 attempt_generation: generation,
             },
         );
-        if !super::reservation::workspace_receipt_charge(&self.request, &response)
-            .is_some_and(|charge| charge <= self.record.reserved_bytes)
-        {
+        // Measure the real candidate receipt before any state changes: it
+        // must fit its reserved payload slot, and the retained record —
+        // existing receipt included — plus the candidate must stay inside
+        // the original reservation. Over budget is busy, never malformed.
+        let Some(candidate_payload) =
+            super::reservation::workspace_receipt_owned_bytes(&self.request, &response)
+        else {
+            return WorkbenchWorkspaceCloseResumePreparation::Ready(workspace_resume_result(
+                &self.request,
+                workspace_busy(),
+            ));
+        };
+        if candidate_payload > self.record.receipt_slot_bytes {
+            return WorkbenchWorkspaceCloseResumePreparation::Ready(workspace_resume_result(
+                &self.request,
+                workspace_busy(),
+            ));
+        }
+        let within_reservation = super::reservation::record_controlled_heap(self.record)
+            .and_then(|retained| retained.checked_add(candidate_payload))
+            .is_some_and(|peak| peak <= self.record.reserved_bytes);
+        if !within_reservation {
             return WorkbenchWorkspaceCloseResumePreparation::Ready(workspace_resume_result(
                 &self.request,
                 workspace_busy(),

@@ -39,6 +39,14 @@ macro_rules! define_identity {
             pub fn as_str(&self) -> &str {
                 &self.0
             }
+
+            /// The owned backing capacity of this identity's buffer — a
+            /// read-only accounting surface for retained-ledger budgets.
+            /// Parsing, wire shape, and equality never consult it.
+            #[must_use]
+            pub fn owned_capacity(&self) -> usize {
+                self.0.capacity()
+            }
         }
 
         impl<'de> Deserialize<'de> for $name {

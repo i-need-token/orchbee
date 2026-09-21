@@ -210,9 +210,11 @@ ScopeMemberBlocked ==
 
 ScopeMemberUnknown ==
   /\ s.scope.phase = "open" /\ s.scope.cleaned # s.scope.members
-  (* The unknown terminal releases the publication credit — the operation
-     can never publish — but the record stays joined and fenced. *)
-  /\ s' = [s EXCEPT !.scope.phase = "unknown", !.scope.credit = FALSE]
+  (* The unknown terminal can never publish, but the record stays joined,
+     fenced, AND charged: the credit is retained exactly like open/blocked —
+     an OutcomeUnknown-terminal record keeps its reserved revision forever,
+     matching the authority ledger and the owning claims document. *)
+  /\ s' = [s EXCEPT !.scope.phase = "unknown"]
 
 ScopeResume ==
   /\ s.scope.phase = "blocked" /\ s.scope.generation < 3
@@ -353,7 +355,10 @@ ScopeStateOwnsRecord ==
             (s.scope.acceptedRevision + 1)..s.revision
        /\ Members(s.tabs) \cap s.scope.members = {})
   /\ (s.scope.phase = "absent" => s.scope = EmptyScope)
-  /\ (s.scope.credit <=> s.scope.phase \in {"open", "blocked"})
+  (* Credit is held through every non-terminal scope phase — including
+     unknown, whose record stays charged and fenced forever. Only absent
+     (never admitted) and closed (published) release it. *)
+  /\ (s.scope.credit <=> (s.scope.phase # "absent" /\ s.scope.phase # "closed"))
 
 ScopeFencesStructuralWrites ==
   ScopeOpen => s.pendingWrites = 0
