@@ -422,16 +422,30 @@ The retained reservation is measured, never flat-rated: one checked sum of the
 maximum legal wire cells — primary command plus acknowledgment, the worst legal
 status document (a scope Close's document additionally charges one worst-spelling
 member row per captured member plus separators), the worst Resume request and the
-worst Resume result — plus the ledger key's owned capacity, the committed record's
-actual controlled heap (the record body, every owned identity buffer, both
-continuation/target `Vec` capacities at element size, and one bounded
-lifecycle-request payload per captured member), and two same-shape maximum
-receipt payload slots. A leaf or aggregate member Close applies the same formula
-over its own captured membership; an Empty scope Close charges the fixed share
-with zero member payloads. Resume measures the real candidate receipt before any
-state change: it must fit its reserved payload slot, and the retained record —
-existing receipt included — plus the candidate must stay inside the original
-reservation; over budget is busy, never malformed.
+worst Resume result — plus the ledger entry's known cells (the `WorkbenchRequestId`
+key head and its owned buffer, and the `RetainedRequest` inline enum cell holding
+the record — each charged exactly once), the committed record's actual controlled
+heap (the boxed record body, every owned identity buffer, both continuation/target
+`Vec` capacities at element size, and one bounded lifecycle-request payload per
+captured member), and two same-shape maximum receipt payload slots held for the
+record's whole lifetime — a deliberate capacity cost covering the stored and
+candidate receipt's coexistence, released only when the record leaves the ledger.
+Only known-type payloads are charged: `Arc` refcount headers, `BTreeMap` node
+structure, allocator metadata and RSS stay outside this controlled-payload budget
+by contract; the key head and enum cell above are the charged known-type cells
+inside the node. A leaf or aggregate member Close applies the same formula over
+its own captured membership; an Empty scope Close charges the fixed share with
+zero member payloads. Bounded vectors and the record are built and measured
+before the ledger capacity check, so in the doubly-failed corner — ledger full
+and a continuation-preparation checked deadline overflow together — the
+preparation failure reports instead of the ledger verdict; the corner is
+practically unreachable and carries no dedicated mechanism. Resume measures the
+real candidate receipt before any state change: it must fit its reserved payload
+slot, and the retained record — existing receipt included — plus the candidate
+must stay inside the original reservation; over budget is busy, never malformed.
+That total is wire-inclusive, so the comparison is looser than a heap-only bound
+— exact in practice: every candidate fits its slot, every stored receipt fit the
+same slot at its own admission, and no other heap cell can grow after commit.
 
 Retain KnownDisposed and complete exact local cleanup first. Under the Site gate, validate current
 applicable membership and the exact target tuple, then prepare from the **current** snapshot: an

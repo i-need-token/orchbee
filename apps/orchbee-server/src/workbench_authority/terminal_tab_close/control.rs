@@ -120,6 +120,12 @@ impl<'a> WorkbenchTabCloseResumeAdmission<'a> {
         // must fit its reserved payload slot, and the retained record —
         // existing receipt included — plus the candidate must stay inside
         // the original reservation. Over budget is busy, never malformed.
+        // `reserved_bytes` is the wire-inclusive entry total, so the second
+        // check is looser than a heap-only bound — sound by induction: every
+        // candidate fits its slot, any stored receipt fit the same slot at
+        // its own admission, and every other heap cell (both Vec capacities,
+        // all identity buffers, the per-member seal count) is frozen after
+        // commit, so heap can never consume wire slack.
         let Some(candidate_payload) =
             super::reservation::tab_receipt_owned_bytes(&self.request, &response)
         else {
@@ -210,6 +216,12 @@ impl<'a> WorkbenchWorkspaceCloseResumeAdmission<'a> {
         // must fit its reserved payload slot, and the retained record —
         // existing receipt included — plus the candidate must stay inside
         // the original reservation. Over budget is busy, never malformed.
+        // `reserved_bytes` is the wire-inclusive entry total, so the second
+        // check is looser than a heap-only bound — sound by induction: every
+        // candidate fits its slot, any stored receipt fit the same slot at
+        // its own admission, and every other heap cell (both Vec capacities,
+        // all identity buffers, the per-member seal count) is frozen after
+        // commit, so heap can never consume wire slack.
         let Some(candidate_payload) =
             super::reservation::workspace_receipt_owned_bytes(&self.request, &response)
         else {

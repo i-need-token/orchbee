@@ -14,15 +14,17 @@ use orchbee_workbench_protocol::{
     WorkbenchWorkspaceCloseResumeResult,
 };
 
-/// The exact exchange order the CLI issues for `workspace close` →
+/// The exact exchange order the local client emits for `workspace close` →
 /// `workspace close-status` → `workspace close-resume` → `workspace
 /// close-status`: one scripted peer sees every real request frame and answers
-/// valid typed responses for an empty Workspace context.
+/// valid typed responses for an empty Workspace context. This proves the
+/// adapter exchange order only — the CLI command route is covered separately.
 #[test]
-fn workspace_close_route_produces_the_typed_close_status_resume_closed_chain() -> TestResult {
+fn workspace_close_exchange_order_produces_the_typed_close_status_resume_closed_chain() -> TestResult
+{
     let close = close_command(7);
     let first_read = close_read();
-    let resume = resume(1);
+    let resume_request = resume(1);
     let second_read = close_read();
     let server = FakeServer::start(move |mut stream| {
         expect_hello(&mut stream, COHORT)?;
@@ -53,7 +55,7 @@ fn workspace_close_route_produces_the_typed_close_status_resume_closed_chain() -
         .map_err(io::Error::other)?;
         assert_eq!(
             read_workbench_request(&mut stream).map_err(io::Error::other)?,
-            WorkbenchRequest::WorkspaceCloseResume(resume)
+            WorkbenchRequest::WorkspaceCloseResume(resume_request)
         );
         write_workbench_response(
             &mut stream,

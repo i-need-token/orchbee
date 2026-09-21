@@ -17,7 +17,7 @@ use orchbee_workbench_protocol::{
     WorkbenchWorkspaceId, serialize_workbench_request, serialize_workbench_response,
 };
 
-use super::super::ledger_size;
+use super::super::{RetainedRequest, ledger_size};
 use super::continuation::CloseContinuation;
 use super::{AcceptedResumeReceipt, CloseRecord, CloseScope, WorkbenchTabCloseTarget};
 
@@ -113,8 +113,12 @@ pub(super) fn maximum_wire_charge(
 }
 
 /// The complete ledger reservation for one admitted Close: the exact wire
-/// cells, the committed record's actual controlled heap, the ledger key
-/// clone, and both receipt payload slots — one checked sum, nothing sampled.
+/// cells, the ledger key's inline `WorkbenchRequestId` head plus its owned
+/// buffer, the `RetainedRequest` inline enum cell holding the record, the
+/// committed record's actual controlled heap, and both receipt payload
+/// slots — one checked sum, nothing sampled. The key head and enum cell are
+/// known-type payloads inside the `BTreeMap` node and are charged here;
+/// only the node's unknown structural overhead stays inside the exclusion.
 pub(super) fn entry_reservation(
     command: &WorkbenchCommand,
     acknowledgment: &WorkbenchCommandResult,
@@ -123,7 +127,9 @@ pub(super) fn entry_reservation(
     ledger_key: &WorkbenchRequestId,
 ) -> Option<usize> {
     maximum_wire_charge(command, acknowledgment, member_count)?
+        .checked_add(size_of::<WorkbenchRequestId>())?
         .checked_add(ledger_key.owned_capacity())?
+        .checked_add(size_of::<RetainedRequest>())?
         .checked_add(record_controlled_heap(record)?)?
         .checked_add(RECEIPT_SLOTS.checked_mul(receipt_slot_bytes(&record.scope)?)?)
 }
@@ -165,7 +171,7 @@ pub(super) fn record_controlled_heap(record: &CloseRecord) -> Option<usize> {
     )?;
     charge = charge.checked_add(
         record
-            .targets
+            .continuations
             .len()
             .checked_mul(size_of::<TerminalLifecycleRequest>())?,
     )?;
@@ -299,7 +305,7 @@ fn command_owned_bytes(command: &WorkbenchCommand) -> Option<usize> {
         .request_id
         .owned_capacity()
         .checked_add(command.site_id.owned_capacity())?
-        .checked_add(action?)
+        .checked_add(action)
 }
 
 fn result_owned_bytes(result: &WorkbenchCommandResult) -> Option<usize> {
@@ -338,7 +344,7 @@ fn result_owned_bytes(result: &WorkbenchCommandResult) -> Option<usize> {
         // A retained Close record only ever carries an accepted outcome.
         _ => None,
     }?;
-    result.request_id.owned_capacity().checked_add(outcome?)
+    result.request_id.owned_capacity().checked_add(outcome)
 }
 
 fn target_owned_bytes(target: &WorkbenchTabCloseTarget) -> Option<usize> {

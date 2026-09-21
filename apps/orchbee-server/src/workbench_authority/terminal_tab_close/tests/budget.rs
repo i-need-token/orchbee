@@ -15,7 +15,7 @@ use super::super::reservation::{
 use super::workspace::workspace_fixture;
 use super::*;
 use crate::workbench_authority::{
-    WorkbenchWorkspaceCloseBegin, WorkbenchWorkspaceCloseResumeBegin,
+    RetainedRequest, WorkbenchWorkspaceCloseBegin, WorkbenchWorkspaceCloseResumeBegin,
     WorkbenchWorkspaceCloseResumePreparation,
 };
 use orchbee_workbench_protocol::{
@@ -164,9 +164,18 @@ fn empty_workspace_close_reserves_positive_fixed_heap_for_record_key_and_identit
     let record = authority.close_record(&close.request_id).unwrap();
     assert!(record.targets.is_empty());
     let heap = record_controlled_heap(record).unwrap();
-    assert!(heap > size_of::<CloseRecord>());
+    // Twelve owned identity buffers ride the N=0 record — command 4,
+    // accepted outcome 5, scope echo 2, retained context 1 — each a
+    // full-capacity 32-hex `String`, so the buffers alone exceed the bare
+    // struct.
+    assert!(heap >= size_of::<CloseRecord>() + 12 * 32);
     let wire = maximum_wire_charge(&close, &acknowledgment, 0).unwrap();
-    assert!(reserved > wire);
+    // The entry also charges the ledger key's inline head, its owned
+    // buffer, the `RetainedRequest` enum cell, and both receipt slots on
+    // top of wire + heap.
+    assert!(
+        reserved >= wire + size_of::<WorkbenchRequestId>() + size_of::<RetainedRequest>() + heap
+    );
     assert_eq!(
         entry_reservation(&close, &acknowledgment, 0, record, &close.request_id),
         Some(reserved)
@@ -180,7 +189,7 @@ fn empty_workspace_close_reserves_positive_fixed_heap_for_record_key_and_identit
 fn retained_vec_capacity_above_len_is_charged_at_actual_capacity() {
     let (mut authority, grant) = workspace_fixture(2);
     let close = workspace_close_command(&authority, 10000, 1, 0);
-    accept_workspace(&mut authority, &grant, close.clone(), Instant::now());
+    let acknowledgment = accept_workspace(&mut authority, &grant, close.clone(), Instant::now());
     let before =
         record_controlled_heap(authority.close_record(&close.request_id).unwrap()).unwrap();
     let record = authority.close_record_mut(&close.request_id).unwrap();
@@ -192,9 +201,16 @@ fn retained_vec_capacity_above_len_is_charged_at_actual_capacity() {
         * size_of::<CloseContinuation>();
     assert!(target_slack > 0);
     assert!(continuation_slack > 0);
-    assert_eq!(
-        record_controlled_heap(record).unwrap() - before,
-        target_slack + continuation_slack
+    let after = record_controlled_heap(record).unwrap();
+    assert_eq!(after - before, target_slack + continuation_slack);
+    // The same entry holds wire, key head + buffer, enum cell, the grown
+    // heap, and both receipt slots — never less than the known cells.
+    assert!(
+        entry_reservation(&close, &acknowledgment, 2, record, &close.request_id).unwrap()
+            >= maximum_wire_charge(&close, &acknowledgment, 2).unwrap()
+                + size_of::<WorkbenchRequestId>()
+                + size_of::<RetainedRequest>()
+                + after
     );
 }
 

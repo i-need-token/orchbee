@@ -26,8 +26,12 @@ use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchCommandResult, WorkbenchCommandUnavailableReason, WorkbenchRejectionReason,
     WorkbenchRequest, WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotOutcome,
-    WorkbenchSnapshotResult, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, parse_snapshot,
-    read_workbench_request, write_workbench_response,
+    WorkbenchSnapshotResult, WorkbenchTabCloseAttemptGeneration, WorkbenchTabClosePhase,
+    WorkbenchTabCloseStatus, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
+    WorkbenchWorkspaceCloseCounts, WorkbenchWorkspaceCloseReadOutcome,
+    WorkbenchWorkspaceCloseReadResult, WorkbenchWorkspaceCloseResumeOutcome,
+    WorkbenchWorkspaceCloseResumeResult, parse_snapshot, read_workbench_request,
+    write_workbench_response,
 };
 use sha2::{Digest, Sha256};
 
@@ -3422,5 +3426,288 @@ fn project_rename_text_receipt_rows() -> TestResult {
     assert!(text.contains("project.rename"), "{text}");
     assert!(text.contains("committed"), "{text}");
     assert!(text.contains(PROJECT), "{text}");
+    Ok(())
+}
+
+// ---- workspace close route ---------------------------------------------------
+
+/// `workspace close` → `workspace close-status` → `workspace close-resume` →
+/// `workspace close-status`: four real CLI invocations against one scripted
+/// peer prove the command route end to end — argv parse, `main` label →
+/// `(project, workspace)` resolution on the real snapshot, a fresh request
+/// identity per invocation, the Server-issued stable close id flowing from
+/// the accepted receipt into the resume request, and the typed result
+/// envelopes the user reads. The peer — not the CLI — is the wire oracle:
+/// it asserts the real scope, the stable operation id, and the explicit
+/// attempt-generation fence on every frame.
+#[test]
+fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResult {
+    let base = base_dir("ws-close-route");
+    let scope = stage_scope(&base);
+    // The stable close operation id the Server allocates; the chain then
+    // keys status and resume by it.
+    const CLOSE_ID: &str = "00000000000000000000000000000066";
+    let submitted = Arc::new(Mutex::new(String::new()));
+    let seen = submitted.clone();
+    let peer = spawn_peer_n(&scope, 4, move |stream| {
+        let snapshot_request = admit_and_serve_snapshot(&stream);
+        match read_workbench_request(&mut &*stream).expect("peer reads request") {
+            WorkbenchRequest::Command(command) => {
+                assert_command_base(&command, snapshot_request.as_str());
+                *seen.lock().unwrap() = command.request_id.as_str().to_owned();
+                let WorkbenchAction::WorkspaceClose {
+                    project_id,
+                    workspace_id,
+                } = &command.action
+                else {
+                    panic!("expected workspace.close, got {:?}", command.action)
+                };
+                // The `main` positional resolved against the real snapshot.
+                assert_eq!(project_id.as_str(), PROJECT);
+                assert_eq!(workspace_id.as_str(), WORKSPACE);
+                command_response(
+                    &stream,
+                    command.request_id,
+                    WorkbenchCommandOutcome::WorkspaceCloseAccepted {
+                        close_request_id: orchbee_workbench_protocol::WorkbenchRequestId::parse(
+                            CLOSE_ID,
+                        )
+                        .unwrap(),
+                        project_id: orchbee_workbench_protocol::WorkbenchProjectId::parse(PROJECT)
+                            .unwrap(),
+                        workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                            WORKSPACE,
+                        )
+                        .unwrap(),
+                        terminal_context_id:
+                            orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(CONTEXT)
+                                .unwrap(),
+                        accepted_revision: revision(7),
+                    },
+                );
+            }
+            WorkbenchRequest::WorkspaceCloseRead(read) => {
+                assert_eq!(read.site_id.as_str(), SITE);
+                assert_eq!(read.project_id.as_str(), PROJECT);
+                assert_eq!(read.workspace_id.as_str(), WORKSPACE);
+                assert_ne!(
+                    read.request_id.as_str(),
+                    snapshot_request.as_str(),
+                    "close-status request identity is fresh"
+                );
+                // First status answers Closing at generation 1; the one
+                // after resume answers Closed at generation 2.
+                static READ: Mutex<u32> = Mutex::new(0);
+                let read_call = {
+                    let mut guard = READ.lock().unwrap();
+                    *guard += 1;
+                    *guard
+                };
+                let (attempt_generation, status) = if read_call == 1 {
+                    (
+                        WorkbenchTabCloseAttemptGeneration::new(1).unwrap(),
+                        WorkbenchTabCloseStatus::Closing {
+                            phase: WorkbenchTabClosePhase::Queued,
+                        },
+                    )
+                } else {
+                    (
+                        WorkbenchTabCloseAttemptGeneration::new(2).unwrap(),
+                        WorkbenchTabCloseStatus::Closed {
+                            revision: revision(8),
+                        },
+                    )
+                };
+                write_workbench_response(
+                    &mut &*stream,
+                    &WorkbenchResponse::WorkspaceCloseRead(WorkbenchWorkspaceCloseReadResult {
+                        protocol_version: ProtocolVersion,
+                        request_id: read.request_id,
+                        outcome: WorkbenchWorkspaceCloseReadOutcome::Available {
+                            close_request_id:
+                                orchbee_workbench_protocol::WorkbenchRequestId::parse(CLOSE_ID)
+                                    .unwrap(),
+                            project_id: read.project_id,
+                            workspace_id: read.workspace_id,
+                            terminal_context_id:
+                                orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(
+                                    CONTEXT,
+                                )
+                                .unwrap(),
+                            attempt_generation,
+                            status,
+                            counts: WorkbenchWorkspaceCloseCounts::default(),
+                            members: Vec::new(),
+                        },
+                    }),
+                )
+                .expect("peer writes close read result");
+            }
+            WorkbenchRequest::WorkspaceCloseResume(resume) => {
+                assert_eq!(resume.site_id.as_str(), SITE);
+                assert_eq!(resume.project_id.as_str(), PROJECT);
+                assert_eq!(resume.workspace_id.as_str(), WORKSPACE);
+                // The stable id the accepted receipt carried reaches the
+                // wire verbatim under the caller's generation fence.
+                assert_eq!(resume.close_request_id.as_str(), CLOSE_ID);
+                assert_eq!(resume.expected_attempt_generation.value(), 1);
+                write_workbench_response(
+                    &mut &*stream,
+                    &WorkbenchResponse::WorkspaceCloseResume(WorkbenchWorkspaceCloseResumeResult {
+                        protocol_version: ProtocolVersion,
+                        request_id: resume.request_id,
+                        site_id: resume.site_id,
+                        project_id: resume.project_id,
+                        workspace_id: resume.workspace_id,
+                        close_request_id: resume.close_request_id,
+                        outcome: WorkbenchWorkspaceCloseResumeOutcome::Resumed {
+                            attempt_generation: WorkbenchTabCloseAttemptGeneration::new(2).unwrap(),
+                        },
+                    }),
+                )
+                .expect("peer writes close resume result");
+            }
+            other => panic!("peer expected a close-family request, got {other:?}"),
+        }
+    });
+
+    let output = run(
+        &base,
+        &[
+            "workspace",
+            "close",
+            "main",
+            "--confirm",
+            "--format",
+            "json",
+        ],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document = envelope(&output);
+    assert_eq!(document["schema"], "orchbee.mutation.result");
+    assert_eq!(document["version"], 4);
+    assert_eq!(document["source"]["kind"], "workbench-command");
+    assert_eq!(document["source"]["siteId"], SITE);
+    assert_eq!(document["source"]["expectedRevision"], "7");
+    assert_eq!(
+        document["source"]["requestId"].as_str().unwrap(),
+        submitted.lock().unwrap().as_str()
+    );
+    assert_eq!(document["result"]["action"], "workspace.close");
+    assert_eq!(document["result"]["outcome"], "accepted");
+    assert_eq!(document["result"]["closeRequestId"], CLOSE_ID);
+    assert_eq!(document["result"]["acceptedRevision"], "7");
+    assert_eq!(document["result"]["projectId"], PROJECT);
+    assert_eq!(document["result"]["workspaceId"], WORKSPACE);
+    assert_eq!(document["result"]["terminalContextId"], CONTEXT);
+    assert!(compiled_schema(&base, "orchbee.mutation.result").is_valid(&document));
+
+    let output = run(
+        &base,
+        &[
+            "workspace",
+            "close-status",
+            "--project",
+            PROJECT,
+            "--workspace",
+            WORKSPACE,
+            "--format",
+            "json",
+        ],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document = envelope(&output);
+    assert_eq!(document["schema"], "orchbee.workspace.close-status");
+    assert_eq!(document["version"], 1);
+    assert_eq!(document["source"]["kind"], "workbench-snapshot");
+    assert_eq!(document["source"]["siteId"], SITE);
+    assert_eq!(document["source"]["revision"], "7");
+    assert_eq!(document["result"]["kind"], "available");
+    assert_eq!(document["result"]["closeRequestId"], CLOSE_ID);
+    assert_eq!(document["result"]["attemptGeneration"], "1");
+    assert_eq!(document["result"]["status"]["kind"], "closing");
+    assert_eq!(document["result"]["status"]["phase"], "queued");
+    assert!(compiled_schema(&base, "orchbee.workspace.close-status").is_valid(&document));
+
+    let output = run(
+        &base,
+        &[
+            "workspace",
+            "close-resume",
+            "--project",
+            PROJECT,
+            "--workspace",
+            WORKSPACE,
+            "--request",
+            CLOSE_ID,
+            "--generation",
+            "1",
+            "--confirm",
+            "--format",
+            "json",
+        ],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document = envelope(&output);
+    assert_eq!(document["schema"], "orchbee.mutation.result");
+    assert_eq!(document["version"], 4);
+    // `close-resume` reports its own request echo — there is no command.
+    assert_eq!(document["source"]["kind"], "workspace-close-resume");
+    assert_eq!(document["source"]["siteId"], SITE);
+    assert_eq!(document["source"]["closeRequestId"], CLOSE_ID);
+    assert_eq!(document["source"]["expectedAttemptGeneration"], "1");
+    assert_eq!(document["result"]["action"], "workspace.close-resume");
+    assert_eq!(document["result"]["outcome"], "resumed");
+    assert_eq!(document["result"]["closeRequestId"], CLOSE_ID);
+    assert_eq!(document["result"]["attemptGeneration"], "2");
+    assert_eq!(document["result"]["projectId"], PROJECT);
+    assert_eq!(document["result"]["workspaceId"], WORKSPACE);
+    assert!(compiled_schema(&base, "orchbee.mutation.result").is_valid(&document));
+
+    let output = run(
+        &base,
+        &[
+            "workspace",
+            "close-status",
+            "--project",
+            PROJECT,
+            "--workspace",
+            WORKSPACE,
+            "--format",
+            "json",
+        ],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document = envelope(&output);
+    assert_eq!(document["schema"], "orchbee.workspace.close-status");
+    assert_eq!(document["result"]["kind"], "available");
+    assert_eq!(document["result"]["closeRequestId"], CLOSE_ID);
+    assert_eq!(document["result"]["attemptGeneration"], "2");
+    assert_eq!(document["result"]["status"]["kind"], "closed");
+    assert_eq!(document["result"]["status"]["revision"], "8");
+    assert!(compiled_schema(&base, "orchbee.workspace.close-status").is_valid(&document));
+
+    peer.join().expect("peer finished");
+    let _ = fs::remove_dir_all(&base);
     Ok(())
 }
