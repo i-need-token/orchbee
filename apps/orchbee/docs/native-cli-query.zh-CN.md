@@ -128,8 +128,9 @@ provider 接入——对调用用户的 provider 配置做有界读取与受管�
   零个或多于一个源均为 `invalid-usage`；冲突按固定次序
   `--text`、`--key`、`--file`、`--stdin` 命名，与 argv 次序无关。
 - `--mouse off|on`：带值 flag，单次使用，仅显式 `tui` 路由受理——宿主机指针捕获
-  用于面板命中，默认开启。语法仅两 token 形式；`--mouse=<value>`、缺失或未知值、
-  重复、出现在其他命令路由或裸调用，均为 `invalid-usage`。
+  用于面板命中，默认开启。两种声明写法（`--mouse on` 与 `--mouse=on`）取值同为
+  封闭的 `off|on` 词表；缺失或未知值、任一写法下的重复、出现在其他命令路由
+  或裸调用，均为 `invalid-usage`。
 - `--include-ended`：无值布尔 flag，单次使用，仅 `agent list` 受理；让请求页包含
   lifecycle 为 `ended` 的 session。
 - `--limit <n>`：带值 flag，单次使用，仅 `agent list` 受理；页大小为一个
@@ -237,9 +238,11 @@ orchbee <recognized path> -h|--help
 两种 format 下输出同一份 JSON 文档；`api` 失败则与其他命令一样跟随所选 format——text/默认下
 只写 stderr、stdout 为空，只有 `--format json` 才产出失败 envelope。
 
-`orchbee completion` 打印本语法的静态投影：动词、完整帮助路径、每条命令已声明的 flag、
-`--format` 的两种拼写及其 `text`/`json` 值、`--` 终止与 flag 值消费上下文。不枚举任何 Site
-状态、资源名或运行时数据。
+`orchbee completion` 打印本语法的静态投影：动词、完整帮助路径、每条命令已声明的 flag
+（分写与 `--flag=value` 连写两种拼写）、`--format` 的两种拼写及其 `text`/`json` 值、
+封闭词表值在两种拼写下的补全（`--mouse`、`--direction`、`--key`、`--until`、`--provider`）、
+`--` 终止与 flag 值消费上下文。不枚举任何 Site 状态、资源名或运行时数据，也绝不猜测
+自由形式的值。
 
 ### 目标与过滤器
 

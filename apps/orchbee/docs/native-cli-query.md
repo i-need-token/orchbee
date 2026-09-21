@@ -161,9 +161,10 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   or more than one is `invalid-usage`, with conflicts named in the fixed order
   `--text`, `--key`, `--file`, `--stdin` regardless of argv order.
 - `--mouse off|on`: single-use value flag admitted only on the explicit `tui` route —
-  host pointer capture for pane hit-testing, on by default. The two-token form is the
-  whole grammar; `--mouse=<value>`, a missing or unknown value, a repeat, or the flag on
-  any other command route, or the bare invocation, is `invalid-usage`.
+  host pointer capture for pane hit-testing, on by default. Both declared spellings
+  (`--mouse on` and `--mouse=on`) carry the same closed `off|on` vocabulary; a missing
+  or unknown value, a repeat under either spelling, or the flag on any other command
+  route, or the bare invocation, is `invalid-usage`.
 - `--include-ended`: valueless boolean flag, single use, admitted only on `agent list`;
   includes sessions whose lifecycle is `ended` in the requested page.
 - `--limit <n>`: single-use value flag, admitted only on `agent list`; the page size as
@@ -284,9 +285,11 @@ follows the selected format like any other command — under text/default it rep
 with empty stdout, and only `--format json` produces a failure envelope.
 
 `orchbee completion` prints a static projection of this grammar: verbs, complete help paths,
-each command's declared flags, both `--format` spellings and its `text`/`json` values, `--`
-termination, and flag-value consumption contexts. It enumerates no Site state, resource names,
-or runtime data.
+each command's declared flags in both the separate and the joined `--flag=value` spelling,
+both `--format` spellings and its `text`/`json` values, the closed value vocabularies under
+either spelling (`--mouse`, `--direction`, `--key`, `--until`, `--provider`), `--`
+termination, and flag-value consumption contexts. It enumerates no Site state, resource
+names, or runtime data, and never guesses a freeform value.
 
 ### Targets and filters
 

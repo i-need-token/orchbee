@@ -30,8 +30,9 @@ reports, or primary-screen wheel history scrolling. Those are separate accepted 
   in-flight gestures and the wheel stream are cancelled; re-arming does not resurrect them.
 - `--mouse` is admitted only on `tui` (`off` and `on` values). Bare `orchbee` rejects the option
   and still defaults to capture on; every other command family rejects it; `tui` continues to
-  reject `--format`. The option takes the two-token `--mouse off|on` form only — the `--mouse=`
-  equals spelling, dash-led values, and repeated occurrences all refuse.
+  reject `--format`. Both declared spellings are admitted — `--mouse off|on` and
+  `--mouse=off|on` — while values outside the closed pair, dash-led values, and repeated
+  occurrences all refuse.
 - A `Shift`-modified report is never claimed: the host reserves `Shift` for native selection, and
   a `Shift` report mid-drag is dropped while the gesture itself survives so an unmodified release
   still reaches the pane.

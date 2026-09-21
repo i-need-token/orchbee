@@ -33,15 +33,19 @@
 //! 4. `--format*` → legal only where options may still appear
 //!    (verb/sub/after/operand, leaf `status`); a second selector or an
 //!    invalid value is usage
-//! 5. `--mouse*` → the `tui`-scoped option: legal at verb (only `tui` stays
-//!    viable afterward) or on the `tui` leaf; a second `--mouse` or an
-//!    invalid value is usage
+//! 5. `--mouse`/`--mouse=off|on` → the `tui`-scoped option: legal at verb
+//!    (only `tui` stays viable afterward) or on the `tui` leaf; a second
+//!    `--mouse` or an invalid value — joined or separate — is usage
 //! 6. business flags → legal iff a command reachable here admits the flag:
 //!    verb records it (checked when the command lands), sub requires the
 //!    flag's owning family, deep admits the `agent integration` union scope,
 //!    after/operand require membership in the resolved command's flag scope
 //!    (`--workspace`/`--standalone` stay exclusive); operand-taking paths
 //!    consume one positional first; leaf/help/completion reject all options
+//!    - joined `--flag=value` → the flag part drives the same admission and
+//!      bookkeeping as the separate spelling for the grammar's declared
+//!      value flags; the inline value never claims the next word, and a
+//!      boolean or unknown name in that shape is usage
 //! 7. `--help`/`--version` → terminal flags: nothing may follow → done
 //! 8. unknown `-x` → usage → done
 //! 9. other word → positional dispatch:
@@ -72,6 +76,11 @@
 //! - cur == `--format=*` → `--format=text`/`--format=json` only where a
 //!   format option is legal and none was consumed — never after
 //!   done/ended/invalid/help/completion/tui or inside a pending flag value
+//! - cur == `--enum=<prefix>` → that flag's own closed vocabulary with the
+//!   `--flag=` spelling preserved, only where the flag could still be
+//!   admitted (`--mouse=` under a viable `tui`; `--direction=` once the
+//!   command resolves; `--key=`/`--until=`/`--provider=` inside their
+//!   owning scopes); a freeform flag's value is never guessed
 //! - verb → root words still viable under the seen business flags + format
 //!   flags + `--help`/`--version` only when nothing was consumed
 //! - sub → verbs whose flag scope covers the seen flags + format flags
@@ -79,8 +88,7 @@
 //!   union scope + format flags
 //! - leaf → `status`: format flags + `--help` when nothing was seen; `tui`:
 //!   `--help` and `--mouse` only while `--mouse` is unconsumed — a consumed
-//!   `--mouse` makes every further token usage; `--mouse` admits no equals
-//!   form so nothing completes a `--mouse=` prefix
+//!   `--mouse` makes every further token usage
 //! - after → format flags + the command's unused business flags + `--help`
 //!   on every command path with no option seen; the operand-taking `get`/
 //!   `api schema`/mutation paths take a legal suffix help before their
@@ -574,18 +582,42 @@ fn path_patterns(families: &[(&str, &[&str])]) -> String {
         .join("|")
 }
 
+/// The business flags that take a value — every `BUSINESS_FLAGS` member
+/// minus the booleans. Only these admit the `--flag=value` joined spelling;
+/// a boolean or unknown name in that shape stays a dead token.
+fn value_business_flags() -> impl Iterator<Item = &'static str> {
+    BUSINESS_FLAGS
+        .iter()
+        .copied()
+        .filter(|flag| flag_value(flag).is_some())
+}
+
 /// bash/zsh `seen` bookkeeping arms, one per business flag. A repeatable
 /// flag sets its bit — scope checks still see it — but never turns `done`.
 /// Every consumed flag also joins `seen_flags`, the consumed-name list the
-/// command-scope admission checks walk (the same model fish uses).
-fn seen_cases_bash() -> String {
-    BUSINESS_FLAGS
-        .iter()
+/// command-scope admission checks walk (the same model fish uses). The
+/// `joined` variant is the `--flag=value` twin: identical bookkeeping
+/// except the value arrived inline, so no pending `value=` is set.
+fn seen_cases_bash(joined: bool) -> String {
+    let flags: Vec<&&str> = if joined {
+        // The joined arm already gated on value-taking flags; booleans
+        // would be dead arms.
+        BUSINESS_FLAGS
+            .iter()
+            .filter(|flag| flag_value(flag).is_some())
+            .collect()
+    } else {
+        BUSINESS_FLAGS.iter().collect()
+    };
+    flags
+        .into_iter()
         .map(|flag| {
             let bit = flag_bit(flag);
             let assign = match flag_value(flag) {
-                Some(kind) => format!("{bit}=1; value={kind}; seen_flags+=({flag})"),
-                None => format!("{bit}=1; seen_flags+=({flag})"),
+                Some(kind) if !joined => {
+                    format!("{bit}=1; value={kind}; seen_flags+=({flag})")
+                }
+                _ => format!("{bit}=1; seen_flags+=({flag})"),
             };
             if *flag == "--provider" {
                 // Repeatable only toward `agent doctor`: once the
@@ -902,6 +934,84 @@ fn extras_cases_bash() -> String {
         .join("\n")
 }
 
+/// bash/zsh typed `--enum=<prefix>` candidate arms: the flag keeps its
+/// spelling and completes only its own closed vocabulary, only where the
+/// walker could still admit the flag. `sub` offers reuse the computed
+/// viable-verb list (the flag is useless when no admitting verb remains);
+/// `after|operand` check the resolved command's scope; `deep` checks the
+/// integration union. `--direction`'s vocabulary is per-command, so it
+/// offers only once the command is resolved. Freeform flags are absent —
+/// their values are never guessed.
+fn joined_offer_cases_bash() -> String {
+    let joined = |flag: &str, values: &[&str]| {
+        values
+            .iter()
+            .map(|value| format!("{flag}={value}"))
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    let direction = DIRECTION_VALUES
+        .iter()
+        .map(|(command, values)| {
+            format!(
+                "                        {command}) candidates=\"{}\" ;;",
+                joined("--direction", values)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let key = joined("--key", KEY_VALUES);
+    let until = joined("--until", UNTIL_VALUES);
+    let provider = joined("--provider", PROVIDER_VALUES);
+    format!(
+        concat!(
+            "            --direction)\n",
+            "                if ((!seen_direction)); then\n",
+            "                    case \"$state\" in\n",
+            "                        after|operand)\n",
+            "                            case \"$family:$sub\" in\n",
+            "{direction}\n",
+            "                            esac ;;\n",
+            "                    esac\n",
+            "                fi ;;\n",
+            // `--key` shares `terminal send`'s payload-source exclusion:
+            // the offer dies with any other source or a consumed `--key`.
+            "            --key)\n",
+            "                if ((!seen_key && !seen_text && !seen_enter && !seen_file && !seen_stdin)); then\n",
+            "                    case \"$state\" in\n",
+            "                        sub) [[ \" $verbs \" == *\" send \"* ]] && candidates=\"{key}\" ;;\n",
+            "                        after|operand) [[ $family:$sub == terminal:send ]] && candidates=\"{key}\" ;;\n",
+            "                    esac\n",
+            "                fi ;;\n",
+            // `--until` is repeatable: it stays offerable while `agent wait`\n",
+            // is still the live command.\n",
+            "            --until)\n",
+            "                case \"$state\" in\n",
+            "                    sub) [[ \" $verbs \" == *\" wait \"* ]] && candidates=\"{until}\" ;;\n",
+            "                    after|operand) [[ $family:$sub == agent:wait ]] && candidates=\"{until}\" ;;\n",
+            "                esac ;;\n",
+            // `--provider` is repeatable toward `agent doctor` (an unbounded\n",
+            // count still parses there) and single-use under `agent\n",
+            // integration:* — one consumed occurrence retires the offer on\n",
+            // those paths only.\n",
+            "            --provider)\n",
+            "                case \"$state\" in\n",
+            "                    sub) [[ \" $verbs \" == *\" doctor \"* || \" $verbs \" == *\" integration \"* ]] && candidates=\"{provider}\" ;;\n",
+            "                    deep) ((!seen_provider)) && candidates=\"{provider}\" ;;\n",
+            "                    after|operand)\n",
+            "                        case \"$family:$sub\" in\n",
+            "                            agent:doctor) candidates=\"{provider}\" ;;\n",
+            "                            agent:integration:*) ((!seen_provider)) && candidates=\"{provider}\" ;;\n",
+            "                        esac ;;\n",
+            "                esac ;;\n",
+        ),
+        direction = direction,
+        key = key,
+        until = until,
+        provider = provider,
+    )
+}
+
 /// bash/zsh direction-value offers while a `--direction` value is pending.
 fn direction_cases_bash() -> String {
     DIRECTION_VALUES
@@ -930,6 +1040,7 @@ fn bash() -> String {
             "# No dynamic state: no Site, resource, or runtime enumeration.\n",
             "_orchbee() {{\n",
             "    local cur candidates=\"\" extras=\"\" verbs=\"\" possible=\"\"\n",
+            "    local flag_name=\"\" cur_name=\"\"\n",
             "    local state=verb help_a=\"\" help_b=\"\" help_c=\"\" family=\"\" sub=\"\" leaf=\"\"\n",
             "    local seen_format=0 seen_mouse=0 {seen_decls} seen_provider2=0\n",
             "    local -a seen_flags\n",
@@ -981,18 +1092,25 @@ fn bash() -> String {
             "                        *) done=1 ;;\n",
             "                    esac\n",
             "                fi ;;\n",
-            "            --mouse)\n",
+            "            --mouse|--mouse=*)\n",
             "                # `--mouse` is the TUI leaf's own option: legal before the\n",
             "                # command word (only `tui` stays viable) or on that leaf.\n",
-            "                # The grammar admits the two-token form only — a `--mouse=`\n",
-            "                # token is not this arm and reads as an unknown word.\n",
+            "                # Both spellings are the grammar — the two-token form\n",
+            "                # leaves a pending value, the joined form carries it and\n",
+            "                # stays inside the closed {{off,on}} vocabulary.\n",
             "                case \"$state\" in\n",
             "                    verb) ;;\n",
             "                    leaf) [[ $leaf == tui ]] || done=1 ;;\n",
             "                    *) done=1 ;;\n",
             "                esac\n",
             "                if ((!done)); then\n",
-            "                    if ((seen_mouse)); then done=1; else seen_mouse=1; value=mouse; fi\n",
+            "                    if ((seen_mouse)); then done=1; else\n",
+            "                        case \"$word\" in\n",
+            "                            --mouse) seen_mouse=1; value=mouse ;;\n",
+            "                            --mouse=off|--mouse=on) seen_mouse=1 ;;\n",
+            "                            *) done=1 ;;\n",
+            "                        esac\n",
+            "                    fi\n",
             "                fi ;;\n",
             "            {flag_patterns})\n",
             "                case \"$state\" in\n",
@@ -1017,6 +1135,42 @@ fn bash() -> String {
             "                if ((!done)); then\n",
             "                    case \"$word\" in\n",
             "{seen_cases}\n",
+            "                    esac\n",
+            "                fi ;;\n",
+            "            --*=*)\n",
+            "                # A joined `--flag=value` business token: the flag part\n",
+            "                # drives the same state admission and bookkeeping as the\n",
+            "                # two-token spelling, and the inline value never claims\n",
+            "                # the next word. Booleans and unknown names stay dead.\n",
+            "                flag_name=\"${{word%%=*}}\"\n",
+            "                case \"$flag_name\" in\n",
+            "                    {value_flag_patterns}) ;;\n",
+            "                    *) done=1 ;;\n",
+            "                esac\n",
+            "                if ((!done)); then\n",
+            "                    case \"$state\" in\n",
+            "                        verb) ;;\n",
+            "                        sub)\n",
+            "                            case \"$family:$flag_name\" in\n",
+            "{sub_flag_cases}\n",
+            "                                *) done=1 ;;\n",
+            "                            esac ;;\n",
+            "                        deep)\n",
+            "                            case \"$family:$sub:$flag_name\" in\n",
+            "                                {deep_flag_patterns}) ;;\n",
+            "                                *) done=1 ;;\n",
+            "                            esac ;;\n",
+            "                        after|operand)\n",
+            "                            case \"$family:$sub:$flag_name\" in\n",
+            "{after_flag_cases}\n",
+            "                                *) done=1 ;;\n",
+            "                            esac ;;\n",
+            "                        *) done=1 ;;\n",
+            "                    esac\n",
+            "                fi\n",
+            "                if ((!done)); then\n",
+            "                    case \"$flag_name\" in\n",
+            "{joined_seen_cases}\n",
             "                    esac\n",
             "                fi ;;\n",
             "            --help|--version) done=1 ;;\n",
@@ -1123,6 +1277,22 @@ fn bash() -> String {
             "                leaf) [[ $leaf == status ]] && candidates=\"--format=text --format=json\" ;;\n",
             "            esac\n",
             "        fi\n",
+            "    elif [[ $cur == --*=* ]]; then\n",
+            "        # A typed `--enum=<prefix>` completes only that flag's own closed\n",
+            "        # vocabulary with the `--flag=` spelling preserved; a freeform\n",
+            "        # flag's value is never guessed (no resource or path probing),\n",
+            "        # and a boolean or unknown name offers nothing.\n",
+            "        cur_name=\"${{cur%%=*}}\"\n",
+            "        case \"$cur_name\" in\n",
+            "            --mouse)\n",
+            "                if ((!seen_mouse)); then\n",
+            "                    case \"$state\" in\n",
+            "                        verb) [[ \" $possible \" == *\" tui \"* ]] && candidates=\"--mouse=off --mouse=on\" ;;\n",
+            "                        leaf) [[ $leaf == tui ]] && candidates=\"--mouse=off --mouse=on\" ;;\n",
+            "                    esac\n",
+            "                fi ;;\n",
+            "{joined_offer_cases}\n",
+            "        esac\n",
             "    elif [[ $state == verb ]]; then\n",
             "        candidates=\"$possible\"\n",
             "        ((seen_format || seen_mouse)) || candidates=\"$candidates --format --format=\"\n",
@@ -1199,7 +1369,10 @@ fn bash() -> String {
         integration_bad = integration_bad_bits(),
         integration_verb_words = INTEGRATION_VERBS.join(" "),
         after_flag_cases = after_flag_cases_bash(),
-        seen_cases = seen_cases_bash(),
+        seen_cases = seen_cases_bash(false),
+        value_flag_patterns = value_business_flags().collect::<Vec<_>>().join("|"),
+        joined_seen_cases = seen_cases_bash(true),
+        joined_offer_cases = joined_offer_cases_bash(),
         scope_cases = scope_cases_bash(),
         verb_cases = verb_cases_bash(),
         narrow_lines = narrow_lines_bash(),
@@ -1230,7 +1403,7 @@ fn zsh() -> String {
             "    local seen_format=0 seen_mouse=0 {seen_decls} seen_provider2=0\n",
             "    local -a seen_flags\n",
             "    local ended=0 done=0 dead=0 value=\"\"\n",
-            "    local i word cur\n",
+            "    local i word cur flag_name=\"\" cur_name=\"\"\n",
             "    narrow() {{\n",
             "        local keep=\" $1 \" word out=\"\"\n",
             "        for word in ${{=possible}}; do\n",
@@ -1273,18 +1446,25 @@ fn zsh() -> String {
             "                        *) done=1 ;;\n",
             "                    esac\n",
             "                fi ;;\n",
-            "            --mouse)\n",
+            "            --mouse|--mouse=*)\n",
             "                # `--mouse` is the TUI leaf's own option: legal before the\n",
             "                # command word (only `tui` stays viable) or on that leaf.\n",
-            "                # The grammar admits the two-token form only — a `--mouse=`\n",
-            "                # token is not this arm and reads as an unknown word.\n",
+            "                # Both spellings are the grammar — the two-token form\n",
+            "                # leaves a pending value, the joined form carries it and\n",
+            "                # stays inside the closed {{off,on}} vocabulary.\n",
             "                case \"$state\" in\n",
             "                    verb) ;;\n",
             "                    leaf) [[ $leaf == tui ]] || done=1 ;;\n",
             "                    *) done=1 ;;\n",
             "                esac\n",
             "                if ((!done)); then\n",
-            "                    if ((seen_mouse)); then done=1; else seen_mouse=1; value=mouse; fi\n",
+            "                    if ((seen_mouse)); then done=1; else\n",
+            "                        case \"$word\" in\n",
+            "                            --mouse) seen_mouse=1; value=mouse ;;\n",
+            "                            --mouse=off|--mouse=on) seen_mouse=1 ;;\n",
+            "                            *) done=1 ;;\n",
+            "                        esac\n",
+            "                    fi\n",
             "                fi ;;\n",
             "            {flag_patterns})\n",
             "                case \"$state\" in\n",
@@ -1309,6 +1489,42 @@ fn zsh() -> String {
             "                if ((!done)); then\n",
             "                    case \"$word\" in\n",
             "{seen_cases}\n",
+            "                    esac\n",
+            "                fi ;;\n",
+            "            --*=*)\n",
+            "                # A joined `--flag=value` business token: the flag part\n",
+            "                # drives the same state admission and bookkeeping as the\n",
+            "                # two-token spelling, and the inline value never claims\n",
+            "                # the next word. Booleans and unknown names stay dead.\n",
+            "                flag_name=\"${{word%%=*}}\"\n",
+            "                case \"$flag_name\" in\n",
+            "                    {value_flag_patterns}) ;;\n",
+            "                    *) done=1 ;;\n",
+            "                esac\n",
+            "                if ((!done)); then\n",
+            "                    case \"$state\" in\n",
+            "                        verb) ;;\n",
+            "                        sub)\n",
+            "                            case \"$family:$flag_name\" in\n",
+            "{sub_flag_cases}\n",
+            "                                *) done=1 ;;\n",
+            "                            esac ;;\n",
+            "                        deep)\n",
+            "                            case \"$family:$sub:$flag_name\" in\n",
+            "                                {deep_flag_patterns}) ;;\n",
+            "                                *) done=1 ;;\n",
+            "                            esac ;;\n",
+            "                        after|operand)\n",
+            "                            case \"$family:$sub:$flag_name\" in\n",
+            "{after_flag_cases}\n",
+            "                                *) done=1 ;;\n",
+            "                            esac ;;\n",
+            "                        *) done=1 ;;\n",
+            "                    esac\n",
+            "                fi\n",
+            "                if ((!done)); then\n",
+            "                    case \"$flag_name\" in\n",
+            "{joined_seen_cases}\n",
             "                    esac\n",
             "                fi ;;\n",
             "            --help|--version) done=1 ;;\n",
@@ -1405,6 +1621,22 @@ fn zsh() -> String {
             "                leaf) [[ $leaf == status ]] && candidates=\"--format=text --format=json\" ;;\n",
             "            esac\n",
             "        fi\n",
+            "    elif [[ $cur == --*=* ]]; then\n",
+            "        # A typed `--enum=<prefix>` completes only that flag's own closed\n",
+            "        # vocabulary with the `--flag=` spelling preserved; a freeform\n",
+            "        # flag's value is never guessed (no resource or path probing),\n",
+            "        # and a boolean or unknown name offers nothing.\n",
+            "        cur_name=\"${{cur%%=*}}\"\n",
+            "        case \"$cur_name\" in\n",
+            "            --mouse)\n",
+            "                if ((!seen_mouse)); then\n",
+            "                    case \"$state\" in\n",
+            "                        verb) [[ \" $possible \" == *\" tui \"* ]] && candidates=\"--mouse=off --mouse=on\" ;;\n",
+            "                        leaf) [[ $leaf == tui ]] && candidates=\"--mouse=off --mouse=on\" ;;\n",
+            "                    esac\n",
+            "                fi ;;\n",
+            "{joined_offer_cases}\n",
+            "        esac\n",
             "    elif [[ $state == verb ]]; then\n",
             "        candidates=\"$possible\"\n",
             "        ((seen_format || seen_mouse)) || candidates=\"$candidates --format --format=\"\n",
@@ -1477,7 +1709,10 @@ fn zsh() -> String {
         integration_bad = integration_bad_bits(),
         integration_verb_words = INTEGRATION_VERBS.join(" "),
         after_flag_cases = after_flag_cases_bash(),
-        seen_cases = seen_cases_bash(),
+        seen_cases = seen_cases_bash(false),
+        value_flag_patterns = value_business_flags().collect::<Vec<_>>().join("|"),
+        joined_seen_cases = seen_cases_bash(true),
+        joined_offer_cases = joined_offer_cases_bash(),
         scope_cases = scope_cases_bash(),
         verb_cases = verb_cases_bash(),
         narrow_lines = narrow_lines_bash(),
@@ -1498,16 +1733,26 @@ fn zsh() -> String {
 
 /// fish `seen` bookkeeping arms, one per business flag. A repeatable flag
 /// still joins `seen_flags` for scope admission but never turns `done`.
-fn seen_cases_fish() -> String {
-    BUSINESS_FLAGS
-        .iter()
+/// The `joined` variant is the `--flag=value` twin: identical bookkeeping
+/// except the value arrived inline, so no pending `value` is set.
+fn seen_cases_fish(joined: bool) -> String {
+    let flags: Vec<&&str> = if joined {
+        BUSINESS_FLAGS
+            .iter()
+            .filter(|flag| flag_value(flag).is_some())
+            .collect()
+    } else {
+        BUSINESS_FLAGS.iter().collect()
+    };
+    flags
+        .into_iter()
         .map(|flag| {
             let bit = flag_bit(flag);
             let assign = match flag_value(flag) {
-                Some(kind) => {
+                Some(kind) if !joined => {
                     format!("set {bit} 1; set -a seen_flags '{flag}'; set value {kind}")
                 }
-                None => format!("set {bit} 1; set -a seen_flags '{flag}'"),
+                _ => format!("set {bit} 1; set -a seen_flags '{flag}'"),
             };
             if *flag == "--provider" {
                 // Same contract as bash/zsh: repeatable toward `agent
@@ -1768,6 +2013,73 @@ fn direction_cases_fish() -> String {
         .join("\n")
 }
 
+/// fish typed `--enum=<prefix>` candidate arms — the same offer policy as
+/// `joined_offer_cases_bash`: closed vocabulary only, `--flag=` spelling
+/// retained, `sub` gated on the viable-verb list, `after|operand` on the
+/// resolved command, `deep` on the integration union, `--direction` only
+/// once its per-command vocabulary is known.
+fn joined_offer_cases_fish() -> String {
+    let joined = |flag: &str, values: &[&str]| {
+        values
+            .iter()
+            .map(|value| format!("{flag}={value}"))
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    let direction = DIRECTION_VALUES
+        .iter()
+        .map(|(command, values)| {
+            format!(
+                "                    case '{command}'; set candidates {}",
+                joined("--direction", values)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let key = joined("--key", KEY_VALUES);
+    let until = joined("--until", UNTIL_VALUES);
+    let provider = joined("--provider", PROVIDER_VALUES);
+    format!(
+        concat!(
+            "            case '--direction'\n",
+            "                if test $seen_direction -eq 0\n",
+            "                    switch \"$state\"\n",
+            "                        case after operand\n",
+            "                            switch \"$family:$sub\"\n",
+            "{direction}\n",
+            "                            end\n",
+            "                    end\n",
+            "                end\n",
+            "            case '--key'\n",
+            "                if test $seen_key -eq 0 -a $seen_text -eq 0 -a $seen_enter -eq 0 -a $seen_file -eq 0 -a $seen_stdin -eq 0\n",
+            "                    switch \"$state\"\n",
+            "                        case sub; if contains -- send $verbs; set candidates {key}; end\n",
+            "                        case after operand; if test \"$family:$sub\" = 'terminal:send'; set candidates {key}; end\n",
+            "                    end\n",
+            "                end\n",
+            "            case '--until'\n",
+            "                switch \"$state\"\n",
+            "                    case sub; if contains -- wait $verbs; set candidates {until}; end\n",
+            "                    case after operand; if test \"$family:$sub\" = 'agent:wait'; set candidates {until}; end\n",
+            "                end\n",
+            "            case '--provider'\n",
+            "                switch \"$state\"\n",
+            "                    case sub; if contains -- doctor $verbs; or contains -- integration $verbs; set candidates {provider}; end\n",
+            "                    case deep; if test $seen_provider -eq 0; set candidates {provider}; end\n",
+            "                    case after operand\n",
+            "                        switch \"$family:$sub\"\n",
+            "                            case 'agent:doctor'; set candidates {provider}\n",
+            "                            case 'agent:integration:*'; if test $seen_provider -eq 0; set candidates {provider}; end\n",
+            "                        end\n",
+            "                end\n",
+        ),
+        direction = direction,
+        key = key,
+        until = until,
+        provider = provider,
+    )
+}
+
 /// The fish "no option was consumed" condition: the business list is empty
 /// and neither orthogonal option bit stands.
 fn no_options_fish() -> &'static str {
@@ -1831,14 +2143,25 @@ fn fish() -> String {
             "                        case '*'; set done 1\n",
             "                    end\n",
             "                end\n",
-            "            case '--mouse'\n",
+            "            case '--mouse' '--mouse=*'\n",
+            "                # Both spellings are the grammar — the two-token form\n",
+            "                # leaves a pending value, the joined form carries it and\n",
+            "                # stays inside the closed {{off,on}} vocabulary.\n",
             "                switch \"$state\"\n",
             "                    case verb\n",
             "                    case leaf; if test \"$leaf\" != tui; set done 1; end\n",
             "                    case '*'; set done 1\n",
             "                end\n",
             "                if test $done -eq 0\n",
-            "                    if test $seen_mouse -eq 1; set done 1; else; set seen_mouse 1; set value mouse; end\n",
+            "                    if test $seen_mouse -eq 1\n",
+            "                        set done 1\n",
+            "                    else\n",
+            "                        switch \"$word\"\n",
+            "                            case '--mouse'; set seen_mouse 1; set value mouse\n",
+            "                            case '--mouse=off' '--mouse=on'; set seen_mouse 1\n",
+            "                            case '*'; set done 1\n",
+            "                        end\n",
+            "                    end\n",
             "                end\n",
             "            case {flag_patterns}\n",
             "                switch \"$state\"\n",
@@ -1863,6 +2186,42 @@ fn fish() -> String {
             "                if test $done -eq 0\n",
             "                    switch \"$word\"\n",
             "{seen_cases}\n",
+            "                    end\n",
+            "                end\n",
+            "            case '--*=*'\n",
+            "                # A joined `--flag=value` business token: the flag part\n",
+            "                # drives the same state admission and bookkeeping as the\n",
+            "                # two-token spelling, and the inline value never claims\n",
+            "                # the next word. Booleans and unknown names stay dead.\n",
+            "                set -l flag_name (string split -m1 '=' -- $word)[1]\n",
+            "                switch \"$flag_name\"\n",
+            "                    case {value_flag_cases}\n",
+            "                    case '*'; set done 1\n",
+            "                end\n",
+            "                if test $done -eq 0\n",
+            "                    switch \"$state\"\n",
+            "                        case verb\n",
+            "                        case sub\n",
+            "                            switch \"$family:$flag_name\"\n",
+            "{sub_flag_cases}\n",
+            "                                case '*'; set done 1\n",
+            "                            end\n",
+            "                        case deep\n",
+            "                            switch \"$family:$sub:$flag_name\"\n",
+            "{deep_flag_cases}\n",
+            "                                case '*'; set done 1\n",
+            "                            end\n",
+            "                        case after operand\n",
+            "                            switch \"$family:$sub:$flag_name\"\n",
+            "{after_flag_cases}\n",
+            "                                case '*'; set done 1\n",
+            "                            end\n",
+            "                        case '*'; set done 1\n",
+            "                    end\n",
+            "                end\n",
+            "                if test $done -eq 0\n",
+            "                    switch \"$flag_name\"\n",
+            "{joined_seen_cases}\n",
             "                    end\n",
             "                end\n",
             "            case '--help' '--version'; set done 1\n",
@@ -1967,6 +2326,22 @@ fn fish() -> String {
             "                case leaf; if test \"$leaf\" = status; set candidates --format=text --format=json; end\n",
             "            end\n",
             "        end\n",
+            "    else if string match -q -- '--*=*' $cur\n",
+            "        # A typed `--enum=<prefix>` completes only that flag's own closed\n",
+            "        # vocabulary with the `--flag=` spelling preserved; a freeform\n",
+            "        # flag's value is never guessed, and a boolean or unknown name\n",
+            "        # offers nothing.\n",
+            "        set -l cur_name (string split -m1 '=' -- $cur)[1]\n",
+            "        switch \"$cur_name\"\n",
+            "            case '--mouse'\n",
+            "                if test $seen_mouse -eq 0\n",
+            "                    switch \"$state\"\n",
+            "                        case verb; if contains -- tui $possible; set candidates --mouse=off --mouse=on; end\n",
+            "                        case leaf; if test \"$leaf\" = tui; set candidates --mouse=off --mouse=on; end\n",
+            "                    end\n",
+            "                end\n",
+            "{joined_offer_cases}\n",
+            "        end\n",
             "    else if test \"$state\" = verb\n",
             "        set candidates $possible\n",
             "        if test $seen_format -eq 0 -a $seen_mouse -eq 0; set -a candidates --format --format=; end\n",
@@ -2040,7 +2415,13 @@ fn fish() -> String {
         integration_allowed = INTEGRATION_COMMAND_FLAGS.join(" "),
         integration_verb_words = INTEGRATION_VERBS.join(" "),
         after_flag_cases = after_flag_cases_fish(),
-        seen_cases = seen_cases_fish(),
+        seen_cases = seen_cases_fish(false),
+        value_flag_cases = value_business_flags()
+            .map(|flag| format!("'{flag}'"))
+            .collect::<Vec<_>>()
+            .join(" "),
+        joined_seen_cases = seen_cases_fish(true),
+        joined_offer_cases = joined_offer_cases_fish(),
         scope_cases = scope_cases_fish(),
         verb_cases = verb_cases_fish(),
         narrow_lines = narrow_lines_fish(),

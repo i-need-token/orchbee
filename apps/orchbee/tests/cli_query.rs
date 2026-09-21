@@ -2720,9 +2720,8 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
         "{engine} tui rejects format selectors"
     );
     // `tui` owns `--mouse`: the leaf offers it until consumed, the value
-    // completes `off`/`on`, and a consumed `--mouse` leaves nothing legal.
-    // The two-token form is the whole grammar — an equals prefix completes
-    // to nothing.
+    // completes `off`/`on` under both spellings, and a consumed `--mouse`
+    // leaves nothing legal.
     assert_eq!(
         sorted(complete(&["tui", ""])),
         sorted(vec!["--help".to_owned(), "--mouse".to_owned()]),
@@ -2734,9 +2733,9 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
         "{engine} tui --mouse values"
     );
     assert_eq!(
-        complete(&["tui", "--mouse="]).len(),
-        0,
-        "{engine} tui --mouse= is not a form"
+        sorted(complete(&["tui", "--mouse="])),
+        sorted(vec!["--mouse=off".to_owned(), "--mouse=on".to_owned()]),
+        "{engine} tui --mouse= values"
     );
     assert_eq!(
         complete(&["tui", "--mouse", "off", ""]).len(),
@@ -2746,7 +2745,12 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
     assert_eq!(
         complete(&["tui", "--mouse=bogus"]).len(),
         0,
-        "{engine} tui invalid --mouse= value"
+        "{engine} tui --mouse=bogus prefix matches no value"
+    );
+    assert_eq!(
+        complete(&["tui", "--mouse=off", ""]).len(),
+        0,
+        "{engine} tui consumed --mouse=off"
     );
     assert_eq!(
         complete(&["tui", "--mouse", "bogus", ""]).len(),
@@ -2765,9 +2769,9 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
         "{engine} --mouse narrows the roots to tui"
     );
     assert_eq!(
-        complete(&["--mouse="]).len(),
-        0,
-        "{engine} root --mouse= is not a form"
+        sorted(complete(&["--mouse="])),
+        sorted(vec!["--mouse=off".to_owned(), "--mouse=on".to_owned()]),
+        "{engine} root --mouse= values"
     );
     assert_eq!(
         complete(&["--mouse", "off", "status", ""]).len(),
@@ -2932,6 +2936,103 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
         complete(&["--workspace", "x", "--standalone", "--format", ""]).len(),
         0,
         "{engine} pending format value on a dead prefix"
+    );
+    // Joined `--flag=value` tokens drive the same admission and bookkeeping
+    // as the two-token form: the inline value never claims the next word,
+    // duplicates are spelling-blind, out-of-scope names still kill the
+    // position, and closed vocabularies complete under the joined spelling.
+    assert_eq!(
+        sorted(complete(&["workspace", "list", "--project=x", ""])),
+        sorted(
+            ["--format", "--format="]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        ),
+        "{engine} joined value frees the next word"
+    );
+    assert_eq!(
+        sorted(complete(&["--mouse=off", ""])),
+        vec!["tui".to_owned()],
+        "{engine} joined --mouse narrows the roots to tui"
+    );
+    assert_eq!(
+        complete(&["workspace", "list", "--project", "a", "--project=b", ""]).len(),
+        0,
+        "{engine} mixed-spelling duplicate"
+    );
+    assert_eq!(
+        complete(&["status", "--project=x", ""]).len(),
+        0,
+        "{engine} joined filter out of scope"
+    );
+    assert_eq!(
+        complete(&["workspace", "list", "--bogus=x", ""]).len(),
+        0,
+        "{engine} unknown joined flag"
+    );
+    assert_eq!(
+        complete(&["tab", "close", "t", "--confirm=yes", ""]).len(),
+        0,
+        "{engine} boolean rejects a joined value"
+    );
+    // A joined enum prefix completes that flag's own closed vocabulary with
+    // the `--flag=` spelling preserved; freeform values are never guessed.
+    assert_eq!(
+        sorted(complete(&["tab", "move", "t", "--direction=n"])),
+        vec!["--direction=next".to_owned()],
+        "{engine} joined direction values"
+    );
+    assert_eq!(
+        sorted(complete(&["agent", "wait", "s", "--until=i"])),
+        sorted(
+            ["--until=idle", "--until=interrupted"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        ),
+        "{engine} joined until values"
+    );
+    assert_eq!(
+        sorted(complete(&["agent", "doctor", "--provider=c"])),
+        sorted(
+            [
+                "--provider=claude-code",
+                "--provider=codex",
+                "--provider=cline"
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
+        ),
+        "{engine} joined provider values"
+    );
+    assert_eq!(
+        sorted(complete(&["terminal", "send", "s", "--key=e"])),
+        sorted(
+            ["--key=enter", "--key=escape", "--key=end"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        ),
+        "{engine} joined key values"
+    );
+    assert_eq!(
+        complete(&["workspace", "list", "--project=x"]).len(),
+        0,
+        "{engine} freeform joined value is never guessed"
+    );
+    // The joined spelling keeps repeatability and rides on the data rules:
+    // a second `--until=` stays offerable, and `--text=--help` is payload.
+    assert!(
+        sorted(complete(&["agent", "wait", "s", "--until=idle", ""]))
+            .contains(&"--until".to_owned()),
+        "{engine} joined --until stays repeatable"
+    );
+    assert_eq!(
+        complete(&["terminal", "send", "s", "--text=--help", "--key", ""]).len(),
+        0,
+        "{engine} joined text payload must not resurrect --key"
     );
 }
 

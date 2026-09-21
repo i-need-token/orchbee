@@ -1096,18 +1096,23 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
             _ if token.starts_with("--format=") => index += 1,
             // `--mouse` is a TUI-scoped on/off switch; it parses eagerly so a
             // malformed value fails here rather than at command resolution.
-            // The accepted form is the two-token `--mouse off|on` only — an
-            // equals form is not part of the grammar and falls through to the
-            // unknown-option rejection like any other `-*` token.
-            "--mouse" => {
-                let value = match tokens.get(index + 1) {
-                    Some(value) if value != "--" => value.as_str(),
-                    _ => {
-                        return Err(usage_with(
-                            UsageReason::MissingValue { option: "--mouse" },
-                            envelope,
-                        ));
+            // Like every declared value option it admits both spellings —
+            // `--mouse off|on` and `--mouse=off|on` — but its value is the
+            // closed {off,on} vocabulary validated here, so the joined form
+            // enters this arm rather than the generic business-flag one.
+            _ if token == "--mouse" || token.starts_with("--mouse=") => {
+                let (value, width) = if token == "--mouse" {
+                    match tokens.get(index + 1) {
+                        Some(value) if value != "--" => (value.as_str(), 2),
+                        _ => {
+                            return Err(usage_with(
+                                UsageReason::MissingValue { option: "--mouse" },
+                                envelope,
+                            ));
+                        }
                     }
+                } else {
+                    (&token["--mouse=".len()..], 1)
                 };
                 let Some(selected) = mouse_option(value) else {
                     return Err(usage_with(
@@ -1126,7 +1131,7 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                         envelope,
                     ));
                 }
-                index += 2;
+                index += width;
             }
             _ if VALUE_FLAGS.contains(&token.as_str()) => {
                 // The guard admitted this spelling, so the static name exists.
@@ -1150,9 +1155,9 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
             // remainder is the verbatim value — embedded `=`, spaces,
             // Unicode, and leading `-` are all data, so `--arg=--` keeps
             // its literal terminator value and `--arg=` keeps the empty
-            // argv element. `--mouse` keeps its documented two-token-only
-            // grammar and `--format=` is consumed by the envelope phase;
-            // any other `--x=y` falls through to the unknown-option
+            // argv element. `--mouse=<off|on>` is already claimed by its
+            // own arm above and `--format=` is consumed by the envelope
+            // phase; any other `--x=y` falls through to the unknown-option
             // rejection below.
             _ if joined_value_option(token).is_some() => {
                 let option = joined_value_option(token).expect("admitted by guard");
@@ -1216,16 +1221,18 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
 /// The joined-spelling counterpart of `VALUE_FLAGS`: returns the declared
 /// value flag when `token` is `--<flag>=<value>` — the `=` immediately
 /// follows the flag name so a name that is merely a flag prefix
-/// (`--argx=v`) never matches. `--mouse` is excluded: its owning grammar is
-/// documented two-token-only. `--format` is absent from `VALUE_FLAGS` by
-/// construction, so the envelope-phase spelling never reaches here.
+/// (`--argx=v`) never matches. `--mouse` is excluded because its own
+/// earlier arm already claims `--mouse=<off|on>` for its closed-vocabulary
+/// validation; it must never fall into a generic slot. `--format` is
+/// absent from `VALUE_FLAGS` by construction, so the envelope-phase
+/// spelling never reaches here.
 fn joined_value_option(token: &str) -> Option<&'static str> {
     if !token.starts_with("--") {
         return None;
     }
     VALUE_FLAGS.iter().copied().find(|flag| {
         *flag != "--mouse"
-            && token.len() >= flag.len() + 1
+            && token.len() > flag.len()
             && token.starts_with(flag)
             && token.as_bytes()[flag.len()] == b'='
     })
@@ -1287,8 +1294,14 @@ fn apply_value_flag(
         "--name" => &mut options.name,
         "--profile" => &mut options.profile,
         "--adapter-source" => &mut options.adapter_source,
+        "--target-panel" => &mut options.target_panel,
 
-        _ => &mut options.target_panel,
+        // Every reachable `option` is a `VALUE_FLAGS` member and the match
+        // is total over that list — `--mouse` is the sole member diverted
+        // to its own validated arm upstream. A future member missing its
+        // slot arm must fail loudly here, not assign into an unrelated
+        // field.
+        _ => unreachable!("value option {option} lacks a slot arm"),
     };
     if slot.replace(value).is_some() {
         return Err(usage_with(

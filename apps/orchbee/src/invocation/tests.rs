@@ -70,6 +70,20 @@ fn tui_mouse_option_parses_on_the_explicit_route() {
         parse(&["--mouse", "off", "tui"]),
         Ok(Request::Tui { mouse: false })
     );
+    // The joined spelling is equivalent, still through the option's own
+    // closed-vocabulary validation.
+    assert_eq!(
+        parse(&["tui", "--mouse=off"]),
+        Ok(Request::Tui { mouse: false })
+    );
+    assert_eq!(
+        parse(&["tui", "--mouse=on"]),
+        Ok(Request::Tui { mouse: true })
+    );
+    assert_eq!(
+        parse(&["--mouse=off", "tui"]),
+        Ok(Request::Tui { mouse: false })
+    );
 }
 
 #[test]
@@ -444,14 +458,11 @@ fn text_and_unselected_syntax_failures_stay_silent() {
         &["--version", "--help"],
         &["tui", "--format", "text"],
         // `--mouse` belongs to the explicit `tui` route alone: the bare
-        // invocation and every other family reject it, the equals form is
-        // not part of the grammar, duplicates and unknown values are usage,
-        // and `--` never rescues it.
+        // invocation and every other family reject it in either spelling,
+        // duplicates and unknown values are usage, and `--` never rescues
+        // it.
         &["--mouse", "off"],
         &["--mouse=off"],
-        &["tui", "--mouse=off"],
-        &["tui", "--mouse=on"],
-        &["--mouse=off", "tui"],
         &["status", "--mouse", "off"],
         &["--mouse", "off", "status"],
         &["help", "--mouse", "off"],
@@ -1637,18 +1648,34 @@ fn joined_value_spelling_is_equivalent() {
     ] {
         assert_eq!(parse(space), parse(joined), "{space:?} vs {joined:?}");
     }
-    // `--mouse` keeps its documented two-token-only grammar: every joined
-    // spelling is usage, on every route.
-    for arguments in [
-        &["tui", "--mouse=off"][..],
-        &["tui", "--mouse=bogus"][..],
-        &["--mouse=off"][..],
+    // `--mouse` admits the joined spelling too, but its value stays the
+    // closed {off,on} vocabulary validated by its own arm: unknown or
+    // empty values are the same InvalidValue failure as the space form,
+    // duplicates are spelling-blind, and the route scope is unchanged.
+    for (space, joined) in [
+        (&["tui", "--mouse", "off"][..], &["tui", "--mouse=off"][..]),
+        (&["tui", "--mouse", "on"][..], &["tui", "--mouse=on"][..]),
+        (
+            &["tui", "--mouse", "bogus"][..],
+            &["tui", "--mouse=bogus"][..],
+        ),
+        (&["tui", "--mouse", ""][..], &["tui", "--mouse="][..]),
+        (
+            &["tui", "--mouse", "off", "--mouse", "on"][..],
+            &["tui", "--mouse=off", "--mouse=on"][..],
+        ),
+        // Off the `tui` route both spellings fail identically.
+        (&["--mouse", "off"][..], &["--mouse=off"][..]),
+        (
+            &["status", "--mouse", "off"][..],
+            &["status", "--mouse=off"][..],
+        ),
+        (
+            &["tui", "--", "--mouse", "off"][..],
+            &["tui", "--", "--mouse=off"][..],
+        ),
     ] {
-        assert_eq!(
-            parse(arguments),
-            Err(usage(FailureEnvelope::Text)),
-            "{arguments:?}"
-        );
+        assert_eq!(parse(space), parse(joined), "{space:?} vs {joined:?}");
     }
     // A joined token after `--` is a positional word, never an option —
     // `status` takes no operand, so the word is an unexpected argument
