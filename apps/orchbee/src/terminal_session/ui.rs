@@ -349,8 +349,38 @@ impl<'a> NativeSessionView<'a> {
         self.focus
     }
 
+    /// The active Tab renders zoomed: the focused leaf draws across the
+    /// whole pane content area while hidden leaves stay attached but
+    /// undrawn. Volatile Client-local session state.
+    pub(crate) fn zoom_active(&self) -> bool {
+        self.state
+            .as_ref()
+            .is_some_and(StateSessionView::zoom_active)
+    }
+
     pub(crate) const fn retirement(&self) -> Option<NativeDisplayRetirement> {
         self.retirement
+    }
+}
+
+#[cfg(test)]
+impl<'a> NativeSessionView<'a> {
+    /// Test-only view over a bare session state: the caller supplies the
+    /// live projections and the focus draw status the paint pass would
+    /// report — the exact shape `pane_geometries`, `active_pane_area`, and
+    /// the renderer consume.
+    pub(super) fn test_view(
+        state: &'a NativeSessionState,
+        panes: &'a [KeyedProjection],
+        projection_status: NativeProjectionStatus,
+    ) -> Self {
+        Self {
+            state: Some(state.view()),
+            panes,
+            focus: state.focus_panel_id(),
+            projection_status,
+            retirement: None,
+        }
     }
 }
 
@@ -360,6 +390,19 @@ pub(crate) struct KeyedProjection {
     key: PaneRef,
     value: TerminalProjection,
     status: NativeProjectionStatus,
+}
+
+#[cfg(test)]
+impl KeyedProjection {
+    /// Test-only record for [`NativeSessionView::test_view`]: a live
+    /// projection bound to an exact pane incarnation.
+    pub(super) fn for_test(
+        key: PaneRef,
+        value: TerminalProjection,
+        status: NativeProjectionStatus,
+    ) -> Self {
+        Self { key, value, status }
+    }
 }
 
 struct PendingDraw {
@@ -1041,6 +1084,7 @@ impl NativeUi {
             | ClientAction::SelectTab(_) => self.select_tab(action),
             ClientAction::MovePanelFocus(direction) => self.move_panel_focus(direction),
             ClientAction::FocusPanel(panel) => self.move_panel_focus_to(&panel),
+            ClientAction::ToggleZoom => self.toggle_zoom(),
             ClientAction::SplitPanel(direction) => {
                 self.panel_operation(PanelRequestKind::Split { direction })
             }
@@ -1219,10 +1263,32 @@ impl NativeUi {
             self.retire(CarrierFailure::Protocol);
             return SessionActionDisposition::KeepNavigator;
         }
+        // Under zoom the drawn set follows the focus: the pointer map and
+        // the observed geometry are stale the moment the move lands.
+        let zoomed = state.zoom_active();
         if let Err(closed) = mailbox.publish_desired(pane) {
             self.retire(closed.failure());
         }
+        if zoomed {
+            return SessionActionDisposition::LayoutChanged;
+        }
         SessionActionDisposition::KeepNavigator
+    }
+
+    /// `Ctrl+B z`: the volatile Client-local zoom toggle. The mailbox lock
+    /// serializes flag minting against membership installs so a flag can
+    /// never be minted on a Tab an in-flight install is shrinking to one
+    /// leaf — the same TOCTOU the local confirmations close.
+    fn toggle_zoom(&mut self) -> SessionActionDisposition {
+        let (Some(mailbox), Some(state)) =
+            (self.mailbox.as_ref().map(Arc::clone), self.state.as_mut())
+        else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        if !mailbox.apply_local_for(state, NativeSessionState::toggle_zoom) {
+            return SessionActionDisposition::KeepNavigator;
+        }
+        SessionActionDisposition::LayoutChanged
     }
 
     fn move_tab(&mut self, direction: WorkbenchTabMoveDirection) -> SessionActionDisposition {
@@ -1319,8 +1385,14 @@ impl NativeUi {
             self.retire(CarrierFailure::Protocol);
             return SessionActionDisposition::KeepNavigator;
         }
+        // Under zoom the drawn set follows the focus: the pointer map and
+        // the observed geometry are stale the moment the move lands.
+        let zoomed = state.zoom_active();
         if let Err(closed) = mailbox.publish_desired(pane) {
             self.retire(closed.failure());
+        }
+        if zoomed {
+            return SessionActionDisposition::LayoutChanged;
         }
         SessionActionDisposition::KeepNavigator
     }

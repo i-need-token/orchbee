@@ -27,6 +27,7 @@ fn close_request_notice_does_not_replace_the_exact_status_text() {
             Locale::EnUs.shell(),
             "terminal · Close cleanup blocked",
             Some("Close request was not applied"),
+            false,
             ViewportTier::Full,
             &crate::tui_theme::Theme::rgb_test_dark(),
         );
@@ -467,4 +468,41 @@ fn sidebar_status_truncates_with_ellipsis_on_grapheme_boundaries() {
     assert!(joined.contains('…'), "no ellipsis marker: {rows:?}");
     assert!(!joined.contains("controlling"), "status not cut: {rows:?}");
     assert!(joined.contains("contr"), "{rows:?}");
+}
+
+#[test]
+fn the_zoom_badge_rides_the_status_label_in_both_locales() {
+    for (locale, needle) in [
+        (Locale::EnUs, "zoomed · Ctrl+B z restores"),
+        (Locale::ZhCn, "已放大 · Ctrl+B z 恢复"),
+    ] {
+        let mut terminal = infallible(Terminal::new(TestBackend::new(120, 1)));
+        let view = ClientView::new(120);
+        infallible(terminal.draw(|frame| {
+            super::render_status(
+                frame,
+                frame.area(),
+                &view,
+                locale,
+                locale.shell(),
+                "terminal · Ready · controlling",
+                None,
+                true,
+                ViewportTier::Full,
+                &crate::tui_theme::Theme::rgb_test_dark(),
+            );
+        }));
+        let text = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        // Cell padding splits wide glyphs — compare on collapsed text.
+        assert!(
+            without_cell_padding(&text).contains(&without_cell_padding(needle)),
+            "{locale:?} missing badge: {text:?}"
+        );
+    }
 }

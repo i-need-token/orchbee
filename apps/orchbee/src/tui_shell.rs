@@ -533,7 +533,7 @@ pub(crate) fn active_pane_area(
         .active_position()
         .and_then(|position| position.checked_sub(1))
         .and_then(|index| native.tab(index))?;
-    let area = if framed && tab.panel_count() > 1 {
+    let area = if framed && tab.panel_count() > 1 && !native.zoom_active() {
         crate::tui_layout::project_panel_tree(content, tab.panel_tree(), tab.active_panel())
             .active_content(tab.active_panel())
     } else {
@@ -602,10 +602,20 @@ pub(crate) fn pane_geometries(
             let Some(panel) = tab.panel(leaf.panel_index) else {
                 continue;
             };
+            // Under zoom the observed set stays the full canonical leaf
+            // list: the focused leaf reports the whole content area so its
+            // terminal converges to the drawn size, while hidden leaves
+            // report their unzoomed canonical rect — attached, alive, and
+            // never resized.
+            let rect = if native.zoom_active() && tab.active_panel() == Some(leaf.panel_index) {
+                content
+            } else {
+                leaf.content
+            };
             panes.push((
                 panel.panel_id().clone(),
                 leaf.panel_index,
-                leaf_geometry(leaf.content)?,
+                leaf_geometry(rect)?,
             ));
         }
         return Ok(panes);

@@ -740,3 +740,64 @@ fn unknown_csi_and_paste_keep_their_passthrough_alongside_dropped_mouse() {
         b"k\x1b[?25h\x1b[200~hi\x1b[201~z".to_vec()
     );
 }
+
+#[test]
+fn prefixed_z_issues_the_client_local_zoom_action() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    dispatcher
+        .dispatch(
+            &mut view,
+            b"\x02z",
+            &mut port,
+            Instant::now(),
+            |_, _| Ok::<(), io::Error>(()),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert_eq!(*calls.borrow(), [Call::Action(ClientAction::ToggleZoom)]);
+    assert!(!view.prefix_active());
+}
+
+struct LayoutChangedPort(Rc<RefCell<Vec<Call>>>);
+
+impl TerminalInputPort for LayoutChangedPort {
+    fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
+        self.0.borrow_mut().push(Call::Forward(bytes.to_vec()));
+        Ok(())
+    }
+
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+        self.0.borrow_mut().push(Call::Action(action));
+        Some(SessionActionDisposition::LayoutChanged)
+    }
+}
+
+#[test]
+fn a_layout_changed_disposition_reobserves_layout_and_stales_the_pointer_map() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = LayoutChangedPort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    let layout_passes = Rc::new(RefCell::new(0usize));
+    let count = Rc::clone(&layout_passes);
+    dispatcher
+        .dispatch(
+            &mut view,
+            b"\x02z",
+            &mut port,
+            Instant::now(),
+            |_, _| {
+                *count.borrow_mut() += 1;
+                Ok::<(), io::Error>(())
+            },
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert_eq!(*calls.borrow(), [Call::Action(ClientAction::ToggleZoom)]);
+    // The transition itself did not flag a layout change, so the layout pass
+    // is attributed to the returned disposition alone.
+    assert_eq!(*layout_passes.borrow(), 1);
+}

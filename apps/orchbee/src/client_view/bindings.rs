@@ -77,6 +77,7 @@ pub(crate) enum PrefixDesc {
     SelectContext,
     SelectTabDigit,
     PanelFocus,
+    PanelZoom,
     SplitPanel,
     ClosePanel,
     MovePanel,
@@ -210,6 +211,10 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
             ),
         ],
         desc: PrefixDesc::PanelFocus,
+    },
+    PrefixGroup {
+        members: &[member(key(KeyCode::Char('z')), ClientAction::ToggleZoom)],
+        desc: PrefixDesc::PanelZoom,
     },
     PrefixGroup {
         members: &[

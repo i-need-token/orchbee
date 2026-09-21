@@ -1111,6 +1111,13 @@ pub(super) struct NativeSessionState {
     setup: workspace_setup::SetupState,
     pending_membership: Option<membership::PendingMembership>,
     settled_create: Option<CommittedTabCreate>,
+    /// Volatile per-Tab Client-local zoom flags (`Ctrl+B z`): a flag lives
+    /// while its Tab is known alive with more than one leaf — the current
+    /// cache answers first, then the retained context snapshots — and is
+    /// collected at every membership install. Never wired, shared between
+    /// Clients, or persisted; bounded by the same navigation retention the
+    /// context snapshots already obey.
+    zoomed_tabs: std::collections::BTreeSet<WorkbenchTabId>,
 }
 
 impl NativeSessionState {
@@ -1175,6 +1182,7 @@ impl NativeSessionState {
             setup: workspace_setup::SetupState::default(),
             pending_membership: None,
             settled_create: None,
+            zoomed_tabs: std::collections::BTreeSet::new(),
         };
         Some((state, target))
     }
@@ -3104,6 +3112,7 @@ impl NativeSessionState {
         self.phase = phase;
         self.provenance = provenance;
         self.cache = candidate;
+        self.prune_zoomed_tabs();
         true
     }
 
@@ -3234,6 +3243,73 @@ impl NativeSessionState {
         self.desired = Some(pane);
         self.latest_geometry = geometry;
         true
+    }
+
+    /// `Ctrl+B z`: a volatile per-Tab Client-local zoom flag, sharing the
+    /// guards the local focus transition owns — a Ready phase with no
+    /// structural mutation in flight, no armed rename draft, and no pending
+    /// refresh. A single-leaf active Tab is an honest no-op. Returns whether
+    /// the rendered pane set changed, which the dispatcher translates into
+    /// a layout re-observation and pointer-map invalidation.
+    pub(super) fn toggle_zoom(&mut self) -> bool {
+        if self.mutation_blocks_structure()
+            || self.rename_draft_blocks_structure()
+            || self.pending_refresh.is_some()
+            || !matches!(&self.phase, SessionPhase::Ready(_))
+        {
+            return false;
+        }
+        let Some(index) = self.active().map(SelectedTab::index) else {
+            return false;
+        };
+        let Some(tab) = self.cache.tabs().get(index) else {
+            return false;
+        };
+        if tab.panel_count() <= 1 {
+            return false;
+        }
+        let tab_id = tab.tab_id().clone();
+        if !self.zoomed_tabs.remove(&tab_id) {
+            self.zoomed_tabs.insert(tab_id);
+        }
+        true
+    }
+
+    /// Read-side adjudication: the active Tab draws zoomed exactly while its
+    /// flag survives AND its current cache membership stays multi-leaf — a
+    /// stale retained flag can never paint a zoom.
+    pub(super) fn zoom_active(&self) -> bool {
+        let Some(index) = self.active().map(SelectedTab::index) else {
+            return false;
+        };
+        self.cache
+            .tabs()
+            .get(index)
+            .is_some_and(|tab| tab.panel_count() > 1 && self.zoomed_tabs.contains(tab.tab_id()))
+    }
+
+    /// A flag's latest-known membership: the current cache answers for its
+    /// own tabs first; a departed context's tabs fall back to that context's
+    /// retained snapshot; anything else is unknown (zero leaves).
+    fn latest_known_panel_count(&self, tab_id: &WorkbenchTabId) -> usize {
+        if let Some(tab) = self.cache.tabs().iter().find(|tab| tab.tab_id() == tab_id) {
+            return tab.panel_count();
+        }
+        self.retained_contexts
+            .iter()
+            .find_map(|retained| retained.tabs().iter().find(|tab| tab.tab_id() == tab_id))
+            .map_or(0, NativeSimpleTab::panel_count)
+    }
+
+    /// Every install collects flags whose last known truth is no longer
+    /// multi-leaf — a shrink to one leaf, a deletion, or a recycled retained
+    /// entry — never lazily at read time.
+    fn prune_zoomed_tabs(&mut self) {
+        let flags = std::mem::take(&mut self.zoomed_tabs);
+        self.zoomed_tabs = flags
+            .into_iter()
+            .filter(|tab_id| self.latest_known_panel_count(tab_id) > 1)
+            .collect();
     }
 
     pub(super) fn plan_selection(&self, action: ClientAction) -> SelectionPlan {
@@ -3391,6 +3467,17 @@ impl NativeSessionState {
             return false;
         }
         if !self.membership_invariant_holds() || !self.context_invariant_holds() {
+            return false;
+        }
+        // Every zoom flag rides a latest-known multi-leaf membership — the
+        // current cache first, then the departed context's retained
+        // snapshot; installs collect flags whose truth is no longer
+        // multi-leaf, so a stale flag can never sit in the set.
+        if self
+            .zoomed_tabs
+            .iter()
+            .any(|tab_id| self.latest_known_panel_count(tab_id) <= 1)
+        {
             return false;
         }
         if !self.move_invariant_holds()
@@ -3588,6 +3675,12 @@ impl<'a> NativeSessionView<'a> {
         self.state
             .active()
             .map(|selected| selected.index().saturating_add(1))
+    }
+
+    /// The active Tab renders zoomed — the volatile per-Tab flag read
+    /// through current-cache adjudication only.
+    pub(super) fn zoom_active(&self) -> bool {
+        self.state.zoom_active()
     }
 
     pub(super) fn controller_mode(&self) -> Option<&ControllerMode> {

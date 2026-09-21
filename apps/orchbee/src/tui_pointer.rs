@@ -143,6 +143,17 @@ impl FrameHitMap {
         }
         HitResolution::Dead
     }
+
+    /// Test-only probe: the target a press at `(column, row)` would
+    /// resolve to — the drawn-set witness that a zoomed frame exposes
+    /// exactly the focused pane and nothing else.
+    #[cfg(test)]
+    pub(crate) fn hit_target_at(&self, column: u16, row: u16) -> Option<&HitTarget> {
+        match self.hit(column, row) {
+            HitResolution::Region(target) => Some(target),
+            HitResolution::OverlayBackdrop | HitResolution::Dead => None,
+        }
+    }
 }
 
 /// The renderer's staged recorder — same geometry the paint used, because

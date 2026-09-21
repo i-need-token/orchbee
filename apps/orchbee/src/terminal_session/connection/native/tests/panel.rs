@@ -2716,3 +2716,186 @@ fn reconcile_readonly_setup_focus_move_completes_without_ready() -> TestResult {
     );
     harness.finish()
 }
+
+/// The `Ctrl+B z` trace end to end: the volatile flag flip emits no wire
+/// request, both viewers stay attached with their exact incarnations, and
+/// resize admission stays scoped to whichever pane is focused — the hidden
+/// peer's reports never reach the carrier while zoomed or after restore.
+#[test]
+fn zoom_trace_keeps_peer_viewer_alive_and_resize_focus_scoped() -> TestResult {
+    let canonical = fixture_geometry()?;
+    let zoomed_wide = Geometry::new(
+        canonical.columns().checked_add(8).unwrap(),
+        canonical.rows(),
+        canonical.cell_pixel_width(),
+        canonical.cell_pixel_height(),
+    )?;
+    // 9 post-Ready steps: focus Resize + the peer chain's five + one Resize
+    // per post-zoom observation leg. A flag flip emits nothing, so the
+    // script itself proves the toggle is wire-free.
+    let mut harness = Harness::start(steps(&[WireKind::Obcs; 9]), canonical)?;
+    let (_anchor_a, _controller_a) =
+        drive_controlling_ready_from_snapshot(&mut harness, split_snapshot(1), canonical)?;
+    let pane_a = harness.ui.state().desired().cloned().unwrap();
+    let pane_a_ref = harness
+        .ui
+        .state()
+        .pane_ref_for(&pane_a)
+        .ok_or_else(|| test_error("focus pane record must be live"))?;
+    let focus_panel = harness.ui.state().focus_panel_id().unwrap().clone();
+    let (peer_panel, peer_viewer_id, peer_controller) =
+        drive_reconcile_peer_first_frame(&mut harness, canonical, PeerAcquire::Controlling)?;
+    let peer_controller = peer_controller.ok_or_else(|| test_error("controlling peer"))?;
+    let pane_b = harness
+        .ui
+        .state()
+        .plan_panel_focus_local_at(&peer_panel)
+        .ok_or_else(|| test_error("configured peer must pass the local focus plan"))?;
+    let pane_b_ref = harness
+        .ui
+        .state()
+        .pane_ref_for(&pane_b)
+        .ok_or_else(|| test_error("peer pane record must be live"))?;
+    // The helper leaves the peer's feedback event unsettled; consume it so
+    // the mailbox admits the resizes the zoom legs queue.
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::FeedbackAccepted { .. }
+    ));
+
+    // Zoom: local flag only — every incarnation stays live and attached.
+    assert!(harness.ui.toggle_zoom());
+    assert!(harness.ui.state().zoom_active());
+    assert!(harness.ui.state().pane_attached(&pane_a_ref));
+    assert!(harness.ui.state().pane_attached(&pane_b_ref));
+    assert!(harness.ui.state().pollable_panes().contains(&pane_b_ref));
+
+    // The zoomed observation still reports both leaves; only the focused
+    // pane's whole-area report is admitted — one Resize on pane A's own
+    // attachment, nothing on the hidden peer's.
+    harness.ui.observe_panes(&[
+        (focus_panel.clone(), 0, zoomed_wide),
+        (peer_panel.clone(), 1, canonical),
+    ])?;
+    let ClientMessage::TerminalControl(resize) = harness.carrier.take_obcs()? else {
+        return Err(test_error("zoomed observation must Resize the focus pane"));
+    };
+    let TerminalControlAction::Resize {
+        attachment_id,
+        geometry: requested,
+        ..
+    } = resize.action()
+    else {
+        return Err(test_error("zoomed observation must Resize the focus pane"));
+    };
+    assert_eq!(attachment_id, &attached_viewer_id()?);
+    assert_eq!(*requested, zoomed_wide);
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalControlResult(
+            TerminalControlResult::new(
+                resize.request_id().clone(),
+                TerminalControlOutcome::Resized {
+                    geometry: zoomed_wide,
+                },
+            ),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::SetupConfigured { .. }
+    ));
+
+    // Focus follows the hidden peer: the move is local, and the next
+    // observation admits the peer's whole-area report on ITS attachment.
+    let moved = harness.ui.move_panel_focus_to_pane(&peer_panel)?;
+    assert_eq!(moved, pane_b);
+    assert!(harness.ui.state().zoom_active());
+    harness.ui.observe_panes(&[
+        (focus_panel.clone(), 0, canonical),
+        (peer_panel.clone(), 1, zoomed_wide),
+    ])?;
+    let ClientMessage::TerminalControl(resize) = harness.carrier.take_obcs()? else {
+        return Err(test_error("focus-moved observation must Resize the peer"));
+    };
+    let TerminalControlAction::Resize {
+        attachment_id,
+        controller_id: resize_controller,
+        geometry: requested,
+        ..
+    } = resize.action()
+    else {
+        return Err(test_error("focus-moved observation must Resize the peer"));
+    };
+    assert_eq!(attachment_id, &peer_viewer_id);
+    assert_eq!(resize_controller, &peer_controller);
+    assert_eq!(*requested, zoomed_wide);
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalControlResult(
+            TerminalControlResult::new(
+                resize.request_id().clone(),
+                TerminalControlOutcome::Resized {
+                    geometry: zoomed_wide,
+                },
+            ),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::SetupConfigured { .. }
+    ));
+
+    // Restore: the peer — still focused — converges back to its canonical
+    // rect; pane A's hidden-pane report admits nothing.
+    assert!(harness.ui.toggle_zoom());
+    assert!(!harness.ui.state().zoom_active());
+    harness.ui.observe_panes(&[
+        (focus_panel.clone(), 0, canonical),
+        (peer_panel.clone(), 1, canonical),
+    ])?;
+    let ClientMessage::TerminalControl(resize) = harness.carrier.take_obcs()? else {
+        return Err(test_error(
+            "restored observation must Resize the focus pane",
+        ));
+    };
+    let TerminalControlAction::Resize {
+        attachment_id,
+        geometry: requested,
+        ..
+    } = resize.action()
+    else {
+        return Err(test_error(
+            "restored observation must Resize the focus pane",
+        ));
+    };
+    assert_eq!(attachment_id, &peer_viewer_id);
+    assert_eq!(*requested, canonical);
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalControlResult(
+            TerminalControlResult::new(
+                resize.request_id().clone(),
+                TerminalControlOutcome::Resized {
+                    geometry: canonical,
+                },
+            ),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::SetupConfigured { .. }
+    ));
+
+    assert_eq!(harness.mailbox.is_closed(), None);
+    assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Ready);
+    // Both incarnations survived the whole zoom session bit for bit.
+    assert!(harness.ui.state().pane_attached(&pane_a_ref));
+    assert!(harness.ui.state().pane_attached(&pane_b_ref));
+    assert_eq!(
+        harness.ui.state().pane_ref_for(&pane_a).as_ref(),
+        Some(&pane_a_ref)
+    );
+    assert_eq!(
+        harness.ui.state().pane_ref_for(&pane_b).as_ref(),
+        Some(&pane_b_ref)
+    );
+    harness.finish()
+}

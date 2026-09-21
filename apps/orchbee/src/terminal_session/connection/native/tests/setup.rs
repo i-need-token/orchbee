@@ -1250,6 +1250,14 @@ impl UiDriver {
         }
     }
 
+    /// Mirrors `NativeUi::toggle_zoom`: the mailbox admission serializes the
+    /// flag flip against in-flight installs exactly like the production
+    /// action, and the same `bool` reports whether the drawn set changed.
+    pub(super) fn toggle_zoom(&mut self) -> bool {
+        let mailbox = Arc::clone(&self.mailbox);
+        mailbox.apply_local_for(self.state_mut(), NativeSessionState::toggle_zoom)
+    }
+
     /// Mirrors `NativeUi::move_panel_focus_to`: a purely local focus move plans
     /// through the live record, installs the same desired/mode swap, and
     /// republishes the mailbox's desired key so focus-scoped admission (and

@@ -187,6 +187,7 @@ impl PreparedMembershipInstall<'_> {
         self.state.provenance = self.prepared.provenance;
         self.state.desired = self.desired.clone();
         self.state.phase = self.replacement_phase;
+        self.state.prune_zoomed_tabs();
         if let Some(completion) = self.prepared.setup_completion {
             self.state.complete_setup_refresh(*completion);
         }

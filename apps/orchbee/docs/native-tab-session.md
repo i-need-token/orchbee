@@ -963,6 +963,37 @@ are fenced at the exact `PaneRef` and never land on the re-bound attachment. A p
 refresh path; the session preserves the selected Panel by identity while reindexing the cached tree
 and retained provenance (`peer_panel_split_refresh_preserves_active_panel_identity`).
 
+`Ctrl+B z` toggles a Client-local zoom on the active Tab: the focused Panel draws across the
+whole pane content area while every other leaf stays live but undrawn. The flag is volatile,
+per-Client, per-Tab session state owned by `NativeSessionState` — it never enters the Workbench
+protocol, never synchronizes between Clients, and never persists. A Tab with a single leaf is
+an honest no-op: no state changes and no indicator appears. Zoom separates the drawn set from
+the observed set: under zoom the drawn and pointer hit set is exactly the focused leaf — its
+region records the exact `PaneRef` incarnation, so a hidden leaf can never receive pointer or
+keyboard input — while the observed set stays the full canonical leaf list, the focused leaf
+observing the whole content rectangle and every hidden leaf observing its unzoomed canonical
+geometry. Hidden leaves keep their viewers, controllers, and live frames and never admit
+resize; input and resize still admit only the focused pane's exact incarnation. While zoomed,
+`Ctrl+B h`, `j`, `k`, and `l` keep their canonical-tree direction semantics: the focus moves
+to the unzoomed neighbour, the zoom follows it, and the transition invalidates the pointer hit
+map and re-observes geometry like any other layout change — the zoom toggle itself does the
+same when it takes effect. `z` during a guarded phase (pending refresh, in-flight mutation, or
+an armed rename draft) is the same local no-op the focus bindings already are. Tab and
+Workspace switching remember the zoom flag of every surviving Tab: a flag lives while its Tab
+is known alive with more than one leaf in the latest known membership — the current context's
+cache first, then the retained context snapshots bounded by `MAXIMUM_TERMINAL_CONTEXTS` — and
+is collected when the Tab shrinks to one leaf, disappears, or its retained entry is recycled
+by navigation removal or capacity eviction. A remote removal the Client has not yet observed
+may leave a flag lazily alive on a stale retained snapshot until the next install; the flag
+still never fabricates a zoomed view — rendering adjudicates zoom on the current cache only
+and only while the Tab still has more than one leaf. Zoom-driven focus resizes travel the
+ordinary `QueuedCommand::Resize` path, so the Host's frame-generation bump invalidates the
+focused terminal's scrollback viewport under the same stale-generation rule any resize uses;
+a hidden leaf is never resized, so its viewport and history survive zoom intact and rebind
+correctly when it becomes the focus again. The no-churn guarantee above is scoped to the
+framed tiers: at Minimal and TooSmall the existing single-leaf observation already departs
+non-focused leaves, and a zoom flag neither worsens nor hides that contract.
+
 The provisional `Ctrl+B -`, `_`, `\`, `|`, `X`, and `H`/`J`/`K`/`L` bindings submit the three
 structural panel commands through the same mailbox mutation admission, typed settlement,
 pending-commit retention, and publication-refresh recovery used by Tab operations; the bindings

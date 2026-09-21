@@ -787,6 +787,29 @@ Workbench 修订，也绝不提交
 接受；Session 按身份保留所选 Panel，同时重排缓存树和保留的来源记录
 （`peer_panel_split_refresh_preserves_active_panel_identity`）。
 
+`Ctrl+B z` 切换当前 Tab 的 Client 本地 zoom：焦点 Panel 绘制到整个 pane 内容区，其余
+叶子保持存活但不绘制。该标志是 `NativeSessionState` 持有的易失、按 Client、按 Tab 的
+session 状态——绝不进入 Workbench 协议、绝不在 Client 间同步、绝不持久化。单叶子 Tab
+是诚实空操作：状态不变且不出现指示。zoom 将绘制集合与观测集合分离：zoom 下绘制与指针
+命中集合恰为焦点叶子——其区域记录精确 `PaneRef` incarnation，隐藏叶子因此绝不可能
+收到指针或键盘输入——而观测集合仍是全部规范叶子，焦点叶子观测整个内容矩形，每个隐藏
+叶子观测其未 zoom 的规范几何。隐藏叶子保留自己的 viewer、controller 与实时帧，且绝不
+放行 resize；input 与 resize 仍只放行焦点 pane 的精确 incarnation。zoom 中
+`Ctrl+B h`、`j`、`k`、`l` 保持规范树方向语义：焦点移动到未 zoom 的相邻叶子，zoom
+跟随，该迁移像任何布局变化一样使指针命中图失效并重新观测几何——zoom 切换本身生效时
+同样如此。受守卫相位中（pending 刷新、在途 mutation、已武装 rename draft）的 `z` 与
+焦点键位一样是本地空操作。Tab 与 Workspace 切换记住每个存活 Tab 的 zoom 标志：标志在
+其 Tab 按最新已知 membership 仍存活且叶子数大于一时存续——先查当前 context 的缓存，
+再查受 `MAXIMUM_TERMINAL_CONTEXTS` 约束的 retained context 快照——当 Tab 缩至单叶子、
+消失，或其 retained 条目被 navigation 移除或容量挤出时回收。Client 尚未观测到的远端
+移除可能让标志在过期 retained 快照上惰性存活到下一次安装；标志仍绝不伪造 zoom 视图——
+渲染只依据当前缓存裁决 zoom，且仅在 Tab 叶子数仍大于一时。zoom 引起的焦点 resize 走
+普通 `QueuedCommand::Resize` 路径，因此 Host 帧世代递增按与任何 resize 相同的
+stale-generation 规则使焦点终端的滚动回退视口失效；隐藏叶子绝不 resize，其视口与历史
+在 zoom 中完整保留，并在重新成为焦点时正确重绑。上述不 churn 保证以可投影的 framed
+tier 为前提：Minimal 与 TooSmall 下既有的单叶子观测本就令非焦点叶子离场，zoom 标志
+既不加剧也不掩饰该契约。
+
 临时 `Ctrl+B -`、`_`、`\`、`|`、`X` 与 `H`/`J`/`K`/`L` 键位经由与 Tab 操作相同的 mailbox
 变更准入、typed 结算、pending-commit 保留及 publication 刷新恢复路径，提交三个结构性
 panel 命令；键位为临时绑定，待输入设计裁决后可能重绑。`-`、`_`、`\`、`|` 对焦点叶子按

@@ -336,7 +336,7 @@ impl InputDispatcher {
         if requests_modal && self.epoch.is_none() {
             mode(ModeRequest::BracketedPaste(false))?;
         }
-        if layout_changed {
+        if layout_changed || applied == Some(SessionActionDisposition::LayoutChanged) {
             after_layout(view, port)?;
             // Keyboard-driven layout changes stale the map the same way a
             // pointer navigation does.

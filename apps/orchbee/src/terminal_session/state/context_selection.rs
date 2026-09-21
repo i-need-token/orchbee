@@ -24,6 +24,14 @@ pub(super) struct RetainedContext {
     provenance: Vec<CreateTerminalProvenance>,
 }
 
+impl RetainedContext {
+    /// The snapshot's last-known tab membership — the zoom GC reads
+    /// departed-context truth only through this view.
+    pub(super) fn tabs(&self) -> &[NativeSimpleTab] {
+        &self.tabs
+    }
+}
+
 pub(super) struct ContextProvenance<'a> {
     tabs: &'a [NativeSimpleTab],
     provenance: &'a [CreateTerminalProvenance],

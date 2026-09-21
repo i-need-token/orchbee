@@ -3020,6 +3020,55 @@
 			]
 		},
 		{
+			"id": "native-client-panel-zoom",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/NativeClientPanelZoom.tla",
+			"config": "apps/orchbee/formal/tla/NativeClientPanelZoom.cfg",
+			"claims": [
+				"apps/orchbee/docs/native-tab-session.md",
+				"apps/orchbee/docs/tui-shell-layout.md"
+			],
+			"triggers": [
+				"apps/orchbee/docs/native-tab-session.zh-CN.md",
+				"apps/orchbee/docs/tui-shell-layout.zh-CN.md",
+				"apps/orchbee/src/terminal_session.rs",
+				"apps/orchbee/src/terminal_session/**",
+				"apps/orchbee/src/client_view.rs",
+				"apps/orchbee/src/client_view/**",
+				"apps/orchbee/src/terminal_input.rs",
+				"apps/orchbee/src/terminal_input/**",
+				"apps/orchbee/src/tui_render.rs",
+				"apps/orchbee/src/tui_render/**",
+				"apps/orchbee/src/tui_shell.rs",
+				"apps/orchbee/src/tui_shell/**",
+				"apps/orchbee/src/tui_pointer.rs",
+				"apps/orchbee/src/tui_pointer/**",
+				"apps/orchbee/tests/**",
+				"crates/workbench-protocol/src/**"
+			],
+			"requiredCoverage": [
+				"ToggleZoomOn",
+				"ToggleZoomOff",
+				"ToggleZoomSingleLeafNoOp",
+				"RejectBusyToggle",
+				"FocusMoveZoomed",
+				"FocusMoveUnzoomed",
+				"SelectSiblingTab",
+				"CoverageSelectSiblingLeavingFlag",
+				"SwitchContext",
+				"CoverageDepartZoomed",
+				"CoverageReturnRestores",
+				"RefreshMerge",
+				"CoverageShrinkActiveToSingle",
+				"CoverageDeleteZoomedTab",
+				"RecycleRetained",
+				"CoverageRecycleDropsFlag",
+				"BeginBusy",
+				"SettleBusy"
+			]
+		},
+		{
 			"id": "native-client-publication-refresh",
 			"owner": "orchbee",
 			"workspace": "apps/orchbee",

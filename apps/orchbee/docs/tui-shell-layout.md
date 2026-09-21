@@ -82,6 +82,14 @@ the terminal cells. An inactive leaf paints a localized empty state naming the r
 and the focus binding — it never paints fabricated live content. Divider cells are collected during
 the walk and drawn once with junction glyphs (`├ ┤ ┬ ┴ ┼`) resolved from neighboring divider cells.
 
+Under a Client-local zoom (`Ctrl+B z`; the session contract lives in `native-tab-session.md`),
+the drawn set narrows to the focused leaf: it renders across the whole content area and records
+the only pane hit region, while undrawn leaves still report their canonical leaf rectangles so
+their viewers stay alive. The focused leaf reports the whole content area to the wire so its
+terminal converges to the zoomed size; divider cells are not drawn while zoomed. This split
+between the drawn/hit set and the observed set is the only zoom geometry effect — the canonical
+projection itself is unchanged.
+
 ## Degradation order
 
 Per `docs/tui/layout.md`: drop optional context text, shorten hint labels, drop hint labels while

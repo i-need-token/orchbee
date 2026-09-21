@@ -39,6 +39,7 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         }
         PrefixDesc::SelectTabDigit => "Select ordered Tab (requires Site)",
         PrefixDesc::PanelFocus => "Move between Panels (requires Site)",
+        PrefixDesc::PanelZoom => "Zoom the focused Panel (requires Site)",
         PrefixDesc::SplitPanel => "Split focused Panel below/above/left/right (requires Site)",
         PrefixDesc::ClosePanel => "Close focused Panel (requires Site)",
         PrefixDesc::MovePanel => "Move focused Panel to that side (requires Site)",
@@ -68,6 +69,7 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::SelectContext => "选择上一个 / 下一个 Workbench 位置（首尾循环；需要 Site）",
         PrefixDesc::SelectTabDigit => "选择对应顺序的 Tab（需要 Site）",
         PrefixDesc::PanelFocus => "在 Panel 之间移动（需要 Site）",
+        PrefixDesc::PanelZoom => "放大焦点 Panel（需要 Site）",
         PrefixDesc::SplitPanel => "将焦点 Panel 向下/上/左/右分屏（需要 Site）",
         PrefixDesc::ClosePanel => "关闭焦点 Panel（需要 Site）",
         PrefixDesc::MovePanel => "将焦点 Panel 移向该侧（需要 Site）",
@@ -140,6 +142,7 @@ pub(crate) struct ShellText {
     pub(crate) too_small_notice: &'static str,
     pub(crate) workbench_title: &'static str,
     pub(crate) workspaces: &'static str,
+    pub(crate) zoom_badge: &'static str,
 }
 
 impl ShellText {
@@ -206,6 +209,7 @@ const EN_US_SHELL: ShellText = ShellText {
     too_small_notice: "Too small · resize to continue",
     workbench_title: "WORKBENCH",
     workspaces: "Workspaces",
+    zoom_badge: "zoomed · Ctrl+B z restores",
 };
 
 const ZH_CN_SHELL: ShellText = ShellText {
@@ -240,6 +244,7 @@ const ZH_CN_SHELL: ShellText = ShellText {
     too_small_notice: "窗口太小 · 请调整大小后继续",
     workbench_title: "WORKBENCH",
     workspaces: "工作区",
+    zoom_badge: "已放大 · Ctrl+B z 恢复",
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

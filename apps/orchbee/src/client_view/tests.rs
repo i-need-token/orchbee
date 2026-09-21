@@ -297,7 +297,7 @@ fn completed_prefix_replaces_parser_notice_but_first_prefix_does_not() {
     enter_prefix(&mut view);
     assert_eq!(view.notice(), Some(Notice::TerminalInputUnavailable));
 
-    let unknown = commit(&mut view, plain('z'));
+    let unknown = commit(&mut view, plain('y'));
     assert_eq!(unknown.action(), Some(ClientAction::UnknownPrefix));
     assert_eq!(view.notice(), Some(Notice::UnknownPrefix));
 

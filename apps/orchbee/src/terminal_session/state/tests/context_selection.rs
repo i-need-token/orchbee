@@ -5,7 +5,7 @@ fn deadlines() -> OperationDeadlines {
     OperationDeadlines::from_sample(Instant::now()).unwrap()
 }
 
-fn contexts(workspace_tabs: usize, revision: u64) -> Snapshot {
+pub(super) fn contexts(workspace_tabs: usize, revision: u64) -> Snapshot {
     let mut snapshot = snapshot(2, revision, None);
     snapshot.navigation.projects.push(Project {
         directories: Vec::new(),
@@ -43,7 +43,11 @@ fn context_state(workspace_tabs: usize) -> NativeSessionState {
     ready_with_cache(project_native_standalone_tabs(&contexts(workspace_tabs, 1)).unwrap())
 }
 
-fn finish_selection(state: &mut NativeSessionState, snapshot: Snapshot, generation: u64) {
+pub(super) fn finish_selection(
+    state: &mut NativeSessionState,
+    snapshot: Snapshot,
+    generation: u64,
+) {
     let deadlines = state.context_selection_deadlines().unwrap();
     let PreparedRefresh::Membership { prepared, .. } =
         state.prepare_refresh(generation, WorkbenchSnapshotOutcome::Available { snapshot })

@@ -276,6 +276,10 @@ pub(crate) fn render_terminal_shell(
     } else {
         secondary_notice.as_deref()
     };
+    let zoomed = matches!(
+        session.as_ref(),
+        Some(TerminalSessionView::Native(native)) if native.zoom_active()
+    );
     let visible = render_status(
         frame,
         areas.status,
@@ -284,6 +288,7 @@ pub(crate) fn render_terminal_shell(
         text,
         &status_text,
         notice,
+        zoomed,
         tier,
         theme,
     );
@@ -455,7 +460,12 @@ fn render_native_workbench(
         .active_position()
         .and_then(|position| position.checked_sub(1))
         .and_then(|index| native.tab(index));
-    if let Some(tab) = active_tab.filter(|tab| framed && tab.panel_count() > 1) {
+    // Under zoom the drawn set narrows to the focused leaf: the single-pane
+    // path below paints it across the whole content area and records the
+    // only pane hit region — hidden leaves stay attached but undrawn.
+    if let Some(tab) =
+        active_tab.filter(|tab| framed && tab.panel_count() > 1 && !native.zoom_active())
+    {
         let projection = crate::tui_layout::project_panel_tree(
             content_area,
             tab.panel_tree(),
@@ -777,6 +787,7 @@ fn render_status(
     text: ShellText,
     status: &str,
     secondary_notice: Option<&str>,
+    zoomed: bool,
     tier: ViewportTier,
     theme: &Theme,
 ) -> Option<Rect> {
@@ -816,6 +827,13 @@ fn render_status(
     // rides the status label on every draw until capture re-arms.
     let status_label = if view.pointer_released() {
         format!("{status_label} · {}", text.pointer_released)
+    } else {
+        status_label
+    };
+    // So is an active zoom: the badge marks the focused-only pane set until
+    // the flag drops.
+    let status_label = if zoomed {
+        format!("{status_label} · {}", text.zoom_badge)
     } else {
         status_label
     };

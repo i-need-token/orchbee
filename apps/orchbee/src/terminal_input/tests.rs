@@ -419,7 +419,7 @@ fn completed_unknown_action_precedes_its_parser_notice() {
 
     prefix(&mut dispatcher, &mut view, &mut input);
     assert_eq!(view.notice(), Some(Notice::TerminalInputUnavailable));
-    dispatch(&mut dispatcher, &mut view, b"z", &mut input);
+    dispatch(&mut dispatcher, &mut view, b"y", &mut input);
     assert_eq!(
         input.recorded,
         [Recorded::Action(ClientAction::UnknownPrefix)]

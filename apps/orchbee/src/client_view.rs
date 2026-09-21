@@ -92,6 +92,10 @@ pub(crate) enum ClientAction {
     /// Pointer gesture: focus the panel with this stable identity in the
     /// active tab.
     FocusPanel(orchbee_workbench_protocol::WorkbenchPanelId),
+    /// Client-local zoom on the active tab: draw the focused leaf across
+    /// the whole pane area while hidden leaves stay attached. Volatile
+    /// session view state — never a backend action.
+    ToggleZoom,
     SplitPanel(PanelDirection),
     ClosePanel,
     MovePanel(PanelDirection),
@@ -144,6 +148,11 @@ pub(crate) enum ShellCommand {
 pub(crate) enum SessionActionDisposition {
     KeepNavigator,
     DismissNavigator,
+    /// The action changed the rendered pane layout — a zoom toggle, or a
+    /// focus move while zoomed — so the dispatcher re-observes geometry
+    /// and invalidates the pointer hit map. The navigator disposition
+    /// stays unchanged (kept).
+    LayoutChanged,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -185,7 +194,10 @@ impl ClientAction {
             Self::SelectTab(position) => Some(BackendAction::SelectTab(*position)),
             Self::SelectPreviousContext => Some(BackendAction::SelectPreviousContext),
             Self::SelectNextContext => Some(BackendAction::SelectNextContext),
-            Self::MovePanelFocus(_) | Self::FocusPanel(_) | Self::SelectContextAt(_) => None,
+            Self::MovePanelFocus(_)
+            | Self::FocusPanel(_)
+            | Self::ToggleZoom
+            | Self::SelectContextAt(_) => None,
             Self::SplitPanel(_) => Some(BackendAction::SplitPanel),
             Self::ClosePanel => Some(BackendAction::ClosePanel),
             Self::MovePanel(_) => Some(BackendAction::MovePanel),
