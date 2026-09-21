@@ -159,7 +159,10 @@ export function validateInventory(inventory) {
 			);
 		}
 		if (model.workers !== undefined) {
-			assert(model.workers === 1 || model.workers === 2, `${field}.workers must be 1 or 2`);
+			assert(
+				Number.isSafeInteger(model.workers) && model.workers >= 1 && model.workers <= 8,
+				`${field}.workers must be an integer between 1 and 8`,
+			);
 		}
 		if (model.variants !== undefined) {
 			assert(

@@ -141,7 +141,7 @@ uses the same manifest mapping as CI. A package-owned `verify:correctness` comma
 TLA+ check when that command is the package's comprehensive correctness workflow.
 
 Every registered check uses the pinned TLC SHA-256, its declared worker count (one by default,
-optionally two through the model's `workers` field), a fixed fingerprint polynomial,
+optionally one to eight through the model's `workers` field), a fixed fingerprint polynomial,
 declared finite bounds, a per-model timeout, and coverage output. The runner fails when a required
 semantic action is missing or has no reached witness and emits a machine-readable state-count,
 duration, worker count, and model/config SHA-256 report. Configuration bounds and TLC's finite-state assumption

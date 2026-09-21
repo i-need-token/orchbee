@@ -347,19 +347,19 @@ test('inventory validation rejects duplicate identities and missing coverage con
 	assert.throws(() => validateInventory(missingCoverage), /requiredCoverage must not be empty/u);
 });
 
-test('inventory validation allows one or two model-local TLC workers and defaults by omission', () => {
+test('inventory validation allows one to eight model-local TLC workers and defaults by omission', () => {
 	assert.doesNotThrow(() => validateInventory(fixtureInventory()));
-	for (const workers of [1, 2]) {
+	for (const workers of [1, 2, 7, 8]) {
 		const inventory = fixtureInventory();
 		inventory.models[0].workers = workers;
 		assert.doesNotThrow(() => validateInventory(inventory));
 	}
-	for (const workers of [0, 3, -1, 1.5, '2', null]) {
+	for (const workers of [0, 9, -1, 1.5, 2.5, '2', '8', null, NaN, Infinity]) {
 		const inventory = fixtureInventory();
 		inventory.models[0].workers = workers;
 		assert.throws(
 			() => validateInventory(inventory),
-			/inventory\.models\[0\]\.workers must be 1 or 2/u,
+			/inventory\.models\[0\]\.workers must be an integer between 1 and 8/u,
 		);
 	}
 });
