@@ -1,19 +1,23 @@
-use std::{collections::BTreeMap, io};
+use std::{
+    collections::{BTreeMap, VecDeque},
+    io,
+};
 
 use orchbee_capability_node_protocol::{
     OperationId, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
     ViewerRejection,
 };
 use orchbee_terminal_protocol::{
-    AttachmentId, CURRENT_PROTOCOL_VERSION, HostEpoch, MessageRole, PayloadEncoding,
-    ProjectionDemandControl, TerminalEffectEvent, TerminalFrameRoute,
-    decode_projection_demand_control, decode_terminal_effect_event, decode_transport_envelope,
-    inspect_terminal_frame_route,
+    AttachmentId, CURRENT_PROTOCOL_VERSION, HistoryControl, HostEpoch, MessageRole,
+    PayloadEncoding, ProjectionDemandControl, TerminalEffectEvent, TerminalFrameRoute,
+    decode_history_control, decode_projection_demand_control, decode_terminal_effect_event,
+    decode_transport_envelope, inspect_terminal_frame_route,
 };
 
 use super::validate_event;
 
 pub(super) const MAXIMUM_VIEWERS: usize = 24;
+const MAXIMUM_VIEWER_HISTORY_EVENTS: usize = 4;
 const MAXIMUM_RETAINED_VIEWER_RECORD_BYTES: usize = 128 * 1024 * 1024;
 
 pub(crate) struct HostViewers {
@@ -35,6 +39,8 @@ impl Default for HostViewers {
 struct Viewer {
     terminal_id: orchbee_capability_node_protocol::HostTerminalId,
     record: Option<Vec<u8>>,
+    history: VecDeque<Vec<u8>>,
+    next_preference: PollSource,
     closed: bool,
     flight: Option<Flight>,
     last_sequence: u64,
@@ -45,6 +51,15 @@ struct Viewer {
 struct Flight {
     route: TerminalFrameRoute,
     delivered: bool,
+}
+
+/// Which poll source the next completed poll prefers. A completed take flips
+/// the preference, so a continuously ready source overtakes the other at most
+/// once; the frame/projection-blocked record slot is preferred initially.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum PollSource {
+    Record,
+    History,
 }
 
 impl HostViewers {
@@ -64,6 +79,8 @@ impl HostViewers {
             Viewer {
                 terminal_id,
                 record: None,
+                history: VecDeque::new(),
+                next_preference: PollSource::Record,
                 closed: false,
                 flight: None,
                 last_sequence: 0,
@@ -85,10 +102,8 @@ impl HostViewers {
     }
 
     pub(crate) fn remove(&mut self, id: OperationId) {
-        if let Some(mut viewer) = self.viewers.remove(&id.as_bytes())
-            && let Some(record) = viewer.record.take()
-        {
-            self.retained_record_bytes -= record.len();
+        if let Some(mut viewer) = self.viewers.remove(&id.as_bytes()) {
+            self.retained_record_bytes -= viewer.close();
         }
     }
 
@@ -148,12 +163,30 @@ impl HostViewers {
         if viewer.closed {
             return TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable);
         }
+        // The preferred source wins when both are readable; a single readable
+        // source is always served. Only a completed take flips the preference,
+        // so neither frames nor queued events can starve the other. Serving
+        // the event FIFO never touches the frame flight.
+        let history_ready = !viewer.history.is_empty();
+        let serve_history = match viewer.next_preference {
+            PollSource::History => history_ready,
+            PollSource::Record => viewer.record.is_none() && history_ready,
+        };
+        if serve_history {
+            let Some(event) = viewer.history.pop_front() else {
+                return TerminalViewerOutcome::Empty;
+            };
+            self.retained_record_bytes -= event.len();
+            viewer.next_preference = PollSource::Record;
+            return TerminalViewerOutcome::Record(event);
+        }
         match viewer.record.take() {
             Some(record) => {
                 self.retained_record_bytes -= record.len();
                 if let Some(flight) = &mut viewer.flight {
                     flight.delivered = true;
                 }
+                viewer.next_preference = PollSource::History;
                 TerminalViewerOutcome::Record(record)
             }
             None => TerminalViewerOutcome::Empty,
@@ -226,9 +259,7 @@ impl HostViewers {
                 return Ok(());
             }
             if viewer.record.is_some() || viewer.flight.is_some() {
-                if let Some(released) = viewer.close() {
-                    self.retained_record_bytes -= released.len();
-                }
+                self.retained_record_bytes -= viewer.close();
                 return Ok(());
             }
             if route.sequence.get() <= viewer.last_sequence
@@ -244,9 +275,7 @@ impl HostViewers {
                 .checked_add(record.len())
                 .filter(|total| *total <= self.retained_record_limit)
             else {
-                if let Some(released) = viewer.close() {
-                    self.retained_record_bytes -= released.len();
-                }
+                self.retained_record_bytes -= viewer.close();
                 return Ok(());
             };
             self.retained_record_bytes = total;
@@ -263,6 +292,39 @@ impl HostViewers {
         if envelope.payload_encoding != PayloadEncoding::ControlJson {
             return Err(invalid("unexpected Host event encoding"));
         }
+        if envelope.kind == 53 {
+            let HistoryControl::HistoryChanged(event) =
+                decode_history_control(envelope.kind, envelope.role, envelope.payload)
+                    .map_err(invalid)?
+            else {
+                return Err(invalid("unexpected history event"));
+            };
+            let viewer = self
+                .viewers
+                .get_mut(event.attachment_id.as_bytes())
+                .ok_or_else(|| invalid("Host event targets an unknown attachment"))?;
+            if viewer.closed {
+                return Ok(());
+            }
+            // The event FIFO keeps the original record bytes. Queue-depth and
+            // aggregate-byte saturation each close only this viewer; neither
+            // drops the oldest event nor retires a neighbor.
+            if viewer.history.len() == MAXIMUM_VIEWER_HISTORY_EVENTS {
+                self.retained_record_bytes -= viewer.close();
+                return Ok(());
+            }
+            let Some(total) = self
+                .retained_record_bytes
+                .checked_add(record.len())
+                .filter(|total| *total <= self.retained_record_limit)
+            else {
+                self.retained_record_bytes -= viewer.close();
+                return Ok(());
+            };
+            self.retained_record_bytes = total;
+            viewer.history.push_back(record);
+            return Ok(());
+        }
         if envelope.kind == 49 {
             let ProjectionDemandControl::ProjectionBlocked(blocked) =
                 decode_projection_demand_control(envelope.kind, envelope.role, envelope.payload)
@@ -278,9 +340,7 @@ impl HostViewers {
                 return Ok(());
             }
             if viewer.record.is_some() || viewer.flight.is_some() {
-                if let Some(released) = viewer.close() {
-                    self.retained_record_bytes -= released.len();
-                }
+                self.retained_record_bytes -= viewer.close();
                 return Ok(());
             }
             if viewer
@@ -294,9 +354,7 @@ impl HostViewers {
                 .checked_add(record.len())
                 .filter(|total| *total <= self.retained_record_limit)
             else {
-                if let Some(released) = viewer.close() {
-                    self.retained_record_bytes -= released.len();
-                }
+                self.retained_record_bytes -= viewer.close();
                 return Ok(());
             };
             self.retained_record_bytes = total;
@@ -328,10 +386,19 @@ impl HostViewers {
 }
 
 impl Viewer {
-    fn close(&mut self) -> Option<Vec<u8>> {
+    /// Retires this viewer and returns every retained byte it still holds —
+    /// the frame record slot plus all queued events — so the caller releases
+    /// each byte exactly once.
+    fn close(&mut self) -> usize {
         self.closed = true;
         self.flight = None;
-        self.record.take()
+        let frame = self.record.take().map_or(0, |record| record.len());
+        let events = self
+            .history
+            .drain(..)
+            .map(|event| event.len())
+            .sum::<usize>();
+        frame + events
     }
 }
 

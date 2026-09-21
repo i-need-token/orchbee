@@ -347,8 +347,15 @@ impl LocalClient {
                     | TerminalViewerAction::NeedSnapshot { .. },
                 TerminalViewerOutcome::FeedbackAccepted {}
             ) | (
-                TerminalViewerAction::ReadRows { .. },
+                TerminalViewerAction::ReadRows { .. }
+                    | TerminalViewerAction::ReadViewportRows { .. },
                 TerminalViewerOutcome::Record(_) | TerminalViewerOutcome::RowsRejected { .. }
+            ) | (
+                TerminalViewerAction::SetProjectionDemand { .. }
+                    | TerminalViewerAction::SetHistoryDemand { .. }
+                    | TerminalViewerAction::RowsApplied { .. }
+                    | TerminalViewerAction::HistoryObserved { .. },
+                TerminalViewerOutcome::FeedbackAccepted {}
             ) | (
                 TerminalViewerAction::Detach { .. },
                 TerminalViewerOutcome::Detached {}

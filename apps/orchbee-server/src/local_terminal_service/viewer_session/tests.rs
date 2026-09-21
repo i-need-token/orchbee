@@ -1,4 +1,5 @@
 use std::{
+    collections::VecDeque,
     num::NonZeroU64,
     os::unix::net::UnixStream,
     sync::{
@@ -15,8 +16,9 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_local_site_protocol::WorkerId;
 use orchbee_terminal_protocol::{
-    AttachmentId, CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, HostEpoch, MessageRole,
-    PayloadEncoding, encode_transport_envelope,
+    AttachmentId, CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, HistoryAnchorStatus,
+    HistoryChanged, HistoryControl, HostEpoch, MessageRole, PayloadEncoding,
+    encode_history_control, encode_transport_envelope,
 };
 
 use super::*;
@@ -272,6 +274,281 @@ fn read_rows_record_at_the_requested_budget_is_delivered() {
         panic!("an exact-budget row record must reach the client")
     };
     assert_eq!(*record, received.recv().unwrap());
+    drop(session);
+    let _ = stop.shutdown(std::net::Shutdown::Both);
+    let _ = owner.join();
+    peer.join().unwrap();
+}
+
+// A kind-41 snapshot record for the fixture viewer (attachment [2;16], Host
+// epoch [3;16]) whose route sequence and revision both equal `sequence`.
+fn frame_record(sequence: u64) -> Vec<u8> {
+    let mut payload = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin"
+    ))
+    .to_vec();
+    payload[6] = 1;
+    payload[16..32].copy_from_slice(&[3; 16]);
+    payload[32..48].copy_from_slice(&[2; 16]);
+    payload[48..56].copy_from_slice(&sequence.to_le_bytes());
+    payload[56..64].fill(255);
+    payload[64..72].copy_from_slice(&sequence.to_le_bytes());
+    payload[72..80].copy_from_slice(&1_u64.to_le_bytes());
+    encode_transport_envelope(&Envelope {
+        correlation_id: None,
+        host_epoch: Some(HostEpoch::from_bytes([3; 16]).unwrap()),
+        kind: 41,
+        optional_message: false,
+        payload: &payload,
+        payload_encoding: PayloadEncoding::TerminalFrame,
+        protocol: CURRENT_PROTOCOL_VERSION,
+        role: MessageRole::Event,
+    })
+    .unwrap()
+}
+
+fn history_record(attachment: [u8; 16], sequence: u64) -> Vec<u8> {
+    let control = encode_history_control(&HistoryControl::HistoryChanged(HistoryChanged {
+        anchor_status: HistoryAnchorStatus::Valid,
+        attachment_id: AttachmentId::from_bytes(attachment).unwrap(),
+        generation: NonZeroU64::MIN,
+        revision: 5,
+        sequence: NonZeroU64::new(sequence).unwrap(),
+        total_rows: 100,
+    }))
+    .unwrap();
+    encode_transport_envelope(&Envelope {
+        correlation_id: None,
+        host_epoch: Some(HostEpoch::from_bytes([3; 16]).unwrap()),
+        kind: control.kind,
+        optional_message: false,
+        payload: &control.payload,
+        payload_encoding: PayloadEncoding::ControlJson,
+        protocol: CURRENT_PROTOCOL_VERSION,
+        role: MessageRole::Event,
+    })
+    .unwrap()
+}
+
+// The scripted Worker answers every non-Detach request with the next scripted
+// outcome, so a test can place a record on any action — including the wrong
+// one — and observe the route the Server enforces.
+fn scripted_peer(mut peer: UnixStream, mut script: VecDeque<WorkerOutcome>) {
+    loop {
+        let message = match read_message(&mut peer) {
+            Ok(message) => message,
+            Err(_) => return,
+        };
+        let CapabilityNodeMessage::TerminalViewerRequest(request) = message else {
+            return;
+        };
+        let outcome = match request.action {
+            WorkerAction::Detach => WorkerOutcome::Detached,
+            _ => script.pop_front().unwrap_or(WorkerOutcome::Empty),
+        };
+        let reply = CapabilityNodeMessage::TerminalViewerResult(WorkerResult {
+            request_id: request.request_id,
+            attachment_id: request.attachment_id,
+            outcome,
+        });
+        if write_message(&mut peer, &reply).is_err() {
+            return;
+        }
+    }
+}
+
+type ScriptedSession = (
+    LocalTerminalService,
+    WorkerRequestHandle,
+    thread::JoinHandle<crate::worker_obcn_carrier::WorkerWireExit>,
+    thread::JoinHandle<()>,
+    UnixStream,
+);
+
+fn scripted_session(script: VecDeque<WorkerOutcome>) -> ScriptedSession {
+    let service = service();
+    let carrier = create_worker_carrier(WORKER_ID, NonZeroU64::MIN);
+    let handle = carrier.request_handle();
+    assert!(matches!(
+        service.workers.lock().unwrap().admit(WORKER_ID),
+        crate::worker_registry::WorkerAdmission::Accepted { .. }
+    ));
+    let owner =
+        WorkerRegistry::register_carrier(&service.workers, NonZeroU64::MIN, carrier).unwrap();
+    let (server, peer) = UnixStream::pair().unwrap();
+    peer.set_read_timeout(Some(std::time::Duration::from_secs(5)))
+        .unwrap();
+    let stop = server.try_clone().unwrap();
+    let owner = thread::spawn(move || owner.run(server));
+    let peer = thread::spawn(move || scripted_peer(peer, script));
+    (service, handle, owner, peer, stop)
+}
+
+fn poll() -> Action {
+    Action::Poll {
+        attachment_id: ViewerId::parse(&format!("{:032x}", u128::from_be_bytes([2; 16]))).unwrap(),
+    }
+}
+
+fn execute_viewer(
+    session: &mut LocalTerminalSession<'_>,
+    id: &str,
+    action: Action,
+) -> TerminalViewerResult {
+    let ServerMessage::TerminalViewerResult(result) =
+        session.execute(ClientMessage::TerminalViewer(TerminalViewerRequest::new(
+            RequestId::parse(id).unwrap(),
+            action,
+        )))
+    else {
+        panic!("a viewer action must produce a viewer result")
+    };
+    result
+}
+
+#[test]
+fn poll_delivers_a_history_event_while_a_frame_flight_is_pending() {
+    let frame = frame_record(1);
+    let history = history_record([2; 16], 1);
+    let (service, handle, owner, peer, stop) = scripted_session(VecDeque::from([
+        WorkerOutcome::Record(frame),
+        WorkerOutcome::Record(history.clone()),
+        WorkerOutcome::FeedbackAccepted,
+    ]));
+    let mut session = service.session();
+    let candidate = viewer(&service, handle);
+    assert!(matches!(
+        session.publish_attach(candidate, attached_result()),
+        Outcome::Attached { .. }
+    ));
+    // The frame feeds the projection flight; the pending flight does not
+    // short-circuit the next Poll into an Empty.
+    assert!(matches!(
+        execute_viewer(&mut session, "88888888888888888888888888888881", poll()).outcome(),
+        Outcome::Record(_)
+    ));
+    let result = execute_viewer(&mut session, "88888888888888888888888888888882", poll());
+    let Outcome::Record(record) = result.outcome() else {
+        panic!("a queued history event must deliver during the frame flight")
+    };
+    assert_eq!(*record, history);
+    // The flight was pending the whole time: its exact feedback still settles.
+    let feedback = execute_viewer(
+        &mut session,
+        "88888888888888888888888888888883",
+        Action::FrameApplied {
+            attachment_id: poll().attachment_id().unwrap().clone(),
+            sequence: NonZeroU64::MIN,
+            generation: NonZeroU64::MIN,
+            revision: 1,
+        },
+    );
+    assert_eq!(feedback.outcome(), &Outcome::FeedbackAccepted {});
+    drop(session);
+    let _ = stop.shutdown(std::net::Shutdown::Both);
+    let _ = owner.join();
+    peer.join().unwrap();
+}
+
+#[test]
+fn a_history_record_on_any_action_but_poll_is_a_strict_route_violation() {
+    let (service, handle, owner, peer, stop) = scripted_session(VecDeque::from([
+        WorkerOutcome::Record(frame_record(1)),
+        WorkerOutcome::Record(history_record([2; 16], 1)),
+    ]));
+    let mut session = service.session();
+    let candidate = viewer(&service, handle);
+    assert!(matches!(
+        session.publish_attach(candidate, attached_result()),
+        Outcome::Attached { .. }
+    ));
+    execute_viewer(&mut session, "88888888888888888888888888888884", poll());
+    // FrameApplied never admits a record: the kind-53 reply goes through the
+    // frame-only projection, fails, and retires the viewer.
+    let result = execute_viewer(
+        &mut session,
+        "88888888888888888888888888888885",
+        Action::FrameApplied {
+            attachment_id: poll().attachment_id().unwrap().clone(),
+            sequence: NonZeroU64::MIN,
+            generation: NonZeroU64::MIN,
+            revision: 1,
+        },
+    );
+    assert_eq!(
+        result.outcome(),
+        &unavailable(Unavailable::TerminalRuntimeUnavailable)
+    );
+    assert!(session.viewers.iter().all(Option::is_none));
+    drop(session);
+    let _ = stop.shutdown(std::net::Shutdown::Both);
+    let _ = owner.join();
+    peer.join().unwrap();
+}
+
+#[test]
+fn a_history_event_for_another_attachment_is_a_strict_route_violation() {
+    let (service, handle, owner, peer, stop) =
+        scripted_session(VecDeque::from([WorkerOutcome::Record(history_record(
+            [9; 16], 1,
+        ))]));
+    let mut session = service.session();
+    let candidate = viewer(&service, handle);
+    assert!(matches!(
+        session.publish_attach(candidate, attached_result()),
+        Outcome::Attached { .. }
+    ));
+    let result = execute_viewer(&mut session, "88888888888888888888888888888886", poll());
+    assert_eq!(
+        result.outcome(),
+        &unavailable(Unavailable::TerminalRuntimeUnavailable)
+    );
+    assert!(session.viewers.iter().all(Option::is_none));
+    drop(session);
+    let _ = stop.shutdown(std::net::Shutdown::Both);
+    let _ = owner.join();
+    peer.join().unwrap();
+}
+
+#[test]
+fn history_observed_acknowledgement_leaves_the_frame_flight_untouched() {
+    let (service, handle, owner, peer, stop) = scripted_session(VecDeque::from([
+        WorkerOutcome::Record(frame_record(1)),
+        WorkerOutcome::FeedbackAccepted,
+        WorkerOutcome::FeedbackAccepted,
+    ]));
+    let mut session = service.session();
+    let candidate = viewer(&service, handle);
+    assert!(matches!(
+        session.publish_attach(candidate, attached_result()),
+        Outcome::Attached { .. }
+    ));
+    execute_viewer(&mut session, "88888888888888888888888888888887", poll());
+    let observed = execute_viewer(
+        &mut session,
+        "88888888888888888888888888888888",
+        Action::HistoryObserved {
+            attachment_id: poll().attachment_id().unwrap().clone(),
+            sequence: NonZeroU64::MIN,
+            generation: NonZeroU64::MIN,
+            revision: 5,
+        },
+    );
+    assert_eq!(observed.outcome(), &Outcome::FeedbackAccepted {});
+    // HistoryObserved is its own flight: had it completed the frame
+    // acknowledgement, this exact FrameApplied would now be FeedbackMismatch.
+    let applied = execute_viewer(
+        &mut session,
+        "88888888888888888888888888888889",
+        Action::FrameApplied {
+            attachment_id: poll().attachment_id().unwrap().clone(),
+            sequence: NonZeroU64::MIN,
+            generation: NonZeroU64::MIN,
+            revision: 1,
+        },
+    );
+    assert_eq!(applied.outcome(), &Outcome::FeedbackAccepted {});
     drop(session);
     let _ = stop.shutdown(std::net::Shutdown::Both);
     let _ = owner.join();

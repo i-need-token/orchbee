@@ -3,7 +3,10 @@ use orchbee_capability_node_protocol::{
     ControlRejection, HostCreationId, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerRequest, ViewerRejection, WorkerGeneration, WorkerId,
 };
-use orchbee_terminal_protocol::{Envelope, encode_transport_envelope};
+use orchbee_terminal_protocol::{
+    AttachmentId, Envelope, HistoryAnchorStatus, HistoryChanged, encode_history_control,
+    encode_transport_envelope,
+};
 use std::{cell::RefCell, num::NonZeroU64, os::unix::net::UnixStream, rc::Rc};
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
@@ -296,6 +299,54 @@ fn late_retired_frames_require_exact_epoch_and_id_and_old_detach_is_local() -> T
             .expect_err("zero Host requests")
             .kind(),
         io::ErrorKind::WouldBlock
+    );
+    Ok(())
+}
+
+#[test]
+fn retired_viewer_history_events_are_swallowed_with_exact_identity() -> TestResult {
+    fn history_event(id: u8, epoch: HostEpoch) -> TestResult<Vec<u8>> {
+        let control = encode_history_control(&HistoryControl::HistoryChanged(HistoryChanged {
+            anchor_status: HistoryAnchorStatus::Valid,
+            attachment_id: AttachmentId::from_bytes([id; 16])?,
+            generation: NonZeroU64::MIN,
+            revision: 5,
+            sequence: NonZeroU64::MIN,
+            total_rows: 100,
+        }))?;
+        Ok(encode_transport_envelope(&Envelope {
+            correlation_id: None,
+            host_epoch: Some(epoch),
+            kind: control.kind,
+            optional_message: false,
+            payload: &control.payload,
+            payload_encoding: PayloadEncoding::ControlJson,
+            protocol: CURRENT_PROTOCOL_VERSION,
+            role: MessageRole::Event,
+        })?)
+    }
+    let (host, _peer) = host()?;
+    let request = viewer(1, 5)?;
+    host.viewers
+        .borrow_mut()
+        .admit(&request)
+        .map_err(|e| format!("{e:?}"))?;
+    // Before retirement the same event is accepted as a live-viewer record.
+    assert!(
+        host.receive_event(history_event(1, host.host_epoch())?)
+            .is_ok()
+    );
+    host.commit_target_cleanup(host.prepare_target_cleanup(identity(5)?)?);
+    // A late HistoryChanged for the retired viewer is consumed quietly.
+    host.receive_event(history_event(1, host.host_epoch())?)?;
+    // Another attachment's event and a foreign epoch still fail the broker.
+    assert!(
+        host.receive_event(history_event(2, host.host_epoch())?)
+            .is_err()
+    );
+    assert!(
+        host.receive_event(history_event(1, HostEpoch::from_bytes([9; 16])?)?)
+            .is_err()
     );
     Ok(())
 }

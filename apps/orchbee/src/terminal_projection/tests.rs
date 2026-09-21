@@ -1,7 +1,7 @@
 use super::*;
 use orchbee_terminal_protocol::{
-    Envelope, ProjectionBlockReason, ProjectionBlocked, encode_projection_demand_control,
-    encode_transport_envelope,
+    Envelope, HistoryAnchorStatus, HistoryChanged, ProjectionBlockReason, ProjectionBlocked,
+    encode_history_control, encode_projection_demand_control, encode_transport_envelope,
 };
 const SNAPSHOT: &[u8] =
     include_bytes!("../../../../packages/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin");
@@ -273,6 +273,81 @@ fn scope_and_delta_generation_mismatch_never_commit() -> TestResult {
     assert_eq!(projection.apply(next), Err(Reason::GenerationMismatch));
     assert_eq!(projection.frame().ok_or("frame")?.route, route);
     Ok(())
+}
+
+#[test]
+fn history_events_acknowledge_their_own_identity_without_touching_frames() -> TestResult {
+    let route = inspect_terminal_frame_route(SNAPSHOT)?;
+    let mut projection = TerminalProjection::new(route.attachment_id, route.host_epoch);
+    let event = history_record(route.attachment_id, route.host_epoch, 7, 5)?;
+    assert!(matches!(
+        projection.receive(&event),
+        Ok(Some(Feedback::HistoryObserved {
+            attachment_id,
+            sequence,
+            generation,
+            revision: 5,
+        })) if attachment_id == viewer_id(route)
+            && sequence.get() == 7
+            && generation == std::num::NonZeroU64::MIN
+    ));
+    // Nothing frame-shaped moved: the sequence fence, the blocked revision,
+    // and the missing frame are all exactly as before the event.
+    assert_eq!(projection.last_sequence, 0);
+    assert_eq!(projection.blocked_revision, None);
+    assert!(projection.frame().is_none());
+    // A foreign attachment's event is protocol-invalid, not observed.
+    let wrong = history_record(AttachmentId::from_bytes([9; 16])?, route.host_epoch, 8, 5)?;
+    assert!(projection.receive(&wrong).is_err());
+    // The ordinary frame path is undisturbed by either event.
+    assert!(matches!(
+        projection.receive(&record(SNAPSHOT)?),
+        Ok(Some(Feedback::FrameApplied { .. }))
+    ));
+    Ok(())
+}
+
+#[test]
+fn a_history_event_and_a_blocked_notice_do_not_reorder_each_other() -> TestResult {
+    let route = inspect_terminal_frame_route(SNAPSHOT)?;
+    let mut projection = TerminalProjection::new(route.attachment_id, route.host_epoch);
+    let blocked = blocked_record(route.attachment_id, route.host_epoch, 9)?;
+    assert_eq!(projection.receive(&blocked), Ok(None));
+    // The event still acknowledges itself while the projection stays blocked.
+    let event = history_record(route.attachment_id, route.host_epoch, 3, 9)?;
+    assert!(matches!(
+        projection.receive(&event),
+        Ok(Some(Feedback::HistoryObserved { revision: 9, .. }))
+    ));
+    assert_eq!(projection.blocked_revision, Some(9));
+    assert!(projection.frame().is_none());
+    Ok(())
+}
+
+fn history_record(
+    attachment_id: AttachmentId,
+    epoch: HostEpoch,
+    sequence: u64,
+    revision: u64,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let control = encode_history_control(&HistoryControl::HistoryChanged(HistoryChanged {
+        anchor_status: HistoryAnchorStatus::Valid,
+        attachment_id,
+        generation: std::num::NonZeroU64::MIN,
+        revision,
+        sequence: std::num::NonZeroU64::new(sequence).ok_or("zero sequence")?,
+        total_rows: 100,
+    }))?;
+    Ok(encode_transport_envelope(&Envelope {
+        protocol: CURRENT_PROTOCOL_VERSION,
+        role: control.role,
+        kind: control.kind,
+        payload_encoding: PayloadEncoding::ControlJson,
+        host_epoch: Some(epoch),
+        correlation_id: None,
+        optional_message: false,
+        payload: &control.payload,
+    })?)
 }
 
 #[test]

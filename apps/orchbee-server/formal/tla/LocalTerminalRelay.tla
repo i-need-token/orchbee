@@ -6,18 +6,25 @@ EXTENDS LocalTerminalClientAuthority, Sequences
 \* imported viewers and controller are the only product authority: this
 \* module adds attachment epochs, bounded per-attachment queues, opaque OBTF
 \* records, exact feedback, and one abstract control-request flight. It does
-\* not model a wire encoding, VT, history, runtime implementation, takeover,
+\* not model a wire encoding, VT, runtime implementation, takeover,
 \* or release resource budget.
+\* The "history-relay" scenario adds the kind-53 HistoryChanged lane: each
+\* viewer carries an independent bounded event FIFO beside the frame record
+\* slot, a two-source worker poll alternates the sources through an explicit
+\* next-preference, and HistoryObserved rides its own acknowledgement flight
+\* back to the Host without touching the frame flight. Saturation closes only
+\* the saturated viewer; retained bytes are accounted exactly once.
 
 CONSTANTS RequestIds, FirstOpaqueFrameBytes, SecondOpaqueFrameBytes,
   NoOpaqueFrame,
   MaxAttachmentGeneration, MaxRequestSequence, MaxFrameSequence,
   MaxProjectionGeneration, MaxContentRevision,
-  MaxQueueDepth, MaxWorkerProgress, Scenario
+  MaxQueueDepth, MaxWorkerProgress, MaxHistorySequence, MaxHistoryQueueDepth,
+  Scenario
 
 ProjectionScenarios == {
   "projection-feedback", "backpressure-isolation", "reattach-feedback",
-  "failure-interleavings"
+  "failure-interleavings", "history-relay"
 }
 ControlScenarios == {"control-outcomes"}
 FailureScenarios == {"failure-interleavings"}
@@ -105,6 +112,28 @@ ProjectionBlockedRecords == [
 
 DownstreamRecords == FrameRecords \cup ProjectionBlockedRecords
 
+\* Kind-53 events are opaque to the relay: attachment-local sequence, the
+\* attachment epoch they were emitted under, and nothing else is consulted.
+HistoryRecords == [
+  recordKind : {"history"},
+  session : RelaySessionRefs,
+  attachment : 1..MaxAttachmentGeneration,
+  sequence : 1..MaxHistorySequence
+]
+
+HistoryRecord(session, attachment, sequence) == [
+  recordKind |-> "history",
+  session |-> session,
+  attachment |-> attachment,
+  sequence |-> sequence
+]
+
+NoHistoryEvent == [sequence |-> 0, attachment |-> 0]
+HistoryDeliveries == [sequence : 0..MaxHistorySequence,
+                      attachment : 0..MaxAttachmentGeneration]
+HistoryAckPhases == {"none", "at-server", "at-worker", "at-host"}
+PollSources == {"record", "history"}
+
 VARIABLES
   attachmentGeneration,
   projectionPhase,
@@ -133,7 +162,20 @@ VARIABLES
   controlRequestId,
   controlSequence,
   controlRejections,
-  workerProgress
+  workerProgress,
+  historySequence,
+  hostHistoryFlight,
+  hostWorkerHistory,
+  workerHistoryQueues,
+  serverClientHistory,
+  deliveredHistory,
+  historyAckPhase,
+  historyAckSequence,
+  historyAckAttachment,
+  workerPreference,
+  recordOvertakes,
+  historyOvertakes,
+  retainedUnits
 
 RelayVars == <<
   attachmentGeneration,
@@ -163,10 +205,42 @@ RelayVars == <<
   controlRequestId,
   controlSequence,
   controlRejections,
-  workerProgress
+  workerProgress,
+  historySequence,
+  hostHistoryFlight,
+  hostWorkerHistory,
+  workerHistoryQueues,
+  serverClientHistory,
+  deliveredHistory,
+  historyAckPhase,
+  historyAckSequence,
+  historyAckAttachment,
+  workerPreference,
+  recordOvertakes,
+  historyOvertakes,
+  retainedUnits
 >>
 
 allVars == <<vars, RelayVars>>
+
+\* The complete history-lane state: emission counters, the host flight, the
+\* three per-session queues, the delivered/acknowledgement echo, the worker's
+\* poll preference and overtake counters, and the shared retained-unit budget.
+HistoryVars == <<
+  historySequence,
+  hostHistoryFlight,
+  hostWorkerHistory,
+  workerHistoryQueues,
+  serverClientHistory,
+  deliveredHistory,
+  historyAckPhase,
+  historyAckSequence,
+  historyAckAttachment,
+  workerPreference,
+  recordOvertakes,
+  historyOvertakes,
+  retainedUnits
+>>
 
 RelaySemanticVars == <<
   vars,
@@ -196,7 +270,20 @@ RelaySemanticVars == <<
   controlRequestId,
   controlSequence,
   controlRejections,
-  workerProgress
+  workerProgress,
+  historySequence,
+  hostHistoryFlight,
+  hostWorkerHistory,
+  workerHistoryQueues,
+  serverClientHistory,
+  deliveredHistory,
+  historyAckPhase,
+  historyAckSequence,
+  historyAckAttachment,
+  workerPreference,
+  recordOvertakes,
+  historyOvertakes,
+  retainedUnits
 >>
 
 ASSUME
@@ -214,6 +301,8 @@ ASSUME
   /\ MaxContentRevision >= 1
   /\ MaxQueueDepth >= 1
   /\ MaxWorkerProgress >= 1
+  /\ MaxHistorySequence >= 2
+  /\ MaxHistoryQueueDepth >= 1
   /\ Scenario \in Scenarios
 
 CurrentAttachment(session) ==
@@ -270,6 +359,45 @@ DownstreamFlightIsActive ==
     \/ workerServerQueues[session] # <<>>
     \/ serverClientQueues[session] # <<>>
 
+\* The history lane is scoped, bounded, and independently accounted: queued
+\* events always belong to the session's current attachment epoch, the FIFO
+\* never exceeds its depth, and the worker's retained units equal the record
+\* slot plus the queued events exactly.
+HistoryQueueIsBounded(queue) == Len(queue) <= MaxHistoryQueueDepth
+
+HistoryQueueIsScoped(queue, session) ==
+  \A index \in 1..Len(queue):
+    /\ queue[index] \in HistoryRecords
+    /\ queue[index].session = session
+    /\ queue[index].attachment = attachmentGeneration[session]
+
+HistoryStateIsEmptyFor(session) ==
+  /\ hostWorkerHistory[session] = <<>>
+  /\ workerHistoryQueues[session] = <<>>
+  /\ serverClientHistory[session] = <<>>
+  /\ deliveredHistory[session] = NoHistoryEvent
+  /\ historyAckPhase[session] = "none"
+  /\ historyAckSequence[session] = 0
+  /\ historyAckAttachment[session] = 0
+  /\ hostHistoryFlight[session] = 0
+  /\ historySequence[session] = 0
+  /\ retainedUnits[session] = 0
+
+ResetHistoryFor(session) ==
+  /\ historySequence' = [historySequence EXCEPT ![session] = 0]
+  /\ hostHistoryFlight' = [hostHistoryFlight EXCEPT ![session] = 0]
+  /\ hostWorkerHistory' = [hostWorkerHistory EXCEPT ![session] = <<>>]
+  /\ workerHistoryQueues' = [workerHistoryQueues EXCEPT ![session] = <<>>]
+  /\ serverClientHistory' = [serverClientHistory EXCEPT ![session] = <<>>]
+  /\ deliveredHistory' = [deliveredHistory EXCEPT ![session] = NoHistoryEvent]
+  /\ historyAckPhase' = [historyAckPhase EXCEPT ![session] = "none"]
+  /\ historyAckSequence' = [historyAckSequence EXCEPT ![session] = 0]
+  /\ historyAckAttachment' = [historyAckAttachment EXCEPT ![session] = 0]
+  /\ workerPreference' = [workerPreference EXCEPT ![session] = "record"]
+  /\ recordOvertakes' = [recordOvertakes EXCEPT ![session] = 0]
+  /\ historyOvertakes' = [historyOvertakes EXCEPT ![session] = 0]
+  /\ retainedUnits' = [retainedUnits EXCEPT ![session] = 0]
+
 ResetControlFields ==
   /\ controlOwner' = NoController
   /\ controlAttachment' = 0
@@ -299,6 +427,10 @@ ResetDeliveryFor(session, nextPhase) ==
   /\ blockedRevision' = [blockedRevision EXCEPT ![session] = 0]
   /\ acceptedRequestSequence' =
        [acceptedRequestSequence EXCEPT ![session] = 0]
+  \* Attachment teardown also retires the history lane: queued events, the
+  \* acknowledgement flight, the poll preference, and every retained byte are
+  \* released exactly once with the viewer.
+  /\ ResetHistoryFor(session)
 
 PreserveDeliverySequences ==
   UNCHANGED <<nextFrameSequence, lastAppliedSequence, hostAppliedSequence,
@@ -334,6 +466,19 @@ RelayInit ==
   /\ controlSequence = 0
   /\ controlRejections = 0
   /\ workerProgress = 0
+  /\ historySequence = [session \in RelaySessionRefs |-> 0]
+  /\ hostHistoryFlight = [session \in RelaySessionRefs |-> 0]
+  /\ hostWorkerHistory = [session \in RelaySessionRefs |-> <<>>]
+  /\ workerHistoryQueues = [session \in RelaySessionRefs |-> <<>>]
+  /\ serverClientHistory = [session \in RelaySessionRefs |-> <<>>]
+  /\ deliveredHistory = [session \in RelaySessionRefs |-> NoHistoryEvent]
+  /\ historyAckPhase = [session \in RelaySessionRefs |-> "none"]
+  /\ historyAckSequence = [session \in RelaySessionRefs |-> 0]
+  /\ historyAckAttachment = [session \in RelaySessionRefs |-> 0]
+  /\ workerPreference = [session \in RelaySessionRefs |-> "record"]
+  /\ recordOvertakes = [session \in RelaySessionRefs |-> 0]
+  /\ historyOvertakes = [session \in RelaySessionRefs |-> 0]
+  /\ retainedUnits = [session \in RelaySessionRefs |-> 0]
 
 OpenRelaySession(client) ==
   /\ OpenInitialSession(client)
@@ -362,7 +507,8 @@ AttachRelayViewer(client) ==
        feedbackRevision, blockedRecoveryRevisionValid,
        acceptedRequestSequence, usedRequestIds, unknownRequestIds,
        controlPhase, controlOwner, controlAttachment, controlKind,
-       controlRequestId, controlSequence, controlRejections, workerProgress>>
+       controlRequestId, controlSequence, controlRejections, workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 ReattachRelayViewer(client) ==
   /\ (Scenario = "reattach-feedback" \/ Scenario \in LifecycleScenarios)
@@ -415,7 +561,8 @@ SubmitControllerInput(client, requestId, requestSequence) ==
        feedbackKind, feedbackPhase, feedbackSequence, feedbackAttachment,
        feedbackGeneration, feedbackRevision, blockedRecoveryRevisionValid,
        unknownRequestIds, controlRejections,
-       workerProgress>>
+       workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 SubmitControllerResize(client, requestId, requestSequence) ==
   /\ Scenario \in ControlScenarios
@@ -444,7 +591,8 @@ SubmitControllerResize(client, requestId, requestSequence) ==
        feedbackKind, feedbackPhase, feedbackSequence, feedbackAttachment,
        feedbackGeneration, feedbackRevision, blockedRecoveryRevisionValid,
        unknownRequestIds, controlRejections,
-       workerProgress>>
+       workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 RejectNonControllerInputRelay(client) ==
   /\ Scenario \in ControlScenarios
@@ -459,7 +607,8 @@ RejectNonControllerInputRelay(client) ==
        feedbackRevision, blockedRecoveryRevisionValid,
        acceptedRequestSequence, usedRequestIds, unknownRequestIds,
        controlPhase, controlOwner, controlAttachment, controlKind,
-       controlRequestId, controlSequence, workerProgress>>
+       controlRequestId, controlSequence, workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 RejectNonControllerResizeRelay(client) ==
   /\ Scenario \in ControlScenarios
@@ -474,7 +623,8 @@ RejectNonControllerResizeRelay(client) ==
        feedbackRevision, blockedRecoveryRevisionValid,
        acceptedRequestSequence, usedRequestIds, unknownRequestIds,
        controlPhase, controlOwner, controlAttachment, controlKind,
-       controlRequestId, controlSequence, workerProgress>>
+       controlRequestId, controlSequence, workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 RejectOutOfOrderControlSequence(client, requestId, requestSequence) ==
   /\ Scenario \in ControlScenarios
@@ -494,7 +644,8 @@ RejectOutOfOrderControlSequence(client, requestId, requestSequence) ==
        feedbackRevision, blockedRecoveryRevisionValid,
        acceptedRequestSequence, usedRequestIds, unknownRequestIds,
        controlPhase, controlOwner, controlAttachment, controlKind,
-       controlRequestId, controlSequence, workerProgress>>
+       controlRequestId, controlSequence, workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 RejectUsedControlIdentity(client, requestId) ==
   /\ Scenario \in ControlScenarios
@@ -512,7 +663,8 @@ RejectUsedControlIdentity(client, requestId) ==
        feedbackRevision, blockedRecoveryRevisionValid,
        acceptedRequestSequence, usedRequestIds, unknownRequestIds,
        controlPhase, controlOwner, controlAttachment, controlKind,
-       controlRequestId, controlSequence, workerProgress>>
+       controlRequestId, controlSequence, workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 ForwardControlToWorker ==
   /\ Scenario \in ControlFlightScenarios
@@ -528,7 +680,8 @@ ForwardControlToWorker ==
        feedbackRevision, blockedRecoveryRevisionValid,
        acceptedRequestSequence, usedRequestIds, unknownRequestIds,
        controlOwner, controlAttachment, controlKind, controlRequestId,
-       controlSequence, controlRejections, workerProgress>>
+       controlSequence, controlRejections, workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 CommitInputEffect ==
   /\ Scenario \in ControlFlightScenarios
@@ -545,7 +698,8 @@ CommitInputEffect ==
        feedbackRevision, blockedRecoveryRevisionValid,
        acceptedRequestSequence, usedRequestIds, unknownRequestIds,
        controlOwner, controlAttachment, controlKind, controlRequestId,
-       controlSequence, controlRejections, workerProgress>>
+       controlSequence, controlRejections, workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 CommitResizeEffect ==
   /\ Scenario \in ControlScenarios
@@ -562,7 +716,8 @@ CommitResizeEffect ==
        feedbackRevision, blockedRecoveryRevisionValid,
        acceptedRequestSequence, usedRequestIds, unknownRequestIds,
        controlOwner, controlAttachment, controlKind, controlRequestId,
-       controlSequence, controlRejections, workerProgress>>
+       controlSequence, controlRejections, workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 ReturnControlResultToServer ==
   /\ Scenario \in ControlFlightScenarios
@@ -577,7 +732,8 @@ ReturnControlResultToServer ==
        feedbackRevision, blockedRecoveryRevisionValid,
        acceptedRequestSequence, usedRequestIds, unknownRequestIds,
        controlOwner, controlAttachment, controlKind, controlRequestId,
-       controlSequence, controlRejections, workerProgress>>
+       controlSequence, controlRejections, workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 AcceptControlResult ==
   /\ Scenario \in ControlScenarios
@@ -592,7 +748,8 @@ AcceptControlResult ==
        feedbackSequence, feedbackAttachment, feedbackGeneration,
        feedbackRevision, blockedRecoveryRevisionValid,
        acceptedRequestSequence, usedRequestIds, unknownRequestIds,
-       controlRejections, workerProgress>>
+       controlRejections, workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 LoseUnknownControlOutcome ==
   /\ Scenario \in ControlFlightScenarios
@@ -607,7 +764,8 @@ LoseUnknownControlOutcome ==
        feedbackRevision, blockedRecoveryRevisionValid,
        acceptedRequestSequence, usedRequestIds, controlOwner,
        controlAttachment, controlKind, controlRequestId, controlSequence,
-       controlRejections, workerProgress>>
+       controlRejections, workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 RetireUnknownControl ==
   /\ Scenario \in ControlFlightScenarios
@@ -621,7 +779,8 @@ RetireUnknownControl ==
        feedbackSequence, feedbackAttachment, feedbackGeneration,
        feedbackRevision, blockedRecoveryRevisionValid,
        acceptedRequestSequence, usedRequestIds, unknownRequestIds,
-       controlRejections, workerProgress>>
+       controlRejections, workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 HostEmitSnapshot(session, generation, revision) ==
   /\ Scenario \in ProjectionScenarios
@@ -653,7 +812,8 @@ HostEmitSnapshot(session, generation, revision) ==
        feedbackRevision, blockedRecoveryRevisionValid, acceptedRequestSequence,
        usedRequestIds, unknownRequestIds, controlPhase, controlOwner,
        controlAttachment, controlKind, controlRequestId, controlSequence,
-       controlRejections, workerProgress>>
+       controlRejections, workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 HostEmitDelta(session, generation, revision) ==
   /\ Scenario = "projection-feedback"
@@ -685,7 +845,8 @@ HostEmitDelta(session, generation, revision) ==
        feedbackRevision, blockedRecoveryRevisionValid, acceptedRequestSequence,
        usedRequestIds, unknownRequestIds, controlPhase, controlOwner,
        controlAttachment, controlKind, controlRequestId, controlSequence,
-       controlRejections, workerProgress>>
+       controlRejections, workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 HostEmitProjectionBlocked(session, revision, bytes) ==
   /\ Scenario = "projection-feedback"
@@ -712,7 +873,8 @@ HostEmitProjectionBlocked(session, revision, bytes) ==
        acceptedRequestSequence, usedRequestIds, unknownRequestIds,
        controlPhase, controlOwner, controlAttachment, controlKind,
        controlRequestId, controlSequence, controlRejections,
-       workerProgress>>
+       workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 HostRecoverBlockedProjection(session, generation, revision) ==
   /\ Scenario = "projection-feedback"
@@ -753,7 +915,8 @@ HostRecoverBlockedProjection(session, generation, revision) ==
        feedbackAttachment, feedbackGeneration, feedbackRevision,
        acceptedRequestSequence, usedRequestIds, unknownRequestIds,
        controlPhase, controlOwner, controlAttachment, controlKind,
-       controlRequestId, controlSequence, controlRejections, workerProgress>>
+       controlRequestId, controlSequence, controlRejections, workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 RejectBlockedRecoveryWithoutNewRevision(session, revision) ==
   /\ Scenario = "projection-feedback"
@@ -775,6 +938,8 @@ RelayHostToWorker(session) ==
          ![session] = Append(@, Head(hostWorkerQueues[session]))]
   /\ hostWorkerQueues' =
        [hostWorkerQueues EXCEPT ![session] = Tail(@)]
+  /\ retainedUnits' =
+       [retainedUnits EXCEPT ![session] = @ + 1]
   /\ UNCHANGED <<vars, attachmentGeneration, projectionPhase,
        serverClientQueues, sourceRecords, nextFrameSequence,
        lastAppliedSequence, hostAppliedSequence, blockedRevision,
@@ -783,18 +948,35 @@ RelayHostToWorker(session) ==
        acceptedRequestSequence, usedRequestIds, unknownRequestIds,
        controlPhase, controlOwner, controlAttachment, controlKind,
        controlRequestId, controlSequence, controlRejections,
-       workerProgress>>
+       workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes>>
 
+\* The worker poll is a two-source arbitration: the frame record slot and the
+\* history event FIFO. The preferred source wins when both are readable; a
+\* single readable source is always served; a completed take flips the
+\* preference to the other source, so a continuously pending head is overtaken
+\* by the other source at most once.
 RelayWorkerToServer(session) ==
   /\ Scenario \in ProjectionScenarios
   /\ TerminalPathAvailable
   /\ workerServerQueues[session] # <<>>
   /\ Len(serverClientQueues[session]) < MaxQueueDepth
+  /\ \/ workerPreference[session] = "record"
+     \/ workerHistoryQueues[session] = <<>>
+     \/ Len(serverClientHistory[session]) >= MaxHistoryQueueDepth
   /\ serverClientQueues' =
        [serverClientQueues EXCEPT
          ![session] = Append(@, Head(workerServerQueues[session]))]
   /\ workerServerQueues' =
        [workerServerQueues EXCEPT ![session] = Tail(@)]
+  /\ workerPreference' =
+       [workerPreference EXCEPT ![session] = "history"]
+  /\ historyOvertakes' =
+       [historyOvertakes EXCEPT ![session] =
+         IF workerHistoryQueues[session] # <<>> THEN @ + 1 ELSE 0]
+  /\ recordOvertakes' = [recordOvertakes EXCEPT ![session] = 0]
+  /\ retainedUnits' =
+       [retainedUnits EXCEPT ![session] = @ - 1]
   /\ UNCHANGED <<vars, attachmentGeneration, projectionPhase,
        hostWorkerQueues, sourceRecords, nextFrameSequence,
        lastAppliedSequence, hostAppliedSequence, blockedRevision,
@@ -803,7 +985,240 @@ RelayWorkerToServer(session) ==
        acceptedRequestSequence, usedRequestIds, unknownRequestIds,
        controlPhase, controlOwner, controlAttachment, controlKind,
        controlRequestId, controlSequence, controlRejections,
+       workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment>>
+
+\* A Host HistoryChanged event for an attached viewer. Emission carries the
+\* attachment-local sequence and supersedes the Host's pending observation
+\* flight; stale acknowledgements of superseded events stay idempotent.
+HostEmitHistoryChanged(session) ==
+  /\ Scenario = "history-relay"
+  /\ TerminalPathAvailable
+  /\ session \in viewers
+  /\ historySequence[session] < MaxHistorySequence
+  /\ Len(hostWorkerHistory[session]) < MaxHistoryQueueDepth
+  /\ LET sequence == historySequence[session] + 1
+         event == HistoryRecord(
+           session,
+           attachmentGeneration[session],
+           sequence)
+     IN
+       /\ hostWorkerHistory' =
+            [hostWorkerHistory EXCEPT ![session] = Append(@, event)]
+       /\ historySequence' =
+            [historySequence EXCEPT ![session] = sequence]
+       /\ hostHistoryFlight' =
+            [hostHistoryFlight EXCEPT ![session] = sequence]
+  /\ UNCHANGED <<vars, attachmentGeneration, projectionPhase,
+       hostWorkerQueues, workerServerQueues, serverClientQueues,
+       sourceRecords, nextFrameSequence, lastAppliedSequence,
+       hostAppliedSequence, blockedRevision, feedbackKind, feedbackPhase,
+       feedbackSequence, feedbackAttachment, feedbackGeneration,
+       feedbackRevision, blockedRecoveryRevisionValid, acceptedRequestSequence,
+       usedRequestIds, unknownRequestIds, controlPhase, controlOwner,
+       controlAttachment, controlKind, controlRequestId, controlSequence,
+       controlRejections, workerProgress, workerHistoryQueues,
+       serverClientHistory, deliveredHistory, historyAckPhase,
+       historyAckSequence, historyAckAttachment, workerPreference,
+       recordOvertakes, historyOvertakes, retainedUnits>>
+
+\* The worker's per-viewer event FIFO keeps original record order; depth
+\* saturation closes only that viewer through the ordinary detach path.
+RelayHistoryToWorker(session) ==
+  /\ Scenario = "history-relay"
+  /\ TerminalPathAvailable
+  /\ hostWorkerHistory[session] # <<>>
+  /\ Len(workerHistoryQueues[session]) < MaxHistoryQueueDepth
+  /\ workerHistoryQueues' =
+       [workerHistoryQueues EXCEPT
+         ![session] = Append(@, Head(hostWorkerHistory[session]))]
+  /\ hostWorkerHistory' =
+       [hostWorkerHistory EXCEPT ![session] = Tail(@)]
+  /\ retainedUnits' =
+       [retainedUnits EXCEPT ![session] = @ + 1]
+  /\ UNCHANGED <<vars, attachmentGeneration, projectionPhase,
+       hostWorkerQueues, workerServerQueues, serverClientQueues,
+       sourceRecords, nextFrameSequence, lastAppliedSequence,
+       hostAppliedSequence, blockedRevision, feedbackKind, feedbackPhase,
+       feedbackSequence, feedbackAttachment, feedbackGeneration,
+       feedbackRevision, blockedRecoveryRevisionValid, acceptedRequestSequence,
+       usedRequestIds, unknownRequestIds, controlPhase, controlOwner,
+       controlAttachment, controlKind, controlRequestId, controlSequence,
+       controlRejections, workerProgress, historySequence, hostHistoryFlight,
+       serverClientHistory, deliveredHistory, historyAckPhase,
+       historyAckSequence, historyAckAttachment, workerPreference,
+       recordOvertakes, historyOvertakes>>
+
+HistoryOverflowClose(session) ==
+  /\ Scenario = "history-relay"
+  /\ TerminalPathAvailable
+  /\ hostWorkerHistory[session] # <<>>
+  /\ Len(workerHistoryQueues[session]) = MaxHistoryQueueDepth
+  /\ \E client \in Clients:
+       /\ sessionOpen[client]
+       /\ CurrentSession(client) = session
+       /\ DetachViewerAttachment(client)
+  /\ ResetDeliveryFor(session, "detached")
+  /\ UNCHANGED <<attachmentGeneration, feedbackKind, feedbackPhase,
+       feedbackSequence, feedbackAttachment, feedbackGeneration,
+       feedbackRevision, blockedRecoveryRevisionValid, usedRequestIds,
+       unknownRequestIds, controlPhase, controlOwner, controlAttachment,
+       controlKind, controlRequestId, controlSequence, controlRejections,
        workerProgress>>
+
+WorkerPollHistory(session) ==
+  /\ Scenario = "history-relay"
+  /\ TerminalPathAvailable
+  /\ workerHistoryQueues[session] # <<>>
+  /\ Len(serverClientHistory[session]) < MaxHistoryQueueDepth
+  /\ \/ workerPreference[session] = "history"
+     \/ workerServerQueues[session] = <<>>
+     \/ Len(serverClientQueues[session]) >= MaxQueueDepth
+  /\ serverClientHistory' =
+       [serverClientHistory EXCEPT
+         ![session] = Append(@, Head(workerHistoryQueues[session]))]
+  /\ workerHistoryQueues' =
+       [workerHistoryQueues EXCEPT ![session] = Tail(@)]
+  /\ workerPreference' =
+       [workerPreference EXCEPT ![session] = "record"]
+  /\ recordOvertakes' =
+       [recordOvertakes EXCEPT ![session] =
+         IF workerServerQueues[session] # <<>> THEN @ + 1 ELSE 0]
+  /\ historyOvertakes' = [historyOvertakes EXCEPT ![session] = 0]
+  /\ retainedUnits' =
+       [retainedUnits EXCEPT ![session] = @ - 1]
+  \* History delivery never touches the frame flight: delivered flags, frame
+  \* sequences, projection phase, and the feedback lane are all unchanged.
+  /\ UNCHANGED <<vars, attachmentGeneration, projectionPhase,
+       hostWorkerQueues, hostWorkerHistory, workerServerQueues,
+       serverClientQueues, sourceRecords, nextFrameSequence,
+       lastAppliedSequence, hostAppliedSequence, blockedRevision,
+       feedbackKind, feedbackPhase, feedbackSequence, feedbackAttachment,
+       feedbackGeneration, feedbackRevision, blockedRecoveryRevisionValid,
+       acceptedRequestSequence, usedRequestIds, unknownRequestIds,
+       controlPhase, controlOwner, controlAttachment, controlKind,
+       controlRequestId, controlSequence, controlRejections,
+       workerProgress, historySequence, hostHistoryFlight, deliveredHistory,
+       historyAckPhase, historyAckSequence, historyAckAttachment>>
+
+\* The client applies each delivered event in order and answers exactly that
+\* event through its own acknowledgement flight; no projection-phase gate and
+\* no correlation applies to the uncorrelated event record.
+RelayHistoryToClient(session) ==
+  /\ Scenario = "history-relay"
+  /\ TerminalPathAvailable
+  /\ serverClientHistory[session] # <<>>
+  /\ historyAckPhase[session] = "none"
+  /\ LET event == Head(serverClientHistory[session])
+     IN
+       /\ event.session = session
+       /\ event.attachment = attachmentGeneration[session]
+       /\ serverClientHistory' =
+            [serverClientHistory EXCEPT ![session] = Tail(@)]
+       /\ deliveredHistory' =
+            [deliveredHistory EXCEPT ![session] =
+              [sequence |-> event.sequence, attachment |-> event.attachment]]
+       /\ historyAckPhase' =
+            [historyAckPhase EXCEPT ![session] = "at-server"]
+       /\ historyAckSequence' =
+            [historyAckSequence EXCEPT ![session] = event.sequence]
+       /\ historyAckAttachment' =
+            [historyAckAttachment EXCEPT ![session] = event.attachment]
+  /\ UNCHANGED <<vars, attachmentGeneration, projectionPhase,
+       hostWorkerQueues, hostWorkerHistory, workerServerQueues,
+       serverClientQueues, workerHistoryQueues, sourceRecords,
+       nextFrameSequence, lastAppliedSequence, hostAppliedSequence,
+       blockedRevision, feedbackKind, feedbackPhase, feedbackSequence,
+       feedbackAttachment, feedbackGeneration, feedbackRevision,
+       blockedRecoveryRevisionValid, acceptedRequestSequence,
+       usedRequestIds, unknownRequestIds, controlPhase, controlOwner,
+       controlAttachment, controlKind, controlRequestId, controlSequence,
+       controlRejections, workerProgress, historySequence, hostHistoryFlight,
+       workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
+
+RelayHistoryAckToWorker(session) ==
+  /\ Scenario = "history-relay"
+  /\ TerminalPathAvailable
+  /\ historyAckPhase[session] = "at-server"
+  /\ historyAckPhase' =
+       [historyAckPhase EXCEPT ![session] = "at-worker"]
+  /\ UNCHANGED <<vars, attachmentGeneration, projectionPhase,
+       hostWorkerQueues, hostWorkerHistory, workerServerQueues,
+       serverClientQueues, workerHistoryQueues, serverClientHistory,
+       sourceRecords, nextFrameSequence, lastAppliedSequence,
+       hostAppliedSequence, blockedRevision, feedbackKind, feedbackPhase,
+       feedbackSequence, feedbackAttachment, feedbackGeneration,
+       feedbackRevision, blockedRecoveryRevisionValid, acceptedRequestSequence,
+       usedRequestIds, unknownRequestIds, controlPhase, controlOwner,
+       controlAttachment, controlKind, controlRequestId, controlSequence,
+       controlRejections, workerProgress, historySequence, hostHistoryFlight,
+       deliveredHistory, historyAckSequence, historyAckAttachment,
+       workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
+
+RelayHistoryAckToHost(session) ==
+  /\ Scenario = "history-relay"
+  /\ TerminalPathAvailable
+  /\ historyAckPhase[session] = "at-worker"
+  /\ historyAckPhase' =
+       [historyAckPhase EXCEPT ![session] = "at-host"]
+  /\ UNCHANGED <<vars, attachmentGeneration, projectionPhase,
+       hostWorkerQueues, hostWorkerHistory, workerServerQueues,
+       serverClientQueues, workerHistoryQueues, serverClientHistory,
+       sourceRecords, nextFrameSequence, lastAppliedSequence,
+       hostAppliedSequence, blockedRevision, feedbackKind, feedbackPhase,
+       feedbackSequence, feedbackAttachment, feedbackGeneration,
+       feedbackRevision, blockedRecoveryRevisionValid, acceptedRequestSequence,
+       usedRequestIds, unknownRequestIds, controlPhase, controlOwner,
+       controlAttachment, controlKind, controlRequestId, controlSequence,
+       controlRejections, workerProgress, historySequence, hostHistoryFlight,
+       deliveredHistory, historyAckSequence, historyAckAttachment,
+       workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
+
+\* The Host clears only the flight whose sequence and attachment the
+\* acknowledgement echoes exactly; anything older is an idempotent no-op.
+HostAcceptHistoryObserved(session) ==
+  /\ Scenario = "history-relay"
+  /\ TerminalPathAvailable
+  /\ historyAckPhase[session] = "at-host"
+  /\ historyAckSequence[session] = hostHistoryFlight[session]
+  /\ historyAckAttachment[session] = attachmentGeneration[session]
+  /\ hostHistoryFlight' = [hostHistoryFlight EXCEPT ![session] = 0]
+  /\ historyAckPhase' = [historyAckPhase EXCEPT ![session] = "none"]
+  /\ historyAckSequence' = [historyAckSequence EXCEPT ![session] = 0]
+  /\ historyAckAttachment' = [historyAckAttachment EXCEPT ![session] = 0]
+  /\ UNCHANGED <<vars, attachmentGeneration, projectionPhase,
+       hostWorkerQueues, hostWorkerHistory, workerServerQueues,
+       serverClientQueues, workerHistoryQueues, serverClientHistory,
+       sourceRecords, nextFrameSequence, lastAppliedSequence,
+       hostAppliedSequence, blockedRevision, feedbackKind, feedbackPhase,
+       feedbackSequence, feedbackAttachment, feedbackGeneration,
+       feedbackRevision, blockedRecoveryRevisionValid, acceptedRequestSequence,
+       usedRequestIds, unknownRequestIds, controlPhase, controlOwner,
+       controlAttachment, controlKind, controlRequestId, controlSequence,
+       controlRejections, workerProgress, historySequence, deliveredHistory,
+       workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
+
+HostDropStaleHistoryObserved(session) ==
+  /\ Scenario = "history-relay"
+  /\ TerminalPathAvailable
+  /\ historyAckPhase[session] = "at-host"
+  /\ \/ historyAckSequence[session] # hostHistoryFlight[session]
+     \/ historyAckAttachment[session] # attachmentGeneration[session]
+  /\ historyAckPhase' = [historyAckPhase EXCEPT ![session] = "none"]
+  /\ historyAckSequence' = [historyAckSequence EXCEPT ![session] = 0]
+  /\ historyAckAttachment' = [historyAckAttachment EXCEPT ![session] = 0]
+  /\ UNCHANGED <<vars, attachmentGeneration, projectionPhase,
+       hostWorkerQueues, hostWorkerHistory, workerServerQueues,
+       serverClientQueues, workerHistoryQueues, serverClientHistory,
+       sourceRecords, nextFrameSequence, lastAppliedSequence,
+       hostAppliedSequence, blockedRevision, feedbackKind, feedbackPhase,
+       feedbackSequence, feedbackAttachment, feedbackGeneration,
+       feedbackRevision, blockedRecoveryRevisionValid, acceptedRequestSequence,
+       usedRequestIds, unknownRequestIds, controlPhase, controlOwner,
+       controlAttachment, controlKind, controlRequestId, controlSequence,
+       controlRejections, workerProgress, historySequence, hostHistoryFlight,
+       deliveredHistory, workerPreference, recordOvertakes, historyOvertakes,
+       retainedUnits>>
 
 FrameCanReachClient(session) ==
   /\ TerminalPathAvailable
@@ -904,7 +1319,8 @@ RelayServerToClient(session) ==
        acceptedRequestSequence, usedRequestIds, unknownRequestIds,
        controlPhase, controlOwner, controlAttachment, controlKind,
        controlRequestId, controlSequence, controlRejections,
-       workerProgress>>
+       workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 ClientNeedsSnapshot(session) ==
   /\ Scenario = "projection-feedback"
@@ -927,15 +1343,20 @@ ClientNeedsSnapshot(session) ==
   /\ hostWorkerQueues' = [hostWorkerQueues EXCEPT ![session] = <<>>]
   /\ workerServerQueues' = [workerServerQueues EXCEPT ![session] = <<>>]
   /\ serverClientQueues' = [serverClientQueues EXCEPT ![session] = <<>>]
+  \* A snapshot resync drops queued frames only: the event FIFO survives and
+  \* its retained units stay accounted.
+  /\ retainedUnits' =
+       [retainedUnits EXCEPT ![session] = Len(workerHistoryQueues[session])]
   /\ UNCHANGED <<vars, attachmentGeneration, sourceRecords,
        nextFrameSequence, lastAppliedSequence, hostAppliedSequence,
        blockedRevision, blockedRecoveryRevisionValid, acceptedRequestSequence,
        usedRequestIds, unknownRequestIds, controlPhase, controlOwner,
        controlAttachment, controlKind, controlRequestId, controlSequence,
-       controlRejections, workerProgress>>
+       controlRejections, workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes>>
 
 RelayFeedbackToWorker(session) ==
-  /\ Scenario = "projection-feedback"
+  /\ Scenario \in {"projection-feedback", "history-relay"}
   /\ TerminalPathAvailable
   /\ feedbackPhase[session] = "at-server"
   /\ feedbackPhase' =
@@ -948,10 +1369,11 @@ RelayFeedbackToWorker(session) ==
        blockedRecoveryRevisionValid, acceptedRequestSequence, usedRequestIds,
        unknownRequestIds, controlPhase, controlOwner, controlAttachment,
        controlKind, controlRequestId, controlSequence, controlRejections,
-       workerProgress>>
+       workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 RelayFeedbackToHost(session) ==
-  /\ Scenario = "projection-feedback"
+  /\ Scenario \in {"projection-feedback", "history-relay"}
   /\ TerminalPathAvailable
   /\ feedbackPhase[session] = "at-worker"
   /\ feedbackPhase' = [feedbackPhase EXCEPT ![session] = "at-host"]
@@ -963,10 +1385,11 @@ RelayFeedbackToHost(session) ==
        blockedRecoveryRevisionValid, acceptedRequestSequence, usedRequestIds,
        unknownRequestIds, controlPhase, controlOwner, controlAttachment,
        controlKind, controlRequestId, controlSequence, controlRejections,
-       workerProgress>>
+       workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 HostAcceptFrameApplied(session) ==
-  /\ Scenario = "projection-feedback"
+  /\ Scenario \in {"projection-feedback", "history-relay"}
   /\ TerminalPathAvailable
   /\ session \in viewers
   /\ feedbackPhase[session] = "at-host"
@@ -994,7 +1417,8 @@ HostAcceptFrameApplied(session) ==
        blockedRecoveryRevisionValid, acceptedRequestSequence, usedRequestIds,
        unknownRequestIds, controlPhase, controlOwner, controlAttachment,
        controlKind, controlRequestId, controlSequence, controlRejections,
-       workerProgress>>
+       workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 HostAcceptNeedSnapshot(session) ==
   /\ Scenario = "projection-feedback"
@@ -1023,7 +1447,8 @@ HostAcceptNeedSnapshot(session) ==
        blockedRecoveryRevisionValid, acceptedRequestSequence, usedRequestIds,
        unknownRequestIds, controlPhase, controlOwner, controlAttachment,
        controlKind, controlRequestId, controlSequence, controlRejections,
-       workerProgress>>
+       workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 DropStaleFeedback(session) ==
   /\ Scenario = "reattach-feedback"
@@ -1043,7 +1468,8 @@ DropStaleFeedback(session) ==
        acceptedRequestSequence, usedRequestIds, unknownRequestIds,
        controlPhase, controlOwner, controlAttachment, controlKind,
        controlRequestId, controlSequence, controlRejections,
-       workerProgress>>
+       workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes, retainedUnits>>
 
 PauseBackpressuredAttachment(session) ==
   /\ Scenario = "backpressure-isolation"
@@ -1059,6 +1485,10 @@ PauseBackpressuredAttachment(session) ==
   /\ workerServerQueues' = [workerServerQueues EXCEPT ![session] = <<>>]
   /\ serverClientQueues' = [serverClientQueues EXCEPT ![session] = <<>>]
   /\ sourceRecords' = [sourceRecords EXCEPT ![session] = {}]
+  \* A projection pause drops queued frames only: the history lane keeps
+  \* flowing and its retained units stay accounted.
+  /\ retainedUnits' =
+       [retainedUnits EXCEPT ![session] = Len(workerHistoryQueues[session])]
   /\ UNCHANGED <<vars, attachmentGeneration, nextFrameSequence,
        lastAppliedSequence, hostAppliedSequence, blockedRevision,
        feedbackKind, feedbackPhase, feedbackSequence, feedbackAttachment,
@@ -1066,7 +1496,8 @@ PauseBackpressuredAttachment(session) ==
        acceptedRequestSequence, usedRequestIds, unknownRequestIds,
        controlPhase, controlOwner, controlAttachment, controlKind,
        controlRequestId, controlSequence, controlRejections,
-       workerProgress>>
+       workerProgress,
+       historySequence, hostHistoryFlight, hostWorkerHistory, workerHistoryQueues, serverClientHistory, deliveredHistory, historyAckPhase, historyAckSequence, historyAckAttachment, workerPreference, recordOvertakes, historyOvertakes>>
 
 CloseBackpressuredAttachment(client) ==
   /\ Scenario = "backpressure-isolation"
@@ -1138,11 +1569,12 @@ DisconnectRelayClientCore(client) ==
           \/ DisconnectUnattachedSession(client)
        /\ IF session \in viewers
               THEN ResetDeliveryFor(session, "detached")
-              ELSE UNCHANGED <<projectionPhase, hostWorkerQueues,
+              ELSE /\ UNCHANGED <<projectionPhase, hostWorkerQueues,
                      workerServerQueues, serverClientQueues, sourceRecords,
                      nextFrameSequence, lastAppliedSequence,
                      hostAppliedSequence, blockedRevision,
                      acceptedRequestSequence>>
+                   /\ UNCHANGED HistoryVars
        /\ IF ControlCouldHaveEscapedServer(session)
              THEN
                /\ controlPhase' = "unknown"
@@ -1237,6 +1669,7 @@ AdvanceWorkerProgress ==
        acceptedRequestSequence, usedRequestIds, unknownRequestIds,
        controlPhase, controlOwner, controlAttachment, controlKind,
        controlRequestId, controlSequence, controlRejections>>
+  /\ UNCHANGED HistoryVars
 
 RelayAction ==
   \/ \E client \in Clients: OpenRelaySession(client)
@@ -1284,6 +1717,15 @@ RelayAction ==
        RejectBlockedRecoveryWithoutNewRevision(session, revision)
   \/ \E session \in RelaySessionRefs: RelayHostToWorker(session)
   \/ \E session \in RelaySessionRefs: RelayWorkerToServer(session)
+  \/ \E session \in RelaySessionRefs: HostEmitHistoryChanged(session)
+  \/ \E session \in RelaySessionRefs: RelayHistoryToWorker(session)
+  \/ \E session \in RelaySessionRefs: HistoryOverflowClose(session)
+  \/ \E session \in RelaySessionRefs: WorkerPollHistory(session)
+  \/ \E session \in RelaySessionRefs: RelayHistoryToClient(session)
+  \/ \E session \in RelaySessionRefs: RelayHistoryAckToWorker(session)
+  \/ \E session \in RelaySessionRefs: RelayHistoryAckToHost(session)
+  \/ \E session \in RelaySessionRefs: HostAcceptHistoryObserved(session)
+  \/ \E session \in RelaySessionRefs: HostDropStaleHistoryObserved(session)
   \/ \E session \in RelaySessionRefs, sequence \in 1..MaxFrameSequence:
        RejectWrongFrameAppliedSequence(session, sequence)
   \/ \E session \in RelaySessionRefs,
@@ -1357,6 +1799,21 @@ RelayTypeOK ==
   /\ controlSequence \in 0..MaxRequestSequence
   /\ controlRejections \in 0..MaxRequestSequence
   /\ workerProgress \in 0..MaxWorkerProgress
+  /\ historySequence \in [RelaySessionRefs -> 0..MaxHistorySequence]
+  /\ hostHistoryFlight \in [RelaySessionRefs -> 0..MaxHistorySequence]
+  /\ hostWorkerHistory \in [RelaySessionRefs -> Seq(HistoryRecords)]
+  /\ workerHistoryQueues \in [RelaySessionRefs -> Seq(HistoryRecords)]
+  /\ serverClientHistory \in [RelaySessionRefs -> Seq(HistoryRecords)]
+  /\ deliveredHistory \in [RelaySessionRefs -> HistoryDeliveries]
+  /\ historyAckPhase \in [RelaySessionRefs -> HistoryAckPhases]
+  /\ historyAckSequence \in [RelaySessionRefs -> 0..MaxHistorySequence]
+  /\ historyAckAttachment \in
+       [RelaySessionRefs -> 0..MaxAttachmentGeneration]
+  /\ workerPreference \in [RelaySessionRefs -> PollSources]
+  /\ recordOvertakes \in [RelaySessionRefs -> 0..2]
+  /\ historyOvertakes \in [RelaySessionRefs -> 0..2]
+  /\ retainedUnits \in
+       [RelaySessionRefs -> 0..(MaxQueueDepth + MaxHistoryQueueDepth)]
 
 RelayUsesImportedAuthority ==
   /\ AttachedProjectionSessions = viewers
@@ -1542,5 +1999,77 @@ PausedClientDoesNotBlockPeerDelivery ==
             (Head(serverClientQueues[peer]).recordKind =
                "projection-blocked" \/ feedbackPhase[peer] = "none") =>
               ENABLED RelayServerToClient(peer))
+
+HistoryQueuesAreBoundedAndScoped ==
+  \A session \in RelaySessionRefs:
+    /\ HistoryQueueIsBounded(hostWorkerHistory[session])
+    /\ HistoryQueueIsBounded(workerHistoryQueues[session])
+    /\ HistoryQueueIsBounded(serverClientHistory[session])
+    /\ HistoryQueueIsScoped(hostWorkerHistory[session], session)
+    /\ HistoryQueueIsScoped(workerHistoryQueues[session], session)
+    /\ HistoryQueueIsScoped(serverClientHistory[session], session)
+
+\* A continuously pending source head is overtaken by the other source at
+\* most once: the bounded-overtake counters are mechanism state, not a
+\* fairness axiom over poll timing.
+PollOvertakeIsBounded ==
+  \A session \in RelaySessionRefs:
+    /\ recordOvertakes[session] <= 1
+    /\ historyOvertakes[session] <= 1
+
+RetainedUnitsMatchQueues ==
+  \A session \in RelaySessionRefs:
+    retainedUnits[session] =
+      Len(workerServerQueues[session]) + Len(workerHistoryQueues[session])
+
+DetachedSessionsRetainNoHistoryState ==
+  \A session \in RelaySessionRefs:
+    projectionPhase[session] = "detached" => HistoryStateIsEmptyFor(session)
+
+\* The acknowledgement in flight always echoes the last delivered event
+\* exactly; nothing is acknowledged that was not applied.
+HistoryObservedEchoesDelivery ==
+  \A session \in RelaySessionRefs:
+    historyAckPhase[session] # "none" =>
+      /\ deliveredHistory[session].sequence \in 1..MaxHistorySequence
+      /\ historyAckSequence[session] = deliveredHistory[session].sequence
+      /\ historyAckAttachment[session] =
+           deliveredHistory[session].attachment
+      /\ deliveredHistory[session].attachment =
+           attachmentGeneration[session]
+
+HistorySequencesStayInsideEmission ==
+  \A session \in RelaySessionRefs:
+    /\ hostHistoryFlight[session] <= historySequence[session]
+    /\ deliveredHistory[session].sequence <= historySequence[session]
+    /\ historyAckSequence[session] <= historySequence[session]
+
+HistoryDelivery ==
+  \E session \in RelaySessionRefs:
+    WorkerPollHistory(session) \/ RelayHistoryToClient(session)
+
+\* Serving the history source never disturbs the frame lane: record queues,
+\* delivery marks, sequences, projection phase, and feedback are untouched.
+HistoryDeliveryLeavesFrameFlightUnchanged ==
+  [][HistoryDelivery =>
+      UNCHANGED <<projectionPhase, hostWorkerQueues, workerServerQueues,
+        serverClientQueues, sourceRecords, nextFrameSequence,
+        lastAppliedSequence, hostAppliedSequence, blockedRevision,
+        feedbackKind, feedbackPhase, feedbackSequence, feedbackAttachment,
+        feedbackGeneration, feedbackRevision>>]_allVars
+
+\* Saturation retires only the saturated viewer: sibling sessions' record
+\* queues, history queues, preference, and retained accounting are untouched.
+HistoryOverflowCloseIsSessionLocal ==
+  [][\A session, other \in RelaySessionRefs:
+       HistoryOverflowClose(session) /\ session # other =>
+        /\ hostWorkerQueues'[other] = hostWorkerQueues[other]
+        /\ workerServerQueues'[other] = workerServerQueues[other]
+        /\ serverClientQueues'[other] = serverClientQueues[other]
+        /\ hostWorkerHistory'[other] = hostWorkerHistory[other]
+        /\ workerHistoryQueues'[other] = workerHistoryQueues[other]
+        /\ serverClientHistory'[other] = serverClientHistory[other]
+        /\ workerPreference'[other] = workerPreference[other]
+        /\ retainedUnits'[other] = retainedUnits[other]]_allVars
 
 =============================================================================

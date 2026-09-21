@@ -19,7 +19,13 @@ EXTENDS Naturals, FiniteSets
 \* identities to exercise independent controllers, equal/gapped sequences, and
 \* sibling cleanup; their smaller identity domain keeps those composed proofs
 \* tractable without changing any production bound.
+\* The kind-53 history lane is a second pollable record source: a pending event
+\* is deliverable on Poll even while a frame flight is unsettled, it never
+\* settles frame feedback, and it is a strict route error on any non-Poll
+\* action. The relay model owns FIFO depth, byte accounting, and source
+\* arbitration; this model owns the routing-level delivery and rejection shape.
 CONSTANT Scenario, FirstSession, FirstTarget, SecondSession, SecondTarget, FirstGrantViewer
+CONSTANT MaxRoutingHistory
 ASSUME Scenario \in {"routing", "control", "cleanup"}
 Sessions == {"a", "b"}
 Targets == {"x", "y"}
@@ -36,6 +42,7 @@ WithFrames == Scenario \in {"routing", "cleanup"}
 WithControl == Scenario \in {"control", "cleanup"}
 MaxSequence == IF Scenario = "control" THEN 2 ELSE 1
 MaxFrame == IF Scenario = "routing" THEN 2 ELSE 1
+MaxHistory == IF Scenario = "routing" THEN MaxRoutingHistory ELSE 1
 Registered == {"candidate", "issued", "acknowledged", "active"}
 GrantHeld == {"reserved", "active", "closing"}
 NoViewer == [owner |-> "none", target |-> "none", generation |-> 0,
@@ -54,7 +61,9 @@ Init == s = [live |-> [a \in Sessions |-> TRUE], phase |-> [a \in Sessions |-> "
   workerGeneration |-> 1, workerOwned |-> {},
   disposed |-> {},
   pending |-> [v \in Viewers |-> NoFrame], baseline |-> [v \in Viewers |-> FALSE],
-  frameSequence |-> [v \in Viewers |-> 0]]
+  frameSequence |-> [v \in Viewers |-> 0],
+  history |-> [v \in Viewers |-> 0], historyFlight |-> [v \in Viewers |-> 0],
+  historySequence |-> [v \in Viewers |-> 0]]
 
 Idle(a) == s.live[a] /\ s.phase[a] = "idle"
 Owned(a, v) == IF v \in Viewers THEN s.viewers[v].owner = a /\ s.viewers[v].state = "active" ELSE FALSE
@@ -71,6 +80,7 @@ G(a) == s.flight[a].grant
 ActiveGrant(v) == IF s.viewers[v].grant = 0 THEN FALSE
   ELSE s.grants[s.viewers[v].grant].state = "active"
 Projection(v) == <<s.viewers[v], s.pending[v], s.baseline[v], s.frameSequence[v],
+  s.history[v], s.historyFlight[v], s.historySequence[v],
   {s.grants[g]: g \in {id \in Grants: s.grants[id].viewer = v}}>>
 
 \* Partition only the first two admitted identities. The complete Cartesian
@@ -125,6 +135,7 @@ PublishAttach(a) ==
   /\ s' = [s EXCEPT !.phase[a] = "idle", !.flight[a] = NoFlight]
 CloseViewer(state, v) == [state EXCEPT !.viewers[v].state = "closing", !.pending[v] = NoFrame,
   !.baseline[v] = FALSE, !.frameSequence[v] = 0,
+  !.history[v] = 0, !.historyFlight[v] = 0, !.historySequence[v] = 0,
   !.grants = [g \in Grants |-> IF state.grants[g].viewer = v /\ state.grants[g].state \in GrantHeld
     THEN [state.grants[g] EXCEPT !.state = "closing"] ELSE state.grants[g]]]
 AttachUnknown(a) ==
@@ -156,7 +167,10 @@ ReapDisposed(a) ==
        THEN [s.viewers[v] EXCEPT !.state = "closing"] ELSE s.viewers[v]],
        !.pending = [v \in Viewers |-> IF Owned(a, v) /\ s.viewers[v].target \in s.disposed THEN NoFrame ELSE s.pending[v]],
        !.baseline = [v \in Viewers |-> IF Owned(a, v) /\ s.viewers[v].target \in s.disposed THEN FALSE ELSE s.baseline[v]],
-       !.frameSequence = [v \in Viewers |-> IF Owned(a, v) /\ s.viewers[v].target \in s.disposed THEN 0 ELSE s.frameSequence[v]]]
+       !.frameSequence = [v \in Viewers |-> IF Owned(a, v) /\ s.viewers[v].target \in s.disposed THEN 0 ELSE s.frameSequence[v]],
+       !.history = [v \in Viewers |-> IF Owned(a, v) /\ s.viewers[v].target \in s.disposed THEN 0 ELSE s.history[v]],
+       !.historyFlight = [v \in Viewers |-> IF Owned(a, v) /\ s.viewers[v].target \in s.disposed THEN 0 ELSE s.historyFlight[v]],
+       !.historySequence = [v \in Viewers |-> IF Owned(a, v) /\ s.viewers[v].target \in s.disposed THEN 0 ELSE s.historySequence[v]]]
 
 PollRecord(a, v) ==
   /\ WithFrames /\ Routable(a, v) /\ s.pending[v] = NoFrame /\ s.frameSequence[v] < MaxFrame
@@ -165,7 +179,42 @@ PollRecord(a, v) ==
 PollWhileSiblingPending(a, v) ==
   /\ \E other \in Viewers: other # v /\ Owned(a, other) /\ s.pending[other] # NoFrame
   /\ PollRecord(a, v)
-PollAwaitingFeedback(a, v) == /\ WithFrames /\ Routable(a, v) /\ s.pending[v] # NoFrame /\ UNCHANGED vars
+\* Poll is no longer blocked globally by an unsettled frame flight: a queued
+\* kind-53 event is always an eligible Poll result. The flight alone still
+\* produces no frame record, so an empty poll stays empty only when neither
+\* source has anything to return.
+PollAwaitingFeedback(a, v) == /\ WithFrames /\ Routable(a, v) /\ s.pending[v] # NoFrame
+  /\ s.history[v] = 0 /\ UNCHANGED vars
+
+\* The Host signals history growth upstream; the worker holds at most one
+\* routed event here (the relay model owns the bounded FIFO refinement).
+EmitHistoryChanged(a, v) ==
+  /\ WithFrames /\ Routable(a, v) /\ s.history[v] = 0
+  /\ s.historySequence[v] < MaxHistory
+  /\ s' = [s EXCEPT !.history[v] = s.historySequence[v]+1,
+       !.historySequence[v] = @+1]
+
+\* Poll serves the pending kind-53 record and starts the independent
+\* HistoryObserved flight; the frame flight is not consulted or settled.
+PollHistory(a, v) ==
+  /\ WithFrames /\ Routable(a, v) /\ s.history[v] # 0
+  /\ s' = [s EXCEPT !.history[v] = 0, !.historyFlight[v] = s.history[v]]
+
+\* An exact HistoryObserved echo settles only the history flight.
+AcceptHistoryObserved(a, v) ==
+  /\ WithFrames /\ Routable(a, v) /\ s.historyFlight[v] # 0
+  /\ s' = [s EXCEPT !.historyFlight[v] = 0]
+
+\* A stale or duplicate HistoryObserved carries no authority and is dropped.
+RejectStaleHistoryObserved(a, v) ==
+  /\ WithFrames /\ Routable(a, v) /\ s.historyFlight[v] = 0
+  /\ s.historySequence[v] > 0 /\ UNCHANGED vars
+
+\* A kind-53 record surfacing on any non-Poll action is a strict route error
+\* and retires the offending viewer, never a sibling.
+RejectHistoryWrongRoute(a, v) ==
+  /\ WithFrames /\ Routable(a, v) /\ s.history[v] # 0
+  /\ s' = CloseViewer(s, v)
 AcceptFeedback(a, v, kind) ==
   /\ WithFrames /\ Routable(a, v) /\ kind \in {"applied", "snapshot"} /\ s.pending[v] # NoFrame
   /\ s.pending[v].viewer = v /\ s.pending[v].host = 1
@@ -262,6 +311,9 @@ DropSessionCore(a) ==
        !.pending = [v \in Viewers |-> IF s.viewers[v].owner = a THEN NoFrame ELSE s.pending[v]],
        !.baseline = [v \in Viewers |-> IF s.viewers[v].owner = a THEN FALSE ELSE s.baseline[v]],
        !.frameSequence = [v \in Viewers |-> IF s.viewers[v].owner = a THEN 0 ELSE s.frameSequence[v]],
+       !.history = [v \in Viewers |-> IF s.viewers[v].owner = a THEN 0 ELSE s.history[v]],
+       !.historyFlight = [v \in Viewers |-> IF s.viewers[v].owner = a THEN 0 ELSE s.historyFlight[v]],
+       !.historySequence = [v \in Viewers |-> IF s.viewers[v].owner = a THEN 0 ELSE s.historySequence[v]],
        !.grants = [g \in Grants |-> IF s.grants[g].owner = a /\ s.grants[g].state \in GrantHeld
          THEN [s.grants[g] EXCEPT !.state = "closing"] ELSE s.grants[g]]]
 NextDropBranch(a) ==
@@ -319,7 +371,9 @@ Next ==
   \/ \E a \in Sessions, v \in Viewers:
        RejectForeignViewer(a, v) \/ RejectStaleViewer(a, v) \/ DetachViewer(a, v)
        \/ RejectDisposedRoute(a, v) \/ RejectStaleGeneration(a, v) \/ PollRecord(a, v)
-       \/ PollWhileSiblingPending(a, v) \/ PollAwaitingFeedback(a, v) \/ FrameApplied(a, v)
+       \/ PollWhileSiblingPending(a, v) \/ PollAwaitingFeedback(a, v) \/ EmitHistoryChanged(a, v)
+       \/ PollHistory(a, v) \/ AcceptHistoryObserved(a, v) \/ RejectStaleHistoryObserved(a, v)
+       \/ RejectHistoryWrongRoute(a, v) \/ FrameApplied(a, v)
        \/ NeedSnapshot(a, v) \/ AcceptEqualCounterSiblingFeedback(a, v) \/ RejectFeedbackMismatch(a, v)
        \/ RejectWrongRecordRoute(a, v) \/ ReserveController(a, v) \/ RejectControllerBusy(a, v)
        \/ RejectWrongGrant(a, v) \/ RejectOldGrant(a, v) \/ RejectStaleSequence(a, v) \/ RejectAcquireDuringCleanup(a, v)
@@ -352,6 +406,9 @@ TypeOK ==
   /\ s.pending \in [Viewers -> [viewer : 0..3, host : 0..1, sequence : 0..2, generation : 0..1, revision : 0..2,
        kind : {"none", "snapshot", "delta"}]]
   /\ s.baseline \in [Viewers -> BOOLEAN] /\ s.frameSequence \in [Viewers -> 0..2]
+  /\ s.history \in [Viewers -> 0..MaxHistory]
+  /\ s.historyFlight \in [Viewers -> 0..MaxHistory]
+  /\ s.historySequence \in [Viewers -> 0..MaxHistory]
 SeparateCapacityBounds == /\ \A a \in Sessions: SessionCount(a) <= SessionLimit
   /\ Cardinality(s.workerOwned) <= WorkerLimit
 UniqueLiveTargetPerSession == \A a \in Sessions, target \in Targets:
@@ -374,6 +431,21 @@ NoViewerCleanupAheadOfController ==
 DeadSessionHasNoRegisteredViewer == \A a \in Sessions: ~s.live[a] => SessionCount(a) = 0
 RetiredViewerHasNoFlight == \A v \in Viewers: s.viewers[v].state \in {"retired", "rejected"} =>
   s.pending[v] = NoFrame /\ v \notin s.workerOwned
+  /\ s.history[v] = 0 /\ s.historyFlight[v] = 0 /\ s.historySequence[v] = 0
+
+\* A queued or delivered kind-53 event always belongs to an active viewer and
+\* never outruns the events actually emitted for it.
+ExactHistoryScope == \A v \in Viewers:
+  /\ s.history[v] # 0 => s.viewers[v].state = "active" /\ s.history[v] = s.historySequence[v]
+  /\ s.historyFlight[v] # 0 =>
+       s.viewers[v].state = "active" /\ s.historyFlight[v] <= s.historySequence[v]
+
+\* An unsettled frame flight never gates the history lane out of Poll: the
+\* queued event stays an eligible Poll result the whole time it waits.
+HistoryDeliverableDuringFrameFlight ==
+  \A a \in Sessions, v \in Viewers:
+    (WithFrames /\ Routable(a, v) /\ s.pending[v] # NoFrame /\ s.history[v] # 0)
+      => ENABLED PollHistory(a, v)
 
 AttachAllocatesFreshIdentity == [][\A a \in Sessions, target \in Targets: AdmitAttach(a, target) =>
   s'.cursor = s.cursor+1 /\ s.viewers[s'.cursor] = NoViewer /\ s'.baseline[s'.cursor] = FALSE]_vars
@@ -384,6 +456,8 @@ ControlDispatchUsesExactOwner == [][\A a \in Sessions: CommitControl(a) =>
   Owned(a, V(a)) /\ Current(V(a)) /\ s.viewers[V(a)].grant = G(a)
   /\ s.grants[G(a)].sequence = s.flight[a].sequence]_vars
 LocalRequest(a, v) == DetachViewer(a, v) \/ PollRecord(a, v) \/ PollAwaitingFeedback(a, v)
+  \/ EmitHistoryChanged(a, v) \/ PollHistory(a, v) \/ AcceptHistoryObserved(a, v)
+  \/ RejectStaleHistoryObserved(a, v) \/ RejectHistoryWrongRoute(a, v)
   \/ FrameApplied(a, v) \/ NeedSnapshot(a, v) \/ RejectFeedbackMismatch(a, v) \/ RejectWrongRecordRoute(a, v)
   \/ ReserveController(a, v) \/ RejectControllerBusy(a, v) \/ RejectWrongGrant(a, v) \/ RejectStaleSequence(a, v)
   \/ (\E sequence \in 1..MaxSequence:
@@ -413,6 +487,17 @@ OnlyExternalDisposalEndsTerminal == [][s'.disposed # s.disposed =>
   \E target \in Targets: DisposeTarget(target)]_vars
 DisposedProofNeverRegresses == [][s.disposed \subseteq s'.disposed]_vars
 ReleasedGrantNeverRevives == [][\A g \in Grants: s.grants[g].state = "released" => s'.grants[g].state = "released"]_vars
+
+\* Serving or acknowledging the history lane never disturbs the frame lane:
+\* pending record, baseline, and emitted frame counters are untouched.
+HistoryLanePreservesFrameFlight == [][\A a \in Sessions, v \in Viewers:
+  (PollHistory(a, v) \/ AcceptHistoryObserved(a, v)) =>
+    UNCHANGED <<s.pending, s.baseline, s.frameSequence>>]_vars
+
+\* A kind-53 record on a non-Poll route retires exactly the offending viewer.
+HistoryWrongRouteClosesOnlyThatViewer == [][\A a \in Sessions, v \in Viewers:
+  RejectHistoryWrongRoute(a, v) =>
+    s.viewers[v].state = "active" /\ s'.viewers[v].state = "closing"]_vars
 ClosingEventuallyRetires == \A v \in Viewers: (s.viewers[v].state = "closing") ~> (s.viewers[v].state = "retired")
 OrderedFlightEventuallySettles == \A a \in Sessions:
   (s.phase[a] \notin {"idle", "dead"}) ~> (s.phase[a] \in {"idle", "dead"})

@@ -96,6 +96,16 @@ Server 仍是查看附件的唯一签发方。每个绑定代际的查看附件�
 已接纳的 Server 连接上串行执行。轮询交付已就绪记录，不等待终端输出；下游交付不能占住
 Worker 操作槽。
 
+在 frame record 槽旁，每个查看附件还维护一个有界、深度为四的 FIFO，保存完整不透明
+kind-53 `HistoryChanged` event record，并计入同一个 retained-byte 预算。Poll 在 frame/
+projection-blocked record 槽与 event FIFO 两个来源之间按显式 next-preference 择一交付，
+初始偏好 record 槽，每次成功交付后翻转；未结算的 frame flight 绝不阻塞 queued event，
+持续就绪的来源至多越过另一来源一次。Event 交付绝不触碰 `flight.delivered`、
+`last_sequence` 或 frame acknowledgement state；`HistoryObserved` 走既有 feedback lane
+回传 Host，不结算 frame flight。FIFO 或聚合字节饱和只关闭该查看附件；close、remove、
+cleanup、Host 丢失和 target cleanup 都恰好释放一次 frame 与 event byte。发往已退役查看
+附件的合法 kind-53 event 像迟到 frame record 一样被消费，而不是退役 broker。
+
 OBCN 查看附件载体和 Worker 附件转换现已服务于 Server 已准入 Client Session 转发，并有真实
 Host 进程轨迹。Server 拥有 OBCS 查看消息与 Session 清理；Linux 裸入口现已消费该 relay。二十四个存活查看附件、每附件最多一条保留 Host 记录，以及 128 MiB 聚合保留记录预算属于
 实现边界，不是发布性能预算；owning 模型见

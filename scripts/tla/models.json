@@ -4246,7 +4246,7 @@
 				"crates/client-server-protocol/tests/**",
 				"schemas/client-server/**"
 			],
-			"timeoutMilliseconds": 600000,
+			"timeoutMilliseconds": 2400000,
 			"workers": 2,
 			"requiredCoverage": [
 				"OpenRelaySession",
@@ -4298,7 +4298,16 @@
 				"RejectWrongFrameAppliedGeneration",
 				"RejectWrongFrameAppliedRevision",
 				"RejectWrongNeedSnapshotSequence",
-				"RejectBlockedRecoveryWithoutNewRevision"
+				"RejectBlockedRecoveryWithoutNewRevision",
+				"HostEmitHistoryChanged",
+				"RelayHistoryToWorker",
+				"HistoryOverflowClose",
+				"WorkerPollHistory",
+				"RelayHistoryToClient",
+				"RelayHistoryAckToWorker",
+				"RelayHistoryAckToHost",
+				"HostAcceptHistoryObserved",
+				"HostDropStaleHistoryObserved"
 			],
 			"variants": [
 				{
@@ -4337,6 +4346,15 @@
 						"Scenario": "failure-interleavings",
 						"MaxAttachmentGeneration": 1,
 						"MaxRequestSequence": 1
+					}
+				},
+				{
+					"name": "history-relay",
+					"constants": {
+						"Scenario": "history-relay",
+						"MaxAttachmentGeneration": 1,
+						"MaxHistorySequence": 3,
+						"MaxContentRevision": 1
 					}
 				}
 			]
@@ -4494,12 +4512,13 @@
 				"schemas/client-server/**"
 			],
 			"workers": 2,
-			"timeoutMilliseconds": 600000,
+			"timeoutMilliseconds": 1800000,
 			"variants": [
 				{
 					"name": "routing",
 					"constants": {
-						"Scenario": "routing"
+						"Scenario": "routing",
+						"MaxRoutingHistory": 1
 					}
 				},
 				{
@@ -4920,7 +4939,12 @@
 				"ForgetUnavailableViewer",
 				"DisposedCleanupSkipsWorker",
 				"StaleCleanupNeverUsesReplacement",
-				"RejectAcquireDuringCleanup"
+				"RejectAcquireDuringCleanup",
+				"EmitHistoryChanged",
+				"PollHistory",
+				"AcceptHistoryObserved",
+				"RejectStaleHistoryObserved",
+				"RejectHistoryWrongRoute"
 			]
 		},
 		{

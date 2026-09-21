@@ -1987,6 +1987,18 @@ impl NativeUi {
                 self.retire(CarrierFailure::Protocol);
                 return true;
             }
+            // A history event acknowledges through the same causal settlement
+            // but carries no frame: the projection keeps its current status
+            // and nothing is staged for the draw.
+            Ok(Some(feedback @ TerminalViewerAction::HistoryObserved { .. })) => {
+                self.pending_draws.push(PendingDraw {
+                    poll_key,
+                    settlement: CausalSettlement::Feedback(feedback),
+                    frame: None,
+                    ordinary,
+                });
+                return true;
+            }
             Ok(Some(_)) => {
                 self.retire(CarrierFailure::Protocol);
                 return true;

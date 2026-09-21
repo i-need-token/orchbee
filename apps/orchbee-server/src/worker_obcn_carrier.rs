@@ -1231,7 +1231,14 @@ fn validate_response(
                         Outcome::FeedbackAccepted
                     )
                     | (
-                        Action::ReadRows { .. },
+                        Action::SetProjectionDemand { .. }
+                            | Action::SetHistoryDemand { .. }
+                            | Action::RowsApplied { .. }
+                            | Action::HistoryObserved { .. },
+                        Outcome::FeedbackAccepted
+                    )
+                    | (
+                        Action::ReadRows { .. } | Action::ReadViewportRows { .. },
                         Outcome::Record(_) | Outcome::RowsRejected(_)
                     )
                     | (Action::Detach, Outcome::Detached)

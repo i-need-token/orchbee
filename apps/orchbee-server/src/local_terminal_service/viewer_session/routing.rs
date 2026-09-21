@@ -14,8 +14,9 @@ use orchbee_client_server_protocol::{
     HistoryDemand, ProjectionDemand, ViewerRowsRejectedReason, ViewportRowOrigin,
 };
 use orchbee_terminal_protocol::{
-    CURRENT_PROTOCOL_VERSION, CorrelationId, MessageRole, PayloadEncoding, RowWindowDetail,
-    decode_transport_envelope, inspect_terminal_row_window_route,
+    CURRENT_PROTOCOL_VERSION, CorrelationId, HistoryControl, MessageRole, PayloadEncoding,
+    RowWindowDetail, decode_history_control, decode_transport_envelope,
+    inspect_terminal_row_window_route,
 };
 
 impl LocalTerminalSession<'_> {
@@ -83,10 +84,9 @@ impl LocalTerminalSession<'_> {
             self.viewers[index].take();
             return unavailable(Unavailable::TerminalRuntimeUnavailable);
         }
-        if matches!(request.action(), Action::Poll { .. }) && viewer.projection.awaiting_feedback()
-        {
-            return Outcome::Empty {};
-        }
+        // A pending frame flight no longer short-circuits Poll: the Worker
+        // still holds the frame record until its feedback, while queued
+        // HistoryChanged events stay deliverable through the same action.
         let feedback = matches!(
             request.action(),
             Action::FrameApplied { .. } | Action::NeedSnapshot { .. }
@@ -211,7 +211,11 @@ impl LocalTerminalSession<'_> {
                 WorkerOutcome::Record(record) => {
                     // A row-read response is not a projection event: it is
                     // validated against the issued request and the pinned
-                    // attachment, never fed to the frame-only projection.
+                    // attachment, never fed to the frame-only projection. Poll
+                    // alone may carry a kind-53 history event; every other
+                    // record still belongs to the frame-only projection, so a
+                    // HistoryChanged record on another action remains a strict
+                    // route violation.
                     let accepted = match request.action() {
                         Action::ReadRows { .. } => {
                             valid_rows_record(request.action(), viewer, request_id, &record)
@@ -222,6 +226,7 @@ impl LocalTerminalSession<'_> {
                             request_id,
                             &record,
                         ),
+                        Action::Poll { .. } => valid_poll_record(viewer, &record),
                         _ => viewer.projection.receive(&record).is_ok(),
                     };
                     if accepted {
@@ -287,6 +292,31 @@ impl LocalTerminalSession<'_> {
             }
         }
     }
+}
+
+/// A Poll record is either an ordinary projection record — still admitted only
+/// by the frame-only projection — or a kind-53 `HistoryChanged` event the
+/// projection never sees. The event validates its complete envelope plus the
+/// decoded payload's exact attachment identity; anything else remains the
+/// projection's strict rejection.
+fn valid_poll_record(viewer: &mut ViewerAttachment, record: &[u8]) -> bool {
+    let Ok(envelope) = decode_transport_envelope(record) else {
+        return false;
+    };
+    if envelope.kind != 53 {
+        return viewer.projection.receive(record).is_ok();
+    }
+    envelope.protocol == CURRENT_PROTOCOL_VERSION
+        && envelope.role == MessageRole::Event
+        && envelope.correlation_id.is_none()
+        && envelope.host_epoch == Some(viewer.projection.host_epoch)
+        && !envelope.optional_message
+        && envelope.payload_encoding == PayloadEncoding::ControlJson
+        && matches!(
+            decode_history_control(envelope.kind, envelope.role, envelope.payload),
+            Ok(HistoryControl::HistoryChanged(event))
+                if event.attachment_id == viewer.projection.attachment_id
+        )
 }
 
 /// A ReadRows record is accepted only when the complete OBTP envelope and the

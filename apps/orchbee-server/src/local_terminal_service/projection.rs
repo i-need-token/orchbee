@@ -25,9 +25,6 @@ impl ViewerProjection {
             blocked_revision: None,
         }
     }
-    pub(super) const fn awaiting_feedback(&self) -> bool {
-        self.flight.is_some()
-    }
     pub(super) fn accepts_feedback(&self, action: &TerminalViewerAction) -> bool {
         let Some(flight) = self.flight else {
             return false;

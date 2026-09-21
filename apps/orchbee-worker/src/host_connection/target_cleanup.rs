@@ -2,10 +2,10 @@ use std::io;
 
 use orchbee_capability_node_protocol::{HostTerminalId, HostTerminalIdentity, OperationId};
 use orchbee_terminal_protocol::{
-    AttachmentControl, CURRENT_PROTOCOL_VERSION, HostEpoch, MessageRole, PayloadEncoding,
-    ProjectionDemandControl, TerminalEffectEvent, decode_attachment_control,
-    decode_projection_demand_control, decode_terminal_effect_event, decode_transport_envelope,
-    inspect_terminal_frame_route,
+    AttachmentControl, CURRENT_PROTOCOL_VERSION, HistoryControl, HostEpoch, MessageRole,
+    PayloadEncoding, ProjectionDemandControl, TerminalEffectEvent, decode_attachment_control,
+    decode_history_control, decode_projection_demand_control, decode_terminal_effect_event,
+    decode_transport_envelope, inspect_terminal_frame_route,
 };
 
 use super::{HostBrokerConnection, viewers::MAXIMUM_VIEWERS};
@@ -152,6 +152,15 @@ impl RetiredTargets {
         if envelope.kind == 49 {
             let ProjectionDemandControl::ProjectionBlocked(event) =
                 decode_projection_demand_control(envelope.kind, envelope.role, envelope.payload)
+                    .map_err(io::Error::other)?
+            else {
+                return Ok(false);
+            };
+            return Ok(self.viewer(*event.attachment_id.as_bytes()));
+        }
+        if envelope.kind == 53 {
+            let HistoryControl::HistoryChanged(event) =
+                decode_history_control(envelope.kind, envelope.role, envelope.payload)
                     .map_err(io::Error::other)?
             else {
                 return Ok(false);

@@ -70,7 +70,7 @@ fn blocked_and_requested_snapshot_recovery_require_the_correct_snapshot() -> Tes
     projection
         .receive(&bytes)
         .map_err(|_| "blocked record rejected")?;
-    assert!(!projection.awaiting_feedback());
+    assert!(projection.flight.is_none());
     assert!(projection.receive(&frame(1, 4)?).is_err());
     projection
         .receive(&frame(1, 5)?)

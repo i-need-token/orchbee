@@ -108,6 +108,18 @@ opaque Host record; it never decodes terminal rows, VT, or history. Attach, poll
 are serialized with Launch/Start on the admitted Server connection. Poll transfers a ready record
 without waiting for terminal output; downstream delivery cannot hold the Worker operation slot.
 
+Beside the frame record slot, each viewer keeps a bounded four-deep FIFO of complete opaque kind-53
+`HistoryChanged` event records counted in the same retained-byte budget. Poll serves one of two
+sources — the frame/projection-blocked record slot or the event FIFO — under an explicit
+next-preference that flips after every successful delivery and prefers the record slot initially, so
+an unsettled frame flight never blocks a queued event and a continuously ready source overtakes the
+other at most once. Event delivery never touches `flight.delivered`, `last_sequence`, or frame
+acknowledgement state, and `HistoryObserved` travels the existing feedback lane without settling a
+frame flight. FIFO or aggregate-byte saturation closes only that viewer; close, remove, cleanup,
+Host loss, and target cleanup release frame and event bytes exactly once. A valid kind-53 event
+addressed to an already-retired viewer is consumed like a late frame record instead of retiring the
+broker.
+
 The OBCN viewer carrier and Worker attachment transitions now serve Server's admitted Client
 Session relay, with actual Host process traces. Server owns OBCS viewer messages and Session cleanup;
 bare Linux entry now consumes this path.

@@ -22,7 +22,7 @@ pub(in crate::local_terminal_service::viewer_session::tests) enum Effect {
     Dispose(usize),
 }
 pub(super) fn run(mut peer: UnixStream, effects: Arc<Mutex<Vec<Effect>>>) {
-    let mut viewers: BTreeMap<[u8; 16], (usize, u64)> = BTreeMap::new();
+    let mut viewers: BTreeMap<[u8; 16], (usize, u64, bool)> = BTreeMap::new();
     loop {
         let message = match read_message(&mut peer) {
             Ok(message) => message,
@@ -41,22 +41,32 @@ pub(super) fn run(mut peer: UnixStream, effects: Arc<Mutex<Vec<Effect>>>) {
                                 WorkerOutcome::Rejected(ViewerRejection::CapacityExceeded)
                             } else {
                                 let target = usize::from(terminal_id.as_bytes()[0] - 5);
-                                assert!(viewers.insert(id, (target, 0)).is_none());
+                                assert!(viewers.insert(id, (target, 0, false)).is_none());
                                 effects.lock().unwrap().push(Effect::Attach(id, target));
                                 WorkerOutcome::Attached
                             }
                         }
                         WorkerAction::Poll => {
                             effects.lock().unwrap().push(Effect::Poll(id));
-                            if let Some((_, sequence)) = viewers.get_mut(&id) {
-                                *sequence += 1;
-                                WorkerOutcome::Record(frame(id, *sequence))
+                            if let Some((_, sequence, flight)) = viewers.get_mut(&id) {
+                                // The record slot stays occupied until its
+                                // feedback: a poll during flight sees Empty.
+                                if *flight {
+                                    WorkerOutcome::Empty
+                                } else {
+                                    *sequence += 1;
+                                    *flight = true;
+                                    WorkerOutcome::Record(frame(id, *sequence))
+                                }
                             } else {
                                 WorkerOutcome::Empty
                             }
                         }
                         WorkerAction::FrameApplied { .. } | WorkerAction::NeedSnapshot { .. } => {
                             effects.lock().unwrap().push(Effect::Feedback(id));
+                            if let Some((_, _, flight)) = viewers.get_mut(&id) {
+                                *flight = false;
+                            }
                             WorkerOutcome::FeedbackAccepted
                         }
                         WorkerAction::ReadRows { .. } | WorkerAction::ReadViewportRows { .. } => {
@@ -136,7 +146,7 @@ pub(super) fn run(mut peer: UnixStream, effects: Arc<Mutex<Vec<Effect>>>) {
                         })
                     }
                     TerminalLifecycleAction::Dispose => {
-                        viewers.retain(|_, (current, _)| *current != target);
+                        viewers.retain(|_, (current, ..)| *current != target);
                         effects.lock().unwrap().push(Effect::Dispose(target));
                         TerminalLifecycleOutcome::Disposed
                     }

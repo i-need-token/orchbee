@@ -2,9 +2,10 @@ use orchbee_client_server_protocol::{
     Geometry, TerminalViewerAction as Feedback, ViewerId, ViewerSnapshotReason as Reason,
 };
 use orchbee_terminal_protocol::{
-    AttachmentId, CURRENT_PROTOCOL_VERSION, HostEpoch, MessageRole, PayloadEncoding,
-    ProjectionDemandControl, TerminalTextFrame, TerminalTextRow, decode_projection_demand_control,
-    decode_terminal_text_frame, decode_transport_envelope, inspect_terminal_frame_route,
+    AttachmentId, CURRENT_PROTOCOL_VERSION, HistoryControl, HostEpoch, MessageRole,
+    PayloadEncoding, ProjectionDemandControl, TerminalTextFrame, TerminalTextRow,
+    decode_history_control, decode_projection_demand_control, decode_terminal_text_frame,
+    decode_transport_envelope, inspect_terminal_frame_route,
 };
 use std::{collections::HashSet, sync::Arc};
 
@@ -77,6 +78,26 @@ impl TerminalProjection {
             self.blocked_revision = Some(blocked.revision);
             self.clear_frame();
             return Ok(None);
+        }
+        // A HistoryChanged event is not a frame: it validates its own envelope
+        // and exact attachment identity, leaves every projection field alone,
+        // and answers with the event's own acknowledgement.
+        if envelope.kind == 53 && envelope.payload_encoding == PayloadEncoding::ControlJson {
+            let HistoryControl::HistoryChanged(event) =
+                decode_history_control(envelope.kind, envelope.role, envelope.payload)
+                    .map_err(|_| ())?
+            else {
+                return Err(());
+            };
+            if event.attachment_id != self.attachment {
+                return Err(());
+            }
+            return Ok(Some(Feedback::HistoryObserved {
+                attachment_id: ViewerId::parse(&self.attachment.to_text()).map_err(|_| ())?,
+                sequence: event.sequence,
+                generation: event.generation,
+                revision: event.revision,
+            }));
         }
         if !matches!(envelope.kind, 41 | 42)
             || envelope.payload_encoding != PayloadEncoding::TerminalFrame

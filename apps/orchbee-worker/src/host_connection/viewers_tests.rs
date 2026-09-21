@@ -1,8 +1,9 @@
 use super::*;
 use orchbee_capability_node_protocol::{HostTerminalId, WorkerGeneration, WorkerId};
 use orchbee_terminal_protocol::{
-    Envelope, ProjectionBlockReason, ProjectionBlocked, decode_terminal_text_frame,
-    encode_projection_demand_control, encode_transport_envelope,
+    Envelope, HistoryAnchorStatus, HistoryChanged, ProjectionBlockReason, ProjectionBlocked,
+    decode_terminal_text_frame, encode_history_control, encode_projection_demand_control,
+    encode_transport_envelope,
 };
 use std::{error::Error, num::NonZeroU64};
 
@@ -318,6 +319,159 @@ fn retained_budget_boundary_maps_to_the_actual_128_mib_ceiling() -> TestResult {
         MAXIMUM_RETAINED_VIEWER_RECORD_BYTES - 5 * MIB
     );
     Ok(())
+}
+
+#[test]
+fn history_events_poll_during_a_pending_frame_flight_without_disturbing_it() -> TestResult {
+    let mut viewers = HostViewers::default();
+    viewers.admit(&request(1)?).map_err(|e| format!("{e:?}"))?;
+    viewers.admit(&request(2)?).map_err(|e| format!("{e:?}"))?;
+    let epoch = HostEpoch::from_bytes([3; 16])?;
+    let snapshot = frame(1, 1, epoch)?;
+    viewers.receive(snapshot.clone(), epoch)?;
+    assert_eq!(
+        viewers.poll(request(1)?.attachment_id),
+        TerminalViewerOutcome::Record(snapshot)
+    );
+    // The frame flight is now pending feedback, yet the event still delivers.
+    let event = history(1, 1, epoch)?;
+    viewers.receive(event.clone(), epoch)?;
+    assert_eq!(
+        viewers.poll(request(1)?.attachment_id),
+        TerminalViewerOutcome::Record(event)
+    );
+    // The pending flight is untouched: the exact feedback still settles it.
+    viewers
+        .feedback(&TerminalViewerRequest {
+            action: TerminalViewerAction::FrameApplied {
+                sequence: NonZeroU64::MIN,
+                generation: NonZeroU64::MIN,
+                revision: 5,
+            },
+            ..request(1)?
+        })
+        .map_err(|e| format!("{e:?}"))?;
+    // The settled flight frees the record slot: the next frame delivers
+    // normally and the sibling viewer is unaffected throughout.
+    let next = frame(1, 2, epoch)?;
+    viewers.receive(next.clone(), epoch)?;
+    viewers.receive(frame(2, 1, epoch)?, epoch)?;
+    assert_eq!(
+        viewers.poll(request(1)?.attachment_id),
+        TerminalViewerOutcome::Record(next)
+    );
+    assert!(matches!(
+        viewers.poll(request(2)?.attachment_id),
+        TerminalViewerOutcome::Record(_)
+    ));
+    assert!(viewers.closed_ids().is_empty());
+    Ok(())
+}
+
+#[test]
+fn poll_arbitration_prefers_the_record_once_then_serves_the_waiting_fifo() -> TestResult {
+    let mut viewers = HostViewers::default();
+    viewers.admit(&request(1)?).map_err(|e| format!("{e:?}"))?;
+    let epoch = HostEpoch::from_bytes([3; 16])?;
+    let first = history(1, 1, epoch)?;
+    let second = history(1, 2, epoch)?;
+    viewers.receive(first.clone(), epoch)?;
+    viewers.receive(second.clone(), epoch)?;
+    // The record slot is preferred initially: a queued event waits while the
+    // frame takes the first poll, then the FIFO drains in arrival order.
+    let snapshot = frame(1, 1, epoch)?;
+    viewers.receive(snapshot.clone(), epoch)?;
+    assert_eq!(
+        viewers.poll(request(1)?.attachment_id),
+        TerminalViewerOutcome::Record(snapshot)
+    );
+    assert_eq!(
+        viewers.poll(request(1)?.attachment_id),
+        TerminalViewerOutcome::Record(first)
+    );
+    assert_eq!(
+        viewers.poll(request(1)?.attachment_id),
+        TerminalViewerOutcome::Record(second)
+    );
+    assert_eq!(
+        viewers.poll(request(1)?.attachment_id),
+        TerminalViewerOutcome::Empty
+    );
+    Ok(())
+}
+
+#[test]
+fn a_full_event_fifo_closes_only_that_viewer_and_a_closed_viewer_discards() -> TestResult {
+    let mut viewers = HostViewers::default();
+    viewers.admit(&request(1)?).map_err(|e| format!("{e:?}"))?;
+    viewers.admit(&request(2)?).map_err(|e| format!("{e:?}"))?;
+    let epoch = HostEpoch::from_bytes([3; 16])?;
+    for sequence in 1..=MAXIMUM_VIEWER_HISTORY_EVENTS as u64 {
+        viewers.receive(history(1, sequence, epoch)?, epoch)?;
+    }
+    // The next event saturates the bounded FIFO: only this viewer retires,
+    // and the queued bytes leave with it.
+    viewers.receive(history(1, 9, epoch)?, epoch)?;
+    assert_eq!(viewers.closed_ids(), vec![[1; 16]]);
+    assert_eq!(viewers.retained_record_bytes, 0);
+    // A closed viewer discards late events without charging the budget.
+    viewers.receive(history(1, 10, epoch)?, epoch)?;
+    assert_eq!(viewers.retained_record_bytes, 0);
+    let sibling = history(2, 1, epoch)?;
+    viewers.receive(sibling.clone(), epoch)?;
+    assert_eq!(
+        viewers.poll(request(2)?.attachment_id),
+        TerminalViewerOutcome::Record(sibling)
+    );
+    // An event for an unknown attachment remains a connection failure.
+    assert!(viewers.receive(history(9, 1, epoch)?, epoch).is_err());
+    Ok(())
+}
+
+#[test]
+fn history_events_share_the_byte_budget_and_remove_releases_exactly_once() -> TestResult {
+    let epoch = HostEpoch::from_bytes([3; 16])?;
+    let frame_record = frame(1, 1, epoch)?;
+    let first = history(1, 1, epoch)?;
+    let second = history(1, 2, epoch)?;
+    let limit = frame_record.len() + first.len();
+    let mut viewers = HostViewers::with_retained_record_limit(limit);
+    viewers.admit(&request(1)?).map_err(|e| format!("{e:?}"))?;
+    viewers.admit(&request(2)?).map_err(|e| format!("{e:?}"))?;
+    viewers.receive(frame_record.clone(), epoch)?;
+    viewers.receive(first, epoch)?;
+    assert_eq!(viewers.retained_record_bytes, limit);
+    // Crossing the aggregate with an event retires only the addressed viewer
+    // and releases both its frame slot and its queued events exactly once.
+    viewers.receive(second, epoch)?;
+    assert_eq!(viewers.closed_ids(), vec![[1; 16]]);
+    assert_eq!(viewers.retained_record_bytes, 0);
+    let event = history(2, 1, epoch)?;
+    let event_bytes = event.len();
+    viewers.receive(event.clone(), epoch)?;
+    assert_eq!(viewers.retained_record_bytes, event_bytes);
+    viewers.remove(request(2)?.attachment_id);
+    assert_eq!(viewers.retained_record_bytes, 0);
+    viewers.remove(request(2)?.attachment_id);
+    assert_eq!(viewers.retained_record_bytes, 0);
+    Ok(())
+}
+
+fn history(id: u8, sequence: u64, epoch: HostEpoch) -> Result<Vec<u8>, Box<dyn Error>> {
+    let control = encode_history_control(&HistoryControl::HistoryChanged(HistoryChanged {
+        anchor_status: HistoryAnchorStatus::Valid,
+        attachment_id: AttachmentId::from_bytes([id; 16])?,
+        generation: NonZeroU64::MIN,
+        revision: 5,
+        sequence: NonZeroU64::new(sequence).ok_or("zero history sequence")?,
+        total_rows: 100,
+    }))?;
+    envelope(
+        control.kind,
+        PayloadEncoding::ControlJson,
+        &control.payload,
+        epoch,
+    )
 }
 
 fn frame_sized(

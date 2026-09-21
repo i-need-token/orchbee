@@ -858,6 +858,153 @@ fn viewer_reads_large_records_and_retires_on_an_incompatible_result() -> TestRes
 }
 
 #[test]
+fn viewer_accepts_the_extended_typed_outcomes_and_retires_on_a_wrong_pairing() -> TestResult {
+    use orchbee_client_server_protocol::{
+        HistoryDemand, ProjectionDemand, TerminalViewerAction as Action,
+        TerminalViewerOutcome as Outcome, TerminalViewerRequest, TerminalViewerResult, ViewerId,
+        ViewerRowsRejectedReason, ViewportRowOrigin,
+    };
+    let server = FakeServer::start(|mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 9)?;
+        // Every typed action is answered with its exact outcome.
+        for _ in 0..5 {
+            let ClientMessage::TerminalViewer(request) =
+                read_client_message(&mut stream).map_err(io::Error::other)?
+            else {
+                return Err(io::Error::other("expected viewer request"));
+            };
+            let outcome = match request.action() {
+                Action::SetProjectionDemand { .. }
+                | Action::SetHistoryDemand { .. }
+                | Action::RowsApplied { .. }
+                | Action::HistoryObserved { .. } => Outcome::FeedbackAccepted {},
+                Action::ReadViewportRows { .. } => Outcome::RowsRejected {
+                    reason: ViewerRowsRejectedReason::StaleRevision,
+                },
+                _ => return Err(io::Error::other("unexpected viewer action")),
+            };
+            write_server_message(
+                &mut stream,
+                &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
+                    request.request_id().clone(),
+                    outcome,
+                )),
+            )
+            .map_err(io::Error::other)?;
+        }
+        // A wrong pairing retires: a record is never an acknowledgement.
+        let ClientMessage::TerminalViewer(request) =
+            read_client_message(&mut stream).map_err(io::Error::other)?
+        else {
+            return Err(io::Error::other("expected viewer request"));
+        };
+        write_server_message(
+            &mut stream,
+            &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
+                request.request_id().clone(),
+                Outcome::Record(vec![0xa5; 64]),
+            )),
+        )
+        .map_err(io::Error::other)?;
+        let mut byte = [0];
+        assert_eq!(
+            stream.read(&mut byte)?,
+            0,
+            "invalid pairing must retire without resubmission"
+        );
+        Ok(())
+    })?;
+    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let viewer = || ViewerId::parse(FIRST_REQUEST_ID).expect("viewer id");
+    let accepted = Outcome::FeedbackAccepted {};
+    let cases: [(Action, Outcome); 5] = [
+        (
+            Action::SetProjectionDemand {
+                attachment_id: viewer(),
+                demand: ProjectionDemand::Paused,
+            },
+            accepted.clone(),
+        ),
+        (
+            Action::SetHistoryDemand {
+                attachment_id: viewer(),
+                demand: HistoryDemand::ViewingHistory,
+            },
+            accepted.clone(),
+        ),
+        (
+            Action::ReadViewportRows {
+                attachment_id: viewer(),
+                origin: ViewportRowOrigin::Tail { rows_before: 4 },
+                row_count: 2,
+                revision: 3,
+                generation: NonZeroU64::MIN,
+                request_sequence: NonZeroU64::MIN,
+                maximum_bytes: 4096,
+            },
+            Outcome::RowsRejected {
+                reason: ViewerRowsRejectedReason::StaleRevision,
+            },
+        ),
+        (
+            Action::RowsApplied {
+                attachment_id: viewer(),
+                request_sequence: NonZeroU64::MIN,
+                generation: NonZeroU64::MIN,
+                revision: 3,
+            },
+            accepted.clone(),
+        ),
+        (
+            Action::HistoryObserved {
+                attachment_id: viewer(),
+                sequence: NonZeroU64::MIN,
+                generation: NonZeroU64::MIN,
+                revision: 5,
+            },
+            accepted,
+        ),
+    ];
+    let ids = [
+        "33333333333333333333333333333333",
+        "44444444444444444444444444444444",
+        "55555555555555555555555555555555",
+        "66666666666666666666666666666666",
+        "77777777777777777777777777777777",
+    ];
+    for ((action, expected), id) in cases.iter().zip(ids) {
+        let result = client.submit_terminal_viewer(TerminalViewerRequest::new(
+            RequestId::parse(id)?,
+            action.clone(),
+        ))?;
+        assert_eq!(result.outcome(), expected);
+    }
+    let request = TerminalViewerRequest::new(
+        RequestId::parse("88888888888888888888888888888888")?,
+        Action::HistoryObserved {
+            attachment_id: viewer(),
+            sequence: NonZeroU64::MIN,
+            generation: NonZeroU64::MIN,
+            revision: 5,
+        },
+    );
+    assert!(matches!(
+        client.submit_terminal_viewer(request.clone()),
+        Err(SubmissionError::OutcomeUnknown {
+            reason: OutcomeUnknownReason::InvalidResult(_),
+            ..
+        })
+    ));
+    assert!(matches!(
+        client.submit_terminal_viewer(request),
+        Err(SubmissionError::SessionUnavailable)
+    ));
+    server.finish()?;
+    Ok(())
+}
+
+#[test]
 fn control_accepts_exact_unknown_and_retires_on_a_wrong_resize_geometry() -> TestResult {
     use orchbee_client_server_protocol::{
         ControllerId, Geometry, TerminalControlAction as Action, TerminalControlOutcome as Outcome,

@@ -2224,6 +2224,19 @@ impl UiDriver {
                     feedback: None,
                 })
             }
+            // Mirrors `NativeUi::apply_poll_result`: a history event settles
+            // its own causal acknowledgement without staging a frame or
+            // touching the projection status.
+            Some(feedback @ TerminalViewerAction::HistoryObserved { .. }) => {
+                require_mutation(
+                    self.mailbox
+                        .deposit_causal(&poll_key, CausalSettlement::Feedback(feedback.clone())),
+                )?;
+                Ok(UiEvent::NoFrameRedraw {
+                    key,
+                    feedback: Some(feedback),
+                })
+            }
             Some(TerminalViewerAction::Attach { .. })
             | Some(TerminalViewerAction::AttachBinding { .. })
             | Some(TerminalViewerAction::Poll { .. })
@@ -2232,7 +2245,6 @@ impl UiDriver {
             | Some(TerminalViewerAction::SetHistoryDemand { .. })
             | Some(TerminalViewerAction::ReadViewportRows { .. })
             | Some(TerminalViewerAction::RowsApplied { .. })
-            | Some(TerminalViewerAction::HistoryObserved { .. })
             | Some(TerminalViewerAction::Detach { .. }) => {
                 Err(test_error("projection returned a non-feedback action"))
             }

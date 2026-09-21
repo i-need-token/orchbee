@@ -362,10 +362,12 @@ fn run_inner(steps: &[Step]) -> Result<Coverage, Failure> {
                         }
                         "detached"
                     } else if s.kind == Kind::Poll {
+                        // Poll reaches the Worker even while a frame flight is
+                        // pending; the Worker then decides empty vs. record.
+                        effects.push(Effect::Poll(Oracle::bytes(&v.id)));
                         if v.flight.is_some() {
                             "empty"
                         } else {
-                            effects.push(Effect::Poll(Oracle::bytes(&v.id)));
                             let current = oracle.viewers.get_mut(&s.viewer).unwrap();
                             current.next_frame += 1;
                             current.flight = Some(current.next_frame);
