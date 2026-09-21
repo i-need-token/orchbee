@@ -568,10 +568,11 @@ impl TerminalSendOutcome {
                     return Err(ProtocolError::InvalidPayload);
                 }
             }
-            Self::OutcomeUnknown { cleanup, .. } => {
-                if *cleanup == SendCleanupStatus::Confirmed {
-                    return Err(ProtocolError::InvalidPayload);
-                }
+            Self::OutcomeUnknown {
+                cleanup: SendCleanupStatus::Confirmed,
+                ..
+            } => {
+                return Err(ProtocolError::InvalidPayload);
             }
             _ => {}
         }
