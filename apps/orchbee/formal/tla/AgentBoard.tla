@@ -451,6 +451,14 @@ ResolvePanel ==
 \* detaches and re-attaches under the new generation (the accepted cost; the
 \* Server's terminals are not restarted) and focus lands on the exact target
 \* panel. The next panel pass then sees a live viewer and may land.
+\* Abstraction boundary: this atomic step abstracts an ADMITTED-AND-
+\* SUCCESSFUL viewer reattach. NativeTabSwitch owns the real detach /
+\* candidate / attach pipeline and its failure space; a failed or expired
+\* reattach surfacing as an Agent Unavailable/Expired notice is cross-layer
+\* feedback outside this module's outcome vocabulary — the production
+\* repair and its seam evidence own it. JumpEventuallySettles therefore
+\* claims progress of the abstract stage only, never that a real reattach
+\* must succeed.
 ResolveReattach ==
   /\ s.board = "open"
   /\ s.jumpStage = "reattach"
@@ -628,5 +636,18 @@ JumpEventuallySettles ==
 \* the episode.
 UnpaintableEventuallyCloses ==
   (s.board = "open" /\ ~s.paintable) ~> s.board = "closed"
+
+\* The landing-edge refutation the recorded bit cannot give by itself: a
+\* step that NEWLY produces `landed` must find the exact target's viewer
+\* live in the PRE-state, checked against the post-state landedTarget. The
+\* claim is restricted to the edge — an outcome merely persisting while a
+\* later ViewerDies kills the landed viewer does not re-trigger it, so a
+\* legal landing followed by a real death is not reported as a violation.
+\* ResolvePanel is the sole `landed` producer; `landedLive` remains the
+\* recorded observation while this property is the independent check.
+LandedOnlyOnLiveViewer ==
+  [][(s.outcome # "landed" /\ s.outcome' = "landed"
+        /\ s'.landedTarget \in Presentations)
+       => s.viewerLive[s'.landedTarget]]_vars
 
 =============================================================================

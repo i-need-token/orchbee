@@ -1230,7 +1230,11 @@ The ordinary switch pipeline then detaches and re-attaches every viewer in that 
 whole-Tab cost, because one attachment epoch owns the Tab's viewers — before the jump lands on the
 exact Panel. The evidence gate is what separates this from the ordinary same-target no-op: it
 never manufactures another identity, and the admission does not exist without recorded
-dead-target proof.
+dead-target proof. The admission exists in Ready only — a selected non-attachable Tab cannot
+hold dead-viewer evidence for an attachable desired target. The board-side reattach stage
+abstracts an admitted-and-successful pipeline; a failed reattach settles through the ordinary
+switch failure machinery, and mapping it to a board-level Unavailable/Expired notice remains
+production-seam work outside this delta.
 
 ## Create is a draining FIFO barrier
 

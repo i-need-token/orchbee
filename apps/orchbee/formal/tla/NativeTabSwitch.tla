@@ -288,7 +288,7 @@ AgentTargetViewerDies ==
 AgentSameTargetReattach ==
   /\ s.carrierLive
   /\ s.desiredTab \in s.deadTargets
-  /\ s.phase \in {"ready", "selected-no-attach"}
+  /\ s.phase = "ready"
   /\ s.generationCursor < MaxGeneration
   /\ Cardinality(s.markerGenerations) < MaxSwitchAdmissions
   /\ Len(s.commands) < MaxQueue

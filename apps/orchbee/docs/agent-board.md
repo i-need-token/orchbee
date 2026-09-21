@@ -68,15 +68,27 @@ accepted arm, and a rejected or non-installing outcome never reaches the index. 
 on readiness instead of guessing, and a stale or invalid candidate fails conservatively rather
 than landing anywhere else.
 
+Results an old epoch's lane
+computed stay fenced to that epoch — the lane owns its outcome receiver, so nothing it resolves is
+delivered after close. The reattach stage abstracts an admitted-and-successful viewer reattach:
+the real detach/candidate/attach pipeline and its failure space live in `NativeTabSwitch`, and a
+failed or expired reattach surfacing as an Agent Unavailable/Expired notice is cross-layer
+feedback outside this model's outcome vocabulary — the production repair and its seam evidence
+own it, so the model's stage progress never claims a real reattach must succeed.
+
 ## Correctness evidence
 
 `AgentBoard` covers two Agent sessions, three presentations across two contexts and tabs, a
 deliberate non-zero-panel target, bounded pages with one re-walk, revision bumps, one retirement,
 selection by opaque id, coalesced intents, stale Get and stale stage drops, exact staged landing,
-input consumption and lane reclamation. The current bound additionally exercises close/reopen over
-two epochs, a per-presentation viewer-death environment action, the narrow same-target reattach
-stage, and an unpaintable draw that must close the board rather than remain an invisible modal;
-`LandedIsLive` records that a landing is reported only against a live target viewer.
+input consumption and lane reclamation. The current bound — two epochs, serial budget three —
+additionally exercises close/reopen including the full jump → close → lane-exit → reopen → jump
+path, a per-presentation viewer-death environment action, the narrow same-target reattach
+stage, and an unpaintable draw that must close the board rather than remain an invisible
+modal. `LandedIsLive` records the landing-time observation; the registered edge property
+`LandedOnlyOnLiveViewer` independently requires a step newly producing `landed` to find the
+exact target's viewer live in the pre-state — a later ViewerDies cannot falsify a landing
+that was legal when it happened.
 
 The accepted 1,083,010-distinct-state run remains the finite-bound evidence for the prior
 single-epoch variant — `MaxEpoch = 1` could not reach reopen. The reopen, viewer-death/reattach

@@ -54,14 +54,22 @@ Up/Down 与 `j`/`k` 按不透明 Agent 会话 id 选择行，`Enter` 请求跳�
 快照的应用器都在其接受分支内重建，被拒绝或未安装的结论绝不进入索引。解析等待索引就绪而
 非猜测，过期或无效候选一律保守失败，绝不落到别处。
 
+旧 epoch 通道算出的结果始终被栅栏在所属 epoch——通道持有自己的结果接收端，关闭
+之后它解析出的任何东西都不会被投递。重连级抽象的是一次已准入且成功的 viewer 重连：真实
+的 detach/candidate/attach 管线及其失败空间归 `NativeTabSwitch`；失败或到期的重连浮现为
+Agent Unavailable/Expired 提示属跨层反馈，超出本模型 outcome 词汇——由生产修复与其接缝
+证据负责，因此模型的阶段进展绝不声称真实重连必定成功。
+
 ## 正确性证据
 
 `AgentBoard` 覆盖两个 Agent 会话、分布在两个 context 与 Tab 上的三个 presentation、一个
 刻意的非零 Panel 目标、带一次重走的有界分页、revision 推进、一次退役、按不透明 id 的选择、
-合并意图、stale Get 与 stale stage 丢弃、精确逐级落定、输入吞掉与通道回收。当前界额外地
-覆盖两个 epoch 的关闭/重开、按 presentation 的 viewer 死亡环境动作、窄同目标重连级，以及
-必须关闭看板而非保持不可见模态的不可绘制绘制；`LandedIsLive` 记录落定只可对存活目标
-viewer 报告。
+合并意图、stale Get 与 stale stage 丢弃、精确逐级落定、输入吞掉与通道回收。当前界——
+两个 epoch、serial 预算三——额外地覆盖包含完整"跳转→关闭→通道退出→重开→跳转"路径
+的关闭/重开、按 presentation 的 viewer 死亡环境动作、窄同目标重连级，以及必须关闭看板
+而非保持不可见模态的不可绘制绘制。`LandedIsLive` 记录落定时刻的观测；已注册边界性质
+`LandedOnlyOnLiveViewer` 独立要求新产生 `landed` 的步骤在 pre-state 中找到精确目标
+viewer 存活——其后的 ViewerDies 无法证伪一次当时合法的落定。
 
 已接受的 1,083,010 distinct 状态运行仍是先前单 epoch 变体的有限界证据——`MaxEpoch = 1`
 不可达重开。重开、viewer 死亡/重连与不可绘制关闭这组 delta 已注册并等待 TLC 门槛重跑；
