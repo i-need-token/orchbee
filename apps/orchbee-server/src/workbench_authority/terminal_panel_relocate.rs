@@ -3,8 +3,8 @@ use super::{
     WorkbenchGrant, WorkbenchTerminalMembership, allocate, identity, result, unavailable,
 };
 use orchbee_workbench_protocol::{
-    ContractError, MAXIMUM_PANEL_NODE_DEPTH, MAXIMUM_TABS_PER_CONTEXT, PanelNode,
-    PanelOrientation, PanelSlot, Tab, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
+    ContractError, MAXIMUM_PANEL_NODE_DEPTH, MAXIMUM_TABS_PER_CONTEXT, PanelNode, PanelOrientation,
+    PanelSlot, Tab, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchCommandResult, WorkbenchCommandUnavailableReason, WorkbenchPanelId,
     WorkbenchPanelRelocateDestination, WorkbenchPanelSlotId, WorkbenchPanelSplitDirection,
     WorkbenchProtocolDocument, WorkbenchRejectionReason, WorkbenchSplitId, WorkbenchTabId,
@@ -122,10 +122,9 @@ impl<'a> WorkbenchPanelRelocateAdmission<'a> {
                 .membership
                 .member_for_panel(&self.tab_id, &self.panel_id)
                 .is_some_and(|member| self.authority.open_close_covers_member(member))
-            || self.authority.pending_terminal_covers_panel(
-                &self.terminal_context_id,
-                &self.panel_id,
-            )
+            || self
+                .authority
+                .pending_terminal_covers_panel(&self.terminal_context_id, &self.panel_id)
     }
 
     fn plan(&self) -> Result<CommitPlan, PlanFailure> {
@@ -371,12 +370,7 @@ impl WorkbenchAuthority {
             .terminal_contexts
             .iter()
             .find(|context| context.terminal_context_id == terminal_context_id)
-            .and_then(|context| {
-                context
-                    .tabs
-                    .iter()
-                    .find(|tab| tab.tab_id == tab_id)
-            });
+            .and_then(|context| context.tabs.iter().find(|tab| tab.tab_id == tab_id));
         let Some(source_tab) = source else {
             return WorkbenchPanelRelocateBegin::Ready(
                 self.retain_rejection(command, WorkbenchRejectionReason::TabUnavailable),
@@ -387,9 +381,7 @@ impl WorkbenchAuthority {
             Some(PanelNode::Panel {
                 child_presentations,
                 ..
-            }) if !child_presentations.is_empty() => {
-                Some(WorkbenchRejectionReason::PanelNotLeaf)
-            }
+            }) if !child_presentations.is_empty() => Some(WorkbenchRejectionReason::PanelNotLeaf),
             Some(PanelNode::Panel { .. }) => None,
             Some(PanelNode::Split { .. }) => {
                 return WorkbenchPanelRelocateBegin::Ready(self.retire(&command));
@@ -468,7 +460,8 @@ enum Minted {
 fn find_panel<'a>(node: &'a PanelNode, panel_id: &WorkbenchPanelId) -> Option<&'a PanelNode> {
     match node {
         PanelNode::Panel {
-            panel_id: candidate, ..
+            panel_id: candidate,
+            ..
         } if candidate == panel_id => Some(node),
         PanelNode::Panel { .. } => None,
         PanelNode::Split { children, .. } => children
@@ -480,10 +473,9 @@ fn find_panel<'a>(node: &'a PanelNode, panel_id: &WorkbenchPanelId) -> Option<&'
 fn leaf_count(node: &PanelNode) -> usize {
     match node {
         PanelNode::Panel { .. } => 1,
-        PanelNode::Split { children, .. } => children
-            .iter()
-            .map(|child| leaf_count(&child.node))
-            .sum(),
+        PanelNode::Split { children, .. } => {
+            children.iter().map(|child| leaf_count(&child.node)).sum()
+        }
     }
 }
 

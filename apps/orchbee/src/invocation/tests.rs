@@ -4324,11 +4324,17 @@ fn terminal_send_grammar() {
     );
     assert_eq!(
         parse(&["terminal", "send", ID, "--stdin"]),
-        Ok(send(TerminalSendInput::Stdin { enter: false, paste: false }))
+        Ok(send(TerminalSendInput::Stdin {
+            enter: false,
+            paste: false
+        }))
     );
     assert_eq!(
         parse(&["terminal", "send", ID, "--stdin", "--enter"]),
-        Ok(send(TerminalSendInput::Stdin { enter: true, paste: false }))
+        Ok(send(TerminalSendInput::Stdin {
+            enter: true,
+            paste: false
+        }))
     );
     // The forms exclude each other, named in the fixed order
     // --text, --key, --file, --stdin regardless of argv order.

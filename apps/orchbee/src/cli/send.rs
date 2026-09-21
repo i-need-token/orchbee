@@ -345,7 +345,11 @@ mod linux {
             }
             TerminalSendInput::Keys(keys) => {
                 let records: Vec<SendRecord> = keys.iter().map(|key| send_record(*key)).collect();
-                let kind = if records.len() == 1 { "key" } else { "sequence" };
+                let kind = if records.len() == 1 {
+                    "key"
+                } else {
+                    "sequence"
+                };
                 (records, kind, None)
             }
             TerminalSendInput::Bytes { bytes, enter } => {
@@ -397,14 +401,10 @@ mod linux {
     fn send_record(key: crate::invocation::ParsedSendKey) -> SendRecord {
         use crate::invocation::{ParsedSendKey, TerminalComboBase};
         match key {
-            ParsedSendKey::Key(key) => SendRecord::Key {
-                key: send_key(key),
-            },
+            ParsedSendKey::Key(key) => SendRecord::Key { key: send_key(key) },
             ParsedSendKey::Combo(combo) => {
                 let base = match combo.base {
-                    TerminalComboBase::Key(key) => {
-                        SendComboBase::Named(send_key(key))
-                    }
+                    TerminalComboBase::Key(key) => SendComboBase::Named(send_key(key)),
                     TerminalComboBase::Insert => SendComboBase::Insert,
                     TerminalComboBase::Function(number) => SendComboBase::Function(number),
                     TerminalComboBase::Space => SendComboBase::Space,
@@ -495,7 +495,11 @@ mod linux {
                 // partial application — exit 9, never the refused-nothing 3.
                 let partial = progress.records_accepted() > 0;
                 (
-                    if partial { "partial-accepted" } else { "rejected" },
+                    if partial {
+                        "partial-accepted"
+                    } else {
+                        "rejected"
+                    },
                     *cleanup,
                     Some(rejected_reason(*reason)),
                     if partial { 9 } else { 3 },
@@ -534,13 +538,9 @@ mod linux {
                     },
                 )
             }
-            TerminalSendOutcome::OutcomeUnknown { cleanup, .. } => (
-                "unknown",
-                *cleanup,
-                None,
-                8,
-                SendVerdict::OutcomeUnknown,
-            ),
+            TerminalSendOutcome::OutcomeUnknown { cleanup, .. } => {
+                ("unknown", *cleanup, None, 8, SendVerdict::OutcomeUnknown)
+            }
         };
         document.insert("inputStatus".to_owned(), json!(input_status));
         document.insert("cleanupStatus".to_owned(), json!(cleanup_status(cleanup)));

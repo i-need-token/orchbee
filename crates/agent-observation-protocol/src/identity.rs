@@ -174,9 +174,7 @@ impl AgentName {
             && bytes.len() <= 32
             && bytes[0].is_ascii_lowercase()
             && bytes.iter().all(|byte| {
-                byte.is_ascii_lowercase()
-                    || byte.is_ascii_digit()
-                    || matches!(byte, b'_' | b'-')
+                byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'_' | b'-')
             });
         if !valid {
             return Err(AgentIdentityError::InvalidFormat);

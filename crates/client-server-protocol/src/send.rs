@@ -248,13 +248,19 @@ impl SendComboBase {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SendRecord {
     Text(SendTextInput),
-    Key { key: SendKey },
+    Key {
+        key: SendKey,
+    },
     Combo {
         modifiers: SendModifiers,
         base: SendComboBase,
     },
-    Bytes { bytes: SendBytes },
-    Paste { content: SendPasteContent },
+    Bytes {
+        bytes: SendBytes,
+    },
+    Paste {
+        content: SendPasteContent,
+    },
 }
 impl SendRecord {
     /// The decoded payload bytes this record contributes to the aggregate

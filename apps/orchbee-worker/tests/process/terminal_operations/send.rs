@@ -1,8 +1,8 @@
 use super::*;
 use orchbee_capability_node_protocol::{
     HostCreationId, HostTerminalIdentity, SendAcceptedBytes, SendCleanupStatus, SendKey,
-    SendProgress, SendRecord, SendRecords, SendRejection, SendText, SendTextInput,
-    SendUnavailable, TerminalSendOutcome, TerminalSendRequest, TerminalSendResult,
+    SendProgress, SendRecord, SendRecords, SendRejection, SendText, SendTextInput, SendUnavailable,
+    TerminalSendOutcome, TerminalSendRequest, TerminalSendResult,
 };
 use orchbee_terminal_protocol::{
     AttachTerminal, AttachmentCapabilities, AttachmentCapabilityState, AttachmentControl,
@@ -56,10 +56,9 @@ fn send(server: &mut UnixStream, request: TerminalSendRequest) -> TestResult<Ter
 }
 
 fn text(value: &str, enter: bool) -> TestResult<SendRecords> {
-    Ok(SendRecords::new(vec![SendRecord::Text(SendTextInput::new(
-        SendText::new(value.to_owned())?,
-        enter,
-    )?)])?)
+    Ok(SendRecords::new(vec![SendRecord::Text(
+        SendTextInput::new(SendText::new(value.to_owned())?, enter)?,
+    )])?)
 }
 
 fn one_key(key: SendKey) -> TestResult<SendRecords> {
@@ -483,7 +482,7 @@ fn send_attach_typed_failures_are_typed_rejections_without_cleanup() -> TestResu
             )?
             .outcome(),
             TerminalSendOutcome::Rejected {
-            progress: SendProgress::none(),
+                progress: SendProgress::none(),
                 reason,
                 cleanup: SendCleanupStatus::NotNeeded,
             }
@@ -585,7 +584,7 @@ fn send_corrupt_input_acknowledgement_never_resends_and_closes_host() -> TestRes
             )?
             .outcome(),
             TerminalSendOutcome::OutcomeUnknown {
-            progress: SendProgress::none(),
+                progress: SendProgress::none(),
                 cleanup: SendCleanupStatus::Unconfirmed,
             }
         );
@@ -620,7 +619,7 @@ fn send_host_closure_positions_map_to_unavailable_or_unknown() -> TestResult {
         (
             CloseAt::Handshake,
             TerminalSendOutcome::Unavailable {
-            progress: SendProgress::none(),
+                progress: SendProgress::none(),
                 reason: SendUnavailable::HostUnavailable,
                 cleanup: SendCleanupStatus::Unconfirmed,
             },
@@ -628,7 +627,7 @@ fn send_host_closure_positions_map_to_unavailable_or_unknown() -> TestResult {
         (
             CloseAt::AfterAttach,
             TerminalSendOutcome::Unavailable {
-            progress: SendProgress::none(),
+                progress: SendProgress::none(),
                 reason: SendUnavailable::HostUnavailable,
                 cleanup: SendCleanupStatus::Unconfirmed,
             },
@@ -636,16 +635,16 @@ fn send_host_closure_positions_map_to_unavailable_or_unknown() -> TestResult {
         (
             CloseAt::AfterInput,
             TerminalSendOutcome::OutcomeUnknown {
-            progress: SendProgress::none(),
+                progress: SendProgress::none(),
                 cleanup: SendCleanupStatus::Unconfirmed,
             },
         ),
         (
             CloseAt::DuringDetach,
             TerminalSendOutcome::Accepted {
-            progress: SendProgress::complete(1, 2),
-            cleanup: SendCleanupStatus::Unconfirmed,
-        },
+                progress: SendProgress::complete(1, 2),
+                cleanup: SendCleanupStatus::Unconfirmed,
+            },
         ),
     ] {
         let fixture = RuntimeFixture::new()?;
@@ -1048,7 +1047,7 @@ fn send_attach_response_envelope_violations_are_protocol_faults() -> TestResult 
             )?
             .outcome(),
             TerminalSendOutcome::Unavailable {
-            progress: SendProgress::none(),
+                progress: SendProgress::none(),
                 reason: SendUnavailable::HostProtocolFault,
                 cleanup: SendCleanupStatus::Unconfirmed,
             }
@@ -1114,7 +1113,7 @@ fn send_attach_capability_echo_mismatches_are_protocol_faults() -> TestResult {
             )?
             .outcome(),
             TerminalSendOutcome::Unavailable {
-            progress: SendProgress::none(),
+                progress: SendProgress::none(),
                 reason: SendUnavailable::HostProtocolFault,
                 cleanup: SendCleanupStatus::Unconfirmed,
             }
@@ -1207,14 +1206,14 @@ fn send_key_acknowledgement_byte_bounds() -> TestResult {
         (
             0_u32,
             TerminalSendOutcome::Accepted {
-            progress: SendProgress::complete(1, 0),
-            cleanup: SendCleanupStatus::Confirmed,
-        },
+                progress: SendProgress::complete(1, 0),
+                cleanup: SendCleanupStatus::Confirmed,
+            },
         ),
         (
             SendAcceptedBytes::MAXIMUM + 1,
             TerminalSendOutcome::OutcomeUnknown {
-            progress: SendProgress::none(),
+                progress: SendProgress::none(),
                 cleanup: SendCleanupStatus::Unconfirmed,
             },
         ),

@@ -2,6 +2,59 @@ use std::io::Cursor;
 
 use crate::*;
 
+// The session-read fixtures below exercise the Read arm of the expanded OBAP
+// union. Keep their round trips typed as reads while checking the public wire
+// entry points used by both reads and names.
+fn parse_agent_request(encoded: &[u8]) -> Result<AgentReadRequest, AgentContractError> {
+    match crate::parse_agent_request(encoded)? {
+        AgentRequest::Read(request) => Ok(request),
+        AgentRequest::Names(_) => Err(AgentContractError::InvalidDocument),
+    }
+}
+
+fn serialize_agent_request(request: &AgentReadRequest) -> Result<Vec<u8>, AgentContractError> {
+    crate::serialize_agent_request(&request.clone().into())
+}
+
+fn parse_agent_result(encoded: &[u8]) -> Result<AgentReadResult, AgentContractError> {
+    match crate::parse_agent_result(encoded)? {
+        AgentResult::Read(result) => Ok(result),
+        AgentResult::Names(_) => Err(AgentContractError::InvalidDocument),
+    }
+}
+
+fn serialize_agent_result(result: &AgentReadResult) -> Result<Vec<u8>, AgentContractError> {
+    crate::serialize_agent_result(&result.clone().into())
+}
+
+fn read_agent_request(reader: &mut impl std::io::Read) -> Result<AgentReadRequest, AgentWireError> {
+    match crate::read_agent_request(reader)? {
+        AgentRequest::Read(request) => Ok(request),
+        AgentRequest::Names(_) => Err(AgentWireError::InvalidHeader),
+    }
+}
+
+fn write_agent_request(
+    writer: &mut impl std::io::Write,
+    request: &AgentReadRequest,
+) -> Result<(), AgentWireError> {
+    crate::write_agent_request(writer, &request.clone().into())
+}
+
+fn read_agent_result(reader: &mut impl std::io::Read) -> Result<AgentReadResult, AgentWireError> {
+    match crate::read_agent_result(reader)? {
+        AgentResult::Read(result) => Ok(result),
+        AgentResult::Names(_) => Err(AgentWireError::InvalidHeader),
+    }
+}
+
+fn write_agent_result(
+    writer: &mut impl std::io::Write,
+    result: &AgentReadResult,
+) -> Result<(), AgentWireError> {
+    crate::write_agent_result(writer, &result.clone().into())
+}
+
 fn request_id(text: &str) -> ObapRequestId {
     ObapRequestId::parse(text).unwrap()
 }

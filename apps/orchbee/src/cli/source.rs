@@ -378,11 +378,7 @@ pub(crate) fn materialize<'a>(
     signals: &mut dyn SignalWatch,
 ) -> Result<Cow<'a, TerminalSendInput>, SourceFailure> {
     let (mut bytes, enter, paste, option, value) = match input {
-        TerminalSendInput::File {
-            path,
-            enter,
-            paste,
-        } => (
+        TerminalSendInput::File { path, enter, paste } => (
             acquire_file(path, *paste, deadline, signals)?,
             *enter,
             *paste,
@@ -1042,9 +1038,7 @@ mod tests {
             materialize(&file_input_paste(&path, false), deadline(), &mut watch).unwrap_err();
         assert_eq!(
             cause(&failure),
-            SendSourceCause::Oversize {
-                limit: PASTE_BOUND
-            }
+            SendSourceCause::Oversize { limit: PASTE_BOUND }
         );
         // Paste content is opaque: invalid UTF-8 and NULs pass untouched.
         let path = write_file(&dir, "opaque", &[0xff, 0x00, 0x1b, 0x5b]);

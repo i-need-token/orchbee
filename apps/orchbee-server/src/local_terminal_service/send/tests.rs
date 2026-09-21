@@ -7,13 +7,12 @@ use crate::worker_registry::{WorkerAdmission, WorkerRegistry};
 use orchbee_capability_node_protocol::{
     CapabilityNodeMessage, HostCreationId, HostEpoch, HostLaunchAccepted, HostLaunchState,
     HostTerminalId, HostTerminalIdentity, SendCleanupStatus as WorkerCleanup,
-    SendProgress as WorkerProgress, SendRecord as WorkerRecord,
-    SendRecords as WorkerRecords, SendRejection as WorkerRejection, SendText as WorkerText,
-    SendTextInput as WorkerTextInput,
+    SendProgress as WorkerProgress, SendRecord as WorkerRecord, SendRecords as WorkerRecords,
+    SendRejection as WorkerRejection, SendText as WorkerText, SendTextInput as WorkerTextInput,
     SendUnavailable as WorkerUnavailable, TerminalLaunchMode, TerminalLaunchOutcome,
     TerminalLaunchResult, TerminalSendOutcome as WorkerOutcome,
-    TerminalSendRequest as WorkerRequest, TerminalSendResult as WorkerResult,
-    WorkerGeneration, read_message, write_message,
+    TerminalSendRequest as WorkerRequest, TerminalSendResult as WorkerResult, WorkerGeneration,
+    read_message, write_message,
 };
 use orchbee_client_server_protocol::{
     ClientMessage, RequestId, SendKey, SendProgress, SendRecord, SendRecords, SendText,
@@ -351,10 +350,9 @@ fn send(service: &LocalTerminalService, request: TerminalSendRequest) -> Termina
 }
 
 fn one_text(value: &str, enter: bool) -> TestResult<SendRecords> {
-    Ok(SendRecords::new(vec![SendRecord::Text(SendTextInput::new(
-        SendText::new(value.to_owned())?,
-        enter,
-    )?)])?)
+    Ok(SendRecords::new(vec![SendRecord::Text(
+        SendTextInput::new(SendText::new(value.to_owned())?, enter)?,
+    )])?)
 }
 
 fn one_key(key: SendKey) -> TestResult<SendRecords> {
@@ -369,11 +367,7 @@ fn hex_id(value: [u8; 16]) -> String {
 fn send_to_started_terminal_delivers_accepted_with_the_pinned_target() -> TestResult {
     let fixture = Fixture::new()?;
     fixture.add_terminal(0, true)?;
-    let request = send_request(
-        &fixture,
-        0,
-        one_text("echo hi", true)?,
-    )?;
+    let request = send_request(&fixture, 0, one_text("echo hi", true)?)?;
     thread::scope(|scope| -> TestResult {
         let execution = scope.spawn(|| send(&fixture.service, request));
         let delivered = fixture.reply(WorkerOutcome::Accepted {
@@ -454,11 +448,7 @@ fn send_key_payload_maps_to_the_closed_key_set() -> TestResult {
 fn send_accepted_with_unconfirmed_cleanup_preserves_both_axes() -> TestResult {
     let fixture = Fixture::new()?;
     fixture.add_terminal(0, true)?;
-    let request = send_request(
-        &fixture,
-        0,
-        one_text("x", false)?,
-    )?;
+    let request = send_request(&fixture, 0, one_text("x", false)?)?;
     thread::scope(|scope| -> TestResult {
         let execution = scope.spawn(|| send(&fixture.service, request));
         fixture.reply(WorkerOutcome::Accepted {
@@ -486,58 +476,58 @@ fn send_worker_unavailable_and_unknown_outcomes_keep_the_pinned_target() -> Test
     for (worker_outcome, expected) in [
         (
             WorkerOutcome::Unavailable {
-            progress: WorkerProgress::none(),
+                progress: WorkerProgress::none(),
                 reason: WorkerUnavailable::HostUnavailable,
                 cleanup: WorkerCleanup::NotNeeded,
             },
             Outcome::Unavailable {
-            progress: SendProgress::none(),
+                progress: SendProgress::none(),
                 reason: Unavailable::HostUnavailable,
                 cleanup: Cleanup::NotNeeded,
             },
         ),
         (
             WorkerOutcome::Unavailable {
-            progress: WorkerProgress::none(),
+                progress: WorkerProgress::none(),
                 reason: WorkerUnavailable::HostProtocolFault,
                 cleanup: WorkerCleanup::NotNeeded,
             },
             Outcome::Unavailable {
-            progress: SendProgress::none(),
+                progress: SendProgress::none(),
                 reason: Unavailable::HostProtocolFault,
                 cleanup: Cleanup::NotNeeded,
             },
         ),
         (
             WorkerOutcome::OutcomeUnknown {
-            progress: WorkerProgress::none(),
+                progress: WorkerProgress::none(),
                 cleanup: WorkerCleanup::Unconfirmed,
             },
             Outcome::OutcomeUnknown {
-            progress: SendProgress::none(),
+                progress: SendProgress::none(),
                 cleanup: Cleanup::Unconfirmed,
             },
         ),
         (
             WorkerOutcome::Rejected {
-            progress: WorkerProgress::none(),
+                progress: WorkerProgress::none(),
                 reason: WorkerRejection::WrongWorker,
                 cleanup: WorkerCleanup::NotNeeded,
             },
             Outcome::Unavailable {
-            progress: SendProgress::none(),
+                progress: SendProgress::none(),
                 reason: Unavailable::WorkerUnavailable,
                 cleanup: Cleanup::NotNeeded,
             },
         ),
         (
             WorkerOutcome::Rejected {
-            progress: WorkerProgress::none(),
+                progress: WorkerProgress::none(),
                 reason: WorkerRejection::StaleWorkerGeneration,
                 cleanup: WorkerCleanup::Confirmed,
             },
             Outcome::Rejected {
-            progress: SendProgress::none(),
+                progress: SendProgress::none(),
                 reason: Rejected::StaleWorkerGeneration,
                 cleanup: Cleanup::Confirmed,
             },
@@ -651,7 +641,7 @@ fn send_response_loss_after_delivery_reports_outcome_unknown() -> TestResult {
         assert_eq!(
             result.outcome(),
             &Outcome::OutcomeUnknown {
-            progress: SendProgress::none(),
+                progress: SendProgress::none(),
                 cleanup: Cleanup::Unconfirmed,
             }
         );
@@ -674,7 +664,7 @@ fn send_on_a_dead_carrier_is_unavailable_and_not_reused() -> TestResult {
         assert_eq!(
             result.outcome(),
             &Outcome::Unavailable {
-            progress: SendProgress::none(),
+                progress: SendProgress::none(),
                 reason: Unavailable::TerminalRuntimeUnavailable,
                 cleanup: Cleanup::NotNeeded,
             }

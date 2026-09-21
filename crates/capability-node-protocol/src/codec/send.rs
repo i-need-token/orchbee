@@ -141,15 +141,15 @@ fn decode_record_kind(reader: &mut PayloadReader<'_>) -> Result<SendRecord, Prot
             })
         }
         BYTES_RECORD => {
-            let length = usize::try_from(reader.read_u32()?)
-                .map_err(|_| ProtocolError::InvalidPayload)?;
+            let length =
+                usize::try_from(reader.read_u32()?).map_err(|_| ProtocolError::InvalidPayload)?;
             Ok(SendRecord::Bytes {
                 bytes: SendBytes::new(reader.read_slice(length)?.to_vec())?,
             })
         }
         PASTE_RECORD => {
-            let length = usize::try_from(reader.read_u32()?)
-                .map_err(|_| ProtocolError::InvalidPayload)?;
+            let length =
+                usize::try_from(reader.read_u32()?).map_err(|_| ProtocolError::InvalidPayload)?;
             Ok(SendRecord::Paste {
                 content: SendPasteContent::new(reader.read_slice(length)?.to_vec())?,
             })
@@ -236,9 +236,7 @@ pub(crate) fn read_request_record(
 }
 
 /// Decode one complete in-memory `OBNS` frame.
-pub(crate) fn decode_request_record(
-    frame: &[u8],
-) -> Result<TerminalSendRequest, ProtocolError> {
+pub(crate) fn decode_request_record(frame: &[u8]) -> Result<TerminalSendRequest, ProtocolError> {
     let header: &[u8; SEND_RECORD_HEADER] = frame
         .get(..SEND_RECORD_HEADER)
         .ok_or(ProtocolError::InvalidPayload)?
@@ -314,7 +312,11 @@ fn decode_progress(reader: &mut PayloadReader<'_>) -> Result<SendProgress, Proto
     let records_accepted = u32::from(reader.read_u8()?);
     let first_stopped_record = u32::from(reader.read_u8()?);
     let accepted_encoded_bytes = reader.read_u64()?;
-    SendProgress::new(records_accepted, first_stopped_record, accepted_encoded_bytes)
+    SendProgress::new(
+        records_accepted,
+        first_stopped_record,
+        accepted_encoded_bytes,
+    )
 }
 
 pub(super) fn encode_result(result: &TerminalSendResult) -> Result<Vec<u8>, ProtocolError> {

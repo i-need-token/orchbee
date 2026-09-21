@@ -13,8 +13,7 @@ use crate::workbench_authority::{
 use crate::workbench_projection::WorkbenchProjectionStore;
 use orchbee_capability_node_protocol::{
     HostCreationId, HostEpoch, HostTerminalId, HostTerminalIdentity, LifecycleTerminalPhase,
-    TerminalFence, TerminalId as RuntimeTerminalId, WorkerGeneration,
-    WorkerId as RuntimeWorkerId,
+    TerminalFence, TerminalId as RuntimeTerminalId, WorkerGeneration, WorkerId as RuntimeWorkerId,
 };
 use orchbee_workbench_protocol::{
     Presentation, PresentationBinding, ProtocolVersion, SiteId, TerminalId, WorkbenchLabel,
@@ -224,10 +223,7 @@ fn relocate_leaf_into_existing_tab_preserves_identity_and_mints_only_the_graft()
     );
     let target_tab = create_tab(&mut authority, &grant, 200, "two", 800);
     let membership = authority.tree_standalone_membership().unwrap();
-    let source_members: Vec<_> = membership
-        .members_for_tab(&source_tab)
-        .cloned()
-        .collect();
+    let source_members: Vec<_> = membership.members_for_tab(&source_tab).cloned().collect();
     let panel_b = source_members
         .iter()
         .find(|member| member.panel_id() != &panel_a)
@@ -278,7 +274,8 @@ fn relocate_leaf_into_existing_tab_preserves_identity_and_mints_only_the_graft()
     // complete node identity and the source Tab stays open.
     let after_source = tab_root(&authority, &source_tab);
     let PanelNode::Panel {
-        panel_id: surviving, ..
+        panel_id: surviving,
+        ..
     } = &after_source
     else {
         panic!("source Tab must collapse to its surviving leaf")
@@ -365,11 +362,16 @@ fn relocate_leaf_into_new_tab_appends_a_single_leaf_tab() {
     let after = authority.projection.snapshot();
     let context = &after.terminal_contexts[0];
     assert_eq!(context.tabs.len(), 2);
-    let appended = context.tabs.iter().find(|tab| &tab.tab_id == new_tab_id).unwrap();
+    let appended = context
+        .tabs
+        .iter()
+        .find(|tab| &tab.tab_id == new_tab_id)
+        .unwrap();
     assert_eq!(appended.label, "logs");
     assert_eq!(appended.root, moved_leaf);
     let PanelNode::Panel {
-        panel_id: surviving, ..
+        panel_id: surviving,
+        ..
     } = &tab_root(&authority, &source_tab)
     else {
         panic!("source Tab must collapse to its surviving leaf")
@@ -769,7 +771,12 @@ fn open_aggregate_close(
     let runtimes = primary
         .members()
         .iter()
-        .map(|member| (close_runtime(member), Some(LifecycleTerminalPhase::AwaitingStart)))
+        .map(|member| {
+            (
+                close_runtime(member),
+                Some(LifecycleTerminalPhase::AwaitingStart),
+            )
+        })
         .collect();
     let WorkbenchTabClosePreparation::Prepared(prepared) =
         primary.finish_members(runtimes, Instant::now())
@@ -931,9 +938,7 @@ fn a_pending_split_settlement_on_the_moved_leaf_fences_relocate() {
     ) else {
         panic!("panel split admission")
     };
-    let WorkbenchPanelSplitPreparation::Prepared(prepared) =
-        admission.finish(binding(9100))
-    else {
+    let WorkbenchPanelSplitPreparation::Prepared(prepared) = admission.finish(binding(9100)) else {
         panic!("panel split preparation")
     };
     let _pending = prepared.commit_into_pending();
@@ -993,11 +998,10 @@ fn deep_tree(depth: usize, seed: u128) -> PanelNode {
                 node: PanelNode::Panel {
                     panel_id: WorkbenchPanelId::parse(&identity(seed + 2)).unwrap(),
                     primary_presentation: Presentation {
-                        presentation_id:
-                            orchbee_workbench_protocol::TerminalPresentationId::parse(&identity(
-                                seed + 3,
-                            ))
-                            .unwrap(),
+                        presentation_id: orchbee_workbench_protocol::TerminalPresentationId::parse(
+                            &identity(seed + 3),
+                        )
+                        .unwrap(),
                         label: "shallow".to_owned(),
                         binding: Some(binding(seed + 2)),
                     },

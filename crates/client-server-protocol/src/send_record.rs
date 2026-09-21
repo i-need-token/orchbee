@@ -1,9 +1,9 @@
+use crate::record_identities::{identity, identity_bytes};
 use crate::{
     ClientMessage, ProtocolError, ReadMessageError, RequestId, SendBytes, SendComboBase, SendKey,
     SendModifiers, SendPasteContent, SendRecord, SendRecords, SendText, SendTextInput, SiteId,
     TerminalId, TerminalSendRequest, WorkerId,
 };
-use crate::record_identities::{identity, identity_bytes};
 use std::io::Read;
 
 /// The send request never rides the standard JSON frame: a `bytes` record
@@ -186,9 +186,7 @@ fn decode_body(body: &[u8]) -> Result<ClientMessage, ProtocolError> {
     let site_id = identity::<SiteId>(body.get(16..32))?;
     let worker_id = identity::<WorkerId>(body.get(32..48))?;
     let terminal_id = identity::<TerminalId>(body.get(48..64))?;
-    let count = usize::from(
-        *body.get(64).ok_or(ProtocolError::InvalidPayload)?,
-    );
+    let count = usize::from(*body.get(64).ok_or(ProtocolError::InvalidPayload)?);
     if count == 0 || count > crate::MAXIMUM_SEND_RECORDS {
         return Err(ProtocolError::InvalidPayload);
     }
@@ -220,9 +218,7 @@ fn decode_record(
         let end = offset
             .checked_add(length)
             .ok_or(ProtocolError::InvalidPayload)?;
-        let slice = body
-            .get(offset..end)
-            .ok_or(ProtocolError::InvalidPayload)?;
+        let slice = body.get(offset..end).ok_or(ProtocolError::InvalidPayload)?;
         Ok((slice, end))
     };
     match kind {
@@ -297,5 +293,3 @@ fn decode_record(
         _ => Err(ProtocolError::InvalidPayload),
     }
 }
-
-

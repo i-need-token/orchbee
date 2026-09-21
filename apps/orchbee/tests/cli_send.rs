@@ -23,9 +23,9 @@ use std::{
 };
 
 use orchbee_client_server_protocol::{
-    ClientMessage, HostEpoch, HostTerminalId, SendCleanupStatus, SendKey, SendProgress,
-    SendRecord, SendRejectedReason, SendTarget, SendUnavailableReason, ServerMessage,
-    TerminalSendOutcome, TerminalSendResult, read_client_message, write_server_message,
+    ClientMessage, HostEpoch, HostTerminalId, SendCleanupStatus, SendKey, SendProgress, SendRecord,
+    SendRejectedReason, SendTarget, SendUnavailableReason, ServerMessage, TerminalSendOutcome,
+    TerminalSendResult, read_client_message, write_server_message,
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::{
@@ -962,17 +962,16 @@ fn serve_send(
 
 /// The same scripted exchange for content routed to an opaque `bytes`
 /// record: the wire payload is the literal bytes plus any folded CR.
-fn serve_bytes(
-    scope: &Path,
-    expected: Vec<u8>,
-    enter: bool,
-) -> thread::JoinHandle<()> {
+fn serve_bytes(scope: &Path, expected: Vec<u8>, enter: bool) -> thread::JoinHandle<()> {
     spawn_peer(scope, move |stream| {
         let snapshot_request = admit_and_serve_snapshot(&stream);
         let request = read_send(&stream);
         assert_send_base(&request, snapshot_request.as_str());
         let [SendRecord::Bytes { bytes }] = request.records().as_slice() else {
-            panic!("expected a single bytes record, got {:?}", request.records())
+            panic!(
+                "expected a single bytes record, got {:?}",
+                request.records()
+            )
         };
         let mut expected_wire = expected.clone();
         if enter {

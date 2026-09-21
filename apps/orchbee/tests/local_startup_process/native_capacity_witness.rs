@@ -15,10 +15,9 @@ use super::native_multiview;
 use super::*;
 use orchbee_client_server_protocol::{
     ClientMessage, ControlInput, ControlRejectedReason, ControlUnavailableReason, ControllerId,
-    RequestId, SendText, SendUnavailableReason, ServerMessage, SiteId as ObcsSiteId,
-    TerminalControlAction, TerminalControlOutcome, TerminalControlRequest,
-    SendRecord, SendRecords, SendTextInput, TerminalId as ObcsTerminalId, TerminalSendOutcome,
-    TerminalSendRequest,
+    RequestId, SendRecord, SendRecords, SendText, SendTextInput, SendUnavailableReason,
+    ServerMessage, SiteId as ObcsSiteId, TerminalControlAction, TerminalControlOutcome,
+    TerminalControlRequest, TerminalId as ObcsTerminalId, TerminalSendOutcome, TerminalSendRequest,
     TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, ViewerId,
     ViewerUnavailableReason, WorkerId as ObcsWorkerId, read_server_message, write_client_message,
 };

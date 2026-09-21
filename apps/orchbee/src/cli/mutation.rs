@@ -282,10 +282,9 @@ mod linux {
         LaunchProfileId, PanelNode, Project, ProtocolVersion, SiteId, Snapshot, Tab,
         TerminalContext, WorkbenchAction, WorkbenchCommand, WorkbenchCommandUnavailableReason,
         WorkbenchPanelId, WorkbenchPanelRelocateDestination, WorkbenchPanelSplitDirection,
-        WorkbenchRejectionReason, WorkbenchRequestId, WorkbenchRevision,
-        WorkbenchTabMoveDirection, WorkbenchTerminalFailureReason,
-        WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason, WorkbenchWireError,
-        Workspace,
+        WorkbenchRejectionReason, WorkbenchRequestId, WorkbenchRevision, WorkbenchTabMoveDirection,
+        WorkbenchTerminalFailureReason, WorkbenchTerminalOutcome,
+        WorkbenchTerminalUnavailableReason, WorkbenchWireError, Workspace,
     };
     use serde_json::{Map, json};
 
@@ -1310,8 +1309,8 @@ mod linux {
                 panel_id,
                 destination,
             } => {
-                let request = WorkbenchPanelRelocateRequest::try_from(command)
-                    .map_err(|_| internal())?;
+                let request =
+                    WorkbenchPanelRelocateRequest::try_from(command).map_err(|_| internal())?;
                 let base = receipt(&resolved, "panel.relocate", "committed")
                     .id("terminalContextId", terminal_context_id.as_str())
                     .id("tabId", tab_id.as_str())
@@ -1326,7 +1325,9 @@ mod linux {
                         // The receipt echoes the direction only for the
                         // existing-Tab form; `new-tab` has no direction and
                         // reports its Server-minted Tab identity.
-                        let receipt = base.revision(revision).id("targetTabId", target_tab_id.as_str());
+                        let receipt = base
+                            .revision(revision)
+                            .id("targetTabId", target_tab_id.as_str());
                         Ok(match destination {
                             WorkbenchPanelRelocateDestination::Tab { direction, .. } => {
                                 receipt.direction(panel_direction(*direction))

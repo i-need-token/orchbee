@@ -454,7 +454,7 @@ materialized emitted rows — they change neither the fetched window nor the rea
 - `--lines <n>` tails the emitted entries: physical `rows[]` without `--unwrap`, logical
   `lines[]` with it. The `tail{requested,omitted,entries}` member reports the presentation
   drop separately from `omittedRows` (the fetch/budget omissions). Text output prints one
-  line per emitted entry and a localized `… earlier rows/lines not shown` marker distinct
+  line per emitted entry and a localized “earlier rows/lines not shown” marker distinct
   from the read-limit marker.
 - Either flag lifts the envelope to `version:2` (`orchbee.terminal.read` /
   `orchbee.terminal.history`); flag-free output stays `version:1` byte-identical.
@@ -902,9 +902,9 @@ the v2 `launch` member), `orchbee.mutation.result` (`version:2` since it gained 
 launch-profile actions and their `catalogRevision`/`profileId`/`name` receipt fields),
 and three conditional `version:2`s that report the higher version only when the emitted
 shape actually carries the new members: `orchbee.terminal.read` and
-`orchbee.terminal.history` when `--unwrap` or `--lines` was given (the `lines`/`lineCount`/`tail`
-content members), and `orchbee.terminal.wait-output` when `--regex` produced the match
-(the `patternKind`/`matchLength`/`matched`/`matchedTruncated`/`startsMidLine`/`endsMidLine`
+`orchbee.terminal.history` when `--unwrap` or `--lines` was given (the `content`
+`lines`/`lineCount`/`tail` members), and `orchbee.terminal.wait-output` when `--regex` produced the match
+(the `match` `patternKind`/`matchLength`/`matched`/`matchedTruncated`/`startsMidLine`/`endsMidLine`
 match members). Flag-free output of all three stays `version:1` byte-identical.
 The `orchbee.api.schema` catalog
 envelope is `version:8`: registering a new schema id changes the closed dictionary's

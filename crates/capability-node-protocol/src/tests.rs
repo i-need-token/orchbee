@@ -1303,8 +1303,9 @@ fn text_record(text: &str, enter: bool) -> crate::SendRecord {
 
 #[test]
 fn send_request_record_encodes_the_golden_obns_frame() -> Result<(), Box<dyn std::error::Error>> {
-    let request =
-        CapabilityNodeMessage::TerminalSendRequest(send_request(one_record(text_record("ls -la", true))));
+    let request = CapabilityNodeMessage::TerminalSendRequest(send_request(one_record(
+        text_record("ls -la", true),
+    )));
     let mut body = Vec::new();
     body.extend_from_slice(&[21; 16]);
     body.extend_from_slice(&[22; 16]);
@@ -1333,8 +1334,8 @@ fn send_request_record_encodes_the_golden_obns_frame() -> Result<(), Box<dyn std
 
 #[test]
 fn send_record_sequence_preserves_order_and_every_form() -> Result<(), Box<dyn std::error::Error>> {
-    let request = CapabilityNodeMessage::TerminalSendRequest(send_request(crate::SendRecords::new(
-        vec![
+    let request =
+        CapabilityNodeMessage::TerminalSendRequest(send_request(crate::SendRecords::new(vec![
             text_record("echo hi", false),
             crate::SendRecord::Key {
                 key: crate::SendKey::CtrlC,
@@ -1356,8 +1357,7 @@ fn send_record_sequence_preserves_order_and_every_form() -> Result<(), Box<dyn s
             crate::SendRecord::Key {
                 key: crate::SendKey::Enter,
             },
-        ],
-    )?));
+        ])?));
     let encoded = encode_message(&request)?;
     assert!(encoded.starts_with(b"OBNS\0\x01\0\0"));
     assert_eq!(decode_message(&encoded)?, request);
@@ -1366,8 +1366,9 @@ fn send_record_sequence_preserves_order_and_every_form() -> Result<(), Box<dyn s
 
 #[test]
 fn send_request_decode_enforces_every_boundary() -> Result<(), Box<dyn std::error::Error>> {
-    let request =
-        CapabilityNodeMessage::TerminalSendRequest(send_request(one_record(text_record("hi", false))));
+    let request = CapabilityNodeMessage::TerminalSendRequest(send_request(one_record(
+        text_record("hi", false),
+    )));
     let encoded = encode_message(&request)?;
     // Header: 12 bytes; body prefix 105 bytes; text record starts at 12+105.
     let record_at = 12 + 105;
@@ -1546,9 +1547,7 @@ fn send_records_enforce_count_and_aggregate_bounds() -> Result<(), Box<dyn std::
 fn send_text_bound_counts_the_folded_return() -> Result<(), Box<dyn std::error::Error>> {
     let maximum = "x".repeat(crate::MAXIMUM_SEND_TEXT_BYTES);
     assert!(crate::SendText::new(maximum.clone()).is_ok());
-    assert!(
-        crate::SendTextInput::new(crate::SendText::new(maximum.clone())?, false).is_ok()
-    );
+    assert!(crate::SendTextInput::new(crate::SendText::new(maximum.clone())?, false).is_ok());
     assert!(crate::SendTextInput::new(crate::SendText::new(maximum)?, true).is_err());
     assert!(
         crate::SendTextInput::new(
@@ -1559,10 +1558,7 @@ fn send_text_bound_counts_the_folded_return() -> Result<(), Box<dyn std::error::
     );
 
     let request = CapabilityNodeMessage::TerminalSendRequest(send_request(one_record(
-        text_record(
-            &"x".repeat(crate::MAXIMUM_SEND_TEXT_BYTES - 1),
-            true,
-        ),
+        text_record(&"x".repeat(crate::MAXIMUM_SEND_TEXT_BYTES - 1), true),
     )));
     let encoded = encode_message(&request)?;
     assert_eq!(
@@ -1658,12 +1654,8 @@ fn send_bytes_and_paste_bounds_hold_at_the_wire() -> Result<(), Box<dyn std::err
     assert!(crate::SendBytes::new(vec![0; crate::MAXIMUM_SEND_BYTES_BYTES]).is_ok());
     assert!(crate::SendBytes::new(vec![0; crate::MAXIMUM_SEND_BYTES_BYTES + 1]).is_err());
     assert!(crate::SendPasteContent::new(Vec::new()).is_err());
-    assert!(
-        crate::SendPasteContent::new(vec![0; crate::MAXIMUM_SEND_PASTE_BYTES]).is_ok()
-    );
-    assert!(
-        crate::SendPasteContent::new(vec![0; crate::MAXIMUM_SEND_PASTE_BYTES + 1]).is_err()
-    );
+    assert!(crate::SendPasteContent::new(vec![0; crate::MAXIMUM_SEND_PASTE_BYTES]).is_ok());
+    assert!(crate::SendPasteContent::new(vec![0; crate::MAXIMUM_SEND_PASTE_BYTES + 1]).is_err());
 
     // A maximum bytes record stays inside the declared record-body bound and
     // round-trips: this is the 1MiB frame-overhead proof.
@@ -1673,7 +1665,10 @@ fn send_bytes_and_paste_bounds_hold_at_the_wire() -> Result<(), Box<dyn std::err
         },
     )));
     let encoded = encode_message(&request)?;
-    assert_eq!(encoded.len(), 12 + 105 + 5 + crate::MAXIMUM_SEND_BYTES_BYTES);
+    assert_eq!(
+        encoded.len(),
+        12 + 105 + 5 + crate::MAXIMUM_SEND_BYTES_BYTES
+    );
     assert_eq!(decode_message(&encoded)?, request);
     Ok(())
 }

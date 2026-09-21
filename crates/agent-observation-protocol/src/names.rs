@@ -151,7 +151,9 @@ pub struct AgentNameBinding {
 pub enum AgentNamesListOutcome {
     /// The complete table — ≤512 rows in byte-sorted name order. This is a
     /// bounded-read payload, not a small outcome.
-    Listed { bindings: Vec<AgentNameBinding> },
+    Listed {
+        bindings: Vec<AgentNameBinding>,
+    },
     Rejected {
         reason: AgentNamesListRejectionReason,
     },
@@ -206,7 +208,9 @@ pub enum AgentNameReleaseOutcome {
         name: AgentName,
     },
     /// The session exists and holds no alias — nothing was released.
-    Unchanged { session_id: AgentSessionId },
+    Unchanged {
+        session_id: AgentSessionId,
+    },
     Rejected {
         reason: AgentNameReleaseRejectionReason,
     },
@@ -281,10 +285,9 @@ impl AgentNamesResult {
     #[must_use]
     pub fn is_small_outcome(&self) -> bool {
         match self {
-            Self::NamesList { result, .. } => !matches!(
-                result.outcome,
-                AgentNamesListOutcome::Listed { .. }
-            ),
+            Self::NamesList { result, .. } => {
+                !matches!(result.outcome, AgentNamesListOutcome::Listed { .. })
+            }
             Self::Resolve { .. } | Self::NameAssign { .. } | Self::NameRelease { .. } => true,
         }
     }

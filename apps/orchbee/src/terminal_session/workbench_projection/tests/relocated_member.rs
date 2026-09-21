@@ -29,9 +29,15 @@ fn two_tab_split_snapshot(revision: u64) -> Snapshot {
 /// the moved leaf second under a fresh vertical Split — the `below` product.
 fn grafted_destination(direction_moved_first: bool) -> PanelNode {
     let (first, second) = if direction_moved_first {
-        (panel(35, 36, 37, 38, "right"), panel(1011, 1012, 1013, 1014, "2"))
+        (
+            panel(35, 36, 37, 38, "right"),
+            panel(1011, 1012, 1013, 1014, "2"),
+        )
     } else {
-        (panel(1011, 1012, 1013, 1014, "2"), panel(35, 36, 37, 38, "right"))
+        (
+            panel(1011, 1012, 1013, 1014, "2"),
+            panel(35, 36, 37, 38, "right"),
+        )
     };
     PanelNode::Split {
         children: Box::new([
@@ -57,8 +63,7 @@ fn canonical_refresh_accepts_a_member_relocated_into_a_sibling_tab() {
     // root becomes a fresh Split(previous, moved). Every moved identity is
     // retained verbatim — only the owning Tab changed.
     let mut candidate_snapshot = two_tab_split_snapshot(11);
-    candidate_snapshot.terminal_contexts[0].tabs[0].root =
-        panel(30, 31, 32, 33, "left");
+    candidate_snapshot.terminal_contexts[0].tabs[0].root = panel(30, 31, 32, 33, "left");
     candidate_snapshot.terminal_contexts[0].tabs[1].root = grafted_destination(false);
     let candidate = project_native_standalone_tabs(&candidate_snapshot).unwrap();
     assert_eq!(
@@ -74,8 +79,7 @@ fn canonical_refresh_accepts_a_member_relocated_into_a_fresh_tab() {
     // Move `right` into a brand-new Tab: the appended Tab's root is exactly the
     // retained leaf and its Tab identity is fresh — no baseline comparison.
     let mut candidate_snapshot = two_tab_split_snapshot(11);
-    candidate_snapshot.terminal_contexts[0].tabs[0].root =
-        panel(30, 31, 32, 33, "left");
+    candidate_snapshot.terminal_contexts[0].tabs[0].root = panel(30, 31, 32, 33, "left");
     candidate_snapshot.terminal_contexts[0].tabs.push(Tab {
         group_id: None,
         label: "3".into(),
@@ -103,8 +107,7 @@ fn canonical_refresh_rejects_a_relocated_member_whose_identity_mutated() {
         (37, 38, 36, "renamed"),
     ] {
         let mut candidate_snapshot = two_tab_split_snapshot(11);
-        candidate_snapshot.terminal_contexts[0].tabs[0].root =
-            panel(30, 31, 32, 33, "left");
+        candidate_snapshot.terminal_contexts[0].tabs[0].root = panel(30, 31, 32, 33, "left");
         candidate_snapshot.terminal_contexts[0].tabs[1].root = PanelNode::Split {
             children: Box::new([
                 PanelSlot {
@@ -139,8 +142,7 @@ fn canonical_refresh_rejects_a_surviving_tab_that_keeps_no_member() {
     // mints this — `last-panel-in-tab` keeps one member behind — so the
     // consumer treats a surviving-but-empty Tab identity as divergence.
     let mut candidate_snapshot = two_tab_split_snapshot(11);
-    candidate_snapshot.terminal_contexts[0].tabs[0].root =
-        panel(60, 61, 62, 63, "new");
+    candidate_snapshot.terminal_contexts[0].tabs[0].root = panel(60, 61, 62, 63, "new");
     candidate_snapshot.terminal_contexts[0].tabs[1].root = grafted_destination(false);
     assert_eq!(
         validate_canonical_refresh(
@@ -159,8 +161,7 @@ fn canonical_refresh_rejects_a_retained_split_identity_reparented_across_tabs() 
     // the destination's graft: structural tuples stay bound to their owning
     // Tab, so a Split may never follow its leaf across the boundary.
     let mut candidate_snapshot = two_tab_split_snapshot(11);
-    candidate_snapshot.terminal_contexts[0].tabs[0].root =
-        panel(30, 31, 32, 33, "left");
+    candidate_snapshot.terminal_contexts[0].tabs[0].root = panel(30, 31, 32, 33, "left");
     candidate_snapshot.terminal_contexts[0].tabs[1].root = PanelNode::Split {
         children: Box::new([
             PanelSlot {

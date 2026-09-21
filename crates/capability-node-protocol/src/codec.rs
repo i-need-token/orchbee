@@ -111,8 +111,7 @@ pub fn decode_message(frame: &[u8]) -> Result<CapabilityNodeMessage, ProtocolErr
         return control::decode_paste_record(frame);
     }
     if frame.starts_with(b"OBNS") {
-        return send::decode_request_record(frame)
-            .map(CapabilityNodeMessage::TerminalSendRequest);
+        return send::decode_request_record(frame).map(CapabilityNodeMessage::TerminalSendRequest);
     }
     let header: &[u8; FRAME_HEADER_BYTES] = frame
         .get(..FRAME_HEADER_BYTES)

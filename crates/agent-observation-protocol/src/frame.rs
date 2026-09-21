@@ -99,9 +99,9 @@ pub fn write_agent_result(
     } else {
         match result {
             AgentResult::Read(AgentReadResult::List { .. }) => MAXIMUM_AGENT_LIST_RESULT_BYTES,
-            AgentResult::Read(
-                AgentReadResult::Get { .. } | AgentReadResult::Explain { .. },
-            ) => MAXIMUM_AGENT_SESSION_RESULT_BYTES,
+            AgentResult::Read(AgentReadResult::Get { .. } | AgentReadResult::Explain { .. }) => {
+                MAXIMUM_AGENT_SESSION_RESULT_BYTES
+            }
             AgentResult::Names(AgentNamesResult::NamesList { .. }) => {
                 MAXIMUM_AGENT_NAMES_RESULT_BYTES
             }

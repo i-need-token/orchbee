@@ -6,8 +6,8 @@ use crate::model::{
     AgentSessionExplanation, AgentSessionSnapshot, AgentSessionSummary, AgentTurnState,
 };
 use crate::names::{
-    AgentNameAssignOutcome, AgentNameAssignRejectionReason, AgentNamesRequest, AgentNamesResult,
-    AgentNamesListOutcome, MAXIMUM_NAME_BINDINGS,
+    AgentNameAssignOutcome, AgentNameAssignRejectionReason, AgentNamesListOutcome,
+    AgentNamesRequest, AgentNamesResult, MAXIMUM_NAME_BINDINGS,
 };
 use crate::read::{
     AgentExplainOutcome, AgentGetOutcome, AgentListOutcome, AgentReadRequest, AgentReadResult,

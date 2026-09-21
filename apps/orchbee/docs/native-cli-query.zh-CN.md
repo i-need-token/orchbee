@@ -377,8 +377,7 @@ connect、绝不创建锁或标记、绝不修复——共享一个在有界文�
   拼成逻辑行；JSON `content` 随之发出 `lines[]`——`{firstRow,lastRow,text,startsMidLine,endsMidLine}`——替代 `rows[]`，并附只对观测片段计数的 `lineCount`（绝不是
   保留历史总行数）。`rowCount` 仍计物理行。窗口开头或结尾落在换行行内部时产出的是
   带标记的片段，绝不谎称完整行。
-- `--lines <n>` 对已发出条目做尾部截取：无 `--unwrap` 时为物理 `rows[]`，有
-  `--unwrap` 时为逻辑 `lines[]`。`tail{requested,omitted,entries}` 成员与
+- `--lines <n>` 对已发出条目做尾部截取：无 `--unwrap` 时为物理 `rows[]`，启用时为逻辑 `lines[]`。`tail{requested,omitted,entries}` 成员与
   `omittedRows`（抓取/预算省略）分开报告这次呈现省略。text 输出每条已发出条目打印
   一行，并附一条本地化的"… 未显示前 N 行/逻辑行"标记，与读取上限标记相区分。
 - 任一 flag 使封套升为 `version:2`（`orchbee.terminal.read` /

@@ -262,9 +262,18 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("panel:close", &["--confirm"]),
     (
         "panel:move",
-        &["--target-panel", "--into-tab", "--new-tab", "--direction", "--label"],
+        &[
+            "--target-panel",
+            "--into-tab",
+            "--new-tab",
+            "--direction",
+            "--label",
+        ],
     ),
-    ("terminal:read", &["--history", "--lines", "--rows", "--unwrap"]),
+    (
+        "terminal:read",
+        &["--history", "--lines", "--rows", "--unwrap"],
+    ),
     (
         "terminal:send",
         &["--text", "--enter", "--key", "--file", "--stdin"],

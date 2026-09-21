@@ -2682,7 +2682,6 @@ pub(crate) fn read_snapshot() -> Result<orchbee_workbench_protocol::Snapshot, su
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn terminal_get(
     _target: &crate::invocation::Target,
-    _history: Option<u16>,
 ) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
     Err(
         super::Failure::new(super::FailureKind::ServiceUnavailable).details(

@@ -263,9 +263,7 @@ fn worker_outcome(outcome: WorkerOutcome) -> Outcome {
             reason: match reason {
                 WorkerUnavailableReason::HostUnavailable => Unavailable::HostUnavailable,
                 WorkerUnavailableReason::HostProtocolFault => Unavailable::HostProtocolFault,
-                WorkerUnavailableReason::InputBudgetExhausted => {
-                    Unavailable::InputBudgetExhausted
-                }
+                WorkerUnavailableReason::InputBudgetExhausted => Unavailable::InputBudgetExhausted,
             },
             progress: progress(cursor),
             cleanup: cleanup(status),

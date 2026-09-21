@@ -12,14 +12,14 @@ use std::{
 
 use orchbee_capability_node_protocol::{
     AbsoluteCwd, AgentDrainEntry, AgentDrainReply, AgentDrainRequest, AuthorizedTerminalLaunch,
-    CapabilityNodeMessage, LeaseExpiresAtUnixMilliseconds, LeaseId, OperationId, SendText,
-    TERMINAL_LAUNCH_CAPABILITY_VERSION, TerminalCwdValidationOutcome, TerminalCwdValidationRequest,
-    TerminalFence, TerminalId, TerminalLaunchFailure, TerminalLaunchMode, TerminalLaunchOutcome,
+    CapabilityNodeMessage, LeaseExpiresAtUnixMilliseconds, LeaseId, OperationId, SendRecord,
+    SendRecords, SendText, SendTextInput, TERMINAL_LAUNCH_CAPABILITY_VERSION,
+    TerminalCwdValidationOutcome, TerminalCwdValidationRequest, TerminalFence, TerminalId,
+    TerminalLaunchFailure, TerminalLaunchMode, TerminalLaunchOutcome,
     TerminalOperationAuthorization, TerminalOperationLease, TerminalPixelGeometry,
-    SendRecord, SendRecords, SendTextInput, TerminalSendOutcome, TerminalSendRequest,
-    WorkerGeneration,
-    WorkerId as CapabilityWorkerId, WorktreeJobAction, WorktreeJobOutcome, WorktreeJobPollOutcome,
-    WorktreeJobRequest, WorktreeJobStartOutcome, read_message, write_message,
+    TerminalSendOutcome, TerminalSendRequest, WorkerGeneration, WorkerId as CapabilityWorkerId,
+    WorktreeJobAction, WorktreeJobOutcome, WorktreeJobPollOutcome, WorktreeJobRequest,
+    WorktreeJobStartOutcome, read_message, write_message,
 };
 use orchbee_local_site_protocol::WorkerId;
 use orchbee_local_site_runtime::{ModeCheckedLocalSiteRendezvous, NativeCohort};

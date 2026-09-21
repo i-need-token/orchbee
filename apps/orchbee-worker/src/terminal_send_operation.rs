@@ -8,8 +8,7 @@ use std::{
 
 use orchbee_capability_node_protocol::{
     SendAcceptedBytes, SendCleanupStatus, SendComboBase, SendKey, SendProgress, SendRecord,
-    SendRejection, SendUnavailable, TerminalSendOutcome, TerminalSendRequest,
-    TerminalSendResult,
+    SendRejection, SendUnavailable, TerminalSendOutcome, TerminalSendRequest, TerminalSendResult,
 };
 use orchbee_local_site_protocol::WorkerId;
 use orchbee_terminal_protocol::{
@@ -165,7 +164,6 @@ fn negotiated_excess(request: &TerminalSendRequest, host: &HostBrokerConnection)
     })
 }
 
-
 fn apply(
     request: TerminalSendRequest,
     host: &HostBrokerConnection,
@@ -278,8 +276,7 @@ fn apply(
                 host_failed,
             );
         };
-        let (command, expected_bytes) =
-            input_command(record, attachment_id, capability_revision)?;
+        let (command, expected_bytes) = input_command(record, attachment_id, capability_revision)?;
         // Input messages ride the raw-bytes encoding while every response is
         // still ControlJson.
         match exchange_fresh(
@@ -296,8 +293,7 @@ fn apply(
                         accepted_encoded_bytes += u64::from(bytes.get());
                     }
                     InputOutcome::Refused(reason) => {
-                        let (cleanup, host_failed) =
-                            detach(host, server, attachment_id).cleanup();
+                        let (cleanup, host_failed) = detach(host, server, attachment_id).cleanup();
                         return respond(
                             &request,
                             TerminalSendOutcome::Rejected {
@@ -562,9 +558,11 @@ fn input_command(
             }
             raw_write(attachment_id, capability_revision, bytes)
         }
-        SendRecord::Bytes { bytes } => {
-            raw_write(attachment_id, capability_revision, bytes.as_bytes().to_vec())
-        }
+        SendRecord::Bytes { bytes } => raw_write(
+            attachment_id,
+            capability_revision,
+            bytes.as_bytes().to_vec(),
+        ),
         SendRecord::Paste { content } => Ok((
             encode_input_message(&InputMessage::PasteAutoInput(PasteAutoInput {
                 attachment_id,

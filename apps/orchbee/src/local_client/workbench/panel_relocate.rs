@@ -265,9 +265,7 @@ impl fmt::Display for WorkbenchPanelRelocateOutcomeUnknownReason {
             Self::Write(error) => write!(f, "request write failed: {error}"),
             Self::Response(error) => write!(f, "invalid command response: {error}"),
             Self::ResponseDeadline(error) => write!(f, "command response failed: {error}"),
-            Self::UnexpectedResponse => {
-                f.write_str("expected workbench.command.result response")
-            }
+            Self::UnexpectedResponse => f.write_str("expected workbench.command.result response"),
             Self::CorrelationMismatch { expected, received } => write!(
                 f,
                 "expected Workbench request identity {expected} but received {received}"
@@ -350,11 +348,11 @@ fn classify_outcome(
                 WorkbenchPanelRelocatePrecommit::Rejected { revision, reason },
             ))
         }
-        WorkbenchCommandOutcome::Denied {} => Ok(
-            WorkbenchPanelRelocateSubmission::DefinitePrecommit(
+        WorkbenchCommandOutcome::Denied {} => {
+            Ok(WorkbenchPanelRelocateSubmission::DefinitePrecommit(
                 WorkbenchPanelRelocatePrecommit::Denied,
-            ),
-        ),
+            ))
+        }
         WorkbenchCommandOutcome::Unavailable { reason }
             if matches!(
                 reason,
@@ -441,7 +439,10 @@ fn classify_committed(
     let expected = WorkbenchRevision::new(successor);
     if expected != revision {
         return Err(
-            WorkbenchPanelRelocateOutcomeUnknownReason::RevisionMismatch { expected, received: revision },
+            WorkbenchPanelRelocateOutcomeUnknownReason::RevisionMismatch {
+                expected,
+                received: revision,
+            },
         );
     }
     if &terminal_context_id != expected_context {
@@ -453,20 +454,16 @@ fn classify_committed(
         );
     }
     if &tab_id != expected_tab {
-        return Err(
-            WorkbenchPanelRelocateOutcomeUnknownReason::TabMismatch {
-                expected: expected_tab.clone(),
-                received: tab_id,
-            },
-        );
+        return Err(WorkbenchPanelRelocateOutcomeUnknownReason::TabMismatch {
+            expected: expected_tab.clone(),
+            received: tab_id,
+        });
     }
     if &panel_id != expected_panel {
-        return Err(
-            WorkbenchPanelRelocateOutcomeUnknownReason::PanelMismatch {
-                expected: expected_panel.clone(),
-                received: panel_id,
-            },
-        );
+        return Err(WorkbenchPanelRelocateOutcomeUnknownReason::PanelMismatch {
+            expected: expected_panel.clone(),
+            received: panel_id,
+        });
     }
     // The destination Tab is only knowable client-side for an existing-Tab
     // destination; a new Tab's identity is Server-minted at commit.

@@ -20,15 +20,14 @@ mod lifecycle;
 use orchbee_capability_node_protocol::{
     AbsoluteCwd, AuthorizedTerminalLaunch, AuthorizedTerminalStart, CapabilityNodeMessage,
     HostCreationId, HostEpoch, HostTerminalId, HostTerminalIdentity,
-    LeaseExpiresAtUnixMilliseconds, LeaseId, OperationId, SendCleanupStatus, SendKey,
-    SendProgress, SendRecord, SendRecords, SendRejection, SendText, SendTextInput,
-    TerminalCwdValidationOutcome, TerminalCwdValidationRequest, TerminalCwdValidationResult,
-    TerminalFence, TerminalId, TerminalLaunchMode, TerminalLaunchOutcome,
-    TerminalLaunchRejection, TerminalLaunchResult, TerminalOperationAuthorization,
-    TerminalOperationLease, TerminalPixelGeometry, TerminalSendOutcome, TerminalSendRequest,
-    TerminalSendResult,
-    TerminalStartOutcome, TerminalStartRejection, TerminalStartResult, WorkerGeneration,
-    WorkerId as CapabilityWorkerId, read_message, write_message,
+    LeaseExpiresAtUnixMilliseconds, LeaseId, OperationId, SendCleanupStatus, SendKey, SendProgress,
+    SendRecord, SendRecords, SendRejection, SendText, SendTextInput, TerminalCwdValidationOutcome,
+    TerminalCwdValidationRequest, TerminalCwdValidationResult, TerminalFence, TerminalId,
+    TerminalLaunchMode, TerminalLaunchOutcome, TerminalLaunchRejection, TerminalLaunchResult,
+    TerminalOperationAuthorization, TerminalOperationLease, TerminalPixelGeometry,
+    TerminalSendOutcome, TerminalSendRequest, TerminalSendResult, TerminalStartOutcome,
+    TerminalStartRejection, TerminalStartResult, WorkerGeneration, WorkerId as CapabilityWorkerId,
+    read_message, write_message,
 };
 use orchbee_local_site_protocol::WorkerId;
 
@@ -1614,10 +1613,9 @@ fn paste_results_validate_count_boundaries_and_exact_result_class() -> TestResul
 }
 
 fn one_text(value: &str, enter: bool) -> TestResult<SendRecords> {
-    Ok(SendRecords::new(vec![SendRecord::Text(SendTextInput::new(
-        SendText::new(value.to_owned())?,
-        enter,
-    )?)])?)
+    Ok(SendRecords::new(vec![SendRecord::Text(
+        SendTextInput::new(SendText::new(value.to_owned())?, enter)?,
+    )])?)
 }
 
 fn one_key(key: SendKey) -> TestResult<SendRecords> {
