@@ -95,6 +95,7 @@ fn prepare_and_install_switch_candidate(
         Some(marker.tab_id()),
         state.active().map(SelectedTab::index),
         None,
+        None,
     )?;
     let fresh = AttachmentKey::new(
         marker

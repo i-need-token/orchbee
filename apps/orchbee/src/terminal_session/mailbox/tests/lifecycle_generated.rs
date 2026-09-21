@@ -1740,6 +1740,7 @@ impl Trace {
                 Some(marker.selected().key().tab_id()),
                 Some(marker.selected().index()),
                 None,
+                None,
             ),
             "prepare Switch candidate",
         )?;
@@ -1788,6 +1789,7 @@ impl Trace {
                 self.session.cache().clone(),
                 Some(marker.selected().key().tab_id()),
                 Some(marker.selected().index()),
+                None,
                 None,
             ),
             "prepare attached Switch candidate",

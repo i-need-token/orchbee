@@ -3439,6 +3439,7 @@ fn anchor_membership_gates() -> Result<(), &'static str> {
                 Some(operation.target().tab_id()),
                 operation.baseline().tab_index(operation.target().tab_id()),
                 None,
+                None,
             )
             .map_err(|_| "candidate rebuild")
     };

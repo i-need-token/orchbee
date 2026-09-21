@@ -98,22 +98,22 @@ impl NativeUi {
         let origin = attempt.origin.clone();
         let deadlines = attempt.deadlines;
         let prepared = match outcome {
-            WorkbenchSnapshotOutcome::Available { snapshot } => self
-                .state
-                .as_ref()
-                .ok_or(CarrierFailure::Protocol)
-                .and_then(|state| {
-                    state
-                        .cache()
-                        .project_snapshot(&snapshot)
-                        .map_err(|_| CarrierFailure::AuthorityDivergence)
+            WorkbenchSnapshotOutcome::Available { snapshot } => {
+                let state = self.state.as_ref().ok_or(CarrierFailure::Protocol);
+                state.and_then(|state| {
+                    match state.cache().project_snapshot(&snapshot) {
+                        Ok(candidate) => {
+                            state.prepare_retired_membership_candidate(&origin, candidate)
+                        }
+                        // The origin context no longer projects: classify a peer
+                        // workspace-close removal before treating the reply as
+                        // divergent — the same permit discipline authorizes it.
+                        Err(_) => {
+                            state.prepare_retired_context_removal(&origin, generation, &snapshot)
+                        }
+                    }
                 })
-                .and_then(|candidate| {
-                    self.state
-                        .as_ref()
-                        .ok_or(CarrierFailure::Protocol)?
-                        .prepare_retired_membership_candidate(&origin, candidate)
-                }),
+            }
             _ => Err(CarrierFailure::AuthorityDivergence),
         };
         let Some(state) = self.state.as_mut() else {

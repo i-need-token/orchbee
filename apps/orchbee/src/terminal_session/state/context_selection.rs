@@ -1,7 +1,7 @@
 use super::{
     CarrierFailure, CreateTerminalProvenance, NativeContextTabs, NativeSessionState,
     NativeSessionView, OperationDeadlines, PreparedRefresh, SessionPhase,
-    validate_canonical_refresh,
+    context_removal::ContextRemovalPermit, validate_canonical_refresh,
 };
 use crate::terminal_session::workbench_projection::{
     NativeContext, NativeContextLocation, NativeSimpleTab, project_native_context_tabs,
@@ -226,7 +226,7 @@ impl NativeSessionState {
                 baseline_revision: self.cache.revision(),
             };
         };
-        match self.prepare_membership_candidate(candidate, None, None, None) {
+        match self.prepare_membership_candidate(candidate, None, None, None, None) {
             Ok(prepared) => PreparedRefresh::Membership {
                 generation,
                 prepared,
@@ -238,6 +238,7 @@ impl NativeSessionState {
     pub(super) fn validate_candidate_provenance(
         &self,
         candidate: &NativeContextTabs,
+        permit: Option<&ContextRemovalPermit>,
     ) -> Result<Option<ContextProvenance<'_>>, CarrierFailure> {
         if candidate.location() == self.cache.location() {
             validate_canonical_candidate(&self.cache, candidate)
@@ -247,12 +248,19 @@ impl NativeSessionState {
                 provenance: &self.provenance,
             }));
         }
-        if self.context_selection.as_ref().is_none_or(|intent| {
-            self.pending_refresh_generation() != Some(intent.generation)
-                || &intent.target != candidate.location()
-        }) && !self.setup_target_matches(candidate.location())
-            || candidate.site_id() != self.cache.site_id()
+        // The third authorized landing: the removal classifier's permit names
+        // exactly this baseline and candidate pair — no ambient flag can reach
+        // here because the permit only exists inside the prepared candidate.
+        let removal_landing =
+            permit.is_some_and(|permit| permit.authorizes(&self.cache, candidate));
+        if candidate.site_id() != self.cache.site_id()
             || candidate.revision() < self.cache.revision()
+            || (!removal_landing
+                && self.context_selection.as_ref().is_none_or(|intent| {
+                    self.pending_refresh_generation() != Some(intent.generation)
+                        || &intent.target != candidate.location()
+                })
+                && !self.setup_target_matches(candidate.location()))
         {
             return Err(CarrierFailure::AuthorityDivergence);
         }
@@ -278,6 +286,7 @@ impl NativeSessionState {
     pub(super) fn prepare_retained_contexts(
         &self,
         candidate: &NativeContextTabs,
+        permit: Option<&ContextRemovalPermit>,
     ) -> Option<Vec<RetainedContext>> {
         if candidate.location() == self.cache.location() {
             return None;
@@ -294,6 +303,14 @@ impl NativeSessionState {
                 )
             })
         });
+        // A deleted context's cache is never parked back into retained — its
+        // workspace close is the removal authority, and the server deletes the
+        // context, so a resurrecting re-insert would mint a stale zombie entry.
+        // Other contexts' Pending/OutcomeUnknown entries stay untouched.
+        let removal_skips = permit.is_some_and(|permit| permit.removed() == self.cache.location());
+        if removal_skips {
+            return Some(retained_contexts);
+        }
         let retained = RetainedContext {
             site_id: self.cache.site_id().clone(),
             location: self.cache.location().clone(),

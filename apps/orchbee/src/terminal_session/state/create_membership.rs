@@ -53,6 +53,7 @@ impl NativeSessionState {
                 committed.committed_key.tab_id(),
                 committed.provenance.clone(),
             )),
+            None,
         )
     }
 

@@ -14,6 +14,7 @@ use std::time::{Duration, Instant};
 
 #[cfg(test)]
 use super::workbench_projection::project_native_standalone_tabs;
+mod context_removal;
 mod context_selection;
 mod field_window;
 pub(super) mod line_editor;
@@ -31,6 +32,7 @@ pub(super) mod retired_membership;
 mod switch_membership;
 mod tab_close;
 pub(super) mod tab_rename;
+pub(super) use context_removal::ContextRemovalPermit;
 use create_membership::CreateAnchor;
 pub(super) use create_membership::{CreateOriginKind, PreparedCreateSnapshot};
 #[cfg(test)]
@@ -2832,7 +2834,10 @@ impl NativeSessionState {
             return self.prepare_context_selection(generation, &snapshot);
         }
         let Ok(candidate) = self.cache.project_snapshot(&snapshot) else {
-            return PreparedRefresh::Divergent { generation };
+            // The current context no longer projects — either a peer workspace
+            // close removed it (a permit-carrying landing candidate) or plain
+            // divergence. The classifier decides; it never fabricates cleanup.
+            return self.prepare_context_removal(generation, &snapshot);
         };
         if let SessionPhase::ProjectionUnavailableBeforeCleanup(committed) = &self.phase {
             let Ok(projection) =
@@ -2883,6 +2888,7 @@ impl NativeSessionState {
                 candidate,
                 active.as_ref().map(|active| active.key.anchor().tab_id()),
                 active.as_ref().map(|active| active.index),
+                None,
                 None,
             ) {
                 Ok(mut prepared) => {

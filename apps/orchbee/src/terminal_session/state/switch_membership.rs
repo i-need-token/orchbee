@@ -326,6 +326,7 @@ impl NativeSessionState {
             Some(marker.anchor().tab_id()),
             Some(setup.target.selected.index()),
             None,
+            None,
         )
     }
 

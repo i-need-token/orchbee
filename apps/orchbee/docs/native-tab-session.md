@@ -2482,3 +2482,90 @@ separate accepted ability of bare Open to bootstrap when the Site is still Empty
 closes and joins the task synchronously before the tick returns for drawing. Run
 `cargo test --locked -p orchbee --all-targets --all-features` with the staged local Server/Worker/Host
 cohort. These checks do not establish remote-reference cleanup, restart adoption or general recovery.
+
+## Context removal recovery
+
+A workspace Close owned by another Client removes this session's current context from canonical
+membership. The first visible fact is an ordinary Refresh reply whose validated navigation no
+longer contains the current context id while the surviving standalone context still projects —
+or, for an already retired session, the same shape inside one bounded recovery attempt. Snapshot
+absence is membership knowledge, not cleanup evidence; nothing in this entry relaxes the real
+Detach lifecycle.
+
+Every candidate snapshot classifies before it commits. `Candidate` keeps the ordinary membership
+path: the current context still projects. `Removed` requires the full conjunction — validated
+envelope, unchanged Site, nondecreasing revision, the current context id absent from every
+navigation entry, the surviving standalone projecting, the removed context's creation provenance
+carrying no `Pending`/`OutcomeUnknown`, and every structural guard quiet — no pending mutation,
+commit, setup, cleanup handoff, retired attempt, in-flight Create/Close or live
+Read/Poll/Move ownership. Only `Removed` mints a
+`ContextRemovalPermit{generation, removed, landing, revision}`; it lives as a bounded private
+field inside the prepared candidate, never on ambient session state, and is spent exactly once
+by the install it authorizes. `Divergent` — wrong site, regressed revision, malformed navigation
+or the old context id still present elsewhere — and every guard failure retire truthfully
+without touching canonical state.
+
+With viewers alive the session never installs first: it stages the exact membership cleanup
+under `ReconcilingMembership`, keeping the old cache, desired pane and mailbox epoch so the
+executor detaches the removed epoch and nothing else. The workspace close published every member
+`Disposed` before the deletion became visible, so each ordinary `Detach` receives `Detached`;
+a stale worker releases its slot once and reports `Unavailable`; transport failure likewise
+fails the cleanup. `MembershipDetached` then installs the pending candidate copy inside the
+exact-cleanup transaction — old anchor records drop, desired commits to the landing pane or to
+`Empty`, and the retained-context update skips reinserting the removed cache while preserving
+every other context's `Pending`/`OutcomeUnknown` evidence entry. Any cleanup failure, expiry or
+rejected install retires with no fabricated `Detached` proof, no retired origin and no partial
+landing.
+
+Without viewers the install gate already requires a clean pane set: `attached` empty and no
+stray `projected`/`staged`/`accepted` record — the direct leg installs unchanged. A flagged
+record without a viewer has nothing to `Detach` and must not land; it retires honestly.
+
+`ReconcilingMembership` suppresses Ready-based input admission from staging until the commit
+returns; no new gate or phase is added. An input admitted before staging carries its tagged
+old-pane incarnation and settles only there; after the epoch commit drops old records the same
+input misses its incarnation fence and is dropped — it is never re-tagged to the landing pane.
+
+The retired entry is the existing `Ctrl+B w` recovery composition, not a new origin: only a
+Ready-phase ordinary Poll that returned `TerminalRuntimeUnavailable` plus a clean old-task join
+mints origin evidence. Its bounded attempt — one connection, one refresh flight, its own sampled
+deadline — runs the same classify; a `Removed` result mints a generation-2 permit and installs
+through the same candidate transaction with panes already empty, while divergence, expiry or
+cancellation parks retired. Cleanup-failure retirement mints no origin: external release came
+from the old session and worker actually settling, not from clearing records.
+
+One `needs_recovery_deadlines` sample minted at reply deposit covers staging, cleanup and
+install; it is stored on the cleanup record and never renewed or resampled. The retired attempt
+carries its own separate bounded window.
+
+`NativeClientContextRemoval` owns the checked independent finite entry model. Bounds are two
+distinct context identities (removed and landing), the ordinary and retired-attempt flight
+generations plus stale arrivals, at most two pane records, all four live phases,
+ReconcilingMembership/Retired/Recovering, per-pane `Detached`/`Unavailable`/transport-error
+cleanup results, `Candidate`/`Removed`/`Divergent` classification, clean and dirty provenance
+and guard evidence, a landing context with or without a surviving tab, and stale, late and
+removed-addressed arrivals. Required checks cover install only after canonical cleanup, clean
+direct install, no surviving old attachment, no reinserted removed cache, single-flight permit
+binding and one-shot consumption, no input during cleanup, no cross-epoch tagged input, retired
+entry requiring a clean origin, honest isolation, landing stability, stale results never
+settling, a spent permit never rearming, and eventual settlement to a landing or truthful
+retirement.
+
+Run `node scripts/tla/run-models.mjs --models native-client-context-removal --jobs 1`
+with pinned TLA+ tools 1.7.4 and one worker. The single configuration completed temporal
+checking with an empty state queue and reached all 29 required actions.
+
+| Configuration | Generated / distinct / depth | Model/configuration SHA-256                                    |
+| ------------- | ---------------------------- | ------------------------------------------------------------ |
+| `default`     | 4,119,616 / 855,520 / 23     | `63456d3419b980871bc4d69b29b1bae9f4f346c36d3ddb8b0a600ce92fb2083f` |
+
+Runtime refinement uses the existing refresh reply deposit, membership cleanup, executor Detach
+and candidate install paths unchanged. The classifier refines the model's delivery actions
+through `prepare_context_removal` inside refresh reply deposit; the permit refines to the
+bounded private `context_removal` field on `PreparedMembershipCandidate`, copied by
+`prepare_cleaned_membership_candidate`; `validate_candidate_provenance` gains the permit's
+authorized third branch; `prepare_retained_contexts` skips exactly `permit.removed`; the staged
+cleanup reuses `stage_refresh_membership_cleanup` and `detach_anchor_panes` unchanged; the
+install gates stay the existing exact-cleanup and four-flag rules. Deterministic session-state
+tests cover each classified path and the retired-entry UI tests cover the bounded attempt; the
+composed CLI-to-TUI journey belongs to the workspace-close integration record.

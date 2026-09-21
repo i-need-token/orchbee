@@ -2206,6 +2206,7 @@ fn retryable_two_tab_state(base: Instant) -> NativeSessionState {
             Some(target_key.tab_id()),
             Some(1),
             None,
+            None,
         )
         .unwrap();
     let cleanup = state

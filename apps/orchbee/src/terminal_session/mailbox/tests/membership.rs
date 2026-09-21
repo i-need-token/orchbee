@@ -8,7 +8,7 @@ fn rejected_second_plan_leaves_both_ready_state_and_mailbox_cursor_unchanged() {
     let old_key = canonical.desired().unwrap().clone();
     let candidate = baseline.clone();
     let prepared = canonical
-        .prepare_membership_candidate(candidate, Some(old_key.tab_id()), Some(0), None)
+        .prepare_membership_candidate(candidate, Some(old_key.tab_id()), Some(0), None, None)
         .unwrap();
     let mut locked = mailbox.lock();
     let mut transaction = UiReplyTransaction {

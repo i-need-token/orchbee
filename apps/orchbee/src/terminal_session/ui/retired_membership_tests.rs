@@ -7,7 +7,9 @@ use crate::terminal_session::{
     workbench_projection::project_native_standalone_tabs,
 };
 use orchbee_client_server_protocol::ControllerId;
-use orchbee_workbench_protocol::{Snapshot, WorkbenchSnapshotOutcome};
+use orchbee_workbench_protocol::{
+    PanelNode, Snapshot, WorkbenchSnapshotOutcome, WorkbenchTerminalContextId,
+};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 fn ready(
@@ -64,6 +66,123 @@ fn removed(count: usize) -> Snapshot {
         value.terminal_contexts[0].tabs.remove(0);
     }
     value
+}
+
+/// The origin's whole terminal context is absent: navigation names a
+/// different surviving standalone context whose tabs never reuse the removed
+/// context's identities.
+fn context_removed(count: usize) -> Snapshot {
+    let mut value = snapshot(count.max(1), 2);
+    let landing = WorkbenchTerminalContextId::parse(&format!("{:032x}", 9)).unwrap();
+    value.navigation.standalone_terminal_context_id = landing.clone();
+    let context = &mut value.terminal_contexts[0];
+    context.terminal_context_id = landing;
+    for (index, tab) in context.tabs.iter_mut().enumerate() {
+        let seed = 5_000 + index * 10;
+        tab.tab_id = WorkbenchTabId::parse(&format!("{seed:032x}")).unwrap();
+        let PanelNode::Panel { panel_id, .. } = &mut tab.root else {
+            unreachable!()
+        };
+        *panel_id = WorkbenchPanelId::parse(&format!("{:032x}", seed + 1)).unwrap();
+    }
+    value.terminal_contexts[0].tabs.truncate(count);
+    value
+}
+
+#[test]
+fn removed_origin_context_lands_on_the_surviving_context_and_consumes_the_permit() {
+    for count in [0, 2] {
+        let elapsed = Arc::new(AtomicU64::new(0));
+        let (mut ui, _old, _lease, evidence) = ready(Arc::clone(&elapsed));
+        let old_key = evidence.poll.attachment().clone();
+        retire(&mut ui, Some(evidence), true);
+        let (mailbox, clock, cutoff) = ui.begin_retired_membership_recovery().unwrap();
+        let lease = mailbox.try_recv().unwrap().unwrap();
+        let QueuedCommand::Refresh(marker) = lease.record() else {
+            panic!("Snapshot flight");
+        };
+        let generation = marker.generation();
+        assert_eq!(
+            mailbox.mark_refresh_in_flight(generation).unwrap(),
+            MutationResult::Applied
+        );
+        let wait = mailbox
+            .publish_refresh_result_before(
+                generation,
+                WorkbenchSnapshotOutcome::Available {
+                    snapshot: context_removed(count),
+                },
+                cutoff,
+                &clock,
+            )
+            .unwrap();
+        ui.tick();
+        let UiReply::Refresh(reply) = mailbox.take_deposited_reply(&wait).unwrap().unwrap() else {
+            panic!("membership settlement")
+        };
+        let state = ui.state.as_ref().unwrap();
+        assert_eq!(
+            state.cache().terminal_context_id(),
+            &WorkbenchTerminalContextId::parse(&format!("{:032x}", 9)).unwrap()
+        );
+        if count == 0 {
+            assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+            assert!(state.desired().is_none());
+        } else {
+            let RefreshDecision::AttachRecovered(target) = reply.decision() else {
+                panic!("landing attach")
+            };
+            assert_eq!(
+                target.selected().key().generation(),
+                old_key.generation() + 1
+            );
+            assert_eq!(state.desired(), Some(target.selected().key()));
+        }
+        // The permit is spent inside this settlement: the attempt marker is
+        // gone, the consumed origin never re-arms, and the removed context
+        // stays absent rather than parking back as retained evidence.
+        assert!(ui.retired_peer_attempt.is_none());
+        assert!(ui.retired_peer.is_none());
+        assert!(ui.retirement_failure.is_none());
+        mailbox.finish_lease(lease).unwrap();
+        ui.retire(CarrierFailure::Closed);
+    }
+}
+
+#[test]
+fn malformed_removal_snapshot_parks_the_attempt_truthfully() {
+    let elapsed = Arc::new(AtomicU64::new(0));
+    let (mut ui, _old, _lease, evidence) = ready(Arc::clone(&elapsed));
+    retire(&mut ui, Some(evidence), true);
+    let baseline = ui.state.as_ref().unwrap().cache().clone();
+    let (mailbox, clock, cutoff) = ui.begin_retired_membership_recovery().unwrap();
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    let QueuedCommand::Refresh(marker) = lease.record() else {
+        panic!("Snapshot flight");
+    };
+    mailbox.mark_refresh_in_flight(marker.generation()).unwrap();
+    // Navigation still names the removed context as standalone while the
+    // context payload is gone — never a permit, never a landing.
+    let mut broken = context_removed(1);
+    broken.navigation.standalone_terminal_context_id =
+        WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap();
+    mailbox
+        .publish_refresh_result_before(
+            marker.generation(),
+            WorkbenchSnapshotOutcome::Available { snapshot: broken },
+            cutoff,
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert_eq!(
+        ui.retirement_failure,
+        Some(CarrierFailure::AuthorityDivergence)
+    );
+    assert_eq!(ui.state.as_ref().unwrap().cache(), &baseline);
+    assert!(ui.retired_peer.is_some());
+    mailbox.finish_lease(lease).unwrap();
+    ui.retire(CarrierFailure::Closed);
 }
 
 #[test]

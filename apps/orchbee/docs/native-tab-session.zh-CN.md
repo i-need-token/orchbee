@@ -2050,3 +2050,74 @@ shell PID 和 shell 局部标记。这不改变 Site 仍为 Empty 时裸 Open �
 准备本地 Server／Worker／Host cohort 后，运行
 `cargo test --locked -p orchbee --all-targets --all-features`。
 这些检查不证明远端引用清理、重启接管或通用恢复。
+
+## 上下文删除恢复
+
+另一个 Client 持有的 workspace Close 会把本会话的当前上下文从规范成员关系中删除。首个可见
+事实是一条普通 Refresh 回复：其经校验的导航不再包含当前上下文 id，而存活的 standalone
+上下文仍可投影——对已经退休的会话，则是在一次有界恢复尝试内看到同样的形态。Snapshot
+中的缺席是成员关系知识，不是清理证据；本入口不放松真实的 Detach 生命周期。
+
+每个候选 Snapshot 在提交前先做分类。`Candidate` 保持普通成员路径：当前上下文仍可投影。
+`Removed` 要求全部条件同时成立——envelope 校验通过、Site 不变、revision 不回退、当前上下文
+id 从所有导航条目中缺席、存活 standalone 可投影、被删上下文的创建 provenance 不含
+`Pending`/`OutcomeUnknown`，且全部结构守卫静默——没有 pending mutation、commit、setup、
+cleanup 交接、退休尝试、在飞 Create/Close 或活跃的 Read/Poll/Move 占用。只有 `Removed`
+才铸造 `ContextRemovalPermit{generation, removed, landing, revision}`；它以有界私有字段
+存放在 prepared candidate 内，绝不落在会话环境状态上，并恰被其授权的 install 消费一次。
+`Divergent`——Site 错误、revision 回退、导航畸形或旧上下文 id 仍在别处——以及任何守卫
+失败都如实退休，不触碰规范状态。
+
+viewer 仍存活时本会话绝不先装：先在 `ReconcilingMembership` 下 stage 精确成员清理，保留
+旧 cache、desired pane 和 mailbox 代次，使 executor 只 detach 被删代次。workspace close 在
+删除可见之前已发布所有成员 `Disposed`，因此每个普通 `Detach` 都收到 `Detached`；陈旧
+worker 释放其槽位一次并报告 `Unavailable`；传输失败同样使清理失败。随后
+`MembershipDetached` 在精确清理事务内安装 pending 候选副本——旧 anchor 记录丢弃、desired
+提交到落点 pane 或 `Empty`，retained 上下文更新跳过把被删 cache 重新插入，同时保留其它
+上下文每条 `Pending`/`OutcomeUnknown` 证据条目。任何清理失败、过期或 install 拒绝都如实
+退休：没有捏造的 `Detached` 证明、没有退休 origin、没有部分落点。
+
+没有 viewer 时 install 门已要求干净的 pane 集合：`attached` 为空且无游离的
+`projected`/`staged`/`accepted` 记录——直装腿原样安装。带标志但无 viewer 的记录没有可
+`Detach` 的对象，不得落点；如实退休。
+
+`ReconcilingMembership` 从 stage 到提交返回为止抑制基于 Ready 的输入准入；不新增门或
+相位。stage 前已准入的输入携带其 tagged 旧 pane incarnation，只能在该 pane 结算；代次
+提交丢弃旧记录后，同一输入因 incarnation 栅栏未命中而被丢弃——绝不重定向到落点 pane。
+
+退休入口复用既有 `Ctrl+B w` 恢复组合，不是新 origin：只有 Ready 相位普通 Poll 返回
+`TerminalRuntimeUnavailable` 加上干净的旧 task join 才铸造 origin 证据。其有界尝试——
+一条连接、一次 refresh 飞行、自身采样期限——跑同一 classify；`Removed` 结果铸造
+generation-2 许可，并在 pane 已空的情况下经同一候选事务安装；divergence、过期或取消则
+停泊退休。清理失败的退休不铸造 origin：外部释放来自旧会话与 worker 的真实结算，而不是
+清空记录。
+
+一次 `needs_recovery_deadlines` 采样在回复 deposit 时铸造，覆盖 stage、清理与 install；
+存于 cleanup 记录上，绝不续期或重采样。退休尝试携带其独立有界窗口。
+
+`NativeClientContextRemoval` 拥有已检查的独立有限入口模型。界为两个不同上下文身份
+（被删与落点）、普通与退休尝试飞行代次加陈旧到达、至多两条 pane 记录、全部四种 live
+相位、ReconcilingMembership/Retired/Recovering、逐 pane `Detached`/`Unavailable`/传输
+错误清理结果、`Candidate`/`Removed`/`Divergent` 分类、干净与脏 provenance 及守卫证据、
+有无存活 tab 的落点上下文，以及陈旧、迟到与指向已删上下文的到达。必需检查覆盖：install
+仅在规范清理完成后、直装仅限干净状态、无残留旧 attachment、被删 cache 不被重新插入、
+许可绑定单次飞行且一次消费、清理期无输入、无跨代次 tagged 输入、退休入口要求干净
+origin、诚实隔离、落点稳定、陈旧结果绝不结算、已花费许可绝不重装，以及最终落到落点
+或如实退休。
+
+运行 `node scripts/tla/run-models.mjs --models native-client-context-removal --jobs 1`，
+使用 pinned TLA+ tools 1.7.4 与单 worker。单个配置完成时态检查且状态队列为空，覆盖全部
+29 个必需 action。
+
+| 配置        | 生成 / 去重 / 深度           | 模型/配置 SHA-256                                              |
+| ----------- | ---------------------------- | ------------------------------------------------------------ |
+| `default`   | 4,119,616 / 855,520 / 23     | `63456d3419b980871bc4d69b29b1bae9f4f346c36d3ddb8b0a600ce92fb2083f` |
+
+运行时精化沿用既有 refresh 回复 deposit、成员清理、executor Detach 与候选 install 路径
+不变。分类器经 refresh 回复 deposit 内的 `prepare_context_removal` 精化模型的投递
+action；许可精化为 `PreparedMembershipCandidate` 上有界私有 `context_removal` 字段，由
+`prepare_cleaned_membership_candidate` 复制；`validate_candidate_provenance` 增加许可
+授权的第三分支；`prepare_retained_contexts` 恰好跳过 `permit.removed`；staged 清理原样
+复用 `stage_refresh_membership_cleanup` 与 `detach_anchor_panes`；install 门保持既有
+精确清理与四标志规则。确定性 session-state 测试覆盖各分类路径，retired 入口 UI 测试
+覆盖有界尝试；CLI→TUI 组合旅程属于 workspace-close 集成记录。

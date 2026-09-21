@@ -101,7 +101,36 @@ impl NativeSessionState {
         {
             return Err(CarrierFailure::AuthorityDivergence);
         }
-        self.prepare_membership_candidate(candidate, None, Some(origin.ordinal), None)
+        self.prepare_membership_candidate(candidate, None, Some(origin.ordinal), None, None)
+    }
+
+    /// The retired-attempt variant of the removal classifier: the same landing
+    /// evidence, guarded by the exact retired origin — panes are already empty
+    /// because the old session and worker actually settled, not because
+    /// records were cleared. The permit binds the attempt generation.
+    pub(in crate::terminal_session) fn prepare_retired_context_removal(
+        &self,
+        origin: &RetiredMembershipOrigin,
+        generation: u64,
+        snapshot: &orchbee_workbench_protocol::Snapshot,
+    ) -> Result<PreparedMembershipCandidate, CarrierFailure> {
+        if !self.retired_membership_origin_matches(origin) || generation == 0 {
+            return Err(CarrierFailure::Protocol);
+        }
+        if !self.context_removal_evidence_hold() {
+            return Err(CarrierFailure::AuthorityDivergence);
+        }
+        let Some(candidate) = self.removed_context_landing(snapshot) else {
+            return Err(CarrierFailure::AuthorityDivergence);
+        };
+        if candidate
+            .tab_index(origin.evidence.poll.pane().anchor().tab_id())
+            .is_some()
+        {
+            return Err(CarrierFailure::AuthorityDivergence);
+        }
+        let permit = self.mint_context_removal_permit(generation, &candidate);
+        self.prepare_membership_candidate(candidate, None, Some(origin.ordinal), None, Some(permit))
     }
 
     pub(in crate::terminal_session) fn prepare_retired_membership_install(
@@ -112,7 +141,12 @@ impl NativeSessionState {
         desired: Option<AttachmentKey>,
         deadlines: OperationDeadlines,
     ) -> Result<super::membership::PreparedMembershipInstall<'_>, CarrierFailure> {
-        if !self.retired_membership_origin_matches(origin) || generation == 0 {
+        if !self.retired_membership_origin_matches(origin)
+            || generation == 0
+            || prepared
+                .context_removal()
+                .is_some_and(|permit| permit.generation() != generation)
+        {
             return Err(CarrierFailure::Protocol);
         }
         self.prepare_retired_membership_install_inner(prepared, desired, deadlines, generation)

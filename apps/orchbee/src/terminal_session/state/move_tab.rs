@@ -337,6 +337,7 @@ impl NativeSessionState {
             Some(operation.target.tab_id()),
             operation.baseline.tab_index(operation.target.tab_id()),
             None,
+            None,
         ) {
             Ok(mut prepared) => {
                 if let Some(panel_index) = leaf_repair {

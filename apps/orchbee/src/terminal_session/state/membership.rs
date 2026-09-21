@@ -1,7 +1,7 @@
 use super::{
     AttachTarget, AttachmentKey, CarrierFailure, CreateTerminalProvenance, NativeContextTabs,
     NativeSessionState, OperationDeadlines, PaneKey, SelectedTab, SessionPhase, SwitchSetup,
-    WorkbenchTabId,
+    WorkbenchTabId, context_removal::ContextRemovalPermit,
 };
 mod close;
 use crate::terminal_session::NativePanel;
@@ -69,9 +69,17 @@ pub(in crate::terminal_session) struct PreparedMembershipCandidate {
     selected_panel: Option<usize>,
     retained_contexts: Option<Vec<super::context_selection::RetainedContext>>,
     setup_completion: Option<Box<super::workspace_setup::PreparedSetupCompletion>>,
+    /// One-shot cross-context install authority minted by the removal
+    /// classifier; `None` on every ordinary candidate. Bounded, private and
+    /// consumed by the single install it authorizes.
+    context_removal: Option<ContextRemovalPermit>,
 }
 
 impl PreparedMembershipCandidate {
+    pub(in crate::terminal_session) fn context_removal(&self) -> Option<&ContextRemovalPermit> {
+        self.context_removal.as_ref()
+    }
+
     pub(in crate::terminal_session) fn preserves_selection(&self) -> bool {
         self.selected_panel.is_none()
             && self.candidate.location() == self.baseline.location()
@@ -411,11 +419,12 @@ impl NativeSessionState {
         preferred_tab: Option<&WorkbenchTabId>,
         historical_ordinal: Option<usize>,
         creator: Option<(&WorkbenchTabId, CreateTerminalProvenance)>,
+        context_removal: Option<ContextRemovalPermit>,
     ) -> Result<PreparedMembershipCandidate, CarrierFailure> {
         if !self.invariant_holds() {
             return Err(CarrierFailure::Protocol);
         }
-        let baseline = self.validate_candidate_provenance(&candidate)?;
+        let baseline = self.validate_candidate_provenance(&candidate, context_removal.as_ref())?;
         let selected_index = preferred_tab
             .and_then(|tab| candidate.tab_index(tab))
             .or_else(|| {
@@ -442,7 +451,7 @@ impl NativeSessionState {
             })
             .collect();
         Ok(PreparedMembershipCandidate {
-            retained_contexts: self.prepare_retained_contexts(&candidate),
+            retained_contexts: self.prepare_retained_contexts(&candidate, context_removal.as_ref()),
             setup_completion: self.prepare_setup_completion(&candidate),
             baseline: self.cache.clone(),
             baseline_desired: self.desired.clone(),
@@ -450,6 +459,7 @@ impl NativeSessionState {
             provenance,
             selected_index,
             selected_panel: None,
+            context_removal,
         })
     }
 
@@ -681,6 +691,10 @@ impl NativeSessionState {
             || self.cache != prepared.baseline
             || self.desired != prepared.baseline_desired
             || prepared.preserves_selection()
+            || prepared
+                .context_removal
+                .as_ref()
+                .is_some_and(|permit| permit.generation() != generation)
         {
             return Err(CarrierFailure::Protocol);
         }
@@ -788,6 +802,7 @@ impl NativeSessionState {
             selected_panel: prepared.selected_panel,
             retained_contexts: prepared.retained_contexts.clone(),
             setup_completion: prepared.setup_completion.clone(),
+            context_removal: prepared.context_removal.clone(),
         })
     }
 
@@ -1174,7 +1189,12 @@ impl NativeSessionState {
         desired: Option<AttachmentKey>,
         deadlines: Option<OperationDeadlines>,
     ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
-        if self.pending_refresh_generation() != Some(generation) {
+        if self.pending_refresh_generation() != Some(generation)
+            || prepared
+                .context_removal
+                .as_ref()
+                .is_some_and(|permit| permit.generation() != generation)
+        {
             return Err(CarrierFailure::Protocol);
         }
         let mut plan = self.prepare_membership_install(prepared, desired, deadlines)?;

@@ -345,6 +345,7 @@ impl NativeSessionState {
                         .flatten(),
                     self.active().filter(|_| same).map(SelectedTab::index),
                     None,
+                    None,
                 )
                 .ok()
             });

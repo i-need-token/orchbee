@@ -24,7 +24,7 @@ impl NativeSessionState {
             .map_err(|_| CarrierFailure::AuthorityDivergence)?;
         let selected = self.desired.as_ref().map(|key| key.anchor().tab_id());
         let ordinal = selected.and_then(|tab| self.cache.tab_index(tab));
-        self.prepare_membership_candidate(candidate, selected, ordinal, None)
+        self.prepare_membership_candidate(candidate, selected, ordinal, None, None)
             .map(Some)
     }
 

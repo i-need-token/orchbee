@@ -248,7 +248,13 @@ fn rename_latest_ui_known_receipt_survives_b_admission_and_replaces_before_falli
     snapshot.terminal_contexts[0].tabs[0].label = "A".into();
     let candidate = project_native_standalone_tabs(&snapshot).unwrap();
     let candidate = state
-        .prepare_membership_candidate(candidate, Some(first.target().tab_id()), Some(0), None)
+        .prepare_membership_candidate(
+            candidate,
+            Some(first.target().tab_id()),
+            Some(0),
+            None,
+            None,
+        )
         .unwrap();
     state
         .prepare_rename_membership_install(
