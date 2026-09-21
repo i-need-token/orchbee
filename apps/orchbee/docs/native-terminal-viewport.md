@@ -90,6 +90,15 @@ regression retires the carrier as a protocol fault. Kind-53 records never re-run
   above the last issued sequence — issued, admitted, or cancelled alike — and only a genuinely
   new attachment incarnation resets it. Kind-53 event sequences are an independent domain.
   Exhaustion is a terminal fault, never a wraparound.
+- Mint and admission are separate steps. The core stages at most one un-admitted step in
+  `pending_commands`; `next_read_sequence` is consumed at mint, so a staged step that recovery
+  or resize later replaces leaves an honest gap — issued sequences are never reissued. The read
+  flight and the acknowledgement lifecycle bind only when the step is admitted
+  (`command_admitted`); admitted commands are irrevocable and execute in order, and recovery
+  clears their flight state at its own admission rather than at the decision. Every executed
+  command publishes exactly one typed outcome; at most one outcome waits published while a
+  second computed result waits behind it — a published outcome never blocks the next command's
+  execution.
 - At most one `RowsApplied` acknowledgement is in flight — emitted only after a window passed all
   install gates. While a read is in flight, or an acknowledgement is pending or in flight, no new
   read is emitted; navigation intent coalesces instead.
@@ -129,7 +138,9 @@ enters recovery the same way.
 
 Ordinary keyboard input while the focus pane is non-Live queues `Recover` first; the byte is
 forwarded as one `Input` command for the exact same `PaneRef` only after the recovery command was
-admitted — never between the two demand legs, never replayed after a refusal. `Recovering` panes
+admitted — never between the two demand legs, never replayed after a refusal. If the wire has
+room for the Recover alone the byte drops with the recovery still admitted; with no room at all
+the Recover stays staged and the byte drops — a dropped byte is never replayed. `Recovering` panes
 forward the byte immediately (recovery is already admitted). Non-Live panes consume the history
 navigation keys (`PageUp`, `PageDown`, `Home`, `End`, `Esc`) and mouse wheel locally; a Live pane
 keeps full application input and mouse tracking. `Ctrl+B PageUp` enters history while help keeps
@@ -156,7 +167,10 @@ returns to live output.
 
 ## Invariants
 
-- `OneReadFlight`: at most one read in flight; host pending is never double-occupied.
+- `OneReadFlight`: at most one admitted read in flight; host pending is never double-occupied.
+- `SingleStagedStep`: at most one un-admitted step waits in the staged slot.
+- `OrderedNonreusedReads`: minted read sequences are never reissued, and no read sequence still
+  on the wire — staged, admitted, or produced — overtakes the live flight.
 - `AckAfterInstall`: `RowsApplied` only for an installed window, matching sequence, exactly once.
 - `CommittedOnlyAfterAck`: `Committed` reads require an accepted acknowledgement.
 - `NoReadWhileAck`: no read while an acknowledgement is pending or in flight.
@@ -183,7 +197,7 @@ returns to live output.
 | `tui_pointer.rs`                            | `PointerProbe.viewport_non_live`, non-Live wheel scroll and non-wheel event consumption                                        |
 | `tui_render.rs`, `tui_render/viewport.rs`   | Plain-text window painter, indicators, position/hint bottom line, generation/column fencing                                    |
 | `localization.rs`                           | History notices, indicators, position, and hint strings (en/zh)                                                                |
-| `formal/tla/TerminalClientViewport.tla`     | State-machine model covering blockage, watermark, events, silence, bounds, and recovery; registered in `scripts/tla/models.json` |
+| `formal/tla/TerminalClientViewport.tla`     | State-machine model covering blockage, watermark, staged admission, typed outcomes, events, silence, bounds, and recovery; registered in `scripts/tla/models.json` |
 
 ## Verification
 
@@ -193,5 +207,5 @@ returns to live output.
 | Adversarial sequences   | Deterministic trace tests — stray/foreign/stale windows, typed stale retry, halving, ack rejection, bottom exit, absolute jump                          |
 | Input boundary          | `client_view` tests — `Ctrl+B PageUp` → `EnterHistory`, help precedence; dispatcher consumption is exercised through the port default                   |
 | Rendering               | Surface fencing is owned by the core (`surface()` re-validates generation/columns); painter coverage rides the shell render paths                       |
-| Outcome notice seam     | `ui/viewport_tests` — `publish_notice_before` → `take_event_before` → `apply_viewport_outcome` regression keeps the protocol open and advances the Entering core |
-| Model                   | `formal/tla/TerminalClientViewport.tla` + `.cfg` registered in `scripts/tla/models.json`; the mechanical `ConsumeRecovered`/`ExecuteAck`/`ResetCore` corrections are mapped but TLC remains pending with the gate owner |
+| Outcome notice seam     | `ui/viewport_tests` — `publish_notice_before` → `take_event_before` → `apply_viewport_outcome` regression keeps the protocol open; the state-neutral applied Enter leaves the Entering core intact |
+| Model                   | `formal/tla/TerminalClientViewport.tla` + `.cfg` registered in `scripts/tla/models.json`; the staged-admission and typed-outcome revision with the admission-edge flight property is mapped but TLC remains pending with the gate owner |

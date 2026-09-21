@@ -513,8 +513,8 @@ fn fresh_incarnation_restarts_the_sequence_domain() {
 // publish → take → apply seam: `publish_notice_before` deposits it with no
 // wait key, `ui.tick`'s `take_event_before` must hand it to
 // `apply_viewport_outcome` instead of faulting the mailbox closed, and the
-// applied Enter keeps the Entering core — whose next facts stage the entry
-// Read — proving the outcome advanced state. Regression for the take-side
+// applied Enter is state-neutral — it leaves the Entering core in place so
+// the next facts still stage the entry Read. Regression for the take-side
 // whitelist that used to accept only pane detach/failure notices and
 // protocol-closed on every legitimate lookback result.
 #[test]
@@ -552,8 +552,8 @@ fn viewport_outcome_notice_survives_publish_take_apply() {
     );
     drain(&mailbox);
 
-    // The outcome genuinely advanced state: the Entering core's read
-    // demand stages the entry read once facts arrive.
+    // The applied outcome changed nothing itself; the surviving Entering
+    // core's read demand still stages the entry read once facts arrive.
     assert_eq!(staged_read_sequence(&mut ui, &mailbox, &key, 1, 1), 1);
 }
 

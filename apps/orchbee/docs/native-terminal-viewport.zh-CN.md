@@ -84,6 +84,12 @@ incarnation 与活动 attachment 的规范记录，且结果的 attachment 与�
   `KeyedProjection` 所有、跨 viewport 会话保留：重新进入的历史会话严格高于最后发出的
   序号续接——已发出、已受理或已取消的皆然——只有真正的新 attachment incarnation 才
   归零。kind-53 事件序号是独立域。耗尽是终态故障，绝不回绕。
+- 铸造与受理是两个独立步骤。核心在 `pending_commands` 中至多暂存一个未受理步骤；
+  `next_read_sequence` 在铸造时即被消耗，因此暂存步骤若随后被恢复或 resize 替换会留下
+  真实空号——已发出的序号绝不重发。read 在途与应答生命周期仅在步骤被受理
+  （`command_admitted`）时绑定；已受理命令不可撤销、按序执行，恢复在自身被受理时才清除
+  在途状态，而不是在决定时。每条已执行命令恰好发布一个有类型的结果；至多一个结果已发布
+  等待、第二个已算出的结果在其后等待——已发布的结果绝不阻塞下一条命令的执行。
 - 至多一个在途 `RowsApplied` 应答——仅在窗口通过全部安装闸门后发出。read 在途、或应答
   待受理或在途期间，不发出新 read；导航意图改为合并。
 - 窗口安装闸门依序：解码合法；attachment 与 host epoch 匹配；匹配当前活动 read 序号；
@@ -114,8 +120,9 @@ kind-53 事件仍经其自有通道精确应答一次。`Recovering`
 ## 输入排序
 
 焦点窗格非 Live 时的普通键盘输入先排队 `Recover`；仅当恢复命令被受理后，该字节才以同一
-`PaneRef` 的单个 `Input` 命令转发——绝不在两条 demand 腿之间插入，拒绝后绝不重放。
-`Recovering` 窗格直接转发该字节（恢复已受理）。非 Live 窗格本地消费历史导航键
+`PaneRef` 的单个 `Input` 命令转发——绝不在两条 demand 腿之间插入，拒绝后绝不重放。若
+线路只容得下 Recover，则恢复照常受理而该字节丢弃；若毫无余量，则 Recover 保持暂存而该
+字节丢弃——被丢弃的字节绝不重放。`Recovering` 窗格直接转发该字节（恢复已受理）。非 Live 窗格本地消费历史导航键
 （`PageUp`、`PageDown`、`Home`、`End`、`Esc`）与鼠标滚轮；Live 窗格保留完整的应用输入
 与鼠标跟踪。`Ctrl+B PageUp` 进入历史；help 打开时 `PageUp` 仍归 help。
 
@@ -135,7 +142,10 @@ kind-53 事件仍经其自有通道精确应答一次。`Recovering`
 
 ## 不变式
 
-- `OneReadFlight`：至多一个在途 read；宿主 pending 绝不被二次占用。
+- `OneReadFlight`：至多一个已受理的在途 read；宿主 pending 绝不被二次占用。
+- `SingleStagedStep`：暂存槽位至多存放一个未受理步骤。
+- `OrderedNonreusedReads`：已铸造的 read 序号绝不重发；线路上尚存的任何 read 序号——
+  暂存、已受理或已产出——都不超过当前在途 flight。
 - `AckAfterInstall`：`RowsApplied` 只对已安装窗口、匹配序号、精确一次。
 - `CommittedOnlyAfterAck`：`Committed` read 要求已受理的应答。
 - `NoReadWhileAck`：应答待受理或在途期间不发出 read。
@@ -161,7 +171,7 @@ kind-53 事件仍经其自有通道精确应答一次。`Recovering`
 | `tui_pointer.rs`                           | `PointerProbe.viewport_non_live`、非 Live wheel 滚动与非滚轮事件消费                                                          |
 | `tui_render.rs`、`tui_render/viewport.rs`   | 纯文本窗口画笔、指示、位置/提示末行、generation/列围栏                                                                       |
 | `localization.rs`                          | 历史提示、指示、位置与提示字符串（en/zh）                                                                                    |
-| `formal/tla/TerminalClientViewport.tla`    | 覆盖阻塞、水位、事件、静默、界限与恢复的状态机模型；注册于 `scripts/tla/models.json`                                          |
+| `formal/tla/TerminalClientViewport.tla`    | 覆盖阻塞、水位、暂存受理、有类型结果、事件、静默、界限与恢复的状态机模型；注册于 `scripts/tla/models.json`                                          |
 
 ## 验证
 
@@ -171,5 +181,5 @@ kind-53 事件仍经其自有通道精确应答一次。`Recovering`
 | 对抗序列                  | 确定性 trace 测试 — 流浪/外来/陈旧窗口、带类型 stale 重试、减半、ack 拒绝、底部退出、绝对跳转                                                      |
 | 输入边界                  | `client_view` 测试 — `Ctrl+B PageUp` → `EnterHistory`、help 优先级；dispatcher 消费经端口缺省路径验证                                              |
 | 呈现                      | surface 围栏归核心所有（`surface()` 每次复核 generation/列数）；画笔覆盖随 shell 渲染路径                                                          |
-| 结果通知接缝               | `ui/viewport_tests` — `publish_notice_before` → `take_event_before` → `apply_viewport_outcome` 回归保持协议开放并推进 Entering 核心               |
-| 模型                      | `formal/tla/TerminalClientViewport.tla` + `.cfg` 注册于 `scripts/tla/models.json`；`ConsumeRecovered`/`ExecuteAck`/`ResetCore` 机械修正已映射，TLC 仍由门禁负责人待跑 |
+| 结果通知接缝               | `ui/viewport_tests` — `publish_notice_before` → `take_event_before` → `apply_viewport_outcome` 回归保持协议开放；状态中性的 applied Enter 使 Entering 核心保持不变 |
+| 模型                      | `formal/tla/TerminalClientViewport.tla` + `.cfg` 注册于 `scripts/tla/models.json`；暂存受理与有类型结果修订及受理边界 flight 性质已映射，TLC 仍由门禁负责人待跑 |
