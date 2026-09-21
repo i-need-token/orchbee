@@ -352,7 +352,7 @@
 				"attempt": "conflict",
 				"commands": [],
 				"fsEffect": {"kind": "none", "residue": "staged container removed by finally clause"},
-				"cli": {"exit": 3, "frontier": "post-effect", "note": "re-inspection after staging found a different state → abort; staged residue cleaned; exit 3 when the new state is conflict else failed→9"}
+				"cli": {"exit": 9, "frontier": "post-effect", "note": "re-inspection after staging found a different state → abort; staged residue cleaned; the frontier was already crossed so a determinate refusal is failed→9, never the pre-effect conflict class"}
 			},
 			"anchors": ["guarded-adapter:165-183"],
 			"notes": "The staged entry is created BEFORE re-verifying the target state; a mid-window change aborts without touching the target."

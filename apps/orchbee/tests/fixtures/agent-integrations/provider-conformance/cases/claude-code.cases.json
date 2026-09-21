@@ -2287,6 +2287,94 @@
 			"notes": "Budget/deadline gate: per-invocation budget spent by the two inspection reads; mutation plan never issued. Exit 7 is distinct from post-effect timeout (exit 8)."
 		},
 		{
+			"id": "claude-code.enable.capsule-published-then-conflict",
+			"operation": "enable",
+			"class": "cli-divergence",
+			"covers": ["refusal", "conflict", "capsule-frontier"],
+			"dims": {
+				"state": "conflict",
+				"marketplace": "foreign",
+				"capsule": "unpublished → published this invocation"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "unpublished",
+				"commands": [
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": {"kind": "completed", "stdoutJson": "@claude.plugins.enabled"}
+					},
+					{
+						"argv": ["plugin", "marketplace", "list", "--json"],
+						"result": {"kind": "completed", "stdoutJson": "@claude.marketplace.foreign"}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "conflict",
+				"commands": [
+					["plugin", "list", "--json"],
+					["plugin", "marketplace", "list", "--json"]
+				],
+				"planCommands": [],
+				"mustNotMutate": true,
+				"cli": {
+					"exit": 9,
+					"frontier": "post-effect",
+					"observedProvenance": "post-effect",
+					"attemptedSteps": ["publish-capsule"],
+					"note": "the capsule publish already ran — the conflict refusal is determinate post-effect (9), never the pre-effect conflict class, and the snapshot it rode in on is post-effect observation"
+				}
+			},
+			"anchors": ["create-adapters:216", "design:complete53§6"],
+			"notes": "Counterexample pair of conflict-refused: identical provider reads, but the capsule frontier was crossed first — the same Refusal::Conflict cannot pass through exit 3."
+		},
+		{
+			"id": "claude-code.enable.capsule-published-then-deadline",
+			"operation": "enable",
+			"class": "cli-divergence",
+			"covers": ["timeout", "budget-deadline", "capsule-frontier"],
+			"dims": {
+				"capsule": "unpublished → published this invocation",
+				"budget": "deadline consumed by inspection reads after the publish"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "unpublished",
+				"deadlineMs": 3000,
+				"commands": [
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": {"kind": "timed-out"}
+					},
+					{
+						"argv": ["plugin", "marketplace", "list", "--json"],
+						"result": {"kind": "timed-out"}
+					}
+				]
+			},
+			"expect": {
+				"attempt": "failed",
+				"commands": [
+					["plugin", "list", "--json"],
+					["plugin", "marketplace", "list", "--json"]
+				],
+				"planCommands": [],
+				"mustNotMutate": true,
+				"cli": {
+					"exit": 8,
+					"frontier": "post-effect",
+					"observedProvenance": "unavailable",
+					"attemptedSteps": ["publish-capsule"],
+					"note": "deadline consumed AFTER the capsule publish — the deadline family stays uncertain (8), never the pre-effect timeout class 7"
+				}
+			},
+			"anchors": ["disposition55:29-44", "design:complete53§6"],
+			"notes": "Counterexample pair of deadline-before-mutation: identical exhausted reads, but the capsule frontier was crossed first — a deadline verdict behind an effect reports 8, not the pre-effect 7."
+		},
+		{
 			"id": "claude-code.enable.partial-completion-recovery",
 			"operation": "enable",
 			"class": "shared",

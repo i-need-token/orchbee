@@ -43,6 +43,11 @@ mod effects52;
 #[cfg(all(test, unix))]
 mod conformance64;
 
+/// The one real process-tree teardown witness for `exec::run_command` —
+/// fake executables only, owned temporary roots, no scripted injection.
+#[cfg(all(test, unix))]
+mod exec_witness;
+
 pub(crate) use model::{IntegrationId, Issue, SnapshotItem, State};
 
 #[cfg(unix)]

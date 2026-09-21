@@ -121,7 +121,7 @@ pub(super) enum Prepared {
 enum Prepared {}
 
 impl Prepared {
-    fn render(self, format: OutputFormat, locale: Locale) -> Output {
+    pub(super) fn render(self, format: OutputFormat, locale: Locale) -> Output {
         let too_large = || {
             failure_output(
                 Failure::new(FailureKind::OutputTooLarge).details(Map::from_iter([(
@@ -396,22 +396,34 @@ fn invocation_id() -> String {
 
 /// The frozen exit map: pre-effect refusals keep their class codes; a
 /// post-effect verdict is determinate-failed (9), observed-conflict (3), or
-/// undetermined (8).
+/// undetermined (8). The frontier is `attempted`: once the capsule publish
+/// or any vector step ran, a refusal named after a pre-effect class is a
+/// determinate post-effect failure (9) — only the deadline family stays
+/// uncertain (8).
 #[cfg(unix)]
 pub(crate) fn mutation_status(report: &MutationReport) -> u8 {
     match report.verdict {
         Verdict::Completed => 0,
-        Verdict::Refused(refusal) => match refusal {
-            Refusal::Conflict | Refusal::StaleSide => 3,
-            Refusal::ManualActionRequired
-            | Refusal::AgentUnavailable
-            | Refusal::CapsuleUnavailable
-            | Refusal::CapsuleUnsupportedVersion => 4,
-            Refusal::Deadline => 7,
-            // An unclassifiable pre-effect state is a determinate failure —
-            // the run refuses without ever falling into an else-vector.
-            Refusal::InspectionFailed => 9,
-        },
+        Verdict::Refused(refusal) => {
+            if !report.attempted.is_empty() {
+                return match refusal {
+                    Refusal::Deadline => 8,
+                    _ => 9,
+                };
+            }
+            match refusal {
+                Refusal::Conflict | Refusal::StaleSide => 3,
+                Refusal::ManualActionRequired
+                | Refusal::AgentUnavailable
+                | Refusal::CapsuleUnavailable
+                | Refusal::CapsuleUnsupportedVersion => 4,
+                Refusal::Deadline => 7,
+                // An unclassifiable pre-effect state is a determinate
+                // failure — the run refuses without ever falling into an
+                // else-vector.
+                Refusal::InspectionFailed => 9,
+            }
+        }
         // A post-effect conflict is a determinate post-effect failure — the
         // pre-effect family 3 is reserved for refusals before any effect.
         Verdict::Failed(code) => match code {

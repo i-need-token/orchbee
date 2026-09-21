@@ -193,7 +193,10 @@ impl FailureCode {
 pub(crate) enum Verdict {
     /// The goal state is observed (or was already true pre-effect).
     Completed,
-    /// Refused before any integration effect.
+    /// The controller refused the goal. Whether the refusal precedes any
+    /// integration effect is told by `attempted`: a nonempty attempted[]
+    /// means the capsule/vector frontier was already crossed and the exit
+    /// map must not emit a pre-effect class.
     Refused(Refusal),
     /// A known post-effect failure.
     Failed(FailureCode),
@@ -326,6 +329,16 @@ pub(crate) fn mutate(
         }
     }
 
+    // Whether the capsule publish step already ran decides what `initial`
+    // proves: a snapshot taken behind an Orchbee-owned effect can never be
+    // reported as admission-before-effect, even when the provider state it
+    // observed predates the provider mutation itself.
+    let initial_provenance = if attempted.is_empty() {
+        Provenance::PreEffect
+    } else {
+        Provenance::PostEffect
+    };
+
     let (initial, detail) = providers::inspect_full(id, context, legacy_roots);
     if cancelled(context) {
         return MutationReport {
@@ -334,7 +347,7 @@ pub(crate) fn mutate(
             attempted,
             residuals,
             observed: Some(initial),
-            provenance: Provenance::PreEffect,
+            provenance: initial_provenance,
             verdict: Verdict::Cancelled,
         };
     }
@@ -371,7 +384,7 @@ pub(crate) fn mutate(
             attempted,
             residuals,
             observed: Some(initial),
-            provenance: Provenance::PreEffect,
+            provenance: initial_provenance,
             verdict: Verdict::Refused(refusal),
         };
     }
@@ -388,7 +401,7 @@ pub(crate) fn mutate(
             attempted,
             residuals,
             observed: Some(initial),
-            provenance: Provenance::PreEffect,
+            provenance: initial_provenance,
             verdict: Verdict::Completed,
         };
     }
@@ -403,7 +416,7 @@ pub(crate) fn mutate(
             attempted,
             residuals,
             observed: Some(initial),
-            provenance: Provenance::PreEffect,
+            provenance: initial_provenance,
             verdict: Verdict::Refused(Refusal::Deadline),
         };
     }
@@ -462,7 +475,7 @@ pub(crate) fn mutate(
             attempted,
             residuals,
             observed: Some(initial),
-            provenance: Provenance::PreEffect,
+            provenance: initial_provenance,
             verdict: Verdict::Cancelled,
         };
     }

@@ -835,8 +835,10 @@ fn run_case(case: &Case) {
     }
 
     // The capsule contract: `ready` materializes the published root AND an
-    // identical valid source; `absent`/`invalid` leaves the root missing
-    // and the source invalid, so a publish is attempted and fails.
+    // identical valid source; `unpublished` leaves the root missing but the
+    // source intact, so publish is attempted and SUCCEEDS — every later
+    // verdict sits behind an Orchbee-owned effect; `absent`/`invalid` leaves
+    // the source invalid, so a publish is attempted and fails.
     match case.capsule.as_str() {
         "ready" => {
             let bundle = case
@@ -855,6 +857,9 @@ fn run_case(case: &Case) {
                 bundle.as_ref(),
                 false,
             );
+        }
+        "unpublished" => {
+            materialize_capsule(&dirs.adapter_source, &[], None, false);
         }
         _ => {
             materialize_capsule(&dirs.adapter_source, &[], None, true);
@@ -977,7 +982,7 @@ fn run_case(case: &Case) {
 #[test]
 fn provider_conformance64_replay() {
     let cases = load_cases();
-    assert_eq!(cases.len(), 244, "frozen corpus is 244 cases");
+    assert_eq!(cases.len(), 246, "frozen corpus is 246 cases");
     let mut failures = Vec::new();
     for case in &cases {
         let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_case(case)));

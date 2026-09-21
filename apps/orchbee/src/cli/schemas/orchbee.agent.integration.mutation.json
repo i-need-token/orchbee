@@ -44,7 +44,7 @@
 					]
 				},
 				"direction": { "enum": ["enable", "disable"] },
-				"outcome": { "enum": ["completed", "refused", "failed", "unknown"] },
+				"outcome": { "enum": ["completed", "refused", "failed", "unknown", "cancelled"] },
 				"failure": {
 					"type": "object",
 					"required": ["code"],

@@ -677,3 +677,46 @@ fn integration_signal_install_failure_refuses_before_effects() {
         "the armed fault is one-shot; install itself stays healthy"
     );
 }
+
+/// A cancelled integration mutation projects `outcome:"cancelled"` — the
+/// schema must accept the real emitted document and the exit stays 130.
+/// The report is an entry-gate cancel: no attempted step, no observation.
+#[cfg(unix)]
+#[test]
+fn integration_cancelled_mutation_document_validates_against_schema() {
+    use super::integration::Prepared;
+    use crate::agent_integrations::model::Provenance;
+    use crate::agent_integrations::{Direction, IntegrationId, MutationReport, Verdict};
+
+    let report = MutationReport {
+        integration_id: IntegrationId::ClaudeCode,
+        direction: Direction::Enable,
+        attempted: vec![],
+        residuals: vec![],
+        observed: None,
+        provenance: Provenance::PreEffect,
+        verdict: Verdict::Cancelled,
+    };
+    let output = Prepared::Mutation { report }.render(OutputFormat::Json, Locale::EnUs);
+    assert_eq!(output.status, 130, "cancelled keeps exit 130");
+    let document: Value = serde_json::from_slice(&output.stdout).expect("mutation JSON");
+    assert_eq!(document["result"]["outcome"], "cancelled");
+
+    let schema: Value = serde_json::from_str(include_str!(
+        "schemas/orchbee.agent.integration.mutation.json"
+    ))
+    .expect("mutation schema parses");
+    let validator = jsonschema::draft202012::new(&schema).expect("schema compiles");
+    assert!(
+        validator.is_valid(&document),
+        "real cancelled projection must validate: {document}"
+    );
+
+    // The vocabulary stays closed — an unknown outcome word is rejected.
+    let mut bad = document.clone();
+    bad["result"]["outcome"] = json!("aborted");
+    assert!(
+        !validator.is_valid(&bad),
+        "a non-vocabulary outcome must fail the schema"
+    );
+}
