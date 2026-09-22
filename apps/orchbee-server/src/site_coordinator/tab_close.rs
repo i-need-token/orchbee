@@ -67,7 +67,7 @@ impl SiteCoordinator {
             Ok(runtimes) => runtimes,
             Err(reason) => return Some(admission.runtime_unavailable(reason)),
         };
-        Some(match admission.finish_members(runtimes, now) {
+        Some(match admission.finish_resolved_members(runtimes, now) {
             WorkbenchTabClosePreparation::Ready(result) => result,
             WorkbenchTabClosePreparation::Prepared(prepared) => prepared.commit(),
         })
@@ -117,7 +117,7 @@ impl SiteCoordinator {
             Ok(runtimes) => runtimes,
             Err(reason) => return Some(admission.runtime_unavailable(reason)),
         };
-        Some(match admission.finish_members(runtimes, now) {
+        Some(match admission.finish_resolved_members(runtimes, now) {
             WorkbenchTabClosePreparation::Ready(result) => result,
             WorkbenchTabClosePreparation::Prepared(prepared) => prepared.commit(),
         })
@@ -301,7 +301,7 @@ impl SiteCoordinator {
             ..
         } = self;
         let workbench = workbench.as_mut().ok_or(PostcommitCoordinationError)?;
-        let runtime = target.runtime();
+        let runtime = target.runtime().ok_or(PostcommitCoordinationError)?;
         let generation = workbench
             .terminal_tab_close_generation(close_id)
             .ok_or(PostcommitCoordinationError)?;

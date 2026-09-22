@@ -180,7 +180,11 @@ impl LocalTerminalService {
             *cursor = Some(id.clone());
             match next {
                 CloseContinuationNext::TargetCleanup => {
-                    let runtime = step.target().ok_or(PostcommitCoordinationError)?.runtime();
+                    let runtime = step
+                        .target()
+                        .ok_or(PostcommitCoordinationError)?
+                        .runtime()
+                        .ok_or(PostcommitCoordinationError)?;
                     // One Site guard spans exact removal and its retained completion marker.
                     if self
                         .complete_disposed_target_cleanup(&coordinator, &id, runtime)

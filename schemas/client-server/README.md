@@ -2,8 +2,8 @@
 
 ## Authority and boundary
 
-[`v1/client-server.schema.json`](v1/client-server.schema.json) and this document are the
-language-neutral authority for version 1 of the Orchbee Client-Server terminal-control protocol
+[`v2/client-server.schema.json`](v2/client-server.schema.json) and this document are the
+language-neutral authority for version 2 of the Orchbee Client-Server terminal-control protocol
 (`OBCS`). OBCS carries terminal semantic control between an authorized Client Session and Server
 over any ordered byte stream. The Rust crate `orchbee-client-server-protocol` is an independent
 binding and may not add values, omit invariants, or redefine field meaning.
@@ -17,10 +17,10 @@ OBCS has these adjacent boundaries:
 | `OBCN`               | Server-to-Worker placement authorization, operation, generation, lease, and fence facts.        |
 | Workbench projection | Read-only authorized product projection; it is not a terminal-control writer.                   |
 
-Version 1 admits `terminal.create`, `terminal.create.result`, `terminal.start`,
+Version 2 admits `terminal.create`, `terminal.create.result`, `terminal.start`,
 `terminal.start.result`, `terminal.viewer`, `terminal.viewer.result`, `terminal.control`, and
 `terminal.control.result`, plus the unshipped `terminal.open` / `terminal.open.result` and viewer
-`attach-binding` extensions. It defines no close, cancel, retry transport, authentication,
+`attach-binding` extensions, `terminal.launch.read` / result and `terminal.send.result`. Send requests use OBSN binary records. It defines no close, cancel, retry transport, authentication,
 authorization policy, Server state store, Worker operation, Host launch, or Workbench mutation.
 
 ## Frame
@@ -29,11 +29,11 @@ authorization policy, Server state store, Worker operation, Host launch, or Work
 | -------------- | ------------------------------------------------------ |
 | Magic          | Four bytes `OBCS`                                      |
 | Frame version  | Unsigned 16-bit big-endian integer `1`                 |
-| Payload length | Unsigned 16-bit big-endian byte length, at most 32 KiB |
-| Payload        | Strict UTF-8 JSON object with `protocolVersion: 1`     |
+| Payload length | Unsigned 16-bit big-endian byte length, at most 48 KiB |
+| Payload        | Strict UTF-8 JSON object with `protocolVersion: 2`     |
 
 A decoder validates the complete eight-byte header before allocating payload storage, reads exactly
-the declared payload, and rejects an invalid magic, unsupported frame version, payload over 32 KiB,
+the declared payload, and rejects an invalid magic, unsupported frame version, payload over 48 KiB,
 truncation, or extra bytes when decoding one complete in-memory frame. A stream reader consumes one
 frame at a time so another complete frame may follow. Readers and writers must support partial I/O;
 a frame writer does not flush its caller's stream.
@@ -42,7 +42,7 @@ The payload rejects a UTF-8 BOM, invalid UTF-8, duplicate object keys at any dep
 JSON value, non-object roots, unknown fields, unknown message or enum tags, and a message in the
 wrong direction. Whitespace, object-key order, and equivalent JSON string escapes are not semantic.
 Numeric `protocolVersion` and geometry values refine through finite IEEE 754 binary64 safe integers
-before their exact bounds are applied. Integral decimal and exponent spellings such as `1.0`, `1e0`,
+before their exact bounds are applied. Integral decimal and exponent spellings such as `2.0`, `2e0`,
 and `8e1` are therefore admitted when their refined value is in range; values that remain
 fractional after refinement, non-finite values, unsafe integers, and out-of-range values are
 rejected. Canonical encoding is deterministic compact JSON and emits ordinary integer tokens.
@@ -88,8 +88,7 @@ Every geometry contains all four integer fields and satisfies every invariant:
 
 Deferred creation carries no geometry or fallback. Immediate creation carries one complete valid
 geometry. A `terminal.create` request never supplies a Terminal identity, Worker generation,
-operation, lease, fence, Host identity or epoch, executable, argument vector, environment or
-overlay, Project, Workspace, Panel, Worktree, Client generation, profile, or configuration fact.
+operation, lease, fence, Host identity or epoch, Project, Workspace, Panel, Worktree, Client generation, profile, or configuration fact. Optional literal launch/environment values follow the version-2 contract below.
 
 `terminal.start` contains `protocolVersion`, a new `requestId`, the distinct
 `terminalCreateRequestId` that identifies the deferred create request, and one complete valid
@@ -198,7 +197,7 @@ resolved live runtime target returns `already-attached`; different targets can c
 defines capacity precedence, disposal, generation fencing, and cleanup. The codec validates syntax,
 not runtime ownership.
 
-This required selector changes the unpublished OBCS v1 request shape. Build, deploy, and roll back
+This required selector changes the unpublished OBCS v2 request shape. Build, deploy, and roll back
 the exact Client/Server/Worker development cohort together; mixed cohorts and an implicit-current
 viewer fallback are unsupported. The OBSR carrier format does not change; `read-rows` /
 `rows-rejected` additively extend the matched OBCN cohort (action tag 6 and result tag 6), and the
@@ -239,7 +238,7 @@ before payload allocation; stream readers consume
 one frame, and in-memory decoders reject truncation or trailing bytes. Only Server-to-Client readers
 accept OBSR. Server validates Host epoch, attachment, role, frame routing metadata and feedback;
 presentation decoding remains the Client's responsibility. OBSR has no JSON `record` outcome and
-does not enlarge the 32 KiB OBCS JSON limit. Its byte contract is this section; the JSON corpus owns
+does not enlarge the 48 KiB OBCS JSON limit. Its byte contract is this section; the JSON corpus owns
 control messages, while binding tests cover binary boundaries and opaque byte preservation.
 
 ## Session controller
@@ -269,7 +268,7 @@ ID as 16 big-endian bytes, the attachment ID as 16 bytes, the controller ID as 1
 positive sequence as big-endian u64, then the raw content bytes — 57 through 262,200 bytes in total.
 The 12-byte header and bound are checked before body allocation; stream readers consume one record,
 and in-memory decoders reject truncation or trailing bytes. OBCQ has no JSON `paste` action and does
-not enlarge the 32 KiB OBCS JSON limit; a small paste uses the same record encoding.
+not enlarge the 48 KiB OBCS JSON limit; a small paste uses the same record encoding.
 
 `terminal.control.result` uses the ordinary correlated JSON envelope. Outcomes are `acquired`
 with `controllerId`, fieldless `input-accepted`, `resized` with exact accepted `geometry`, `pasted`
@@ -292,20 +291,20 @@ fields. Runtime ownership and Host admission remain with their owning Server and
 
 ## Submission, reference, and cancellation obligations
 
-A Client submits each mutating intent at most once. OBCS version 1 defines no replay lookup,
+A Client submits each mutating intent at most once. OBCS version 2 defines no replay lookup,
 historical duplicate detection, or idempotency ledger. A consumer may reject a request when its
 current accepted state exposes an ID collision or otherwise makes the request invalid, but that
 state validation is not a promise to retain, recognize, or replay a historical request.
 
-Version 1 has no cancel message. A timeout, transport loss, Client Session loss, or caller
+Version 2 has no cancel message. A timeout, transport loss, Client Session loss, or caller
 abandonment neither encodes cancellation nor proves that a terminal effect did not commit. A Client
 must not automatically resend the mutating intent after any of those events; an ambiguous result is
 reconciled through a future read-only projection or observation boundary instead.
 
 ## Conformance and limits
 
-[`v1/client-server-conformance-v1.json`](v1/client-server-conformance-v1.json) is the deterministic
-cross-language oracle. It includes every message, result category, reason, accepted-state variant,
+[`v2/client-server-conformance-v2.json`](v2/client-server-conformance-v2.json) is the deterministic
+cross-language oracle. Its JSON fixtures and independently authored binary hex records cover every message, result category, reason, accepted-state variant,
 and accepted-start transition, plus malformed and semantically invalid payloads. Repeated-value
 recipes compactly materialize exact byte-boundary, multibyte, and worst-case JSON path inputs.
 Bindings consume the corpus without deriving expected results from their own codec. AttachBinding
@@ -328,7 +327,7 @@ integration.
 
 ## Standalone terminal opening
 
-The unshipped version-1 extension `terminal.open` carries `protocolVersion`, a fresh
+The unshipped version-2 extension `terminal.open` carries `protocolVersion`, a fresh
 Client-generated `requestId`, and complete `geometry`. It opens the local single-subject
 Server's standalone terminal reference: first prepare creates an immediate terminal using
 Worker-default cwd; later opens return the same reference. Open itself neither dispatches nor commits Resize; a Client may subsequently attach, acquire controller authority, and submit a separate validated Resize.
@@ -359,3 +358,23 @@ roll back together. This extension adds no persisted state or migration.
 ## Native Windows path refinement
 
 Absolute wire paths accept a POSIX leading slash or an ASCII drive letter followed by `:` and `/` or `\`, optionally prefixed by `\\?\` for a Windows verbatim drive path. This lexical rule is independent of the decoder platform; bytes are preserved without expansion or normalization. Backslash-rooted, drive-relative, UNC, and device paths are not admitted by this Windows increment. Existing byte bounds and NUL/Unicode validation remain unchanged. The execution owner still validates the path against its local filesystem before effects.
+
+## Native version 2
+
+The native cohort uses JSON `protocolVersion: 2`, OBCS frame version 1 and a 48 KiB JSON payload limit. The [version-1 schema](v1/client-server.schema.json) and [corpus](v1/client-server-conformance-v1.json) remain frozen references; the current [version-2 schema](v2/client-server.schema.json) and [corpus](v2/client-server-conformance-v2.json) govern the native binding. Version 2 rejects version-1 bodies and legacy JSON `terminal.send` requests. The dedicated OBSN binary request retains encoding version 1; its four nonzero 16-byte identities, ordered record sequence and progress-result semantics are native v2 contracts. Binary framing, aggregate content limits and lexical validation are separate from the JSON schema.
+
+A v2 Create additionally accepts optional `launch` (null or literal `{exec,args}`) and `environment` (ordered `[name,value]` pairs, omitted when empty). The executable is absolute, argv excludes argv0, at most 128 arguments and 2,048 combined UTF-8 bytes, with no NUL. Environment admits at most 32 entries and 1,024 combined UTF-8 name/value bytes. ASCII identifier names have 1–128 bytes, are unique ignoring ASCII case and exclude `ORCHBEE_*`, `TERM`, `COLORTERM` and `TERM_PROGRAM` ignoring case. Values are literal, may be empty, and exclude NUL. Byte sums and case-folded uniqueness are binding refinements beyond JSON Schema. The optional `launchProfile` sibling in a found launch read carries opaque `profileId` (1–128 UTF-8 bytes) and canonical unsigned-64 decimal `catalogRevision`; it records captured provenance and grants no launch authority.
+
+Send results replace `acceptedBytes` with `progress`: numeric `recordsAccepted`, `firstStoppedRecord` (0–64) and `acceptedEncodedBytes` (0–67,108,864). Accepted records never exceed the stopped index. A successful outcome has a nonzero equal count/index and cleanup other than not-needed; any nonzero accepted count excludes not-needed. An unknown outcome excludes confirmed cleanup. Accepted/unknown or any cleanup other than not-needed requires a physical target. Cross-field relations are independently tested binding refinements. The unknown frontier never authorizes resend. `input-budget-exhausted` is an additional unavailable reason. Exact cohort rollout/rollback remains required; no persisted migration, Desktop support or Workbench schema equivalence is implied.
+
+The OBSN header is magic `OBSN`, big-endian u16 encoding version `1`, zero u16 reserved field, and u32 body length. The body is request/Site/Worker/Terminal identities (16 bytes each), u8 count (1–64), then ordered records. Its maximum body length is `64 + 1 + 64 * 5 + 1,048,576` bytes; reject a bad header before allocation. Each record starts with a u8 kind:
+
+| Kind    | Remaining record bytes                                                                                                           |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 1 text  | u16 UTF-8 byte length, text, u8 enter (0 or 1); nonempty text plus optional CR <=4,096 bytes                                     |
+| 2 key   | u8 code: enter, escape, tab, backspace, delete, up, down, left, right, home, end, page-up, page-down, ctrl-c, ctrl-d map to 1–15 |
+| 3 combo | u8 nonzero modifier flags (Control=1, Alt=2, Shift=4), u8 base kind, u8 base value                                               |
+| 4 bytes | u32 length, nonempty opaque bytes <=1,048,576                                                                                    |
+| 5 paste | u32 length, nonempty opaque content <=262,144; Host owns bracket encoding                                                        |
+
+Combo bases are named key `(1,1..13)`, Insert `(2,0)`, F1..F12 `(3,1..12)`, Space `(4,0)`, ASCII lowercase letter `(5,97..122)` or digit `(6,48..57)`. Extra flag bits, invalid bases, unknown kinds, truncation and trailing bytes fail closed. Aggregate decoded text (including folded CR), bytes and paste content is at most 1,048,576 bytes; keys carry no decoded payload. The request is not atomic: its result preserves the confirmed prefix and first stopped record. The v2 corpus supplies canonical binary bytes, every key and base kind, mixed records and negative controls independently of the Rust encoder.

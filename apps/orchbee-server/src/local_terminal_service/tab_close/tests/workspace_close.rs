@@ -304,7 +304,11 @@ fn publish(service: &LocalTerminalService, close: &WorkbenchCommand) -> bool {
             .unwrap();
         match step.next() {
             CloseContinuationNext::TargetCleanup => {
-                let runtime = step.target().unwrap().runtime();
+                let runtime = step
+                    .target()
+                    .unwrap()
+                    .runtime()
+                    .expect("created Host runtime");
                 service
                     .complete_disposed_target_cleanup(&site, &close.request_id, runtime)
                     .unwrap();
@@ -487,7 +491,11 @@ fn workspace_close_read_reports_members_and_service_resume_recovers_parked_publi
             .next_terminal_tab_close_step_target(&close.request_id, Instant::now())
             .unwrap();
         assert_eq!(step.next(), CloseContinuationNext::TargetCleanup);
-        let runtime = step.target().unwrap().runtime();
+        let runtime = step
+            .target()
+            .unwrap()
+            .runtime()
+            .expect("created Host runtime");
         site.close_authority()
             .unwrap()
             .park_terminal_tab_close_target_cleanup(&close.request_id, runtime)

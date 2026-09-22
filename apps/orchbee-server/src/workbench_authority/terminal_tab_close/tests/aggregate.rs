@@ -87,7 +87,11 @@ fn drive_close_to_publication(
                 settle_disposed(authority, close_id, step, now)
             }
             CloseContinuationNext::TargetCleanup => {
-                let runtime = step.target().unwrap().runtime();
+                let runtime = step
+                    .target()
+                    .unwrap()
+                    .runtime()
+                    .expect("created Host runtime");
                 authority
                     .complete_terminal_tab_close_target_cleanup(close_id, runtime)
                     .unwrap();
@@ -110,7 +114,7 @@ fn step_request(
     step_ordinal: LifecycleStepOrdinal,
     generation: WorkbenchTabCloseAttemptGeneration,
 ) -> TerminalLifecycleRequest {
-    let runtime = target.runtime();
+    let runtime = target.runtime().expect("created Host runtime");
     TerminalLifecycleRequest {
         authorization: TerminalLifecycleAuthorization {
             capability_version: TERMINAL_LIFECYCLE_CAPABILITY_VERSION,
@@ -249,7 +253,11 @@ fn split_tab_close_routes_each_frozen_leaf_then_publishes_one_tab_removal() {
         let step = authority
             .next_terminal_tab_close_step_target(&close.request_id, now)
             .unwrap();
-        let runtime = step.target().unwrap().runtime();
+        let runtime = step
+            .target()
+            .unwrap()
+            .runtime()
+            .expect("created Host runtime");
         assert_eq!(step.next(), CloseContinuationNext::TargetCleanup);
         authority
             .complete_terminal_tab_close_target_cleanup(&close.request_id, runtime)
@@ -318,7 +326,11 @@ fn split_tab_close_quarantines_siblings_after_unknown_but_keeps_known_cleanup() 
     let first = authority
         .next_terminal_tab_close_step_target(&close.request_id, now)
         .unwrap();
-    let first_runtime = first.target().unwrap().runtime();
+    let first_runtime = first
+        .target()
+        .unwrap()
+        .runtime()
+        .expect("created Host runtime");
     let first_binding = first.target().unwrap().member().binding().clone();
     settle_unknown(&mut authority, &close.request_id, first, now);
     assert!(matches!(
@@ -351,10 +363,16 @@ fn split_tab_close_quarantines_siblings_after_unknown_but_keeps_known_cleanup() 
     let second = authority
         .terminal_tab_close_target_for_binding(&close.request_id, &second_binding)
         .unwrap();
-    assert_ne!(second.runtime(), first_runtime);
+    assert_ne!(
+        second.runtime().expect("created Host runtime"),
+        first_runtime
+    );
     assert!(matches!(
         authority
-            .terminal_tab_close_target_status(&close.request_id, second.runtime())
+            .terminal_tab_close_target_status(
+                &close.request_id,
+                second.runtime().expect("created Host runtime")
+            )
             .unwrap(),
         WorkbenchTabCloseStatus::Closing { .. }
     ));

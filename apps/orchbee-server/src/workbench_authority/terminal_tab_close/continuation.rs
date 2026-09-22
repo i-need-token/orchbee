@@ -138,6 +138,15 @@ pub(super) struct CloseContinuation {
 }
 
 impl CloseContinuation {
+    pub(super) fn prepare_uncreated(now: Instant) -> Option<Self> {
+        let mut continuation = Self::prepare(now, None)?;
+        continuation.progress = Progress::Disposed {
+            stage: LocalStage::Publication,
+            parked: None,
+        };
+        Some(continuation)
+    }
+
     pub(super) fn prepare(
         now: Instant,
         initial_phase: Option<LifecycleTerminalPhase>,

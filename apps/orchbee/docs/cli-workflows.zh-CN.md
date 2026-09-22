@@ -186,8 +186,8 @@ orchbee workspace close "$WS" --confirm     # 关闭整个 context 的终端
 
 `--confirm` 为必填。`accepted` 回执携带 `closeRequestId`，由 Site
 异步完成关闭。`workspace close` 在 Workspace 的 context scope 上复用同一
-lifecycle，并保留 Workspace 本体、其 checkout、branch 与目录——关闭的只有
-终端 membership。保留的操作即使在 Workspace 离开 active projection 之后仍可
+lifecycle，清理完成后移除 Workspace 及其 terminal context，保留
+checkout、branch 与磁盘目录。保留的操作即使在 Workspace 离开 active projection 之后仍可
 凭严格稳定 ID 查询：
 
 ```sh

@@ -229,7 +229,8 @@ fn foreign_runtime_and_step_origin_cannot_settle_another_close() {
     let second_target = authority
         .terminal_tab_close_target(&second.request_id)
         .unwrap()
-        .runtime();
+        .runtime()
+        .expect("created Host runtime");
     assert!(
         authority
             .complete_terminal_tab_close_target_cleanup(&first.request_id, second_target)

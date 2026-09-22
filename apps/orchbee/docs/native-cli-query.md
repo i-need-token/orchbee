@@ -1372,9 +1372,9 @@ renders the same fields one per line under the same escaping rules as queries.
 
 `workspace close` submits the `WorkspaceClose` action — the Server-authoritative close of
 every terminal the Workspace's Clients use, reusing the same terminal-tab-close lifecycle
-machinery as `tab close`/`panel close` at the whole-context scope. The Workspace itself,
-its checkout, branch, and directories are preserved: only the terminal membership inside
-its context closes. An `accepted` receipt carries `acceptedRevision`, the operation's
+machinery as `tab close`/`panel close` at the whole-context scope. After terminal cleanup,
+the Workspace and its terminal context leave the active projection; its checkout, branch,
+and directories are preserved. An `accepted` receipt carries `acceptedRevision`, the operation's
 `closeRequestId`, and the resolved `projectId`/`workspaceId`/`terminalContextId`; the Site
 finishes the close asynchronously and the retained operation record outlives the
 Workspace's active projection. Re-running `workspace close` is never a resume — a resumable
@@ -1726,4 +1726,4 @@ maximum sizes, CLI scope and redaction, Server composition and replay identity, 
 Windows child observing cwd/environment after public Tab and split commands. No new
 macOS/Linux adapter or execution claim is included; TLA execution remains deferred.
 
-Native launch commands use a dedicated 48 KiB JSON request budget so maximum escaped cwd, argv, label and environment fit together. OBWP command kind 2 admits this bound before allocation; non-launch intents retain 16 KiB and results retain their existing bounds. OBCS v2 frames admit 48 KiB; OBCN remains 8 KiB. The older shared schemas and Desktop binding do not establish support for these native extensions.
+Native launch commands use a dedicated 48 KiB JSON request budget so maximum escaped cwd, argv, label and environment fit together. OBWP command kind 2 admits this bound before allocation; non-launch intents retain 16 KiB and results retain their existing bounds. OBCS v2 frames admit 48 KiB; OBCN remains 8 KiB. The OBCS v2 schema/corpus covers these launch values; shared Workbench schemas and the Desktop binding still do not establish support for the native extensions.

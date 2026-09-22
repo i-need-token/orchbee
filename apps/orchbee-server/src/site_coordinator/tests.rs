@@ -15,6 +15,7 @@ use orchbee_workbench_protocol::{
 use std::num::NonZeroU64;
 
 mod agent_registration;
+mod failed_launch_close;
 mod launch_read;
 mod multileaf_membership;
 mod panel_split;

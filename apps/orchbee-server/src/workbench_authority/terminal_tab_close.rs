@@ -106,11 +106,33 @@ impl WorkbenchTabCloseRuntimeTarget {
     }
 }
 
+/// Site-owned evidence for one exact frozen member. Uncreated means a settled
+/// Create failure before Host commit, never merely a missing runtime observation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum WorkbenchTabCloseMemberRuntime {
+    Runtime {
+        target: WorkbenchTabCloseRuntimeTarget,
+        observed_phase: Option<orchbee_capability_node_protocol::LifecycleTerminalPhase>,
+    },
+    Uncreated {
+        binding: orchbee_workbench_protocol::PresentationBinding,
+    },
+}
+
+impl WorkbenchTabCloseMemberRuntime {
+    fn matches_member(&self, member: &WorkbenchTerminalTab) -> bool {
+        match self {
+            Self::Runtime { target, .. } => target.matches_member(member),
+            Self::Uncreated { binding } => binding == member.binding(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WorkbenchTabCloseTarget {
     terminal_context_id: WorkbenchTerminalContextId,
     member: WorkbenchTerminalTab,
-    runtime: WorkbenchTabCloseRuntimeTarget,
+    runtime: Option<WorkbenchTabCloseRuntimeTarget>,
 }
 
 impl WorkbenchTabCloseTarget {
@@ -123,7 +145,7 @@ impl WorkbenchTabCloseTarget {
         &self.member
     }
     #[must_use]
-    pub const fn runtime(&self) -> WorkbenchTabCloseRuntimeTarget {
+    pub const fn runtime(&self) -> Option<WorkbenchTabCloseRuntimeTarget> {
         self.runtime
     }
 }
@@ -230,13 +252,15 @@ impl CloseRecord {
     fn target_index_for_runtime(&self, runtime: WorkbenchTabCloseRuntimeTarget) -> Option<usize> {
         self.targets
             .iter()
-            .position(|target| target.runtime == runtime)
+            .position(|target| target.runtime == Some(runtime))
     }
 
     fn target_index_for_request(&self, request: &TerminalLifecycleRequest) -> Option<usize> {
-        self.targets
-            .iter()
-            .position(|target| target.runtime.matches_request(request))
+        self.targets.iter().position(|target| {
+            target
+                .runtime
+                .is_some_and(|runtime| runtime.matches_request(request))
+        })
     }
 
     fn members(&self) -> impl Iterator<Item = &WorkbenchTerminalTab> {

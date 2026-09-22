@@ -11,7 +11,7 @@ use std::io::Read;
 /// dedicated binary record — `OBSN` magic, record-encoding version 1, a
 /// reserved zero u16, and a big-endian u32 body length. The record version
 /// is this encoding's own; the protocol version bump lives in the OBCS
-/// connection's frame header.
+/// JSON message bodies; OBCS framing remains version 1.
 pub const SEND_RECORD_MAGIC: [u8; 4] = *b"OBSN";
 
 const HEADER: usize = 12;

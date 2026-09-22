@@ -161,7 +161,8 @@ pub(super) fn close_leaf(
         .unwrap()
         .terminal_tab_close_target(&close.request_id)
         .unwrap()
-        .runtime();
+        .runtime()
+        .expect("created Host runtime");
     coordinator
         .close_authority()
         .unwrap()

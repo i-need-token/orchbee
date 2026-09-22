@@ -92,7 +92,7 @@ fn step_request(
     step_ordinal: LifecycleStepOrdinal,
     generation: WorkbenchTabCloseAttemptGeneration,
 ) -> TerminalLifecycleRequest {
-    let runtime = target.runtime();
+    let runtime = target.runtime().expect("created Host runtime");
     TerminalLifecycleRequest {
         authorization: TerminalLifecycleAuthorization {
             capability_version: TERMINAL_LIFECYCLE_CAPABILITY_VERSION,
@@ -164,7 +164,11 @@ fn drive_close_to_publication(
                 settle_disposed(authority, close_id, step, now)
             }
             CloseContinuationNext::TargetCleanup => {
-                let runtime = step.target().unwrap().runtime();
+                let runtime = step
+                    .target()
+                    .unwrap()
+                    .runtime()
+                    .expect("created Host runtime");
                 authority
                     .complete_terminal_tab_close_target_cleanup(close_id, runtime)
                     .unwrap();

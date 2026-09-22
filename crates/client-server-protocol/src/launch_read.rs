@@ -226,7 +226,11 @@ pub enum TerminalLaunchReadUnavailableReason {
 /// entry may since have been deleted — and is absent for launches that never
 /// named a profile.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(
+    rename_all = "camelCase",
+    deny_unknown_fields,
+    try_from = "WireLaunchProfileProvenance"
+)]
 pub struct LaunchProfileProvenance {
     pub(crate) profile_id: String,
     #[serde(
@@ -234,6 +238,21 @@ pub struct LaunchProfileProvenance {
         deserialize_with = "crate::number::decimal::deserialize"
     )]
     pub(crate) catalog_revision: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WireLaunchProfileProvenance {
+    profile_id: String,
+    #[serde(deserialize_with = "crate::number::decimal::deserialize")]
+    catalog_revision: u64,
+}
+
+impl TryFrom<WireLaunchProfileProvenance> for LaunchProfileProvenance {
+    type Error = ProtocolError;
+    fn try_from(value: WireLaunchProfileProvenance) -> Result<Self, Self::Error> {
+        Self::new(value.profile_id, value.catalog_revision)
+    }
 }
 
 impl LaunchProfileProvenance {

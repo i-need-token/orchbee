@@ -1131,3 +1131,55 @@ fn viewer_identity_allocation_is_atomic_at_zero_and_exhaustion_boundaries() {
         assert!(coordinator.bindings.is_empty());
     }
 }
+
+#[test]
+fn uncreated_close_requires_unique_settled_failed_create_and_no_retained_identity() {
+    let mut coordinator = TerminalCoordinator::new();
+    let launch = dispatch(coordinator.prepare(false, create(1), Some(worker(1)), Some(expiry())));
+    let authorization = launch.authorization();
+    let uncreated = |coordinator: &TerminalCoordinator| {
+        coordinator
+            .is_definitively_uncreated(authorization.terminal_id(), authorization.worker_id())
+    };
+    assert!(!uncreated(&coordinator));
+    commit_completion(
+        &mut coordinator,
+        launch,
+        Completion::Unavailable,
+        Some(worker(1)),
+    );
+    assert!(uncreated(&coordinator));
+    for phase in [
+        TerminalPhase::Creating,
+        TerminalPhase::Starting(identity()),
+        TerminalPhase::AwaitingStart(identity()),
+        TerminalPhase::Started {
+            identity: identity(),
+            geometry: geometry(),
+        },
+        TerminalPhase::Unknown(None),
+        TerminalPhase::Unknown(Some(identity())),
+        TerminalPhase::Unavailable(Some(identity())),
+    ] {
+        coordinator.bindings.get_mut(&id(1)).unwrap().phase = phase;
+        assert!(!uncreated(&coordinator), "{phase:?}");
+    }
+    coordinator.bindings.get_mut(&id(1)).unwrap().phase = TerminalPhase::Unavailable(None);
+    for outcome in [
+        None,
+        Some(CreateOutcome::OutcomeUnknown {}),
+        Some(CreateOutcome::Accepted {
+            state: CreateAcceptedState::AwaitingStart,
+        }),
+    ] {
+        coordinator.bindings.get_mut(&id(1)).unwrap().create_outcome = outcome;
+        assert!(!uncreated(&coordinator));
+    }
+    coordinator.bindings.get_mut(&id(1)).unwrap().create_outcome = Some(CreateOutcome::Failed {
+        reason: CreateFailureReason::TerminalCreateFailed,
+    });
+    assert!(uncreated(&coordinator));
+    let _other = dispatch(coordinator.prepare(false, create(2), Some(worker(1)), Some(expiry())));
+    coordinator.bindings.get_mut(&id(2)).unwrap().authorization = authorization;
+    assert!(!uncreated(&coordinator));
+}

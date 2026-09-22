@@ -1,5 +1,8 @@
-use orchbee_capability_node_protocol::{LifecycleTerminalPhase, TerminalId, WorkerId};
-use orchbee_server::{WorkbenchTabCloseRuntimeTarget, WorkbenchTabCloseRuntimeUnavailableReason};
+use orchbee_capability_node_protocol::{TerminalId, WorkerId};
+use orchbee_server::{
+    WorkbenchTabCloseMemberRuntime, WorkbenchTabCloseRuntimeTarget,
+    WorkbenchTabCloseRuntimeUnavailableReason,
+};
 use orchbee_workbench_protocol::{
     PresentationBinding, WorkbenchRequestId, WorkbenchTabCloseStatus,
 };
@@ -49,7 +52,9 @@ impl SiteCoordinator {
         else {
             return TargetLifecycle::Fenced;
         };
-        let runtime = retained.runtime();
+        let Some(runtime) = retained.runtime() else {
+            return TargetLifecycle::Fenced;
+        };
         if runtime.worker_id() == target.worker.worker_id
             && runtime.worker_generation() == target.worker.generation
             && runtime.terminal_id() == target.terminal_id
@@ -76,13 +81,7 @@ impl SiteCoordinator {
         terminals: &TerminalCoordinator,
         binding: &PresentationBinding,
         current_worker: Option<WorkerPlacement>,
-    ) -> Result<
-        (
-            WorkbenchTabCloseRuntimeTarget,
-            Option<LifecycleTerminalPhase>,
-        ),
-        WorkbenchTabCloseRuntimeUnavailableReason,
-    > {
+    ) -> Result<WorkbenchTabCloseMemberRuntime, WorkbenchTabCloseRuntimeUnavailableReason> {
         let unavailable = WorkbenchTabCloseRuntimeUnavailableReason::TerminalRuntimeUnavailable;
         let terminal =
             u128::from_str_radix(binding.terminal_id.as_str(), 16).map_err(|_| unavailable)?;
@@ -90,6 +89,11 @@ impl SiteCoordinator {
             u128::from_str_radix(binding.worker_id.as_str(), 16).map_err(|_| unavailable)?;
         let terminal = TerminalId::from_bytes(terminal.to_be_bytes()).map_err(|_| unavailable)?;
         let worker = WorkerId::from_bytes(worker.to_be_bytes()).map_err(|_| unavailable)?;
+        if terminals.is_definitively_uncreated(terminal, worker) {
+            return Ok(WorkbenchTabCloseMemberRuntime::Uncreated {
+                binding: binding.clone(),
+            });
+        }
         let (target, fence) = terminals
             .retained_runtime_target(terminal, worker, current_worker)
             .map_err(|error| match error {
@@ -99,26 +103,26 @@ impl SiteCoordinator {
                 RetainedRuntimeTargetError::Unavailable => unavailable,
             })?;
         // A retained Started completion is not a current Host process-state observation.
-        Ok((
-            WorkbenchTabCloseRuntimeTarget::new(
+        Ok(WorkbenchTabCloseMemberRuntime::Runtime {
+            target: WorkbenchTabCloseRuntimeTarget::new(
                 target.worker.worker_id,
                 target.worker.generation,
                 target.terminal_id,
                 target.identity,
                 fence,
             ),
-            None,
-        ))
+            observed_phase: None,
+        })
     }
 
     pub(crate) fn terminal_tab_close_runtime_matches(
         terminals: &TerminalCoordinator,
         binding: &PresentationBinding,
-        expected: WorkbenchTabCloseRuntimeTarget,
+        expected: Option<WorkbenchTabCloseRuntimeTarget>,
         current_worker: Option<WorkerPlacement>,
     ) -> bool {
         Self::terminal_tab_close_runtime(terminals, binding, current_worker)
-            .is_ok_and(|(runtime, _)| runtime == expected)
+            .is_ok_and(|evidence| matches!(evidence, WorkbenchTabCloseMemberRuntime::Runtime { target, .. } if Some(target) == expected))
     }
 }
 

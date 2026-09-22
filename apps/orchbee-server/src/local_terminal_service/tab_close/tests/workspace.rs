@@ -263,7 +263,8 @@ fn publish(service: &LocalTerminalService, close: &WorkbenchCommand) -> bool {
         .unwrap()
         .terminal_tab_close_target(&close.request_id)
         .unwrap()
-        .runtime();
+        .runtime()
+        .expect("created Host runtime");
     service
         .complete_disposed_target_cleanup(&site, &close.request_id, runtime)
         .unwrap();
@@ -476,7 +477,8 @@ fn last_workspace_close_keeps_directory_recreates_fresh_ids_and_cleans_only_its_
             .unwrap()
             .terminal_tab_close_target(&command.request_id)
             .unwrap()
-            .runtime();
+            .runtime()
+            .expect("created Host runtime");
         let key = ControlTarget {
             worker: runtime.worker_id().as_bytes(),
             generation: runtime.worker_generation().get(),

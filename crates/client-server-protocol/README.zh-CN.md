@@ -2,9 +2,8 @@
 
 ## 范围
 
-`orchbee-client-server-protocol` 拥有原生 OBCS v2 Rust binding。较早的语言中立 v1 schema
-仍位于 [`schemas/client-server`](../../schemas/client-server/README.zh-CN.md)；原生扩展及待对齐
-边界见下文。本 crate 负责 validated Rust value、严格且区分
+`orchbee-client-server-protocol` 拥有原生 OBCS v2 Rust binding。语言中立 v2 schema 与 JSON/binary corpus
+位于 [`schemas/client-server`](../../schemas/client-server/README.zh-CN.md)。本 crate 负责 validated Rust value、严格且区分
 方向的 JSON decoding、deterministic encoding 与 bounded frame I/O。它不依赖 OBLC local admission
 binding、OBCN Server-Worker authorization binding、Terminal Host type 或 Workbench type。
 
@@ -17,10 +16,10 @@ Workbench state。
 | API                                                                                                                                                 | Contract                                                                                                                                                   |
 | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `RequestId`、`SiteId`、`WorkerId`、`TerminalId`、`ViewerId`、`HostEpoch`、`ControllerId`、`PresentationId`、`PanelId`、`TabId`、`TerminalContextId` | 解析独立 typed、nonzero opaque 128-bit 小写十六进制 identity。                                                                                             |
-| `WorkingDirectory`                                                                                                                                  | 校验最多 4,096 个 encoded byte、无 NUL 的 absolute POSIX UTF-8 path。                                                                                      |
+| `WorkingDirectory`                                                                                                                                  | 校验最多 4,096 个 encoded byte、无 NUL 的 absolute local-platform UTF-8 path。                                                                             |
 | `Geometry`                                                                                                                                          | 仅当所有 scalar 与 product bound 都成立时构造 complete geometry。cell-pixel width 与 height 必须同正（pixel 已知）或同零（pixel 未知）；混合成对值被拒绝。 |
 | `TerminalCreateRequest`、`TerminalStartRequest`                                                                                                     | 构造 validated Client request；start 拒绝相同的 start/create request identity。                                                                            |
-| `CreateOutcome`、`StartOutcome` 与 result type                                                                                                      | 只表示 OBCS v1 准入的稳定 Client-visible result combination。                                                                                              |
+| `CreateOutcome`、`StartOutcome` 与 result type                                                                                                      | 只表示 OBCS v2 准入的稳定 Client-visible result combination。                                                                                              |
 | `encode_client_frame`、`decode_client_frame`                                                                                                        | Encode 或 decode 恰好一个完整 in-memory Client-to-Server frame。                                                                                           |
 | `encode_server_frame`、`decode_server_frame`                                                                                                        | Encode 或 decode 恰好一个完整 in-memory Server-to-Client frame。                                                                                           |
 | `read_client_message`、`read_server_message`                                                                                                        | 从支持 partial read 的有序 stream 中精确读取一个 frame，并保留后续 frame 未读。                                                                            |
@@ -88,7 +87,7 @@ generation 使用正 u64 十进制字符串，revision 使用规范 u64 十进�
 `TerminalControlRequest`、`TerminalControlAction`、`TerminalControlResult` 和 `TerminalControlOutcome`
 携带显式 Acquire 与 grant scope 内的 Input/Resize。`ControllerId` 是 Server 签发的身份；
 三个 action 都必须携带 `attachment_id: ViewerId`，通过 `TerminalControlAction::attachment_id()`
-读取。这是尚未发布的 OBCS v1 必需字段变更；Client/Server/Worker 必须使用精确匹配的开发 cohort，
+读取。这是尚未发布的 OBCS v2 必需字段变更；Client/Server/Worker 必须使用精确匹配的开发 cohort，
 不提供隐式 viewer fallback。
 `ControlInput` 验证 1 至 `MAXIMUM_CONTROL_INPUT_BYTES`（4,096）byte，并序列化为规范小写 hex。
 共用 number adapter 验证正十进制 u64 sequence。Acquire、Input 与 Resize 使用既有 48 KiB OBCS
@@ -210,7 +209,7 @@ singleton selection、creation 与 lifetime。
 Canonical fixtures 覆盖所有 open outcome，并通过 JSON schema 和独立 Rust decoder
 拒绝缺失字段、额外字段、畸形及方向错误的消息。
 
-Open 与 AttachBinding 是增量、尚未发布的 OBCS v1 source contract。它们保留既有 frame version
+Open 与 AttachBinding 是增量、尚未发布的 OBCS v2 source contract。它们保留既有 frame version
 与 limit。安装后的 exact runtime cohort 是 Client、Server、Worker 与 Host；这个 Rust source
 binding 是 contract input，而不是已安装的 cohort artifact。发布前，其 source contract 与 runtime
 cohort 一起 rollback，且不涉及 persisted state 或 migration。
@@ -225,7 +224,6 @@ UTF-8 字节，名称为 1..128 字节的 ASCII 标识符，不含 NUL，不允�
 `=` 逐字保留。Debug 不输出值。含本覆盖的完整请求参与请求身份判断；Server 将其转换为
 独立的 OBCN 类型。
 
-已提交的语言无关 v1 schema/corpus 早于原生 v2 launch selection 及本环境扩展，不能
-作为原生 v2 或 Desktop 兼容性证据；完整 schema/binding 对齐仍待完成。
+v2 schema/corpus 覆盖 launch selection、environment、profile provenance、send sequence progress 及全部五类 OBSN input record。Conformance 验证独立编写的 canonical bytes 与 negative case。这证明原生 OBCS 一致性，不代表 Desktop 或 Workbench schema 对齐。
 
 原生 v2 帧在分配前限制为 48 KiB。组合最大转义 cwd、executable/argv 与环境的测试覆盖请求预算；旧 32 KiB 上限无法容纳该合法组合。

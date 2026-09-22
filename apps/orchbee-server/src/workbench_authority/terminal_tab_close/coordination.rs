@@ -134,7 +134,8 @@ impl WorkbenchAuthority {
         let runtime = record
             .target(index)
             .ok_or(CloseStepTokenMismatch)?
-            .runtime();
+            .runtime()
+            .ok_or(CloseStepTokenMismatch)?;
         let canonical_id = u128::from_str_radix(record.command.request_id.as_str(), 16)
             .map_err(|_error| CloseStepTokenMismatch)?
             .to_be_bytes();

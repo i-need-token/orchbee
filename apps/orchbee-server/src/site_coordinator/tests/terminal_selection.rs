@@ -138,12 +138,18 @@ fn accept_target_close(
     let authority = coordinator.workbench.as_mut().unwrap();
     let membership = authority.standalone_membership().unwrap();
     let member = membership.members().first().unwrap();
-    let (runtime, phase) = SiteCoordinator::terminal_tab_close_runtime(
+    let orchbee_server::WorkbenchTabCloseMemberRuntime::Runtime {
+        target: runtime,
+        observed_phase: phase,
+    } = SiteCoordinator::terminal_tab_close_runtime(
         &coordinator.terminals,
         member.binding(),
         Some(worker(1)),
     )
-    .unwrap();
+    .unwrap()
+    else {
+        panic!("created runtime expected");
+    };
     assert_eq!(phase, None);
     assert_eq!(runtime.fence(), authorization.fence());
     let close_id = WorkbenchRequestId::parse(&format!("{:032x}", 50)).unwrap();

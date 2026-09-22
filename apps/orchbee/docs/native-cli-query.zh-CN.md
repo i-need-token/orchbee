@@ -1154,8 +1154,8 @@ close-resume` 是唯一的来源例外：保留 lifecycle 的 resume 没有 `wor
 
 `workspace close` 提交 `WorkspaceClose` 动作——由 Server 权威地关闭该 Workspace 的
 Client 使用的全部终端，在整个 context scope 上复用与 `tab close`/`panel close` 相同的
-terminal-tab-close lifecycle 机械。Workspace 本身、其 checkout、branch 与目录全部保留：
-关闭的只有其 context 内的终端 membership。`accepted` 收据携带 `acceptedRevision`、该
+terminal-tab-close lifecycle 机械。终端清理完成后，Workspace 及其 terminal context
+从 active projection 移除；checkout、branch 与磁盘目录保留。`accepted` 收据携带 `acceptedRevision`、该
 操作的 `closeRequestId` 与已解析的 `projectId`/`workspaceId`/`terminalContextId`；Site
 异步完成关闭，保留的操作记录比 Workspace 的 active projection 活得更久。重复运行
 `workspace close` 绝不是 resume——可恢复的保留操作只能经 `workspace close-resume` 继续。
@@ -1468,4 +1468,4 @@ cwd 和环境。空选项保留旧 JSON 和二进制编码。非空 OBCN 环境�
 组合及重放身份，以及公开 Tab 和分屏命令启动的 Windows 子进程观察真实 cwd/环境。
 不新增 macOS/Linux 适配器或运行声明；TLA 执行继续延期。
 
-原生启动命令使用独立的 48 KiB JSON 请求预算，使 cwd、argv、label 和环境的最大转义编码可同时容纳。OBWP command kind 2 在分配前按此上限检查；非启动 intent 仍为 16 KiB，结果沿用既有上限。OBCS v2 帧允许 48 KiB；OBCN 仍为 8 KiB。较早的共享 schema 和 Desktop binding 不构成对这些原生扩展的支持证据。
+原生启动命令使用独立的 48 KiB JSON 请求预算，使 cwd、argv、label 和环境的最大转义编码可同时容纳。OBWP command kind 2 在分配前按此上限检查；非启动 intent 仍为 16 KiB，结果沿用既有上限。OBCS v2 帧允许 48 KiB；OBCN 仍为 8 KiB。OBCS v2 schema/corpus 已覆盖这些启动值；共享 Workbench schema 和 Desktop binding 仍不构成对这些原生扩展的支持证据。

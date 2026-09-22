@@ -298,7 +298,7 @@ Worker/Terminal ID、Worker 代次以及完整 Host 创建/epoch/终端身份。
 主记录（含 Closed 墓碑）提供新效果栅栏。精确匹配的 DisposedAwaitingPublication/Closed
 提供附件本地销毁证明；Viewer 发出时的 Start fence 属于历史，而维护清理验证主记录包含
 fence 的完整已接受运行时。Close 准入解析恰好一个保留绑定：Creating/Starting 为 TerminalBusy；
-未知、不可用、缺失或重复关联为 TerminalRuntimeUnavailable。已知身份还要求当前 Worker
+未知、保留 Host identity 的不可用、缺失或重复关联为 TerminalRuntimeUnavailable。已确认未创建的 binding 遵循下方启动失败移除契约。已知身份还要求当前 Worker
 代次。历史 Started 不代表 Host 仍在 Running。
 
 保留既有会话/请求/序号/当前 Worker 检查。新增栅栏拒绝中，Attach 使用 TerminalUnavailable，
@@ -556,3 +556,11 @@ Create/navigation 模块及其所有变体保持不变，继续作为条件切�
 丢弃保留清理事实。状态及显式符合条件的 Resume 保持如实恢复；跨 Server 重启持久化、永久
 Host/平台失败恢复、改变 epoch 后接管、远程操作、打包及普遍最终清理仍排除。模型及进程结果
 必须声明这些限制，不得声称无界证明。
+
+## 启动失败后的移除
+
+包含已确认 Create 失败成员的 Tab、Panel 或 Workspace 仍可关闭。TerminalCoordinator 在 Site gate 内、Close 准入前解析全部捕获的 binding。恰好一个 binding 处于 `Unavailable(None)` 且保留 failed/unavailable Create outcome，才能证明没有提交 Host terminal；仅缺少 identity 不足以证明。Host Create failure 发生在不可失败的 terminal commit 之前。Start 和 lifecycle failure 不构成该事实。
+
+`WorkbenchTabCloseMemberRuntime` 携带精确 runtime observation 或精确的 `Uncreated` 产品 binding。每个捕获成员仍保留在有序 Close record 与 reservation 计量中。Uncreated 成员没有 runtime identity，直接进入 publication；它不发送 lifecycle 命令，也不进行 controller cleanup，因为从未有成功 identity 可用于准入 Viewer/controller。此处 `disposed-awaiting-publication` 表示已证明的不存在，不声称收到 Host Dispose acknowledgment。混合 scope 仍须在任何准入效果前解析全部 runtime 成员。maintenance owner 仍为必需，但全部为 Uncreated 的 scope 无需连接 Worker。
+
+Creating/Starting 仍为 busy。Unknown、保留 identity 的 unavailable、缺失或重复 binding、矛盾的 accepted Create facts 仍为 unavailable。既有 membership fence、request replay、publication revision、失败停驻与显式 resume 规则保持适用。Publication 重新验证完整有序 scope，包括 Uncreated 成员。测试覆盖真实 failed-Create settlement、无 Worker 移除、混合 scope 与 unknown-outcome 拒绝。

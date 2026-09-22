@@ -98,7 +98,10 @@ fn settle_first_then_split(coordinator: &mut SiteCoordinator, base: u128) {
 /// steps use fabricated terminal replies, which is the labeled synthetic seam;
 /// admission, per-target cleanup ordering, publication and retargeting are the
 /// production path.
-fn drive_close_to_publication(coordinator: &mut SiteCoordinator, close: &WorkbenchCommand) -> bool {
+pub(super) fn drive_close_to_publication(
+    coordinator: &mut SiteCoordinator,
+    close: &WorkbenchCommand,
+) -> bool {
     let mut now = Instant::now();
     for _step in 0..64 {
         let step = coordinator
@@ -165,7 +168,11 @@ fn drive_close_to_publication(coordinator: &mut SiteCoordinator, close: &Workben
                     .unwrap();
             }
             CloseContinuationNext::TargetCleanup => {
-                let runtime = step.target().expect("cleanup step target").runtime();
+                let runtime = step
+                    .target()
+                    .expect("cleanup step target")
+                    .runtime()
+                    .expect("created Host runtime");
                 coordinator
                     .close_authority()
                     .unwrap()

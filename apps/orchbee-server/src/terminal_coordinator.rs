@@ -421,6 +421,28 @@ impl TerminalCoordinator {
         })
     }
 
+    /// A failed Create before Host commit has no runtime or admitted sessions to dispose.
+    /// Unknown effects and failures of an already-created terminal cannot prove absence.
+    pub(crate) fn is_definitively_uncreated(
+        &self,
+        terminal_id: TerminalId,
+        worker_id: WorkerId,
+    ) -> bool {
+        let mut matches = self.bindings.values().filter(|binding| {
+            binding.authorization.terminal_id() == terminal_id
+                && binding.authorization.worker_id() == worker_id
+        });
+        let Some(binding) = matches.next() else {
+            return false;
+        };
+        matches.next().is_none()
+            && binding.phase == TerminalPhase::Unavailable(None)
+            && matches!(
+                binding.create_outcome,
+                Some(CreateOutcome::Failed { .. } | CreateOutcome::Unavailable { .. })
+            )
+    }
+
     pub(crate) fn retained_runtime_target(
         &self,
         terminal_id: TerminalId,

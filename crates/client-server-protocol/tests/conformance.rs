@@ -11,9 +11,9 @@ use orchbee_client_server_protocol::{
 use serde::Deserialize;
 use serde_json::Value;
 
-const SCHEMA: &str = include_str!("../../../schemas/client-server/v1/client-server.schema.json");
+const SCHEMA: &str = include_str!("../../../schemas/client-server/v2/client-server.schema.json");
 const CORPUS: &str =
-    include_str!("../../../schemas/client-server/v1/client-server-conformance-v1.json");
+    include_str!("../../../schemas/client-server/v2/client-server-conformance-v2.json");
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -25,6 +25,70 @@ struct Corpus {
     working_directory_cases: Vec<WorkingDirectoryFixture>,
     geometry_cases: Vec<GeometryFixture>,
     forbidden_client_fields: Vec<ForbiddenFieldFixture>,
+    valid_send_records: Vec<SendRecordFixture>,
+    invalid_send_records: Vec<SendRecordFixture>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SendRecordFixture {
+    name: String,
+    frame_hex: String,
+}
+
+fn binary_frame(fixture: &SendRecordFixture) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    if !fixture.frame_hex.len().is_multiple_of(2) {
+        return Err("odd hex length".into());
+    }
+    fixture
+        .frame_hex
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|pair| Ok(u8::from_str_radix(std::str::from_utf8(pair)?, 16)?))
+        .collect()
+}
+
+#[test]
+fn binary_send_corpus_is_canonical_directional_and_rejects_invalid_records()
+-> Result<(), Box<dyn std::error::Error>> {
+    let corpus = read_corpus()?;
+    let mut names = BTreeSet::new();
+    for fixture in &corpus.valid_send_records {
+        assert!(
+            names.insert(&fixture.name),
+            "duplicate binary fixture {}",
+            fixture.name
+        );
+        let frame = binary_frame(fixture)?;
+        let message = decode_client_frame(&frame)?;
+        assert!(
+            matches!(message, ClientMessage::TerminalSend(_)),
+            "{}",
+            fixture.name
+        );
+        assert_eq!(encode_client_frame(&message)?, frame, "{}", fixture.name);
+        assert!(decode_server_frame(&frame).is_err(), "{}", fixture.name);
+        for end in 0..frame.len() {
+            assert!(
+                decode_client_frame(&frame[..end]).is_err(),
+                "truncated {} at {end}",
+                fixture.name
+            );
+        }
+    }
+    for fixture in &corpus.invalid_send_records {
+        assert!(
+            names.insert(&fixture.name),
+            "duplicate binary fixture {}",
+            fixture.name
+        );
+        assert!(
+            decode_client_frame(&binary_frame(fixture)?).is_err(),
+            "{}",
+            fixture.name
+        );
+    }
+    Ok(())
 }
 
 #[derive(Clone, Copy, Deserialize)]
@@ -111,20 +175,20 @@ fn schema_and_corpus_are_well_formed_and_every_canonical_message_round_trips()
     );
     assert_eq!(
         schema.pointer("/$id").and_then(Value::as_str),
-        Some("urn:orchbee:schema:client-server:v1")
+        Some("urn:orchbee:schema:client-server:v2")
     );
     assert_eq!(
         schema
             .pointer("/oneOf")
             .and_then(Value::as_array)
             .map(Vec::len),
-        Some(14)
+        Some(13)
     );
     assert!(jsonschema::draft202012::meta::is_valid(&schema));
     let schema_validator = jsonschema::draft202012::new(&schema)?;
 
     let corpus = read_corpus()?;
-    assert_eq!(corpus.contract_version, 1);
+    assert_eq!(corpus.contract_version, 2);
     let mut names = BTreeSet::new();
     for fixture in &corpus.valid_messages {
         assert!(
@@ -178,6 +242,12 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         record_coverage(&decoded, &mut reached);
     }
 
+    for fixture in &corpus.valid_send_records {
+        record_coverage(
+            &DecodedMessage::Client(decode_client_frame(&binary_frame(fixture)?)?),
+            &mut reached,
+        );
+    }
     let expected = BTreeSet::from([
         "control-acquire",
         "control-input",
@@ -272,6 +342,9 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         "send-payload-text-enter",
         "send-payload-text-plain",
         "send-payload-key",
+        "send-payload-combo",
+        "send-payload-bytes",
+        "send-payload-paste",
         "message-terminal-send-result",
         "send-target-present",
         "send-target-absent",
@@ -880,7 +953,7 @@ fn payload(frame: &[u8]) -> Result<&[u8], Box<dyn std::error::Error>> {
 fn create_with_cwd(cwd: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let value = serde_json::json!({
         "kind": "terminal.create",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "requestId": "11111111111111111111111111111111",
         "workerConstraint": null,
         "cwd": cwd,
@@ -892,7 +965,7 @@ fn create_with_cwd(cwd: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
 fn start_with_geometry(geometry: &Value) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let message = serde_json::json!({
         "kind": "terminal.start",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "requestId": "22222222222222222222222222222222",
         "terminalCreateRequestId": "11111111111111111111111111111111",
         "geometry": geometry.clone()

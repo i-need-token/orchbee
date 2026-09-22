@@ -201,9 +201,9 @@ orchbee workspace close "$WS" --confirm     # closes the whole context's termina
 
 `--confirm` is required. An `accepted` receipt carries `closeRequestId`
 while the Site completes the close asynchronously. `workspace close` reuses
-the same lifecycle at the Workspace's context scope and preserves the
-Workspace, its checkout, branch, and directories — only the terminal
-membership closes. The retained operation stays answerable by strict stable
+the same lifecycle at the Workspace's context scope, removes the Workspace
+and its terminal context after cleanup, and preserves its checkout,
+branch, and directories. The retained operation stays answerable by strict stable
 IDs even after the Workspace leaves the active projection:
 
 ```sh

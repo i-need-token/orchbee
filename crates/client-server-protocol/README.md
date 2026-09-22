@@ -2,9 +2,8 @@
 
 ## Scope
 
-`orchbee-client-server-protocol` owns the native OBCS v2 Rust binding. The earlier language-neutral
-v1 schema remains under [`schemas/client-server`](../../schemas/client-server/README.md); see the
-native extension and reconciliation limits below. The crate owns
+`orchbee-client-server-protocol` owns the native OBCS v2 Rust binding. The language-neutral
+v2 schema and JSON/binary corpus live under [`schemas/client-server`](../../schemas/client-server/README.md). The crate owns
 validated Rust values, strict direction-specific JSON decoding, deterministic encoding, and bounded
 frame I/O. It has no dependency on the OBLC local admission binding, the OBCN Server-Worker
 authorization binding, Terminal Host types, or Workbench types.
@@ -18,10 +17,10 @@ project Workbench state.
 | API                                                                                                                                                 | Contract                                                                                                                                                                                               |
 | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `RequestId`, `SiteId`, `WorkerId`, `TerminalId`, `ViewerId`, `HostEpoch`, `ControllerId`, `PresentationId`, `PanelId`, `TabId`, `TerminalContextId` | Parse separately typed nonzero opaque 128-bit lowercase hexadecimal identities.                                                                                                                        |
-| `WorkingDirectory`                                                                                                                                  | Validate an absolute POSIX UTF-8 path of at most 4,096 encoded bytes with no NUL.                                                                                                                      |
+| `WorkingDirectory`                                                                                                                                  | Validate an absolute local-platform UTF-8 path of at most 4,096 encoded bytes with no NUL.                                                                                                             |
 | `Geometry`                                                                                                                                          | Construct complete geometry only when all scalar and product bounds hold. Cell-pixel width and height are either both positive (pixels known) or both zero (pixels unknown); a mixed pair is rejected. |
 | `TerminalCreateRequest`, `TerminalStartRequest`                                                                                                     | Construct validated Client requests; start rejects equal start/create request identities.                                                                                                              |
-| `CreateOutcome`, `StartOutcome` and result types                                                                                                    | Represent only the stable Client-visible result combinations admitted by OBCS v1.                                                                                                                      |
+| `CreateOutcome`, `StartOutcome` and result types                                                                                                    | Represent only the stable Client-visible result combinations admitted by OBCS v2.                                                                                                                      |
 | `encode_client_frame`, `decode_client_frame`                                                                                                        | Encode or decode exactly one complete in-memory Client-to-Server frame.                                                                                                                                |
 | `encode_server_frame`, `decode_server_frame`                                                                                                        | Encode or decode exactly one complete in-memory Server-to-Client frame.                                                                                                                                |
 | `read_client_message`, `read_server_message`                                                                                                        | Read exactly one frame from a partial-read-capable ordered stream and leave a following frame unread.                                                                                                  |
@@ -96,7 +95,7 @@ vocabulary; `read-rows` is unchanged byte-for-byte.
 `TerminalControlRequest`, `TerminalControlAction`, `TerminalControlResult`, and `TerminalControlOutcome`
 carry explicit Acquire and grant-scoped Input/Resize. `ControllerId` is a Server-issued identity;
 all three actions require `attachment_id: ViewerId`, exposed by
-`TerminalControlAction::attachment_id()`. This is a required unpublished OBCS v1 shape change;
+`TerminalControlAction::attachment_id()`. This is a required unpublished OBCS v2 shape change;
 Client/Server/Worker must use an exact development cohort with no implicit-viewer fallback.
 `ControlInput` validates 1 through `MAXIMUM_CONTROL_INPUT_BYTES` (4,096) bytes and serializes canonical
 lowercase hex. Shared number adapters validate positive decimal u64 sequences. Acquire, Input, and
@@ -231,7 +230,7 @@ creation and lifetime.
 Canonical fixtures cover every open outcome and reject absent, extra, malformed and wrong-direction
 messages through both the JSON schema and independent Rust decoder.
 
-Open and AttachBinding are additive, unpublished OBCS v1 source contracts. They retain the existing
+Open and AttachBinding are additive, unpublished OBCS v2 source contracts. They retain the existing
 frame version and limits. The installed exact runtime cohort is Client, Server, Worker, and Host;
 this Rust source binding is a contract input rather than an installed cohort artifact. Before
 publication, its source contract and the runtime cohort roll back together, with no persisted state
@@ -247,8 +246,6 @@ duplicates, and no `ORCHBEE_*`, `TERM`, `COLORTERM` or `TERM_PROGRAM`. Empty val
 `=` remain literal. Values are omitted from Debug output. The complete request, including this
 overlay, participates in request identity. The Server converts it to the independent OBCN value.
 
-The checked-in language-neutral v1 schema/corpus predates the native v2 launch selection and
-this environment extension. It is not evidence of native v2 or Desktop compatibility; full
-schema/binding reconciliation remains outstanding.
+The v2 schema/corpus covers launch selection, environment, profile provenance, send sequence progress and all five OBSN input record kinds. Conformance verifies independently authored canonical bytes and negative cases. This establishes native OBCS agreement, not Desktop or Workbench schema parity.
 
 Native v2 frames are bounded at 48 KiB before allocation. A combined maximum escaped cwd, executable/argv and environment test covers the request budget; the older 32 KiB bound cannot contain that valid combination.

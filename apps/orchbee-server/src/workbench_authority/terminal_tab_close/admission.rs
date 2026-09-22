@@ -12,8 +12,8 @@ use super::super::{
     WorkbenchAuthority, WorkbenchGrant, WorkbenchTerminalMembership, result, unavailable,
 };
 use super::{
-    CloseContinuation, CloseRecord, CloseScope, WorkbenchTabCloseRuntimeTarget,
-    WorkbenchTabCloseTarget,
+    CloseContinuation, CloseRecord, CloseScope, WorkbenchTabCloseMemberRuntime,
+    WorkbenchTabCloseRuntimeTarget, WorkbenchTabCloseTarget,
 };
 
 #[allow(clippy::large_enum_variant)]
@@ -347,12 +347,33 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
         )>,
         now: Instant,
     ) -> WorkbenchTabClosePreparation<'a> {
+        self.finish_resolved_members(
+            runtimes
+                .into_iter()
+                .map(
+                    |(target, observed_phase)| WorkbenchTabCloseMemberRuntime::Runtime {
+                        target,
+                        observed_phase,
+                    },
+                )
+                .collect(),
+            now,
+        )
+    }
+
+    /// Accept one Site-proven runtime or never-created binding per frozen leaf.
+    #[must_use]
+    pub fn finish_resolved_members(
+        self,
+        runtimes: Vec<WorkbenchTabCloseMemberRuntime>,
+        now: Instant,
+    ) -> WorkbenchTabClosePreparation<'a> {
         if runtimes.len() != self.members.len()
             || self
                 .members
                 .iter()
                 .zip(&runtimes)
-                .any(|(member, (runtime, _))| !runtime.matches_member(member))
+                .any(|(member, runtime)| !runtime.matches_member(member))
         {
             return WorkbenchTabClosePreparation::Ready(self.authority.retire(&self.command));
         }
@@ -400,8 +421,20 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
         let request_id = self.command.request_id.clone();
         let mut targets = Vec::with_capacity(member_count);
         let mut continuations = Vec::with_capacity(member_count);
-        for (member, (runtime, observed_phase)) in self.members.into_iter().zip(runtimes) {
-            let Some(continuation) = CloseContinuation::prepare(now, observed_phase) else {
+        for (member, evidence) in self.members.into_iter().zip(runtimes) {
+            let (runtime, continuation) = match evidence {
+                WorkbenchTabCloseMemberRuntime::Runtime {
+                    target,
+                    observed_phase,
+                } => (
+                    Some(target),
+                    CloseContinuation::prepare(now, observed_phase),
+                ),
+                WorkbenchTabCloseMemberRuntime::Uncreated { .. } => {
+                    (None, CloseContinuation::prepare_uncreated(now))
+                }
+            };
+            let Some(continuation) = continuation else {
                 return WorkbenchTabClosePreparation::Ready(self.authority.retire(&self.command));
             };
             targets.push(WorkbenchTabCloseTarget {

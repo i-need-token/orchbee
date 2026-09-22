@@ -358,7 +358,7 @@ tombstone, supplies the new-effect fence. Exactly matching DisposedAwaitingPubli
 supplies local attachment disposal proof; a Viewer-issued Start fence is historical, while
 maintenance cleanup validates the primary's entire accepted runtime including its fence. Close
 admission resolves exactly one retained binding: Creating/Starting is TerminalBusy; unknown,
-unavailable, missing or duplicate association is TerminalRuntimeUnavailable. A known identity also
+unavailable with a retained Host identity, missing or duplicate association is TerminalRuntimeUnavailable. A definitive uncreated binding follows the failed-launch removal contract below. A known identity also
 requires the current Worker generation. Historical Started never implies that Host is still Running.
 
 Preserve existing session/request/sequence/current-Worker checks. Newly fenced Attach uses
@@ -678,3 +678,11 @@ Rollback cannot revive terminated execution or discard retained cleanup facts. S
 eligible Resume preserve truthful recovery; persistence across Server restart, permanent Host/platform
 failure recovery, changed-epoch adoption, remote operations, packaging and universal eventual cleanup
 remain excluded. Model and process results must state these limits rather than claim an unbounded proof.
+
+## Failed launch removal
+
+A Tab, Panel or Workspace containing a definitively failed Create remains closable. Under the Site gate, TerminalCoordinator resolves every captured binding before Close admission. Exactly one binding in `Unavailable(None)` with a retained failed/unavailable Create outcome proves no Host terminal was committed; absence of an identity alone is insufficient. Host Create failures occur before its infallible terminal commit. Start and lifecycle failures do not establish this fact.
+
+`WorkbenchTabCloseMemberRuntime` carries either an exact runtime observation or the exact `Uncreated` product binding. Every captured member stays in the ordered Close record and reservation accounting. An Uncreated member has no runtime identity and starts at publication; it issues neither lifecycle commands nor controller cleanup, because no successful identity could admit a Viewer/controller. `disposed-awaiting-publication` describes proven absence here and does not claim a Host Dispose acknowledgment. Mixed scopes still require every runtime member to resolve before any admission effect. The maintenance owner remains required, while an all-Uncreated scope needs no connected Worker.
+
+Creating/Starting stays busy. Unknown, unavailable with a retained identity, missing/duplicate bindings and contradictory accepted Create facts remain unavailable. Existing membership fencing, request replay, publication revision, failure parking and explicit resume rules apply unchanged. Publication revalidates the full ordered scope, including Uncreated members. Tests exercise actual failed-Create settlement, no-Worker removal, mixed scopes and unknown-outcome refusal.

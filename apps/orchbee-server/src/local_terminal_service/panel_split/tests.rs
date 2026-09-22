@@ -329,7 +329,8 @@ fn retargeted_split_completion_notifies_a_parked_bare_open_waiter() -> TestResul
             .unwrap()
             .terminal_tab_close_target(&close.request_id)
             .unwrap()
-            .runtime();
+            .runtime()
+            .expect("created Host runtime");
         service
             .complete_disposed_target_cleanup(&site, &close.request_id, runtime)
             .unwrap();

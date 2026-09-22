@@ -624,7 +624,8 @@ fn close_step_request(
     let runtime = authority
         .terminal_tab_close_target(close_id)
         .unwrap()
-        .runtime();
+        .runtime()
+        .expect("created Host runtime");
     TerminalLifecycleRequest {
         authorization: TerminalLifecycleAuthorization {
             capability_version: TERMINAL_LIFECYCLE_CAPABILITY_VERSION,
@@ -719,7 +720,8 @@ fn publish_panel_close(
     let runtime = authority
         .terminal_tab_close_target(&close_id)
         .unwrap()
-        .runtime();
+        .runtime()
+        .expect("created Host runtime");
     authority
         .complete_terminal_tab_close_target_cleanup(&close_id, runtime)
         .unwrap();
