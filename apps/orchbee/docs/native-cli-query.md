@@ -180,16 +180,16 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
   `tail{requested,omitted,entries}` accounting stays separate from the byte-budget's
   `omittedRows`. A repeated, non-numeric, zero, or out-of-range value is `invalid-usage`.
 - `--text <utf8>`, `--key <name>`, `--file <path>`, `--stdin`: the four mutually
-  exclusive `terminal send` input sources, single-use each and valid on no other
+  exclusive `terminal send` input sources, valid on no other
   command. `--text` and `--file` consume the next token as their value under the
   standard value rule (a dash-leading token is consumed, a bare `--` is not);
-  `--key` takes one closed key name; `--stdin` is valueless. `--text` must be a
+  `--key` takes one closed key name per occurrence and can repeat up to 64 times; the other sources are single-use. `--stdin` is valueless. `--text` must be a
   nonempty UTF-8 literal whose byte length plus the optional folded CR stays
   within the 4,096-byte record bound; `--file` stores its operand untouched —
   the parser performs no filesystem validation, and every path, type, and
   content check is the materializer's job under [Send input
   sources](#send-input-sources). `--enter` is the text-bearing modifier: legal
-  on `--text`, `--file`, and `--stdin`, never on `--key` or alone. Zero sources
+  on `--text`, `--file`, and `--stdin`, never on `--key` or alone. `--paste` is valid only with `--file` or `--stdin`; it produces a paste record and an optional trailing Enter record. Zero source kinds
   or more than one is `invalid-usage`, with conflicts named in the fixed order
   `--text`, `--key`, `--file`, `--stdin` regardless of argv order.
 - `--mouse off|on`: single-use value flag admitted only on the explicit `tui` route —
@@ -289,7 +289,8 @@ orchbee api schema [<schema-id>]
 orchbee site start
 orchbee site diagnose
 orchbee config check
-orchbee completion bash|zsh|fish
+orchbee completion bash|zsh|fish|powershell
+orchbee --skill
 orchbee help <recognized path>
 orchbee <recognized path> -h|--help
 ```
@@ -303,13 +304,16 @@ path (no filters, no format). A trailing `-h` or `--help` is the same request on
 arguments (`project get --help` describes `project get`) but not over supplied business
 arguments or extra tokens (`project get x --help`, `status extra --help` are usage). Unlisted
 targets such as `help help`, `help version`, `help --version` are unknown paths → usage. Help,
-`--version`, `completion`, and `api schema` never touch platform, runtime, cohort, or Site state.
+`--version`, `--skill`, `completion`, and `api schema` never touch platform, runtime, cohort, or Site state.
+`--skill` must be the sole root argument and emits the localized, embedded CLI usage guide.
+PowerShell completion is a static grammar projection: it never executes user expressions or
+queries a Site; loading it is explicit and does not modify a shell profile.
 
 `[<geometry>]` stands for the optional all-or-none group `--cols <n> --rows <n>
 --cell-width <n> --cell-height <n>`; omitted, the command requests the default 80x24
 grid with unknown cell pixels (0,0).
 
-`help`, `completion`, `tui`, `--version`, and the bare invocation are fixed text outputs that do
+`help`, `completion`, `tui`, `--version`, `--skill`, and the bare invocation are fixed text outputs that do
 not accept `--format`; a single valid `--format=json` turns the resulting syntax failure into a
 JSON `invalid-usage` failure document, while a text/default failure keeps stdout empty. Data
 commands (`status`, all `list`/`get`, `workspace close-status`, `agent explain`,
@@ -545,21 +549,21 @@ remains — then uses the same admitted session for exactly one `terminal.send` 
 under the same deadline. A `--text`/`--key` invocation has no materialization step at all:
 
 0. **Materialize** (declared sources only) — `--file`/`--stdin` is read in full into the
-   same bounded text record `--text` carries, before any runtime access; see [Send input
+   bounded byte or paste content described below (small UTF-8 input retains the text-record path), before any runtime access; see [Send input
    sources](#send-input-sources). A source failure owns no request identity and never
    reaches the Server.
 1. **Resolve** — the typed terminal ID is looked up in the validated snapshot's presentation
    bindings; absent → `not-found` (3) with `{resource:"terminal",target}` and the session
    drops. Labels are never consulted.
-2. **Send** — one `terminal.send{siteId,workerId,terminalId,payload}` built from the
-   snapshot's own facts under a fresh request identity. The payload is either
-   `{kind:"text",text,enter}` — the literal bytes plus the `--enter` carriage return folded
-   into the same single input record, bounded at 4096 bytes total — or `{kind:"key",key}`
-   naming one of the fifteen semantic keys (`enter`, `escape`, `tab`, `backspace`, `delete`,
-   `up`, `down`, `left`, `right`, `home`, `end`, `page-up`, `page-down`, `ctrl-c`, `ctrl-d`).
-   Keys are protocol-level names, never canned escape-byte strings. The Client Session is
-   then fully released before the typed result is mapped or output prepared; the send is
-   never retried.
+2. **Send** — one `terminal.send` request carries an ordered record sequence under a
+   fresh request identity using the snapshot's Site, Worker, and terminal facts. `--text`
+   produces one UTF-8 record (4096 bytes including optional CR); `--file`/`--stdin`
+   produce one opaque byte record (1 MiB including optional CR), retaining the text path
+   for small UTF-8 content. `--paste` instead produces one paste record (256 KiB) with
+   an optional separate Enter record. Repeated `--key` produces up to 64 semantic-key
+   records in argument order; keys are protocol names, never canned escape strings.
+   The Client Session is fully released before the typed result is mapped or output
+   prepared. The request is never retried, including after partial acceptance.
 3. **Answer** — the Server's `terminal.send.result` splits two axes the envelope reports
    verbatim: `inputStatus` (`accepted` means the Host queued the input record — never that a
    child process read or executed it; `rejected`/`not-submitted` mean the record provably never
@@ -627,44 +631,59 @@ catalogRevision}` — the catalog-private revision, distinct from the Workbench
 
 ### Send input sources
 
-`--file` and `--stdin` are _declared_ local sources: the parser stores them untouched and
-the source stage materializes each into exactly one bounded text record before any runtime
-effect — no cohort, discovery, admission, snapshot, or send happens until the complete
-record exists. A materialized record is indistinguishable from `--text` downstream: one
-record feeds one `terminal.send` request under the unchanged success schema.
+Windows pipe acquisition owns one hidden, noninteractive Windows PowerShell reader
+resolved from the OS system directory. Only the inherited stdin handle is passed;
+source bytes never become script or argument text. The fixed script copies at most
+the source limit plus one byte into a private output pipe. The CLI polls under the
+existing deadline and interrupt guard, and kills/reaps the child on success and handled failures.
+It does not change the caller's pipe mode or leave a blocking reader thread behind.
+Regular-file stdin retains direct reads. Process startup and termination remain OS
+scheduling boundaries, not hard real-time guarantees.
 
-- **Pure input boundary.** Grammar and target validation complete before any source
-  setup or read. The four source flags are mutually exclusive and single-use; `--enter`
-  belongs to text-bearing sources only. A source failure owns no request identity,
-  contacts nothing, and never becomes transport loss — the Server observes zero
-  effect from any pre-admission failure.
+The adapter uses the already admitted `winsafe` system-directory and `winapi-util`
+handle-type bindings at their existing locked versions, with no authored unsafe code.
+States are admitted -> reading -> complete/failed/timed-out/cancelled -> child-reaped;
+only complete can reach submission. `source/input.rs` owns opaque-byte/paste routing:
+file/stdin is not restricted to UTF-8. Windows tests exercise real reader processes
+for EOF, limits, and timeout, and inject a signal observation to test cancellation;
+they do not simulate physical Ctrl+C. TLA execution is deferred.
+
+`--file` and `--stdin` are declared local sources. Grammar validation precedes
+source acquisition; cohort discovery, admission, snapshot and submission happen
+only after the complete bounded source exists. Small valid UTF-8 content retains
+the text-record path; other content becomes opaque bytes. Paste content becomes
+one paste record and, with `--enter`, a separate trailing Enter record.
+
+- **Pure input boundary.** The four source families are mutually exclusive;
+  `--key` alone is repeatable, up to 64 records. `--enter` cannot accompany keys,
+  and `--paste` requires file/stdin. Pre-admission source failures submit nothing
+  and own no request identity.
 - **One shared budget.** The absolute 5-second deadline sampled at command entry covers
   source setup, materialization, and the entire send lifecycle; it is never reset or
   renewed. A deadline check precedes every source wait and every read — including a
   read whose wait ended at the deadline — and also arbitrates the completion boundary
   itself: an end of input observed after the budget closed is `timeout`, never a clean
   record. No runtime admission runs after it expires.
-- **File admission.** `--file` opens `O_RDONLY|O_NONBLOCK|O_CLOEXEC` — the open itself
+- **Linux file admission.** `--file` opens `O_RDONLY|O_NONBLOCK|O_CLOEXEC` — the open itself
   cannot block on a FIFO or device — then `fstat` on the already-open descriptor must
   report a regular file, which also closes the path-replacement race: a swapped path
   still reports its true type. An unopenable/unreadable path, a non-regular result
   (directory, FIFO, device, or a swapped replacement), an empty file, or a read error is
   a source-stage `invalid-usage`.
-- **Stdin admission.** `--stdin` refuses a terminal descriptor, then dispatches on the
+- **Linux stdin admission.** `--stdin` refuses a terminal descriptor, then dispatches on the
   inherited descriptor's exact `S_IFMT` type: a regular file is read in place,
   unbuffered, on the borrowed descriptor — the shared file position advances by exactly
-  the bytes returned, at most the 4,097-byte probe (that is the inherited-position
+  the bytes returned, at most the declared source bound plus one probe byte (that is the inherited-position
   contract); a FIFO/pipe is reopened through `/proc/self/fd/0` into a private
   nonblocking file description, so the caller's descriptor flags are never mutated and
   nothing needs restoring; the reopened description must verify as a FIFO, and every
   other kind (socket, device, …) is rejected.
-- **Bounded record.** Acquisition caps at 4,097 bytes — the wire 4,096 limit plus one —
-  so exactly 4,096 bytes succeeds and one more is rejected without draining further.
-  Bytes decode as strict UTF-8 only; nothing is trimmed, split, BOM-stripped, or
-  CRLF-normalized. `--enter` survives as the wire folded-CR flag — one carriage
-  return inside the same record, exactly as `--text` — and counts against the same
-  bound, so 4,095 bytes + CR is the accepted boundary and 4,096 + CR is rejected.
-  Source path and payload bytes never appear in any diagnostic.
+- **Bounded record.** File/stdin acquisition reads at most the 1 MiB byte bound
+  plus one probe byte, or the 256 KiB paste-content bound plus one. Opaque bytes,
+  including NUL and non-UTF-8 data, are preserved without trimming, BOM removal or
+  CRLF normalization. Empty input is refused. The optional folded CR counts toward
+  the non-paste bound; paste uses a separate Enter record. Literal `--text` retains
+  its 4096-byte UTF-8 bound including CR. Payload is never included in diagnostics.
 - **Source signal guard.** On Linux the source stage owns process signal capture for its
   duration — single-threaded, with no other signal owner and no child spawned before
   handoff. The eligible set is {SIGHUP, SIGINT, SIGQUIT, SIGTERM} minus every signal the
@@ -1478,7 +1497,7 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | agent list outcome `Rejected(CursorInvalid\|CursorStale)`                                                                                 | `rejected`                                                                 | 3         | `{stage:"agent-read",operation:"list",reason:"cursor-invalid"\|"cursor-stale"}`                     |
 | agent outcome `Unavailable`                                                                                                               | `service-unavailable`                                                      | 4         | `{stage:"agent-read",operation,reason:"runtime-unavailable"}`                                       |
 | agent `SessionUnavailable`/`RequestEncoding`                                                                                              | `internal-failure`                                                         | 1         | omitted                                                                                             |
-| send source validation: unopenable/non-regular path, terminal or unsupported stdin, empty, oversized, non-UTF-8                           | `invalid-usage`                                                            | 2         | omitted (localized stderr names the declared option and concrete cause)                             |
+| send source validation: unopenable/non-regular path, terminal or unsupported stdin, empty, oversized                                      | `invalid-usage`                                                            | 2         | omitted (localized stderr names the declared option and concrete cause)                             |
 | send source deadline expired during materialization                                                                                       | `timeout` under `orchbee.cli.failure.source`                               | 7         | `{stage:"input",inputSource,timeoutMs}`                                                             |
 | eligible signal captured during send source materialization                                                                               | `cancelled` under `orchbee.cli.failure.source`                             | 128+signo | `{stage:"input",inputSource}`                                                                       |
 | send source signal setup/read/restore failure                                                                                             | `internal-failure`                                                         | 1         | omitted                                                                                             |
@@ -1563,7 +1582,7 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 ## Invariants
 
 - A syntactically invalid invocation never touches the filesystem, cohort, or socket.
-- Offline commands (`help`, `--version`, `completion`, `api schema`) never perform platform,
+- Offline commands (`help`, `--version`, `--skill`, `completion`, `api schema`) never perform platform,
   runtime, cohort, or Site discovery.
 - A network query creates nothing: no directory, lock, marker, terminal, viewer, control grant,
   or second request — except `terminal read`/`terminal wait-output`, whose read-capability
@@ -1573,17 +1592,17 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 - A mutation submits at most one `workbench.command` per invocation under a fresh
   `WorkbenchRequestId`; it is never retried or replayed, and an ambiguous outcome is reported
   as `outcome-unknown`, not guessed. `terminal send` follows the same discipline for its one
-  OBCS `terminal.send` exchange: at most one input record per invocation under a fresh request
+  OBCS `terminal.send` exchange: one bounded record sequence per invocation under a fresh request
   identity, never retried — an ambiguous answer is `outcome-unknown`, and the localized
   diagnostic says the input may already have landed before the operator decides whether to
   repeat it.
 - A declared `terminal send` source is materialized completely before any runtime access:
-  exactly one bounded record (≤4,096 bytes including the folded CR, strict UTF-8) feeds
+  one bounded input sequence (text 4096 bytes, opaque bytes 1 MiB, paste 256 KiB) feeds
   exactly one `terminal.send` request — never split, replayed, or partially submitted. A
   source timeout, cancellation, or validation failure produces zero runtime effect and no
   request identity; after materialization the ordinary send lifecycle is authoritative and
   a source-stage outcome cannot semantically cancel an already admitted send.
-- The source signal guard never alters dispositions and restores the inherited thread mask
+- On Linux, the source signal guard never alters dispositions and restores the inherited thread mask
   exactly — captured, inherited-blocked, and inherited-ignored signals each keep their
   original semantics; no signal owner outlives the source stage, and no eligible signal
   stays blocked past the output finalization path.
@@ -1622,47 +1641,50 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 
 ## Scenario matrix and evidence
 
-| Scenario                                                                                                                                                                                                          | Expected                                                                                         | Evidence                                                            |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
-| Exhaustive grammar: formats, positions, `--`, help forms, duplicates, invalids                                                                                                                                    | exact parse/failure kinds                                                                        | `src/invocation` tests                                              |
-| Format envelope ordering: a defect anywhere leaves stdout empty; a valid json anywhere shapes later failures                                                                                                      | envelope precedence over grammar errors                                                          | `src/invocation` tests + `tests/cli_query.rs`                       |
-| Filter scope: `workspace list` accepts only `--project`; wrong-command filters are usage before runtime                                                                                                           | complete matrix, no silently dropped filter                                                      | `src/invocation` tests + `tests/cli_query.rs`                       |
-| Target rules: ID/label/zero/overlong/ambiguous precedence                                                                                                                                                         | resolver verdicts                                                                                | `src/cli` resolver tests                                            |
-| Validated snapshot → every result shape, empty collections, nulls                                                                                                                                                 | exact JSON/text fixtures                                                                         | `src/cli` output tests + JSON Schema validation (dev `jsonschema`)  |
-| Schema dictionary ↔ emitted envelopes                                                                                                                                                                             | every success/failure fixture validates; rejected variants fail                                  | schema contrast tests                                               |
-| API failure format: text/default failures keep stdout empty, `--format json` yields the envelope                                                                                                                  | caller-selected failure format on `api schema`/`api snapshot`                                    | `tests/cli_query.rs` + `src/cli` tests                              |
-| No Site on disk                                                                                                                                                                                                   | `service-unavailable`, zero fs/process/lock mutation                                             | `tests/cli_query.rs`                                                |
-| Real staged-cohort Server: status/list/get/api snapshot, 8 admitted + ninth rejected + release, live TUI                                                                                                          | success/`session-capacity`/unchanged structure                                                   | `tests/local_startup_process`                                       |
-| Scripted OBLC/OBWP peers: denied, unavailable, malformed, wrong correlation, timeout, disconnect                                                                                                                  | typed kinds per matrix; never labeled real-Server evidence                                       | `tests/cli_query.rs`                                                |
-| Scripted OBCS viewer peer: attach-binding fields, `Empty`→`record` poll, detach release, reject/unavailable/malformed/correlation/disconnect                                                                      | `terminal read` success + typed viewer-stage failures                                            | `tests/cli_query.rs`                                                |
-| Scripted OBCS viewer peer + hand-built OBRW records: scrollback pricing, capacity/scrollback clamps, typed `rows-rejected`, window mismatch, oversized record, no retry                                           | `terminal read --history` success + typed failures                                               | `tests/cli_query.rs`                                                |
-| Scripted OBCS send peer: UTF-8 text with optional folded CR and semantic keys arrive as one request, target/request identity, accepted/rejected/unavailable/unknown answers, stalled answer, no retry             | `terminal send` exit 0/3/4/5/8 with the two-axis result fields                                   | `tests/cli_send.rs`                                                 |
-| Send source grammar: four-source exclusivity, fixed-order conflict naming, `--enter` scoping, flag scope                                                                                                          | exact parse/`invalid-usage` before any runtime access                                            | `src/invocation` tests                                              |
-| File/stdin materialization: nonblocking open + `fstat` type gate, regular-file shared offset, private FIFO reopen, cap+1, strict UTF-8, empty/non-regular/unsupported rejections                                  | bounded record or typed source `invalid-usage`; zero runtime effect                              | `src/cli/source` unit tests + `tests/cli_send.rs`                   |
-| Source deadline/cancellation: stalled pipe exits at the shared deadline (7), captured eligible signal exits `128+signo` under `orchbee.cli.failure.source`, inherited IGN/BLK preserved, restore failure internal | source envelope facts, no wire request, exact mask restore                                       | `src/cli/source` tests + labelled OS/process evidence               |
-| Scripted OBCS send peer with declared sources: materialized file/stdin arrives as one `terminal.send` text request                                                                                                | identical envelope to `--text`; exactly one request                                              | `tests/cli_send.rs`                                                 |
-| Scripted OBCS viewer peer + hand-built OBTF/OBRW records: increasing `requestSequence`, visible/history boundary window, real `FrameApplied` per frame, stale re-pin, excerpt tail match, deadline incl. preamble | `terminal wait-output` success + typed failures                                                  | `tests/cli_query.rs`                                                |
-| Scripted OBLC/OBAP peers: list/get/explain verbatim outcomes, option→wire echo, denied/not-found/cursor/unavailable answers, malformed/wrong-kind/miscorrelated frames, no-retry                                  | agent read success + typed `agent-read` failures                                                 | `tests/cli_agent.rs`                                                |
-| Agent envelopes ↔ embedded schemas: emitted success/failure documents validate; wire-impossible variants (count 129, duplicate capabilities/ceiling) rejected                                                     | schema restatement of the wire contract                                                          | `tests/cli_agent.rs`                                                |
-| Real staged-cohort Server + live TUI terminal: `wait-output` matches existing/later/scrolled-off/UTF-8 output, short deadline exits 7, cancel frees the slot                                                      | public wait observation coexisting with the TUI's own viewer                                     | `tests/local_startup_process`                                       |
-| Real staged-cohort Server + live TUI terminal: `terminal read` returns its grid and schema-validates                                                                                                              | real read-only observation coexisting with the TUI's own viewer                                  | `tests/local_startup_process`                                       |
-| Mutation grammar: every command, target rules, `--confirm`, geometry bounds, flag scopes                                                                                                                          | exact parse/failure kinds before runtime access                                                  | `src/invocation` tests                                              |
-| Mutation scripted peers: all fifteen commands, precommit verdicts, ambiguous and unapplied outcomes                                                                                                               | one command per call; `outcome-unknown` never replayed                                           | `tests/cli_mutation.rs`                                             |
-| Workspace close grammar: `close` target+`--confirm`; `close-status`/`close-resume` strict stable IDs, `--request`/`--generation` fences, stale-but-valid generation parses                                        | exact parse/`invalid-usage` before runtime access                                                | `src/invocation` tests                                              |
-| Workspace close envelopes: close-status verbatim outcome incl. tombstone, resume source echo, closed close-envelope details                                                                                       | every fixture validates; rejected variants fail                                                  | schema contrast tests                                               |
-| Worktree list grammar: `--project`/`--directory` both required, strict directory-ID value rule, flag scopes                                                                                                       | exact parse/`invalid-usage` before runtime access                                                | `src/invocation` tests                                              |
-| Launch-profile grammar: four command paths, verbatim selector, `--name`/`--exec` required pair, `--profile` exclusivity and scope                                                                                 | exact parse/`invalid-usage` before runtime access                                                | `src/invocation` tests                                              |
-| Launch-profile document/failure envelopes: entry member names, closed details vocabulary, dual `source` shapes                                                                                                    | every fixture validates; rejected variants fail                                                  | schema contrast tests                                               |
-| Worktree list document/failure envelopes: entry XOR byte fields, bare/detached/HEAD invariants, closed details vocabulary                                                                                         | every fixture validates; rejected variants fail                                                  | `tests/cli_query.rs` schema contrast tests                          |
-| Worker discovery job: real disposable Git repository (init + commit + detached linked worktree, per-command `-c` identity only), shared TTL/stdout budget attribution                                             | verbatim `-z` bytes, real HEAD/ref, typed outcomes                                               | `apps/orchbee-worker` `worktree_discovery_job` tests                |
-| Server worktree-list handler: `-z` parser acceptance/rejection matrix, membership authority, outcome→failure mapping                                                                                              | byte-exact projection; malformed listings are `check-failed`                                     | `apps/orchbee-server` `worktree_list` tests                         |
-| Non-TTY; stdout blocked after the session is gone; >8 MiB prepared output on every format; real write failure                                                                                                     | documented exits; transport owners dropped before blocking                                       | `tests/local_startup_process` + emit unit tests                     |
-| `config check` matrix: pass/fail/not-applicable per check, `exists` semantics                                                                                                                                     | five typed checks always reported                                                                | `tests/cli_query.rs` + `src/cli/config` tests                       |
-| `agent doctor` grammar: provider/asset-root admission, dedup, caps, help paths; synthetic fixture → total-order verdicts (codex ladder, guarded/capsule/root/socket probes), closed vocabularies                  | deterministic offline facts; emitted document validates; no provider execution or socket connect | `src/invocation` tests + `src/agent_doctor` tests                   |
-| `site start` real staged cohort: cold start spawns + admits, second/overlapping starts, marker-without-owner refusal, held-lock deadline, cohort faults, signals, non-UTF-8 base, zh-CN text                      | `started`/`already-running` truth; refused wedge leaves marker byte-identical; bounded deadline  | `tests/local_startup_process`                                       |
-| `site diagnose` grammar + observation matrix: format-only options, every row state/reason, conditional advisories, held/free/unsafe lifetime lock, unadmitted parent, spent budget, zero creation                 | exact parse; closed fact rows; no connect/create/repair; no liveness claim                       | `src/invocation` tests + `src/cli/site_diagnose` + rendezvous tests |
-| Completion scripts project the grammar (bash/zsh executed, fish structural parity)                                                                                                                                | positive and negative contexts; no runtime enumeration                                           | `tests/cli_query.rs`                                                |
-| Bilingual text/failure output                                                                                                                                                                                     | exact en-US/zh-CN strings                                                                        | `tests/process.rs` + `tests/cli_query.rs`                           |
+| Scenario                                                                                                                                                                                                          | Expected                                                                                          | Evidence                                                            |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Exhaustive grammar: formats, positions, `--`, help forms, duplicates, invalids                                                                                                                                    | exact parse/failure kinds                                                                         | `src/invocation` tests                                              |
+| Format envelope ordering: a defect anywhere leaves stdout empty; a valid json anywhere shapes later failures                                                                                                      | envelope precedence over grammar errors                                                           | `src/invocation` tests + `tests/cli_query.rs`                       |
+| Filter scope: `workspace list` accepts only `--project`; wrong-command filters are usage before runtime                                                                                                           | complete matrix, no silently dropped filter                                                       | `src/invocation` tests + `tests/cli_query.rs`                       |
+| Target rules: ID/label/zero/overlong/ambiguous precedence                                                                                                                                                         | resolver verdicts                                                                                 | `src/cli` resolver tests                                            |
+| Validated snapshot → every result shape, empty collections, nulls                                                                                                                                                 | exact JSON/text fixtures                                                                          | `src/cli` output tests + JSON Schema validation (dev `jsonschema`)  |
+| Schema dictionary ↔ emitted envelopes                                                                                                                                                                             | every success/failure fixture validates; rejected variants fail                                   | schema contrast tests                                               |
+| API failure format: text/default failures keep stdout empty, `--format json` yields the envelope                                                                                                                  | caller-selected failure format on `api schema`/`api snapshot`                                     | `tests/cli_query.rs` + `src/cli` tests                              |
+| No Site on disk                                                                                                                                                                                                   | `service-unavailable`, zero fs/process/lock mutation                                              | `tests/cli_query.rs`                                                |
+| Real staged-cohort Server: status/list/get/api snapshot, 8 admitted + ninth rejected + release, live TUI                                                                                                          | success/`session-capacity`/unchanged structure                                                    | `tests/local_startup_process`                                       |
+| Scripted OBLC/OBWP peers: denied, unavailable, malformed, wrong correlation, timeout, disconnect                                                                                                                  | typed kinds per matrix; never labeled real-Server evidence                                        | `tests/cli_query.rs`                                                |
+| Scripted OBCS viewer peer: attach-binding fields, `Empty`→`record` poll, detach release, reject/unavailable/malformed/correlation/disconnect                                                                      | `terminal read` success + typed viewer-stage failures                                             | `tests/cli_query.rs`                                                |
+| Scripted OBCS viewer peer + hand-built OBRW records: scrollback pricing, capacity/scrollback clamps, typed `rows-rejected`, window mismatch, oversized record, no retry                                           | `terminal read --history` success + typed failures                                                | `tests/cli_query.rs`                                                |
+| Scripted OBCS send peer: UTF-8 text with optional folded CR and semantic keys arrive as one request, target/request identity, accepted/rejected/unavailable/unknown answers, stalled answer, no retry             | `terminal send` exit 0/3/4/5/8 with the two-axis result fields                                    | `tests/cli_send.rs`                                                 |
+| Send source grammar: four-source exclusivity, fixed-order conflict naming, `--enter` scoping, flag scope                                                                                                          | exact parse/`invalid-usage` before any runtime access                                             | `src/invocation` tests                                              |
+| File/stdin materialization: nonblocking open + `fstat` type gate, regular-file shared offset, private FIFO reopen, cap+1, opaque bytes, empty/non-regular/unsupported rejections                                  | bounded record or typed source `invalid-usage`; zero runtime effect                               | `src/cli/source` unit tests + `tests/cli_send.rs`                   |
+| Source deadline/cancellation: stalled pipe exits at the shared deadline (7), captured eligible signal exits `128+signo` under `orchbee.cli.failure.source`, inherited IGN/BLK preserved, restore failure internal | source envelope facts, no wire request, exact mask restore                                        | `src/cli/source` tests + labelled OS/process evidence               |
+| Scripted OBCS send peer with declared sources: materialized file/stdin arrives as one `terminal.send` text request                                                                                                | identical envelope to `--text`; exactly one request                                               | `tests/cli_send.rs`                                                 |
+| Windows owned pipe reader: raw bytes, EOF, empty input, byte/paste boundaries, deadline, injected cancellation, child retirement                                                                                  | exact payload or typed refusal; no surviving pipe reader                                          | `src/cli/source_windows/pipe.rs` tests                              |
+| Windows public process and PowerShell 5.1/7 pipeline source validation                                                                                                                                            | source completion reaches the text control's same post-source refusal; invalid sources fail first | `tests/cli_windows_input.rs`                                        |
+| PowerShell 5.1/7 completion and offline localized skill                                                                                                                                                           | scoped candidates, repeated keys, paste exclusions, sole-root skill without runtime access        | `src/cli/completion/powershell/tests.rs` + `tests/process.rs`       |
+| Scripted OBCS viewer peer + hand-built OBTF/OBRW records: increasing `requestSequence`, visible/history boundary window, real `FrameApplied` per frame, stale re-pin, excerpt tail match, deadline incl. preamble | `terminal wait-output` success + typed failures                                                   | `tests/cli_query.rs`                                                |
+| Scripted OBLC/OBAP peers: list/get/explain verbatim outcomes, option→wire echo, denied/not-found/cursor/unavailable answers, malformed/wrong-kind/miscorrelated frames, no-retry                                  | agent read success + typed `agent-read` failures                                                  | `tests/cli_agent.rs`                                                |
+| Agent envelopes ↔ embedded schemas: emitted success/failure documents validate; wire-impossible variants (count 129, duplicate capabilities/ceiling) rejected                                                     | schema restatement of the wire contract                                                           | `tests/cli_agent.rs`                                                |
+| Real staged-cohort Server + live TUI terminal: `wait-output` matches existing/later/scrolled-off/UTF-8 output, short deadline exits 7, cancel frees the slot                                                      | public wait observation coexisting with the TUI's own viewer                                      | `tests/local_startup_process`                                       |
+| Real staged-cohort Server + live TUI terminal: `terminal read` returns its grid and schema-validates                                                                                                              | real read-only observation coexisting with the TUI's own viewer                                   | `tests/local_startup_process`                                       |
+| Mutation grammar: every command, target rules, `--confirm`, geometry bounds, flag scopes                                                                                                                          | exact parse/failure kinds before runtime access                                                   | `src/invocation` tests                                              |
+| Mutation scripted peers: all fifteen commands, precommit verdicts, ambiguous and unapplied outcomes                                                                                                               | one command per call; `outcome-unknown` never replayed                                            | `tests/cli_mutation.rs`                                             |
+| Workspace close grammar: `close` target+`--confirm`; `close-status`/`close-resume` strict stable IDs, `--request`/`--generation` fences, stale-but-valid generation parses                                        | exact parse/`invalid-usage` before runtime access                                                 | `src/invocation` tests                                              |
+| Workspace close envelopes: close-status verbatim outcome incl. tombstone, resume source echo, closed close-envelope details                                                                                       | every fixture validates; rejected variants fail                                                   | schema contrast tests                                               |
+| Worktree list grammar: `--project`/`--directory` both required, strict directory-ID value rule, flag scopes                                                                                                       | exact parse/`invalid-usage` before runtime access                                                 | `src/invocation` tests                                              |
+| Launch-profile grammar: four command paths, verbatim selector, `--name`/`--exec` required pair, `--profile` exclusivity and scope                                                                                 | exact parse/`invalid-usage` before runtime access                                                 | `src/invocation` tests                                              |
+| Launch-profile document/failure envelopes: entry member names, closed details vocabulary, dual `source` shapes                                                                                                    | every fixture validates; rejected variants fail                                                   | schema contrast tests                                               |
+| Worktree list document/failure envelopes: entry XOR byte fields, bare/detached/HEAD invariants, closed details vocabulary                                                                                         | every fixture validates; rejected variants fail                                                   | `tests/cli_query.rs` schema contrast tests                          |
+| Worker discovery job: real disposable Git repository (init + commit + detached linked worktree, per-command `-c` identity only), shared TTL/stdout budget attribution                                             | verbatim `-z` bytes, real HEAD/ref, typed outcomes                                                | `apps/orchbee-worker` `worktree_discovery_job` tests                |
+| Server worktree-list handler: `-z` parser acceptance/rejection matrix, membership authority, outcome→failure mapping                                                                                              | byte-exact projection; malformed listings are `check-failed`                                      | `apps/orchbee-server` `worktree_list` tests                         |
+| Non-TTY; stdout blocked after the session is gone; >8 MiB prepared output on every format; real write failure                                                                                                     | documented exits; transport owners dropped before blocking                                        | `tests/local_startup_process` + emit unit tests                     |
+| `config check` matrix: pass/fail/not-applicable per check, `exists` semantics                                                                                                                                     | five typed checks always reported                                                                 | `tests/cli_query.rs` + `src/cli/config` tests                       |
+| `agent doctor` grammar: provider/asset-root admission, dedup, caps, help paths; synthetic fixture → total-order verdicts (codex ladder, guarded/capsule/root/socket probes), closed vocabularies                  | deterministic offline facts; emitted document validates; no provider execution or socket connect  | `src/invocation` tests + `src/agent_doctor` tests                   |
+| `site start` real staged cohort: cold start spawns + admits, second/overlapping starts, marker-without-owner refusal, held-lock deadline, cohort faults, signals, non-UTF-8 base, zh-CN text                      | `started`/`already-running` truth; refused wedge leaves marker byte-identical; bounded deadline   | `tests/local_startup_process`                                       |
+| `site diagnose` grammar + observation matrix: format-only options, every row state/reason, conditional advisories, held/free/unsafe lifetime lock, unadmitted parent, spent budget, zero creation                 | exact parse; closed fact rows; no connect/create/repair; no liveness claim                        | `src/invocation` tests + `src/cli/site_diagnose` + rendezvous tests |
+| Completion scripts project the grammar (bash/zsh executed, fish structural parity)                                                                                                                                | positive and negative contexts; no runtime enumeration                                            | `tests/cli_query.rs`                                                |
+| Bilingual text/failure output                                                                                                                                                                                     | exact en-US/zh-CN strings                                                                         | `tests/process.rs` + `tests/cli_query.rs`                           |
 
 Model obligations: this slice adds no new Server state machine, persistence, or retry and reuses
 the registered OBLC/OBWP/OBCS/Client models — `terminal read` rides the existing

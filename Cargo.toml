@@ -25,6 +25,8 @@ getrandom = { version = "=0.3.4", default-features = false }
 sha2 = "0.10.9"
 rustix = { version = "1.1.4", default-features = false, features = ["std"] }
 nix = { version = "0.31.3", default-features = false }
+winsafe = { version = "=0.0.29", default-features = false }
+winapi-util = { version = "=0.1.11", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

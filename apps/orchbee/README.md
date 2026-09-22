@@ -29,7 +29,7 @@ orchbee site start               # ensure the local Site is running (no TTY)
 orchbee site diagnose            # read-only local Site runtime facts
 orchbee config check             # local runtime inspection
 orchbee help [<family>|<command>]
-orchbee completion bash|zsh|fish
+orchbee completion bash|zsh|fish|powershell
 orchbee --help | --version
 ```
 
@@ -157,8 +157,12 @@ bounded writes, and cancelled exchanges close their shared pipe without a detach
 Current Windows limits: `site diagnose`, Agent integration installation, and Agent doctor are not
 implemented. The packaged hook adapters still require Unix TTY discovery, so launching an Agent in a
 pane does not promise hook-based Agent-board state. `terminal send --stdin` accepts redirected regular
-files; streaming pipe input is refused. Use `--text` or `--file` for automation. Shell completion has
-bash/zsh/fish output only. Signing, automatic updates, crash recovery, macOS startup, and a packaged
+files and Windows pipes; an owned hidden Windows PowerShell reader makes pipe input cancellable.
+It is resolved from the OS system directory, never from PATH, and is terminated/reaped on failure.
+Shell completion supports bash/zsh/fish/powershell. In PowerShell, load it explicitly with
+`Invoke-Expression (orchbee completion powershell | Out-String)`; no profile is changed.
+For Unicode pipelines in Windows PowerShell 5.1, set `$OutputEncoding = [Text.UTF8Encoding]::new($false)` in the invoking script; PowerShell chooses the bytes sent to a native command. Orchbee preserves those bytes and does not repair prior shell encoding loss.
+`orchbee --skill` prints the embedded [Agent guide](docs/cli-agent-skill.md) offline. Signing, automatic updates, crash recovery, macOS startup, and a packaged
 replacement for the delivered TypeScript CLI are separate work.
 
 ## Linux local startup

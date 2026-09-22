@@ -1,7 +1,4 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -207,15 +204,12 @@ function probeAll(
 	script: string,
 	lines: readonly string[],
 ): readonly (readonly string[])[] {
-	const directory = mkdtempSync(join(tmpdir(), 'orchbee-cli-completion-'));
-	try {
-		const path = join(directory, `completion.${shell}`);
-		writeFileSync(path, script);
-		const prelude =
-			shell === 'bash' ? `source ${path}` : `autoload -Uz compinit && compinit -D\nsource ${path}`;
-		const probeBody =
-			shell === 'bash'
-				? `probe() {
+	// Feed the generated script to the actual shell without sharing a filesystem
+	// namespace: Windows bash may run in WSL and cannot source a Win32 path.
+	const prelude = shell === 'bash' ? script : `autoload -Uz compinit && compinit -D\n${script}`;
+	const probeBody =
+		shell === 'bash'
+			? `probe() {
   COMP_LINE="$1"; COMP_POINT=\${#COMP_LINE}
   COMP_WORDS=(); read -ra COMP_WORDS <<< "$COMP_LINE"
   [[ "$COMP_LINE" =~ [[:space:]]$ ]] && COMP_WORDS+=("")
@@ -224,7 +218,7 @@ function probeAll(
   printf '@@ %s\\n' "\${COMPREPLY[*]-}"
   true
 }`
-				: `probe() {
+			: `probe() {
   words=( \${(z)1} )
   [[ "$1" =~ [[:space:]]$ ]] && words+=("")
   CURRENT=\${#words}
@@ -236,37 +230,34 @@ function probeAll(
   done
   true
 }`;
-		const quoted = lines
-			.map(
-				(line) =>
-					`echo "== ${line.replaceAll('"', '\\"')}"\nprobe "${line.replaceAll('"', '\\"')}"`,
-			)
-			.join('\n');
-		const output = execFileSync(shell, ['-c', `${prelude}\n${probeBody}\n${quoted}`], {
-			encoding: 'utf8',
-			timeout: 30_000,
-		});
-		const results: string[][] = [];
-		let current: string[] | undefined;
-		for (const row of output.split('\n')) {
-			if (row.startsWith('== ')) {
-				current = [];
-				results.push(current);
-			} else if (row.startsWith('@@ ') && current !== undefined) {
-				current.push(
-					...row
-						.slice(3)
-						.split(' ')
-						.filter((word) => word !== ''),
-				);
-			} else if (current !== undefined && row !== '') {
-				current.push(...row.split(' ').filter((word) => word !== ''));
-			}
+	const quoted = lines
+		.map(
+			(line) => `echo "== ${line.replaceAll('"', '\\"')}"\nprobe "${line.replaceAll('"', '\\"')}"`,
+		)
+		.join('\n');
+	const output = execFileSync(shell, ['-s'], {
+		input: `${prelude}\n${probeBody}\n${quoted}\n`,
+		encoding: 'utf8',
+		timeout: 30_000,
+	});
+	const results: string[][] = [];
+	let current: string[] | undefined;
+	for (const row of output.split('\n')) {
+		if (row.startsWith('== ')) {
+			current = [];
+			results.push(current);
+		} else if (row.startsWith('@@ ') && current !== undefined) {
+			current.push(
+				...row
+					.slice(3)
+					.split(' ')
+					.filter((word) => word !== ''),
+			);
+		} else if (current !== undefined && row !== '') {
+			current.push(...row.split(' ').filter((word) => word !== ''));
 		}
-		return results;
-	} finally {
-		rmSync(directory, { force: true, recursive: true });
 	}
+	return results;
 }
 
 function shellAvailable(name: string): boolean {

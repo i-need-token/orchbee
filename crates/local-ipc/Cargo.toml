@@ -7,7 +7,7 @@ publish = false
 
 [target.'cfg(windows)'.dependencies]
 interprocess = { version = "=2.4.4", default-features = false }
-winsafe = { version = "=0.0.29", default-features = false, features = ["advapi"] }
+winsafe = { workspace = true, features = ["advapi"] }
 widestring = "=1.2.1"
 
 [lints]

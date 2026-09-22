@@ -1,0 +1,33 @@
+# Orchbee native CLI Agent guide
+
+## Discover this build
+
+Use `orchbee --help`, `orchbee help <family>`, and `orchbee help <family> <command>` to discover exact grammar. `orchbee --version`, `orchbee --skill`, `orchbee completion powershell`, and `orchbee api schema` work offline. `orchbee api schema <schema-id>` prints an embedded result schema. The native executable and Desktop CLI have different capabilities; use the help from the executable you will invoke.
+
+The bare `orchbee` command launches the interactive TUI. Use explicit commands for automation. Help and completion do not start a Site. `orchbee site start --format json` explicitly starts or connects to the configured local Site. Existing runtime selection uses `ORCHBEE_RUNTIME_BASE`; do not guess endpoint paths or activate a Site merely to inspect help.
+
+## Resolve targets and inspect state
+
+Use `orchbee status --format json` or `orchbee api snapshot` to inspect the running Site, then the appropriate `project`, `workspace`, `tab`, `panel`, `terminal`, `worktree`, or `agent` list/get command. Follow each command's declared filters and use returned stable IDs. Labels and suffix selectors are only accepted where help declares them; ambiguous targets must be resolved explicitly.
+
+`orchbee terminal read <terminal-id> --history --lines 50 --unwrap --format json` reads retained output. Output can contain secrets; forward only what the task needs. Read/query commands do not create missing resources. Workspace creation, directory admission, and initial Tab creation are separate commands in this build; use their help for required parameters.
+
+## Send bounded input once
+
+`orchbee terminal send <terminal-id> --text "echo ready" --enter --format json` submits text and a carriage return. Text is limited to 4096 UTF-8 bytes including the optional carriage return. Repeat `--key` to send a sequence of semantic keys; modifiers use combinations such as `ctrl+shift+a`. At most 64 keys are accepted.
+
+Use exactly one source family: `--text`, repeated `--key`, `--file <path>`, or `--stdin`. File/stdin input preserves literal bytes, including non-UTF-8 data, with a 1 MiB bound including an appended carriage return. `--paste` is valid only with file/stdin and bounds content to 256 KiB; `--enter` adds a separate trailing Enter record after paste. The complete source is acquired and validated before sending anything. Empty input is rejected. All acquisition and transport share a five-second deadline.
+
+Inspect the result's input and cleanup outcomes independently. Partial acceptance is not whole-request success. An unknown outcome (exit 8) may already have delivered input: inspect the terminal before taking another action and never blindly replay the request. Sending does not acquire the TUI's controller or resize ownership.
+
+## Observe Agents and close resources
+
+Use `agent list/get/explain` for canonical session facts and `agent wait` with a declared condition, timeout, and optional `--after-revision` for later state. `terminal wait-output` can match existing retained output. Neither an old matching line nor an idle state proves a newly submitted task completed. This build has no `agent start` or `agent prompt` command; do not invent those commands or infer Agent readiness from terminal creation.
+
+Windows integration management, `agent doctor`, and `site diagnose` remain unavailable in this build. Windows terminal launch/send/read support does not imply these commands work. Other unsupported operations return a typed failure; do not replace a failure with guessed state.
+
+Destructive close/delete commands require `--confirm`. A closed Workspace does not delete its Git checkout or branch. Use Workspace close-status/close-resume when the close result requires recovery. Exiting a TUI client does not stop the Site.
+
+## Consume results
+
+Use `--format json` where declared. Standard output carries one machine document; localized diagnostics use standard error. Inspect both the document and process exit code. Exit 2 is invalid usage, 4 unavailable, 7 timeout, 8 unknown outcome, and 130 cancellation. Do not parse human prose or assume a failed/cancelled wait cancelled the observed operation. Keep stable IDs and request identities needed for recovery.

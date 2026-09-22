@@ -799,6 +799,8 @@ dependencies = [
  "sha2",
  "signal-hook",
  "unicode-segmentation",
+ "winapi-util",
+ "winsafe",
 ]
 
 [[package]]

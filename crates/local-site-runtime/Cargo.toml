@@ -21,6 +21,6 @@ workspace = true
 rustix = { workspace = true, features = ["fs"] }
 
 [target.'cfg(windows)'.dependencies]
-winsafe = { version = "=0.0.29", default-features = false, features = ["kernel"] }
-winapi-util = "=0.1.11"
+winsafe = { workspace = true, features = ["kernel"] }
+winapi-util.workspace = true
 windows-permissions = { version = "=0.2.4", default-features = false }

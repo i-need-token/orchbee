@@ -26,7 +26,7 @@ orchbee site start               # 确保本地 Site 正在运行（无需 TTY�
 orchbee site diagnose            # 只读的本地 Site 运行时事实
 orchbee config check             # 本地运行时检查
 orchbee help [<family>|<command>]
-orchbee completion bash|zsh|fish
+orchbee completion bash|zsh|fish|powershell
 orchbee --help | --version
 ```
 
@@ -139,8 +139,12 @@ Windows 已验证原生启动、Unicode 渲染、连续及逐字输入、CLI 终
 
 Windows 当前限制：尚未实现 `site diagnose`、Agent 集成安装和 Agent doctor。包内 Hook 适配器仍依赖
 Unix TTY 发现，因此在窗格中启动 Agent 不代表具备基于 Hook 的 Agent 看板状态。
-`terminal send --stdin` 接受重定向的普通文件，但拒绝流式管道输入；自动化请使用 `--text` 或 `--file`。
-Shell 补全仅提供 bash/zsh/fish。签名、自动更新、崩溃恢复、macOS 启动，以及替换已交付 TypeScript CLI
+`terminal send --stdin` 接受重定向普通文件和 Windows 管道；所属隐藏 Windows PowerShell
+读取进程使管道输入可取消。它从操作系统系统目录解析，绝不通过 PATH 查找，失败时终止并回收。
+Shell 补全提供 bash/zsh/fish/powershell。在 PowerShell 中显式运行
+`Invoke-Expression (orchbee completion powershell | Out-String)` 加载，不会修改 profile。
+在 Windows PowerShell 5.1 中使用 Unicode 管道时，在调用脚本内设置 `$OutputEncoding = [Text.UTF8Encoding]::new($false)`；传给原生命令的字节由 PowerShell 编码。Orchbee 原样保留字节，不修复 shell 已经造成的编码损失。
+`orchbee --skill` 离线输出内嵌 [Agent 指引](docs/cli-agent-skill.zh-CN.md)。签名、自动更新、崩溃恢复、macOS 启动，以及替换已交付 TypeScript CLI
 的正式打包属于后续工作。
 
 ## Linux 本地启动

@@ -1,4 +1,4 @@
-//! Static completion scripts for the implemented grammar. All three shells
+//! Static completion scripts for the implemented grammar. The POSIX shells
 //! run the same state machine — a faithful projection of `invocation::scan`/
 //! `resolve` — and emit only the candidates the parser could still accept.
 //! The scripts are emitted to stdout only; nothing is installed, no user
@@ -97,6 +97,8 @@
 //! - help → help topics / children
 //! - completion → shells + `--help`
 
+mod powershell;
+
 use crate::invocation::CompletionShell;
 
 /// Top-level words the grammar accepts before any option.
@@ -192,6 +194,7 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--key",
     "--file",
     "--stdin",
+    "--paste",
     "--directory",
     "--exec",
     "--arg",
@@ -218,7 +221,7 @@ const INTEGRATION_VERBS: &[&str] = &["disable", "enable", "explain", "list"];
 
 /// Business flags whose seen bit never makes a repeat `done` — they stay
 /// offerable and keep consuming values while remaining scope-tracked.
-const REPEATABLE_FLAGS: &[&str] = &["--arg", "--asset-root", "--provider", "--until"];
+const REPEATABLE_FLAGS: &[&str] = &["--arg", "--asset-root", "--provider", "--until", "--key"];
 
 /// `<family>:<verb>` (or `agent:integration:<verb>`) → the business flags
 /// that command admits. Commands not listed here admit none.
@@ -299,7 +302,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ),
     (
         "terminal:send",
-        &["--text", "--enter", "--key", "--file", "--stdin"],
+        &["--text", "--enter", "--key", "--file", "--stdin", "--paste"],
     ),
     (
         "terminal:wait-output",
@@ -450,7 +453,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
 /// reaches a third help level.
 const HELP_LEVEL3: &[(&str, &[&str])] = &[("agent:integration", INTEGRATION_VERBS)];
 
-const SHELLS: &[&str] = &["bash", "fish", "zsh"];
+const SHELLS: &[&str] = &["bash", "fish", "powershell", "zsh"];
 const FORMAT_VALUES: &[&str] = &["text", "json"];
 
 pub(crate) fn render(shell: CompletionShell) -> String {
@@ -458,6 +461,7 @@ pub(crate) fn render(shell: CompletionShell) -> String {
         CompletionShell::Bash => bash(),
         CompletionShell::Zsh => zsh(),
         CompletionShell::Fish => fish(),
+        CompletionShell::PowerShell => powershell::render(),
     }
 }
 
@@ -490,6 +494,7 @@ fn flag_bit(flag: &str) -> &'static str {
         "--key" => "seen_key",
         "--file" => "seen_file",
         "--stdin" => "seen_stdin",
+        "--paste" => "seen_paste",
         "--directory" => "seen_directory",
         "--exec" => "seen_exec",
         "--arg" => "seen_arg",
@@ -519,7 +524,7 @@ fn flag_value(flag: &str) -> Option<&'static str> {
         "--until" => Some("until"),
         "--provider" => Some("provider"),
         "--standalone" | "--confirm" | "--new-tab" | "--history" | "--enter" | "--stdin"
-        | "--include-ended" | "--unwrap" => None,
+        | "--include-ended" | "--unwrap" | "--paste" => None,
         _ => Some("filter"),
     }
 }
@@ -956,9 +961,15 @@ fn extras_cases_bash() -> String {
                         // `terminal send`: payload sources exclude each
                         // other and `--enter` is offered only once a
                         // text-bearing source stands.
-                        "--text" => "seen_text || seen_key || seen_file || seen_stdin".to_owned(),
-                        "--key" => "seen_key || seen_text || seen_enter || seen_file || seen_stdin"
-                            .to_owned(),
+                        "--text" => {
+                            "seen_text || seen_key || seen_file || seen_stdin || seen_paste"
+                                .to_owned()
+                        }
+                        "--paste" => "seen_paste || seen_text || seen_key".to_owned(),
+                        "--key" => {
+                            "seen_text || seen_enter || seen_file || seen_stdin || seen_paste"
+                                .to_owned()
+                        }
                         "--enter" => {
                             "!(seen_text || seen_file || seen_stdin) || seen_enter".to_owned()
                         }
@@ -1036,7 +1047,7 @@ fn joined_offer_cases_bash() -> String {
             // `--key` shares `terminal send`'s payload-source exclusion:
             // the offer dies with any other source or a consumed `--key`.
             "            --key)\n",
-            "                if ((!seen_key && !seen_text && !seen_enter && !seen_file && !seen_stdin)); then\n",
+            "                if ((!seen_text && !seen_enter && !seen_file && !seen_stdin && !seen_paste)); then\n",
             "                    case \"$state\" in\n",
             "                        sub) [[ \" $verbs \" == *\" send \"* ]] && candidates=\"{key}\" ;;\n",
             "                        after|operand) [[ $family:$sub == terminal:send ]] && candidates=\"{key}\" ;;\n",
@@ -1232,7 +1243,7 @@ fn bash() -> String {
             "{joined_seen_cases}\n",
             "                    esac\n",
             "                fi ;;\n",
-            "            --help|--version) done=1 ;;\n",
+            "            --help|--version|--skill) done=1 ;;\n",
             "            -*) done=1 ;;\n",
             "            *)\n",
             "                case \"$state\" in\n",
@@ -1357,7 +1368,7 @@ fn bash() -> String {
             "        ((seen_format || seen_mouse)) || candidates=\"$candidates --format --format=\"\n",
             "        [[ \" $possible \" == *\" tui \"* ]] && ((!seen_mouse)) && candidates=\"$candidates --mouse\"\n",
             "        if (({no_options})); then\n",
-            "            candidates=\"$candidates --help --version\"\n",
+            "            candidates=\"$candidates --help --version --skill\"\n",
             "        fi\n",
             "    elif [[ $state == sub ]]; then\n",
             "        candidates=\"$verbs\"\n",
@@ -1586,7 +1597,7 @@ fn zsh() -> String {
             "{joined_seen_cases}\n",
             "                    esac\n",
             "                fi ;;\n",
-            "            --help|--version) done=1 ;;\n",
+            "            --help|--version|--skill) done=1 ;;\n",
             "            -*) done=1 ;;\n",
             "            *)\n",
             "                case \"$state\" in\n",
@@ -1701,7 +1712,7 @@ fn zsh() -> String {
             "        ((seen_format || seen_mouse)) || candidates=\"$candidates --format --format=\"\n",
             "        [[ \" $possible \" == *\" tui \"* ]] && ((!seen_mouse)) && candidates=\"$candidates --mouse\"\n",
             "        if (({no_options})); then\n",
-            "            candidates=\"$candidates --help --version\"\n",
+            "            candidates=\"$candidates --help --version --skill\"\n",
             "        fi\n",
             "    elif [[ $state == sub ]]; then\n",
             "        candidates=\"$verbs\"\n",
@@ -2015,11 +2026,12 @@ fn extras_cases_fish() -> String {
                             "$seen_workspace -eq 0 -a $seen_standalone -eq 0".to_owned()
                         }
                         "--text" => {
-                            "$seen_text -eq 0 -a $seen_key -eq 0 -a $seen_file -eq 0 -a $seen_stdin -eq 0"
+                            "$seen_text -eq 0 -a $seen_key -eq 0 -a $seen_file -eq 0 -a $seen_stdin -eq 0 -a $seen_paste -eq 0"
                                 .to_owned()
                         }
+                        "--paste" => "$seen_paste -eq 0 -a $seen_text -eq 0 -a $seen_key -eq 0".to_owned(),
                         "--key" => {
-                            "$seen_key -eq 0 -a $seen_text -eq 0 -a $seen_enter -eq 0 -a $seen_file -eq 0 -a $seen_stdin -eq 0".to_owned()
+                            "$seen_text -eq 0 -a $seen_enter -eq 0 -a $seen_file -eq 0 -a $seen_stdin -eq 0 -a $seen_paste -eq 0".to_owned()
                         }
                         "--enter" => {
                             "(math \"$seen_text + $seen_file + $seen_stdin\") -ge 1 -a $seen_enter -eq 0"
@@ -2283,7 +2295,7 @@ fn fish() -> String {
             "{joined_seen_cases}\n",
             "                    end\n",
             "                end\n",
-            "            case '--help' '--version'; set done 1\n",
+            "            case '--help' '--version' '--skill'; set done 1\n",
             "            case '-*'; set done 1\n",
             "            case '*'\n",
             "                switch \"$state\"\n",
@@ -2406,7 +2418,7 @@ fn fish() -> String {
             "        if test $seen_format -eq 0 -a $seen_mouse -eq 0; set -a candidates --format --format=; end\n",
             "        if contains -- tui $possible; and test $seen_mouse -eq 0; set -a candidates --mouse; end\n",
             "        if {no_options}\n",
-            "            set -a candidates --help --version\n",
+            "            set -a candidates --help --version --skill\n",
             "        end\n",
             "    else if test \"$state\" = sub\n",
             "        set candidates $verbs\n",

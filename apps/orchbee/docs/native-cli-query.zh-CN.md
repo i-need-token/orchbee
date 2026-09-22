@@ -145,14 +145,15 @@ provider 接入——对调用用户的 provider 配置做有界读取与受管�
   绝不扩大抓取窗口，其 `tail{requested,omitted,entries}` 计数与字节预算的
   `omittedRows` 分开报告。重复、非数值、零或越界值均为 `invalid-usage`。
 - `--text <utf8>`、`--key <name>`、`--file <path>`、`--stdin`：`terminal send`
-  四个互斥输入源，各单次使用且在其他命令上均非法。`--text` 与 `--file` 按标准
+  四个互斥输入源，在其他命令上均非法。`--text` 与 `--file` 按标准
   取值规则消费下一个 token 作为值（以减号开头的 token 也会被消费，裸 `--`
-  不会）；`--key` 取一个封闭键名；`--stdin` 无值。`--text` 必须是非空 UTF-8
+  不会）；每次 `--key` 取一个封闭键名，最多重复 64 次；其他源只能使用一次。`--stdin` 无值。`--text` 必须是非空 UTF-8
   字面量，其字节长度加上可选折叠 CR 不越过 4,096 字节记录上限；`--file`
   原样存储其操作数——解析器不做任何文件系统校验，一切路径、类型与内容
   检查都归 [Send 输入源](#send-输入源) 的物化器。`--enter` 是文本类源的
   修饰符：`--text`、`--file`、`--stdin` 上合法，`--key` 上或单独出现均非法。
-  零个或多于一个源均为 `invalid-usage`；冲突按固定次序
+  `--paste` 仅能与 `--file` 或 `--stdin` 同用，生成一条粘贴记录及可选的末尾 Enter 记录。
+  零个或多于一种源均为 `invalid-usage`；冲突按固定次序
   `--text`、`--key`、`--file`、`--stdin` 命名，与 argv 次序无关。
 - `--mouse off|on`：带值 flag，单次使用，仅显式 `tui` 路由受理——宿主机指针捕获
   用于面板命中，默认开启。两种声明写法（`--mouse on` 与 `--mouse=on`）取值同为
@@ -243,7 +244,8 @@ orchbee api schema [<schema-id>]
 orchbee site start
 orchbee site diagnose
 orchbee config check
-orchbee completion bash|zsh|fish
+orchbee completion bash|zsh|fish|powershell
+orchbee --skill
 orchbee help <recognized path>
 orchbee <recognized path> -h|--help
 ```
@@ -256,12 +258,14 @@ orchbee <recognized path> -h|--help
 完全相同。后缀 help 优先于缺失的业务参数（`project get --help` 描述 `project get`），但不优先于
 已给出的业务参数或多余 token（`project get x --help`、`status extra --help` 都是 usage）。未列出的
 目标如 `help help`、`help version`、`help --version` 按未知路径 → usage。Help、`--version`、
-`completion` 与 `api schema` 绝不触碰平台、运行、cohort 或 Site 状态。
+`--skill`、`completion` 与 `api schema` 绝不触碰平台、运行、cohort 或 Site 状态。
+`--skill` 必须是根命令的唯一参数，输出内嵌且本地化的 CLI 使用指南。PowerShell
+补全是静态语法投影：绝不执行用户表达式或查询 Site；需显式加载，不修改 shell profile。
 
 `[<geometry>]` 代表可选的全有或全无组 `--cols <n> --rows <n> --cell-width <n>
 --cell-height <n>`；省略时命令请求默认的 80x24 网格与未知单元像素 (0,0)。
 
-`help`、`completion`、`tui`、`--version` 与裸调用是固定文本输出，不接受 `--format`；一个合法
+`help`、`completion`、`tui`、`--version`、`--skill` 与裸调用是固定文本输出，不接受 `--format`；一个合法
 `--format=json` 会把随后产生的语法失败变成 JSON `invalid-usage` 失败文档，而 text/默认失败仍
 保持 stdout 为空。数据命令（`status`、全部 `list`/`get`、`workspace close-status`、`agent explain`、`agent doctor`、`agent wait`、
 `api snapshot`、`api schema`、`site start`、`site diagnose`、`config check`，以及全部四条 `agent integration` 命令）与全部 mutation 命令接受 `--format`。`api` 命令是机器面：`api snapshot` 或 `api schema` 成功时在
@@ -454,18 +458,18 @@ connect、绝不创建锁或标记、绝不修复——共享一个在有界文�
 `--text`/`--key` 调用完全没有物化步骤：
 
 0. **物化**（仅声明型源）—— `--file`/`--stdin` 在任何运行时访问之前被完整读入
-   与 `--text` 相同的有界文本记录；见 [Send 输入源](#send-输入源)。源失败不拥有
+   下文定义的有界字节或粘贴内容（较小的 UTF-8 输入沿用文本记录路径）；见 [Send 输入源](#send-输入源)。源失败不拥有
    请求身份，也绝不抵达 Server。
 1. **解析** —— 在已验证快照的 presentation 绑定中查找该 typed terminal ID；缺失 →
    `not-found`（3），details 为 `{resource:"terminal",target}`，session 随之 drop。
    绝不查询 label。
-2. **发送** —— 用快照自身事实在全新请求身份下构造一条
-   `terminal.send{siteId,workerId,terminalId,payload}`。payload 为
-   `{kind:"text",text,enter}`——字面字节加上折叠进同一输入记录的 `--enter` 回车，合计
-   上限 4096 字节——或 `{kind:"key",key}`，命名十五个语义键之一（`enter`、`escape`、
-   `tab`、`backspace`、`delete`、`up`、`down`、`left`、`right`、`home`、`end`、
-   `page-up`、`page-down`、`ctrl-c`、`ctrl-d`）。键是协议级名称，绝不是预置转义字节串。
-   随后在任何类型化结果映射与输出准备之前完全释放 Client Session；send 绝不重试。
+2. **发送** —— 一条 `terminal.send` 请求携带有序记录序列，在新的请求身份下使用
+   快照中的 Site、Worker 与终端事实。`--text` 生成一条 UTF-8 记录（含可选 CR 共
+   4096 字节）；`--file`/`--stdin` 生成一条不透明字节记录（含可选 CR 共 1 MiB），
+   较小的 UTF-8 内容沿用文本路径。`--paste` 改为生成一条粘贴记录（256 KiB）及
+   可选的独立 Enter 记录。重复 `--key` 按参数顺序生成最多 64 条语义键记录；键
+   使用协议名称，不是预制转义字符串。在映射类型化结果或准备输出之前完整释放
+   Client Session。包括部分接受在内，请求绝不重试。
 3. **应答** —— Server 的 `terminal.send.result` 拆分为 envelope 逐字报告的两条轴：
    `inputStatus`（`accepted` 表示 Host 已把输入记录入队——绝不表示子进程已读取或执行；
    `rejected`/`not-submitted` 表示该记录可证明从未到达队列；`unknown` 表示其可能
@@ -522,32 +526,46 @@ admission、快照与 worktree-list 交换各自只消耗剩余额度；不做�
 
 ### Send 输入源
 
-`--file` 与 `--stdin` 是*声明型*本地源：解析器原样存储，由源阶段在任何运行时副作用
-之前各自物化为恰好一条有界文本记录——完整记录存在之前不发生 cohort、discovery、
-admission、快照或 send。物化后的记录在下游与 `--text` 不可区分：一条记录喂给一条
-`terminal.send` 请求，成功 schema 不变。
+Windows 管道读取拥有一个隐藏、非交互的 Windows PowerShell 读取进程，
+从操作系统系统目录解析。仅传入继承的 stdin 句柄，来源字节不会变成脚本
+或参数文本。固定脚本最多向私有输出管道复制来源上限加一个探测字节。
+CLI 在现有期限和中断守卫下轮询，并在成功及已处理的失败路径终止和回收子进程。
+不修改调用者的管道模式，也不遗留阻塞的读取线程。普通文件 stdin 保留
+直接读取方式。进程启动和终止属于操作系统调度边界，不提供硬实时保证。
 
-- **纯输入边界。** 语法与 target 校验先于一切源 setup/读取完成。四个源 flag 互斥且
-  单次使用；`--enter` 只属于文本类源。源失败不拥有请求身份、不接触任何对端、绝不
-  归为 transport loss——Server 对任何准入前失败观察到零副作用。
+适配器使用已准入的 `winsafe` 系统目录和 `winapi-util` 句柄类型绑定，
+沿用锁定版本，不引入自编写的不安全代码。状态为已接纳 -> 读取中 ->
+完成/失败/超时/取消 -> 子进程已回收，仅完成可进入提交。
+`source/input.rs` 拥有原始字节/paste 路由，文件/stdin 不限定为 UTF-8。
+Windows 测试用真实读取子进程验证 EOF、上限和超时，并注入信号观察验证取消；
+这些测试不模拟物理 Ctrl+C。TLA 执行延期。
+
+`--file` 与 `--stdin` 是声明型本地源。语法校验先于源读取；只有完整有界来源
+存在后才进行 cohort 发现、准入、快照和提交。较小的合法 UTF-8 内容保留文本
+记录路径，其他内容成为原始字节。Paste 内容成为一条 paste 记录，搭配
+`--enter` 时再附加独立的尾随 Enter 记录。
+
+- **纯输入边界。** 四种来源互斥，只有 `--key` 可重复，最多 64 条记录。
+  `--enter` 不能搭配按键，`--paste` 必须搭配文件/stdin。
+  准入前源失败不提交任何内容，也不拥有请求身份。
 - **单一共享预算。** 命令入口采样的绝对 5 秒 deadline 覆盖源 setup、物化与整个 send
   生命周期；绝不重置或续期。每次源等待与每次读取之前都检查 deadline——包括恰在
   deadline 处结束的等待之后的读取——成功边界本身同样受仲裁：在预算关闭之后才
   观察到的输入结束是 `timeout`，绝非干净记录；过期之后不再发生任何运行时准入。
-- **文件准入。** `--file` 以 `O_RDONLY|O_NONBLOCK|O_CLOEXEC` 打开——open 本身不会在
+- **Linux 文件准入。** `--file` 以 `O_RDONLY|O_NONBLOCK|O_CLOEXEC` 打开——open 本身不会在
   FIFO 或设备上阻塞——随后在已打开 fd 上的 `fstat` 必须报告 regular file，这同时闭合
   路径替换竞态：被换掉的路径仍报告其真实类型。打不开/读不了的路径、非 regular 结果
   （目录、FIFO、设备或被替换的项）、空文件或读错误都是源阶段 `invalid-usage`。
-- **stdin 准入。** `--stdin` 拒绝终端描述符，再按继承描述符的精确 `S_IFMT` 类型分派：
+- **Linux stdin 准入。** `--stdin` 拒绝终端描述符，再按继承描述符的精确 `S_IFMT` 类型分派：
   regular 文件在借用描述符上原位、无缓冲读取——共享文件位置恰好按返回字节数推进，
   至多 cap+1 探测字节（这正是继承位置契约）；
   FIFO/管道经 `/proc/self/fd/0` 重开为私有非阻塞文件描述，因此绝不改动调用方描述符
   旗标、也无需恢复；重开结果必须验证为 FIFO，其他一切类型（socket、设备等）一律拒绝。
-- **有界记录。** 采集上限 4,097 字节——wire 上限 4,096 加一——故恰好 4,096 字节成功、
-  多一字节即拒绝且不再继续 drain。字节必须严格 UTF-8 解码；不裁剪、不切分、不去 BOM、
-  不做 CRLF 归一。`--enter` 保留为 wire 的 folded-CR 旗标——同一记录内的一个回车，与
-  `--text` 完全一致——并计入同一上限，故 4,095 字节
-  +CR 是接受边界、4,096+CR 被拒绝。源路径与载荷字节绝不出现在任何诊断中。
+- **有界记录。** 文件/stdin 最多读取 1 MiB 字节上限加一个探测字节，或
+  256 KiB paste 内容上限加一个探测字节。原始字节（含 NUL 和非 UTF-8 数据）
+  原样保留，不裁剪、不去 BOM、不归一 CRLF。空输入被拒绝。可选附加回车
+  计入非 paste 上限，paste 则使用独立 Enter 记录。字面 `--text` 保留连同
+  回车 4096 个 UTF-8 字节的上限。载荷不会出现在诊断中。
 - **源信号 guard。** 在 Linux 上源阶段在其存续期内拥有进程信号捕获——单线程、无其他
   信号 owner、交接前不 spawn 子进程。合格集为 {SIGHUP, SIGINT, SIGQUIT, SIGTERM}
   减去进程在源入口已阻塞或忽略的全部信号：忽略集取自严格有界的
@@ -1327,7 +1345,7 @@ deadline 到期在 wire 请求尚不存在时即退出。
 ## 不变量
 
 - 语法非法的调用绝不触碰文件系统、cohort 或 socket。
-- 离线命令（`help`、`--version`、`completion`、`api schema`）绝不执行平台、运行、cohort 或
+- 离线命令（`help`、`--version`、`--skill`、`completion`、`api schema`）绝不执行平台、运行、cohort 或
   Site 发现。
 - 网络查询不创建任何事物：无目录、锁、标记、终端、viewer、控制授权或第二个请求——唯一
   例外是 `terminal read`/`terminal wait-output`，其只读能力 viewer attachment 是唯一被
@@ -1335,14 +1353,14 @@ deadline 到期在 wire 请求尚不存在时即退出。
   带入输出阶段。
 - Mutation 每次调用在全新 `WorkbenchRequestId` 下至多提交一次 `workbench.command`；绝不
   重试或重放，结果不可判定时报告 `outcome-unknown` 而非猜测。`terminal send` 对其唯一
-  一次 OBCS `terminal.send` 交换遵循同一纪律：每次调用在全新请求身份下至多一条输入记录，
+  一次 OBCS `terminal.send` 交换遵循同一纪律：每次调用在全新请求身份下提交一组有界记录序列，
   绝不重试——不可判定的应答是 `outcome-unknown`，且本地化诊断会说明输入可能已经落地，
   由操作员据此决定是否重复。
-- 声明型 `terminal send` 源在任何运行时访问之前被完整物化：恰好一条有界记录（≤4,096
-  字节含折叠 CR，严格 UTF-8）喂给恰好一条 `terminal.send` 请求——绝不切分、重放或
+- 声明型 `terminal send` 源在任何运行时访问之前被完整物化：一组有界输入序列（文本 4096 字节、
+  不透明字节 1 MiB、粘贴 256 KiB）喂给恰好一条 `terminal.send` 请求——绝不切分、重放或
   部分提交。源超时、取消或校验失败产生零运行时副作用且无请求身份；物化之后普通 send
   生命周期权威接管，源阶段结果不能在语义上取消已被准入的 send。
-- 源信号 guard 绝不改动 disposition，并把继承的线程 mask 精确恢复——被捕获、继承
+- Linux 上的源信号 guard 绝不改动 disposition，并把继承的线程 mask 精确恢复——被捕获、继承
   阻塞与继承忽略的信号各自保持原语义；没有任何信号 owner 活过源阶段，也没有任何
   合格信号在输出最终化路径之后仍被阻塞。
 - 每次调用至多一次快照读取、一次准入，且读取与命令共用一个网络 deadline；`terminal read`
@@ -1388,9 +1406,12 @@ deadline 到期在 wire 请求尚不存在时即退出。
 | 脚本化 OBCS viewer peer + 手工 OBRW record：滚动定价、容量/滚动钳制、typed `rows-rejected`、窗口失配、超大 record、无重试                                                | `terminal read --history` 成功 + typed 失败                                      | `tests/cli_query.rs`                                              |
 | 脚本化 OBCS send peer：UTF-8 文本与可选折叠回车、语义键均以一条请求到达，target/请求身份，accepted/rejected/unavailable/unknown 应答、停滞应答、无重试                   | `terminal send` 退出 0/3/4/5/8 且两轴结果字段齐全                                | `tests/cli_send.rs`                                               |
 | send 源语法：四源互斥、固定次序冲突命名、`--enter` 适用范围、flag 范围                                                                                                   | 任何运行时访问前的精确 parse/`invalid-usage`                                     | `src/invocation` 测试                                             |
-| 文件/stdin 物化：非阻塞 open + `fstat` 类型闸、regular 文件共享 offset、私有 FIFO 重开、cap+1、严格 UTF-8、空/非 regular/不支持类型的拒绝                                | 有界记录或类型化源 `invalid-usage`；零运行时副作用                               | `src/cli/source` 单元测试 + `tests/cli_send.rs`                   |
+| 文件/stdin 物化：非阻塞 open + `fstat` 类型闸、regular 文件共享 offset、私有 FIFO 重开、cap+1、不透明字节、空/非 regular/不支持类型的拒绝                                | 有界记录或类型化源 `invalid-usage`；零运行时副作用                               | `src/cli/source` 单元测试 + `tests/cli_send.rs`                   |
 | 源 deadline/取消：停滞管道在共享 deadline 退出 7、被捕获合格信号按 `128+signo` 携带 `orchbee.cli.failure.source`、继承 IGN/BLK 原样保留、恢复失败即 internal             | 源 envelope 事实、无 wire 请求、精确 mask 恢复                                   | `src/cli/source` 测试 + 标注的 OS/进程证据                        |
 | 脚本化 OBCS send peer + 声明型源：物化后的文件/stdin 以一条 `terminal.send` 文本请求到达                                                                                 | 与 `--text` 完全相同的 envelope；恰好一条请求                                    | `tests/cli_send.rs`                                               |
+| Windows 自有管道读取器：原始字节、EOF、空输入、字节/粘贴上限、期限、注入取消、子进程回收                                                                                 | 精确载荷或类型化拒绝；无残留管道读取器                                           | `src/cli/source_windows/pipe.rs` 测试                             |
+| Windows 公开进程与 PowerShell 5.1/7 管道源校验                                                                                                                           | 源完成后抵达与文本对照相同的源后拒绝；非法源先失败                               | `tests/cli_windows_input.rs`                                      |
+| PowerShell 5.1/7 补全与离线本地化 skill                                                                                                                                  | 限定候选、重复键、粘贴互斥、根独占 skill 且不访问运行时                          | `src/cli/completion/powershell/tests.rs` + `tests/process.rs`     |
 | 脚本化 OBCS viewer peer + 手工 OBTF/OBRW record：递增 `requestSequence`、可见/历史边界窗口、每帧真实 `FrameApplied`、stale 重钉、行尾 excerpt 命中、含 preamble 的总期限 | `terminal wait-output` 成功 + typed 失败                                         | `tests/cli_query.rs`                                              |
 | 脚本化 OBLC/OBAP peer：list/get/explain 逐字 outcome、选项→wire 回显、denied/not-found/cursor/unavailable 应答、畸形/错 kind/correlation 不符帧、无重试                  | agent 读取成功 + typed `agent-read` 失败                                         | `tests/cli_agent.rs`                                              |
 | Agent envelope ↔ 内嵌 schema：发出的成功/失败文档通过校验；wire 不可能变体（计数 129、重复 capabilities/ceiling）被拒                                                    | wire 契约的 schema 重述                                                          | `tests/cli_agent.rs`                                              |

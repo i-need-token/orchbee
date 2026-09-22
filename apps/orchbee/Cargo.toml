@@ -36,6 +36,10 @@ rustix = { workspace = true, features = ["fs", "termios"] }
 signal-hook = { version = "0.3.18", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
+# System-directory lookup and inherited handle type admission for the owned,
+# cancellable stdin reader. Reuse the cohort's existing safe Windows bindings.
+winsafe = { workspace = true, features = ["kernel"] }
+winapi-util.workspace = true
 crossterm_winapi = { version = "=0.9.1", default-features = false }
 ctrlc = { version = "=3.5.2", default-features = false }
 crossterm = { version = "0.29.0", default-features = false, features = ["windows", "events"] }

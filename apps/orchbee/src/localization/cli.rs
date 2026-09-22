@@ -547,8 +547,8 @@ impl Locale {
             (Self::ZhCn, ExpectedValue::TabDirection) => "'previous'、'next'、'first' 或 'last'",
             (Self::EnUs, ExpectedValue::PanelDirection) => "'above', 'below', 'left', or 'right'",
             (Self::ZhCn, ExpectedValue::PanelDirection) => "'above'、'below'、'left' 或 'right'",
-            (Self::EnUs, ExpectedValue::Shell) => "'bash', 'zsh', or 'fish'",
-            (Self::ZhCn, ExpectedValue::Shell) => "'bash'、'zsh' 或 'fish'",
+            (Self::EnUs, ExpectedValue::Shell) => "'bash', 'zsh', 'fish', or 'powershell'",
+            (Self::ZhCn, ExpectedValue::Shell) => "'bash'、'zsh'、'fish' 或 'powershell'",
             (Self::EnUs, ExpectedValue::HistoryRows) => "a decimal integer from 1 to 1000",
             (Self::ZhCn, ExpectedValue::HistoryRows) => "1–1000 的十进制整数",
             (Self::EnUs, ExpectedValue::DirectoryPath) => {
@@ -940,11 +940,9 @@ impl Locale {
             .unwrap_or("");
         match (self, stage) {
             (Self::EnUs, "platform") => {
-                "The native CLI query surface is supported on Windows and Linux.\n".to_owned()
+                "This command is unavailable on this platform.\n".to_owned()
             }
-            (Self::ZhCn, "platform") => {
-                "原生 CLI 查询面在 Windows 和 Linux 上受支持。\n".to_owned()
-            }
+            (Self::ZhCn, "platform") => "当前平台尚不支持此命令。\n".to_owned(),
             (Self::EnUs, "discovery") => {
                 "No running local Site was found for this user.\n".to_owned()
             }
@@ -1081,9 +1079,9 @@ impl Locale {
             .unwrap_or("");
         match (self, stage) {
             (Self::EnUs, "platform") => {
-                "site start is supported on Windows and Linux.\n".to_owned()
+                "This Site operation is unavailable on this platform.\n".to_owned()
             }
-            (Self::ZhCn, "platform") => "site start 在 Windows 和 Linux 上受支持。\n".to_owned(),
+            (Self::ZhCn, "platform") => "当前平台尚不支持此 Site 操作。\n".to_owned(),
             (Self::EnUs, "runtime-directory") => self.cli_socket_path_too_long().to_owned(),
             (Self::ZhCn, "runtime-directory") => self.cli_socket_path_too_long().to_owned(),
             (Self::EnUs, "discovery") => {
@@ -2052,8 +2050,8 @@ impl Locale {
     }
 }
 
-const ROOT_HELP_EN: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [operands] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee site diagnose [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\nModes and queries:\n  orchbee              Open the local terminal (Windows/Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee launch-profile list | get\n  orchbee agent        list | get | explain | doctor | wait\n  orchbee agent integration\n                       list | explain | enable | disable — local provider\n                       onboarding; never contacts a Site\n  orchbee api          Machine snapshot and embedded schema documents\n\nSite lifecycle:\n  orchbee site start   Ensure the local Site is running (no TTY needed)\n  orchbee site diagnose\n                       Inspect the local Site runtime — read-only facts\n\nMutations (one command per invocation, against the running Site):\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n  orchbee launch-profile create | delete\n\nInspection and help:\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee -h|--help    Show this help; after a family or command path, show\n                       that path's help\n  orchbee --version    Show the version\n\nRun 'orchbee help <family>' for filters and target rules, or\n'orchbee help <family> <command>' for one mutation's full syntax.\n";
-const ROOT_HELP_ZH: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [操作数] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee site diagnose [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\n模式与查询：\n  orchbee              打开本地终端（Windows/Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee launch-profile list | get\n  orchbee agent        list | get | explain | doctor | wait\n  orchbee agent integration\n                       list | explain | enable | disable——本地 provider\n                       接入；绝不接触 Site\n  orchbee api          机器快照与内嵌 schema 文档\n\nSite 生命周期：\n  orchbee site start   确保本地 Site 正在运行（无需 TTY）\n  orchbee site diagnose\n                       检查本地 Site 运行时——只读事实\n\n修改命令（每次调用执行一条命令，作用于运行中的 Site）：\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n  orchbee launch-profile create | delete\n\n检查与帮助：\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee -h|--help    显示此帮助；跟在 family 或命令路径后时显示该路径的帮助\n  orchbee --version    显示版本\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则，或\n'orchbee help <family> <command>' 查看单条修改命令的完整语法。\n";
+const ROOT_HELP_EN: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [operands] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee site diagnose [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish|powershell\n  orchbee -h|--help\n  orchbee --version\n  orchbee --skill\n\nModes and queries:\n  orchbee              Open the local terminal (Windows/Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee launch-profile list | get\n  orchbee agent        list | get | explain | doctor | wait\n  orchbee agent integration\n                       list | explain | enable | disable — local provider\n                       onboarding; never contacts a Site\n  orchbee api          Machine snapshot and embedded schema documents\n\nSite lifecycle:\n  orchbee site start   Ensure the local Site is running (no TTY needed)\n  orchbee site diagnose\n                       Inspect the local Site runtime — read-only facts\n\nMutations (one command per invocation, against the running Site):\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n  orchbee launch-profile create | delete\n\nInspection and help:\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee -h|--help    Show this help; after a family or command path, show\n                       that path's help\n  orchbee --version    Show the version\n  orchbee --skill      Print the embedded Agent guide (offline)\n\nRun 'orchbee help <family>' for filters and target rules, or\n'orchbee help <family> <command>' for one mutation's full syntax.\n";
+const ROOT_HELP_ZH: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [操作数] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee site diagnose [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish|powershell\n  orchbee -h|--help\n  orchbee --version\n  orchbee --skill\n\n模式与查询：\n  orchbee              打开本地终端（Windows/Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee launch-profile list | get\n  orchbee agent        list | get | explain | doctor | wait\n  orchbee agent integration\n                       list | explain | enable | disable——本地 provider\n                       接入；绝不接触 Site\n  orchbee api          机器快照与内嵌 schema 文档\n\nSite 生命周期：\n  orchbee site start   确保本地 Site 正在运行（无需 TTY）\n  orchbee site diagnose\n                       检查本地 Site 运行时——只读事实\n\n修改命令（每次调用执行一条命令，作用于运行中的 Site）：\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n  orchbee launch-profile create | delete\n\n检查与帮助：\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee -h|--help    显示此帮助；跟在 family 或命令路径后时显示该路径的帮助\n  orchbee --version    显示版本\n  orchbee --skill      离线输出内嵌 Agent 指引\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则，或\n'orchbee help <family> <command>' 查看单条修改命令的完整语法。\n";
 
 const HELP_TUI_EN: &str = "orchbee tui [--mouse on|off]\n\nOpen the local terminal interface (Windows/Linux development cohort).\nA bare 'orchbee' invocation does the same.\n\n  --mouse on|off   Host pointer capture for pane hit-testing; on by\n                   default. Only the explicit 'tui' route accepts it.\n";
 const HELP_TUI_ZH: &str = "orchbee tui [--mouse on|off]\n\n打开本地终端界面（Windows/Linux 开发 cohort）。\n裸 'orchbee' 调用效果相同。\n\n  --mouse on|off   宿主机指针捕获，用于面板命中；默认开启。\n                   只有显式 'tui' 路由接受该选项。\n";
@@ -2122,8 +2120,8 @@ const HELP_API_ZH: &str = "orchbee api snapshot|schema\n\n本地 Workbench 面�
 const HELP_CONFIG_EN: &str = "orchbee config check\n\nInspect local inputs only: runtime base, Site runtime directory, current\ncohort integrity, effective locale, and socket presence plus the socket\naddress budget. Nothing is connected, started, created, or locked. Any\nfailed check exits 1.\n";
 const HELP_CONFIG_ZH: &str = "orchbee config check\n\n仅检查本地输入：运行时基座、Site 运行时目录、当前 cohort 完整性、生效\nlocale、套接字存在性与套接字地址长度预算。不连接、不启动、不创建、\n不加锁。任一检查失败以 1 退出。\n";
 
-const HELP_COMPLETION_EN: &str = "orchbee completion bash|zsh|fish\n\nEmit a static completion script for the implemented grammar to stdout.\nNothing is installed and no user files are written.\n";
-const HELP_COMPLETION_ZH: &str = "orchbee completion bash|zsh|fish\n\n向标准输出生成已实现语法的静态补全脚本。不安装、不写入用户文件。\n";
+const HELP_COMPLETION_EN: &str = "orchbee completion bash|zsh|fish|powershell\n\nEmit a static completion script for the implemented grammar to stdout.\nNothing is installed and no user files are written.\n";
+const HELP_COMPLETION_ZH: &str = "orchbee completion bash|zsh|fish|powershell\n\n向标准输出生成已实现语法的静态补全脚本。不安装、不写入用户文件。\n";
 
 const HELP_PROJECT_LIST_EN: &str = "orchbee project list [--format text|json]\n\nList every Project in the running local Site: id, label, directory and\nworkspace counts. An empty Site prints just the table header.\n";
 const HELP_PROJECT_LIST_ZH: &str = "orchbee project list [--format text|json]\n\n列出本地 Site 中所有 Project：ID、label、目录与工作区计数。空 Site 仅\n输出表头。\n";
@@ -2204,8 +2202,54 @@ const HELP_TERMINAL_READ_ZH: &str = "orchbee terminal read <terminal-id> [--hist
 
 const HELP_TERMINAL_WAIT_OUTPUT_EN: &str = "orchbee terminal wait-output <terminal-id> (--match <text> | --regex <pattern>) [--rows <n>] [--timeout <ms>] [--format text|json]\n\nWait until the pattern appears in one bound terminal's retained output —\nexactly one of '--match' or '--regex' is required. '--match' is a literal,\ncase-sensitive substring (1..=4096 bytes); '--regex' is a nonempty UTF-8\nregular expression of at most 1024 bytes, compiled once before any\nconnection (invalid or oversized programs are usage failures). Matching\nchecks the most recent --rows retained rows (1..=1000, default 1000)\nspanning the visible screen and scrollback as one window, joining\nsoft-wrapped rows into logical lines first; a regex match reports its\nbyte length and fragment-edge flags, and '^'/'$' anchor at the observed\nfragment edges. '--timeout' bounds the total wait in milliseconds\n(1..=3600000, default 30000); the command exits 0 on match, 7 on timeout,\nand 130 when cancelled by HUP/INT/QUIT/TERM. Nothing is typed into the\nterminal and nothing is created or mutated. Text output prints the\nmatching line; '--format json' emits the orchbee.terminal.wait-output\nenvelope with match and observation metadata.\n";
 const HELP_TERMINAL_WAIT_OUTPUT_ZH: &str = "orchbee terminal wait-output <terminal-id> (--match <text> | --regex <pattern>) [--rows <n>] [--timeout <ms>] [--format text|json]\n\n等待一个已绑定终端的保留输出中出现指定模式——'--match' 与 '--regex'\n必须且只能提供一个。'--match' 为字面、区分大小写的子串（1..=4096 字\n节）；'--regex' 为至多 1024 字节的非空 UTF-8 正则表达式，在任何连接\n建立前编译一次（非法或超限程序报用法错误）。搜索范围为最近 --rows\n行保留行（1..=1000，默认 1000），可见屏与回滚历史作为一个窗口，并\n先把软换行行拼接为逻辑行；正则命中会报告字节长度与片段边缘标记，\n'^'/'$' 仅锚定观测到的片段边界。'--timeout' 以毫秒限定总等待预算\n（1..=3600000，默认 30000）；匹配成功退出 0，超时退出 7，被\nHUP/INT/QUIT/TERM 取消时退出 130。不向终端写入任何输入，不创建、不\n修改任何状态。文本输出打印匹配行；'--format json' 输出带匹配与观测\n元数据的 orchbee.terminal.wait-output 封套。\n";
-const HELP_TERMINAL_SEND_EN: &str = "orchbee terminal send <terminal-id> (--text <utf8> [--enter] | --key <name> | --file <path> [--enter] | --stdin [--enter]) [--format text|json]\n\nSend exactly one input record to one bound terminal. Exactly one source is\nrequired: the literal bytes of '--text' (UTF-8, at most 4096 bytes including\nthe appended CR); one named key from '--key'; the UTF-8 contents of the\nregular file named by '--file'; or the bytes piped or redirected to\n'--stdin' (a terminal, socket, or other stream is refused). For '--file' and\n'--stdin' the source is read completely under the same five-second budget,\nkept to at most 4096 bytes including the appended CR, and decoded as strict\nUTF-8 before anything is sent. '--enter' folds one carriage return into the\nsame record for every text-bearing form. Accepted key names: enter, escape,\ntab, backspace, delete, up, down, left, right, home, end, page-up,\npage-down, ctrl-c, ctrl-d. Named keys are delivered semantically; the Host\nencodes them under the terminal's current mode, never as canned escape\nbytes.\n\nThe send rides a temporary input-only attachment on the same session — it\nnever takes the TUI's controller, viewer, or resize ownership. The Site\nsubmits the record at most once and never retries an uncertain outcome;\nsends to one terminal serialize in arrival order. When the outcome is\nunknown (exit 8) do not resend blindly — check the terminal first, or you\nmay type twice. '--format json' emits the orchbee.terminal.send envelope\nwith inputStatus, cleanupStatus, and the accepted byte count.\n";
-const HELP_TERMINAL_SEND_ZH: &str = "orchbee terminal send <terminal-id> (--text <utf8> [--enter] | --key <name> | --file <path> [--enter] | --stdin [--enter]) [--format text|json]\n\n向一个已绑定终端恰好发送一条输入记录。必须恰好声明一个来源：'--text'\n的字面字节（UTF-8，含附加回车在内不超过 4096 字节）；'--key' 的一个\n按键名；'--file' 所指常规文件的 UTF-8 内容；或经管道、重定向提供给\n'--stdin' 的字节（终端、套接字或其他流会被拒绝）。'--file' 与\n'--stdin' 在同一个五秒预算内把来源完整读入、连同附加回车不超过\n4096 字节、按严格 UTF-8 解码，之后才会发送任何内容。每种承载文本的\n形式都可用 '--enter' 把一个回车并入同一记录。接受的按键名：enter、\nescape、tab、backspace、delete、up、down、left、right、home、end、\npage-up、page-down、ctrl-c、ctrl-d。具名按键按语义递交，由 Host 按\n终端当前模式编码，绝不发送预置转义字节。\n\n发送经由同一会话上的临时仅输入附属通道——绝不接管 TUI 的\ncontroller、viewer 或 resize 所有权。Site 至多提交一次该记录，对不\n确定结果绝不自动重试；同一终端的多个发送按到达顺序串行。当结果为\nunknown（退出码 8）时不要盲目重发——先查看终端，否则可能输入两次。\n'--format json' 输出带 inputStatus、cleanupStatus 与已接受字节数的\norchbee.terminal.send 封套。\n";
+const HELP_TERMINAL_SEND_EN: &str = r#"orchbee terminal send <terminal-id> (--text <utf8> [--enter] | --key <name>... | --file <path> [--paste] [--enter] | --stdin [--paste] [--enter]) [--format text|json]
+
+Submit one bounded input sequence to one bound terminal. Choose exactly one
+source family. --text accepts up to 4096 UTF-8 bytes including an optional
+carriage return. Repeat --key for up to 64 semantic keys; named keys include
+enter, escape, tab, backspace, delete, up, down, left, right, home, end,
+page-up, page-down, ctrl-c and ctrl-d. Modifier combinations such as
+ctrl+shift+a are accepted. The Host encodes keys for the terminal's mode.
+
+--file reads a regular file. --stdin accepts a redirected regular file or
+pipe, including Windows pipes, and refuses interactive terminals/devices.
+File/stdin preserves raw bytes, including non-UTF-8 data, up to 1 MiB
+including an optional --enter carriage return. Empty input is refused.
+--paste is valid only with --file or --stdin, limits content to 256 KiB,
+and sends bracketed paste under the terminal's mode. With --paste, --enter
+adds a separate trailing Enter record. Nothing is sent until the complete
+source is acquired and validated under the shared five-second deadline.
+Windows pipe cancellation terminates and reaps its owned reader process.
+
+The temporary input-only attachment never takes the TUI's controller,
+viewer or resize ownership. Inspect inputStatus and cleanupStatus in the
+orchbee.terminal.send JSON result independently. Partial acceptance is not
+complete success. When the outcome is unknown (exit 8), inspect the terminal
+before another action: blindly resending may type twice. No request is
+automatically replayed.
+"#;
+const HELP_TERMINAL_SEND_ZH: &str = r#"orchbee terminal send <terminal-id> (--text <utf8> [--enter] | --key <name>... | --file <path> [--paste] [--enter] | --stdin [--paste] [--enter]) [--format text|json]
+
+向一个已绑定终端提交一组有界输入。必须恰好选择一种来源。
+--text 接受不超过 4096 字节的 UTF-8 文字，含可选附加回车。
+重复 --key 可发送最多 64 个语义按键；具名按键包括 enter、escape、tab、
+backspace、delete、up、down、left、right、home、end、page-up、
+page-down、ctrl-c 和 ctrl-d。接受 ctrl+shift+a 等修饰键组合，
+由 Host 按终端当前模式编码。
+
+--file 读取普通文件。--stdin 接受重定向普通文件或管道，包括 Windows
+管道，拒绝交互终端和设备。文件/stdin 原样保留字节，含非 UTF-8 数据，
+连同 --enter 的可选回车上限为 1 MiB。空输入被拒绝。
+--paste 仅用于 --file 或 --stdin，内容上限 256 KiB，按终端模式发送
+bracketed paste。此时 --enter 附加独立的尾随 Enter 记录。
+来源在共用五秒期限内完整读取并校验后才发送任何内容。
+Windows 管道取消时会终止并回收所属读取进程。
+
+临时仅输入附属通道不获取 TUI 的 controller、viewer 或 resize 所有权。
+分别检查 orchbee.terminal.send JSON 结果的 inputStatus 与 cleanupStatus。
+部分接受不等于全部成功。结果未知（退出码 8）时，采取下一步操作前先
+检查终端：盲目重发可能输入两次。请求不会自动重放。
+"#;
 
 const HELP_WORKTREE_EN: &str = "orchbee worktree list\n\nInspect the Git worktrees of one registered project directory.\n  worktree list --project <target> --directory <directory-id>\n                               List the directory's Git worktrees\n--project resolves an exact ID, @project:<suffix>, or exact label;\n--directory is always the\nstrict nonzero 32-lowercase-hex Workbench directory ID, never a path or\nlabel. Directory membership is decided by the running Site, not the CLI.\n";
 const HELP_WORKTREE_ZH: &str = "orchbee worktree list\n\n查看一个已注册项目目录的 Git worktree。\n  worktree list --project <target> --directory <directory-id>\n                               列出该目录的 Git worktree\n--project 按精确 ID、@project:<suffix> 或精确标签解析；--directory 只接受严格的非零 32 位\n小写十六进制 Workbench 目录 ID，绝不接受路径或标签。目录归属由运行中\n的 Site 判定，CLI 不做预检。\n";

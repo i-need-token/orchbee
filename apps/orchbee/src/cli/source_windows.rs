@@ -1,6 +1,8 @@
-//! Windows source admission: bounded regular files and explicit console
-//! cancellation. Inherited pipe stdin is refused until cancellable reads can
-//! be provided without mutating the caller's pipe mode or leaking a reader.
+//! Windows source admission: bounded files and inherited pipes with console
+//! cancellation. A pipe's owned reader process is reaped before source handoff;
+//! the caller's pipe mode is never changed and no blocking thread escapes.
+#[path = "source_windows/pipe.rs"]
+mod pipe;
 use crate::{
     cli::{Failure, FailureKind, SourceFinalization},
     invocation::SendSourceCause,
@@ -93,14 +95,13 @@ fn acquire_stdin(
         .as_handle()
         .try_clone_to_owned()
         .map_err(|_| usage("--stdin", None, SendSourceCause::Unreadable))?;
-    read_regular(
-        File::from(handle),
-        InputSource::Stdin,
-        None,
-        paste,
-        deadline,
-        signals,
-    )
+    let file = File::from(handle);
+    let kind = winapi_util::file::typ(&file)
+        .map_err(|_| usage("--stdin", None, SendSourceCause::UnsupportedStream))?;
+    if kind.is_pipe() {
+        return pipe::acquire(file, paste, deadline, signals);
+    }
+    read_regular(file, InputSource::Stdin, None, paste, deadline, signals)
 }
 fn read_regular(
     mut file: File,

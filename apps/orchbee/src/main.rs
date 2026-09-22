@@ -98,6 +98,7 @@ fn main() -> ExitCode {
                 cli::process_result(present(Ok(Invocation::Help), locale), locale)
             }
             Ok(invocation::Request::Help(topic)) => cli::help(topic, locale),
+            Ok(invocation::Request::Skill) => cli::skill(locale),
             Ok(invocation::Request::Completion(shell)) => cli::completion(shell, locale),
             Ok(invocation::Request::Query { command, format }) => {
                 cli::query(command, format, locale)

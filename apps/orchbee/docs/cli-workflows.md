@@ -124,15 +124,18 @@ printf 'summarize this\n' | orchbee terminal send "$TERM_ID" --stdin --enter
 orchbee terminal send "$TERM_ID" --file prompt.txt --enter
 ```
 
-`send` delivers exactly one input record from exactly one source: literal
-`--text`, one named `--key`, a regular `--file`, or `--stdin` — which
-accepts a redirected regular file or a FIFO/pipe and refuses a terminal,
-socket, or device. Text-bearing sources are capped at 4096 bytes including
-the folded `--enter` carriage return. One absolute 5-second deadline
-sampled at command entry covers source materialization _and_ the entire
-send lifecycle. `wait-output` exits `0` on match, `7` on timeout, `130` on
-signal. A send whose outcome is unknown (exit `8`) may already have been
-delivered — check the terminal before resending.
+`send` submits one input sequence from exactly one source family: literal
+`--text`, repeatable `--key`, a regular `--file`, or `--stdin`. Stdin accepts
+redirected regular files and pipes, including Windows pipes. Text is limited
+to 4096 UTF-8 bytes; file/stdin preserves raw bytes up to 1 MiB. These limits
+include a folded `--enter` carriage return. File/stdin with `--paste` accepts
+256 KiB of content and an optional separate Enter record. Keys accept named
+keys and modifier combinations, with at most 64 records per sequence.
+One absolute five-second deadline covers source acquisition and delivery.
+`wait-output` exits `0` on match, `7` on timeout, `130` on cancellation.
+An unknown send outcome (exit `8`) may already have delivered input; inspect
+the terminal before another action. Partial input and cleanup outcomes are
+reported independently. Use `orchbee --skill` for the embedded Agent guide.
 
 ## 5. Inspect worktrees
 

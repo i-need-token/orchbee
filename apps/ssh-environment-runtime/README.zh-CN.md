@@ -144,6 +144,12 @@ pnpm --filter @orchbee/ssh-environment-runtime format:check
 test lifecycle 只构建自身 native artifact；recursive repository test gate 可能正在消费 sibling package
 output 时，它绝不会重建或临时删除该 output。Root `pnpm verify` gate 已强制这一 build-before-test order。
 
+本包的 host-check runner 仅在已准入的 macOS arm64 和 Linux x64 主机上执行 native build、unit test
+和进程 conformance。其他主机（包括 Windows）会明确输出 native check 跳过提示；`test` 命令仍执行
+release 和主机选择测试。保持不变的 `test:cross` 命令在每种构建主机上编译两个已准入 target，并继续
+属于 root test gate。因此 Windows gate 成功不代表 SSH Runtime 的原生行为已验证。显式 `zig build`
+target 选择和 release preparation 仍拒绝不支持的远端 target。
+
 真实进程 conformance test 在 private temporary directory 中启动 Runtime 与实际 Terminal Host，执行两个
 跨语言 Hello 与 heartbeat，检查 relay credit，验证 canonical symlink resolution、有界 failure/cancel path
 及 result-cancellation crossover，拒绝竞争 attachment，重新连接到同一 Runtime epoch，强制制造带 stale

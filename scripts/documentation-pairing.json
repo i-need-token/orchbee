@@ -142,20 +142,24 @@
 			"zhCnSha256": "1cfa176de04d501d86657382328f222e49820fe5c92977416a7edf81f23ea2b2"
 		},
 		"apps/orchbee/README.md": {
-			"englishSha256": "6b3824b7bd5cc77d6a6a63e0a7bc34dcfcf1744289aae949cc526957ab304ec5",
-			"zhCnSha256": "729fde124b45456f51b81152b285242ae4842a4574baf6826ccc6dd7685b15e8"
+			"englishSha256": "1ad0c47ff4ee3350b73ae9ed6b41830c631c48bf7b56fc97d79e05b039dd904a",
+			"zhCnSha256": "782e2011081469ef0ecc75750fa9602b2ed2c5f01fd9b2c51852588f4ff4148a"
 		},
 		"apps/orchbee/docs/agent-board.md": {
 			"englishSha256": "03ecefcc2a3a8d56dc554a5d7445040f96fced0ccde2f492c1c81c0ba0c127bb",
 			"zhCnSha256": "04231e59a1ced2fd7928f4c5ccb30fd53560152a17526af7e9f377dadbe91c61"
 		},
+		"apps/orchbee/docs/cli-agent-skill.md": {
+			"englishSha256": "ec7e462462aad7219d6120eddbb15c875e81481d33104771e6845e3d26bc322f",
+			"zhCnSha256": "d7acb255b1fa5499f62e08fe02626c18fb94057e184ba3038792e673c9a5c30e"
+		},
 		"apps/orchbee/docs/cli-workflows.md": {
-			"englishSha256": "c156395f043a2c2aa6d77e88dc6b06652a9df18f6933e280366669e06555c98f",
-			"zhCnSha256": "b595ea826d70470bb2ff86a96f62fee537f30388a8d1f9272ec99b364af71cc5"
+			"englishSha256": "e75e98b77da53f59474b40d581867e455f92997482d91089093de6ed3ff791f3",
+			"zhCnSha256": "3d5a07cac53bb40d2cb42fa90e2b92124630fdc1da95d93e0fe5a03877cac3bc"
 		},
 		"apps/orchbee/docs/native-cli-query.md": {
-			"englishSha256": "49f264a551c116d3988cd43321e73ffa058b83d5b6a81434a1f18f89157223e8",
-			"zhCnSha256": "04a092e9981e500df64b04c239f235b411c60369a77179a1a521750ac7c72dae"
+			"englishSha256": "cfdad441dfac6224adb29e1528f6dac1c1aae9ce6ffda2b005fb0b2652a142da",
+			"zhCnSha256": "4736f04fe00596e95b57cf2e3b73a39e3f414adc9652a2aa52d4826fc20a3de5"
 		},
 		"apps/orchbee/docs/native-cli-wait-model.md": {
 			"englishSha256": "2f847c74877ecd971ab0be6f98d8250d2180a427ad26a21fff90d5a14eeaea69",
@@ -214,8 +218,8 @@
 			"zhCnSha256": "c9290becb6796baeb94ce0533b7e6b0bd2a8d44aa47d3fde4f6815b61fedb3f7"
 		},
 		"apps/ssh-environment-runtime/README.md": {
-			"englishSha256": "7e815a8ba462aae4368e4b326d3d865419f97897f3ea416b8e6d21636b71a0ce",
-			"zhCnSha256": "6fbc6b6a12b7e014015a12be216a5b6500abed107f7ab3df1ab6d38f4d033b98"
+			"englishSha256": "96e09a72429642553f18ff2c9b26430db106bfe2063b4d2117df55afbb5fb893",
+			"zhCnSha256": "ceb3678757ded6ceebc77af8a6d970c32e93282780df7756ab37ee2b1539ce72"
 		},
 		"apps/terminal-host/README.md": {
 			"englishSha256": "5338c795ae540c0530c06595988bd67e2c1b81061c316a7da97052cf14c188dd",

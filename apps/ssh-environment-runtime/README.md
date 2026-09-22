@@ -165,6 +165,13 @@ the focused test. The Runtime test lifecycle builds only its own native artifact
 or temporarily removes a sibling package output while the recursive repository test gate may be
 consuming that output. The root `pnpm verify` gate already enforces this build-before-test order.
 
+The package's host-check runner executes native builds, unit tests, and process conformance only
+on the admitted macOS arm64 and Linux x64 hosts. Other hosts, including Windows, print an explicit
+native-check skip; the `test` command still runs the release and host-selection tests. The unchanged
+`test:cross` command compiles both admitted targets on every build host and remains in the root test
+gate. A successful Windows gate therefore does not establish native SSH Runtime behavior. Explicit
+`zig build` target selection and release preparation still reject unsupported remote targets.
+
 The real-process conformance test starts the Runtime and actual Terminal Host in private temporary
 directories, performs both cross-language Hellos and heartbeat, checks relay credit, exercises
 canonical symlink resolution, bounded failure/cancel paths, and result-cancellation crossover,

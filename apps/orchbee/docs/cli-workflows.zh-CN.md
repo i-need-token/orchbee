@@ -116,13 +116,15 @@ printf 'summarize this\n' | orchbee terminal send "$TERM_ID" --stdin --enter
 orchbee terminal send "$TERM_ID" --file prompt.txt --enter
 ```
 
-`send` 从恰好一个来源递送恰好一条输入记录：字面 `--text`、一个具名
-`--key`、常规文件 `--file`，或 `--stdin`——接受重定向的常规文件或
-FIFO/管道，拒绝终端、套接字或设备。承载文本的来源连同并入的
-`--enter` 回车在内不超过 4096 字节。在命令入口采样的一条绝对 5 秒
-deadline 同时覆盖来源物化*和*整个发送生命周期。`wait-output` 匹配成
-功退出 `0`，超时退出 `7`，收到信号退出 `130`。结果未知的发送（退
-出码 `8`）可能已被送达——重发前先查看终端。
+`send` 从恰好一种来源提交一组输入：字面 `--text`、可重复的 `--key`、
+普通 `--file` 或 `--stdin`。Stdin 接受重定向普通文件和管道，包括 Windows
+管道。文字上限为 4096 个 UTF-8 字节，文件/stdin 原样保留不超过 1 MiB
+的字节；这些上限包含 `--enter` 并入的回车。文件/stdin 搭配 `--paste`
+可接收 256 KiB 内容和可选的独立 Enter 记录。按键支持具名键及修饰键组合，
+每组最多 64 条记录。来源读取和递交共用一个五秒绝对期限。
+`wait-output` 匹配时退出 `0`，超时为 `7`，取消为 `130`。
+结果未知的 send（退出码 `8`）可能已送达；下一步操作前先检查终端。
+部分输入与清理结果独立报告。使用 `orchbee --skill` 查看内嵌 Agent 指引。
 
 ## 5. 查看 worktree
 

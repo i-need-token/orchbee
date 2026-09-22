@@ -101,6 +101,7 @@ pub(crate) enum CompletionShell {
     Bash,
     Zsh,
     Fish,
+    PowerShell,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -798,6 +799,8 @@ pub(crate) enum Request {
         mouse: bool,
     },
     Version,
+    /// The embedded, locale-selected Agent guide; no runtime capabilities.
+    Skill,
     RootHelp,
     Help(HelpTopic),
     Completion(CompletionShell),
@@ -1049,6 +1052,7 @@ enum Token {
     Word(String),
     HelpFlag(&'static str),
     VersionFlag,
+    SkillFlag,
 }
 
 #[derive(Default)]
@@ -1490,6 +1494,10 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                 positionals.push(Token::VersionFlag);
                 index += 1;
             }
+            "--skill" => {
+                positionals.push(Token::SkillFlag);
+                index += 1;
+            }
             _ if token.starts_with('-') && token.len() > 1 => {
                 return Err(usage_with(
                     UsageReason::UnknownOption {
@@ -1611,6 +1619,10 @@ fn apply_value_flag(
 
 fn resolve(positionals: Vec<Token>, options: Options) -> Result<Request, ParseFailure> {
     let envelope = selection_envelope(options.format);
+    if positionals.len() == 1 && matches!(positionals[0], Token::SkillFlag) {
+        reject_extras(&options, UsageContext::Literal("orchbee --skill"), envelope)?;
+        return Ok(Request::Skill);
+    }
     // `--version` is legal only as the sole root invocation.
     if positionals.len() == 1 && matches!(positionals[0], Token::VersionFlag) {
         reject_extras(
@@ -1642,7 +1654,9 @@ fn resolve(positionals: Vec<Token>, options: Options) -> Result<Request, ParseFa
         .iter()
         .map(|token| match token {
             Token::Word(word) => word.as_str(),
-            Token::HelpFlag(_) | Token::VersionFlag => unreachable!("flags excluded above"),
+            Token::HelpFlag(_) | Token::VersionFlag | Token::SkillFlag => {
+                unreachable!("flags excluded above")
+            }
         })
         .collect();
     resolve_words(&words, &options, envelope)
@@ -1652,6 +1666,7 @@ fn flag_literal(token: &Token) -> Option<&'static str> {
     match token {
         Token::HelpFlag(literal) => Some(literal),
         Token::VersionFlag => Some("--version"),
+        Token::SkillFlag => Some("--skill"),
         Token::Word(_) => None,
     }
 }
@@ -1659,7 +1674,7 @@ fn flag_literal(token: &Token) -> Option<&'static str> {
 fn word_literal(token: &Token) -> Option<&str> {
     match token {
         Token::Word(word) => Some(word.as_str()),
-        Token::HelpFlag(_) | Token::VersionFlag => None,
+        Token::HelpFlag(_) | Token::VersionFlag | Token::SkillFlag => None,
     }
 }
 
@@ -2425,6 +2440,7 @@ fn resolve_words(
                 "bash" => CompletionShell::Bash,
                 "zsh" => CompletionShell::Zsh,
                 "fish" => CompletionShell::Fish,
+                "powershell" => CompletionShell::PowerShell,
                 _ => {
                     return Err(usage_with(
                         UsageReason::InvalidValue {

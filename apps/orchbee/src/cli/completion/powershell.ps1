@@ -1,0 +1,130 @@
+# Static Orchbee native completion. Load explicitly; no profile is modified.
+Register-ArgumentCompleter -Native -CommandName orchbee, orchbee.exe -ScriptBlock {
+    param($wordToComplete, $commandAst, $cursorPosition)
+    $grammar = ConvertFrom-Json @'
+__ORCHBEE_GRAMMAR__
+'@
+    $words = [System.Collections.Generic.List[string]]::new()
+    foreach ($element in @($commandAst.CommandElements | Select-Object -Skip 1)) {
+        if ($element.Extent.StartOffset -ge $cursorPosition) { break }
+        if ($element.Extent.EndOffset -ge $cursorPosition -and $wordToComplete.Length -gt 0) { break }
+        if ($element -is [System.Management.Automation.Language.StringConstantExpressionAst]) {
+            $words.Add($element.Value)
+        } elseif ($element -is [System.Management.Automation.Language.CommandParameterAst]) {
+            $words.Add($element.Extent.Text)
+        } else {
+            # Variable expansion, subexpressions and scriptblocks are never executed.
+            return
+        }
+    }
+    $positionals = [System.Collections.Generic.List[string]]::new()
+    $seen = [System.Collections.Generic.List[string]]::new()
+    $values = [System.Collections.Generic.Dictionary[string,string]]::new([System.StringComparer]::Ordinal)
+    $pending = ''
+    foreach ($word in $words) {
+        if ($word -ceq '--') { return }
+        if ($pending.Length -gt 0) {
+            $values[$pending] = $word
+            $pending = ''
+            continue
+        }
+        if ($word -cin @('--help', '-h', '--version', '--skill')) { return }
+        if ($word.StartsWith('-') -and $word.Length -gt 1) {
+            $pair = $word.Split([char[]]@('='), 2, [System.StringSplitOptions]::None)
+            $flag = $pair[0]
+            if ($grammar.flags -cnotcontains $flag) { return }
+            if ($seen -ccontains $flag -and $grammar.repeatable -cnotcontains $flag -and $flag -cne '--provider') { return }
+            $seen.Add($flag)
+            if ($grammar.valueFlags -ccontains $flag) {
+                if ($pair.Length -eq 2) { $values[$flag] = $pair[1] } else { $pending = $flag }
+            } elseif ($pair.Length -eq 2) { return }
+        } else {
+            $positionals.Add($word)
+        }
+    }
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    if ($positionals.Count -gt 0 -and $positionals[0] -cin @('completion', 'help')) {
+        if ($seen.Count -gt 0) { return }
+        if ($positionals[0] -ceq 'completion') {
+            if ($positionals.Count -ne 1) { return }
+            $candidates.AddRange([string[]]$grammar.shells)
+            $candidates.Add('--help')
+        } elseif ($positionals.Count -eq 1) {
+            $candidates.AddRange([string[]]$grammar.helpTopics)
+        } elseif ($positionals.Count -eq 2) {
+            foreach ($entry in $grammar.helpChildren) {
+                if ($entry[0] -ceq $positionals[1]) { $candidates.AddRange([string[]]$entry[1]) }
+            }
+        } elseif ($positionals.Count -eq 3) {
+            foreach ($entry in $grammar.helpLevel3) {
+                if ($entry[0] -ceq ($positionals[1] + ':' + $positionals[2])) { $candidates.AddRange([string[]]$entry[1]) }
+            }
+        }
+    } else {
+        foreach ($group in @(@('--workspace', '--standalone'), @('--exec', '--profile'), @('--arg', '--profile'), @('--into-tab', '--new-tab'), @('--target-panel', '--into-tab'), @('--target-panel', '--new-tab'), @('--text', '--file', '--stdin', '--key'), @('--key', '--enter'), @('--key', '--paste'), @('--text', '--paste'), @('--match', '--regex'))) {
+            if (@($group | Where-Object { $seen -ccontains $_ }).Count -gt 1) { return }
+        }
+        foreach ($entry in @(@('--format', $grammar.formats), @('--mouse', @('off', 'on')), @('--until', $grammar.until))) {
+            if ($values.ContainsKey($entry[0]) -and $entry[1] -cnotcontains $values[$entry[0]]) { return }
+        }
+        $viable = @($grammar.commands | Where-Object {
+            $command = $_
+            $allowed = @($command.flags)
+            if ($command.words[0] -cne 'tui') { $allowed += '--format' }
+            $valid = $true
+            foreach ($flag in $seen) { if ($allowed -cnotcontains $flag) { $valid = $false } }
+            if (@($seen | Where-Object { $_ -ceq '--provider' }).Count -gt 1 -and ($command.words -join ':') -cne 'agent:doctor') { $valid = $false }
+            if ($positionals.Count -gt $command.words.Count + [int]$command.operand) { $valid = $false }
+            for ($index = 0; $index -lt [Math]::Min($positionals.Count, $command.words.Count); $index++) {
+                if ($positionals[$index] -cne $command.words[$index]) { $valid = $false }
+            }
+            if ($values.ContainsKey('--direction') -and $command.directions -cnotcontains $values['--direction']) { $valid = $false }
+            $valid
+        })
+        if ($viable.Count -eq 0) { return }
+        $offeredFlags = [System.Collections.Generic.List[string]]::new()
+        foreach ($command in $viable) {
+            if ($positionals.Count -lt $command.words.Count) { $candidates.Add($command.words[$positionals.Count]) }
+            $allowed = @($command.flags)
+            if ($command.words[0] -cne 'tui') { $allowed += '--format' }
+            foreach ($flag in $allowed) {
+                if ($seen -ccontains $flag -and $grammar.repeatable -cnotcontains $flag -and -not ($flag -ceq '--provider' -and ($command.words -join ':') -ceq 'agent:doctor')) { continue }
+                if ($flag -ceq '--arg' -and $seen -cnotcontains '--exec') { continue }
+                $conflict = $false
+                foreach ($group in @(@('--workspace', '--standalone'), @('--exec', '--profile'), @('--arg', '--profile'), @('--into-tab', '--new-tab'), @('--target-panel', '--into-tab'), @('--target-panel', '--new-tab'), @('--text', '--file', '--stdin', '--key'), @('--key', '--enter'), @('--key', '--paste'), @('--text', '--paste'), @('--match', '--regex'))) {
+                    if ($group -ccontains $flag -and @($group | Where-Object { $_ -cne $flag -and $seen -ccontains $_ }).Count -gt 0) { $conflict = $true }
+                }
+                if (-not $conflict) { $offeredFlags.Add($flag) }
+            }
+            if ($seen.Count -eq 0 -and $positionals.Count -le $command.words.Count) { $candidates.Add('--help') }
+        }
+        $joinedPrefix = ''
+        if ($pending.Length -eq 0 -and $wordToComplete -cmatch '^(--[^=]+)=') {
+            $joinedPrefix = $Matches[1] + '='
+            if ($offeredFlags -cnotcontains $Matches[1]) { return }
+            $pending = $Matches[1]
+        }
+        if ($pending.Length -gt 0) {
+            $candidates.Clear()
+            $enum = switch -CaseSensitive ($pending) {
+                '--format' { $grammar.formats }
+                '--mouse' { 'off'; 'on' }
+                '--direction' { $viable | ForEach-Object { $_.directions } }
+                '--key' { $grammar.keys }
+                '--until' { $grammar.until }
+                '--provider' { $grammar.providers }
+            }
+            foreach ($value in $enum) { $candidates.Add($joinedPrefix + $value) }
+        } else {
+            $candidates.AddRange($offeredFlags)
+            if ($positionals.Count -eq 0 -and $seen.Count -eq 0) {
+                $candidates.AddRange([string[]]@('help', 'completion', '--version', '--skill'))
+            }
+        }
+    }
+    $candidates | Sort-Object -Unique -CaseSensitive | Where-Object {
+        $_.StartsWith($wordToComplete, [System.StringComparison]::Ordinal)
+    } | ForEach-Object {
+        [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+    }
+}

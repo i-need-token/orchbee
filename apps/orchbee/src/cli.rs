@@ -417,6 +417,17 @@ pub(crate) fn completion(shell: CompletionShell, locale: Locale) -> Output {
     fixed_text(&completion::render(shell), locale)
 }
 
+/// Print the same build's offline Agent instructions through the bounded sink.
+pub(crate) fn skill(locale: Locale) -> Output {
+    fixed_text(
+        match locale {
+            Locale::EnUs => include_str!("../docs/cli-agent-skill.md"),
+            Locale::ZhCn => include_str!("../docs/cli-agent-skill.zh-CN.md"),
+        },
+        locale,
+    )
+}
+
 /// One effectful command: the mutation executor owns Workbench actions, while
 /// `terminal send` takes its own input-record path on the same session
 /// discipline — both admit once, submit once, and never replay.

@@ -18,6 +18,25 @@ fn parse(arguments: &[&str]) -> Result<Request, ParseFailure> {
     parse_request(arguments.iter().map(OsString::from))
 }
 
+#[test]
+fn offline_skill_is_a_sole_root_mode() {
+    assert_eq!(parse(&["--skill"]), Ok(Request::Skill));
+    for words in [
+        vec!["--skill", "--format", "json"],
+        vec!["--skill", "status"],
+        vec!["status", "--skill"],
+        vec!["--skill", "--skill"],
+        vec!["--skill", "--help"],
+        vec!["--", "--skill"],
+    ] {
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
+    assert_eq!(
+        parse(&["completion", "powershell"]),
+        Ok(Request::Completion(CompletionShell::PowerShell))
+    );
+}
+
 fn usage(envelope: FailureEnvelope) -> ParseFailure {
     ParseFailure {
         kind: ParseFailureKind::InvalidUsage,
@@ -479,7 +498,7 @@ fn text_and_unselected_syntax_failures_stay_silent() {
         &["tui", "--mouse", "off", "--help"],
         &["tui", "--", "--mouse", "off"],
         &["completion"],
-        &["completion", "powershell"],
+        &["completion", "elvish"],
         &["completion", "bash", "extra"],
         &["api", "snapshot", "extra"],
         &["config"],
@@ -3236,11 +3255,11 @@ fn usage_failures_carry_their_concrete_reason() {
             },
         ),
         (
-            &["completion", "powershell"],
+            &["completion", "elvish"],
             UsageReason::InvalidValue {
                 context: path("completion"),
                 option: "<shell>",
-                value: "powershell".to_owned(),
+                value: "elvish".to_owned(),
                 expected: ExpectedValue::Shell,
             },
         ),
