@@ -1570,12 +1570,7 @@
 					"maximum": 4294967295
 				}
 			},
-			"required": [
-				"closing",
-				"cleanupBlocked",
-				"outcomeUnknown",
-				"disposedAwaitingPublication"
-			],
+			"required": ["closing", "cleanupBlocked", "outcomeUnknown", "disposedAwaitingPublication"],
 			"additionalProperties": false
 		},
 		"workspaceCloseRead": {
@@ -1600,14 +1595,7 @@
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
 				}
 			},
-			"required": [
-				"kind",
-				"protocolVersion",
-				"requestId",
-				"siteId",
-				"projectId",
-				"workspaceId"
-			],
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "projectId", "workspaceId"],
 			"additionalProperties": false
 		},
 		"workspaceCloseReadOutcome": {

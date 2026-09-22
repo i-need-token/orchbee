@@ -20,11 +20,11 @@ demand 双腿、行窗口 read/acknowledge 握手、导航意图、恢复，以�
 每个窗格拥有独立的 viewport 核心（`TerminalViewport`，每 `PaneRef` 一个；隐藏或后台
 窗格不受焦点窗格模式影响）。无 viewport 状态即 `Live`；核心存在时其 `mode` 为：
 
-| 模式          | 含义                                                                                        |
-| ------------- | ------------------------------------------------------------------------------------------ |
-| `Entering`    | 历史+投影 demand 双腿已受理；等待 `HistoryChanged` 事实与首个行窗口                             |
-| `Viewing`     | 已安装 committed 窗口；read 在保留历史中导航                                                  |
-| `Recovering`  | 恢复 demand（`FollowingBottom`+`Active`）已受理或在途；合法新帧结束它                          |
+| 模式         | 含义                                                                  |
+| ------------ | --------------------------------------------------------------------- |
+| `Entering`   | 历史+投影 demand 双腿已受理；等待 `HistoryChanged` 事实与首个行窗口   |
+| `Viewing`    | 已安装 committed 窗口；read 在保留历史中导航                          |
+| `Recovering` | 恢复 demand（`FollowingBottom`+`Active`）已受理或在途；合法新帧结束它 |
 
 `Live` 即无核心。分离窗格无核心；viewer 丢失的窗格由 worker 的 demand 路径
 （`settle_pane_viewer_lost`）停靠，不由核心判定。
@@ -164,26 +164,26 @@ kind-53 事件仍经其自有通道精确应答一次。`Recovering`
 
 ## 源码对应
 
-| 生产面                                     | 模型对应                                                                                                                  |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| `terminal_session/terminal_viewport.rs`    | `TerminalViewport` 核心：`Mode`、`facts`、`window`、`ack`、`read_flight`、`committed`、`pending_nav`、`pending_commands`、期限 |
-| `terminal_session/mailbox.rs`              | `QueuedCommand::Viewport`、`ViewportStep`、`WorkerEvent::ViewportOutcome`                                                    |
-| `terminal_session/connection/native.rs`    | `run_viewport` 执行器：demand 腿、read、ack、恢复（租约围栏）                                                                |
-| `terminal_session/ui.rs`                   | `enter_history` 闸门、`history_key`、`history_wheel`、kind-53 分支、`KeyedProjection.viewport`/`history_sequence`/`read_watermark` |
-| `terminal_input/dispatcher.rs`             | `history_key` 端口路由（先于普通 pending 字节）；wheel 移交                                                                 |
-| `client_view.rs`、`client_view/bindings.rs` | `ClientAction::EnterHistory`、`Ctrl+B PageUp` 绑定、help 优先级                                                              |
-| `tui_pointer.rs`                           | `PointerProbe.viewport_non_live`、非 Live wheel 滚动与非滚轮事件消费                                                          |
-| `tui_render.rs`、`tui_render/viewport.rs`   | 纯文本窗口画笔、指示、位置/提示末行、generation/列围栏                                                                       |
-| `localization.rs`                          | 历史提示、指示、位置与提示字符串（en/zh）                                                                                    |
-| `formal/tla/TerminalClientViewport.tla`    | 覆盖阻塞、水位、暂存受理、有类型结果、事件、静默、界限与恢复的状态机模型；注册于 `scripts/tla/models.json`                                          |
+| 生产面                                      | 模型对应                                                                                                                           |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `terminal_session/terminal_viewport.rs`     | `TerminalViewport` 核心：`Mode`、`facts`、`window`、`ack`、`read_flight`、`committed`、`pending_nav`、`pending_commands`、期限     |
+| `terminal_session/mailbox.rs`               | `QueuedCommand::Viewport`、`ViewportStep`、`WorkerEvent::ViewportOutcome`                                                          |
+| `terminal_session/connection/native.rs`     | `run_viewport` 执行器：demand 腿、read、ack、恢复（租约围栏）                                                                      |
+| `terminal_session/ui.rs`                    | `enter_history` 闸门、`history_key`、`history_wheel`、kind-53 分支、`KeyedProjection.viewport`/`history_sequence`/`read_watermark` |
+| `terminal_input/dispatcher.rs`              | `history_key` 端口路由（先于普通 pending 字节）；wheel 移交                                                                        |
+| `client_view.rs`、`client_view/bindings.rs` | `ClientAction::EnterHistory`、`Ctrl+B PageUp` 绑定、help 优先级                                                                    |
+| `tui_pointer.rs`                            | `PointerProbe.viewport_non_live`、非 Live wheel 滚动与非滚轮事件消费                                                               |
+| `tui_render.rs`、`tui_render/viewport.rs`   | 纯文本窗口画笔、指示、位置/提示末行、generation/列围栏                                                                             |
+| `localization.rs`                           | 历史提示、指示、位置与提示字符串（en/zh）                                                                                          |
+| `formal/tla/TerminalClientViewport.tla`     | 覆盖阻塞、水位、暂存受理、有类型结果、事件、静默、界限与恢复的状态机模型；注册于 `scripts/tla/models.json`                         |
 
 ## 验证
 
-| 面                       | 证据                                                                                                                                          |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| 核心迁移                  | `terminal_viewport/tests` — 入场、导航合并、±4096 残量步、安装闸门、ack 提升、带类型拒绝、恢复、期限                                              |
-| 对抗序列                  | 确定性 trace 测试 — 流浪/外来/陈旧窗口、带类型 stale 重试、减半、ack 拒绝、底部退出、绝对跳转                                                      |
-| 输入边界                  | `client_view` 测试 — `Ctrl+B PageUp` → `EnterHistory`、help 优先级；dispatcher 消费经端口缺省路径验证                                              |
-| 呈现                      | surface 围栏归核心所有（`surface()` 每次复核 generation/列数）；画笔覆盖随 shell 渲染路径                                                          |
-| 结果通知接缝               | `ui/viewport_tests` — `publish_notice_before` → `take_event_before` → `apply_viewport_outcome` 回归保持协议开放；状态中性的 applied Enter 使 Entering 核心保持不变 |
-| 模型                      | `formal/tla/TerminalClientViewport.tla` + `.cfg` 注册于 `scripts/tla/models.json`；暂存受理与有类型结果修订及受理边界 flight 与输入覆盖性质已映射，TLC 仍由门禁负责人待跑 |
+| 面           | 证据                                                                                                                                                                      |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 核心迁移     | `terminal_viewport/tests` — 入场、导航合并、±4096 残量步、安装闸门、ack 提升、带类型拒绝、恢复、期限                                                                      |
+| 对抗序列     | 确定性 trace 测试 — 流浪/外来/陈旧窗口、带类型 stale 重试、减半、ack 拒绝、底部退出、绝对跳转                                                                             |
+| 输入边界     | `client_view` 测试 — `Ctrl+B PageUp` → `EnterHistory`、help 优先级；dispatcher 消费经端口缺省路径验证                                                                     |
+| 呈现         | surface 围栏归核心所有（`surface()` 每次复核 generation/列数）；画笔覆盖随 shell 渲染路径                                                                                 |
+| 结果通知接缝 | `ui/viewport_tests` — `publish_notice_before` → `take_event_before` → `apply_viewport_outcome` 回归保持协议开放；状态中性的 applied Enter 使 Entering 核心保持不变        |
+| 模型         | `formal/tla/TerminalClientViewport.tla` + `.cfg` 注册于 `scripts/tla/models.json`；暂存受理与有类型结果修订及受理边界 flight 与输入覆盖性质已映射，TLC 仍由门禁负责人待跑 |

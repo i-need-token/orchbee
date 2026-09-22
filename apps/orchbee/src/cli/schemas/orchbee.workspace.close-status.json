@@ -16,10 +16,7 @@
 			"$ref": "#/$defs/source"
 		},
 		"result": {
-			"oneOf": [
-				{ "$ref": "#/$defs/notClosing" },
-				{ "$ref": "#/$defs/available" }
-			]
+			"oneOf": [{ "$ref": "#/$defs/notClosing" }, { "$ref": "#/$defs/available" }]
 		}
 	},
 	"$defs": {
@@ -105,12 +102,7 @@
 					"maxItems": 4096,
 					"items": {
 						"type": "object",
-						"required": [
-							"tabId",
-							"panelId",
-							"presentationId",
-							"status"
-						],
+						"required": ["tabId", "panelId", "presentationId", "status"],
 						"additionalProperties": false,
 						"properties": {
 							"tabId": {
@@ -236,12 +228,7 @@
 			]
 		},
 		"closingPhase": {
-			"enum": [
-				"queued",
-				"waiting-grace",
-				"waiting-outcome",
-				"disposing"
-			]
+			"enum": ["queued", "waiting-grace", "waiting-outcome", "disposing"]
 		},
 		"unknownPhase": {
 			"enum": ["terminate", "force", "dispose"]
@@ -261,12 +248,7 @@
 			"enum": ["transport-lost", "deadline", "invalid-response"]
 		},
 		"publicationReason": {
-			"enum": [
-				"target-cleanup-pending",
-				"preparing",
-				"preparation-failed",
-				"authority-retired"
-			]
+			"enum": ["target-cleanup-pending", "preparing", "preparation-failed", "authority-retired"]
 		},
 		"source": {
 			"type": "object",

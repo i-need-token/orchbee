@@ -25,8 +25,8 @@ while a core exists its `mode` is one of:
 | Mode         | Meaning                                                                                              |
 | ------------ | ---------------------------------------------------------------------------------------------------- |
 | `Entering`   | History+projection demand legs admitted; waiting for `HistoryChanged` facts and the first row window |
-| `Viewing`    | A committed window is installed; reads navigate the retained history                                  |
-| `Recovering` | Recovery demands (`FollowingBottom`+`Active`) admitted or in flight; a valid new frame ends it        |
+| `Viewing`    | A committed window is installed; reads navigate the retained history                                 |
+| `Recovering` | Recovery demands (`FollowingBottom`+`Active`) admitted or in flight; a valid new frame ends it       |
 
 `Live` is the absence of a core. A detached pane has no core; a pane whose viewer is lost is
 parked by the worker's demand path (`settle_pane_viewer_lost`), not by the core.
@@ -191,26 +191,26 @@ returns to live output.
 
 ## Source correspondence
 
-| Production surface                          | Model correspondence                                                                                                        |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `terminal_session/terminal_viewport.rs`     | `TerminalViewport` core: `Mode`, `facts`, `window`, `ack`, `read_flight`, `committed`, `pending_nav`, `pending_commands`, deadlines |
-| `terminal_session/mailbox.rs`               | `QueuedCommand::Viewport`, `ViewportStep`, `WorkerEvent::ViewportOutcome`                                                    |
-| `terminal_session/connection/native.rs`     | `run_viewport` executor: demand legs, read, ack, recovery with lease fencing                                                  |
-| `terminal_session/ui.rs`                    | `enter_history` gates, `history_key`, `history_wheel`, kind-53 arm, `KeyedProjection.viewport`/`history_sequence`/`read_watermark` |
-| `terminal_input/dispatcher.rs`              | `history_key` port route before ordinary pending bytes; wheel hand-off                                                        |
-| `client_view.rs`, `client_view/bindings.rs` | `ClientAction::EnterHistory`, `Ctrl+B PageUp` binding, help precedence                                                         |
-| `tui_pointer.rs`                            | `PointerProbe.viewport_non_live`, non-Live wheel scroll and non-wheel event consumption                                        |
-| `tui_render.rs`, `tui_render/viewport.rs`   | Plain-text window painter, indicators, position/hint bottom line, generation/column fencing                                    |
-| `localization.rs`                           | History notices, indicators, position, and hint strings (en/zh)                                                                |
+| Production surface                          | Model correspondence                                                                                                                                               |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `terminal_session/terminal_viewport.rs`     | `TerminalViewport` core: `Mode`, `facts`, `window`, `ack`, `read_flight`, `committed`, `pending_nav`, `pending_commands`, deadlines                                |
+| `terminal_session/mailbox.rs`               | `QueuedCommand::Viewport`, `ViewportStep`, `WorkerEvent::ViewportOutcome`                                                                                          |
+| `terminal_session/connection/native.rs`     | `run_viewport` executor: demand legs, read, ack, recovery with lease fencing                                                                                       |
+| `terminal_session/ui.rs`                    | `enter_history` gates, `history_key`, `history_wheel`, kind-53 arm, `KeyedProjection.viewport`/`history_sequence`/`read_watermark`                                 |
+| `terminal_input/dispatcher.rs`              | `history_key` port route before ordinary pending bytes; wheel hand-off                                                                                             |
+| `client_view.rs`, `client_view/bindings.rs` | `ClientAction::EnterHistory`, `Ctrl+B PageUp` binding, help precedence                                                                                             |
+| `tui_pointer.rs`                            | `PointerProbe.viewport_non_live`, non-Live wheel scroll and non-wheel event consumption                                                                            |
+| `tui_render.rs`, `tui_render/viewport.rs`   | Plain-text window painter, indicators, position/hint bottom line, generation/column fencing                                                                        |
+| `localization.rs`                           | History notices, indicators, position, and hint strings (en/zh)                                                                                                    |
 | `formal/tla/TerminalClientViewport.tla`     | State-machine model covering blockage, watermark, staged admission, typed outcomes, events, silence, bounds, and recovery; registered in `scripts/tla/models.json` |
 
 ## Verification
 
-| Surface                 | Evidence                                                                                                                                           |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Core transitions        | `terminal_viewport/tests` — entry, navigation coalescing, ±4096 residual steps, install gates, ack promotion, typed rejections, recovery, deadlines   |
-| Adversarial sequences   | Deterministic trace tests — stray/foreign/stale windows, typed stale retry, halving, ack rejection, bottom exit, absolute jump                          |
-| Input boundary          | `client_view` tests — `Ctrl+B PageUp` → `EnterHistory`, help precedence; dispatcher consumption is exercised through the port default                   |
-| Rendering               | Surface fencing is owned by the core (`surface()` re-validates generation/columns); painter coverage rides the shell render paths                       |
-| Outcome notice seam     | `ui/viewport_tests` — `publish_notice_before` → `take_event_before` → `apply_viewport_outcome` regression keeps the protocol open; the state-neutral applied Enter leaves the Entering core intact |
-| Model                   | `formal/tla/TerminalClientViewport.tla` + `.cfg` registered in `scripts/tla/models.json`; the staged-admission and typed-outcome revision with the admission-edge flight and input-cover properties is mapped but TLC remains pending with the gate owner |
+| Surface               | Evidence                                                                                                                                                                                                                                                  |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Core transitions      | `terminal_viewport/tests` — entry, navigation coalescing, ±4096 residual steps, install gates, ack promotion, typed rejections, recovery, deadlines                                                                                                       |
+| Adversarial sequences | Deterministic trace tests — stray/foreign/stale windows, typed stale retry, halving, ack rejection, bottom exit, absolute jump                                                                                                                            |
+| Input boundary        | `client_view` tests — `Ctrl+B PageUp` → `EnterHistory`, help precedence; dispatcher consumption is exercised through the port default                                                                                                                     |
+| Rendering             | Surface fencing is owned by the core (`surface()` re-validates generation/columns); painter coverage rides the shell render paths                                                                                                                         |
+| Outcome notice seam   | `ui/viewport_tests` — `publish_notice_before` → `take_event_before` → `apply_viewport_outcome` regression keeps the protocol open; the state-neutral applied Enter leaves the Entering core intact                                                        |
+| Model                 | `formal/tla/TerminalClientViewport.tla` + `.cfg` registered in `scripts/tla/models.json`; the staged-admission and typed-outcome revision with the admission-edge flight and input-cover properties is mapped but TLC remains pending with the gate owner |

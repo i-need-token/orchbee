@@ -3966,9 +3966,7 @@
 			"workspace": "apps/orchbee",
 			"module": "apps/orchbee/formal/tla/TerminalClientViewport.tla",
 			"config": "apps/orchbee/formal/tla/TerminalClientViewport.cfg",
-			"claims": [
-				"apps/orchbee/docs/native-terminal-viewport.md"
-			],
+			"claims": ["apps/orchbee/docs/native-terminal-viewport.md"],
 			"triggers": [
 				"apps/orchbee/docs/native-terminal-viewport.zh-CN.md",
 				"apps/orchbee/src/terminal_session.rs",

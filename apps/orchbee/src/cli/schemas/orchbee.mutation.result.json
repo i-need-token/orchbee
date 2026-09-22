@@ -9,10 +9,7 @@
 		"schema": { "const": "orchbee.mutation.result" },
 		"version": { "const": 4 },
 		"source": {
-			"oneOf": [
-				{ "$ref": "#/$defs/commandSource" },
-				{ "$ref": "#/$defs/closeResumeSource" }
-			]
+			"oneOf": [{ "$ref": "#/$defs/commandSource" }, { "$ref": "#/$defs/closeResumeSource" }]
 		},
 		"result": {
 			"type": "object",
@@ -118,11 +115,7 @@
 						"required": ["action"]
 					},
 					"then": {
-						"required": [
-							"projectId",
-							"workspaceId",
-							"terminalContextId"
-						]
+						"required": ["projectId", "workspaceId", "terminalContextId"]
 					}
 				},
 				{
@@ -175,13 +168,7 @@
 		},
 		"closeResumeSource": {
 			"type": "object",
-			"required": [
-				"kind",
-				"siteId",
-				"requestId",
-				"closeRequestId",
-				"expectedAttemptGeneration"
-			],
+			"required": ["kind", "siteId", "requestId", "closeRequestId", "expectedAttemptGeneration"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": { "const": "workspace-close-resume" },
