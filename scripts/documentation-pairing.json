@@ -2,8 +2,8 @@
 	"formatVersion": 1,
 	"pairs": {
 		"AGENTS.md": {
-			"englishSha256": "6ebdb617a8104a7756d0cf36578ab01103dc9f07e4dc6feb751296b9c402faf7",
-			"zhCnSha256": "734ee22a388c634717ef5a3bc216d1f76299a5daeda03551848c63d9c0f6db01"
+			"englishSha256": "177165fc8ace9939690a120037be98544f8152669a18ac54d9f02f120b7a3935",
+			"zhCnSha256": "cb9330865555540ad9bdfaed35badc69a14d179a17f5243354a629dae5c9a05f"
 		},
 		"CLAUDE.md": {
 			"englishSha256": "177165fc8ace9939690a120037be98544f8152669a18ac54d9f02f120b7a3935",
