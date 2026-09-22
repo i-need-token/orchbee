@@ -308,6 +308,19 @@ fn terminal_send_admitted_forms() -> TestResult {
         ["terminal", "send", TERMINAL_ID, "--text", "hi", "--"].as_slice(),
         // UTF-8 payloads beyond ASCII are literal bytes, never expanded.
         ["terminal", "send", TERMINAL_ID, "--text", "多 字节"].as_slice(),
+        // `--key` is send's declared repeatable value option: every
+        // occurrence appends one verbatim key to the ordered sequence,
+        // so a repeated option is admitted — never a duplicate failure.
+        [
+            "terminal",
+            "send",
+            TERMINAL_ID,
+            "--key",
+            "enter",
+            "--key",
+            "tab",
+        ]
+        .as_slice(),
     ] {
         admitted(&probe, arguments);
     }
@@ -381,7 +394,9 @@ fn terminal_send_usage_failures() -> TestResult {
         ["terminal", "send", TERMINAL_ID, "--key", "Page-Down"].as_slice(),
         ["terminal", "send", TERMINAL_ID, "--key", ""].as_slice(),
         ["terminal", "send", TERMINAL_ID, "--key", "f1"].as_slice(),
-        // Duplicates are rejected, including bare flags.
+        // Duplicates of a single-use option or a bare flag are rejected;
+        // `--key` is the repeatable exception and lives on the admitted
+        // side.
         [
             "terminal",
             "send",
@@ -390,16 +405,6 @@ fn terminal_send_usage_failures() -> TestResult {
             "a",
             "--text",
             "b",
-        ]
-        .as_slice(),
-        [
-            "terminal",
-            "send",
-            TERMINAL_ID,
-            "--key",
-            "enter",
-            "--key",
-            "tab",
         ]
         .as_slice(),
         [
