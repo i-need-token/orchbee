@@ -653,6 +653,16 @@ impl PointerState {
             return self.wheel_on_pane(view, port, probe, event, &PaneTarget { expected, content });
         }
         if event.action != MouseAction::Press {
+            // A non-Live focus owns every non-wheel pointer event locally:
+            // motion and release inside its content die here just like the
+            // press did — they mint no gesture and encode no bytes.
+            if probe.focus.as_ref() == Some(&expected)
+                && probe.viewport_non_live
+                && probe.frame.is_some()
+                && contains(content, event.column, event.row)
+            {
+                return PointerOutcome::Handled;
+            }
             return PointerOutcome::Ignored;
         }
         let Some(tab_index) = probe.tab_index(expected.anchor().tab_id()) else {

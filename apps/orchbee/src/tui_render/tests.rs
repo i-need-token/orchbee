@@ -141,9 +141,28 @@ fn renders_visible_prefix_and_localized_shortcut_overlays() {
     assert!(compact_help.contains("键盘快捷键"));
     assert!(help.contains("Ctrl+B c"));
     assert!(help.contains("Ctrl+B ,"));
-    assert!(help.contains("Ctrl+B Ctrl+B"));
     assert!(compact_help.contains("Ctrl+B?关闭此帮助"));
     assert!(compact_help.contains("输入仍会传递到终端"));
+
+    // The composed registry paginates whole groups at this size: the
+    // literal-prefix row sits on a later page. Page forward with the
+    // documented `Ctrl+B PageDown` binding until it renders.
+    let mut paged = String::new();
+    for _ in 0..8 {
+        if paged.contains("Ctrl+B Ctrl+B") {
+            break;
+        }
+        commit(&mut view, ctrl_b());
+        commit(
+            &mut view,
+            PrefixInput::Key(KeyEvent::press(KeyCode::PageDown, Modifiers::NONE)),
+        );
+        paged = rendered_text(120, 32, &view, Locale::ZhCn);
+    }
+    assert!(
+        paged.contains("Ctrl+B Ctrl+B"),
+        "the literal-prefix row must render on a reachable help page"
+    );
 }
 
 #[test]
@@ -622,7 +641,7 @@ fn history_window_bottom_line_localizes() {
     let bottom = without_cell_padding(&rows[7]);
     assert!(bottom.contains("第42行·共200行"), "{rows:?}");
     assert!(bottom.contains("Esc返回实时"), "{rows:?}");
-    assert!(rows[0].contains("历史"), "{rows:?}");
+    assert!(without_cell_padding(&rows[0]).contains("历史"), "{rows:?}");
 }
 
 // A narrow leaf degrades on grapheme boundaries: the return hint keeps

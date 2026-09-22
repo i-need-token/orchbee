@@ -449,12 +449,16 @@ impl TerminalViewport {
             return ViewportEffect::default();
         }
         // All gates passed: install. Installing does not commit the anchor —
-        // only an accepted RowsApplied does.
+        // only an accepted RowsApplied does. The installed window was served
+        // under the current facts, so the committed-position repaint debt a
+        // pending `refresh` marks is settled — the committed anchor, whatever
+        // position it lands on, will be this fresh data.
         let (request_sequence, generation, revision) =
             (window.sequence, window.generation, window.revision);
         self.window = Some(window);
         self.read_flight = None;
         self.read_generation = None;
+        self.refresh = false;
         self.ack = AckState::Pending;
         self.pending_commands.push_back(ViewportStep::Ack {
             request_sequence,

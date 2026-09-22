@@ -164,7 +164,9 @@ fn attach_projection(
 /// focus poll, reconcile markers) that is not part of the viewport wire
 /// the strict `recv_viewports` drain expects.
 fn drain(mailbox: &CommandMailbox) {
-    while mailbox.try_recv().unwrap().is_some() {}
+    while let Some(lease) = mailbox.try_recv().unwrap() {
+        mailbox.finish_lease(lease).unwrap();
+    }
 }
 
 /// The first read sequence staged for `key`'s core after `facts`, drained
@@ -302,6 +304,7 @@ fn recv_viewports(mailbox: &CommandMailbox) -> Vec<ViewportStep> {
             QueuedCommand::Viewport(tagged) => steps.push(*tagged.value()),
             other => panic!("only Viewport commands expected, got {other:?}"),
         }
+        mailbox.finish_lease(lease).unwrap();
     }
     steps
 }
@@ -335,6 +338,7 @@ fn recv_wire(mailbox: &CommandMailbox) -> Vec<WireCmd> {
             )),
             other => panic!("unexpected command: {other:?}"),
         }
+        mailbox.finish_lease(lease).unwrap();
     }
     commands
 }

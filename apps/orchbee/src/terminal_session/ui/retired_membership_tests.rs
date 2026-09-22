@@ -181,7 +181,13 @@ fn malformed_removal_snapshot_parks_the_attempt_truthfully() {
     );
     assert_eq!(ui.state.as_ref().unwrap().cache(), &baseline);
     assert!(ui.retired_peer.is_some());
-    mailbox.finish_lease(lease).unwrap();
+    // The divergence retire already closed the recovery mailbox: finishing
+    // the outstanding refresh lease reports that closure, never a second
+    // settlement.
+    assert_eq!(
+        mailbox.finish_lease(lease).unwrap_err().failure(),
+        CarrierFailure::AuthorityDivergence
+    );
     ui.retire(CarrierFailure::Closed);
 }
 

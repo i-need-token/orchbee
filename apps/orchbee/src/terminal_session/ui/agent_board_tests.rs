@@ -58,6 +58,18 @@ fn bootstrap(ui: &mut NativeUi, mailbox: &CommandMailbox, clock: &LocalOperation
     ));
 }
 
+/// Drives the bootstrap's focus pane through the test-path setup chain to
+/// `Ready` — the phase `open_navigator`'s refresh admission requires.
+fn ready(ui: &mut NativeUi) {
+    let state = ui.state.as_mut().unwrap();
+    let key = state.desired().unwrap().clone();
+    assert!(state.install_projection_t(&key));
+    assert!(state.record_setup_configuration_t(&key, ControllerMode::ReadOnly, None));
+    assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(1)));
+    assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(1)));
+    assert!(state.publish_ready_t(&key, FrameIdentity::new(1), ControllerMode::ReadOnly, None));
+}
+
 #[test]
 fn bootstrap_feeds_the_index_only_through_the_accepted_cache() {
     let (mut ui, mailbox, clock) = fixture();
@@ -89,6 +101,7 @@ fn bootstrap_feeds_the_index_only_through_the_accepted_cache() {
 fn an_accepted_refresh_rebuilds_but_an_unaccepted_snapshot_never_feeds() {
     let (mut ui, mailbox, clock) = fixture();
     bootstrap(&mut ui, &mailbox, &clock);
+    ready(&mut ui);
     // An accepted refresh snapshot rebuilds the index: `snapshot(2, ·)`
     // adds the second tab's presentation 0x3f4 (1012).
     let (lease, wait) = super::membership_tests::place_refresh(
