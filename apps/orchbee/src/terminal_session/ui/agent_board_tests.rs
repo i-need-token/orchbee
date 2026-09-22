@@ -119,7 +119,8 @@ fn an_accepted_refresh_rebuilds_but_an_unaccepted_snapshot_never_feeds() {
     mailbox.finish_lease(lease).unwrap();
     // A snapshot-bearing reply the session does not accept for the
     // flight — here a generation that is not the pending refresh's —
-    // may be `Applied` as an event but must never reach the index.
+    // is refused at admission as a protocol fault: it never becomes an
+    // event at all, so it can never reach the index.
     ui.open_navigator();
     let lease = mailbox.try_recv().unwrap().expect("Refresh queued");
     let QueuedCommand::Refresh(marker) = lease.record() else {
@@ -129,26 +130,26 @@ fn an_accepted_refresh_rebuilds_but_an_unaccepted_snapshot_never_feeds() {
         mailbox.mark_refresh_in_flight(marker.generation()).unwrap(),
         MutationResult::Applied
     );
-    let wait = mailbox
-        .publish_refresh_result_before(
-            marker.generation() + 7,
-            WorkbenchSnapshotOutcome::Available {
-                snapshot: super::membership_tests::snapshot(3, 9),
-            },
-            marker.deadline(),
-            &clock,
-        )
-        .unwrap();
-    ui.tick();
-    mailbox.take_deposited_reply(&wait).unwrap();
-    // `snapshot(3, ·)` would add presentation 0x3fe (1022); the rejected
+    let published = mailbox.publish_refresh_result_before(
+        marker.generation() + 7,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: super::membership_tests::snapshot(3, 9),
+        },
+        marker.deadline(),
+        &clock,
+    );
+    assert_eq!(
+        published.unwrap_err().closed_failure(),
+        Some(CarrierFailure::Protocol),
+        "a generation the flight never staged is refused at admission"
+    );
+    // `snapshot(3, ·)` would add presentation 0x3fe (1022); the refused
     // reply leaves the accepted placements intact and adds nothing.
     assert!(
         ui.agent_index.placement(&attachment(0x3f4)).is_some(),
-        "accepted placements survive the rejected reply"
+        "accepted placements survive the refused reply"
     );
     assert!(ui.agent_index.placement(&attachment(0x3fe)).is_none());
-    mailbox.finish_lease(lease).unwrap();
 }
 
 #[test]
