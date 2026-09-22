@@ -145,12 +145,16 @@ kind-53 事件仍经其自有通道精确应答一次。`Recovering`
 - `OneReadFlight`：至多一个已受理的在途 read；宿主 pending 绝不被二次占用。
 - `SingleStagedStep`：暂存槽位至多存放一个未受理步骤。
 - `OrderedNonreusedReads`：已铸造的 read 序号绝不重发；线路上尚存的任何 read 序号——
-  暂存、已受理或已产出——都不超过当前在途 flight。
+  暂存、已受理或已产出——都不超过当前在途 flight。宿主故障窗口结果不带已签发序号
+  （`sq = 0`），不参与两两唯一性比较。
 - `AckAfterInstall`：`RowsApplied` 只对已安装窗口、匹配序号、精确一次。
 - `CommittedOnlyAfterAck`：`Committed` read 要求已受理的应答。
 - `NoReadWhileAck`：应答待受理或在途期间不发出 read。
-- `SurfaceCurrent`：绘制的行永远匹配当前 generation 与列数。
-- `RecoverBeforeInput`：普通输入仅在恢复 demand 受理后入队。
+- `SurfaceCurrent`：绘制的行永远匹配当前 generation 与列数。模型只把已绘制 generation
+  约束为空或当前值，本身不证明正向绘制——绘制证据来自产品测试。
+- `RecoverBeforeInput`：每个新受理到线路上的普通输入都已在覆盖之下——面板处于
+  `Recovering`，或其前方已有受理的 `Recover`。以受理边时序断言表达；已执行完毕的
+  恢复无需重复见证。
 - `EveryEventAcked`：每个合法 `HistoryChanged` 精确应答一次。
 - `MonotoneEvents`：接受的事件序号严格递增。
 - `BoundedDelta`：每个发出的 `Committed` 步都在 ±4096 内。
@@ -182,4 +186,4 @@ kind-53 事件仍经其自有通道精确应答一次。`Recovering`
 | 输入边界                  | `client_view` 测试 — `Ctrl+B PageUp` → `EnterHistory`、help 优先级；dispatcher 消费经端口缺省路径验证                                              |
 | 呈现                      | surface 围栏归核心所有（`surface()` 每次复核 generation/列数）；画笔覆盖随 shell 渲染路径                                                          |
 | 结果通知接缝               | `ui/viewport_tests` — `publish_notice_before` → `take_event_before` → `apply_viewport_outcome` 回归保持协议开放；状态中性的 applied Enter 使 Entering 核心保持不变 |
-| 模型                      | `formal/tla/TerminalClientViewport.tla` + `.cfg` 注册于 `scripts/tla/models.json`；暂存受理与有类型结果修订及受理边界 flight 性质已映射，TLC 仍由门禁负责人待跑 |
+| 模型                      | `formal/tla/TerminalClientViewport.tla` + `.cfg` 注册于 `scripts/tla/models.json`；暂存受理与有类型结果修订及受理边界 flight 与输入覆盖性质已映射，TLC 仍由门禁负责人待跑 |

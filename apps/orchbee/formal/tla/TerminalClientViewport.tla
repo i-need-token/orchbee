@@ -375,25 +375,30 @@ FactsArrive ==
        THEN /\ mode' = "lost" /\ staged' = <<>>
             /\ UNCHANGED <<facts_gen, need_facts, win_seq, win_gen, ack,
                            committed, refresh, deadline, drawn_gen, cmd_q,
-                           last_evt_seq, observed_seq>>
+                           last_evt_seq, observed_seq, pending_nav,
+                           nav_delta>>
        ELSE /\ last_evt_seq' = evt_seq /\ observed_seq' = evt_seq
             /\ facts_gen' = evt_gen /\ need_facts' = 0
             /\ IF RecoveryPending
                THEN UNCHANGED <<mode, win_seq, win_gen, ack, committed,
-                               refresh, deadline, drawn_gen, cmd_q, staged>>
+                               refresh, deadline, drawn_gen, cmd_q, staged,
+                               pending_nav, nav_delta>>
                ELSE IF evt_anchor /= "committed" /\ committed = 1
                     THEN /\ committed' = 0 /\ win_seq' = 0 /\ win_gen' = 0
                          /\ ack' = "none" /\ drawn_gen' = 0
-                         /\ QueueRecoverStep /\ UNCHANGED mode
+                         \* QueueRecoverStep writes pending_nav/nav_delta;
+                         \* they must not also sit in the tail UNCHANGED.
+                         /\ QueueRecoverStep /\ UNCHANGED <<mode, cmd_q>>
                     ELSE /\ refresh' = IF mode = "viewing" /\ committed = 1
                                        THEN 1 ELSE refresh
                          /\ drawn_gen' = IF evt_gen > drawn_gen THEN 0
                                          ELSE drawn_gen
                          /\ UNCHANGED <<mode, win_seq, win_gen, ack,
-                                        committed, deadline, cmd_q, staged>>
+                                        committed, deadline, cmd_q, staged,
+                                        pending_nav, nav_delta>>
     /\ action' = "FactsArrive"
-    /\ UNCHANGED <<read_flight, next_seq, read_issue_gen, pending_nav,
-                   nav_delta, retry_used, halve_used, recover_done, outcomes,
+    /\ UNCHANGED <<read_flight, next_seq, read_issue_gen,
+                   retry_used, halve_used, recover_done, outcomes,
                    delivered, evt_seq, evt_gen, evt_anchor, host_gen,
                    host_pending, host_committed, host_read_watermark,
                    host_dirty, demand, proj, emitted_delta>>
@@ -407,7 +412,11 @@ FactsArrive ==
 \* leaves flight residue.
 AdmitStaged ==
     /\ staged /= <<>> /\ Len(cmd_q) < MaxQueue
-    /\ cmd_q' = Append(cmd_q, staged[1])
+    \* A staged Recover is a uniform three-tuple; the admitted wire command
+    \* is the "recover" atom (production `command_admitted` carries no
+    \* payload). Read/Ack steps keep their tuple shape.
+    /\ cmd_q' = Append(cmd_q, IF staged[1][1] = "recover"
+                              THEN "recover" ELSE staged[1])
     /\ staged' = <<>>
     /\ IF staged[1][1] = "recover"
        THEN /\ RecoverAdmitted
@@ -1153,16 +1162,6 @@ EventAcked == observed_seq = last_evt_seq
 \* S-M: a delivered event's sequence always exceeds the last accepted one.
 MonotoneEvents == evt_pending = 1 => evt_seq > last_evt_seq
 
-\* B6/S-I: an input on the admitted channel is always preceded by a recover
-\* on that channel, or recovery was already applied, or the pane no longer
-\* needs one (it recovered to live, or is already recovering).
-InputOrdered ==
-    \A i \in DOMAIN cmd_q :
-        cmd_q[i] = "input"
-            => \/ \E j \in 1..(i - 1) : cmd_q[j] = "recover"
-               \/ recover_done = 1
-               \/ mode \in {"recovering", "live"}
-
 \* S-P: the painted surface never shows a generation behind current facts.
 SurfaceCurrent == drawn_gen \in {0, facts_gen}
 
@@ -1207,8 +1206,12 @@ ReadSeqsUnique ==
     /\ \A i \in DOMAIN cmd_q, k \in DOMAIN outcomes :
         (cmd_q[i] \in ReadCommands /\ outcomes[k].type = "read")
             => cmd_q[i][2] /= outcomes[k].sq
+    \* Outcome-vs-outcome pairs compare only issued reads (sq > 0): sq = 0
+    \* records are HostFaultWindow's requestless injections, and two of
+    \* them may legally coexist.
     /\ \A i, k \in DOMAIN outcomes :
-        (i /= k /\ outcomes[i].type = "read" /\ outcomes[k].type = "read")
+        (i /= k /\ outcomes[i].type = "read" /\ outcomes[k].type = "read"
+         /\ outcomes[i].sq > 0 /\ outcomes[k].sq > 0)
             => outcomes[i].sq /= outcomes[k].sq
     /\ StagedIsRead
         => ~(\E k \in DOMAIN outcomes :
@@ -1226,5 +1229,23 @@ EnteredResolves == (mode = "entering") ~> (mode /= "entering")
 \* action's prestate, not smuggled into AdmitStaged's guard.
 AdmittedReadNeedsClearFlight ==
     [][StagedIsRead /\ AdmitStaged => read_flight = 0]_vars
+
+\* B6/S-I, stated on the admission edge: every ordinary input newly
+\* appended to the admitted queue is already covered — either the core
+\* was in Recovering (reachable only through an admitted Recover), or a
+\* recover sits earlier in the post-state queue. The state-level
+\* InputOrdered could not express this: after ResetCore/re-entry it had
+\* lost the witness and flagged legal old inputs. Admission appends at
+\* the tail and the worker removes from the head; no action removes and
+\* appends in the same step, so i > Len(cmd_q) identifies exactly the
+\* newly admitted entries. A past Recover that already executed —
+\* consumed from the wire — needs no re-witness: mode = "recovering" in
+\* the prestate is only reachable through one. If a future queue action
+\* ever removes and appends in one step, this property must be revisited.
+InputAppendedUnderCover ==
+    [][\A i \in DOMAIN cmd_q' :
+        (i > Len(cmd_q) /\ cmd_q'[i] = "input")
+            => (mode = "recovering"
+                \/ \E j \in 1..(i - 1) : cmd_q'[j] = "recover")]_vars
 
 =============================================================================

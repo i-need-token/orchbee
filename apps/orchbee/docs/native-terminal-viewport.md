@@ -170,12 +170,17 @@ returns to live output.
 - `OneReadFlight`: at most one admitted read in flight; host pending is never double-occupied.
 - `SingleStagedStep`: at most one un-admitted step waits in the staged slot.
 - `OrderedNonreusedReads`: minted read sequences are never reissued, and no read sequence still
-  on the wire — staged, admitted, or produced — overtakes the live flight.
+  on the wire — staged, admitted, or produced — overtakes the live flight. Host-fault window
+  outcomes carry no issued sequence (`sq = 0`) and are exempt from pairwise uniqueness.
 - `AckAfterInstall`: `RowsApplied` only for an installed window, matching sequence, exactly once.
 - `CommittedOnlyAfterAck`: `Committed` reads require an accepted acknowledgement.
 - `NoReadWhileAck`: no read while an acknowledgement is pending or in flight.
-- `SurfaceCurrent`: painted rows always match the current generation and column count.
-- `RecoverBeforeInput`: ordinary input is enqueued only after recovery demand was admitted.
+- `SurfaceCurrent`: painted rows always match the current generation and column count. The
+  model bounds the drawn generation to none-or-current; it does not itself prove a positive
+  draw — drawing evidence lives in the product tests.
+- `RecoverBeforeInput`: every input newly admitted to the wire is already covered — the pane
+  was in `Recovering`, or a `Recover` was admitted ahead of it. Asserted on the admission
+  edge; an already-executed recovery needs no re-witness.
 - `EveryEventAcked`: every valid `HistoryChanged` is acknowledged exactly once.
 - `MonotoneEvents`: accepted event sequences strictly increase.
 - `BoundedDelta`: every emitted `Committed` step is within ±4096.
@@ -208,4 +213,4 @@ returns to live output.
 | Input boundary          | `client_view` tests — `Ctrl+B PageUp` → `EnterHistory`, help precedence; dispatcher consumption is exercised through the port default                   |
 | Rendering               | Surface fencing is owned by the core (`surface()` re-validates generation/columns); painter coverage rides the shell render paths                       |
 | Outcome notice seam     | `ui/viewport_tests` — `publish_notice_before` → `take_event_before` → `apply_viewport_outcome` regression keeps the protocol open; the state-neutral applied Enter leaves the Entering core intact |
-| Model                   | `formal/tla/TerminalClientViewport.tla` + `.cfg` registered in `scripts/tla/models.json`; the staged-admission and typed-outcome revision with the admission-edge flight property is mapped but TLC remains pending with the gate owner |
+| Model                   | `formal/tla/TerminalClientViewport.tla` + `.cfg` registered in `scripts/tla/models.json`; the staged-admission and typed-outcome revision with the admission-edge flight and input-cover properties is mapped but TLC remains pending with the gate owner |
