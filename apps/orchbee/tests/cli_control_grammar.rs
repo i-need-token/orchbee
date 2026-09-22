@@ -11,11 +11,10 @@
 //! siblings, so a `cohort.json` left beside the build-tree original by a
 //! developer or a staging step can never ride into the oracle.
 //! `ORCHBEE_RUNTIME_BASE` points at a freshly minted empty directory with no
-//! Site inside. Any argv the grammar admits must therefore fail at cohort or
-//! Site discovery — a `2` exit can only come from the parser. New-command
-//! admission and per-path help are expected to fail at this base (`f468be0e`
-//! does not yet know the commands); negative controls already pass because
-//! unknown words are grammar failures too.
+//! Site inside. Any argv the grammar admits must therefore stop at the
+//! cohort safety check — `check-failed` at stage `cohort`, exit 1 — so a `2`
+//! exit can only come from the parser. Negative controls already pass
+//! because unknown words are grammar failures too.
 #![cfg(target_os = "linux")]
 
 use std::{
@@ -919,6 +918,9 @@ fn terminal_read_admitted_forms() -> TestResult {
         ["terminal", "read", TERMINAL_ID, "--lines", "1"].as_slice(),
         ["terminal", "read", TERMINAL_ID, "--lines", "65535"].as_slice(),
         ["terminal", "read", TERMINAL_ID, "--unwrap", "--lines", "20"].as_slice(),
+        // The canonical grammar declares `--name value` and `--name=value`
+        // synonymous: the joined form is admitted with the same bound.
+        ["terminal", "read", TERMINAL_ID, "--lines=5"].as_slice(),
         [
             "terminal",
             "read",
@@ -995,7 +997,6 @@ fn terminal_read_usage_failures() -> TestResult {
             "5",
         ]
         .as_slice(),
-        ["terminal", "read", TERMINAL_ID, "--lines=5"].as_slice(),
     ] {
         usage(&probe, arguments);
     }
