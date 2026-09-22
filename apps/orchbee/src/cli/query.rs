@@ -482,7 +482,6 @@ fn classify_close_status_read(error: WorkbenchWorkspaceCloseReadError) -> Failur
             WorkbenchWorkspaceCloseFailure::SiteMismatch { .. }
             | WorkbenchWorkspaceCloseFailure::ProjectMismatch { .. }
             | WorkbenchWorkspaceCloseFailure::WorkspaceMismatch { .. }
-            | WorkbenchWorkspaceCloseFailure::TerminalContextMismatch { .. }
             | WorkbenchWorkspaceCloseFailure::OperationMismatch { .. }
             | WorkbenchWorkspaceCloseFailure::AcceptedRevisionMismatch { .. }
             | WorkbenchWorkspaceCloseFailure::AttemptGenerationMismatch { .. } => {

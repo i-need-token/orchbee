@@ -325,10 +325,6 @@ pub(crate) enum WorkbenchWorkspaceCloseFailure {
         expected: WorkbenchWorkspaceId,
         received: WorkbenchWorkspaceId,
     },
-    TerminalContextMismatch {
-        expected: WorkbenchTerminalContextId,
-        received: WorkbenchTerminalContextId,
-    },
     OperationMismatch {
         expected: WorkbenchRequestId,
         received: WorkbenchRequestId,
@@ -369,10 +365,6 @@ impl fmt::Display for WorkbenchWorkspaceCloseFailure {
             Self::WorkspaceMismatch { expected, received } => {
                 write!(f, "expected Workspace {expected} but received {received}")
             }
-            Self::TerminalContextMismatch { expected, received } => write!(
-                f,
-                "expected terminal context {expected} but received {received}"
-            ),
             Self::OperationMismatch { expected, received } => write!(
                 f,
                 "expected canonical Workspace Close request {expected} but received {received}"
@@ -399,7 +391,6 @@ impl std::error::Error for WorkbenchWorkspaceCloseFailure {
             | Self::SiteMismatch { .. }
             | Self::ProjectMismatch { .. }
             | Self::WorkspaceMismatch { .. }
-            | Self::TerminalContextMismatch { .. }
             | Self::OperationMismatch { .. }
             | Self::AcceptedRevisionMismatch { .. }
             | Self::AttemptGenerationMismatch { .. } => None,

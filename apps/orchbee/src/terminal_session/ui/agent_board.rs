@@ -10,8 +10,8 @@
 //! cached positions, and no stage ever mints a panel.
 
 use super::super::agent_board::{
-    AgentBoardDraw, AgentBoardKeyAction, AgentBoardSummary, JumpStage, JumpStep,
-    NativeAgentBoardView, board_key_action, plan_jump_step,
+    AgentBoardDraw, AgentBoardKeyAction, JumpStage, JumpStep, NativeAgentBoardView,
+    board_key_action, plan_jump_step,
 };
 use super::*;
 use crate::client_view::KeyEvent;

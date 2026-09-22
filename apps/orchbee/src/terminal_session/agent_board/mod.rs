@@ -1102,23 +1102,13 @@ impl AgentBoard {
         self.jump = Some(jump);
     }
 
-    /// Test seam: install rows as if a complete read had landed.
-    #[cfg(test)]
-    pub(super) fn install_rows_t(&mut self, rows: Vec<AgentBoardRow>) {
-        self.rows = rows;
-        self.rows_from_complete = true;
-        self.rows_at = Some(self.clock.now());
-        self.read = AgentBoardRead::Ready {
-            complete: true,
-            at: self.clock.now(),
-        };
-        self.clamp_selection();
-    }
-
     /// Test seam: hand the board a prepared lane (queued outcomes or a
     /// real spawned thread) so drains run against it without an origin.
     #[cfg(all(test, target_os = "linux"))]
-    pub(super) fn install_lane_t(&mut self, lane: AgentBoardLane) {
+    pub(in crate::terminal_session::agent_board) fn install_lane_t(
+        &mut self,
+        lane: AgentBoardLane,
+    ) {
         self.lane = Some(lane);
     }
 
