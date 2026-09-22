@@ -182,15 +182,15 @@ actions across the family.
 
 `NativeClientPaneMembership` is a bounded design witness for the collection, not a proof of the
 unbounded system. It covers two panes `{p0, p1}`, two selection anchors (one epoch switch), two
-attachment incarnations per pane, `MaxQueue = 2`, `MaxFrame = 2`, `MaxReject = 4`, and
+attachment incarnations per pane, `MaxQueue = 2`, `MaxFrame = 2`, and
 `MaxLog = 3`. Adversarial enqueued commands carry strictly retired or never-held incarnation
 tags — incarnation numbers only grow, so a forged tag can never collide with a not-yet-minted
 attachment — keeping rejection paths reachable witnesses rather than assumed guards. Run
 `node scripts/tla/run-models.mjs --models native-client-pane-membership --jobs 1` with pinned
-TLA+ tools 1.7.4; the registered entry uses two TLC workers and a 1800000ms per-configuration
-timeout while each TLC process still receives the shared 2048 MiB heap and the batch-wide
-single-job heavy lock — an execution-resource revision only, not a change to any variable,
-guard, bound, fairness clause, or checked property, and not evidence of completion. Both
+TLA+ tools 1.7.4; the registered entry uses eight TLC workers and a 1800000ms per-configuration
+timeout, and each run's actual resources (heap, host) are recorded in that run's own
+evidence rather than fixed here — an execution-resource setting only, not a change to any
+variable, guard, bound, fairness clause, or checked property, and not evidence of completion. Both
 configurations must complete with empty queues and
 positive generated coverage for all 23 registered actions across the family. The
 `viewer-contention` configuration shrinks the shared viewer budget below the pane count so
@@ -243,20 +243,23 @@ concrete step at either `input` or `resize`. The real Rust `Input` and `Resize`
 commands stay fully distinct; this model claims nothing about their respective
 payloads, geometry, or byte encodings.
 
-The three `RejectStale*` actions are written with their bounded guard lifted out
-of the existential: `rejections < MaxReject` conjoined with
-`IF (\E d : G(d)) THEN rejections' = rejections + 1 /\ UNCHANGED X ELSE FALSE`
-rather than `\E d : G(d) /\ update`. The two forms denote the same transition
-relation — for every current state `s` and successor `t`,
-`(\E d : G(s,d) /\ U(s,t))` iff `((\E d : G(s,d)) /\ U(s,t))` because the primed
-update `U` never mentions the bound `p`/`i`/`f` variables, and this holds even for
-empty domains. Writing the guard this way asks TLC to evaluate the existential
-once per state instead of regenerating the identical successor once per
-`(p, i, f)` instantiation — the observed coverage dumps showed the three reject
-actions accounting for roughly 52M of 73M evaluations while producing almost no
-new states. Enabled-ness, the non-stuttering relation, weak fairness, liveness,
-the rejection-saturation semantics, and all checked properties are unchanged;
-the existential is never folded to `TRUE`.
+The three `RejectStale*` actions keep their names and their stale existential guards but no
+longer update state: each is `IF (\E d : G(d)) THEN UNCHANGED X ELSE FALSE`, a guarded
+stuttering successor that still registers in generated coverage. The model once carried a
+`rejections` counter bounded by `MaxReject`; its only readers were the three `RejectStale*`
+guards and the failure branch of `ExecutePoll` — a verification-only tally of rejected stale
+witnesses, not a bound the product enforces. The projection `alpha(X, r) = X` removes it. In
+the lift direction, a new trace maps onto an old trace by firing the at-most-`MaxReject` ghost
+rejections right after `Init` until the counter saturates; from then on the new `RejectStale*`
+stutters correspond to old steps whose counter bound had disabled them, a new failed poll
+corresponds to an old `ExpireInflight` step (the X-update — clear `inflight`, leave
+`frameCursor` and `rec` untouched — is identical), and successful polls plus every other X
+action are unchanged. Fairness is not strengthened: `ExpireInflight` is weak-fair, so a
+continuously occupied `inflight` is still eventually cleared, and the `Idle` slot breaks the
+continuous-enabledness chains weak fairness reasons about. All checked invariants and the
+liveness property read only `X` and are unchanged; the model no longer claims a
+rejection-count bound the product lacks. This is a two-direction fair-trace projection on
+reachable states, not an arbitrary lift or a one-step strong bisimulation.
 
 The generated Rust state model (`terminal_session/state/tests/generated.rs`) exercises the same
 contract against the real reducers: its `ReincarnationFence` adversarial class mints a second

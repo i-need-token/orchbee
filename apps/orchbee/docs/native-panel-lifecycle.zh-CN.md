@@ -161,13 +161,13 @@ input 总是到达其标记的精确挂接 incarnation，且该命令入队时�
 
 `NativeClientPaneMembership` 是集合的有界设计见证，不是对无界系统的证明。它覆盖两个 pane
 `{p0, p1}`、两个选中 anchor（一次代次切换）、每 pane 两个挂接 incarnation、`MaxQueue = 2`、
-`MaxFrame = 2`、`MaxReject = 4` 与 `MaxLog = 3`。对抗性入队命令携带严格已退或从未持有的
+`MaxFrame = 2` 与 `MaxLog = 3`。对抗性入队命令携带严格已退或从未持有的
 incarnation 标记——incarnation 只增不减，伪造标记永不可能撞上尚未铸造的附着——拒绝路径
 因此是可达见证而非假定守卫。以固定的 TLA+ tools 1.7.4 运行
 `node scripts/tla/run-models.mjs --models native-client-pane-membership --jobs 1`；登记条目
-使用两个 TLC worker 与每配置 1800000ms 超时，每个 TLC 进程仍共享 2048 MiB 堆且沿用全批
-单任务重型锁——这只是执行资源修订，不改变任何变量、守卫、界、公平子句或受检性质，也
-不构成完成证据。两个配置
+使用八个 TLC worker 与每配置 1800000ms 超时，每次运行的实际资源（堆、主机）记入该次
+运行自身证据而非在此固定——这只是执行资源设置，不改变任何变量、守卫、界、公平子句或
+受检性质，也不构成完成证据。两个配置
 都必须完成且队列清空、族内全部 23 个注册动作覆盖为正。`viewer-contention` 配置将共享
 viewer 预算收紧到 pane 数之下，使 `ViewerBudget` 作为真实约束而非空洞约束被演练。
 ServerBusy 时序、逐步 lease 让步、截止值计算与非 `Detached` 结果分类不建模——这些主张由
@@ -206,17 +206,18 @@ ghost 日志——其读者只有 `MaxLog` 长度界、`ExecuteControl` 内的 `
 的同名具体步。真实 Rust `Input` 与 `Resize` 命令仍完全独立；本模型不声称验证其各自
 载荷、几何或字节编码。
 
-三个 `RejectStale*` 动作写作把有界守卫提升到存在量词之外的形态：
-`rejections < MaxReject` 合取
-`IF (\E d : G(d)) THEN rejections' = rejections + 1 /\ UNCHANGED X ELSE FALSE`，
-而非 `\E d : G(d) /\ update`。两形表示同一转移关系——对任意当前状态 `s`
-与后继 `t`，`(\E d : G(s,d) /\ U(s,t))` 当且仅当
-`((\E d : G(s,d)) /\ U(s,t))`，因为 primed 更新 `U` 从不提及被约束的
-`p`/`i`/`f` 变量，且该等价对空域同样成立。这样书写让 TLC 对每个状态只求值
-一次存在式，而非按每个 `(p, i, f)` 实例重复生成同一后继——已观测的
-coverage 转储显示三个 reject 动作约占 52M/73M 次求值却几乎不产生新状态。
-使能性、非 stuttering 关系、弱公平、liveness、rejections 饱和语义与全部
-受检性质不变；存在式绝不折为 `TRUE`。
+三个 `RejectStale*` 动作保留原名与各自的 stale 存在量词守卫，但不再更新状态：每个写作
+`IF (\E d : G(d)) THEN UNCHANGED X ELSE FALSE`，是真实守卫下的 stuttering 后继，
+仍计入 generated coverage。模型曾携带以 `MaxReject` 为界的 `rejections` 计数；其读者
+只有三个 `RejectStale*` 守卫与 `ExecutePoll` 的失败分支——这是验证专用的 stale 见证
+拒绝计数，并非产品具有的界。投影 `alpha(X, r) = X` 将其移除。提升方向上，新 trace 映射
+回旧 trace：`Init` 之后先发射至多 `MaxReject` 次 ghost 拒绝使计数饱和；此后新模型的
+`RejectStale*` stutter 对应旧模型计数饱和后的禁用步，新的失败 poll 对应旧的
+`ExpireInflight` 步（X 更新——清空 `inflight`、保持 `frameCursor` 与 `rec` 不变——完全
+相同），成功 poll 与其余全部 X 动作原样。公平性未加强：`ExpireInflight` 本为弱公平，
+持续非空的 `inflight` 仍会被清空，`Idle` 槽打断弱公平推理所依赖的连续使能链。全部受检
+不变量与 liveness 性质只读 `X` 且不变；模型不再声称产品所没有的拒绝次数上限。这是
+可达状态上的双向 fair-trace 投影，不是任意提升或一步强互模拟。
 
 生成的 Rust 状态模型（`terminal_session/state/tests/generated.rs`）对真实 reducer 演练同一
 契约：其 `ReincarnationFence` 对抗类为一个逻辑 pane 铸造第二个 incarnation，并验证携带已退
