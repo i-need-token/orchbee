@@ -115,6 +115,7 @@ impl SwitchMarker {
     }
 }
 
+#[derive(Debug)]
 pub(super) struct CreateMarker {
     request: Option<WorkbenchTabCreateRequest>,
     operation: CreateOperation,
