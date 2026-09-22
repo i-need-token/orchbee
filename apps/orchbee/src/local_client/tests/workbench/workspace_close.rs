@@ -256,16 +256,16 @@ fn workspace_close_accepted_boundary_checks_revision_scope_and_correlation() -> 
     for field in 0..2 {
         let mut outcome = accepted(SECOND_REQUEST_ID, 7);
         let WorkbenchCommandOutcome::WorkspaceCloseAccepted {
-            project_id,
-            workspace_id,
+            project_id: outcome_project_id,
+            workspace_id: outcome_workspace_id,
             ..
         } = &mut outcome
         else {
             unreachable!()
         };
         match field {
-            0 => *project_id = WorkbenchProjectId::parse(&id(99))?,
-            _ => *workspace_id = WorkbenchWorkspaceId::parse(&id(99))?,
+            0 => *outcome_project_id = WorkbenchProjectId::parse(&id(99))?,
+            _ => *outcome_workspace_id = WorkbenchWorkspaceId::parse(&id(99))?,
         }
         match submit_close_response(command_response(FIRST_REQUEST_ID, outcome), true)? {
             WorkbenchWorkspaceCloseSubmission::OutcomeUnknown { reason, .. } => {
@@ -398,8 +398,8 @@ fn workspace_close_read_classification_and_scope_guards() -> TestResult {
             unreachable!()
         };
         let WorkbenchWorkspaceCloseReadOutcome::Available {
-            project_id,
-            workspace_id,
+            project_id: outcome_project_id,
+            workspace_id: outcome_workspace_id,
             ..
         } = &mut result.outcome
         else {
@@ -409,8 +409,8 @@ fn workspace_close_read_classification_and_scope_guards() -> TestResult {
             0 => {
                 result.request_id = workbench_id(SECOND_REQUEST_ID);
             }
-            1 => *project_id = WorkbenchProjectId::parse(&id(99))?,
-            _ => *workspace_id = WorkbenchWorkspaceId::parse(&id(99))?,
+            1 => *outcome_project_id = WorkbenchProjectId::parse(&id(99))?,
+            _ => *outcome_workspace_id = WorkbenchWorkspaceId::parse(&id(99))?,
         }
         match submit_read_response(WorkbenchResponse::WorkspaceCloseRead(result), None, true)? {
             Err(WorkbenchWorkspaceCloseReadError::Failed { reason, .. }) => match (field, reason) {

@@ -1421,8 +1421,10 @@ impl UiDriver {
                 }
                 Ok(UiEvent::PaneFailed)
             }
-            WorkerEvent::WorkspaceSetupResult { .. } | WorkerEvent::RenameResult { .. } => {
-                Err(test_error("Rename requires the actual NativeUi consumer"))
+            WorkerEvent::WorkspaceSetupResult { .. }
+            | WorkerEvent::RenameResult { .. }
+            | WorkerEvent::ViewportOutcome { .. } => {
+                Err(test_error("requires the actual NativeUi consumer"))
             }
             WorkerEvent::SwitchSnapshotResult { marker, outcome } => self.settle_switch_snapshot(
                 wait_key.ok_or_else(|| test_error("Switch Snapshot wait"))?,

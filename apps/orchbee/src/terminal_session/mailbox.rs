@@ -181,6 +181,7 @@ impl RefreshMarker {
     }
 }
 
+#[derive(Debug)]
 pub(super) enum QueuedCommand {
     Input(Tagged<ControlInput>),
     Resize(Tagged<Geometry>),

@@ -454,6 +454,8 @@ impl<'a> NativeSessionView<'a> {
             focus: state.focus_panel_id(),
             projection_status,
             retirement: None,
+            board: None,
+            board_summary: None,
         }
     }
 }
@@ -488,7 +490,14 @@ impl KeyedProjection {
         value: TerminalProjection,
         status: NativeProjectionStatus,
     ) -> Self {
-        Self { key, value, status }
+        Self {
+            key,
+            value,
+            status,
+            viewport: None,
+            history_sequence: 0,
+            read_watermark: 0,
+        }
     }
 }
 

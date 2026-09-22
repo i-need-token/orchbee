@@ -64,6 +64,8 @@ impl RenameServer {
                         let command = match request {
                             WorkbenchRequest::TabCloseRead(_)
                             | WorkbenchRequest::TabCloseResume(_)
+                            | WorkbenchRequest::WorkspaceCloseRead(_)
+                            | WorkbenchRequest::WorkspaceCloseResume(_)
                             | WorkbenchRequest::WorktreeListRead(_)
                             | WorkbenchRequest::LaunchProfileCatalogRead(_) => {
                                 return Err(io::Error::other(

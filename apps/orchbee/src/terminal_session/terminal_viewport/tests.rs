@@ -212,7 +212,7 @@ fn t3_committed_delta_splits_at_bound() {
     viewport.nav(ViewportNav::Lines(10_000));
     let mut deltas = Vec::new();
     // Each installed window + accepted ack admits the next residual chunk.
-    for served in (0..3).rev() {
+    for served in (0..3u64).rev() {
         let steps = drain(&mut viewport);
         let [
             ViewportStep::Read {

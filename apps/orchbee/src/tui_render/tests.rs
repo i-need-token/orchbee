@@ -459,7 +459,14 @@ fn sidebar_status_truncates_with_ellipsis_on_grapheme_boundaries() {
         layer: super::SidebarLayer::Docked,
     };
     infallible(terminal.draw(|frame| {
-        super::render_sidebar(frame, sidebar, text, "Tab 1 · Ready · controlling", &theme);
+        super::render_sidebar(
+            frame,
+            sidebar,
+            text,
+            "Tab 1 · Ready · controlling",
+            None,
+            &theme,
+        );
     }));
     let rows = buffer_rows(&terminal, 30, 12);
     let joined = rows.concat();
@@ -543,7 +550,7 @@ fn history_window(texts: &[&str], columns: u16) -> TerminalTextRowWindow {
                 wrap: false,
                 wrap_continuation: false,
                 identity_ascii: true,
-                text: (*text).to_owned(),
+                text: (*text).into(),
                 mappings: Vec::<TerminalTextCellMapping>::new(),
             })
             .collect(),
@@ -726,7 +733,7 @@ fn history_entering_keeps_the_live_frame() {
             cells: "live-tail"
                 .chars()
                 .map(|c| TerminalTextCell {
-                    text: c.to_string(),
+                    text: c.to_string().into(),
                     style: TerminalTextStyle {
                         foreground: 0,
                         background: 0,

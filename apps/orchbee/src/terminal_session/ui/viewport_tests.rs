@@ -223,9 +223,9 @@ fn window(
         start_row,
         columns: 80,
         ignored_optional_flags: 0,
-        rows: (0..24)
+        rows: (0..24u64)
             .map(|offset| TerminalTextWindowRow {
-                index: start_row + u64::from(offset),
+                index: start_row + offset,
                 prompt_class: TerminalRowPromptClass::None,
                 wrap: false,
                 wrap_continuation: false,
@@ -591,7 +591,7 @@ fn controlling_ui() -> (
     let geometry = Geometry::new(80, 24, 8, 16).unwrap();
     let mode = ControllerMode::Controlling(ControllerId::parse(&format!("{:032x}", 8)).unwrap());
     assert!(state.install_projection_t(&key));
-    assert!(state.record_setup_configuration_t(&key, mode, Some(geometry)));
+    assert!(state.record_setup_configuration_t(&key, mode.clone(), Some(geometry)));
     assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(1)));
     assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(1)));
     assert!(state.publish_ready_t(&key, FrameIdentity::new(1), mode, Some(geometry)));
