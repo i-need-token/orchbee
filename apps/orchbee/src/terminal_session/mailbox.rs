@@ -300,7 +300,7 @@ impl QueuedCommand {
                 forward_cutoff: marker.deadline(),
                 total: marker.deadline(),
             }),
-            Self::Input(_) | Self::Resize(_) | Self::Poll(_) => None,
+            Self::Input(_) | Self::Resize(_) | Self::Poll(_) | Self::Viewport(_) => None,
         }
     }
 }

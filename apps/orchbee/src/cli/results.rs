@@ -1939,7 +1939,10 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
         | QueryCommand::LaunchProfileList
         | QueryCommand::LaunchProfileGet(_)
         | QueryCommand::ApiSchema { .. }
-        | QueryCommand::ConfigCheck => Err(Failure::new(FailureKind::InternalFailure)),
+        | QueryCommand::ConfigCheck
+        | QueryCommand::WorkspaceCloseStatus { .. } => {
+            Err(Failure::new(FailureKind::InternalFailure))
+        }
     }
 }
 

@@ -32,7 +32,6 @@ pub(super) mod retired_membership;
 mod switch_membership;
 mod tab_close;
 pub(super) mod tab_rename;
-pub(super) use context_removal::ContextRemovalPermit;
 use create_membership::CreateAnchor;
 pub(super) use create_membership::{CreateOriginKind, PreparedCreateSnapshot};
 #[cfg(test)]

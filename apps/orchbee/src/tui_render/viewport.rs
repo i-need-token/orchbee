@@ -5,7 +5,7 @@
 //! integration, and persistence are deliberately out of this slice.
 
 use orchbee_terminal_protocol::{TerminalTextFrame, TerminalTextRowWindow, TerminalTextWindowRow};
-use ratatui::{Frame, layout::Rect, widgets::Clear};
+use ratatui::{Frame, layout::Rect, style::Style, widgets::Clear};
 
 use crate::{
     localization::Locale,
@@ -79,9 +79,13 @@ fn paint_row(frame: &mut Frame<'_>, area: Rect, offset: u16, row: &TerminalTextW
     if row.identity_ascii {
         // Identity rows are one ASCII cell per byte, columns in order.
         let text = sanitize_terminal_text(&row.text);
-        frame
-            .buffer_mut()
-            .set_stringn(area.x, y, text.as_ref(), usize::from(area.width));
+        frame.buffer_mut().set_stringn(
+            area.x,
+            y,
+            text.as_ref(),
+            usize::from(area.width),
+            Style::new(),
+        );
         return;
     }
     for (index, mapping) in row.mappings.iter().enumerate() {
@@ -105,12 +109,18 @@ fn paint_row(frame: &mut Frame<'_>, area: Rect, offset: u16, row: &TerminalTextW
             // A double-width cell at the leaf's last column has no room:
             // the decoder proved it occupies two columns, so paint the
             // visible half blank rather than overflowing the leaf.
-            frame.buffer_mut().set_stringn(column, y, " ", 1);
+            frame
+                .buffer_mut()
+                .set_stringn(column, y, " ", 1, Style::new());
             continue;
         }
-        frame
-            .buffer_mut()
-            .set_stringn(column, y, text.as_ref(), usize::from(mapping.width));
+        frame.buffer_mut().set_stringn(
+            column,
+            y,
+            text.as_ref(),
+            usize::from(mapping.width),
+            Style::new(),
+        );
     }
 }
 
@@ -128,7 +138,7 @@ fn badge(frame: &mut Frame<'_>, area: Rect, label: &str, theme: &Theme) {
     let x = area.x + area.width - width;
     frame
         .buffer_mut()
-        .set_stringn(x, area.y, &label, usize::from(width));
+        .set_stringn(x, area.y, &label, usize::from(width), Style::new());
     frame.buffer_mut().set_style(
         Rect::new(x, area.y, width, 1),
         theme.style(Role::StatusWarning),
@@ -169,7 +179,7 @@ fn bottom_line(
         if label_width > 0 {
             frame
                 .buffer_mut()
-                .set_stringn(area.x, y, &label, label_width);
+                .set_stringn(area.x, y, &label, label_width, Style::new());
             frame.buffer_mut().set_style(
                 Rect::new(area.x, y, label_width as u16, 1),
                 theme.style(Role::TextSecondary),
@@ -180,7 +190,7 @@ fn bottom_line(
         let x = area.x + area.width - hint_width;
         frame
             .buffer_mut()
-            .set_stringn(x, y, &hint, usize::from(hint_width));
+            .set_stringn(x, y, &hint, usize::from(hint_width), Style::new());
         frame
             .buffer_mut()
             .set_style(Rect::new(x, y, hint_width, 1), theme.style(Role::HintLabel));

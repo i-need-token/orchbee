@@ -376,8 +376,9 @@ fn ledger_bytes_plus_charge_at_maximum_admits_and_one_past_rejects() {
     constrained.ledger_bytes = maximum - charge;
     let close = workspace_close_command(&constrained, 10000, 1, 0);
     let primary = primary_workspace(&mut constrained, &grant, close);
+    let member_runtimes = runtimes(&primary);
     let WorkbenchTabClosePreparation::Prepared(prepared) =
-        primary.finish_members(runtimes(&primary), now)
+        primary.finish_members(member_runtimes, now)
     else {
         panic!("the exact boundary must admit")
     };
@@ -388,8 +389,9 @@ fn ledger_bytes_plus_charge_at_maximum_admits_and_one_past_rejects() {
     constrained.ledger_bytes = maximum - charge + 1;
     let close = workspace_close_command(&constrained, 10000, 1, 0);
     let primary = primary_workspace(&mut constrained, &grant, close);
+    let member_runtimes = runtimes(&primary);
     assert!(matches!(
-        primary.finish_members(runtimes(&primary), now),
+        primary.finish_members(member_runtimes, now),
         WorkbenchTabClosePreparation::Ready(WorkbenchCommandResult {
             outcome: WorkbenchCommandOutcome::Unavailable {
                 reason: WorkbenchCommandUnavailableReason::RequestLedgerFull

@@ -1,3 +1,4 @@
+use super::workspace::workspace_fixture;
 use super::*;
 use crate::workbench_authority::{
     WorkbenchTabMoveBegin, WorkbenchWorkspaceCloseBegin, WorkbenchWorkspaceCloseResumeBegin,

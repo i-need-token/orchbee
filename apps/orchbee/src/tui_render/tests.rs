@@ -655,9 +655,13 @@ fn history_indicators_clear_and_show_without_position() {
         let mut terminal = infallible(Terminal::new(TestBackend::new(40, 8)));
         // Stale content under the leaf: the surface must clear it.
         infallible(terminal.draw(|frame| {
-            frame
-                .buffer_mut()
-                .set_stringn(0, 0, "stale-live-content", 17);
+            frame.buffer_mut().set_stringn(
+                0,
+                0,
+                "stale-live-content",
+                17,
+                ratatui::style::Style::new(),
+            );
         }));
         infallible(terminal.draw(|frame| {
             super::viewport::render(

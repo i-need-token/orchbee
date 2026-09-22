@@ -1139,10 +1139,7 @@ mod linux {
                     }
                 }
             }
-            WorkbenchAction::WorkspaceClose {
-                project_id,
-                workspace_id,
-            } => {
+            WorkbenchAction::WorkspaceClose { .. } => {
                 let request =
                     WorkbenchWorkspaceCloseRequest::try_from(command).map_err(|_| internal())?;
                 match client.submit_workbench_workspace_close(request, deadline) {
