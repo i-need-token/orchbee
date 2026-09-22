@@ -2509,10 +2509,18 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
     assert_eq!(
         sorted(complete(&["panel", "move", "p", ""])),
         sorted(
-            ["--target-panel", "--direction", "--format", "--format=",]
-                .iter()
-                .map(|s| s.to_string())
-                .collect()
+            [
+                "--target-panel",
+                "--direction",
+                "--into-tab",
+                "--new-tab",
+                "--label",
+                "--format",
+                "--format=",
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
         ),
         "{engine} panel move flags"
     );
