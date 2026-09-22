@@ -3482,7 +3482,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
     let seen = submitted.clone();
     let peer = spawn_peer_n(&scope, 4, move |stream| {
         let snapshot_request = admit_and_serve_snapshot(&stream);
-        match read_workbench_request(&mut &*stream).expect("peer reads request") {
+        match read_workbench_request(&mut &stream).expect("peer reads request") {
             WorkbenchRequest::Command(command) => {
                 assert_command_base(&command, snapshot_request.as_str());
                 *seen.lock().unwrap() = command.request_id.as_str().to_owned();
@@ -3550,7 +3550,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
                     )
                 };
                 write_workbench_response(
-                    &mut &*stream,
+                    &mut &stream,
                     &WorkbenchResponse::WorkspaceCloseRead(WorkbenchWorkspaceCloseReadResult {
                         protocol_version: ProtocolVersion,
                         request_id: read.request_id,
@@ -3583,7 +3583,7 @@ fn workspace_close_route_reaches_typed_receipts_and_closed_status() -> TestResul
                 assert_eq!(resume.close_request_id.as_str(), CLOSE_ID);
                 assert_eq!(resume.expected_attempt_generation.value(), 1);
                 write_workbench_response(
-                    &mut &*stream,
+                    &mut &stream,
                     &WorkbenchResponse::WorkspaceCloseResume(WorkbenchWorkspaceCloseResumeResult {
                         protocol_version: ProtocolVersion,
                         request_id: resume.request_id,
