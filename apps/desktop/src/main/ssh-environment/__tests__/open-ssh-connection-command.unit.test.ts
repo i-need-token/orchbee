@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -58,7 +60,7 @@ describe('OpenSSH connection command', () => {
 				{ homeDirectory: '/Users/alice' },
 			),
 		).toEqual({
-			configurationFilePath: '/Users/alice/.ssh/work',
+			configurationFilePath: path.join('/Users/alice', '.ssh/work'),
 			destination: 'build',
 			options: [
 				{ enabled: false, kind: 'forward-agent' },

@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import path from 'node:path';
 
 import {
 	AttachmentIdSchema,
@@ -2560,7 +2561,7 @@ describe('ProjectedTerminalBroker', () => {
 				},
 			},
 		});
-		await vi.waitFor(() => expect(openPath).toHaveBeenCalledWith('/tmp'));
+		await vi.waitFor(() => expect(openPath).toHaveBeenCalledWith(path.normalize('/tmp')));
 		await vi.waitFor(() =>
 			expect(postMessage).toHaveBeenCalledWith({ kind: 'link-opened', requestSequence: '1' }),
 		);

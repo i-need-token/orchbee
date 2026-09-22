@@ -104,6 +104,7 @@ export function resolveDesktopRuntimeConfiguration(
 	if (input.terminalHostName.length === 0 || input.terminalHostName.length > 253) {
 		throw new Error('A trusted terminal hostname is required.');
 	}
+	const platformPath = input.platform === 'win32' ? path.win32 : path.posix;
 	const binaryName =
 		input.platform === 'win32' ? 'orchbee-terminal-host.exe' : 'orchbee-terminal-host';
 	const configuredBinary = input.environment.ORCHBEE_TERMINAL_HOST_BINARY;
@@ -114,11 +115,11 @@ export function resolveDesktopRuntimeConfiguration(
 		.digest('hex');
 	let binaryPath: string;
 	if (configuredBinary !== undefined) {
-		binaryPath = path.resolve(configuredBinary);
+		binaryPath = platformPath.resolve(configuredBinary);
 	} else if (input.packagedResourcesPath !== undefined) {
-		binaryPath = path.resolve(input.packagedResourcesPath, binaryName);
+		binaryPath = platformPath.resolve(input.packagedResourcesPath, binaryName);
 	} else {
-		binaryPath = path.resolve(
+		binaryPath = platformPath.resolve(
 			input.applicationPath,
 			'..',
 			'terminal-host',
@@ -129,15 +130,15 @@ export function resolveDesktopRuntimeConfiguration(
 	}
 	let runtimeDirectory: string;
 	if (configuredRuntimeDirectory !== undefined) {
-		runtimeDirectory = path.resolve(configuredRuntimeDirectory);
+		runtimeDirectory = platformPath.resolve(configuredRuntimeDirectory);
 	} else if (input.platform === 'win32') {
-		runtimeDirectory = path.join(input.userDataPath, 'terminal-host');
+		runtimeDirectory = platformPath.join(input.userDataPath, 'terminal-host');
 	} else {
 		const runtimeBaseDirectory = input.posixRuntimeBaseDirectory;
 		if (runtimeBaseDirectory === undefined) {
 			throw new Error('A trusted POSIX runtime base directory is required.');
 		}
-		const resolvedRuntimeBase = path.resolve(runtimeBaseDirectory);
+		const resolvedRuntimeBase = platformPath.resolve(runtimeBaseDirectory);
 		if (
 			resolvedRuntimeBase === '/tmp' ||
 			resolvedRuntimeBase.startsWith('/tmp/') ||
@@ -146,7 +147,10 @@ export function resolveDesktopRuntimeConfiguration(
 		) {
 			throw new Error('The default POSIX runtime base must not be under shared temporary storage.');
 		}
-		runtimeDirectory = path.join(resolvedRuntimeBase, `ob-${productScopeDigest.slice(0, 12)}`);
+		runtimeDirectory = platformPath.join(
+			resolvedRuntimeBase,
+			`ob-${productScopeDigest.slice(0, 12)}`,
+		);
 	}
 	const endpointId =
 		input.environment.ORCHBEE_DESKTOP_ENDPOINT_ID ?? productScopeDigest.slice(0, 32);
@@ -171,23 +175,26 @@ export function resolveDesktopRuntimeConfiguration(
 	if (input.platform === 'win32') {
 		shellIntegrationDirectory = null;
 	} else if (input.packagedResourcesPath !== undefined) {
-		shellIntegrationDirectory = path.resolve(input.packagedResourcesPath, 'shell-integration');
+		shellIntegrationDirectory = platformPath.resolve(
+			input.packagedResourcesPath,
+			'shell-integration',
+		);
 	} else {
-		shellIntegrationDirectory = path.resolve(
+		shellIntegrationDirectory = platformPath.resolve(
 			input.developmentShellIntegrationDirectory ??
-				path.join(input.applicationPath, 'resources', 'shell-integration'),
+				platformPath.join(input.applicationPath, 'resources', 'shell-integration'),
 		);
 	}
 	const agentObservationAdapterDirectory =
 		input.packagedResourcesPath === undefined
-			? path.resolve(
+			? platformPath.resolve(
 					input.developmentAgentObservationAdapterDirectory ??
-						path.join(input.applicationPath, 'resources', 'agent-observation-adapters'),
+						platformPath.join(input.applicationPath, 'resources', 'agent-observation-adapters'),
 				)
-			: path.resolve(input.packagedResourcesPath, 'agent-observation-adapters');
-	const recoveryDirectory = path.resolve(
+			: platformPath.resolve(input.packagedResourcesPath, 'agent-observation-adapters');
+	const recoveryDirectory = platformPath.resolve(
 		input.environment.ORCHBEE_DESKTOP_RECOVERY_DIRECTORY ??
-			path.join(input.userDataPath, 'terminal-recovery'),
+			platformPath.join(input.userDataPath, 'terminal-recovery'),
 	);
 	const gatewayFlag = input.environment.ORCHBEE_DESKTOP_GATEWAY;
 	if (gatewayFlag !== undefined && gatewayFlag !== '0' && gatewayFlag !== '1') {
@@ -197,28 +204,42 @@ export function resolveDesktopRuntimeConfiguration(
 		gatewayFlag === '1' || (gatewayFlag === undefined && input.packagedResourcesPath !== undefined);
 	const browserAccess: DesktopBrowserAccessRuntimeConfiguration = browserAccessEnabled
 		? {
-				gatewayEntryPath: path.resolve(
+				gatewayEntryPath: platformPath.resolve(
 					input.environment.ORCHBEE_GATEWAY_ENTRY_PATH ??
 						(input.packagedResourcesPath === undefined
-							? path.join(input.applicationPath, '..', 'gateway', 'dist', 'main', 'gateway.cjs')
-							: path.join(input.packagedResourcesPath, 'orchbee-gateway.cjs')),
+							? platformPath.join(
+									input.applicationPath,
+									'..',
+									'gateway',
+									'dist',
+									'main',
+									'gateway.cjs',
+								)
+							: platformPath.join(input.packagedResourcesPath, 'orchbee-gateway.cjs')),
 				),
 				kind: 'enabled',
-				personalAccessTokenStorePath: path.join(
+				personalAccessTokenStorePath: platformPath.join(
 					input.userDataPath,
 					'personal-access-token-v1.json',
 				),
-				rendererRoot: path.resolve(
+				rendererRoot: platformPath.resolve(
 					input.environment.ORCHBEE_WEB_RENDERER_ROOT ??
 						(input.packagedResourcesPath === undefined
-							? path.join(input.applicationPath, '..', 'web', 'dist')
-							: path.join(input.packagedResourcesPath, 'dist')),
+							? platformPath.join(input.applicationPath, '..', 'web', 'dist')
+							: platformPath.join(input.packagedResourcesPath, 'dist')),
 				),
-				serverEntryPath: path.resolve(
+				serverEntryPath: platformPath.resolve(
 					input.environment.ORCHBEE_SERVER_ENTRY_PATH ??
 						(input.packagedResourcesPath === undefined
-							? path.join(input.applicationPath, '..', 'server', 'dist', 'main', 'server.cjs')
-							: path.join(input.packagedResourcesPath, 'orchbee-server.cjs')),
+							? platformPath.join(
+									input.applicationPath,
+									'..',
+									'server',
+									'dist',
+									'main',
+									'server.cjs',
+								)
+							: platformPath.join(input.packagedResourcesPath, 'orchbee-server.cjs')),
 				),
 			}
 		: { kind: 'disabled' };
@@ -240,49 +261,45 @@ export function resolveDesktopRuntimeConfiguration(
 	if (input.platform === 'win32') {
 		posixHostEndpointAddonPath = null;
 	} else if (input.packagedResourcesPath === undefined) {
-		posixHostEndpointAddonPath = path.resolve(
+		posixHostEndpointAddonPath = platformPath.resolve(
 			input.developmentPosixHostEndpointAddonPath ??
-				path.join(input.applicationPath, 'zig-out', 'lib', POSIX_HOST_ENDPOINT_ADDON_NAME),
+				platformPath.join(input.applicationPath, 'zig-out', 'lib', POSIX_HOST_ENDPOINT_ADDON_NAME),
 		);
 	} else {
-		posixHostEndpointAddonPath = path.resolve(
+		posixHostEndpointAddonPath = platformPath.resolve(
 			input.packagedResourcesPath,
 			POSIX_HOST_ENDPOINT_ADDON_NAME,
 		);
 	}
 	const semanticCommandEndpointAddonPath =
 		input.packagedResourcesPath === undefined
-			? path.resolve(
+			? platformPath.resolve(
 					input.developmentSemanticCommandEndpointAddonPath ??
-						path.join(
+						platformPath.join(
 							input.applicationPath,
 							'zig-out',
 							'lib',
 							SEMANTIC_COMMAND_ENDPOINT_ADDON_NAME,
 						),
 				)
-			: path.resolve(input.packagedResourcesPath, SEMANTIC_COMMAND_ENDPOINT_ADDON_NAME);
+			: platformPath.resolve(input.packagedResourcesPath, SEMANTIC_COMMAND_ENDPOINT_ADDON_NAME);
 	// Cross-application artifact contract: search for `semantic-command-cli-launcher-name` before changing these values.
 	const semanticCommandCliLauncherName =
 		input.platform === 'win32' ? 'orchbee-cli.cmd' : 'orchbee-cli';
-	const semanticCommandCliPlatformPath = input.platform === 'win32' ? path.win32 : path.posix;
 	const semanticCommandCliLauncherPath =
 		input.packagedResourcesPath === undefined
-			? semanticCommandCliPlatformPath.resolve(
+			? platformPath.resolve(
 					input.applicationPath,
 					'..',
 					'cli',
 					'resources',
 					semanticCommandCliLauncherName,
 				)
-			: semanticCommandCliPlatformPath.resolve(
-					input.packagedResourcesPath,
-					semanticCommandCliLauncherName,
-				);
+			: platformPath.resolve(input.packagedResourcesPath, semanticCommandCliLauncherName);
 
 	return {
 		agentObservationAdapterDirectory,
-		agentObservationCapsuleDirectory: path.join(
+		agentObservationCapsuleDirectory: platformPath.join(
 			input.userDataPath,
 			'agent-observation-adapters',
 			AGENT_OBSERVATION_CAPSULE_VERSION,
@@ -294,29 +311,32 @@ export function resolveDesktopRuntimeConfiguration(
 		binaryPath,
 		browserAccess,
 		endpointId,
-		environmentRegistryLegacyStorePath: path.join(
+		environmentRegistryLegacyStorePath: platformPath.join(
 			input.userDataPath,
 			'environment-registry-v1.json',
 		),
-		environmentRegistryStorePath: path.join(input.userDataPath, 'environment-registry-v2.json'),
+		environmentRegistryStorePath: platformPath.join(
+			input.userDataPath,
+			'environment-registry-v2.json',
+		),
 		homeDirectory: input.homeDirectory,
-		managedWorktreeRoot: path.join(input.userDataPath, 'worktrees'),
+		managedWorktreeRoot: platformPath.join(input.userDataPath, 'worktrees'),
 		posixHostEndpointAddonPath,
-		projectWorktreeOperationStorePath: path.join(
+		projectWorktreeOperationStorePath: platformPath.join(
 			input.userDataPath,
 			'project-worktree-operations-v1.json',
 		),
 		runtimeDirectory,
 		semanticCommandEndpointAddonPath,
-		terminalArchiveDirectory: path.join(recoveryDirectory, 'terminal-archives-v1'),
-		terminalBindingStorePath: path.join(recoveryDirectory, 'bindings-v3.json'),
-		terminalExitPublicationLedgerPath: path.join(
+		terminalArchiveDirectory: platformPath.join(recoveryDirectory, 'terminal-archives-v1'),
+		terminalBindingStorePath: platformPath.join(recoveryDirectory, 'bindings-v3.json'),
+		terminalExitPublicationLedgerPath: platformPath.join(
 			recoveryDirectory,
 			'terminal-exit-publications-v1.json',
 		),
-		terminalExitSpillPath: path.join(recoveryDirectory, 'terminal-exits-v1.json'),
+		terminalExitSpillPath: platformPath.join(recoveryDirectory, 'terminal-exits-v1.json'),
 		terminalConfiguration,
-		terminalDefaultSettingsStorePath: path.join(
+		terminalDefaultSettingsStorePath: platformPath.join(
 			input.userDataPath,
 			'terminal-default-settings-v1.json',
 		),
@@ -347,16 +367,19 @@ export function resolveDesktopRuntimeConfiguration(
 			rows: null,
 			terminalProfile: createDefaultTerminalProfile(),
 		}),
-		terminalLaunchProfileStorePath: path.join(
+		terminalLaunchProfileStorePath: platformPath.join(
 			input.userDataPath,
 			'terminal-launch-profiles-v1.json',
 		),
-		windowStateStorePath: path.join(input.userDataPath, 'window-state-v1.json'),
-		workbenchDocumentLegacyStorePath: path.join(
+		windowStateStorePath: platformPath.join(input.userDataPath, 'window-state-v1.json'),
+		workbenchDocumentLegacyStorePath: platformPath.join(
 			recoveryDirectory,
 			'workbench-shared-document-v1.json',
 		),
-		workbenchDocumentStorePath: path.join(recoveryDirectory, 'workbench-shared-document-v2.json'),
+		workbenchDocumentStorePath: platformPath.join(
+			recoveryDirectory,
+			'workbench-shared-document-v2.json',
+		),
 	};
 }
 
@@ -366,17 +389,23 @@ function resolveAutomaticShellIntegrationConfiguration(
 ): AutomaticShellIntegrationConfiguration | null {
 	if (directory === null) return null;
 	const resourcePaths = {
-		bash: ['orchbee.bash', path.join('automatic', 'bash', 'orchbee.bash')],
+		bash: ['orchbee.bash', path.posix.join('automatic', 'bash', 'orchbee.bash')],
 		fish: [
 			'orchbee.fish',
-			path.join('automatic', 'fish', 'fish', 'vendor_conf.d', 'orchbee-shell-integration.fish'),
+			path.posix.join(
+				'automatic',
+				'fish',
+				'fish',
+				'vendor_conf.d',
+				'orchbee-shell-integration.fish',
+			),
 		],
-		zsh: ['orchbee.zsh', path.join('automatic', 'zsh', '.zshenv')],
+		zsh: ['orchbee.zsh', path.posix.join('automatic', 'zsh', '.zshenv')],
 	} satisfies Record<AutomaticShellIntegrationShell, readonly string[]>;
 	const supportedShells: readonly AutomaticShellIntegrationShell[] = ['bash', 'fish', 'zsh'];
 	const availableShells = supportedShells.filter((shell) =>
 		resourcePaths[shell].every((relativePath) =>
-			isReadableResource(path.join(directory, relativePath)),
+			isReadableResource(path.posix.join(directory, relativePath)),
 		),
 	);
 	if (availableShells.length === 0) return null;

@@ -35,7 +35,7 @@ describe('CodexAgentIntegrationAdapter', () => {
 			expect(fixture.runner.commands).toEqual([
 				['plugin', 'remove', 'orchbee-agent-observation@orchbee-local', '--json'],
 				['plugin', 'marketplace', 'remove', 'orchbee-local', '--json'],
-				['plugin', 'marketplace', 'add', stableRoot, '--json'],
+				['plugin', 'marketplace', 'add', path.resolve(stableRoot), '--json'],
 				['plugin', 'add', 'orchbee-agent-observation@orchbee-local', '--json'],
 			]);
 		} finally {

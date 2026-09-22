@@ -93,7 +93,7 @@ describe('resolveDesktopApplicationDistribution', () => {
 			resolveDesktopDistributionProfile('local', undefined, { applicationName: 'Terminal' }),
 		);
 		expect(dependencies.readFile).toHaveBeenCalledWith(
-			path.join(
+			path.posix.join(
 				'/Applications/Terminal.app/Contents/Resources/app.asar',
 				'desktop-distribution-v1.json',
 			),

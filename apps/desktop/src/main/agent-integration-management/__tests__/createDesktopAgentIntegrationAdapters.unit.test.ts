@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { DESKTOP_AGENT_INTEGRATION_IDS } from '@orchbee/desktop-client-protocol';
 import { describe, expect, it } from 'vitest';
 
@@ -167,7 +169,7 @@ describe('Desktop Agent integration adapters', () => {
 		expect(runner.commands).toEqual([
 			['plugin', 'list', '--json'],
 			['plugin', 'uninstall', 'orchbee-agent-observation', '--confirm'],
-			['plugin', 'install', `${capsuleRoot}/bundle`, '--trust'],
+			['plugin', 'install', path.join(capsuleRoot, 'bundle'), '--trust'],
 		]);
 	});
 

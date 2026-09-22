@@ -27,7 +27,7 @@ describe('DesktopProjectWorktreeRuntime', () => {
 		expect(discovery).toEqual({
 			kind: 'completed',
 			value: {
-				managedRoot: '/managed/worktrees',
+				managedRoot: path.resolve('/managed/worktrees'),
 				repositories: [
 					{
 						defaultBaseRef: 'main',
@@ -63,7 +63,7 @@ describe('DesktopProjectWorktreeRuntime', () => {
 		});
 		expect(fixture.git.createWorktree).toHaveBeenCalledWith(
 			'/projects/repository',
-			path.join('/managed/worktrees', `managed-worktree-${'1'.padStart(32, '0')}`),
+			path.resolve('/managed/worktrees', `managed-worktree-${'1'.padStart(32, '0')}`),
 			'orchbee/workspace-2',
 			'main',
 		);
@@ -243,7 +243,7 @@ describe('DesktopProjectWorktreeRuntime', () => {
 		).toEqual({ code: 'control-unavailable', kind: 'failed' });
 		expect(fixture.git.compensateWorktree).toHaveBeenCalledWith(
 			'/projects/repository',
-			expect.stringContaining('/managed/worktrees/managed-worktree-'),
+			path.resolve('/managed/worktrees', `managed-worktree-${'1'.padStart(32, '0')}`),
 			'orchbee/workspace-2',
 			'abc123',
 			true,
@@ -409,7 +409,7 @@ async function createFixture(
 				options.allocateIdentifier ?? (() => `${++identifierSequence}`.padStart(32, '0')),
 			coordinator,
 			defaultCwd: '/system',
-			managedRoot: '/managed/worktrees',
+			managedRoot: path.resolve('/managed/worktrees'),
 			operationStore,
 			terminalTitle: 'Terminal',
 		},

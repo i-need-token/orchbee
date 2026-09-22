@@ -16,7 +16,7 @@ describe('resolveDesktopSshEnvironmentTerminalRuntimeResources', () => {
 				SHELL: '/private/local/zsh',
 			},
 			homeDirectory: path.resolve('/users/local'),
-			platform: 'darwin',
+			platform: process.platform,
 			terminalHostName: 'orchbee-host',
 			userDataPath: path.resolve('/users/local/library/orchbee'),
 		});

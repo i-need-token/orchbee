@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { resolveDesktopSshEnvironmentResources } from '../resolveDesktopSshEnvironmentResources';
@@ -11,7 +13,7 @@ describe('Desktop SSH Environment resource composition', () => {
 				runtimeExecutablePath: '/Applications/Electron.app/Contents/MacOS/Electron',
 			}),
 		).toEqual({
-			askPassHelperEntryPath: '/repo/apps/desktop/dist/main/ssh-askpass-helper.cjs',
+			askPassHelperEntryPath: path.normalize('/repo/apps/desktop/dist/main/ssh-askpass-helper.cjs'),
 			askPassRuntimeExecutablePath: '/Applications/Electron.app/Contents/MacOS/Electron',
 			release: null,
 		});
@@ -29,7 +31,7 @@ describe('Desktop SSH Environment resource composition', () => {
 				runtimeExecutablePath: '/Applications/Electron.app/Contents/MacOS/Electron',
 			}),
 		).toEqual({
-			askPassHelperEntryPath: '/repo/apps/desktop/dist/main/ssh-askpass-helper.cjs',
+			askPassHelperEntryPath: path.normalize('/repo/apps/desktop/dist/main/ssh-askpass-helper.cjs'),
 			askPassRuntimeExecutablePath: '/Applications/Electron.app/Contents/MacOS/Electron',
 			release: {
 				releaseDirectoryPath: '/repo/apps/desktop/out/development/release',
@@ -48,13 +50,17 @@ describe('Desktop SSH Environment resource composition', () => {
 				runtimeExecutablePath: '/Applications/Orchbee.app/Contents/MacOS/Orchbee',
 			}),
 		).toEqual({
-			askPassHelperEntryPath: '/Applications/Orchbee.app/Contents/Resources/ssh-askpass-helper.cjs',
+			askPassHelperEntryPath: path.normalize(
+				'/Applications/Orchbee.app/Contents/Resources/ssh-askpass-helper.cjs',
+			),
 			askPassRuntimeExecutablePath: '/Applications/Orchbee.app/Contents/MacOS/Orchbee',
 			release: {
-				releaseDirectoryPath:
+				releaseDirectoryPath: path.normalize(
 					'/Applications/Orchbee.app/Contents/Resources/ssh-environment-release-v2',
-				trustDescriptorFilePath:
+				),
+				trustDescriptorFilePath: path.normalize(
 					'/Applications/Orchbee.app/Contents/Resources/app.asar/dist/main/ssh-environment-release-trust-v2.json',
+				),
 			},
 		});
 	});
@@ -69,8 +75,9 @@ describe('Desktop SSH Environment resource composition', () => {
 				runtimeExecutablePath: '/Applications/Orchbee Local.app/Contents/MacOS/Orchbee Local',
 			}),
 		).toEqual({
-			askPassHelperEntryPath:
+			askPassHelperEntryPath: path.normalize(
 				'/Applications/Orchbee Local.app/Contents/Resources/ssh-askpass-helper.cjs',
+			),
 			askPassRuntimeExecutablePath: '/Applications/Orchbee Local.app/Contents/MacOS/Orchbee Local',
 			release: null,
 		});

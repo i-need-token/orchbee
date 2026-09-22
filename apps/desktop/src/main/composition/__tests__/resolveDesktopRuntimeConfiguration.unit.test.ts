@@ -1,11 +1,24 @@
+import { accessSync } from 'node:fs';
+import type * as NodeFileSystem from 'node:fs';
 import path from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
 	resolveDesktopRuntimeConfiguration as resolveRuntimeConfiguration,
 	type DesktopRuntimeConfigurationInput,
 } from '../resolveDesktopRuntimeConfiguration';
+
+vi.mock('node:fs', async (importOriginal) => ({
+	...(await importOriginal<typeof NodeFileSystem>()),
+	accessSync: vi.fn<typeof accessSync>(),
+}));
+
+beforeEach(() => {
+	vi.mocked(accessSync).mockImplementation(() => {
+		throw new Error('Test resource is unavailable.');
+	});
+});
 
 function resolveDesktopRuntimeConfiguration(
 	input: Omit<DesktopRuntimeConfigurationInput, 'terminalHostName'>,
@@ -16,68 +29,70 @@ function resolveDesktopRuntimeConfiguration(
 describe('resolveDesktopRuntimeConfiguration', () => {
 	it('resolves the explicit Host, binding store, and launch profile', () => {
 		const input = {
-			applicationPath: path.resolve('/repo/apps/desktop'),
+			applicationPath: path.posix.resolve('/repo/apps/desktop'),
 			environment: {
 				ORCHBEE_DESKTOP_ENDPOINT_ID: 'ab'.repeat(16),
-				ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: path.resolve('/private/recovery'),
-				ORCHBEE_DESKTOP_RUNTIME_DIRECTORY: path.resolve('/private/runtime'),
-				ORCHBEE_TERMINAL_HOST_BINARY: path.resolve('/private/bin/orchbee-terminal-host'),
+				ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: path.posix.resolve('/private/recovery'),
+				ORCHBEE_DESKTOP_RUNTIME_DIRECTORY: path.posix.resolve('/private/runtime'),
+				ORCHBEE_TERMINAL_HOST_BINARY: path.posix.resolve('/private/bin/orchbee-terminal-host'),
 				SHELL: '/bin/zsh',
 			},
-			homeDirectory: path.resolve('/users/orchbee'),
+			homeDirectory: path.posix.resolve('/users/orchbee'),
 			platform: 'darwin' as const,
-			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+			userDataPath: path.posix.resolve('/users/orchbee/library/orchbee'),
 		};
 		const first = resolveDesktopRuntimeConfiguration(input);
 		const second = resolveDesktopRuntimeConfiguration(input);
 
 		expect(first).toEqual(second);
-		expect(first.binaryPath).toBe(path.resolve('/private/bin/orchbee-terminal-host'));
-		expect(first.runtimeDirectory).toBe(path.resolve('/private/runtime'));
+		expect(first.binaryPath).toBe(path.posix.resolve('/private/bin/orchbee-terminal-host'));
+		expect(first.runtimeDirectory).toBe(path.posix.resolve('/private/runtime'));
 		expect(first.managedWorktreeRoot).toBe(
-			path.resolve('/users/orchbee/library/orchbee/worktrees'),
+			path.posix.resolve('/users/orchbee/library/orchbee/worktrees'),
 		);
 		expect(first.agentObservationCapsuleDirectory).toBe(
-			path.resolve('/users/orchbee/library/orchbee/agent-observation-adapters/0.4.0'),
+			path.posix.resolve('/users/orchbee/library/orchbee/agent-observation-adapters/0.4.0'),
 		);
 		expect(first.projectWorktreeOperationStorePath).toBe(
-			path.resolve('/users/orchbee/library/orchbee/project-worktree-operations-v1.json'),
+			path.posix.resolve('/users/orchbee/library/orchbee/project-worktree-operations-v1.json'),
 		);
 		expect(first.browserAccess).toEqual({ kind: 'disabled' });
 		expect(first.environmentRegistryStorePath).toBe(
-			path.resolve('/users/orchbee/library/orchbee/environment-registry-v2.json'),
+			path.posix.resolve('/users/orchbee/library/orchbee/environment-registry-v2.json'),
 		);
 		expect(first.environmentRegistryLegacyStorePath).toBe(
-			path.resolve('/users/orchbee/library/orchbee/environment-registry-v1.json'),
+			path.posix.resolve('/users/orchbee/library/orchbee/environment-registry-v1.json'),
 		);
-		expect(first.terminalBindingStorePath).toBe(path.resolve('/private/recovery/bindings-v3.json'));
+		expect(first.terminalBindingStorePath).toBe(
+			path.posix.resolve('/private/recovery/bindings-v3.json'),
+		);
 		expect(first.terminalArchiveDirectory).toBe(
-			path.resolve('/private/recovery/terminal-archives-v1'),
+			path.posix.resolve('/private/recovery/terminal-archives-v1'),
 		);
 		expect(first.terminalLaunchProfileStorePath).toBe(
-			path.resolve('/users/orchbee/library/orchbee/terminal-launch-profiles-v1.json'),
+			path.posix.resolve('/users/orchbee/library/orchbee/terminal-launch-profiles-v1.json'),
 		);
 		expect(first.terminalDefaultSettingsStorePath).toBe(
-			path.resolve('/users/orchbee/library/orchbee/terminal-default-settings-v1.json'),
+			path.posix.resolve('/users/orchbee/library/orchbee/terminal-default-settings-v1.json'),
 		);
 		expect(first.terminalExitPublicationLedgerPath).toBe(
-			path.resolve('/private/recovery/terminal-exit-publications-v1.json'),
+			path.posix.resolve('/private/recovery/terminal-exit-publications-v1.json'),
 		);
 		expect(first.workbenchDocumentStorePath).toBe(
-			path.resolve('/private/recovery/workbench-shared-document-v2.json'),
+			path.posix.resolve('/private/recovery/workbench-shared-document-v2.json'),
 		);
 		expect(first.workbenchDocumentLegacyStorePath).toBe(
-			path.resolve('/private/recovery/workbench-shared-document-v1.json'),
+			path.posix.resolve('/private/recovery/workbench-shared-document-v1.json'),
 		);
 		expect(first.windowStateStorePath).toBe(
-			path.resolve('/users/orchbee/library/orchbee/window-state-v1.json'),
+			path.posix.resolve('/users/orchbee/library/orchbee/window-state-v1.json'),
 		);
 		expect(first.terminalLaunch).toMatchObject({
 			cellPixelHeight: null,
 			cellPixelWidth: null,
 			columns: null,
 			configuration: null,
-			currentDirectory: path.resolve('/users/orchbee'),
+			currentDirectory: path.posix.resolve('/users/orchbee'),
 			executable: '/bin/zsh',
 			rows: null,
 		});
@@ -88,76 +103,76 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 
 	it('enables only the explicit Browser access resource set in development', () => {
 		const configuration = resolveDesktopRuntimeConfiguration({
-			applicationPath: path.resolve('/repo/apps/desktop'),
+			applicationPath: path.posix.resolve('/repo/apps/desktop'),
 			environment: {
 				ORCHBEE_DESKTOP_GATEWAY: '1',
-				ORCHBEE_GATEWAY_ENTRY_PATH: path.resolve('/private/gateway.cjs'),
-				ORCHBEE_SERVER_ENTRY_PATH: path.resolve('/private/server.cjs'),
-				ORCHBEE_WEB_RENDERER_ROOT: path.resolve('/private/web'),
+				ORCHBEE_GATEWAY_ENTRY_PATH: path.posix.resolve('/private/gateway.cjs'),
+				ORCHBEE_SERVER_ENTRY_PATH: path.posix.resolve('/private/server.cjs'),
+				ORCHBEE_WEB_RENDERER_ROOT: path.posix.resolve('/private/web'),
 			},
-			homeDirectory: path.resolve('/users/orchbee'),
+			homeDirectory: path.posix.resolve('/users/orchbee'),
 			platform: 'darwin',
-			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
-			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+			posixRuntimeBaseDirectory: path.posix.resolve('/private/var/folders/user/T'),
+			userDataPath: path.posix.resolve('/users/orchbee/library/orchbee'),
 		});
 
 		expect(configuration.browserAccess).toEqual({
-			gatewayEntryPath: path.resolve('/private/gateway.cjs'),
+			gatewayEntryPath: path.posix.resolve('/private/gateway.cjs'),
 			kind: 'enabled',
-			personalAccessTokenStorePath: path.resolve(
+			personalAccessTokenStorePath: path.posix.resolve(
 				'/users/orchbee/library/orchbee/personal-access-token-v1.json',
 			),
-			rendererRoot: path.resolve('/private/web'),
-			serverEntryPath: path.resolve('/private/server.cjs'),
+			rendererRoot: path.posix.resolve('/private/web'),
+			serverEntryPath: path.posix.resolve('/private/server.cjs'),
 		});
 		expect(() =>
 			resolveDesktopRuntimeConfiguration({
-				applicationPath: path.resolve('/repo/apps/desktop'),
+				applicationPath: path.posix.resolve('/repo/apps/desktop'),
 				environment: { ORCHBEE_DESKTOP_GATEWAY: 'yes' },
-				homeDirectory: path.resolve('/users/orchbee'),
+				homeDirectory: path.posix.resolve('/users/orchbee'),
 				platform: 'darwin',
-				posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
-				userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+				posixRuntimeBaseDirectory: path.posix.resolve('/private/var/folders/user/T'),
+				userDataPath: path.posix.resolve('/users/orchbee/library/orchbee'),
 			}),
 		).toThrow('ORCHBEE_DESKTOP_GATEWAY must be 0 or 1.');
 	});
 
 	it('uses the built sibling Host and platform shell defaults when no override exists', () => {
 		const configuration = resolveDesktopRuntimeConfiguration({
-			applicationPath: path.resolve('/repo/apps/desktop'),
+			applicationPath: path.posix.resolve('/repo/apps/desktop'),
 			environment: {},
-			homeDirectory: path.resolve('/users/orchbee'),
+			homeDirectory: path.posix.resolve('/users/orchbee'),
 			platform: 'linux',
-			posixRuntimeBaseDirectory: path.resolve('/run/user/501'),
-			userDataPath: path.resolve('/users/orchbee/.config/orchbee'),
+			posixRuntimeBaseDirectory: path.posix.resolve('/run/user/501'),
+			userDataPath: path.posix.resolve('/users/orchbee/.config/orchbee'),
 		});
 
 		expect(configuration.binaryPath).toBe(
-			path.resolve('/repo/apps/terminal-host/zig-out/bin/orchbee-terminal-host'),
+			path.posix.resolve('/repo/apps/terminal-host/zig-out/bin/orchbee-terminal-host'),
 		);
 		expect(configuration.posixHostEndpointAddonPath).toBe(
-			path.resolve('/repo/apps/desktop/zig-out/lib/orchbee-posix-host-endpoint.node'),
+			path.posix.resolve('/repo/apps/desktop/zig-out/lib/orchbee-posix-host-endpoint.node'),
 		);
 		expect(configuration.terminalLaunch.executable).toBe('/bin/sh');
 		expect(configuration.endpointId).toMatch(/^[0-9a-f]{32}$/u);
 		expect(configuration.terminalBindingStorePath).toBe(
-			path.resolve('/users/orchbee/.config/orchbee/terminal-recovery/bindings-v3.json'),
+			path.posix.resolve('/users/orchbee/.config/orchbee/terminal-recovery/bindings-v3.json'),
 		);
 		expect(configuration.terminalArchiveDirectory).toBe(
-			path.resolve('/users/orchbee/.config/orchbee/terminal-recovery/terminal-archives-v1'),
+			path.posix.resolve('/users/orchbee/.config/orchbee/terminal-recovery/terminal-archives-v1'),
 		);
 		expect(configuration.workbenchDocumentStorePath).toBe(
-			path.resolve(
+			path.posix.resolve(
 				'/users/orchbee/.config/orchbee/terminal-recovery/workbench-shared-document-v2.json',
 			),
 		);
 		expect(configuration.workbenchDocumentLegacyStorePath).toBe(
-			path.resolve(
+			path.posix.resolve(
 				'/users/orchbee/.config/orchbee/terminal-recovery/workbench-shared-document-v1.json',
 			),
 		);
 		expect(configuration.windowStateStorePath).toBe(
-			path.resolve('/users/orchbee/.config/orchbee/window-state-v1.json'),
+			path.posix.resolve('/users/orchbee/.config/orchbee/window-state-v1.json'),
 		);
 		expect(configuration.runtimeDirectory).toMatch(/^\/run\/user\/501\/ob-[0-9a-f]{12}$/u);
 		expect(configuration.runtimeDirectory).not.toMatch(/^\/(?:private\/)?tmp(?:\/|$)/u);
@@ -166,35 +181,35 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 
 	it('uses connect-only mode for an explicitly supervised development Host', () => {
 		const configuration = resolveDesktopRuntimeConfiguration({
-			applicationPath: path.resolve('/repo/apps/desktop'),
+			applicationPath: path.posix.resolve('/repo/apps/desktop'),
 			environment: { ORCHBEE_TERMINAL_HOST_SUPERVISED: '1' },
-			homeDirectory: path.resolve('/users/orchbee'),
+			homeDirectory: path.posix.resolve('/users/orchbee'),
 			platform: 'darwin',
-			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
-			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+			posixRuntimeBaseDirectory: path.posix.resolve('/private/var/folders/user/T'),
+			userDataPath: path.posix.resolve('/users/orchbee/library/orchbee'),
 		});
 
 		expect(configuration.terminalHostLaunchMode).toBe('connect-only');
 		expect(() =>
 			resolveDesktopRuntimeConfiguration({
-				applicationPath: path.resolve('/repo/apps/desktop'),
+				applicationPath: path.posix.resolve('/repo/apps/desktop'),
 				environment: { ORCHBEE_TERMINAL_HOST_SUPERVISED: 'yes' },
-				homeDirectory: path.resolve('/users/orchbee'),
+				homeDirectory: path.posix.resolve('/users/orchbee'),
 				platform: 'darwin',
-				posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
-				userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+				posixRuntimeBaseDirectory: path.posix.resolve('/private/var/folders/user/T'),
+				userDataPath: path.posix.resolve('/users/orchbee/library/orchbee'),
 			}),
 		).toThrow('ORCHBEE_TERMINAL_HOST_SUPERVISED must be 0 or 1.');
 	});
 
 	it('keeps the macOS product rendezvous stable beneath its trusted per-user base', () => {
 		const input = {
-			applicationPath: path.resolve('/repo/apps/desktop'),
+			applicationPath: path.posix.resolve('/repo/apps/desktop'),
 			environment: {},
-			homeDirectory: path.resolve('/users/orchbee'),
+			homeDirectory: path.posix.resolve('/users/orchbee'),
 			platform: 'darwin' as const,
-			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
-			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+			posixRuntimeBaseDirectory: path.posix.resolve('/private/var/folders/user/T'),
+			userDataPath: path.posix.resolve('/users/orchbee/library/orchbee'),
 		};
 		const first = resolveDesktopRuntimeConfiguration(input);
 		const second = resolveDesktopRuntimeConfiguration(input);
@@ -205,41 +220,43 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 
 	it('uses the packaged Host resource outside the application archive', () => {
 		const configuration = resolveDesktopRuntimeConfiguration({
-			applicationPath: path.resolve('/Applications/Orchbee.app/Contents/Resources/app.asar'),
+			applicationPath: path.posix.resolve('/Applications/Orchbee.app/Contents/Resources/app.asar'),
 			environment: {},
-			homeDirectory: path.resolve('/users/orchbee'),
-			packagedResourcesPath: path.resolve('/Applications/Orchbee.app/Contents/Resources'),
+			homeDirectory: path.posix.resolve('/users/orchbee'),
+			packagedResourcesPath: path.posix.resolve('/Applications/Orchbee.app/Contents/Resources'),
 			platform: 'darwin',
-			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
-			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+			posixRuntimeBaseDirectory: path.posix.resolve('/private/var/folders/user/T'),
+			userDataPath: path.posix.resolve('/users/orchbee/library/orchbee'),
 		});
 
 		expect(configuration.binaryPath).toBe(
-			path.resolve('/Applications/Orchbee.app/Contents/Resources/orchbee-terminal-host'),
+			path.posix.resolve('/Applications/Orchbee.app/Contents/Resources/orchbee-terminal-host'),
 		);
 		expect(configuration.posixHostEndpointAddonPath).toBe(
-			path.resolve('/Applications/Orchbee.app/Contents/Resources/orchbee-posix-host-endpoint.node'),
+			path.posix.resolve(
+				'/Applications/Orchbee.app/Contents/Resources/orchbee-posix-host-endpoint.node',
+			),
 		);
 		expect(configuration.browserAccess).toEqual({
-			gatewayEntryPath: path.resolve(
+			gatewayEntryPath: path.posix.resolve(
 				'/Applications/Orchbee.app/Contents/Resources/orchbee-gateway.cjs',
 			),
 			kind: 'enabled',
-			personalAccessTokenStorePath: path.resolve(
+			personalAccessTokenStorePath: path.posix.resolve(
 				'/users/orchbee/library/orchbee/personal-access-token-v1.json',
 			),
-			rendererRoot: path.resolve('/Applications/Orchbee.app/Contents/Resources/dist'),
-			serverEntryPath: path.resolve(
+			rendererRoot: path.posix.resolve('/Applications/Orchbee.app/Contents/Resources/dist'),
+			serverEntryPath: path.posix.resolve(
 				'/Applications/Orchbee.app/Contents/Resources/orchbee-server.cjs',
 			),
 		});
 		expect(configuration.terminalLaunch.environment).toContainEqual({
 			name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
-			value: path.resolve('/Applications/Orchbee.app/Contents/Resources/shell-integration'),
+			value: path.posix.resolve('/Applications/Orchbee.app/Contents/Resources/shell-integration'),
 		});
 		expect(configuration.terminalLaunch.environment).toContainEqual({
 			name: 'ORCHBEE_CLI',
-			value: path.resolve('/Applications/Orchbee.app/Contents/Resources/orchbee-cli'),
+			value: path.posix.resolve('/Applications/Orchbee.app/Contents/Resources/orchbee-cli'),
 		});
 		expect(configuration.terminalLaunch.environment).toContainEqual({
 			name: 'ORCHBEE_CLI_RUNTIME_DIRECTORY',
@@ -248,21 +265,21 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 	});
 
 	it('accepts the bundle-resolved development shell integration directory', () => {
-		const developmentPosixHostEndpointAddonPath = path.resolve(
+		const developmentPosixHostEndpointAddonPath = path.posix.resolve(
 			'/repo/apps/desktop/zig-out/lib/orchbee-posix-host-endpoint.node',
 		);
-		const developmentShellIntegrationDirectory = path.resolve(
+		const developmentShellIntegrationDirectory = path.posix.resolve(
 			'/repo/apps/desktop/resources/shell-integration',
 		);
 		const configuration = resolveDesktopRuntimeConfiguration({
-			applicationPath: path.resolve('/unexpected/electron/application/path'),
+			applicationPath: path.posix.resolve('/unexpected/electron/application/path'),
 			developmentPosixHostEndpointAddonPath,
 			developmentShellIntegrationDirectory,
 			environment: {},
-			homeDirectory: path.resolve('/users/orchbee'),
+			homeDirectory: path.posix.resolve('/users/orchbee'),
 			platform: 'darwin',
-			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
-			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+			posixRuntimeBaseDirectory: path.posix.resolve('/private/var/folders/user/T'),
+			userDataPath: path.posix.resolve('/users/orchbee/library/orchbee'),
 		});
 		expect(configuration.posixHostEndpointAddonPath).toBe(developmentPosixHostEndpointAddonPath);
 
@@ -273,21 +290,31 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 	});
 
 	it('admits only readable automatic loaders and captures the Main environment exactly', () => {
-		const shellIntegrationDirectory = path.resolve(
-			import.meta.dirname,
-			'../../../../resources/shell-integration',
-		);
+		const shellIntegrationDirectory = '/repo/apps/desktop/resources/shell-integration';
+		const readablePaths = new Set([
+			`${shellIntegrationDirectory}/orchbee.bash`,
+			`${shellIntegrationDirectory}/automatic/bash/orchbee.bash`,
+			`${shellIntegrationDirectory}/orchbee.fish`,
+			`${shellIntegrationDirectory}/automatic/fish/fish/vendor_conf.d/orchbee-shell-integration.fish`,
+			`${shellIntegrationDirectory}/orchbee.zsh`,
+			`${shellIntegrationDirectory}/automatic/zsh/.zshenv`,
+		]);
+		vi.mocked(accessSync).mockImplementation((resourcePath) => {
+			if (typeof resourcePath !== 'string' || !readablePaths.has(resourcePath)) {
+				throw new Error('Test resource is unavailable.');
+			}
+		});
 		const configuration = resolveDesktopRuntimeConfiguration({
-			applicationPath: path.resolve('/repo/apps/desktop'),
+			applicationPath: path.posix.resolve('/repo/apps/desktop'),
 			developmentShellIntegrationDirectory: shellIntegrationDirectory,
 			environment: {
 				XDG_DATA_DIRS: '/opt/share:/usr/share',
 				ZDOTDIR: '/users/orchbee/.config/zsh',
 			},
-			homeDirectory: path.resolve('/users/orchbee'),
+			homeDirectory: path.posix.resolve('/users/orchbee'),
 			platform: 'darwin',
-			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
-			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+			posixRuntimeBaseDirectory: path.posix.resolve('/private/var/folders/user/T'),
+			userDataPath: path.posix.resolve('/users/orchbee/library/orchbee'),
 		});
 
 		expect(configuration.automaticShellIntegration).toEqual({
@@ -302,30 +329,30 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 
 	it('keeps automatic integration disabled when the trusted loaders are unavailable', () => {
 		const configuration = resolveDesktopRuntimeConfiguration({
-			applicationPath: path.resolve('/repo/apps/desktop'),
-			developmentShellIntegrationDirectory: path.resolve('/missing/shell-integration'),
+			applicationPath: path.posix.resolve('/repo/apps/desktop'),
+			developmentShellIntegrationDirectory: path.posix.resolve('/missing/shell-integration'),
 			environment: {},
-			homeDirectory: path.resolve('/users/orchbee'),
+			homeDirectory: path.posix.resolve('/users/orchbee'),
 			platform: 'linux',
-			posixRuntimeBaseDirectory: path.resolve('/run/user/501'),
-			userDataPath: path.resolve('/users/orchbee/.config/orchbee'),
+			posixRuntimeBaseDirectory: path.posix.resolve('/run/user/501'),
+			userDataPath: path.posix.resolve('/users/orchbee/.config/orchbee'),
 		});
 
 		expect(configuration.automaticShellIntegration).toBeNull();
 		expect(configuration.terminalLaunch.environment).toContainEqual({
 			name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
-			value: path.resolve('/missing/shell-integration'),
+			value: path.posix.resolve('/missing/shell-integration'),
 		});
 	});
 
 	it('projects an authoritative Darwin UTF-8 locale when the Desktop locale is absent', () => {
 		const configuration = resolveDesktopRuntimeConfiguration({
-			applicationPath: path.resolve('/repo/apps/desktop'),
+			applicationPath: path.posix.resolve('/repo/apps/desktop'),
 			environment: {},
-			homeDirectory: path.resolve('/users/orchbee'),
+			homeDirectory: path.posix.resolve('/users/orchbee'),
 			platform: 'darwin',
-			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
-			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+			posixRuntimeBaseDirectory: path.posix.resolve('/private/var/folders/user/T'),
+			userDataPath: path.posix.resolve('/users/orchbee/library/orchbee'),
 		});
 
 		expect(
@@ -341,14 +368,14 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 
 	it('derives a Darwin LANG from the native system locale', () => {
 		const configuration = resolveDesktopRuntimeConfiguration({
-			applicationPath: path.resolve('/repo/apps/desktop'),
+			applicationPath: path.posix.resolve('/repo/apps/desktop'),
 			darwinSupportedLocales: ['en_US.UTF-8', 'zh_CN.UTF-8'],
 			darwinSystemLocale: 'zh-Hans-CN',
 			environment: {},
-			homeDirectory: path.resolve('/users/orchbee'),
+			homeDirectory: path.posix.resolve('/users/orchbee'),
 			platform: 'darwin',
-			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
-			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+			posixRuntimeBaseDirectory: path.posix.resolve('/private/var/folders/user/T'),
+			userDataPath: path.posix.resolve('/users/orchbee/library/orchbee'),
 		});
 
 		expect(configuration.terminalLaunch.environment).toContainEqual({
@@ -359,14 +386,14 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 
 	it('falls back when the derived Darwin locale is not installed', () => {
 		const configuration = resolveDesktopRuntimeConfiguration({
-			applicationPath: path.resolve('/repo/apps/desktop'),
+			applicationPath: path.posix.resolve('/repo/apps/desktop'),
 			darwinSupportedLocales: ['en_US.UTF-8', 'zh_CN.UTF-8'],
 			darwinSystemLocale: 'zh-US',
 			environment: {},
-			homeDirectory: path.resolve('/users/orchbee'),
+			homeDirectory: path.posix.resolve('/users/orchbee'),
 			platform: 'darwin',
-			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
-			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+			posixRuntimeBaseDirectory: path.posix.resolve('/private/var/folders/user/T'),
+			userDataPath: path.posix.resolve('/users/orchbee/library/orchbee'),
 		});
 
 		expect(configuration.terminalLaunch.environment).toContainEqual({
@@ -377,13 +404,13 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 
 	it('falls back when the Darwin system locale has no usable country', () => {
 		const configuration = resolveDesktopRuntimeConfiguration({
-			applicationPath: path.resolve('/repo/apps/desktop'),
+			applicationPath: path.posix.resolve('/repo/apps/desktop'),
 			darwinSystemLocale: 'en',
 			environment: {},
-			homeDirectory: path.resolve('/users/orchbee'),
+			homeDirectory: path.posix.resolve('/users/orchbee'),
 			platform: 'darwin',
-			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
-			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+			posixRuntimeBaseDirectory: path.posix.resolve('/private/var/folders/user/T'),
+			userDataPath: path.posix.resolve('/users/orchbee/library/orchbee'),
 		});
 
 		expect(configuration.terminalLaunch.environment).toContainEqual({
@@ -394,14 +421,14 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 
 	it('supplies a Darwin LANG even when a valid LC_ALL controls the local locale', () => {
 		const configuration = resolveDesktopRuntimeConfiguration({
-			applicationPath: path.resolve('/repo/apps/desktop'),
+			applicationPath: path.posix.resolve('/repo/apps/desktop'),
 			darwinSupportedLocales: ['en_US.UTF-8'],
 			darwinSystemLocale: 'en-US',
 			environment: { LC_ALL: 'zh_CN.UTF-8' },
-			homeDirectory: path.resolve('/users/orchbee'),
+			homeDirectory: path.posix.resolve('/users/orchbee'),
 			platform: 'darwin',
-			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
-			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+			posixRuntimeBaseDirectory: path.posix.resolve('/private/var/folders/user/T'),
+			userDataPath: path.posix.resolve('/users/orchbee/library/orchbee'),
 		});
 
 		expect(
@@ -417,12 +444,12 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 
 	it('keeps the Linux UTF-8 character-type fallback without inventing LANG', () => {
 		const configuration = resolveDesktopRuntimeConfiguration({
-			applicationPath: path.resolve('/repo/apps/desktop'),
+			applicationPath: path.posix.resolve('/repo/apps/desktop'),
 			environment: {},
-			homeDirectory: path.resolve('/users/orchbee'),
+			homeDirectory: path.posix.resolve('/users/orchbee'),
 			platform: 'linux',
-			posixRuntimeBaseDirectory: path.resolve('/run/user/501'),
-			userDataPath: path.resolve('/users/orchbee/.config/orchbee'),
+			posixRuntimeBaseDirectory: path.posix.resolve('/run/user/501'),
+			userDataPath: path.posix.resolve('/users/orchbee/.config/orchbee'),
 		});
 
 		expect(
@@ -434,16 +461,16 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 
 	it('repairs an unsupported Darwin UTF-8 locale before launching the shell', () => {
 		const configuration = resolveDesktopRuntimeConfiguration({
-			applicationPath: path.resolve('/repo/apps/desktop'),
+			applicationPath: path.posix.resolve('/repo/apps/desktop'),
 			environment: {
 				LANG: 'en_US.UTF-8',
 				LC_ALL: 'C.UTF-8',
 				LC_CTYPE: 'C.UTF-8',
 			},
-			homeDirectory: path.resolve('/users/orchbee'),
+			homeDirectory: path.posix.resolve('/users/orchbee'),
 			platform: 'darwin',
-			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
-			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+			posixRuntimeBaseDirectory: path.posix.resolve('/private/var/folders/user/T'),
+			userDataPath: path.posix.resolve('/users/orchbee/library/orchbee'),
 		});
 
 		expect(configuration.terminalLaunch.environment).toEqual([
@@ -452,12 +479,12 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			{ name: 'TERM_PROGRAM', value: 'ghostty' },
 			{
 				name: 'ORCHBEE_CLI',
-				value: path.resolve('/repo/apps/cli/resources/orchbee-cli'),
+				value: path.posix.resolve('/repo/apps/cli/resources/orchbee-cli'),
 			},
 			{ name: 'ORCHBEE_CLI_RUNTIME_DIRECTORY', value: configuration.runtimeDirectory },
 			{
 				name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
-				value: path.resolve('/repo/apps/desktop/resources/shell-integration'),
+				value: path.posix.resolve('/repo/apps/desktop/resources/shell-integration'),
 			},
 			{ name: 'NO_COLOR', value: null },
 			{ name: 'FORCE_COLOR', value: null },
@@ -470,12 +497,12 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 
 	it('repairs a Darwin C.UTF-8 LANG even when LC_ALL is absent', () => {
 		const configuration = resolveDesktopRuntimeConfiguration({
-			applicationPath: path.resolve('/repo/apps/desktop'),
+			applicationPath: path.posix.resolve('/repo/apps/desktop'),
 			environment: { LANG: 'C.UTF-8' },
-			homeDirectory: path.resolve('/users/orchbee'),
+			homeDirectory: path.posix.resolve('/users/orchbee'),
 			platform: 'darwin',
-			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
-			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+			posixRuntimeBaseDirectory: path.posix.resolve('/private/var/folders/user/T'),
+			userDataPath: path.posix.resolve('/users/orchbee/library/orchbee'),
 		});
 
 		expect(configuration.terminalLaunch.environment).toEqual([
@@ -484,12 +511,12 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			{ name: 'TERM_PROGRAM', value: 'ghostty' },
 			{
 				name: 'ORCHBEE_CLI',
-				value: path.resolve('/repo/apps/cli/resources/orchbee-cli'),
+				value: path.posix.resolve('/repo/apps/cli/resources/orchbee-cli'),
 			},
 			{ name: 'ORCHBEE_CLI_RUNTIME_DIRECTORY', value: configuration.runtimeDirectory },
 			{
 				name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
-				value: path.resolve('/repo/apps/desktop/resources/shell-integration'),
+				value: path.posix.resolve('/repo/apps/desktop/resources/shell-integration'),
 			},
 			{ name: 'NO_COLOR', value: null },
 			{ name: 'FORCE_COLOR', value: null },
@@ -502,16 +529,16 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 
 	it('preserves an explicit Darwin UTF-8 locale', () => {
 		const configuration = resolveDesktopRuntimeConfiguration({
-			applicationPath: path.resolve('/repo/apps/desktop'),
+			applicationPath: path.posix.resolve('/repo/apps/desktop'),
 			environment: {
 				LANG: 'en_US.UTF-8',
 				LC_ALL: 'zh_CN.UTF-8',
 				LC_CTYPE: 'en_US.UTF-8',
 			},
-			homeDirectory: path.resolve('/users/orchbee'),
+			homeDirectory: path.posix.resolve('/users/orchbee'),
 			platform: 'darwin',
-			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
-			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+			posixRuntimeBaseDirectory: path.posix.resolve('/private/var/folders/user/T'),
+			userDataPath: path.posix.resolve('/users/orchbee/library/orchbee'),
 		});
 
 		expect(configuration.terminalLaunch.environment).toEqual([
@@ -520,12 +547,12 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			{ name: 'TERM_PROGRAM', value: 'ghostty' },
 			{
 				name: 'ORCHBEE_CLI',
-				value: path.resolve('/repo/apps/cli/resources/orchbee-cli'),
+				value: path.posix.resolve('/repo/apps/cli/resources/orchbee-cli'),
 			},
 			{ name: 'ORCHBEE_CLI_RUNTIME_DIRECTORY', value: configuration.runtimeDirectory },
 			{
 				name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
-				value: path.resolve('/repo/apps/desktop/resources/shell-integration'),
+				value: path.posix.resolve('/repo/apps/desktop/resources/shell-integration'),
 			},
 			{ name: 'NO_COLOR', value: null },
 			{ name: 'FORCE_COLOR', value: null },
@@ -546,7 +573,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		});
 
 		expect(configuration.runtimeDirectory).toBe(
-			path.join('C:\\Users\\orchbee\\AppData\\Roaming\\Orchbee', 'terminal-host'),
+			path.win32.join('C:\\Users\\orchbee\\AppData\\Roaming\\Orchbee', 'terminal-host'),
 		);
 		expect(configuration.posixHostEndpointAddonPath).toBeNull();
 	});
@@ -585,7 +612,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			environment: { ORCHBEE_TERMINAL_SCROLLBACK_BYTES: '25000000' },
 			homeDirectory: '/users/orchbee',
 			platform: 'linux',
-			posixRuntimeBaseDirectory: path.resolve('/run/user/501'),
+			posixRuntimeBaseDirectory: path.posix.resolve('/run/user/501'),
 			userDataPath: '/users/orchbee/.config/orchbee',
 		});
 		const second = resolveDesktopRuntimeConfiguration({
@@ -593,7 +620,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			environment: {},
 			homeDirectory: '/users/orchbee',
 			platform: 'linux',
-			posixRuntimeBaseDirectory: path.resolve('/run/user/501'),
+			posixRuntimeBaseDirectory: path.posix.resolve('/run/user/501'),
 			userDataPath: '/users/orchbee/.config/orchbee-beta',
 		});
 
@@ -606,22 +633,70 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 				environment: { ORCHBEE_TERMINAL_SCROLLBACK_BYTES: '1000000001' },
 				homeDirectory: '/users/orchbee',
 				platform: 'linux',
-				posixRuntimeBaseDirectory: path.resolve('/run/user/501'),
+				posixRuntimeBaseDirectory: path.posix.resolve('/run/user/501'),
 				userDataPath: '/users/orchbee/.config/orchbee',
 			}),
 		).toThrow('exceeds the supported range');
 	});
 
-	it('rejects a deterministic default rendezvous beneath shared temporary storage', () => {
+	it.each([
+		'/tmp',
+		'/tmp/',
+		'/tmp/user-controlled',
+		'/private/tmp',
+		'/private/tmp/user-controlled',
+		'/private/var/../tmp/user-controlled',
+	])('rejects a deterministic default rendezvous beneath %s', (runtimeBase) => {
 		expect(() =>
 			resolveDesktopRuntimeConfiguration({
 				applicationPath: '/repo/apps/desktop',
 				environment: {},
 				homeDirectory: '/users/orchbee',
 				platform: 'darwin',
-				posixRuntimeBaseDirectory: '/private/tmp/user-controlled',
+				posixRuntimeBaseDirectory: runtimeBase,
 				userDataPath: '/users/orchbee/library/orchbee',
 			}),
 		).toThrow('must not be under shared temporary storage');
 	});
+	it.each(['/tmp-user', '/private/tmp-user'])(
+		'does not reject a neighboring trusted base %s',
+		(runtimeBase) => {
+			const configuration = resolveDesktopRuntimeConfiguration({
+				applicationPath: '/repo/apps/desktop',
+				environment: {},
+				homeDirectory: '/users/orchbee',
+				platform: 'darwin',
+				posixRuntimeBaseDirectory: runtimeBase,
+				userDataPath: '/users/orchbee/library/orchbee',
+			});
+			expect(path.posix.dirname(configuration.runtimeDirectory)).toBe(runtimeBase);
+		},
+	);
+
+	it.each(['C:\\Program Files\\Orchbee', '\\\\server\\share\\Orchbee'])(
+		'keeps packaged Windows resources under %s',
+		(resourcesPath) => {
+			const configuration = resolveDesktopRuntimeConfiguration({
+				applicationPath: path.win32.join(resourcesPath, 'app.asar'),
+				environment: { ComSpec: 'C:\\Windows\\System32\\cmd.exe' },
+				homeDirectory: 'C:\\Users\\orchbee',
+				packagedResourcesPath: resourcesPath,
+				platform: 'win32',
+				userDataPath: 'C:\\Users\\orchbee\\AppData\\Roaming\\Orchbee',
+			});
+			expect(configuration.binaryPath).toBe(`${resourcesPath}\\orchbee-terminal-host.exe`);
+			expect(configuration.terminalLaunch.environment).toContainEqual({
+				name: 'ORCHBEE_CLI',
+				value: `${resourcesPath}\\orchbee-cli.cmd`,
+			});
+			expect(configuration.terminalLaunch.executable).toBe('C:\\Windows\\System32\\cmd.exe');
+			expect(configuration.automaticShellIntegration).toBeNull();
+			expect(configuration.posixHostEndpointAddonPath).toBeNull();
+			expect(configuration.browserAccess).toMatchObject({
+				gatewayEntryPath: `${resourcesPath}\\orchbee-gateway.cjs`,
+				rendererRoot: `${resourcesPath}\\dist`,
+				serverEntryPath: `${resourcesPath}\\orchbee-server.cjs`,
+			});
+		},
+	);
 });

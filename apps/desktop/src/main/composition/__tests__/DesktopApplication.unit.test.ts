@@ -485,14 +485,16 @@ describe('DesktopApplication', () => {
 		);
 		const remoteRuntimeComposition = harness.createTerminalRuntime.mock.calls[1];
 		expect(remoteRuntimeComposition?.[1].terminalBindingStorePath).toContain(
-			`ssh-environments-v1/${'8'.repeat(32)}/bindings-v1.json`,
+			path.join('ssh-environments-v1', '8'.repeat(32), 'bindings-v1.json'),
 		);
 		expect(harness.createTerminalExitSpillStore).toHaveBeenCalledWith(
-			expect.stringContaining(`ssh-environments-v1/${'8'.repeat(32)}/terminal-exits-v1.json`),
+			expect.stringContaining(
+				path.join('ssh-environments-v1', '8'.repeat(32), 'terminal-exits-v1.json'),
+			),
 		);
 		expect(harness.createTerminalExitPublicationLedger).toHaveBeenCalledWith(
 			expect.stringContaining(
-				`ssh-environments-v1/${'8'.repeat(32)}/terminal-exit-publications-v1.json`,
+				path.join('ssh-environments-v1', '8'.repeat(32), 'terminal-exit-publications-v1.json'),
 			),
 		);
 		expect(remoteRuntimeComposition?.[5]()).toMatchObject({
@@ -1488,10 +1490,10 @@ describe('DesktopApplication', () => {
 	it('keeps a real composed exit through association spill and restart without replay', async () => {
 		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-composition-'));
 		try {
-			const runtime = createRuntime({
-				ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: directory,
-				SHELL: '/bin/sh',
-			});
+			const runtime = createRuntime(
+				{ ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: directory, SHELL: '/bin/sh' },
+				process.platform,
+			);
 			const firstHarness = createHarness(
 				undefined,
 				false,
@@ -1594,10 +1596,10 @@ describe('DesktopApplication', () => {
 	it('journals a Host exit before the synchronous listener returns', async () => {
 		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-composition-'));
 		try {
-			const runtime = createRuntime({
-				ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: directory,
-				SHELL: '/bin/sh',
-			});
+			const runtime = createRuntime(
+				{ ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: directory, SHELL: '/bin/sh' },
+				process.platform,
+			);
 			const harness = createHarness(
 				undefined,
 				false,
@@ -1693,10 +1695,10 @@ describe('DesktopApplication', () => {
 	it('keeps a real composed exit owned while binding persistence is temporarily unavailable', async () => {
 		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-composition-'));
 		try {
-			const runtime = createRuntime({
-				ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: directory,
-				SHELL: '/bin/sh',
-			});
+			const runtime = createRuntime(
+				{ ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: directory, SHELL: '/bin/sh' },
+				process.platform,
+			);
 			const harness = createHarness(
 				undefined,
 				false,
@@ -3393,12 +3395,13 @@ function createRuntime(
 	environment: Parameters<typeof resolveDesktopRuntimeConfiguration>[0]['environment'] = {
 		SHELL: '/bin/sh',
 	},
+	platform: NodeJS.Platform = 'linux',
 ) {
 	return resolveDesktopRuntimeConfiguration({
 		applicationPath: '/repo/apps/desktop',
 		environment,
 		homeDirectory: '/users/orchbee',
-		platform: 'linux',
+		platform,
 		posixRuntimeBaseDirectory: '/run/user/501',
 		terminalHostName: 'orchbee-host',
 		userDataPath: '/users/orchbee/.config/orchbee',

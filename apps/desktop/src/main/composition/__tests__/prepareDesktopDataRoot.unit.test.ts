@@ -75,7 +75,7 @@ describe('prepareDesktopDataRoot', () => {
 		expect(second).toEqual(first);
 		expect(
 			JSON.parse(readFileSync(path.join(first.path, 'development-scope-v1.json'), 'utf8')),
-		).toMatchObject({ kind: 'development', sourceRoot: realpathSync.native(home) });
+		).toMatchObject(input.distribution.dataScope);
 	});
 
 	it('rejects a development marker for another checkout', () => {

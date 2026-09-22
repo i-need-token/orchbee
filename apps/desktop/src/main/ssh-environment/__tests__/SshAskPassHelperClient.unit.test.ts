@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -16,7 +17,10 @@ afterEach(async () => {
 describe('SshAskPassHelperClient', () => {
 	it('exchanges one capability-bound request and writes only the submitted response', async () => {
 		const directory = await mkdtemp(join(tmpdir(), 'orchbee-askpass-helper-test-'));
-		const socketPath = join(directory, 'a.s');
+		const socketPath =
+			process.platform === 'win32'
+				? `\\\\.\\pipe\\orchbee-askpass-helper-test-${randomUUID()}`
+				: join(directory, 'a.s');
 		const capability = 'a'.repeat(64);
 		const server = createServer((socket) => {
 			let request = '';
@@ -33,15 +37,15 @@ describe('SshAskPassHelperClient', () => {
 				socket.end('{"kind":"submitted","response":"one-use secret"}\n');
 			});
 		});
-		await new Promise<void>((resolve, reject) => {
-			server.once('error', reject);
-			server.listen(socketPath, () => resolve());
-		});
 		cleanupTasks.push(async () => {
 			await new Promise<void>((resolve) => {
 				server.close(() => resolve());
 			});
 			await rm(directory, { force: true, recursive: true });
+		});
+		await new Promise<void>((resolve, reject) => {
+			server.once('error', reject);
+			server.listen(socketPath, () => resolve());
 		});
 		const writeOutput = vi.fn<(output: string) => void>();
 		const client = new SshAskPassHelperClient({
@@ -60,7 +64,10 @@ describe('SshAskPassHelperClient', () => {
 
 	it('recovers the canonical OpenSSH host confirmation kind when the platform omits its hint', async () => {
 		const directory = await mkdtemp(join(tmpdir(), 'orchbee-askpass-helper-test-'));
-		const socketPath = join(directory, 'a.s');
+		const socketPath =
+			process.platform === 'win32'
+				? `\\\\.\\pipe\\orchbee-askpass-helper-test-${randomUUID()}`
+				: join(directory, 'a.s');
 		const capability = 'b'.repeat(64);
 		const prompt = [
 			"The authenticity of host 'builder.example' can't be established.",
@@ -82,15 +89,15 @@ describe('SshAskPassHelperClient', () => {
 				socket.end('{"kind":"submitted","response":"yes"}\n');
 			});
 		});
-		await new Promise<void>((resolve, reject) => {
-			server.once('error', reject);
-			server.listen(socketPath, () => resolve());
-		});
 		cleanupTasks.push(async () => {
 			await new Promise<void>((resolve) => {
 				server.close(() => resolve());
 			});
 			await rm(directory, { force: true, recursive: true });
+		});
+		await new Promise<void>((resolve, reject) => {
+			server.once('error', reject);
+			server.listen(socketPath, () => resolve());
 		});
 		const writeOutput = vi.fn<(output: string) => void>();
 		const client = new SshAskPassHelperClient({

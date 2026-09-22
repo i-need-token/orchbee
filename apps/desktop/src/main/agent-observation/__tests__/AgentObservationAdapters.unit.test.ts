@@ -140,11 +140,11 @@ describe('Agent observation adapter resources', () => {
 		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-local-socket-'));
 		const socketPath = path.join(directory, 'exact.sock');
 		const server = createServer();
-		await new Promise<void>((resolve, reject) => {
-			server.once('error', reject);
-			server.listen(socketPath, resolve);
-		});
 		try {
+			await new Promise<void>((resolve, reject) => {
+				server.once('error', reject);
+				server.listen(socketPath, resolve);
+			});
 			await expect(
 				transport.discoverObservationSockets({
 					ORCHBEE_AGENT_OBSERVATION_SOCKET_V3: socketPath,
@@ -165,11 +165,11 @@ describe('Agent observation adapter resources', () => {
 		const transport = await import(transportUrl);
 		const socketPath = path.join('/tmp', `orchbee-agent-v3-test_${process.pid}_${Date.now()}.sock`);
 		const server = createServer();
-		await new Promise<void>((resolve, reject) => {
-			server.once('error', reject);
-			server.listen(socketPath, resolve);
-		});
 		try {
+			await new Promise<void>((resolve, reject) => {
+				server.once('error', reject);
+				server.listen(socketPath, resolve);
+			});
 			await expect(
 				transport.discoverObservationSockets({ TERM_PROGRAM: 'WarpTerminal' }),
 			).resolves.toEqual([]);
@@ -884,11 +884,11 @@ async function withAckServer(
 		socket.resume();
 		socket.once('end', () => respond(socket));
 	});
-	await new Promise<void>((resolve, reject) => {
-		server.once('error', reject);
-		server.listen(socketPath, resolve);
-	});
 	try {
+		await new Promise<void>((resolve, reject) => {
+			server.once('error', reject);
+			server.listen(socketPath, resolve);
+		});
 		return await send(socketPath, { version: 3 });
 	} finally {
 		for (const socket of connections) socket.destroy();
