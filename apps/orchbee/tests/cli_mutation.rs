@@ -499,7 +499,7 @@ fn project_create_commits_under_a_fresh_request() -> TestResult {
     );
     let document = envelope(&output);
     assert_eq!(document["schema"], "orchbee.mutation.result");
-    assert_eq!(document["version"], 2);
+    assert_eq!(document["version"], 4);
     assert_eq!(document["source"]["kind"], "workbench-command");
     assert_eq!(document["source"]["siteId"], SITE);
     assert_eq!(document["source"]["expectedRevision"], "7");
@@ -573,7 +573,7 @@ fn workspace_create_commits_under_a_fresh_request() -> TestResult {
     );
     let document = envelope(&output);
     assert_eq!(document["schema"], "orchbee.mutation.result");
-    assert_eq!(document["version"], 2);
+    assert_eq!(document["version"], 4);
     assert_eq!(document["source"]["kind"], "workbench-command");
     assert_eq!(document["source"]["siteId"], SITE);
     assert_eq!(document["source"]["expectedRevision"], "7");

@@ -125,7 +125,6 @@
 		"scopeStatus": {
 			"type": "object",
 			"required": ["kind"],
-			"additionalProperties": false,
 			"oneOf": [
 				{
 					"properties": {
@@ -134,7 +133,8 @@
 							"$ref": "#/$defs/closingPhase"
 						}
 					},
-					"required": ["phase"]
+					"required": ["phase"],
+					"additionalProperties": false
 				},
 				{
 					"properties": {
@@ -144,7 +144,8 @@
 						},
 						"resumable": { "type": "boolean" }
 					},
-					"required": ["reason", "resumable"]
+					"required": ["reason", "resumable"],
+					"additionalProperties": false
 				},
 				{
 					"properties": {
@@ -156,7 +157,8 @@
 							"$ref": "#/$defs/unknownReason"
 						}
 					},
-					"required": ["phase", "reason"]
+					"required": ["phase", "reason"],
+					"additionalProperties": false
 				},
 				{
 					"properties": {
@@ -166,7 +168,8 @@
 						},
 						"resumable": { "type": "boolean" }
 					},
-					"required": ["reason", "resumable"]
+					"required": ["reason", "resumable"],
+					"additionalProperties": false
 				},
 				{
 					"properties": {
@@ -175,14 +178,14 @@
 							"$ref": "#/$defs/revision"
 						}
 					},
-					"required": ["revision"]
+					"required": ["revision"],
+					"additionalProperties": false
 				}
 			]
 		},
 		"memberStatus": {
 			"type": "object",
 			"required": ["kind"],
-			"additionalProperties": false,
 			"oneOf": [
 				{
 					"properties": {
@@ -191,7 +194,8 @@
 							"$ref": "#/$defs/closingPhase"
 						}
 					},
-					"required": ["phase"]
+					"required": ["phase"],
+					"additionalProperties": false
 				},
 				{
 					"properties": {
@@ -201,7 +205,8 @@
 						},
 						"resumable": { "type": "boolean" }
 					},
-					"required": ["reason", "resumable"]
+					"required": ["reason", "resumable"],
+					"additionalProperties": false
 				},
 				{
 					"properties": {
@@ -213,7 +218,8 @@
 							"$ref": "#/$defs/unknownReason"
 						}
 					},
-					"required": ["phase", "reason"]
+					"required": ["phase", "reason"],
+					"additionalProperties": false
 				},
 				{
 					"properties": {
@@ -223,7 +229,8 @@
 						},
 						"resumable": { "type": "boolean" }
 					},
-					"required": ["reason", "resumable"]
+					"required": ["reason", "resumable"],
+					"additionalProperties": false
 				}
 			]
 		},
