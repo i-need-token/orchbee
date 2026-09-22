@@ -212,11 +212,14 @@ ghost 日志——其读者只有 `MaxLog` 长度界、`ExecuteControl` 内的 `
 只有三个 `RejectStale*` 守卫与 `ExecutePoll` 的失败分支——这是验证专用的 stale 见证
 拒绝计数，并非产品具有的界。投影 `alpha(X, r) = X` 将其移除。提升方向上，新 trace 映射
 回旧 trace：`Init` 之后先发射至多 `MaxReject` 次 ghost 拒绝使计数饱和；此后新模型的
-`RejectStale*` stutter 对应旧模型计数饱和后的禁用步，新的失败 poll 对应旧的
+`RejectStale*` stutter 对应旧 spec `[][Next]_vars` 始终允许的 stuttering 步——
+`UNCHANGED vars` 自环，包括旧 `RejectStale*` 动作已被饱和计数禁用的状态。新的失败
+poll 对应旧的
 `ExpireInflight` 步（X 更新——清空 `inflight`、保持 `frameCursor` 与 `rec` 不变——完全
 相同），成功 poll 与其余全部 X 动作原样。公平性未加强：`ExpireInflight` 本为弱公平，
-持续非空的 `inflight` 仍会被清空，`Idle` 槽打断弱公平推理所依赖的连续使能链。全部受检
-不变量与 liveness 性质只读 `X` 且不变；模型不再声称产品所没有的拒绝次数上限。这是
+持续非空的 `inflight` 仍会被清空，`Idle` 槽打断弱公平推理所依赖的连续使能链。九个业务
+不变量与 liveness 性质只读 `X` 且不变；`TypeOK` 保留除被移除 ghost 计数分量外的全部
+合取；模型不再声称产品所没有的拒绝次数上限。这是
 可达状态上的双向 fair-trace 投影，不是任意提升或一步强互模拟。
 
 生成的 Rust 状态模型（`terminal_session/state/tests/generated.rs`）对真实 reducer 演练同一

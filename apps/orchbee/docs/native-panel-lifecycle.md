@@ -250,14 +250,17 @@ stuttering successor that still registers in generated coverage. The model once 
 guards and the failure branch of `ExecutePoll` — a verification-only tally of rejected stale
 witnesses, not a bound the product enforces. The projection `alpha(X, r) = X` removes it. In
 the lift direction, a new trace maps onto an old trace by firing the at-most-`MaxReject` ghost
-rejections right after `Init` until the counter saturates; from then on the new `RejectStale*`
-stutters correspond to old steps whose counter bound had disabled them, a new failed poll
+rejections right after `Init` until the counter saturates; from then on each new `RejectStale*`
+stutter corresponds to an old stuttering step — the `UNCHANGED vars` self-loop the old
+`[][Next]_vars` spec always permitted, including in states where the saturated counter had
+disabled the old `RejectStale*` actions themselves. A new failed poll
 corresponds to an old `ExpireInflight` step (the X-update — clear `inflight`, leave
 `frameCursor` and `rec` untouched — is identical), and successful polls plus every other X
 action are unchanged. Fairness is not strengthened: `ExpireInflight` is weak-fair, so a
 continuously occupied `inflight` is still eventually cleared, and the `Idle` slot breaks the
-continuous-enabledness chains weak fairness reasons about. All checked invariants and the
-liveness property read only `X` and are unchanged; the model no longer claims a
+continuous-enabledness chains weak fairness reasons about. The nine business invariants and the
+liveness property read only `X` and are unchanged; `TypeOK` keeps every conjunct except the
+dropped ghost-counter clause; the model no longer claims a
 rejection-count bound the product lacks. This is a two-direction fair-trace projection on
 reachable states, not an arbitrary lift or a one-step strong bisimulation.
 
