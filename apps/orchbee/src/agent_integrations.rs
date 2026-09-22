@@ -49,7 +49,9 @@ mod conformance64;
 #[cfg(all(test, target_os = "linux"))]
 mod exec_witness;
 
-pub(crate) use model::{IntegrationId, Issue, SnapshotItem, State};
+pub(crate) use model::IntegrationId;
+#[cfg(unix)]
+pub(crate) use model::{Issue, SnapshotItem, State};
 
 #[cfg(unix)]
 mod imp {

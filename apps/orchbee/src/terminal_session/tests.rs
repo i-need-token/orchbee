@@ -1,11 +1,11 @@
 use super::state::CarrierFailure;
 mod close_interaction;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 mod close_recovery;
 mod close_retirement;
 mod move_refinements;
 mod rename_interaction;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 mod retired_membership;
 mod retirement_redraw;
 use super::*;
@@ -22,6 +22,7 @@ use orchbee_client_server_protocol::{
     read_client_message, write_server_message,
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
+use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, Envelope, MessageRole, PayloadEncoding, decode_terminal_text_frame,
     encode_transport_envelope, inspect_terminal_frame_route,
@@ -37,7 +38,6 @@ use orchbee_workbench_protocol::{
 };
 use ratatui::{Terminal, backend::TestBackend};
 use std::io::Write;
-use std::os::unix::net::UnixStream;
 use std::{
     num::NonZeroU64,
     sync::{
@@ -558,7 +558,7 @@ fn native_session_with_identity(
     geometry: Geometry,
 ) -> Result<(TerminalSession, Arc<mailbox::CommandMailbox>), Box<dyn std::error::Error>> {
     let shutdown = client.shutdown_handle()?;
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     let origin = client.origin();
     let clock = client.operation_clock();
     let mailbox = Arc::new(mailbox::CommandMailbox::new(
@@ -578,9 +578,9 @@ fn native_session_with_identity(
             task: Some(SessionTask::Native(task)),
             shutdown,
             retirement_redraw_pending: false,
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             origin: Some(origin),
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             recovery_shutdown: None,
         },
         mailbox,
@@ -1853,9 +1853,9 @@ fn input_admission_is_bounded_and_failure_cannot_accept_more_work() -> TestResul
         task: None,
         shutdown: crate::local_client::test_server::shutdown_handle(shutdown),
         retirement_redraw_pending: false,
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", windows))]
         origin: None,
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", windows))]
         recovery_shutdown: None,
     };
     for _ in 0..8 {
@@ -2323,7 +2323,7 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
     Ok(())
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 #[test]
 fn standalone_snapshot_does_not_complete_or_reset_the_startup_deadline() -> TestResult {
     let (sent, received) = mpsc::sync_channel(1);

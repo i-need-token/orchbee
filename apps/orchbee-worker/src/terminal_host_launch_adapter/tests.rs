@@ -1,6 +1,6 @@
+use orchbee_local_ipc::LocalListener as UnixListener;
 use std::{
     num::NonZeroU64,
-    os::unix::net::UnixListener,
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
 };
@@ -498,7 +498,14 @@ fn launch_and_response_values_are_revalidated_at_the_host_protocol_boundary() ->
 #[test]
 fn admitted_site_observation_socket_sets_the_overlay_variable() -> TestResult {
     let directory = ObservationSiteDirectory::new()?;
-    UnixListener::bind(directory.path().join(OBSERVATION_SOCKET_NAME))?;
+    #[cfg(unix)]
+    let endpoint = directory.path().join(OBSERVATION_SOCKET_NAME);
+    #[cfg(windows)]
+    let endpoint =
+        orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous::observation_endpoint_path(
+            directory.path(),
+        );
+    let _listener = UnixListener::bind(&endpoint)?;
     let dispatch = launch_dispatch(None, TerminalLaunchMode::Deferred)?;
 
     let request = map_launch_dispatch(
@@ -507,12 +514,7 @@ fn admitted_site_observation_socket_sets_the_overlay_variable() -> TestResult {
         Some(directory.path()),
     )?;
 
-    let expected = directory
-        .path()
-        .join(OBSERVATION_SOCKET_NAME)
-        .to_str()
-        .expect("fixture path is UTF-8")
-        .to_owned();
+    let expected = endpoint.to_str().expect("UTF-8 fixture").to_owned();
     assert_eq!(
         request.environment_overlay,
         vec![EnvironmentOverlayEntry {
@@ -523,6 +525,7 @@ fn admitted_site_observation_socket_sets_the_overlay_variable() -> TestResult {
     Ok(())
 }
 
+#[cfg(unix)]
 #[test]
 fn unqualified_observation_candidates_produce_no_overlay() -> TestResult {
     let directory = ObservationSiteDirectory::new()?;

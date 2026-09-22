@@ -98,11 +98,11 @@
 			"$ref": "#/$defs/identity"
 		},
 		"cwd": {
-			"title": "Absolute POSIX working directory intent",
+			"title": "Absolute local-platform working directory intent",
 			"type": "string",
 			"minLength": 1,
 			"maxLength": 4096,
-			"pattern": "^/[^\\u0000]*$",
+			"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$",
 			"$comment": "The authoritative 4096 limit is UTF-8 encoded bytes; schema maxLength is an additional necessary code-point bound."
 		},
 		"geometry": {

@@ -6,6 +6,7 @@ use crate::{
 use orchbee_capability_node_protocol::{
     CapabilityNodeMessage, TerminalCwdValidationResult, encode_message, read_message,
 };
+use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_workbench_protocol::{
     Snapshot, SnapshotReadIntent, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchRequest,
     WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotOutcome,
@@ -13,7 +14,6 @@ use orchbee_workbench_protocol::{
 use std::{
     io::Write,
     net::Shutdown,
-    os::unix::net::UnixStream,
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
     time::Duration,

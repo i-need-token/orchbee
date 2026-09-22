@@ -47,7 +47,7 @@ use tab_rename::RenameFlight;
 pub(super) use tab_rename::{RenameMarker, RenameSettlement};
 mod tab_close_reconciliation;
 use tab_close::CloseFlight;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(super) use tab_close::RetiredMailboxSeed;
 pub(super) use tab_close::{CloseAdmissionError, CloseMarker};
 use tab_close_reconciliation::CloseReconciliationFlight;

@@ -1,4 +1,5 @@
 use super::*;
+use orchbee_local_ipc::LocalStream as UnixStream;
 mod interleavings;
 use crate::{
     site_coordinator::PreparedTerminalTabCreate,
@@ -20,7 +21,6 @@ use orchbee_workbench_protocol::{
 };
 use std::{
     num::NonZeroU64,
-    os::unix::net::UnixStream,
     sync::{Arc, Mutex, mpsc},
     thread,
 };

@@ -4,14 +4,15 @@ use crate::{
     local_terminal_service::LocalTerminalService,
     worker_registry::WorkerRegistry,
 };
+use orchbee_local_ipc::LocalListener as UnixListener;
 use orchbee_local_site_runtime::{
-    LockAttempt, ModeCheckedLocalSiteRendezvous, NativeArtifact, NativeCohort, RetainedChild,
+    LockAttempt, ModeCheckedLocalSiteRendezvous, NativeArtifact, NativeCohort,
 };
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::{
     io,
-    os::unix::{fs::PermissionsExt, net::UnixListener},
     path::Path,
-    process::{Command, Stdio},
     sync::{Arc, Mutex},
     thread,
     time::{Duration, Instant},
@@ -31,6 +32,7 @@ pub(super) fn run(runtime: &Path) -> io::Result<()> {
     else {
         return Err(io::Error::other("Site lifetime is already owned"));
     };
+    #[cfg(unix)]
     nix::unistd::setsid()?;
     // The observation endpoint binds and starts before the Worker socket
     // or any emitter can exist; a bind/start failure fails the whole Site
@@ -48,21 +50,17 @@ pub(super) fn run(runtime: &Path) -> io::Result<()> {
     )?);
     let _endpoint = bound.start(Arc::clone(&agents));
     let listener = UnixListener::bind(site.worker_socket_path())?;
+    #[cfg(unix)]
     std::fs::set_permissions(
         site.worker_socket_path(),
         std::fs::Permissions::from_mode(0o600),
     )?;
     listener.set_nonblocking(true)?;
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
-    let mut worker = RetainedChild::new(
-        Command::new(cohort.executable(NativeArtifact::Worker))
-            .arg("--local-site")
-            .arg(runtime)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()?,
-    );
+    let mut worker = orchbee_local_site_runtime::spawn_retained(
+        &cohort.executable(NativeArtifact::Worker),
+        &[std::ffi::OsStr::new("--local-site"), runtime.as_os_str()],
+    )?;
     loop {
         if Instant::now() >= deadline {
             return Err(io::ErrorKind::TimedOut.into());

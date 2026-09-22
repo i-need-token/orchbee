@@ -1,7 +1,10 @@
-#![cfg(unix)]
+#[cfg(windows)]
+use orchbee_local_ipc::LocalStream as UnixStream;
+use std::io;
+#[cfg(unix)]
+use std::os::unix::net::UnixStream;
 
-use std::{io, os::unix::net::UnixStream};
-
+#[cfg(unix)]
 pub fn require_same_effective_user(stream: &UnixStream) -> io::Result<()> {
     let current_user = nix::unistd::geteuid();
     let peer_user = peer_effective_user(stream)?;
@@ -34,18 +37,26 @@ fn peer_effective_user(stream: &UnixStream) -> io::Result<u32> {
     Ok(user.as_raw())
 }
 
-#[cfg(not(any(
-    target_os = "linux",
-    target_os = "android",
-    target_vendor = "apple",
-    target_os = "freebsd",
-    target_os = "dragonfly",
-    target_os = "netbsd",
-    target_os = "openbsd"
-)))]
+#[cfg(all(
+    unix,
+    not(any(
+        target_os = "linux",
+        target_os = "android",
+        target_vendor = "apple",
+        target_os = "freebsd",
+        target_os = "dragonfly",
+        target_os = "netbsd",
+        target_os = "openbsd"
+    ))
+))]
 fn peer_effective_user(_stream: &UnixStream) -> io::Result<u32> {
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
         "local peer credentials are unsupported on this Unix target",
     ))
+}
+
+#[cfg(windows)]
+pub fn require_same_effective_user(stream: &UnixStream) -> io::Result<()> {
+    stream.require_same_user()
 }

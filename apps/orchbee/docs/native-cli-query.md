@@ -94,8 +94,8 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
   label under protocol validation (nonempty, within the protocol label bound); a missing,
   empty, or overlong label is `invalid-usage`.
 - `--path <path>`: single-use value flag, required on `workspace accept-directory` and valid
-  nowhere else. The value is a `WorkbenchDirectoryPath`: a literal absolute POSIX path
-  (leading `/`) of at most 4,096 UTF-8 bytes without NUL. The CLI never expands `~` or `$`,
+  nowhere else. The value is a `WorkbenchDirectoryPath`: a literal absolute local-platform path
+  (POSIX `/` or an absolute Windows drive path) of at most 4,096 UTF-8 bytes without NUL. The CLI never expands `~` or `$`,
   never creates or repairs the directory, and never probes the filesystem — a missing,
   relative, NUL-bearing, or overlong value is `invalid-usage` before any runtime access, and
   every filesystem fact is the Server's authority after submission.

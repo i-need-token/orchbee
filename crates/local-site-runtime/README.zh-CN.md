@@ -188,3 +188,21 @@ Primitive 自身不选择应用启动策略、不重试、不移除陈旧端点�
 | 所有权 | 本 crate 拥有派生和准入。Client 选择开发 base/scope，拥有激活 guard 和标记提交；Server 拥有生命周期 guard。                                                                                                                                         |
 | 验证   | Scope/path 分区、符号链接/硬链接/FIFO 拒绝、错误所有者/mode、限制性 umask 初始化、保留所有者位的并发创建、陈旧 inode 保留、竞争/重新获取、标记排他性和 socket 冒充。Linux ACL 测试在保留精确 0700/0600 mode 的同时增加命名访问 ACL 或目录默认 ACL。 |
 | 限制   | 单个有效用户；错误所有者测试注入 expected UID。信任内核元数据与 advisory lock。并发创建要求保留所有者位的 umask。Durable 表示不 unlink/truncate，并非 fsync。协作式截止时间排除内核阻塞和进程暂停。模型不证明文件系统或内核语义。                   |
+
+## Windows 细化
+
+Windows 原生适配保留相同的激活锁、生命周期锁和不可变尝试标记状态机。
+绝对本地路径必须先拒绝重解析点，并保留不允许共享删除的目录句柄。
+运行时父目录和末级目录必须归令牌用户所有，DACL 只能向该用户、SYSTEM
+或 Administrators 授权。新建目录设置受保护且可继承的 DACL；已有不安全
+对象直接拒绝，绝不修复。命名管道地址由规范运行时路径派生，默认 scope 以令牌 SID 为键；
+Host 标识使用相同路径摘要，避免不同 Site 冲突。连接准入仍证明对端令牌用户。
+管道存在只是参考事实，不证明就绪或进程健康。Windows 可执行文件使用精确
+的 `.exe` 同级路径，并遵循现有 cohort 清单摘要规则。子进程使用原生分离创建标志并禁止句柄继承，在 Client 断开后继续由 Site 持有。
+
+安全的 `windows-permissions` 依赖负责 `std` 无法表达的描述符和 ACL 查询。
+`winapi-util` 提供基于句柄的硬链接数，`winsafe` 提供禁止继承的进程创建及精确等待/退出观察。
+其 WinAPI FFI 和旧版 bitflags 依赖仍位于自有 unsafe 代码禁令之外；不引入
+异步运行时或通过 Shell 探测安全属性。原生测试覆盖 ACL 拒绝、硬链接及联接点
+拒绝、标记独占、锁争用、端点隔离和 cohort 篡改。这是自行审查的细化，并非
+独立审查；挑战场景包括已有宽松 ACL、路径替换、重复启动和管道冒充。

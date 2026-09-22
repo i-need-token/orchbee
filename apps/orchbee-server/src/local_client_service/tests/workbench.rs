@@ -7,13 +7,13 @@ use crate::{
     worker_registry::WorkerRegistry,
 };
 use orchbee_local_client_protocol::{ClientHello, LocalClientMessage, read_message, write_message};
+use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_workbench_protocol::{
     WorkbenchCommandOutcome, WorkbenchResponse, WorkbenchSnapshotOutcome, parse_workbench_request,
     read_workbench_response, write_workbench_request,
 };
 use std::{
     io,
-    os::unix::net::UnixStream,
     sync::{Arc, Mutex},
     thread,
     time::Duration,

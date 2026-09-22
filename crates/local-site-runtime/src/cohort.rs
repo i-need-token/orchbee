@@ -1,3 +1,4 @@
+#[cfg(unix)]
 use nix::{
     fcntl::{OFlag, openat},
     sys::stat::{Mode, SFlag, fstat},
@@ -12,6 +13,7 @@ use std::{
     time::Instant,
 };
 
+#[cfg(unix)]
 use crate::rendezvous::{open_runtime_base, validate_directory};
 
 const MANIFEST_LIMIT: u64 = 16 * 1024;
@@ -33,6 +35,16 @@ pub enum NativeArtifact {
 }
 impl NativeArtifact {
     pub const fn file_name(self) -> &'static str {
+        #[cfg(windows)]
+        {
+            match self {
+                Self::Client => "orchbee.exe",
+                Self::Server => "orchbee-server.exe",
+                Self::Worker => "orchbee-worker.exe",
+                Self::TerminalHost => "orchbee-terminal-host.exe",
+            }
+        }
+        #[cfg(unix)]
         match self {
             Self::Client => "orchbee",
             Self::Server => "orchbee-server",
@@ -115,9 +127,16 @@ impl NativeCohort {
     }
     pub fn load(directory: &Path, deadline: Instant) -> io::Result<Self> {
         remaining(deadline)?;
+        #[cfg(unix)]
         let descriptor = open_runtime_base(directory).map_err(io::Error::other)?;
+        #[cfg(unix)]
         validate_directory(&descriptor, directory, geteuid().as_raw(), None)
             .map_err(io::Error::other)?;
+        #[cfg(windows)]
+        let descriptor = WindowsCohortDirectory {
+            path: directory.to_owned(),
+            _handles: crate::windows_permissions::open_tree(directory)?,
+        };
         let mut encoded = Vec::new();
         open_file(&descriptor, "cohort.json", false)?
             .take(MANIFEST_LIMIT + 1)
@@ -181,6 +200,7 @@ impl NativeCohort {
         &self.observation_adapters
     }
 }
+#[cfg(unix)]
 fn open_file(directory: &std::os::fd::OwnedFd, name: &str, executable: bool) -> io::Result<File> {
     let fd = openat(
         directory,
@@ -229,5 +249,19 @@ fn incompatible() -> io::Error {
     )
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests;
+
+#[cfg(windows)]
+struct WindowsCohortDirectory {
+    path: PathBuf,
+    _handles: Vec<File>,
+}
+#[cfg(windows)]
+fn open_file(
+    directory: &WindowsCohortDirectory,
+    name: &str,
+    _executable: bool,
+) -> io::Result<File> {
+    crate::windows_permissions::open_file(&directory.path.join(name), false, false)
+}

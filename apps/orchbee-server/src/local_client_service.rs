@@ -1,6 +1,10 @@
+use orchbee_local_ipc::{LocalListener as UnixListener, LocalStream as UnixStream};
+#[cfg(unix)]
+use std::fs;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::{
-    fs, io,
-    os::unix::{fs::PermissionsExt, net::UnixListener, net::UnixStream},
+    io,
     path::Path,
     sync::{Arc, Mutex},
     thread,
@@ -33,12 +37,13 @@ pub(crate) fn start(
     terminals: Arc<LocalTerminalService>,
 ) -> io::Result<thread::JoinHandle<io::Result<()>>> {
     let listener = UnixListener::bind(endpoint)?;
+    #[cfg(unix)]
     fs::set_permissions(endpoint, fs::Permissions::from_mode(0o600))?;
     let agents = Arc::new(AgentService::open(AgentPolicy { read: true })?);
     start_listener(listener, expected_cohort, terminals, agents)
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn start_managed(
     endpoint: &Path,
     expected_cohort: &str,
@@ -61,6 +66,7 @@ fn bind_managed(endpoint: &Path) -> io::Result<UnixListener> {
     )?;
     let pending = parent.join(CLIENT_PENDING_SOCKET_NAME);
     let listener = UnixListener::bind(&pending)?;
+    #[cfg(unix)]
     fs::set_permissions(&pending, fs::Permissions::from_mode(0o600))?;
     renameat2(
         &directory,
@@ -320,3 +326,8 @@ impl Drop for ConnectionSlot {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(windows)]
+fn bind_managed(endpoint: &Path) -> io::Result<UnixListener> {
+    UnixListener::bind(endpoint)
+}

@@ -3,9 +3,9 @@ mod agent_integrations;
 mod cli;
 mod client_view;
 mod invocation;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 mod local_activation;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 #[cfg_attr(
     not(test),
     expect(
@@ -14,38 +14,42 @@ mod local_activation;
     )
 )]
 mod local_client;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 mod local_startup;
 mod localization;
 mod presentation;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod startup_wait;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod terminal_device;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod terminal_input;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod terminal_lifecycle;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod terminal_projection;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod terminal_session;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod terminal_text;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod termination_signal;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod tui_backend;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod tui_layout;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod tui_pointer;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod tui_render;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod tui_shell;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod tui_theme;
+#[cfg(windows)]
+mod windows_console_input;
+#[cfg(windows)]
+mod windows_signal;
 
 use std::{
     env,
@@ -58,13 +62,13 @@ use localization::{Locale, select_locale};
 use presentation::{ProcessResult, present};
 
 // Keep the additive shell integration seam type-checked without making it an invocation route.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 const _: fn(localization::Locale, bool) -> Result<(), tui_shell::TuiFailure> = tui_shell::run;
 
 fn main() -> ExitCode {
     let locale = select_locale(|name| env::var_os(name));
     let parsed = parse_request(env::args_os().skip(1));
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     if let Ok(invocation::Request::Tui { mouse }) = &parsed {
         return match local_startup::run(locale, *mouse) {
             Ok(()) => ExitCode::SUCCESS,
@@ -396,3 +400,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(all(test, windows))]
+mod test_support;

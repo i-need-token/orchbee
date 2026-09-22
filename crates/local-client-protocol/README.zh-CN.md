@@ -129,3 +129,7 @@ cargo clippy -p orchbee-local-client-protocol --all-targets --all-features --loc
 node scripts/tla/run-models.mjs --models local-client-admission,local-client-sessions,local-client-sessions-obcs
 pnpm verify
 ```
+
+## Windows 准入
+
+Windows 使用 `orchbee-local-ipc` 本地命名管道承载相同的 OBLC 消息。适配器在发送 hello 前证明对端令牌用户，连接、读取和写入共用调用方的绝对截止时间，并通过借用的就绪源观察取消。它不启动或重试 Site。管道名称和权限归运行时与传输所有者负责；OBCS/OBWP 分帧不变。

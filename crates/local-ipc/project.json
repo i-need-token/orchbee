@@ -1,0 +1,11 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "local-ipc",
+	"runtime": ["native"],
+	"stability": "experimental",
+	"responsibility": "Windows local named-pipe byte transport and kernel-backed peer identity for native Client, Server, and Worker consumers.",
+	"nonGoals": [
+		"Owning protocol framing, domain state, process launch, runtime discovery, or terminal permissions.",
+		"Providing remote transport, encryption, a public compatibility surface, or Unix implementation changes."
+	]
+}

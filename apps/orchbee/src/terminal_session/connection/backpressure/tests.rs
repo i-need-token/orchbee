@@ -7,10 +7,8 @@ use orchbee_client_server_protocol::{
     write_server_message,
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
-use std::{
-    io::{self, Read},
-    os::unix::net::UnixStream,
-};
+use orchbee_local_ipc::LocalStream as UnixStream;
+use std::io::{self, Read};
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 const ID: &str = "11111111111111111111111111111111";

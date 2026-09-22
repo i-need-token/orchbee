@@ -11,6 +11,7 @@
 //! created through the native Instant funnel — outside the endpoint
 //! thread — must still settle through the capped poll, with no manual
 //! tick and no connection wake.
+use orchbee_local_ipc::LocalStream as UnixStream;
 
 use std::{
     collections::VecDeque,
@@ -18,7 +19,6 @@ use std::{
     io::{self, Read, Write},
     net::Shutdown,
     num::NonZeroU64,
-    os::unix::net::UnixStream,
     path::PathBuf,
     sync::{
         Arc,

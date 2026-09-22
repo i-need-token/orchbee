@@ -13,7 +13,6 @@ use crate::{
     tui_shell,
 };
 use std::{
-    fs::File,
     io::{self, Write},
     sync::mpsc::{self, Sender},
     thread::{self, JoinHandle},
@@ -80,9 +79,9 @@ fn await_geometry(inherited: &InheritedTerminal, locale: Locale, deadline: Insta
     let (termination, input, output) = match (
         TerminationSignal::install(),
         InheritedWaitInput::open(inherited),
-        inherited.duplicate_output(),
+        inherited.output(),
     ) {
-        (Ok(termination), Ok(input), Ok(output)) => (termination, input, File::from(output)),
+        (Ok(termination), Ok(input), Ok(output)) => (termination, input, output),
         _ => {
             return StartupWait::Fault(io::Error::other(
                 "the inherited terminal could not arm the startup wait",

@@ -8,8 +8,17 @@ use std::{
 /// Parent exit transfers orphan ownership to the operating system.
 pub struct RetainedChild(Option<Child>);
 impl RetainedChild {
-    pub fn new(child: Child) -> Self {
-        Self(Some(child))
+    pub(super) fn spawn(
+        executable: &std::path::Path,
+        arguments: &[&std::ffi::OsStr],
+    ) -> io::Result<Self> {
+        let child = std::process::Command::new(executable)
+            .args(arguments)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()?;
+        Ok(Self(Some(child)))
     }
     pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
         match self.0.as_mut() {

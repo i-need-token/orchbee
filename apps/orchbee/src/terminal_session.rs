@@ -10,9 +10,10 @@ use orchbee_client_server_protocol::Geometry;
 use orchbee_client_server_protocol::{
     ControlInput, RequestId, TerminalViewerAction, WorkingDirectory,
 };
+#[cfg(test)]
+use std::io::Read;
 use std::{
-    fs::File,
-    io::{self, Read},
+    io,
     sync::Arc,
     thread::{self, JoinHandle},
 };
@@ -24,7 +25,7 @@ mod agent_board;
 mod connection;
 mod mailbox;
 pub(crate) mod state;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 mod status_recovery;
 mod terminal_viewport;
 mod ui;
@@ -137,9 +138,9 @@ pub(crate) struct TerminalSession {
     task: Option<SessionTask>,
     shutdown: LocalClientShutdown,
     retirement_redraw_pending: bool,
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     origin: Option<crate::local_client::LocalClientOrigin>,
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     recovery_shutdown: Option<connection::RecoveryShutdown>,
 }
 
@@ -154,7 +155,7 @@ impl TerminalSession {
         let identity_seed = random_identity_seed()?;
         match intent {
             TerminalIntent::Standalone => {
-                #[cfg(target_os = "linux")]
+                #[cfg(any(target_os = "linux", windows))]
                 let origin = client.origin();
                 let mailbox = Arc::new(mailbox::CommandMailbox::new(identity_seed, geometry));
                 let worker_mailbox = Arc::clone(&mailbox);
@@ -165,16 +166,16 @@ impl TerminalSession {
                 // The Agent board's read lane reconnects on its own admitted
                 // session so an OBAP ambiguity retires the lane, never the
                 // primary carrier.
-                #[cfg(target_os = "linux")]
+                #[cfg(any(target_os = "linux", windows))]
                 native.set_agent_board_origin(origin.clone());
                 Ok(Self {
                     backend: SessionBackend::Native(Box::new(native)),
                     task: Some(SessionTask::Native(task)),
                     shutdown,
                     retirement_redraw_pending: false,
-                    #[cfg(target_os = "linux")]
+                    #[cfg(any(target_os = "linux", windows))]
                     origin: Some(origin),
-                    #[cfg(target_os = "linux")]
+                    #[cfg(any(target_os = "linux", windows))]
                     recovery_shutdown: None,
                 })
             }
@@ -235,14 +236,14 @@ impl TerminalSession {
             task: Some(SessionTask::Legacy(task)),
             shutdown,
             retirement_redraw_pending: false,
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             origin: None,
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             recovery_shutdown: None,
         })
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     pub(crate) fn startup_draw_ready(&mut self) -> bool {
         self.tick();
         matches!(&self.backend, SessionBackend::Native(native) if native.startup_draw_ready())
@@ -312,11 +313,11 @@ impl TerminalSession {
             return;
         }
         let _closed = self.shutdown.close();
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", windows))]
         if let Some(shutdown) = self.recovery_shutdown.take() {
             shutdown.close();
         }
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", windows))]
         let mut retired_poll = None;
         let (
             pending_create,
@@ -329,7 +330,7 @@ impl TerminalSession {
             Some(SessionTask::Native(task)) => match task.join() {
                 Ok(returned) => {
                     let mut returned = returned;
-                    #[cfg(target_os = "linux")]
+                    #[cfg(any(target_os = "linux", windows))]
                     {
                         retired_poll = returned.take_unavailable_poll();
                     }
@@ -379,7 +380,7 @@ impl TerminalSession {
         // The UI can admit the next wizard command after settling the previous result,
         // while that previous worker lease is still returning. Preserve both identities.
         let queued_setup_return = native.setup_worker_loss();
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", windows))]
         let clean_return = pending_create.is_none()
             && pending_move.is_none()
             && pending_panel.is_none()
@@ -390,12 +391,12 @@ impl TerminalSession {
         let rename_accepted = native.finalize_rename_worker(rename_return);
         let setup_accepted = native.finalize_setup_worker(setup_return);
         let queued_setup_accepted = native.finalize_setup_worker(queued_setup_return);
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", windows))]
         native.finish_retired_peer_join(
             retired_poll,
             clean_return && rename_accepted && setup_accepted && queued_setup_accepted,
         );
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(not(any(target_os = "linux", windows)))]
         let _accepted_setup_and_rename = (rename_accepted, setup_accepted, queued_setup_accepted);
         let _accepted =
             native.finalize_retirement(pending_create, pending_move, pending_panel, close_return);
@@ -603,7 +604,7 @@ impl TerminalInputPort for TerminalSession {
     }
 
     fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", windows))]
         if action == ClientAction::OpenWorkbenchNavigator
             && self.task.is_none()
             && self.start_status_recovery()
@@ -817,7 +818,7 @@ impl LegacySession {
 
 fn random_identity_seed() -> io::Result<u128> {
     let mut seed = [0_u8; 16];
-    File::open("/dev/urandom")?.read_exact(&mut seed)?;
+    getrandom::fill(&mut seed).map_err(|error| io::Error::other(error.to_string()))?;
     Ok(u128::from_be_bytes(seed))
 }
 

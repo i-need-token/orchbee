@@ -6,13 +6,16 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
+getrandom.workspace = true
+orchbee-local-ipc = { path = "../../crates/local-ipc" }
+orchbee-local-site-runtime = { path = "../../crates/local-site-runtime" }
+
 orchbee-capability-node-protocol = { path = "../../crates/capability-node-protocol" }
 orchbee-local-peer-credentials = { path = "../../crates/local-peer-credentials" }
 orchbee-local-site-protocol = { path = "../../crates/local-site-protocol" }
 orchbee-terminal-protocol = { path = "../../crates/terminal-protocol" }
 
 [target.'cfg(unix)'.dependencies]
-orchbee-local-site-runtime = { path = "../../crates/local-site-runtime" }
 nix = { workspace = true, features = ["fs", "poll", "socket", "user"] }
 
 [target.'cfg(target_os = "linux")'.dev-dependencies]

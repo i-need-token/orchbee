@@ -1,9 +1,9 @@
+use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
     cell::RefCell,
     error::Error,
     io,
     num::NonZeroU64,
-    os::unix::net::UnixStream,
     rc::Rc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -23,9 +23,9 @@ use crate::{
 };
 
 mod launch_facts;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 mod lazy;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) use lazy::run as run_lazy;
 mod server_transport;
 

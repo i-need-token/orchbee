@@ -1,5 +1,6 @@
 use std::fmt;
 
+#[cfg_attr(windows, path = "default_interactive_launch/windows.rs")]
 mod native;
 
 #[derive(Clone, Debug, Eq, PartialEq)]

@@ -27,7 +27,7 @@ mod move_tab;
 mod panel;
 mod panel_close;
 pub(super) mod rename_draft;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(super) mod retired_membership;
 mod switch_membership;
 mod tab_close;

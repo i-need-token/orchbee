@@ -8,13 +8,13 @@ use orchbee_capability_node_protocol::{
     HostTerminalIdentity, TerminalLaunchMode, TerminalLaunchOutcome, TerminalLaunchResult,
     WorkerGeneration,
 };
+use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchLabel,
     WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse, WorkbenchSnapshotOutcome,
     WorkbenchTerminalGeometry,
 };
 use std::num::NonZeroU64;
-use std::os::unix::net::UnixStream;
 use std::sync::{Arc, Mutex};
 use std::thread;
 

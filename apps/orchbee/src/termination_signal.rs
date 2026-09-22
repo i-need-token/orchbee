@@ -36,6 +36,8 @@ pub(crate) trait TerminationSource {
 }
 
 pub(crate) struct TerminationSignal {
+    #[cfg(windows)]
+    interrupt: crate::windows_signal::ControlInterrupt,
     #[cfg(unix)]
     registrations: Vec<SigId>,
     #[cfg(unix)]
@@ -63,7 +65,13 @@ impl TerminationSignal {
             Ok(monitor)
         }
 
-        #[cfg(not(unix))]
+        #[cfg(windows)]
+        {
+            Ok(Self {
+                interrupt: crate::windows_signal::ControlInterrupt::arm()?,
+            })
+        }
+        #[cfg(not(any(unix, windows)))]
         {
             Ok(Self {})
         }
@@ -77,7 +85,11 @@ impl TerminationSource for TerminationSignal {
             self.signal.load(Ordering::Relaxed) != 0
         }
 
-        #[cfg(not(unix))]
+        #[cfg(windows)]
+        {
+            self.interrupt.requested()
+        }
+        #[cfg(not(any(unix, windows)))]
         {
             false
         }
@@ -93,5 +105,5 @@ impl Drop for TerminationSignal {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests;

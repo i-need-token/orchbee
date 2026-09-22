@@ -1,8 +1,8 @@
+use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
     cell::RefCell,
     error::Error,
     io::{self, Read, Write},
-    os::unix::net::UnixStream,
     path::Path,
     rc::Rc,
     time::Duration,
@@ -19,7 +19,7 @@ use orchbee_terminal_protocol::{
 
 use crate::agent_drain::AgentDrain;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 mod admission;
 
 mod events;
@@ -61,7 +61,7 @@ pub(crate) struct NegotiatedHostLimits {
 }
 
 impl HostBrokerConnection {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     pub(crate) fn connect_before(
         endpoint: &Path,
         deadline: std::time::Instant,

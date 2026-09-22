@@ -11,7 +11,8 @@ pub(crate) mod schema;
 pub(crate) mod send;
 mod site;
 mod site_diagnose;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
+#[cfg_attr(windows, path = "cli/source_windows.rs")]
 pub(crate) mod source;
 mod text;
 
@@ -46,12 +47,14 @@ pub(crate) struct Output {
 /// platforms, and no path may drop it without releasing it.
 #[must_use = "the owed finalization must be released by the common emit finalizer"]
 pub(crate) struct SourceFinalization {
+    #[cfg(windows)]
+    interrupt: crate::windows_signal::ControlInterrupt,
     /// The thread mask captured before the source guard armed.
     #[cfg(target_os = "linux")]
     old_mask: nix::sys::signal::SigSet,
     /// Test-only mock seam: `release` reports a kernel failure so the emit
     /// finalizer's error routing is provable without a real mask fault.
-    #[cfg(test)]
+    #[cfg(all(test, target_os = "linux"))]
     fail_release: bool,
 }
 
@@ -88,7 +91,7 @@ impl SourceFinalization {
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 impl SourceFinalization {
     /// Unreachable on non-Linux: the token is never constructed there.
     pub(crate) fn release(self) -> Result<(), std::convert::Infallible> {
@@ -241,7 +244,7 @@ impl Failure {
     /// Retain the observed I/O kind (and OS error number when one exists) for
     /// the localized stderr diagnostic. Only the Linux native-cohort check
     /// produces this today.
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     pub(crate) fn io_diagnostic(mut self, error: &std::io::Error) -> Self {
         self.io_diagnostic = Some(Box::new(IoDiagnostic {
             kind: error.kind(),
@@ -321,7 +324,7 @@ pub(crate) fn failure_output(
 /// yet. The caller's selected format still decides whether stdout carries
 /// the document; the status is explicit since a handled source interruption
 /// exits with the conventional `128 + signo`, not a kind-derived code.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn source_failure_output(
     failure: Failure,
     status: u8,
@@ -598,7 +601,7 @@ fn agent_output(
             locale,
         ),
         // Only the Linux signal owner constructs `Cancelled`.
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", windows))]
         Err(query::AgentQueryError::Cancelled(cancelled)) => {
             let query::AgentCancelled {
                 failure,
@@ -685,5 +688,16 @@ fn success_output(
                 Err(output::TooLarge) => too_large(&source),
             }
         }
+    }
+}
+
+#[cfg(windows)]
+impl SourceFinalization {
+    fn new(interrupt: crate::windows_signal::ControlInterrupt) -> Self {
+        Self { interrupt }
+    }
+    pub(crate) fn release(self) -> std::io::Result<()> {
+        drop(self.interrupt);
+        Ok(())
     }
 }

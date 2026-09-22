@@ -212,3 +212,27 @@ application startup policy, retry, remove stale endpoints, or grant recovery aut
 | Ownership    | This crate owns derivation and admission. Client chooses the development base/scope and owns the activation guard and marker commit; Server owns the lifetime guard.                                                                                                                                                                                  |
 | Verification | Scope/path partitions, symlink/hardlink/FIFO rejection, wrong owner/mode, restrictive-umask initialization, concurrent owner-preserving creation, stale inode preservation, contention/reacquisition, marker exclusivity and socket impostors. Linux ACL tests retain exact 0700/0600 modes while adding named access ACLs or directory default ACLs. |
 | Limits       | One effective user; wrong-owner tests inject the expected UID. Kernel metadata and advisory locks are trusted. Concurrent creation requires owner-preserving umask. Durable means no unlink/truncate, not fsync. Cooperative deadlines exclude kernel stalls and process suspension. The model does not prove filesystem or kernel semantics.         |
+
+## Windows refinement
+
+The native Windows adapter keeps the same activation/lifetime-lock and immutable
+attempt-marker state machine. It admits an absolute local path only after
+rejecting reparse points and retaining directory handles without delete sharing.
+The runtime parent and leaf must be owned by the token user with a DACL granting
+access only to that user, SYSTEM, or Administrators. Newly created leaves receive
+a protected inheritable DACL; existing unsafe entries are rejected, never repaired.
+Named-pipe addresses are derived from the canonical runtime path; the default scope is keyed by the token SID.
+Host identities use the same path digest so different Sites cannot collide. Connection
+admission still proves the peer's token user. Pipe existence is advisory and never
+proves readiness or process health. Windows executables use exact `.exe` siblings
+and the existing cohort manifest digest rules. Child processes use detached,
+native creation flags with handle inheritance disabled and remain owned by the Site after Client detach.
+
+The safe `windows-permissions` dependency owns descriptor/ACL queries that `std`
+cannot express. `winapi-util` supplies handle-based hard-link counts; `winsafe` supplies
+non-inheriting process creation and exact wait/exit observation. Its WinAPI FFI and legacy bitflags dependency remain outside the
+authored unsafe-code prohibition; no async runtime or shell-based security probe
+is introduced. Native tests cover ACL rejection, hard-link and junction refusal, marker
+exclusivity, lock contention, distinct endpoints, and cohort tampering. This is a
+self-reviewed refinement, not an independent review: the challenge cases include
+existing broad ACLs, path replacement, duplicate starts, and pipe impersonation.

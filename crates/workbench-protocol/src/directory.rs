@@ -10,7 +10,7 @@ pub struct WorkbenchDirectoryPathError;
 impl fmt::Display for WorkbenchDirectoryPathError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(
-            "directory path must be an absolute POSIX UTF-8 path of 1 through 4096 bytes without NUL",
+            "directory path must be an absolute local-platform UTF-8 path of 1 through 4096 bytes without NUL",
         )
     }
 }
@@ -22,7 +22,7 @@ pub struct WorkbenchDirectoryPath(String);
 
 impl WorkbenchDirectoryPath {
     pub fn parse(value: &str) -> Result<Self, WorkbenchDirectoryPathError> {
-        if !value.starts_with('/')
+        if !is_absolute_path(value.as_bytes())
             || value.len() > MAXIMUM_DIRECTORY_PATH_BYTES
             || value.contains('\0')
         {
@@ -47,5 +47,44 @@ impl<'de> Deserialize<'de> for WorkbenchDirectoryPath {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = String::deserialize(deserializer)?;
         Self::parse(&value).map_err(de::Error::custom)
+    }
+}
+
+/// Platform-independent wire syntax; the execution owner validates local meaning.
+/// Windows admits drive-absolute paths, including verbatim drive paths. No UNC,
+/// device namespace, drive-relative, or current-drive-rooted backslash spelling.
+pub(crate) fn is_absolute_path(value: &[u8]) -> bool {
+    if value.first() == Some(&b'/') {
+        return true;
+    }
+    let drive = value.strip_prefix(br"\\?\").unwrap_or(value);
+    matches!(drive, [letter, b':', b'\\' | b'/', ..] if letter.is_ascii_alphabetic())
+}
+
+#[cfg(test)]
+#[test]
+fn windows_wire_paths_preserve_spelling_and_reject_ambiguous_roots() {
+    for value in [
+        r"C:\",
+        r"c:/work/../工作",
+        r"\\?\C:\work with spaces",
+        "/work",
+    ] {
+        assert_eq!(
+            WorkbenchDirectoryPath::parse(value).unwrap().as_str(),
+            value
+        );
+    }
+    for value in [
+        "",
+        "relative",
+        "C:",
+        r"C:work",
+        r"\work",
+        r"\\server\share",
+        r"\\.\pipe\x",
+        r"\\?\UNC\server\share",
+    ] {
+        assert!(WorkbenchDirectoryPath::parse(value).is_err(), "{value}");
     }
 }

@@ -1,8 +1,8 @@
+use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
     error::Error,
     net::Shutdown,
     num::NonZeroU64,
-    os::unix::net::UnixStream,
     time::{Duration, Instant},
 };
 

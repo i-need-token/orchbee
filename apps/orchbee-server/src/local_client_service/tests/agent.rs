@@ -3,11 +3,11 @@
 //! exchange — against a canonical runtime seeded only through real event
 //! dispatch. The runtime-owner drop exercises the same disposal path the
 //! listener guard runs when the accept loop ends.
+use orchbee_local_ipc::LocalStream as UnixStream;
 
 use std::{
     fs,
     io::{self, Write},
-    os::unix::net::UnixStream,
     sync::{
         Arc,
         atomic::{AtomicU32, Ordering},
@@ -67,7 +67,10 @@ fn a_real_listener_serves_seeded_agent_reads_over_the_socket() -> io::Result<()>
         ENDPOINT_COUNTER.fetch_add(1, Ordering::Relaxed)
     ));
     fs::create_dir_all(&directory)?;
+    #[cfg(unix)]
     let endpoint = directory.join("client.sock");
+    #[cfg(windows)]
+    let endpoint = crate::test_support::endpoint();
     let agents = agent_harness::seeded(&[
         agent_harness::session_observed("sock.a", 1.0),
         agent_harness::turn_started("sock.a", "turn-1", "thinking", 1.0, 2.0),
@@ -212,7 +215,10 @@ fn a_real_listener_reports_the_genuine_empty_state() -> io::Result<()> {
         ENDPOINT_COUNTER.fetch_add(1, Ordering::Relaxed)
     ));
     fs::create_dir_all(&directory)?;
+    #[cfg(unix)]
     let endpoint = directory.join("client.sock");
+    #[cfg(windows)]
+    let endpoint = crate::test_support::endpoint();
     let agents = agent_harness::seeded(&[])?;
     let _listener = agent_harness::listen(&endpoint, "agent-test-cohort", agents)?;
 

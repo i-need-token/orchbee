@@ -89,7 +89,7 @@
 			"type": "string",
 			"minLength": 1,
 			"maxLength": 4096,
-			"pattern": "^/[^\\u0000\\uD800-\\uDFFF]*$"
+			"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000\\uD800-\\uDFFF]*$"
 		},
 		"presentationBinding": {
 			"type": "object",

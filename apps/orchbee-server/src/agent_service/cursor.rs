@@ -1,7 +1,7 @@
 //! Server-private minting and verification of `agent list` page cursors.
 //!
 //! The HMAC key and the canonical-runtime instance identity are drawn from
-//! `/dev/urandom` and live only for the owning runtime instance. Cursors minted
+//! the operating system entropy source and live only for the owning runtime instance. Cursors minted
 //! under a previous boot can never verify — they fail the MAC check before any
 //! semantic field is read.
 //!
@@ -10,8 +10,7 @@
 //! finally position. Authentic cursors minted by this same instance against an
 //! older revision report `Stale`; everything else reports `Invalid`.
 
-use std::fs::File;
-use std::io::{self, Read};
+use std::io;
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use hmac::{Hmac, Mac};
@@ -42,14 +41,15 @@ pub(crate) struct AgentListCursorAuthority {
 }
 
 impl AgentListCursorAuthority {
-    /// Draws a fresh key and nonzero instance identity from `/dev/urandom`.
+    /// Draws a fresh key and nonzero instance identity from the operating system entropy source.
     pub(crate) fn open() -> io::Result<Self> {
         let mut key = [0_u8; KEY_BYTES];
-        File::open("/dev/urandom")?.read_exact(&mut key)?;
+        getrandom::fill(&mut key).map_err(|error| std::io::Error::other(error.to_string()))?;
         let mut instance = 0_u64;
         while instance == 0 {
             let mut bytes = [0_u8; 8];
-            File::open("/dev/urandom")?.read_exact(&mut bytes)?;
+            getrandom::fill(&mut bytes)
+                .map_err(|error| std::io::Error::other(error.to_string()))?;
             instance = u64::from_be_bytes(bytes);
         }
         Ok(Self { key, instance })

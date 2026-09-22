@@ -5,12 +5,12 @@
 //! true guard; every other case uses either an immediate client or the
 //! internal short-deadline entry so the suite does not pay the guard per
 //! test.
+use orchbee_local_ipc::LocalStream as UnixStream;
 
 use super::*;
 use std::sync::mpsc::sync_channel;
 use std::{
     io,
-    os::unix::net::UnixStream,
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},

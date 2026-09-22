@@ -1,8 +1,11 @@
+use orchbee_local_ipc::{LocalListener as UnixListener, LocalStream as UnixStream};
+#[cfg(unix)]
+use std::fs;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::{
     ffi::OsString,
-    fs,
     io::{self, Write},
-    os::unix::{fs::PermissionsExt, net::UnixListener, net::UnixStream},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
     thread,
@@ -23,14 +26,14 @@ use crate::{
     worker_registry::{WorkerAdmission, WorkerRegistry},
 };
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 mod managed;
 
 /// The managed Site-owned private observation endpoint for RICH hook
 /// envelopes — bound and started by the managed bootstrap before the
 /// Worker exists. `unix` because the transport is an AF_UNIX socket over
 /// `nix::poll`.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod agent_observation_endpoint;
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -40,7 +43,7 @@ pub(crate) fn run(
     expected_cohort: &str,
 ) -> io::Result<()> {
     let mut arguments = arguments.peekable();
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     if arguments
         .peek()
         .is_some_and(|argument| argument == "--local-site")
@@ -57,6 +60,7 @@ pub(crate) fn run(
     }
     let endpoints = parse_endpoints(arguments)?;
     let listener = UnixListener::bind(&endpoints.worker)?;
+    #[cfg(unix)]
     fs::set_permissions(&endpoints.worker, fs::Permissions::from_mode(0o600))?;
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     let terminals = Arc::new(LocalTerminalService::new(Arc::clone(&registry)));

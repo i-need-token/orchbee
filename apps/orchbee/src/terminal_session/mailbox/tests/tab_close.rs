@@ -1,7 +1,7 @@
 use super::*;
 use crate::terminal_session::state::{CloseStateError, CloseStatusKind};
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 #[test]
 fn recovery_copies_burned_allocator_cursors_without_copying_live_mailbox_work() {
     let geometry = Geometry::new(80, 24, 8, 16).unwrap();
@@ -228,7 +228,7 @@ fn a_deposited_closed_read_survives_missing_worker_return_with_its_revision() {
     assert!(state.uncertain_close_identity().is_none());
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 #[test]
 fn retired_recovery_seed_never_resets_any_exhausted_allocator() {
     for exhausted in 0..5 {

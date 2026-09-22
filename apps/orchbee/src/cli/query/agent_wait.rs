@@ -15,15 +15,15 @@
 //! is a caller-supplied global-revision fence, never a turn-scoped causal
 //! identity, and there is no subscribe/changes guarantee behind the poll.
 
-use std::os::fd::BorrowedFd;
+use orchbee_local_ipc::LocalIo as BorrowedFd;
 use std::time::{Duration, Instant};
 
-use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
 use orchbee_agent_observation_protocol::{
     AgentGetOutcome, AgentObservationFreshness, AgentReadRequest, AgentReadResult,
     AgentSafeInteger, AgentSemanticStatus, AgentSessionDetail, AgentSessionId, AgentWireError,
     ObapRequestId,
 };
+use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 use serde_json::json;
 
 use super::{
@@ -506,7 +506,7 @@ fn wait_backoff(wake: Option<BorrowedFd<'_>>, duration: Duration) -> bool {
             .intersects(
                 PollFlags::POLLIN | PollFlags::POLLHUP | PollFlags::POLLERR | PollFlags::POLLNVAL,
             ),
-        Err(nix::errno::Errno::EINTR) => false,
+        Err(error) if error.kind() == std::io::ErrorKind::Interrupted => false,
         // A descriptor-level poll fault is an internal condition: stop so
         // the owner's arbitration can land it on `internal-failure`.
         Err(_) => true,

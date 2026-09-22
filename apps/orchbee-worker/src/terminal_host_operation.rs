@@ -1,4 +1,5 @@
-use std::{fmt, os::unix::net::UnixStream, time::Duration};
+use orchbee_local_ipc::LocalStream as UnixStream;
+use std::{fmt, time::Duration};
 
 use orchbee_capability_node_protocol::HostEpoch as CapabilityHostEpoch;
 use orchbee_terminal_protocol::{

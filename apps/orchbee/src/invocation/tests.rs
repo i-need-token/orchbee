@@ -1542,6 +1542,40 @@ fn tab_create_with(launch_args: &[&str]) -> Result<Request, ParseFailure> {
 }
 
 #[test]
+fn windows_launch_paths_preserve_arguments_and_reject_ambiguous_roots() {
+    for executable in [
+        r"C:\Program Files\工具\shell.exe",
+        "C:/tools/shell.exe",
+        r"\\?\C:\tools\shell.exe",
+    ] {
+        assert_eq!(
+            tab_create_with(&["--exec", executable, "--arg", "two words", "--arg=中文"]),
+            Ok(mutation(
+                MutationCommand::TabCreate {
+                    context: TabContext::Standalone,
+                    label: label("t"),
+                    geometry: geometry(),
+                    launch: launch(executable, &["two words", "中文"]),
+                    profile: None,
+                },
+                OutputFormat::Text,
+            )),
+        );
+    }
+    for executable in [
+        r"C:relative.exe",
+        r"\tools\shell.exe",
+        r"\\host\share\shell.exe",
+        r"\\.\pipe\fake",
+    ] {
+        assert!(
+            tab_create_with(&["--exec", executable]).is_err(),
+            "{executable}"
+        );
+    }
+}
+
+#[test]
 fn launch_selection_options_parse_in_every_spelling() {
     let expect = |launch_args: &[&str], arguments: &[&str]| {
         assert_eq!(
@@ -2759,7 +2793,13 @@ fn accept_directory_path_is_a_literal_protocol_value() {
     );
     // A literal path that merely contains '~' or '$' parses unchanged — the
     // CLI never expands anything inside the value.
-    for literal in ["/~/repo", "/srv/$HOME/repo", "/srv/r$epo"] {
+    for literal in [
+        "/~/repo",
+        "/srv/$HOME/repo",
+        "/srv/r$epo",
+        r"C:\Users\工程 项目",
+        "D:/repo",
+    ] {
         assert_eq!(
             parse(&["workspace", "accept-directory", "w", "--path", literal]),
             Ok(mutation(

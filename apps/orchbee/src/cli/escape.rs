@@ -50,15 +50,12 @@ pub(crate) fn quoted(value: &str) -> String {
 
 const TABLE_LABEL_WIDTH: usize = 80;
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(crate) fn display_width(text: &str) -> usize {
     ratatui::text::Line::from(text).width()
 }
 
-// Non-unix builds keep a scalar-count fallback: no snapshot source exists off
-// Linux, so table rendering is unreachable there and no new width crate is
-// introduced.
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 pub(crate) fn display_width(text: &str) -> usize {
     text.chars().count()
 }

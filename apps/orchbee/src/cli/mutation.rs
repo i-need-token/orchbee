@@ -11,7 +11,7 @@ use orchbee_workbench_protocol::{
 use serde_json::{Map, Value, json};
 
 use super::Output;
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 use super::{Failure, FailureKind, failure_output, stage_reason_details};
 use crate::invocation::{MutationCommand, OutputFormat};
 use crate::localization::Locale;
@@ -276,12 +276,12 @@ fn command_source(site_id: &str, request_id: &str, base: WorkbenchRevision) -> V
     })
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn run(command: &MutationCommand, format: OutputFormat, locale: Locale) -> Output {
     linux::run(command, format, locale)
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn run(command: &MutationCommand, format: OutputFormat, locale: Locale) -> Output {
     let _ = command;
     failure_output(
@@ -292,7 +292,7 @@ pub(crate) fn run(command: &MutationCommand, format: OutputFormat, locale: Local
     )
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 mod linux {
     use std::time::Instant;
 

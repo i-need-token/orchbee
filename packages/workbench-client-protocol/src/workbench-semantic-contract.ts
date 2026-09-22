@@ -69,7 +69,10 @@ export const WorkbenchDirectoryPathSchema = z
 	.string()
 	.min(1)
 	.max(WORKBENCH_MAXIMUM_DIRECTORY_PATH_BYTES)
-	.refine((value) => value.startsWith('/'), 'Directory path must be absolute POSIX text')
+	.refine(
+		(value) => /^(?:\/|(?:\\\\\?\\)?[A-Za-z]:[/\\])/u.test(value),
+		'Directory path must be absolute local-platform text',
+	)
 	.refine(
 		(value) => !value.includes('\0') && !/[\uD800-\uDFFF]/u.test(value),
 		'Directory path must contain UTF-8 text without NUL',

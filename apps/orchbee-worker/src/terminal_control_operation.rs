@@ -6,6 +6,7 @@ use orchbee_capability_node_protocol::{
     ControlRejection as Rejection, OperationId, TerminalControlAction as Action,
     TerminalControlOutcome as Outcome, TerminalControlRequest, TerminalControlResult,
 };
+use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_local_site_protocol::WorkerId;
 use orchbee_terminal_protocol::{
     AttachTerminal, AttachmentCapabilityState, AttachmentControl, AttachmentId, AttachmentTarget,
@@ -14,7 +15,7 @@ use orchbee_terminal_protocol::{
     decode_input_message, decode_resize_control, decode_transport_envelope,
     encode_attachment_control, encode_input_message, encode_resize_control,
 };
-use std::{error::Error, num::NonZeroU64, os::unix::net::UnixStream};
+use std::{error::Error, num::NonZeroU64};
 fn invalid(message: &str) -> Box<dyn Error> {
     std::io::Error::new(std::io::ErrorKind::InvalidData, message).into()
 }

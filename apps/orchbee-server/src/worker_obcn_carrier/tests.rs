@@ -1,11 +1,8 @@
+use orchbee_local_ipc::{AsLocalIo as AsFd, LocalIo as BorrowedFd, LocalStream as UnixStream};
 use std::{
     error::Error,
     io::{self, Read, Write},
     num::NonZeroU64,
-    os::{
-        fd::{AsFd, BorrowedFd},
-        unix::net::UnixStream,
-    },
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -1033,8 +1030,8 @@ impl Write for PanicDuringResponseRead {
 }
 
 impl AsFd for PanicDuringResponseRead {
-    fn as_fd(&self) -> BorrowedFd<'_> {
-        self.stream.as_fd()
+    fn as_local_io(&self) -> BorrowedFd<'_> {
+        self.stream.as_local_io()
     }
 }
 
@@ -1080,8 +1077,8 @@ impl Write for PartialWriteGate {
 }
 
 impl AsFd for PartialWriteGate {
-    fn as_fd(&self) -> BorrowedFd<'_> {
-        self.stream.as_fd()
+    fn as_local_io(&self) -> BorrowedFd<'_> {
+        self.stream.as_local_io()
     }
 }
 
@@ -1117,8 +1114,8 @@ impl Write for PartialWriteThenClose {
 }
 
 impl AsFd for PartialWriteThenClose {
-    fn as_fd(&self) -> BorrowedFd<'_> {
-        self.stream.as_fd()
+    fn as_local_io(&self) -> BorrowedFd<'_> {
+        self.stream.as_local_io()
     }
 }
 

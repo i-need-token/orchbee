@@ -9,6 +9,7 @@ use orchbee_capability_node_protocol::{
     CapabilityNodeMessage, WorkerGeneration, read_message as read_capability_message,
 };
 use orchbee_client_server_protocol::{Geometry, OpenOutcome, TerminalOpenRequest};
+use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_local_site_protocol::WorkerId as LocalWorkerId;
 use orchbee_workbench_protocol::{
     WorkbenchAction, WorkbenchCommandOutcome, WorkbenchCommandUnavailableReason, WorkbenchLabel,
@@ -18,7 +19,6 @@ use orchbee_workbench_protocol::{
 use std::{
     error::Error,
     num::NonZeroU64,
-    os::unix::net::UnixStream,
     sync::{Arc, Mutex, mpsc},
     thread,
     time::Duration,

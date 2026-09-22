@@ -8,10 +8,12 @@
 //! post-submission ambiguity retires the session that submitted it, and
 //! that session must be this lane's own.
 
+use orchbee_local_ipc::AsLocalIo;
+#[cfg(windows)]
+use orchbee_local_ipc::LocalStream as OwnedFd;
+#[cfg(unix)]
+use std::os::fd::OwnedFd;
 use std::{
-    fs::File,
-    io::Read,
-    os::fd::{AsFd, OwnedFd},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -98,7 +100,7 @@ impl AgentBoardLane {
     ) -> std::io::Result<Self> {
         let (commands, command_rx) = mpsc::channel();
         let (outcome_tx, outcomes) = mpsc::channel();
-        let (wake_read, wake_write) = nix::unistd::pipe()?;
+        let (wake_read, wake_write) = wake_pair()?;
         let shutdown = Arc::new(AtomicBool::new(false));
         let join = thread::Builder::new()
             .name("orchbee-agent-lane".to_owned())
@@ -138,7 +140,7 @@ impl AgentBoardLane {
         }
         drop(outcome_tx);
         std::mem::forget(command_rx);
-        let (_wake_read, wake_write) = nix::unistd::pipe().expect("test wake pipe");
+        let (_wake_read, wake_write) = wake_pair().expect("test wake pipe");
         Self {
             commands: Some(commands),
             outcomes: outcome_rx,
@@ -166,7 +168,7 @@ impl AgentBoardLane {
     /// the thread has actually exited.
     pub(super) fn interrupt(&mut self) {
         self.shutdown.store(true, Ordering::SeqCst);
-        let _ = nix::unistd::write(&self.wake, &[1]);
+        let _ = signal_wake(&self.wake);
         drop(self.commands.take());
     }
 
@@ -175,7 +177,7 @@ impl AgentBoardLane {
     /// operation — `join` returns without waiting out a full deadline.
     pub(super) fn close(mut self) {
         self.shutdown.store(true, Ordering::SeqCst);
-        let _ = nix::unistd::write(&self.wake, &[1]);
+        let _ = signal_wake(&self.wake);
         drop(self.commands.take());
         if let Some(join) = self.join.take() {
             let _ = join.join();
@@ -186,7 +188,7 @@ impl AgentBoardLane {
 impl Drop for AgentBoardLane {
     fn drop(&mut self) {
         self.shutdown.store(true, Ordering::SeqCst);
-        let _ = nix::unistd::write(&self.wake, &[1]);
+        let _ = signal_wake(&self.wake);
         // The sender may still be alive here; dropping the receiver side
         // of commands happens when this struct's field is dropped.
     }
@@ -213,7 +215,7 @@ fn run(
                     &clock,
                     &mut client,
                     deadline,
-                    wake_read.as_fd(),
+                    wake_read.as_local_io(),
                     &shutdown,
                 ),
             },
@@ -231,7 +233,7 @@ fn run(
                     &mut client,
                     session,
                     deadline,
-                    wake_read.as_fd(),
+                    wake_read.as_local_io(),
                 ),
             },
         };
@@ -250,7 +252,7 @@ fn list_round(
     clock: &LocalOperationClock,
     client: &mut Option<LocalClient>,
     deadline: Instant,
-    wake: std::os::fd::BorrowedFd<'_>,
+    wake: orchbee_local_ipc::LocalIo<'_>,
     shutdown: &Arc<AtomicBool>,
 ) -> Result<ListRound, LaneFailure> {
     let mut restarted = false;
@@ -343,7 +345,7 @@ fn get_session(
     client: &mut Option<LocalClient>,
     session: AgentSessionId,
     deadline: Instant,
-    wake: std::os::fd::BorrowedFd<'_>,
+    wake: orchbee_local_ipc::LocalIo<'_>,
 ) -> Result<AgentGetOutcome, LaneFailure> {
     let request = AgentReadRequest::Get {
         request_id: mint_request_id()?,
@@ -367,7 +369,7 @@ fn submit(
     client_slot: &mut Option<LocalClient>,
     request: AgentReadRequest,
     deadline: Instant,
-    wake: std::os::fd::BorrowedFd<'_>,
+    wake: orchbee_local_ipc::LocalIo<'_>,
 ) -> Result<AgentReadResult, LaneFailure> {
     if client_slot.is_none() {
         *client_slot = Some(
@@ -391,13 +393,28 @@ fn submit(
     }
 }
 
-/// 16 bytes of `/dev/urandom` rendered as 32 lowercase hex characters —
+/// 16 bytes of operating-system entropy rendered as 32 lowercase hex characters —
 /// the same request-id discipline the CLI uses.
 fn mint_request_id() -> Result<ObapRequestId, LaneFailure> {
     let mut bytes = [0_u8; 16];
-    File::open("/dev/urandom")
-        .and_then(|mut file| file.read_exact(&mut bytes))
-        .map_err(|_| LaneFailure::Transport)?;
+    getrandom::fill(&mut bytes).map_err(|_| LaneFailure::Transport)?;
     ObapRequestId::parse(&format!("{:032x}", u128::from_be_bytes(bytes)))
         .map_err(|_| LaneFailure::Transport)
+}
+
+#[cfg(unix)]
+fn wake_pair() -> std::io::Result<(OwnedFd, OwnedFd)> {
+    nix::unistd::pipe().map_err(Into::into)
+}
+#[cfg(windows)]
+fn wake_pair() -> std::io::Result<(OwnedFd, OwnedFd)> {
+    OwnedFd::pair()
+}
+#[cfg(unix)]
+fn signal_wake(wake: &OwnedFd) -> std::io::Result<usize> {
+    nix::unistd::write(wake, &[1]).map_err(Into::into)
+}
+#[cfg(windows)]
+fn signal_wake(mut wake: &OwnedFd) -> std::io::Result<usize> {
+    std::io::Write::write(&mut wake, &[1])
 }

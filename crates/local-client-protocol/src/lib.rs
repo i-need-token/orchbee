@@ -1,6 +1,6 @@
 mod codec;
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod connection;
 
 pub use codec::{
@@ -9,7 +9,7 @@ pub use codec::{
     read_message, write_message,
 };
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub use connection::{
     ClientSessionConnection, ConnectClientError, UNIX_SOCKET_PATH_CAPACITY, unix_socket_path_fits,
 };

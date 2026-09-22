@@ -1,6 +1,6 @@
+use orchbee_local_ipc::{LocalListener as UnixListener, LocalStream as UnixStream};
 use std::{
     fs, io,
-    os::unix::net::{UnixListener, UnixStream},
     path::{Path, PathBuf},
     sync::{
         Arc, Condvar, Mutex,
@@ -49,7 +49,10 @@ impl FakeServer {
         mut handler: impl FnMut(usize, UnixStream) -> io::Result<()> + Send + 'static,
     ) -> io::Result<Self> {
         let directory = TestDirectory::new()?;
+        #[cfg(unix)]
         let endpoint = directory.path.join("client.sock");
+        #[cfg(windows)]
+        let endpoint = crate::test_support::endpoint();
         let listener = UnixListener::bind(&endpoint)?;
         listener.set_nonblocking(true)?;
         let thread = thread::spawn(move || {
@@ -81,7 +84,10 @@ impl FakeServer {
         accept_timeout: Duration,
     ) -> io::Result<Self> {
         let directory = TestDirectory::new()?;
+        #[cfg(unix)]
         let endpoint = directory.path.join("client.sock");
+        #[cfg(windows)]
+        let endpoint = crate::test_support::endpoint();
         let listener = UnixListener::bind(&endpoint)?;
         listener.set_nonblocking(true)?;
         let thread = thread::spawn(move || {
@@ -189,7 +195,7 @@ pub(crate) fn adjustable_operation_clock(
 /// A lane-admission origin whose endpoint never answers — enough to
 /// spawn a real agent-board lane (real pipe + thread) in tests without
 /// standing up a live OBAP socket.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn disconnected_origin() -> super::LocalClientOrigin {
     super::LocalClientOrigin {
         endpoint: PathBuf::from("/nonexistent-orchbee-agent-board.sock"),

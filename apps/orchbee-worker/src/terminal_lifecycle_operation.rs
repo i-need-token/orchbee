@@ -1,4 +1,5 @@
-use std::{error::Error, io, os::unix::net::UnixStream, time::Duration};
+use orchbee_local_ipc::LocalStream as UnixStream;
+use std::{error::Error, io, time::Duration};
 
 use orchbee_capability_node_protocol::{
     HostEpoch as CapabilityHostEpoch, LIFECYCLE_INVENTORY_PAGE_TERMINALS, LifecycleHostFailure,

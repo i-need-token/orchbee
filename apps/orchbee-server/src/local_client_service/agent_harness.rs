@@ -6,12 +6,13 @@
 //! event builders; no production seed flag, environment variable, or wire
 //! operation exists anywhere in this path.
 
+use orchbee_local_ipc::{LocalListener as UnixListener, LocalStream as UnixStream};
+#[cfg(unix)]
+use std::fs;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::{
-    fs, io,
-    os::unix::{
-        fs::PermissionsExt,
-        net::{UnixListener, UnixStream},
-    },
+    io,
     path::Path,
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
@@ -224,6 +225,7 @@ pub(crate) fn listen(
     agents: Arc<AgentService>,
 ) -> io::Result<JoinHandle<io::Result<()>>> {
     let listener = UnixListener::bind(endpoint)?;
+    #[cfg(unix)]
     fs::set_permissions(endpoint, fs::Permissions::from_mode(0o600))?;
     let registry = Arc::new(Mutex::new(ClientSessionRegistry::new()));
     let connection_slots = Arc::new(ConnectionSlots::new());

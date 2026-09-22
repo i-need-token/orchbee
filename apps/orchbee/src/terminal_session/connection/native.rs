@@ -48,11 +48,11 @@ use std::{
 mod close_reconciliation;
 mod membership;
 mod panel;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 mod status_recovery;
 mod switch_membership;
 mod tab_close;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(in crate::terminal_session) use status_recovery::{RecoveryShutdown, run_status_recovery};
 mod tab_move;
 mod tab_rename;
@@ -92,7 +92,7 @@ pub(super) fn run(
         executor.pending_rename.take(),
     )
     .with_setup(executor.pending_setup.take());
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     let returned = returned.with_unavailable_poll(executor.unavailable_poll.take());
     returned
 }
@@ -119,9 +119,9 @@ impl Drop for WorkerExit {
 
 struct NativeExecutor {
     status_only: bool,
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     membership_recovery: bool,
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     unavailable_poll: Option<crate::terminal_session::state::retired_membership::UnavailablePoll>,
     client: LocalClient,
     clock: LocalOperationClock,
@@ -284,9 +284,9 @@ impl NativeExecutor {
         Self {
             client,
             status_only: false,
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             membership_recovery: false,
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             unavailable_poll: None,
             clock,
             mailbox,
@@ -701,7 +701,7 @@ impl NativeExecutor {
     fn run_ready_queue(&mut self) -> Result<()> {
         loop {
             let mut lease = self.mailbox.recv().map_err(closed)?;
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             if self.membership_recovery && !matches!(lease.record(), QueuedCommand::Refresh(_)) {
                 return Err(CarrierFailure::Protocol);
             }
@@ -1165,7 +1165,7 @@ impl NativeExecutor {
             return Ok(());
         };
         let current = self.pane_admitted(lease, &key)?;
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", windows))]
         if current
             && matches!(
                 outcome,
@@ -1181,7 +1181,7 @@ impl NativeExecutor {
                 },
             );
         }
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(not(any(target_os = "linux", windows)))]
         let _request_id = request_id;
         let record = match outcome {
             TerminalViewerOutcome::Empty {} => None,
@@ -1567,9 +1567,9 @@ impl NativeExecutor {
                 &self.clock,
             )
             .map_err(event)?;
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", windows))]
         let bounded_recovery = self.membership_recovery;
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(not(any(target_os = "linux", windows)))]
         let bounded_recovery = false;
         let reply = if bounded_recovery || marker.context_deadlines().is_some() {
             self.mailbox
@@ -1584,7 +1584,7 @@ impl NativeExecutor {
         let UiReply::Refresh(settlement) = reply else {
             return Err(CarrierFailure::Protocol);
         };
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", windows))]
         if self.membership_recovery {
             if matches!(
                 settlement.decision(),

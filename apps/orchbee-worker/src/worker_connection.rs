@@ -1,10 +1,10 @@
+use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
     cell::RefCell,
     error::Error,
     ffi::OsString,
     io::{self, Write},
     num::NonZeroU64,
-    os::unix::net::UnixStream,
     rc::Rc,
     time::Duration,
 };
@@ -42,7 +42,7 @@ pub(crate) fn run(
     cohort: &str,
 ) -> Result<(), Box<dyn Error>> {
     let mut arguments = arguments.peekable();
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     if arguments
         .peek()
         .is_some_and(|argument| argument == "--local-site")

@@ -8,10 +8,7 @@ use std::{
 };
 
 #[cfg(test)]
-use std::{
-    io::{Read, Write},
-    os::fd::AsFd,
-};
+use std::io::{Read, Write};
 
 use orchbee_capability_node_protocol::{WorkerGeneration, WorkerId as CapabilityWorkerId};
 use orchbee_local_site_protocol::WorkerId;
@@ -54,7 +51,7 @@ pub(crate) struct RegisteredWorkerWireOwner {
 }
 
 impl RegisteredWorkerWireOwner {
-    pub(crate) fn run(mut self, stream: std::os::unix::net::UnixStream) -> WorkerWireExit {
+    pub(crate) fn run(mut self, stream: orchbee_local_ipc::LocalStream) -> WorkerWireExit {
         let wire_owner = self
             .wire_owner
             .take()
@@ -65,7 +62,7 @@ impl RegisteredWorkerWireOwner {
     #[cfg(test)]
     pub(crate) fn run_configured_for_test<Stream>(mut self, stream: Stream) -> WorkerWireExit
     where
-        Stream: AsFd + Read + Write,
+        Stream: orchbee_local_ipc::AsLocalIo + Read + Write,
     {
         let wire_owner = self
             .wire_owner

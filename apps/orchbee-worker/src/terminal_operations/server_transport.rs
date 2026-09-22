@@ -1,16 +1,14 @@
+use orchbee_local_ipc::AsLocalIo;
+use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
     io::{self, Read, Write},
-    os::{fd::AsFd, unix::net::UnixStream},
     time::{Duration, Instant},
 };
 
-use nix::{
-    errno::Errno,
-    poll::{PollFd, PollFlags, PollTimeout, poll},
-};
 use orchbee_capability_node_protocol::{
     CapabilityNodeMessage, ReadMessageError, WriteMessageError, read_message, write_message,
 };
+use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 
 use crate::host_connection::{HostBrokerConnection, consume_event};
 
@@ -68,16 +66,16 @@ impl ServerRecord<'_> {
                 }
             };
             let mut descriptors = vec![PollFd::new(
-                self.server.as_fd(),
+                self.server.as_local_io(),
                 interest | PollFlags::POLLIN,
             )];
             if let Some(host) = self.host {
-                descriptors.push(PollFd::new(host.stream().as_fd(), PollFlags::POLLIN));
+                descriptors.push(PollFd::new(host.stream().as_local_io(), PollFlags::POLLIN));
             }
             match poll(&mut descriptors, timeout) {
                 Ok(_) => {}
-                Err(Errno::EINTR) => continue,
-                Err(error) => return Err(error.into()),
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                Err(error) => return Err(error),
             }
             let events = descriptors[0].revents().ok_or_else(super::peer_closed)?;
             if events.intersects(PollFlags::POLLERR | PollFlags::POLLNVAL)

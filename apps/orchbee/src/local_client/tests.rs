@@ -1,8 +1,7 @@
+use orchbee_local_ipc::{LocalListener as UnixListener, LocalStream as UnixStream};
 use std::{
     io::{self, Read, Write},
     num::NonZeroU64,
-    os::fd::{AsFd, BorrowedFd},
-    os::unix::net::{UnixListener, UnixStream},
     sync::{
         Arc, Mutex,
         atomic::{AtomicU64, Ordering},
@@ -11,7 +10,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use nix::poll::PollFlags;
 use orchbee_agent_observation_protocol::{
     AgentNamesListOutcome, AgentNamesListOutcomeEnvelope, AgentNamesResult, AgentReadRequest,
     AgentResult, AgentSafeInteger, AgentUnavailableReason, AgentWireError, ObapRequestId,
@@ -29,6 +27,7 @@ use orchbee_local_client_protocol::{
     ProtocolError as OblcProtocolError, RejectionReason, read_message as read_oblc_message,
     write_message as write_oblc_message,
 };
+use orchbee_local_ipc::{AsLocalIo, LocalIo, PollFlags};
 
 use super::agent::{AgentReadError, AgentReadFailure};
 use super::{
@@ -43,7 +42,9 @@ const SECOND_REQUEST_ID: &str = "22222222222222222222222222222222";
 const TEST_REQUEST_TIMEOUT: Duration = Duration::from_millis(40);
 const SERVER_GUARD_TIMEOUT: Duration = Duration::from_secs(1);
 
-use super::test_server::{FakeServer, TestDirectory, connect_with_adjustable_clock};
+#[cfg(unix)]
+use super::test_server::TestDirectory;
+use super::test_server::{FakeServer, connect_with_adjustable_clock};
 
 mod workbench;
 
@@ -235,8 +236,12 @@ fn sends_the_exact_cohort_and_preserves_typed_cohort_rejection() -> TestResult {
 
 #[test]
 fn validates_the_cohort_before_connecting() -> TestResult {
+    #[cfg(unix)]
     let directory = TestDirectory::new()?;
+    #[cfg(unix)]
     let endpoint = directory.path.join("client.sock");
+    #[cfg(windows)]
+    let endpoint = crate::test_support::endpoint();
     let listener = UnixListener::bind(&endpoint)?;
     listener.set_nonblocking(true)?;
 
@@ -1327,7 +1332,7 @@ fn deadline_io<'a>(
     connection: &'a mut ClientSessionConnection,
     clock: &'a LocalOperationClock,
     deadline: SubmissionDeadline,
-    wake: Option<BorrowedFd<'a>>,
+    wake: Option<LocalIo<'a>>,
 ) -> DeadlineIo<'a> {
     DeadlineIo {
         connection,
@@ -1360,7 +1365,7 @@ fn wake_readiness_interrupts_the_exchange_wait() -> TestResult {
         client.connection.as_mut().expect("admitted connection"),
         &clock,
         deadline,
-        Some(wake_read.as_fd()),
+        Some(wake_read.as_local_io()),
     );
     let error = io
         .wait_until_ready(PollFlags::POLLIN)
@@ -1397,7 +1402,7 @@ fn wake_readiness_wins_over_simultaneous_socket_data() -> TestResult {
         client.connection.as_mut().expect("admitted connection"),
         &clock,
         deadline,
-        Some(wake_read.as_fd()),
+        Some(wake_read.as_local_io()),
     );
     let error = io
         .wait_until_ready(PollFlags::POLLIN)
@@ -1415,7 +1420,10 @@ fn wake_fault_is_distinct_from_readiness() -> TestResult {
     // A pipe, not a socket: with nothing written and the write end closed, the
     // read end reports POLLHUP without POLLIN — a stream socket would instead
     // report the peer's EOF as readable POLLIN.
+    #[cfg(unix)]
     let (wake_read, wake_write) = nix::unistd::pipe()?;
+    #[cfg(windows)]
+    let (wake_read, wake_write) = UnixStream::pair()?;
     drop(wake_write);
     let clock = client.operation_clock();
     let deadline = SubmissionDeadline::start(&clock, Duration::from_secs(5))?;
@@ -1423,7 +1431,7 @@ fn wake_fault_is_distinct_from_readiness() -> TestResult {
         client.connection.as_mut().expect("admitted connection"),
         &clock,
         deadline,
-        Some(wake_read.as_fd()),
+        Some(wake_read.as_local_io()),
     );
     let error = io
         .wait_until_ready(PollFlags::POLLIN)
@@ -1448,7 +1456,7 @@ fn wake_readiness_wins_over_simultaneous_hangup() -> TestResult {
         client.connection.as_mut().expect("admitted connection"),
         &clock,
         deadline,
-        Some(wake_read.as_fd()),
+        Some(wake_read.as_local_io()),
     );
     let error = io
         .wait_until_ready(PollFlags::POLLIN)
@@ -1504,7 +1512,7 @@ fn agent_read_wake_ready_before_write_is_request_not_submitted() -> TestResult {
     match client.submit_agent_read_before_cancellable(
         request,
         Instant::now() + Duration::from_secs(5),
-        Some(wake_read.as_fd()),
+        Some(wake_read.as_local_io()),
     ) {
         Err(AgentReadError::RequestNotSubmitted(error)) => {
             assert!(exchange_wake_ready(&error), "readiness marker: {error:?}")
@@ -1542,7 +1550,7 @@ fn agent_read_wake_ready_mid_response_surfaces_through_io() -> TestResult {
     match client.submit_agent_read_before_cancellable(
         request,
         Instant::now() + Duration::from_secs(5),
-        Some(wake_read.as_fd()),
+        Some(wake_read.as_local_io()),
     ) {
         Err(AgentReadError::Failed { reason, .. }) => match reason {
             AgentReadFailure::Response(AgentWireError::Io(error)) => {

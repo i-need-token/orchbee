@@ -2,34 +2,35 @@
 //! admission, one snapshot read, then the session is dropped. Nothing here may
 //! create directories, acquire locks, start processes, or mutate the Workbench.
 
-#[cfg(target_os = "linux")]
-use std::os::fd::BorrowedFd;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
+use orchbee_local_ipc::LocalIo as BorrowedFd;
+#[cfg(any(target_os = "linux", windows))]
 use std::time::{Duration, Instant};
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
+#[cfg(unix)]
 use std::{env, path::PathBuf};
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use orchbee_agent_observation_protocol::{
     AgentExplainOutcome, AgentGetOutcome, AgentListOutcome, AgentReadRequest, AgentReadResult,
     AgentSafeInteger, AgentSessionId, AgentWireError, ObapRequestId,
 };
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use orchbee_client_server_protocol::{
     RequestId as ObcsRequestId, SiteId as ObcsSiteId, TerminalId as ObcsTerminalId,
     TerminalLaunchReadOutcome, TerminalLaunchReadRequest, TerminalViewerAction,
     TerminalViewerOutcome, TerminalViewerRequest, ViewerId, ViewerRejectedReason,
     WorkerId as ObcsWorkerId,
 };
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use orchbee_local_client_protocol::ConnectClientError;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use orchbee_local_site_runtime::{
     ModeCheckedLocalSiteRendezvous, NativeCohort, RendezvousError, SiteScope,
 };
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch, TerminalTextFrame};
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use orchbee_workbench_protocol::{
     LaunchProfileCatalogOutcome, LaunchProfileSelector, ProtocolVersion, Snapshot,
     SnapshotReadIntent, WorkbenchDirectoryId, WorkbenchLaunchProfileCatalogRead,
@@ -40,59 +41,59 @@ use orchbee_workbench_protocol::{
     WorktreeListTooLargeOrigin, WorktreeListUnavailableReason,
 };
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use super::results::Projection;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use super::source::{ArmedSignals, Finish, SignalWatch};
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use super::{
     Failure, FailureKind, SourceFinalization, stage_details, stage_reason_details, target_details,
 };
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use crate::invocation::{Resource, Target};
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use crate::local_client::agent::{AgentReadError, AgentReadFailure, AgentReadOperation};
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use crate::local_client::workbench::{
     LaunchProfileCatalogReadError, LaunchProfileCatalogReadFailure, SnapshotReadError,
     SnapshotReadFailure, WorkbenchWorkspaceCloseFailure, WorkbenchWorkspaceCloseNotSubmitted,
     WorkbenchWorkspaceCloseReadError, WorktreeListReadError, WorktreeListReadFailure,
 };
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use crate::local_client::{
     LocalClient, OutcomeUnknownReason, SubmissionError, exchange_wake_fault, exchange_wake_ready,
 };
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use crate::terminal_projection::TerminalProjection;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use crate::termination_signal::{TerminationSignal, TerminationSource};
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 mod agent_wait;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) use agent_wait::agent_wait;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const COHORT_BUDGET: Duration = Duration::from_secs(5);
 /// The Agent read's whole-command budget: one absolute deadline sampled
 /// once at invocation entry and shared by the preamble, the admission, and
 /// the single OBAP exchange — never refreshed between stages.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const AGENT_TOTAL_BUDGET: Duration = Duration::from_secs(5);
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const NETWORK_BUDGET: Duration = Duration::from_secs(5);
 /// An `Empty` poll answer is retried inside the shared network budget; the
 /// cadence stays coarse enough that a quiet host is never hammered.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const EMPTY_POLL_INTERVAL: Duration = Duration::from_millis(10);
 /// A quiet wait backs off on consecutive `Empty` answers up to this ceiling;
 /// any real frame record resets the cadence to `EMPTY_POLL_INTERVAL`.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const WAIT_POLL_BACKOFF: Duration = Duration::from_millis(100);
 
 /// One admitted Client Session plus the shared network deadline every
 /// request on it must finish before. The caller owns the session's drop.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn read_snapshot() -> Result<Snapshot, Failure> {
     let (client, _deadline, snapshot) = snapshot_session()?;
     // The Client Session is fully dropped before the snapshot is examined or
@@ -105,7 +106,7 @@ pub(crate) fn read_snapshot() -> Result<Snapshot, Failure> {
 /// typed target id — nothing else. The answer is the Server's own join under
 /// the coordinator lock: the current binding, the committed revision, and the
 /// retained launch fact. A stale snapshot route is never echoed back.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn terminal_get(target: &Target) -> Result<(serde_json::Value, Projection), Failure> {
     let (mut client, deadline, snapshot) = snapshot_session()?;
     // A typed ID passes through to the Server's launch read unchanged — it
@@ -172,7 +173,7 @@ pub(crate) fn terminal_get(target: &Target) -> Result<(serde_json::Value, Projec
 /// observes the terminal's current projection — or, under `--history`, the
 /// retained scrollback window behind it. The attachment is released
 /// (best-effort `Detach` plus the session drop) before any output work.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn read_terminal(
     target: &Target,
     history: Option<u16>,
@@ -227,7 +228,7 @@ pub(crate) fn read_terminal(
 /// project identity — directory membership is the Server's authority, so the
 /// worktree-list read is the command's family boundary and every failure it
 /// produces wears the dedicated worktree failure envelope.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn worktree_list(
     project: &Target,
     directory: &WorkbenchDirectoryId,
@@ -251,7 +252,7 @@ pub(crate) fn worktree_list(
 /// Resolve the project on the snapshot, then submit the single worktree-list
 /// read. A pre-boundary failure (project resolution) keeps the generic
 /// envelope; everything from the typed exchange onward is worktree-family.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn worktree_list_exchange(
     client: &mut LocalClient,
     deadline: Instant,
@@ -304,7 +305,7 @@ fn worktree_list_exchange(
 
 /// The worktree-list outcome family → the CLI failure kinds. Every failure
 /// produced here is post-boundary and carries the dedicated envelope schema.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn classify_worktree_outcome(
     outcome: WorkbenchWorktreeListOutcome,
     directory: &WorkbenchDirectoryId,
@@ -377,7 +378,7 @@ fn classify_worktree_outcome(
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const fn worktree_git_stage(stage: WorktreeListStage) -> &'static str {
     match stage {
         WorktreeListStage::Probe => "probe",
@@ -390,7 +391,7 @@ const fn worktree_git_stage(stage: WorktreeListStage) -> &'static str {
 /// outlives the Workspace's active projection, so the snapshot supplies only
 /// the session's site — membership is never re-resolved locally. Every
 /// failure past the session boundary carries the dedicated close envelope.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn workspace_close_status(
     project: &WorkbenchProjectId,
     workspace: &WorkbenchWorkspaceId,
@@ -420,7 +421,7 @@ pub(crate) fn workspace_close_status(
 /// The close read outcome family → projection or CLI failure. Only the
 /// record-bearing answers reach the result document; refusals leave as
 /// failures under the close envelope.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn classify_close_status_outcome(
     outcome: WorkbenchWorkspaceCloseReadOutcome,
 ) -> Result<WorkbenchWorkspaceCloseReadOutcome, Failure> {
@@ -444,7 +445,7 @@ fn classify_close_status_outcome(
 /// The close status exchange failures, classified under the close failure
 /// envelope: a deadline-expired response is the command's own timeout, and a
 /// scope-mismatched answer is a protocol fault, never a silent retry.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn classify_close_status_read(error: WorkbenchWorkspaceCloseReadError) -> Failure {
     use orchbee_workbench_protocol::WorkbenchWireError;
     let failure = |kind| Failure::new(kind).failure_schema(super::schema::CLOSE_FAILURE_ID);
@@ -495,7 +496,7 @@ fn classify_close_status_read(error: WorkbenchWorkspaceCloseReadError) -> Failur
 /// The typed worktree-list exchange failures, classified under the worktree
 /// failure envelope: a deadline-expired response is the command's own
 /// timeout, never a transport guess.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn classify_worktree_read(error: WorktreeListReadError) -> Failure {
     use orchbee_workbench_protocol::WorkbenchWireError;
     let failure = |kind| Failure::new(kind).failure_schema(super::schema::WORKTREE_FAILURE_ID);
@@ -539,7 +540,7 @@ fn classify_worktree_read(error: WorktreeListReadError) -> Failure {
 /// failure past the session boundary carries the dedicated launch-profile
 /// failure envelope: the generic schema's resource and candidate-id
 /// grammars are closed without it.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn launch_profile_catalog(
     selector: Option<LaunchProfileSelector>,
 ) -> Result<(serde_json::Value, Projection), Failure> {
@@ -587,7 +588,7 @@ pub(crate) fn launch_profile_catalog(
 
 /// The `launch-profile-catalog` authority source: the same Server
 /// resolution the answer came from.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn launch_profile_catalog_source(
     site_id: &str,
     catalog_revision: orchbee_workbench_protocol::LaunchProfileCatalogRevision,
@@ -601,7 +602,7 @@ fn launch_profile_catalog_source(
 
 /// The catalog read's typed outcomes → the CLI failure kinds, all under the
 /// launch-profile failure envelope.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn classify_launch_profile_outcome(
     outcome: LaunchProfileCatalogOutcome,
     selector: Option<&LaunchProfileSelector>,
@@ -650,7 +651,7 @@ fn classify_launch_profile_outcome(
 /// The typed catalog exchange failures, classified under the launch-profile
 /// failure envelope: a deadline-expired response is the command's own
 /// timeout, never a transport guess.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn classify_launch_profile_catalog_read(error: LaunchProfileCatalogReadError) -> Failure {
     use orchbee_workbench_protocol::WorkbenchWireError;
     let failure =
@@ -697,7 +698,7 @@ fn classify_launch_profile_catalog_read(error: LaunchProfileCatalogReadError) ->
 /// existing-only rendezvous, socket validation, one admission, one snapshot
 /// read — all under the single network deadline. On success the caller owns
 /// the still admitted session; on any failure the session is already dropped.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn snapshot_session() -> Result<(LocalClient, Instant, Snapshot), Failure> {
     let cohort_deadline = deadline_after(COHORT_BUDGET)?;
     let (cohort, site) = session_preamble(cohort_deadline, None)?;
@@ -712,7 +713,7 @@ pub(crate) fn snapshot_session() -> Result<(LocalClient, Instant, Snapshot), Fai
 /// once at entry. The cohort check still never exceeds its own budget: it
 /// runs under the earlier of `COHORT_BUDGET` and `deadline`, and the
 /// admission plus snapshot read share what remains.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn snapshot_session_until(
     deadline: Instant,
 ) -> Result<(LocalClient, Instant, Snapshot), Failure> {
@@ -730,7 +731,7 @@ pub(crate) fn snapshot_session_until(
 /// between calls and cannot interrupt one. Expiry surfaces as bare
 /// `FailureKind::Timeout`/`Cancelled`; the caller maps it into its
 /// detailed report.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn snapshot_session_before(
     gate: &WaitGate<'_>,
 ) -> Result<(LocalClient, Instant, Snapshot), Failure> {
@@ -741,7 +742,7 @@ fn snapshot_session_before(
 }
 
 /// The wait gate's post-step settlement, a no-op for ungated callers.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn settle(gate: Option<&WaitGate<'_>>) -> Result<(), Failure> {
     match gate {
         Some(gate) => gate.settle(),
@@ -753,7 +754,7 @@ fn settle(gate: Option<&WaitGate<'_>>) -> Result<(), Failure> {
 /// deadline, then existing-only rendezvous and socket validation. Under a
 /// wait gate every step's return — success *and* failure — is settled
 /// against the total deadline and the pending termination signal first.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn session_preamble(
     cohort_deadline: Instant,
     gate: Option<&WaitGate<'_>>,
@@ -782,7 +783,7 @@ fn session_preamble(
 /// One admission and one snapshot read under the shared deadline. On success
 /// the caller owns the still admitted session; on any failure the session is
 /// already dropped.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn admit_snapshot(
     cohort: &NativeCohort,
     site: &ModeCheckedLocalSiteRendezvous,
@@ -832,7 +833,7 @@ fn admit_snapshot(
 }
 
 /// One checked deadline `budget` out from now.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn deadline_after(budget: Duration) -> Result<Instant, Failure> {
     Instant::now()
         .checked_add(budget)
@@ -843,7 +844,7 @@ fn deadline_after(budget: Duration) -> Result<Instant, Failure> {
 /// or `ceiling`, whichever lands first. The deterministic pin for the
 /// shared-budget contract — stages keep their own bound but can never
 /// outlive the command's absolute deadline.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn bounded_deadline(now: Instant, budget: Duration, ceiling: Instant) -> Result<Instant, Failure> {
     Ok(now
         .checked_add(budget)
@@ -851,7 +852,7 @@ fn bounded_deadline(now: Instant, budget: Duration, ceiling: Instant) -> Result<
         .min(ceiling))
 }
 
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(all(test, any(target_os = "linux", windows)))]
 mod tests {
     use super::*;
 
@@ -1084,7 +1085,7 @@ mod tests {
             SignalWatch::poll_fd(&self.inner)
         }
 
-        fn finish(self) -> Result<Finish, nix::errno::Errno> {
+        fn finish(self) -> Result<Finish, crate::cli::source::SignalError> {
             self.eof
                 .recv_timeout(Duration::from_secs(5))
                 .expect("the admitted session must be dropped before finish");
@@ -1170,7 +1171,7 @@ mod tests {
 
 /// What the terminal observation produced: the applied visible frame, or the
 /// validated scrollback window behind it.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 enum Observed {
     Visible(super::results::TerminalRow, TerminalTextFrame),
     History {
@@ -1186,7 +1187,7 @@ enum Observed {
 /// The applied frame leaves the session so the caller can map it only after
 /// the transport is dropped; nothing here creates terminals, controllers,
 /// processes, or viewer state beyond this explicit read observation.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn read_terminal_frame(
     client: &mut LocalClient,
     deadline: Instant,
@@ -1206,7 +1207,7 @@ fn read_terminal_frame(
 /// MAXIMUM_FRAME_CELLS / columns)` keeps the absolute start at the recent
 /// end; `scrollback == 0` short-circuits before any Host request. No
 /// `RowsApplied` is sent: a buffer read creates no pending anchor.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn read_terminal_history(
     client: &mut LocalClient,
     deadline: Instant,
@@ -1235,7 +1236,7 @@ fn read_terminal_history(
 
 /// Resolve the binding from the snapshot — typed ID or `@terminal:` selector
 /// — and attach a read-only viewer to it inside the shared deadline.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn attach_viewer(
     client: &mut LocalClient,
     deadline: Instant,
@@ -1294,7 +1295,7 @@ fn attach_viewer(
 /// The read observation is released no matter how the exchange ended; the
 /// detach is best-effort because the session drop that follows already
 /// guarantees teardown.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn detach_viewer(client: &mut LocalClient, deadline: Instant, viewer_id: ViewerId) {
     if let Ok(request_id) = obcs_request_id() {
         let _ = client.submit_terminal_viewer_before(
@@ -1314,7 +1315,7 @@ fn detach_viewer(client: &mut LocalClient, deadline: Instant, viewer_id: ViewerI
 /// rows ending at the scrollback boundary; a `RowsRejected` maps to its
 /// typed failure and any other outcome — including an `Empty` stand-in — is
 /// protocol-invalid. Exactly one request is ever sent: no retry.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn read_history_window(
     client: &mut LocalClient,
     deadline: Instant,
@@ -1374,7 +1375,7 @@ fn read_history_window(
 /// payload against the request and the frame that priced it: envelope role
 /// and encoding, Host epoch, and every window field — attachment, sequence,
 /// revision, generation, columns, start, count, and the frame-derived total.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn decode_history_window(
     record: Vec<u8>,
     attachment: AttachmentId,
@@ -1422,7 +1423,7 @@ fn decode_history_window(
 /// budget overrun is a rejection, Host state answers are unavailability, and
 /// reasons our fixed request shape cannot honestly produce are protocol
 /// violations.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn classify_rows_rejected(
     reason: orchbee_client_server_protocol::ViewerRowsRejectedReason,
     operation: &'static str,
@@ -1449,7 +1450,7 @@ fn classify_rows_rejected(
 
 /// Row-read failure details: the typed reason the Host carried, under the
 /// viewer stage and the operation the read belongs to.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn rows_details(operation: &str, reason: &str) -> serde_json::Map<String, serde_json::Value> {
     serde_json::Map::from_iter([
         ("stage".to_owned(), serde_json::json!("viewer")),
@@ -1463,7 +1464,7 @@ fn rows_details(operation: &str, reason: &str) -> serde_json::Map<String, serde_
 /// under the shared deadline; there is no second connection, no retry of a
 /// failed exchange, and no `FrameApplied` for a frame whose only consumer is
 /// this read — `Detach` releases it.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn poll_terminal_frame(
     client: &mut LocalClient,
     deadline: Instant,
@@ -1524,16 +1525,16 @@ fn poll_terminal_frame(
 /// The clock `wait-output` consults for deadline evaluation and quiet-poll
 /// sleeping. The real command uses `SystemWaitClock`; tests inject fakes so
 /// deadline and backoff behavior is deterministic.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 trait WaitClock {
     fn now(&self) -> Instant;
     fn sleep(&self, duration: Duration);
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 struct SystemWaitClock;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 impl WaitClock for SystemWaitClock {
     fn now(&self) -> Instant {
         Instant::now()
@@ -1547,14 +1548,14 @@ impl WaitClock for SystemWaitClock {
 /// deadline-clamped preamble and the observation loop: a step that finishes
 /// after the total deadline — success or failure — settles as timeout, and
 /// a pending termination signal settles as cancelled.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 struct WaitGate<'a> {
     clock: &'a dyn WaitClock,
     signal: &'a dyn TerminationSource,
     deadline_total: Instant,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 impl WaitGate<'_> {
     /// Cancellation wins over a same-instant expiry; both beat any step
     /// classification that completed late.
@@ -1588,7 +1589,7 @@ impl WaitGate<'_> {
 /// the timeout report carries, the quiet-poll backoff, and the
 /// per-attachment `request_sequence` the Host requires to be strictly
 /// increasing.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 struct WaitRun<'a> {
     gate: WaitGate<'a>,
     timeout_ms: u32,
@@ -1597,7 +1598,7 @@ struct WaitRun<'a> {
     poll_interval: Duration,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 impl WaitRun<'_> {
     /// A gate failure becomes the detailed wait failure with the current
     /// observation count; any other kind passes through.
@@ -1672,7 +1673,7 @@ impl WaitRun<'_> {
 /// deadline starts at command start and is re-checked after every awaited
 /// step; cleanup is an explicit `Detach` inside the remaining budget plus
 /// the session drop, never a new budget.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn wait_output(
     target: &Target,
     pattern: &crate::invocation::WaitPattern,
@@ -1811,7 +1812,7 @@ pub(crate) fn wait_output(
 /// abandoned for a fresh frame, and every awaited step is followed by a
 /// cancel+deadline re-check. No frame is skipped: the Host's single record
 /// slot demands full consumption.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn wait_observe(
     client: &mut LocalClient,
     run: &mut WaitRun<'_>,
@@ -1906,7 +1907,7 @@ fn wait_observe(
 /// pinned snapshot aged between frame and read — stale revision, stale
 /// generation, or history eviction — and the caller resumes polling for a
 /// fresh consistent frame instead of splicing half windows.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn wait_read_window(
     client: &mut LocalClient,
     run: &mut WaitRun<'_>,
@@ -1969,7 +1970,7 @@ fn wait_read_window(
 
 /// The confirmed-`Detach` exit `wait-output` requires: the real outcome is
 /// inspected, unlike the best-effort send a one-shot read uses.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn wait_detach(
     client: &mut LocalClient,
     deadline: Instant,
@@ -1995,7 +1996,7 @@ fn wait_detach(
 /// The timeout report: the wait stage, the caller's total budget, and the
 /// completed-observation count — successful consistent window reads that
 /// also completed a match pass, never a frame or revision count.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn wait_timeout_failure(timeout_ms: u32, observations: u64) -> Failure {
     Failure::new(FailureKind::Timeout).details(serde_json::Map::from_iter([
         ("stage".to_owned(), serde_json::json!("wait")),
@@ -2008,7 +2009,7 @@ fn wait_timeout_failure(timeout_ms: u32, observations: u64) -> Failure {
 }
 
 /// The cancelled report: the wait stage under the fixed kind.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn wait_cancelled_failure() -> Failure {
     Failure::new(FailureKind::Cancelled).details(stage_details("wait"))
 }
@@ -2016,7 +2017,7 @@ fn wait_cancelled_failure() -> Failure {
 /// Merge the honest cleanup state into a failure's details — plus
 /// `matchObserved: true` when the text had already matched but the exit is
 /// still a failure.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn wait_cleanup_details(
     mut failure: Failure,
     cleanup: &'static str,
@@ -2033,7 +2034,7 @@ fn wait_cleanup_details(
 /// A launch read is a pure observation like the viewer paths: pre-submission
 /// breakage is clean transport loss and a malformed or mismatched answer is a
 /// protocol violation — never `outcome-unknown`, because nothing was mutated.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn classify_launch_read(error: SubmissionError) -> Failure {
     match error {
         SubmissionError::SessionUnavailable | SubmissionError::RequestEncoding(_) => {
@@ -2058,7 +2059,7 @@ fn classify_launch_read(error: SubmissionError) -> Failure {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn classify_viewer(error: SubmissionError) -> Failure {
     match error {
         SubmissionError::SessionUnavailable | SubmissionError::RequestEncoding(_) => {
@@ -2086,7 +2087,7 @@ fn classify_viewer(error: SubmissionError) -> Failure {
 /// A rejected viewer action means the read observation could not be kept:
 /// contention or a dead terminal is unavailability, while a feedback-state
 /// contradiction is a protocol violation.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn classify_viewer_rejected(reason: ViewerRejectedReason) -> Failure {
     match reason {
         ViewerRejectedReason::AlreadyAttached | ViewerRejectedReason::TerminalUnavailable => {
@@ -2099,22 +2100,20 @@ fn classify_viewer_rejected(reason: ViewerRejectedReason) -> Failure {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn viewer_unavailable() -> Failure {
     Failure::new(FailureKind::ServiceUnavailable).details(stage_details("viewer"))
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn viewer_protocol_invalid() -> Failure {
     Failure::new(FailureKind::ProtocolInvalid).details(stage_details("viewer"))
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn rendezvous() -> Result<ModeCheckedLocalSiteRendezvous, Failure> {
-    let base = env::var_os("ORCHBEE_RUNTIME_BASE")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/tmp"));
-    let scope_text = format!("orchbee-native-{}", nix::unistd::geteuid().as_raw());
+    let (base, scope_text) = crate::local_activation::runtime_location()
+        .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let scope =
         SiteScope::parse(&scope_text).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let scope_directory = base.join(&scope_text);
@@ -2126,7 +2125,7 @@ fn rendezvous() -> Result<ModeCheckedLocalSiteRendezvous, Failure> {
 /// unsafe Site scope belongs to `runtime-directory`, while anything rooted
 /// above it belongs to `runtime-base`. A scope ENOENT is service-unavailable
 /// discovery, never a configuration failure.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn classify_rendezvous(
     error: RendezvousError,
     scope_directory: &std::path::Path,
@@ -2146,7 +2145,7 @@ pub(crate) fn classify_rendezvous(
     Failure::new(FailureKind::CheckFailed).details(stage_details(stage))
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn rendezvous_path(error: &RendezvousError) -> Option<&std::path::Path> {
     match error {
         RendezvousError::InvalidSiteScope => None,
@@ -2164,7 +2163,7 @@ fn rendezvous_path(error: &RendezvousError) -> Option<&std::path::Path> {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn classify_connect(error: crate::local_client::LocalClientConnectError) -> Failure {
     use orchbee_local_client_protocol::{ProtocolError, RejectionReason};
     match error {
@@ -2208,7 +2207,7 @@ pub(crate) fn classify_connect(error: crate::local_client::LocalClientConnectErr
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn classify_read(error: SnapshotReadError) -> Failure {
     use orchbee_workbench_protocol::WorkbenchWireError;
     match error {
@@ -2237,13 +2236,10 @@ fn classify_read(error: SnapshotReadError) -> Failure {
 }
 
 /// Sixteen fresh bytes become the canonical 32-lowercase-hex request identity.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn fresh_request_id() -> Result<String, Failure> {
-    use std::io::Read;
     let mut bytes = [0_u8; 16];
-    std::fs::File::open("/dev/urandom")
-        .and_then(|mut file| file.read_exact(&mut bytes))
-        .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+    getrandom::fill(&mut bytes).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let mut text = String::with_capacity(32);
     for byte in bytes {
         use std::fmt::Write;
@@ -2252,13 +2248,13 @@ fn fresh_request_id() -> Result<String, Failure> {
     Ok(text)
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn request_id() -> Result<WorkbenchRequestId, Failure> {
     WorkbenchRequestId::parse(&fresh_request_id()?)
         .map_err(|_| Failure::new(FailureKind::InternalFailure))
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn obcs_request_id() -> Result<ObcsRequestId, Failure> {
     ObcsRequestId::parse(&fresh_request_id()?)
         .map_err(|_| Failure::new(FailureKind::InternalFailure))
@@ -2273,13 +2269,13 @@ pub(crate) fn obcs_request_id() -> Result<ObcsRequestId, Failure> {
 /// The typed cancellation payload: the settled agent failure plus the owed
 /// finalization token, boxed so the common error type stays small on paths
 /// that never cancel.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) struct AgentCancelled {
     pub(crate) failure: Failure,
     pub(crate) finalization: SourceFinalization,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) enum AgentQueryError {
     Admission(Failure),
     Read(Failure),
@@ -2290,7 +2286,7 @@ pub(crate) enum AgentQueryError {
 /// failure family. Preamble failures arrive already classified; the raw
 /// connect outcome is held unprojected because it may carry the protocol's
 /// provisional wake markers, which only the finish arbitration may weigh.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 enum AgentAdmissionError {
     Preamble(Failure),
     Connect(crate::local_client::LocalClientConnectError),
@@ -2301,7 +2297,7 @@ enum AgentAdmissionError {
 /// wake markers survive intact to that point. The variant carries the
 /// phase: `Admission` answers the generic document, the rest answer the
 /// agent document.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 enum AgentAttempt {
     Admission(AgentAdmissionError),
     /// The shared absolute budget expired before or after the exchange.
@@ -2314,21 +2310,21 @@ enum AgentAttempt {
 /// finish arbitration — the private seam where a test substitutes a
 /// recording watch to prove the admitted session is dropped first. Only
 /// `ArmedSignals` implements it in production.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 trait AgentWatch {
     /// The borrowed signal descriptor joined into every transport wait.
     fn poll_fd(&self) -> Option<BorrowedFd<'_>>;
     /// The single arbitration read after the armed span.
-    fn finish(self) -> Result<Finish, nix::errno::Errno>;
+    fn finish(self) -> Result<Finish, crate::cli::source::SignalError>;
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 impl AgentWatch for ArmedSignals {
     fn poll_fd(&self) -> Option<BorrowedFd<'_>> {
         SignalWatch::poll_fd(self)
     }
 
-    fn finish(self) -> Result<Finish, nix::errno::Errno> {
+    fn finish(self) -> Result<Finish, crate::cli::source::SignalError> {
         ArmedSignals::finish(self)
     }
 }
@@ -2340,7 +2336,7 @@ impl AgentWatch for ArmedSignals {
 /// before the single `finish` arbitration; and no early return may bypass
 /// that arbitration once armed. `Clear` hands the raw attempt back for the
 /// normal classification; `Cancelled` answers the typed 130 family.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn agent_armed_run(
     operation: AgentReadOperation,
     build: impl FnOnce(ObapRequestId) -> AgentReadRequest,
@@ -2364,7 +2360,7 @@ fn agent_armed_run(
 /// `agent_span` owns the session and drops it before returning; only then
 /// does `armed.finish()` read the signal descriptor. Nothing here
 /// classifies.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn agent_armed_finish(
     operation: AgentReadOperation,
     build: impl FnOnce(ObapRequestId) -> AgentReadRequest,
@@ -2400,7 +2396,7 @@ fn agent_armed_finish(
 /// The armed span body: admission under the borrowed wake descriptor, the
 /// pre-submission settle, one OBAP exchange, then the session is dropped —
 /// all before the caller's finish arbitration. Nothing here classifies.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn agent_span(
     total: Instant,
     operation: AgentReadOperation,
@@ -2432,7 +2428,7 @@ fn agent_span(
 /// bounded by `total`, never a renewed budget. The wake descriptor joins
 /// the admission wait set; nothing here may create state, replay a request,
 /// or touch the Workbench.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn agent_session_until(
     total: Instant,
     wake: Option<BorrowedFd<'_>>,
@@ -2453,7 +2449,7 @@ fn agent_session_until(
 /// Post-step settlement of the shared absolute budget: at or past the
 /// ceiling the step's outcome is the command's own Agent timeout — never a
 /// late success or a stale transport fault.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn agent_settle(total: Instant, operation: AgentReadOperation) -> Result<(), Failure> {
     if Instant::now() >= total {
         return Err(Failure::new(FailureKind::Timeout).details(agent_timeout_details(operation)));
@@ -2466,7 +2462,7 @@ fn agent_settle(total: Instant, operation: AgentReadOperation) -> Result<(), Fai
 /// Agent timeout, and a raw exchange result or failure maps through the
 /// post-admission classifiers — provisional wake markers left readable
 /// without a captured signal land on `internal-failure`.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn classify_attempt(
     attempt: AgentAttempt,
     operation: AgentReadOperation,
@@ -2491,7 +2487,7 @@ fn classify_attempt(
 /// session is dropped before any output work. The `listed` outcome is the
 /// only success path; every semantic refusal maps to its fixed failure kind
 /// and carries the correlated request identity as the honest source.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn agent_list(
     include_ended: bool,
     limit: u64,
@@ -2536,7 +2532,7 @@ pub(crate) fn agent_list(
 }
 
 /// `agent get`: one OBAP get request, same admission/exchange discipline.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn agent_get(
     session_id: &AgentSessionId,
 ) -> Result<(serde_json::Value, Projection), AgentQueryError> {
@@ -2552,7 +2548,7 @@ pub(crate) fn agent_get(
 
 /// `agent explain`: one OBAP explain request, same admission/exchange
 /// discipline.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn agent_explain(
     session_id: &AgentSessionId,
 ) -> Result<(serde_json::Value, Projection), AgentQueryError> {
@@ -2567,7 +2563,7 @@ pub(crate) fn agent_explain(
 }
 
 /// The shared single-session read behind `agent get` and `agent explain`.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn agent_session_read(
     operation: AgentReadOperation,
     request: impl FnOnce(ObapRequestId) -> AgentReadRequest,
@@ -2618,7 +2614,7 @@ fn agent_session_read(
 /// The `get`/`explain` refusal mapping: `not-found` names the session, while
 /// `read-denied` carries only the typed reason — both under the common
 /// `agent-read` stage.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn agent_session_rejection(
     operation: AgentReadOperation,
     reason: orchbee_agent_observation_protocol::AgentSessionRejectionReason,
@@ -2638,7 +2634,7 @@ fn agent_session_rejection(
 
 /// Common `agent-read` details: the stage plus the operation, as the failure
 /// schema closes them. Session-targeted failures add `sessionId`.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn agent_read_details(operation: AgentReadOperation) -> serde_json::Map<String, serde_json::Value> {
     let mut details = serde_json::Map::new();
     details.insert("stage".to_owned(), serde_json::json!("agent-read"));
@@ -2649,7 +2645,7 @@ fn agent_read_details(operation: AgentReadOperation) -> serde_json::Map<String, 
     details
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn agent_session_details(
     operation: AgentReadOperation,
     session_id: &str,
@@ -2659,7 +2655,7 @@ fn agent_session_details(
     details
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn agent_rejection_details(
     operation: AgentReadOperation,
     reason: &str,
@@ -2669,7 +2665,7 @@ fn agent_rejection_details(
     details
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn agent_unavailable_details(
     operation: AgentReadOperation,
 ) -> serde_json::Map<String, serde_json::Value> {
@@ -2678,7 +2674,7 @@ fn agent_unavailable_details(
 
 /// The fixed `timeoutMs` the agent-read failure schema publishes: the shared
 /// absolute command budget in milliseconds.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn agent_timeout_details(
     operation: AgentReadOperation,
 ) -> serde_json::Map<String, serde_json::Value> {
@@ -2690,7 +2686,7 @@ fn agent_timeout_details(
     details
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn agent_protocol_invalid(operation: AgentReadOperation) -> Failure {
     Failure::new(FailureKind::ProtocolInvalid).details(agent_read_details(operation))
 }
@@ -2698,7 +2694,7 @@ fn agent_protocol_invalid(operation: AgentReadOperation) -> Failure {
 /// A deadline-elapsed transport error is the command's own timeout, never a
 /// transport loss: `TimedOut` only arises from the shared deadline inside the
 /// exchange machinery.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn is_deadline_elapsed(error: &std::io::Error) -> bool {
     error.kind() == std::io::ErrorKind::TimedOut
 }
@@ -2707,7 +2703,7 @@ fn is_deadline_elapsed(error: &std::io::Error) -> bool {
 /// contradiction — the descriptor reported readiness or a fault yet the
 /// owner read no signal. Both map to `internal-failure`, never cancellation
 /// or a transport verdict.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn wake_marker_failure(error: &std::io::Error) -> Option<Failure> {
     if exchange_wake_ready(error) || exchange_wake_fault(error) {
         Some(Failure::new(FailureKind::InternalFailure))
@@ -2720,7 +2716,7 @@ fn wake_marker_failure(error: &std::io::Error) -> Option<Failure> {
 /// kind, an expired deadline to timeout, a transport fault to transport-loss,
 /// and any malformed/correlated violation to protocol-invalid — every
 /// document under the common `agent-read` stage, none with a source.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn classify_agent_read(error: AgentReadError, operation: AgentReadOperation) -> Failure {
     match error {
         AgentReadError::SessionUnavailable | AgentReadError::RequestEncoding(_) => {
@@ -2739,7 +2735,7 @@ fn classify_agent_read(error: AgentReadError, operation: AgentReadOperation) -> 
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn classify_agent_failure(reason: AgentReadFailure, operation: AgentReadOperation) -> Failure {
     match reason {
         AgentReadFailure::Write(error)
@@ -2761,13 +2757,13 @@ fn classify_agent_failure(reason: AgentReadFailure, operation: AgentReadOperatio
 
 /// The OBAP request identity minted per command: sixteen fresh bytes as
 /// canonical 32-lowercase-hex, never reused.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn obap_request_id() -> Result<ObapRequestId, Failure> {
     ObapRequestId::parse(&fresh_request_id()?)
         .map_err(|_| Failure::new(FailureKind::InternalFailure))
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn rejection_reason_text(
     reason: &orchbee_agent_observation_protocol::AgentListRejectionReason,
 ) -> &'static str {
@@ -2783,7 +2779,7 @@ fn rejection_reason_text(
 /// What the terminal observation produced: the applied visible frame, or the
 /// validated scrollback window behind it.
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn read_snapshot() -> Result<orchbee_workbench_protocol::Snapshot, super::Failure> {
     Err(
         super::Failure::new(super::FailureKind::ServiceUnavailable).details(
@@ -2792,7 +2788,7 @@ pub(crate) fn read_snapshot() -> Result<orchbee_workbench_protocol::Snapshot, su
     )
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn terminal_get(
     _target: &crate::invocation::Target,
 ) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
@@ -2803,7 +2799,7 @@ pub(crate) fn terminal_get(
     )
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn read_terminal(
     _target: &crate::invocation::Target,
     _history: Option<u16>,
@@ -2816,7 +2812,7 @@ pub(crate) fn read_terminal(
     )
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn worktree_list(
     _project: &crate::invocation::Target,
     _directory: &orchbee_workbench_protocol::WorkbenchDirectoryId,
@@ -2828,7 +2824,7 @@ pub(crate) fn worktree_list(
     )
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn launch_profile_catalog(
     _selector: Option<orchbee_workbench_protocol::LaunchProfileSelector>,
 ) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
@@ -2839,7 +2835,7 @@ pub(crate) fn launch_profile_catalog(
     )
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn wait_output(
     _target: &crate::invocation::Target,
     _pattern: &crate::invocation::WaitPattern,
@@ -2856,13 +2852,13 @@ pub(crate) fn wait_output(
 /// The Agent read failure family a caller must answer with; on platforms
 /// without a local Client Session every read is a pre-admission platform
 /// failure under the generic document.
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) enum AgentQueryError {
     Admission(super::Failure),
     Read(super::Failure),
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn agent_list(
     _include_ended: bool,
     _limit: u64,
@@ -2875,7 +2871,7 @@ pub(crate) fn agent_list(
     ))
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn agent_get(
     _session_id: &orchbee_agent_observation_protocol::AgentSessionId,
 ) -> Result<(serde_json::Value, super::results::Projection), AgentQueryError> {
@@ -2886,7 +2882,7 @@ pub(crate) fn agent_get(
     ))
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn agent_explain(
     _session_id: &orchbee_agent_observation_protocol::AgentSessionId,
 ) -> Result<(serde_json::Value, super::results::Projection), AgentQueryError> {
@@ -2897,7 +2893,7 @@ pub(crate) fn agent_explain(
     ))
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn agent_wait(
     _session_id: &orchbee_agent_observation_protocol::AgentSessionId,
     _until: &[crate::invocation::AgentWaitCondition],
@@ -2913,7 +2909,7 @@ pub(crate) fn agent_wait(
 
 /// Deterministic wait-path evidence: an injectable clock and flag make the
 /// deadline, cancel, backoff, and per-attachment sequence behavior exact.
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(all(test, any(target_os = "linux", windows)))]
 mod wait_tests {
     use super::*;
     use std::cell::Cell;

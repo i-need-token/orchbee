@@ -1,10 +1,10 @@
+use orchbee_local_ipc::{LocalListener as UnixListener, LocalStream as UnixStream};
 use std::{
     cell::RefCell,
     error::Error,
     fs,
     io::{self, Read, Write},
     num::NonZeroU64,
-    os::unix::net::{UnixListener, UnixStream},
     path::PathBuf,
     rc::Rc,
     sync::atomic::{AtomicU64, Ordering},
@@ -101,7 +101,10 @@ fn scripted_host_peer() -> TestResult<(
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
     fs::create_dir(&directory)?;
+    #[cfg(unix)]
     let endpoint = directory.join("host.s");
+    #[cfg(windows)]
+    let endpoint = crate::test_support::endpoint();
     let listener = UnixListener::bind(&endpoint)?;
     let thread = thread::spawn(move || -> Result<UnixStream, String> {
         let run = || -> TestResult<UnixStream> {

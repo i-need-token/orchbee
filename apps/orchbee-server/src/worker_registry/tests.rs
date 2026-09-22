@@ -1,6 +1,6 @@
+use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
     num::NonZeroU64,
-    os::unix::net::UnixStream,
     sync::{
         Arc, Mutex,
         atomic::{AtomicU64, Ordering},

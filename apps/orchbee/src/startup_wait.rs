@@ -1,7 +1,8 @@
+#[cfg(unix)]
+use std::io::Read;
 use std::{
     fs::File,
-    io::{self, Read, Write},
-    os::fd::AsFd,
+    io::{self, Write},
     time::{Duration, Instant},
 };
 
@@ -10,11 +11,14 @@ use crossterm::{
     cursor::MoveTo,
     terminal::{Clear, ClearType},
 };
+#[cfg(unix)]
 use nix::{
     errno::Errno,
     poll::{PollFd, PollFlags, PollTimeout, poll},
 };
 use ratatui::layout::Rect;
+#[cfg(unix)]
+use std::os::fd::AsFd;
 
 use crate::{
     client_view::ClientView,
@@ -26,6 +30,7 @@ use crate::{
 };
 
 const WAIT_POLL_INTERVAL: Duration = Duration::from_millis(100);
+#[cfg(unix)]
 const WAIT_INPUT_BUFFER_BYTES: usize = 4096;
 
 /// The bounded AwaitingGeometry outcome. `Available` carries the dimensions
@@ -274,47 +279,55 @@ impl InheritedWaitInput {
 
 impl WaitInput for InheritedWaitInput {
     fn next_input(&mut self, timeout: Duration) -> io::Result<Option<Vec<u8>>> {
-        let timeout = PollTimeout::try_from(timeout).map_err(|error| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!("input poll timeout is outside the supported range: {error}"),
-            )
-        })?;
-        let mut descriptors = [PollFd::new(self.input.as_fd(), PollFlags::POLLIN)];
-        match poll(&mut descriptors, timeout) {
-            Ok(0) | Err(Errno::EINTR) => return Ok(None),
-            Ok(_) => {}
-            Err(error) => return Err(io::Error::from(error)),
+        #[cfg(windows)]
+        {
+            let _ = &self.input;
+            crate::windows_console_input::next_input(timeout)
         }
-        let flags = match descriptors.first().and_then(PollFd::revents) {
-            Some(flags) => flags,
-            None => {
-                return Err(io::Error::other(
-                    "input poll returned unknown readiness flags",
+        #[cfg(unix)]
+        {
+            let timeout = PollTimeout::try_from(timeout).map_err(|error| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("input poll timeout is outside the supported range: {error}"),
+                )
+            })?;
+            let mut descriptors = [PollFd::new(self.input.as_fd(), PollFlags::POLLIN)];
+            match poll(&mut descriptors, timeout) {
+                Ok(0) | Err(Errno::EINTR) => return Ok(None),
+                Ok(_) => {}
+                Err(error) => return Err(io::Error::from(error)),
+            }
+            let flags = match descriptors.first().and_then(PollFd::revents) {
+                Some(flags) => flags,
+                None => {
+                    return Err(io::Error::other(
+                        "input poll returned unknown readiness flags",
+                    ));
+                }
+            };
+            if !flags.contains(PollFlags::POLLIN) {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "the inherited terminal input closed",
                 ));
             }
-        };
-        if !flags.contains(PollFlags::POLLIN) {
-            return Err(io::Error::new(
-                io::ErrorKind::UnexpectedEof,
-                "the inherited terminal input closed",
-            ));
+            let mut buffer = [0_u8; WAIT_INPUT_BUFFER_BYTES];
+            let count = self.input.read(&mut buffer)?;
+            if count == 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "the inherited terminal input reached end of file",
+                ));
+            }
+            let input = buffer.get(..count).ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "the inherited terminal returned an invalid input length",
+                )
+            })?;
+            Ok(Some(input.to_vec()))
         }
-        let mut buffer = [0_u8; WAIT_INPUT_BUFFER_BYTES];
-        let count = self.input.read(&mut buffer)?;
-        if count == 0 {
-            return Err(io::Error::new(
-                io::ErrorKind::UnexpectedEof,
-                "the inherited terminal input reached end of file",
-            ));
-        }
-        let input = buffer.get(..count).ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                "the inherited terminal returned an invalid input length",
-            )
-        })?;
-        Ok(Some(input.to_vec()))
     }
 }
 

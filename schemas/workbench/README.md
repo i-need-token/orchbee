@@ -44,7 +44,7 @@ contains:
 - one primary and zero or more child Terminal Presentations per Panel; and
 - an optional opaque Worker/Terminal binding for a Presentation.
 
-Each Directory carries its typed identity, exact Worker identity, and an absolute POSIX UTF-8 path.
+Each Directory carries its typed identity, exact Worker identity, and an absolute local-platform UTF-8 path.
 Each Workspace carries a required nullable primary Directory reference into its own Project.
 The projection contains labels but no directory discovery or mutation policy, terminal content,
 terminal lifecycle policy, Environment, Checkout, Worktree, Agent, Launch Profile, Archive, SSH, lease, fence, Host
@@ -130,7 +130,7 @@ OBCS remains the separate terminal protocol, and OBLC admission precedes either 
 ## Workspace primary Directory contract
 
 `workspace.primary-directory.accept` carries exactly `projectId`, `workspaceId`, and `path`.
-`path` is absolute POSIX UTF-8 text from 1 through 4,096 encoded bytes with no NUL; its spelling is
+`path` is absolute local-platform UTF-8 text from 1 through 4,096 encoded bytes with no NUL; its spelling is
 preserved. The Client supplies no Directory or Worker identity. A successful
 `workspace-primary-directory-accepted` outcome carries the committed `revision`, Server-allocated
 `directoryId`, and selected `workerId`.
@@ -354,3 +354,7 @@ pnpm verify
 These checks prove schema/binding conformance and the pure delta refinement only. They do not prove
 a Server, transport, authorization policy, persistence model, renderer, CLI command, or mobile
 implementation.
+
+## Native Windows path refinement
+
+Absolute wire paths accept a POSIX leading slash or an ASCII drive letter followed by `:` and `/` or `\`, optionally prefixed by `\\?\` for a Windows verbatim drive path. This lexical rule is independent of the decoder platform; bytes are preserved without expansion or normalization. Backslash-rooted, drive-relative, UNC, and device paths are not admitted by this Windows increment. Existing byte bounds and NUL/Unicode validation remain unchanged. The execution owner still validates the path against its local filesystem before effects.

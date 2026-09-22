@@ -76,7 +76,7 @@ provider 接入——对调用用户的 provider 配置做有界读取与受管�
   Workbench label
   （非空且在协议 label 上限内）；缺失、空串或超长均为 `invalid-usage`。
 - `--path <path>`：带值 flag，单次使用，`workspace accept-directory` 上必填、其他任何命令
-  上均非法。值为 `WorkbenchDirectoryPath`：字面绝对 POSIX 路径（以 `/` 开头），至多
+  上均非法。值为 `WorkbenchDirectoryPath`：字面本机绝对路径（POSIX `/` 或 Windows 盘符绝对路径），至多
   4,096 UTF-8 字节且不含 NUL。CLI 从不展开 `~` 或 `$`，从不创建或修复目录，也从不探测
   文件系统——缺失、相对、含 NUL 或超长的值在任何运行时访问之前即为 `invalid-usage`，
   一切文件系统事实均由 Server 在提交后权威判定。

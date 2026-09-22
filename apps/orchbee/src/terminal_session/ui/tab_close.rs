@@ -203,7 +203,7 @@ impl NativeUi {
     )> {
         self.state.as_ref()?.uncertain_close_identity()
     }
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     pub(in crate::terminal_session) fn begin_status_recovery(
         &mut self,
     ) -> Option<(

@@ -6,6 +6,7 @@
 
 use serde_json::{Map, Value, json};
 
+#[cfg(unix)]
 use super::escape::{display_width, escape};
 use super::{Failure, FailureKind, Output, failure_output, output, stage_reason_details};
 use crate::invocation::{AgentIntegrationCommand, OutputFormat};

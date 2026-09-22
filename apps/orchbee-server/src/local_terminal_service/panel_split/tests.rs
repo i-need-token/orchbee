@@ -13,6 +13,7 @@ use orchbee_capability_node_protocol::{
     TerminalLifecycleResult, WorkerGeneration, read_message, write_message,
 };
 use orchbee_client_server_protocol::{Geometry, OpenOutcome, TerminalOpenRequest};
+use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_local_site_protocol::WorkerId as LocalWorkerId;
 use orchbee_server::CloseStepObservation;
 use orchbee_workbench_protocol::{
@@ -24,7 +25,6 @@ use orchbee_workbench_protocol::{
 use std::{
     error::Error,
     num::NonZeroU64,
-    os::unix::net::UnixStream,
     sync::{Arc, Mutex, mpsc},
     thread,
     time::{Duration, Instant},

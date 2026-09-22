@@ -58,6 +58,7 @@ impl IntegrationId {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg(unix)]
 pub(crate) enum State {
     Conflict,
     Disabled,
@@ -72,6 +73,7 @@ pub(crate) enum State {
     Unknown,
 }
 
+#[cfg(unix)]
 impl State {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
@@ -87,6 +89,7 @@ impl State {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg(unix)]
 pub(crate) enum Issue {
     CapsuleUnsupportedVersion,
     InspectionFailed,
@@ -103,6 +106,7 @@ pub(crate) enum Issue {
     UnsupportedVersion,
 }
 
+#[cfg(unix)]
 impl Issue {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
@@ -116,6 +120,7 @@ impl Issue {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg(unix)]
 pub(crate) enum Availability {
     Available,
     NotFound,
@@ -125,6 +130,7 @@ pub(crate) enum Availability {
     Unknown,
 }
 
+#[cfg(unix)]
 impl Availability {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
@@ -136,11 +142,13 @@ impl Availability {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg(unix)]
 pub(crate) enum ManagementMode {
     ManagedLocal,
     ManualOnly,
 }
 
+#[cfg(unix)]
 impl ManagementMode {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
@@ -152,6 +160,7 @@ impl ManagementMode {
 
 /// One provider's inspected snapshot row (canonical item shape).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg(unix)]
 pub(crate) struct SnapshotItem {
     pub(crate) availability: Availability,
     pub(crate) integration_id: IntegrationId,
@@ -167,6 +176,7 @@ pub(crate) struct SnapshotItem {
 /// The observed value's provenance — never fabricate a post-effect snapshot
 /// a skipped or failed re-inspection did not produce.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg(unix)]
 pub(crate) enum Provenance {
     /// The admission-time inspection snapshot.
     PreEffect,
@@ -178,6 +188,7 @@ pub(crate) enum Provenance {
     Unavailable,
 }
 
+#[cfg(unix)]
 impl Provenance {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {

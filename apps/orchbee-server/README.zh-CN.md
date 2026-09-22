@@ -724,3 +724,7 @@ binding，包含两次导航提交及一次创建尝试。其成员序列抽象�
 split 叶。它抽象熵源、编码、分配 cursor、重复完成、时间数值和
 调度。确定性与 stateful 测试覆盖身份不复用及忽略重复完成；进程/PTY trace 覆盖 framing、
 逻辑身份到 Host 的映射、并发、真实执行和保留。
+
+## Windows 原生 Site
+
+Windows 托管 Site 保留现有内存权威和生命周期锁。它准入当前令牌用户的命名管道对端，并禁用句柄继承来启动精确的同级 `orchbee-worker.exe`，使 CLI 输出捕获可独立于保留的 Site 结束。运行时路径、ACL、锁、标记及 cohort 校验仍由 `orchbee-local-site-runtime` 负责。Windows 观察入口无需 Unix 半关闭即可接收一个有界完整 JSON 值；畸形连接不会中断其他客户端。此入口适配器不移植 Unix provider hooks。可用命令面及剩余限制见 [Client 快速开始](../orchbee/README.zh-CN.md#windows-原生快速开始)。

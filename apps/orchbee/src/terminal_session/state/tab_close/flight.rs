@@ -290,7 +290,7 @@ impl CloseState {
 }
 
 impl NativeSessionState {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     pub(in crate::terminal_session) fn close_recovery_available(&self) -> bool {
         self.close.pending.is_none()
             && self
@@ -300,7 +300,7 @@ impl NativeSessionState {
                 .any(|record| record.operation.is_some() || record.uncertain)
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     pub(in crate::terminal_session) fn begin_close_status_recovery(&mut self) -> bool {
         if !matches!(self.phase, SessionPhase::Retired(_)) || !self.close_recovery_available() {
             return false;

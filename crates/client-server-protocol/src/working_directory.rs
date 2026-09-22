@@ -15,7 +15,7 @@ impl fmt::Display for WorkingDirectoryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotAbsolute => {
-                formatter.write_str("working directory must be an absolute POSIX path")
+                formatter.write_str("working directory must be an absolute local-platform path")
             }
             Self::ContainsNul => formatter.write_str("working directory must not contain NUL"),
             Self::TooLong { actual, maximum } => write!(
@@ -34,7 +34,7 @@ pub struct WorkingDirectory(String);
 
 impl WorkingDirectory {
     pub fn parse(value: &str) -> Result<Self, WorkingDirectoryError> {
-        if !value.starts_with('/') {
+        if !is_absolute_path(value.as_bytes()) {
             return Err(WorkingDirectoryError::NotAbsolute);
         }
         if value.contains('\0') {
@@ -75,3 +75,14 @@ impl fmt::Display for WorkingDirectory {
 
 #[cfg(test)]
 mod tests;
+
+/// Platform-independent wire syntax; the execution owner validates local meaning.
+/// Windows admits drive-absolute paths, including verbatim drive paths. No UNC,
+/// device namespace, drive-relative, or current-drive-rooted backslash spelling.
+pub(crate) fn is_absolute_path(value: &[u8]) -> bool {
+    if value.first() == Some(&b'/') {
+        return true;
+    }
+    let drive = value.strip_prefix(br"\\?\").unwrap_or(value);
+    matches!(drive, [letter, b':', b'\\' | b'/', ..] if letter.is_ascii_alphabetic())
+}

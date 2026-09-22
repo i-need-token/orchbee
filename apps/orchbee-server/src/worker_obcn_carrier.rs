@@ -1,9 +1,10 @@
+use orchbee_local_ipc::AsLocalIo;
+use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
     collections::VecDeque,
     fmt,
     io::{self, Read, Write},
     num::NonZeroU64,
-    os::{fd::AsFd, unix::net::UnixStream},
     sync::{
         Arc, Condvar, Mutex, MutexGuard,
         atomic::{AtomicBool, Ordering},
@@ -12,16 +13,13 @@ use std::{
     time::{Duration, Instant},
 };
 
-use nix::{
-    errno::Errno,
-    poll::{PollFd, PollFlags, PollTimeout, poll},
-};
 use orchbee_capability_node_protocol::{
     AuthorizedTerminalLaunch, AuthorizedTerminalStart, CapabilityNodeMessage, ProtocolError,
     ReadMessageError, TerminalCwdValidationRequest, TerminalCwdValidationResult,
     TerminalLaunchResult, TerminalOperationAuthorization, TerminalStartResult, WorktreeJobRequest,
     WorktreeJobResult, encode_message, read_message,
 };
+use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 use orchbee_local_site_protocol::WorkerId;
 
 mod lifecycle;
@@ -822,14 +820,14 @@ impl WorkerWireOwner {
     #[cfg(test)]
     pub(crate) fn run_configured_for_test<Stream>(mut self, mut stream: Stream) -> WorkerWireExit
     where
-        Stream: AsFd + Read + Write,
+        Stream: AsLocalIo + Read + Write,
     {
         self.run_configured(&mut stream)
     }
 
     fn run_configured<Stream>(&mut self, stream: &mut Stream) -> WorkerWireExit
     where
-        Stream: AsFd + Read + Write,
+        Stream: AsLocalIo + Read + Write,
     {
         loop {
             if !self.active.load(Ordering::Acquire) {
@@ -884,7 +882,7 @@ impl WorkerWireOwner {
 
     fn exchange_in_flight<Stream>(&mut self, stream: &mut Stream) -> bool
     where
-        Stream: AsFd + Read + Write,
+        Stream: AsLocalIo + Read + Write,
     {
         let pending = self
             .in_flight
@@ -991,7 +989,7 @@ fn write_complete_frame<Stream>(
     timeout: Duration,
 ) -> Result<(), WorkerTransportFailure>
 where
-    Stream: AsFd + Write,
+    Stream: AsLocalIo + Write,
 {
     let Some(deadline) = Instant::now().checked_add(timeout) else {
         return Err(WorkerTransportFailure::Io(io::ErrorKind::InvalidInput));
@@ -1020,7 +1018,7 @@ struct DeadlineReader<'a, Stream> {
 
 impl<Stream> Read for DeadlineReader<'_, Stream>
 where
-    Stream: AsFd + Read,
+    Stream: AsLocalIo + Read,
 {
     fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
         loop {
@@ -1037,16 +1035,16 @@ where
     }
 }
 
-fn wait_for_io(stream: &impl AsFd, events: PollFlags, deadline: Instant) -> io::Result<()> {
+fn wait_for_io(stream: &impl AsLocalIo, events: PollFlags, deadline: Instant) -> io::Result<()> {
     loop {
         let remaining = remaining_until(deadline)?;
         let timeout = poll_timeout(remaining)?;
         let ready = {
-            let mut descriptors = [PollFd::new(stream.as_fd(), events)];
+            let mut descriptors = [PollFd::new(stream.as_local_io(), events)];
             match poll(&mut descriptors, timeout) {
                 Ok(ready) => ready,
-                Err(Errno::EINTR) => continue,
-                Err(error) => return Err(io::Error::from_raw_os_error(error as i32)),
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                Err(error) => return Err(error),
             }
         };
         if ready > 0 {

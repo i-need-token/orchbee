@@ -1,5 +1,6 @@
 use std::{error::Error, io};
 
+#[cfg(unix)]
 use nix::unistd::{Uid, User};
 use orchbee_capability_node_protocol::AbsoluteCwd;
 use orchbee_terminal_protocol::{
@@ -34,10 +35,8 @@ pub(super) fn resolve(
     let cwd = match explicit_cwd {
         Some(cwd) => cwd.clone(),
         None => {
-            let account = User::from_uid(Uid::effective())?.ok_or_else(|| {
-                io::Error::new(io::ErrorKind::NotFound, "Worker account is unavailable")
-            })?;
-            let home = account.dir.to_str().ok_or_else(|| {
+            let home_path = default_home()?;
+            let home = home_path.to_str().ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidData, "Worker home is not UTF-8")
             })?;
             AbsoluteCwd::new(home)?
@@ -98,4 +97,21 @@ fn default_terminal_profile() -> TerminalProfile {
         palette,
         version_response: "Orchbee".to_owned(),
     }
+}
+
+#[cfg(unix)]
+fn default_home() -> io::Result<std::path::PathBuf> {
+    Ok(User::from_uid(Uid::effective())?
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Worker account is unavailable"))?
+        .dir)
+}
+#[cfg(windows)]
+fn default_home() -> io::Result<std::path::PathBuf> {
+    let home = std::env::var_os("USERPROFILE")
+        .map(std::path::PathBuf::from)
+        .ok_or(io::ErrorKind::NotFound)?;
+    if !home.is_absolute() || !home.is_dir() {
+        return Err(io::ErrorKind::InvalidInput.into());
+    }
+    Ok(home)
 }

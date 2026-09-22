@@ -10,3 +10,6 @@ nix = { workspace = true, features = ["socket", "user"] }
 
 [lints]
 workspace = true
+
+[target.'cfg(windows)'.dependencies]
+orchbee-local-ipc = { path = "../local-ipc" }

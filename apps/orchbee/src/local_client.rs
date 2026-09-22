@@ -1,18 +1,17 @@
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use std::path::PathBuf;
 use std::{
     fmt,
     io::{self, Read, Write},
-    os::fd::{AsFd, BorrowedFd},
     path::Path,
     sync::Arc,
     time::{Duration, Instant},
 };
 
-use nix::{
-    errno::Errno,
-    poll::{PollFd, PollFlags, PollTimeout, poll},
-};
+use orchbee_local_ipc::{AsLocalIo, LocalIo as BorrowedFd, PollFd, PollFlags, PollTimeout, poll};
+#[cfg(unix)]
+use std::os::fd::AsFd;
+
 use orchbee_client_server_protocol::{
     ClientMessage, ProtocolError, ReadMessageError, RequestId, ServerMessage,
     TerminalControlAction, TerminalControlOutcome, TerminalControlRequest, TerminalControlResult,
@@ -25,7 +24,7 @@ use orchbee_local_client_protocol::{ClientSessionConnection, ConnectClientError}
 
 const REQUEST_TOTAL_TIMEOUT: Duration = Duration::from_secs(50);
 
-pub(crate) struct LocalClientShutdown(std::os::unix::net::UnixStream);
+pub(crate) struct LocalClientShutdown(orchbee_local_ipc::LocalStream);
 impl LocalClientShutdown {
     pub(crate) fn close(&self) -> io::Result<()> {
         self.0.shutdown(std::net::Shutdown::Both)
@@ -34,7 +33,7 @@ impl LocalClientShutdown {
 
 #[derive(Debug)]
 pub(crate) struct LocalClient {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     origin: LocalClientOrigin,
     connection: Option<ClientSessionConnection>,
     request_timeout: Duration,
@@ -43,14 +42,14 @@ pub(crate) struct LocalClient {
     io_chunk_limits: IoChunkLimits,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 #[derive(Clone, Debug)]
 pub(crate) struct LocalClientOrigin {
     endpoint: PathBuf,
     cohort: String,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 impl LocalClientOrigin {
     pub(crate) fn reconnect_before(
         &self,
@@ -80,7 +79,7 @@ impl LocalClientOrigin {
 }
 
 impl LocalClient {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     pub(crate) fn connect_before(
         endpoint: &Path,
         cohort: &str,
@@ -93,7 +92,7 @@ impl LocalClient {
     /// joined into the admission wait set: the protocol only polls it and
     /// reports provisional wake observations; the caller performs the sole
     /// arbitration read after the session is dropped.
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     pub(crate) fn connect_before_cancellable(
         endpoint: &Path,
         cohort: &str,
@@ -105,7 +104,7 @@ impl LocalClient {
                 .map_err(LocalClientConnectError::Admission)?;
         Self::from_connection(
             connection,
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             LocalClientOrigin {
                 endpoint: endpoint.to_path_buf(),
                 cohort: cohort.to_owned(),
@@ -145,7 +144,7 @@ impl LocalClient {
             .map_err(LocalClientConnectError::Admission)?;
         Self::from_connection(
             connection,
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             LocalClientOrigin {
                 endpoint: endpoint.to_path_buf(),
                 cohort: cohort.to_owned(),
@@ -158,7 +157,7 @@ impl LocalClient {
 
     fn from_connection(
         connection: ClientSessionConnection,
-        #[cfg(target_os = "linux")] origin: LocalClientOrigin,
+        #[cfg(any(target_os = "linux", windows))] origin: LocalClientOrigin,
         request_timeout: Duration,
         clock: Box<dyn MonotonicClock>,
         io_chunk_limits: IoChunkLimits,
@@ -167,7 +166,7 @@ impl LocalClient {
             .set_nonblocking(true)
             .map_err(LocalClientConnectError::RequestIoConfiguration)?;
         Ok(Self {
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             origin,
             connection: Some(connection),
             request_timeout,
@@ -181,7 +180,7 @@ impl LocalClient {
         self.submission_deadline
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     pub(crate) fn origin(&self) -> LocalClientOrigin {
         self.origin.clone()
     }
@@ -205,9 +204,16 @@ impl LocalClient {
             .connection
             .as_ref()
             .ok_or_else(|| io::Error::other("Client Session unavailable"))?;
-        Ok(LocalClientShutdown(std::os::unix::net::UnixStream::from(
-            connection.as_fd().try_clone_to_owned()?,
-        )))
+        #[cfg(unix)]
+        {
+            Ok(LocalClientShutdown(std::os::unix::net::UnixStream::from(
+                connection.as_fd().try_clone_to_owned()?,
+            )))
+        }
+        #[cfg(windows)]
+        {
+            Ok(LocalClientShutdown(connection.shutdown_stream()?))
+        }
     }
 
     #[must_use]
@@ -997,14 +1003,15 @@ impl DeadlineIo<'_> {
             let remaining = self.deadline.remaining(self.clock)?;
             let timeout = poll_timeout(remaining);
             let Some(wake) = self.wake else {
-                let mut descriptors = [PollFd::new(self.connection.as_fd(), interest)];
+                let mut descriptors = [PollFd::new(self.connection.as_local_io(), interest)];
                 match poll(&mut descriptors, timeout) {
-                    Ok(0) | Err(Errno::EINTR) => {}
+                    Ok(0) => {}
+                    Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
                     Ok(_ready) => {
                         self.deadline.remaining(self.clock)?;
                         return Ok(());
                     }
-                    Err(error) => return Err(error.into()),
+                    Err(error) => return Err(error),
                 }
                 continue;
             };
@@ -1012,11 +1019,12 @@ impl DeadlineIo<'_> {
             // wait set; its readiness is decided before simultaneous socket
             // readiness so the owner observes it first.
             let mut descriptors = [
-                PollFd::new(self.connection.as_fd(), interest),
+                PollFd::new(self.connection.as_local_io(), interest),
                 PollFd::new(wake, PollFlags::POLLIN),
             ];
             match poll(&mut descriptors, timeout) {
-                Ok(0) | Err(Errno::EINTR) => {}
+                Ok(0) => {}
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
                 Ok(_ready) => {
                     let observed = descriptors[1].revents().unwrap_or(PollFlags::empty());
                     // Readable data still wins over simultaneous fault flags:
@@ -1039,7 +1047,7 @@ impl DeadlineIo<'_> {
                     self.deadline.remaining(self.clock)?;
                     return Ok(());
                 }
-                Err(error) => return Err(error.into()),
+                Err(error) => return Err(error),
             }
         }
     }

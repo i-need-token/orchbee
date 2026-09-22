@@ -816,3 +816,7 @@ It abstracts entropy,
 encoding, allocation cursors, duplicate completion, time magnitude and scheduling. Deterministic
 and stateful tests cover identity non-reuse and ignored duplicate completion; process/PTY traces
 cover framing, logical-to-Host mapping, concurrency, real execution and retention.
+
+## Windows native Site
+
+The managed Windows Site keeps the existing in-memory authority and lifecycle guard. It accepts current-token-user named-pipe peers and starts one exact sibling `orchbee-worker.exe` with handle inheritance disabled, so CLI output capture finishes independently of the retained Site. Runtime path, ACL, lock, marker, and cohort validation remain in `orchbee-local-site-runtime`. The Windows observation ingress accepts one bounded complete JSON value without Unix half-close; malformed connections do not terminate other clients. This ingress adapter does not port the Unix provider hooks. See the [Client quick start](../orchbee/README.md#native-windows-quick-start) for the usable surface and remaining limits.

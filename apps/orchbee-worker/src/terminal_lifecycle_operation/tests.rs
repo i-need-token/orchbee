@@ -7,6 +7,7 @@ use orchbee_capability_node_protocol::{
     TerminalId, TerminalLifecycleAuthorization, TerminalOperationAuthorization,
     TerminalOperationLease, TerminalPixelGeometry, WorkerGeneration, WorkerId,
 };
+use orchbee_local_ipc::{LocalListener as UnixListener, LocalStream as UnixStream};
 use orchbee_terminal_protocol::{
     HelloAccepted, HostEpoch, TRANSPORT_ENVELOPE_HEADER_BYTES, encode_connection_control,
 };
@@ -16,7 +17,6 @@ use std::{
     io::{Read, Write},
     net::Shutdown,
     num::NonZeroU64,
-    os::unix::net::{UnixListener, UnixStream},
     path::PathBuf,
     rc::Rc,
     sync::atomic::{AtomicU64, Ordering},
@@ -176,7 +176,10 @@ impl Fixture {
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir(&directory)?;
+        #[cfg(unix)]
         let endpoint = directory.join("host.s");
+        #[cfg(windows)]
+        let endpoint = crate::test_support::endpoint();
         let listener = UnixListener::bind(&endpoint)?;
         let thread = thread::spawn(move || -> Result<UnixStream, String> {
             let run = || -> TestResult<UnixStream> {

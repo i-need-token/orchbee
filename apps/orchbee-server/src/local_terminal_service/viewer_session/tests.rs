@@ -1,7 +1,7 @@
+use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
     collections::VecDeque,
     num::NonZeroU64,
-    os::unix::net::UnixStream,
     sync::{
         Arc, Mutex,
         mpsc::{Receiver, Sender, channel},

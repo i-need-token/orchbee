@@ -8,16 +8,9 @@
 use crate::local_client::{LocalClient, LocalClientConnectError};
 use orchbee_local_client_protocol::{ConnectClientError, RejectionReason, unix_socket_path_fits};
 use orchbee_local_site_runtime::{
-    LockAttempt, ModeCheckedLocalSiteRendezvous, NativeArtifact, NativeCohort, RetainedChild,
-    SiteScope,
+    LockAttempt, ModeCheckedLocalSiteRendezvous, NativeArtifact, NativeCohort, SiteScope,
 };
-use std::{
-    io,
-    path::PathBuf,
-    process::{Command, Stdio},
-    thread,
-    time::Instant,
-};
+use std::{io, path::PathBuf, thread, time::Instant};
 
 /// The single local-startup verdict vocabulary, owned here by the shared
 /// activation core so the core never depends on the TUI adapter. The core
@@ -113,10 +106,7 @@ pub(crate) fn activate_local_site(deadline: Instant) -> Result<StartedSite, Acti
             ActivationCause::Cohort(error),
         )
     })?;
-    let base = std::env::var_os("ORCHBEE_RUNTIME_BASE")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/tmp"));
-    let scope_text = format!("orchbee-native-{}", nix::unistd::geteuid());
+    let (base, scope_text) = runtime_location().map_err(runtime_failure)?;
     let scope = SiteScope::parse(&scope_text)
         .map_err(|_| ActivationFailure::bare(StartupFailure::Runtime))?;
     let scope_directory = base.join(&scope_text);
@@ -181,21 +171,21 @@ fn connect_or_activate(
                 check_deadline(deadline)?;
                 site.commit_activation().map_err(runtime_failure)?;
                 check_deadline(deadline)?;
-                Some(RetainedChild::new(
-                    Command::new(cohort.executable(NativeArtifact::Server))
-                        .arg("--local-site")
-                        .arg(site.runtime_directory())
-                        .stdin(Stdio::null())
-                        .stdout(Stdio::null())
-                        .stderr(Stdio::null())
-                        .spawn()
-                        .map_err(|_| {
-                            ActivationFailure::caused(
-                                StartupFailure::RecoveryRequired,
-                                ActivationCause::SpawnIo,
-                            )
-                        })?,
-                ))
+                Some(
+                    orchbee_local_site_runtime::spawn_retained(
+                        &cohort.executable(NativeArtifact::Server),
+                        &[
+                            std::ffi::OsStr::new("--local-site"),
+                            site.runtime_directory().as_os_str(),
+                        ],
+                    )
+                    .map_err(|_| {
+                        ActivationFailure::caused(
+                            StartupFailure::RecoveryRequired,
+                            ActivationCause::SpawnIo,
+                        )
+                    })?,
+                )
             }
             LockAttempt::Contended if marker => None,
             LockAttempt::Contended => {
@@ -308,4 +298,27 @@ fn failure(error: &io::Error, fallback: StartupFailure) -> StartupFailure {
     } else {
         fallback
     }
+}
+
+pub(crate) fn runtime_location() -> io::Result<(PathBuf, String)> {
+    #[cfg(windows)]
+    let (fallback, scope) = {
+        use sha2::{Digest, Sha256};
+        let user = orchbee_local_ipc::current_user_sid()?;
+        (
+            std::env::temp_dir(),
+            format!("orchbee-native-{:x}", Sha256::digest(user.as_bytes()))[..47].to_owned(),
+        )
+    };
+    #[cfg(unix)]
+    let (fallback, scope) = (
+        PathBuf::from("/tmp"),
+        format!("orchbee-native-{}", nix::unistd::geteuid()),
+    );
+    Ok((
+        std::env::var_os("ORCHBEE_RUNTIME_BASE")
+            .map(PathBuf::from)
+            .unwrap_or(fallback),
+        scope,
+    ))
 }

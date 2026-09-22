@@ -1,4 +1,5 @@
 use super::*;
+use orchbee_local_ipc::LocalStream as UnixStream;
 
 #[test]
 fn dropping_a_revoked_controller_is_local_and_preserves_the_current_reservation() {
@@ -9,7 +10,6 @@ fn dropping_a_revoked_controller_is_local_and_preserves_the_current_reservation(
     };
     use std::{
         num::NonZeroU64,
-        os::unix::net::UnixStream,
         sync::{Arc, Mutex},
         thread,
     };

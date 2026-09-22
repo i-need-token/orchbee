@@ -1,6 +1,6 @@
 use super::*;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) struct RetiredMailboxSeed {
     identity_cursor: u128,
@@ -94,7 +94,7 @@ impl CommandMailbox {
             deposited: state.close_deposited_result.clone(),
         }
     }
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     pub(in crate::terminal_session) fn retired_seed(&self) -> RetiredMailboxSeed {
         let state = self.lock();
         RetiredMailboxSeed {
@@ -106,7 +106,7 @@ impl CommandMailbox {
         }
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     pub(in crate::terminal_session) fn for_status_recovery(
         seed: RetiredMailboxSeed,
         geometry: Geometry,

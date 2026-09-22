@@ -1,6 +1,4 @@
 use std::{
-    fs::File,
-    io::Read,
     num::NonZeroU64,
     sync::{Arc, Mutex},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -232,17 +230,14 @@ impl LocalTerminalService {
 
 fn random_site_id() -> std::io::Result<orchbee_workbench_protocol::SiteId> {
     let mut bytes = [0; 16];
-    File::open("/dev/urandom")?.read_exact(&mut bytes)?;
+    getrandom::fill(&mut bytes).map_err(|error| std::io::Error::other(error.to_string()))?;
     orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", u128::from_be_bytes(bytes)))
         .map_err(std::io::Error::other)
 }
 
 fn create_reference() -> Option<RequestId> {
     let mut bytes = [0_u8; 16];
-    File::open("/dev/urandom")
-        .ok()?
-        .read_exact(&mut bytes)
-        .ok()?;
+    getrandom::fill(&mut bytes).ok()?;
     RequestId::parse(&format!("{:032x}", u128::from_be_bytes(bytes))).ok()
 }
 

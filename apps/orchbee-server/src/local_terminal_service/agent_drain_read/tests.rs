@@ -16,12 +16,12 @@
 //! and the presentation binding comes from the real
 //! `agent_registration_snapshot` projection — the same hint/envelope
 //! literals as the accepted native-leaf oracle.
+use orchbee_local_ipc::LocalStream as UnixStream;
 
 use super::*;
 
 use std::{
     num::NonZeroU64,
-    os::unix::net::UnixStream,
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},

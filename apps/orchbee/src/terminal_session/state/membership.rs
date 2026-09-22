@@ -261,7 +261,7 @@ impl PreparedMembershipInstall<'_> {
 }
 
 impl NativeSessionState {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     pub(super) fn prepare_retired_membership_install_inner(
         &mut self,
         prepared: PreparedMembershipCandidate,

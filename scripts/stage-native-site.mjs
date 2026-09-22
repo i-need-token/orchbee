@@ -14,6 +14,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stageWindows } from './stage-native-windows.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const artifacts = ['orchbee', 'orchbee-server', 'orchbee-worker', 'orchbee-terminal-host'];
@@ -137,17 +138,23 @@ function options(args) {
 		if (result[args[i]] !== undefined) throw new Error('Duplicate staging option');
 		result[args[i]] = args[i + 1];
 	}
-	if (!result['--output'] || !path.posix.isAbsolute(result['--output']))
-		throw new Error('An absolute Linux output directory is required');
-	if (process.platform === 'win32' && !result['--wsl'])
-		throw new Error('Windows staging requires --wsl DISTRO');
+	const nativeWindows = process.platform === 'win32' && !result['--wsl'];
+	if (
+		!result['--output'] ||
+		!(nativeWindows ? path.win32 : path.posix).isAbsolute(result['--output'])
+	)
+		throw new Error('An absolute output directory is required');
 	if (process.platform !== 'linux' && process.platform !== 'win32')
-		throw new Error('Local startup staging currently supports Linux and Windows/WSL');
+		throw new Error('Local startup staging currently supports Windows and Linux');
 	return result;
 }
 function main() {
 	const selected = options(process.argv.slice(2));
 	const distro = selected['--wsl'];
+	if (process.platform === 'win32' && !distro) {
+		stageWindows(root, selected['--output'], selected['--cargo-target-dir'], verifiedCapsuleDigest);
+		return;
+	}
 	const linux = (command, args, capture = false) => {
 		const executable = distro ? 'wsl.exe' : command;
 		const argv = distro

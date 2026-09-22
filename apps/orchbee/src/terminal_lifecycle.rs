@@ -1,7 +1,7 @@
+#[cfg(unix)]
+use std::fs::File;
 use std::{
-    fmt,
-    fs::File,
-    io,
+    fmt, io,
     marker::PhantomData,
     panic,
     rc::Rc,
@@ -17,6 +17,7 @@ use crossterm::{
     cursor::{Hide, Show},
     terminal::{EnterAlternateScreen, LeaveAlternateScreen},
 };
+#[cfg(unix)]
 use rustix::termios::{OptionalActions, Termios, tcgetattr, tcsetattr};
 
 use crate::terminal_device::InheritedTerminal;
@@ -29,6 +30,15 @@ pub(crate) const SYNCHRONIZED_UPDATE_END: &[u8] = b"\x1b[?2026l";
 struct BracketedPaste(bool);
 
 impl crossterm::Command for BracketedPaste {
+    #[cfg(windows)]
+    fn execute_winapi(&self) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+    #[cfg(windows)]
+    fn is_ansi_code_supported(&self) -> bool {
+        true
+    }
+
     fn write_ansi(&self, output: &mut impl fmt::Write) -> fmt::Result {
         output.write_str(if self.0 { "\x1b[?2004h" } else { "\x1b[?2004l" })
     }
@@ -41,6 +51,15 @@ impl crossterm::Command for BracketedPaste {
 struct PointerCapture(bool);
 
 impl crossterm::Command for PointerCapture {
+    #[cfg(windows)]
+    fn execute_winapi(&self) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+    #[cfg(windows)]
+    fn is_ansi_code_supported(&self) -> bool {
+        true
+    }
+
     fn write_ansi(&self, output: &mut impl fmt::Write) -> fmt::Result {
         output.write_str(if self.0 {
             "\x1b[?1002h\x1b[?1006h"
@@ -53,6 +72,15 @@ impl crossterm::Command for PointerCapture {
 struct SynchronizedUpdateEnd;
 
 impl crossterm::Command for SynchronizedUpdateEnd {
+    #[cfg(windows)]
+    fn execute_winapi(&self) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+    #[cfg(windows)]
+    fn is_ansi_code_supported(&self) -> bool {
+        true
+    }
+
     fn write_ansi(&self, output: &mut impl fmt::Write) -> fmt::Result {
         output.write_str("\x1b[?2026l")
     }
@@ -466,20 +494,26 @@ fn restore_mode(
 
 #[derive(Clone, Debug)]
 pub(crate) struct InheritedTerminalModes {
+    #[cfg(unix)]
     original_termios: Arc<Mutex<Option<Termios>>>,
+    #[cfg(windows)]
+    original_console: Arc<Mutex<Option<(u32, u32)>>>,
     terminal: InheritedTerminal,
 }
 
 impl InheritedTerminalModes {
     pub(crate) fn new(terminal: InheritedTerminal) -> Self {
         Self {
+            #[cfg(unix)]
             original_termios: Arc::new(Mutex::new(None)),
+            #[cfg(windows)]
+            original_console: Arc::new(Mutex::new(None)),
             terminal,
         }
     }
 
     fn write_command(&self, command: impl crossterm::Command) -> io::Result<()> {
-        let mut output = File::from(self.terminal.duplicate_output()?);
+        let mut output = self.terminal.output()?;
         output.execute(command).map(drop)
     }
 }
@@ -501,6 +535,7 @@ impl TerminalModes for InheritedTerminalModes {
         self.write_command(PointerCapture(true))
     }
 
+    #[cfg(unix)]
     fn disable_raw_mode(&self) -> io::Result<()> {
         let original = self
             .original_termios
@@ -523,6 +558,7 @@ impl TerminalModes for InheritedTerminalModes {
         Ok(())
     }
 
+    #[cfg(unix)]
     fn enable_raw_mode(&self) -> io::Result<()> {
         let original = tcgetattr(self.terminal.input().as_ref()).map_err(io::Error::from)?;
         let mut raw = original.clone();
@@ -549,6 +585,10 @@ impl TerminalModes for InheritedTerminalModes {
     }
 
     fn enter_alternate_screen(&self) -> io::Result<()> {
+        #[cfg(windows)]
+        self.terminal
+            .output_mode
+            .set_mode(self.terminal.output_mode.mode()? | 0x0005)?;
         self.write_command(EnterAlternateScreen)
     }
 
@@ -557,11 +597,58 @@ impl TerminalModes for InheritedTerminalModes {
     }
 
     fn leave_alternate_screen(&self) -> io::Result<()> {
-        self.write_command(LeaveAlternateScreen)
+        let result = self.write_command(LeaveAlternateScreen);
+        #[cfg(windows)]
+        if let Some((_, output)) = *self
+            .original_console
+            .lock()
+            .map_err(|_| io::Error::other("console mode poisoned"))?
+        {
+            self.terminal.output_mode.set_mode(output)?;
+        }
+        result
     }
 
     fn show_cursor(&self) -> io::Result<()> {
-        self.write_command(Show)
+        #[cfg(unix)]
+        {
+            self.write_command(Show)
+        }
+        #[cfg(windows)]
+        {
+            crossterm::Command::execute_winapi(&Show)
+        }
+    }
+    #[cfg(windows)]
+    fn enable_raw_mode(&self) -> io::Result<()> {
+        let mut saved = self
+            .original_console
+            .lock()
+            .map_err(|_| io::Error::other("console mode poisoned"))?;
+        if saved.is_some() {
+            return Err(io::ErrorKind::AlreadyExists.into());
+        }
+        let original = (
+            self.terminal.input_mode.mode()?,
+            self.terminal.output_mode.mode()?,
+        );
+        *saved = Some(original);
+        // ReadConsoleInputW owns key/mouse/resize records. Disable VT input
+        // and cooked processing so that two console input models cannot race.
+        self.terminal
+            .input_mode
+            .set_mode((original.0 | 0x0098) & !0x0247)
+    }
+    #[cfg(windows)]
+    fn disable_raw_mode(&self) -> io::Result<()> {
+        if let Some((input, _)) = *self
+            .original_console
+            .lock()
+            .map_err(|_| io::Error::other("console mode poisoned"))?
+        {
+            self.terminal.input_mode.set_mode(input)?;
+        }
+        Ok(())
     }
 }
 

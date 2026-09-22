@@ -1,4 +1,5 @@
 use super::super::*;
+use orchbee_local_ipc::LocalStream as UnixStream;
 mod tab_close;
 mod workspace_setup;
 use crate::{
@@ -55,7 +56,6 @@ use std::{
     io::{self, Read, Write},
     net::Shutdown,
     num::NonZeroU64,
-    os::unix::net::UnixStream,
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -162,7 +162,7 @@ impl ScriptedCarrier {
         let (responses, response_receiver) = mpsc::sync_channel(0);
         let (response_written_sender, response_written) = mpsc::sync_channel(0);
         let server = FakeServer::start(move |mut stream| {
-            let inner = |stream: &mut std::os::unix::net::UnixStream| -> io::Result<()> {
+            let inner = |stream: &mut orchbee_local_ipc::LocalStream| -> io::Result<()> {
                 admit(&mut *stream)?;
                 for step in steps {
                     let request = loop {

@@ -1,12 +1,16 @@
+use orchbee_local_ipc::LocalStream as UnixStream;
+#[cfg(windows)]
+use orchbee_local_ipc::{AsLocalIo, LocalIo};
+#[cfg(unix)]
+use std::os::fd::{AsFd, BorrowedFd};
 use std::{
     fmt,
     io::{self, Read, Write},
-    os::fd::{AsFd, BorrowedFd},
-    os::unix::net::UnixStream,
     path::Path,
     time::Duration,
 };
 
+#[cfg(unix)]
 use orchbee_local_peer_credentials::require_same_effective_user;
 
 use crate::{
@@ -20,6 +24,7 @@ const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 /// socket ABI: `sockaddr_un.sun_path` minus the trailing NUL a pathname
 /// address requires. Derived from the ABI struct, not assumed portable —
 /// Linux yields 107 while BSD/Darwin layouts yield 103.
+#[cfg(unix)]
 pub const UNIX_SOCKET_PATH_CAPACITY: usize = std::mem::size_of::<nix::libc::sockaddr_un>()
     - std::mem::offset_of!(nix::libc::sockaddr_un, sun_path)
     - 1;
@@ -27,6 +32,7 @@ pub const UNIX_SOCKET_PATH_CAPACITY: usize = std::mem::size_of::<nix::libc::sock
 /// Whether `path` fits inside one `sockaddr_un` filesystem address on this
 /// platform — the same `UnixAddr` construction admission performs before it
 /// ever connects, so inspection and startup share one production judgment.
+#[cfg(unix)]
 pub fn unix_socket_path_fits(path: &Path) -> bool {
     nix::sys::socket::UnixAddr::new(path).is_ok()
 }
@@ -76,6 +82,7 @@ impl ClientSessionConnection {
         admission_deadline::connect_before_cancellable(endpoint, hello, deadline, wake)
     }
 
+    #[cfg(unix)]
     pub fn connect(endpoint: &Path, cohort: &str) -> Result<Self, ConnectClientError> {
         let hello = ClientHello::new(cohort)?;
         let mut stream = UnixStream::connect(endpoint)?;
@@ -135,6 +142,7 @@ impl ClientSessionConnection {
     }
 }
 
+#[cfg(unix)]
 impl AsFd for ClientSessionConnection {
     fn as_fd(&self) -> BorrowedFd<'_> {
         self.stream.as_fd()
@@ -233,5 +241,49 @@ impl From<WriteMessageError> for ConnectClientError {
             WriteMessageError::Io(error) => Self::Io(error),
             WriteMessageError::Protocol(error) => Self::Protocol(error),
         }
+    }
+}
+
+#[cfg(windows)]
+mod windows_admission;
+#[cfg(windows)]
+pub const UNIX_SOCKET_PATH_CAPACITY: usize = 200;
+#[cfg(windows)]
+pub fn unix_socket_path_fits(path: &Path) -> bool {
+    path.to_str()
+        .is_some_and(|path| path.starts_with(r"\\.\pipe\") && path.len() <= 209)
+}
+#[cfg(windows)]
+impl ClientSessionConnection {
+    pub fn connect(endpoint: &Path, cohort: &str) -> Result<Self, ConnectClientError> {
+        Self::connect_before(
+            endpoint,
+            cohort,
+            std::time::Instant::now() + HANDSHAKE_TIMEOUT,
+        )
+    }
+    pub fn connect_before(
+        endpoint: &Path,
+        cohort: &str,
+        deadline: std::time::Instant,
+    ) -> Result<Self, ConnectClientError> {
+        Self::connect_before_cancellable(endpoint, cohort, deadline, None)
+    }
+    pub fn connect_before_cancellable(
+        endpoint: &Path,
+        cohort: &str,
+        deadline: std::time::Instant,
+        wake: Option<LocalIo<'_>>,
+    ) -> Result<Self, ConnectClientError> {
+        windows_admission::connect(endpoint, ClientHello::new(cohort)?, deadline, wake)
+    }
+    pub fn shutdown_stream(&self) -> io::Result<UnixStream> {
+        self.stream.try_clone()
+    }
+}
+#[cfg(windows)]
+impl AsLocalIo for ClientSessionConnection {
+    fn as_local_io(&self) -> LocalIo<'_> {
+        self.stream.as_local_io()
     }
 }

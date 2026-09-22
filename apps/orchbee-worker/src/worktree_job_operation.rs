@@ -1,4 +1,4 @@
-use std::{num::NonZeroU64, os::unix::ffi::OsStrExt, path::Path};
+use std::{num::NonZeroU64, path::Path};
 
 use orchbee_capability_node_protocol::{
     WorktreeJobAction, WorktreeJobCancelOutcome, WorktreeJobOutcome, WorktreeJobPollOutcome,
@@ -26,9 +26,10 @@ pub(crate) fn execute(
             let outcome = if fenced {
                 WorktreeJobOutcome::Start(WorktreeJobStartOutcome::RejectedFencing)
             } else {
-                WorktreeJobOutcome::Start(map_start(
-                    slot.start(job_id, Path::new(std::ffi::OsStr::from_bytes(&directory))),
-                ))
+                WorktreeJobOutcome::Start(match directory_path(&directory) {
+                    Some(path) => map_start(slot.start(job_id, path)),
+                    None => WorktreeJobStartOutcome::InvalidDirectory,
+                })
             };
             (job_id, outcome)
         }
@@ -124,6 +125,16 @@ fn map_job(outcome: JobOutcome) -> WorktreeJobPollOutcome {
             stage: stage.map(map_stage),
         },
     }
+}
+
+#[cfg(unix)]
+fn directory_path(bytes: &[u8]) -> Option<&Path> {
+    use std::os::unix::ffi::OsStrExt;
+    Some(Path::new(std::ffi::OsStr::from_bytes(bytes)))
+}
+#[cfg(windows)]
+fn directory_path(bytes: &[u8]) -> Option<&Path> {
+    std::str::from_utf8(bytes).ok().map(Path::new)
 }
 
 #[cfg(test)]
@@ -241,7 +252,7 @@ mod tests {
         }
         // None of the fenced Starts occupied the slot.
         let result = execute(
-            start_request(42, "/tmp"),
+            start_request(42, std::env::temp_dir().to_str().unwrap()),
             LOCAL_WORKER,
             LOCAL_GENERATION,
             &slot,
@@ -266,7 +277,7 @@ mod tests {
         // request's operation_id plus the job identity it addresses.
         let slot = WorktreeDiscoverySlot::new();
         let result = execute(
-            start_request(50, "/tmp"),
+            start_request(50, std::env::temp_dir().to_str().unwrap()),
             LOCAL_WORKER,
             LOCAL_GENERATION,
             &slot,
@@ -359,9 +370,9 @@ mod tests {
         // disposable repository, per-command `-c` identity only, one physical
         // owner, exact correlation, and a truthful terminal Cancel answer.
         let tag = std::process::id();
-        let root = format!("/tmp/orchbee-worktree-op-{tag}");
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root)?;
+        let root_path = std::env::temp_dir().join(format!("orchbee-worktree-op-{tag}"));
+        std::fs::create_dir(&root_path)?;
+        let root = root_path.to_str().unwrap().replace('\\', "/");
         let git = |args: &[&str]| -> TestResult {
             let status = std::process::Command::new("git")
                 .arg("-c")
@@ -419,7 +430,12 @@ mod tests {
             result.outcome,
             WorktreeJobOutcome::Cancel(WorktreeJobCancelOutcome::AlreadyTerminal)
         );
-        let _ = std::fs::remove_dir_all(&root);
+        let resolved = root_path.canonicalize()?;
+        assert_eq!(
+            resolved.parent(),
+            Some(std::env::temp_dir().canonicalize()?.as_path())
+        );
+        std::fs::remove_dir_all(resolved)?;
         Ok(())
     }
 }

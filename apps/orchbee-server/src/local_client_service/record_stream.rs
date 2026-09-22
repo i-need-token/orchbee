@@ -1,10 +1,8 @@
-use nix::{
-    errno::Errno,
-    poll::{PollFd, PollFlags, PollTimeout, poll},
-};
+use orchbee_local_ipc::AsLocalIo;
+use orchbee_local_ipc::LocalStream as UnixStream;
+use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 use std::{
     io::{self, Read, Write},
-    os::{fd::AsFd, unix::net::UnixStream},
     time::{Duration, Instant},
 };
 
@@ -34,12 +32,12 @@ impl<'stream> ClientRecordStream<'stream> {
                         .map_err(io::Error::other)?
                 }
             };
-            let mut fds = [PollFd::new(self.stream.as_fd(), interest)];
+            let mut fds = [PollFd::new(self.stream.as_local_io(), interest)];
             match poll(&mut fds, timeout) {
                 Ok(0) => return Err(io::ErrorKind::TimedOut.into()),
                 Ok(_) => return Ok(()),
-                Err(Errno::EINTR) => {}
-                Err(error) => return Err(error.into()),
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                Err(error) => return Err(error),
             }
         }
     }

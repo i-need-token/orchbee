@@ -109,7 +109,7 @@ pub struct LaunchSelection {
 impl LaunchSelection {
     pub fn new(executable: String, arguments: Vec<String>) -> Result<Self, ContractError> {
         if executable.is_empty()
-            || !executable.starts_with('/')
+            || !crate::directory::is_absolute_path(executable.as_bytes())
             || executable.as_bytes().contains(&0)
         {
             return Err(ContractError::InvalidDocument);

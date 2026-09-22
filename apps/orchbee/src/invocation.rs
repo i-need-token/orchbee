@@ -3540,7 +3540,7 @@ fn launch_option(
         }
         return Err(missing_required(context, "'--exec'", envelope));
     };
-    if executable.is_empty() || !executable.starts_with('/') || executable.as_bytes().contains(&0) {
+    if WorkbenchDirectoryPath::parse(&executable).is_err() {
         return Err(usage_with(
             UsageReason::InvalidValue {
                 context,
@@ -3694,7 +3694,7 @@ fn label_option(
 }
 
 /// `--path` carries a wire-ready Workbench directory path: the literal
-/// absolute POSIX path, at most the protocol's 4,096-byte bound. The CLI
+/// absolute local-platform path, at most the protocol's 4,096-byte bound. The CLI
 /// never expands `~`/`$`, never creates the directory, and never probes a
 /// filesystem — a malformed value is a usage failure at this boundary.
 fn path_option(

@@ -1,16 +1,17 @@
+#[cfg(unix)]
 use nix::{
     errno::Errno,
-    poll::{PollFd, PollFlags, PollTimeout, poll},
     sys::socket::{
         AddressFamily, SockFlag, SockType, UnixAddr, connect, getsockopt, socket, sockopt,
     },
 };
+use orchbee_local_ipc::{
+    AsLocalIo, LocalStream as UnixStream, PollFd, PollFlags, PollTimeout, poll,
+};
+#[cfg(unix)]
+use std::os::fd::AsRawFd;
 use std::{
     io::{self, Read, Write},
-    os::{
-        fd::{AsFd, AsRawFd},
-        unix::net::UnixStream,
-    },
     path::Path,
     time::Instant,
 };
@@ -21,6 +22,7 @@ pub(super) struct Admission {
     deadline: Instant,
 }
 impl Admission {
+    #[cfg(unix)]
     pub(super) fn connect(endpoint: &Path, deadline: Instant) -> io::Result<Self> {
         if Instant::now() >= deadline {
             return Err(io::ErrorKind::TimedOut.into());
@@ -42,11 +44,17 @@ impl Admission {
                     return Err(io::Error::from_raw_os_error(error));
                 }
             }
-            Err(error) => return Err(error.into()),
+            Err(error) => return Err(error),
         }
         orchbee_local_peer_credentials::require_same_effective_user(&admission.stream)?;
         admission.remaining()?;
         Ok(admission)
+    }
+    #[cfg(windows)]
+    pub(super) fn connect(endpoint: &Path, deadline: Instant) -> io::Result<Self> {
+        let stream = UnixStream::connect_before(endpoint, deadline)?;
+        stream.set_nonblocking(true)?;
+        Ok(Self { stream, deadline })
     }
     pub(super) fn remaining(&self) -> io::Result<std::time::Duration> {
         let remaining = self.deadline.saturating_duration_since(Instant::now());
@@ -59,14 +67,15 @@ impl Admission {
         loop {
             let timeout = PollTimeout::try_from(self.remaining()?.as_millis().saturating_add(1))
                 .unwrap_or(PollTimeout::MAX);
-            let mut descriptors = [PollFd::new(self.stream.as_fd(), interest)];
+            let mut descriptors = [PollFd::new(self.stream.as_local_io(), interest)];
             match poll(&mut descriptors, timeout) {
-                Ok(0) | Err(Errno::EINTR) => {}
+                Ok(0) => {}
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
                 Ok(_) => {
                     self.remaining()?;
                     return Ok(());
                 }
-                Err(error) => return Err(error.into()),
+                Err(error) => return Err(error),
             }
         }
     }

@@ -940,9 +940,11 @@ impl Locale {
             .unwrap_or("");
         match (self, stage) {
             (Self::EnUs, "platform") => {
-                "The native CLI query surface is supported on Linux only.\n".to_owned()
+                "The native CLI query surface is supported on Windows and Linux.\n".to_owned()
             }
-            (Self::ZhCn, "platform") => "原生 CLI 查询面仅在 Linux 上受支持。\n".to_owned(),
+            (Self::ZhCn, "platform") => {
+                "原生 CLI 查询面在 Windows 和 Linux 上受支持。\n".to_owned()
+            }
             (Self::EnUs, "discovery") => {
                 "No running local Site was found for this user.\n".to_owned()
             }
@@ -1078,8 +1080,10 @@ impl Locale {
             .and_then(|value| value.as_str())
             .unwrap_or("");
         match (self, stage) {
-            (Self::EnUs, "platform") => "site start is supported on Linux only.\n".to_owned(),
-            (Self::ZhCn, "platform") => "site start 仅在 Linux 上受支持。\n".to_owned(),
+            (Self::EnUs, "platform") => {
+                "site start is supported on Windows and Linux.\n".to_owned()
+            }
+            (Self::ZhCn, "platform") => "site start 在 Windows 和 Linux 上受支持。\n".to_owned(),
             (Self::EnUs, "runtime-directory") => self.cli_socket_path_too_long().to_owned(),
             (Self::ZhCn, "runtime-directory") => self.cli_socket_path_too_long().to_owned(),
             (Self::EnUs, "discovery") => {
@@ -1119,6 +1123,7 @@ impl Locale {
 
     /// `agent integration list` capsule summary line — the machine capsule
     /// state stays English; only the sentence frame is localized.
+    #[cfg(unix)]
     pub(crate) fn cli_integration_capsule_line(self, summary: &str) -> String {
         match self {
             Self::EnUs => format!("Adapter capsule: {summary}\n"),
@@ -1128,6 +1133,7 @@ impl Locale {
 
     /// `agent integration explain` header — the fixed-field first lines.
     /// Vocabulary values stay in their canonical English spelling.
+    #[cfg(unix)]
     pub(crate) fn cli_integration_explain_header(
         self,
         provider: &str,
@@ -1146,6 +1152,7 @@ impl Locale {
         }
     }
 
+    #[cfg(unix)]
     pub(crate) const fn cli_integration_plan_header(self) -> &'static str {
         match self {
             Self::EnUs => "Plan:\n",
@@ -1154,6 +1161,7 @@ impl Locale {
     }
 
     /// `explain` when every pre-effect gate refuses the vector.
+    #[cfg(unix)]
     pub(crate) const fn cli_integration_plan_empty(self) -> &'static str {
         match self {
             Self::EnUs => "Plan: no steps — the observed state admits no enable vector.\n",
@@ -1162,6 +1170,7 @@ impl Locale {
     }
 
     /// Mutation completed with the goal state observed.
+    #[cfg(unix)]
     pub(crate) fn cli_integration_completed(self, direction: &str, provider: &str) -> String {
         match (self, direction) {
             (Self::EnUs, "enable") => format!("Enabled {provider}.\n"),
@@ -1172,6 +1181,7 @@ impl Locale {
     }
 
     /// A pre-effect refusal — the canonical refusal code stays English.
+    #[cfg(unix)]
     pub(crate) fn cli_integration_refused(
         self,
         direction: &str,
@@ -1195,6 +1205,7 @@ impl Locale {
     }
 
     /// A post-effect failure — the typed code and the re-inspected state.
+    #[cfg(unix)]
     pub(crate) fn cli_integration_failed(
         self,
         direction: &str,
@@ -1220,6 +1231,7 @@ impl Locale {
     }
 
     /// The verdict could not be determined — re-inspection never ran.
+    #[cfg(unix)]
     pub(crate) fn cli_integration_unknown(self, direction: &str, provider: &str) -> String {
         match (self, direction) {
             (Self::EnUs, "enable") => format!(
@@ -1239,6 +1251,7 @@ impl Locale {
 
     /// The termination signal fired — the invocation cancelled at a frontier
     /// boundary.
+    #[cfg(unix)]
     pub(crate) fn cli_integration_cancelled(self, direction: &str, provider: &str) -> String {
         match (self, direction) {
             (Self::EnUs, "enable") => format!("Enable of {provider} cancelled.\n"),
@@ -1249,6 +1262,7 @@ impl Locale {
     }
 
     /// The `attempted` list's leading word in text output.
+    #[cfg(unix)]
     pub(crate) const fn cli_integration_attempted_word(self) -> &'static str {
         match self {
             Self::EnUs => "attempted",
@@ -1258,6 +1272,7 @@ impl Locale {
 
     /// Header above the residue listing — retained paths are named, never
     /// silently swept.
+    #[cfg(unix)]
     pub(crate) const fn cli_integration_residue_header(self) -> &'static str {
         match self {
             Self::EnUs => "Retained residue (not removed):\n",
@@ -1636,6 +1651,7 @@ impl Locale {
 
     /// `agent doctor` hint text by hint id — observation statements only;
     /// every hint cites the facts it was derived from, never a remedy.
+    #[cfg(unix)]
     pub(crate) fn cli_agent_doctor_hint(self, id: &str) -> &'static str {
         match (self, id) {
             (Self::EnUs, "hook-conflict") => {
@@ -1713,6 +1729,7 @@ impl Locale {
     /// the cited `subjects` (provider ids or root paths), joined with the
     /// locale's enumeration separator. The machine document always uses the
     /// canonical `en-US` form; text output re-renders through this method.
+    #[cfg(unix)]
     pub(crate) fn cli_agent_doctor_hint_text(self, id: &str, subjects: &[String]) -> String {
         let base = self.cli_agent_doctor_hint(id);
         if subjects.is_empty() {
@@ -2035,11 +2052,11 @@ impl Locale {
     }
 }
 
-const ROOT_HELP_EN: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [operands] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee site diagnose [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\nModes and queries:\n  orchbee              Open the local terminal (Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee launch-profile list | get\n  orchbee agent        list | get | explain | doctor | wait\n  orchbee agent integration\n                       list | explain | enable | disable — local provider\n                       onboarding; never contacts a Site\n  orchbee api          Machine snapshot and embedded schema documents\n\nSite lifecycle:\n  orchbee site start   Ensure the local Site is running (no TTY needed)\n  orchbee site diagnose\n                       Inspect the local Site runtime — read-only facts\n\nMutations (one command per invocation, against the running Site):\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n  orchbee launch-profile create | delete\n\nInspection and help:\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee -h|--help    Show this help; after a family or command path, show\n                       that path's help\n  orchbee --version    Show the version\n\nRun 'orchbee help <family>' for filters and target rules, or\n'orchbee help <family> <command>' for one mutation's full syntax.\n";
-const ROOT_HELP_ZH: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [操作数] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee site diagnose [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\n模式与查询：\n  orchbee              打开本地终端（Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee launch-profile list | get\n  orchbee agent        list | get | explain | doctor | wait\n  orchbee agent integration\n                       list | explain | enable | disable——本地 provider\n                       接入；绝不接触 Site\n  orchbee api          机器快照与内嵌 schema 文档\n\nSite 生命周期：\n  orchbee site start   确保本地 Site 正在运行（无需 TTY）\n  orchbee site diagnose\n                       检查本地 Site 运行时——只读事实\n\n修改命令（每次调用执行一条命令，作用于运行中的 Site）：\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n  orchbee launch-profile create | delete\n\n检查与帮助：\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee -h|--help    显示此帮助；跟在 family 或命令路径后时显示该路径的帮助\n  orchbee --version    显示版本\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则，或\n'orchbee help <family> <command>' 查看单条修改命令的完整语法。\n";
+const ROOT_HELP_EN: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [operands] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee site diagnose [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\nModes and queries:\n  orchbee              Open the local terminal (Windows/Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee launch-profile list | get\n  orchbee agent        list | get | explain | doctor | wait\n  orchbee agent integration\n                       list | explain | enable | disable — local provider\n                       onboarding; never contacts a Site\n  orchbee api          Machine snapshot and embedded schema documents\n\nSite lifecycle:\n  orchbee site start   Ensure the local Site is running (no TTY needed)\n  orchbee site diagnose\n                       Inspect the local Site runtime — read-only facts\n\nMutations (one command per invocation, against the running Site):\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n  orchbee launch-profile create | delete\n\nInspection and help:\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee -h|--help    Show this help; after a family or command path, show\n                       that path's help\n  orchbee --version    Show the version\n\nRun 'orchbee help <family>' for filters and target rules, or\n'orchbee help <family> <command>' for one mutation's full syntax.\n";
+const ROOT_HELP_ZH: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [操作数] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee site diagnose [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\n模式与查询：\n  orchbee              打开本地终端（Windows/Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee launch-profile list | get\n  orchbee agent        list | get | explain | doctor | wait\n  orchbee agent integration\n                       list | explain | enable | disable——本地 provider\n                       接入；绝不接触 Site\n  orchbee api          机器快照与内嵌 schema 文档\n\nSite 生命周期：\n  orchbee site start   确保本地 Site 正在运行（无需 TTY）\n  orchbee site diagnose\n                       检查本地 Site 运行时——只读事实\n\n修改命令（每次调用执行一条命令，作用于运行中的 Site）：\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n  orchbee launch-profile create | delete\n\n检查与帮助：\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee -h|--help    显示此帮助；跟在 family 或命令路径后时显示该路径的帮助\n  orchbee --version    显示版本\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则，或\n'orchbee help <family> <command>' 查看单条修改命令的完整语法。\n";
 
-const HELP_TUI_EN: &str = "orchbee tui [--mouse on|off]\n\nOpen the local terminal interface (Linux development cohort).\nA bare 'orchbee' invocation does the same.\n\n  --mouse on|off   Host pointer capture for pane hit-testing; on by\n                   default. Only the explicit 'tui' route accepts it.\n";
-const HELP_TUI_ZH: &str = "orchbee tui [--mouse on|off]\n\n打开本地终端界面（Linux 开发 cohort）。\n裸 'orchbee' 调用效果相同。\n\n  --mouse on|off   宿主机指针捕获，用于面板命中；默认开启。\n                   只有显式 'tui' 路由接受该选项。\n";
+const HELP_TUI_EN: &str = "orchbee tui [--mouse on|off]\n\nOpen the local terminal interface (Windows/Linux development cohort).\nA bare 'orchbee' invocation does the same.\n\n  --mouse on|off   Host pointer capture for pane hit-testing; on by\n                   default. Only the explicit 'tui' route accepts it.\n";
+const HELP_TUI_ZH: &str = "orchbee tui [--mouse on|off]\n\n打开本地终端界面（Windows/Linux 开发 cohort）。\n裸 'orchbee' 调用效果相同。\n\n  --mouse on|off   宿主机指针捕获，用于面板命中；默认开启。\n                   只有显式 'tui' 路由接受该选项。\n";
 
 const HELP_STATUS_EN: &str = "orchbee status\n\nRead a live Workbench snapshot from the running local Site and report\nreachability plus entity counts. The Site is never created, activated, or\nmutated. '--format json' emits the orchbee.status envelope.\n";
 const HELP_STATUS_ZH: &str = "orchbee status\n\n从正在运行的本地 Site 读取实时 Workbench 快照并报告可达性与实体计数。\n绝不创建、激活或修改 Site。'--format json' 输出 orchbee.status 封套。\n";
@@ -2131,8 +2148,8 @@ const HELP_WORKSPACE_CREATE_ZH: &str = "orchbee workspace create --project <targ
 
 const HELP_WORKSPACE_RENAME_EN: &str = "orchbee workspace rename <target> --label <label> [--format text|json]\n\nRename one Workspace selected by exact ID, @workspace:<suffix>, or exact\nlabel. The command\nreads one snapshot, then submits exactly one command. A committed result\ncarries the new revision; an unchanged one means the label already\nmatched.\n";
 const HELP_WORKSPACE_RENAME_ZH: &str = "orchbee workspace rename <target> --label <label> [--format text|json]\n\n重命名一个由精确 ID、@workspace:<suffix> 或精确 label 选择的 Workspace。命令先读取一次快\n照，然后只提交一个命令。committed 结果携带新修订；unchanged 表示\nlabel 本已相同。\n";
-const HELP_WORKSPACE_ACCEPT_DIRECTORY_EN: &str = "orchbee workspace accept-directory <target> --path <path> [--format text|json]\n\nAccept a literal absolute POSIX path as the primary directory of the\nWorkspace selected by exact ID, @workspace:<suffix>, or exact label.\n'--path' is required: a\nliteral absolute path of at most 4,096 UTF-8 bytes without NUL — never\nexpanded ('~', '$'), created, or probed by the CLI. The command reads one\nsnapshot, resolves the target and its owning Project, then submits\nexactly one command under a fresh request id; the Server authoritatively\nprobes the path and rejects a Workspace that already has a directory.\nA committed result carries the new revision, the Server-allocated\ndirectory and worker ids, the resolved project and workspace ids, and the\nrequest's literal path.\n";
-const HELP_WORKSPACE_ACCEPT_DIRECTORY_ZH: &str = "orchbee workspace accept-directory <target> --path <path> [--format text|json]\n\n将一个字面绝对 POSIX 路径接受为由精确 ID、@workspace:<suffix> 或精确 label 选择的\nWorkspace 的主目录。'--path' 为必填：字面绝对路径，至多 4,096 个\nUTF-8 字节且不含 NUL——CLI 不展开（'~'、'$'）、不创建、不探测。命\n令先读取一次快照、解析目标及其所属 Project，然后以全新请求 ID 只\n提交一个命令；由 Server 权威探测该路径，并拒绝已有目录的\nWorkspace。committed 结果携带新修订、Server 分配的 directory 与\nworker ID、已解析的 project 与 workspace ID，以及请求的字面路径。\n";
+const HELP_WORKSPACE_ACCEPT_DIRECTORY_EN: &str = "orchbee workspace accept-directory <target> --path <path> [--format text|json]\n\nAccept a literal absolute local-platform path as the primary directory of the\nWorkspace selected by exact ID, @workspace:<suffix>, or exact label.\n'--path' is required: a\nliteral absolute path of at most 4,096 UTF-8 bytes without NUL — never\nexpanded ('~', '$'), created, or probed by the CLI. The command reads one\nsnapshot, resolves the target and its owning Project, then submits\nexactly one command under a fresh request id; the Server authoritatively\nprobes the path and rejects a Workspace that already has a directory.\nA committed result carries the new revision, the Server-allocated\ndirectory and worker ids, the resolved project and workspace ids, and the\nrequest's literal path.\n";
+const HELP_WORKSPACE_ACCEPT_DIRECTORY_ZH: &str = "orchbee workspace accept-directory <target> --path <path> [--format text|json]\n\n将一个字面本机绝对路径接受为由精确 ID、@workspace:<suffix> 或精确 label 选择的\nWorkspace 的主目录。'--path' 为必填：字面绝对路径，至多 4,096 个\nUTF-8 字节且不含 NUL——CLI 不展开（'~'、'$'）、不创建、不探测。命\n令先读取一次快照、解析目标及其所属 Project，然后以全新请求 ID 只\n提交一个命令；由 Server 权威探测该路径，并拒绝已有目录的\nWorkspace。committed 结果携带新修订、Server 分配的 directory 与\nworker ID、已解析的 project 与 workspace ID，以及请求的字面路径。\n";
 
 const HELP_WORKSPACE_CLOSE_EN: &str = "orchbee workspace close <target> --confirm [--format text|json]\n\nClose every terminal the Workspace's Clients use, selected by exact ID,\n@workspace:<suffix>, or exact label. '--confirm' is required. The\nWorkspace itself, its checkout, branch, and directories are preserved —\nonly the terminal membership in its context closes. An accepted result\ncarries the accepted revision, the close request id, and the resolved\nproject, workspace, and terminal context ids; the Site finishes the\nclose asynchronously and re-running this command is not a resume — use\n'workspace close-resume' for a retained resumable operation.\n";
 const HELP_WORKSPACE_CLOSE_ZH: &str = "orchbee workspace close <target> --confirm [--format text|json]\n\n关闭由精确 ID、@workspace:<suffix> 或精确 label 选择的 Workspace 中\nClients 使用的全部终端。'--confirm' 为必填。Workspace 本身及其\ncheckout、branch、目录全部保留——仅关闭其上下文中的终端成员。\naccepted 结果携带已接受修订、关闭请求 ID，以及解析出的 project、\nworkspace 与终端上下文 ID；Site 异步完成关闭，重复执行本命令不等于\n恢复——对保留的可恢复操作请使用 'workspace close-resume'。\n";

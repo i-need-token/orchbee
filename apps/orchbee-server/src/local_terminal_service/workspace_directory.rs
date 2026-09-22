@@ -8,7 +8,6 @@ use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchCommandResult, WorkbenchCommandUnavailableReason, WorkerId,
 };
-use std::{fs::File, io::Read};
 
 impl LocalTerminalService {
     pub(crate) fn execute_workspace_directory(
@@ -141,10 +140,7 @@ impl LocalTerminalService {
 
 fn validation_identity() -> Option<OperationId> {
     let mut bytes = [0_u8; 16];
-    File::open("/dev/urandom")
-        .ok()?
-        .read_exact(&mut bytes)
-        .ok()?;
+    getrandom::fill(&mut bytes).ok()?;
     OperationId::from_bytes(bytes).ok()
 }
 

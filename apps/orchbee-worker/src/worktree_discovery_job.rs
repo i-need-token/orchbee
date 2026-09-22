@@ -1,9 +1,8 @@
 use std::{
     ffi::OsString,
     io::{self, Read},
-    os::unix::io::{AsFd, AsRawFd},
     path::Path,
-    process::{Child, ChildStderr, ChildStdout, Command, Stdio},
+    process::{Child, Command, Stdio},
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -12,11 +11,18 @@ use std::{
     time::{Duration, Instant},
 };
 
-use nix::{
-    errno::Errno,
-    fcntl::{FcntlArg, OFlag, fcntl},
-    poll::{PollFd, PollFlags, PollTimeout, poll},
+#[cfg(windows)]
+use orchbee_local_ipc::ChildOutputReader;
+use orchbee_local_ipc::{AsLocalIo, PollFd, PollFlags, PollTimeout, poll};
+#[cfg(unix)]
+use std::{
+    os::fd::AsRawFd,
+    process::{ChildStderr, ChildStdout},
 };
+#[cfg(windows)]
+type ChildStdout = ChildOutputReader;
+#[cfg(windows)]
+type ChildStderr = ChildOutputReader;
 
 const JOB_TTL: Duration = Duration::from_secs(5);
 const RECEIPT_TTL: Duration = Duration::from_secs(60);
@@ -94,15 +100,44 @@ struct CommandSpec {
 }
 
 impl CommandSpec {
-    fn spawn(&self) -> io::Result<Child> {
-        Command::new(&self.program)
+    fn spawn(&self) -> io::Result<SpawnedChild> {
+        let mut command = Command::new(&self.program);
+        command
             .args(&self.args)
             .env("GIT_TERMINAL_PROMPT", "0")
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
+            .stdin(Stdio::null());
+        #[cfg(unix)]
+        {
+            let mut child = command
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()?;
+            let out = child.stdout.take();
+            let err = child.stderr.take();
+            Ok(SpawnedChild { child, out, err })
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            let (out, stdout) = ChildOutputReader::pipe()?;
+            let (err, stderr) = ChildOutputReader::pipe()?;
+            let child = command
+                .creation_flags(0x0800_0000)
+                .stdout(stdout)
+                .stderr(stderr)
+                .spawn()?;
+            Ok(SpawnedChild {
+                child,
+                out: Some(out),
+                err: Some(err),
+            })
+        }
     }
+}
+struct SpawnedChild {
+    child: Child,
+    out: Option<ChildStdout>,
+    err: Option<ChildStderr>,
 }
 
 struct JobCommands {
@@ -127,6 +162,7 @@ struct Faults {
 struct JobWitness {
     spawned: Vec<u32>,
     // (fd number, /proc/self/fd symlink target) — survives fd reuse.
+    #[cfg(unix)]
     pipe_ends: Vec<(i32, String)>,
     reaped: Vec<u32>,
 }
@@ -425,14 +461,20 @@ fn witness_record(hooks: Option<&TestHooks>, record: impl FnOnce(&mut JobWitness
     }
 }
 
-fn set_nonblocking(file: &dyn AsFd, hooks: Option<&TestHooks>) -> io::Result<()> {
+fn set_nonblocking(file: &dyn AsLocalIo, hooks: Option<&TestHooks>) -> io::Result<()> {
     if hooks.is_some_and(|hooks| hooks.faults.nonblock) {
         return Err(io::Error::other("injected nonblocking-setup fault"));
     }
-    let flags = fcntl(file.as_fd(), FcntlArg::F_GETFL)
-        .map(|flags| OFlag::from_bits_truncate(flags) | OFlag::O_NONBLOCK)
-        .map_err(io::Error::from)?;
-    fcntl(file.as_fd(), FcntlArg::F_SETFL(flags)).map_err(io::Error::from)?;
+    #[cfg(unix)]
+    {
+        use nix::fcntl::{FcntlArg, OFlag, fcntl};
+        let flags = fcntl(file.as_local_io(), FcntlArg::F_GETFL)
+            .map(|flags| OFlag::from_bits_truncate(flags) | OFlag::O_NONBLOCK)
+            .map_err(io::Error::from)?;
+        fcntl(file.as_local_io(), FcntlArg::F_SETFL(flags)).map_err(io::Error::from)?;
+    }
+    #[cfg(windows)]
+    let _ = file;
     Ok(())
 }
 
@@ -453,24 +495,28 @@ impl StageCtx<'_> {
     }
 }
 
-fn drain_child(mut child: Child, ctx: &mut StageCtx<'_>) -> StageEnd {
+fn drain_child(spawned: SpawnedChild, ctx: &mut StageCtx<'_>) -> StageEnd {
+    let SpawnedChild {
+        mut child,
+        mut out,
+        mut err,
+    } = spawned;
     let stage = ctx.stage;
     let cancel = ctx.cancel;
     let deadline = ctx.deadline;
     let hooks = ctx.hooks;
     let faults = ctx.faults();
-    let mut out = child.stdout.take();
-    let mut err = child.stderr.take();
     witness_record(hooks, |witness| {
         witness.spawned.push(child.id());
+        #[cfg(unix)]
         for file in [
-            out.as_ref().map(|file| file as &dyn AsFd),
-            err.as_ref().map(|file| file as &dyn AsFd),
+            out.as_ref().map(|file| file as &dyn AsLocalIo),
+            err.as_ref().map(|file| file as &dyn AsLocalIo),
         ]
         .into_iter()
         .flatten()
         {
-            let fd = file.as_fd().as_raw_fd();
+            let fd = file.as_local_io().as_raw_fd();
             let target = std::fs::read_link(format!("/proc/self/fd/{fd}"))
                 .map(|path| path.display().to_string())
                 .unwrap_or_default();
@@ -478,8 +524,8 @@ fn drain_child(mut child: Child, ctx: &mut StageCtx<'_>) -> StageEnd {
         }
     });
     let setup_failed = [
-        out.as_ref().map(|file| file as &dyn AsFd),
-        err.as_ref().map(|file| file as &dyn AsFd),
+        out.as_ref().map(|file| file as &dyn AsLocalIo),
+        err.as_ref().map(|file| file as &dyn AsLocalIo),
     ]
     .into_iter()
     .flatten()
@@ -516,15 +562,15 @@ fn drain_child(mut child: Child, ctx: &mut StageCtx<'_>) -> StageEnd {
         };
         let mut descriptors = Vec::with_capacity(2);
         if let Some(file) = &out {
-            descriptors.push(PollFd::new(file.as_fd(), PollFlags::POLLIN));
+            descriptors.push(PollFd::new(file.as_local_io(), PollFlags::POLLIN));
         }
         if let Some(file) = &err {
-            descriptors.push(PollFd::new(file.as_fd(), PollFlags::POLLIN));
+            descriptors.push(PollFd::new(file.as_local_io(), PollFlags::POLLIN));
         }
         if !descriptors.is_empty() {
             match poll(&mut descriptors, timeout) {
                 Ok(_) => {}
-                Err(Errno::EINTR) => continue,
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
                 Err(_error) => {
                     return kill_reap(
                         child,
@@ -781,4 +827,5 @@ fn kill_reap(
 }
 
 #[cfg(test)]
+#[cfg_attr(windows, path = "worktree_discovery_job/windows_tests.rs")]
 mod tests;

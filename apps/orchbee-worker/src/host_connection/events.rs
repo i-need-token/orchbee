@@ -1,13 +1,11 @@
+use orchbee_local_ipc::AsLocalIo;
+use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
     io::{self, Read},
-    os::{fd::AsFd, unix::net::UnixStream},
     time::Instant,
 };
 
-use nix::{
-    errno::Errno,
-    poll::{PollFd, PollFlags, PollTimeout, poll},
-};
+use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, HostEpoch, LifecycleControl, MAXIMUM_TERMINAL_FRAME_BYTES,
     MessageRole, PayloadEncoding, TRANSPORT_ENVELOPE_HEADER_BYTES, TerminalEffectEvent,
@@ -89,15 +87,15 @@ impl Read for EventReader<'_> {
             let timeout =
                 PollTimeout::try_from(remaining.as_millis().saturating_add(1)).map_err(invalid)?;
             let mut descriptors = [
-                PollFd::new(self.host.as_fd(), PollFlags::POLLIN),
+                PollFd::new(self.host.as_local_io(), PollFlags::POLLIN),
                 // A Server request may already be queued while idle; observe loss
                 // without consuming or treating those request bytes as a response.
-                PollFd::new(self.server.as_fd(), PollFlags::empty()),
+                PollFd::new(self.server.as_local_io(), PollFlags::empty()),
             ];
             match poll(&mut descriptors, timeout) {
                 Ok(_) => {}
-                Err(Errno::EINTR) => continue,
-                Err(error) => return Err(error.into()),
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                Err(error) => return Err(error),
             }
             if descriptors[1]
                 .revents()

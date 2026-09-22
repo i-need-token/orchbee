@@ -414,7 +414,7 @@ fn apply_tail<T>(entries: &mut Vec<T>, requested: u16) -> ReadTail {
 /// over the emitted rows only — `--unwrap` re-presents them as joined
 /// logical lines, `--lines` keeps the tail — without touching the bound or
 /// the physical-row facts.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(crate) fn terminal_read_doc(
     terminal: TerminalRow,
     frame: &orchbee_terminal_protocol::TerminalTextFrame,
@@ -507,7 +507,7 @@ pub(crate) const MAXIMUM_HISTORY_ROWS: u16 = 1000;
 /// rows stop when the encoded-text budget would overflow, and `omitted_rows`
 /// honestly counts `min(requested, scrollback)` minus the emitted rows —
 /// including rows the protocol window cap never reached.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(crate) fn terminal_history_doc(
     terminal: TerminalRow,
     frame: &orchbee_terminal_protocol::TerminalTextFrame,
@@ -625,7 +625,7 @@ pub(crate) struct WaitMatch {
 
 /// The compiled search input `wait-output` matches with: the literal
 /// `--match` text, or the `--regex` program compiled once before any effect.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(crate) enum WaitMatcher<'a> {
     Literal(&'a str),
     Regex(&'a regex::Regex),
@@ -682,7 +682,7 @@ pub(crate) const MAXIMUM_EXCERPT_BYTES: usize = 4096;
 /// edges are reported honestly: a fragment that begins or ends inside a
 /// wrapped line marks `starts_mid_line`/`ends_mid_line` on a regex hit, and
 /// `^`/`$` anchor at the observed fragment edges only.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(crate) fn match_window(
     window: &orchbee_terminal_protocol::TerminalTextRowWindow,
     matcher: &WaitMatcher<'_>,
@@ -743,7 +743,7 @@ pub(crate) fn match_window(
 /// literal substring position, or the regex engine's leftmost match — plus
 /// the bounded excerpt around it. Offsets are UTF-8 byte offsets into the
 /// joined fragment, not terminal columns.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn match_line(
     text: &str,
     row_start: u64,
@@ -784,7 +784,7 @@ fn match_line(
 /// fits, else its leading slice on a char boundary plus the truncation flag.
 /// Never subtracts past the bound — an oversized match yields a prefix, not
 /// an underflow.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn bounded_match(line: &str, match_start: usize, match_len: usize) -> (String, bool) {
     if match_len <= MAXIMUM_EXCERPT_BYTES {
         return (line[match_start..match_start + match_len].to_owned(), false);
@@ -803,7 +803,7 @@ fn bounded_match(line: &str, match_start: usize, match_len: usize) -> (String, b
 /// A match longer than the budget cannot sit inside the excerpt — the
 /// excerpt then leads with the match's own start instead of claiming the
 /// whole. No code point is ever split.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn match_excerpt(line: &str, match_start: usize, match_len: usize) -> (String, bool, u64) {
     if line.len() <= MAXIMUM_EXCERPT_BYTES {
         return (line.to_owned(), false, 0);
@@ -871,7 +871,7 @@ pub(crate) struct WaitReport {
 /// Project the confirmed observation into the answer document; every field
 /// already carries validated transport facts, so the projection itself
 /// cannot fail.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(crate) fn terminal_wait_output_doc(
     terminal: TerminalRow,
     attachment: orchbee_terminal_protocol::AttachmentId,
@@ -3027,7 +3027,7 @@ mod tests {
     /// (row index < `rows`, `cells == columns`, adjacent wrap-flag agreement),
     /// so each case is a state a real record can deliver. The same shapes
     /// cross the wire in the scripted-peer witnesses in `tests/cli_query.rs`.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     mod terminal_read {
         use super::super::{Projection, ReadPresentation, TerminalRow, terminal_read_doc};
         use crate::cli::{output::render_text, present};
@@ -3629,7 +3629,7 @@ mod tests {
     /// lines before the literal substring check, the excerpt always contains
     /// the complete pattern within 4096 UTF-8 bytes on char boundaries, and
     /// the observed-window projection reports the honest truncation flag.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     mod terminal_wait {
         use super::super::{
             MAXIMUM_EXCERPT_BYTES, TerminalRow, WaitMatch, WaitMatcher, WaitObservation,

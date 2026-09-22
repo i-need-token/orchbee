@@ -735,3 +735,7 @@ node scripts/tla/run-models.mjs --models worker-terminal-lifecycle-step --jobs 1
 node scripts/tla/run-models.mjs --models worker-terminal-lifecycle-receipts --jobs 1
 pnpm verify
 ```
+
+## Windows native execution
+
+The managed native Windows path uses the same Worker authorization, receipts, replay fences, and Host protocol. Private named pipes replace Unix sockets. The exact sibling `orchbee-terminal-host.exe` starts lazily after authorized Launch and uses ConPTY. Default launch resolves absolute `COMSPEC` or `SystemRoot\System32\cmd.exe`, with `USERPROFILE` as the initial directory. Worktree discovery runs Windows Git through owned child-output pipes with bounded output, cancellation, deadlines, and kill/wait cleanup. Native tests cover real Host retention after broker loss and real Git discovery. See the [Client quick start](../orchbee/README.md#native-windows-quick-start) for staging and limits.

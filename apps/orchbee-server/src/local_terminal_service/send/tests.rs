@@ -19,6 +19,7 @@ use orchbee_client_server_protocol::{
     SendTextInput, ServerMessage, SiteId as ClientSiteId, TerminalId as ClientTerminalId,
     TerminalSendRequest, WorkerId as ClientWorkerId,
 };
+use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_workbench_protocol::{
     ProtocolVersion, SiteId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchLabel, WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse,
@@ -26,7 +27,6 @@ use orchbee_workbench_protocol::{
 };
 use std::error::Error;
 use std::num::NonZeroU64;
-use std::os::unix::net::UnixStream;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};

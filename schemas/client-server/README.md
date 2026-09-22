@@ -60,7 +60,7 @@ separate `terminal.start` invariant requires distinct `requestId` and `terminalC
 Its `terminalCreateRequestId` identifies the deferred create within that same authority and subject,
 independent of the particular Client Session transport.
 
-An explicit `cwd` is an absolute POSIX UTF-8 path whose encoded path value contains 1 through 4,096
+An explicit `cwd` is an absolute local-platform UTF-8 path whose encoded path value contains 1 through 4,096
 bytes and no NUL. `/` is valid. OBCS does not normalize the path, resolve `.` or `..`, inspect the
 filesystem, infer Git meaning, or establish that the selected Worker accepts it. `cwd: null` asks
 the selected Worker boundary to resolve its authorized default; omission is invalid.
@@ -83,7 +83,7 @@ Every geometry contains all four integer fields and satisfies every invariant:
 | Field              | Admitted value                                                                  |
 | ------------------ | ------------------------------------------------------------------------------- |
 | `workerConstraint` | `null`, or `{ "kind": "exact", "workerId": ... }`                               |
-| `cwd`              | `null`, or one valid absolute POSIX path                                        |
+| `cwd`              | `null`, or one valid absolute local-platform path                               |
 | `startMode`        | `{ "kind": "immediate", "geometry": ... }`, or exactly `{ "kind": "deferred" }` |
 
 Deferred creation carries no geometry or fallback. Immediate creation carries one complete valid
@@ -355,3 +355,7 @@ admission, or unknown-effect replay rule; legacy Attach remains available. The i
 runtime cohort is Client, Server, Worker, and Host. Schema and Rust source are contract inputs, not
 installed cohort artifacts. Before publication, the unpublished source contract and runtime cohort
 roll back together. This extension adds no persisted state or migration.
+
+## Native Windows path refinement
+
+Absolute wire paths accept a POSIX leading slash or an ASCII drive letter followed by `:` and `/` or `\`, optionally prefixed by `\\?\` for a Windows verbatim drive path. This lexical rule is independent of the decoder platform; bytes are preserved without expansion or normalization. Backslash-rooted, drive-relative, UNC, and device paths are not admitted by this Windows increment. Existing byte bounds and NUL/Unicode validation remain unchanged. The execution owner still validates the path against its local filesystem before effects.

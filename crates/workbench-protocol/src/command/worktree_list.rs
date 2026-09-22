@@ -47,8 +47,12 @@ impl WorktreeEntry {
     /// is malformed Git data, not a partial entry.
     pub fn validate(&self) -> Result<(), ContractError> {
         let path_ok = match &self.path {
-            WorktreeEntryText::Utf8(path) => !path.is_empty() && path.starts_with('/'),
-            WorktreeEntryText::Bytes(bytes) => !bytes.is_empty() && bytes.first() == Some(&b'/'),
+            WorktreeEntryText::Utf8(path) => {
+                crate::directory::is_absolute_path(path.as_bytes()) && !path.contains('\0')
+            }
+            WorktreeEntryText::Bytes(bytes) => {
+                crate::directory::is_absolute_path(bytes) && !bytes.contains(&0)
+            }
         };
         if !path_ok {
             return Err(ContractError::InvalidDocument);

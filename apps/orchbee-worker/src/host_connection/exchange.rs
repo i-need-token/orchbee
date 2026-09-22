@@ -1,15 +1,13 @@
+use orchbee_local_ipc::AsLocalIo;
+use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
     error::Error,
     io::{self, Read, Write},
     net::Shutdown,
-    os::{fd::AsFd, unix::net::UnixStream},
     time::{Duration, Instant},
 };
 
-use nix::{
-    errno::Errno,
-    poll::{PollFd, PollFlags, PollTimeout, poll},
-};
+use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, MAXIMUM_TERMINAL_FRAME_BYTES, MessageRole,
     PayloadEncoding, TRANSPORT_ENVELOPE_HEADER_BYTES, decode_transport_envelope,
@@ -188,15 +186,17 @@ impl<'a> HostExchange<'a> {
         timeout: PollTimeout,
     ) -> Result<(PollFlags, PollFlags), PeerFailure> {
         let mut descriptors = [
-            PollFd::new(self.server.as_fd(), PollFlags::POLLIN),
-            PollFd::new(self.host.stream().as_fd(), interest),
+            PollFd::new(self.server.as_local_io(), PollFlags::POLLIN),
+            PollFd::new(self.host.stream().as_local_io(), interest),
         ];
         match poll(&mut descriptors, timeout) {
             Ok(_) => Ok((
                 descriptors[0].revents().ok_or(PeerFailure::Server)?,
                 descriptors[1].revents().ok_or(PeerFailure::Host)?,
             )),
-            Err(Errno::EINTR) => Ok((PollFlags::empty(), PollFlags::empty())),
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {
+                Ok((PollFlags::empty(), PollFlags::empty()))
+            }
             Err(_error) => Err(PeerFailure::Host),
         }
     }

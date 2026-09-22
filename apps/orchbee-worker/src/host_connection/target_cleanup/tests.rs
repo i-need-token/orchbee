@@ -3,11 +3,12 @@ use orchbee_capability_node_protocol::{
     ControlRejection, HostCreationId, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerRequest, ViewerRejection, WorkerGeneration, WorkerId,
 };
+use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_terminal_protocol::{
     AttachmentId, Envelope, HistoryAnchorStatus, HistoryChanged, encode_history_control,
     encode_transport_envelope,
 };
-use std::{cell::RefCell, num::NonZeroU64, os::unix::net::UnixStream, rc::Rc};
+use std::{cell::RefCell, num::NonZeroU64, rc::Rc};
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 

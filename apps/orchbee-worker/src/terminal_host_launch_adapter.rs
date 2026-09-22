@@ -1,8 +1,6 @@
-use std::{
-    fmt,
-    os::unix::fs::{FileTypeExt, MetadataExt},
-    path::Path,
-};
+#[cfg(unix)]
+use std::os::unix::fs::{FileTypeExt, MetadataExt};
+use std::{fmt, path::Path};
 
 use orchbee_capability_node_protocol::{
     AbsoluteCwd, HostCreationId as CapabilityHostCreationId, HostEpoch as CapabilityHostEpoch,
@@ -156,6 +154,7 @@ impl From<HostProtocolError> for HostLaunchAdapterError {
 // Cross-owner convention with Server's private endpoint: the managed Site
 // runtime directory holds the Agent observation socket under this exact file
 // name. The Worker keeps its own literal copy; no Server code is imported.
+#[cfg(unix)]
 const OBSERVATION_SOCKET_NAME: &str = "agent-observation-v3.sock";
 const OBSERVATION_SOCKET_ENV: &str = "ORCHBEE_AGENT_OBSERVATION_SOCKET_V3";
 
@@ -275,6 +274,7 @@ fn map_terminal_created(
 // A managed Site binds it before spawning the Worker, so a missing or
 // unqualified candidate simply produces no variable — the launch keeps its
 // resolved facts and the producer runs without an observation channel.
+#[cfg(unix)]
 fn observation_overlay(site_runtime: Option<&Path>) -> Vec<EnvironmentOverlayEntry> {
     let Some(runtime) = site_runtime else {
         return Vec::new();
@@ -398,3 +398,27 @@ const fn protocol_geometry(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(windows)]
+fn observation_overlay(site_runtime: Option<&Path>) -> Vec<EnvironmentOverlayEntry> {
+    let Some(runtime) = site_runtime else {
+        return Vec::new();
+    };
+    let candidate =
+        orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous::observation_endpoint_path(
+            runtime,
+        );
+    if !orchbee_local_ipc::endpoint_exists(&candidate).unwrap_or(false) {
+        return Vec::new();
+    }
+    let Some(path) = candidate.to_str() else {
+        return Vec::new();
+    };
+    if path.len() > MAXIMUM_ENVIRONMENT_OVERLAY_VALUE_BYTES {
+        return Vec::new();
+    }
+    vec![EnvironmentOverlayEntry {
+        name: OBSERVATION_SOCKET_ENV.to_owned(),
+        value: path.to_owned(),
+    }]
+}

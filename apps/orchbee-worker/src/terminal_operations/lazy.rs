@@ -6,22 +6,21 @@ use crate::{
     terminal_host_operation::HostOperationDisposition,
 };
 use orchbee_capability_node_protocol::CapabilityNodeMessage;
+use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_local_site_protocol::WorkerId;
+#[cfg(unix)]
+use orchbee_local_site_runtime::HOST_ENDPOINT_ID;
 use orchbee_local_site_runtime::{
-    HOST_ENDPOINT_ID, HOST_SCOPE_NAME, ModeCheckedLocalSiteRendezvous, NativeArtifact,
-    NativeCohort, RetainedChild, SiteScope,
+    HOST_SCOPE_NAME, ModeCheckedLocalSiteRendezvous, NativeArtifact, NativeCohort, SiteScope,
 };
+#[cfg(unix)]
+use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::{
     cell::RefCell,
     error::Error,
     io,
     num::NonZeroU64,
-    os::unix::{
-        fs::{FileTypeExt, MetadataExt},
-        net::UnixStream,
-    },
     path::Path,
-    process::{Command, Stdio},
     rc::Rc,
     thread,
     time::{Duration, Instant},
@@ -159,11 +158,13 @@ fn start_host(
     // path. That absolute address can outgrow this platform's socket ABI, so
     // validate it before the Host directory or process can appear.
     let endpoint = ModeCheckedLocalSiteRendezvous::host_endpoint_path(runtime);
+    #[cfg(unix)]
     nix::sys::socket::UnixAddr::new(&endpoint)?;
     let directory = ModeCheckedLocalSiteRendezvous::prepare_mode_checked(
         runtime,
         SiteScope::parse(HOST_SCOPE_NAME)?,
     )?;
+    #[cfg(unix)]
     match std::fs::symlink_metadata(&endpoint) {
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Ok(_) => {
@@ -173,18 +174,26 @@ fn start_host(
         }
         Err(error) => return Err(error.into()),
     }
-    let mut child = RetainedChild::new(
-        Command::new(cohort.executable(NativeArtifact::TerminalHost))
-            .arg("serve")
-            .arg("--runtime-directory")
-            .arg(directory.runtime_directory())
-            .arg("--endpoint-id")
-            .arg(HOST_ENDPOINT_ID)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()?,
-    );
+    #[cfg(windows)]
+    if orchbee_local_ipc::endpoint_exists(&endpoint)? {
+        return Err(
+            io::Error::new(io::ErrorKind::AlreadyExists, "Host recovery is required").into(),
+        );
+    }
+    #[cfg(windows)]
+    let host_endpoint_id = ModeCheckedLocalSiteRendezvous::host_endpoint_id(runtime);
+    #[cfg(unix)]
+    let host_endpoint_id = HOST_ENDPOINT_ID;
+    let mut child = orchbee_local_site_runtime::spawn_retained(
+        &cohort.executable(NativeArtifact::TerminalHost),
+        &[
+            std::ffi::OsStr::new("serve"),
+            std::ffi::OsStr::new("--runtime-directory"),
+            directory.runtime_directory().as_os_str(),
+            std::ffi::OsStr::new("--endpoint-id"),
+            std::ffi::OsStr::new(&host_endpoint_id),
+        ],
+    )?;
     loop {
         if Instant::now() >= deadline {
             return Err(io::Error::from(io::ErrorKind::TimedOut).into());
@@ -192,6 +201,14 @@ fn start_host(
         if child.try_wait()?.is_some() {
             return Err(io::Error::other("Terminal Host exited before readiness").into());
         }
+        #[cfg(windows)]
+        {
+            if orchbee_local_ipc::endpoint_exists(&endpoint)? {
+                return HostBrokerConnection::connect_before(&endpoint, deadline, drain);
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        #[cfg(unix)]
         match std::fs::symlink_metadata(&endpoint) {
             Ok(status)
                 if status.file_type().is_socket()
@@ -223,5 +240,5 @@ fn start_host(
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests;

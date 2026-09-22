@@ -24,7 +24,7 @@ impl fmt::Display for LaunchSelectionError {
         match self {
             Self::EmptyExecutable => formatter.write_str("launch executable must not be empty"),
             Self::ExecutableNotAbsolute => {
-                formatter.write_str("launch executable must be an absolute POSIX path")
+                formatter.write_str("launch executable must be an absolute local-platform path")
             }
             Self::ContainsNul => {
                 formatter.write_str("launch executable and arguments must not contain NUL")
@@ -56,7 +56,7 @@ impl LaunchSelection {
         if executable.is_empty() {
             return Err(LaunchSelectionError::EmptyExecutable);
         }
-        if !executable.starts_with('/') {
+        if !crate::working_directory::is_absolute_path(executable.as_bytes()) {
             return Err(LaunchSelectionError::ExecutableNotAbsolute);
         }
         if executable.contains('\0') || arguments.iter().any(|argument| argument.contains('\0')) {

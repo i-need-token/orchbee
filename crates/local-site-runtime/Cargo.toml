@@ -7,6 +7,9 @@ publish = false
 
 [target.'cfg(unix)'.dependencies]
 nix = { workspace = true, features = ["fs", "user"] }
+
+[dependencies]
+orchbee-local-ipc = { path = "../local-ipc" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 sha2.workspace = true
@@ -16,3 +19,8 @@ workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 rustix = { workspace = true, features = ["fs"] }
+
+[target.'cfg(windows)'.dependencies]
+winsafe = { version = "=0.0.29", default-features = false, features = ["kernel"] }
+winapi-util = "=0.1.11"
+windows-permissions = { version = "=0.2.4", default-features = false }

@@ -1,21 +1,31 @@
 //! Private native development runtime boundaries; applications own startup policy.
-#[cfg(unix)]
 mod cohort;
-#[cfg(unix)]
+#[cfg_attr(windows, path = "rendezvous_windows.rs")]
 mod rendezvous;
-#[cfg(unix)]
+mod rendezvous_types;
+#[cfg_attr(windows, path = "retained_child_windows.rs")]
 mod retained_child;
+#[cfg(windows)]
+mod windows_permissions;
+#[cfg(all(test, windows))]
+mod windows_tests;
 
-#[cfg(unix)]
 pub use cohort::{NativeArtifact, NativeCohort, ObservationAdaptersSidecar};
-#[cfg(unix)]
 pub use rendezvous::{
     CLIENT_PENDING_SOCKET_NAME, EntryKind, EntryObservation, HOST_ENDPOINT_ID, HOST_ENDPOINT_NAME,
     HOST_SCOPE_NAME, LockAttempt, LockKind, ModeCheckedLocalSiteRendezvous, ModeCheckedSiteLock,
     RendezvousError, SiteLifetimeObservation, SiteScope,
 };
-#[cfg(unix)]
 pub use retained_child::RetainedChild;
 
 #[cfg(target_os = "linux")]
 mod linux_permissions;
+
+/// Spawns an exact cohort executable with inherited environment and no inherited
+/// stdio or handles. The returned owner observes exit without killing on drop.
+pub fn spawn_retained(
+    executable: &std::path::Path,
+    arguments: &[&std::ffi::OsStr],
+) -> std::io::Result<RetainedChild> {
+    RetainedChild::spawn(executable, arguments)
+}

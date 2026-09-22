@@ -162,7 +162,7 @@ a Capability Node to retain an unbounded cross-terminal tombstone ledger; Worker
 well-formed issuance from the authenticated authority and does not claim to contain a violating
 issuer.
 
-The optional current directory is an absolute POSIX UTF-8 path of 1 through 4,096 encoded bytes and
+The optional current directory is an absolute local-platform UTF-8 path of 1 through 4,096 encoded bytes and
 cannot contain NUL. Its absence is distinct from an empty value. Geometry contains columns, rows,
 cell-pixel width, and cell-pixel height. Columns and rows are in `1..=4096`; cell-pixel width and
 height are in `0..=4096` and must be either both positive (pixels known) or both zero (pixels
@@ -335,7 +335,7 @@ OBCN kind 15 `WorktreeJobRequest` and kind 16 `WorktreeJobResult` carry one boun
 `git worktree list` discovery job for the `worktree list` Server flow. A request contains
 operation ID (16 bytes), Worker ID (16), Worker generation (u64), then an action tag: 1
 `Start` with a u16 length and 1 through 4,096 directory bytes (an absolute, nonempty,
-NUL-free POSIX path — validated at construction and decode), 2 `Poll` with a job ID (16),
+NUL-free local-platform path — validated at construction and decode), 2 `Poll` with a job ID (16),
 or 3 `Cancel` with a job ID (16). The job ID is the Start operation's own operation ID:
 a Server mints one identity per job and reuses it on Poll and Cancel.
 
@@ -501,3 +501,7 @@ pnpm test:tla:inventory
 pnpm lint:documentation
 pnpm lint:projects
 ```
+
+## Native Windows path refinement
+
+Absolute wire paths accept a POSIX leading slash or an ASCII drive letter followed by `:` and `/` or `\`, optionally prefixed by `\\?\` for a Windows verbatim drive path. This lexical rule is independent of the decoder platform; bytes are preserved without expansion or normalization. Backslash-rooted, drive-relative, UNC, and device paths are not admitted by this Windows increment. Existing byte bounds and NUL/Unicode validation remain unchanged. The execution owner still validates the path against its local filesystem before effects.

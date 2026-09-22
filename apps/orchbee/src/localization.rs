@@ -7,15 +7,15 @@ use crate::client_view::{
 
 mod cli;
 pub(crate) use cli::CliLabels;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod location_labels;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod panel_close;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod tab_close;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod tab_rename;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod workspace_setup;
 
 const EN_US_TUI_UNAVAILABLE: &str = "The Orchbee TUI is unavailable in this development slice.\n";
@@ -543,7 +543,7 @@ fn locale_from_value(value: &OsString) -> Locale {
 #[cfg(test)]
 mod tests;
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 impl Locale {
     pub(crate) const fn terminal_status(
         self,
@@ -707,7 +707,7 @@ impl Locale {
 
     /// One board row's canonical semantic status, rendered verbatim —
     /// the board localizes the server's verdict, never reinterprets it.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     pub(crate) fn agent_status(
         self,
         status: &orchbee_agent_observation_protocol::AgentSemanticStatus,
@@ -754,7 +754,7 @@ impl Locale {
     }
 
     /// The board body's line for a non-ready read state.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     pub(crate) fn agent_board_read_line(
         self,
         read: crate::terminal_session::AgentBoardRead,
@@ -775,7 +775,7 @@ impl Locale {
     }
 
     /// A jump refusal's board notice.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     pub(crate) fn agent_board_notice(
         self,
         failure: crate::terminal_session::JumpFailure,
@@ -795,7 +795,7 @@ impl Locale {
     /// The sidebar's one-line Agent summary: the last *completed* read's
     /// count plus its completeness and age marks — `None` input means no
     /// completed read ever ran and the line must not exist at all.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     pub(crate) fn agent_sidebar_line(
         self,
         summary: crate::terminal_session::AgentBoardSummary,
@@ -1076,7 +1076,7 @@ impl Locale {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 impl Locale {
     pub(crate) const fn startup_progress(self) -> &'static str {
         match self {
@@ -1098,9 +1098,9 @@ impl Locale {
     }
     pub(crate) const fn startup_failure(
         self,
-        failure: crate::local_startup::StartupFailure,
+        failure: crate::local_activation::StartupFailure,
     ) -> &'static str {
-        use crate::local_startup::StartupFailure;
+        use crate::local_activation::StartupFailure;
         match (self, failure) {
             (Self::EnUs, StartupFailure::Interface) => {
                 "The terminal interface failed. Existing Site processes were retained.\n"

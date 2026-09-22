@@ -413,14 +413,27 @@ fn recover_neighbor(mode: u8) -> TestResult {
                     }
                     _ => return Err(io::Error::other("unexpected viewer action")),
                 };
-                write_server_message(
+                // Dropping the ready session can close the carrier while its
+                // final ordinary Poll reply is in flight. A closed peer ends
+                // this fixture; protocol failures remain test failures.
+                match write_server_message(
                     &mut stream,
                     &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
                         request.request_id().clone(),
                         outcome,
                     )),
-                )
-                .map_err(io::Error::other)?;
+                ) {
+                    Ok(()) => {}
+                    Err(orchbee_client_server_protocol::WriteMessageError::Io(error))
+                        if matches!(
+                            error.kind(),
+                            io::ErrorKind::BrokenPipe | io::ErrorKind::ConnectionReset
+                        ) =>
+                    {
+                        break;
+                    }
+                    Err(error) => return Err(io::Error::other(error)),
+                }
             }
             return Ok(());
         }

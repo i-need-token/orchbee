@@ -18,9 +18,9 @@ use orchbee_agent_observation_protocol::{
     AgentSessionRejectionReason, AgentSessionSummary,
 };
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 mod lane;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use lane::{AgentBoardLane, LaneCommand, LaneOutcome};
 
 #[cfg(test)]
@@ -486,15 +486,15 @@ pub(super) struct AgentBoard {
     /// source of the read cooldown `r` never bypasses.
     last_read_end: Option<Instant>,
     clock: crate::local_client::LocalOperationClock,
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     lane_origin: Option<crate::local_client::LocalClientOrigin>,
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     lane: Option<AgentBoardLane>,
     /// Lane handles whose threads are still exiting after a close or a
     /// failed send — kept until `finished` so a spawn never overlaps a
     /// live predecessor and teardown joins whatever remains instead of
     /// leaving a detached thread.
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     dying_lanes: Vec<AgentBoardLane>,
 }
 
@@ -518,16 +518,16 @@ impl AgentBoard {
             notice: None,
             last_read_end: None,
             clock,
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             lane_origin: None,
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             lane: None,
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             dying_lanes: Vec::new(),
         }
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     pub(super) fn set_origin(&mut self, origin: crate::local_client::LocalClientOrigin) {
         self.lane_origin = Some(origin);
     }
@@ -562,7 +562,7 @@ impl AgentBoard {
         self.inflight = None;
         self.jump = None;
         self.notice = None;
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", windows))]
         if let Some(mut lane) = self.lane.take() {
             // Cancel order: the epoch bump above already invalidates
             // outcomes and stops scheduling; now the in-flight exchange
@@ -744,7 +744,7 @@ impl AgentBoard {
         }
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     fn lane_or_spawn(&mut self) -> Option<&mut AgentBoardLane> {
         if self.lane.is_none() {
             // Release finished predecessors first, then hold the spawn
@@ -764,7 +764,7 @@ impl AgentBoard {
         self.lane.as_mut()
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     fn issue_list_round(&mut self, now: Instant) {
         let Some(deadline) = now.checked_add(AGENT_READ_DEADLINE) else {
             self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Transport);
@@ -784,12 +784,12 @@ impl AgentBoard {
         }
     }
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", windows)))]
     fn issue_list_round(&mut self, _now: Instant) {
         self.read = AgentBoardRead::Failed(AgentBoardReadFailure::LaneUnavailable);
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     fn issue_jump_get(&mut self, target: AgentSessionId, now: Instant) {
         self.jump_serial += 1;
         let serial = self.jump_serial;
@@ -825,7 +825,7 @@ impl AgentBoard {
         }
     }
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", windows)))]
     fn issue_jump_get(&mut self, _target: AgentSessionId, _now: Instant) {
         self.fail_jump(JumpFailure::Unavailable);
     }
@@ -833,7 +833,7 @@ impl AgentBoard {
     /// Drain every arrived lane outcome. The list path is board-local;
     /// the Get path needs the caller's live-context preference to order
     /// candidates, so it takes that as a closure.
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     pub(super) fn drain_lane(
         &mut self,
         now: Instant,
@@ -881,7 +881,7 @@ impl AgentBoard {
         changed
     }
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", windows)))]
     pub(super) fn drain_lane(
         &mut self,
         _now: Instant,
@@ -890,7 +890,7 @@ impl AgentBoard {
         false
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     fn apply_list_outcome(
         &mut self,
         epoch: u64,
@@ -977,7 +977,7 @@ impl AgentBoard {
     /// Apply the verified Get outcome. `prefer` reports whether an
     /// attachment currently resolves into the caller's active context and
     /// tab — the deterministic pick's "current-tab usable" preference.
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     fn apply_get_outcome(
         &mut self,
         epoch: u64,
@@ -1104,7 +1104,7 @@ impl AgentBoard {
 
     /// Test seam: hand the board a prepared lane (queued outcomes or a
     /// real spawned thread) so drains run against it without an origin.
-    #[cfg(all(test, target_os = "linux"))]
+    #[cfg(all(test, any(target_os = "linux", windows)))]
     pub(in crate::terminal_session::agent_board) fn install_lane_t(
         &mut self,
         lane: AgentBoardLane,
@@ -1115,7 +1115,7 @@ impl AgentBoard {
     /// Bounded lane close for session teardown: the wake write interrupts
     /// an in-flight exchange and the join returns without waiting out the
     /// read deadline. Must run before the mailbox is released.
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     pub(super) fn release_lane(&mut self) {
         if let Some(lane) = self.lane.take() {
             lane.close();
@@ -1125,11 +1125,11 @@ impl AgentBoard {
         }
     }
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", windows)))]
     pub(super) fn release_lane(&mut self) {}
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 impl Drop for AgentBoard {
     fn drop(&mut self) {
         if let Some(lane) = self.lane.take() {

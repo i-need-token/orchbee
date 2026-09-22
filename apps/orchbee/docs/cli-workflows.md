@@ -68,7 +68,7 @@ DIR=$(orchbee workspace accept-directory "$WS" --path /absolute/path/to/existing
 ```
 
 A target is an exact 32-hex id or an exact case-sensitive label; ambiguous
-labels are refused with candidates. `--path` is a literal absolute POSIX
+labels are refused with candidates. `--path` is a literal absolute local-platform
 path — the CLI never expands `~`/`$`, creates, or probes it; the Server
 probes authoritatively and rejects a Workspace that already has a
 directory. `accept-directory` returns `result.directoryId` (plus

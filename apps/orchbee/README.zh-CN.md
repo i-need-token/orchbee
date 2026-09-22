@@ -1,6 +1,6 @@
 # Orchbee 原生入口
 
-实验性、尚未打包发布的原生 Rust Client。在 Linux 上，裸命令从已校验的开发 cohort
+实验性、尚未打包发布的原生 Rust Client。在 Windows 和 Linux 上，裸命令从已校验的开发 cohort
 连接或启动本地 Site，取得第一个已校验的终端 projection frame 后进入 TUI。原生 Client 可以创建、
 选择、移动和刷新共享 Tab，同时保持独立选择与保留的终端进程。远程和完整 Workbench 操作尚未接入。
 产物名为 `orchbee`，参与根 Cargo 验证；Desktop、安装器和包管理器尚未消费它。
@@ -11,7 +11,7 @@
 
 ## 命令面
 
-Linux 裸调用和显式 `tui` 调用先准入继承的同一输入/输出 TTY 和有效 cell/pixel geometry，再运行下面的
+裸调用和显式 `tui` 调用先准入继承的交互终端和有效 cell geometry，再在 Windows 和 Linux 上运行下面的
 本地启动流程。两者使用同一 Client 路径；`tui` 不选择另一种模式。其他平台仍返回本地化不可用结果。
 `--help` 与 `--version` 不初始化 TUI 或服务。不提供缩写或远程选择；其他、额外或非 Unicode 参数都是
 usage failure。
@@ -112,6 +112,37 @@ Help 只写 stdout，失败只写 stderr；Version 写入一行与 locale 无关
 正常关闭 TUI、help、version 以及查询、修改、检查成功的开发退出状态为 `0`；usage failure 为 `2`；
 其余失败分类以持有记录的 failure matrix 为准。这些不是未来稳定公开退出状态表。
 
+## Windows 原生快速开始
+
+使用仓库固定版本的 Rust、Zig 工具链及 Node.js。在仓库根目录的 PowerShell 中运行；输出目录必须
+尚不存在，且父目录已经存在：
+
+```powershell
+node scripts/stage-native-site.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
+& "$env:LOCALAPPDATA\OrchbeeNative\orchbee.exe"
+```
+
+目录包含四个精确的同级 `.exe`、摘要清单和观察适配器 capsule，必须保存在一起。这是使用 Windows
+命名管道和 ConPTY 的原生开发 cohort；交互宿主为 Windows Terminal，无需 WSL。初始 Shell 使用绝对路径
+`COMSPEC`，否则回退到 `SystemRoot\System32\cmd.exe`。偏好 PowerShell 时，可在其中执行 `pwsh`。
+`site start --format json` 也可在非交互控制台中运行。
+
+前缀键为 `Ctrl+B`，随后按 `|` 左右分屏、`-` 上下分屏、`h/j/k/l` 切换窗格，或 `d` 脱离。
+分屏保留当前焦点。再次运行可执行文件即可重新连接保留的 Site。脱离后 Shell 继续运行；退出的 Shell
+仍可观察，直至显式关闭其 Tab/Panel。运行时不自动恢复崩溃的 Site。
+`config check --format json` 检查本地 cohort/runtime 输入，不启动 Site。
+
+Windows 已验证原生启动、Unicode 渲染、连续及逐字输入、CLI 终端发送/读取、分屏/焦点/调整大小、
+脱离后保留精确终端身份并重新连接，以及 Git worktree 发现。Console 事件进入既有按键及 SGR 鼠标解码器；
+退出 TUI 时由模式守卫恢复继承的输入/输出模式。大字节记录采用有界分段写入；取消 exchange 会关闭共享
+管道，不留下分离的 flush 线程。
+
+Windows 当前限制：尚未实现 `site diagnose`、Agent 集成安装和 Agent doctor。包内 Hook 适配器仍依赖
+Unix TTY 发现，因此在窗格中启动 Agent 不代表具备基于 Hook 的 Agent 看板状态。
+`terminal send --stdin` 接受重定向的普通文件，但拒绝流式管道输入；自动化请使用 `--text` 或 `--file`。
+Shell 补全仅提供 bash/zsh/fish。签名、自动更新、崩溃恢复、macOS 启动，以及替换已交付 TypeScript CLI
+的正式打包属于后续工作。
+
 ## Linux 本地启动
 
 从仓库根目录构建一个新的开发 cohort：
@@ -146,7 +177,7 @@ TTY 只准入一次，所有复制描述符均带 CLOEXEC，准备好的 Session
 当上报的几何不可绘制时（包括临时零单元格上报），Client 会在原始截止时间之内等待真实
 的可绘制几何，而不是准入失败或虚构几何；[原生启动等待](docs/native-startup-wait.md)
 拥有该有界等待模型、其取消/超时/故障结果以及不执行任何服务工作的保证。
-Linux 是唯一已有公共启动进程证据的平台；尚不承诺发布性能预算。
+Linux 启动已有公共进程证据；Windows 原生启动与 ConPTY 流程证据见上文。尚不承诺发布性能预算。
 
 ## 原生 Tab 交互
 
@@ -341,8 +372,7 @@ Application-private shell adapter 拥有以下终端与呈现边界。裸 Linux 
 interleaving、post-read viewport/resize failure 与 lifecycle fault injection。Native PTY process test
 则分别证明缺失 cohort 的 bare 与 help/version path 不改变 terminal mode、Linux PTY master 在最后一个 slave
 关闭后的 `EIO` 是正常 hangup，并且 linked public binary 不包含 `/dev/tty` 或 `tput` fallback token。
-已暂存 runtime 及其全部 third-party dependency 仅支持 Unix；Windows target dependency tree 让当前
-one-shot CLI 不包含这些 dependency，且不宣称 Windows TUI runtime 或 signal-restoration 支持。
+这些进程见证描述 Unix 适配器。Windows 适配器及其独立的 Console、ConPTY 证据见上文。
 
 ## 已连接单终端 TUI 细化
 
@@ -406,7 +436,8 @@ Authored help 与 diagnostic 同时提供 `en-US` 和 `zh-CN`。Locale selection
 均 fallback 到 canonical `en-US`。Locale data 只影响 presentation，绝不会持久化或用作 authority。
 
 只有 help/version/usage 的 one-shot 路径仅使用标准库参数、环境与标准流。
-Linux 裸入口组合共享运行时、私有 Client transport 和 TUI；第三方终端依赖仍只针对 Unix。
+Windows 和 Linux 裸入口组合共享运行时、私有 Client transport 和 TUI；
+平台适配器负责 Console 与传输副作用。
 在另行接受的打包切换前，TypeScript [`apps/cli`](../cli/README.zh-CN.md) 仍是已交付 CLI 权威。
 
 ## POSIX 本机 Site rendezvous 底座

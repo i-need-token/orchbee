@@ -1,6 +1,6 @@
 # Orchbee Native Entry
 
-Experimental, unpackaged native Rust Client. On Linux, bare invocation connects or activates a
+Experimental, unpackaged native Rust Client. On Windows and Linux, bare invocation connects or activates a
 local Site from a verified development cohort and enters its TUI after the first validated terminal
 projection frame. Native Clients can create, select, move and refresh shared Tabs while keeping independent
 selection and retained terminal processes. Remote and full Workbench operations are not integrated.
@@ -13,9 +13,9 @@ English remains canonical.
 
 ## Command surface
 
-Bare and explicit `tui` Linux invocation first admit the same inherited input/output TTY and valid
-cell/pixel geometry, then run the local startup workflow below. They are the same Client route;
-`tui` does not select a different mode. Other platforms return localized unavailability. `--help`
+Bare and explicit `tui` invocation first admit the inherited interactive terminal and valid
+cell geometry, then run the local startup workflow below on Windows and Linux. They are the same
+Client route; `tui` does not select a different mode. Other platforms return localized unavailability. `--help`
 and `--version` initialize neither TUI nor service. There are no abbreviations or remote selection;
 every other, additional, or non-Unicode argument is a usage failure.
 
@@ -126,6 +126,41 @@ Help writes stdout, failures write stderr, and version writes one locale-neutral
 successful queries, mutations, and checks; `2` for usage failure; the remaining failure classes
 follow the owning record's failure matrix. This is not a stable public exit table.
 
+## Native Windows quick start
+
+Build with the repository's pinned Rust and Zig toolchains and Node.js. Run this from the repository
+root in PowerShell; the output directory must be new, and its parent must already exist:
+
+```powershell
+node scripts/stage-native-site.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
+& "$env:LOCALAPPDATA\OrchbeeNative\orchbee.exe"
+```
+
+The directory contains the four exact `.exe` siblings, a hash manifest, and the observation-adapter
+capsule. Keep them together. This is a native development cohort using Windows named pipes and
+ConPTY. Windows Terminal is the interactive host; WSL is not required. The initial shell is the
+absolute `COMSPEC` executable, falling back to `SystemRoot\System32\cmd.exe`. Run `pwsh` inside it
+when PowerShell is preferred. `site start --format json` also works without an interactive console.
+
+The prefix is `Ctrl+B`, followed by `|` for a side-by-side split, `-` for a stacked split,
+`h/j/k/l` for pane focus, or `d` to detach. Splitting preserves the current focus. Run the executable
+again to reattach to the retained Site. Detaching leaves shells running; an exited shell remains
+observable until its Tab/Panel is explicitly closed. The runtime does not automatically recover a
+crashed Site. `config check --format json` checks local cohort/runtime inputs without starting one.
+
+Validated Windows behavior includes native startup, Unicode rendering, burst and ordinary typing,
+CLI terminal send/read, split/focus/resize, detach/reattach with exact retained terminal identities,
+and Git worktree discovery. Console records feed the existing key and SGR mouse decoder; the console
+mode guard restores the inherited input/output modes when leaving the TUI. Large byte records use
+bounded writes, and cancelled exchanges close their shared pipe without a detached flush thread.
+
+Current Windows limits: `site diagnose`, Agent integration installation, and Agent doctor are not
+implemented. The packaged hook adapters still require Unix TTY discovery, so launching an Agent in a
+pane does not promise hook-based Agent-board state. `terminal send --stdin` accepts redirected regular
+files; streaming pipe input is refused. Use `--text` or `--file` for automation. Shell completion has
+bash/zsh/fish output only. Signing, automatic updates, crash recovery, macOS startup, and a packaged
+replacement for the delivered TypeScript CLI are separate work.
+
 ## Linux local startup
 
 Build a new development cohort from the repository root:
@@ -165,8 +200,8 @@ unknown-pixel declaration, and missing pixel values are never guessed. When the 
 geometry is not drawable — including a temporary zero-cell report — the Client waits for a real
 drawable geometry inside the original deadline instead of failing admission or inventing one;
 the [native startup wait](docs/native-startup-wait.md) owns that bounded waiting model, its
-cancel/timeout/fault outcomes, and its no-service-work guarantee. Linux is the only
-platform with public startup process evidence; release performance budgets remain unclaimed.
+cancel/timeout/fault outcomes, and its no-service-work guarantee. Linux startup has public process evidence; native Windows startup and ConPTY workflow evidence
+are described above. Release performance budgets remain unclaimed.
 
 ## Native Tab interactions
 
@@ -387,10 +422,8 @@ input-port, fixed-backend, layout, renderer, real-PTY same-terminal admission, a
 all four signals, cross-thread setup interleaving, post-read viewport/resize failures, and lifecycle
 fault injection. Native PTY process tests separately prove that missing-cohort bare and help/version paths
 leave terminal modes untouched, that Linux PTY-master `EIO` after the final slave closes is a normal
-hangup, and that the linked public binary contains no `/dev/tty` or `tput` fallback token. The staged
-runtime and all of its third-party dependencies are Unix-only; the Windows target dependency tree
-keeps the current one-shot CLI free of those dependencies, and no Windows TUI or signal-restoration
-claim is made.
+hangup, and that the linked public binary contains no `/dev/tty` or `tput` fallback token. These process witnesses describe the Unix adapter. The Windows adapter and its
+separate console and ConPTY evidence are described above.
 
 ## Connected single-terminal TUI refinement
 
@@ -461,8 +494,8 @@ falls back to canonical `en-US`. Locale data affects presentation only and is ne
 used as authority.
 
 Only help/version/usage one-shot routes use standard-library arguments, environment, and streams alone.
-Bare Linux invocation composes the shared runtime, private Client transport, and TUI; terminal
-dependencies remain Unix-only. The delivered TypeScript [`apps/cli`](../cli/README.md) remains
+Bare Windows and Linux invocation composes the shared runtime, private Client transport, and TUI;
+platform adapters own console and transport effects. The delivered TypeScript [`apps/cli`](../cli/README.md) remains
 the shipped CLI authority until a separately accepted packaged cutover.
 
 ## POSIX local Site rendezvous foundation

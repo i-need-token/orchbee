@@ -7,23 +7,23 @@
 //! next invocation then answers refused recovery-required, and no repair
 //! is attempted or implied.
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use std::time::{Duration, Instant};
 
 use serde_json::{Map, json};
 
 use super::{Failure, FailureKind, Output, failure_output, output};
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use super::{stage_details, stage_reason_details};
 use crate::invocation::OutputFormat;
 use crate::localization::Locale;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use crate::local_activation::{ActivationCause, ActivationFailure, StartupFailure};
 
 /// One absolute budget covering cohort validation, rendezvous, locking,
 /// spawn, and readiness admission — the same 20 seconds the TUI uses.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const START_BUDGET: Duration = Duration::from_secs(20);
 
 pub(crate) fn start(format: OutputFormat, locale: Locale) -> Output {
@@ -104,7 +104,7 @@ struct StartOutcome {
     runtime_base: (String, serde_json::Value),
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 fn run() -> Result<StartOutcome, Failure> {
     Err(
         Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
@@ -114,7 +114,7 @@ fn run() -> Result<StartOutcome, Failure> {
     )
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn run() -> Result<StartOutcome, Failure> {
     let deadline = Instant::now() + START_BUDGET;
     crate::local_activation::activate_local_site(deadline)
@@ -134,7 +134,7 @@ fn run() -> Result<StartOutcome, Failure> {
 /// Project the shared activation failure onto the CLI's typed vocabulary.
 /// The raw cause — never a string — selects the arm; the verdict only
 /// arbitrates between a typed cause and a bare lifecycle refusal.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn classify(failure: ActivationFailure) -> Failure {
     match failure.cause {
         Some(ActivationCause::Cohort(error)) => classify_cohort(&error),
@@ -181,7 +181,7 @@ fn classify(failure: ActivationFailure) -> Failure {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn classify_cohort(error: &std::io::Error) -> Failure {
     let kind = match error.kind() {
         std::io::ErrorKind::InvalidData => FailureKind::Incompatible,
@@ -193,18 +193,18 @@ fn classify_cohort(error: &std::io::Error) -> Failure {
     Failure::new(kind).details(stage_details("cohort"))
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn timeout() -> Failure {
     Failure::new(FailureKind::Timeout).details(stage_details("activation"))
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn recovery_required() -> Failure {
     Failure::new(FailureKind::Rejected)
         .details(stage_reason_details("activation", "recovery-required"))
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn socket_budget() -> Failure {
     Failure::new(FailureKind::ServiceUnavailable).details(stage_reason_details(
         "runtime-directory",

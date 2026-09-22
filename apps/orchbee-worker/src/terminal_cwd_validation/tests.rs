@@ -1,9 +1,8 @@
 use std::{
     error::Error,
-    fs::{self, File},
+    fs::{self},
     io,
     num::NonZeroU64,
-    os::unix::fs::symlink,
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
 };
@@ -22,13 +21,14 @@ static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(1);
 
 type TestResult<T = ()> = Result<T, Box<dyn Error>>;
 
+#[cfg(unix)]
 #[test]
 fn validates_directory_metadata_without_a_host_and_preserves_path_spelling() -> TestResult {
     let fixture = TestDirectory::new()?;
     let target = fixture.path().join("target");
     fs::create_dir(&target)?;
-    symlink(&target, fixture.path().join("linked"))?;
-    File::create(fixture.path().join("regular-file"))?;
+    std::os::unix::fs::symlink(&target, fixture.path().join("linked"))?;
+    std::fs::File::create(fixture.path().join("regular-file"))?;
 
     let spelled = fixture.path().join("target").join("..").join("linked");
     let available = validate(

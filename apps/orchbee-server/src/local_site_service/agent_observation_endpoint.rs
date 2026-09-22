@@ -22,29 +22,34 @@
 //! the ACK write — the oracle's `socket.setTimeout` is an inactivity
 //! timer and cannot bound the fold.
 
+#[cfg(unix)]
+use std::fs;
 use std::{
-    fs,
     io::{self, Read, Write},
-    os::fd::AsFd,
-    os::unix::{
-        fs::{FileTypeExt, MetadataExt, PermissionsExt},
-        net::{UnixListener, UnixStream},
-    },
     path::{Path, PathBuf},
     sync::Arc,
     thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
 
-use nix::{
-    errno::Errno,
-    poll::{PollFd, PollFlags, PollTimeout, poll},
-    unistd::geteuid,
+#[cfg(unix)]
+use nix::unistd::geteuid;
+use orchbee_local_ipc::{
+    AsLocalIo, LocalListener as UnixListener, LocalStream as UnixStream, PollFd, PollFlags,
+    PollTimeout, poll,
 };
+#[cfg(unix)]
+use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
+#[cfg(unix)]
+type BoundIdentity = (u64, u64);
+#[cfg(windows)]
+#[derive(Clone, Copy)]
+struct BoundIdentity;
 
 use crate::agent::hook_ingress::ACCEPTED_ENVELOPE_ACK;
 use crate::agent_service::AgentService;
 
+#[cfg(unix)]
 const OBSERVATION_SOCKET_NAME: &str = "agent-observation-v3.sock";
 /// `server.maxConnections` — oracle `MAX_ACTIVE_CONNECTIONS`.
 const MAX_ACTIVE_CONNECTIONS: usize = 64;
@@ -75,7 +80,7 @@ const ACK: &[u8] = ACCEPTED_ENVELOPE_ACK.as_bytes();
 /// pathname's cleanup ownership transfers to the running endpoint.
 pub(crate) struct BoundEndpoint {
     path: PathBuf,
-    bound_identity: Option<(u64, u64)>,
+    bound_identity: Option<BoundIdentity>,
     listener: Option<UnixListener>,
     stop_reader: Option<UnixStream>,
     stop_writer: Option<UnixStream>,
@@ -85,7 +90,7 @@ pub(crate) struct BoundEndpoint {
 /// handle. The thread owns the listener fd and every live connection.
 pub(crate) struct AgentObservationEndpoint {
     path: PathBuf,
-    bound_identity: (u64, u64),
+    bound_identity: BoundIdentity,
     stop_writer: UnixStream,
     thread: Option<JoinHandle<()>>,
 }
@@ -98,7 +103,8 @@ pub(crate) struct AgentObservationEndpoint {
 /// same-euid swap window between this check and the unlink is bounded
 /// by the private mode-0700 runtime directory plus the Site lifetime
 /// contract and sits inside the established same-euid trust boundary.
-fn unlink_if_identity_matches(path: &Path, bound_identity: Option<(u64, u64)>) {
+#[cfg(unix)]
+fn unlink_if_identity_matches(path: &Path, bound_identity: Option<BoundIdentity>) {
     let Some(identity) = bound_identity else {
         return;
     };
@@ -122,6 +128,7 @@ fn unlink_if_identity_matches(path: &Path, bound_identity: Option<(u64, u64)>) {
 /// identity-capture failure must not unlink anything unverified: the
 /// just-bound path is left and the error surfaces loudly; the next
 /// bind's pre-gate reclaims a leftover own socket.
+#[cfg(unix)]
 pub(crate) fn bind(runtime_directory: &Path) -> io::Result<BoundEndpoint> {
     let path = runtime_directory.join(OBSERVATION_SOCKET_NAME);
     match fs::symlink_metadata(&path) {
@@ -346,6 +353,22 @@ fn conn_step(conn: &mut Conn, ready: PollFlags, agents: &AgentService) -> bool {
                         return true;
                     }
                     body.extend_from_slice(&chunk[..n]);
+                    #[cfg(windows)]
+                    match serde_json::from_slice::<serde_json::Value>(body) {
+                        Ok(_) => {
+                            let accepted =
+                                agents.admit_envelope(body, Instant::now()).unwrap_or(false);
+                            if let Some(state) =
+                                state_after_admit(accepted, Instant::now(), conn.deadline)
+                            {
+                                conn.state = state;
+                                return conn_step(conn, PollFlags::POLLOUT, agents);
+                            }
+                            return true;
+                        }
+                        Err(error) if !error.is_eof() => return true,
+                        Err(_) => {}
+                    }
                     false
                 }
                 Err(error) if error.kind() == io::ErrorKind::WouldBlock => false,
@@ -410,19 +433,19 @@ fn endpoint_loop(listener: UnixListener, stop_reader: UnixStream, agents: Arc<Ag
 
         let revents = {
             let mut fds = Vec::with_capacity(conns.len() + 2);
-            fds.push(PollFd::new(listener.as_fd(), PollFlags::POLLIN));
-            fds.push(PollFd::new(stop_reader.as_fd(), PollFlags::POLLIN));
+            fds.push(PollFd::new(listener.as_local_io(), PollFlags::POLLIN));
+            fds.push(PollFd::new(stop_reader.as_local_io(), PollFlags::POLLIN));
             for conn in &conns {
                 let flags = match conn.state {
                     ConnState::Reading { .. } => PollFlags::POLLIN,
                     ConnState::AckPending { .. } => PollFlags::POLLOUT | PollFlags::POLLIN,
                 };
-                fds.push(PollFd::new(conn.stream.as_fd(), flags));
+                fds.push(PollFd::new(conn.stream.as_local_io(), flags));
             }
             match poll(&mut fds, poll_timeout(&conns, &agents, now)) {
                 Ok(_) => {}
                 // Signal-interrupted wait — retry the bounded poll.
-                Err(Errno::EINTR) => continue 'poll,
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => continue 'poll,
                 // A permanent poll failure can never serve again —
                 // stop the owner rather than hot-spinning on revents
                 // that stay empty forever. Per-connection and fold
@@ -485,4 +508,26 @@ fn endpoint_loop(listener: UnixListener, stop_reader: UnixStream, agents: Arc<Ag
 }
 
 #[cfg(test)]
+#[cfg_attr(windows, path = "agent_observation_endpoint/windows_tests.rs")]
 mod tests;
+
+#[cfg(windows)]
+fn unlink_if_identity_matches(_path: &Path, _bound_identity: Option<BoundIdentity>) {}
+#[cfg(windows)]
+pub(crate) fn bind(runtime_directory: &Path) -> io::Result<BoundEndpoint> {
+    let path =
+        orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous::observation_endpoint_path(
+            runtime_directory,
+        );
+    let listener = UnixListener::bind(&path)?;
+    listener.set_nonblocking(true)?;
+    let (stop_reader, stop_writer) = UnixStream::pair()?;
+    stop_reader.set_nonblocking(true)?;
+    Ok(BoundEndpoint {
+        path,
+        bound_identity: Some(BoundIdentity),
+        listener: Some(listener),
+        stop_reader: Some(stop_reader),
+        stop_writer: Some(stop_writer),
+    })
+}

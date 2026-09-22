@@ -3,10 +3,10 @@
 	"domain": "local-peer-credentials",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Kernel-backed same-effective-user proof for private local Unix-stream peers, independent of application roles and framing.",
+	"responsibility": "Kernel-backed same-effective-user proof for private local Unix-stream and Windows named-pipe peers, independent of application roles and framing.",
 	"nonGoals": [
 		"Defining Client, Worker, Server, Terminal Host, handshake, framing, session, admission, authorization, or lifecycle semantics.",
 		"Selecting, binding, discovering, accepting, connecting, retrying, supervising, or retaining local endpoints and streams.",
-		"Providing Windows named-pipe identity, remote authentication, encryption, hostile multi-tenant isolation, or a public compatibility contract."
+		"Providing remote authentication, encryption, hostile multi-tenant isolation, or a public compatibility contract."
 	]
 }

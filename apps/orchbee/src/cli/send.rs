@@ -6,13 +6,13 @@
 //! answer — an uncertain outcome surfaces as `outcome-unknown`, not a replay.
 
 use super::Output;
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 use super::{Failure, FailureKind, failure_output};
 use crate::invocation::{OutputFormat, Target, TerminalSendInput};
 use crate::localization::Locale;
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 use serde_json::Map;
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 use serde_json::json;
 
 pub(crate) const TERMINAL_SEND_ID: &str = "orchbee.terminal.send";
@@ -38,7 +38,7 @@ pub(crate) enum SendVerdict {
     OutcomeUnknown,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(super) fn run(
     target: &Target,
     input: &TerminalSendInput,
@@ -48,7 +48,7 @@ pub(super) fn run(
     linux::run(target, input, format, locale)
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 pub(super) fn run(
     target: &Target,
     input: &TerminalSendInput,
@@ -66,7 +66,7 @@ pub(super) fn run(
     )
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 mod linux {
     use std::time::{Duration, Instant};
 

@@ -1,0 +1,150 @@
+//! Windows source admission: bounded regular files and explicit console
+//! cancellation. Inherited pipe stdin is refused until cancellable reads can
+//! be provided without mutating the caller's pipe mode or leaking a reader.
+use crate::{
+    cli::{Failure, FailureKind, SourceFinalization},
+    invocation::SendSourceCause,
+    windows_signal::ControlInterrupt,
+};
+use std::{
+    fs::File,
+    io::{self, IsTerminal, Read},
+    os::windows::io::AsHandle,
+    time::Instant,
+};
+#[path = "source/input.rs"]
+mod input;
+pub(crate) use input::{InputSource, SourceFailure, materialize, source_details};
+use input::{limit_for, usage};
+pub(crate) type SignalError = io::Error;
+
+pub(crate) trait SignalWatch {
+    fn poll_fd(&self) -> Option<orchbee_local_ipc::LocalIo<'_>>;
+    fn take(&mut self) -> io::Result<Option<i32>>;
+}
+pub(crate) enum Finish {
+    Clear,
+    Cancelled {
+        signo: i32,
+        finalization: SourceFinalization,
+    },
+}
+pub(crate) struct ArmedSignals(ControlInterrupt);
+impl ArmedSignals {
+    pub(crate) fn arm() -> io::Result<Self> {
+        ControlInterrupt::arm().map(Self)
+    }
+    pub(crate) fn arm_interrupts() -> io::Result<Self> {
+        Self::arm()
+    }
+    pub(crate) fn finish(self) -> io::Result<Finish> {
+        if self.0.finish_clear() {
+            Ok(Finish::Clear)
+        } else {
+            Ok(Finish::Cancelled {
+                signo: 2,
+                finalization: self.into_finalization(),
+            })
+        }
+    }
+    pub(crate) fn into_finalization(self) -> SourceFinalization {
+        SourceFinalization::new(self.0)
+    }
+}
+impl SignalWatch for ArmedSignals {
+    fn poll_fd(&self) -> Option<orchbee_local_ipc::LocalIo<'_>> {
+        Some(self.0.wake())
+    }
+    fn take(&mut self) -> io::Result<Option<i32>> {
+        Ok(self.0.requested().then_some(2))
+    }
+}
+
+fn acquire_file(
+    path: &str,
+    paste: bool,
+    deadline: Instant,
+    signals: &mut dyn SignalWatch,
+) -> Result<Vec<u8>, SourceFailure> {
+    let failure = |cause| usage("--file", Some(path.to_owned()), cause);
+    if !std::fs::metadata(path).is_ok_and(|metadata| metadata.is_file()) {
+        return Err(failure(SendSourceCause::NotRegularFile));
+    }
+    let file = File::open(path).map_err(|_| failure(SendSourceCause::Unreadable))?;
+    read_regular(
+        file,
+        InputSource::File,
+        Some(path),
+        paste,
+        deadline,
+        signals,
+    )
+}
+fn acquire_stdin(
+    paste: bool,
+    deadline: Instant,
+    signals: &mut dyn SignalWatch,
+) -> Result<Vec<u8>, SourceFailure> {
+    let stdin = io::stdin();
+    if stdin.is_terminal() {
+        return Err(usage("--stdin", None, SendSourceCause::InteractiveTerminal));
+    }
+    let handle = stdin
+        .as_handle()
+        .try_clone_to_owned()
+        .map_err(|_| usage("--stdin", None, SendSourceCause::Unreadable))?;
+    read_regular(
+        File::from(handle),
+        InputSource::Stdin,
+        None,
+        paste,
+        deadline,
+        signals,
+    )
+}
+fn read_regular(
+    mut file: File,
+    source: InputSource,
+    path: Option<&str>,
+    paste: bool,
+    deadline: Instant,
+    signals: &mut dyn SignalWatch,
+) -> Result<Vec<u8>, SourceFailure> {
+    let failure = |cause| usage(source.option(), path.map(str::to_owned), cause);
+    if !file.metadata().is_ok_and(|metadata| metadata.is_file()) {
+        return Err(failure(if source == InputSource::File {
+            SendSourceCause::NotRegularFile
+        } else {
+            SendSourceCause::UnsupportedStream
+        }));
+    }
+    let limit = limit_for(paste);
+    let mut output = Vec::new();
+    loop {
+        if let Some(signal) = signals
+            .take()
+            .map_err(|_| SourceFailure::Standard(Failure::new(FailureKind::InternalFailure)))?
+        {
+            return Err(SourceFailure::Cancelled { source, signal });
+        }
+        if Instant::now() >= deadline {
+            return Err(SourceFailure::Timeout { source });
+        }
+        let mut chunk = [0; 8192];
+        let capacity = (limit + 1 - output.len()).min(chunk.len());
+        let count = file
+            .read(&mut chunk[..capacity])
+            .map_err(|_| failure(SendSourceCause::Unreadable))?;
+        if count == 0 {
+            break;
+        }
+        output.extend_from_slice(&chunk[..count]);
+        if output.len() > limit {
+            return Err(failure(SendSourceCause::Oversize { limit }));
+        }
+    }
+    if output.is_empty() {
+        return Err(failure(SendSourceCause::Empty));
+    }
+    Ok(output)
+}

@@ -34,7 +34,7 @@ mod backpressure;
 mod native;
 #[cfg(test)]
 use backpressure::{control, viewer};
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(super) use native::{RecoveryShutdown, run_status_recovery};
 
 use super::mailbox::CommandMailbox;
@@ -50,7 +50,7 @@ pub(super) fn run_native(
 }
 
 pub(super) struct NativeWorkerExit {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     unavailable_poll: Option<super::state::retired_membership::UnavailablePoll>,
     pending_create: Option<PendingCreateCommit>,
     pending_move: Option<PendingMoveCommit>,
@@ -73,7 +73,7 @@ impl NativeWorkerExit {
     ) -> Option<super::state::workspace_setup::SetupWorkerEvidence> {
         self.pending_setup.take()
     }
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     fn with_unavailable_poll(
         mut self,
         evidence: Option<super::state::retired_membership::UnavailablePoll>,
@@ -81,7 +81,7 @@ impl NativeWorkerExit {
         self.unavailable_poll = evidence;
         self
     }
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     pub(super) fn take_unavailable_poll(
         &mut self,
     ) -> Option<super::state::retired_membership::UnavailablePoll> {
@@ -96,7 +96,7 @@ impl NativeWorkerExit {
         pending_rename: Option<super::state::tab_rename::RenameWorkerEvidence>,
     ) -> Self {
         Self {
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             unavailable_poll: None,
             pending_create,
             pending_move,

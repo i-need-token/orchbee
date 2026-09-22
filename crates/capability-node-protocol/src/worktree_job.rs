@@ -1,6 +1,6 @@
 use crate::{OperationId, ProtocolError, WorkerGeneration, WorkerId};
 
-/// Byte bound on the Start action's directory operand: one absolute POSIX
+/// Byte bound on the Start action's directory operand: one absolute local-platform
 /// path, nonempty and NUL-free.
 pub const MAXIMUM_WORKTREE_JOB_DIRECTORY_BYTES: usize = 4096;
 
@@ -45,7 +45,7 @@ impl WorktreeJobAction {
     pub fn start(directory: Vec<u8>) -> Result<Self, ProtocolError> {
         if directory.is_empty()
             || directory.len() > MAXIMUM_WORKTREE_JOB_DIRECTORY_BYTES
-            || directory.first() != Some(&b'/')
+            || !crate::terminal_launch::is_absolute_path(&directory)
             || directory.contains(&0)
         {
             return Err(ProtocolError::InvalidPayload);

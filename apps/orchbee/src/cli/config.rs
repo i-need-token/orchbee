@@ -1,13 +1,11 @@
 //! `config check`: pure local inspection. No socket is connected, no process
 //! is started, no directory is created, and no lock is taken.
 
-#[cfg(target_os = "linux")]
-use std::env;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use std::path::Path;
-#[cfg(target_os = "linux")]
+#[cfg(all(test, target_os = "linux"))]
 use std::path::PathBuf;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use std::time::{Duration, Instant};
 
 use serde_json::{Map, Value, json};
@@ -16,14 +14,14 @@ use super::{Failure, FailureKind, Output, failure_output, output};
 use crate::invocation::OutputFormat;
 use crate::localization::Locale;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use orchbee_local_client_protocol::{UNIX_SOCKET_PATH_CAPACITY, unix_socket_path_fits};
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use orchbee_local_site_runtime::{
     ModeCheckedLocalSiteRendezvous, NativeCohort, RendezvousError, SiteScope,
 };
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const CHECK_BUDGET: Duration = Duration::from_secs(5);
 
 pub(crate) struct CheckReport {
@@ -32,7 +30,7 @@ pub(crate) struct CheckReport {
     pub(crate) details: Map<String, Value>,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn pass(name: &'static str, details: Map<String, Value>) -> CheckReport {
     CheckReport {
         name,
@@ -41,7 +39,7 @@ fn pass(name: &'static str, details: Map<String, Value>) -> CheckReport {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn fail(name: &'static str, details: Map<String, Value>) -> CheckReport {
     CheckReport {
         name,
@@ -50,7 +48,7 @@ fn fail(name: &'static str, details: Map<String, Value>) -> CheckReport {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn not_applicable(name: &'static str, details: Map<String, Value>) -> CheckReport {
     CheckReport {
         name,
@@ -59,7 +57,7 @@ fn not_applicable(name: &'static str, details: Map<String, Value>) -> CheckRepor
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn detail(pairs: impl IntoIterator<Item = (String, Value)>) -> Map<String, Value> {
     Map::from_iter(pairs)
 }
@@ -161,7 +159,7 @@ pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 fn run_checks() -> Result<Vec<CheckReport>, Failure> {
     Err(
         Failure::new(FailureKind::CheckFailed).details(super::stage_reason_details(
@@ -171,12 +169,10 @@ fn run_checks() -> Result<Vec<CheckReport>, Failure> {
     )
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn run_checks() -> Result<Vec<CheckReport>, Failure> {
-    let base = env::var_os("ORCHBEE_RUNTIME_BASE")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/tmp"));
-    let scope_text = format!("orchbee-native-{}", nix::unistd::geteuid().as_raw());
+    let (base, scope_text) = crate::local_activation::runtime_location()
+        .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let scope =
         SiteScope::parse(&scope_text).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let scope_directory = base.join(&scope_text);
@@ -199,7 +195,7 @@ fn run_checks() -> Result<Vec<CheckReport>, Failure> {
     Ok(checks)
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn classify_paths(
     site: &Result<ModeCheckedLocalSiteRendezvous, RendezvousError>,
     base: &Path,
@@ -302,7 +298,7 @@ fn classify_paths(
 
 /// The path one `RendezvousError` names, when it names one — shared with
 /// `site diagnose`, which classifies the same error family onto rows.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn rendezvous_error_path(error: &RendezvousError) -> Option<&Path> {
     match error {
         RendezvousError::InvalidSiteScope => None,
@@ -322,7 +318,7 @@ pub(crate) fn rendezvous_error_path(error: &RendezvousError) -> Option<&Path> {
 
 /// The cohort check reports only what the verifier established: `verified`
 /// plus `reason` `deadline`/`invalid-cohort` on failure.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn cohort_report(result: std::io::Result<NativeCohort>) -> CheckReport {
     match result {
         Ok(_) => pass("cohort", detail([("verified".to_owned(), json!(true))])),
@@ -343,7 +339,7 @@ fn cohort_report(result: std::io::Result<NativeCohort>) -> CheckReport {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn locale_check() -> CheckReport {
     let (locale, source) = crate::localization::locale_source();
     pass(
@@ -357,13 +353,16 @@ fn locale_check() -> CheckReport {
 
 /// `sockets` reports presence and the derived address budget; presence never
 /// means a live service.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn socket_checks(
     site: &Result<ModeCheckedLocalSiteRendezvous, RendezvousError>,
     scope_directory: &Path,
 ) -> CheckReport {
+    let runtime = site
+        .as_ref()
+        .map_or(scope_directory, |site| site.runtime_directory());
     let [client_path, worker_path, client_pending_path, host_path] =
-        ModeCheckedLocalSiteRendezvous::socket_budget_paths(scope_directory);
+        ModeCheckedLocalSiteRendezvous::socket_budget_paths(runtime);
     let mut details = Map::new();
     let mut any_fail = false;
     let mut any_present = false;
@@ -410,7 +409,7 @@ fn socket_checks(
 /// One derived-address budget entry: `presence` is always `unchecked`, the
 /// path fact and both byte counts are always reported, and only the ABI fit
 /// decides between `presence-not-inspected` and `address-too-long`.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn socket_budget_entry(path: &Path) -> (Map<String, Value>, bool) {
     let fits = unix_socket_path_fits(path);
     let mut details = detail([
@@ -452,7 +451,7 @@ fn socket_budget_entry(path: &Path) -> (Map<String, Value>, bool) {
 /// directory cannot be inspected: an address that cannot fit this platform's
 /// socket ABI can never be bound or connected, so it fails `address-too-long`
 /// regardless of presence.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn socket_entry(
     exists: Option<&std::io::Result<bool>>,
     path: &Path,
@@ -1034,5 +1033,17 @@ mod tests {
         assert_eq!(report.details["client"]["reason"], json!("unsafe"));
         assert_eq!(report.details["worker"]["presence"], json!("absent"));
         fs::remove_dir_all(&base).ok();
+    }
+}
+
+#[cfg(windows)]
+pub(crate) fn path_detail(path: &std::path::Path) -> (String, Value) {
+    use std::os::windows::ffi::OsStrExt;
+    match path.to_str() {
+        Some(text) => ("path".to_owned(), json!(text)),
+        None => (
+            "pathUtf16".to_owned(),
+            json!(path.as_os_str().encode_wide().collect::<Vec<_>>()),
+        ),
     }
 }

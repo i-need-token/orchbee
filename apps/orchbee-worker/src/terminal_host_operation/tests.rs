@@ -1,3 +1,4 @@
+use orchbee_local_ipc::{LocalListener as UnixListener, LocalStream as UnixStream};
 use std::{
     cell::RefCell,
     error::Error,
@@ -5,7 +6,6 @@ use std::{
     io::{self, Read, Write},
     net::Shutdown,
     num::NonZeroU64,
-    os::unix::net::{UnixListener, UnixStream},
     path::PathBuf,
     process::{Child, Command, Stdio},
     rc::Rc,
@@ -553,21 +553,31 @@ fn a_silent_host_is_bounded_by_the_operation_deadline() -> TestResult {
 #[test]
 fn real_zig_host_creates_starts_and_retains_the_same_terminal_after_broker_loss() -> TestResult {
     let directory = Directory::new()?;
-    let endpoint = directory.0.join("1234567890abcdef1234567890abcdef.s");
-    let binary = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../terminal-host/zig-out/bin/orchbee-terminal-host");
+    let endpoint_id = format!("{:032x}", u128::from(std::process::id()) + (1u128 << 96));
+    #[cfg(unix)]
+    let endpoint = directory.0.join(format!("{endpoint_id}.s"));
+    #[cfg(windows)]
+    let endpoint = PathBuf::from(format!(r"\\.\pipe\orchbee-terminal-host-{endpoint_id}"));
+    let binary = std::env::var_os("ORCHBEE_TERMINAL_HOST_TEST_BINARY")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+                "../terminal-host/zig-out/bin/orchbee-terminal-host{}",
+                std::env::consts::EXE_SUFFIX
+            ))
+        });
     let mut child = HostChild(
         Command::new(binary)
             .args(["serve", "--runtime-directory"])
             .arg(&directory.0)
-            .args(["--endpoint-id", "1234567890abcdef1234567890abcdef"])
+            .args(["--endpoint-id", &endpoint_id])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()?,
     );
     let deadline = Instant::now() + BUDGET;
-    while !endpoint.exists() {
+    while !orchbee_local_ipc::endpoint_exists(&endpoint)? {
         if let Some(status) = child.0.try_wait()? {
             return Err(format!("Host exited: {status}").into());
         }
@@ -643,7 +653,7 @@ fn real_zig_host_creates_starts_and_retains_the_same_terminal_after_broker_loss(
         observer.host_epoch(),
         CorrelationId::from_bytes([8; 16])?,
     )?)?;
-    let record = read_record(&mut stream)?;
+    let record = read_host_reply(&observer)?;
     let envelope = decode_transport_envelope(&record)?;
     let InventoryControl::TerminalList(list) =
         decode_inventory_control(envelope.kind, envelope.role, envelope.payload)?
@@ -676,7 +686,7 @@ fn real_zig_host_creates_starts_and_retains_the_same_terminal_after_broker_loss(
         observer.host_epoch(),
         CorrelationId::from_bytes([9; 16])?,
     )?)?;
-    let record = read_record(&mut stream)?;
+    let record = read_host_reply(&observer)?;
     let envelope = decode_transport_envelope(&record)?;
     assert_eq!(envelope.role, MessageRole::Response);
     assert_eq!(envelope.kind, control.kind);
@@ -687,6 +697,27 @@ fn real_zig_host_creates_starts_and_retains_the_same_terminal_after_broker_loss(
     );
     assert_eq!(envelope.payload, control.payload);
     Ok(())
+}
+
+// Real shells may publish metadata before the reply. Use the production
+// event validator and keep a bounded read budget instead of assuming silence.
+fn read_host_reply(host: &HostBrokerConnection) -> TestResult<Vec<u8>> {
+    let deadline = Instant::now() + BUDGET;
+    let mut stream = host.stream();
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err("Host reply deadline".into());
+        }
+        stream.set_read_timeout(Some(remaining))?;
+        let record = read_record(&mut stream)?;
+        let envelope = decode_transport_envelope(&record)?;
+        if envelope.role == MessageRole::Event {
+            host.receive_event(record)?;
+        } else {
+            return Ok(record);
+        }
+    }
 }
 
 fn respond(
@@ -786,12 +817,22 @@ fn capability_identity(epoch: HostEpoch) -> TestResult<HostTerminalIdentity> {
     ))
 }
 fn facts() -> TestResult<ResolvedTerminalLaunchFacts> {
+    #[cfg(unix)]
+    let (executable, cwd) = ("/bin/sh".to_owned(), "/tmp".to_owned());
+    #[cfg(windows)]
+    let (executable, cwd) = (
+        std::env::var("COMSPEC")?,
+        std::env::temp_dir()
+            .to_str()
+            .ok_or("non-Unicode fixture path")?
+            .to_owned(),
+    );
     Ok(ResolvedTerminalLaunchFacts::new(
         CreationId::from_bytes([2; 16])?,
-        "/bin/sh".to_owned(),
+        executable,
         Vec::new(),
         Vec::new(),
-        AbsoluteCwd::new("/tmp")?,
+        AbsoluteCwd::new(&cwd)?,
         TerminalProfile {
             color_scheme: ColorScheme::Dark,
             default_background_rgb: 0,
@@ -876,12 +917,15 @@ fn join(peer: thread::JoinHandle<io::Result<()>>) -> TestResult {
 struct Directory(PathBuf);
 impl Directory {
     fn new() -> io::Result<Self> {
-        let path = PathBuf::from(format!(
-            "/tmp/obex-{}-{}",
+        let path = std::env::temp_dir().join(format!(
+            "obex-{}-{}",
             std::process::id(),
             NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed)
         ));
+        #[cfg(unix)]
         std::os::unix::fs::DirBuilderExt::mode(&mut fs::DirBuilder::new(), 0o700).create(&path)?;
+        #[cfg(windows)]
+        fs::create_dir(&path)?;
         Ok(Self(path))
     }
 }
@@ -907,7 +951,10 @@ struct Fixture {
 impl Fixture {
     fn fake() -> TestResult<Self> {
         let directory = Directory::new()?;
+        #[cfg(unix)]
         let endpoint = directory.0.join("host.s");
+        #[cfg(windows)]
+        let endpoint = crate::test_support::endpoint();
         let listener = UnixListener::bind(&endpoint)?;
         let peer = thread::spawn(move || -> io::Result<UnixStream> {
             let (mut peer, _) = listener.accept()?;

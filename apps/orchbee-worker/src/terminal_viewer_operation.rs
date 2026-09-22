@@ -1,4 +1,5 @@
-use std::{error::Error, io, num::NonZeroU64, os::unix::net::UnixStream, time::Duration};
+use orchbee_local_ipc::LocalStream as UnixStream;
+use std::{error::Error, io, num::NonZeroU64, time::Duration};
 
 use orchbee_capability_node_protocol::{
     MAXIMUM_VIEWER_RECORD_BYTES, TerminalViewerAction, TerminalViewerOutcome,

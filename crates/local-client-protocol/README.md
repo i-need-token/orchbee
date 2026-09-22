@@ -136,3 +136,7 @@ cargo clippy -p orchbee-local-client-protocol --all-targets --all-features --loc
 node scripts/tla/run-models.mjs --models local-client-admission,local-client-sessions,local-client-sessions-obcs
 pnpm verify
 ```
+
+## Windows admission
+
+On Windows, the same OBLC messages run over `orchbee-local-ipc` local named pipes. The adapter proves the peer token user before sending the hello, retains the caller's absolute deadline across connect/read/write, and observes cancellation through a borrowed readiness source. It never starts or retries a Site. Pipe names and permissions belong to the runtime and transport owners; OBCS/OBWP framing is unchanged.

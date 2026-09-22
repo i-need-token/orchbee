@@ -2,7 +2,8 @@
 //! single OBAP request/result pair under the caller's deadline, with exact
 //! requestId+operation correlation and no replay after ambiguous outcomes.
 
-use std::{fmt, io, os::fd::BorrowedFd, time::Instant};
+use orchbee_local_ipc::LocalIo as BorrowedFd;
+use std::{fmt, io, time::Instant};
 
 use orchbee_agent_observation_protocol::{
     AgentReadRequest, AgentReadResult, AgentRequest, AgentResult, AgentWireError, ObapRequestId,

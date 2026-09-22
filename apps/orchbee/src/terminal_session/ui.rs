@@ -39,7 +39,7 @@ mod membership;
 mod move_membership;
 mod panel;
 mod panel_close;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 mod retired_membership;
 mod tab_close;
 mod workspace_setup;
@@ -532,41 +532,41 @@ pub(super) struct NativeUi {
     retirement_failure: Option<CarrierFailure>,
     retirement_finalized: bool,
     retirement: Option<NativeDisplayRetirement>,
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     retired_mailbox_seed: Option<super::mailbox::RetiredMailboxSeed>,
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     retirement_poll_serial: Option<u64>,
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     retired_peer: Option<super::state::retired_membership::RetiredMembershipOrigin>,
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     retired_peer_attempt: Option<retired_membership::RetiredMembershipAttempt>,
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod agent_board_tests;
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod context_selection_tests;
 #[cfg(test)]
 mod create_membership_tests;
 #[cfg(test)]
 mod location_labels_tests;
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod membership_tests;
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod move_membership_tests;
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod panel_input_tests;
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod publication_hint_tests;
 #[cfg(test)]
 mod rename_membership_tests;
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(all(test, any(target_os = "linux", windows)))]
 mod retired_membership_tests;
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod startup_queue_tests;
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod u7_probe;
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod viewport_tests;
 #[cfg(test)]
 mod workspace_setup_tests;
@@ -586,13 +586,13 @@ impl NativeUi {
             retirement_failure: None,
             retirement_finalized: false,
             retirement: None,
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             retired_mailbox_seed: None,
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             retirement_poll_serial: None,
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             retired_peer: None,
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             retired_peer_attempt: None,
         }
     }
@@ -680,7 +680,7 @@ impl NativeUi {
     }
 
     pub(super) fn release_mailbox(&mut self) {
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", windows))]
         if let Some(mailbox) = &self.mailbox {
             self.retired_mailbox_seed = Some(mailbox.retired_seed());
         }
@@ -1041,11 +1041,11 @@ impl NativeUi {
     /// candidate installs or the attempt settles. The attempt record exists
     /// only on Linux; other platforms have no recovery path.
     fn retired_membership_attempt_active(&self) -> bool {
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", windows))]
         {
             self.retired_peer_attempt.is_some()
         }
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(not(any(target_os = "linux", windows)))]
         {
             false
         }
@@ -2270,7 +2270,7 @@ impl NativeUi {
         generation: u64,
         outcome: orchbee_workbench_protocol::WorkbenchSnapshotOutcome,
     ) -> bool {
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", windows))]
         if self.retired_peer_attempt.is_some() {
             return self.apply_retired_membership_result(mailbox, wait_key, generation, outcome);
         }
@@ -2741,7 +2741,7 @@ impl NativeUi {
     }
 
     fn retire(&mut self, failure: CarrierFailure) {
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", windows))]
         if self.retirement_failure.is_none() {
             self.retirement_poll_serial = self.ordinary_poll_serial;
         }

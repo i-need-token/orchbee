@@ -2,7 +2,7 @@
 //! handling, and the repaired same-Tab selected-leaf-loss membership path.
 use super::*;
 use crate::client_view::PanelDirection;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use crate::local_client::workbench::WorkbenchTabCloseAccepted;
 use crate::local_client::workbench::panel_close::WorkbenchPanelCloseAccepted;
 use crate::local_client::workbench::panel_move::WorkbenchPanelMoveCommit;
@@ -875,7 +875,7 @@ fn panel_planning_is_refused_while_any_structure_guard_is_active() {
     );
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 #[test]
 fn close_status_only_mode_refuses_panel_planning() {
     // Drive a complete close confirmation + accepted result so a close record with a

@@ -63,7 +63,7 @@ DIR=$(orchbee workspace accept-directory "$WS" --path /absolute/path/to/existing
 ```
 
 target 是精确的 32 位十六进制 ID 或精确区分大小写的 label；歧义
-label 会被拒绝并报告候选。`--path` 是字面绝对 POSIX 路径——CLI 绝不
+label 会被拒绝并报告候选。`--path` 是字面本机绝对路径——CLI 绝不
 展开 `~`/`$`、不创建、不探测；由 Server 权威探测，并拒绝已有目录的
 Workspace。`accept-directory` 返回 `result.directoryId`（以及
 `workerId`）：这是一个 Workbench 身份，而不是路径。

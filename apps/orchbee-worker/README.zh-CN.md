@@ -678,3 +678,7 @@ node scripts/tla/run-models.mjs --models worker-terminal-lifecycle-step --jobs 1
 node scripts/tla/run-models.mjs --models worker-terminal-lifecycle-receipts --jobs 1
 pnpm verify
 ```
+
+## Windows 原生执行
+
+Windows 托管原生路径沿用 Worker 授权、回执、重放栅栏及 Host 协议，以私有命名管道替换 Unix Socket。精确的同级 `orchbee-terminal-host.exe` 仅在授权 Launch 后惰性启动并使用 ConPTY。默认启动解析绝对 `COMSPEC` 或 `SystemRoot\System32\cmd.exe`，初始目录为 `USERPROFILE`。工作树发现通过自有子进程输出管道运行 Windows Git，具备输出边界、取消、截止时间及 kill/wait 清理。原生测试覆盖 broker 断开后的真实 Host 保留和真实 Git 发现。暂存和限制见 [Client 快速开始](../orchbee/README.zh-CN.md#windows-原生快速开始)。
