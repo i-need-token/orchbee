@@ -20,9 +20,11 @@ use crate::{
 };
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
+#[cfg(not(windows))]
 const LOCAL_WORKER_ID: WorkerId = WorkerId::from_bytes(*b"orchbee-local-v1");
 
 struct ServerConnection {
+    worker_id: WorkerId,
     generation: NonZeroU64,
     stream: UnixStream,
 }
@@ -67,7 +69,7 @@ pub(crate) fn run(
         let server = connect_to_server(site.worker_socket_path(), cohort.identity())?;
         return terminal_operations::run_lazy(
             server.stream(),
-            LOCAL_WORKER_ID,
+            server.worker_id,
             server.generation(),
             &cohort,
             &runtime,
@@ -84,7 +86,7 @@ pub(crate) fn run(
     terminal_operations::run(
         server.stream(),
         &mut host,
-        LOCAL_WORKER_ID,
+        server.worker_id,
         server.generation(),
         &drain,
     )
@@ -94,19 +96,30 @@ fn connect_to_server(
     endpoint: &std::path::Path,
     cohort: &str,
 ) -> Result<ServerConnection, Box<dyn Error>> {
+    // A local Worker has no restart/adoption contract. A fresh Windows
+    // identity prevents another Site's reused terminal counter from matching
+    // an old child caller. Mint once and retain the admitted value below.
+    #[cfg(windows)]
+    let worker_id = WorkerId::from_bytes(crate::worker_identity::fresh_identity()?);
+    #[cfg(not(windows))]
+    let worker_id = LOCAL_WORKER_ID;
     let mut stream = UnixStream::connect(endpoint)?;
     require_same_effective_user(&stream)?;
     stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT))?;
     stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT))?;
 
-    let hello = WorkerHello::new(cohort, LOCAL_WORKER_ID)?;
+    let hello = WorkerHello::new(cohort, worker_id)?;
     write_message(&mut stream, &LocalSiteMessage::WorkerHello(hello))?;
     let LocalSiteMessage::WorkerAccepted { generation } = read_message(&mut stream)? else {
         return Err(io::Error::new(io::ErrorKind::PermissionDenied, "Worker was rejected").into());
     };
     stream.set_read_timeout(None)?;
     stream.set_write_timeout(None)?;
-    Ok(ServerConnection { generation, stream })
+    Ok(ServerConnection {
+        worker_id,
+        generation,
+        stream,
+    })
 }
 
 fn write_ready_marker(server: &ServerConnection, host: &HostBrokerConnection) -> io::Result<()> {
@@ -120,3 +133,6 @@ fn write_ready_marker(server: &ServerConnection, host: &HostBrokerConnection) ->
     stdout.write_all(b"ready\n")?;
     stdout.flush()
 }
+
+#[cfg(all(test, windows))]
+mod tests;

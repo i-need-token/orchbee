@@ -179,7 +179,7 @@ pub(crate) fn map_launch_dispatch(
     };
     let control = TerminalCreationControl::CreateTerminal(Box::new(CreateTerminal {
         creation_id: facts.creation_id,
-        environment_overlay: observation_overlay(site_runtime),
+        environment_overlay: launch_overlay(launch, site_runtime),
         launch: TerminalLaunch {
             arguments: facts.arguments,
             configuration: facts.configuration,
@@ -196,6 +196,36 @@ pub(crate) fn map_launch_dispatch(
         TerminalCreationControl::TerminalCreated(_) => {
             Err(HostLaunchAdapterError::UnexpectedHostResponse)
         }
+    }
+}
+
+fn launch_overlay(
+    launch: &orchbee_capability_node_protocol::AuthorizedTerminalLaunch,
+    site_runtime: Option<&Path>,
+) -> Vec<EnvironmentOverlayEntry> {
+    let overlay = observation_overlay(site_runtime);
+    #[cfg(windows)]
+    {
+        let mut overlay = overlay;
+        let authorization = launch.authorization();
+        for (name, bytes) in [
+            (
+                "ORCHBEE_TERMINAL_ID",
+                authorization.terminal_id().as_bytes(),
+            ),
+            ("ORCHBEE_WORKER_ID", authorization.worker_id().as_bytes()),
+        ] {
+            overlay.push(EnvironmentOverlayEntry {
+                name: name.to_owned(),
+                value: format!("{:032x}", u128::from_be_bytes(bytes)),
+            });
+        }
+        overlay
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = launch;
+        overlay
     }
 }
 

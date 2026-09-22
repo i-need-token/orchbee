@@ -42,3 +42,13 @@
 忽略大小写后必须唯一。Orchbee 和终端身份变量保留。
 检查结果中的终端 outcome：成员关系已提交并不证明进程已启动。
 完整校验规则以原生 CLI 帮助为准。
+
+## 定位调用者 Panel
+
+在新启动的 Windows 终端内，使用 `orchbee panel current --format json` 查询它当前
+所在的 Panel、Tab 和 Workspace。`--current` 是同一查询的显式写法。在该进程之外
+使用 `panel current --panel <id-or-selector>`。Worker 提供 `ORCHBEE_TERMINAL_ID`
+和 `ORCHBEE_WORKER_ID`；查询在一次快照中核实它们的当前绑定。上下文缺失或过期
+时返回错误，绝不回退到客户端焦点。显式 `--panel` 忽略继承上下文，不能与
+`--current` 同用。`api schema` 现在返回第 10 版目录 envelope；新增的
+`orchbee.panel.current` 文档为第 1 版。

@@ -737,7 +737,20 @@ fn respond(
             request.creation_id,
             host_identity().map_err(io_error)?.creation_id
         );
+        #[cfg(not(windows))]
         assert!(request.environment_overlay.is_empty());
+        #[cfg(windows)]
+        assert_eq!(
+            request
+                .environment_overlay
+                .iter()
+                .map(|entry| (entry.name.as_str(), entry.value.as_str()))
+                .collect::<Vec<_>>(),
+            [
+                ("ORCHBEE_TERMINAL_ID", "01010101010101010101010101010101"),
+                ("ORCHBEE_WORKER_ID", "03030303030303030303030303030303"),
+            ]
+        );
         let control = encode_terminal_creation_control(&TerminalCreationControl::TerminalCreated(
             host_identity().map_err(io_error)?,
         ))

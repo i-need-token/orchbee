@@ -8,6 +8,23 @@ use std::{
 #[test]
 fn real_powershell_completes_scoped_grammar_without_runtime() {
     let cases = [
+        ("orchbee panel ", "current", true),
+        ("orchbee help panel ", "current", true),
+        ("orchbee panel current --p", "--panel", true),
+        ("orchbee panel current -- ", "--panel", false),
+        (
+            "orchbee panel current --panel=@panel:ab --c",
+            "--current",
+            false,
+        ),
+        ("orchbee panel current --current --p", "--panel", false),
+        (
+            "orchbee panel current --panel p --current --f",
+            "--format",
+            false,
+        ),
+        ("orchbee panel get p --c", "--current", false),
+        ("orchbee --current panel ", "current", true),
         ("orchbee tab create --profile dev --e", "--env", true),
         ("orchbee tab create --env A=b --e", "--env", true),
         ("orchbee panel split p --env A=b --c", "--cwd", true),
@@ -76,7 +93,7 @@ fn real_powershell_completes_scoped_grammar_without_runtime() {
             false,
         ),
     ];
-    let json = serde_json::to_string(&cases).expect("cases");
+    let json = serde_json::to_string(cases.as_slice()).expect("cases");
     // Windows PowerShell 5.1 only invokes a native argument completer for
     // option prefixes after resolving an actual executable. Use this test
     // executable as a name-only target; completion never runs it.

@@ -181,6 +181,7 @@ pub(crate) enum CommandPath {
     TabMove,
     TabClose,
     PanelList,
+    PanelCurrent,
     PanelGet,
     PanelSplit,
     PanelClose,
@@ -237,6 +238,7 @@ impl CommandPath {
             Self::TabMove => "tab move",
             Self::TabClose => "tab close",
             Self::PanelList => "panel list",
+            Self::PanelCurrent => "panel current",
             Self::PanelGet => "panel get",
             Self::PanelSplit => "panel split",
             Self::PanelClose => "panel close",
@@ -386,6 +388,7 @@ pub(crate) enum QueryCommand {
     PanelList {
         tab: Option<Target>,
     },
+    PanelCurrent(Option<Target>),
     PanelGet(Target),
     TerminalList,
     TerminalGet(Target),
@@ -970,6 +973,8 @@ pub(crate) enum UsageReason {
         context: UsageContext,
         requirement: &'static str,
     },
+    /// Missing or invalid Windows caller identity, before runtime discovery.
+    CallerContextUnavailable,
     /// `tab create` with neither `--workspace` nor `--standalone`.
     MissingTabContext {
         context: UsageContext,
@@ -1073,6 +1078,8 @@ struct Options {
     cell_width: Option<String>,
     cell_height: Option<String>,
     confirm: bool,
+    panel: Option<String>,
+    current: bool,
     target_panel: Option<String>,
     /// `panel move --into-tab <t>`: the sibling-Tab relocation target.
     into_tab: Option<String>,
@@ -1166,6 +1173,7 @@ const VALUE_FLAGS: &[&str] = &[
     "--request",
     "--rows",
     "--tab",
+    "--panel",
     "--target-panel",
     "--timeout",
     "--text",
@@ -1460,9 +1468,11 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                 index += 1;
             }
             "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
-            | "--include-ended" | "--new-tab" | "--paste" | "--unwrap" => {
+            | "--include-ended" | "--new-tab" | "--paste" | "--unwrap" | "--current" => {
                 let (seen, option) = if token == "--standalone" {
                     (&mut options.standalone, "--standalone")
+                } else if token == "--current" {
+                    (&mut options.current, "--current")
                 } else if token == "--confirm" {
                     (&mut options.confirm, "--confirm")
                 } else if token == "--history" {
@@ -1607,6 +1617,7 @@ fn apply_value_flag(
         "--request" => &mut options.request,
         "--generation" => &mut options.generation,
         "--lines" => &mut options.lines,
+        "--panel" => &mut options.panel,
         "--target-panel" => &mut options.target_panel,
         "--into-tab" => &mut options.into_tab,
 
@@ -2196,6 +2207,31 @@ fn resolve_words(
                 .transpose()?;
             Ok(query(QueryCommand::PanelList { tab }, options))
         }
+        ["panel", "current"] => {
+            let context = UsageContext::Path("panel current");
+            check_scope(options, PANEL_CURRENT_SCOPE, context, envelope)?;
+            if options.panel.is_some() && options.current {
+                return Err(usage_with(
+                    UsageReason::ConflictingOptions {
+                        context,
+                        first: "--panel",
+                        second: "--current",
+                    },
+                    envelope,
+                ));
+            }
+            let panel = options
+                .panel
+                .clone()
+                .map(|value| target(value, Resource::Panel, envelope))
+                .transpose()?;
+            Ok(query(QueryCommand::PanelCurrent(panel), options))
+        }
+        ["panel", "current", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("panel current"),
+            extra,
+            envelope,
+        )),
         ["panel", "get", value] => {
             reject_filters(options, UsageContext::Path("panel get"), envelope)?;
             Ok(query(
@@ -2981,6 +3017,7 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["tab", "move"] => HelpTopic::Command(CommandPath::TabMove),
         ["tab", "close"] => HelpTopic::Command(CommandPath::TabClose),
         ["panel", "list"] => HelpTopic::Command(CommandPath::PanelList),
+        ["panel", "current"] => HelpTopic::Command(CommandPath::PanelCurrent),
         ["panel", "get"] => HelpTopic::Command(CommandPath::PanelGet),
         ["panel", "split"] => HelpTopic::Command(CommandPath::PanelSplit),
         ["panel", "close"] => HelpTopic::Command(CommandPath::PanelClose),
@@ -3039,6 +3076,8 @@ struct Scope {
     direction: bool,
     geometry: bool,
     confirm: bool,
+    panel: bool,
+    current: bool,
     target_panel: bool,
     /// `panel move --into-tab <t>`: admits the sibling-Tab relocation
     /// destination selector.
@@ -3128,6 +3167,8 @@ const NO_OPTIONS: Scope = Scope {
     direction: false,
     geometry: false,
     confirm: false,
+    panel: false,
+    current: false,
     target_panel: false,
     into_tab: false,
     new_tab: false,
@@ -3203,6 +3244,12 @@ const WORKSPACE_LIST_SCOPE: Scope = Scope {
 const TAB_LIST_SCOPE: Scope = Scope {
     workspace: true,
     standalone: true,
+    ..NO_OPTIONS
+};
+
+const PANEL_CURRENT_SCOPE: Scope = Scope {
+    panel: true,
+    current: true,
     ..NO_OPTIONS
 };
 
@@ -3421,6 +3468,12 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.confirm && !scope.confirm {
         return Some("--confirm");
+    }
+    if options.panel.is_some() && !scope.panel {
+        return Some("--panel");
+    }
+    if options.current && !scope.current {
+        return Some("--current");
     }
     if options.target_panel.is_some() && !scope.target_panel {
         return Some("--target-panel");

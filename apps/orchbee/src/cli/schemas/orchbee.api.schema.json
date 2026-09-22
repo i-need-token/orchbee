@@ -7,7 +7,7 @@
 	"additionalProperties": false,
 	"properties": {
 		"schema": { "const": "orchbee.api.schema" },
-		"version": { "const": 9 },
+		"version": { "const": 10 },
 		"source": {
 			"type": "object",
 			"required": ["kind"],
@@ -53,6 +53,7 @@
 						"orchbee.launch-profile.get",
 						"orchbee.launch-profile.list",
 						"orchbee.mutation.result",
+						"orchbee.panel.current",
 						"orchbee.panel.get",
 						"orchbee.panel.list",
 						"orchbee.project.get",
@@ -103,6 +104,7 @@
 				"orchbee.launch-profile.get",
 				"orchbee.launch-profile.list",
 				"orchbee.mutation.result",
+				"orchbee.panel.current",
 				"orchbee.panel.get",
 				"orchbee.panel.list",
 				"orchbee.project.get",

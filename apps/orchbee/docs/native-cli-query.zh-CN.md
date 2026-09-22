@@ -25,7 +25,8 @@ provider 接入——对调用用户的 provider 配置做有界读取与受管�
 - 环境：`ORCHBEE_RUNTIME_BASE`（可选，默认 `/tmp`）选择运行基座；`LC_ALL`/`LC_MESSAGES`/`LANG`
   选择诊断 locale。`agent doctor` 另外读取 `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3`
   （观察端点 override，其 endpoint 事实原样报告）、供有界可执行文件扫描的继承 `PATH`，以及
-  provider 目标前缀所用的 `HOME`。不读取其他任何环境变量。
+  provider 目标前缀所用的 `HOME`。调用者模式的 `panel current` 还读取下文说明的
+  `ORCHBEE_TERMINAL_ID` 与 `ORCHBEE_WORKER_ID`。不读取其他任何环境变量。
 - 文件系统：解析出的运行基座、Site scope 目录 `orchbee-native-<euid>` 及其
   `client.sock`/`worker.sock`、activation 标记、当前可执行文件同目录的 `cohort.json` 与四个
   artifact 只被观察、绝不写入。清单还声明 `agent-observation-adapters` sidecar 摘要——
@@ -1469,3 +1470,35 @@ cwd 和环境。空选项保留旧 JSON 和二进制编码。非空 OBCN 环境�
 不新增 macOS/Linux 适配器或运行声明；TLA 执行继续延期。
 
 原生启动命令使用独立的 48 KiB JSON 请求预算，使 cwd、argv、label 和环境的最大转义编码可同时容纳。OBWP command kind 2 在分配前按此上限检查；非启动 intent 仍为 16 KiB，结果沿用既有上限。OBCS v2 帧允许 48 KiB；OBCN 仍为 8 KiB。OBCS v2 schema/corpus 已覆盖这些启动值；共享 Workbench schema 和 Desktop binding 仍不构成对这些原生扩展的支持证据。
+
+## 调用者 Panel 上下文
+
+`panel current [--panel <panel-id-or-selector> | --current]` 在 Windows 上读取调用者
+所在的 Panel。省略选项与 `--current` 都采用调用进程；`--panel` 解析显式完整 Panel ID
+或 `@panel:<suffix>`，忽略环境变量。两个选项互斥。结果与 `panel get` 的 Panel 文档
+相同，使用 `orchbee.panel.current` 第 1 版及其快照来源。
+
+Windows Worker 从已接纳的启动授权中提取 `ORCHBEE_TERMINAL_ID` 和
+`ORCHBEE_WORKER_ID`，写入各子进程环境，覆盖继承的冲突值。这是产品身份而非 Host
+身份，只是查询提示而非凭证。两者均须为非零、完整的 32 位小写十六进制 ID。CLI
+仅在调用者模式下读取它们，顺序在语法校验之后、运行时发现之前。缺失、空值、格式
+错误或非 Unicode 值返回 `invalid-usage`（退出码 2），提供本地化指引且不回显变量值。
+未携带这些变量的现有子进程可使用 `--panel`；新子进程会在启动时得到变量。
+
+唯一的位置权威是一份已验证快照。Terminal 与 Worker 恰好匹配一个绑定时，解析其
+所在 Panel，无论 Presentation 是主项还是子项。移动后的 Panel 解析到其当前 Tab 和
+Workspace；环境中不缓存 Panel 或 Workspace 位置。缺失或不匹配的绑定返回
+`not-found`（退出码 3）；身份重复返回 `protocol-invalid`（退出码 5）。缺少上下文时
+绝不回退到客户端焦点。来源 revision 限定观察时点；读取之后的移动不属于此答案。
+
+本查询只接纳一个只读会话并读取一次快照，随后释放会话。它不会激活 Site、创建终端、
+取得控制权或改变焦点。Windows 子进程注入与显式／调用者解析由优先级、无效上下文、
+过期绑定、子 Presentation、移动场景及真实 Windows 子进程证据覆盖。Desktop 与全局
+焦点回退仍不在本次范围内；TLA 执行已延后，不作为已通过的证据。
+
+新增 schema 注册到封闭的 `api schema` 第 10 版目录；其他业务文档版本不变。
+
+Windows Worker 身份在每次连接 Server 时由已有 OS 随机身份源重新生成；同一 Worker
+的终端共享该 ID。不同 Site 可能复用 Terminal ID，因此必须精确匹配 Worker，才能
+拒绝来自上一轮或另一 Site 的调用者。本次不引入重连或接管。Tab close 接纳不代表
+移除：Server 发布移除前，查询仍反映其成员状态；发布后才找不到旧调用者绑定。

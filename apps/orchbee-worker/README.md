@@ -75,7 +75,7 @@ Worker's effective user. An admitted socket sets
 `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` to its absolute path inside the existing 16-entry and 4 KiB
 overlay bounds; a missing, non-socket, foreign-owned, or non-UTF-8 candidate emits no variable and
 never fails the launch. The gate re-evaluates on every Launch instead of caching admission. The
-explicit-endpoint path carries no Site runtime directory and keeps an empty overlay — remote and
+explicit-endpoint path carries no Site runtime directory and has no observation overlay — remote and
 non-managed launches gain no observation channel, and no CNP field or Server-private import is
 introduced for it.
 
@@ -747,3 +747,25 @@ pnpm verify
 ## Windows native execution
 
 The managed native Windows path uses the same Worker authorization, receipts, replay fences, and Host protocol. Private named pipes replace Unix sockets. The exact sibling `orchbee-terminal-host.exe` starts lazily after authorized Launch and uses ConPTY. Default launch resolves absolute `COMSPEC` or `SystemRoot\System32\cmd.exe`, with `USERPROFILE` as the initial directory. Worktree discovery runs Windows Git through owned child-output pipes with bounded output, cancellation, deadlines, and kill/wait cleanup. Native tests cover real Host retention after broker loss and real Git discovery. See the [Client quick start](../orchbee/README.md#native-windows-quick-start) for staging and limits.
+
+## Windows child caller context
+
+Every admitted Windows Launch adds `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID`
+to the Terminal Protocol environment overlay. Worker derives their full lowercase
+hex values from the product launch authorization; Host applies them after inherited
+and per-launch environment values. They are lookup hints for the native CLI, never
+credentials. The existing overlay limits remain unchanged. This also applies to
+explicit-endpoint Windows launches; the observation-channel policy is independent.
+No Panel or Workspace position is stored because a Panel may later move. The native
+`panel current` query resolves the location from one Server snapshot. Existing child
+processes are not modified, and no Mac/Linux context injection is introduced.
+
+Windows additionally mints one nonzero 128-bit Worker ID from the existing OS random
+source before Server connection. `WorkerHello`, retained `ServerConnection`, and the
+operation kernel share that exact identity. Separate connections do not reuse the
+old fixed local diagnostic ID: otherwise different Sites' terminal counters could
+alias a stale caller. RNG failure or zero fails before connecting. Identity collision
+resistance relies on the OS random source. This changes no OBLS/OBCN fields and does
+not enable reconnect, inventory adoption, or migration of old Worker bindings.
+Mac/Linux retain their existing identity behavior. Two independent Windows Site
+process traces cover reused Terminal IDs and refusal of the old Worker context.

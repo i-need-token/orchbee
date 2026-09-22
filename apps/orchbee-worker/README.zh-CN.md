@@ -68,7 +68,7 @@ Host 启动、唯一连接和严格 OBTP 握手共用五秒预算；不续期或
 socket 在现有 16 条 / 4 KiB overlay 上限内把 `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3`
 设为其绝对路径；候选缺失、非 socket、属主不符或非 UTF-8 时则不注入变量，也绝不因此
 使 Launch 失败。门禁在每次 Launch 重新求值，不缓存准入结果。显式端点路径不携带 Site
-运行时目录，overlay 保持为空——远端与非 managed 启动不会获得观察通道，也不为此引入
+运行时目录，不携带观察通道 overlay——远端与非 managed 启动不会获得观察通道，也不为此引入
 CNP 字段或 Server 私有代码。
 
 回收线程只等待退出，不杀死 Host。Server/Worker 连接关闭后 Host 仍拥有保留终端。
@@ -688,3 +688,21 @@ pnpm verify
 ## Windows 原生执行
 
 Windows 托管原生路径沿用 Worker 授权、回执、重放栅栏及 Host 协议，以私有命名管道替换 Unix Socket。精确的同级 `orchbee-terminal-host.exe` 仅在授权 Launch 后惰性启动并使用 ConPTY。默认启动解析绝对 `COMSPEC` 或 `SystemRoot\System32\cmd.exe`，初始目录为 `USERPROFILE`。工作树发现通过自有子进程输出管道运行 Windows Git，具备输出边界、取消、截止时间及 kill/wait 清理。原生测试覆盖 broker 断开后的真实 Host 保留和真实 Git 发现。暂存和限制见 [Client 快速开始](../orchbee/README.zh-CN.md#windows-原生快速开始)。
+
+## Windows 子进程调用者上下文
+
+每次已接纳的 Windows Launch 都向 Terminal Protocol 环境 overlay 添加
+`ORCHBEE_TERMINAL_ID` 和 `ORCHBEE_WORKER_ID`。Worker 从产品启动授权中派生完整
+小写十六进制值；Host 在继承环境与每次启动的环境值之后应用它们。它们是原生 CLI
+的查询提示，绝非凭证。现有 overlay 上限不变。显式端点 Windows 启动同样适用；
+观察通道策略独立。Panel 后续可能移动，因此不储存 Panel 或 Workspace 位置。
+原生 `panel current` 查询从一次 Server 快照解析位置。不会修改已有子进程，
+本次不引入 Mac/Linux 上下文注入。
+
+Windows 还会在连接 Server 之前，使用已有的 OS 随机源生成一个非零 128 位 Worker ID。
+`WorkerHello`、保留的 `ServerConnection` 和操作内核共享该精确身份。不同连接不再
+复用原先固定的本地诊断 ID，否则不同 Site 的终端计数器可能误匹配旧调用者。随机源
+失败或返回零值时，在连接前失败。抵抗身份碰撞依赖 OS 随机源。此修改不新增
+OBLS/OBCN 字段，也不启用重连、inventory 接管或旧 Worker 绑定迁移。
+Mac/Linux 保留原有身份行为。两次独立 Windows Site 进程轨迹覆盖 Terminal ID 复用
+时对旧 Worker 上下文的拒绝。

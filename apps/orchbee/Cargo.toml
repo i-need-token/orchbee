@@ -49,8 +49,10 @@ nix = { workspace = true, features = ["signal"] }
 # `agent doctor` capsule/fingerprint digests run at CLI runtime.
 sha2.workspace = true
 
-[target.'cfg(unix)'.dev-dependencies]
+[dev-dependencies]
 jsonschema = { version = "0.53.0", default-features = false }
+
+[target.'cfg(unix)'.dev-dependencies]
 nix = { workspace = true, features = ["fs", "process", "signal", "term"] }
 
 [lints]

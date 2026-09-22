@@ -34,7 +34,8 @@ behavior is a bug to fix, not a fork to keep.
   `LC_ALL`/`LC_MESSAGES`/`LANG` select the diagnostic locale. `agent doctor` additionally reads
   `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` (the observation-endpoint override its endpoint fact
   reports verbatim), the inherited `PATH` for its bounded executable scan, and `HOME` for the
-  provider target prefixes. Nothing else is consulted.
+  provider target prefixes. `panel current` in caller mode additionally reads
+  `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID` as described below. Nothing else is consulted.
 - Filesystem: the resolved runtime base, the Site scope directory
   `orchbee-native-<euid>`, its `client.sock`/`worker.sock`, the activation marker, and the
   current executable's sibling `cohort.json` plus four artifacts are observed but never written.
@@ -1727,3 +1728,45 @@ Windows child observing cwd/environment after public Tab and split commands. No 
 macOS/Linux adapter or execution claim is included; TLA execution remains deferred.
 
 Native launch commands use a dedicated 48 KiB JSON request budget so maximum escaped cwd, argv, label and environment fit together. OBWP command kind 2 admits this bound before allocation; non-launch intents retain 16 KiB and results retain their existing bounds. OBCS v2 frames admit 48 KiB; OBCN remains 8 KiB. The OBCS v2 schema/corpus covers these launch values; shared Workbench schemas and the Desktop binding still do not establish support for the native extensions.
+
+## Calling Panel context
+
+`panel current [--panel <panel-id-or-selector> | --current]` reads the calling
+Panel on Windows. Omitted options and `--current` both use the calling process;
+`--panel` resolves an explicit full Panel ID or `@panel:<suffix>` and ignores the
+environment. The two options conflict. The result is the same Panel document as
+`panel get`, under `orchbee.panel.current` version 1 with its snapshot source.
+
+The Windows Worker writes `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID` from the
+admitted launch authorization into each child environment, overriding inherited
+conflicts. These are product identities, not Host identities, and are lookup hints,
+not credentials. Both must be complete nonzero lowercase 32-hex IDs. The CLI reads
+them only in caller mode, after grammar validation and before runtime discovery.
+Absent, empty, malformed or non-Unicode values fail `invalid-usage` (exit 2), with
+localized guidance and no value echo. Existing children without these variables
+can use `--panel`; new children receive them on launch.
+
+One validated snapshot is the sole location authority. Exactly one binding for the
+Terminal and Worker resolves the containing Panel, whether the Presentation is
+primary or a child. A moved Panel is resolved in its current Tab and Workspace;
+no Panel or Workspace location is cached in the environment. An absent or mismatched
+binding fails `not-found` (exit 3); duplicate identity fails `protocol-invalid`
+(exit 5). Missing context never falls back to a client's focus. The source revision
+bounds the observation; movement after that read is not part of the answer.
+
+This query admits one read-only session and snapshot, then drops the session. It
+never activates a Site, creates a terminal, acquires control, or mutates focus.
+Windows child injection and the explicit/caller resolver are covered by precedence,
+invalid-context, stale-binding, child-Presentation and movement cases plus a real
+Windows child-process witness. Desktop and global focus fallback remain excluded;
+TLA execution is deferred and is not claimed as evidence.
+
+The additive schema is registered in the closed `api schema` catalog version 10;
+other business document versions are unchanged.
+
+Windows Worker identities are fresh per Server connection, using the existing OS
+random identity source; one Worker shares that ID across its terminals. Terminal
+IDs can repeat across Sites, so the exact Worker match is required to reject a caller
+from a previous or different Site. No reconnect or adoption is introduced. A Tab
+close acceptance is not removal: lookup continues to reflect membership until the
+Server publishes its removal. Only then is the old caller binding not found.

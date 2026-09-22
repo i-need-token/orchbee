@@ -144,7 +144,10 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     ("api", &["schema", "snapshot"]),
     ("launch-profile", &["create", "delete", "get", "list"]),
     ("config", &["check"]),
-    ("panel", &["close", "get", "list", "move", "split"]),
+    (
+        "panel",
+        &["close", "current", "get", "list", "move", "split"],
+    ),
     ("project", &["create", "get", "list", "rename"]),
     ("site", &["diagnose", "start"]),
     ("tab", &["close", "create", "get", "list", "move", "rename"]),
@@ -179,6 +182,8 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--cell-width",
     "--cell-height",
     "--confirm",
+    "--panel",
+    "--current",
     "--target-panel",
     "--into-tab",
     "--new-tab",
@@ -281,6 +286,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("tab:rename", &["--label"]),
     ("tab:move", &["--direction"]),
     ("tab:close", &["--confirm"]),
+    ("panel:current", &["--panel", "--current"]),
     ("panel:list", &["--tab"]),
     (
         "panel:split",
@@ -441,7 +447,10 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     ("api", &["schema", "snapshot"]),
     ("launch-profile", &["create", "delete", "get", "list"]),
     ("config", &["check"]),
-    ("panel", &["close", "get", "list", "move", "split"]),
+    (
+        "panel",
+        &["close", "current", "get", "list", "move", "split"],
+    ),
     ("project", &["create", "get", "list", "rename"]),
     ("site", &["diagnose", "start"]),
     ("tab", &["close", "create", "get", "list", "move", "rename"]),
@@ -482,6 +491,8 @@ pub(crate) fn render(shell: CompletionShell) -> String {
 fn flag_bit(flag: &str) -> &'static str {
     match flag {
         "--project" => "seen_project",
+        "--panel" => "seen_panel",
+        "--current" => "seen_current",
         "--workspace" => "seen_workspace",
         "--tab" => "seen_tab",
         "--standalone" => "seen_standalone",
@@ -539,7 +550,7 @@ fn flag_value(flag: &str) -> Option<&'static str> {
         "--until" => Some("until"),
         "--provider" => Some("provider"),
         "--standalone" | "--confirm" | "--new-tab" | "--history" | "--enter" | "--stdin"
-        | "--include-ended" | "--unwrap" | "--paste" => None,
+        | "--include-ended" | "--unwrap" | "--paste" | "--current" => None,
         _ => Some("filter"),
     }
 }
@@ -730,6 +741,8 @@ fn sub_flag_cases_bash() -> String {
                 .collect::<Vec<_>>()
                 .join("|");
             match *flag {
+                "--panel" => format!("                            {patterns}) ((seen_current)) && done=1 ;;"),
+                "--current" => format!("                            {patterns}) ((seen_panel)) && done=1 ;;"),
                 "--workspace" => {
                     format!(
                         "                            {patterns}) ((seen_standalone)) && done=1 ;;"
@@ -794,6 +807,8 @@ fn after_flag_cases_bash() -> String {
         .map(|flag| {
             let patterns = flag_admission_patterns(flag, "|", false);
             match *flag {
+                "--panel" => format!("                            {patterns}) ((seen_current)) && done=1 ;;"),
+                "--current" => format!("                            {patterns}) ((seen_panel)) && done=1 ;;"),
                 "--workspace" => {
                     format!(
                         "                            {patterns}) ((seen_standalone)) && done=1 ;;"
@@ -862,6 +877,9 @@ fn scope_cases_bash() -> String {
                 // `--profile`/explicit-launch pair is exclusive on the two
                 // profile-selecting commands.
                 let mut exclusive = String::new();
+                if command == "panel:current" {
+                    exclusive.push_str("((seen_panel && seen_current)) && done=1\n                                        ");
+                }
                 if *family == "tab" {
                     exclusive.push_str("((seen_workspace && seen_standalone)) && done=1\n                                        ");
                 }
@@ -894,7 +912,9 @@ fn verb_cases_bash() -> String {
                 .map(|(index, verb)| {
                     let command = format!("{family}:{verb}");
                     let allowed = command_flags(&command).join(" ");
-                    let guard = if command == "tab:create" {
+                    let guard = if command == "panel:current" {
+                        " && ((!seen_panel || !seen_current))"
+                    } else if command == "tab:create" {
                         " && ((!seen_workspace || !seen_standalone)) && ((!seen_profile || (!seen_exec && !seen_arg)))"
                     } else if *family == "tab" {
                         " && ((!seen_workspace || !seen_standalone))"
@@ -935,6 +955,8 @@ fn narrow_lines_bash() -> String {
         .filter_map(|flag| {
             let keep = families_of(flag).join(" ");
             match *flag {
+                "--panel" => Some(format!("        if ((seen_panel && seen_current)); then possible=\"\"; elif ((seen_panel || seen_current)); then narrow \"{keep}\"; fi")),
+                "--current" => None,
                 "--workspace" => Some(format!(
                     "        if ((seen_workspace || seen_standalone)); then\n            if ((seen_workspace && seen_standalone)); then possible=\"\"\n            else narrow \"{keep}\"; fi\n        fi"
                 )),
@@ -970,6 +992,7 @@ fn extras_cases_bash() -> String {
                 .iter()
                 .map(|flag| {
                     let cond = match *flag {
+                        "--panel" | "--current" => "seen_panel || seen_current".to_owned(),
                         "--workspace" | "--standalone" => {
                             "seen_workspace || seen_standalone".to_owned()
                         }
@@ -1868,6 +1891,8 @@ fn sub_flag_cases_fish() -> String {
                 .collect::<Vec<_>>()
                 .join(" ");
             match *flag {
+                "--panel" => format!("                            case {patterns}; if test $seen_current -eq 1; set done 1; end"),
+                "--current" => format!("                            case {patterns}; if test $seen_panel -eq 1; set done 1; end"),
                 "--workspace" => {
                     format!("                            case {patterns}; if test $seen_standalone -eq 1; set done 1; end")
                 }
@@ -1894,6 +1919,8 @@ fn after_flag_cases_fish() -> String {
         .map(|flag| {
             let patterns = flag_admission_patterns(flag, " ", true);
             match *flag {
+                "--panel" => format!("                            case {patterns}; if test $seen_current -eq 1; set done 1; end"),
+                "--current" => format!("                            case {patterns}; if test $seen_panel -eq 1; set done 1; end"),
                 "--workspace" => {
                     format!("                            case {patterns}; if test $seen_standalone -eq 1; set done 1; end")
                 }
@@ -1937,7 +1964,9 @@ fn scope_cases_fish() -> String {
             verbs.iter().map(move |verb| {
                 let command = format!("{family}:{verb}");
                 let allowed = command_flags(&command).join(" ");
-                let exclusive = if *family == "tab" {
+                let exclusive = if command == "panel:current" {
+                    "\n                                        if test $seen_panel -eq 1 -a $seen_current -eq 1; set done 1; end".to_owned()
+                } else if *family == "tab" {
                     "\n                                        if test $seen_workspace -eq 1 -a $seen_standalone -eq 1; set done 1; end".to_owned()
                 } else if command == "terminal:send" {
                     "\n                                        if test (math \"$seen_text + $seen_key + $seen_file + $seen_stdin\") -ge 2 -o $seen_key -eq 1 -a $seen_enter -eq 1; set done 1; end".to_owned()
@@ -1971,7 +2000,9 @@ fn verb_cases_fish() -> String {
                     // The exclusive pair must not both be seen for a tab verb
                     // to remain viable; `send` dies once `--key` stands next
                     // to a text payload bit.
-                    if command == "tab:create" {
+                    if command == "panel:current" {
+                        format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test $seen_panel -eq 0 -o $seen_current -eq 0; set -a verbs {verb}; end\n                end")
+                    } else if command == "tab:create" {
                         format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test $seen_workspace -eq 0 -o $seen_standalone -eq 0\n                        if test $seen_profile -eq 0 -o $seen_exec -eq 0\n                            if test $seen_profile -eq 0 -o $seen_arg -eq 0; set -a verbs {verb}; end\n                        end\n                    end\n                end")
                     } else if *family == "tab" {
                         format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test $seen_workspace -eq 0 -o $seen_standalone -eq 0; set -a verbs {verb}; end\n                end")
@@ -2003,6 +2034,8 @@ fn narrow_lines_fish() -> String {
         .filter_map(|flag| {
             let keep = families_of(flag).join(" ");
             match *flag {
+                "--panel" => Some(format!("        if test $seen_panel -eq 1 -a $seen_current -eq 1\n            set possible\n        else if test $seen_panel -eq 1 -o $seen_current -eq 1\n            set possible (__orchbee_narrow \"{keep}\" $possible)\n        end")),
+                "--current" => None,
                 "--workspace" => Some(format!(
                     "        if test $seen_workspace -eq 1 -a $seen_standalone -eq 1\n            set possible\n        else if test $seen_workspace -eq 1 -o $seen_standalone -eq 1\n            set possible (__orchbee_narrow \"{keep}\" $possible)\n        end",
                 )),
@@ -2037,6 +2070,7 @@ fn extras_cases_fish() -> String {
                 .iter()
                 .map(|flag| {
                     let cond = match *flag {
+                        "--panel" | "--current" => "$seen_panel -eq 0 -a $seen_current -eq 0".to_owned(),
                         "--workspace" | "--standalone" => {
                             "$seen_workspace -eq 0 -a $seen_standalone -eq 0".to_owned()
                         }

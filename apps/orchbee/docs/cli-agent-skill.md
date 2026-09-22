@@ -42,3 +42,14 @@ At most 32 environment entries and 1,024 UTF-8 name/value bytes are allowed; nam
 identifiers, unique ignoring case. Orchbee and terminal identity variables are reserved.
 Inspect the terminal outcome in the result: committed membership alone does not prove a process
 started. The native CLI help owns the complete validation rules.
+
+## Locate the calling Panel
+
+Inside a newly launched Windows terminal, use `orchbee panel current --format json`
+to find its current Panel, Tab and Workspace. `--current` is an explicit spelling of
+the same lookup. Outside that process, use `panel current --panel <id-or-selector>`.
+Worker supplies `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID`; the query validates
+their current binding in one snapshot. Missing or stale context is an error, never
+a fallback to client focus. Explicit `--panel` ignores inherited context and cannot
+be combined with `--current`. `api schema` now returns catalog envelope version 10;
+the new `orchbee.panel.current` document is version 1.

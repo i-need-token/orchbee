@@ -43,7 +43,10 @@ fn immediate_launch_maps_stable_identity_explicit_cwd_and_all_resolved_facts() -
 
     assert_eq!(request.creation_id.as_bytes(), &[HOST_CREATION; 16]);
     assert_ne!(request.creation_id.as_bytes(), &[PRODUCT_TERMINAL; 16]);
+    #[cfg(not(windows))]
     assert!(request.environment_overlay.is_empty());
+    #[cfg(windows)]
+    assert_eq!(request.environment_overlay.len(), 2);
     assert_eq!(request.launch.executable, "/bin/zsh");
     assert!(request.launch.arguments.is_empty());
     assert_eq!(request.launch.environment, default_environment());
@@ -76,7 +79,10 @@ fn deferred_launch_uses_resolved_home_and_carries_no_geometry() -> TestResult {
         Some("/home/worker")
     );
     assert_eq!(request.launch.start_mode, LaunchStartMode::Deferred);
+    #[cfg(not(windows))]
     assert!(request.environment_overlay.is_empty());
+    #[cfg(windows)]
+    assert_eq!(request.environment_overlay.len(), 2);
     Ok(())
 }
 
@@ -515,13 +521,23 @@ fn admitted_site_observation_socket_sets_the_overlay_variable() -> TestResult {
     )?;
 
     let expected = endpoint.to_str().expect("UTF-8 fixture").to_owned();
-    assert_eq!(
-        request.environment_overlay,
-        vec![EnvironmentOverlayEntry {
-            name: OBSERVATION_SOCKET_ENV.to_owned(),
-            value: expected,
-        }]
-    );
+    let mut expected_overlay = vec![EnvironmentOverlayEntry {
+        name: OBSERVATION_SOCKET_ENV.to_owned(),
+        value: expected,
+    }];
+    if cfg!(windows) {
+        expected_overlay.extend([
+            EnvironmentOverlayEntry {
+                name: "ORCHBEE_TERMINAL_ID".into(),
+                value: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b".into(),
+            },
+            EnvironmentOverlayEntry {
+                name: "ORCHBEE_WORKER_ID".into(),
+                value: "03030303030303030303030303030303".into(),
+            },
+        ]);
+    }
+    assert_eq!(request.environment_overlay, expected_overlay);
     Ok(())
 }
 
@@ -763,4 +779,42 @@ fn assert_invalid_host_field<T>(result: Result<T, HostLaunchAdapterError>) {
         panic!("expected a Terminal Protocol validation error");
     };
     assert_eq!(error.code(), ProtocolErrorCode::InvalidField);
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_caller_context_uses_product_authorization_and_overrides_launch_values() -> TestResult {
+    for mode in [
+        TerminalLaunchMode::Deferred,
+        TerminalLaunchMode::Immediate(geometry(80, 24, 8, 16)?),
+    ] {
+        let dispatch = launch_dispatch(None, mode)?;
+        let mut facts = resolved_facts("C:/Users/worker")?;
+        facts.environment.push(LaunchEnvironmentEntry {
+            name: "orchbee_terminal_id".into(),
+            value: Some("inherited-other-terminal".into()),
+        });
+        facts.environment.push(LaunchEnvironmentEntry {
+            name: "ORCHBEE_WORKER_ID".into(),
+            value: Some("inherited-other-worker".into()),
+        });
+        let request = map_launch_dispatch(&dispatch, facts, None)?;
+        let value = |name| {
+            request
+                .environment_overlay
+                .iter()
+                .find(|entry| entry.name == name)
+                .map(|entry| entry.value.as_str())
+        };
+        assert_eq!(
+            value("ORCHBEE_TERMINAL_ID"),
+            Some("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b")
+        );
+        assert_eq!(
+            value("ORCHBEE_WORKER_ID"),
+            Some("03030303030303030303030303030303")
+        );
+        assert_eq!(request.environment_overlay.len(), 2);
+    }
+    Ok(())
 }

@@ -6271,3 +6271,62 @@ fn per_launch_options_reject_bad_values_and_scope_without_echoing_secrets() {
         assert!(parse(&words).is_err(), "{words:?}");
     }
 }
+
+#[test]
+fn current_panel_grammar_has_explicit_or_caller_modes() {
+    for words in [
+        vec!["panel", "current"],
+        vec!["panel", "current", "--current"],
+    ] {
+        assert_eq!(
+            parse(&words),
+            Ok(Request::Query {
+                command: QueryCommand::PanelCurrent(None),
+                format: OutputFormat::Text
+            })
+        );
+    }
+    for words in [
+        vec!["panel", "current", "--panel", "@panel:abc"],
+        vec!["--panel=@panel:abc", "panel", "current"],
+    ] {
+        assert_eq!(
+            parse(&words),
+            Ok(Request::Query {
+                command: QueryCommand::PanelCurrent(Some(Target::Selector("@panel:abc".into()))),
+                format: OutputFormat::Text
+            })
+        );
+    }
+    for words in [
+        vec!["panel", "current", "--panel", "@panel:abc", "--current"],
+        vec!["panel", "current", "--current", "--current"],
+        vec![
+            "panel",
+            "current",
+            "--panel",
+            "@panel:abc",
+            "--panel",
+            "@panel:abc",
+        ],
+        vec!["panel", "current", "--panel"],
+        vec!["panel", "current", "--panel", "label"],
+        vec!["panel", "current", "--panel", "--"],
+        vec!["panel", "current", "--current=true"],
+        vec!["panel", "current", "--workspace", "ws"],
+        vec!["panel", "current", "@panel:abc"],
+        vec!["panel", "current", "--", "--current"],
+        vec!["panel", "list", "--current"],
+        vec!["status", "--panel", "@panel:abc"],
+    ] {
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
+    assert_eq!(
+        parse(&["panel", "current", "--help"]),
+        Ok(Request::Help(HelpTopic::Command(CommandPath::PanelCurrent)))
+    );
+    assert_eq!(
+        parse(&["help", "panel", "current"]),
+        Ok(Request::Help(HelpTopic::Command(CommandPath::PanelCurrent)))
+    );
+}

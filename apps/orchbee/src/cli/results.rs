@@ -36,6 +36,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
         QueryCommand::TabList { .. } => "orchbee.tab.list",
         QueryCommand::TabGet(_) => "orchbee.tab.get",
         QueryCommand::PanelList { .. } => "orchbee.panel.list",
+        QueryCommand::PanelCurrent(_) => "orchbee.panel.current",
         QueryCommand::PanelGet(_) => "orchbee.panel.get",
         QueryCommand::TerminalList => "orchbee.terminal.list",
         QueryCommand::TerminalGet(_) => "orchbee.terminal.get",
@@ -1879,7 +1880,7 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
             }
             Ok(Projection::PanelList(rows))
         }
-        QueryCommand::PanelGet(target) => {
+        QueryCommand::PanelGet(target) | QueryCommand::PanelCurrent(Some(target)) => {
             // The grammar admits only typed IDs and `@panel:` selectors for
             // panel targets; a label cannot arrive here.
             if let Target::Label(_) = target {
@@ -1927,7 +1928,8 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
         // check` never reach a snapshot projection, and Agent reads are
         // answered by the OBAP exchange, never a snapshot projection.
         // `launch-profile list`/`get` ride their own typed catalog read.
-        QueryCommand::AgentList { .. }
+        QueryCommand::PanelCurrent(None)
+        | QueryCommand::AgentList { .. }
         | QueryCommand::AgentGet(_)
         | QueryCommand::AgentExplain(_)
         | QueryCommand::AgentWait { .. }
@@ -2158,7 +2160,7 @@ fn panel_presentations(
 
 /// Every bound terminal exactly once, in canonical traversal order. Validation
 /// already guarantees bound terminal ids never repeat across the snapshot.
-fn terminal_rows(snapshot: &Snapshot) -> Vec<TerminalRow> {
+pub(super) fn terminal_rows(snapshot: &Snapshot) -> Vec<TerminalRow> {
     let mut rows = Vec::new();
     for context in &snapshot.terminal_contexts {
         for tab in &context.tabs {
