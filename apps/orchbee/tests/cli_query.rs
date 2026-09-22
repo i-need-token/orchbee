@@ -2001,6 +2001,9 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
         sorted(
             [
                 "accept-directory",
+                "close",
+                "close-resume",
+                "close-status",
                 "create",
                 "get",
                 "list",
@@ -3601,13 +3604,13 @@ fn terminal_read_unwrap_joins_the_wrap_chain() -> TestResult {
     assert_eq!(lines.len(), 5);
     // The wrap pair joins; every other physical row is its own line.
     assert_eq!(lines[0]["text"], "A中e\u{301}👩🏽\u{200d}💻x界");
-    assert_eq!(lines[0]["rowStart"], 0);
-    assert_eq!(lines[0]["rowEnd"], 1);
+    assert_eq!(lines[0]["firstRow"], 0);
+    assert_eq!(lines[0]["lastRow"], 1);
     assert_eq!(lines[0]["startsMidLine"], false);
     assert_eq!(lines[0]["endsMidLine"], false);
     assert_eq!(lines[1]["text"], "H");
-    assert_eq!(lines[1]["rowStart"], 2);
-    assert_eq!(lines[1]["rowEnd"], 2);
+    assert_eq!(lines[1]["firstRow"], 2);
+    assert_eq!(lines[1]["lastRow"], 2);
     assert_eq!(lines[4]["text"], "^P.");
     assert!(content.get("rows").is_none());
     let schema = compiled_schema(&base, "orchbee.terminal.read");
@@ -3661,7 +3664,7 @@ fn terminal_read_lines_tails_logical_lines() -> TestResult {
     assert_eq!(content["rowCount"], 6);
     let tail = &content["tail"];
     assert_eq!(tail["requested"], 2);
-    assert_eq!(tail["entries"], 2);
+    assert_eq!(tail["entries"], "lines");
     assert_eq!(tail["omitted"], 3);
     let lines = content["lines"].as_array().unwrap();
     assert_eq!(lines.len(), 2);
@@ -6137,19 +6140,19 @@ fn project_rename_schema_is_strict_and_distinct() -> TestResult {
 /// `orchbee.mutation.result` still receipt schema retrieves offline under
 /// either locale, byte-identical.
 #[test]
-fn api_schema_catalog_is_v8_closed_and_self_consistent() -> TestResult {
-    let base = base_dir("catalog-v8");
+fn api_schema_catalog_is_v9_closed_and_self_consistent() -> TestResult {
+    let base = base_dir("catalog-v9");
     let api_schema = compiled_schema(&base, "orchbee.api.schema");
 
     let output = run(&base, &["api", "schema", "--format", "json"]);
     assert_eq!(output.status.code(), Some(0));
     let listed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(listed["schema"], "orchbee.api.schema");
-    assert_eq!(listed["version"], 8, "catalog envelope is v8");
+    assert_eq!(listed["version"], 9, "catalog envelope is v9");
     assert_eq!(listed["source"]["kind"], "embedded");
     assert!(api_schema.is_valid(&listed), "listing self-validates");
     let schemas = listed["result"]["schemas"].as_object().unwrap();
-    assert_eq!(schemas.len(), 38, "closed dictionary has 38 members");
+    assert_eq!(schemas.len(), 40, "closed dictionary has 40 members");
     assert!(
         schemas.contains_key("orchbee.project.rename"),
         "the rename receipt schema is registered"
@@ -6183,6 +6186,8 @@ fn api_schema_catalog_is_v8_closed_and_self_consistent() -> TestResult {
         "orchbee.agent.integrations",
         "orchbee.agent.integration.plan",
         "orchbee.agent.integration.mutation",
+        "orchbee.cli.failure.close",
+        "orchbee.workspace.close-status",
     ] {
         assert!(schemas.contains_key(id), "the {id} schema is registered");
     }
@@ -6203,12 +6208,13 @@ fn api_schema_catalog_is_v8_closed_and_self_consistent() -> TestResult {
         serde_json::json!(5),
         serde_json::json!(6),
         serde_json::json!(7),
+        serde_json::json!(8),
     ] {
         let mut stale = listed.clone();
         stale["version"] = stale_version.clone();
         assert!(
             !api_schema.is_valid(&stale),
-            "stale catalog {stale_version} fails under v8"
+            "stale catalog {stale_version} fails under v9"
         );
     }
 
@@ -6230,7 +6236,7 @@ fn api_schema_catalog_is_v8_closed_and_self_consistent() -> TestResult {
         "embedded schema retrieval is locale-neutral"
     );
     let named: serde_json::Value = serde_json::from_slice(&english.stdout)?;
-    assert_eq!(named["version"], 8);
+    assert_eq!(named["version"], 9);
     assert_eq!(
         named["result"]["schema"]["schemaId"],
         "orchbee.project.rename"

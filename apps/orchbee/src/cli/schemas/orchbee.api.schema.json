@@ -7,7 +7,7 @@
 	"additionalProperties": false,
 	"properties": {
 		"schema": { "const": "orchbee.api.schema" },
-		"version": { "const": 8 },
+		"version": { "const": 9 },
 		"source": {
 			"type": "object",
 			"required": ["kind"],
@@ -45,6 +45,7 @@
 						"orchbee.api.snapshot",
 						"orchbee.cli.failure",
 						"orchbee.cli.failure.agent",
+						"orchbee.cli.failure.close",
 						"orchbee.cli.failure.launch-profile",
 						"orchbee.cli.failure.source",
 						"orchbee.cli.failure.worktree",
@@ -68,6 +69,7 @@
 						"orchbee.terminal.read",
 						"orchbee.terminal.send",
 						"orchbee.terminal.wait-output",
+						"orchbee.workspace.close-status",
 						"orchbee.workspace.get",
 						"orchbee.workspace.list",
 						"orchbee.worktree.list"
@@ -93,6 +95,7 @@
 				"orchbee.api.snapshot",
 				"orchbee.cli.failure",
 				"orchbee.cli.failure.agent",
+				"orchbee.cli.failure.close",
 				"orchbee.cli.failure.launch-profile",
 				"orchbee.cli.failure.source",
 				"orchbee.cli.failure.worktree",
@@ -116,6 +119,7 @@
 				"orchbee.terminal.read",
 				"orchbee.terminal.send",
 				"orchbee.terminal.wait-output",
+				"orchbee.workspace.close-status",
 				"orchbee.workspace.get",
 				"orchbee.workspace.list",
 				"orchbee.worktree.list"
