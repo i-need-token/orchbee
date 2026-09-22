@@ -230,14 +230,7 @@ fn t3_committed_delta_splits_at_bound() {
         // Serve a window 4096 rows older each step so the estimate keeps
         // headroom.
         viewport.window(
-            window(
-                request_sequence.get(),
-                1,
-                u64::from(served) * 4096,
-                100_000,
-                80,
-                24,
-            ),
+            window(request_sequence.get(), 1, served * 4096, 100_000, 80, 24),
             Instant::now(),
         );
         drain(&mut viewport);

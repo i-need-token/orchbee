@@ -39,7 +39,7 @@ fn frame(
 ) -> TerminalTextFrame {
     TerminalTextFrame {
         route: TerminalFrameRoute {
-            attachment_id: projection.attachment().clone(),
+            attachment_id: *projection.attachment(),
             host_epoch: *projection.epoch(),
             sequence: NonZeroU64::new(1).unwrap(),
             generation: NonZeroU64::new(1).unwrap(),
@@ -193,7 +193,7 @@ fn staged_read_sequence(
 
 fn facts(projection: &TerminalProjection, sequence: u64, generation: u64) -> HistoryChanged {
     HistoryChanged {
-        attachment_id: projection.attachment().clone(),
+        attachment_id: *projection.attachment(),
         sequence: NonZeroU64::new(sequence).unwrap(),
         revision: sequence,
         generation: NonZeroU64::new(generation).unwrap(),
@@ -214,7 +214,7 @@ fn window(
     start_row: u64,
 ) -> TerminalTextRowWindow {
     TerminalTextRowWindow {
-        attachment_id: projection.attachment().clone(),
+        attachment_id: *projection.attachment(),
         host_epoch: *projection.epoch(),
         sequence: NonZeroU64::new(sequence).unwrap(),
         revision: sequence,

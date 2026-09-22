@@ -318,7 +318,7 @@ fn jump_plan_walks_context_then_tab_then_panel() {
         plan_jump_step(
             &target,
             Some(&standalone),
-            &[standalone.clone()],
+            std::slice::from_ref(&standalone),
             Some(0),
             None,
             None,
