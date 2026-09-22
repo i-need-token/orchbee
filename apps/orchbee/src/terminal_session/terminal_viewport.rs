@@ -240,7 +240,7 @@ impl TerminalViewport {
             pending_commands: VecDeque::new(),
             entry_rows_before,
             row_count,
-            read_rows: row_count.min(MAXIMUM_READ_ROWS).max(1),
+            read_rows: row_count.clamp(1, MAXIMUM_READ_ROWS),
         }
     }
 
@@ -249,6 +249,7 @@ impl TerminalViewport {
         (self.columns, self.row_count)
     }
 
+    #[cfg(test)]
     pub(super) const fn mode(&self) -> ViewportMode {
         self.mode
     }
@@ -579,7 +580,7 @@ impl TerminalViewport {
         }
         self.columns = columns;
         self.row_count = row_count;
-        self.read_rows = row_count.min(MAXIMUM_READ_ROWS).max(1);
+        self.read_rows = row_count.clamp(1, MAXIMUM_READ_ROWS);
         self.window = None;
         // A pending or in-flight acknowledgement resolves nothing under the
         // new geometry: the served window is gone either way, and a late
@@ -626,18 +627,20 @@ impl TerminalViewport {
     /// against the tracked geometry and facts on every call.
     pub(super) fn surface(&self) -> ViewportSurface<'_> {
         match self.mode {
-            ViewportMode::Recovering => return ViewportSurface::Recovering,
+            ViewportMode::Recovering => ViewportSurface::Recovering,
             ViewportMode::Entering => {
                 if self.current_window().is_some() {
-                    return ViewportSurface::Window(self.window.as_ref().unwrap());
+                    ViewportSurface::Window(self.window.as_ref().unwrap())
+                } else {
+                    ViewportSurface::Entering
                 }
-                return ViewportSurface::Entering;
             }
             ViewportMode::Viewing => {
                 if self.current_window().is_some() {
-                    return ViewportSurface::Window(self.window.as_ref().unwrap());
+                    ViewportSurface::Window(self.window.as_ref().unwrap())
+                } else {
+                    ViewportSurface::AwaitingWindow
                 }
-                return ViewportSurface::AwaitingWindow;
             }
         }
     }

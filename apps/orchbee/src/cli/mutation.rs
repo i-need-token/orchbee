@@ -139,19 +139,6 @@ impl Receipt {
         self
     }
 
-    /// The non-command source a `close-resume` receipt reports: the resume
-    /// request's own echo, since no `workbench.command` exists for it.
-    fn source_override(mut self, source: Value) -> Self {
-        self.source_override = Some(source);
-        self
-    }
-
-    /// The attempt generation the close-resume answer carried.
-    fn attempt_generation(mut self, attempt_generation: &str) -> Self {
-        self.attempt_generation = Some(attempt_generation.to_owned());
-        self
-    }
-
     fn id(mut self, key: &'static str, id: &str) -> Self {
         self.ids.push((key, id.to_owned()));
         self

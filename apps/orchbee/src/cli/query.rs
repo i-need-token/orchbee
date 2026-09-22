@@ -412,7 +412,7 @@ pub(crate) fn workspace_close_status(
     // the bounded document or any output is prepared.
     drop(client);
     outcome
-        .and_then(|outcome| classify_close_status_outcome(outcome))
+        .and_then(classify_close_status_outcome)
         .map(|outcome| (source.clone(), Projection::WorkspaceCloseStatus(outcome)))
         .map_err(|failure| failure.source(source))
 }

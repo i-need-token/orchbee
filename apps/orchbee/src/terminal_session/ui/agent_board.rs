@@ -134,12 +134,6 @@ impl NativeUi {
             .then(|| NativeAgentBoardView::new(&self.board, &self.agent_index))
     }
 
-    /// The sidebar's summary of the last completed read — survives the
-    /// board closing, absent entirely when no read ever completed.
-    pub(super) fn agent_board_summary(&self) -> Option<AgentBoardSummary> {
-        self.board.summary()
-    }
-
     /// The draw receipt's verdict: a board the paint could not present
     /// closes itself rather than owning input invisibly, and the painted
     /// viewport height bounds selection scrolling.

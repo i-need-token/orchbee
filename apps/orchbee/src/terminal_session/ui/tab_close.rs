@@ -56,9 +56,6 @@ impl NativeDrawReceipt {
     pub(crate) const fn help_page(self) -> Option<usize> {
         self.help_page
     }
-    pub(crate) const fn agent_board(self) -> Option<super::AgentBoardDraw> {
-        self.agent_board
-    }
     pub(crate) const fn with_help_page(mut self, help_page: Option<usize>) -> Self {
         self.help_page = help_page;
         self

@@ -49,7 +49,6 @@ pub(crate) struct AgentBoardRow {
     status: AgentSemanticStatus,
     lifecycle: AgentLifecycle,
     freshness: AgentObservationFreshness,
-    pending: u64,
     attachments: Box<[AgentPresentationAttachment]>,
 }
 
@@ -61,7 +60,6 @@ impl AgentBoardRow {
             status: summary.status,
             lifecycle: summary.lifecycle,
             freshness: summary.observation.freshness,
-            pending: summary.pending_request_count.value(),
             attachments: summary.presentation_attachments.into_boxed_slice(),
         }
     }
@@ -80,9 +78,6 @@ impl AgentBoardRow {
     }
     pub(crate) const fn freshness(&self) -> AgentObservationFreshness {
         self.freshness
-    }
-    pub(crate) const fn pending(&self) -> u64 {
-        self.pending
     }
     pub(crate) fn attachments(&self) -> &[AgentPresentationAttachment] {
         &self.attachments
@@ -874,12 +869,12 @@ impl AgentBoard {
                     self.last_read_end = Some(now);
                     self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Unavailable);
                 }
-                Some(BoardInflight::JumpGet { serial }) => {
-                    if self.jump.as_ref().is_some_and(|jump| jump.serial == serial) {
-                        self.fail_jump(JumpFailure::Unavailable);
-                    }
+                Some(BoardInflight::JumpGet { serial })
+                    if self.jump.as_ref().is_some_and(|jump| jump.serial == serial) =>
+                {
+                    self.fail_jump(JumpFailure::Unavailable);
                 }
-                None => {}
+                Some(BoardInflight::JumpGet { .. }) | None => {}
             }
             changed = true;
         }

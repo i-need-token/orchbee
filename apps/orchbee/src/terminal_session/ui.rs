@@ -1173,7 +1173,7 @@ impl NativeUi {
         ))) {
             Ok(_) => {
                 self.projections[index].viewport = Some(TerminalViewport::entering(
-                    self.projections[index].value.attachment().clone(),
+                    *self.projections[index].value.attachment(),
                     *self.projections[index].value.epoch(),
                     columns,
                     row_count,

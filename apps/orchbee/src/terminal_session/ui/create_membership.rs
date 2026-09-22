@@ -1,6 +1,7 @@
 use super::*;
 
 impl NativeUi {
+    #[expect(clippy::too_many_arguments)]
     pub(super) fn apply_create_recovery_event(
         &mut self,
         mailbox: &Arc<CommandMailbox>,

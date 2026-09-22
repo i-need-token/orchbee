@@ -382,7 +382,7 @@ fn ledger_bytes_plus_charge_at_maximum_admits_and_one_past_rejects() {
     else {
         panic!("the exact boundary must admit")
     };
-    prepared.commit();
+    drop(prepared.commit());
     assert_eq!(constrained.ledger_bytes, maximum);
 
     let (mut constrained, grant) = workspace_fixture(1);
