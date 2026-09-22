@@ -83,6 +83,7 @@ pub(super) fn context_tab_command(
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     }
 }
@@ -570,6 +571,7 @@ fn pending_and_final_replay_precede_missing_candidates_worker_and_conflict() {
         geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
         launch: None,
         profile: None,
+        options: Default::default(),
     };
     assert!(matches!(
         ready(coordinator.prepare_terminal_tab_create(conflict, None, None, None)).outcome,
@@ -594,12 +596,21 @@ fn pending_and_final_replay_precede_missing_candidates_worker_and_conflict() {
 fn launch_selection_reaches_the_worker_command_and_replay_identity() {
     let mut coordinator = site();
     let mut command = tab_command(&coordinator, 21, 0, "launch");
-    let WorkbenchAction::TabCreate { launch, .. } = &mut command.action else {
+    let WorkbenchAction::TabCreate {
+        launch, options, ..
+    } = &mut command.action
+    else {
         panic!("tab.create action expected")
     };
     // A maximum-size selection exercises the cross-layer conversion at the
     // shared 2,048-byte bound: executable plus arguments total exactly 2,048.
     let long = "x".repeat(2_048 - "/bin/sh".len() - "-c".len() - "漢字".len());
+    options.cwd = Some(WorkbenchDirectoryPath::parse("C:\\launch space").unwrap());
+    options.environment = orchbee_workbench_protocol::LaunchEnvironment::new(vec![
+        ("KEY".into(), "literal=值".into()),
+        ("EMPTY".into(), String::new()),
+    ])
+    .unwrap();
     *launch = Some(
         orchbee_workbench_protocol::LaunchSelection::new(
             "/bin/sh".to_owned(),
@@ -613,6 +624,14 @@ fn launch_selection_reaches_the_worker_command_and_replay_identity() {
     let CapabilityNodeMessage::AuthorizedTerminalLaunch(authorized) = pending.command() else {
         panic!("terminal Launch expected")
     };
+    assert_eq!(authorized.cwd().unwrap().as_str(), "C:\\launch space");
+    assert_eq!(
+        authorized.environment().entries(),
+        &[
+            ("KEY".into(), "literal=值".into()),
+            ("EMPTY".into(), String::new())
+        ]
+    );
     let selected = authorized.launch().expect("explicit launch selection");
     assert_eq!(selected.executable(), "/bin/sh");
     assert_eq!(
@@ -652,6 +671,25 @@ fn launch_selection_reaches_the_worker_command_and_replay_identity() {
         }
     ));
     assert_eq!(coordinator.allocate_identity(), Some(3_u128.to_be_bytes()));
+
+    for change_cwd in [false, true] {
+        let mut changed = command.clone();
+        let WorkbenchAction::TabCreate { options, .. } = &mut changed.action else {
+            panic!("launch action");
+        };
+        if change_cwd {
+            options.cwd = Some(WorkbenchDirectoryPath::parse("C:\\other").unwrap());
+        } else {
+            options.environment = orchbee_workbench_protocol::LaunchEnvironment::empty();
+        }
+        assert!(matches!(
+            ready(coordinator.prepare_terminal_tab_create(changed, None, None, None)).outcome,
+            WorkbenchCommandOutcome::Rejected {
+                reason: WorkbenchRejectionReason::RequestIdentityConflict,
+                ..
+            }
+        ));
+    }
 }
 
 #[test]
@@ -723,6 +761,7 @@ fn missing_retired_and_inconsistent_workbench_use_service_unavailable_without_te
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     };
     let mut missing = SiteCoordinator::new(None);
@@ -1447,4 +1486,37 @@ fn first_create_settles_before_later_create_and_retirement_preserves_its_open_ou
         &orchbee_client_server_protocol::TerminalOpenRequest::new(id(994), geometry()), None, Some(worker(1)), None,
     ), PreparedOpen::Ready(OpenOutcome::Opened { terminal_create_request_id }) if terminal_create_request_id == id(991)));
     assert_eq!(coordinator.allocate_identity(), Some(3_u128.to_be_bytes()));
+}
+
+#[test]
+fn per_launch_cwd_overrides_workspace_without_changing_placement_or_directory() {
+    let mut coordinator = site();
+    let context = configure_workspace(&mut coordinator, "/tmp/workspace");
+    let mut command = context_tab_command(&coordinator, 9901, 3, context.clone(), "override");
+    let WorkbenchAction::TabCreate { options, .. } = &mut command.action else {
+        panic!("tab");
+    };
+    options.cwd = Some(WorkbenchDirectoryPath::parse("C:\\other").unwrap());
+    options.environment =
+        orchbee_workbench_protocol::LaunchEnvironment::new(vec![("KEY".into(), "value".into())])
+            .unwrap();
+    let pending = dispatch_tab(&mut coordinator, command, 9902);
+    let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = pending.command() else {
+        panic!("launch");
+    };
+    assert_eq!(launch.cwd().unwrap().as_str(), "C:\\other");
+    assert!(launch.launch().is_none());
+    assert_eq!(launch.authorization().worker_id(), worker(1).worker_id);
+    let completion = immediate_completion(pending.command());
+    coordinator
+        .complete_terminal_tab_create(pending, completion, Some(worker(1)))
+        .unwrap();
+    let revision = snapshot(&mut coordinator).revision.value();
+    let next = context_tab_command(&coordinator, 9903, revision, context, "inherited");
+    let pending = dispatch_tab(&mut coordinator, next, 9904);
+    let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = pending.command() else {
+        panic!("launch");
+    };
+    assert_eq!(launch.cwd().unwrap().as_str(), "/tmp/workspace");
+    assert!(launch.environment().is_empty());
 }

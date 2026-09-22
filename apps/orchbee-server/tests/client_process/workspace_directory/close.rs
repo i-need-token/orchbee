@@ -373,6 +373,7 @@ fn real_workspace_panel_split_and_aggregate_close_releases_both_terminals() -> T
                 geometry,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         ),
     )?;
@@ -400,6 +401,7 @@ fn real_workspace_panel_split_and_aggregate_close_releases_both_terminals() -> T
                 geometry,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         ),
     )?;
@@ -521,6 +523,7 @@ fn real_workspace_panel_move_relocates_a_leaf_without_touching_either_terminal()
                 geometry,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         ),
     )?;
@@ -548,6 +551,7 @@ fn real_workspace_panel_move_relocates_a_leaf_without_touching_either_terminal()
                 geometry,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         ),
     )?;
@@ -753,6 +757,7 @@ fn real_workspace_multileaf_tab_move_reorders_without_retiring() -> TestResult {
                 geometry,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         ),
     )?;
@@ -780,6 +785,7 @@ fn real_workspace_multileaf_tab_move_reorders_without_retiring() -> TestResult {
                 geometry,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         ),
     )?;
@@ -803,6 +809,7 @@ fn real_workspace_multileaf_tab_move_reorders_without_retiring() -> TestResult {
                 geometry,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         ),
     )?;
@@ -870,6 +877,7 @@ fn real_workspace_close_preserves_standalone_and_can_recreate() -> TestResult {
             geometry: geometry()?,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     let workspace_created = exchange_command(&mut first, &workspace_create)?;
@@ -1093,6 +1101,7 @@ fn real_workspace_close_preserves_standalone_and_can_recreate() -> TestResult {
             geometry: geometry()?,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     let recreated = exchange_command(&mut second, &recreate)?;
@@ -1144,6 +1153,7 @@ fn real_workspace_aggregate_close_fences_same_tab_split_and_move() -> TestResult
                 geometry,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         ),
     )?;
@@ -1173,6 +1183,7 @@ fn real_workspace_aggregate_close_fences_same_tab_split_and_move() -> TestResult
                 geometry,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         ),
     )?;
@@ -1198,6 +1209,7 @@ fn real_workspace_aggregate_close_fences_same_tab_split_and_move() -> TestResult
                 geometry,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         ),
     )?;
@@ -1246,6 +1258,7 @@ fn real_workspace_aggregate_close_fences_same_tab_split_and_move() -> TestResult
             geometry,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     for attempt in 0..2 {
@@ -1301,6 +1314,7 @@ fn real_workspace_aggregate_close_fences_same_tab_split_and_move() -> TestResult
                 geometry,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         ),
     )?;

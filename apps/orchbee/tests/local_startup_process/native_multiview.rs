@@ -61,6 +61,7 @@ fn split_panel(
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
         deadline,
     )? {

@@ -1443,3 +1443,29 @@ poll 并对每个已应用帧加一次有界 `read-rows`——因此无需新 Se
 `formal/tla/NativeCliWaitSettlement` 单独建模；见 `native-cli-wait-model.md`。已注册模型中
 触发器覆盖 `apps/orchbee` 源码、manifest、project scope、README 与测试路径者仍须实际运行；
 清单输出不能替代执行。
+
+## 单次启动 cwd 与环境
+
+`tab create` 和 `panel split` 接受绝对 `--cwd` 及重复的字面量
+`--env NAME=VALUE`，独立于默认 shell、`--exec` 或 `--profile` 选择。
+显式 cwd 仅为该次启动覆盖已接纳的 Workspace 目录；二者都缺失时沿用 Worker
+主目录默认值。Worker 放置、Workspace 成员关系及存储的 profile 不变。
+Host 校验实际目录并报告既有启动失败结果，不创建目录，也不静默替换为回退路径。
+
+环境覆盖继承/默认值：最多 32 组，名称和值合计最多 1024 个 UTF-8 字节；
+名称是 1–128 字节 ASCII 标识符。禁止 NUL 和忽略大小写后重复的名称，允许
+空值及值中的字面等号。`ORCHBEE_*`、`TERM`、`COLORTERM`、`TERM_PROGRAM`
+按忽略 ASCII 大小写保留。不进行 shell 展开、profile 修改或全局环境修改。
+用法诊断和 debug 投影不包含环境值。
+
+选项参与请求/重放身份。待处理的 Tab 和分屏在提交前及完成时核对解析后的
+cwd 和环境。空选项保留旧 JSON 和二进制编码。非空 OBCN 环境使用旧布局非法的
+零可执行文件长度前缀，随后为扩展版本 1、可选显式程序及有界长度前缀键值组。
+新解码器接受旧载荷；旧解码器拒绝扩展，不会丢弃。交付使用匹配 cohort 哈希。
+最大 cwd、argv 和环境合计保持在现有 8192 字节帧上限内。
+
+证据覆盖构造器/解码器拒绝、新旧编码往返、组合上限、CLI 作用域和脱敏、Server
+组合及重放身份，以及公开 Tab 和分屏命令启动的 Windows 子进程观察真实 cwd/环境。
+不新增 macOS/Linux 适配器或运行声明；TLA 执行继续延期。
+
+原生启动命令使用独立的 48 KiB JSON 请求预算，使 cwd、argv、label 和环境的最大转义编码可同时容纳。OBWP command kind 2 在分配前按此上限检查；非启动 intent 仍为 16 KiB，结果沿用既有上限。OBCS v2 帧允许 48 KiB；OBCN 仍为 8 KiB。较早的共享 schema 和 Desktop binding 不构成对这些原生扩展的支持证据。

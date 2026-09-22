@@ -202,7 +202,7 @@ pub(super) enum QueuedCommand {
     Move(MoveMarker),
     Panel(PanelMarker),
     Rename(RenameMarker),
-    WorkspaceSetup(WorkspaceSetupMarker),
+    WorkspaceSetup(Box<WorkspaceSetupMarker>),
     Close(CloseMarker),
     ReconcileClose(CloseReconciliationMarker),
 }

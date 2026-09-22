@@ -56,6 +56,9 @@ use crate::{
     },
 };
 
+/// Worst-case escaped cwd, argv, label and environment for native launch commands.
+pub const MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES: usize = 48 * 1024;
+
 pub const MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES: usize = MAXIMUM_ENCODED_PROJECTION_BYTES + 1024;
 const MAXIMUM_BINARY64_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 const MAXIMUM_TERMINAL_GEOMETRY_DIMENSION: u16 = 4096;
@@ -408,6 +411,8 @@ pub enum WorkbenchAction {
         /// explicit launch selection; mutually exclusive with `launch`.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         profile: Option<LaunchProfileSelector>,
+        #[serde(default, skip_serializing_if = "crate::LaunchOptions::is_empty")]
+        options: Box<crate::LaunchOptions>,
     },
     #[serde(rename = "panel.split")]
     PanelSplit {
@@ -427,6 +432,8 @@ pub enum WorkbenchAction {
         /// explicit launch selection; mutually exclusive with `launch`.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         profile: Option<LaunchProfileSelector>,
+        #[serde(default, skip_serializing_if = "crate::LaunchOptions::is_empty")]
+        options: Box<crate::LaunchOptions>,
     },
     #[serde(rename = "panel.close")]
     PanelClose {
@@ -820,9 +827,10 @@ pub enum WorkbenchResponse {
 }
 
 pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, ContractError> {
-    enforce_encoded_limit(encoded, MAXIMUM_ENCODED_INTENT_BYTES)?;
+    enforce_encoded_limit(encoded, MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES)?;
     let request: WorkbenchRequest =
         serde_json::from_slice(encoded).map_err(|_error| ContractError::InvalidDocument)?;
+    enforce_encoded_limit(encoded, request_byte_limit(&request))?;
     validate_request(&request)?;
     Ok(request)
 }
@@ -849,10 +857,24 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
     Ok(())
 }
 
+fn request_byte_limit(request: &WorkbenchRequest) -> usize {
+    if matches!(
+        request,
+        WorkbenchRequest::Command(WorkbenchCommand {
+            action: WorkbenchAction::TabCreate { .. } | WorkbenchAction::PanelSplit { .. },
+            ..
+        })
+    ) {
+        MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES
+    } else {
+        MAXIMUM_ENCODED_INTENT_BYTES
+    }
+}
+
 pub fn serialize_workbench_request(request: &WorkbenchRequest) -> Result<Vec<u8>, ContractError> {
     validate_request(request)?;
     let encoded = serde_json::to_vec(request).map_err(|_error| ContractError::InvalidDocument)?;
-    enforce_encoded_limit(&encoded, MAXIMUM_ENCODED_INTENT_BYTES)?;
+    enforce_encoded_limit(&encoded, request_byte_limit(request))?;
     Ok(encoded)
 }
 

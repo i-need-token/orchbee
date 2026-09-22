@@ -36,6 +36,7 @@ fn committed_move_finishes_while_another_owner_holds_the_worker_registry() {
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         };
         assert!(matches!(

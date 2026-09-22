@@ -1696,3 +1696,34 @@ the unconditional late sample — is modeled separately in
 `formal/tla/NativeCliWaitSettlement`; see `native-cli-wait-model.md`. Registered models whose
 triggers cover `apps/orchbee` source, manifest, project scope, README, and test paths must
 still actually run; the inventory output is not a substitute.
+
+## Per-launch cwd and environment
+
+`tab create` and `panel split` accept an absolute `--cwd` and repeated literal
+`--env NAME=VALUE`, independently of default shell, `--exec` or `--profile` selection.
+Explicit cwd overrides the accepted Workspace directory only for that launch; if neither
+is present the existing Worker-home default applies. Placement, Workspace membership,
+and stored profiles remain unchanged. The Host checks the actual directory and reports
+the existing failed-launch result without creating a directory or substituting a fallback.
+
+The environment overlays inherited/default values. It admits at most 32 pairs and 1024
+combined UTF-8 name/value bytes; names are ASCII identifiers of 1–128 bytes. NUL and
+case-insensitive duplicate names are rejected. Empty values and literal equals signs in
+values are allowed. `ORCHBEE_*`, `TERM`, `COLORTERM` and `TERM_PROGRAM` are reserved,
+ignoring ASCII case. There is no shell expansion, profile mutation or global environment
+mutation. Usage diagnostics and debug projections omit environment values.
+
+Options participate in request/replay identity. Pending Tab and split operations verify
+resolved cwd and environment before commit and on completion. Empty options retain the
+legacy JSON and binary encoding. Nonempty OBCN environment uses a zero executable-length
+sentinel (invalid in the legacy layout), extension version 1, optional explicit selection,
+and bounded length-prefixed pairs. New decoders accept legacy payloads; old decoders reject
+the extension rather than discard it. Rollout uses matching cohort hashes. Combined maximum
+cwd, argv and environment remain within the existing 8192-byte frame bound.
+
+Evidence covers constructor/decoder rejection, legacy and extended roundtrips, combined
+maximum sizes, CLI scope and redaction, Server composition and replay identity, and a
+Windows child observing cwd/environment after public Tab and split commands. No new
+macOS/Linux adapter or execution claim is included; TLA execution remains deferred.
+
+Native launch commands use a dedicated 48 KiB JSON request budget so maximum escaped cwd, argv, label and environment fit together. OBWP command kind 2 admits this bound before allocation; non-launch intents retain 16 KiB and results retain their existing bounds. OBCS v2 frames admit 48 KiB; OBCN remains 8 KiB. The older shared schemas and Desktop binding do not establish support for these native extensions.

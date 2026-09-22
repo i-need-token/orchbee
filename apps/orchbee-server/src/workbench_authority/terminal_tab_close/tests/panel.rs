@@ -65,6 +65,7 @@ fn split_fixture(
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         ),
     ) else {

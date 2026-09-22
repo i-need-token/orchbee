@@ -36,7 +36,7 @@ impl AuthorizedHostOperation {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct AuthorizedHostDispatch {
-    operation: AuthorizedHostOperation,
+    operation: Box<AuthorizedHostOperation>,
 }
 
 impl AuthorizedHostDispatch {
@@ -288,7 +288,7 @@ impl AuthorizedHostOperationKernel {
                 );
                 self.slot = Some(HostOperationSlot::AwaitingHandoff(operation.clone()));
                 Ok(HostOperationAdmission::Dispatch(AuthorizedHostDispatch {
-                    operation,
+                    operation: Box::new(operation),
                 }))
             }
         }

@@ -13,6 +13,7 @@ fn tab_create(launch: Option<LaunchSelection>, profile: Option<&str>) -> Workben
         geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
         launch,
         profile: profile.map(selector),
+        options: Default::default(),
     }
 }
 

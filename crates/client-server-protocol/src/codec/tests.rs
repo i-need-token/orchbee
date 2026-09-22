@@ -536,3 +536,60 @@ fn obcq_record_rejects_malformed_headers_bodies_and_truncation()
     );
     Ok(())
 }
+
+#[test]
+fn terminal_create_environment_roundtrips_and_validates_at_decode()
+-> Result<(), Box<dyn std::error::Error>> {
+    let ClientMessage::TerminalCreate(base) = deferred_create()? else {
+        panic!("create");
+    };
+    let legacy = encode_client_frame(&ClientMessage::TerminalCreate(base.clone()))?;
+    let mut document: serde_json::Value = serde_json::from_slice(payload(&legacy)?)?;
+    assert!(document.get("environment").is_none());
+    let env = crate::LaunchEnvironment::new(vec![
+        ("KEY".into(), "literal=值".into()),
+        ("EMPTY".into(), String::new()),
+    ])?;
+    let message = ClientMessage::TerminalCreate(base.with_environment(env));
+    assert_eq!(
+        decode_client_frame(&encode_client_frame(&message)?)?,
+        message
+    );
+    for invalid in [
+        serde_json::json!([["TERM", "fake"]]),
+        serde_json::json!([["Path", "x"], ["PATH", "y"]]),
+        serde_json::json!([["A", "x", "extra"]]),
+    ] {
+        document["environment"] = invalid;
+        assert!(decode_client_frame(&frame(&serde_json::to_vec(&document)?)?).is_err());
+    }
+    Ok(())
+}
+
+#[test]
+fn maximum_escaped_launch_with_cwd_and_environment_fits_frame()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut args = vec![String::new(); 128];
+    args[0] = "\u{1}".repeat(2047);
+    let mut entries: Vec<_> = (0..32).map(|n| (format!("K{n}"), String::new())).collect();
+    let names: usize = entries.iter().map(|(name, _)| name.len()).sum();
+    entries[0].1 = "\u{1}".repeat(1024 - names);
+    let request = TerminalCreateRequest::new(
+        RequestId::parse("33333333333333333333333333333333")?,
+        None,
+        Some(WorkingDirectory::parse(&format!(
+            "/{}",
+            "\u{1}".repeat(4095)
+        ))?),
+        StartMode::Immediate {
+            geometry: Geometry::new(80, 24, 8, 16)?,
+        },
+        Some(crate::LaunchSelection::new("/".into(), args)?),
+    )
+    .with_environment(crate::LaunchEnvironment::new(entries)?);
+    let message = ClientMessage::TerminalCreate(request);
+    let encoded = encode_client_frame(&message)?;
+    assert!(encoded.len() > 32 * 1024);
+    assert_eq!(decode_client_frame(&encoded)?, message);
+    Ok(())
+}

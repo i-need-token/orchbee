@@ -197,6 +197,8 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--paste",
     "--directory",
     "--exec",
+    "--cwd",
+    "--env",
     "--arg",
     "--include-ended",
     "--limit",
@@ -221,7 +223,14 @@ const INTEGRATION_VERBS: &[&str] = &["disable", "enable", "explain", "list"];
 
 /// Business flags whose seen bit never makes a repeat `done` — they stay
 /// offerable and keep consuming values while remaining scope-tracked.
-const REPEATABLE_FLAGS: &[&str] = &["--arg", "--asset-root", "--provider", "--until", "--key"];
+const REPEATABLE_FLAGS: &[&str] = &[
+    "--env",
+    "--arg",
+    "--asset-root",
+    "--provider",
+    "--until",
+    "--key",
+];
 
 /// `<family>:<verb>` (or `agent:integration:<verb>`) → the business flags
 /// that command admits. Commands not listed here admit none.
@@ -263,6 +272,8 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--cell-width",
             "--cell-height",
             "--exec",
+            "--cwd",
+            "--env",
             "--arg",
             "--profile",
         ],
@@ -281,6 +292,8 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--cell-width",
             "--cell-height",
             "--exec",
+            "--cwd",
+            "--env",
             "--arg",
             "--profile",
         ],
@@ -497,6 +510,8 @@ fn flag_bit(flag: &str) -> &'static str {
         "--paste" => "seen_paste",
         "--directory" => "seen_directory",
         "--exec" => "seen_exec",
+        "--cwd" => "seen_cwd",
+        "--env" => "seen_env",
         "--arg" => "seen_arg",
         "--include-ended" => "seen_include_ended",
         "--limit" => "seen_limit",

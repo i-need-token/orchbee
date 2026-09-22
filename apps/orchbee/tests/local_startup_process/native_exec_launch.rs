@@ -233,6 +233,7 @@ fn cli_tab_create_launch_selection_runs_verbatim_and_replays_by_identity() -> Te
                 ],
             )?),
             profile: None,
+            options: Default::default(),
         },
     };
 
@@ -267,6 +268,7 @@ fn cli_tab_create_launch_selection_runs_verbatim_and_replays_by_identity() -> Te
             vec!["-c".to_owned(), conflict_script],
         )?),
         profile: None,
+        options: Default::default(),
     };
     let outcome = replay_command(&fixture, &conflicted)?;
     assert!(

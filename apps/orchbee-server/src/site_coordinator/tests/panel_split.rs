@@ -9,6 +9,7 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_client_server_protocol::OpenOutcome;
 use orchbee_server::CloseStepObservation;
+use orchbee_workbench_protocol::WorkbenchDirectoryPath;
 use orchbee_workbench_protocol::{
     PublicationReadIntent, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchCommandResult, WorkbenchLabel, WorkbenchPanelId, WorkbenchPanelSplitDirection,
@@ -40,6 +41,7 @@ pub(super) fn split_command(
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     }
 }
@@ -1002,9 +1004,18 @@ fn launch_selection_reaches_the_split_command_and_replay_identity() {
         panel_a,
         WorkbenchPanelSplitDirection::Right,
     );
-    let WorkbenchAction::PanelSplit { launch, .. } = &mut split.action else {
+    let WorkbenchAction::PanelSplit {
+        launch, options, ..
+    } = &mut split.action
+    else {
         panic!("panel.split action expected")
     };
+    options.cwd = Some(WorkbenchDirectoryPath::parse("C:\\launch space").unwrap());
+    options.environment = orchbee_workbench_protocol::LaunchEnvironment::new(vec![
+        ("KEY".into(), "literal=值".into()),
+        ("EMPTY".into(), String::new()),
+    ])
+    .unwrap();
     *launch = Some(
         orchbee_workbench_protocol::LaunchSelection::new(
             "/bin/sh".to_owned(),
@@ -1018,6 +1029,14 @@ fn launch_selection_reaches_the_split_command_and_replay_identity() {
     let CapabilityNodeMessage::AuthorizedTerminalLaunch(authorized) = pending.command() else {
         panic!("terminal Launch expected")
     };
+    assert_eq!(authorized.cwd().unwrap().as_str(), "C:\\launch space");
+    assert_eq!(
+        authorized.environment().entries(),
+        &[
+            ("KEY".into(), "literal=值".into()),
+            ("EMPTY".into(), String::new())
+        ]
+    );
     let selected = authorized.launch().expect("explicit launch selection");
     assert_eq!(selected.executable(), "/bin/sh");
     assert_eq!(
@@ -1050,4 +1069,24 @@ fn launch_selection_reaches_the_split_command_and_replay_identity() {
             ..
         }
     ));
+
+    for change_cwd in [false, true] {
+        let mut changed = split.clone();
+        let WorkbenchAction::PanelSplit { options, .. } = &mut changed.action else {
+            panic!("launch action");
+        };
+        if change_cwd {
+            options.cwd = Some(WorkbenchDirectoryPath::parse("C:\\other").unwrap());
+        } else {
+            options.environment = orchbee_workbench_protocol::LaunchEnvironment::empty();
+        }
+        assert!(matches!(
+            ready_split(coordinator.prepare_terminal_panel_split(changed, None, None, None))
+                .outcome,
+            WorkbenchCommandOutcome::Rejected {
+                reason: WorkbenchRejectionReason::RequestIdentityConflict,
+                ..
+            }
+        ));
+    }
 }

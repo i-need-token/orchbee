@@ -536,6 +536,7 @@ fn open_context_close_fences_create_move_split_and_member_close() {
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     assert!(matches!(
@@ -577,6 +578,7 @@ fn open_context_close_fences_create_move_split_and_member_close() {
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     assert!(matches!(
@@ -625,6 +627,7 @@ fn open_context_close_fences_create_move_split_and_member_close() {
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     assert!(matches!(
@@ -648,6 +651,7 @@ fn pending_create_covers_context_and_blocks_workspace_close_admission() {
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     let WorkbenchTabCreateBegin::Admitted(admission) =

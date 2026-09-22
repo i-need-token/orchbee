@@ -1259,6 +1259,7 @@ fn tab_create_command(request_id: &str, expected_revision: u64) -> WorkbenchComm
             geometry: terminal_geometry(),
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     )
 }

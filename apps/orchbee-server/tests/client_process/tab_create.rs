@@ -438,6 +438,7 @@ fn tab_create_commits_before_parked_launch_and_another_client_can_read_navigate_
             geometry: tab_geometry,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     let parked_deadline = deadline();

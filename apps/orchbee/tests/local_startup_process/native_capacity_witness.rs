@@ -1357,6 +1357,7 @@ fn provision(
                         .map_err(|error| error.to_string())?,
                     launch: None,
                     profile: None,
+                    options: Default::default(),
                 },
                 deadline,
             )
@@ -1401,6 +1402,7 @@ fn provision(
                     .map_err(|error| error.to_string())?,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
             deadline,
         )
@@ -1431,6 +1433,7 @@ fn provision(
                         .map_err(|error| error.to_string())?,
                     launch: None,
                     profile: None,
+                    options: Default::default(),
                 },
                 deadline,
             )

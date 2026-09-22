@@ -123,6 +123,7 @@ fn two_clients_four_panes_leave_cli_read_capacity_then_release_admits_read() -> 
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
             split_deadline,
         )? {

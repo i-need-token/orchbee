@@ -16,6 +16,7 @@ use crate::{
 pub(super) fn resolve(
     explicit_cwd: Option<&AbsoluteCwd>,
     selection: Option<&orchbee_capability_node_protocol::LaunchSelection>,
+    environment: &orchbee_capability_node_protocol::LaunchEnvironment,
 ) -> Result<ResolvedTerminalLaunchFacts, Box<dyn Error>> {
     // An authorized selection is adopted verbatim: no PATH search, no shell
     // resolution, and no silent fallback to the default launch. The default
@@ -52,6 +53,15 @@ pub(super) fn resolve(
                 name: entry.name,
                 value: Some(entry.value),
             })
+            .chain(
+                environment
+                    .entries()
+                    .iter()
+                    .map(|(name, value)| LaunchEnvironmentEntry {
+                        name: name.clone(),
+                        value: Some(value.clone()),
+                    }),
+            )
             .collect(),
         cwd,
         default_terminal_profile(),

@@ -1,7 +1,7 @@
 use super::tab_create::{
     client_geometry, pending_authorization, pending_authorization_from_message,
-    pending_cwd_matches, pending_launch_matches, placement_matches_worker, terminal_outcome,
-    terminal_preflight_reason, unavailable_by_id,
+    pending_cwd_matches, pending_environment_matches, pending_launch_matches,
+    placement_matches_worker, terminal_outcome, terminal_preflight_reason, unavailable_by_id,
 };
 use super::{
     PostcommitCoordinationError, SiteCoordinator, StandaloneTerminal, open_outcome,
@@ -37,7 +37,8 @@ pub(crate) struct PendingTerminalPanelSplit {
     terminal: Box<PendingOperation>,
     reference: RequestId,
     worker: WorkerPlacement,
-    workspace_cwd: Option<WorkingDirectory>,
+    launch_cwd: Option<WorkingDirectory>,
+    environment: Box<orchbee_client_server_protocol::LaunchEnvironment>,
     launch: Option<orchbee_client_server_protocol::LaunchSelection>,
 }
 
@@ -51,7 +52,8 @@ impl PendingTerminalPanelSplit {
         let authorization = pending_authorization(&self.terminal);
         self.terminal.create_reference() == &self.reference
             && authorization.and_then(presentation_binding).as_ref() == Some(metadata.binding())
-            && pending_cwd_matches(self.terminal.command(), self.workspace_cwd.as_ref())
+            && pending_cwd_matches(self.terminal.command(), self.launch_cwd.as_ref())
+            && pending_environment_matches(self.terminal.command(), &self.environment)
             && pending_launch_matches(self.terminal.command(), self.launch.as_ref())
             && authorization.is_some_and(|authorization| {
                 authorization.worker_id() == self.worker.worker_id
@@ -103,6 +105,10 @@ impl SiteCoordinator {
                     WorkbenchCommandUnavailableReason::ServiceUnavailable,
                 ));
             }
+        };
+        let options = match &command.action {
+            WorkbenchAction::PanelSplit { options, .. } => options.clone(),
+            _ => Default::default(),
         };
         let grant =
             WorkbenchGrant::manage_navigation_and_terminal_create(workbench.site_id().clone());
@@ -168,6 +174,25 @@ impl SiteCoordinator {
             };
             (Some(WorkerConstraint::Exact { worker_id }), Some(cwd))
         };
+        let launch_cwd = match options
+            .cwd
+            .as_ref()
+            .map(|cwd| WorkingDirectory::parse(cwd.as_str()))
+            .transpose()
+        {
+            Ok(cwd) => cwd.or_else(|| workspace_cwd.clone()),
+            Err(_) => {
+                return PreparedTerminalPanelSplit::Ready(admission.retire_composition_failure());
+            }
+        };
+        let environment = match orchbee_client_server_protocol::LaunchEnvironment::new(
+            options.environment.entries().to_vec(),
+        ) {
+            Ok(environment) => environment,
+            Err(_) => {
+                return PreparedTerminalPanelSplit::Ready(admission.retire_composition_failure());
+            }
+        };
         let Some(worker) = worker else {
             return PreparedTerminalPanelSplit::Ready(
                 admission
@@ -196,10 +221,11 @@ impl SiteCoordinator {
             TerminalCreateRequest::new(
                 reference.clone(),
                 worker_constraint,
-                workspace_cwd.clone(),
+                launch_cwd.clone(),
                 StartMode::Immediate { geometry },
                 launch.clone(),
-            ),
+            )
+            .with_environment(environment.clone()),
             Some(worker),
             Some(expiry),
         ) {
@@ -230,7 +256,8 @@ impl SiteCoordinator {
         if terminal.create_reference() != &reference
             || terminal.authorization() != authorization
             || pending_authorization_from_message(terminal.command()) != Some(authorization)
-            || !pending_cwd_matches(terminal.command(), workspace_cwd.as_ref())
+            || !pending_cwd_matches(terminal.command(), launch_cwd.as_ref())
+            || !pending_environment_matches(terminal.command(), &environment)
             || !pending_launch_matches(terminal.command(), launch.as_ref())
             || metadata.binding() != &binding
             || authorization.worker_id() != worker.worker_id
@@ -250,7 +277,8 @@ impl SiteCoordinator {
             terminal,
             reference,
             worker,
-            workspace_cwd,
+            launch_cwd,
+            environment: Box::new(environment),
             launch,
         })
     }
@@ -286,7 +314,8 @@ impl SiteCoordinator {
             terminal,
             reference,
             worker: _,
-            workspace_cwd: _,
+            launch_cwd: _,
+            environment: _,
             launch: _,
         } = pending;
         let terminal = terminals

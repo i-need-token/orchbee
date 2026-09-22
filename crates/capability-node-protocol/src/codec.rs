@@ -263,7 +263,17 @@ fn encode_authorized_terminal_launch(value: &AuthorizedTerminalLaunch) -> Vec<u8
     encode_authorization(&mut payload, value.authorization());
     encode_cwd(&mut payload, value.cwd());
     encode_launch_mode(&mut payload, value.mode());
-    if let Some(launch) = value.launch() {
+    if !value.environment().is_empty() {
+        // Zero cannot begin a legacy nonempty executable path. Version the
+        // extension independently and keep empty-overlay payloads byte-identical.
+        payload.extend_from_slice(&0u16.to_be_bytes());
+        payload.push(1);
+        payload.push(u8::from(value.launch().is_some()));
+        if let Some(launch) = value.launch() {
+            encode_launch_selection(&mut payload, launch);
+        }
+        encode_launch_environment(&mut payload, value.environment());
+    } else if let Some(launch) = value.launch() {
         encode_launch_selection(&mut payload, launch);
     }
     payload
@@ -276,22 +286,39 @@ fn decode_authorized_terminal_launch(
     let authorization = decode_authorization(&mut reader)?;
     let cwd = decode_cwd(&mut reader)?;
     let mode = decode_launch_mode(&mut reader)?;
-    // The optional selection tail is presence-coded by remaining bytes: a
-    // payload that ends at the mode block carries the default launch, and a
-    // present tail decodes closed — a partial or trailing-garbage block is
-    // rejected by finish() below.
-    let launch = if reader.is_exhausted() {
-        None
+    let (launch, environment) = if reader.is_exhausted() {
+        (None, crate::LaunchEnvironment::empty())
     } else {
-        Some(decode_launch_selection(&mut reader)?)
+        let executable_length = usize::from(reader.read_u16()?);
+        if executable_length == 0 {
+            if reader.read_u8()? != 1 {
+                return Err(ProtocolError::InvalidPayload);
+            }
+            let launch = match reader.read_u8()? {
+                0 => None,
+                1 => Some(decode_launch_selection(&mut reader)?),
+                _ => return Err(ProtocolError::InvalidPayload),
+            };
+            let environment = decode_launch_environment(&mut reader)?;
+            if environment.is_empty() {
+                return Err(ProtocolError::InvalidPayload);
+            }
+            (launch, environment)
+        } else {
+            (
+                Some(decode_launch_selection_body(
+                    &mut reader,
+                    executable_length,
+                )?),
+                crate::LaunchEnvironment::empty(),
+            )
+        }
     };
     reader.finish()?;
-    Ok(AuthorizedTerminalLaunch::new(
-        authorization,
-        cwd,
-        mode,
-        launch,
-    ))
+    Ok(
+        AuthorizedTerminalLaunch::new(authorization, cwd, mode, launch)
+            .with_environment(environment),
+    )
 }
 
 fn encode_terminal_launch_result(value: TerminalLaunchResult) -> Vec<u8> {
@@ -531,6 +558,12 @@ fn decode_launch_selection(
     reader: &mut PayloadReader<'_>,
 ) -> Result<crate::LaunchSelection, ProtocolError> {
     let executable_length = usize::from(reader.read_u16()?);
+    decode_launch_selection_body(reader, executable_length)
+}
+fn decode_launch_selection_body(
+    reader: &mut PayloadReader<'_>,
+    executable_length: usize,
+) -> Result<crate::LaunchSelection, ProtocolError> {
     let executable = String::from_utf8(reader.read_slice(executable_length)?.to_vec())
         .map_err(|_error| ProtocolError::InvalidPayload)?;
     let argument_count = usize::from(reader.read_u16()?);
@@ -543,6 +576,54 @@ fn decode_launch_selection(
         );
     }
     crate::LaunchSelection::new(executable, arguments)
+}
+
+fn encode_launch_environment(payload: &mut Vec<u8>, environment: &crate::LaunchEnvironment) {
+    payload.extend_from_slice(
+        &u16::try_from(environment.entries().len())
+            .expect("bounded environment")
+            .to_be_bytes(),
+    );
+    for (name, value) in environment.entries() {
+        for field in [name, value] {
+            payload.extend_from_slice(
+                &u16::try_from(field.len())
+                    .expect("bounded environment")
+                    .to_be_bytes(),
+            );
+            payload.extend_from_slice(field.as_bytes());
+        }
+    }
+}
+fn decode_launch_environment(
+    reader: &mut PayloadReader<'_>,
+) -> Result<crate::LaunchEnvironment, ProtocolError> {
+    let count = usize::from(reader.read_u16()?);
+    if count > crate::MAXIMUM_LAUNCH_ENVIRONMENT_ENTRIES {
+        return Err(ProtocolError::InvalidPayload);
+    }
+    let mut entries = Vec::with_capacity(count);
+    let mut bytes = 0usize;
+    for _ in 0..count {
+        let mut pair = Vec::with_capacity(2);
+        for _ in 0..2 {
+            let length = usize::from(reader.read_u16()?);
+            bytes = bytes
+                .checked_add(length)
+                .ok_or(ProtocolError::InvalidPayload)?;
+            if bytes > crate::MAXIMUM_LAUNCH_ENVIRONMENT_BYTES {
+                return Err(ProtocolError::InvalidPayload);
+            }
+            pair.push(
+                String::from_utf8(reader.read_slice(length)?.to_vec())
+                    .map_err(|_| ProtocolError::InvalidPayload)?,
+            );
+        }
+        let value = pair.pop().expect("two fields");
+        let name = pair.pop().expect("two fields");
+        entries.push((name, value));
+    }
+    crate::LaunchEnvironment::new(entries)
 }
 
 fn encode_geometry(payload: &mut Vec<u8>, geometry: TerminalPixelGeometry) {

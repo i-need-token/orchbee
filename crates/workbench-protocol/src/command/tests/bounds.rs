@@ -152,6 +152,16 @@ fn maximum_legal_launch_commands_fit_the_intent_bound() {
     let label = WorkbenchLabel::parse(&"\u{1}".repeat(MAXIMUM_LABEL_LENGTH)).unwrap();
     let geometry = WorkbenchTerminalGeometry::new(4096, 64, 15, 1023).unwrap();
     let context = WorkbenchTerminalContextId::parse("ffffffffffffffffffffffffffffffff").unwrap();
+    let options = crate::LaunchOptions {
+        cwd: Some(WorkbenchDirectoryPath::parse(&format!("/{}", "\u{1}".repeat(4095))).unwrap()),
+        environment: crate::LaunchEnvironment::new({
+            let mut entries: Vec<_> = (0..32).map(|n| (format!("K{n}"), String::new())).collect();
+            let names: usize = entries.iter().map(|(name, _)| name.len()).sum();
+            entries[0].1 = "\u{1}".repeat(1024 - names);
+            entries
+        })
+        .unwrap(),
+    };
     let commands = [
         maximum_command(WorkbenchAction::TabCreate {
             terminal_context_id: context.clone(),
@@ -159,6 +169,7 @@ fn maximum_legal_launch_commands_fit_the_intent_bound() {
             geometry,
             launch: Some(maximum_escape_launch()),
             profile: None,
+            options: Box::new(options.clone()),
         }),
         maximum_command(WorkbenchAction::PanelSplit {
             terminal_context_id: context,
@@ -169,23 +180,35 @@ fn maximum_legal_launch_commands_fit_the_intent_bound() {
             geometry,
             launch: Some(maximum_escape_launch()),
             profile: None,
+            options: Box::new(options.clone()),
         }),
     ];
     for command in commands {
         let encoded = serialize_workbench_request(&command).unwrap();
         eprintln!("worst-case command encodes to {} bytes", encoded.len());
         assert!(
-            encoded.len() <= MAXIMUM_ENCODED_INTENT_BYTES,
+            encoded.len() <= MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES,
             "legal command encodes to {} bytes",
             encoded.len()
         );
         // The case must exercise real pressure, not a small fixture.
         assert!(
-            encoded.len() > MAXIMUM_ENCODED_INTENT_BYTES - 1024,
+            encoded.len() > MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES - 4096,
             "maximum fixture encodes to only {} bytes",
             encoded.len()
         );
         assert_eq!(parse_workbench_request(&encoded).unwrap(), command);
+        let mut framed = Vec::new();
+        crate::write_workbench_request(&mut framed, &command).unwrap();
+        assert_eq!(
+            crate::read_workbench_request(&mut std::io::Cursor::new(framed)).unwrap(),
+            command
+        );
+        let mut padded = encoded;
+        padded.resize(MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES, b' ');
+        assert!(parse_workbench_request(&padded).is_ok());
+        padded.push(b' ');
+        assert!(parse_workbench_request(&padded).is_err());
     }
 }
 
@@ -241,6 +264,7 @@ fn launch_selection_wire_shape_is_closed_and_default_omits_the_key() {
                 geometry,
                 launch,
                 profile: None,
+                options: Default::default(),
             },
         })
     };

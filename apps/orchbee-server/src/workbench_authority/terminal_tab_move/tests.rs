@@ -492,6 +492,7 @@ fn move_admission_cannot_use_its_navigation_grant_to_replay_a_terminal_create() 
             .unwrap(),
         launch: None,
         profile: None,
+        options: Default::default(),
     };
     let crate::workbench_authority::WorkbenchTabCreateBegin::Admitted(admission) =
         authority.begin_terminal_tab_create(Some(&create_grant), create.clone())

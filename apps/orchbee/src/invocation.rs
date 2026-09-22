@@ -5,10 +5,10 @@ use orchbee_agent_observation_protocol::{
     MAXIMUM_SAFE_INTEGER,
 };
 use orchbee_workbench_protocol::{
-    LaunchProfileName, LaunchProfileSelector, LaunchSelection, WorkbenchDirectoryId,
-    WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection, WorkbenchProjectId,
-    WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabMoveDirection,
-    WorkbenchTerminalGeometry, WorkbenchWorkspaceId,
+    LaunchEnvironment, LaunchOptions, LaunchProfileName, LaunchProfileSelector, LaunchSelection,
+    WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
+    WorkbenchProjectId, WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration,
+    WorkbenchTabMoveDirection, WorkbenchTerminalGeometry, WorkbenchWorkspaceId,
 };
 
 /// Legacy three-variant invocation consumed by `presentation::present`.
@@ -699,6 +699,7 @@ pub(crate) enum MutationCommand {
         /// `--profile <selector>`: a catalog launch resolved Server-side;
         /// the grammar admits it only when `--exec`/`--arg` are absent.
         profile: Option<LaunchProfileSelector>,
+        options: LaunchOptions,
     },
     TabRename {
         target: Target,
@@ -720,6 +721,7 @@ pub(crate) enum MutationCommand {
         /// `--profile <selector>`: a catalog launch resolved Server-side;
         /// the grammar admits it only when `--exec`/`--arg` are absent.
         profile: Option<LaunchProfileSelector>,
+        options: LaunchOptions,
     },
     PanelClose {
         target: Target,
@@ -888,6 +890,7 @@ pub(crate) enum ExpectedValue {
     MouseMode,
     Executable,
     LaunchArguments,
+    LaunchEnvironment,
     AgentSessionId,
     AgentListLimit,
     AgentCursor,
@@ -1099,6 +1102,8 @@ struct Options {
     paste: bool,
     mouse: Option<bool>,
     exec: Option<String>,
+    cwd: Option<String>,
+    environment: Vec<String>,
     args: Vec<String>,
     include_ended: bool,
     limit: Option<String>,
@@ -1141,6 +1146,8 @@ const VALUE_FLAGS: &[&str] = &[
     "--direction",
     "--directory",
     "--exec",
+    "--cwd",
+    "--env",
     "--file",
     "--generation",
     "--into-tab",
@@ -1552,9 +1559,10 @@ fn apply_value_flag(
     value: String,
     envelope: FailureEnvelope,
 ) -> Result<(), ParseFailure> {
-    if matches!(option, "--arg" | "--provider" | "--asset-root") {
+    if matches!(option, "--arg" | "--provider" | "--asset-root" | "--env") {
         match option {
             "--arg" => options.args.push(value),
+            "--env" => options.environment.push(value),
             "--provider" => {
                 options.provider = Some(value.clone());
                 options.providers.push(value);
@@ -1588,6 +1596,7 @@ fn apply_value_flag(
         "--text" => &mut options.text,
         "--file" => &mut options.file,
         "--exec" => &mut options.exec,
+        "--cwd" => &mut options.cwd,
         "--limit" => &mut options.limit,
         "--cursor" => &mut options.cursor,
         "--after-revision" => &mut options.after_revision,
@@ -2117,6 +2126,7 @@ fn resolve_words(
                     geometry: geometry_option(options, UsageContext::Path("tab create"), envelope)?,
                     launch: launch_option(options, UsageContext::Path("tab create"), envelope)?,
                     profile: profile_option(options, UsageContext::Path("tab create"), envelope)?,
+                    options: launch_options(options, UsageContext::Path("tab create"), envelope)?,
                 },
                 options,
             ))
@@ -2217,6 +2227,7 @@ fn resolve_words(
                     )?,
                     launch: launch_option(options, UsageContext::Path("panel split"), envelope)?,
                     profile: profile_option(options, UsageContext::Path("panel split"), envelope)?,
+                    options: launch_options(options, UsageContext::Path("panel split"), envelope)?,
                 },
                 options,
             ))
@@ -3065,6 +3076,8 @@ struct Scope {
     mouse: bool,
     /// `tab create|panel split --exec <abs>`: the explicit launch executable.
     exec: bool,
+    cwd: bool,
+    environment: bool,
     /// `tab create|panel split --arg <v>`: the repeatable launch-argv option.
     args: bool,
     /// `agent list --include-ended`: admits the lifecycle filter flag.
@@ -3131,6 +3144,8 @@ const NO_OPTIONS: Scope = Scope {
     stdin: false,
     mouse: false,
     exec: false,
+    cwd: false,
+    environment: false,
     args: false,
     include_ended: false,
     limit: false,
@@ -3218,6 +3233,8 @@ const TAB_CREATE_SCOPE: Scope = Scope {
     label: true,
     geometry: true,
     exec: true,
+    cwd: true,
+    environment: true,
     args: true,
     profile: true,
     ..NO_OPTIONS
@@ -3258,6 +3275,8 @@ const PANEL_SPLIT_SCOPE: Scope = Scope {
     direction: true,
     geometry: true,
     exec: true,
+    cwd: true,
+    environment: true,
     args: true,
     profile: true,
     ..NO_OPTIONS
@@ -3454,6 +3473,12 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     if options.mouse.is_some() && !scope.mouse {
         return Some("--mouse");
     }
+    if options.cwd.is_some() && !scope.cwd {
+        return Some("--cwd");
+    }
+    if !options.environment.is_empty() && !scope.environment {
+        return Some("--env");
+    }
     if options.exec.is_some() && !scope.exec {
         return Some("--exec");
     }
@@ -3538,6 +3563,55 @@ fn mouse_option(value: &str) -> Option<bool> {
         "off" => Some(false),
         _ => None,
     }
+}
+
+/// Per-launch overrides are independent of the program/profile selection.
+fn launch_options(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<LaunchOptions, ParseFailure> {
+    let cwd = options
+        .cwd
+        .as_deref()
+        .map(WorkbenchDirectoryPath::parse)
+        .transpose()
+        .map_err(|_| {
+            usage_with(
+                UsageReason::InvalidValue {
+                    context,
+                    option: "--cwd",
+                    value: options.cwd.clone().unwrap_or_default(),
+                    expected: ExpectedValue::DirectoryPath,
+                },
+                envelope,
+            )
+        })?;
+    // Environment values can contain secrets. Neither the parse failure nor its
+    // localized diagnostic retains the supplied value, even for malformed input.
+    let invalid_environment = || {
+        usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "--env",
+                value: String::new(),
+                expected: ExpectedValue::LaunchEnvironment,
+            },
+            envelope,
+        )
+    };
+    let entries = options
+        .environment
+        .iter()
+        .map(|entry| {
+            entry
+                .split_once('=')
+                .map(|(name, value)| (name.to_owned(), value.to_owned()))
+                .ok_or_else(invalid_environment)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let environment = LaunchEnvironment::new(entries).map_err(|_| invalid_environment())?;
+    Ok(LaunchOptions { cwd, environment })
 }
 
 /// `--exec`/`--arg` build the optional explicit launch selection: `--exec`

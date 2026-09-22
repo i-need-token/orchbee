@@ -573,6 +573,7 @@ fn panel_split_command(expected_revision: u64) -> WorkbenchCommand {
             geometry: terminal_geometry(),
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     )
 }

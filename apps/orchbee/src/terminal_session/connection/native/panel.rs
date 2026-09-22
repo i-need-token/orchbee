@@ -66,6 +66,7 @@ impl NativeExecutor {
                         geometry: *geometry,
                         launch: None,
                         profile: None,
+                        options: Default::default(),
                     }))
                     .map_err(|_command| CarrierFailure::Protocol)?;
                 match self.client.submit_workbench_panel_split(request, cutoff) {

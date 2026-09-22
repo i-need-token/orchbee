@@ -687,16 +687,25 @@ fn maximum_launch_remains_inside_the_frame_bound() -> Result<(), Box<dyn std::er
     ))?;
     // The worst-case payload pairs the maximum cwd with a maximum-size launch
     // selection: executable plus argument bytes total exactly the 2,048 bound.
-    let maximum_selection = LaunchSelection::new(
-        "/bin/sh".to_owned(),
-        vec!["x".repeat(MAXIMUM_LAUNCH_SELECTION_BYTES - "/bin/sh".len())],
-    )?;
-    let message = CapabilityNodeMessage::AuthorizedTerminalLaunch(AuthorizedTerminalLaunch::new(
-        authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?,
-        Some(maximum_cwd),
-        TerminalLaunchMode::Immediate(geometry()?),
-        Some(maximum_selection),
-    ));
+    let maximum_selection = LaunchSelection::new("/bin/sh".to_owned(), {
+        let mut args = vec![String::new(); 128];
+        args[0] = "x".repeat(MAXIMUM_LAUNCH_SELECTION_BYTES - "/bin/sh".len());
+        args
+    })?;
+    let message = CapabilityNodeMessage::AuthorizedTerminalLaunch(
+        AuthorizedTerminalLaunch::new(
+            authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?,
+            Some(maximum_cwd),
+            TerminalLaunchMode::Immediate(geometry()?),
+            Some(maximum_selection),
+        )
+        .with_environment({
+            let mut pairs: Vec<_> = (0..32).map(|n| (format!("K{n}"), String::new())).collect();
+            let names: usize = pairs.iter().map(|(name, _)| name.len()).sum();
+            pairs[0].1 = "x".repeat(crate::MAXIMUM_LAUNCH_ENVIRONMENT_BYTES - names);
+            crate::LaunchEnvironment::new(pairs)?
+        }),
+    );
     let encoded = encode(&message)?;
     let payload_length = usize::from(u16::from_be_bytes([encoded[6], encoded[7]]));
     assert!(payload_length <= MAXIMUM_FRAME_PAYLOAD_BYTES);
@@ -1867,5 +1876,71 @@ fn send_result_rejects_unknown_codes_and_impossible_pairs() -> Result<(), Box<dy
         .is_err()
     );
     assert!(crate::SendProgress::new(2, 1, 0).is_err());
+    Ok(())
+}
+
+#[test]
+fn launch_environment_extension_roundtrips_and_rejects_hostile_tails()
+-> Result<(), Box<dyn std::error::Error>> {
+    let base = AuthorizedTerminalLaunch::new(
+        authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?,
+        None,
+        TerminalLaunchMode::Deferred,
+        None,
+    );
+    let legacy = encode(&CapabilityNodeMessage::AuthorizedTerminalLaunch(
+        base.clone(),
+    ))?;
+    let environment = crate::LaunchEnvironment::new(vec![
+        ("KEY".into(), "literal=值".into()),
+        ("EMPTY".into(), String::new()),
+    ])?;
+    for selection in [
+        None,
+        Some(LaunchSelection::new(
+            "C:\\agent.exe".into(),
+            vec!["--arg".into()],
+        )?),
+    ] {
+        let launch =
+            AuthorizedTerminalLaunch::new(base.authorization(), None, base.mode(), selection);
+        let old = encode(&CapabilityNodeMessage::AuthorizedTerminalLaunch(
+            launch.clone(),
+        ))?;
+        assert_eq!(
+            encode(&CapabilityNodeMessage::AuthorizedTerminalLaunch(
+                launch
+                    .clone()
+                    .with_environment(crate::LaunchEnvironment::empty())
+            ))?,
+            old
+        );
+        let message = CapabilityNodeMessage::AuthorizedTerminalLaunch(
+            launch.with_environment(environment.clone()),
+        );
+        let encoded = encode(&message)?;
+        assert_eq!(decode_message(&encoded)?, message);
+        for cut in (legacy.len() + 1)..encoded.len() {
+            let mut truncated = encoded[..cut].to_vec();
+            truncated[6..8].copy_from_slice(&u16::try_from(cut - 8)?.to_be_bytes());
+            assert!(decode_message(&truncated).is_err(), "cut {cut}");
+        }
+        let mut trailing = encoded;
+        append_payload_bytes(&mut trailing, &[0])?;
+        assert!(decode_message(&trailing).is_err());
+    }
+    for tail in [
+        vec![0, 0, 2, 0, 0, 1],                                     // unknown version
+        vec![0, 0, 1, 2, 0, 1],                                     // unknown selection presence
+        vec![0, 0, 1, 0, 0, 0],                                     // noncanonical empty extension
+        vec![0, 0, 1, 0, 0, 33], // entry budget before allocation
+        vec![0, 0, 1, 0, 0, 1, 0, 4, b'T', b'E', b'R', b'M', 0, 0], // reserved name
+        vec![0, 0, 1, 0, 0, 1, 0, 1, b'A', 4, 0], // aggregate byte budget
+        vec![0, 0, 1, 0, 0, 2, 0, 1, b'A', 0, 0, 0, 1, b'a', 0, 0], // duplicate case
+    ] {
+        let mut bad = legacy.clone();
+        append_payload_bytes(&mut bad, &tail)?;
+        assert!(decode_message(&bad).is_err(), "accepted {tail:?}");
+    }
     Ok(())
 }

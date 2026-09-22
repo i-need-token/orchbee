@@ -49,6 +49,7 @@ fn command(
             geometry,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     }
 }

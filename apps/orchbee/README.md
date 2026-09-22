@@ -707,3 +707,8 @@ process witness provide implementation evidence; the contract's
 [claim/evidence matrix](docs/native-tab-session.md#claimevidence-matrix) records the checked claims
 and their limits. This process evidence does not establish other operating systems, installation,
 restart recovery or remote access.
+
+`tab create` and `panel split` also accept per-launch `--cwd <absolute-path>` and repeated
+`--env NAME=VALUE`, including with `--profile` or the default shell. The cwd overrides the
+Workspace directory, then falls back to Worker home when absent. Environment values are literal
+and bounded; see command help and [the native CLI contract](docs/native-cli-query.md).

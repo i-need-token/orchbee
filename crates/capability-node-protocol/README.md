@@ -408,10 +408,20 @@ reject these identity and epoch contradictions, so canonical encoding cannot emi
 constructors. The Worker refinement additionally requires a successful Start observation to retain
 the exact authorized geometry before it constructs a result.
 
-The launch payload has no general environment overlay, Project, Checkout, Worktree, Agent, or
-Launch Profile field. Its only program data is the optional bounded launch selection described
-above; unknown trailing bytes are rejected, so a nonempty environment is not representable by this
-contract.
+The launch payload accepts a bounded literal `LaunchEnvironment` in addition to the optional
+launch selection. Empty environments keep the legacy bytes unchanged. A nonempty environment
+replaces the selection tail with `u16(0)`, extension version `u8(1)`, selection-present `u8(0|1)`,
+the optional existing selection, then a `u16` entry count and `u16`-length-prefixed UTF-8 name/value
+pairs. Zero is an invalid legacy executable length, so older decoders reject this extension.
+Unknown versions, truncated fields, an empty extension and trailing bytes are rejected.
+
+An environment has at most 32 entries and 1,024 combined UTF-8 name/value bytes. Names match
+`[A-Za-z_][A-Za-z0-9_]*`, are at most 128 bytes, and are unique ignoring ASCII case. NUL values,
+`ORCHBEE_*`, `TERM`, `COLORTERM` and `TERM_PROGRAM` are rejected; empty values are preserved.
+Validation precedes admission; Debug output omits values. The combined maximum cwd, selection,
+argument count and environment still fit the 8 KiB frame. There are no Project, Checkout,
+Worktree, Agent or Launch Profile fields. Cohort validation requires matching deployed binaries;
+this extension does not promise mixed-version operation.
 
 ## Carrier and ownership boundaries
 

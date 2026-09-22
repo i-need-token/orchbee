@@ -113,6 +113,7 @@ fn install_two_tabs(
             geometry,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     let terminal_grant =

@@ -188,11 +188,6 @@ request on an already-established carrier moves `idle -> record-open -> request-
 -> handed -> prepared -> responded -> settled`; a partial or malformed record abandons into the
 terminal `failed` phase, matching the carrier's fail-closed connection behavior — the model does
 not claim same-stream realignment, and byte-cursor alignment after a complete record stays with
-When an admitted OBCN Launch carries an explicit launch selection, the request loop adopts its
-executable and argument vector verbatim instead: no `PATH` search, no shell resolution, and no
-silent fallback to the default shell — a spawn failure is the Host's typed launch failure. The
-selection shares the same fixed three-entry environment and cwd/profile composition below.
-
 codec tests. A lost, late, or misclassified Host response settles the request as `unknown` and
 enters `failed` (the real broker retires); broker replacement, incarnation cleanup, and
 cross-request aftermath stay with `LocalWorkerObcnCarrier`, `LocalHostBroker`, and their tests.
@@ -209,6 +204,11 @@ codec/schema/process-test evidence, not model claims.
 
 ## Default interactive launch resolution
 
+When an admitted OBCN Launch carries an explicit launch selection, the request loop adopts its
+executable and argument vector verbatim instead: no `PATH` search, no shell resolution, and no
+silent fallback to the default shell — a spawn failure is the Host's typed launch failure. The
+selection shares the same default environment and cwd/profile composition below.
+
 The application-private `default_interactive_launch` module supplies the running request loop's
 launch-fact composition only when no explicit selection is present. Its transport-neutral
 `DefaultInteractiveLaunch` output owns only one
@@ -217,6 +217,14 @@ The loop combines these with Worker-local cwd, Terminal Protocol profile, geomet
 creation identity. The three entries map to the Terminal Protocol launch environment. The
 invocation-scoped `CreateTerminal.environmentOverlay` stays empty on the explicit-endpoint path;
 on the managed local-site path it carries the single Agent observation variable described below.
+
+Per-launch `cwd` arrives already selected by the Server: explicit override, accepted Workspace
+directory, then Worker home if absent. Host owns the actual directory check and spawn failure.
+The loop appends the validated OBCN environment to the three default launch entries, for either
+an explicit program or the default shell. Host inherits its environment and applies these literal
+entries; Worker process environment is never changed. The caller cannot override Orchbee or
+terminal identity variables. This is launch data, separate from the observation-only
+`CreateTerminal.environmentOverlay` described above.
 
 Resolution considers an inherited `SHELL`, then the effective operating-system account's shell,
 then `/bin/sh`. A candidate is valid only when its path is nonempty, absolute, valid UTF-8, free of

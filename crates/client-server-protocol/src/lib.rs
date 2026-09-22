@@ -75,3 +75,8 @@ pub use working_directory::{
 };
 
 pub use open::{OpenOutcome, TerminalOpenRequest, TerminalOpenResult};
+
+mod launch_environment;
+pub use launch_environment::{
+    LaunchEnvironment, MAXIMUM_LAUNCH_ENVIRONMENT_BYTES, MAXIMUM_LAUNCH_ENVIRONMENT_ENTRIES,
+};

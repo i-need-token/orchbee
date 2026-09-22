@@ -34,6 +34,7 @@ pub struct TerminalCreateRequest {
     pub(crate) cwd: Option<WorkingDirectory>,
     pub(crate) start_mode: StartMode,
     pub(crate) launch: Option<LaunchSelection>,
+    environment: crate::LaunchEnvironment,
 }
 
 impl TerminalCreateRequest {
@@ -51,6 +52,7 @@ impl TerminalCreateRequest {
             cwd,
             start_mode,
             launch,
+            environment: crate::LaunchEnvironment::empty(),
         }
     }
 
@@ -77,6 +79,17 @@ impl TerminalCreateRequest {
     #[must_use]
     pub const fn launch(&self) -> Option<&LaunchSelection> {
         self.launch.as_ref()
+    }
+    /// Attach a fully validated literal overlay without changing the program or cwd.
+    #[must_use]
+    pub fn with_environment(mut self, environment: crate::LaunchEnvironment) -> Self {
+        self.environment = environment;
+        self
+    }
+    /// The invocation-owned environment overlay; empty means inherited/default values.
+    #[must_use]
+    pub const fn environment(&self) -> &crate::LaunchEnvironment {
+        &self.environment
     }
 }
 

@@ -595,6 +595,16 @@ impl TerminalCoordinator {
                 }));
             }
         };
+        let environment = match orchbee_capability_node_protocol::LaunchEnvironment::new(
+            request.environment().entries().to_vec(),
+        ) {
+            Ok(environment) => environment,
+            Err(_) => {
+                return Err(ready(CreateOutcome::Failed {
+                    reason: CreateFailureReason::TerminalCreateFailed,
+                }));
+            }
+        };
         let Some(expiry) = expiry else {
             return Err(ready(CreateOutcome::Unavailable {
                 reason: CreateUnavailableReason::ServerBusy,
@@ -617,7 +627,8 @@ impl TerminalCoordinator {
             coordinator: self,
             pending: Box::new(PendingOperation {
                 command: CapabilityNodeMessage::AuthorizedTerminalLaunch(
-                    AuthorizedTerminalLaunch::new(authorization, cwd, mode, launch),
+                    AuthorizedTerminalLaunch::new(authorization, cwd, mode, launch)
+                        .with_environment(environment),
                 ),
                 create_id: request.request_id().clone(),
                 request: ClientMessage::TerminalCreate(request),

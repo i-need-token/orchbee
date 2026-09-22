@@ -88,6 +88,7 @@ fn create_tab(
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         ),
     ) else {
@@ -138,6 +139,7 @@ fn split(
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         ),
     ) else {
@@ -933,6 +935,7 @@ fn a_pending_split_settlement_on_the_moved_leaf_fences_relocate() {
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         ),
     ) else {

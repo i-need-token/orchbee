@@ -83,6 +83,7 @@ fn create_tab(client: &mut UnixStream, value: u128) -> TestResult<(Snapshot, Tab
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     )?;
     let WorkbenchCommandOutcome::TabCreated { tab_id, .. } = created.outcome else {
@@ -391,6 +392,7 @@ fn real_workbench_panel_split_and_aggregate_close_releases_both_terminals() -> T
                 geometry,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         )
     );
@@ -429,6 +431,7 @@ fn real_workbench_panel_split_and_aggregate_close_releases_both_terminals() -> T
                 geometry,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         )
     );
@@ -607,6 +610,7 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
                 geometry,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         )
     );
@@ -635,6 +639,7 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
                 geometry,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         )
     );
@@ -661,6 +666,7 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
                 geometry,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         )
     );
@@ -711,6 +717,7 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
             geometry,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     };
     for attempt in 0..2 {
@@ -781,6 +788,7 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
                 geometry,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         )
     );
@@ -1036,6 +1044,7 @@ fn real_multileaf_create_and_move_reconcile_two_clients_and_retarget_close() -> 
                 geometry,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         )
     );
@@ -1064,6 +1073,7 @@ fn real_multileaf_create_and_move_reconcile_two_clients_and_retarget_close() -> 
                 geometry,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         )
     );
@@ -1104,6 +1114,7 @@ fn real_multileaf_create_and_move_reconcile_two_clients_and_retarget_close() -> 
                 geometry,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         )
     );

@@ -690,6 +690,7 @@ fn tab_create_against_standalone_context_reports_terminal() -> TestResult {
             geometry,
             launch: None,
             profile: None,
+            ..
         } = &command.action
         else {
             panic!("expected tab.create, got {:?}", command.action)
@@ -1051,6 +1052,7 @@ fn panel_split_close_and_move_each_submit_one_command() -> TestResult {
                 geometry,
                 launch: None,
                 profile: None,
+                ..
             } => {
                 assert_eq!(terminal_context_id.as_str(), CONTEXT);
                 assert_eq!(tab_id.as_str(), LOGS_TAB);

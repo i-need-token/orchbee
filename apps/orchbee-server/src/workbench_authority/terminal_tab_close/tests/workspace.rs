@@ -158,6 +158,7 @@ fn workspace_publication_rebases_move_rename_and_pending_create_then_settles_ori
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     let WorkbenchTabCreateBegin::Admitted(admission) =

@@ -373,9 +373,18 @@ identity 完全相同。其 `HostRejected` 与 `HostReportedFailure` epoch 必�
 constructor 发出矛盾的 canonical encoding。Worker refinement 还要求 successful Start observation
 在构造 result 前保留确切 authorized geometry。
 
-Launch payload 没有 general environment overlay、Project、Checkout、Worktree、Agent 或
-Launch Profile field。其唯一的 program data 是上文所述可选的有界 launch selection；unknown
-trailing byte 会被拒绝，因此本 contract 根本无法表示 nonempty environment。
+Launch payload 除可选 launch selection 外，还接受有界、逐字的 `LaunchEnvironment`。
+环境为空时沿用旧字节编码；非空时，selection 尾部替换为 `u16(0)`、扩展版本 `u8(1)`、
+selection-present `u8(0|1)`、可选的既有 selection，再跟 `u16` 条目数及由 `u16` 长度前缀
+标记的 UTF-8 名称和值。零是无效的旧 executable 长度，因此旧 decoder 拒绝该扩展。
+未知版本、字段截断、空扩展及多余尾部字节均被拒绝。
+
+环境至多 32 项，名称和值合计不超过 1,024 UTF-8 字节。名称匹配
+`[A-Za-z_][A-Za-z0-9_]*`，至多 128 字节，忽略 ASCII 大小写后必须唯一。拒绝含 NUL 的值、
+`ORCHBEE_*`、`TERM`、`COLORTERM` 和 `TERM_PROGRAM`；空值逐字保留。
+准入前完成校验；Debug 不输出值。cwd、selection、参数数量与环境均取最大值时仍满足
+8 KiB 帧上限。不含 Project、Checkout、Worktree、Agent 或 Launch Profile 字段。
+Cohort 校验要求部署匹配的二进制；本扩展不承诺混合版本运行。
 
 ## Carrier 与 ownership 边界
 

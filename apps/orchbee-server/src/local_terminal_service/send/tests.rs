@@ -107,6 +107,7 @@ impl Fixture {
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         };
         let mut site = self.service.coordinator.lock().map_err(|_| "poisoned")?;

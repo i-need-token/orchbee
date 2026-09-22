@@ -499,6 +499,7 @@ fn native_pointer_reports_reach_tracking_panes_and_follow_unfocused_focus() -> T
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
         deadline,
     )?;

@@ -61,6 +61,7 @@ fn tab_move_preserves_pending_first_create_and_exact_replay_after_lost_response(
             geometry: workbench_geometry()?,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     write_obwp(&mut first_client, &first_request, deadline())?;
@@ -90,6 +91,7 @@ fn tab_move_preserves_pending_first_create_and_exact_replay_after_lost_response(
             geometry: workbench_geometry()?,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     write_obwp(&mut second_client, &second_request, parked_deadline)?;
@@ -178,6 +180,7 @@ fn tab_move_preserves_pending_first_create_and_exact_replay_after_lost_response(
             geometry: workbench_geometry()?,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     write_obwp(&mut first_client, &third_request, deadline())?;

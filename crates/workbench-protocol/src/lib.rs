@@ -12,17 +12,17 @@ pub use carrier::{
 pub use command::{
     LaunchProfileCatalogOutcome, LaunchProfileCatalogRevision, LaunchProfileEntry, LaunchProfileId,
     LaunchProfileName, LaunchProfileSelector, LaunchSelection,
-    MAXIMUM_ENCODED_LAUNCH_PROFILE_CATALOG_RESULT_BYTES, MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES,
-    MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES, MAXIMUM_ENCODED_WORKTREE_LIST_RESULT_BYTES,
-    MAXIMUM_LAUNCH_PROFILE_CANDIDATES, MAXIMUM_LAUNCH_PROFILE_CATALOG_BYTES,
-    MAXIMUM_LAUNCH_PROFILE_ENTRIES, MAXIMUM_LAUNCH_SELECTION_ARGUMENTS,
-    MAXIMUM_LAUNCH_SELECTION_BYTES, MAXIMUM_RESULT_PUBLICATIONS, PublicationReadIntent,
-    WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
-    WorkbenchCommandUnavailableReason, WorkbenchLabel, WorkbenchLaunchProfileCatalogRead,
-    WorkbenchLaunchProfileCatalogResult, WorkbenchPanelRelocateDestination,
-    WorkbenchPanelSplitDirection, WorkbenchPublicationOutcome, WorkbenchPublicationResult,
-    WorkbenchRejectionReason, WorkbenchRequest, WorkbenchResponse, WorkbenchSnapshotOutcome,
-    WorkbenchSnapshotResult, WorkbenchSnapshotUnavailableReason,
+    MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES, MAXIMUM_ENCODED_LAUNCH_PROFILE_CATALOG_RESULT_BYTES,
+    MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES, MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES,
+    MAXIMUM_ENCODED_WORKTREE_LIST_RESULT_BYTES, MAXIMUM_LAUNCH_PROFILE_CANDIDATES,
+    MAXIMUM_LAUNCH_PROFILE_CATALOG_BYTES, MAXIMUM_LAUNCH_PROFILE_ENTRIES,
+    MAXIMUM_LAUNCH_SELECTION_ARGUMENTS, MAXIMUM_LAUNCH_SELECTION_BYTES,
+    MAXIMUM_RESULT_PUBLICATIONS, PublicationReadIntent, WorkbenchAction, WorkbenchCommand,
+    WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchCommandUnavailableReason,
+    WorkbenchLabel, WorkbenchLaunchProfileCatalogRead, WorkbenchLaunchProfileCatalogResult,
+    WorkbenchPanelRelocateDestination, WorkbenchPanelSplitDirection, WorkbenchPublicationOutcome,
+    WorkbenchPublicationResult, WorkbenchRejectionReason, WorkbenchRequest, WorkbenchResponse,
+    WorkbenchSnapshotOutcome, WorkbenchSnapshotResult, WorkbenchSnapshotUnavailableReason,
     WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason, WorkbenchTabClosePhase,
     WorkbenchTabClosePublicationReason, WorkbenchTabCloseRead, WorkbenchTabCloseReadOutcome,
     WorkbenchTabCloseReadResult, WorkbenchTabCloseResume, WorkbenchTabCloseResumeOutcome,
@@ -64,4 +64,11 @@ pub use validation::{
     MAXIMUM_TABS_PER_CONTEXT, MAXIMUM_TERMINAL_CONTEXTS, MAXIMUM_WORKSPACES_PER_PROJECT,
     apply_workbench_delta, apply_workbench_publication, parse_delta, parse_document,
     parse_snapshot, parse_snapshot_read_intent, serialize_document,
+};
+
+mod launch_options;
+pub use launch_options::LaunchOptions;
+mod launch_environment;
+pub use launch_environment::{
+    LaunchEnvironment, MAXIMUM_LAUNCH_ENVIRONMENT_BYTES, MAXIMUM_LAUNCH_ENVIRONMENT_ENTRIES,
 };

@@ -128,6 +128,8 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
     let actual = usize::try_from(length).map_err(|_error| WorkbenchWireError::InvalidHeader)?;
     let maximum = if matches!(kind, 3 | 10) {
         MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES
+    } else if request && kind == 2 {
+        crate::MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES
     } else if kind == 12 {
         crate::MAXIMUM_ENCODED_WORKTREE_LIST_RESULT_BYTES
     } else if kind == 16 {

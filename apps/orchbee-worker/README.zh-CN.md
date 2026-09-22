@@ -180,8 +180,7 @@ bracketed-paste mode；commit 在 Core 二次授权后于独立的 input-admissi
 
 当被准入的 OBCN Launch 携带显式 launch selection 时，request loop 改为逐字采用其 executable
 与 argument vector：不查 `PATH`、不做 shell 解析、不静默回退到默认 shell——spawn 失败即
-Host 的 typed launch failure。该 selection 共享同样的三个固定 environment entry 与下述
-cwd/profile 组合。
+Host 的 typed launch failure。该 selection 共享同样的默认 environment 与下述 cwd/profile 组合。
 
 Application-private `default_interactive_launch` module 仅在没有显式 selection 时为运行中的
 request loop 提供 launch-fact composition。其 transport-neutral `DefaultInteractiveLaunch`
@@ -190,6 +189,13 @@ environment entry。Loop 将它们与 Worker-local cwd、Terminal Protocol profi
 creation identity 组合。三个 entry 映射到 Terminal Protocol launch environment。
 invocation-scoped `CreateTerminal.environmentOverlay` 在显式端点路径上仍为空；在 managed
 local-site 路径上承载下文所述的单个 Agent 观察变量。
+
+单次启动的 `cwd` 由 Server 选择后传入：显式覆盖优先，其次已接纳的 Workspace 目录，
+均未提供时使用 Worker 主目录。Host 负责实际目录检查和启动失败。
+无论显式程序还是默认 shell，loop 都把已校验的 OBCN 环境追加到三个默认 launch entry 后。
+Host 继承自身环境并应用这些逐字条目；不会修改 Worker 进程环境。
+调用者不能覆盖 Orchbee 或终端身份变量。这属于 launch 数据，与上文仅用于观察的
+`CreateTerminal.environmentOverlay` 分离。
 
 解析依次考虑 inherited `SHELL`、effective operating-system account 的 shell，再考虑
 `/bin/sh`。Candidate 只有在 path 非空、为 absolute、是有效 UTF-8、不含 U+0000、不超过

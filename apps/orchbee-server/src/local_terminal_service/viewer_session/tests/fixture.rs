@@ -271,6 +271,7 @@ fn add_terminal(service: &LocalTerminalService, index: u8) -> WorkbenchCommand {
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     };
     let mut site = service.coordinator.lock().unwrap();

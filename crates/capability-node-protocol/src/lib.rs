@@ -75,3 +75,8 @@ pub use terminal_send::{
     SendText, SendTextInput, SendUnavailable, TerminalSendOutcome, TerminalSendRequest,
     TerminalSendResult,
 };
+
+mod launch_environment;
+pub use launch_environment::{
+    LaunchEnvironment, MAXIMUM_LAUNCH_ENVIRONMENT_BYTES, MAXIMUM_LAUNCH_ENVIRONMENT_ENTRIES,
+};

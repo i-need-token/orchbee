@@ -325,7 +325,7 @@ fn prepare(
     match dispatch.operation() {
         AuthorizedHostOperation::Launch(launch) => Ok(PreparedHostOperation::launch(
             dispatch,
-            launch_facts::resolve(launch.cwd(), launch.launch())?,
+            launch_facts::resolve(launch.cwd(), launch.launch(), launch.environment())?,
             correlation,
             site_runtime,
         )?),

@@ -2,8 +2,9 @@
 
 ## 范围
 
-`orchbee-client-server-protocol` 是 [`schemas/client-server`](../../schemas/client-server/README.zh-CN.md)
-下语言中立 OBCS version-1 contract 的独立 Rust binding。它负责 validated Rust value、严格且区分
+`orchbee-client-server-protocol` 拥有原生 OBCS v2 Rust binding。较早的语言中立 v1 schema
+仍位于 [`schemas/client-server`](../../schemas/client-server/README.zh-CN.md)；原生扩展及待对齐
+边界见下文。本 crate 负责 validated Rust value、严格且区分
 方向的 JSON decoding、deterministic encoding 与 bounded frame I/O。它不依赖 OBLC local admission
 binding、OBCN Server-Worker authorization binding、Terminal Host type 或 Workbench type。
 
@@ -27,7 +28,7 @@ Workbench state。
 
 所有 decoded object 与 enum 都是 closed。缺失显式 nullable create field、未知 field 或 tag、重复
 key、BOM、无效 UTF-8、尾随 JSON value、direction mismatch、无效 identity、path 或 geometry，以及
-不符合精确长度或 32 KiB payload bound 的 JSON frame 都会被拒绝。Protocol 与 geometry number 使用
+不符合精确长度或 48 KiB payload bound 的 JSON frame 都会被拒绝。Protocol 与 geometry number 使用
 schema 所有的有限 binary64 safe-integer refinement，因此等价的 integral decimal 与 exponent
 spelling 会 decode 为同一个 value。Canonical encoding 使用带普通 integer token 的 compact
 deterministic JSON。
@@ -90,7 +91,7 @@ generation 使用正 u64 十进制字符串，revision 使用规范 u64 十进�
 读取。这是尚未发布的 OBCS v1 必需字段变更；Client/Server/Worker 必须使用精确匹配的开发 cohort，
 不提供隐式 viewer fallback。
 `ControlInput` 验证 1 至 `MAXIMUM_CONTROL_INPUT_BYTES`（4,096）byte，并序列化为规范小写 hex。
-共用 number adapter 验证正十进制 u64 sequence。Acquire、Input 与 Resize 使用既有 32 KiB OBCS
+共用 number adapter 验证正十进制 u64 sequence。Acquire、Input 与 Resize 使用既有 48 KiB OBCS
 JSON framing。
 
 `Paste` 是语义自动模式粘贴 action。它携带 `PasteContent`——1 至
@@ -213,3 +214,18 @@ Open 与 AttachBinding 是增量、尚未发布的 OBCS v1 source contract。它
 与 limit。安装后的 exact runtime cohort 是 Client、Server、Worker 与 Host；这个 Rust source
 binding 是 contract input，而不是已安装的 cohort artifact。发布前，其 source contract 与 runtime
 cohort 一起 rollback，且不涉及 persisted state 或 migration。
+
+## 原生启动环境扩展
+
+原生 OBCS binding 为 `terminal.create` 接受可选 `environment`，编码为有序的
+`[name, value]` 对。环境为空时省略该成员，保持旧编码。
+`LaunchEnvironment` 在构造和 JSON 解码时校验：至多 32 对，名称和值合计不超过 1,024
+UTF-8 字节，名称为 1..128 字节的 ASCII 标识符，不含 NUL，不允许忽略大小写后重复，
+且不能使用 `ORCHBEE_*`、`TERM`、`COLORTERM` 或 `TERM_PROGRAM`。空值和内嵌
+`=` 逐字保留。Debug 不输出值。含本覆盖的完整请求参与请求身份判断；Server 将其转换为
+独立的 OBCN 类型。
+
+已提交的语言无关 v1 schema/corpus 早于原生 v2 launch selection 及本环境扩展，不能
+作为原生 v2 或 Desktop 兼容性证据；完整 schema/binding 对齐仍待完成。
+
+原生 v2 帧在分配前限制为 48 KiB。组合最大转义 cwd、executable/argv 与环境的测试覆盖请求预算；旧 32 KiB 上限无法容纳该合法组合。

@@ -551,6 +551,7 @@ mod tests {
                 geometry: WorkbenchTerminalGeometry::new(120, 40, 10, 20).unwrap(),
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
         }
     }

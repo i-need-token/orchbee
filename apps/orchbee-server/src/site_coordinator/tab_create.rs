@@ -37,6 +37,8 @@ pub(crate) struct PendingTerminalTabCreate {
     worker: WorkerPlacement,
     settles_first: bool,
     workspace_cwd: Option<WorkingDirectory>,
+    launch_cwd: Option<WorkingDirectory>,
+    environment: orchbee_client_server_protocol::LaunchEnvironment,
     launch: Option<orchbee_client_server_protocol::LaunchSelection>,
 }
 
@@ -57,7 +59,8 @@ impl PendingTerminalTabCreate {
             && metadata.is_first() == self.settles_first
             && self.terminal.create_reference() == &self.reference
             && authorization.and_then(presentation_binding).as_ref() == Some(metadata.binding())
-            && pending_cwd_matches(self.terminal.command(), self.workspace_cwd.as_ref())
+            && pending_cwd_matches(self.terminal.command(), self.launch_cwd.as_ref())
+            && pending_environment_matches(self.terminal.command(), &self.environment)
             && pending_launch_matches(self.terminal.command(), self.launch.as_ref())
             && authorization.is_some_and(|authorization| {
                 authorization.worker_id() == self.worker.worker_id
@@ -133,6 +136,10 @@ impl SiteCoordinator {
                 ));
             }
         };
+        let options = match &command.action {
+            WorkbenchAction::TabCreate { options, .. } => options.clone(),
+            _ => Default::default(),
+        };
         let grant =
             WorkbenchGrant::manage_navigation_and_terminal_create(workbench.site_id().clone());
         let admission = match workbench.begin_terminal_tab_create(Some(&grant), command) {
@@ -193,6 +200,25 @@ impl SiteCoordinator {
                 false,
             )
         };
+        let launch_cwd = match options
+            .cwd
+            .as_ref()
+            .map(|cwd| WorkingDirectory::parse(cwd.as_str()))
+            .transpose()
+        {
+            Ok(cwd) => cwd.or_else(|| workspace_cwd.clone()),
+            Err(_) => {
+                return PreparedTerminalTabCreate::Ready(admission.retire_composition_failure());
+            }
+        };
+        let environment = match orchbee_client_server_protocol::LaunchEnvironment::new(
+            options.environment.entries().to_vec(),
+        ) {
+            Ok(environment) => environment,
+            Err(_) => {
+                return PreparedTerminalTabCreate::Ready(admission.retire_composition_failure());
+            }
+        };
         let Some(worker) = worker else {
             return PreparedTerminalTabCreate::Ready(admission.runtime_unavailable(
                 WorkbenchTabCreateRuntimeUnavailableReason::NoCompatibleWorker,
@@ -221,10 +247,11 @@ impl SiteCoordinator {
             TerminalCreateRequest::new(
                 reference.clone(),
                 worker_constraint,
-                workspace_cwd.clone(),
+                launch_cwd.clone(),
                 StartMode::Immediate { geometry },
                 launch.clone(),
-            ),
+            )
+            .with_environment(environment.clone()),
             Some(worker),
             Some(expiry),
         ) {
@@ -258,7 +285,8 @@ impl SiteCoordinator {
         if terminal.create_reference() != &reference
             || terminal.authorization() != authorization
             || pending_authorization_from_message(terminal.command()) != Some(authorization)
-            || !pending_cwd_matches(terminal.command(), workspace_cwd.as_ref())
+            || !pending_cwd_matches(terminal.command(), launch_cwd.as_ref())
+            || !pending_environment_matches(terminal.command(), &environment)
             || !pending_launch_matches(terminal.command(), launch.as_ref())
             || metadata.binding() != &binding
             || authorization.worker_id() != worker.worker_id
@@ -289,6 +317,8 @@ impl SiteCoordinator {
             worker,
             settles_first,
             workspace_cwd,
+            launch_cwd,
+            environment,
             launch,
         })
     }
@@ -326,6 +356,8 @@ impl SiteCoordinator {
             worker: _,
             settles_first: _,
             workspace_cwd: _,
+            launch_cwd: _,
+            environment: _,
             launch: _,
         } = pending;
         let terminal = terminals
@@ -495,5 +527,18 @@ pub(super) fn unavailable_by_id(
         protocol_version: ProtocolVersion,
         request_id,
         outcome: WorkbenchCommandOutcome::Unavailable { reason },
+    }
+}
+
+/// Frozen per-launch environment must survive every owner conversion unchanged.
+pub(super) fn pending_environment_matches(
+    command: &CapabilityNodeMessage,
+    environment: &orchbee_client_server_protocol::LaunchEnvironment,
+) -> bool {
+    match command {
+        CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) => {
+            launch.environment().entries() == environment.entries()
+        }
+        _ => false,
     }
 }

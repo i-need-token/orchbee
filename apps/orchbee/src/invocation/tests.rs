@@ -1344,6 +1344,7 @@ fn geometry_bearing_commands_require_the_whole_geometry() {
                 geometry: geometry(),
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
             OutputFormat::Text
         ))
@@ -1361,6 +1362,7 @@ fn geometry_bearing_commands_require_the_whole_geometry() {
                 geometry: geometry(),
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
             OutputFormat::Text
         ))
@@ -1413,6 +1415,7 @@ fn geometry_bearing_commands_default_the_whole_geometry() {
                     geometry: default,
                     launch: None,
                     profile: None,
+                    options: Default::default(),
                 },
                 OutputFormat::Text
             )),
@@ -1429,6 +1432,7 @@ fn geometry_bearing_commands_default_the_whole_geometry() {
                 geometry: default,
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
             OutputFormat::Text
         ))
@@ -1468,6 +1472,7 @@ fn geometry_bearing_commands_default_the_whole_geometry() {
                 geometry: default,
                 launch: launch("/bin/sh", &["-lc"]),
                 profile: None,
+                options: Default::default(),
             },
             OutputFormat::Text
         ))
@@ -1491,6 +1496,7 @@ fn geometry_bearing_commands_default_the_whole_geometry() {
                 geometry: default,
                 launch: None,
                 profile: Some(profile_selector("dev")),
+                options: Default::default(),
             },
             OutputFormat::Json
         ))
@@ -1511,6 +1517,7 @@ fn tab_create_admits_exactly_one_context() {
                 geometry: geometry(),
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
             OutputFormat::Text
         ))
@@ -1576,6 +1583,7 @@ fn windows_launch_paths_preserve_arguments_and_reject_ambiguous_roots() {
                     geometry: geometry(),
                     launch: launch(executable, &["two words", "中文"]),
                     profile: None,
+                    options: Default::default(),
                 },
                 OutputFormat::Text,
             )),
@@ -1606,6 +1614,7 @@ fn launch_selection_options_parse_in_every_spelling() {
                     geometry: geometry(),
                     launch: launch("/bin/sh", arguments),
                     profile: None,
+                    options: Default::default(),
                 },
                 OutputFormat::Text
             )),
@@ -1647,6 +1656,7 @@ fn launch_selection_options_parse_in_every_spelling() {
                 geometry: geometry(),
                 launch: launch("/bin/sh", &["-l"]),
                 profile: None,
+                options: Default::default(),
             },
             OutputFormat::Text
         ))
@@ -2187,6 +2197,7 @@ fn profile_option_threads_into_launch_bearing_mutations() {
                 geometry: geometry(),
                 launch: None,
                 profile: Some(profile_selector("dev shell")),
+                options: Default::default(),
             },
             OutputFormat::Text
         ))
@@ -2202,6 +2213,7 @@ fn profile_option_threads_into_launch_bearing_mutations() {
                 geometry: geometry(),
                 launch: None,
                 profile: Some(profile_selector("abc123:0001a")),
+                options: Default::default(),
             },
             OutputFormat::Text
         ))
@@ -2224,6 +2236,7 @@ fn profile_option_threads_into_launch_bearing_mutations() {
                 geometry: geometry(),
                 launch: None,
                 profile: Some(profile_selector("dev")),
+                options: Default::default(),
             },
             OutputFormat::Text
         ))
@@ -2447,6 +2460,7 @@ fn mutation_required_options_cannot_be_dropped() {
                 geometry: geometry(),
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
             OutputFormat::Text
         ))
@@ -2729,6 +2743,7 @@ fn mutation_values_are_bounded() {
                     .expect("geometry inside bounds"),
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
             OutputFormat::Text
         ))
@@ -2760,6 +2775,7 @@ fn mutation_values_are_bounded() {
                     .expect("paired-zero geometry is protocol-valid"),
                 launch: None,
                 profile: None,
+                options: Default::default(),
             },
             OutputFormat::Text
         ))
@@ -6144,5 +6160,114 @@ fn workspace_close_help_paths_resolve() {
             Ok(Request::Help(HelpTopic::Command(command))),
             "help workspace {verb}"
         );
+    }
+}
+
+#[test]
+fn per_launch_options_support_default_explicit_and_profile_launches() {
+    for selection in [
+        vec![],
+        vec!["--exec", "C:\\tools\\agent.exe", "--arg", "--literal"],
+        vec!["--profile", "dev"],
+    ] {
+        for panel in [false, true] {
+            let mut words = if panel {
+                vec!["panel", "split", ID, "--direction", "right", "--label", "p"]
+            } else {
+                vec!["tab", "create", "--standalone", "--label", "t"]
+            };
+            words.extend(selection.iter().copied());
+            words.extend([
+                "--cwd",
+                "C:\\代码 space",
+                "--env",
+                "KEY=literal=值 $()",
+                "--env=EMPTY=",
+            ]);
+            let Request::Mutation { command, .. } = parse(&words).unwrap() else {
+                panic!("mutation");
+            };
+            let (options, launch, profile) = match command {
+                MutationCommand::TabCreate {
+                    options,
+                    launch,
+                    profile,
+                    ..
+                }
+                | MutationCommand::PanelSplit {
+                    options,
+                    launch,
+                    profile,
+                    ..
+                } => (options, launch, profile),
+                _ => panic!("launch mutation"),
+            };
+            assert_eq!(options.cwd.unwrap().as_str(), "C:\\代码 space");
+            assert_eq!(
+                options.environment.entries(),
+                &[
+                    ("KEY".into(), "literal=值 $()".into()),
+                    ("EMPTY".into(), "".into())
+                ]
+            );
+            assert_eq!(launch.is_some(), selection.first() == Some(&"--exec"));
+            assert_eq!(profile.is_some(), selection.first() == Some(&"--profile"));
+        }
+    }
+}
+
+#[test]
+fn per_launch_options_reject_bad_values_and_scope_without_echoing_secrets() {
+    for extras in [
+        vec!["--env", "TOKEN_SECRET"],
+        vec!["--env", "TERM=TOKEN_SECRET"],
+        vec!["--env", "Path=TOKEN_SECRET", "--env=PATH=other"],
+    ] {
+        let mut words = vec!["tab", "create", "--standalone", "--label", "t"];
+        words.extend(extras);
+        let failure = parse(&words).unwrap_err();
+        assert!(!format!("{failure:?}").contains("TOKEN_SECRET"));
+        assert!(matches!(
+            failure.usage,
+            Some(UsageReason::InvalidValue {
+                expected: ExpectedValue::LaunchEnvironment,
+                ..
+            })
+        ));
+    }
+    for words in [
+        vec![
+            "tab",
+            "create",
+            "--standalone",
+            "--label",
+            "t",
+            "--cwd",
+            "relative",
+        ],
+        vec![
+            "tab",
+            "create",
+            "--standalone",
+            "--label",
+            "t",
+            "--cwd",
+            "C:\\a",
+            "--cwd=C:\\b",
+        ],
+        vec!["status", "--env", "A=b"],
+        vec!["--skill", "--cwd", "C:\\a"],
+        vec![
+            "launch-profile",
+            "create",
+            "--name",
+            "dev",
+            "--exec",
+            "C:\\agent.exe",
+            "--env",
+            "A=b",
+        ],
+    ] {
+        assert!(parse(&words).is_err(), "{words:?}");
     }
 }

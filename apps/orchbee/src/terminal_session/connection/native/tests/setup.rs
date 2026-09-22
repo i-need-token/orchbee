@@ -919,6 +919,7 @@ impl UiDriver {
                             geometry: workbench_geometry,
                             launch: None,
                             profile: None,
+                            options: Default::default(),
                         },
                     };
                     let request = WorkbenchTabCreateRequest::try_from(command)

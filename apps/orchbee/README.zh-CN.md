@@ -629,3 +629,8 @@ Snapshot read 不重试。Attachment 后仍须完成现有 controller 与 projec
 脚本化载体轨迹及 Linux 上真实的双 Client Tab/刷新进程见证提供实现证据；契约的
 [声明与证据矩阵](docs/native-tab-session.zh-CN.md#声明证据矩阵)记录已检查的声明及其边界。
 这些进程证据不证明其他操作系统、安装、重启恢复或远程访问。
+
+`tab create` 和 `panel split` 还接受单次启动的 `--cwd <absolute-path>` 和可重复的
+`--env NAME=VALUE`，可与 `--profile` 或默认 shell 配合。cwd 覆盖 Workspace 目录，
+均未提供时回退到 Worker 主目录。环境值逐字传递且有界；参见命令帮助与
+[原生 CLI 合约](docs/native-cli-query.zh-CN.md)。

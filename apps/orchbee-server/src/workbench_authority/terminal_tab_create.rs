@@ -433,6 +433,7 @@ impl WorkbenchAuthority {
             geometry,
             launch: _,
             profile,
+            ..
         } = command.action.clone()
         else {
             return ready(

@@ -292,6 +292,7 @@ fn native_standalone_panel_split_refreshes_and_moves_focus_between_live_leaves()
             geometry: split_geometry,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
         split_deadline,
     )? {
@@ -493,6 +494,7 @@ fn native_standalone_panel_close_collapses_the_split_and_releases_only_that_shel
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
         split_deadline,
     )? {
@@ -717,6 +719,7 @@ fn native_standalone_panel_move_relocates_a_leaf_without_touching_either_shell()
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
         split_deadline,
     )? {
@@ -897,6 +900,7 @@ fn native_standalone_refresh_catches_up_across_two_committed_peer_splits() -> Te
             geometry: split_geometry,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
         deadline,
     )? {
@@ -915,6 +919,7 @@ fn native_standalone_refresh_catches_up_across_two_committed_peer_splits() -> Te
             geometry: split_geometry,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
         deadline,
     )? {
@@ -1355,6 +1360,7 @@ fn native_bare_reentry_replays_the_settled_anchor_across_a_split_leaf() -> TestR
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
         deadline,
     )? {

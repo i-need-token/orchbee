@@ -2,8 +2,9 @@
 
 ## Scope
 
-`orchbee-client-server-protocol` is the independent Rust binding for the language-neutral OBCS
-version-1 contract under [`schemas/client-server`](../../schemas/client-server/README.md). It owns
+`orchbee-client-server-protocol` owns the native OBCS v2 Rust binding. The earlier language-neutral
+v1 schema remains under [`schemas/client-server`](../../schemas/client-server/README.md); see the
+native extension and reconciliation limits below. The crate owns
 validated Rust values, strict direction-specific JSON decoding, deterministic encoding, and bounded
 frame I/O. It has no dependency on the OBLC local admission binding, the OBCN Server-Worker
 authorization binding, Terminal Host types, or Workbench types.
@@ -28,7 +29,7 @@ project Workbench state.
 
 All decoded objects and enums are closed. Missing explicit nullable create fields, unknown fields or
 tags, duplicate keys, BOM, invalid UTF-8, trailing JSON values, direction mismatches, invalid
-identities, paths, or geometry, and JSON frames outside the exact length or 32 KiB payload bound are
+identities, paths, or geometry, and JSON frames outside the exact length or 48 KiB payload bound are
 rejected. Protocol and geometry numbers use the schema-owned finite binary64 safe-integer
 refinement, so equivalent integral decimal and exponent spellings decode to the same value.
 Canonical encoding uses compact deterministic JSON with ordinary integer tokens.
@@ -99,7 +100,7 @@ all three actions require `attachment_id: ViewerId`, exposed by
 Client/Server/Worker must use an exact development cohort with no implicit-viewer fallback.
 `ControlInput` validates 1 through `MAXIMUM_CONTROL_INPUT_BYTES` (4,096) bytes and serializes canonical
 lowercase hex. Shared number adapters validate positive decimal u64 sequences. Acquire, Input, and
-Resize use the existing 32 KiB OBCS JSON framing.
+Resize use the existing 48 KiB OBCS JSON framing.
 
 `Paste` is the semantic auto-mode paste action. It carries `PasteContent`, an opaque 1 through
 `MAXIMUM_PASTE_CONTENT_BYTES` (262,144) byte body, and never appears in OBCS JSON: the client frame
@@ -235,3 +236,19 @@ frame version and limits. The installed exact runtime cohort is Client, Server, 
 this Rust source binding is a contract input rather than an installed cohort artifact. Before
 publication, its source contract and the runtime cohort roll back together, with no persisted state
 or migration.
+
+## Native launch environment extension
+
+The native OBCS binding accepts optional `environment` on `terminal.create`, encoded as ordered
+`[name, value]` pairs. Empty environments omit the member, preserving the previous encoding.
+`LaunchEnvironment` validates at construction and JSON decode: at most 32 pairs and 1,024 combined
+UTF-8 name/value bytes, ASCII identifier names of 1..128 bytes, no NUL, no case-insensitive
+duplicates, and no `ORCHBEE_*`, `TERM`, `COLORTERM` or `TERM_PROGRAM`. Empty values and embedded
+`=` remain literal. Values are omitted from Debug output. The complete request, including this
+overlay, participates in request identity. The Server converts it to the independent OBCN value.
+
+The checked-in language-neutral v1 schema/corpus predates the native v2 launch selection and
+this environment extension. It is not evidence of native v2 or Desktop compatibility; full
+schema/binding reconciliation remains outstanding.
+
+Native v2 frames are bounded at 48 KiB before allocation. A combined maximum escaped cwd, executable/argv and environment test covers the request budget; the older 32 KiB bound cannot contain that valid combination.

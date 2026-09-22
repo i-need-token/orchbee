@@ -405,6 +405,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
             geometry: geometry()?,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     assert!(matches!(
@@ -531,6 +532,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
             geometry: geometry()?,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     let first_tab_result = exchange_command(&mut second, &first_tab_request)?;
@@ -638,6 +640,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
             geometry: geometry()?,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     let deleted_tab_result = exchange_command(&mut first, &deleted_tab_request)?;
@@ -788,6 +791,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
             geometry: geometry()?,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     assert!(matches!(

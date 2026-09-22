@@ -31,3 +31,14 @@ Destructive close/delete commands require `--confirm`. A closed Workspace does n
 ## Consume results
 
 Use `--format json` where declared. Standard output carries one machine document; localized diagnostics use standard error. Inspect both the document and process exit code. Exit 2 is invalid usage, 4 unavailable, 7 timeout, 8 unknown outcome, and 130 cancellation. Do not parse human prose or assume a failed/cancelled wait cancelled the observed operation. Keep stable IDs and request identities needed for recovery.
+
+## Start in the intended directory and environment
+
+`tab create` and `panel split` accept `--cwd <absolute-path>` and repeatable `--env NAME=VALUE`,
+with the default shell, an explicit program, or `--profile`. Values are literal; an empty value is
+allowed. An explicit cwd overrides the accepted Workspace directory; without either, Worker home
+is used. The directory must already exist. These options do not modify the stored profile.
+At most 32 environment entries and 1,024 UTF-8 name/value bytes are allowed; names are ASCII
+identifiers, unique ignoring case. Orchbee and terminal identity variables are reserved.
+Inspect the terminal outcome in the result: committed membership alone does not prove a process
+started. The native CLI help owns the complete validation rules.

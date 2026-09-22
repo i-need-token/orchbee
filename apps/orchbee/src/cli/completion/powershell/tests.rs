@@ -8,6 +8,12 @@ use std::{
 #[test]
 fn real_powershell_completes_scoped_grammar_without_runtime() {
     let cases = [
+        ("orchbee tab create --profile dev --e", "--env", true),
+        ("orchbee tab create --env A=b --e", "--env", true),
+        ("orchbee panel split p --env A=b --c", "--cwd", true),
+        ("orchbee tab create --cwd C:\\code --c", "--cwd", false),
+        ("orchbee launch-profile create --e", "--env", false),
+        ("orchbee status --c", "--cwd", false),
         ("orchbee ", "--skill", true),
         ("orchbee completion ", "powershell", true),
         ("orchbee help agent integration ", "enable", true),

@@ -125,7 +125,7 @@ impl CommandMailbox {
         state.structural_mutation_pending = Some(StructuralMutationFlight::Setup(flight));
         state.queue.push_back(QueuedRecord {
             serial,
-            command: QueuedCommand::WorkspaceSetup(marker),
+            command: QueuedCommand::WorkspaceSetup(Box::new(marker)),
             retry_at: None,
         });
         self.changed.notify_all();

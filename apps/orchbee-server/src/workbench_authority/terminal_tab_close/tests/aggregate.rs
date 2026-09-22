@@ -413,6 +413,7 @@ fn aggregate_close_fences_same_tab_split_and_move_until_publication() {
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     let WorkbenchPanelSplitBegin::Ready(fenced) =
@@ -483,6 +484,7 @@ fn aggregate_close_fences_same_tab_split_and_move_until_publication() {
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     let WorkbenchPanelSplitBegin::Admitted(other) =
@@ -597,6 +599,7 @@ fn leaf_close_leaves_same_tab_split_and_move_admissible() {
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     let WorkbenchPanelSplitBegin::Admitted(splitting) =

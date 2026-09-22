@@ -50,6 +50,7 @@ fn parked_tab_create_completion_survives_an_interleaved_split_on_one_connection(
             geometry: workbench_geometry()?,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     write_obwp(&mut first_client, &first_request, deadline())?;
@@ -73,6 +74,7 @@ fn parked_tab_create_completion_survives_an_interleaved_split_on_one_connection(
             geometry: workbench_geometry()?,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     write_obwp(&mut first_client, &second_request, deadline())?;
@@ -104,6 +106,7 @@ fn parked_tab_create_completion_survives_an_interleaved_split_on_one_connection(
             geometry: workbench_geometry()?,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     write_obwp(&mut second_client, &split_request, deadline())?;
@@ -246,6 +249,7 @@ fn never_split_fixture() -> TestResult<(
             geometry: workbench_geometry()?,
             launch: None,
             profile: None,
+            options: Default::default(),
         },
     );
     write_obwp(&mut first_client, &first_request, deadline())?;
