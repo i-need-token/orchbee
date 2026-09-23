@@ -2,12 +2,11 @@
 //! This owner resolves only; existing terminal owners retain observation/input.
 
 use super::*;
-use orchbee_agent_observation_protocol::{
-    AgentLifecycle, AgentSafeInteger, AgentSessionDetail, AgentSessionSelector,
-};
+use crate::invocation::AgentTarget;
+use orchbee_agent_observation_protocol::{AgentLifecycle, AgentSafeInteger, AgentSessionDetail};
 
 pub(crate) fn read_agent_terminal(
-    target: &AgentSessionSelector,
+    target: &AgentTarget,
     history: Option<u16>,
     presentation: super::super::results::ReadPresentation,
 ) -> Result<(serde_json::Value, Projection), Failure> {
@@ -21,7 +20,7 @@ pub(crate) fn read_agent_terminal(
 pub(crate) fn agent_terminal_target(
     client: &mut LocalClient,
     snapshot: &Snapshot,
-    target: &AgentSessionSelector,
+    target: &AgentTarget,
     deadline: Instant,
 ) -> Result<Target, Failure> {
     resolve_agent_terminal(client, snapshot, target, deadline).map(|resolved| resolved.terminal)
@@ -41,12 +40,18 @@ pub(crate) struct ResolvedAgentTerminal {
 pub(crate) fn resolve_agent_terminal(
     client: &mut LocalClient,
     snapshot: &Snapshot,
-    target: &AgentSessionSelector,
+    target: &AgentTarget,
     deadline: Instant,
 ) -> Result<ResolvedAgentTerminal, Failure> {
-    let session_id = agent_names::resolve_on_session(client, target, deadline, None)?;
+    let resolved =
+        agent_target::resolve_on_session(client, target, Some(snapshot), deadline, None)?;
+    let session_id = resolved.session_id;
     let observation = read_agent_observation(client, &session_id, deadline, None)?;
-    let terminal = select_terminal(snapshot, &observation.session)?;
+    let terminal = select_terminal_for_presentation(
+        snapshot,
+        &observation.session,
+        resolved.presentation.as_deref(),
+    )?;
     Ok(ResolvedAgentTerminal {
         terminal,
         observation,
@@ -107,11 +112,16 @@ pub(crate) fn read_agent_observation(
     }
 }
 
-fn select_terminal(snapshot: &Snapshot, session: &AgentSessionDetail) -> Result<Target, Failure> {
+fn select_terminal_for_presentation(
+    snapshot: &Snapshot,
+    session: &AgentSessionDetail,
+    presentation: Option<&str>,
+) -> Result<Target, Failure> {
     let matches: Vec<_> = super::super::results::terminal_rows(snapshot)
         .into_iter()
         .filter(|row| {
-            session.snapshot.lifecycle == AgentLifecycle::Live
+            presentation.is_none_or(|id| id == row.presentation_id)
+                && session.snapshot.lifecycle == AgentLifecycle::Live
                 && session
                     .snapshot
                     .presentation_attachments

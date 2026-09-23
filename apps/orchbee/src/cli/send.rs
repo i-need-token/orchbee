@@ -69,11 +69,11 @@ pub(super) fn run(
 #[cfg(any(target_os = "linux", windows))]
 enum SendTarget<'a> {
     Terminal(&'a Target),
-    Agent(&'a orchbee_agent_observation_protocol::AgentSessionSelector),
+    Agent(&'a crate::invocation::AgentTarget),
 }
 
 pub(super) fn run_agent(
-    target: &orchbee_agent_observation_protocol::AgentSessionSelector,
+    target: &crate::invocation::AgentTarget,
     keys: &[crate::invocation::ParsedSendKey],
     format: OutputFormat,
     locale: Locale,

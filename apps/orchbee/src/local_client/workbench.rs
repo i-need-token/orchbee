@@ -1,3 +1,4 @@
+use orchbee_local_ipc::LocalIo as BorrowedFd;
 use std::{fmt, io, time::Instant};
 
 use orchbee_workbench_protocol::{
@@ -57,7 +58,7 @@ impl LocalClient {
         &mut self,
         request: SnapshotReadIntent,
     ) -> Result<WorkbenchSnapshotResult, SnapshotReadError> {
-        self.submit_workbench_snapshot_read_with_deadline(request, None)
+        self.submit_workbench_snapshot_read_with_deadline(request, None, None)
     }
 
     pub(crate) fn submit_workbench_snapshot_read_before(
@@ -65,13 +66,24 @@ impl LocalClient {
         request: SnapshotReadIntent,
         deadline: Instant,
     ) -> Result<WorkbenchSnapshotResult, SnapshotReadError> {
-        self.submit_workbench_snapshot_read_with_deadline(request, Some(deadline))
+        self.submit_workbench_snapshot_read_with_deadline(request, Some(deadline), None)
+    }
+
+    #[cfg(any(target_os = "linux", windows))]
+    pub(crate) fn submit_workbench_snapshot_read_before_cancellable(
+        &mut self,
+        request: SnapshotReadIntent,
+        deadline: Instant,
+        wake: Option<BorrowedFd<'_>>,
+    ) -> Result<WorkbenchSnapshotResult, SnapshotReadError> {
+        self.submit_workbench_snapshot_read_with_deadline(request, Some(deadline), wake)
     }
 
     fn submit_workbench_snapshot_read_with_deadline(
         &mut self,
         request: SnapshotReadIntent,
         caller_deadline: Option<Instant>,
+        wake: Option<BorrowedFd<'_>>,
     ) -> Result<WorkbenchSnapshotResult, SnapshotReadError> {
         if self.connection.is_none() {
             return Err(SnapshotReadError::SessionUnavailable);
@@ -104,7 +116,7 @@ impl LocalClient {
                 &self.clock,
                 deadline,
                 self.io_chunk_limits,
-                None,
+                wake,
                 &frame,
                 |io| read_workbench_response(io),
             )

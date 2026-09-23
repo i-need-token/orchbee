@@ -230,6 +230,7 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--profile",
     "--name",
     "--session",
+    "--panel",
     "--clear",
     "--wait",
     "--forever",
@@ -260,11 +261,12 @@ const REPEATABLE_FLAGS: &[&str] = &[
 /// that command admits. Commands not listed here admit none.
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("agent:list", &["--include-ended", "--limit", "--cursor"]),
-    ("agent:get", &["--session", "--name"]),
+    ("agent:get", &["--session", "--name", "--panel"]),
     (
         "agent:read",
         &[
             "--session",
+            "--panel",
             "--name",
             "--history",
             "--rows",
@@ -272,11 +274,12 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--lines",
         ],
     ),
-    ("agent:send-keys", &["--session", "--name"]),
+    ("agent:send-keys", &["--session", "--name", "--panel"]),
     (
         "agent:prompt",
         &[
             "--session",
+            "--panel",
             "--name",
             "--wait",
             "--until",
@@ -284,14 +287,18 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--forever",
         ],
     ),
-    ("agent:explain", &["--session", "--name"]),
-    ("agent:resolve", &["--session", "--name"]),
-    ("agent:rename", &["--session", "--name", "--clear"]),
+    ("agent:explain", &["--session", "--name", "--panel"]),
+    ("agent:resolve", &["--session", "--name", "--panel"]),
+    (
+        "agent:rename",
+        &["--session", "--name", "--panel", "--clear"],
+    ),
     ("agent:doctor", &["--provider", "--asset-root"]),
     (
         "agent:wait",
         &[
             "--session",
+            "--panel",
             "--name",
             "--until",
             "--after-revision",

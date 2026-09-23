@@ -733,3 +733,5 @@ restart recovery or remote access.
 `--env NAME=VALUE`, including with `--profile` or the default shell. The cwd overrides the
 Workspace directory, then falls back to Worker home when absent. Environment values are literal
 and bounded; see command help and [the native CLI contract](docs/native-cli-query.md).
+
+Targeted Agent commands also accept `--panel <id|@panel:suffix>` or a positional Panel ID. Session IDs and names take precedence over positional Panel fallback. Panels select their primary terminal and require one live Agent; waits pin the selected Session.

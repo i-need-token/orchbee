@@ -653,3 +653,5 @@ Snapshot read 不重试。Attachment 后仍须完成现有 controller 与 projec
 `--env NAME=VALUE`，可与 `--profile` 或默认 shell 配合。cwd 覆盖 Workspace 目录，
 均未提供时回退到 Worker 主目录。环境值逐字传递且有界；参见命令帮助与
 [原生 CLI 合约](docs/native-cli-query.zh-CN.md)。
+
+面向单个 Agent 的命令还支持 `--panel <id|@panel:suffix>` 或位置参数 Panel ID。位置参数优先按 Session ID 和名称解析，再回退到 Panel。Panel 选择主终端且要求唯一存活 Agent；等待固定到选定的 Session。

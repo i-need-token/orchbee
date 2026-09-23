@@ -13,49 +13,68 @@ pub(super) fn execute(command: &AgentNamesCommand) -> Execution {
         Ok(total) => total,
         Err(failure) => return Execution::failed(failure),
     };
-    let request_id = match obap_request_id() {
-        Ok(id) => id,
-        Err(failure) => return Execution::failed(failure),
-    };
-    let request = match command {
-        AgentNamesCommand::List => AgentNamesRequest::NamesList { request_id },
-        AgentNamesCommand::Resolve(target) => AgentNamesRequest::Resolve {
-            request_id,
-            target: target.clone(),
-        },
-        AgentNamesCommand::Assign { target, name } => AgentNamesRequest::NameAssign {
-            request_id,
-            target: target.clone(),
-            name: name.clone(),
-        },
-        AgentNamesCommand::Release(target) => AgentNamesRequest::NameRelease {
-            request_id,
-            target: target.clone(),
-        },
-    };
     let armed = match ArmedSignals::arm_interrupts() {
         Ok(armed) => armed,
         Err(_) => return Execution::failed(Failure::new(FailureKind::InternalFailure)),
     };
-    let attempt = span(total, SignalWatch::poll_fd(&armed), request);
+    let attempt = span(total, SignalWatch::poll_fd(&armed), command);
     let finish = armed.finish();
     settle(command, attempt, finish)
 }
 
 enum Attempt {
     Admission(AgentAdmissionError),
+    Preparation(Failure),
     Exchange(Result<AgentNamesResult, AgentExchangeError>),
 }
 
-fn span(total: Instant, wake: Option<BorrowedFd<'_>>, request: AgentNamesRequest) -> Attempt {
-    match agent_session_until(total, wake) {
-        Err(error) => Attempt::Admission(error),
-        Ok(mut client) => {
-            let result = client.submit_agent_names_before_cancellable(request, total, wake);
-            drop(client);
-            Attempt::Exchange(result)
+fn span(total: Instant, wake: Option<BorrowedFd<'_>>, command: &AgentNamesCommand) -> Attempt {
+    let mut client = match agent_session_until(total, wake) {
+        Err(error) => return Attempt::Admission(error),
+        Ok(client) => client,
+    };
+    let prepared = match command {
+        AgentNamesCommand::List => None,
+        AgentNamesCommand::Resolve(target)
+        | AgentNamesCommand::Release(target)
+        | AgentNamesCommand::Assign { target, .. } => {
+            match super::agent_target::prepare(&mut client, target, None, total, wake) {
+                Ok(prepared) => Some(prepared),
+                Err(failure) => return Attempt::Preparation(failure),
+            }
         }
+    };
+    if matches!(command, AgentNamesCommand::Resolve(_))
+        && let Some(answer) = prepared
+            .as_ref()
+            .and_then(|prepared| prepared.resolved.as_ref())
+    {
+        return Attempt::Exchange(Ok(answer.clone()));
     }
+    let request_id = match obap_request_id() {
+        Ok(id) => id,
+        Err(failure) => return Attempt::Preparation(failure),
+    };
+    let request = match (command, prepared) {
+        (AgentNamesCommand::List, _) => AgentNamesRequest::NamesList { request_id },
+        (AgentNamesCommand::Resolve(_), Some(prepared)) => AgentNamesRequest::Resolve {
+            request_id,
+            target: prepared.selector,
+        },
+        (AgentNamesCommand::Assign { name, .. }, Some(prepared)) => AgentNamesRequest::NameAssign {
+            request_id,
+            target: prepared.selector,
+            name: name.clone(),
+        },
+        (AgentNamesCommand::Release(_), Some(prepared)) => AgentNamesRequest::NameRelease {
+            request_id,
+            target: prepared.selector,
+        },
+        _ => return Attempt::Preparation(Failure::new(FailureKind::InternalFailure)),
+    };
+    let result = client.submit_agent_names_before_cancellable(request, total, wake);
+    drop(client);
+    Attempt::Exchange(result)
 }
 
 fn settle(
@@ -94,7 +113,8 @@ fn settle(
         _ if fault => Execution::failed(
             Failure::new(FailureKind::InternalFailure).failure_schema(FAILURE_SCHEMA),
         ),
-        Attempt::Admission(AgentAdmissionError::Preamble(failure)) => Execution::failed(failure),
+        Attempt::Admission(AgentAdmissionError::Preamble(failure))
+        | Attempt::Preparation(failure) => Execution::failed(failure),
         Attempt::Admission(AgentAdmissionError::Connect(error)) => {
             Execution::failed(classify_connect(error))
         }
@@ -104,7 +124,7 @@ fn settle(
     execution
 }
 
-fn exchange_failure(error: AgentExchangeError) -> Failure {
+pub(super) fn exchange_failure(error: AgentExchangeError) -> Failure {
     let kind = match error {
         AgentExchangeError::SessionUnavailable | AgentExchangeError::RequestEncoding(_) => {
             FailureKind::InternalFailure
@@ -132,65 +152,16 @@ fn io_failure_kind(error: &std::io::Error) -> FailureKind {
     }
 }
 
-/// A name is resolved exactly once on the caller's held session. Selectors
-/// that cannot name an alias retain the existing direct-ID read contract.
-pub(super) fn resolve_on_session(
-    client: &mut LocalClient,
-    target: &orchbee_agent_observation_protocol::AgentSessionSelector,
-    total: Instant,
-    wake: Option<BorrowedFd<'_>>,
-) -> Result<AgentSessionId, Failure> {
-    use orchbee_agent_observation_protocol::{
-        AgentName, AgentResolveOutcome, AgentSessionSelector,
-    };
-    match target {
-        AgentSessionSelector::Session { session_id } => return Ok(session_id.clone()),
-        AgentSessionSelector::Auto { target } if AgentName::parse(target.as_str()).is_err() => {
-            return Ok(target.clone());
-        }
-        _ => {}
-    }
-    let request_id = obap_request_id()?;
-    let answer = client.submit_agent_names_before_cancellable(
-        AgentNamesRequest::Resolve {
-            request_id,
-            target: target.clone(),
-        },
-        total,
-        wake,
-    );
-    if Instant::now() >= total {
-        return Err(Failure::new(FailureKind::Timeout).failure_schema(FAILURE_SCHEMA));
-    }
-    let result = answer.map_err(exchange_failure)?;
-    let source = json!({"kind":"agent-names", "requestId": result.request_id()});
-    let AgentNamesResult::Resolve { result, .. } = result else {
-        return Err(Failure::new(FailureKind::ProtocolInvalid).failure_schema(FAILURE_SCHEMA));
-    };
-    match result.outcome {
-        AgentResolveOutcome::Resolved { session_id, .. } => Ok(session_id),
-        AgentResolveOutcome::Rejected { reason } => {
-            Err(crate::cli::agent_names::rejection(json!(reason), None)
-                .source(source)
-                .failure_schema(FAILURE_SCHEMA))
-        }
-        AgentResolveOutcome::Unavailable { .. } => {
-            Err(Failure::new(FailureKind::ServiceUnavailable)
-                .source(source)
-                .failure_schema(FAILURE_SCHEMA))
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use orchbee_agent_observation_protocol::{AgentName, AgentSessionId, AgentSessionSelector};
+    use crate::invocation::AgentTarget;
+    use orchbee_agent_observation_protocol::{AgentName, AgentSessionId};
 
     #[test]
     fn lost_mutation_reply_is_unknown_while_a_pre_submission_failure_is_not() {
         let command = AgentNamesCommand::Assign {
-            target: AgentSessionSelector::Session {
+            target: AgentTarget::Session {
                 session_id: AgentSessionId::parse("a").unwrap(),
             },
             name: AgentName::parse("alpha").unwrap(),

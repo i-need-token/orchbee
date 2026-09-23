@@ -470,3 +470,49 @@ fn windows_codex_boundary_precedes_enter_and_partial_delivery_is_never_completed
         }
     }
 }
+
+#[test]
+fn panel_prompt_submits_to_the_primary_binding() {
+    let fixture = Fixture::new();
+    let rendezvous = fixture.rendezvous();
+    let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
+    let handler = peer(listener, move |mut stream| {
+        bound_snapshot_reply(&mut stream);
+        resolve_reply(
+            &mut stream,
+            json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"presentation"}),
+        );
+        read_reply(
+            &mut stream,
+            "get",
+            json!({"kind":"found","revision":1,"session":idle()}),
+        );
+        accept_prompt(&mut stream, "panel prompt");
+        assert_closed(&mut stream);
+    });
+    let output = fixture.run(&[
+        "agent",
+        "prompt",
+        "--panel",
+        "@panel:222",
+        "panel prompt",
+        "--format",
+        "json",
+    ]);
+    handler.join().unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+    validate(
+        &doc,
+        include_str!("../src/cli/schemas/orchbee.agent.prompt.json"),
+    );
+    assert_eq!(
+        doc["result"]["submission"]["result"]["terminalId"],
+        "33333333333333333333333333333333"
+    );
+}

@@ -29,6 +29,8 @@ fn all_names_requests_and_outcomes_round_trip_through_the_public_codec() {
             "resolve",
             vec![
                 json!({"kind":"resolved","sessionId":"s1","resolvedBy":"name"}),
+                json!({"kind":"resolved","sessionId":"s1","resolvedBy":"presentation"}),
+                json!({"kind":"rejected","reason":"ambiguous-target"}),
                 json!({"kind":"rejected","reason":"not-found"}),
                 json!({"kind":"rejected","reason":"read-denied"}),
             ],
@@ -48,6 +50,7 @@ fn all_names_requests_and_outcomes_round_trip_through_the_public_codec() {
                 json!({"kind":"unchanged","sessionId":"s1","name":"alpha"}),
                 json!({"kind":"rejected","reason":"name-in-use","conflictSessionId":"s2"}),
                 json!({"kind":"rejected","reason":"session-ended","conflictSessionId":null}),
+                json!({"kind":"rejected","reason":"ambiguous-target","conflictSessionId":null}),
             ],
         ),
         (
@@ -56,6 +59,7 @@ fn all_names_requests_and_outcomes_round_trip_through_the_public_codec() {
                 json!({"kind":"released","sessionId":"s1","name":"alpha"}),
                 json!({"kind":"unchanged","sessionId":"s1"}),
                 json!({"kind":"rejected","reason":"name-not-found"}),
+                json!({"kind":"rejected","reason":"ambiguous-target"}),
             ],
         ),
     ];
@@ -104,5 +108,32 @@ fn names_invariants_reject_ghost_duplicate_and_mismatched_conflict_rows() {
     for (reason, conflict) in [("name-in-use", json!(null)), ("session-ended", json!("s1"))] {
         let document = json!({"kind":"agent.session.name.assign.result","requestId":ID,"result":{"outcome":{"kind":"rejected","reason":reason,"conflictSessionId":conflict}}});
         assert!(parse_agent_result(&serde_json::to_vec(&document).unwrap()).is_err());
+    }
+}
+
+#[test]
+fn presentation_selector_round_trips_and_rejects_invalid_identities() {
+    for operation in ["resolve", "name.assign", "name.release"] {
+        let mut document = json!({"kind":format!("agent.session.{operation}.request"),"requestId":ID,
+            "target":{"kind":"presentation","presentationId":ID}});
+        if operation == "name.assign" {
+            document["name"] = json!("alpha");
+        }
+        let request = parse_agent_request(&serde_json::to_vec(&document).unwrap()).unwrap();
+        let mut bytes = Vec::new();
+        write_agent_request(&mut bytes, &request).unwrap();
+        assert_eq!(
+            read_agent_request(&mut Cursor::new(bytes)).unwrap(),
+            request
+        );
+        for invalid in [
+            "",
+            "panel",
+            "00000000000000000000000000000000",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        ] {
+            document["target"]["presentationId"] = json!(invalid);
+            assert!(parse_agent_request(&serde_json::to_vec(&document).unwrap()).is_err());
+        }
     }
 }

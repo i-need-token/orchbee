@@ -21,20 +21,20 @@ and `src/cli/**`. Prose and implementation must converge in the same change.
 returns a full session ID, testing exact ID existence before aliases. `agent rename
 <target> <new-name>` assigns or atomically replaces a name; `agent rename <target>
 --clear` releases it without stopping the session. Replace the target operand with
-`--session <id>` or `--name <alias>` for explicit selection; exactly one selector is
+`--session <id>`, `--name <alias>` or `--panel <id|@panel:suffix>` for explicit selection; exactly one selector is
 required. Names match `[a-z][a-z0-9_-]{0,31}` and are case-sensitive. They are unique,
 limited to 512 live bindings, and released when the session ends, is removed, or the
 Site runtime is disposed. Restarting a Site starts with an empty alias table.
 
 All three commands admit `--format text|json`. The embedded success schemas are
 `orchbee.agent.names`, `orchbee.agent.resolve`, and `orchbee.agent.rename`, version 1;
-post-admission failures use `orchbee.cli.failure.agent-names`, version 1. Correlated
-semantic answers carry an `agent-names` source with the OBAP request ID. These four documents are included in schema catalog version 13, alongside the prompt contracts. Invalid names or conflicting selectors
+post-admission failures use `orchbee.cli.failure.agent-names`, version 1. Presentation resolution and ambiguous-target failures use version 2; earlier outcomes keep version 1. Correlated
+semantic answers carry an `agent-names` source with the OBAP request ID. These four documents are included in schema catalog version 14, alongside the prompt contracts. Invalid names or conflicting selectors
 fail with exit 2 before any runtime access. A collision is exit 3 and identifies the
 incumbent session; it never overwrites that session's name.
 
 Each command owns one five-second deadline spanning cohort validation, existing-only
-Site discovery, admission and one OBAP exchange. Signals participate in transport
+Site discovery, admission, optional Panel resolution and the final OBAP exchange. Signals participate in transport
 waits; the session closes before signal arbitration and output. A confirmed reply
 remains authoritative if a signal races its completion. A submitted mutation without
 a trustworthy matching reply returns outcome-unknown (exit 8), including cancellation,
@@ -42,8 +42,8 @@ and is never replayed. A known pre-submission cancellation is exit 130. No alias
 cache, provider process, new Site, or canonical-session mutation is involved.
 
 `get`, `explain`, and `wait` accept the same positional target or explicit
-`--session`/`--name` selector. Exact retained IDs take precedence over names; explicit
-IDs and tokens that cannot be names go directly to the read. Other targets first send
+`--session`/`--name`/`--panel` selector. Exact retained IDs take precedence over names; explicit
+IDs and opaque tokens that cannot name aliases or Panels go directly to the read. Other targets first send
 Resolve on the same admitted Client Session. Resolution and reads share the original
 deadline and signal owner, without a second admission or renewed budget. A wait bounds
 initial resolution by `min(remaining_ms, 5000)` and pins the resolved ID before
@@ -57,8 +57,8 @@ lost/mismatched mutation replies and parse-before-effect.
 ## Agent terminal operations
 
 `agent read <target>` and `agent send-keys <target> <key>...` accept the same
-session ID or runtime name selectors as `agent get`, including explicit `--session`
-and `--name`. Read admits `--history --rows <n>`, `--unwrap`, and `--lines <n>`
+Session ID, runtime name or Panel selectors as `agent get`, including explicit `--session`,
+`--name` and `--panel`. Read admits `--history --rows <n>`, `--unwrap`, and `--lines <n>`
 with the same bounds and meaning as `terminal read`. Send admits at most 64 semantic
 keys or modifier combinations and validates the entire sequence before any effects.
 
@@ -66,8 +66,8 @@ The CLI composes existing owners: one existing-only Client Session reads a Workb
 snapshot, optionally resolves an alias, and gets the canonical Agent session. Only
 an active session's navigable, live presentation attachments may select a terminal.
 The join compares full presentation IDs against bound terminals in the snapshot;
-a Panel ID is never treated as a presentation ID. Zero matches is not-found, multiple
-matches is ambiguous, and neither case attaches a viewer or submits input.
+a Panel ID is never treated as a presentation ID. An explicit or fallback Panel restricts the join to its primary presentation.
+Zero matches is not-found, multiple matches is ambiguous, and neither case attaches a viewer or submits input.
 One five-second deadline covers all exchanges. Resolution is pinned for the operation;
 the Server still authorizes the current terminal binding at input admission.
 
@@ -95,7 +95,7 @@ These repair stale schema projections; wire and receipt versions remain unchange
 ## Agent prompt submission
 
 `agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>]`
-uses the same ID/name selectors as other Agent commands. Text is non-empty UTF-8,
+uses the same Session/name/Panel selectors as other Agent commands. Text is non-empty UTF-8,
 bounded by the 256 KiB paste limit and the command's 64 KiB argv envelope. `--until`
 and `--timeout` require `--wait`; wait conditions and the default ten-minute,
 maximum one-hour timeout match `agent wait`. Without waiting, the budget is five seconds.
@@ -126,7 +126,7 @@ own turn. Polling can miss transitions and does not claim Herdr event replay.
 
 On Windows, canonical provider `codex` uses one ordered paste, Right, Enter sequence. Right is a non-character boundary that flushes Codex's paste-burst buffer and clears its Enter suppression window. It neither embeds escape bytes in prompt text nor guesses delivery speed with a fixed delay. Other providers retain paste, Enter; ordinary `terminal send --paste --enter` adds no boundary key. Receipts report the actual three or two records. Stopping before Right or Enter reports only the accepted prefix, never retries the suffix and never starts observation. This boundary does not establish an empty composer, foreground ownership or provider readiness.
 
-Schema catalog version 13 contains 47 documents, including the prompt success and failure contracts.
+Schema catalog version 14 contains 47 documents, including the prompt success and failure contracts.
 
 `orchbee.agent.prompt` returns the session ID, the full terminal submission receipt,
 and optional matched observation/wait facts. Refused/partial/unknown send outcomes retain
@@ -485,9 +485,9 @@ complete typed IDs and their own `@panel:`/`@terminal:` selectors only; anything
 target rules, and so do every mutation operand and `--target-panel` (the `panel` rule, resolved
 inside the moved panel's own tab). `api schema` takes a nonempty schema ID; an empty one is
 `invalid-identifier` with `resource="schema"`, an unmatched one is `not-found`.
-`agent get`, `agent explain`, and `agent wait` take one positional token of 1–148
-characters drawn from `[A-Za-z0-9._:-]`, resolved by the ID-first rules above, or an
-explicit `--session`/`--name` selector. Malformed tokens are `invalid-usage` before runtime access.
+`agent get`, `agent explain`, and `agent wait` take one positional token of 1–128
+characters drawn from `[A-Za-z0-9._:-]` (or an explicit Panel prefix), resolved by the ID-first rules above, or an
+explicit `--session`/`--name`/`--panel` selector. Malformed tokens are `invalid-usage` before runtime access.
 `launch-profile get` and `launch-profile delete` take one positional `<selector>`, and
 `--profile` carries the same token: a `LaunchProfileSelector` — a nonempty UTF-8 literal
 of at most 512 bytes (the name bound, so every admitted selector can reach either rule).
@@ -1915,7 +1915,7 @@ invalid-context, stale-binding, child-Presentation and movement cases plus a rea
 Windows child-process witness. Desktop and global focus fallback remain excluded;
 TLA execution is deferred and is not claimed as evidence.
 
-The additive schema is registered in the closed `api schema` catalog version 13;
+The additive schema is registered in the closed `api schema` catalog version 14;
 other business document versions are unchanged.
 
 Windows Worker identities are fresh per Server connection, using the existing OS
@@ -1932,3 +1932,35 @@ Server publishes its removal. Only then is the old caller binding not found.
 The Worker probes the requested directory before the Server atomically registers the Workspace, directory, Terminal Context and first Tab/Panel/Presentation at one revision. Failed admission creates none of them. A successful commit returns the existing mutation v4 envelope with action `workspace.create`, `projectId`, `workspaceId`, `directoryId`, `terminalContextId`, `tabId`, `panelId`, `presentationId`, literal `path`, `label`, and `terminal`. The existing schema already admits these fields; its version and catalog are unchanged. Terminal launch can remain pending or fail after commit: keep the returned IDs, inspect the Workspace and explicitly close it if unwanted. An unknown response is never automatically replayed or rolled back.
 
 The unpublished native wire action requires `projectId`, `label`, `geometry`, and `options.cwd`; optional `launch` and `profile` remain mutually exclusive. It uses the existing 48 KiB launch request limit, exact request ledger and terminal settlement. `workspace-launch-pending` and `workspace-launched` echo the committed revision and all seven IDs; only the latter carries `terminalOutcome`. The Server owns all six new structural IDs and the terminal binding. Shared Workbench schemas and Desktop bindings do not establish this native extension's support. Activate and roll back the same complete binary cohort. The Server's [refinement record](../../orchbee-server/README.md#directory-workspace-launch) owns admission, commit and recovery.
+
+## Agent Panel targeting model
+
+Targeted Agent commands accept `--panel <id|@panel:suffix>` exclusively with positional,
+`--session` and `--name` selectors. A positional full Panel ID first resolves as an exact
+retained Session ID or runtime name; only a definite not-found permits Panel fallback.
+Explicit Session/name selectors never fall back. A prefixed `@panel:` target selects a Panel
+without consulting aliases. Workbench owns Panel identity and its primary presentation;
+Agent state owns live, navigable presentation attachments. Hidden attachments remain eligible.
+The CLI reads one Workbench snapshot on the held Client Session and passes the primary
+presentation ID to the existing OBAP names family. Its presentation selector resolves,
+assigns or releases under the Agent state fold: zero live matches is not-found, one is
+selected, and multiple sessions are ambiguous. Repeated attachments of one session count
+once. No paging, first-match choice, terminal-text inference or client-side alias table is used.
+
+The workflow is parse → existing-only admission → optional exact ID/name resolution →
+Panel snapshot resolution → OBAP presentation resolution/operation → pinned Session read,
+wait or terminal operation. It shares the caller's deadline and cancellation wake; failure
+before the final names mutation is a read failure, not an unknown mutation. A lost mutation
+reply remains outcome-unknown with no replay. Waiters never follow a later Panel occupant.
+Terminal operations retain the selected primary presentation and reject a missing binding
+or changed Agent attachment before sending; Server terminal authorization remains authoritative.
+Workbench and Agent reads are sequential samples, not a cross-owner atomic transaction.
+Session/name behavior and existing receipt sources remain unchanged. Resolve receipts may
+report `resolvedBy: presentation`; ambiguity is a bounded rejection without a candidate list.
+
+Native grammar and Panel projection tests cover selector exclusivity and primary/child
+separation; Agent fold tests cover zero/one/multiple sessions, ended/non-navigable/hidden
+attachments and atomic rename refusal. Windows process tests cover the shared admission,
+ID/name precedence, pinned waits, pre-mutation read failures and exact terminal selection.
+Real Site/Worker/ConPTY evidence covers the integrated command path. These checks do not
+establish provider foreground ownership or readiness. TLA execution remains deferred.

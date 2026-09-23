@@ -53,10 +53,26 @@ impl Names {
         snapshot: &AgentRuntimeSnapshot,
         target: &AgentSessionSelector,
     ) -> Result<(AgentSessionId, AgentResolvedBy), Missing> {
+        if let AgentSessionSelector::Presentation { presentation_id } = target {
+            let mut matches = snapshot.sessions.iter().filter(|session| {
+                session.lifecycle == AgentLifecycle::Live
+                    && session.presentation_attachments.iter().any(|attachment| {
+                        attachment.navigable
+                            && attachment.presentation_id.as_str() == presentation_id.as_str()
+                    })
+            });
+            let found = matches.next().ok_or(Missing::Session)?;
+            if matches.next().is_some() {
+                return Err(Missing::Ambiguous);
+            }
+            let id = AgentSessionId::parse(found.session_id.as_str())
+                .expect("canonical session identity");
+            return Ok((id, AgentResolvedBy::Presentation));
+        }
         let id = match target {
             AgentSessionSelector::Session { session_id } => Some(session_id),
             AgentSessionSelector::Auto { target } => Some(target),
-            AgentSessionSelector::Name { .. } => None,
+            AgentSessionSelector::Name { .. } | AgentSessionSelector::Presentation { .. } => None,
         };
         if let Some(id) = id
             && snapshot
@@ -69,7 +85,9 @@ impl Names {
         let name = match target {
             AgentSessionSelector::Name { name } => name.as_str(),
             AgentSessionSelector::Auto { target } => target.as_str(),
-            AgentSessionSelector::Session { .. } => return Err(Missing::Session),
+            AgentSessionSelector::Session { .. } | AgentSessionSelector::Presentation { .. } => {
+                return Err(Missing::Session);
+            }
         };
         self.by_name
             .get(name)
@@ -98,6 +116,9 @@ impl Names {
                 return reject(AgentNameAssignRejectionReason::SessionNotFound);
             }
             Err(Missing::Name) => return reject(AgentNameAssignRejectionReason::NameNotFound),
+            Err(Missing::Ambiguous) => {
+                return reject(AgentNameAssignRejectionReason::AmbiguousTarget);
+            }
         };
         if !snapshot.sessions.iter().any(|session| {
             session.session_id.as_str() == id.as_str() && session.lifecycle == AgentLifecycle::Live
@@ -141,6 +162,7 @@ impl Names {
             Err(missing) => AgentNameReleaseOutcome::Rejected {
                 reason: match missing {
                     Missing::Name => AgentNameReleaseRejectionReason::NameNotFound,
+                    Missing::Ambiguous => AgentNameReleaseRejectionReason::AmbiguousTarget,
                     Missing::Session => AgentNameReleaseRejectionReason::SessionNotFound,
                 },
             },
@@ -156,6 +178,7 @@ impl Names {
 }
 
 enum Missing {
+    Ambiguous,
     Session,
     Name,
 }
@@ -222,6 +245,9 @@ fn answer(
                         Ok((session_id, resolved_by)) => AgentResolveOutcome::Resolved {
                             session_id,
                             resolved_by,
+                        },
+                        Err(Missing::Ambiguous) => AgentResolveOutcome::Rejected {
+                            reason: AgentResolveRejectionReason::AmbiguousTarget,
                         },
                         Err(_) => AgentResolveOutcome::Rejected {
                             reason: AgentResolveRejectionReason::NotFound,

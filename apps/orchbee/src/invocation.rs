@@ -1,8 +1,8 @@
 use std::{ffi::OsString, path::PathBuf};
 
 use orchbee_agent_observation_protocol::{
-    AgentListCursor, AgentName, AgentSafeInteger, AgentSessionId, AgentSessionSelector,
-    DEFAULT_LIST_LIMIT, MAXIMUM_LIST_LIMIT, MAXIMUM_SAFE_INTEGER,
+    AgentListCursor, AgentName, AgentSafeInteger, AgentSessionId, DEFAULT_LIST_LIMIT,
+    MAXIMUM_LIST_LIMIT, MAXIMUM_SAFE_INTEGER,
 };
 use orchbee_workbench_protocol::{
     LaunchEnvironment, LaunchOptions, LaunchProfileName, LaunchProfileSelector, LaunchSelection,
@@ -58,6 +58,15 @@ impl Target {
             _ => None,
         }
     }
+}
+
+/// Parsed Agent targets keep Workbench Panel selectors out of OBAP DTOs.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum AgentTarget {
+    Session { session_id: AgentSessionId },
+    Name { name: AgentName },
+    Auto { target: AgentSessionId },
+    Panel { target: Target },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -359,19 +368,19 @@ pub(crate) enum QueryCommand {
         limit: u64,
         cursor: Option<AgentListCursor>,
     },
-    AgentGet(AgentSessionSelector),
+    AgentGet(AgentTarget),
     AgentRead {
-        target: AgentSessionSelector,
+        target: AgentTarget,
         history: Option<u16>,
         unwrap: bool,
         lines: Option<u16>,
     },
-    AgentExplain(AgentSessionSelector),
+    AgentExplain(AgentTarget),
     /// `agent wait`: one held Client Session polls the canonical session
     /// document until a requested condition matches, the fence refuses, or
     /// the shared absolute deadline lands.
     AgentWait {
-        session: AgentSessionSelector,
+        session: AgentTarget,
         /// The effective condition list — `DEFAULT_AGENT_WAIT_CONDITIONS`
         /// verbatim when `--until` is absent. Requested order is preserved
         /// for matching and the emitted echo.
@@ -778,12 +787,12 @@ pub(crate) enum MutationCommand {
         selector: LaunchProfileSelector,
     },
     AgentPrompt {
-        target: AgentSessionSelector,
+        target: AgentTarget,
         text: String,
         wait: Option<AgentPromptWait>,
     },
     AgentSendKeys {
-        target: AgentSessionSelector,
+        target: AgentTarget,
         keys: Vec<ParsedSendKey>,
     },
     TerminalSend {
@@ -845,12 +854,12 @@ pub(crate) struct AgentPromptWait {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum AgentNamesCommand {
     List,
-    Resolve(AgentSessionSelector),
+    Resolve(AgentTarget),
     Assign {
-        target: AgentSessionSelector,
+        target: AgentTarget,
         name: AgentName,
     },
-    Release(AgentSessionSelector),
+    Release(AgentTarget),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1886,6 +1895,7 @@ fn resolve_words(
                 Scope {
                     name: true,
                     session: true,
+                    panel: true,
                     ..TERMINAL_READ_SCOPE
                 },
                 context,
@@ -1922,7 +1932,10 @@ fn resolve_words(
                 envelope,
             )?;
             let selector_len = usize::from(
-                options.name.is_none() && options.session.is_none() && !rest.is_empty(),
+                options.name.is_none()
+                    && options.session.is_none()
+                    && options.panel.is_none()
+                    && !rest.is_empty(),
             );
             let target = agent_selector(&rest[..selector_len], options, context, envelope)?;
             let values = &rest[selector_len..];
@@ -1975,7 +1988,10 @@ fn resolve_words(
             let context = UsageContext::Path("agent send-keys");
             check_scope(options, AGENT_TARGET_SCOPE, context, envelope)?;
             let selector_len = usize::from(
-                options.name.is_none() && options.session.is_none() && !rest.is_empty(),
+                options.name.is_none()
+                    && options.session.is_none()
+                    && options.panel.is_none()
+                    && !rest.is_empty(),
             );
             let target = agent_selector(&rest[..selector_len], options, context, envelope)?;
             let values = &rest[selector_len..];
@@ -3465,6 +3481,7 @@ const TUI_SCOPE: Scope = Scope {
 
 /// `agent list`: the three pagination/filter options of the read grammar.
 const AGENT_TARGET_SCOPE: Scope = Scope {
+    panel: true,
     name: true,
     session: true,
     ..NO_OPTIONS
@@ -3481,6 +3498,7 @@ const AGENT_LIST_SCOPE: Scope = Scope {
 /// timeout flag under the canonical wait meaning — the sole Agent scope
 /// that admits `--timeout`.
 const AGENT_WAIT_SCOPE: Scope = Scope {
+    panel: true,
     forever: true,
     name: true,
     session: true,
@@ -5236,7 +5254,7 @@ fn agent_selector(
     options: &Options,
     context: UsageContext,
     envelope: FailureEnvelope,
-) -> Result<AgentSessionSelector, ParseFailure> {
+) -> Result<AgentTarget, ParseFailure> {
     if words.len() > 1 {
         return Err(usage_with(
             UsageReason::UnexpectedArgument {
@@ -5248,36 +5266,47 @@ fn agent_selector(
     }
     let selected = usize::from(!words.is_empty())
         + usize::from(options.session.is_some())
-        + usize::from(options.name.is_some());
+        + usize::from(options.name.is_some())
+        + usize::from(options.panel.is_some());
     if selected > 1 {
         return Err(usage_with(
             UsageReason::ConflictingOptions {
                 context,
                 first: "<target>",
-                second: "--session / --name",
+                second: "--session / --name / --panel",
             },
             envelope,
         ));
     }
+    if let Some(value) = &options.panel {
+        return Ok(AgentTarget::Panel {
+            target: target(value.clone(), Resource::Panel, envelope)?,
+        });
+    }
     if let Some(value) = words.first() {
-        return Ok(AgentSessionSelector::Auto {
+        if value.starts_with("@panel:") {
+            return Ok(AgentTarget::Panel {
+                target: target((*value).to_owned(), Resource::Panel, envelope)?,
+            });
+        }
+        return Ok(AgentTarget::Auto {
             target: agent_session_id(value, context, envelope)?,
         });
     }
     if let Some(value) = &options.session {
-        return Ok(AgentSessionSelector::Session {
+        return Ok(AgentTarget::Session {
             session_id: agent_session_id(value, context, envelope)?,
         });
     }
     if let Some(value) = &options.name {
-        return Ok(AgentSessionSelector::Name {
+        return Ok(AgentTarget::Name {
             name: agent_name(value, context, envelope)?,
         });
     }
     Err(usage_with(
         UsageReason::MissingRequired {
             context,
-            requirement: "<target> or --session <id> or --name <alias>",
+            requirement: "<target> or --session <id> or --name <alias> or --panel <id|selector>",
         },
         envelope,
     ))

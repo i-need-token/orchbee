@@ -65,9 +65,17 @@ fn render(result: &AgentNamesResult, format: OutputFormat, locale: Locale) -> Ou
             locale,
         ),
         Ok((schema, outcome, text)) => {
+            let version = if matches!(result, AgentNamesResult::Resolve { result, .. }
+            if matches!(result.outcome, AgentResolveOutcome::Resolved {
+                resolved_by: orchbee_agent_observation_protocol::AgentResolvedBy::Presentation, ..
+            })) {
+                2
+            } else {
+                1
+            };
             let bytes = match format {
                 OutputFormat::Json => output::encode_document(
-                    &json!({ "schema": schema, "version": 1, "source": source, "result": outcome }),
+                    &json!({ "schema": schema, "version": version, "source": source, "result": outcome }),
                 ),
                 OutputFormat::Text => output::encode_text(&text),
             };
@@ -92,7 +100,9 @@ pub(super) fn rejection(
     reason: Value,
     conflict: Option<&orchbee_agent_observation_protocol::AgentSessionId>,
 ) -> Failure {
+    let version = if reason == "ambiguous-target" { 2 } else { 1 };
     let kind = match reason.as_str() {
+        Some("ambiguous-target") => FailureKind::Ambiguous,
         Some("read-denied" | "manage-denied") => FailureKind::Denied,
         Some("not-found" | "name-not-found" | "session-not-found") => FailureKind::NotFound,
         _ => FailureKind::Rejected,
@@ -104,7 +114,7 @@ pub(super) fn rejection(
     if let Some(id) = conflict {
         details.insert("conflictSessionId".to_owned(), json!(id));
     }
-    Failure::new(kind).details(details)
+    Failure::new(kind).details(details).version(version)
 }
 
 fn project(

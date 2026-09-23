@@ -931,6 +931,19 @@
 							"$ref": "#/$defs/sessionId"
 						}
 					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "presentationId"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "presentation"
+						},
+						"presentationId": {
+							"$ref": "#/$defs/presentationId"
+						}
+					}
 				}
 			]
 		},
@@ -980,7 +993,7 @@
 											"$ref": "#/$defs/sessionId"
 										},
 										"resolvedBy": {
-											"enum": ["session-id", "name"]
+											"enum": ["session-id", "name", "presentation"]
 										}
 									}
 								},
@@ -993,7 +1006,7 @@
 											"const": "rejected"
 										},
 										"reason": {
-											"enum": ["not-found", "read-denied"]
+											"enum": ["not-found", "read-denied", "ambiguous-target"]
 										}
 									}
 								},
@@ -1183,7 +1196,8 @@
 												"session-ended",
 												"name-not-found",
 												"capacity-exceeded",
-												"manage-denied"
+												"manage-denied",
+												"ambiguous-target"
 											]
 										},
 										"conflictSessionId": {
@@ -1304,7 +1318,12 @@
 											"const": "rejected"
 										},
 										"reason": {
-											"enum": ["name-not-found", "session-not-found", "manage-denied"]
+											"enum": [
+												"name-not-found",
+												"session-not-found",
+												"manage-denied",
+												"ambiguous-target"
+											]
 										}
 									}
 								},

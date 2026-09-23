@@ -10,7 +10,7 @@
 			"const": "orchbee.agent.resolve"
 		},
 		"version": {
-			"const": 1
+			"enum": [1, 2]
 		},
 		"source": {
 			"type": "object",
@@ -39,7 +39,7 @@
 							"$ref": "#/$defs/sessionId"
 						},
 						"resolvedBy": {
-							"enum": ["session-id", "name"]
+							"enum": ["session-id", "name", "presentation"]
 						}
 					}
 				}
@@ -63,5 +63,27 @@
 			"pattern": "^[0-9a-f]{32}$",
 			"$comment": "Request identity: exactly 32 lowercase hexadecimal characters and never the zero sentinel; the nonzero rule is a semantic invariant enforced by each binding."
 		}
-	}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 1
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"properties": {
+							"resolvedBy": {
+								"enum": ["session-id", "name"]
+							}
+						}
+					}
+				}
+			}
+		}
+	]
 }

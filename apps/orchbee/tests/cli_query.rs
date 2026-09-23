@@ -6148,15 +6148,15 @@ fn project_rename_schema_is_strict_and_distinct() -> TestResult {
 /// `orchbee.mutation.result` still receipt schema retrieves offline under
 /// either locale, byte-identical.
 #[test]
-fn api_schema_catalog_is_v13_closed_and_self_consistent() -> TestResult {
-    let base = base_dir("catalog-v13");
+fn api_schema_catalog_is_v14_closed_and_self_consistent() -> TestResult {
+    let base = base_dir("catalog-v14");
     let api_schema = compiled_schema(&base, "orchbee.api.schema");
 
     let output = run(&base, &["api", "schema", "--format", "json"]);
     assert_eq!(output.status.code(), Some(0));
     let listed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(listed["schema"], "orchbee.api.schema");
-    assert_eq!(listed["version"], 13, "catalog envelope is v13");
+    assert_eq!(listed["version"], 14, "catalog envelope is v14");
     assert_eq!(listed["source"]["kind"], "embedded");
     assert!(api_schema.is_valid(&listed), "listing self-validates");
     let schemas = listed["result"]["schemas"].as_object().unwrap();
@@ -6231,7 +6231,7 @@ fn api_schema_catalog_is_v13_closed_and_self_consistent() -> TestResult {
         stale["version"] = stale_version.clone();
         assert!(
             !api_schema.is_valid(&stale),
-            "stale catalog {stale_version} fails under v13"
+            "stale catalog {stale_version} fails under v14"
         );
     }
 
@@ -6253,7 +6253,7 @@ fn api_schema_catalog_is_v13_closed_and_self_consistent() -> TestResult {
         "embedded schema retrieval is locale-neutral"
     );
     let named: serde_json::Value = serde_json::from_slice(&english.stdout)?;
-    assert_eq!(named["version"], 13);
+    assert_eq!(named["version"], 14);
     assert_eq!(
         named["result"]["schema"]["schemaId"],
         "orchbee.project.rename"

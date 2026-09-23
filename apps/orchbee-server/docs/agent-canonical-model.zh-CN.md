@@ -396,3 +396,5 @@ Server 代码的依赖，远端（非托管）路径保持既有行为。被替�
 （`agent_service`）、CLI 语法、渲染与本地化、TypeScript 行为变更，以及监听器/
 wait 并发。面向客户端的读取预算不变；私有泵窗口是服务器内部常量，不是产品设置
 或对客户端的承诺。新的语义、schema、依赖或归属问题一律回到 Root，不在此裁决。
+
+names 家族还接受 `{kind:"presentation", presentationId}`。解析、分配与释放在同一次 Agent fold 内检查当前 canonical 快照。只匹配存活且具有对应可导航附件的会话，包括隐藏附件；附件 generation 仍由 canonical 模型管理。零匹配拒绝为 not-found（变更为 session-not-found），多个会话拒绝为 ambiguous-target，一个会话以 resolvedBy presentation 解析。重复附件不会把一个会话计数两次。拒绝保持名称绑定不变，结果仍受 1,024 字节上限约束。Workbench Panel ID 与主 presentation 选择属于 CLI 组合，不进入 Agent 状态单元，也不在其锁内读取 socket。相同 cohort 的交付约束新增 wire 词汇；回滚替换 cohort，无持久状态迁移。

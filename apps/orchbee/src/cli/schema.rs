@@ -285,7 +285,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
         "schema": "orchbee.api.schema",
         // Catalog envelope v12: registering new schema ids changes the closed
         // dictionary's shape; business document versions stay untouched.
-        "version": 13,
+        "version": 14,
         "source": embedded_source(),
         "result": result,
     });

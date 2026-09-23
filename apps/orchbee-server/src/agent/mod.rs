@@ -53,6 +53,11 @@ pub(crate) use runtime::AgentRuntime;
 // Narrowly scoped seeding support: tests dispatch real canonical events
 // through the same entry the corpus uses.
 pub(crate) use events::AgentObservationEvent;
+// Consumed by the bin-only Agent service tests; the library conformance target
+// compiles this module without that consumer.
+#[cfg(test)]
+#[allow(unused_imports)]
+pub(crate) use model::RawAttachment;
 pub(crate) use model::{RawAttentionRequest, RawExecutionLocation, RawObservation, RawPresence};
 pub(crate) use reducer::AgentTransition;
 

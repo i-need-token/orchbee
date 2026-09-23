@@ -10,7 +10,7 @@
 			"const": "orchbee.cli.failure.agent-names"
 		},
 		"version": {
-			"const": 1
+			"enum": [1, 2]
 		},
 		"failure": {
 			"type": "object",
@@ -29,7 +29,8 @@
 						"rejected",
 						"service-unavailable",
 						"timeout",
-						"transport-loss"
+						"transport-loss",
+						"ambiguous"
 					]
 				},
 				"details": {
@@ -49,7 +50,8 @@
 								"session-ended",
 								"name-not-found",
 								"capacity-exceeded",
-								"reply-not-confirmed"
+								"reply-not-confirmed",
+								"ambiguous-target"
 							]
 						},
 						"operation": {
@@ -96,5 +98,38 @@
 			"pattern": "^[0-9a-f]{32}$",
 			"$comment": "Request identity: exactly 32 lowercase hexadecimal characters and never the zero sentinel; the nonzero rule is a semantic invariant enforced by each binding."
 		}
-	}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 1
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"not": {
+									"const": "ambiguous"
+								}
+							},
+							"details": {
+								"properties": {
+									"reason": {
+										"not": {
+											"const": "ambiguous-target"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	]
 }

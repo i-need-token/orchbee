@@ -50,7 +50,7 @@ const WAIT_POLL_MAXIMUM: Duration = Duration::from_millis(500);
 /// admission, all Gets, and all backoff. The decisive Get's request
 /// identity is the emitted document's only honest source.
 pub(crate) fn agent_wait(
-    target: &orchbee_agent_observation_protocol::AgentSessionSelector,
+    target: &crate::invocation::AgentTarget,
     until: &[AgentWaitCondition],
     after_revision: Option<AgentSafeInteger>,
     timeout_ms: Option<u32>,
@@ -85,7 +85,7 @@ fn agent_wait_finish(
     total: WaitDeadline,
     start: Instant,
     read_budget: Duration,
-    target: &orchbee_agent_observation_protocol::AgentSessionSelector,
+    target: &crate::invocation::AgentTarget,
     until: &[AgentWaitCondition],
     after_revision: Option<AgentSafeInteger>,
     timeout_ms: Option<u32>,
@@ -178,7 +178,7 @@ fn agent_wait_span(
     total: WaitDeadline,
     start: Instant,
     read_budget: Duration,
-    target: &orchbee_agent_observation_protocol::AgentSessionSelector,
+    target: &crate::invocation::AgentTarget,
     until: &[AgentWaitCondition],
     after_revision: Option<AgentSafeInteger>,
     timeout_ms: Option<u32>,
@@ -197,11 +197,16 @@ fn agent_wait_span(
         Ok(deadline) => deadline,
         Err(failure) => return WaitAttempt::Done(Err(failure)),
     };
-    let session_id =
-        match super::agent_names::resolve_on_session(&mut client, target, resolve_deadline, wake) {
-            Ok(session_id) => session_id,
-            Err(failure) => return WaitAttempt::Done(Err(failure)),
-        };
+    let session_id = match super::agent_target::resolve_on_session(
+        &mut client,
+        target,
+        None,
+        resolve_deadline,
+        wake,
+    ) {
+        Ok(resolved) => resolved.session_id,
+        Err(failure) => return WaitAttempt::Done(Err(failure)),
+    };
     let session_id = &session_id;
     let mut observations: u64 = 0;
     let mut last: Option<WaitObservation> = None;
@@ -596,7 +601,9 @@ fn wait_timeout(
         );
         details.insert("lastRevision".to_owned(), json!(observed.revision.value()));
     }
-    WaitAttempt::Done(Err(Failure::new(FailureKind::Timeout).details(details)))
+    WaitAttempt::Done(Err(Failure::new(FailureKind::Timeout)
+        .details(details)
+        .version(if timeout_ms.is_none() { 2 } else { 1 })))
 }
 
 #[cfg(test)]

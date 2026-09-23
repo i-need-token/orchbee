@@ -782,3 +782,300 @@ fn infinite_wait_still_times_out_a_stalled_read_without_reconnecting() {
     assert_eq!(document["failure"]["details"]["reason"], "read-deadline");
     assert!(document["failure"]["details"]["timeoutMs"].is_null());
 }
+
+fn presentation_reply(
+    stream: &mut orchbee_local_ipc::LocalStream,
+    operation: &str,
+    outcome: Value,
+) -> String {
+    let AgentRequest::Names(request) = read_agent_request(stream).unwrap() else {
+        panic!("names request")
+    };
+    assert_eq!(
+        json!(request)["kind"],
+        format!("agent.session.{operation}.request")
+    );
+    assert_eq!(
+        json!(request)["target"],
+        json!({"kind":"presentation","presentationId":"11111111111111111111111111111111"})
+    );
+    let request_id = request.request_id().as_str().to_owned();
+    write_agent_result(stream, &AgentResult::Names(serde_json::from_value(json!({
+        "kind":format!("agent.session.{operation}.result"), "requestId":request_id, "result":{"outcome":outcome}
+    })).unwrap())).unwrap();
+    request_id
+}
+
+#[test]
+fn panel_get_and_wait_share_admission_and_pin_the_primary_presentations_session() {
+    let fixture = Fixture::new();
+    let rendezvous = fixture.rendezvous();
+    for wait in [false, true] {
+        let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
+        let handler = peer(listener, move |mut stream| {
+            bound_snapshot_reply(&mut stream);
+            presentation_reply(
+                &mut stream,
+                "resolve",
+                json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"presentation"}),
+            );
+            let mut detail = session_detail("sess-alpha");
+            read_reply(
+                &mut stream,
+                "get",
+                json!({"kind":"found","revision":1,"session":detail}),
+            );
+            if wait {
+                detail["snapshot"]["turn"] = json!({"kind":"idle"});
+                detail["snapshot"]["pendingRequests"] = json!([]);
+                detail["status"] = json!({"kind":"idle"});
+                detail["snapshot"]["observation"]["sequence"] = json!(12);
+                read_reply(
+                    &mut stream,
+                    "get",
+                    json!({"kind":"found","revision":2,"session":detail}),
+                );
+            }
+            assert_closed(&mut stream);
+        });
+        let mut args = vec![
+            "agent",
+            if wait { "wait" } else { "get" },
+            "--panel",
+            "@panel:222",
+            "--format",
+            "json",
+        ];
+        if wait {
+            args.extend(["--until", "idle", "--timeout", "5000"]);
+        }
+        let output = fixture.run(&args);
+        handler.join().unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+        validate(
+            &doc,
+            if wait {
+                include_str!("../src/cli/schemas/orchbee.agent.wait.json")
+            } else {
+                include_str!("../src/cli/schemas/orchbee.agent.get.json")
+            },
+        );
+    }
+}
+
+#[test]
+fn positional_panel_fallback_preserves_session_or_alias_precedence_and_resolve_provenance() {
+    let fixture = Fixture::new();
+    let rendezvous = fixture.rendezvous();
+    for resolved_by in ["session-id", "name", "presentation"] {
+        let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
+        let (source_tx, source_rx) = std::sync::mpsc::channel();
+        let handler = peer(listener, move |mut stream| {
+            let source = if resolved_by == "presentation" {
+                resolve_reply(&mut stream, json!({"kind":"rejected","reason":"not-found"}));
+                bound_snapshot_reply(&mut stream);
+                presentation_reply(
+                    &mut stream,
+                    "resolve",
+                    json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"presentation"}),
+                )
+            } else {
+                resolve_reply(
+                    &mut stream,
+                    json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":resolved_by}),
+                )
+            };
+            assert_closed(&mut stream);
+            source_tx.send(source).unwrap();
+        });
+        let output = fixture.run(&[
+            "agent",
+            "resolve",
+            "22222222222222222222222222222222",
+            "--format",
+            "json",
+        ]);
+        handler.join().unwrap();
+        let source = source_rx.recv().unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+        validate(
+            &doc,
+            include_str!("../src/cli/schemas/orchbee.agent.resolve.json"),
+        );
+        assert_eq!(doc["source"]["requestId"], source);
+        assert_eq!(doc["result"]["resolvedBy"], resolved_by);
+        assert_eq!(
+            doc["version"],
+            if resolved_by == "presentation" { 2 } else { 1 }
+        );
+    }
+}
+
+#[test]
+fn panel_rename_distinguishes_ambiguous_refusal_from_a_pre_mutation_read_loss() {
+    let fixture = Fixture::new();
+    let rendezvous = fixture.rendezvous();
+    for read_loss in [false, true] {
+        let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
+        let handler = peer(listener, move |mut stream| {
+            if read_loss {
+                assert!(matches!(
+                    orchbee_workbench_protocol::read_workbench_request(&mut stream).unwrap(),
+                    orchbee_workbench_protocol::WorkbenchRequest::SnapshotRead(_)
+                ));
+                return;
+            }
+            bound_snapshot_reply(&mut stream);
+            presentation_reply(
+                &mut stream,
+                "name.assign",
+                json!({"kind":"rejected","reason":"ambiguous-target","conflictSessionId":null}),
+            );
+            assert_closed(&mut stream);
+        });
+        let output = fixture.run(&[
+            "agent",
+            "rename",
+            "--panel",
+            "@panel:222",
+            "new-name",
+            "--format",
+            "json",
+        ]);
+        handler.join().unwrap();
+        let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_ne!(doc["failure"]["kind"], "outcome-unknown");
+        if read_loss {
+            validate(
+                &doc,
+                include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
+            );
+            assert_ne!(output.status.code(), Some(0));
+        } else {
+            validate(
+                &doc,
+                include_str!("../src/cli/schemas/orchbee.cli.failure.agent-names.json"),
+            );
+            assert_eq!(doc["failure"]["kind"], "ambiguous");
+            assert_eq!(doc["version"], 2);
+        }
+    }
+}
+
+#[test]
+fn panel_send_keeps_primary_presentation_when_the_agent_also_owns_a_child() {
+    use orchbee_client_server_protocol::{ClientMessage, read_client_message};
+    let fixture = Fixture::new();
+    let rendezvous = fixture.rendezvous();
+    let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
+    let handler = peer(listener, move |mut stream| {
+        bound_snapshot_reply(&mut stream);
+        presentation_reply(
+            &mut stream,
+            "resolve",
+            json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"presentation"}),
+        );
+        let mut detail = session_detail("sess-alpha");
+        detail["snapshot"]["presentationAttachments"].as_array_mut().unwrap().push(json!({"generation":"gen-2","navigable":true,"presentationId":"44444444444444444444444444444444","visibility":"hidden"}));
+        read_reply(
+            &mut stream,
+            "get",
+            json!({"kind":"found","revision":1,"session":detail}),
+        );
+        let ClientMessage::TerminalSend(request) = read_client_message(&mut stream).unwrap() else {
+            panic!("terminal send")
+        };
+        assert_eq!(
+            request.terminal_id().as_str(),
+            "33333333333333333333333333333333"
+        );
+        // A lost delivery reply must neither switch to the child nor replay input.
+    });
+    let output = fixture.run(&[
+        "agent",
+        "send-keys",
+        "--panel",
+        "@panel:222",
+        "enter",
+        "--format",
+        "json",
+    ]);
+    handler.join().unwrap();
+    let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(doc["failure"]["kind"], "outcome-unknown", "{doc}");
+    assert_eq!(output.status.code(), Some(8));
+    validate(
+        &doc,
+        include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
+    );
+}
+
+#[test]
+fn missing_panel_is_a_snapshot_refusal_without_an_agent_operation() {
+    let fixture = Fixture::new();
+    let rendezvous = fixture.rendezvous();
+    let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
+    let handler = peer(listener, move |mut stream| {
+        bound_snapshot_reply(&mut stream);
+        assert_closed(&mut stream);
+    });
+    let output = fixture.run(&[
+        "agent",
+        "rename",
+        "--panel",
+        "@panel:999",
+        "alpha",
+        "--format",
+        "json",
+    ]);
+    handler.join().unwrap();
+    let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(doc["failure"]["kind"], "not-found");
+    assert_eq!(doc["failure"]["details"]["resource"], "panel");
+    validate(
+        &doc,
+        include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
+    );
+}
+
+#[test]
+fn a_panel_get_refuses_a_reply_for_another_session() {
+    let fixture = Fixture::new();
+    let rendezvous = fixture.rendezvous();
+    let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
+    let handler = peer(listener, move |mut stream| {
+        bound_snapshot_reply(&mut stream);
+        presentation_reply(
+            &mut stream,
+            "resolve",
+            json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"presentation"}),
+        );
+        read_reply(
+            &mut stream,
+            "get",
+            json!({"kind":"found","revision":1,"session":session_detail("other-session")}),
+        );
+        assert_closed(&mut stream);
+    });
+    let output = fixture.run(&["agent", "get", "--panel", "@panel:222", "--format", "json"]);
+    handler.join().unwrap();
+    let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(doc["failure"]["kind"], "protocol-invalid");
+    assert!(doc.get("source").is_none());
+    validate(
+        &doc,
+        include_str!("../src/cli/schemas/orchbee.cli.failure.agent.json"),
+    );
+}

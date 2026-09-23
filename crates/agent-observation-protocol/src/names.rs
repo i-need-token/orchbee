@@ -6,7 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::identity::{AgentName, AgentSessionId, ObapRequestId};
+use crate::identity::{AgentName, AgentPresentationId, AgentSessionId, ObapRequestId};
 use crate::model::{AgentLifecycle, deserialize_required_nullable};
 use crate::read::AgentUnavailableReason;
 
@@ -28,6 +28,10 @@ pub enum AgentSessionSelector {
     Name { name: AgentName },
     #[serde(rename = "auto")]
     Auto { target: AgentSessionId },
+    #[serde(rename = "presentation")]
+    Presentation {
+        presentation_id: AgentPresentationId,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -74,6 +78,7 @@ impl AgentNamesRequest {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum AgentResolvedBy {
+    Presentation,
     SessionId,
     Name,
 }
@@ -81,6 +86,7 @@ pub enum AgentResolvedBy {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum AgentResolveRejectionReason {
+    AmbiguousTarget,
     NotFound,
     ReadDenied,
 }
@@ -94,6 +100,7 @@ pub enum AgentNamesListRejectionReason {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum AgentNameAssignRejectionReason {
+    AmbiguousTarget,
     NameInUse,
     SessionNotFound,
     SessionEnded,
@@ -105,6 +112,7 @@ pub enum AgentNameAssignRejectionReason {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum AgentNameReleaseRejectionReason {
+    AmbiguousTarget,
     NameNotFound,
     SessionNotFound,
     ManageDenied,

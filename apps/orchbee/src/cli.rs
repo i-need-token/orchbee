@@ -201,6 +201,8 @@ pub(crate) struct Failure {
     /// bounded command family (`worktree list`); `None` is the shared
     /// `orchbee.cli.failure` document.
     pub(crate) failure_schema: Option<&'static str>,
+    /// Envelope version selected by the owning command, never inferred by rendering.
+    pub(crate) version: u32,
     /// Observed I/O detail retained from the native cohort check: the
     /// technical `io::ErrorKind` plus the OS error number when one exists.
     /// Carried to the localized stderr diagnostic only and never serialized
@@ -225,8 +227,14 @@ impl Failure {
             source: None,
             usage: None,
             failure_schema: None,
+            version: 1,
             io_diagnostic: None,
         }
+    }
+
+    pub(crate) fn version(mut self, version: u32) -> Self {
+        self.version = version;
+        self
     }
 
     pub(crate) fn details(mut self, details: Map<String, Value>) -> Self {
@@ -288,23 +296,12 @@ pub(crate) fn failure_output(
     let stderr = locale.cli_failure(&failure);
     match format {
         Some(OutputFormat::Json) => {
-            let version = if failure.failure_schema == Some(schema::AGENT_FAILURE_ID)
-                && failure
-                    .details
-                    .as_ref()
-                    .and_then(|details| details.get("timeoutMs"))
-                    == Some(&Value::Null)
-            {
-                2
-            } else {
-                1
-            };
             let mut document = Map::from_iter([
                 (
                     "schema".to_owned(),
                     json!(failure.failure_schema.unwrap_or(schema::FAILURE_ID)),
                 ),
-                ("version".to_owned(), json!(version)),
+                ("version".to_owned(), json!(failure.version)),
             ]);
             let mut failure_object =
                 Map::from_iter([("kind".to_owned(), json!(failure.kind.as_str()))]);
@@ -393,6 +390,7 @@ pub(crate) fn parse_failure(failure: ParseFailure, locale: Locale) -> Output {
         source: None,
         usage: failure.usage.map(Box::new),
         failure_schema: None,
+        version: 1,
         io_diagnostic: None,
     };
     let format = match failure.envelope {

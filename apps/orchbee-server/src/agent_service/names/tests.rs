@@ -392,3 +392,87 @@ fn concurrent_claims_commit_exactly_one_owner() {
     });
     assert_eq!(bindings(&service).len(), 1);
 }
+
+#[test]
+fn presentation_selectors_require_one_live_navigable_session_and_mutate_atomically() {
+    use crate::agent::{AgentObservationEvent, RawAttachment};
+    use orchbee_agent_observation_protocol::AgentPresentationId;
+    let presentation = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let selector = || AgentSessionSelector::Presentation {
+        presentation_id: AgentPresentationId::parse(presentation).unwrap(),
+    };
+    let attached = |id: &str, navigable, visibility: &str| {
+        let mut event = session_observed(id, 1.0);
+        let AgentObservationEvent::SessionObserved {
+            presentation_attachments,
+            ..
+        } = &mut event
+        else {
+            unreachable!()
+        };
+        presentation_attachments.push(RawAttachment {
+            generation: "1".to_owned(),
+            navigable,
+            presentation_id: presentation.to_owned(),
+            visibility: visibility.to_owned(),
+        });
+        event
+    };
+    let service = seeded(&[
+        attached("a", true, "hidden"),
+        attached("b", false, "visible"),
+    ])
+    .unwrap();
+    assert_eq!(
+        resolve(&service, selector()),
+        AgentResolveOutcome::Resolved {
+            session_id: id("a"),
+            resolved_by: AgentResolvedBy::Presentation,
+        }
+    );
+    assert!(matches!(
+        assign(&service, selector(), "alpha"),
+        AgentNameAssignOutcome::Assigned { .. }
+    ));
+    service.seed(&attached("c", true, "visible")).unwrap();
+    assert_eq!(
+        resolve(&service, selector()),
+        AgentResolveOutcome::Rejected {
+            reason: AgentResolveRejectionReason::AmbiguousTarget,
+        }
+    );
+    assert_eq!(
+        assign(&service, selector(), "renamed"),
+        AgentNameAssignOutcome::Rejected {
+            reason: AgentNameAssignRejectionReason::AmbiguousTarget,
+            conflict_session_id: None,
+        }
+    );
+    let AgentNamesResult::NameRelease { result, .. } = execute(
+        &service,
+        AgentNamesRequest::NameRelease {
+            request_id: request_id(),
+            target: selector(),
+        },
+    ) else {
+        panic!("release result")
+    };
+    assert_eq!(
+        result.outcome,
+        AgentNameReleaseOutcome::Rejected {
+            reason: AgentNameReleaseRejectionReason::AmbiguousTarget
+        }
+    );
+    assert_eq!(bindings(&service)[0].name, name("alpha"));
+    service.seed(&session_ended("c", 1.0, 2.0)).unwrap();
+    assert!(
+        matches!(resolve(&service, selector()), AgentResolveOutcome::Resolved { session_id, .. } if session_id == id("a"))
+    );
+    service.seed(&session_ended("a", 1.0, 2.0)).unwrap();
+    assert_eq!(
+        resolve(&service, selector()),
+        AgentResolveOutcome::Rejected {
+            reason: AgentResolveRejectionReason::NotFound
+        }
+    );
+}

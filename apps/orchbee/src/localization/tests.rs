@@ -719,6 +719,7 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
         details: None,
         source: None,
         failure_schema: None,
+        version: 1,
         io_diagnostic: None,
         usage: Some(Box::new(usage)),
     };
@@ -781,6 +782,7 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
         details: None,
         source: None,
         failure_schema: None,
+        version: 1,
         io_diagnostic: None,
         usage: None,
     };
@@ -802,6 +804,7 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
         ])),
         source: None,
         failure_schema: None,
+        version: 1,
         io_diagnostic: None,
         usage: None,
     };

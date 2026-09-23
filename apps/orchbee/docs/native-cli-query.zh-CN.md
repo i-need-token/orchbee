@@ -16,26 +16,24 @@ Agent 状态来自 Server 的 canonical Agent 模型，不从终端文字推断�
 `agent names` 列出运行中 Site 的所有存活别名。`agent resolve <target>` 返回完整会话 ID，
 优先检查精确 ID 是否存在，再查别名。`agent rename <target> <new-name>` 赋名或原子替换
 名称；`agent rename <target> --clear` 只释放名称，不停止会话。可把目标位置参数替换成
-`--session <id>` 或 `--name <alias>` 明确选择；必须且只能使用一种选择器。
+`--session <id>`、`--name <alias>` 或 `--panel <id|@panel:suffix>` 明确选择；必须且只能使用一种选择器。
 名称格式为 `[a-z][a-z0-9_-]{0,31}`，区分大小写且唯一，上限 512 个存活绑定。
 会话结束、移除或 Site 运行时 dispose 后释放名称；Site 重启后的别名表为空。
 
 三个命令均接受 `--format text|json`。内嵌成功 schema 为 `orchbee.agent.names`、
 `orchbee.agent.resolve` 与 `orchbee.agent.rename`，均为 version 1；接纳后的失败使用
-`orchbee.cli.failure.agent-names` version 1。相关语义结果携带 `agent-names` source
-和 OBAP request ID。这四份文档与提示契约一起纳入 Windows 中，canonical provider 为 `codex` 时，单次输入序列按字面 paste、Right、Enter 排列。Right 作为非字符边界，促使 Codex 刷出 paste-burst 缓冲并清除 Enter 抑制窗口；不向提示文本拼接转义码，也不以固定延时猜测投递速度。其他 provider 保持 paste、Enter，普通 `terminal send --paste --enter` 不增加按键。回执准确报告三条或两条记录；若在 Right 或 Enter 前停止，只报告实际接受的前缀，绝不补发或开始等待。该边界不证明输入框为空、焦点归属或 provider 已就绪。
-
-Schema 目录 version 13。非法名称或冲突选择器在
+`orchbee.cli.failure.agent-names` version 1。presentation 解析与 ambiguous-target 失败使用 version 2；原有结果仍为 version 1。相关语义结果携带 `agent-names` source
+和 OBAP request ID。这四份文档与提示契约一起纳入 Schema 目录 version 14。非法名称或冲突选择器在
 任何运行时访问前以退出码 2 失败。重名以退出码 3 拒绝并标明占用者，绝不覆盖其名称。
 
-每个命令的单一五秒截止覆盖 cohort 校验、仅查已有 Site、接纳和一次 OBAP 交换。
+每个命令的单一五秒截止覆盖 cohort 校验、仅查已有 Site、接纳、可选 Panel 解析和最终 OBAP 交换。
 信号参与传输等待；会话在信号仲裁与输出前关闭。确认回复与信号竞态时，已确认回复仍为
 权威结果。已提交修改若没有可信匹配回复，包括取消时，返回 outcome-unknown（退出码 8），
 绝不重放。已知在提交前取消返回 130。不引入别名缓存、不调用 provider、不创建 Site，
 也不修改 canonical 会话文档。
 
-`get`、`explain` 和 `wait` 接受相同的位置目标或显式 `--session`/`--name` 选择器。
-精确的保留会话 ID 优先于名称；显式 ID 与不可能是名称的 token 直接读取。其余目标在
+`get`、`explain` 和 `wait` 接受相同的位置目标或显式 `--session`/`--name`/`--panel` 选择器。
+精确的保留会话 ID 优先于名称；显式 ID 与不可能是名称或 Panel 的不透明 token 直接读取。其余目标在
 同一个已接纳的 Client Session 上先发 Resolve。解析与读取共享原来的截止和信号所有者，
 不二次接纳或续期。wait 的首次解析受 `min(remaining_ms, 5000)` 约束，固定解析结果后再轮询；
 释放、重命名或复用别名不会改变等待目标。成功结果只使用实际读取的 `agent-read` source；
@@ -46,14 +44,15 @@ Windows 进程证据覆盖真实管道接纳、名称解析后读取、固定目
 ## Agent 终端操作
 
 `agent read <target>` 和 `agent send-keys <target> <key>...` 接受与 `agent get`
-相同的会话 ID 或运行时名称选择器，包括显式 `--session` 和 `--name`。
+相同的 Session ID、运行时名称或 Panel 选择器，包括显式 `--session`、`--name` 和 `--panel`。
 读取支持 `--history --rows <n>`、`--unwrap` 和 `--lines <n>`，边界和含义与
 `terminal read` 相同。发送最多接受 64 个语义按键或修饰键组合，产生任何效果前验证整个序列。
 
 CLI 组合既有责任方：在一个仅连接既有 Site 的 Client Session 中读取 Workbench
 快照，按需解析别名，再读取权威 Agent 会话。只有活动会话中可导航且存活的 presentation
 附件才能选中终端。关联时比较快照中已绑定终端的完整 presentation ID；不会将 Panel ID
-当成 presentation ID。没有匹配返回 not-found，多个匹配返回 ambiguous，两种情况
+当成 presentation ID。显式或回退得到的 Panel 将关联限制在其主 presentation。
+没有匹配返回 not-found，多个匹配返回 ambiguous，两种情况
 均不附加 viewer 或提交输入。所有交换共享一个五秒期限。操作固定解析到的目标；输入准入时
 Server 仍验证终端当前绑定。
 
@@ -102,7 +101,9 @@ Server 仍验证终端当前绑定。
 不会抹去已确认提交。已在 working 的 Agent 可能完成既有轮次；匹配结果不标识本次提示
 自己的轮次。轮询可能漏掉转换，不宣称支持 Herdr 的事件重放。
 
-Schema 目录 version 13 共 47 份文档，包含提示成功与失败契约。
+Windows 中，canonical provider 为 `codex` 时，单次输入序列按字面 paste、Right、Enter 排列。Right 作为非字符边界，促使 Codex 刷出 paste-burst 缓冲并清除 Enter 抑制窗口；不向提示文本拼接转义码，也不以固定延时猜测投递速度。其他 provider 保持 paste、Enter，普通 `terminal send --paste --enter` 不增加按键。回执准确报告三条或两条记录；若在 Right 或 Enter 前停止，只报告实际接受的前缀，绝不补发或开始等待。该边界不证明输入框为空、焦点归属或 provider 已就绪。
+
+Schema 目录 version 14 共 47 份文档，包含提示成功与失败契约。
 
 `orchbee.agent.prompt` 返回会话 ID、完整终端提交回执，以及可选的匹配观察/等待事实。
 发送拒绝、部分接受或不确定时沿用既有终端发送/失败契约，不开始等待。预检及提交后失败
@@ -408,7 +409,7 @@ selector 语法。其他 token 在 resource 允许 label 时视为精确、区�
 tab 内解析）。`api schema` 接受非空
 schema ID；空串是 `invalid-identifier`（`resource="schema"`），无匹配是 `not-found`。
 `agent get`、`agent explain` 与 `agent wait` 的位置目标是 `[A-Za-z0-9._:-]` 的
-1–148 字符 token；按上述 ID 优先规则解析，或用 `--session`/`--name` 明确选择。
+1–128 字符 token（也支持显式 Panel 前缀）；按上述 ID 优先规则解析，或用 `--session`/`--name`/`--panel` 明确选择。
 畸形 token 在任何运行时访问前即 `invalid-usage`。
 `launch-profile get` 与 `launch-profile delete` 接受一个位置 `<selector>`，
 `--profile` 携带同一 token：`LaunchProfileSelector`——非空 UTF-8 字面量、至多 512
@@ -1626,7 +1627,7 @@ Workspace；环境中不缓存 Panel 或 Workspace 位置。缺失或不匹配�
 过期绑定、子 Presentation、移动场景及真实 Windows 子进程证据覆盖。Desktop 与全局
 焦点回退仍不在本次范围内；TLA 执行已延后，不作为已通过的证据。
 
-新增 schema 注册到封闭的 `api schema` 第 12 版目录；其他业务文档版本不变。
+新增 schema 注册到封闭的 `api schema` 第 14 版目录；其他业务文档版本不变。
 
 Windows Worker 身份在每次连接 Server 时由已有 OS 随机身份源重新生成；同一 Worker
 的终端共享该 ID。不同 Site 可能复用 Terminal ID，因此必须精确匹配 Worker，才能
@@ -1640,3 +1641,30 @@ Windows Worker 身份在每次连接 Server 时由已有 OS 随机身份源重�
 Worker 先探测请求目录，Server 再用一次修订原子登记 Workspace、目录、Terminal Context 及首个 Tab/Panel/Presentation。准入失败时不创建这些资源。提交成功返回现有 mutation v4 信封：action 为 `workspace.create`，包含 `projectId`、`workspaceId`、`directoryId`、`terminalContextId`、`tabId`、`panelId`、`presentationId`、字面 `path`、`label` 和 `terminal`。现有 schema 已允许这些字段，版本和目录不变。终端可能在提交后仍待定或启动失败：保留返回 ID，查询 Workspace，不再需要时显式关闭。响应未知时绝不自动重放或回滚。
 
 未发布的原生线协议动作要求 `projectId`、`label`、`geometry` 和 `options.cwd`；可选的 `launch` 与 `profile` 仍互斥。复用现有 48 KiB 启动请求上限、精确请求账本和终端结算。`workspace-launch-pending` 与 `workspace-launched` 回显已提交修订和全部七个 ID；只有后者携带 `terminalOutcome`。Server 拥有六个新结构 ID 及终端绑定。共享 Workbench schema 和 Desktop binding 不构成支持此原生扩展的证据。必须整体启用及回退同一构建 cohort。Server 的[细化记录](../../orchbee-server/README.zh-CN.md#目录工作区启动)持有准入、提交和恢复语义。
+
+## Agent Panel 目标模型
+
+面向单个 Agent 的命令接受 `--panel <id|@panel:suffix>`，与位置目标、`--session`
+和 `--name` 互斥。位置参数中的完整 Panel ID 优先按保留的精确 Session ID 或运行时
+名称解析；只有明确未找到才回退到 Panel。显式 Session／名称不回退。带 `@panel:`
+前缀的目标直接选择 Panel，不查询名称。Workbench 拥有 Panel 身份及其主 presentation；
+Agent 状态拥有存活、可导航的 presentation 附件。隐藏附件仍可选。CLI 在持有的同一
+Client Session 上读取一次 Workbench 快照，将主 presentation ID 交给现有 OBAP 名称族。
+其 presentation 选择器在 Agent 状态折叠内完成解析、分配或释放：零个存活匹配为未找到，
+一个为选中，多个会话为歧义。同一会话的重复附件只计一次。不分页、不取首个匹配，
+不推断终端文本，也不维护客户端名称表。
+
+工作流为解析 → 仅接入已有 Site → 可选的精确 ID／名称解析 → Panel 快照解析 →
+OBAP presentation 解析／操作 → 固定 Session 的读取、等待或终端操作。全程共享调用者的
+截止时间和取消唤醒；最终名称变更之前的失败属于读取失败，不是结果未知的变更。变更
+回执丢失仍为 outcome-unknown，绝不重放。等待者不会跟随 Panel 后来的使用者。终端操作
+保留选定的主 presentation，发送前拒绝缺失绑定或已改变的 Agent 附件；Server 仍拥有
+终端授权。Workbench 和 Agent 读取是顺序采样，不承诺跨所有者原子事务。
+Session／名称行为和已有回执来源不变。解析回执可报告 `resolvedBy: presentation`；
+歧义是有界拒绝，不附候选列表。
+
+原生语法与 Panel 投影测试覆盖选择器互斥及主／子 presentation 区分；Agent 折叠测试
+覆盖零／一／多会话、已结束／不可导航／隐藏附件及重命名的原子拒绝。Windows 进程测试
+覆盖共享接入、ID／名称优先级、固定目标等待、变更前读取失败和精确终端选择。
+真实 Site／Worker／ConPTY 证据覆盖集成命令路径。这些检查不证明 provider 前台所有权
+或就绪状态。TLA 执行继续推迟。

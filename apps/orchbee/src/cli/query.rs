@@ -5,6 +5,8 @@
 #[cfg(any(target_os = "linux", windows))]
 mod agent_names;
 #[cfg(any(target_os = "linux", windows))]
+mod agent_target;
+#[cfg(any(target_os = "linux", windows))]
 mod agent_terminal;
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) use agent_terminal::{
@@ -2583,7 +2585,7 @@ pub(crate) fn agent_list(
 /// `agent get`: one OBAP get request, same admission/exchange discipline.
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) fn agent_get(
-    target: &orchbee_agent_observation_protocol::AgentSessionSelector,
+    target: &crate::invocation::AgentTarget,
 ) -> Result<(serde_json::Value, Projection), AgentQueryError> {
     agent_session_read(AgentReadOperation::Get, target)
 }
@@ -2591,7 +2593,7 @@ pub(crate) fn agent_get(
 /// `agent explain`: resolve once and read on the same admitted session.
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) fn agent_explain(
-    target: &orchbee_agent_observation_protocol::AgentSessionSelector,
+    target: &crate::invocation::AgentTarget,
 ) -> Result<(serde_json::Value, Projection), AgentQueryError> {
     agent_session_read(AgentReadOperation::Explain, target)
 }
@@ -2600,11 +2602,12 @@ pub(crate) fn agent_explain(
 #[cfg(any(target_os = "linux", windows))]
 fn agent_session_read(
     operation: AgentReadOperation,
-    target: &orchbee_agent_observation_protocol::AgentSessionSelector,
+    target: &crate::invocation::AgentTarget,
 ) -> Result<(serde_json::Value, Projection), AgentQueryError> {
     let mut resolved = None;
     let (request_id, attempt) = agent_armed_run(operation, |client, request_id, total, wake| {
-        let session_id = agent_names::resolve_on_session(client, target, total, wake)?;
+        let session_id =
+            agent_target::resolve_on_session(client, target, None, total, wake)?.session_id;
         resolved = Some(session_id.clone());
         match operation {
             AgentReadOperation::Get => Ok(AgentReadRequest::Get {
@@ -2632,7 +2635,14 @@ fn agent_session_read(
                 result: envelope, ..
             },
         ) => match envelope.outcome {
-            AgentGetOutcome::Found { .. } => Ok((source, Projection::AgentGet(envelope.outcome))),
+            AgentGetOutcome::Found { ref session, .. }
+                if session.snapshot.session_id == *session_id =>
+            {
+                Ok((source, Projection::AgentGet(envelope.outcome)))
+            }
+            AgentGetOutcome::Found { .. } => {
+                Err(AgentQueryError::Read(agent_protocol_invalid(operation)))
+            }
             AgentGetOutcome::Rejected { reason } => Err(AgentQueryError::Read(
                 agent_session_rejection(operation, reason, session_id).source(source),
             )),
@@ -2648,8 +2658,13 @@ fn agent_session_read(
                 result: envelope, ..
             },
         ) => match envelope.outcome {
-            AgentExplainOutcome::Found { .. } => {
+            AgentExplainOutcome::Found { ref session, .. }
+                if session.snapshot.session_id == *session_id =>
+            {
                 Ok((source, Projection::AgentExplain(envelope.outcome)))
+            }
+            AgentExplainOutcome::Found { .. } => {
+                Err(AgentQueryError::Read(agent_protocol_invalid(operation)))
             }
             AgentExplainOutcome::Rejected { reason } => Err(AgentQueryError::Read(
                 agent_session_rejection(operation, reason, session_id).source(source),
@@ -2854,7 +2869,7 @@ pub(crate) fn terminal_get(
 
 #[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn read_agent_terminal(
-    _target: &orchbee_agent_observation_protocol::AgentSessionSelector,
+    _target: &crate::invocation::AgentTarget,
     _history: Option<u16>,
     _presentation: super::results::ReadPresentation,
 ) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
@@ -2939,7 +2954,7 @@ pub(crate) fn agent_list(
 
 #[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn agent_get(
-    _target: &orchbee_agent_observation_protocol::AgentSessionSelector,
+    _target: &crate::invocation::AgentTarget,
 ) -> Result<(serde_json::Value, super::results::Projection), AgentQueryError> {
     Err(AgentQueryError::Admission(
         super::Failure::new(super::FailureKind::ServiceUnavailable).details(
@@ -2950,7 +2965,7 @@ pub(crate) fn agent_get(
 
 #[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn agent_explain(
-    _target: &orchbee_agent_observation_protocol::AgentSessionSelector,
+    _target: &crate::invocation::AgentTarget,
 ) -> Result<(serde_json::Value, super::results::Projection), AgentQueryError> {
     Err(AgentQueryError::Admission(
         super::Failure::new(super::FailureKind::ServiceUnavailable).details(
@@ -2961,7 +2976,7 @@ pub(crate) fn agent_explain(
 
 #[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn agent_wait(
-    _target: &orchbee_agent_observation_protocol::AgentSessionSelector,
+    _target: &crate::invocation::AgentTarget,
     _until: &[crate::invocation::AgentWaitCondition],
     _after_revision: Option<orchbee_agent_observation_protocol::AgentSafeInteger>,
     _timeout_ms: Option<u32>,

@@ -2,12 +2,12 @@
 //! The shared terminal send owner alone constructs input and delivery receipts.
 
 use super::{Failure, FailureKind, Output, failure_output};
+use crate::invocation::AgentTarget;
 use crate::invocation::{AgentPromptWait, OutputFormat};
 use crate::localization::Locale;
-use orchbee_agent_observation_protocol::AgentSessionSelector;
 
 pub(super) fn run(
-    target: &AgentSessionSelector,
+    target: &AgentTarget,
     text: &str,
     wait: Option<&AgentPromptWait>,
     format: OutputFormat,
@@ -61,7 +61,7 @@ mod active {
     }
 
     pub(super) fn run(
-        target: &AgentSessionSelector,
+        target: &AgentTarget,
         text: &str,
         wait: Option<&AgentPromptWait>,
         format: OutputFormat,
@@ -155,7 +155,7 @@ mod active {
     }
 
     fn span(
-        target: &AgentSessionSelector,
+        target: &AgentTarget,
         text: &str,
         wait: Option<&AgentPromptWait>,
         start: Instant,

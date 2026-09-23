@@ -479,3 +479,5 @@ concurrency. The client-facing read budget is unchanged; the private pump window
 internal server constant, not a product setting or a client guarantee. New semantics,
 schema, dependency, or ownership questions return to Root rather than being decided
 here.
+
+The names family additionally accepts `{kind:"presentation", presentationId}`. Resolution, assignment and release inspect the current canonical snapshot inside one Agent fold. Only live sessions with a matching navigable attachment qualify, including hidden attachments; attachment generations are owned by the canonical model. Zero matches refuses as not-found (session-not-found for mutation), multiple sessions refuse as ambiguous-target, and one resolves with resolvedBy presentation. A duplicate attachment never counts a session twice. Refusals leave name bindings unchanged and stay within the 1,024-byte result bound. Workbench Panel IDs and primary-presentation selection remain CLI composition, outside the Agent cell; no socket read occurs under its lock. Same-cohort delivery gates the additive wire vocabulary; rollback replaces the cohort and requires no persistent-state migration.
