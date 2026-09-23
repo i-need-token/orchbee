@@ -2,24 +2,43 @@
 
 该打包资源包含十个需要显式安装、与 provider 绑定的 observation adapter，分别用于 Claude Code、
 Codex、Grok、OpenCode、Pi、OMP、Gemini CLI、GitHub Copilot CLI、Cline 与 Qwen Code。每个 adapter
-校验自己的 upstream event contract，再通过 Orchbee 共享的 Unix socket 加 private APC correlation
+校验自己的 upstream event contract，再通过 Orchbee 共享的本地 socket／管道加 private APC correlation
 transport 发出同一组不含内容的 normalized fact。Provider identity、accepted event 与 maximum
 capability 由 Desktop 的 closed registry 授予，而不是由 adapter payload 声明。
 
+## Windows Codex 传输
+
+Windows 原生 cohort 复用 v3 rich envelope／私有 APC 关联。Capsule `0.4.1`
+新增 Codex `commandWindows` hook，使用 provider 既有的 `cmd.exe /C` 执行契约
+和 `PLUGIN_ROOT`。Windows x64 cohort 必须包含固定 ConPTY 运行时，因为系统 ConHost 可能吞掉私有 APC。
+本适配器变更不提供 Windows Unix 远程发现或其他 provider 安装能力。
+原生托管 enable/disable 和 start/prompt 仍是独立 CLI 责任。
+
+| 字段           | 契约                                                                                                                                                                                                                                                                                           |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题与归属     | Orchbee ConPTY 中的 Codex 命令 hook 必须到达原生 Server 的既有 observation 入口。共享适配器拥有投递；Server／Host 保留 envelope 验证、generation 身份和精确关联。                                                                                                                              |
+| 输入与参考     | 允许的规范 Codex 事件、继承的 `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` 和 provider 提供的插件根。Codex 0.155.1 的 Windows hook 契约接受 `commandWindows`，标准流重定向后仍保留父进程 Console。环境字符串不授予 Agent 或终端身份。                                                                 |
+| 端点策略       | 只接纳精确本地管道拼写 `\\.\pipe\orchbee-<32-lowercase-hex>-observation`。缺失、畸形、远程 UNC 或非 observation 目标均不投递。Windows 不扫描管道、文件或 Unix SSH 转发。注入端点和原生 Server ACL 提供路由；适配器不声称检查了管道所有者。                                                     |
+| 关联目标       | 只使用字面设备 `\\.\CONOUT$`，以读写方式打开，并在写入前验证为字符设备。不使用相对 `CONOUT$`、环境指定设备、stdout 或 stderr。直接可见性保持 unknown。缺少 Console 时不发 hint，不得回退到文件。                                                                                               |
+| 流程与转换     | 验证 observation → 解析精确端点和固定 Console 目标 → 发送有界无内容 envelope → 等待精确有界 ACK → 写入匹配私有 APC → 关闭 Console handle。缺少端点、无效输入、超时、ACK 被拒和打开／写入失败终止相应投递。仅 rich half 的事件按既有入口规则过期。                                              |
+| 不变量与副作用 | prompt／输出／路径内容不进入 envelope；接受前不写 APC；任何单半消息不能绑定 Agent；hook 不安装配置或启动 Site。Windows 不 unlink 管道。缺少 Node／runtime 或传输失败时 provider hook 成功退出。Socket 与 Console handle 在本地拥有，并在完成／失败后关闭。                                     |
+| 发布与恢复     | 发布新的不可变 Capsule 版本，同步资源和消费者版本。Git 在 Windows 检出中保留受摘要校验载荷的 LF 字节。显式托管操作替换之前保留旧 Capsule 和 provider 声明。Unix command 字段及既有 Unix 传输行为继续保留。适配器不引入依赖或 wire 版本；Windows cohort 投递另外需要固定的 Host ConPTY 运行时。 |
+| 证据与限制     | 确定性准入／ACK 顺序用例、真实 Windows 命名管道 ACK 用例、静默有界命令 hook 进程用例，以及隔离原生 Server／ConPTY 投递见证。传输证据不证明托管安装、真实 Agent 任务完成、物理 TUI 交互或所有 provider 的 Windows 支持。仅同作者质疑复查；按用户指令继续暂停 TLA 执行。                         |
+
 ## 支持的 contract
 
-| Adapter            | Reference version               | Integration surface     | Maximum status evidence                                                                                    |
-| ------------------ | ------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Claude Code        | 当前文档化 hook/plugin contract | Command-hook plugin     | Session、Turn、tool、question、approval、compaction、subagent、completion、failure                         |
-| Codex              | `0.150.1`                       | Command-hook plugin     | Session、Turn、tool、question、approval、compaction、subagent、completion                                  |
-| Grok               | `1.0.5`                         | Command-hook plugin     | Session、Turn、tool、approval、compaction、subagent、idle、completion、failure、cancellation、interruption |
-| OpenCode           | `1.18.25`                       | JavaScript plugin event | Session、busy/retry/idle、tool、question、approval、error                                                  |
-| Pi                 | `0.84.4`                        | Extension API           | Session、Agent start/settled、blocking UI prompt、tool、compaction                                         |
-| OMP                | `18.0.10`                       | Extension API           | Session、Agent start/end、Ask tool、tool approval、tool、compaction、retry                                 |
-| Gemini CLI         | `0.57.0`                        | Command-hook extension  | Session、Agent start/end、tool、question、permission、compaction、completion                               |
-| GitHub Copilot CLI | `1.0.81`                        | Command-hook plugin     | Session、Turn、实际 question/permission prompt、tool result、compaction、completion、不可恢复 failure      |
-| Cline              | `3.0.60`                        | Plugin runtime API      | Run/Turn、tool、question、completion、failure、interruption                                                |
-| Qwen Code          | `0.22.3`                        | Command-hook extension  | Session、Turn、tool、question、permission、compaction、subagent、completion、failure                       |
+| Adapter            | Reference version                       | Integration surface     | Maximum status evidence                                                                                    |
+| ------------------ | --------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Claude Code        | 当前文档化 hook/plugin contract         | Command-hook plugin     | Session、Turn、tool、question、approval、compaction、subagent、completion、failure                         |
+| Codex              | `0.150.1`（Unix）、`0.155.1`（Windows） | Command-hook plugin     | Session、Turn、tool、question、approval、compaction、subagent、completion                                  |
+| Grok               | `1.0.5`                                 | Command-hook plugin     | Session、Turn、tool、approval、compaction、subagent、idle、completion、failure、cancellation、interruption |
+| OpenCode           | `1.18.25`                               | JavaScript plugin event | Session、busy/retry/idle、tool、question、approval、error                                                  |
+| Pi                 | `0.84.4`                                | Extension API           | Session、Agent start/settled、blocking UI prompt、tool、compaction                                         |
+| OMP                | `18.0.10`                               | Extension API           | Session、Agent start/end、Ask tool、tool approval、tool、compaction、retry                                 |
+| Gemini CLI         | `0.57.0`                                | Command-hook extension  | Session、Agent start/end、tool、question、permission、compaction、completion                               |
+| GitHub Copilot CLI | `1.0.81`                                | Command-hook plugin     | Session、Turn、实际 question/permission prompt、tool result、compaction、completion、不可恢复 failure      |
+| Cline              | `3.0.60`                                | Plugin runtime API      | Run/Turn、tool、question、completion、failure、interruption                                                |
+| Qwen Code          | `0.22.3`                                | Command-hook extension  | Session、Turn、tool、question、permission、compaction、subagent、completion、failure                       |
 
 这些是彼此独立的 compatibility contract。Pi 与 OMP 有意不共享 adapter；Gemini CLI 与 Qwen Code
 同样保留独立 manifest 与 event interpretation。Matrix 以外的版本在 event fixture 与 capability grant
@@ -179,7 +198,7 @@ Desktop 只通过非持久化 terminal environment overlay 注入
 `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3`。Transport 前，每个 entry 只选择有界的 event、session、Turn、
 tool-operation 与 subagent identifier，并丢弃 prompt、question、tool input/output、transcript path、
 working directory、error text、notification text 与未知字段。Rich half 发往同用户 private Unix-domain
-socket。Local process 只使用 environment 中的准确 endpoint；只有没有该 overlay 的 remote process
+socket 或 Windows 命名管道。Local process 只使用 environment 中的准确 endpoint；只有没有该 overlay 的 remote process
 才发现 same-user forwarded candidate，并且 discovery 要求继承的 `SSH_CONNECTION`、`SSH_CLIENT` 或
 `SSH_TTY` marker 至少一个非空。没有准确 overlay 的普通 local terminal 不执行 socket scan。只有
 endpoint 返回准确、有界的 v3 acceptance ACK 后，adapter
@@ -187,11 +206,11 @@ endpoint 返回准确、有界的 v3 acceptance ACK 后，adapter
 adapter 不写 terminal control sequence。Desktop 要求对 live terminal generation 完成精确
 event/correlation join，因此任一 half 都不能单独关联并授权 rich state；发送到另一个 live instance 的
 unmatched envelope 会到期，不产生 canonical effect。
-每个 TTY candidate 都必须是 `/dev` 下经过词法规范化的路径；writer 以 nonblocking、禁止跟随
+每个 Unix TTY candidate 都必须是 `/dev` 下经过词法规范化的路径；writer 以 nonblocking、禁止跟随
 symlink 的方式打开它，验证它是 character device，并且除 kernel-owned `/dev/tty` alias 外要求
 same-user ownership。Resolver 无法把 hint 重定向到 regular file 或其他用户的 terminal。
 
-Shared resolver 支持 direct terminal、每个 attached tmux client、保守的 Zellij client visibility 与
+Unix resolver 支持 direct terminal、每个 attached tmux client、保守的 Zellij client visibility 与
 nested mux environment。只有 attached mux client 正在显示另一个 pane 时，它才断言 `hidden`；direct
 route 与 active-pane route 保持 `unknown`，因为 hook 无法证明 application-window visibility。
 Workbench 会把这份 mux evidence 与自己当前的 Tab/Panel view 合并。显式 source 的 Orchbee shell

@@ -10,7 +10,7 @@
 			"const": "orchbee.agent.doctor"
 		},
 		"version": {
-			"enum": [1, 2]
+			"enum": [1, 2, 3]
 		},
 		"source": {
 			"type": "object",
@@ -251,7 +251,11 @@
 					]
 				},
 				"reason": {
-					"enum": ["budget-exhausted", "windows-hook-transport-unavailable"]
+					"enum": [
+						"budget-exhausted",
+						"windows-hook-transport-unavailable",
+						"windows-endpoint-not-inspected"
+					]
 				},
 				"detail": {
 					"type": "object",
@@ -335,7 +339,8 @@
 						"root-anomaly",
 						"root-uninspectable",
 						"partial-document",
-						"windows-hook-transport-unavailable"
+						"windows-hook-transport-unavailable",
+						"windows-endpoint-not-inspected"
 					]
 				},
 				"evidence": {
@@ -384,7 +389,10 @@
 									"properties": {
 										"id": {
 											"not": {
-												"const": "windows-hook-transport-unavailable"
+												"enum": [
+													"windows-hook-transport-unavailable",
+													"windows-endpoint-not-inspected"
+												]
 											}
 										}
 									}
@@ -395,36 +403,105 @@
 				}
 			},
 			"else": {
-				"properties": {
-					"result": {
-						"properties": {
-							"endpoint": {
-								"properties": {
-									"socket": {
-										"oneOf": [
-											{
-												"required": ["reason"],
-												"properties": {
-													"state": {
-														"const": "not-inspected"
-													},
-													"reason": {
-														"const": "windows-hook-transport-unavailable"
+				"if": {
+					"properties": {
+						"version": {
+							"const": 2
+						}
+					}
+				},
+				"then": {
+					"properties": {
+						"result": {
+							"properties": {
+								"endpoint": {
+									"properties": {
+										"socket": {
+											"oneOf": [
+												{
+													"required": ["reason"],
+													"properties": {
+														"state": {
+															"const": "not-inspected"
+														},
+														"reason": {
+															"const": "windows-hook-transport-unavailable"
+														}
+													}
+												},
+												{
+													"required": ["reason"],
+													"properties": {
+														"state": {
+															"const": "unknown"
+														},
+														"reason": {
+															"const": "budget-exhausted"
+														}
 													}
 												}
-											},
-											{
-												"required": ["reason"],
-												"properties": {
-													"state": {
-														"const": "unknown"
-													},
-													"reason": {
-														"const": "budget-exhausted"
-													}
+											]
+										}
+									}
+								},
+								"hints": {
+									"items": {
+										"properties": {
+											"id": {
+												"not": {
+													"const": "windows-endpoint-not-inspected"
 												}
 											}
-										]
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				"else": {
+					"properties": {
+						"result": {
+							"properties": {
+								"endpoint": {
+									"properties": {
+										"socket": {
+											"oneOf": [
+												{
+													"required": ["reason"],
+													"properties": {
+														"state": {
+															"const": "not-inspected"
+														},
+														"reason": {
+															"const": "windows-endpoint-not-inspected"
+														}
+													}
+												},
+												{
+													"required": ["reason"],
+													"properties": {
+														"state": {
+															"const": "unknown"
+														},
+														"reason": {
+															"const": "budget-exhausted"
+														}
+													}
+												}
+											]
+										}
+									}
+								},
+								"hints": {
+									"items": {
+										"properties": {
+											"id": {
+												"not": {
+													"const": "windows-hook-transport-unavailable"
+												}
+											}
+										}
 									}
 								}
 							}

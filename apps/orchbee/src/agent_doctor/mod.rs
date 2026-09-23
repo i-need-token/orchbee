@@ -1134,9 +1134,9 @@ fn environment_fact() -> Value {
 
 #[cfg(windows)]
 fn socket_fact() -> Value {
-    // The shipped hook payload cannot discover/deliver to the Windows Site
-    // endpoint. Offline inspection must not connect or invent its liveness.
-    json!({ "state": "not-inspected", "reason": "windows-hook-transport-unavailable" })
+    // Named pipes have no filesystem socket fact. This offline command must
+    // not connect, emit a console hint or infer endpoint liveness.
+    json!({ "state": "not-inspected", "reason": "windows-endpoint-not-inspected" })
 }
 
 /// The endpoint fact — `lstat` of the derived path only; never a connect.
@@ -1290,9 +1290,9 @@ fn build_hints(run: &DoctorRun) -> Vec<Value> {
     push("node-absent", node_missing_rows, node_missing);
 
     let socket_state = run.endpoint["socket"]["state"].as_str().unwrap_or_default();
-    if run.endpoint["socket"]["reason"] == "windows-hook-transport-unavailable" {
+    if run.endpoint["socket"]["reason"] == "windows-endpoint-not-inspected" {
         push(
-            "windows-hook-transport-unavailable",
+            "windows-endpoint-not-inspected",
             vec!["endpoint.socket".to_owned()],
             Vec::new(),
         );
@@ -1372,7 +1372,7 @@ fn emit(run: DoctorRun, format: OutputFormat, locale: Locale) -> Output {
         OutputFormat::Json => {
             let document = json!({
                 "schema": "orchbee.agent.doctor",
-                "version": if cfg!(windows) { 2 } else { 1 },
+                "version": if cfg!(windows) { 3 } else { 1 },
                 "source": local_runtime_source(),
                 "result": result,
             });

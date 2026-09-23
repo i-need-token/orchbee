@@ -7,7 +7,8 @@
 					{
 						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 2,
-						"type": "command"
+						"type": "command",
+						"commandWindows": "node \"%PLUGIN_ROOT%\\scripts\\forward-hook.mjs\" codex >NUL 2>&1 & exit /b 0"
 					}
 				]
 			}
@@ -18,7 +19,8 @@
 					{
 						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 2,
-						"type": "command"
+						"type": "command",
+						"commandWindows": "node \"%PLUGIN_ROOT%\\scripts\\forward-hook.mjs\" codex >NUL 2>&1 & exit /b 0"
 					}
 				]
 			}
@@ -30,7 +32,8 @@
 					{
 						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 2,
-						"type": "command"
+						"type": "command",
+						"commandWindows": "node \"%PLUGIN_ROOT%\\scripts\\forward-hook.mjs\" codex >NUL 2>&1 & exit /b 0"
 					}
 				]
 			}
@@ -42,7 +45,8 @@
 					{
 						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 2,
-						"type": "command"
+						"type": "command",
+						"commandWindows": "node \"%PLUGIN_ROOT%\\scripts\\forward-hook.mjs\" codex >NUL 2>&1 & exit /b 0"
 					}
 				]
 			}
@@ -54,7 +58,8 @@
 					{
 						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 2,
-						"type": "command"
+						"type": "command",
+						"commandWindows": "node \"%PLUGIN_ROOT%\\scripts\\forward-hook.mjs\" codex >NUL 2>&1 & exit /b 0"
 					}
 				]
 			}
@@ -65,7 +70,8 @@
 					{
 						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 2,
-						"type": "command"
+						"type": "command",
+						"commandWindows": "node \"%PLUGIN_ROOT%\\scripts\\forward-hook.mjs\" codex >NUL 2>&1 & exit /b 0"
 					}
 				]
 			}
@@ -76,7 +82,8 @@
 					{
 						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 2,
-						"type": "command"
+						"type": "command",
+						"commandWindows": "node \"%PLUGIN_ROOT%\\scripts\\forward-hook.mjs\" codex >NUL 2>&1 & exit /b 0"
 					}
 				]
 			}
@@ -88,7 +95,8 @@
 					{
 						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 2,
-						"type": "command"
+						"type": "command",
+						"commandWindows": "node \"%PLUGIN_ROOT%\\scripts\\forward-hook.mjs\" codex >NUL 2>&1 & exit /b 0"
 					}
 				]
 			}
@@ -100,7 +108,8 @@
 					{
 						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 2,
-						"type": "command"
+						"type": "command",
+						"commandWindows": "node \"%PLUGIN_ROOT%\\scripts\\forward-hook.mjs\" codex >NUL 2>&1 & exit /b 0"
 					}
 				]
 			}
@@ -111,7 +120,8 @@
 					{
 						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 2,
-						"type": "command"
+						"type": "command",
+						"commandWindows": "node \"%PLUGIN_ROOT%\\scripts\\forward-hook.mjs\" codex >NUL 2>&1 & exit /b 0"
 					}
 				]
 			}
@@ -122,7 +132,8 @@
 					{
 						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 1,
-						"type": "command"
+						"type": "command",
+						"commandWindows": "node \"%PLUGIN_ROOT%\\scripts\\forward-hook.mjs\" codex >NUL 2>&1 & exit /b 0"
 					}
 				]
 			}

@@ -1,14 +1,44 @@
 import assert from 'node:assert/strict';
-import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+	cpSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+	symlinkSync,
+	writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 import { verifiedCapsuleDigest } from './stage-native-site.mjs';
+import { verifyConptyBundle } from '../apps/terminal-host/scripts/windows-conpty.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const canonical = path.join(root, 'apps', 'desktop', 'resources', 'agent-observation-adapters');
+
+test('Windows ConPTY staging rejects missing, altered and linked bundles before publication', (t) => {
+	const parent = realpathSync(tmpdir());
+	const directory = mkdtempSync(path.join(parent, 'orchbee-conpty-verification-'));
+	t.after(() => {
+		const actual = realpathSync(directory);
+		assert.equal(path.dirname(actual), parent);
+		assert.ok(path.basename(actual).startsWith('orchbee-conpty-verification-'));
+		rmSync(actual, { recursive: true });
+	});
+	const bundle = path.join(directory, 'bundle');
+	assert.throws(() => verifyConptyBundle(bundle));
+	mkdirSync(bundle);
+	assert.throws(() => verifyConptyBundle(bundle));
+	writeFileSync(path.join(bundle, 'conpty.dll'), 'altered');
+	assert.throws(() => verifyConptyBundle(bundle), /integrity mismatch/u);
+	const linked = path.join(directory, 'linked');
+	symlinkSync(bundle, linked, process.platform === 'win32' ? 'junction' : 'dir');
+	assert.throws(() => verifyConptyBundle(linked), /Unsafe ConPTY bundle directory/u);
+});
 
 function stagedCopy(mutate) {
 	const directory = mkdtempSync(path.join(tmpdir(), 'orchbee-capsule-staging-'));

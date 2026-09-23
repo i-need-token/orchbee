@@ -41,9 +41,10 @@ $created.result
 
 这些命令完全离线，不改变配置。它们检查原生用户配置目录（显式配置时使用 `CODEX_HOME`）、
 PATH 上的 provider 条目、Node 及声明的胶囊完整性。第二条命令增加一个显式胶囊检查根，
-不会安装它。版本 2 JSON 和本地化文本报告 `windows-hook-transport-unavailable`：随附 hook
-载荷仍需 Windows shell 和事件传输支持。已安装 hook 或 `complete:true` 不代表 Agent 看板
-已可用。托管 enable/disable 与 start/prompt 将在传输工作之后补齐。
+不会安装它。版本 3 JSON 和本地化文本报告 `windows-endpoint-not-inspected`。Capsule 0.4.1
+新增 Windows Codex hook，Windows x64 cohort 包含其所需的固定 ConPTY 运行时。
+Doctor 不执行该传输。已安装 hook 或 `complete:true` 不代表 Agent 看板已可用。
+托管 enable/disable 与 start/prompt 仍待补齐。
 
 ## 前提条件
 

@@ -362,21 +362,21 @@ connect、绝不创建锁或标记、绝不修复——共享一个在有界文�
 
 ### Windows Agent 诊断细化
 
-Windows `agent doctor` 负责相同的有界离线观测流程，输出 `orchbee.agent.doctor` 版本 2；
-现有 Linux 输出仍为版本 1。hook 声明和自洽胶囊只能证明安装事实。随附的 0.4.0 hook 载荷仍
-依赖 POSIX shell 命令、Unix socket 发现和 `/dev/tty`；Windows 输出
-`endpoint.socket.state="not-inspected"`、`reason="windows-hook-transport-unavailable"`
-以及本地化提示，不检查命名管道或推断 Site 存活。完整检查也可以报告此已知限制；`complete`
-表示探测覆盖完整度，不表示可用性。Windows 托管安装与 Agent start/prompt 仍属于后续工作。
+Windows `agent doctor` 拥有相同的有界离线观察流程，输出 `orchbee.agent.doctor`
+版本 3；Linux 保持版本 1，schema 继续保留原版本 2 词汇。Capsule 0.4.1 支持
+原生 Windows Codex hook 传输，但 doctor 不连接命名管道，也不写 Console 关联 hint。
+端点保持 `not-inspected`，原因改为 `windows-endpoint-not-inspected`；配置和胶囊
+完整性不证明事件投递或 Site 存活。`complete` 描述探测覆盖率。
+Windows 托管安装和 Agent start/prompt 仍待完成。
 
 | 字段         | 契约                                                                                                                                                                                                                                                                               |
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 输入与所有者 | 原生 doctor 独占负责只读文件系统、PATH 和环境观测。Windows home 使用原生用户配置目录；非空绝对 `CODEX_HOME` 指向现存非重解析目录时选择该 Codex 配置。空 `CODEX_HOME` 使用默认目录；无效非空根报告不可检查，不静默替换。该只读准入比 Codex 对相对路径或符号链接覆盖做规范化更严格。 |
 | 准入         | 打开普通文件时不跟随末级重解析点，在有界读取前根据已打开句柄检查元数据。拒绝设备命名空间和相对路径；重解析条目不检查。祖先路径分量与同步文件系统延迟不属于硬截止时间保证。                                                                                                         |
-| 决策         | provider 配置缺失、禁用、冲突或不可读，原生可执行文件或脚本可见或缺失，Node 可见或缺失，胶囊自洽、损坏或预算不足，以及 Windows hook 传输不受支持，分别报告。PATH 搜索不执行条目，也不推断插件命令支持。                                                                            |
-| 兼容性       | Windows 接受原生绝对路径及 Windows 路径使用的单行 TOML 字面量字符串。既有 Linux 扫描语义和输出版本不变。嵌入 schema 将新增 Windows endpoint 词汇限定到版本 2。                                                                                                                     |
+| 决策         | provider 配置缺失、禁用、冲突或不可读，原生可执行文件或脚本可见或缺失，Node 可见或缺失，胶囊自洽、损坏或预算不足，以及 Windows 端点尚未检查，分别报告。PATH 搜索不执行条目，也不推断插件命令支持。                                                                                 |
+| 兼容性       | Windows 接受原生绝对路径及 Windows 路径使用的单行 TOML 字面量字符串。既有 Linux 扫描语义和输出版本不变。嵌入 schema 将新增 Windows endpoint 词汇限定到版本 3；版本 2 保留原有封闭词汇。                                                                                            |
 | 副作用与边界 | 不执行 provider、不连接 socket、不激活 Site、不加锁、不写入。沿用 5 秒协作预算、64 项、16 MiB 总读取量及各探测上限。取消返回 130；生成完整或部分诊断文档均返回 0。                                                                                                                 |
-| 证据与限制   | Windows 隔离进程测试覆盖本地化及 schema 合法输出、路径和配置隔离、缺失及已安装声明、损坏资源与零安装副作用。文件系统测试覆盖拒绝重解析点及读取预算。不声称 Windows hook 已可投递或完成独立评审；按用户要求不执行 TLA。                                                             |
+| 证据与限制   | Windows 隔离进程测试覆盖本地化及 schema 合法输出、路径和配置隔离、缺失及已安装声明、损坏资源与零安装副作用。文件系统测试覆盖拒绝重解析点及读取预算。doctor 测试不证明 hook 投递；未完成独立评审；按用户要求不执行 TLA。                                                            |
 
 `terminal read` 沿用第 1–5 步原样不变，然后在同一 deadline 内让已准入的 session 保持存活
 ——绝无第二次准入——完成一次只读 viewer 观察：

@@ -140,11 +140,12 @@ Windows 已验证原生启动、Unicode 渲染、连续及逐字输入、CLI 终
 管道，不留下分离的 flush 线程。
 
 Windows `agent doctor --provider codex --format json` 现在可以检查本地配置、PATH、Node
-和胶囊完整性，不启动 Site，也不改变 provider 接入配置。版本 2 文档明确报告 Windows hook
-尚不能投递事件；已安装配置不证明 Agent 已接通。
+和胶囊完整性，不启动 Site，也不改变 provider 接入配置。版本 3 文档报告 Windows 端点投递
+尚未检查；已安装配置不证明 Agent 已接通。
 
-Windows 当前限制：尚未实现 `site diagnose` 和 Agent 集成安装。包内 Hook 适配器仍依赖
-Unix TTY 发现，因此在窗格中启动 Agent 不代表具备基于 Hook 的 Agent 看板状态。
+Windows 当前限制：尚未实现 `site diagnose` 和 Agent 集成安装。Capsule 0.4.1 增加 Windows Codex hook，
+通过原生 observation 管道与 Console 关联投递。Windows x64 cohort 包含保留关联信息所需的
+固定 ConPTY 运行时。托管安装和 Agent start/prompt 仍待完成，其他 provider 保留既有平台限制。
 `terminal send --stdin` 接受重定向普通文件和 Windows 管道；所属隐藏 Windows PowerShell
 读取进程使管道输入可取消。它从操作系统系统目录解析，绝不通过 PATH 查找，失败时终止并回收。
 Shell 补全提供 bash/zsh/fish/powershell。在 PowerShell 中显式运行

@@ -114,6 +114,15 @@ export function stageWindows(root, output, cargoTarget, verifyCapsule) {
 		if (digest === null)
 			throw new Error('Staged observation-adapters capsule failed canonical verification');
 		hashes['agent-observation-adapters'] = digest;
+		execFileSync(
+			process.execPath,
+			[
+				path.join(root, 'apps', 'terminal-host', 'scripts', 'windows-conpty.mjs'),
+				'--output',
+				path.join(prepared, 'conpty'),
+			],
+			{ cwd: root, stdio: 'inherit', windowsHide: true },
+		);
 		writeFileSync(
 			path.join(prepared, 'cohort.json'),
 			JSON.stringify({ schemaVersion: 2, artifacts: hashes }) + '\n',

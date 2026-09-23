@@ -104,6 +104,13 @@ pub fn build(builder: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    const conpty_manifest = std.json.parseFromSlice(std.json.Value, builder.allocator, @embedFile("windows-conpty.json"), .{}) catch
+        @panic("invalid Windows ConPTY manifest");
+    const conpty_files = conpty_manifest.value.object.get("files").?.object;
+    const conpty_options = builder.addOptions();
+    conpty_options.addOption([]const u8, "dll_sha256", conpty_files.get("dll").?.object.get("sha256").?.string);
+    conpty_options.addOption([]const u8, "console_sha256", conpty_files.get("console").?.object.get("sha256").?.string);
+    platform_module.addOptions("windows-conpty-options", conpty_options);
     const engine_module = builder.createModule(.{
         .root_source_file = builder.path("src/engine/root.zig"),
         .target = target,

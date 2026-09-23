@@ -43,10 +43,10 @@ Check `result.terminal.outcome` before using the terminal: `started` confirms la
 These commands are offline and leave configuration unchanged. They inspect the native user
 profile (`CODEX_HOME` when explicitly configured), provider entries on PATH, Node and declared
 capsule integrity. The second command adds an explicit capsule root; it does not install it.
-Version-2 JSON and localized text report `windows-hook-transport-unavailable`: the shipped
-hook payload still needs Windows shell and event-transport support. An installed hook or
-`complete:true` does not establish Agent-board readiness. Managed enable/disable and
-start/prompt follow that transport work.
+Version-3 JSON and localized text report `windows-endpoint-not-inspected`. Capsule 0.4.1
+adds Windows Codex hooks, and Windows x64 cohorts include their required pinned ConPTY
+runtime. Doctor does not exercise that transport. An installed hook or `complete:true`
+does not establish Agent-board readiness. Managed enable/disable and start/prompt remain pending.
 
 ## Prerequisites
 

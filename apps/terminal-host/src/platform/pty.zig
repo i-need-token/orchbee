@@ -4,6 +4,7 @@ const builtin = @import("builtin");
 const posix_compat = @import("posix_compat.zig");
 const thread_sync = @import("thread_sync.zig");
 const windows_api = @import("windows_api.zig");
+const windows_conpty = @import("conpty_windows.zig");
 
 extern "c" fn tcgetpgrp(handle: c_int) c_int;
 
@@ -173,6 +174,7 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
     const windows = std.os.windows;
 
     console_closed: bool = false,
+    conpty: windows_conpty.Api,
     input: windows.HANDLE,
     lifecycle_mutex: thread_sync.Mutex = .{},
     output: windows.HANDLE,
@@ -185,6 +187,8 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
     pub fn open(size: Size) !WindowsPty {
         const columns = try checkedCoordinate(size.columns);
         const rows = try checkedCoordinate(size.rows);
+        var conpty = try windows_conpty.Api.init();
+        errdefer conpty.deinit();
         var input_console: windows.HANDLE = undefined;
         var input: windows.HANDLE = undefined;
         var output: windows.HANDLE = undefined;
@@ -211,7 +215,7 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
             return windows.unexpectedError(windows.GetLastError());
         }
         var pseudo_console: windows_api.HPCON = undefined;
-        const result = windows_api.CreatePseudoConsole(
+        const result = conpty.create(
             .{ .X = columns, .Y = rows },
             input_console,
             output_console,
@@ -222,6 +226,7 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
         _ = windows.CloseHandle(input_console);
         _ = windows.CloseHandle(output_console);
         return .{
+            .conpty = conpty,
             .input = input,
             .output = output,
             .pseudo_console = pseudo_console,
@@ -232,6 +237,7 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
         self.closeConsole();
         _ = windows.CloseHandle(self.input);
         _ = windows.CloseHandle(self.output);
+        self.conpty.deinit();
         self.* = undefined;
     }
 
@@ -280,7 +286,7 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
         self.lifecycle_mutex.lock();
         defer self.lifecycle_mutex.unlock();
         if (self.console_closed) return;
-        windows_api.ClosePseudoConsole(self.pseudo_console);
+        self.conpty.close(self.pseudo_console);
         self.console_closed = true;
     }
 
@@ -346,7 +352,7 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
         self.lifecycle_mutex.lock();
         defer self.lifecycle_mutex.unlock();
         if (self.console_closed) return error.PtyClosed;
-        const result = windows_api.ResizePseudoConsole(
+        const result = self.conpty.resize(
             self.pseudo_console,
             .{ .X = columns, .Y = rows },
         );

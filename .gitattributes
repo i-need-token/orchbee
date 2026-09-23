@@ -1,0 +1,3 @@
+# Integrity-checked resources must retain identical bytes on every checkout.
+apps/desktop/resources/agent-observation-adapters/** text eol=lf
+apps/terminal-host/licenses/Microsoft.ConPTY-LICENSE.txt -text

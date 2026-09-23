@@ -7,6 +7,7 @@ pub const thread_sync = @import("thread_sync.zig");
 pub const temp_directory = @import("temp_directory.zig");
 
 pub const testing = if (builtin.is_test) struct {
+    pub const conpty = @import("conpty_windows.zig").testing;
     pub const session_signaling = @import("process_session.zig").testing;
     pub const pty = @import("pty.zig");
     pub const windows_api = struct {

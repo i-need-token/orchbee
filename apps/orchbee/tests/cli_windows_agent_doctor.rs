@@ -86,16 +86,21 @@ impl Fixture {
                 .map(|error| error.to_string())
                 .collect::<Vec<_>>()
         );
-        assert_eq!(document["version"], 2);
+        assert_eq!(document["version"], 3);
         assert_eq!(
             document["result"]["endpoint"]["socket"]["reason"],
-            "windows-hook-transport-unavailable"
+            "windows-endpoint-not-inspected"
         );
         let mut invalid_v1 = document.clone();
         invalid_v1["version"] = 1.into();
         assert!(
             !validator.is_valid(&invalid_v1),
             "Windows vocabulary must not leak into v1"
+        );
+        invalid_v1["version"] = 2.into();
+        assert!(
+            !validator.is_valid(&invalid_v1),
+            "New Windows vocabulary must not leak into v2"
         );
         document
     }
@@ -175,7 +180,7 @@ fn native_home_and_script_discovery_are_offline_and_localized() {
     let output = fixture.run(&["agent", "doctor", "--provider", "codex"], "zh-CN", None);
     assert!(output.status.success());
     let text = String::from_utf8(output.stdout).unwrap();
-    assert!(text.contains("尚不能在 Windows 投递事件"), "{text}");
+    assert!(text.contains("不检查 Windows 端点投递"), "{text}");
     let empty = fixture.document(Some(Path::new("")));
     assert_eq!(
         empty["result"]["providers"][0]["hook"]["reason"],

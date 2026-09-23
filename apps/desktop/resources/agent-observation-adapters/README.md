@@ -3,16 +3,36 @@
 This packaged resource contains ten explicitly installed, provider-bound observation adapters for
 Claude Code, Codex, Grok, OpenCode, Pi, OMP, Gemini CLI, GitHub Copilot CLI, Cline, and Qwen Code.
 Each adapter validates its own upstream event contract and emits the same content-free normalized
-facts through Orchbee's shared Unix-socket plus private-APC correlation transport. Desktop's closed
+facts through Orchbee's shared local socket/pipe plus private-APC correlation transport. Desktop's closed
 registry, not an adapter payload, grants provider identity, accepted events, and maximum
 capabilities.
+
+## Windows Codex transport
+
+The native Windows cohort uses the same v3 rich-envelope/private-APC join. Capsule
+`0.4.1` adds Codex `commandWindows` hooks, using the provider's existing `cmd.exe /C`
+execution contract and `PLUGIN_ROOT`. The Windows x64 cohort must include its pinned ConPTY runtime: the inbox ConHost may
+consume private APC sequences. Windows does not gain Unix remote discovery or
+additional provider installation support through this adapter change. Native managed
+enable/disable and start/prompt remain separate CLI obligations.
+
+| Field                    | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem and owner        | Codex command hooks in an Orchbee ConPTY must reach the native Server's existing observation ingress. The shared adapter owns delivery; Server/Host retain envelope validation, generation identity and the exact join.                                                                                                                                                                                                                                                |
+| Inputs and reference     | Allowlisted normalized Codex events, the inherited `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` and the provider-supplied plugin root. Codex 0.155.1's Windows hook contract accepts `commandWindows` and retains the parent's console despite redirecting standard streams. Environment strings never grant Agent or terminal identity.                                                                                                                                      |
+| Endpoint policy          | Admit only the exact local pipe spelling `\\.\pipe\orchbee-<32-lowercase-hex>-observation`. Missing, malformed, remote UNC and non-observation targets produce no delivery. Windows never scans pipes, files or Unix SSH forwards. The injected endpoint and native Server ACL provide routing; the adapter does not claim to inspect pipe ownership.                                                                                                                  |
+| Correlation target       | Use only the literal device `\\.\CONOUT$`, opened with read/write access and verified as a character device before writing. Never use a relative `CONOUT$`, environment-selected device, stdout or stderr. Direct visibility remains unknown. Missing console means no hint; no fallback may redirect the hint into a file.                                                                                                                                            |
+| Workflow and transitions | Validate observation → resolve exact endpoint and fixed console target → send bounded content-free envelope → wait for exact bounded ACK → write the matching private APC → close the console handle. Missing endpoint, invalid input, timeout, rejected ACK and open/write failure stop the affected delivery. Rich-only events expire under the existing ingress rules.                                                                                              |
+| Invariants and effects   | No prompt/output/path content enters the envelope; no APC precedes acceptance; neither half alone binds an Agent; no hook installs configuration or launches a Site. Windows never unlinks a pipe. The provider hook exits successfully on absent Node/runtime or transport failure. Socket and console handles remain locally owned and close on completion/failure.                                                                                                  |
+| Rollout and recovery     | Publish a new immutable Capsule version and matching resource/consumer versions. Git preserves LF bytes across Windows checkouts for the hashed payload. Preserve older Capsules and provider declarations until an explicit managed action replaces them. The Unix command field and existing Unix transport behavior remain available. The adapter adds no dependency or wire version; Windows cohort delivery additionally requires the pinned Host ConPTY runtime. |
+| Evidence and limits      | Deterministic admission/ACK-order cases, real Windows named-pipe ACK cases, silent bounded command-hook process cases and an isolated native Server/ConPTY delivery witness. Transport evidence does not prove managed installation, real Agent task completion, physical TUI interaction or every provider's Windows support. Same-author challenge only; TLA execution remains deferred by user instruction.                                                         |
 
 ## Supported contracts
 
 | Adapter            | Reference version                       | Integration surface      | Maximum status evidence                                                                                      |
 | ------------------ | --------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------ |
 | Claude Code        | Current documented hook/plugin contract | Command-hook plugin      | Session, Turn, tool, question, approval, compaction, subagent, completion, failure                           |
-| Codex              | `0.150.1`                               | Command-hook plugin      | Session, Turn, tool, question, approval, compaction, subagent, completion                                    |
+| Codex              | `0.150.1` (Unix), `0.155.1` (Windows)   | Command-hook plugin      | Session, Turn, tool, question, approval, compaction, subagent, completion                                    |
 | Grok               | `1.0.5`                                 | Command-hook plugin      | Session, Turn, tool, approval, compaction, subagent, idle, completion, failure, cancellation, interruption   |
 | OpenCode           | `1.18.25`                               | JavaScript plugin events | Session, busy/retry/idle, tool, question, approval, error                                                    |
 | Pi                 | `0.84.4`                                | Extension API            | Session, Agent start/settled, blocking UI prompt, tool, compaction                                           |
@@ -194,7 +214,7 @@ Desktop injects only `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` through a non-persist
 environment overlay. Before transport, each entry selects only bounded event, session, Turn,
 tool-operation, and subagent identifiers and discards prompts, questions, tool input/output,
 transcript paths, working directories, error text, notification text, and unknown fields. The rich
-half goes to same-user private Unix-domain sockets. A local process uses only the exact endpoint in
+half goes to same-user private Unix-domain sockets or the injected native Windows observation pipe. A local process uses only the exact endpoint in
 its environment; only a remote process without that overlay discovers same-user forwarded
 candidates, and discovery requires an inherited non-empty `SSH_CONNECTION`, `SSH_CLIENT`, or
 `SSH_TTY` marker. An ordinary local terminal without the exact overlay performs no socket scan.
@@ -204,12 +224,12 @@ exact ACK, the adapter writes no terminal control sequence. Desktop requires an 
 event/correlation join for a live terminal generation, so neither half can associate and authorize
 rich state alone; unmatched envelopes sent to another live instance expire without canonical
 effect.
-Every TTY candidate must be a lexically normalized path below `/dev`; the writer opens it
+On Unix, every TTY candidate must be a lexically normalized path below `/dev`; the writer opens it
 nonblocking without following symlinks, verifies a character device, and requires same-user
 ownership except for the kernel-owned `/dev/tty` alias. A resolver cannot redirect a hint into a
 regular file or another user's terminal.
 
-The shared resolver supports direct terminals, every attached tmux client, conservative Zellij
+The Unix resolver supports direct terminals, every attached tmux client, conservative Zellij
 client visibility, and nested mux environments. It asserts `hidden` only when an attached mux
 client is showing another pane; direct and active-pane routes remain `unknown` because the hook
 cannot prove application-window visibility. Workbench combines that mux evidence with its own

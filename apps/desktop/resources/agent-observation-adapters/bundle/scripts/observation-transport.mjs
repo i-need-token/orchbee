@@ -14,6 +14,9 @@ const SOCKET_TIMEOUT_MILLISECONDS = 250;
 const IDENTITY_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/u;
 const PRIVATE_SOCKET_NAME_PATTERN = /^orchbee-agent-v3-[A-Za-z0-9_-]{16,64}\.sock$/u;
 const OBSERVATION_SOCKET_ENVIRONMENT_NAME = 'ORCHBEE_AGENT_OBSERVATION_SOCKET_V3';
+const WINDOWS_OBSERVATION_PIPE_PATTERN =
+	/^\\\\\.\\pipe\\orchbee-[a-f0-9]{32}-observation$(?![\s\S])/u;
+const WINDOWS_CONSOLE_TARGET = String.raw`\\.\CONOUT$`;
 const PRIVATE_APC_PREFIX = 'orchbee.agent.v3;';
 const ACCEPTED_ENVELOPE_ACK = '{"accepted":true,"version":3}\n';
 const MAX_ACK_BYTES = Buffer.byteLength(ACCEPTED_ENVELOPE_ACK);
@@ -119,6 +122,9 @@ export async function forwardSanitizedObservation(adapterId, value, options = {}
 }
 
 export async function resolveObservationTargets(environment, options = {}) {
+	if ((options.platform ?? process.platform) === 'win32') {
+		return [{ tty: WINDOWS_CONSOLE_TARGET, visibility: 'unknown' }];
+	}
 	const execute = options.execute ?? executeBounded;
 	const targetGroups = [];
 	if (validEnvironmentValue(environment.TMUX_PANE)) {
@@ -186,8 +192,13 @@ export function parseZellijClientProcesses(value, userId, sessionName) {
 	return [...new Set(targets)];
 }
 
-export async function discoverObservationSockets(environment) {
+export async function discoverObservationSockets(environment, options = {}) {
 	const localSocket = environment[OBSERVATION_SOCKET_ENVIRONMENT_NAME];
+	if ((options.platform ?? process.platform) === 'win32') {
+		return typeof localSocket === 'string' && WINDOWS_OBSERVATION_PIPE_PATTERN.test(localSocket)
+			? [localSocket]
+			: [];
+	}
 	if (typeof localSocket === 'string') {
 		if (!path.isAbsolute(localSocket)) return [];
 		return (await isOwnedSocket(localSocket)) ? [localSocket] : [];
@@ -212,6 +223,18 @@ export async function discoverObservationSockets(environment) {
 }
 
 export async function writeCorrelationHint(tty, hint) {
+	if (process.platform === 'win32') {
+		if (tty !== WINDOWS_CONSOLE_TARGET) return;
+		const handle = await open(WINDOWS_CONSOLE_TARGET, 'r+');
+		try {
+			if (!(await handle.stat()).isCharacterDevice()) return;
+			const payload = Buffer.from(JSON.stringify(hint), 'utf8').toString('base64url');
+			await handle.writeFile(`\u001B_${PRIVATE_APC_PREFIX}${payload}\u001B\\`);
+		} finally {
+			await handle.close();
+		}
+		return;
+	}
 	if (normalizeTty(tty) !== tty) return;
 	const payload = Buffer.from(JSON.stringify(hint), 'utf8').toString('base64url');
 	const handle = await open(
@@ -264,7 +287,9 @@ export async function sendObservationEnvelope(socketPath, envelope) {
 		});
 		socket.once('close', () => finish(false));
 		socket.once('error', async (error) => {
-			if (hasErrorCode(error, 'ECONNREFUSED')) await removeStaleForwardSocket(socketPath);
+			if (process.platform !== 'win32' && hasErrorCode(error, 'ECONNREFUSED')) {
+				await removeStaleForwardSocket(socketPath);
+			}
 			finish(false);
 		});
 	});
@@ -405,7 +430,8 @@ function normalizeTty(value) {
 function deduplicateTargets(targets) {
 	const byTty = new Map();
 	for (const target of targets) {
-		const tty = normalizeTty(target.tty);
+		const tty =
+			target.tty === WINDOWS_CONSOLE_TARGET ? WINDOWS_CONSOLE_TARGET : normalizeTty(target.tty);
 		if (tty === null) continue;
 		const existing = byTty.get(tty);
 		if (existing === undefined) byTty.set(tty, { tty, visibility: target.visibility });
