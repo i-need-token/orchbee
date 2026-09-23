@@ -1,5 +1,6 @@
 [workspace]
 resolver = "3"
+exclude = ["third-party/process-wrap"]
 members = [
 	"apps/orchbee",
 	"apps/orchbee-server",
@@ -20,6 +21,9 @@ members = [
 edition = "2024"
 rust-version = "1.97.0"
 
+[patch.crates-io]
+process-wrap = { path = "third-party/process-wrap" }
+
 [workspace.dependencies]
 getrandom = { version = "=0.3.4", default-features = false }
 sha2 = "0.10.9"
@@ -27,6 +31,12 @@ rustix = { version = "1.1.4", default-features = false, features = ["std"] }
 nix = { version = "0.31.3", default-features = false }
 winsafe = { version = "=0.0.29", default-features = false }
 winapi-util = { version = "=0.1.11", default-features = false }
+process-wrap = { version = "=10.0.1", default-features = false, features = [
+	"std",
+	"job-object",
+	"creation-flags",
+] }
+windows = { version = "=0.62.2", default-features = false, features = ["Win32_System_Threading"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

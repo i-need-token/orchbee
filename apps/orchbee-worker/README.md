@@ -767,6 +767,33 @@ pnpm verify
 
 ## Windows native execution
 
+### Git process ownership
+
+Windows Git discovery owns one suspended-assigned Job per command. Its private
+adapter polls the inner root, then terminates remaining Job members and polls for
+both root exit and the exact all-processes-exited completion event. Settlement has
+one five-second cooperative cleanup budget on the retained discovery thread.
+Only successful settlement permits a terminal receipt, the next command or slot
+reuse. Failure retires the slot as `PhysicalUnknown`; it cannot be retried as proof.
+
+The states are running, settling, settled or physically unknown. Settling retains
+the Job and thread owner. OS calls may overrun cooperative deadlines; `poll` stays
+pending and `stop_before` returns bounded failure without claiming cleanup. Drop
+requests termination without blocking and proves no exit. Abrupt Worker death and
+OS termination failure are outside successful-cleanup claims. Neither root exit
+nor an empty Job member list proves all descendant process handles have signaled.
+
+The existing `process-wrap` 10.0.1 `std`, `job-object`, `creation-flags` features and
+`windows` 0.62.2 Threading bindings are shared with the native Client. The reviewed
+[dependency correction](../../third-party/process-wrap/README.md) fixes completion
+notification interpretation without adding authored unsafe or new dependency versions.
+The Client's [dependency review](../orchbee/docs/windows-agent-integrations.md)
+still governs the existing bindings. Native tests use already pinned `winsafe`
+0.0.29 `kernel` as a Windows-only development dependency: retain a live descendant
+handle before releasing the root or cancelling, then require it already signaled at
+the terminal result. Existing discovery tests cover binary output, cancellation,
+limits, failure cleanup and real Git execution.
+
 The managed native Windows path uses the same Worker authorization, receipts, replay fences, and Host protocol. Private named pipes replace Unix sockets. The exact sibling `orchbee-terminal-host.exe` starts lazily after authorized Launch and uses ConPTY. Default launch resolves absolute `COMSPEC` or `SystemRoot\System32\cmd.exe`, with `USERPROFILE` as the initial directory. Worktree discovery runs Windows Git through owned child-output pipes with bounded output, cancellation, deadlines, and kill/wait cleanup. Native tests cover real Host retention after broker loss and real Git discovery. See the [Client quick start](../orchbee/README.md#native-windows-quick-start) for staging and limits.
 
 ## Windows child caller context

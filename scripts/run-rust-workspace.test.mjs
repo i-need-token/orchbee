@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	copyFileSync,
+	cpSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -44,6 +52,12 @@ function withFixture(inspect) {
 			copyFileSync(new URL(file, repositoryRoot), join(root, file));
 		}
 		// Exercise the actual workspace lint policy, with an isolated dependency-free member.
+		// Cargo resolves local patch manifests even when this member does not consume them.
+		cpSync(
+			new URL('third-party/process-wrap', repositoryRoot),
+			join(root, 'third-party/process-wrap'),
+			{ recursive: true },
+		);
 		const manifest = readFileSync(new URL('Cargo.toml', repositoryRoot), 'utf8').replace(
 			/^members = \[[\s\S]*?^\]/mu,
 			'members = ["fixture"]',

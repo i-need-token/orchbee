@@ -130,8 +130,8 @@
 			"zhCnSha256": "6794c35c8fc01dda60ed78ff2c6fdd76576450892ebe31086d48c529df0a63e1"
 		},
 		"apps/orchbee-worker/README.md": {
-			"englishSha256": "97cd103b4dd9f2028dc9e079b941267c794bcc7db7cf3d68acc42bb68075735c",
-			"zhCnSha256": "c7cdaa7b2e3ed2539cdd4e343ab66acfbc5ee86995519274a55ed2ba071a6db0"
+			"englishSha256": "2cc397942f5f397a90164af17b5c0046f4c06aadd1cd3bff51daf5a85103546f",
+			"zhCnSha256": "61523082f04e6ced302140dda870b0829333f9a24059df8d1fd8e53ff3375399"
 		},
 		"apps/orchbee-worker/docs/viewer-capacity-and-record-budget.md": {
 			"englishSha256": "279cfc6c4d09b946cecef57aebd2612fe6606b725632834d89f63f5231f1467c",
@@ -656,6 +656,10 @@
 		"schemas/workbench/README.md": {
 			"englishSha256": "d6418e0ba6d77937d3807633ed5e98e67cfd3eb27c47471095f2eed35a20059b",
 			"zhCnSha256": "68fbe360f795eb6bde0b4a0e2c7ff0e375f20a8b0a12567ca80f2802c56d368b"
+		},
+		"third-party/process-wrap/README.md": {
+			"englishSha256": "c04f40708252280f3924b45b419a50a59f036e9f1e575a26eada1a8b8106e1f6",
+			"zhCnSha256": "9d5466e577fec885505d3f34c376965d87805773087c6d7fd1db833fc85094bf"
 		}
 	}
 }

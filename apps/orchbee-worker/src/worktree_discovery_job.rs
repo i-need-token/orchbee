@@ -2,7 +2,7 @@ use std::{
     ffi::OsString,
     io::{self, Read},
     path::Path,
-    process::{Child, Command, Stdio},
+    process::{Command, Stdio},
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -12,8 +12,12 @@ use std::{
 };
 
 #[cfg(windows)]
+use crate::git_process_windows::GitChild as Child;
+#[cfg(windows)]
 use orchbee_local_ipc::ChildOutputReader;
 use orchbee_local_ipc::{AsLocalIo, PollFd, PollFlags, PollTimeout, poll};
+#[cfg(unix)]
+use std::process::Child;
 #[cfg(unix)]
 use std::{
     os::fd::AsRawFd,
@@ -118,14 +122,10 @@ impl CommandSpec {
         }
         #[cfg(windows)]
         {
-            use std::os::windows::process::CommandExt;
             let (out, stdout) = ChildOutputReader::pipe()?;
             let (err, stderr) = ChildOutputReader::pipe()?;
-            let child = command
-                .creation_flags(0x0800_0000)
-                .stdout(stdout)
-                .stderr(stderr)
-                .spawn()?;
+            command.stdout(stdout).stderr(stderr);
+            let child = Child::spawn(command)?;
             Ok(SpawnedChild {
                 child,
                 out: Some(out),
@@ -694,8 +694,8 @@ fn drain_child(spawned: SpawnedChild, ctx: &mut StageCtx<'_>) -> StageEnd {
 
 // The child is already reaped. Drain only what is still buffered: a
 // WouldBlock closes that end because all pre-exit output is already in
-// the pipe, while a descendant-held write end is the admitted limit and
-// is never awaited. Each turn is quantum-bounded and still honors
+// the pipe. Unix does not wait for descendant-held writers; Windows has
+// already settled the owned Job. Each turn is quantum-bounded and honors
 // cancellation and the shared deadline.
 fn drain_tail(
     status_code: Option<i32>,
@@ -839,8 +839,13 @@ fn kill_reap(
     outcome: JobOutcome,
     hooks: Option<&TestHooks>,
 ) -> StageEnd {
-    let _ = child.kill();
-    let reaped = child.wait().is_ok();
+    #[cfg(unix)]
+    let reaped = {
+        let _ = child.kill();
+        child.wait().is_ok()
+    };
+    #[cfg(windows)]
+    let reaped = child.settle().is_ok();
     if reaped {
         witness_record(hooks, |witness| witness.reaped.push(child.id()));
     }

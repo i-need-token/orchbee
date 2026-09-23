@@ -701,6 +701,27 @@ pnpm verify
 
 ## Windows 原生执行
 
+### Git 进程归属
+
+Windows Git 发现为每个命令持有一个在暂停状态下分配的 Job。私有适配器先轮询内部
+根进程，随后终止剩余 Job 成员，并轮询根进程退出与准确的全进程退出完成事件。
+结算在保留的发现线程上拥有一次五秒协作式清理预算。只有成功结算才允许终态回执、
+下一个命令或复用槽位；失败将槽位置为 `PhysicalUnknown`，不能重试并当作成功证明。
+
+状态为运行、结算、已结算或物理状态未知。结算保留 Job 和线程所有者。操作系统调用
+可能超过协作式期限；`poll` 保持 pending，`stop_before` 有界返回失败而不声称已清理。
+Drop 只请求终止，不阻塞也不证明退出。Worker 突然死亡和操作系统终止失败不属于成功
+清理声明。根进程退出或 Job 成员列表为空，都不能证明所有后代进程句柄已经发出退出信号。
+
+与原生 Client 共享已有的 `process-wrap` 10.0.1 `std`、`job-object`、`creation-flags`
+特性和 `windows` 0.62.2 Threading 绑定。经过审查的
+[依赖修正](../../third-party/process-wrap/README.zh-CN.md) 修复完成通知的判定，
+不新增自写 unsafe 或依赖版本。Client 的
+[依赖审查](../orchbee/docs/windows-agent-integrations.zh-CN.md) 仍约束已有绑定。
+原生测试使用已有固定版本 `winsafe` 0.0.29 `kernel` 作为仅 Windows 的开发依赖：
+在放行根进程或取消前保留存活后代的句柄，要求终态返回时句柄已发出退出信号。
+现有发现测试覆盖二进制输出、取消、边界、失败清理与真实 Git 执行。
+
 Windows 托管原生路径沿用 Worker 授权、回执、重放栅栏及 Host 协议，以私有命名管道替换 Unix Socket。精确的同级 `orchbee-terminal-host.exe` 仅在授权 Launch 后惰性启动并使用 ConPTY。默认启动解析绝对 `COMSPEC` 或 `SystemRoot\System32\cmd.exe`，初始目录为 `USERPROFILE`。工作树发现通过自有子进程输出管道运行 Windows Git，具备输出边界、取消、截止时间及 kill/wait 清理。原生测试覆盖 broker 断开后的真实 Host 保留和真实 Git 发现。暂存和限制见 [Client 快速开始](../orchbee/README.zh-CN.md#windows-原生快速开始)。
 
 ## Windows 子进程调用者上下文
