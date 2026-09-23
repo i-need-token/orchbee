@@ -149,7 +149,7 @@ mod imp {
                 deadline: self.deadline,
                 cancel: self.cancel.as_deref(),
                 // The provider registry further restricts platform capabilities;
-                // Windows currently admits the Codex hook payload.
+                // Provider policy admits only the supported Windows entries.
                 management_mode: ManagementMode::ManagedLocal,
             }
         }

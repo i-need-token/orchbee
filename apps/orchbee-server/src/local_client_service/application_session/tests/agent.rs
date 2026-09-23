@@ -207,7 +207,10 @@ fn routes_names_without_reinterpreting_them_as_reads() {
     let response = AgentResult::Names(AgentNamesResult::NamesList {
         request_id,
         result: AgentNamesListOutcomeEnvelope {
-            outcome: AgentNamesListOutcome::Listed { bindings: vec![] },
+            outcome: AgentNamesListOutcome::Listed {
+                bindings: vec![],
+                pending: vec![],
+            },
         },
     });
     let mut input = Vec::new();

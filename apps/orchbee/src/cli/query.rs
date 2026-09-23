@@ -11,7 +11,7 @@ mod process_info;
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) use process_info::panel_process_info;
 #[cfg(windows)]
-use process_info::read_terminal_processes;
+pub(crate) use process_info::{primary_terminal, read_terminal_processes};
 
 #[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn panel_process_info(
@@ -2840,7 +2840,7 @@ fn classify_agent_failure(reason: AgentExchangeFailure, operation: AgentReadOper
 /// The OBAP request identity minted per command: sixteen fresh bytes as
 /// canonical 32-lowercase-hex, never reused.
 #[cfg(any(target_os = "linux", windows))]
-fn obap_request_id() -> Result<ObapRequestId, Failure> {
+pub(crate) fn obap_request_id() -> Result<ObapRequestId, Failure> {
     ObapRequestId::parse(&fresh_request_id()?)
         .map_err(|_| Failure::new(FailureKind::InternalFailure))
 }

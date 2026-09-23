@@ -2,6 +2,8 @@
 //! Preparation drains observations outside the leaf lock; resolution and any
 //! mutation then inspect the live runtime together inside one fold.
 
+mod launch;
+
 use std::collections::BTreeMap;
 
 use orchbee_agent_observation_protocol::{
@@ -19,13 +21,15 @@ use crate::agent::{AgentLifecycle, AgentRuntime, AgentRuntimeSnapshot};
 
 #[derive(Default)]
 pub(super) struct Names {
+    launches: launch::Launches,
     by_name: BTreeMap<AgentName, AgentSessionId>,
     by_session: BTreeMap<AgentSessionId, AgentName>,
 }
 
 impl Names {
     /// Every cell fold calls this before releasing its guard. End, removal,
-    /// eviction, retirement, and disposal therefore cannot leave ghost names.
+    /// eviction, and disposal therefore cannot leave ghost names. A detached
+    /// but live canonical session retains its alias until explicit release/end.
     pub(super) fn reconcile(&mut self, runtime: &AgentRuntime) {
         if runtime.is_disposed() {
             self.by_name.clear();
@@ -89,6 +93,9 @@ impl Names {
                 return Err(Missing::Session);
             }
         };
+        if self.pending_name(name) {
+            return Err(Missing::Pending);
+        }
         self.by_name
             .get(name)
             .cloned()
@@ -112,6 +119,7 @@ impl Names {
         };
         let (id, _) = match self.resolve(snapshot, target) {
             Ok(found) => found,
+            Err(Missing::Pending) => return reject(AgentNameAssignRejectionReason::LaunchPending),
             Err(Missing::Session) => {
                 return reject(AgentNameAssignRejectionReason::SessionNotFound);
             }
@@ -124,6 +132,9 @@ impl Names {
             session.session_id.as_str() == id.as_str() && session.lifecycle == AgentLifecycle::Live
         }) {
             return reject(AgentNameAssignRejectionReason::SessionEnded);
+        }
+        if self.pending_name(name.as_str()) || self.pending_session(snapshot, &id) {
+            return reject(AgentNameAssignRejectionReason::LaunchPending);
         }
         if let Some(incumbent) = self.by_name.get(name) {
             return if incumbent == &id {
@@ -138,7 +149,7 @@ impl Names {
                 }
             };
         }
-        if !self.by_session.contains_key(&id) && self.by_name.len() >= MAXIMUM_NAME_BINDINGS {
+        if !self.by_session.contains_key(&id) && self.total_bindings() >= MAXIMUM_NAME_BINDINGS {
             return reject(AgentNameAssignRejectionReason::CapacityExceeded);
         }
         let previous_name = self.by_session.insert(id.clone(), name.clone());
@@ -161,11 +172,17 @@ impl Names {
         match self.resolve(snapshot, target) {
             Err(missing) => AgentNameReleaseOutcome::Rejected {
                 reason: match missing {
+                    Missing::Pending => AgentNameReleaseRejectionReason::LaunchPending,
                     Missing::Name => AgentNameReleaseRejectionReason::NameNotFound,
                     Missing::Ambiguous => AgentNameReleaseRejectionReason::AmbiguousTarget,
                     Missing::Session => AgentNameReleaseRejectionReason::SessionNotFound,
                 },
             },
+            Ok((session_id, _)) if self.pending_session(snapshot, &session_id) => {
+                AgentNameReleaseOutcome::Rejected {
+                    reason: AgentNameReleaseRejectionReason::LaunchPending,
+                }
+            }
             Ok((session_id, _)) => match self.by_session.remove(&session_id) {
                 None => AgentNameReleaseOutcome::Unchanged { session_id },
                 Some(name) => {
@@ -178,6 +195,7 @@ impl Names {
 }
 
 enum Missing {
+    Pending,
     Ambiguous,
     Session,
     Name,
@@ -246,6 +264,9 @@ fn answer(
                             session_id,
                             resolved_by,
                         },
+                        Err(Missing::Pending) => AgentResolveOutcome::Rejected {
+                            reason: AgentResolveRejectionReason::LaunchPending,
+                        },
                         Err(Missing::Ambiguous) => AgentResolveOutcome::Rejected {
                             reason: AgentResolveRejectionReason::AmbiguousTarget,
                         },
@@ -267,6 +288,7 @@ fn answer(
                         reason: unavailable,
                     },
                     Ok(state) => AgentNamesListOutcome::Listed {
+                        pending: state.names.pending_names(),
                         bindings: state
                             .names
                             .by_name

@@ -8,6 +8,21 @@ use std::{
 #[test]
 fn real_powershell_completes_scoped_grammar_without_runtime() {
     let cases = [
+        ("orchbee agent st", "start", true),
+        ("orchbee agent start alpha --k", "--kind", true),
+        ("orchbee agent start alpha --kind co", "codex", true),
+        ("orchbee agent start alpha --kind=codex --a", "--arg", true),
+        (
+            "orchbee agent start alpha --kind=codex --current --p",
+            "--panel",
+            false,
+        ),
+        (
+            "orchbee agent start alpha --kind=codex --arg=x --a",
+            "--arg",
+            true,
+        ),
+        ("orchbee agent names --k", "--kind", false),
         ("orchbee panel ", "process-info", true),
         ("orchbee panel process-info --p", "--panel", true),
         ("orchbee panel process-info --current --p", "--panel", false),

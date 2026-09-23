@@ -10,6 +10,9 @@ use orchbee_agent_observation_protocol::{
     AgentResult, AgentWireError, ObapRequestId, write_agent_request,
 };
 
+#[cfg(windows)]
+use orchbee_agent_observation_protocol::{AgentLaunchRequest, AgentLaunchResult};
+
 use super::{ExchangeAttempt, LocalClient, exchange_once};
 
 impl LocalClient {
@@ -29,7 +32,7 @@ impl LocalClient {
         let request_id = request.request_id().clone();
         match self.submit_agent_before_cancellable(AgentRequest::Read(request), deadline, wake)? {
             AgentResult::Read(result) => Ok(result),
-            AgentResult::Names(_) => {
+            AgentResult::Names(_) | AgentResult::Launch(_) => {
                 self.retire_with_agent_failure(request_id, AgentExchangeFailure::UnexpectedResponse)
             }
         }
@@ -47,7 +50,25 @@ impl LocalClient {
         let request_id = request.request_id().clone();
         match self.submit_agent_before_cancellable(AgentRequest::Names(request), deadline, wake)? {
             AgentResult::Names(result) => Ok(result),
-            AgentResult::Read(_) => {
+            AgentResult::Read(_) | AgentResult::Launch(_) => {
+                self.retire_with_agent_failure(request_id, AgentExchangeFailure::UnexpectedResponse)
+            }
+        }
+    }
+
+    /// One correlated launch exchange; mutations are never replayed after
+    /// an ambiguous transport outcome.
+    #[cfg(windows)]
+    pub(crate) fn submit_agent_launch_before_cancellable(
+        &mut self,
+        request: AgentLaunchRequest,
+        deadline: Instant,
+        wake: Option<BorrowedFd<'_>>,
+    ) -> Result<AgentLaunchResult, AgentExchangeError> {
+        let request_id = request.request_id().clone();
+        match self.submit_agent_before_cancellable(AgentRequest::Launch(request), deadline, wake)? {
+            AgentResult::Launch(result) => Ok(result),
+            AgentResult::Read(_) | AgentResult::Names(_) => {
                 self.retire_with_agent_failure(request_id, AgentExchangeFailure::UnexpectedResponse)
             }
         }
@@ -265,10 +286,18 @@ enum Operation {
     NamesList,
     NameAssign,
     NameRelease,
+    LaunchReserve,
+    LaunchInspect,
+    LaunchComplete,
+    LaunchCancel,
 }
 
 fn operation_of_request(request: &AgentRequest) -> Operation {
     match request {
+        AgentRequest::Launch(AgentLaunchRequest::Reserve { .. }) => Operation::LaunchReserve,
+        AgentRequest::Launch(AgentLaunchRequest::Inspect { .. }) => Operation::LaunchInspect,
+        AgentRequest::Launch(AgentLaunchRequest::Complete { .. }) => Operation::LaunchComplete,
+        AgentRequest::Launch(AgentLaunchRequest::Cancel { .. }) => Operation::LaunchCancel,
         AgentRequest::Read(request) => Operation::Read(AgentReadOperation::of(request)),
         AgentRequest::Names(AgentNamesRequest::Resolve { .. }) => Operation::Resolve,
         AgentRequest::Names(AgentNamesRequest::NamesList { .. }) => Operation::NamesList,
@@ -279,6 +308,10 @@ fn operation_of_request(request: &AgentRequest) -> Operation {
 
 fn operation_of_result(result: &AgentResult) -> Operation {
     match result {
+        AgentResult::Launch(AgentLaunchResult::Reserve { .. }) => Operation::LaunchReserve,
+        AgentResult::Launch(AgentLaunchResult::Inspect { .. }) => Operation::LaunchInspect,
+        AgentResult::Launch(AgentLaunchResult::Complete { .. }) => Operation::LaunchComplete,
+        AgentResult::Launch(AgentLaunchResult::Cancel { .. }) => Operation::LaunchCancel,
         AgentResult::Read(result) => Operation::Read(AgentReadOperation::of_result(result)),
         AgentResult::Names(AgentNamesResult::Resolve { .. }) => Operation::Resolve,
         AgentResult::Names(AgentNamesResult::NamesList { .. }) => Operation::NamesList,

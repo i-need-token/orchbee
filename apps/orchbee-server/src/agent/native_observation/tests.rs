@@ -358,11 +358,18 @@ fn reconcile_snapshot_atomicity_removal_and_rebind() {
         .reconcile_complete_bindings(&[binding(1, carrier)], t0)
         .unwrap();
     assert!(noop.is_empty());
+    let [committed] = leaf.bindings() else {
+        panic!("unchanged snapshot must retain its sole committed binding");
+    };
+    assert_eq!(committed.presentation, presentation(1));
+    assert_eq!(committed.carrier, carrier);
+    assert_eq!(committed.host, host(1));
 
     // Removal retires the presentation; events for the old identity
     // are held again rather than routed.
     let removed = leaf.reconcile_complete_bindings(&[], t0).unwrap();
     assert_eq!(effect_kinds(&removed), vec!["retire"]);
+    assert!(leaf.bindings().is_empty());
     let held_again = leaf.apply_event(event(carrier, 2, host(1), hint_json(31, 31)), t0);
     assert_eq!(held_again.class, NativeClass::Held);
     assert_eq!(leaf.held_count(), 1);

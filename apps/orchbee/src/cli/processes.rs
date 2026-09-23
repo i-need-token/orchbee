@@ -8,7 +8,7 @@ mod tests;
 use orchbee_terminal_protocol::{TerminalProcess, TerminalProcessInfo};
 
 #[cfg(any(windows, test))]
-pub(super) use identity::provider;
+pub(super) use crate::agent_provider::provider;
 
 pub(super) struct Process<'a> {
     pub(super) facts: &'a TerminalProcess,

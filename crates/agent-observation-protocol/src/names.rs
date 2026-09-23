@@ -7,6 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::identity::{AgentName, AgentPresentationId, AgentSessionId, ObapRequestId};
+use crate::launch::AgentLaunchReservation;
 use crate::model::{AgentLifecycle, deserialize_required_nullable};
 use crate::read::AgentUnavailableReason;
 
@@ -86,6 +87,7 @@ pub enum AgentResolvedBy {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum AgentResolveRejectionReason {
+    LaunchPending,
     AmbiguousTarget,
     NotFound,
     ReadDenied,
@@ -100,6 +102,7 @@ pub enum AgentNamesListRejectionReason {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum AgentNameAssignRejectionReason {
+    LaunchPending,
     AmbiguousTarget,
     NameInUse,
     SessionNotFound,
@@ -112,6 +115,7 @@ pub enum AgentNameAssignRejectionReason {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum AgentNameReleaseRejectionReason {
+    LaunchPending,
     AmbiguousTarget,
     NameNotFound,
     SessionNotFound,
@@ -161,6 +165,7 @@ pub enum AgentNamesListOutcome {
     /// bounded-read payload, not a small outcome.
     Listed {
         bindings: Vec<AgentNameBinding>,
+        pending: Vec<AgentLaunchReservation>,
     },
     Rejected {
         reason: AgentNamesListRejectionReason,

@@ -23,13 +23,14 @@ returns a full session ID, testing exact ID existence before aliases. `agent ren
 --clear` releases it without stopping the session. Replace the target operand with
 `--session <id>`, `--name <alias>` or `--panel <id|@panel:suffix>` for explicit selection; exactly one selector is
 required. Names match `[a-z][a-z0-9_-]{0,31}` and are case-sensitive. They are unique,
-limited to 512 live bindings, and released when the session ends, is removed, or the
+sharing a 512-entry cap with pending launches, and released when the session ends, is removed, or the
 Site runtime is disposed. Restarting a Site starts with an empty alias table.
 
 All three commands admit `--format text|json`. The embedded success schemas are
-`orchbee.agent.names`, `orchbee.agent.resolve`, and `orchbee.agent.rename`, version 1;
-post-admission failures use `orchbee.cli.failure.agent-names`, version 1. Presentation resolution and ambiguous-target failures use version 2; earlier outcomes keep version 1. Correlated
-semantic answers carry an `agent-names` source with the OBAP request ID. These four documents are included in schema catalog version 16, alongside the prompt contracts. Invalid names or conflicting selectors
+`orchbee.agent.names` version 2 (with separate pending reservations), and
+`orchbee.agent.resolve` and `orchbee.agent.rename`, version 1;
+post-admission failures use `orchbee.cli.failure.agent-names`, version 1. Presentation resolution and ambiguous-target failures use version 2; launch-pending failures use version 3; earlier outcomes keep version 1. Correlated
+semantic answers carry an `agent-names` source with the OBAP request ID. These four documents are included in schema catalog version 17, alongside the prompt contracts. Invalid names or conflicting selectors
 fail with exit 2 before any runtime access. A collision is exit 3 and identifies the
 incumbent session; it never overwrites that session's name.
 
@@ -126,7 +127,7 @@ own turn. Polling can miss transitions and does not claim Herdr event replay.
 
 On Windows, canonical provider `codex` uses one ordered paste, Right, Enter sequence. Right is a non-character boundary that flushes Codex's paste-burst buffer and clears its Enter suppression window. It neither embeds escape bytes in prompt text nor guesses delivery speed with a fixed delay. Other providers retain paste, Enter; ordinary `terminal send --paste --enter` adds no boundary key. Receipts report the actual three or two records. Stopping before Right or Enter reports only the accepted prefix, never retries the suffix and never starts observation. This boundary does not establish an empty composer, foreground ownership or provider readiness.
 
-Schema catalog version 16 contains 50 documents, including the prompt success and failure contracts.
+Schema catalog version 17 contains 52 documents, including the prompt success and failure contracts.
 
 `orchbee.agent.prompt` returns the session ID, the full terminal submission receipt,
 and optional matched observation/wait facts. Refused/partial/unknown send outcomes retain
@@ -569,7 +570,7 @@ retains the prior version-2 vocabulary. Capsule 0.4.1 supports native Windows Co
 transport, but doctor never connects to a named pipe or writes console correlation hints.
 Its endpoint remains `not-inspected`, now with reason `windows-endpoint-not-inspected`;
 configuration and capsule integrity are not delivery or Site-liveness evidence. `complete`
-describes probe coverage. Windows Codex installation is owned by the [Windows integration contract](windows-agent-integrations.md); Agent start remains pending; prompt composition is specified above.
+describes probe coverage. Windows managed installation is owned by the [Windows integration contract](windows-agent-integrations.md); Windows Agent startup is specified in [Windows Agent startup](windows-agent-start.md); prompt composition is specified above.
 
 | Field               | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -1915,7 +1916,7 @@ invalid-context, stale-binding, child-Presentation and movement cases plus a rea
 Windows child-process witness. Desktop and global focus fallback remain excluded;
 TLA execution is deferred and is not claimed as evidence.
 
-The additive schema is registered in the closed `api schema` catalog version 16;
+The additive schema is registered in the closed `api schema` catalog version 17;
 other business document versions are unchanged.
 
 Windows Worker identities are fresh per Server connection, using the existing OS
@@ -2026,4 +2027,8 @@ One existing-only Client Session and one absolute five-second budget cover snaps
 
 The JSON envelope is `orchbee.panel.process-info` v2; the schema catalog and bilingual help/completion ship with the command. Evidence covers implicit and explicit targets, conflicts before I/O, primary-versus-child selection, absent primary bindings, denied reads, wrong response identities, preserved Host errors, bounded output, viewer cleanup, and the real Windows Site/Worker/Host process route. The shared typed read is also the actual dependency for subsequent Agent launch/readiness work; it does not close those obligations by itself.
 
-Expected Host refusals use `orchbee.cli.failure.process-info` v1 with the bounded failure code; invalid responses and transport failures retain the generic CLI failure contract. Successful `source` records snapshot revision, OBCS request ID, and Host correlation, epoch, attachment, and physical Terminal ID as distinct identities. Catalog version 16 contains 50 schemas.
+Expected Host refusals use `orchbee.cli.failure.process-info` v1 with the bounded failure code; invalid responses and transport failures retain the generic CLI failure contract. Successful `source` records snapshot revision, OBCS request ID, and Host correlation, epoch, attachment, and physical Terminal ID as distinct identities. Catalog version 17 contains 52 schemas.
+
+## Windows Agent startup
+
+[Windows Agent startup](windows-agent-start.md) owns `agent start`, its reservation and readiness workflow, Windows quoting, budgets and recovery. `agent names` v2 includes separate pending reservations; names failures use v3 for launch-pending. The catalog is v17 with 52 schemas.

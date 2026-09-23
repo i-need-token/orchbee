@@ -65,7 +65,7 @@ fn bindings(service: &AgentService) -> Vec<AgentNameBinding> {
     ) else {
         panic!("list result");
     };
-    let AgentNamesListOutcome::Listed { bindings } = result.outcome else {
+    let AgentNamesListOutcome::Listed { bindings, .. } = result.outcome else {
         panic!("available names");
     };
     bindings

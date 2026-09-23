@@ -1,3 +1,4 @@
+mod launch;
 mod names;
 
 use std::io::Cursor;
@@ -10,7 +11,9 @@ use crate::*;
 fn parse_agent_request(encoded: &[u8]) -> Result<AgentReadRequest, AgentContractError> {
     match crate::parse_agent_request(encoded)? {
         AgentRequest::Read(request) => Ok(request),
-        AgentRequest::Names(_) => Err(AgentContractError::InvalidDocument),
+        AgentRequest::Names(_) | AgentRequest::Launch(_) => {
+            Err(AgentContractError::InvalidDocument)
+        }
     }
 }
 
@@ -21,7 +24,7 @@ fn serialize_agent_request(request: &AgentReadRequest) -> Result<Vec<u8>, AgentC
 fn parse_agent_result(encoded: &[u8]) -> Result<AgentReadResult, AgentContractError> {
     match crate::parse_agent_result(encoded)? {
         AgentResult::Read(result) => Ok(result),
-        AgentResult::Names(_) => Err(AgentContractError::InvalidDocument),
+        AgentResult::Names(_) | AgentResult::Launch(_) => Err(AgentContractError::InvalidDocument),
     }
 }
 
@@ -32,7 +35,7 @@ fn serialize_agent_result(result: &AgentReadResult) -> Result<Vec<u8>, AgentCont
 fn read_agent_request(reader: &mut impl std::io::Read) -> Result<AgentReadRequest, AgentWireError> {
     match crate::read_agent_request(reader)? {
         AgentRequest::Read(request) => Ok(request),
-        AgentRequest::Names(_) => Err(AgentWireError::InvalidHeader),
+        AgentRequest::Names(_) | AgentRequest::Launch(_) => Err(AgentWireError::InvalidHeader),
     }
 }
 
@@ -46,7 +49,7 @@ fn write_agent_request(
 fn read_agent_result(reader: &mut impl std::io::Read) -> Result<AgentReadResult, AgentWireError> {
     match crate::read_agent_result(reader)? {
         AgentResult::Read(result) => Ok(result),
-        AgentResult::Names(_) => Err(AgentWireError::InvalidHeader),
+        AgentResult::Names(_) | AgentResult::Launch(_) => Err(AgentWireError::InvalidHeader),
     }
 }
 

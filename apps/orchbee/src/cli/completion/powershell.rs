@@ -19,7 +19,7 @@ pub(super) fn render() -> String {
             commands.push(json!({
                 "words": [family, verb],
                 "flags": command_flags(&path),
-                "operand": if path == "agent:send-keys" { 65 } else if matches!(path.as_str(), "agent:rename" | "agent:prompt") { 2 } else { usize::from(OPERAND_PATHS.contains(&path.as_str())) },
+                "operand": if path == "agent:start" { 65536 } else if path == "agent:send-keys" { 65 } else if matches!(path.as_str(), "agent:rename" | "agent:prompt") { 2 } else { usize::from(OPERAND_PATHS.contains(&path.as_str())) },
                 "directions": DIRECTION_VALUES.iter().find(|(key, _)| *key == path).map(|(_, values)| *values).unwrap_or(&[]),
             }));
         }
@@ -40,6 +40,7 @@ pub(super) fn render() -> String {
         "keys": KEY_VALUES,
         "until": UNTIL_VALUES,
         "providers": PROVIDER_VALUES,
+        "agentKinds": crate::agent_provider::CANONICAL_IDS,
         "helpTopics": HELP_TOPICS,
         "helpChildren": HELP_CHILDREN,
         "helpLevel3": HELP_LEVEL3,

@@ -38,7 +38,7 @@ fn all_names_requests_and_outcomes_round_trip_through_the_public_codec() {
         (
             "names.list",
             vec![
-                json!({"kind":"listed","bindings":[{"name":"alpha","sessionId":"s1","lifecycle":"live"}]}),
+                json!({"kind":"listed","pending":[],"bindings":[{"name":"alpha","sessionId":"s1","lifecycle":"live"}]}),
                 json!({"kind":"rejected","reason":"read-denied"}),
             ],
         ),
@@ -102,7 +102,7 @@ fn names_invariants_reject_ghost_duplicate_and_mismatched_conflict_rows() {
         json!([{"name":"alpha","sessionId":"s1","lifecycle":"ended"}]),
         json!([{"name":"alpha","sessionId":"s1","lifecycle":"live"},{"name":"beta","sessionId":"s1","lifecycle":"live"}]),
     ] {
-        let document = json!({"kind":"agent.session.names.list.result","requestId":ID,"result":{"outcome":{"kind":"listed","bindings":rows}}});
+        let document = json!({"kind":"agent.session.names.list.result","requestId":ID,"result":{"outcome":{"kind":"listed","pending":[],"bindings":rows}}});
         assert!(parse_agent_result(&serde_json::to_vec(&document).unwrap()).is_err());
     }
     for (reason, conflict) in [("name-in-use", json!(null)), ("session-ended", json!("s1"))] {

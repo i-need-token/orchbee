@@ -235,6 +235,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::AgentGet,
         CommandPath::AgentRead,
         CommandPath::AgentPrompt,
+        CommandPath::AgentStart,
         CommandPath::AgentSendKeys,
         CommandPath::AgentList,
         CommandPath::AgentNames,

@@ -1,5 +1,89 @@
 use std::ffi::OsString;
 
+#[test]
+fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before_effects() {
+    let parse = |words: &[&str]| parse_request(words.iter().map(OsString::from));
+    let Request::AgentStart { command, format } = parse(&[
+        "agent",
+        "start",
+        "alpha",
+        "--kind=codex",
+        "--timeout=3001",
+        "--format=json",
+        "--",
+        "",
+        "--format",
+        "中文",
+        "%PATH%",
+        "a&b",
+    ])
+    .unwrap() else {
+        panic!("start");
+    };
+    assert_eq!(command.name.as_str(), "alpha");
+    assert_eq!(command.provider, "codex");
+    assert_eq!(command.timeout_ms, 3001);
+    assert_eq!(format, OutputFormat::Json);
+    assert_eq!(command.args, ["", "--format", "中文", "%PATH%", "a&b"]);
+    let Request::AgentStart { command, .. } = parse(&[
+        "agent",
+        "start",
+        "alpha",
+        "--kind=codex",
+        "--arg=",
+        "--arg=--",
+        "--current",
+    ])
+    .unwrap() else {
+        panic!("start");
+    };
+    assert_eq!(command.timeout_ms, 30000);
+    assert_eq!(command.args, ["", "--"]);
+    for words in [
+        vec!["agent", "start", "alpha"],
+        vec!["agent", "start", "INVALID", "--kind=codex"],
+        vec!["agent", "start", "alpha", "--kind=unknown"],
+        vec!["agent", "start", "alpha", "--kind=claude"],
+        vec!["agent", "start", "alpha", "--kind=codex", "--timeout=3000"],
+        vec![
+            "agent",
+            "start",
+            "alpha",
+            "--kind=codex",
+            "--timeout=300001",
+        ],
+        vec!["agent", "start", "alpha", "--kind=codex", "--forever"],
+        vec![
+            "agent",
+            "start",
+            "alpha",
+            "--kind=codex",
+            "--current",
+            "--panel=11111111111111111111111111111111",
+        ],
+        vec![
+            "agent",
+            "start",
+            "alpha",
+            "--kind=codex",
+            "--arg=x",
+            "--",
+            "y",
+        ],
+        vec!["agent", "start", "alpha", "--kind=codex", "--", "a\nb"],
+        vec!["agent", "start", "alpha", "--kind=codex", "--kind=pi"],
+        vec!["agent", "names", "--kind=codex"],
+    ] {
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
+    for provider in crate::agent_provider::CANONICAL_IDS {
+        assert!(
+            parse(&["agent", "start", "alpha", "--kind", provider]).is_ok(),
+            "{provider}"
+        );
+    }
+}
+
 use orchbee_workbench_protocol::{
     LaunchProfileName, LaunchProfileSelector, LaunchSelection, WorkbenchDirectoryId,
     WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection, WorkbenchProjectId,

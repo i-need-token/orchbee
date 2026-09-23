@@ -2,6 +2,7 @@ use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::cursor::AgentListCursor;
 use crate::identity::{AgentSafeInteger, AgentSessionId, ObapRequestId};
+use crate::launch::{AgentLaunchRequest, AgentLaunchResult};
 use crate::model::{
     AgentSessionDetail, AgentSessionExplanation, AgentSessionSummary, deserialize_required_nullable,
 };
@@ -269,6 +270,7 @@ impl AgentReadResult {
 pub enum AgentRequest {
     Read(AgentReadRequest),
     Names(AgentNamesRequest),
+    Launch(AgentLaunchRequest),
 }
 
 impl AgentRequest {
@@ -277,6 +279,7 @@ impl AgentRequest {
         match self {
             Self::Read(request) => request.request_id(),
             Self::Names(request) => request.request_id(),
+            Self::Launch(request) => request.request_id(),
         }
     }
 }
@@ -299,6 +302,7 @@ impl From<AgentNamesRequest> for AgentRequest {
 pub enum AgentResult {
     Read(AgentReadResult),
     Names(AgentNamesResult),
+    Launch(AgentLaunchResult),
 }
 
 impl AgentResult {
@@ -307,6 +311,7 @@ impl AgentResult {
         match self {
             Self::Read(result) => result.request_id(),
             Self::Names(result) => result.request_id(),
+            Self::Launch(result) => result.request_id(),
         }
     }
 
@@ -318,6 +323,7 @@ impl AgentResult {
         match self {
             Self::Read(result) => result.is_small_outcome(),
             Self::Names(result) => result.is_small_outcome(),
+            Self::Launch(_) => true,
         }
     }
 }
@@ -331,5 +337,16 @@ impl From<AgentReadResult> for AgentResult {
 impl From<AgentNamesResult> for AgentResult {
     fn from(result: AgentNamesResult) -> Self {
         Self::Names(result)
+    }
+}
+
+impl From<AgentLaunchRequest> for AgentRequest {
+    fn from(request: AgentLaunchRequest) -> Self {
+        Self::Launch(request)
+    }
+}
+impl From<AgentLaunchResult> for AgentResult {
+    fn from(result: AgentLaunchResult) -> Self {
+        Self::Launch(result)
     }
 }

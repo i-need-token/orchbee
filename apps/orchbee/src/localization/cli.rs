@@ -10,6 +10,9 @@ impl Locale {
     /// escaped before it reaches the terminal.
     pub(crate) fn cli_failure(self, failure: &Failure) -> String {
         use crate::cli::FailureKind;
+        if failure.failure_schema == Some("orchbee.cli.failure.agent-start") {
+            return self.cli_agent_start_failure(failure);
+        }
         // `site start` failures carry the local-runtime source; the shared
         // query/send wording for these kinds would misstate what a start
         // actually did, so each gets a dedicated start diagnostic.
@@ -33,6 +36,27 @@ impl Locale {
         // their dedicated envelope the same way.
         if failure.failure_schema == Some(crate::cli::schema::LAUNCH_PROFILE_FAILURE_ID) {
             return self.cli_launch_profile_failure(failure);
+        }
+        if failure.failure_schema == Some("orchbee.cli.failure.agent-names") {
+            if failure.kind == FailureKind::NotFound {
+                return match self {
+                    Self::EnUs => "No Agent session or name matches the target.\n",
+                    Self::ZhCn => "没有与目标匹配的 Agent 会话或名称。\n",
+                }
+                .to_owned();
+            }
+            if failure
+                .details
+                .as_ref()
+                .and_then(|details| details.get("reason"))
+                .and_then(|reason| reason.as_str())
+                == Some("launch-pending")
+            {
+                return match self {
+                    Self::EnUs => "This Agent name or terminal is reserved by a pending launch. Use `orchbee agent names` to inspect its remaining time.\n",
+                    Self::ZhCn => "此 Agent 名称或终端正被启动预留占用。可用 `orchbee agent names` 查看剩余时间。\n",
+                }.to_owned();
+            }
         }
         match failure.kind {
             FailureKind::Timeout if local_runtime => match self {
@@ -563,6 +587,20 @@ impl Locale {
             (Self::ZhCn, ExpectedValue::RegexPattern) => "至多 1024 字节的非空正则表达式",
             (Self::EnUs, ExpectedValue::TailLines) => "a decimal integer from 1 to 65535",
             (Self::ZhCn, ExpectedValue::TailLines) => "1–65535 的十进制整数",
+            (Self::EnUs, ExpectedValue::AgentStartTimeout) => {
+                "a decimal integer from 3001 to 300000"
+            }
+            (Self::ZhCn, ExpectedValue::AgentStartTimeout) => "3001–300000 的十进制整数",
+            (Self::EnUs, ExpectedValue::AgentStartProvider) => {
+                "a canonical interactive Agent provider id (for example codex or claude-code)"
+            }
+            (Self::ZhCn, ExpectedValue::AgentStartProvider) => {
+                "交互式 Agent 的规范提供方 ID（如 codex 或 claude-code）"
+            }
+            (Self::EnUs, ExpectedValue::AgentStartArgument) => {
+                "an argument without control characters"
+            }
+            (Self::ZhCn, ExpectedValue::AgentStartArgument) => "不含控制字符的参数",
             (Self::EnUs, ExpectedValue::WaitTimeout) => "a decimal integer from 1 to 3600000",
             (Self::ZhCn, ExpectedValue::WaitTimeout) => "1–3600000 的十进制整数",
             (Self::EnUs, ExpectedValue::SendText) => {
@@ -1727,10 +1765,10 @@ impl Locale {
                 "观察端点套接字不存在；钩子仅在托管 Site 运行时投递。"
             }
             (Self::EnUs, "windows-endpoint-not-inspected") => {
-                "Windows endpoint delivery is not inspected by this offline command. Codex hooks support the native transport; configuration and capsule presence do not prove a working Agent connection."
+                "Windows endpoint delivery is not inspected by this offline command. Managed hooks and modules support the native transport; configuration and capsule presence do not prove a working Agent connection."
             }
             (Self::ZhCn, "windows-endpoint-not-inspected") => {
-                "此离线命令不检查 Windows 端点投递。Codex hook 已支持原生传输；检测到配置和胶囊不证明 Agent 已接通。"
+                "此离线命令不检查 Windows 端点投递。托管 hook 和模块支持原生传输；检测到配置和胶囊不证明 Agent 已接通。"
             }
             (Self::EnUs, "windows-hook-transport-unavailable") => {
                 "The shipped Agent hooks cannot yet deliver events on Windows. Configuration and capsule presence do not establish a working Agent connection."
@@ -2044,6 +2082,12 @@ impl Locale {
             (Self::ZhCn, CommandPath::LaunchProfileDelete) => HELP_LAUNCH_PROFILE_DELETE_ZH,
             (Self::EnUs, CommandPath::AgentList) => HELP_AGENT_LIST_EN,
             (Self::ZhCn, CommandPath::AgentList) => HELP_AGENT_LIST_ZH,
+            (Self::EnUs, CommandPath::AgentStart) => {
+                "Usage: orchbee agent start <name> --kind <provider> [--panel <id|@panel:suffix>|--current] [--timeout <ms>] [--format text|json] [-- <args>...]\n\nWindows: start an interactive Agent in an idle terminal, then bind its name after verified readiness.\nThe default target is the caller Panel. Timeout: 3001–300000 ms, default 30000.\nUse --arg=<value> repeatedly as an alternative to trailing arguments. Input is submitted once.\nCancellation or timeout releases the name when confirmed; it never kills the Agent.\nProvider hooks must report readiness. Use agent integration and agent doctor to check setup.\n"
+            }
+            (Self::ZhCn, CommandPath::AgentStart) => {
+                "用法：orchbee agent start <name> --kind <provider> [--panel <id|@panel:suffix>|--current] [--timeout <ms>] [--format text|json] [-- <args>...]\n\nWindows：在空闲终端启动交互式 Agent，确认就绪后绑定名称。\n默认目标为调用者 Panel。超时范围 3001–300000 毫秒，默认 30000。\n可重复使用 --arg=<value> 代替尾随参数。启动输入只提交一次。\n取消或超时在确认后释放名称，但不会终止 Agent。\n提供方 hook 必须能报告就绪；可用 agent integration 和 agent doctor 检查配置。\n"
+            }
             (Self::EnUs, CommandPath::AgentPrompt) => {
                 "orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms> | --forever] [--format text|json]\n\nResolve one live Agent, refuse pending attention, and submit literal paste plus Enter.\nTargets: Session ID/name/Panel ID, --session <id>, --name <alias>, or --panel <id|@panel:suffix>. --until/--timeout/--forever require --wait.\nWait first observes activity, then a matching condition; default timeout 600000 ms.\n--forever removes the total timeout and conflicts with --timeout.\nWindows Codex adds a Right key between paste and Enter.\nA wait failure retains the accepted input receipt. Never replay uncertain input.\nA matching state does not identify a prompt-specific turn.\n"
             }
@@ -2132,8 +2176,8 @@ impl Locale {
     }
 }
 
-const ROOT_HELP_EN: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [operands] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee site diagnose [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish|powershell\n  orchbee -h|--help\n  orchbee --version\n  orchbee --skill\n\nModes and queries:\n  orchbee              Open the local terminal (Windows/Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee project      list | get\n  orchbee workspace    list | get | close-status\n  orchbee tab          list | get\n  orchbee panel        list | get | current | process-info\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee launch-profile list | get\n  orchbee agent        list | get | explain | doctor | wait | names | resolve\n                       read | send-keys | prompt | rename\n  orchbee agent integration\n                       list | explain | enable | disable — local provider\n                       onboarding; never contacts a Site\n  orchbee api          Machine snapshot and embedded schema documents\n\nSite lifecycle:\n  orchbee site start   Ensure the local Site is running (no TTY needed)\n  orchbee site diagnose\n                       Inspect the local Site runtime — read-only facts\n\nMutations (one command per invocation, against the running Site):\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n                       close | close-resume\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n  orchbee launch-profile create | delete\n\nInspection and help:\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee -h|--help    Show this help; after a family or command path, show\n                       that path's help\n  orchbee --version    Show the version\n  orchbee --skill      Print the embedded Agent guide (offline)\n\nRun 'orchbee help <family>' for filters and target rules, or\n'orchbee help <family> <command>' for one mutation's full syntax.\n";
-const ROOT_HELP_ZH: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [操作数] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee site diagnose [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish|powershell\n  orchbee -h|--help\n  orchbee --version\n  orchbee --skill\n\n模式与查询：\n  orchbee              打开本地终端（Windows/Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee project      list | get\n  orchbee workspace    list | get | close-status\n  orchbee tab          list | get\n  orchbee panel        list | get | current | process-info\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee launch-profile list | get\n  orchbee agent        list | get | explain | doctor | wait | names | resolve\n                       read | send-keys | prompt | rename\n  orchbee agent integration\n                       list | explain | enable | disable——本地 provider\n                       接入；绝不接触 Site\n  orchbee api          机器快照与内嵌 schema 文档\n\nSite 生命周期：\n  orchbee site start   确保本地 Site 正在运行（无需 TTY）\n  orchbee site diagnose\n                       检查本地 Site 运行时——只读事实\n\n修改命令（每次调用执行一条命令，作用于运行中的 Site）：\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n                       close | close-resume\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n  orchbee launch-profile create | delete\n\n检查与帮助：\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee -h|--help    显示此帮助；跟在 family 或命令路径后时显示该路径的帮助\n  orchbee --version    显示版本\n  orchbee --skill      离线输出内嵌 Agent 指引\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则，或\n'orchbee help <family> <command>' 查看单条修改命令的完整语法。\n";
+const ROOT_HELP_EN: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [operands] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee site diagnose [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish|powershell\n  orchbee -h|--help\n  orchbee --version\n  orchbee --skill\n\nModes and queries:\n  orchbee              Open the local terminal (Windows/Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee project      list | get\n  orchbee workspace    list | get | close-status\n  orchbee tab          list | get\n  orchbee panel        list | get | current | process-info\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee launch-profile list | get\n  orchbee agent        list | get | explain | doctor | wait | names | resolve\n                       read | send-keys | prompt | rename | start\n  orchbee agent integration\n                       list | explain | enable | disable — local provider\n                       onboarding; never contacts a Site\n  orchbee api          Machine snapshot and embedded schema documents\n\nSite lifecycle:\n  orchbee site start   Ensure the local Site is running (no TTY needed)\n  orchbee site diagnose\n                       Inspect the local Site runtime — read-only facts\n\nMutations (one command per invocation, against the running Site):\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n                       close | close-resume\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n  orchbee launch-profile create | delete\n\nInspection and help:\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee -h|--help    Show this help; after a family or command path, show\n                       that path's help\n  orchbee --version    Show the version\n  orchbee --skill      Print the embedded Agent guide (offline)\n\nRun 'orchbee help <family>' for filters and target rules, or\n'orchbee help <family> <command>' for one mutation's full syntax.\n";
+const ROOT_HELP_ZH: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [操作数] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee site diagnose [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish|powershell\n  orchbee -h|--help\n  orchbee --version\n  orchbee --skill\n\n模式与查询：\n  orchbee              打开本地终端（Windows/Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee project      list | get\n  orchbee workspace    list | get | close-status\n  orchbee tab          list | get\n  orchbee panel        list | get | current | process-info\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee launch-profile list | get\n  orchbee agent        list | get | explain | doctor | wait | names | resolve\n                       read | send-keys | prompt | rename | start\n  orchbee agent integration\n                       list | explain | enable | disable——本地 provider\n                       接入；绝不接触 Site\n  orchbee api          机器快照与内嵌 schema 文档\n\nSite 生命周期：\n  orchbee site start   确保本地 Site 正在运行（无需 TTY）\n  orchbee site diagnose\n                       检查本地 Site 运行时——只读事实\n\n修改命令（每次调用执行一条命令，作用于运行中的 Site）：\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n                       close | close-resume\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n  orchbee launch-profile create | delete\n\n检查与帮助：\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee -h|--help    显示此帮助；跟在 family 或命令路径后时显示该路径的帮助\n  orchbee --version    显示版本\n  orchbee --skill      离线输出内嵌 Agent 指引\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则，或\n'orchbee help <family> <command>' 查看单条修改命令的完整语法。\n";
 
 const HELP_TUI_EN: &str = "orchbee tui [--mouse on|off]\n\nOpen the local terminal interface (Windows/Linux development cohort).\nA bare 'orchbee' invocation does the same.\n\n  --mouse on|off   Host pointer capture for pane hit-testing; on by\n                   default. Only the explicit 'tui' route accepts it.\n";
 const HELP_TUI_ZH: &str = "orchbee tui [--mouse on|off]\n\n打开本地终端界面（Windows/Linux 开发 cohort）。\n裸 'orchbee' 调用效果相同。\n\n  --mouse on|off   宿主机指针捕获，用于面板命中；默认开启。\n                   只有显式 'tui' 路由接受该选项。\n";
@@ -2162,8 +2206,8 @@ const HELP_SITE_ZH: &str = "orchbee site start|diagnose\n\n管理隐式的每用
 const HELP_SITE_START_EN: &str = "orchbee site start [--format text|json]\n\nEnsure the implicit per-user local Site is running. When no admitted\nSite answers, this invocation performs the existing activation sequence\n— the same locks, marker, Server spawn, and readiness admission the TUI\nstartup uses — and reports 'started'. When a running Site admits the\nreadiness probe, it reports 'already-running'. One absolute 20-second\nbudget covers the whole invocation.\n\n'--format json' emits the orchbee.site.start envelope. An interrupted\nor timed-out start may leave activation state behind; a later invocation\nthen answers refused with a recovery-required reason. The command never\nrepairs, stops, or deletes runtime state.\n";
 const HELP_SITE_START_ZH: &str = "orchbee site start [--format text|json]\n\n确保隐式的每用户本地 Site 正在运行。若没有已准入的 Site 应答，本次\n调用执行既有的激活序列——与 TUI 启动相同的锁、标记、Server 拉起\n与就绪准入——并报告 'started'。若运行中的 Site 准入了就绪探针，则\n报告 'already-running'。整个调用共享一个 20 秒绝对预算。\n\n'--format json' 输出 orchbee.site.start 封套。被中断或超时的启动\n可能遗留激活状态；后续调用将以拒绝加 recovery-required 原因应答。\n本命令绝不修复、停止或删除运行时状态。\n";
 
-const HELP_AGENT_EN: &str = "orchbee agent list|get|explain|doctor|wait|names|resolve|rename|read|send-keys|prompt|integration\n\nObserve Agent sessions tracked by the running local Site, or diagnose\nprovider hooks offline.\n  agent list [--include-ended] [--limit <n>] [--cursor <c>]\n                                List Agent sessions (live only unless\n                                --include-ended; 1-100 per page, default 50)\n  agent get <target>        Show one Agent session by ID or runtime name\n  agent explain <target>    Explain how one session's status and freshness\n                                were derived\n  agent doctor [--provider <id>]... [--asset-root <path>]...\n                                Explain, from bounded filesystem facts alone,\n                                why Agent observations may not arrive\n  agent wait <target> [--until <condition>]...\n                                Poll until a condition matches or the\n                                deadline lands\n  agent prompt <target> <text>  Submit a prompt; --wait observes activity and state\n  agent read <target>           Read the bound terminal\n  agent send-keys <target> <key>... Send semantic keys\n  agent names                  List runtime-scoped session names\n  agent resolve <target>       Resolve a session ID or name\n  agent rename <target> <name>  Assign or rename a live session; --clear releases\n  agent integration <command>   Local provider onboarding: list | explain |\n                                enable | disable — 'orchbee help agent\n                                integration' has the full sub-family\nTargets accept Session IDs, names or Panel IDs; --session, --name and\n--panel select explicitly. A Panel selects its primary terminal. A cursor is the\nserver-minted 'v1.<payload>.<tag>' token from a previous page. The session\nreads and 'doctor' above create, activate, or mutate nothing; 'agent\nintegration' manages local provider files instead and never contacts a\nSite.\n";
-const HELP_AGENT_ZH: &str = "orchbee agent list|get|explain|doctor|wait|names|resolve|rename|read|send-keys|prompt|integration\n\n观察运行中的本地 Site 跟踪的 Agent 会话，或离线诊断 provider 钩子。\n  agent list [--include-ended] [--limit <n>] [--cursor <c>]\n                                列出 Agent 会话（默认仅存活会话；每页\n                                1-100 条，默认 50）\n  agent get <target>        按会话 ID 或运行时名称显示一个 Agent 会话\n  agent explain <target>    解释一个会话的状态与新鲜度推导依据\n  agent doctor [--provider <id>]... [--asset-root <path>]...\n                                仅凭有界文件系统事实解释 Agent 观察为何\n                                可能未到达\n  agent wait <target> [--until <条件>]...\n                                轮询直到条件命中或截止到达\n  agent prompt <target> <text>  提交提示；--wait 观察活动及状态\n  agent read <target>           读取绑定终端\n  agent send-keys <target> <key>... 发送语义按键\n  agent names                  列出运行时会话名称\n  agent resolve <target>       按会话 ID 或名称定位\n  agent rename <target> <name> 为存活会话命名；--clear 释放名称\n  agent integration <命令>      本地 provider 接入：list | explain |\n                                enable | disable——完整子命令族见\n                                'orchbee help agent integration'\n目标支持会话 ID、名称或 Panel ID；--session、--name、--panel 可显式选择。\nPanel 选择其主终端。\ncursor 是上一页返回的服务端铸造\n'v1.<payload>.<tag>' 令牌。上述会话读取与 'doctor' 不创建、不激活、\n不修改任何状态；'agent integration' 改为管理本地 provider 文件，且\n绝不接触 Site。\n";
+const HELP_AGENT_EN: &str = "orchbee agent list|get|explain|doctor|wait|names|resolve|rename|read|send-keys|prompt|start|integration\n\nObserve Agent sessions tracked by the running local Site, or diagnose\nprovider hooks offline.\n  agent start <name> --kind <provider> [--panel <id>|--current]\n                                Start in an idle Windows terminal and bind after readiness\n  agent list [--include-ended] [--limit <n>] [--cursor <c>]\n                                List Agent sessions (live only unless\n                                --include-ended; 1-100 per page, default 50)\n  agent get <target>        Show one Agent session by ID or runtime name\n  agent explain <target>    Explain how one session's status and freshness\n                                were derived\n  agent doctor [--provider <id>]... [--asset-root <path>]...\n                                Explain, from bounded filesystem facts alone,\n                                why Agent observations may not arrive\n  agent wait <target> [--until <condition>]...\n                                Poll until a condition matches or the\n                                deadline lands\n  agent prompt <target> <text>  Submit a prompt; --wait observes activity and state\n  agent read <target>           Read the bound terminal\n  agent send-keys <target> <key>... Send semantic keys\n  agent names                  List runtime-scoped session names\n  agent resolve <target>       Resolve a session ID or name\n  agent rename <target> <name>  Assign or rename a live session; --clear releases\n  agent integration <command>   Local provider onboarding: list | explain |\n                                enable | disable — 'orchbee help agent\n                                integration' has the full sub-family\nTargets accept Session IDs, names or Panel IDs; --session, --name and\n--panel select explicitly. A Panel selects its primary terminal. A cursor is the\nserver-minted 'v1.<payload>.<tag>' token from a previous page. The session\nreads and 'doctor' above create, activate, or mutate nothing; 'agent\nintegration' manages local provider files instead and never contacts a\nSite.\n";
+const HELP_AGENT_ZH: &str = "orchbee agent list|get|explain|doctor|wait|names|resolve|rename|read|send-keys|prompt|start|integration\n\n观察运行中的本地 Site 跟踪的 Agent 会话，或离线诊断 provider 钩子。\n  agent start <name> --kind <provider> [--panel <id>|--current]\n                                在空闲 Windows 终端启动，就绪后绑定名称\n  agent list [--include-ended] [--limit <n>] [--cursor <c>]\n                                列出 Agent 会话（默认仅存活会话；每页\n                                1-100 条，默认 50）\n  agent get <target>        按会话 ID 或运行时名称显示一个 Agent 会话\n  agent explain <target>    解释一个会话的状态与新鲜度推导依据\n  agent doctor [--provider <id>]... [--asset-root <path>]...\n                                仅凭有界文件系统事实解释 Agent 观察为何\n                                可能未到达\n  agent wait <target> [--until <条件>]...\n                                轮询直到条件命中或截止到达\n  agent prompt <target> <text>  提交提示；--wait 观察活动及状态\n  agent read <target>           读取绑定终端\n  agent send-keys <target> <key>... 发送语义按键\n  agent names                  列出运行时会话名称\n  agent resolve <target>       按会话 ID 或名称定位\n  agent rename <target> <name> 为存活会话命名；--clear 释放名称\n  agent integration <命令>      本地 provider 接入：list | explain |\n                                enable | disable——完整子命令族见\n                                'orchbee help agent integration'\n目标支持会话 ID、名称或 Panel ID；--session、--name、--panel 可显式选择。\nPanel 选择其主终端。\ncursor 是上一页返回的服务端铸造\n'v1.<payload>.<tag>' 令牌。上述会话读取与 'doctor' 不创建、不激活、\n不修改任何状态；'agent integration' 改为管理本地 provider 文件，且\n绝不接触 Site。\n";
 
 const HELP_AGENT_LIST_EN: &str = "orchbee agent list [--include-ended] [--limit <n>] [--cursor <c>] [--format text|json]\n\nList Agent sessions observed by the running local Site. '--include-ended'\nadds ended sessions; '--limit' selects 1-100 rows per page (default 50);\n'--cursor' continues from a previous page's server-minted nextCursor.\n'--format json' emits the orchbee.agent.list envelope.\n";
 const HELP_AGENT_LIST_ZH: &str = "orchbee agent list [--include-ended] [--limit <n>] [--cursor <c>] [--format text|json]\n\n列出运行中的本地 Site 观察到的 Agent 会话。'--include-ended' 包含已结束\n会话；'--limit' 每页 1-100 条（默认 50）；'--cursor' 从上一页服务端铸造\n的 nextCursor 继续。'--format json' 输出 orchbee.agent.list 封套。\n";
@@ -2190,8 +2234,8 @@ const HELP_AGENT_INTEGRATION_LIST_ZH: &str = "orchbee agent integration list [--
 const HELP_AGENT_INTEGRATION_EXPLAIN_EN: &str = "orchbee agent integration explain --provider <id> [--adapter-source <abs>] [--format text|json]\n\nExplain one provider's local integration state and the guard-evaluated\nplan 'enable' would run for the observed dimensions. Reads execute the\nprovider's own bounded commands from the ambient PATH where required;\nnothing is written. '--format json' emits the\norchbee.agent.integration.plan envelope.\n";
 const HELP_AGENT_INTEGRATION_EXPLAIN_ZH: &str = "orchbee agent integration explain --provider <id> [--adapter-source <abs>] [--format text|json]\n\n解释一个 provider 的本地集成状态，以及针对观测到的维度 'enable' 将执行\n的、经守卫求值的计划。需要时会执行 provider 自身来自环境 PATH 的有界\n读命令；不写入任何内容。'--format json' 输出\norchbee.agent.integration.plan 封套。\n";
 
-const HELP_AGENT_INTEGRATION_ENABLE_EN: &str = "orchbee agent integration enable --provider <id> [--adapter-source <abs>] [--format text|json]\n\nEnable one provider's managed observation integration locally: publish\nthe adapter capsule when needed, then run the provider's own bounded,\nnon-interactive setup commands. Refuses before any effect when the entry\nis foreign, newer-versioned, or manual-only; reports the post-effect\nstate observed by re-inspection. '--format json' emits the\norchbee.agent.integration.mutation envelope.\n";
-const HELP_AGENT_INTEGRATION_ENABLE_ZH: &str = "orchbee agent integration enable --provider <id> [--adapter-source <abs>] [--format text|json]\n\n在本地启用一个 provider 的受管观测集成：必要时先发布 adapter capsule，\n然后执行 provider 自身的有界、非交互设置命令。当条目为外来、更新版本\n或仅手动管理时，在任何效应前拒绝；并以复检视测到的效应后状态报告。\n'--format json' 输出 orchbee.agent.integration.mutation 封套。\n";
+const HELP_AGENT_INTEGRATION_ENABLE_EN: &str = "orchbee agent integration enable --provider <id> [--adapter-source <abs>] [--format text|json]\n\nEnable one provider's managed observation integration locally: publish\nthe adapter capsule when needed, then install its guarded module or run\nbounded non-interactive provider setup commands. Manual-only entries and\nunavailable providers refuse before effects. Foreign or newer provider\nentries are never replaced; the receipt retains attempted effects and\nthe state observed by re-inspection. '--format json' emits the\norchbee.agent.integration.mutation envelope.\n";
+const HELP_AGENT_INTEGRATION_ENABLE_ZH: &str = "orchbee agent integration enable --provider <id> [--adapter-source <abs>] [--format text|json]\n\n在本地启用一个 provider 的受管观测集成：必要时先发布 adapter capsule，\n然后安装受保护的模块，或执行有界、非交互的 provider 设置命令。\n仅手动管理或不可用的 provider 在产生效应前拒绝。不会替换外来或更新\n版本的 provider 条目；回执保留已尝试的效应和复检观察到的状态。\n'--format json' 输出 orchbee.agent.integration.mutation 封套。\n";
 
 const HELP_AGENT_INTEGRATION_DISABLE_EN: &str = "orchbee agent integration disable --provider <id> [--adapter-source <abs>] [--format text|json]\n\nDisable one provider's managed observation integration locally: run the\nprovider's own bounded removal commands or guarded removal of the owned\nentry. Only entries verifiably owned by Orchbee are ever removed; foreign\nor newer-versioned entries are refused before any effect. '--format json'\nemits the orchbee.agent.integration.mutation envelope.\n";
 const HELP_AGENT_INTEGRATION_DISABLE_ZH: &str = "orchbee agent integration disable --provider <id> [--adapter-source <abs>] [--format text|json]\n\n在本地禁用一个 provider 的受管观测集成：执行 provider 自身的有界移除\n命令，或对所有物执行受保护的移除。只有经核实归 Orchbee 所有的条目\n才会被移除；外来或更新版本的条目在任何效应前被拒绝。'--format json'\n输出 orchbee.agent.integration.mutation 封套。\n";
@@ -2773,5 +2817,115 @@ impl Locale {
             }
             _ => None,
         }
+    }
+}
+
+impl Locale {
+    pub(crate) const fn cli_agent_pending_names_header(self) -> &'static str {
+        match self {
+            Self::EnUs => "\nPENDING NAME\tPROVIDER\tREMAINING MS\tRESERVATION\n",
+            Self::ZhCn => "\n预留名称\t提供方\t剩余毫秒\t预留 ID\n",
+        }
+    }
+}
+
+impl Locale {
+    #[cfg(windows)]
+    pub(crate) fn cli_agent_started(self, name: &str, session: &str) -> String {
+        match self {
+            Self::EnUs => format!("Agent {name} is ready ({session}).\n"),
+            Self::ZhCn => format!("Agent {name} 已就绪（{session}）。\n"),
+        }
+    }
+
+    fn cli_agent_start_failure(self, failure: &Failure) -> String {
+        let field = |key| {
+            failure
+                .details
+                .as_ref()
+                .and_then(|details| details.get(key))
+                .and_then(|value| value.as_str())
+                .unwrap_or("")
+        };
+        let message = match (self, field("reason")) {
+            (Self::EnUs, "terminal-not-idle") => {
+                "The target must be an idle cmd, PowerShell or pwsh terminal with no other running command."
+            }
+            (Self::ZhCn, "terminal-not-idle") => {
+                "目标必须是空闲的 cmd、PowerShell 或 pwsh 终端，且没有其他命令正在运行。"
+            }
+            (Self::EnUs, "name-in-use" | "presentation-busy") => {
+                "The Agent name or terminal is already in use. Inspect `orchbee agent names`."
+            }
+            (Self::ZhCn, "name-in-use" | "presentation-busy") => {
+                "Agent 名称或终端已被占用。请用 `orchbee agent names` 查看。"
+            }
+            (Self::EnUs, "command-too-long") => {
+                "The encoded Windows launch command exceeds 8000 characters. Reduce the arguments."
+            }
+            (Self::ZhCn, "command-too-long") => {
+                "编码后的 Windows 启动命令超过 8000 个字符，请缩短参数。"
+            }
+            (Self::EnUs, "start-deadline") => {
+                "The Agent did not confirm readiness before the deadline. Inspect its terminal and provider hooks."
+            }
+            (Self::ZhCn, "start-deadline") => {
+                "Agent 未在时限内确认就绪。请检查终端输出和提供方 hook。"
+            }
+            (Self::EnUs, "agent-blocked") => {
+                "The Agent needs attention. Resolve the prompt shown in its terminal."
+            }
+            (Self::ZhCn, "agent-blocked") => "Agent 需要人工处理，请查看其终端中的提示。",
+            (Self::EnUs, "agent-exited") => {
+                "The Agent exited before readiness was confirmed. Inspect its terminal output."
+            }
+            (Self::ZhCn, "agent-exited") => "Agent 在确认就绪前已退出，请检查其终端输出。",
+            (Self::EnUs, "agent-provider-mismatch" | "agent-runtime-ambiguous") => {
+                "The running Agent does not uniquely match the requested provider."
+            }
+            (Self::ZhCn, "agent-provider-mismatch" | "agent-runtime-ambiguous") => {
+                "运行中的 Agent 无法唯一匹配所请求的提供方。"
+            }
+            (Self::EnUs, "binding-changed") => "The target terminal changed during startup.",
+            (Self::ZhCn, "binding-changed") => "目标终端在启动期间发生了变化。",
+            (Self::EnUs, "reply-not-confirmed") => {
+                "The startup operation's result is unknown. Inspect Agent names and the terminal before retrying."
+            }
+            (Self::ZhCn, "reply-not-confirmed") => {
+                "启动操作的结果尚不确定。重试前请检查 Agent 名称和终端。"
+            }
+            (Self::EnUs, "cancelled") => "Agent startup monitoring was cancelled.",
+            (Self::ZhCn, "cancelled") => "已取消等待 Agent 启动。",
+            (Self::EnUs, _) => {
+                "Agent startup could not be confirmed. Inspect the command result and terminal."
+            }
+            (Self::ZhCn, _) => "无法确认 Agent 启动成功，请检查命令结果和终端。",
+        };
+        let reservation = match (self, field("reservationState")) {
+            (Self::EnUs, "pending" | "unknown") => {
+                " The name reservation may remain until expiry; `agent names` shows pending reservations."
+            }
+            (Self::ZhCn, "pending" | "unknown") => {
+                " 名称预留可能保留到到期；`agent names` 可查看尚未完成的预留。"
+            }
+            (Self::EnUs, "released") => " The name reservation was released.",
+            (Self::ZhCn, "released") => " 名称预留已释放。",
+            (Self::EnUs, "completed") => " The Agent name was already committed.",
+            (Self::ZhCn, "completed") => " Agent 名称已经绑定。",
+            _ => "",
+        };
+        let submitted = failure
+            .details
+            .as_ref()
+            .and_then(|details| details.get("submission"))
+            .is_some_and(|value| !value.is_null());
+        let delivery = match (self, submitted) {
+            (Self::EnUs, true) => {
+                " Input was attempted once; the Agent may still be running. No process was terminated."
+            }
+            (Self::ZhCn, true) => " 启动输入已尝试提交一次，Agent 可能仍在运行；没有终止进程。",
+            _ => "",
+        };
+        format!("{message}{reservation}{delivery}\n")
     }
 }

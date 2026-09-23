@@ -285,6 +285,13 @@ pub(super) fn process_reply(
     stream: &mut LocalStream,
     processes: Vec<orchbee_terminal_protocol::TerminalProcess>,
 ) {
+    process_sample_reply(stream, Ok(processes));
+}
+
+pub(super) fn process_sample_reply(
+    stream: &mut LocalStream,
+    sample: Result<Vec<orchbee_terminal_protocol::TerminalProcess>, &str>,
+) {
     use orchbee_client_server_protocol::{
         ClientMessage, ServerMessage, TerminalViewerAction, TerminalViewerOutcome,
         TerminalViewerResult, ViewerId, read_client_message, write_server_message,
@@ -297,23 +304,42 @@ pub(super) fn process_reply(
     let attachment = AttachmentId::from_bytes([8; 16]).unwrap();
     let viewer = ViewerId::parse(&attachment.to_text()).unwrap();
     let epoch = HostEpoch::from_bytes([6; 16]).unwrap();
-    let control =
-        encode_process_info_control(&ProcessInfoControl::ProcessInfo(TerminalProcessInfo {
-            attachment_id: attachment,
-            terminal_id: TerminalId::from_bytes([7; 16]).unwrap(),
-            root_pid: 10,
-            processes,
-        }))
-        .unwrap();
+    let (kind, payload) = match sample {
+        Ok(processes) => {
+            let control = encode_process_info_control(&ProcessInfoControl::ProcessInfo(
+                TerminalProcessInfo {
+                    attachment_id: attachment,
+                    terminal_id: TerminalId::from_bytes([7; 16]).unwrap(),
+                    root_pid: 10,
+                    processes,
+                },
+            ))
+            .unwrap();
+            (control.kind, control.payload)
+        }
+        Err(code) => {
+            let control = orchbee_terminal_protocol::encode_connection_control(
+                &orchbee_terminal_protocol::ConnectionControl::TypedFailure(
+                    orchbee_terminal_protocol::TypedFailure {
+                        code: code.into(),
+                        message: "untrusted diagnostic".into(),
+                        retryable: false,
+                    },
+                ),
+            )
+            .unwrap();
+            (control.kind, control.payload)
+        }
+    };
     let record = encode_transport_envelope(&Envelope {
         protocol: CURRENT_PROTOCOL_VERSION,
         role: MessageRole::Response,
-        kind: control.kind,
+        kind,
         optional_message: false,
         payload_encoding: PayloadEncoding::ControlJson,
         correlation_id: Some(CorrelationId::from_bytes([9; 16]).unwrap()),
         host_epoch: Some(epoch),
-        payload: &control.payload,
+        payload: &payload,
     })
     .unwrap();
     for (stage, outcome) in [

@@ -7,6 +7,7 @@ use crate::contract::{
     AgentContractError, parse_agent_request, parse_agent_result, serialize_agent_request,
     serialize_agent_result,
 };
+use crate::launch::{AgentLaunchRequest, AgentLaunchResult};
 use crate::names::{AgentNamesRequest, AgentNamesResult};
 use crate::read::{AgentReadRequest, AgentReadResult, AgentRequest, AgentResult};
 
@@ -105,6 +106,7 @@ pub fn write_agent_result(
             AgentResult::Names(AgentNamesResult::NamesList { .. }) => {
                 MAXIMUM_AGENT_NAMES_RESULT_BYTES
             }
+            AgentResult::Launch(_) => MAXIMUM_AGENT_SMALL_OUTCOME_BYTES,
             // Every non-small names outcome is the list; the other variants
             // are always small outcomes.
             AgentResult::Names(
@@ -127,6 +129,10 @@ pub fn write_agent_result(
 
 fn request_kind(request: &AgentRequest) -> u16 {
     match request {
+        AgentRequest::Launch(AgentLaunchRequest::Reserve { .. }) => 15,
+        AgentRequest::Launch(AgentLaunchRequest::Inspect { .. }) => 17,
+        AgentRequest::Launch(AgentLaunchRequest::Complete { .. }) => 19,
+        AgentRequest::Launch(AgentLaunchRequest::Cancel { .. }) => 21,
         AgentRequest::Read(AgentReadRequest::List { .. }) => 1,
         AgentRequest::Read(AgentReadRequest::Get { .. }) => 3,
         AgentRequest::Read(AgentReadRequest::Explain { .. }) => 5,
@@ -139,6 +145,10 @@ fn request_kind(request: &AgentRequest) -> u16 {
 
 fn result_kind(result: &AgentResult) -> u16 {
     match result {
+        AgentResult::Launch(AgentLaunchResult::Reserve { .. }) => 16,
+        AgentResult::Launch(AgentLaunchResult::Inspect { .. }) => 18,
+        AgentResult::Launch(AgentLaunchResult::Complete { .. }) => 20,
+        AgentResult::Launch(AgentLaunchResult::Cancel { .. }) => 22,
         AgentResult::Read(AgentReadResult::List { .. }) => 2,
         AgentResult::Read(AgentReadResult::Get { .. }) => 4,
         AgentResult::Read(AgentReadResult::Explain { .. }) => 6,
@@ -163,8 +173,8 @@ fn read_frame(
     reader.read_exact(&mut header).map_err(AgentWireError::Io)?;
     let kind = u16::from_be_bytes([header[6], header[7]]);
     let kind_valid = match direction {
-        Direction::Request => matches!(kind, 1 | 3 | 5 | 7 | 9 | 11 | 13),
-        Direction::Result => matches!(kind, 2 | 4 | 6 | 8 | 10 | 12 | 14),
+        Direction::Request => matches!(kind, 1 | 3 | 5 | 7 | 9 | 11 | 13 | 15 | 17 | 19 | 21),
+        Direction::Result => matches!(kind, 2 | 4 | 6 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 22),
     };
     if header[..4] != AGENT_MAGIC
         || u16::from_be_bytes([header[4], header[5]]) != VERSION
@@ -181,7 +191,7 @@ fn read_frame(
         Direction::Result => match kind {
             2 => MAXIMUM_AGENT_LIST_RESULT_BYTES,
             10 => MAXIMUM_AGENT_NAMES_RESULT_BYTES,
-            8 | 12 | 14 => MAXIMUM_AGENT_SMALL_OUTCOME_BYTES,
+            8 | 12 | 14 | 16 | 18 | 20 | 22 => MAXIMUM_AGENT_SMALL_OUTCOME_BYTES,
             _ => MAXIMUM_AGENT_SESSION_RESULT_BYTES,
         },
     };

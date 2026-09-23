@@ -286,9 +286,7 @@ pub(crate) fn mutate(
     }
     // `manual-only` gates before any provider read and before the capsule
     // effect — the mode is a spec property, not an inspected value.
-    if context.management_mode == ManagementMode::ManualOnly
-        || cfg!(windows) && id != IntegrationId::Codex
-    {
+    if providers::management_mode(id, context.management_mode) == ManagementMode::ManualOnly {
         return MutationReport {
             integration_id: id,
             direction,

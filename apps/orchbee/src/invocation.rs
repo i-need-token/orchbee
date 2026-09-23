@@ -165,6 +165,7 @@ pub(crate) enum CommandPath {
     AgentList,
     AgentGet,
     AgentRead,
+    AgentStart,
     AgentPrompt,
     AgentSendKeys,
     AgentExplain,
@@ -229,6 +230,7 @@ impl CommandPath {
             Self::AgentList => "agent list",
             Self::AgentGet => "agent get",
             Self::AgentRead => "agent read",
+            Self::AgentStart => "agent start",
             Self::AgentPrompt => "agent prompt",
             Self::AgentSendKeys => "agent send-keys",
             Self::AgentExplain => "agent explain",
@@ -854,6 +856,15 @@ pub(crate) struct AgentPromptWait {
     pub(crate) timeout_ms: Option<u32>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct AgentStartCommand {
+    pub(crate) name: AgentName,
+    pub(crate) provider: String,
+    pub(crate) panel: Option<Target>,
+    pub(crate) args: Vec<String>,
+    pub(crate) timeout_ms: u32,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum AgentNamesCommand {
     List,
@@ -900,6 +911,10 @@ pub(crate) enum Request {
     /// `agent integration`: the local provider-onboarding surface — runs
     /// entirely off ambient PATH and the cohort sidecar, never contacts a
     /// Site.
+    AgentStart {
+        command: AgentStartCommand,
+        format: OutputFormat,
+    },
     AgentNames {
         command: AgentNamesCommand,
         format: OutputFormat,
@@ -960,6 +975,9 @@ pub(crate) enum ExpectedValue {
     /// The `terminal read --lines` operand: the presentation tail length.
     TailLines,
     WaitTimeout,
+    AgentStartTimeout,
+    AgentStartProvider,
+    AgentStartArgument,
     SendText,
     SendKey,
     /// The repeatable `--key` sequence bound: at most 64 values per request.
@@ -1208,6 +1226,7 @@ struct Options {
     forever: bool,
     profile: Option<String>,
     provider: Option<String>,
+    kind: Option<String>,
     adapter_source: Option<String>,
     /// `workspace close-resume --request <id>`: the close operation's own
     /// request ID — the operation identity, never the resume's new
@@ -1239,6 +1258,7 @@ const VALUE_FLAGS: &[&str] = &[
     "--generation",
     "--into-tab",
     "--key",
+    "--kind",
     "--label",
     "--limit",
     "--lines",
@@ -1691,6 +1711,7 @@ fn apply_value_flag(
         "--path" => &mut options.path,
         "--match" => &mut options.match_text,
         "--timeout" => &mut options.timeout,
+        "--kind" => &mut options.kind,
         "--text" => &mut options.text,
         "--file" => &mut options.file,
         "--exec" => &mut options.exec,
@@ -1919,6 +1940,101 @@ fn resolve_words(
                 },
                 options,
             ))
+        }
+        ["agent", "start", rest @ ..] => {
+            let context = UsageContext::Path("agent start");
+            check_scope(
+                options,
+                Scope {
+                    panel: true,
+                    current: true,
+                    kind: true,
+                    timeout: true,
+                    args: true,
+                    ..NO_OPTIONS
+                },
+                context,
+                envelope,
+            )?;
+            let invalid = |option, value: &str, expected| {
+                usage_with(
+                    UsageReason::InvalidValue {
+                        context,
+                        option,
+                        value: value.to_owned(),
+                        expected,
+                    },
+                    envelope,
+                )
+            };
+            let Some(name) = rest.first() else {
+                return Err(missing_required(context, "<name>", envelope));
+            };
+            let name = agent_name(name, context, envelope)?;
+            let provider = options
+                .kind
+                .as_deref()
+                .ok_or_else(|| missing_required(context, "'--kind'", envelope))?;
+            if crate::agent_provider::executable(provider).is_none() {
+                return Err(invalid(
+                    "--kind",
+                    provider,
+                    ExpectedValue::AgentStartProvider,
+                ));
+            }
+            let timeout_ms = match options.timeout.as_deref() {
+                None => 30000,
+                Some(value) => value
+                    .parse::<u32>()
+                    .ok()
+                    .filter(|n| (3001..=300000).contains(n))
+                    .ok_or_else(|| invalid("--timeout", value, ExpectedValue::AgentStartTimeout))?,
+            };
+            if options.current && options.panel.is_some() {
+                return Err(usage_with(
+                    UsageReason::ConflictingOptions {
+                        context,
+                        first: "--current",
+                        second: "--panel",
+                    },
+                    envelope,
+                ));
+            }
+            if rest.len() > 1 && !options.args.is_empty() {
+                return Err(usage_with(
+                    UsageReason::ConflictingOptions {
+                        context,
+                        first: "--arg",
+                        second: "<args>",
+                    },
+                    envelope,
+                ));
+            }
+            let args = if options.args.is_empty() {
+                rest[1..].iter().map(|v| (*v).to_owned()).collect()
+            } else {
+                options.args.clone()
+            };
+            for arg in &args {
+                if arg.chars().any(char::is_control) {
+                    return Err(invalid("<args>", arg, ExpectedValue::AgentStartArgument));
+                }
+            }
+            let panel = options
+                .panel
+                .as_deref()
+                .map(|value| target(value.to_owned(), Resource::Panel, envelope))
+                .transpose()?;
+            Ok(Request::AgentStart {
+                command: AgentStartCommand {
+                    name,
+                    provider: provider.to_owned(),
+                    panel,
+                    args,
+                    timeout_ms,
+                },
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
         }
         ["agent", "prompt", rest @ ..] => {
             let context = UsageContext::Path("agent prompt");
@@ -3266,6 +3382,7 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["agent", "list"] => HelpTopic::Command(CommandPath::AgentList),
         ["agent", "get"] => HelpTopic::Command(CommandPath::AgentGet),
         ["agent", "read"] => HelpTopic::Command(CommandPath::AgentRead),
+        ["agent", "start"] => HelpTopic::Command(CommandPath::AgentStart),
         ["agent", "prompt"] => HelpTopic::Command(CommandPath::AgentPrompt),
         ["agent", "send-keys"] => HelpTopic::Command(CommandPath::AgentSendKeys),
         ["agent", "explain"] => HelpTopic::Command(CommandPath::AgentExplain),
@@ -3438,6 +3555,7 @@ struct Scope {
     /// <id>`: the provider selector — repeatable on doctor; a filter on
     /// integration `list` and a required selector on explain/enable/disable.
     provider: bool,
+    kind: bool,
     /// `agent doctor --asset-root <path>`: admits the repeatable declared
     /// asset-root selector.
     asset_root: bool,
@@ -3498,6 +3616,7 @@ const NO_OPTIONS: Scope = Scope {
     after_revision: false,
     timeout: false,
     provider: false,
+    kind: false,
     asset_root: false,
     name: false,
     session: false,
@@ -3908,6 +4027,9 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.profile.is_some() && !scope.profile {
         return Some("--profile");
+    }
+    if options.kind.is_some() && !scope.kind {
+        return Some("--kind");
     }
     if options.provider.is_some() && !scope.provider {
         return Some("--provider");

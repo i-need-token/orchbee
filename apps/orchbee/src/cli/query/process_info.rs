@@ -86,7 +86,7 @@ pub(crate) fn read_terminal_processes(
     outcome
 }
 
-fn primary_terminal(snapshot: &Snapshot, target: &Target) -> Result<Target, Failure> {
+pub(crate) fn primary_terminal(snapshot: &Snapshot, target: &Target) -> Result<Target, Failure> {
     let Projection::PanelGet(panel) =
         results::project(&QueryCommand::PanelGet(target.clone()), snapshot)?
     else {

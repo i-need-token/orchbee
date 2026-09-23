@@ -350,6 +350,11 @@ mod linux {
     }
 
     impl Receipt {
+        #[cfg(windows)]
+        pub(crate) fn exit_status(&self) -> u8 {
+            answer(&self.result, &self.fact, &self.facts, self.source.clone()).status
+        }
+
         pub(crate) fn accepted(&self) -> bool {
             matches!(
                 self.result.outcome(),

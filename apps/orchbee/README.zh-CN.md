@@ -21,6 +21,10 @@
 `agent prompt <name> <text> --wait` 在新鲜且无阻塞的预检后提交字面 paste 加 Enter。
 先观察活动再等待条件，后续超时或取消仍保留输入回执；不承诺轮次因果。
 
+`agent start alpha --kind codex --panel <id>` 在空闲 Windows 终端中启动 Agent，
+仅在进程和 canonical 就绪检查通过后绑定名称。配置、限制和恢复见
+[Windows Agent 启动](docs/windows-agent-start.zh-CN.md)。
+
 ## 命令面
 
 裸调用和显式 `tui` 调用先准入继承的交互终端和有效 cell geometry，再在 Windows 和 Linux 上运行下面的
@@ -155,7 +159,7 @@ Windows `agent doctor --provider codex --format json` 现在可以检查本地�
 和胶囊完整性，不启动 Site，也不改变 provider 接入配置。版本 3 文档报告 Windows 端点投递
 尚未检查；已安装配置不证明 Agent 已接通。
 
-Windows `agent integration list/explain/enable/disable --provider codex` 可管理本机 Codex 观测插件。详见 [Windows 集成契约](docs/windows-agent-integrations.zh-CN.md)。`site diagnose` 仍不可用。Capsule 0.4.1 增加 Windows Codex hook，
+Windows `agent integration list/explain/enable/disable --provider <id>` 可管理 Codex、OpenCode、Pi、OMP。详见 [Windows 集成契约](docs/windows-agent-integrations.zh-CN.md)。`site diagnose` 仍不可用。Capsule 0.4.1 提供 Codex hook 与 JavaScript 模块，
 通过原生 observation 管道与 Console 关联投递。Windows x64 cohort 包含保留关联信息所需的
 固定 ConPTY 运行时。Agent start 仍待完成，其他 provider 保留既有平台限制。
 `terminal send --stdin` 接受重定向普通文件和 Windows 管道；所属隐藏 Windows PowerShell

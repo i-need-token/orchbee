@@ -241,6 +241,13 @@ fn handle_candidate(
             orchbee_agent_observation_protocol::AgentRequest::Read(request) => agents
                 .execute_prepared(request, || terminals.prepare_agent_drain_read(agents))
                 .map(orchbee_agent_observation_protocol::AgentResult::Read),
+            orchbee_agent_observation_protocol::AgentRequest::Launch(request) => {
+                Ok(orchbee_agent_observation_protocol::AgentResult::Launch(
+                    agents.execute_launch_prepared(request, || {
+                        terminals.prepare_agent_drain_read(agents)
+                    }),
+                ))
+            }
             orchbee_agent_observation_protocol::AgentRequest::Names(request) => {
                 Ok(orchbee_agent_observation_protocol::AgentResult::Names(
                     agents.execute_names_prepared(request, || {

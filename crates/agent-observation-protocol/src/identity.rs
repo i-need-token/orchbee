@@ -115,6 +115,8 @@ macro_rules! define_hex_identity {
 
 define_hex_identity!(ObapRequestId);
 define_hex_identity!(AgentPresentationId);
+define_hex_identity!(AgentHostEpoch);
+define_hex_identity!(AgentHostTerminalId);
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]

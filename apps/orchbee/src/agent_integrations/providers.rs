@@ -122,7 +122,11 @@ const fn spec(id: IntegrationId) -> Spec {
         IntegrationId::Pi => Spec {
             kind: Kind::Guarded(GuardedSpec {
                 kind: BootstrapKind::Pi,
-                source_relative: "bundle/pi/orchbee-agent-observation.cjs",
+                source_relative: if cfg!(windows) {
+                    "bundle/pi/orchbee-agent-observation.mjs"
+                } else {
+                    "bundle/pi/orchbee-agent-observation.cjs"
+                },
                 target_relative: ".pi/agent/extensions/orchbee-agent-observation.cjs",
                 runtime_relative: None,
             }),
@@ -132,7 +136,11 @@ const fn spec(id: IntegrationId) -> Spec {
         IntegrationId::Omp => Spec {
             kind: Kind::Guarded(GuardedSpec {
                 kind: BootstrapKind::Omp,
-                source_relative: "bundle/omp/orchbee-agent-observation.cjs",
+                source_relative: if cfg!(windows) {
+                    "bundle/omp/orchbee-agent-observation.mjs"
+                } else {
+                    "bundle/omp/orchbee-agent-observation.cjs"
+                },
                 target_relative: ".omp/agent/extensions/orchbee-agent-observation.cjs",
                 runtime_relative: None,
             }),
@@ -176,6 +184,21 @@ const fn spec(id: IntegrationId) -> Spec {
 /// reserve a mutation must hold back.
 pub(crate) fn inspect_slots(id: IntegrationId) -> usize {
     spec(id).inspect_slots
+}
+
+/// One platform admission rule for both plans and effects. The JS module
+/// entries use the existing Windows pipe/console transport without a shell.
+pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode) -> ManagementMode {
+    if cfg!(windows)
+        && !matches!(
+            id,
+            IntegrationId::Codex | IntegrationId::Opencode | IntegrationId::Pi | IntegrationId::Omp
+        )
+    {
+        ManagementMode::ManualOnly
+    } else {
+        declared
+    }
 }
 
 /// The provider's registered executable name — the PATH-resolution key.
@@ -243,11 +266,7 @@ pub(crate) fn inspect_full(
     context: &ProviderContext,
     legacy_roots: &[PathBuf],
 ) -> (SnapshotItem, InspectionDetail) {
-    let management_mode = if cfg!(windows) && id != IntegrationId::Codex {
-        ManagementMode::ManualOnly
-    } else {
-        context.management_mode
-    };
+    let management_mode = management_mode(id, context.management_mode);
     let spec = spec(id);
     let executable = exec::resolve_executable(spec.executable, context.path_env);
     let availability = if executable.is_some() {

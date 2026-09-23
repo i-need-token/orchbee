@@ -1,5 +1,6 @@
 mod agent_doctor;
 mod agent_integrations;
+mod agent_provider;
 mod cli;
 mod client_view;
 mod invocation;
@@ -108,6 +109,9 @@ fn main() -> ExitCode {
             }
             Ok(invocation::Request::SiteStart { format }) => cli::site_start(format, locale),
             Ok(invocation::Request::SiteDiagnose { format }) => cli::site_diagnose(format, locale),
+            Ok(invocation::Request::AgentStart { command, format }) => {
+                cli::run_agent_start(&command, format, locale)
+            }
             Ok(invocation::Request::AgentNames { command, format }) => {
                 cli::agent_names::run(command, format, locale)
             }

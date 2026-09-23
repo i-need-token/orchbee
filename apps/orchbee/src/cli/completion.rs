@@ -153,6 +153,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
             "rename",
             "resolve",
             "send-keys",
+            "start",
             "wait",
         ],
     ),
@@ -194,6 +195,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
+    "--kind",
     "--project",
     "--workspace",
     "--tab",
@@ -268,6 +270,10 @@ const REPEATABLE_FLAGS: &[&str] = &[
 /// `<family>:<verb>` (or `agent:integration:<verb>`) → the business flags
 /// that command admits. Commands not listed here admit none.
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    (
+        "agent:start",
+        &["--kind", "--panel", "--current", "--timeout", "--arg"],
+    ),
     ("agent:list", &["--include-ended", "--limit", "--cursor"]),
     ("agent:get", &["--session", "--name", "--panel"]),
     (
@@ -482,6 +488,7 @@ const PROVIDER_VALUES: &[&str] = &[
 
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
+    "agent:start",
     "agent:explain",
     "agent:get",
     "agent:read",
@@ -603,6 +610,7 @@ pub(crate) fn render(shell: CompletionShell) -> String {
 /// `flag` → the walker's one-shot seen bit for it.
 fn flag_bit(flag: &str) -> &'static str {
     match flag {
+        "--kind" => "seen_kind",
         "--project" => "seen_project",
         "--panel" => "seen_panel",
         "--current" => "seen_current",
@@ -1135,6 +1143,7 @@ fn extras_cases_bash() -> String {
                         // `--arg` is only legal next to `--exec` and never
                         // beside `--profile`; the bit never dedups it, so
                         // repeats stay offerable.
+                        "--arg" if *command == "agent:start" => "0".to_owned(),
                         "--arg" => "!seen_exec || seen_profile".to_owned(),
                         // `--profile` excludes the explicit launch pair.
                         "--profile" => "seen_profile || seen_exec || seen_arg".to_owned(),
@@ -1447,7 +1456,7 @@ fn bash() -> String {
             "                            {operand_paths}) state=operand ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
-            "                    operand) if [[ $family:$sub == agent:send-keys ]]; then state=operand; elif [[ $family:$sub == agent:rename || $family:$sub == agent:prompt ]] && ((seen_clear == 0 && seen_name == 0 && seen_session == 0)); then state=operand2; else done=1; fi ;;\n",
+            "                    operand) if [[ $family:$sub == agent:send-keys || $family:$sub == agent:start ]]; then state=operand; elif [[ $family:$sub == agent:rename || $family:$sub == agent:prompt ]] && ((seen_clear == 0 && seen_name == 0 && seen_session == 0)); then state=operand2; else done=1; fi ;;\n",
             "                    leaf|operand2|completion) done=1 ;;\n",
             "                    help)\n",
             "                        if [[ -z $help_a ]]; then\n",
@@ -1797,7 +1806,7 @@ fn zsh() -> String {
             "                            {operand_paths}) state=operand ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
-            "                    operand) if [[ $family:$sub == agent:send-keys ]]; then state=operand; elif [[ $family:$sub == agent:rename || $family:$sub == agent:prompt ]] && ((seen_clear == 0 && seen_name == 0 && seen_session == 0)); then state=operand2; else done=1; fi ;;\n",
+            "                    operand) if [[ $family:$sub == agent:send-keys || $family:$sub == agent:start ]]; then state=operand; elif [[ $family:$sub == agent:rename || $family:$sub == agent:prompt ]] && ((seen_clear == 0 && seen_name == 0 && seen_session == 0)); then state=operand2; else done=1; fi ;;\n",
             "                    leaf|operand2|completion) done=1 ;;\n",
             "                    help)\n",
             "                        if [[ -z $help_a ]]; then\n",
@@ -2216,6 +2225,7 @@ fn extras_cases_fish() -> String {
                         }
                         // `--arg` is offered only while `--exec` stands and
                         // never beside `--profile`.
+                        "--arg" if *command == "agent:start" => "0 -eq 0".to_owned(),
                         "--arg" => "$seen_exec -eq 1 -a $seen_profile -eq 0".to_owned(),
                         // `--profile` excludes the explicit launch pair.
                         "--profile" => {
@@ -2516,7 +2526,7 @@ fn fish() -> String {
             "                            case {operand_paths}; set state operand\n",
             "                            case '*'; set done 1\n",
             "                        end\n",
-            "                    case operand; if test \"$family:$sub\" = agent:send-keys; set state operand; else if contains -- \"$family:$sub\" agent:rename agent:prompt; and test $seen_clear -eq 0; and test $seen_name -eq 0; and test $seen_session -eq 0; set state operand2; else; set done 1; end; end\n",
+            "                    case operand; if contains -- \"$family:$sub\" agent:send-keys agent:start; set state operand; else if contains -- \"$family:$sub\" agent:rename agent:prompt; and test $seen_clear -eq 0; and test $seen_name -eq 0; and test $seen_session -eq 0; set state operand2; else; set done 1; end; end\n",
             "                    case leaf operand2 completion; set done 1\n",
             "                    case help\n",
             "                        if test -z \"$help_a\"\n",
@@ -2812,7 +2822,11 @@ mod tests {
                 || *command == "panel:split"
                 || *command == "launch-profile:create";
             assert_eq!(flags.contains(&"--exec"), admits, "{command} --exec");
-            assert_eq!(flags.contains(&"--arg"), admits, "{command} --arg");
+            assert_eq!(
+                flags.contains(&"--arg"),
+                admits || *command == "agent:start",
+                "{command} --arg"
+            );
         }
         for shell in [
             CompletionShell::Bash,

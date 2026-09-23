@@ -1,6 +1,12 @@
 use std::collections::HashSet;
 use std::fmt;
 
+use crate::identity::AgentHostEpoch;
+use crate::launch::{
+    AgentLaunchOutcome, AgentLaunchRequest, AgentLaunchReservation, AgentLaunchResult,
+    LAUNCH_SETTLE_MS, MAXIMUM_LAUNCH_TTL_MS,
+};
+
 use crate::model::{
     AgentCapability, AgentLifecycle, AgentObservationSource, AgentSessionDetail,
     AgentSessionExplanation, AgentSessionSnapshot, AgentSessionSummary, AgentTurnState,
@@ -49,9 +55,11 @@ impl std::error::Error for AgentContractError {}
 pub fn parse_agent_request(encoded: &[u8]) -> Result<AgentRequest, AgentContractError> {
     let request = if let Ok(request) = serde_json::from_slice::<AgentReadRequest>(encoded) {
         AgentRequest::Read(request)
+    } else if let Ok(request) = serde_json::from_slice::<AgentNamesRequest>(encoded) {
+        AgentRequest::Names(request)
     } else {
-        AgentRequest::Names(
-            serde_json::from_slice::<AgentNamesRequest>(encoded)
+        AgentRequest::Launch(
+            serde_json::from_slice::<AgentLaunchRequest>(encoded)
                 .map_err(|_error| AgentContractError::InvalidDocument)?,
         )
     };
@@ -62,9 +70,11 @@ pub fn parse_agent_request(encoded: &[u8]) -> Result<AgentRequest, AgentContract
 pub fn parse_agent_result(encoded: &[u8]) -> Result<AgentResult, AgentContractError> {
     let result = if let Ok(result) = serde_json::from_slice::<AgentReadResult>(encoded) {
         AgentResult::Read(result)
+    } else if let Ok(result) = serde_json::from_slice::<AgentNamesResult>(encoded) {
+        AgentResult::Names(result)
     } else {
-        AgentResult::Names(
-            serde_json::from_slice::<AgentNamesResult>(encoded)
+        AgentResult::Launch(
+            serde_json::from_slice::<AgentLaunchResult>(encoded)
                 .map_err(|_error| AgentContractError::InvalidDocument)?,
         )
     };
@@ -77,6 +87,7 @@ pub fn serialize_agent_request(request: &AgentRequest) -> Result<Vec<u8>, AgentC
     let encoded = match request {
         AgentRequest::Read(request) => serde_json::to_vec(request),
         AgentRequest::Names(request) => serde_json::to_vec(request),
+        AgentRequest::Launch(request) => serde_json::to_vec(request),
     };
     encoded.map_err(|_error| AgentContractError::InvalidDocument)
 }
@@ -86,6 +97,7 @@ pub fn serialize_agent_result(result: &AgentResult) -> Result<Vec<u8>, AgentCont
     let encoded = match result {
         AgentResult::Read(result) => serde_json::to_vec(result),
         AgentResult::Names(result) => serde_json::to_vec(result),
+        AgentResult::Launch(result) => serde_json::to_vec(result),
     };
     encoded.map_err(|_error| AgentContractError::InvalidDocument)
 }
@@ -97,6 +109,12 @@ fn validate_request(request: &AgentRequest) -> Result<(), AgentContractError> {
                 return Err(AgentContractError::InvalidDocument);
             }
         }
+        AgentRequest::Launch(AgentLaunchRequest::Reserve { ttl_ms, .. }) => {
+            if !(1..=MAXIMUM_LAUNCH_TTL_MS).contains(&ttl_ms.value()) {
+                return Err(AgentContractError::InvalidDocument);
+            }
+        }
+        AgentRequest::Launch(_) => {}
         // Selectors and names are already typed at construction; no further
         // request invariant exists beyond the schema.
         AgentRequest::Read(_) | AgentRequest::Names(_) => {}
@@ -108,6 +126,7 @@ fn validate_result(result: &AgentResult) -> Result<(), AgentContractError> {
     match result {
         AgentResult::Read(result) => validate_read_result(result),
         AgentResult::Names(result) => validate_names_result(result),
+        AgentResult::Launch(result) => validate_launch_result(result),
     }
 }
 
@@ -146,8 +165,8 @@ fn validate_read_result(result: &AgentReadResult) -> Result<(), AgentContractErr
 fn validate_names_result(result: &AgentNamesResult) -> Result<(), AgentContractError> {
     match result {
         AgentNamesResult::NamesList { result, .. } => {
-            if let AgentNamesListOutcome::Listed { bindings } = &result.outcome {
-                if bindings.len() > MAXIMUM_NAME_BINDINGS {
+            if let AgentNamesListOutcome::Listed { bindings, pending } = &result.outcome {
+                if bindings.len() + pending.len() > MAXIMUM_NAME_BINDINGS {
                     return Err(AgentContractError::InvalidDocument);
                 }
                 // Only live sessions hold bindings: an emitted ended row is
@@ -157,6 +176,21 @@ fn validate_names_result(result: &AgentNamesResult) -> Result<(), AgentContractE
                     .any(|binding| binding.lifecycle != AgentLifecycle::Live)
                 {
                     return Err(AgentContractError::InvalidDocument);
+                }
+                let mut names: HashSet<_> = bindings.iter().map(|b| b.name.as_str()).collect();
+                let mut presentations = HashSet::new();
+                let mut reservations = HashSet::new();
+                if pending.windows(2).any(|pair| pair[0].name >= pair[1].name) {
+                    return Err(AgentContractError::InvalidDocument);
+                }
+                for entry in pending {
+                    validate_reservation(entry)?;
+                    if !names.insert(entry.name.as_str())
+                        || !presentations.insert(entry.binding.presentation_id.as_str())
+                        || !reservations.insert(entry.reservation_id.as_str())
+                    {
+                        return Err(AgentContractError::InvalidDocument);
+                    }
                 }
                 let mut sessions = HashSet::with_capacity(bindings.len());
                 if bindings.windows(2).any(|pair| pair[0].name >= pair[1].name)
@@ -273,4 +307,45 @@ fn validate_attachments(
         }
     }
     Ok(())
+}
+
+fn validate_reservation(value: &AgentLaunchReservation) -> Result<(), AgentContractError> {
+    if !(1..=MAXIMUM_LAUNCH_TTL_MS).contains(&value.remaining_ms.value())
+        || value.settle_remaining_ms.value() > LAUNCH_SETTLE_MS
+        || AgentHostEpoch::parse(value.binding.generation.as_str()).is_err()
+    {
+        return Err(AgentContractError::InvalidDocument);
+    }
+    Ok(())
+}
+
+fn validate_launch_result(result: &AgentLaunchResult) -> Result<(), AgentContractError> {
+    match result.outcome() {
+        AgentLaunchOutcome::Reserved { reservation } => {
+            if !matches!(result, AgentLaunchResult::Reserve { .. })
+                || &reservation.reservation_id != result.request_id()
+            {
+                return Err(AgentContractError::InvalidDocument);
+            }
+            validate_reservation(reservation)
+        }
+        AgentLaunchOutcome::Pending { reservation, .. } => {
+            if !matches!(result, AgentLaunchResult::Inspect { .. }) {
+                return Err(AgentContractError::InvalidDocument);
+            }
+            validate_reservation(reservation)
+        }
+        AgentLaunchOutcome::Completed { .. }
+            if matches!(result, AgentLaunchResult::Complete { .. }) =>
+        {
+            Ok(())
+        }
+        AgentLaunchOutcome::Released { .. }
+            if matches!(result, AgentLaunchResult::Cancel { .. }) =>
+        {
+            Ok(())
+        }
+        AgentLaunchOutcome::Rejected { .. } | AgentLaunchOutcome::Unavailable { .. } => Ok(()),
+        _ => Err(AgentContractError::InvalidDocument),
+    }
 }

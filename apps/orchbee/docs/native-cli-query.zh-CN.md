@@ -17,13 +17,13 @@ Agent 状态来自 Server 的 canonical Agent 模型，不从终端文字推断�
 优先检查精确 ID 是否存在，再查别名。`agent rename <target> <new-name>` 赋名或原子替换
 名称；`agent rename <target> --clear` 只释放名称，不停止会话。可把目标位置参数替换成
 `--session <id>`、`--name <alias>` 或 `--panel <id|@panel:suffix>` 明确选择；必须且只能使用一种选择器。
-名称格式为 `[a-z][a-z0-9_-]{0,31}`，区分大小写且唯一，上限 512 个存活绑定。
+名称格式为 `[a-z][a-z0-9_-]{0,31}`，区分大小写且唯一，与待完成启动预留共用 512 条上限。
 会话结束、移除或 Site 运行时 dispose 后释放名称；Site 重启后的别名表为空。
 
 三个命令均接受 `--format text|json`。内嵌成功 schema 为 `orchbee.agent.names`、
-`orchbee.agent.resolve` 与 `orchbee.agent.rename`，均为 version 1；接纳后的失败使用
-`orchbee.cli.failure.agent-names` version 1。presentation 解析与 ambiguous-target 失败使用 version 2；原有结果仍为 version 1。相关语义结果携带 `agent-names` source
-和 OBAP request ID。这四份文档与提示契约一起纳入 Schema 目录 version 16。非法名称或冲突选择器在
+`orchbee.agent.resolve` 与 `orchbee.agent.rename`；names 为 version 2，独立列出预留，另两者为 version 1；接纳后的失败使用
+`orchbee.cli.failure.agent-names` version 1。presentation 解析与 ambiguous-target 失败使用 version 2；launch-pending 失败使用 version 3；原有结果仍为 version 1。相关语义结果携带 `agent-names` source
+和 OBAP request ID。这四份文档与提示契约一起纳入 Schema 目录 version 17。非法名称或冲突选择器在
 任何运行时访问前以退出码 2 失败。重名以退出码 3 拒绝并标明占用者，绝不覆盖其名称。
 
 每个命令的单一五秒截止覆盖 cohort 校验、仅查已有 Site、接纳、可选 Panel 解析和最终 OBAP 交换。
@@ -103,7 +103,7 @@ Server 仍验证终端当前绑定。
 
 Windows 中，canonical provider 为 `codex` 时，单次输入序列按字面 paste、Right、Enter 排列。Right 作为非字符边界，促使 Codex 刷出 paste-burst 缓冲并清除 Enter 抑制窗口；不向提示文本拼接转义码，也不以固定延时猜测投递速度。其他 provider 保持 paste、Enter，普通 `terminal send --paste --enter` 不增加按键。回执准确报告三条或两条记录；若在 Right 或 Enter 前停止，只报告实际接受的前缀，绝不补发或开始等待。该边界不证明输入框为空、焦点归属或 provider 已就绪。
 
-Schema 目录 version 16 共 50 份文档，包含提示成功与失败契约。
+Schema 目录 version 17 共 52 份文档，包含提示成功与失败契约。
 
 `orchbee.agent.prompt` 返回会话 ID、完整终端提交回执，以及可选的匹配观察/等待事实。
 发送拒绝、部分接受或不确定时沿用既有终端发送/失败契约，不开始等待。预检及提交后失败
@@ -478,7 +478,7 @@ Windows `agent doctor` 拥有相同的有界离线观察流程，输出 `orchbee
 原生 Windows Codex hook 传输，但 doctor 不连接命名管道，也不写 Console 关联 hint。
 端点保持 `not-inspected`，原因改为 `windows-endpoint-not-inspected`；配置和胶囊
 完整性不证明事件投递或 Site 存活。`complete` 描述探测覆盖率。
-Windows Codex 安装由 [Windows 集成契约](windows-agent-integrations.zh-CN.md) 负责；Agent start 仍待完成；prompt 组合契约见上文。
+Windows 托管安装由 [Windows 集成契约](windows-agent-integrations.zh-CN.md) 负责；Windows Agent 启动见 [Windows Agent 启动](windows-agent-start.zh-CN.md)；prompt 组合契约见上文。
 
 | 字段         | 契约                                                                                                                                                                                                                                                                               |
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1719,4 +1719,8 @@ Windows Job。上述检查不证明 provider 任务完成、身份认证或原�
 
 JSON 封套为 `orchbee.panel.process-info` v2，schema 目录及双语帮助、补全与命令共同交付。证据覆盖隐式和显式目标、I/O 前的冲突拒绝、主与子终端选择、主绑定缺失、读取拒绝、响应身份错误、Host 错误保留、输出限额、viewer 回收，以及真实 Windows Site/Worker/Host 进程路由。共享类型化读取也是后续 Agent 启动和就绪工作的实际依赖，本身不关闭这些义务。
 
-Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界的错误代码；非法响应与传输失败使用通用 CLI 失败契约。成功的 `source` 同时记录快照 revision、OBCS request ID 与 Host correlation、epoch、attachment 和物理 Terminal ID；它们不是同一个身份。目录 version 16 包含 50 份 schema。
+Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界的错误代码；非法响应与传输失败使用通用 CLI 失败契约。成功的 `source` 同时记录快照 revision、OBCS request ID 与 Host correlation、epoch、attachment 和物理 Terminal ID；它们不是同一个身份。目录 version 17 包含 52 份 schema。
+
+## Windows Agent 启动
+
+[Windows Agent 启动](windows-agent-start.zh-CN.md)拥有 `agent start`、名称预留与就绪流程、Windows 引用、预算和恢复契约。`agent names` v2 独立显示启动预留；名称失败对 launch-pending 使用 v3。Schema 目录为 v17，含 52 个 schema。

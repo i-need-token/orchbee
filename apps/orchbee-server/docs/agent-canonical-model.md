@@ -177,6 +177,66 @@ full capacity, lifecycle cleanup, policy separation, stale preparation, disposal
 poison, and concurrent claims. Wire and Windows process tests cover bounds,
 schema-conforming replies, malformed operations, and ambiguous mutation outcomes.
 
+## Managed launch reservations
+
+Agent startup uses the existing `AgentState` cell and names owner. A private launch
+reservation is a temporary claim on one name and one native presentation binding;
+it is not a canonical session and does not manufacture an idle observation. The
+Windows CLI is the first consumer. OBAP carries a separate closed launch family
+(reserve, inspect, complete, cancel) over the existing admitted Client Session.
+Read policy gates inspection; manage policy gates all three mutations, before the
+existing observation preparation outside the leaf lock.
+
+Inputs are typed names, provider IDs, presentation IDs, the sampled Host epoch and
+Terminal identity, a nonzero request identity, and a 1–300000 ms relative TTL.
+Reserve compares the current native binding against both sampled Host identities,
+pins its carrier and creation generation, and records matching sessions' observation
+generation/sequence baselines. A candidate must be a live root session, exactly attached to that
+pinned generation, provider-matching, and newer than its baseline (or absent from
+it). Zero candidates means pending; multiple candidates are an explicit ambiguity.
+This is local observation evidence, not causal authentication of a provider process.
+
+Names and reservations share the 512-entry capacity. Each name, reserved presentation
+and committed session alias is unique. Normal name assignment cannot claim a reserved
+name or rename a session on its reserved presentation; release and resolution report
+pending-launch explicitly where applicable. `agent names` exposes committed bindings
+and pending reservations separately. Expired claims cannot block a subsequent request.
+Reservations are runtime-scoped, never durable session restoration data.
+
+| Event                                    | Guard and transition                                                                                                                                               | Observable result                                        |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| Reserve                                  | Runtime and binding live; name/presentation free; capacity available; record baseline and expiry                                                                   | Reserved identity and pinned binding; no terminal input  |
+| Inspect                                  | Reservation still live; recompute candidates against current canonical state                                                                                       | Pending with zero/one candidate, or explicit ambiguity   |
+| Complete                                 | Same binding; unique requested candidate; at least 3000 ms elapsed; fresh idle/completed state without attention or pending requests; candidate has no other alias | Assign name and remove reservation in one fold           |
+| Cancel                                   | Matching live reservation                                                                                                                                          | Release only that reservation; never terminate a process |
+| Expire or binding replacement/retirement | Deadline reached or exact native binding no longer exists                                                                                                          | Release name/presentation claim                          |
+| Dispose                                  | Runtime disposed                                                                                                                                                   | Clear aliases and reservations; answer unavailable       |
+
+The service samples monotonic time at its fold boundary; the names owner clamps
+injected times monotonically and receives only integer milliseconds. Reconciliation
+runs before decisions and after folds. The existing endpoint deadline/tick owner also
+includes reservation expiry, so abandoned clients need no per-launch thread. The
+3000 ms settlement interval starts at reservation acceptance; the CLI additionally
+waits after its actual input submission. No timeout refresh or automatic replay exists.
+
+Reserve/complete/cancel are explicit commit points inside the leaf lock; serialization
+and publication occur afterward. A lost mutation reply is outcome-unknown. The caller
+retains its reservation identity and input receipt, queries names/inspection when
+possible, and relies on bounded expiry otherwise. A relative server TTL can end later
+than the CLI deadline by transport delay; an unconfirmed cancellation must never be
+reported as a confirmed release. Expiry releases a name, not a potentially running Agent.
+The CLI owns sampled shell/process preflight and one terminal submission; no socket,
+process query, outer lock, or terminal write runs inside the names fold.
+
+Deterministic state witnesses cover competing claims, shared capacity, stale and
+ambiguous candidates, blocked/working/stale state, exact binding replacement, expiry,
+cancellation, disposal and alias interference. Wire witnesses cover closed families,
+operation correlation and bounds; Windows process and ConPTY witnesses cover literal
+arguments, one submission and retained failure receipts. TLA model execution remains
+deferred by the active user request. No paid-provider task, arbitrary provider UI
+readiness, process-only session discovery, or durable name restoration is established
+by these reservation claims.
+
 ## Authoritative semantics (claims)
 
 The claims below mirror `packages/agent` source; the TypeScript source remains the

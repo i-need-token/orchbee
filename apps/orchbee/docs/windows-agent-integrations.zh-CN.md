@@ -23,8 +23,21 @@
 | 证据       | Windows 文件系统测试覆盖不可覆盖、Unicode 路径和重解析点拒绝；进程测试覆盖参数保真、输出上限、取消、超时和后代；隔离的公开 CLI 测试覆盖 Codex 接入与配置隔离。                                                             |
 | 限制       | Provider 认证、远端安装、付费 Agent 任务和 TUI 交互不在接入证据范围内。按用户要求不执行 TLA。审查为作者自身的对抗性复查，不是独立证据。                                                                                    |
 
-当前 Windows 载荷提供 Codex hooks。其他 provider 在其 Windows hook 执行路径获得
-支持前保持 `manual-only`；仅复制文件成功不能宣称这些 provider 可用。
+Windows 托管 Codex hooks 以及既有 OpenCode、Pi、OMP JavaScript 模块。其他 provider
+在其 Windows hook 执行路径获得支持前保持 `manual-only`。检查与变更共享平台准入规则。
+
+OpenCode 使用 ESM 入口；Pi/OMP 安装的 CommonJS 引导模块动态导入 capsule 的 **ESM**
+入口，再调用具名注册函数。若导入其 CommonJS 包装器并查找同名导出，会静默跳过注册。
+本 Windows 细化复用载荷 0.4.1，不修改载荷文件或非 Windows 运行时行为。确定性的引导
+文件字节与 file URL 仍为归属证明：被修改、外来或指向其他版本的条目会被拒绝，不覆盖。
+Windows doctor 从完整的 `bundle/<provider>/<entry>` 后缀推导 capsule 根目录，
+健康的已安装模块因此对照其 capsule manifest 检查，不再误查 bundle 目录。
+这是离线文件检查，不证明实时连接可用。
+
+公开 CLI 验证在隔离的 Unicode 用户目录中安装、检查、移除三个模块。真实 Node 加载
+每个已安装的引导模块，经私有 Windows 管道按顺序上报提供方事件；独立原生 ConPTY
+验证检查控制台关联能否进入 canonical 会话。这些受控提供方 API 验证集成边界，
+不证明提供方认证或任意版本的行为。
 
 ## 依赖审查
 

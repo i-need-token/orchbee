@@ -24,9 +24,25 @@ for ownership, version direction, plans, receipts, and residuals.
 | Evidence       | Windows filesystem tests cover no-replace, Unicode paths, and reparse refusal; process tests cover argument preservation, output limits, cancellation, timeout, and descendants; isolated public CLI tests cover Codex onboarding and configuration isolation.                                                |
 | Limits         | Provider authentication, remote installs, paid Agent tasks, and TUI interaction are outside onboarding evidence. TLA execution is excluded by user instruction. Review is a same-author adversarial pass, not independent evidence.                                                                           |
 
-The current Windows payload supplies Codex hooks. Other provider rows retain
-`manual-only` until their Windows hook execution path is supported; a successful
-file copy alone must not claim those providers are usable.
+Windows manages Codex hooks and the existing OpenCode, Pi and OMP JavaScript modules.
+The other provider rows retain `manual-only` until their Windows hook execution path
+is supported. Inspection and mutation share the same platform admission policy.
+
+OpenCode uses its ESM entry; the Pi/OMP installed CommonJS bootstrap dynamically imports
+the capsule's **ESM** entry and calls its named registration function. Importing their
+CommonJS wrapper and looking for that named export would silently skip registration.
+This Windows refinement reuses payload 0.4.1 and changes no payload files or non-Windows
+runtime behavior. The deterministic bootstrap bytes and file URL remain the ownership
+proof: changed, foreign or differently versioned entries are refused without replacement.
+Windows doctor derives the capsule root from the full `bundle/<provider>/<entry>` suffix,
+so a healthy installed module is inspected against its capsule manifest instead of the
+bundle directory. This is an offline file check and does not establish a live connection.
+
+Public CLI witnesses use an isolated Unicode profile to install, inspect and remove all
+three modules. Real Node loads each installed bootstrap and reports ordered provider
+events through a private Windows pipe; a separate native ConPTY witness checks console
+correlation into canonical sessions. These controlled provider APIs establish the
+integration boundary, not provider authentication or the behavior of arbitrary releases.
 
 ## Dependency review
 

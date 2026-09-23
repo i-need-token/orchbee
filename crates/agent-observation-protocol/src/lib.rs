@@ -8,6 +8,7 @@ mod contract;
 mod cursor;
 mod frame;
 mod identity;
+mod launch;
 mod model;
 mod names;
 mod read;
@@ -28,8 +29,14 @@ pub use frame::{
 };
 pub use identity::{
     AgentAttachmentGeneration, AgentAttentionRequestId, AgentEventId, AgentExecutionLocationId,
-    AgentIdentityError, AgentName, AgentPresentationId, AgentProviderId, AgentSafeInteger,
-    AgentSessionId, AgentTurnId, MAXIMUM_SAFE_INTEGER, ObapRequestId,
+    AgentHostEpoch, AgentHostTerminalId, AgentIdentityError, AgentName, AgentPresentationId,
+    AgentProviderId, AgentSafeInteger, AgentSessionId, AgentTurnId, MAXIMUM_SAFE_INTEGER,
+    ObapRequestId,
+};
+pub use launch::{
+    AgentLaunchBinding, AgentLaunchOutcome, AgentLaunchOutcomeEnvelope, AgentLaunchRejectionReason,
+    AgentLaunchRequest, AgentLaunchReservation, AgentLaunchResult, LAUNCH_SETTLE_MS,
+    MAXIMUM_LAUNCH_TTL_MS,
 };
 pub use model::{
     AgentActivity, AgentAttentionKind, AgentAttentionRequest, AgentCapability,

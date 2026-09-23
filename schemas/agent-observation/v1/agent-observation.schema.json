@@ -44,6 +44,30 @@
 		},
 		{
 			"$ref": "#/$defs/sessionNameReleaseResult"
+		},
+		{
+			"$ref": "#/$defs/launchReserveRequest"
+		},
+		{
+			"$ref": "#/$defs/launchReserveResult"
+		},
+		{
+			"$ref": "#/$defs/launchInspectRequest"
+		},
+		{
+			"$ref": "#/$defs/launchInspectResult"
+		},
+		{
+			"$ref": "#/$defs/launchCompleteRequest"
+		},
+		{
+			"$ref": "#/$defs/launchCompleteResult"
+		},
+		{
+			"$ref": "#/$defs/launchCancelRequest"
+		},
+		{
+			"$ref": "#/$defs/launchCancelResult"
 		}
 	],
 	"$defs": {
@@ -1006,7 +1030,7 @@
 											"const": "rejected"
 										},
 										"reason": {
-											"enum": ["not-found", "read-denied", "ambiguous-target"]
+											"enum": ["not-found", "read-denied", "ambiguous-target", "launch-pending"]
 										}
 									}
 								},
@@ -1052,7 +1076,7 @@
 							"oneOf": [
 								{
 									"type": "object",
-									"required": ["kind", "bindings"],
+									"required": ["kind", "bindings", "pending"],
 									"additionalProperties": false,
 									"properties": {
 										"kind": {
@@ -1077,8 +1101,16 @@
 													}
 												}
 											}
+										},
+										"pending": {
+											"type": "array",
+											"maxItems": 512,
+											"items": {
+												"$ref": "#/$defs/launchReservation"
+											}
 										}
-									}
+									},
+									"$comment": "Bindings and pending reservations share a combined cap of 512; semantic validation enforces disjoint sorted names, unique sessions and unique pending presentations and reservation IDs."
 								},
 								{
 									"type": "object",
@@ -1197,7 +1229,8 @@
 												"name-not-found",
 												"capacity-exceeded",
 												"manage-denied",
-												"ambiguous-target"
+												"ambiguous-target",
+												"launch-pending"
 											]
 										},
 										"conflictSessionId": {
@@ -1322,7 +1355,456 @@
 												"name-not-found",
 												"session-not-found",
 												"manage-denied",
-												"ambiguous-target"
+												"ambiguous-target",
+												"launch-pending"
+											]
+										}
+									}
+								},
+								{
+									"$ref": "#/$defs/unavailableOutcome"
+								}
+							]
+						}
+					}
+				}
+			}
+		},
+		"launchBinding": {
+			"type": "object",
+			"required": ["presentationId", "generation", "hostEpoch", "hostTerminalId"],
+			"additionalProperties": false,
+			"properties": {
+				"presentationId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"generation": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"hostEpoch": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"hostTerminalId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				}
+			}
+		},
+		"launchReservation": {
+			"type": "object",
+			"required": [
+				"reservationId",
+				"name",
+				"providerId",
+				"binding",
+				"remainingMs",
+				"settleRemainingMs"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"reservationId": {
+					"$ref": "#/$defs/obapRequestId"
+				},
+				"name": {
+					"$ref": "#/$defs/agentName"
+				},
+				"providerId": {
+					"$ref": "#/$defs/providerId"
+				},
+				"binding": {
+					"$ref": "#/$defs/launchBinding"
+				},
+				"remainingMs": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 300000
+				},
+				"settleRemainingMs": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 3000
+				}
+			}
+		},
+		"launchReserveRequest": {
+			"type": "object",
+			"required": [
+				"kind",
+				"requestId",
+				"name",
+				"providerId",
+				"presentationId",
+				"hostEpoch",
+				"hostTerminalId",
+				"ttlMs"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "agent.launch.reserve.request"
+				},
+				"requestId": {
+					"$ref": "#/$defs/obapRequestId"
+				},
+				"name": {
+					"$ref": "#/$defs/agentName"
+				},
+				"providerId": {
+					"$ref": "#/$defs/providerId"
+				},
+				"presentationId": {
+					"$ref": "#/$defs/presentationId"
+				},
+				"hostEpoch": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"hostTerminalId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"ttlMs": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 300000
+				}
+			}
+		},
+		"launchReserveResult": {
+			"type": "object",
+			"required": ["kind", "requestId", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "agent.launch.reserve.result"
+				},
+				"requestId": {
+					"$ref": "#/$defs/obapRequestId"
+				},
+				"result": {
+					"type": "object",
+					"required": ["outcome"],
+					"additionalProperties": false,
+					"properties": {
+						"outcome": {
+							"oneOf": [
+								{
+									"type": "object",
+									"required": ["kind", "reservation"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "reserved"
+										},
+										"reservation": {
+											"$ref": "#/$defs/launchReservation"
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind", "reason"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "rejected"
+										},
+										"reason": {
+											"enum": [
+												"name-in-use",
+												"presentation-busy",
+												"capacity-exceeded",
+												"binding-changed",
+												"reservation-not-found",
+												"candidate-unavailable",
+												"candidate-ambiguous",
+												"already-named",
+												"not-ready",
+												"read-denied",
+												"manage-denied"
+											]
+										}
+									}
+								},
+								{
+									"$ref": "#/$defs/unavailableOutcome"
+								}
+							]
+						}
+					}
+				}
+			}
+		},
+		"launchInspectRequest": {
+			"type": "object",
+			"required": ["kind", "requestId", "reservationId"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "agent.launch.inspect.request"
+				},
+				"requestId": {
+					"$ref": "#/$defs/obapRequestId"
+				},
+				"reservationId": {
+					"$ref": "#/$defs/obapRequestId"
+				}
+			}
+		},
+		"launchInspectResult": {
+			"type": "object",
+			"required": ["kind", "requestId", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "agent.launch.inspect.result"
+				},
+				"requestId": {
+					"$ref": "#/$defs/obapRequestId"
+				},
+				"result": {
+					"type": "object",
+					"required": ["outcome"],
+					"additionalProperties": false,
+					"properties": {
+						"outcome": {
+							"oneOf": [
+								{
+									"type": "object",
+									"required": ["kind", "reservation", "candidateSessionId"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "pending"
+										},
+										"reservation": {
+											"$ref": "#/$defs/launchReservation"
+										},
+										"candidateSessionId": {
+											"oneOf": [
+												{
+													"$ref": "#/$defs/sessionId"
+												},
+												{
+													"type": "null"
+												}
+											]
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind", "reason"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "rejected"
+										},
+										"reason": {
+											"enum": [
+												"name-in-use",
+												"presentation-busy",
+												"capacity-exceeded",
+												"binding-changed",
+												"reservation-not-found",
+												"candidate-unavailable",
+												"candidate-ambiguous",
+												"already-named",
+												"not-ready",
+												"read-denied",
+												"manage-denied"
+											]
+										}
+									}
+								},
+								{
+									"$ref": "#/$defs/unavailableOutcome"
+								}
+							]
+						}
+					}
+				}
+			}
+		},
+		"launchCompleteRequest": {
+			"type": "object",
+			"required": ["kind", "requestId", "reservationId", "sessionId"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "agent.launch.complete.request"
+				},
+				"requestId": {
+					"$ref": "#/$defs/obapRequestId"
+				},
+				"reservationId": {
+					"$ref": "#/$defs/obapRequestId"
+				},
+				"sessionId": {
+					"$ref": "#/$defs/sessionId"
+				}
+			}
+		},
+		"launchCompleteResult": {
+			"type": "object",
+			"required": ["kind", "requestId", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "agent.launch.complete.result"
+				},
+				"requestId": {
+					"$ref": "#/$defs/obapRequestId"
+				},
+				"result": {
+					"type": "object",
+					"required": ["outcome"],
+					"additionalProperties": false,
+					"properties": {
+						"outcome": {
+							"oneOf": [
+								{
+									"type": "object",
+									"required": ["kind", "reservationId", "name", "sessionId"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "completed"
+										},
+										"reservationId": {
+											"$ref": "#/$defs/obapRequestId"
+										},
+										"name": {
+											"$ref": "#/$defs/agentName"
+										},
+										"sessionId": {
+											"$ref": "#/$defs/sessionId"
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind", "reason"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "rejected"
+										},
+										"reason": {
+											"enum": [
+												"name-in-use",
+												"presentation-busy",
+												"capacity-exceeded",
+												"binding-changed",
+												"reservation-not-found",
+												"candidate-unavailable",
+												"candidate-ambiguous",
+												"already-named",
+												"not-ready",
+												"read-denied",
+												"manage-denied"
+											]
+										}
+									}
+								},
+								{
+									"$ref": "#/$defs/unavailableOutcome"
+								}
+							]
+						}
+					}
+				}
+			}
+		},
+		"launchCancelRequest": {
+			"type": "object",
+			"required": ["kind", "requestId", "reservationId"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "agent.launch.cancel.request"
+				},
+				"requestId": {
+					"$ref": "#/$defs/obapRequestId"
+				},
+				"reservationId": {
+					"$ref": "#/$defs/obapRequestId"
+				}
+			}
+		},
+		"launchCancelResult": {
+			"type": "object",
+			"required": ["kind", "requestId", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "agent.launch.cancel.result"
+				},
+				"requestId": {
+					"$ref": "#/$defs/obapRequestId"
+				},
+				"result": {
+					"type": "object",
+					"required": ["outcome"],
+					"additionalProperties": false,
+					"properties": {
+						"outcome": {
+							"oneOf": [
+								{
+									"type": "object",
+									"required": ["kind", "reservationId"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "released"
+										},
+										"reservationId": {
+											"$ref": "#/$defs/obapRequestId"
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind", "reason"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "rejected"
+										},
+										"reason": {
+											"enum": [
+												"name-in-use",
+												"presentation-busy",
+												"capacity-exceeded",
+												"binding-changed",
+												"reservation-not-found",
+												"candidate-unavailable",
+												"candidate-ambiguous",
+												"already-named",
+												"not-ready",
+												"read-denied",
+												"manage-denied"
 											]
 										}
 									}

@@ -13,6 +13,7 @@
 //! observe `runtime-unavailable` rather than fabricated state.
 
 mod cursor;
+mod launch;
 mod map;
 mod names;
 #[cfg(test)]
@@ -201,6 +202,20 @@ pub(crate) struct AgentState {
 }
 
 impl AgentState {
+    fn launch_now_ms(&self, now: Instant) -> u64 {
+        u64::try_from(now.saturating_duration_since(self.clock_origin).as_millis())
+            .unwrap_or(u64::MAX)
+    }
+
+    fn reconcile_launch_names(&mut self, now: Instant) {
+        let milliseconds = self.launch_now_ms(now);
+        self.names.reconcile_launches(
+            self.native.bindings(),
+            milliseconds,
+            self.runtime.is_disposed(),
+        );
+    }
+
     /// Opens the cell with a genuine empty canonical runtime. The
     /// translator receives the observation socket path at construction —
     /// `None` when the owning site has no managed endpoint, and also when
@@ -334,7 +349,9 @@ impl AgentService {
     ) -> Result<R, AgentFoldUnavailable> {
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let mut state = self.state.lock().map_err(|_| AgentFoldUnavailable)?;
+            state.reconcile_launch_names(Instant::now());
             let result = f(&mut state);
+            state.reconcile_launch_names(Instant::now());
             let AgentState { runtime, names, .. } = &mut *state;
             names.reconcile(runtime);
             Ok(result)
@@ -750,6 +767,7 @@ impl AgentService {
     /// `join.settle`.
     pub(crate) fn tick(&self, now: Instant) -> Result<(), AgentFoldUnavailable> {
         self.with_state(|state| {
+            state.reconcile_launch_names(now);
             let now_ms = Self::instant_to_now_ms(state, now);
             let AgentState {
                 runtime, ingress, ..
@@ -764,11 +782,20 @@ impl AgentService {
     /// has scheduled anything; `Err` only on fold unavailability.
     pub(crate) fn next_deadline(&self) -> Result<Option<Instant>, AgentFoldUnavailable> {
         self.with_state(|state| {
-            state.ingress.next_settlement_at().and_then(|fire_at| {
+            let observation = state.ingress.next_settlement_at().and_then(|fire_at| {
                 state
                     .clock_origin
                     .checked_add(Duration::from_secs_f64(fire_at / 1000.0))
-            })
+            });
+            let launch = state
+                .names
+                .next_launch_deadline_ms()
+                .and_then(|milliseconds| {
+                    state
+                        .clock_origin
+                        .checked_add(Duration::from_millis(milliseconds))
+                });
+            observation.into_iter().chain(launch).min()
         })
     }
 

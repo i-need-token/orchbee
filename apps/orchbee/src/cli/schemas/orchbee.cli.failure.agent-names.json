@@ -10,7 +10,7 @@
 			"const": "orchbee.cli.failure.agent-names"
 		},
 		"version": {
-			"enum": [1, 2]
+			"enum": [1, 2, 3]
 		},
 		"failure": {
 			"type": "object",
@@ -51,7 +51,8 @@
 								"name-not-found",
 								"capacity-exceeded",
 								"reply-not-confirmed",
-								"ambiguous-target"
+								"ambiguous-target",
+								"launch-pending"
 							]
 						},
 						"operation": {
@@ -122,6 +123,32 @@
 									"reason": {
 										"not": {
 											"const": "ambiguous-target"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"enum": [1, 2]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"details": {
+								"properties": {
+									"reason": {
+										"not": {
+											"const": "launch-pending"
 										}
 									}
 								}

@@ -2,6 +2,8 @@
 #![cfg(windows)]
 #[path = "support/windows_agent_peer.rs"]
 mod peer_support;
+#[path = "cli_windows_agent_prompt/start.rs"]
+mod start;
 use orchbee_client_server_protocol::*;
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use peer_support::*;

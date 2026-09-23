@@ -1,5 +1,7 @@
 pub(crate) mod agent_names;
 mod agent_prompt;
+mod agent_start;
+pub(crate) use agent_start::run as run_agent_start;
 mod caller_context;
 mod completion;
 pub(crate) mod config;

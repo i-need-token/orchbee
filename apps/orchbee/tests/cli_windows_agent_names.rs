@@ -23,7 +23,7 @@ fn names_commands_exchange_correlated_typed_results_on_windows() {
         (
             &["agent", "names"],
             "names.list",
-            json!({"kind":"listed","bindings":[{"name":"alpha","sessionId":"s1","lifecycle":"live"}]}),
+            json!({"kind":"listed","pending":[],"bindings":[{"name":"alpha","sessionId":"s1","lifecycle":"live"}]}),
             include_str!("../src/cli/schemas/orchbee.agent.names.json"),
         ),
         (
@@ -102,7 +102,7 @@ fn lost_and_mismatched_mutation_replies_are_unknown_without_replay() {
                 panic!("names request");
             };
             if wrong_reply {
-                let result = AgentResult::Names(serde_json::from_value(json!({"kind":"agent.session.names.list.result","requestId":request.request_id(),"result":{"outcome":{"kind":"listed","bindings":[]}}})).unwrap());
+                let result = AgentResult::Names(serde_json::from_value(json!({"kind":"agent.session.names.list.result","requestId":request.request_id(),"result":{"outcome":{"kind":"listed","pending":[],"bindings":[]}}})).unwrap());
                 write_agent_result(&mut stream, &result).unwrap();
                 let mut byte = [0];
                 assert_eq!(stream.read(&mut byte).unwrap(), 0);

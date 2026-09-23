@@ -134,7 +134,11 @@ pub(crate) const PROVIDERS: &[Provider] = &[
         node_applicable: false,
         home_target: ".config/opencode/plugins/orchbee-agent-observation.mjs",
         bootstrap: Some(BootstrapShape {
-            suffix: "/opencode/orchbee-agent-observation.mjs",
+            suffix: if cfg!(windows) {
+                "/bundle/opencode/orchbee-agent-observation.mjs"
+            } else {
+                "/opencode/orchbee-agent-observation.mjs"
+            },
             body: OPENCODE_BODY,
         }),
         manual_command: None,
@@ -146,7 +150,11 @@ pub(crate) const PROVIDERS: &[Provider] = &[
         node_applicable: false,
         home_target: ".pi/agent/extensions/orchbee-agent-observation.cjs",
         bootstrap: Some(BootstrapShape {
-            suffix: "/pi/orchbee-agent-observation.cjs",
+            suffix: if cfg!(windows) {
+                "/bundle/pi/orchbee-agent-observation.mjs"
+            } else {
+                "/pi/orchbee-agent-observation.cjs"
+            },
             body: CJS_BODY,
         }),
         manual_command: None,
@@ -158,7 +166,11 @@ pub(crate) const PROVIDERS: &[Provider] = &[
         node_applicable: false,
         home_target: ".omp/agent/extensions/orchbee-agent-observation.cjs",
         bootstrap: Some(BootstrapShape {
-            suffix: "/omp/orchbee-agent-observation.cjs",
+            suffix: if cfg!(windows) {
+                "/bundle/omp/orchbee-agent-observation.mjs"
+            } else {
+                "/omp/orchbee-agent-observation.cjs"
+            },
             body: CJS_BODY,
         }),
         manual_command: None,

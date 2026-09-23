@@ -65,10 +65,11 @@ fn render(result: &AgentNamesResult, format: OutputFormat, locale: Locale) -> Ou
             locale,
         ),
         Ok((schema, outcome, text)) => {
-            let version = if matches!(result, AgentNamesResult::Resolve { result, .. }
-            if matches!(result.outcome, AgentResolveOutcome::Resolved {
-                resolved_by: orchbee_agent_observation_protocol::AgentResolvedBy::Presentation, ..
-            })) {
+            let version = if matches!(result, AgentNamesResult::NamesList { .. })
+                || matches!(result, AgentNamesResult::Resolve { result, .. }
+                if matches!(result.outcome, AgentResolveOutcome::Resolved {
+                    resolved_by: orchbee_agent_observation_protocol::AgentResolvedBy::Presentation, ..
+                })) {
                 2
             } else {
                 1
@@ -100,7 +101,11 @@ pub(super) fn rejection(
     reason: Value,
     conflict: Option<&orchbee_agent_observation_protocol::AgentSessionId>,
 ) -> Failure {
-    let version = if reason == "ambiguous-target" { 2 } else { 1 };
+    let version = match reason.as_str() {
+        Some("launch-pending") => 3,
+        Some("ambiguous-target") => 2,
+        _ => 1,
+    };
     let kind = match reason.as_str() {
         Some("ambiguous-target") => FailureKind::Ambiguous,
         Some("read-denied" | "manage-denied") => FailureKind::Denied,
@@ -139,7 +144,7 @@ fn project(
             AgentResolveOutcome::Unavailable { .. } => Err(unavailable()),
         },
         AgentNamesResult::NamesList { result, .. } => match &result.outcome {
-            AgentNamesListOutcome::Listed { bindings } => {
+            AgentNamesListOutcome::Listed { bindings, pending } => {
                 let mut text = match locale {
                     Locale::EnUs => "NAME\tSESSION\n",
                     Locale::ZhCn => "名称\t会话\n",
@@ -147,6 +152,18 @@ fn project(
                 .to_owned();
                 for binding in bindings {
                     text.push_str(&format!("{}\t{}\n", binding.name, binding.session_id));
+                }
+                if !pending.is_empty() {
+                    text.push_str(locale.cli_agent_pending_names_header());
+                    for launch in pending {
+                        text.push_str(&format!(
+                            "{}\t{}\t{}\t{}\n",
+                            launch.name,
+                            launch.provider_id,
+                            launch.remaining_ms.value(),
+                            launch.reservation_id
+                        ));
+                    }
                 }
                 Ok(("orchbee.agent.names", json!(result.outcome), text))
             }
@@ -190,6 +207,75 @@ mod tests {
     use super::*;
 
     #[test]
+    fn launch_protocol_and_pending_names_match_published_schemas() {
+        use orchbee_agent_observation_protocol::{parse_agent_request, parse_agent_result};
+        let wire = jsonschema::validator_for(
+            &serde_json::from_str(include_str!(
+                "../../../../schemas/agent-observation/v1/agent-observation.schema.json"
+            ))
+            .unwrap(),
+        )
+        .unwrap();
+        let id = "11111111111111111111111111111111";
+        let reservation = json!({"reservationId":id,"name":"alpha","providerId":"codex","binding":{"presentationId":id,"generation":id,"hostEpoch":id,"hostTerminalId":id},"remainingMs":10000,"settleRemainingMs":3000});
+        for (operation, fields, outcome) in [
+            (
+                "reserve",
+                json!({"name":"alpha","providerId":"codex","presentationId":id,"hostEpoch":id,"hostTerminalId":id,"ttlMs":10000}),
+                json!({"kind":"reserved","reservation":reservation}),
+            ),
+            (
+                "inspect",
+                json!({"reservationId":id}),
+                json!({"kind":"pending","reservation":reservation,"candidateSessionId":null}),
+            ),
+            (
+                "complete",
+                json!({"reservationId":id,"sessionId":"s1"}),
+                json!({"kind":"completed","reservationId":id,"name":"alpha","sessionId":"s1"}),
+            ),
+            (
+                "cancel",
+                json!({"reservationId":id}),
+                json!({"kind":"released","reservationId":id}),
+            ),
+        ] {
+            let mut request = fields;
+            request["kind"] = json!(format!("agent.launch.{operation}.request"));
+            request["requestId"] = json!(id);
+            assert!(wire.is_valid(&request), "{request}");
+            assert!(parse_agent_request(&serde_json::to_vec(&request).unwrap()).is_ok());
+            let result = json!({"kind":format!("agent.launch.{operation}.result"),"requestId":id,"result":{"outcome":outcome}});
+            assert!(wire.is_valid(&result), "{result}");
+            assert!(parse_agent_result(&serde_json::to_vec(&result).unwrap()).is_ok());
+            let mut invalid = request;
+            invalid["surprise"] = json!(true);
+            assert!(!wire.is_valid(&invalid));
+            assert!(parse_agent_request(&serde_json::to_vec(&invalid).unwrap()).is_err());
+        }
+        let listed = json!({"kind":"agent.session.names.list.result","requestId":id,"result":{"outcome":{"kind":"listed","bindings":[],"pending":[reservation]}}});
+        assert!(wire.is_valid(&listed));
+        assert!(parse_agent_result(&serde_json::to_vec(&listed).unwrap()).is_ok());
+        let result = serde_json::from_value(listed).unwrap();
+        let schema = jsonschema::validator_for(
+            &serde_json::from_str(include_str!("schemas/orchbee.agent.names.json")).unwrap(),
+        )
+        .unwrap();
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let answer = render(&result, OutputFormat::Json, locale);
+            let document: Value = serde_json::from_slice(&answer.stdout).unwrap();
+            assert!(schema.is_valid(&document), "{document}");
+            assert_eq!(document["version"], 2);
+            let answer = render(&result, OutputFormat::Text, locale);
+            assert!(
+                String::from_utf8(answer.stdout)
+                    .unwrap()
+                    .contains("alpha\tcodex\t10000")
+            );
+        }
+    }
+
+    #[test]
     fn semantic_refusals_preserve_the_correlated_owner_and_validate_the_failure_schema() {
         let validator = jsonschema::validator_for(
             &serde_json::from_str(include_str!("schemas/orchbee.cli.failure.agent-names.json"))
@@ -197,6 +283,11 @@ mod tests {
         )
         .unwrap();
         for (operation, outcome, kind) in [
+            (
+                "resolve",
+                json!({"kind":"rejected","reason":"launch-pending"}),
+                "rejected",
+            ),
             (
                 "name.assign",
                 json!({"kind":"rejected","reason":"name-in-use","conflictSessionId":"incumbent"}),

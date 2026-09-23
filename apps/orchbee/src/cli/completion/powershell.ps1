@@ -106,7 +106,7 @@ __ORCHBEE_GRAMMAR__
                     if ($flag -ceq '--clear' -and ($operands -gt 1 -or ($operands -gt 0 -and ($seen -ccontains '--name' -or $seen -ccontains '--session' -or $seen -ccontains '--panel')))) { continue }
                 }
                 if ($seen -ccontains $flag -and $grammar.repeatable -cnotcontains $flag -and -not ($flag -ceq '--provider' -and ($command.words -join ':') -ceq 'agent:doctor')) { continue }
-                if ($flag -ceq '--arg' -and $seen -cnotcontains '--exec') { continue }
+                if ($flag -ceq '--arg' -and $seen -cnotcontains '--exec' -and ($command.words -join ':') -cne 'agent:start') { continue }
                 $conflict = $false
                 foreach ($group in @(@('--timeout', '--forever'), @('--session', '--name', '--panel'), @('--panel', '--current'), @('--workspace', '--standalone'), @('--exec', '--profile'), @('--arg', '--profile'), @('--into-tab', '--new-tab'), @('--target-panel', '--into-tab'), @('--target-panel', '--new-tab'), @('--text', '--file', '--stdin', '--key'), @('--key', '--enter'), @('--key', '--paste'), @('--text', '--paste'), @('--match', '--regex'))) {
                     if ($group -ccontains $flag -and @($group | Where-Object { $_ -cne $flag -and $seen -ccontains $_ }).Count -gt 0) { $conflict = $true }
@@ -130,6 +130,7 @@ __ORCHBEE_GRAMMAR__
                 '--key' { $grammar.keys }
                 '--until' { $grammar.until }
                 '--provider' { $grammar.providers }
+                '--kind' { $grammar.agentKinds }
             }
             foreach ($value in $enum) { $candidates.Add($joinedPrefix + $value) }
         } else {

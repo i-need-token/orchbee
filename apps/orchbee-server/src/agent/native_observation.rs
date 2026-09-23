@@ -211,6 +211,12 @@ pub(crate) struct NativeObservation {
 }
 
 impl NativeObservation {
+    /// Immutable view of the sole committed native binding mirror. Names use
+    /// this only inside the same AgentState fold to fence launch reservations.
+    pub(crate) fn bindings(&self) -> &[Binding] {
+        &self.bindings
+    }
+
     pub(crate) fn new() -> Self {
         Self {
             carrier: None,

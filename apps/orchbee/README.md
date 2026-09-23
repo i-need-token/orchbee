@@ -24,6 +24,10 @@ sends semantic keys through the existing terminal input receipt. Both also accep
 unblocked preflight. It observes activity before waiting for a condition and retains the
 input receipt on later timeout or cancellation; it does not promise turn causality.
 
+`agent start alpha --kind codex --panel <id>` starts an Agent in an idle Windows
+terminal and binds its name only after process and canonical readiness checks.
+See [Windows Agent startup](docs/windows-agent-start.md) for setup, limits and recovery.
+
 ## Command surface
 
 Bare and explicit `tui` invocation first admit the inherited interactive terminal and valid
@@ -174,7 +178,7 @@ Node and capsule integrity without starting a Site or changing provider setup. I
 document reports endpoint delivery as uninspected; installed configuration is not proof of
 a working Agent connection.
 
-Windows `agent integration list/explain/enable/disable --provider codex` manages the local Codex observation plugin. See the [Windows integration contract](docs/windows-agent-integrations.md). `site diagnose` remains unavailable. Capsule 0.4.1 adds Windows Codex hooks using the native observation pipe and console correlation.
+Windows `agent integration list/explain/enable/disable --provider <id>` manages Codex, OpenCode, Pi and OMP. See the [Windows integration contract](docs/windows-agent-integrations.md). `site diagnose` remains unavailable. Capsule 0.4.1 supplies Codex hooks and JavaScript modules using the native observation pipe and console correlation.
 Windows x64 cohorts include the pinned ConPTY runtime needed to preserve that correlation.
 Agent start remains pending; other providers retain their
 existing platform limits. `terminal send --stdin` accepts redirected regular

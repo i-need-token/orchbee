@@ -32,6 +32,14 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.agent.start",
+        include_str!("schemas/orchbee.agent.start.json"),
+    ),
+    (
+        "orchbee.cli.failure.agent-start",
+        include_str!("schemas/orchbee.cli.failure.agent-start.json"),
+    ),
+    (
         "orchbee.cli.failure.agent-runtime",
         include_str!("schemas/orchbee.cli.failure.agent-runtime.json"),
     ),
@@ -295,9 +303,9 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog envelope v16: registering new schema ids changes the closed
+        // Catalog envelope v17: registering new schema ids changes the closed
         // dictionary's shape; business document versions stay untouched.
-        "version": 16,
+        "version": 17,
         "source": embedded_source(),
         "result": result,
     });

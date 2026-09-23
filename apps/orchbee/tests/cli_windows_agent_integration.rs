@@ -84,7 +84,10 @@ impl Fixture {
             .unwrap()
     }
     fn document(&self, verb: &str, code: i32) -> Value {
-        let output = self.run(verb, "codex", &self.config_home());
+        self.provider_document(verb, "codex", code)
+    }
+    fn provider_document(&self, verb: &str, provider: &str, code: i32) -> Value {
+        let output = self.run(verb, provider, &self.config_home());
         assert_eq!(
             output.status.code(),
             Some(code),
@@ -105,6 +108,108 @@ impl Fixture {
     fn calls(&self) -> String {
         fs::read_to_string(self.config_home().join("calls.jsonl")).unwrap_or_default()
     }
+}
+
+#[test]
+fn javascript_modules_load_and_deliver_ordered_windows_observations() {
+    use std::os::windows::process::CommandExt;
+    let fixture = Fixture::new();
+    let node = std::env::split_paths(&std::env::var_os("PATH").unwrap())
+        .map(|path| path.join("node.exe"))
+        .find(|path| path.is_file())
+        .unwrap();
+    for (provider, relative) in [
+        (
+            "opencode",
+            ".config/opencode/plugins/orchbee-agent-observation.mjs",
+        ),
+        ("pi", ".pi/agent/extensions/orchbee-agent-observation.cjs"),
+        ("omp", ".omp/agent/extensions/orchbee-agent-observation.cjs"),
+    ] {
+        // Availability is a PATH fact; guarded module onboarding must not
+        // execute this provider, even when its command would fail.
+        fs::write(
+            fixture.0.join(format!("bin/{provider}.cmd")),
+            b"@exit /b 99\r\n",
+        )
+        .unwrap();
+        let target = fixture.home().join(relative);
+        let plan = fixture.provider_document("explain", provider, 0);
+        assert_eq!(plan["result"]["managementMode"], "managed-local");
+        assert!(!target.exists());
+        fixture.provider_document("enable", provider, 0);
+        let original = fs::read(&target).unwrap();
+        assert_eq!(
+            fixture.provider_document("list", provider, 0)["result"]["integrations"][0]["state"],
+            "enabled"
+        );
+        fixture.provider_document("enable", provider, 0);
+        assert_eq!(fs::read(&target).unwrap(), original);
+        let output = Command::new(&node)
+            .arg(
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("tests/fixtures/windows-integration-module.mjs"),
+            )
+            .arg(provider)
+            .arg(&target)
+            .env("USERPROFILE", fixture.home())
+            .stdin(Stdio::null())
+            .creation_flags(0x0800_0000)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}: {}",
+            provider,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let events: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(events["events"], 4);
+        assert_eq!(events["provider"], provider);
+        let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+            .args([
+                "agent",
+                "doctor",
+                "--provider",
+                provider,
+                "--format",
+                "json",
+            ])
+            .env("USERPROFILE", fixture.home())
+            .env(
+                "PATH",
+                std::env::join_paths([fixture.0.join("bin"), node.parent().unwrap().to_path_buf()])
+                    .unwrap(),
+            )
+            .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET_V3")
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        let inspection: Value = serde_json::from_slice(&doctor.stdout).unwrap();
+        assert_eq!(
+            inspection["result"]["providers"][0]["hook"]["state"], "present",
+            "{inspection}"
+        );
+
+        let changed = [original.as_slice(), b"\n// User edit: preserve it\n"].concat();
+        fs::write(&target, &changed).unwrap();
+        assert_eq!(
+            fixture.provider_document("explain", provider, 0)["result"]["state"],
+            "conflict"
+        );
+        fixture.provider_document("enable", provider, 3);
+        fixture.provider_document("disable", provider, 3);
+        assert_eq!(fs::read(&target).unwrap(), changed);
+        fs::write(&target, &original).unwrap();
+        fixture.provider_document("disable", provider, 0);
+        assert!(!target.exists());
+        fixture.provider_document("disable", provider, 0);
+        assert_eq!(
+            fixture.provider_document("list", provider, 0)["result"]["integrations"][0]["state"],
+            "not-installed"
+        );
+    }
+    assert!(fixture.calls().is_empty());
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
