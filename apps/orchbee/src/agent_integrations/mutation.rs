@@ -25,13 +25,13 @@ use super::providers::{self, ProviderContext};
 
 /// The wall the frontier consults — tests inject a clock skew so deadline
 /// and reserve math is exercised without real sleeps.
-#[cfg(not(test))]
+#[cfg(not(all(test, unix)))]
 #[inline]
 fn now() -> Instant {
     Instant::now()
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 #[inline]
 fn now() -> Instant {
     super::inject::now()
@@ -270,7 +270,7 @@ pub(crate) fn mutate(
             verdict: Verdict::Refused(Refusal::Deadline),
         };
     }
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     super::inject::boundary("preflight-inspect", Path::new(""));
     if cancelled(context) {
         return MutationReport {
@@ -286,7 +286,9 @@ pub(crate) fn mutate(
     }
     // `manual-only` gates before any provider read and before the capsule
     // effect — the mode is a spec property, not an inspected value.
-    if context.management_mode == ManagementMode::ManualOnly {
+    if context.management_mode == ManagementMode::ManualOnly
+        || cfg!(windows) && id != IntegrationId::Codex
+    {
         return MutationReport {
             integration_id: id,
             direction,
@@ -524,7 +526,7 @@ pub(crate) fn mutate(
             // A filesystem vector's post-effect observation is a fresh
             // fs scan — no provider commands — while the budget lasts.
             if now() < context.deadline {
-                #[cfg(test)]
+                #[cfg(all(test, unix))]
                 super::inject::boundary("reinspect", Path::new(""));
                 let item = providers::inspect_provider(id, context, legacy_roots);
                 let verdict = if goal_observed(direction, item.state) {
@@ -590,7 +592,7 @@ pub(crate) fn mutate(
     let reserve_deadline_ok = now() + SLOT * (reserve as u32) < context.deadline
         && attempt != Attempt::Failed(FailureCode::TimedOut);
     let (observed, provenance) = if reserve_deadline_ok {
-        #[cfg(test)]
+        #[cfg(all(test, unix))]
         super::inject::boundary("reinspect", Path::new(""));
         let item = providers::inspect_provider(id, context, legacy_roots);
         let provenance = if item.state == State::Unknown
@@ -725,7 +727,7 @@ fn prepare_capsule(
             // retained stage cleans up only on that pass; a foreign or
             // invalid occupant keeps it named as residue and the verdict
             // is the post-effect conflict family.
-            #[cfg(test)]
+            #[cfg(all(test, unix))]
             super::inject::boundary("capsule-isvalid-existing", context.capsule_root);
             if capsule::is_ready(context.capsule_root, Some(source)) {
                 // The retained stage drops from `residuals` only on an
@@ -783,13 +785,13 @@ pub(crate) fn publish_capsule(source: &Path, target: &Path) -> PublishResult {
         if files::copy_tree(source, &staged_root).is_err() {
             return StepOutcome::Failed;
         }
-        #[cfg(test)]
+        #[cfg(all(test, unix))]
         super::inject::boundary("capsule-verify", &staged_root);
         if capsule::validate(&staged_root) != CapsuleValidity::Ready {
             verify_failed = true;
             return StepOutcome::Failed;
         }
-        #[cfg(test)]
+        #[cfg(all(test, unix))]
         super::inject::boundary("capsule-rename", target);
         match files::publish_no_replace(&staged_root, target) {
             FsStep::Done => StepOutcome::Completed,
@@ -857,7 +859,7 @@ fn run_step(
     if cancelled(context) {
         return Attempt::Cancelled;
     }
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     super::inject::boundary("provider-command", Path::new(""));
     let argv_owned: Vec<String> = argv.iter().map(|arg| (*arg).to_owned()).collect();
     // A spawned provider command may have mutated state before any
@@ -1548,7 +1550,7 @@ fn guarded_enable(
         &entry_path,
     );
     if !staged {
-        #[cfg(test)]
+        #[cfg(all(test, unix))]
         super::inject::boundary("cleanup-stage", &container);
         let _ = files::remove_owned(&container, true);
         return Attempt::Failed(FailureCode::OperationFailed);
@@ -1558,7 +1560,7 @@ fn guarded_enable(
     // re-verify inside `stage_entry`). A mismatch is verification-failed —
     // undetermined — and the container stays named residue.
     if spec.kind != BootstrapKind::ExtensionDirectory {
-        #[cfg(test)]
+        #[cfg(all(test, unix))]
         super::inject::boundary("digest-verify", &entry_path);
         let expected = inspect::module_bootstrap(spec.kind, id, &source_path);
         let intact = std::fs::read(&entry_path)
@@ -1584,7 +1586,7 @@ fn guarded_enable(
         });
     }
     // Canonical re-inspection gate: the target must not have moved.
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     super::inject::boundary("reinspect-target", &target);
     let current_state = inspect::inspect_guarded_target(
         &target,
@@ -1595,7 +1597,7 @@ fn guarded_enable(
         options,
     );
     if current_state != initial_state {
-        #[cfg(test)]
+        #[cfg(all(test, unix))]
         super::inject::boundary("cleanup-stage", &container);
         if files::remove_owned(&container, true) != FsStep::Done {
             residuals.push(container);
@@ -1624,7 +1626,7 @@ fn guarded_enable(
                 backup_digest = backup.as_ref().and_then(|path| files::entry_digest(path));
             }
             Err(step) => {
-                #[cfg(test)]
+                #[cfg(all(test, unix))]
                 super::inject::boundary("cleanup-stage", &container);
                 let _ = files::remove_owned(&container, true);
                 attempted.push(AttemptedStep {
@@ -1649,7 +1651,7 @@ fn guarded_enable(
             outcome: StepOutcome::Completed,
         });
     }
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     super::inject::boundary("install", &target);
     let publish = files::publish_no_replace(&entry_path, &target);
     attempted.push(AttemptedStep {
@@ -1674,7 +1676,7 @@ fn guarded_enable(
                 return Attempt::Failed(FailureCode::TimedOut);
             }
             if let Some(backup_path) = backup {
-                #[cfg(test)]
+                #[cfg(all(test, unix))]
                 super::inject::boundary("restore", &target);
                 let restore = files::restore_backup(&backup_path, &target);
                 attempted.push(AttemptedStep {
@@ -1688,7 +1690,7 @@ fn guarded_enable(
                     residuals.push(backup_path);
                 }
             }
-            #[cfg(test)]
+            #[cfg(all(test, unix))]
             super::inject::boundary("cleanup-stage", &container);
             if files::remove_owned(&container, true) != FsStep::Done {
                 residuals.push(container);
@@ -1701,7 +1703,7 @@ fn guarded_enable(
         }
     }
     // Post-publish verification — the published entry must verify as ours.
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     super::inject::boundary("post-verify", &target);
     let verified = inspect::inspect_guarded_target(
         &target,
@@ -1723,7 +1725,7 @@ fn guarded_enable(
         // Digest-guarded removal: the backup drops only while it still
         // carries the bytes captured at move-aside time. A foreign swap
         // keeps the occupant and reports conflict — never clobbered.
-        #[cfg(test)]
+        #[cfg(all(test, unix))]
         super::inject::boundary("backup-remove", &backup_path);
         let still_ours = files::entry_digest(&backup_path)
             .zip(backup_digest.as_ref())
@@ -1765,7 +1767,7 @@ fn guarded_enable(
     }
     // Stage cleanup is the last step: earlier failures leave it as named
     // residue rather than sweeping under an unverified or unrestored state.
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     super::inject::boundary("cleanup-stage", &container);
     if files::remove_owned(&container, true) != FsStep::Done {
         residuals.push(container);
@@ -1834,7 +1836,7 @@ fn guarded_disable(
 ) -> Attempt {
     let source_path = context.capsule_root.join(spec.source_relative);
     let target = context.home.join(spec.target_relative);
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     super::inject::boundary("remove-verify-owned", &target);
     let state = inspect::inspect_guarded_target(
         &target,
@@ -1854,7 +1856,7 @@ fn guarded_disable(
     // extension directory removes through the no-follow walk.
     let is_directory =
         spec.kind == BootstrapKind::ExtensionDirectory && state != TargetState::Legacy;
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     super::inject::boundary(
         if is_directory {
             "remove-dir-walk"

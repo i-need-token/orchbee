@@ -30,7 +30,7 @@ $created.result
 & $cli workspace close $created.result.workspaceId --confirm --format json
 ```
 
-使用终端前检查 `result.terminal.outcome`：`started` 确认启动；pending、failed、unavailable 或 unknown 需要根据返回 ID 查询资源。退出 TUI 不会关闭 Workspace。命令自动创建首个终端，并保持客户端焦点。Windows Agent integration 安装及 Site diagnose 尚不属于此流程。下方编号的 POSIX 示例描述已有 Linux 路径。
+使用终端前检查 `result.terminal.outcome`：`started` 确认启动；pending、failed、unavailable 或 unknown 需要根据返回 ID 查询资源。退出 TUI 不会关闭 Workspace。命令自动创建首个终端，并保持客户端焦点。Windows Codex 接入使用 `agent integration enable --provider codex`；Site diagnose 仍不属于此流程。下方编号的 POSIX 示例描述已有 Linux 路径。
 
 ## Windows Agent 诊断
 

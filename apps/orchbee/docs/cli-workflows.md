@@ -31,7 +31,7 @@ $created.result
 & $cli workspace close $created.result.workspaceId --confirm --format json
 ```
 
-Check `result.terminal.outcome` before using the terminal: `started` confirms launch, while pending, failed, unavailable or unknown results require inspection of the returned resources. Closing the TUI does not close the Workspace. The command creates the first terminal automatically and leaves client focus unchanged. Windows Agent integration installation and Site diagnose remain outside this workflow. The numbered POSIX examples below describe the existing Linux path.
+Check `result.terminal.outcome` before using the terminal: `started` confirms launch, while pending, failed, unavailable or unknown results require inspection of the returned resources. Closing the TUI does not close the Workspace. The command creates the first terminal automatically and leaves client focus unchanged. Windows Codex onboarding uses `agent integration enable --provider codex`; Site diagnose remains outside this workflow. The numbered POSIX examples below describe the existing Linux path.
 
 ## Windows Agent diagnostics
 

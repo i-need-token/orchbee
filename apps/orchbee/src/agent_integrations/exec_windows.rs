@@ -1,0 +1,163 @@
+//! Windows provider commands: structured argv, suspended Job assignment,
+//! nonblocking bounded output, and cooperative whole-tree cancellation.
+use std::{
+    ffi::OsStr,
+    io::{self, Read},
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+    thread,
+    time::{Duration, Instant},
+};
+
+use orchbee_local_ipc::ChildOutputReader;
+use process_wrap::std::{ChildWrapper, CommandWrap, CreationFlags, JobObject};
+use windows::Win32::System::Threading::CREATE_NO_WINDOW;
+
+pub(crate) const SLOT: Duration = Duration::from_millis(3_600);
+const RUN: Duration = Duration::from_millis(3_000);
+const POLL: Duration = Duration::from_millis(10);
+const OUTPUT_LIMIT: usize = 256 * 1024;
+
+#[derive(Debug)]
+pub(crate) enum CommandResult {
+    Completed { stdout: Vec<u8> },
+    Failed,
+    OutputTooLarge,
+    TimedOut,
+    Leaked,
+    Cancelled,
+}
+
+pub(crate) fn resolve_executable(name: &str, path_env: Option<&OsStr>) -> Option<PathBuf> {
+    if name.is_empty()
+        || name.len() > 32
+        || !name.bytes().enumerate().all(|(index, byte)| {
+            byte.is_ascii_lowercase() || index > 0 && (byte.is_ascii_digit() || byte == b'-')
+        })
+    {
+        return None;
+    }
+    for directory in std::env::split_paths(path_env?).take(256) {
+        if !super::files::path_admitted(&directory) {
+            continue;
+        }
+        for extension in ["exe", "cmd", "bat"] {
+            let candidate = directory.join(format!("{name}.{extension}"));
+            if super::files::regular_file(&candidate).is_ok() {
+                return Some(candidate);
+            }
+        }
+    }
+    None
+}
+
+/// Drop is a final safety net; normal exits explicitly terminate before
+/// returning so a teardown error remains visible in the result.
+struct OwnedJob(Box<dyn ChildWrapper>);
+
+impl Drop for OwnedJob {
+    fn drop(&mut self) {
+        let _ = self.0.start_kill();
+    }
+}
+
+pub(crate) fn run_command(
+    executable: &Path,
+    arguments: &[String],
+    home: &Path,
+    deadline: Instant,
+    cancel: Option<&dyn crate::termination_signal::TerminationSource>,
+) -> CommandResult {
+    if cancel.is_some_and(|source| source.requested()) {
+        return CommandResult::Cancelled;
+    }
+    if Instant::now() >= deadline {
+        return CommandResult::TimedOut;
+    }
+    let (mut stdout, writer) = match ChildOutputReader::pipe() {
+        Ok(pipe) => pipe,
+        Err(_) => return CommandResult::Failed,
+    };
+    // Command owns Windows EXE/batch escaping. Never interpolate argv into
+    // a shell command or use raw_arg; batch arguments unsafe to encode fail.
+    let mut command = Command::new(executable);
+    command
+        .args(arguments)
+        .current_dir(home)
+        .env("NO_COLOR", "1")
+        .stdin(Stdio::null())
+        .stdout(writer)
+        .stderr(Stdio::null());
+    let mut wrapped = CommandWrap::from(command);
+    wrapped
+        .wrap(CreationFlags(CREATE_NO_WINDOW))
+        .wrap(JobObject);
+    let mut child = match wrapped.spawn() {
+        Ok(child) => OwnedJob(child),
+        Err(_) => return CommandResult::Failed,
+    };
+    // Release the parent's duplicate writer before waiting for EOF.
+    drop(wrapped);
+    let run_deadline = deadline.min(Instant::now() + RUN);
+    let mut output = Vec::new();
+    let result = loop {
+        match drain(&mut stdout, &mut output) {
+            Ok(()) => {}
+            Err(true) => break CommandResult::OutputTooLarge,
+            Err(false) => break CommandResult::Failed,
+        }
+        if cancel.is_some_and(|source| source.requested()) {
+            break CommandResult::Cancelled;
+        }
+        match child.0.try_wait() {
+            Ok(Some(status)) => {
+                break match drain(&mut stdout, &mut output) {
+                    Err(true) => CommandResult::OutputTooLarge,
+                    Err(false) => CommandResult::Failed,
+                    Ok(()) if status.success() => CommandResult::Completed { stdout: output },
+                    Ok(()) => CommandResult::Failed,
+                };
+            }
+            Ok(None) => {}
+            Err(_) => break CommandResult::Failed,
+        }
+        if Instant::now() >= run_deadline {
+            break CommandResult::TimedOut;
+        }
+        thread::sleep(POLL.min(run_deadline.saturating_duration_since(Instant::now())));
+    };
+    // Terminate the entire Job even if the leader already exited. Provider
+    // grandchildren retaining stdout must not survive a successful command.
+    if child.0.start_kill().is_err() {
+        return CommandResult::Leaked;
+    }
+    loop {
+        match child.0.try_wait() {
+            Ok(Some(_)) => return result,
+            Ok(None) if Instant::now() < deadline => {
+                thread::sleep(POLL.min(deadline.saturating_duration_since(Instant::now())))
+            }
+            _ => return CommandResult::Leaked,
+        }
+    }
+}
+
+fn drain(reader: &mut impl Read, output: &mut Vec<u8>) -> Result<(), bool> {
+    // A continuously writing provider cannot starve deadline/cancel polling.
+    for _ in 0..33 {
+        let mut bytes = [0; 8192];
+        match reader.read(&mut bytes) {
+            Ok(0) => return Ok(()),
+            Ok(count) => {
+                if output.len() + count > OUTPUT_LIMIT {
+                    return Err(true);
+                }
+                output.extend_from_slice(&bytes[..count]);
+            }
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(_) => return Err(false),
+        }
+    }
+    Ok(())
+}

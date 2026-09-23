@@ -1143,7 +1143,7 @@ impl Locale {
 
     /// `agent integration list` capsule summary line — the machine capsule
     /// state stays English; only the sentence frame is localized.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     pub(crate) fn cli_integration_capsule_line(self, summary: &str) -> String {
         match self {
             Self::EnUs => format!("Adapter capsule: {summary}\n"),
@@ -1153,7 +1153,7 @@ impl Locale {
 
     /// `agent integration explain` header — the fixed-field first lines.
     /// Vocabulary values stay in their canonical English spelling.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     pub(crate) fn cli_integration_explain_header(
         self,
         provider: &str,
@@ -1172,7 +1172,7 @@ impl Locale {
         }
     }
 
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     pub(crate) const fn cli_integration_plan_header(self) -> &'static str {
         match self {
             Self::EnUs => "Plan:\n",
@@ -1181,7 +1181,7 @@ impl Locale {
     }
 
     /// `explain` when every pre-effect gate refuses the vector.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     pub(crate) const fn cli_integration_plan_empty(self) -> &'static str {
         match self {
             Self::EnUs => "Plan: no steps — the observed state admits no enable vector.\n",
@@ -1190,7 +1190,7 @@ impl Locale {
     }
 
     /// Mutation completed with the goal state observed.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     pub(crate) fn cli_integration_completed(self, direction: &str, provider: &str) -> String {
         match (self, direction) {
             (Self::EnUs, "enable") => format!("Enabled {provider}.\n"),
@@ -1201,7 +1201,7 @@ impl Locale {
     }
 
     /// A pre-effect refusal — the canonical refusal code stays English.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     pub(crate) fn cli_integration_refused(
         self,
         direction: &str,
@@ -1225,7 +1225,7 @@ impl Locale {
     }
 
     /// A post-effect failure — the typed code and the re-inspected state.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     pub(crate) fn cli_integration_failed(
         self,
         direction: &str,
@@ -1251,7 +1251,7 @@ impl Locale {
     }
 
     /// The verdict could not be determined — re-inspection never ran.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     pub(crate) fn cli_integration_unknown(self, direction: &str, provider: &str) -> String {
         match (self, direction) {
             (Self::EnUs, "enable") => format!(
@@ -1271,7 +1271,7 @@ impl Locale {
 
     /// The termination signal fired — the invocation cancelled at a frontier
     /// boundary.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     pub(crate) fn cli_integration_cancelled(self, direction: &str, provider: &str) -> String {
         match (self, direction) {
             (Self::EnUs, "enable") => format!("Enable of {provider} cancelled.\n"),
@@ -1282,7 +1282,7 @@ impl Locale {
     }
 
     /// The `attempted` list's leading word in text output.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     pub(crate) const fn cli_integration_attempted_word(self) -> &'static str {
         match self {
             Self::EnUs => "attempted",
@@ -1292,7 +1292,7 @@ impl Locale {
 
     /// Header above the residue listing — retained paths are named, never
     /// silently swept.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     pub(crate) const fn cli_integration_residue_header(self) -> &'static str {
         match self {
             Self::EnUs => "Retained residue (not removed):\n",

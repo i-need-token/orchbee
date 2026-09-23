@@ -161,9 +161,9 @@ Node and capsule integrity without starting a Site or changing provider setup. I
 document reports endpoint delivery as uninspected; installed configuration is not proof of
 a working Agent connection.
 
-Current Windows limits: `site diagnose` and Agent integration installation are not implemented. Capsule 0.4.1 adds Windows Codex hooks using the native observation pipe and console correlation.
+Windows `agent integration list/explain/enable/disable --provider codex` manages the local Codex observation plugin. See the [Windows integration contract](docs/windows-agent-integrations.md). `site diagnose` remains unavailable. Capsule 0.4.1 adds Windows Codex hooks using the native observation pipe and console correlation.
 Windows x64 cohorts include the pinned ConPTY runtime needed to preserve that correlation.
-Managed installation and Agent start/prompt remain pending; other providers retain their
+Agent start/prompt remain pending; other providers retain their
 existing platform limits. `terminal send --stdin` accepts redirected regular
 files and Windows pipes; an owned hidden Windows PowerShell reader makes pipe input cancellable.
 It is resolved from the OS system directory, never from PATH, and is terminated/reaped on failure.

@@ -11,20 +11,22 @@
 //! `~/.orchbee/agent-observation-adapters/<payloadVersion>` only as an
 //! explicit `enable` effect.
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod capsule;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
+#[cfg_attr(windows, path = "agent_integrations/exec_windows.rs")]
 mod exec;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
+#[cfg_attr(windows, path = "agent_integrations/files_windows.rs")]
 mod files;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod inspect;
 /// The closed result vocabularies stay available on every platform — the
-/// parser names them — while every effectful owner stays unix-gated.
+/// parser names them — while platform adapters own filesystem and process effects.
 pub(crate) mod model;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod mutation;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod providers;
 
 /// Test-only fault-injection seam — primitive errno injection, named step
@@ -49,11 +51,14 @@ mod conformance64;
 #[cfg(all(test, target_os = "linux"))]
 mod exec_witness;
 
+#[cfg(all(test, windows))]
+mod windows_tests;
+
 pub(crate) use model::IntegrationId;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(crate) use model::{Issue, SnapshotItem, State};
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 mod imp {
     use std::{
         ffi::OsString,
@@ -143,8 +148,8 @@ mod imp {
                 path_env: self.path_env.as_deref(),
                 deadline: self.deadline,
                 cancel: self.cancel.as_deref(),
-                // This build's cohort manages all ten providers locally —
-                // non-unix management modes never reach this code path.
+                // The provider registry further restricts platform capabilities;
+                // Windows currently admits the Codex hook payload.
                 management_mode: ManagementMode::ManagedLocal,
             }
         }
@@ -214,6 +219,10 @@ mod imp {
     ) -> Result<IntegrationContext, ContextError> {
         let deadline = Instant::now() + TOTAL_BUDGET;
         let home = std::env::home_dir().ok_or(ContextError::NoHome)?;
+        #[cfg(windows)]
+        if !super::files::path_admitted(&home) {
+            return Err(ContextError::NoHome);
+        }
         let capsule_root = home
             .join(".orchbee")
             .join("agent-observation-adapters")
@@ -268,10 +277,20 @@ mod imp {
     }
 
     /// `agent integration list` — inspect all providers inside one deadline.
-    pub(crate) fn list(context: &IntegrationContext) -> (Vec<SnapshotItem>, CapsuleStatus) {
+    pub(crate) fn list(
+        context: &IntegrationContext,
+        provider: Option<IntegrationId>,
+    ) -> (Vec<SnapshotItem>, CapsuleStatus) {
         let provider_context = context.provider_context();
         (
-            providers::snapshot(&provider_context, &context.legacy_roots),
+            match provider {
+                Some(id) => vec![providers::inspect_provider(
+                    id,
+                    &provider_context,
+                    &context.legacy_roots,
+                )],
+                None => providers::snapshot(&provider_context, &context.legacy_roots),
+            },
             capsule_status(context),
         )
     }
@@ -323,9 +342,9 @@ mod imp {
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(crate) use capsule::PAYLOAD_VERSION;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(crate) use imp::{
     AttemptedStep, CapsuleStatus, Direction, FailureCode, InspectionDetail, MutationReport,
     PlannedStep, Refusal, StepKind, Verdict, context, explain, list, mutate,

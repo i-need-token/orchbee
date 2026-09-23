@@ -6,23 +6,23 @@
 
 use serde_json::{Map, Value, json};
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use super::escape::{display_width, escape};
 use super::{Failure, FailureKind, Output, failure_output, output, stage_reason_details};
 use crate::invocation::{AgentIntegrationCommand, OutputFormat};
 use crate::localization::Locale;
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use crate::agent_integrations::{
     AttemptedStep, CapsuleStatus, Direction, FailureCode, InspectionDetail, Issue, MutationReport,
     PlannedStep, Refusal, SnapshotItem, State, StepKind, Verdict,
 };
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 const INTEGRATIONS_SCHEMA: &str = "orchbee.agent.integrations";
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 const PLAN_SCHEMA: &str = "orchbee.agent.integration.plan";
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 const MUTATION_SCHEMA: &str = "orchbee.agent.integration.mutation";
 
 pub(crate) fn run(
@@ -36,13 +36,13 @@ pub(crate) fn run(
     }
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 fn run_local(_command: &AgentIntegrationCommand) -> Result<Prepared, Failure> {
     Err(Failure::new(FailureKind::ServiceUnavailable)
         .details(stage_reason_details("platform", "unsupported-platform")))
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(super) fn run_local(command: &AgentIntegrationCommand) -> Result<Prepared, Failure> {
     let adapter_source = match command {
         AgentIntegrationCommand::List { adapter_source, .. }
@@ -67,14 +67,7 @@ pub(super) fn run_local(command: &AgentIntegrationCommand) -> Result<Prepared, F
     })?;
     Ok(match command {
         AgentIntegrationCommand::List { provider, .. } => {
-            let (items, capsule) = crate::agent_integrations::list(&context);
-            let items = match provider {
-                Some(id) => items
-                    .into_iter()
-                    .filter(|item| item.integration_id == *id)
-                    .collect(),
-                None => items,
-            };
+            let (items, capsule) = crate::agent_integrations::list(&context, *provider);
             Prepared::List { items, capsule }
         }
         AgentIntegrationCommand::Explain { provider, .. } => {
@@ -99,9 +92,9 @@ pub(super) fn run_local(command: &AgentIntegrationCommand) -> Result<Prepared, F
 }
 
 /// One prepared integration answer — the typed result before the format
-/// split, so text and JSON carry identical facts. Non-unix has no variant:
+/// split, so text and JSON carry identical facts. Other platforms have no variant:
 /// `run_local` always answers the unsupported-platform failure there.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(super) enum Prepared {
     List {
         items: Vec<SnapshotItem>,
@@ -118,7 +111,7 @@ pub(super) enum Prepared {
     },
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 enum Prepared {}
 
 impl Prepared {
@@ -158,7 +151,7 @@ impl Prepared {
 
     /// Project the typed result onto (status, machine document, localized
     /// text) — one projection, two renderings.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     fn split(self, locale: Locale) -> (u8, Value, String) {
         match self {
             Self::List { items, capsule } => {
@@ -210,7 +203,7 @@ impl Prepared {
         }
     }
 
-    #[cfg(not(unix))]
+    #[cfg(not(any(unix, windows)))]
     fn split(self, _locale: Locale) -> (u8, Value, String) {
         match self {}
     }
@@ -218,7 +211,7 @@ impl Prepared {
 
 // -- projection ---------------------------------------------------------------
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn item_json(item: &SnapshotItem) -> Value {
     json!({
         "integrationId": item.integration_id.as_str(),
@@ -229,7 +222,7 @@ fn item_json(item: &SnapshotItem) -> Value {
     })
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn capsule_json(capsule: &CapsuleStatus) -> Value {
     let state = if capsule.unsupported_version.is_some() {
         "unsupported-version"
@@ -243,6 +236,11 @@ fn capsule_json(capsule: &CapsuleStatus) -> Value {
         "not-ready"
     };
     let (root_key, root_value) = super::config::path_detail(&capsule.root);
+    let root_key = if root_key == "path" {
+        "rootPath"
+    } else {
+        "rootPathBytesHex"
+    };
     let mut object = Map::from_iter([
         ("state".to_owned(), json!(state)),
         ("source".to_owned(), json!(capsule.source_kind)),
@@ -263,7 +261,7 @@ fn capsule_json(capsule: &CapsuleStatus) -> Value {
     Value::Object(object)
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn detail_json(detail: &InspectionDetail) -> Value {
     match detail {
         InspectionDetail::Cli {
@@ -294,7 +292,7 @@ fn detail_json(detail: &InspectionDetail) -> Value {
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn planned_step_json(step: &PlannedStep) -> Value {
     match step {
         PlannedStep::CapsulePublish { target } => json!({
@@ -317,7 +315,7 @@ fn planned_step_json(step: &PlannedStep) -> Value {
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn attempted_step_json(step: &AttemptedStep) -> Value {
     let outcome = step.outcome.as_str();
     match &step.step {
@@ -336,7 +334,7 @@ fn attempted_step_json(step: &AttemptedStep) -> Value {
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn mutation_document(report: &MutationReport) -> Value {
     let (outcome, reason) = match report.verdict {
         Verdict::Completed => ("completed", None),
@@ -386,7 +384,7 @@ fn mutation_document(report: &MutationReport) -> Value {
 }
 
 /// A diagnostic label — process-unique, never an idempotence key.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn invocation_id() -> String {
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -401,7 +399,7 @@ fn invocation_id() -> String {
 /// or any vector step ran, a refusal named after a pre-effect class is a
 /// determinate post-effect failure (9) — only the deadline family stays
 /// uncertain (8).
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(crate) fn mutation_status(report: &MutationReport) -> u8 {
     match report.verdict {
         Verdict::Completed => 0,
@@ -446,7 +444,7 @@ pub(crate) fn mutation_status(report: &MutationReport) -> u8 {
 
 // -- text rendering -----------------------------------------------------------
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn bounded_table(headers: &[&str], rows: &[Vec<String>]) -> String {
     let mut widths: Vec<usize> = headers.iter().map(|header| display_width(header)).collect();
     for row in rows {
@@ -482,7 +480,7 @@ fn bounded_table(headers: &[&str], rows: &[Vec<String>]) -> String {
     out
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn item_row(item: &SnapshotItem) -> Vec<String> {
     vec![
         item.integration_id.as_str().to_owned(),
@@ -493,7 +491,7 @@ fn item_row(item: &SnapshotItem) -> Vec<String> {
     ]
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn list_text(items: &[SnapshotItem], capsule: &CapsuleStatus, locale: Locale) -> String {
     let labels = locale.cli_labels();
     let mut out = String::new();
@@ -503,7 +501,7 @@ fn list_text(items: &[SnapshotItem], capsule: &CapsuleStatus, locale: Locale) ->
     out
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn capsule_summary(capsule: &CapsuleStatus) -> String {
     let state = if capsule.unsupported_version.is_some() {
         "unsupported-version"
@@ -519,7 +517,7 @@ fn capsule_summary(capsule: &CapsuleStatus) -> String {
     format!("{state} ({})", capsule.source_kind)
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn explain_text(
     item: &SnapshotItem,
     detail: &InspectionDetail,
@@ -549,7 +547,7 @@ fn explain_text(
     out
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn detail_line(detail: &InspectionDetail) -> Option<String> {
     match detail {
         InspectionDetail::Cli {
@@ -584,7 +582,7 @@ fn detail_line(detail: &InspectionDetail) -> Option<String> {
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn planned_step_text(step: &PlannedStep) -> String {
     match step {
         PlannedStep::CapsulePublish { target } => {
@@ -607,7 +605,7 @@ fn planned_step_text(step: &PlannedStep) -> String {
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn mutation_text(report: &MutationReport, locale: Locale) -> String {
     let provider = report.integration_id.as_str();
     let direction = report.direction.as_str();
@@ -642,7 +640,7 @@ fn mutation_text(report: &MutationReport, locale: Locale) -> String {
     out
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn step_text(step: &StepKind) -> String {
     match step {
         StepKind::Command { executable, argv } => {

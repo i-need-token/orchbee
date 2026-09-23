@@ -1,0 +1,38 @@
+# Windows Agent 集成
+
+本文负责原生 `agent integration list`、`explain`、`enable`、`disable` 的 Windows
+细化契约。CLI 负责本机接入，不启动 Site。共享的 provider 分类器与变更流程继续负责
+归属、版本方向、计划、回执和残留物。
+
+## 模型与边界
+
+| 字段       | 契约                                                                                                                                                                                                                       |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题       | Windows 用户需要通过启动终端的同一个 CLI 安装、检查和移除观测集成。                                                                                                                                                        |
+| 输入       | Provider ID、可选 capsule 来源、原生用户目录、PATH 和 Codex 配置根均是不可信路径。空 CODEX_HOME 使用用户目录默认值；非空无效覆盖值不得回退。                                                                               |
+| 数据与归属 | Provider 拥有其配置。Orchbee 仅拥有带版本的 capsule 和明确标记的集成条目。外来或更新版本条目保持不变。                                                                                                                     |
+| 输出       | 现有集成快照、计划、变更回执、类型化拒绝和保留残留路径。不能仅根据 provider 退出就虚构检查状态。                                                                                                                           |
+| 流程       | 校验平台与预算 → 为 enable 准备 capsule → 检查 provider 归属 → 执行 provider 操作序列 → 报告观测或不确定性。取消停止后续副作用并终止自有命令树。                                                                           |
+| 发布       | 在目标旁暂存；仅复制普通条目；校验 capsule；使用原子的不可覆盖 MoveFile 发布。目标被占用即冲突。备份使用相同原语。                                                                                                         |
+| 路径       | 托管副作用只接受本机绝对盘符路径。拒绝重解析点和歧义组件。每次文件系统操作期间持有禁止删除共享的祖先目录句柄。                                                                                                             |
+| 进程       | 有界解析 PATH 中的绝对目录。接受原生 EXE 及 Windows CMD/BAT 包装脚本；不隐式执行 PowerShell 脚本。参数保持结构化并使用 Rust 的批处理命令引用规则。命令以挂起状态启动，加入自有 Job Object 后才恢复。                       |
+| 边界       | 保持现有 40 秒调用和 3.6 秒命令槽。执行上限为 3 秒，stdout 上限为 256 KiB，回收使用轮询而非无界等待。                                                                                                                      |
+| 转移       | 准入前取消或超时不产生副作用。发布或启动 provider 后的失败保留尝试步骤和不确定性。重试不得替换外来数据。                                                                                                                   |
+| 依赖       | 仅 Windows 使用 process-wrap 10.0.1 补充 std 缺少的安全挂起式 Job Object 分配；只开启 std、job-object、creation-flags。匹配的 windows 0.62.2 绑定提供创建标志类型。现有 local-ipc 负责非阻塞子进程输出。不增加异步运行时。 |
+| 回滚       | Disable 使用现有归属校验。失败或中断的发布报告保留的暂存和备份路径；CLI 不扫描清理无关文件。                                                                                                                               |
+| 证据       | Windows 文件系统测试覆盖不可覆盖、Unicode 路径和重解析点拒绝；进程测试覆盖参数保真、输出上限、取消、超时和后代；隔离的公开 CLI 测试覆盖 Codex 接入与配置隔离。                                                             |
+| 限制       | Provider 认证、远端安装、付费 Agent 任务和 TUI 交互不在接入证据范围内。按用户要求不执行 TLA。审查为作者自身的对抗性复查，不是独立证据。                                                                                    |
+
+当前 Windows 载荷提供 Codex hooks。其他 provider 在其 Windows hook 执行路径获得
+支持前保持 `manual-only`；仅复制文件成功不能宣称这些 provider 可用。
+
+## 依赖审查
+
+[process-wrap](https://docs.rs/process-wrap/10.0.1/process_wrap/) 使用 MIT OR Apache-2.0
+许可证，无构建脚本，增加 indexmap 2.14.2 并复用已解析的 hashbrown 0.17.1。
+Windows 绑定增加 windows-core、collections、future、numerics、result、strings、
+threading 以及 implement/interface 过程宏。过程宏复用现有 syn/quote/proc-macro2 版本。
+未增加重复包版本或异步运行时。Windows unsafe 调用留在依赖内部；自有 Rust 保持 `unsafe_code = "forbid"`。
+适配器不调用其阻塞 wait 方法。每条退出路径都显式终止 Job，包括主进程正常完成；
+仅丢弃 std 包装器不提供 kill-on-drop。操作系统以不可捕获方式强制终止 Orchbee
+不在此协作式回收承诺内。

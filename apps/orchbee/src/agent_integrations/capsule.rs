@@ -53,7 +53,10 @@ fn read_manifest(root: &Path) -> Option<Map<String, Value>> {
     if !metadata.is_file() || metadata.len() > MAX_MANIFEST_BYTES {
         return None;
     }
+    #[cfg(unix)]
     let bytes = fs::read(&manifest_path).ok()?;
+    #[cfg(windows)]
+    let bytes = super::files::read_bounded(&manifest_path, MAX_MANIFEST_BYTES).ok()?;
     if bytes.len() as u64 > MAX_MANIFEST_BYTES {
         return None;
     }
@@ -80,6 +83,8 @@ pub(crate) fn payload_digest(root: &Path) -> Option<String> {
     let mut entries: Vec<(String, String)> = Vec::new();
     let mut pending: Vec<(usize, PathBuf)> = vec![(0, root.to_path_buf())];
     while let Some((depth, directory)) = pending.pop() {
+        #[cfg(windows)]
+        let _pins = super::files::pin_tree(&directory, false).ok()?;
         if depth > MAX_CAPSULE_DEPTH {
             return None;
         }
@@ -117,7 +122,10 @@ pub(crate) fn payload_digest(root: &Path) -> Option<String> {
             if !metadata.is_file() || metadata.len() > MAX_CAPSULE_FILE_BYTES {
                 return None;
             }
+            #[cfg(unix)]
             let bytes = fs::read(&entry_path).ok()?;
+            #[cfg(windows)]
+            let bytes = super::files::read_bounded(&entry_path, MAX_CAPSULE_FILE_BYTES).ok()?;
             if bytes.len() as u64 > MAX_CAPSULE_FILE_BYTES {
                 return None;
             }

@@ -139,6 +139,13 @@ fn normalize(path: &Path) -> PathBuf {
     let mut out = PathBuf::new();
     for component in path.components() {
         match component {
+            #[cfg(windows)]
+            std::path::Component::Prefix(prefix) => match prefix.kind() {
+                std::path::Prefix::Disk(drive) | std::path::Prefix::VerbatimDisk(drive) => {
+                    out.push(format!("{}:", char::from(drive.to_ascii_uppercase())));
+                }
+                _ => out.push(component.as_os_str()),
+            },
             std::path::Component::ParentDir => {
                 out.pop();
             }
@@ -534,7 +541,20 @@ pub(crate) struct CodexInspection {
 }
 
 pub(crate) fn inspect_codex(home: &Path, options: &ResourceOptions) -> CodexInspection {
+    #[cfg(unix)]
     let configuration_path = home.join(".codex").join("config.toml");
+    #[cfg(windows)]
+    let configuration_path =
+        match codex_configuration_path(home, std::env::var_os("CODEX_HOME").as_deref()) {
+            Some(path) => path,
+            None => {
+                return CodexInspection {
+                    marketplace: Marketplace::Absent,
+                    plugin_present: false,
+                    state: State::Unknown,
+                };
+            }
+        };
     let bytes = match bounded_file_follow(&configuration_path, MAX_CODEX_CONFIGURATION_BYTES) {
         Ok(Some(bytes)) => bytes,
         Ok(None) => {
@@ -553,6 +573,21 @@ pub(crate) fn inspect_codex(home: &Path, options: &ResourceOptions) -> CodexInsp
         }
     };
     parse_codex_configuration(&String::from_utf8_lossy(&bytes), options)
+}
+
+#[cfg(windows)]
+fn codex_configuration_path(
+    home: &Path,
+    override_root: Option<&std::ffi::OsStr>,
+) -> Option<PathBuf> {
+    match override_root.filter(|value| !value.is_empty()) {
+        Some(root) => {
+            let root = Path::new(root);
+            let _pins = super::files::pin_tree(root, false).ok()?;
+            Some(root.join("config.toml"))
+        }
+        None => Some(home.join(".codex/config.toml")),
+    }
 }
 
 fn parse_codex_configuration(value: &str, options: &ResourceOptions) -> CodexInspection {
@@ -711,6 +746,13 @@ fn parse_codex_configuration(value: &str, options: &ResourceOptions) -> CodexIns
 }
 
 fn parse_basic_string(value: &str) -> Option<String> {
+    #[cfg(windows)]
+    if let Some(literal) = value
+        .strip_prefix('\'')
+        .and_then(|text| text.strip_suffix('\''))
+    {
+        return (!literal.contains(['\'', '\r', '\n'])).then(|| literal.to_owned());
+    }
     match serde_json::from_str::<Value>(value).ok()? {
         Value::String(text) => Some(text),
         _ => None,
@@ -720,6 +762,7 @@ fn parse_basic_string(value: &str) -> Option<String> {
 /// `lstat`-disciplined bounded read — a symlink is rejected before any
 /// follow. Canonical `readBoundedFile` semantics (guarded targets, markers,
 /// fingerprint entries).
+#[cfg(unix)]
 fn bounded_file(path: &Path, maximum: u64) -> std::io::Result<Option<Vec<u8>>> {
     let metadata = match fs::symlink_metadata(path) {
         Ok(metadata) => metadata,
@@ -736,9 +779,24 @@ fn bounded_file(path: &Path, maximum: u64) -> std::io::Result<Option<Vec<u8>>> {
     Ok(Some(bytes))
 }
 
+#[cfg(windows)]
+fn bounded_file(path: &Path, maximum: u64) -> std::io::Result<Option<Vec<u8>>> {
+    match super::files::read_bounded(path, maximum) {
+        Ok(bytes) => Ok(Some(bytes)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+#[cfg(windows)]
+fn bounded_file_follow(path: &Path, maximum: u64) -> std::io::Result<Option<Vec<u8>>> {
+    bounded_file(path, maximum)
+}
+
 /// `open`+`fstat` bounded read — follows a symlinked configuration file the
 /// way canonical `readBoundedConfiguration`/`readJsonRecord` do (dotfile
 /// managers legitimately symlink these paths).
+#[cfg(unix)]
 fn bounded_file_follow(path: &Path, maximum: u64) -> std::io::Result<Option<Vec<u8>>> {
     let file = match fs::File::open(path) {
         Ok(file) => file,
@@ -758,6 +816,7 @@ fn bounded_file_follow(path: &Path, maximum: u64) -> std::io::Result<Option<Vec<
     Ok(Some(bytes))
 }
 
+#[cfg(unix)]
 fn io_invalid(message: &'static str) -> std::io::Error {
     std::io::Error::new(std::io::ErrorKind::InvalidData, message)
 }
@@ -935,10 +994,20 @@ impl TargetState {
 /// UTF-8 bytes stay/encode per the runtime's own table. The bootstrap bytes
 /// must match what Desktop wrote or inspection sees `conflict`.
 fn file_url(path: &Path) -> String {
+    #[cfg(unix)]
     use std::os::unix::ffi::OsStrExt;
+    #[cfg(unix)]
     let bytes = path.as_os_str().as_bytes();
+    #[cfg(windows)]
+    let normalized = path.to_string_lossy().replace('\\', "/");
+    #[cfg(windows)]
+    let bytes = normalized.as_bytes();
     let mut url = String::with_capacity(bytes.len() + 8);
     url.push_str("file://");
+    #[cfg(windows)]
+    if !bytes.starts_with(b"/") {
+        url.push('/');
+    }
     for &byte in bytes {
         match byte {
             b'A'..=b'Z'
@@ -1135,6 +1204,8 @@ pub(crate) fn fingerprint_directory(root: &Path) -> Option<Vec<(String, String)>
     let mut files: Vec<(String, String)> = Vec::new();
     let mut total_bytes = 0u64;
     while let Some((depth, directory)) = pending.pop() {
+        #[cfg(windows)]
+        let _pins = super::files::pin_tree(&directory, false).ok()?;
         if depth > MAX_ENTRY_DEPTH {
             return None;
         }

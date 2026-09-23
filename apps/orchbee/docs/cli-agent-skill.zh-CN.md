@@ -24,7 +24,7 @@
 
 使用 `agent list/get/explain` 获取 canonical session 事实，使用声明了条件、超时及可选 `--after-revision` 的 `agent wait` 等待后续状态。`terminal wait-output` 可能匹配已有保留输出。旧的匹配行或 idle 状态都不能证明新提交的任务完成。当前构建没有 `agent start` 或 `agent prompt` 命令；不要虚构这些命令，也不要根据终端创建成功推断 Agent 已就绪。
 
-当前构建在 Windows 上仍不提供 integration 管理、`agent doctor` 和 `site diagnose`。支持 Windows 终端启动/发送/读取，不代表这些命令可用。其他不支持的操作返回类型化失败；不要用猜测的状态替代失败。
+Windows 上可用 `agent doctor` 离线检查本机配置。`agent integration list/explain/enable/disable --provider codex` 管理本机 Codex 插件；检查回执后再 list 确认观测状态。其他 provider 仍为 manual-only，`site diagnose` 仍不可用。其他不支持的操作返回类型化失败；不要用猜测的状态替代失败。
 
 破坏性的 close/delete 命令需要 `--confirm`。关闭 Workspace 不会删除其 Git 检出或分支。关闭结果需要恢复时使用 Workspace close-status/close-resume。退出一个 TUI 客户端不等于停止 Site。
 

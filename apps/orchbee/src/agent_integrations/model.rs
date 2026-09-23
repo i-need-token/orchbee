@@ -58,7 +58,7 @@ impl IntegrationId {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(crate) enum State {
     Conflict,
     Disabled,
@@ -73,7 +73,7 @@ pub(crate) enum State {
     Unknown,
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 impl State {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
@@ -89,7 +89,7 @@ impl State {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(crate) enum Issue {
     CapsuleUnsupportedVersion,
     InspectionFailed,
@@ -106,7 +106,7 @@ pub(crate) enum Issue {
     UnsupportedVersion,
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 impl Issue {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
@@ -120,7 +120,7 @@ impl Issue {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(crate) enum Availability {
     Available,
     NotFound,
@@ -130,7 +130,7 @@ pub(crate) enum Availability {
     Unknown,
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 impl Availability {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
@@ -142,13 +142,13 @@ impl Availability {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(crate) enum ManagementMode {
     ManagedLocal,
     ManualOnly,
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 impl ManagementMode {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
@@ -160,7 +160,7 @@ impl ManagementMode {
 
 /// One provider's inspected snapshot row (canonical item shape).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(crate) struct SnapshotItem {
     pub(crate) availability: Availability,
     pub(crate) integration_id: IntegrationId,
@@ -176,7 +176,7 @@ pub(crate) struct SnapshotItem {
 /// The observed value's provenance — never fabricate a post-effect snapshot
 /// a skipped or failed re-inspection did not produce.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(crate) enum Provenance {
     /// The admission-time inspection snapshot.
     PreEffect,
@@ -188,7 +188,7 @@ pub(crate) enum Provenance {
     Unavailable,
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 impl Provenance {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {

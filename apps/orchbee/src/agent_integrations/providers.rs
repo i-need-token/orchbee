@@ -179,7 +179,7 @@ pub(crate) fn inspect_slots(id: IntegrationId) -> usize {
 }
 
 /// The provider's registered executable name — the PATH-resolution key.
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(crate) const fn executable_name(id: IntegrationId) -> &'static str {
     spec(id).executable
 }
@@ -243,6 +243,11 @@ pub(crate) fn inspect_full(
     context: &ProviderContext,
     legacy_roots: &[PathBuf],
 ) -> (SnapshotItem, InspectionDetail) {
+    let management_mode = if cfg!(windows) && id != IntegrationId::Codex {
+        ManagementMode::ManualOnly
+    } else {
+        context.management_mode
+    };
     let spec = spec(id);
     let executable = exec::resolve_executable(spec.executable, context.path_env);
     let availability = if executable.is_some() {
@@ -260,9 +265,9 @@ pub(crate) fn inspect_full(
             SnapshotItem {
                 availability,
                 integration_id: id,
-                issue: (context.management_mode == ManagementMode::ManualOnly)
+                issue: (management_mode == ManagementMode::ManualOnly)
                     .then_some(Issue::UnsupportedPlatform),
-                management_mode: context.management_mode,
+                management_mode,
                 state: State::Unknown,
                 timed_out: false,
             },
@@ -429,7 +434,7 @@ pub(crate) fn inspect_full(
 
     // Issue precedence (canonical): the platform slot wins, then the
     // inspection failure, then the additive capsule-version issue (R-2).
-    let issue = if context.management_mode == ManagementMode::ManualOnly {
+    let issue = if management_mode == ManagementMode::ManualOnly {
         Some(Issue::UnsupportedPlatform)
     } else if inspection_failed {
         Some(Issue::InspectionFailed)
@@ -452,7 +457,7 @@ pub(crate) fn inspect_full(
             availability,
             integration_id: id,
             issue,
-            management_mode: context.management_mode,
+            management_mode,
             state,
             timed_out,
         },

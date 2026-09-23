@@ -36,6 +36,13 @@ rustix = { workspace = true, features = ["fs", "termios"] }
 signal-hook = { version = "0.3.18", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
+# Suspended Job Object assignment and bounded process-tree cancellation.
+process-wrap = { version = "=10.0.1", default-features = false, features = [
+	"std",
+	"job-object",
+	"creation-flags",
+] }
+windows = { version = "=0.62.2", default-features = false, features = ["Win32_System_Threading"] }
 # System-directory lookup and inherited handle type admission for the owned,
 # cancellable stdin reader. Reuse the cohort's existing safe Windows bindings.
 winsafe = { workspace = true, features = ["kernel"] }

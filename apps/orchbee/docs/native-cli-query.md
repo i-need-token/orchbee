@@ -436,7 +436,7 @@ retains the prior version-2 vocabulary. Capsule 0.4.1 supports native Windows Co
 transport, but doctor never connects to a named pipe or writes console correlation hints.
 Its endpoint remains `not-inspected`, now with reason `windows-endpoint-not-inspected`;
 configuration and capsule integrity are not delivery or Site-liveness evidence. `complete`
-describes probe coverage. Managed Windows installation and Agent start/prompt remain pending.
+describes probe coverage. Windows Codex installation is owned by the [Windows integration contract](windows-agent-integrations.md); Agent start/prompt remain pending.
 
 | Field               | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

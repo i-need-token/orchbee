@@ -4514,7 +4514,9 @@ fn adapter_source_option(
 ) -> Result<Option<PathBuf>, ParseFailure> {
     match &options.adapter_source {
         Some(value)
-            if value.is_empty() || !value.starts_with('/') || value.as_bytes().contains(&0) =>
+            if value.is_empty()
+                || !PathBuf::from(value).is_absolute()
+                || value.as_bytes().contains(&0) =>
         {
             Err(usage_with(
                 UsageReason::InvalidValue {

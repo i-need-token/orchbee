@@ -5588,6 +5588,11 @@ fn agent_integration_commands_parse() {
         };
         assert_eq!(id.as_str(), provider, "{verb} --provider");
     }
+    let source = if cfg!(windows) {
+        r"C:\adapters"
+    } else {
+        "/tmp/adapters"
+    };
     assert_eq!(
         parse(&[
             "agent",
@@ -5596,11 +5601,11 @@ fn agent_integration_commands_parse() {
             "--provider",
             "omp",
             "--adapter-source",
-            "/tmp/adapters",
+            source,
         ]),
         Ok(integration(AgentIntegrationCommand::Explain {
             provider: IntegrationId::Omp,
-            adapter_source: Some(std::path::PathBuf::from("/tmp/adapters")),
+            adapter_source: Some(std::path::PathBuf::from(source)),
         }))
     );
 }

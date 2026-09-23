@@ -24,7 +24,7 @@ Inspect the result's input and cleanup outcomes independently. Partial acceptanc
 
 Use `agent list/get/explain` for canonical session facts and `agent wait` with a declared condition, timeout, and optional `--after-revision` for later state. `terminal wait-output` can match existing retained output. Neither an old matching line nor an idle state proves a newly submitted task completed. This build has no `agent start` or `agent prompt` command; do not invent those commands or infer Agent readiness from terminal creation.
 
-Windows integration management, `agent doctor`, and `site diagnose` remain unavailable in this build. Windows terminal launch/send/read support does not imply these commands work. Other unsupported operations return a typed failure; do not replace a failure with guessed state.
+On Windows, `agent doctor` inspects local setup offline. `agent integration list/explain/enable/disable --provider codex` manages the local Codex plugin; inspect its receipt and then list the observed state. Other providers remain manual-only, and `site diagnose` remains unavailable. Other unsupported operations return a typed failure; do not replace a failure with guessed state.
 
 Destructive close/delete commands require `--confirm`. A closed Workspace does not delete its Git checkout or branch. Use Workspace close-status/close-resume when the close result requires recovery. Exiting a TUI client does not stop the Site.
 

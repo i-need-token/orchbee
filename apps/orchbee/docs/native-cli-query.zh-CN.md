@@ -367,7 +367,7 @@ Windows `agent doctor` 拥有相同的有界离线观察流程，输出 `orchbee
 原生 Windows Codex hook 传输，但 doctor 不连接命名管道，也不写 Console 关联 hint。
 端点保持 `not-inspected`，原因改为 `windows-endpoint-not-inspected`；配置和胶囊
 完整性不证明事件投递或 Site 存活。`complete` 描述探测覆盖率。
-Windows 托管安装和 Agent start/prompt 仍待完成。
+Windows Codex 安装由 [Windows 集成契约](windows-agent-integrations.zh-CN.md) 负责；Agent start/prompt 仍待完成。
 
 | 字段         | 契约                                                                                                                                                                                                                                                                               |
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
