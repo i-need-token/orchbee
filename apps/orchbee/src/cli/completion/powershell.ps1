@@ -61,7 +61,7 @@ __ORCHBEE_GRAMMAR__
             }
         }
     } else {
-        foreach ($group in @(@('--panel', '--current'), @('--workspace', '--standalone'), @('--exec', '--profile'), @('--arg', '--profile'), @('--into-tab', '--new-tab'), @('--target-panel', '--into-tab'), @('--target-panel', '--new-tab'), @('--text', '--file', '--stdin', '--key'), @('--key', '--enter'), @('--key', '--paste'), @('--text', '--paste'), @('--match', '--regex'))) {
+        foreach ($group in @(@('--session', '--name'), @('--panel', '--current'), @('--workspace', '--standalone'), @('--exec', '--profile'), @('--arg', '--profile'), @('--into-tab', '--new-tab'), @('--target-panel', '--into-tab'), @('--target-panel', '--new-tab'), @('--text', '--file', '--stdin', '--key'), @('--key', '--enter'), @('--key', '--paste'), @('--text', '--paste'), @('--match', '--regex'))) {
             if (@($group | Where-Object { $seen -ccontains $_ }).Count -gt 1) { return }
         }
         foreach ($entry in @(@('--format', $grammar.formats), @('--mouse', @('off', 'on')), @('--until', $grammar.until))) {
@@ -74,7 +74,12 @@ __ORCHBEE_GRAMMAR__
             $valid = $true
             foreach ($flag in $seen) { if ($allowed -cnotcontains $flag) { $valid = $false } }
             if (@($seen | Where-Object { $_ -ceq '--provider' }).Count -gt 1 -and ($command.words -join ':') -cne 'agent:doctor') { $valid = $false }
-            if ($positionals.Count -gt $command.words.Count + [int]$command.operand) { $valid = $false }
+            $operandLimit = [int]$command.operand
+            if (($command.words -join ':') -cin @('agent:resolve', 'agent:rename')) {
+                if ($seen -ccontains '--session' -or $seen -ccontains '--name') { $operandLimit-- }
+                if ($seen -ccontains '--clear') { $operandLimit-- }
+            }
+            if ($positionals.Count -gt $command.words.Count + $operandLimit) { $valid = $false }
             for ($index = 0; $index -lt [Math]::Min($positionals.Count, $command.words.Count); $index++) {
                 if ($positionals[$index] -cne $command.words[$index]) { $valid = $false }
             }
@@ -88,10 +93,15 @@ __ORCHBEE_GRAMMAR__
             $allowed = @($command.flags)
             if ($command.words[0] -cne 'tui') { $allowed += '--format' }
             foreach ($flag in $allowed) {
+                if (($command.words -join ':') -cin @('agent:resolve', 'agent:rename')) {
+                    $operands = $positionals.Count - $command.words.Count
+                    if ($operands -gt 0 -and $flag -cin @('--name', '--session')) { continue }
+                    if ($flag -ceq '--clear' -and ($operands -gt 1 -or ($operands -gt 0 -and ($seen -ccontains '--name' -or $seen -ccontains '--session')))) { continue }
+                }
                 if ($seen -ccontains $flag -and $grammar.repeatable -cnotcontains $flag -and -not ($flag -ceq '--provider' -and ($command.words -join ':') -ceq 'agent:doctor')) { continue }
                 if ($flag -ceq '--arg' -and $seen -cnotcontains '--exec') { continue }
                 $conflict = $false
-                foreach ($group in @(@('--panel', '--current'), @('--workspace', '--standalone'), @('--exec', '--profile'), @('--arg', '--profile'), @('--into-tab', '--new-tab'), @('--target-panel', '--into-tab'), @('--target-panel', '--new-tab'), @('--text', '--file', '--stdin', '--key'), @('--key', '--enter'), @('--key', '--paste'), @('--text', '--paste'), @('--match', '--regex'))) {
+                foreach ($group in @(@('--session', '--name'), @('--panel', '--current'), @('--workspace', '--standalone'), @('--exec', '--profile'), @('--arg', '--profile'), @('--into-tab', '--new-tab'), @('--target-panel', '--into-tab'), @('--target-panel', '--new-tab'), @('--text', '--file', '--stdin', '--key'), @('--key', '--enter'), @('--key', '--paste'), @('--text', '--paste'), @('--match', '--regex'))) {
                     if ($group -ccontains $flag -and @($group | Where-Object { $_ -cne $flag -and $seen -ccontains $_ }).Count -gt 0) { $conflict = $true }
                 }
                 if (-not $conflict) { $offeredFlags.Add($flag) }

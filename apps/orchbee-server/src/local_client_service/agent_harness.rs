@@ -124,7 +124,10 @@ pub(crate) fn session_ended(
 /// Opens a read-enabled service and seeds it through real canonical event
 /// dispatch; a seed that does not apply fails the fixture loudly.
 pub(crate) fn seeded(events: &[AgentObservationEvent]) -> io::Result<Arc<AgentService>> {
-    let service = Arc::new(AgentService::open(AgentPolicy { read: true })?);
+    let service = Arc::new(AgentService::open(AgentPolicy {
+        read: true,
+        manage: true,
+    })?);
     for event in events {
         assert!(
             matches!(service.seed(event), Ok(AgentTransition::Applied { .. })),

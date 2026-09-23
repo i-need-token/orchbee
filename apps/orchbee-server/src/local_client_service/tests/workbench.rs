@@ -35,7 +35,10 @@ fn an_oblc_admitted_session_with_read_only_policy_cannot_mutate_or_discover_ledg
         },
         Arc::clone(&terminals),
     );
-    let agents = AgentService::open(AgentPolicy { read: true })?;
+    let agents = AgentService::open(AgentPolicy {
+        read: true,
+        manage: true,
+    })?;
     let registry = Arc::new(Mutex::new(ClientSessionRegistry::new()));
     let slots = Arc::new(ConnectionSlots::new());
     let slot = slots.acquire().unwrap();

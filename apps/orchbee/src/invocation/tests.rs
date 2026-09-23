@@ -19,6 +19,73 @@ fn parse(arguments: &[&str]) -> Result<Request, ParseFailure> {
 }
 
 #[test]
+fn agent_names_admit_one_selector_and_a_bounded_name_before_any_effect() {
+    use super::AgentNamesCommand;
+    use orchbee_agent_observation_protocol::{AgentName, AgentSessionId, AgentSessionSelector};
+    let session = AgentSessionId::parse("s1").unwrap();
+    let alias = AgentName::parse("alpha").unwrap();
+    for (words, command) in [
+        (vec!["agent", "names"], AgentNamesCommand::List),
+        (
+            vec!["agent", "resolve", "s1"],
+            AgentNamesCommand::Resolve(AgentSessionSelector::Auto {
+                target: session.clone(),
+            }),
+        ),
+        (
+            vec!["agent", "resolve", "--name=alpha"],
+            AgentNamesCommand::Resolve(AgentSessionSelector::Name {
+                name: alias.clone(),
+            }),
+        ),
+        (
+            vec!["agent", "rename", "--session=s1", "alpha"],
+            AgentNamesCommand::Assign {
+                target: AgentSessionSelector::Session {
+                    session_id: session.clone(),
+                },
+                name: alias.clone(),
+            },
+        ),
+        (
+            vec!["agent", "rename", "--clear", "s1"],
+            AgentNamesCommand::Release(AgentSessionSelector::Auto { target: session }),
+        ),
+    ] {
+        assert_eq!(
+            parse(&words),
+            Ok(Request::AgentNames {
+                command,
+                format: OutputFormat::Text
+            })
+        );
+    }
+    for words in [
+        vec!["agent", "rename", "s1", "Upper"],
+        vec!["agent", "rename", "s1", "two words"],
+        vec!["agent", "rename", "s1", "名字"],
+        vec!["agent", "rename", "s1", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+        vec!["agent", "rename", "s1", "alpha", "--clear"],
+        vec!["agent", "resolve", "s1", "--name", "alpha"],
+        vec!["agent", "resolve", "--session", "s1", "--name", "alpha"],
+        vec!["agent", "names", "--session", "s1"],
+        vec!["status", "--clear"],
+    ] {
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
+    for (verb, path) in [
+        ("names", CommandPath::AgentNames),
+        ("resolve", CommandPath::AgentResolve),
+        ("rename", CommandPath::AgentRename),
+    ] {
+        assert_eq!(
+            parse(&["agent", verb, "--help"]),
+            Ok(Request::Help(HelpTopic::Command(path)))
+        );
+    }
+}
+
+#[test]
 fn offline_skill_is_a_sole_root_mode() {
     assert_eq!(parse(&["--skill"]), Ok(Request::Skill));
     for words in [

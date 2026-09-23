@@ -643,8 +643,11 @@ fn drain_target_drives_a_real_low_lane_exchange() {
 
 fn open_agents() -> Arc<AgentService> {
     Arc::new(
-        AgentService::open(AgentPolicy { read: true })
-            .unwrap_or_else(|error| panic!("AgentService failed to open: {error}")),
+        AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap_or_else(|error| panic!("AgentService failed to open: {error}")),
     )
 }
 

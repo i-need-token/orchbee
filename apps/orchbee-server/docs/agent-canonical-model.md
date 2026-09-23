@@ -9,7 +9,7 @@ mapping between the authoritative TypeScript model and its Rust mirror.
 `apps/orchbee-server` owns a faithful Rust implementation of the deterministic semantics
 currently defined by `packages/agent` at base commit
 `0d4b685a1b7db9405ca94908385e0534ddd41dc9`. The module is registered from `main.rs` under
-`#[cfg(unix)]`: the canonical runtime lives inside the **Server binary crate**, never in
+`#[cfg(any(unix, windows))]`: the canonical runtime lives inside the **Server binary crate**, never in
 the library (`lib.rs` exports nothing Agent-related and stays untouched), and no public
 API, new crate, or second canonical state exists.
 
@@ -147,17 +147,37 @@ suppression, no fake use, no const tables, no variant narrowing.
 
 ## Session names sidecar
 
-Not implemented — this section records current behavior only. The OBAP wire
-union admits a names request/result family (request kinds `7/9/11/13`, result
-kinds `8/10/12/14`) and `orchbee-agent-observation-protocol` carries the codec
-and typed DTOs, but `AgentState` holds no names table, `AgentService` executes
-no names operation, `AgentPolicy` has no `manage` gate, and the CLI exposes no
-names command. `schemas/agent-observation/v1` covers only the read family
-(kinds 1–6). A well-formed names request reaches the `application_session`
-demux and is answered as a wire contract fault (`WrongDocumentKind`) that ends
-the session — the read executor is not invoked and no result is written. The
-candidate design for the future implementation slice lives in
+The OBAP names family is implemented by `agent_service/names.rs` in the same
+`AgentState` cell. Two private ordered maps hold name → session and session → name;
+names are runtime-scoped, absent from canonical session documents, and never persisted.
+Names use `[a-z][a-z0-9_-]{0,31}`. There is at most one binding per name and per
+session, bounded at 512. New assignments enforce the bound; an atomic rename at
+capacity still succeeds. Collision refuses with the incumbent session identity.
+
+Every `with_state` fold reconciles the maps before releasing the leaf mutex, removing
+bindings to absent or ended sessions. Disposal clears both maps. Poison and disposal
+answer `runtime-unavailable`, never an empty success. Exact session selectors accept
+retained identities of any lifecycle; assignment additionally requires live state.
+Name selectors use only the alias table. Auto selectors test exact session existence
+first, including ended history, then names; explicit name selection escapes collisions.
+Release of an existing unnamed session is unchanged; a missing explicit name is refused.
+
+The read gate owns resolve/list; the independent manage gate owns assign/release.
+The gate precedes observation preparation. The caller's existing drain provider runs
+once outside the cell; after it succeeds, one fold rechecks the current runtime and
+resolves/mutates atomically. The prepared clone is freshness evidence, never a stale
+liveness authority. No socket I/O or outer lock is acquired inside the leaf fold.
+The sequential application-session demux routes both OBAP families and writes exactly
+one correlated result. A lost mutation reply is outcome-unknown, without a replay ledger.
+
+`schemas/agent-observation/v1` covers kinds 1–14. Native `agent names`, `agent resolve`,
+and `agent rename` consume the names family; existing get/explain/wait still accept
+session IDs. Their direct name-target follow-up remains in
 [`proposals/agent/session-names.md`](../../../proposals/agent/session-names.md).
+Deterministic service tests cover collision, atomic rename, exact-ID precedence,
+full capacity, lifecycle cleanup, policy separation, stale preparation, disposal,
+poison, and concurrent claims. Wire and Windows process tests cover bounds,
+schema-conforming replies, malformed operations, and ambiguous mutation outcomes.
 
 ## Authoritative semantics (claims)
 

@@ -30,7 +30,7 @@ use orchbee_agent_observation_protocol::{
 };
 
 use crate::local_client::{
-    LocalClient, LocalClientOrigin, LocalOperationClock, agent::AgentReadError,
+    LocalClient, LocalClientOrigin, LocalOperationClock, agent::AgentExchangeError,
 };
 
 /// 512 sessions at 100 items per page, rounded up — the walk's page bound.
@@ -382,10 +382,10 @@ fn submit(
     match client.submit_agent_read_before_cancellable(request, deadline, Some(wake)) {
         Ok(result) => Ok(result),
         Err(
-            AgentReadError::SessionUnavailable
-            | AgentReadError::RequestEncoding(_)
-            | AgentReadError::RequestNotSubmitted(_)
-            | AgentReadError::Failed { .. },
+            AgentExchangeError::SessionUnavailable
+            | AgentExchangeError::RequestEncoding(_)
+            | AgentExchangeError::RequestNotSubmitted(_)
+            | AgentExchangeError::Failed { .. },
         ) => {
             *client_slot = None;
             Err(LaneFailure::Transport)

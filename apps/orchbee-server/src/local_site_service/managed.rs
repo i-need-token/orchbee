@@ -45,7 +45,10 @@ pub(super) fn run(runtime: &Path) -> io::Result<()> {
     // degradation the Worker applies to its own env overlay derivation.
     let socket_path = bound.path().to_str().map(str::to_owned);
     let agents = Arc::new(AgentService::open_observing(
-        AgentPolicy { read: true },
+        AgentPolicy {
+            read: true,
+            manage: true,
+        },
         socket_path,
     )?);
     let _endpoint = bound.start(Arc::clone(&agents));

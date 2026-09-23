@@ -158,6 +158,14 @@ fn validate_names_result(result: &AgentNamesResult) -> Result<(), AgentContractE
                 {
                     return Err(AgentContractError::InvalidDocument);
                 }
+                let mut sessions = HashSet::with_capacity(bindings.len());
+                if bindings.windows(2).any(|pair| pair[0].name >= pair[1].name)
+                    || bindings
+                        .iter()
+                        .any(|binding| !sessions.insert(binding.session_id.as_str()))
+                {
+                    return Err(AgentContractError::InvalidDocument);
+                }
             }
         }
         AgentNamesResult::NameAssign { result, .. } => {

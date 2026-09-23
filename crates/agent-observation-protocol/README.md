@@ -4,18 +4,18 @@ Independent Rust binding for the version-1 Agent observation contract governed b
 [`schemas/agent-observation/v1`](../../schemas/agent-observation/v1/agent-observation.schema.json).
 The crate provides bounded typed wire DTOs, strict semantic validation, the OBAP frame codec, and
 the opaque list page-cursor wire shape. Its actual consumers are the native `orchbee` CLI and the
-`orchbee-server` read service — and they consume only the read family today.
+`orchbee-server` Agent service — consuming both reads and names.
 
 ## Scope
 
 - Requests: the closed `AgentRequest` union — the `agent.session.list/get/explain` first-read
   family (flat closed objects with a nonzero 32-hex `requestId`; `includeEnded`/`limit` defaults
-  `false`/`50` applied at parse) plus the staged `AgentNamesRequest` family
+  `false`/`50` applied at parse) plus the `AgentNamesRequest` family
   (`resolve`/`names.list`/`name.assign`/`name.release` over `AgentSessionSelector`).
 - Results: the closed `AgentResult` union — read `outcome` unions
   (`listed`/`found`/`rejected`/`unavailable`) nested under
   `{kind, requestId, result:{outcome}}`; `runtime-unavailable` is the only v1 unavailability
-  reason — plus the staged names outcome envelopes.
+  reason — plus the names outcome envelopes.
 - Entities mirror the canonical Agent model exactly; the only wire-layer narrowing is the native
   `presentationId` profile (32 lowercase hex, nonzero).
 - Framing: 12-byte big-endian `OBAP` header, version `1`, request kinds `1..=13` odd
@@ -29,19 +29,19 @@ the opaque list page-cursor wire shape. Its actual consumers are the native `orc
 
 ## Delivery status
 
-The read family is live end to end: the CLI submits read requests and the Server's
-`application_session` demux executes them through `AgentService`. The names family is
-**staged codec/DTO only** — the published schema still covers just the read kinds 1–6, the
-Server holds no names table and rejects well-formed names requests with a contract fault that
-ends the session, and no CLI names command exists. The candidate design and its exit condition
-live in [`proposals/agent/session-names.md`](../../proposals/agent/session-names.md); names must
-not be presented as usable until that slice lands.
+Both families are live: native Agent reads and `agent names/resolve/rename` use the
+Server's `application_session` demux and `AgentService`. The published schema covers
+kinds 1–14. Names are runtime-scoped aliases owned by the Server cell; the protocol
+owns only their bounded DTOs and validation. Direct names in get/explain/wait remain
+outside the current CLI grammar; see
+[`proposals/agent/session-names.md`](../../proposals/agent/session-names.md).
 
-Semantic invariants beyond JSON Schema (unique capabilities and request identities, attachment-key
-uniqueness, one navigable generation per presentation, activity-hint prerequisites, ended-session
-emptiness, turn-scoped request membership, collection ceilings) are enforced by
-`contract::validate_*` on every parse and serialize path. These are wire-level strict checks, not
-a canonical superRefinement proof.
+Names lists contain at most 512 live bindings, sorted by unique name, with unique
+session identities. A name-in-use rejection must identify its incumbent; other
+assignment refusals carry null. Result kinds 8/12/14 reject bodies above 1,024 bytes
+before allocating or reading the body; kind 10 has the 256 KiB bounded-list ceiling.
+Semantic invariants on canonical read entities remain enforced on every parse and
+serialize path, independently of JSON Schema.
 
 ## Non-goals
 

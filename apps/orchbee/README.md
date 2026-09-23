@@ -11,6 +11,10 @@ Simplified Chinese maintenance translation:
 [README.zh-CN.md](README.zh-CN.md).
 English remains canonical.
 
+Use `agent rename <session-id> <name>` to assign a runtime name, `agent names` to list names,
+and `agent resolve <name>` to obtain the full session ID. `agent rename <target> --clear`
+releases a name. Names are unique and disappear when the session ends or the Site stops.
+
 ## Command surface
 
 Bare and explicit `tui` invocation first admit the inherited interactive terminal and valid

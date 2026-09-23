@@ -1,4 +1,4 @@
-//! The Agent observation read exchange on one admitted Client Session: a
+//! The Agent observation exchange on one admitted Client Session: a
 //! single OBAP request/result pair under the caller's deadline, with exact
 //! requestId+operation correlation and no replay after ambiguous outcomes.
 
@@ -6,8 +6,8 @@ use orchbee_local_ipc::LocalIo as BorrowedFd;
 use std::{fmt, io, time::Instant};
 
 use orchbee_agent_observation_protocol::{
-    AgentReadRequest, AgentReadResult, AgentRequest, AgentResult, AgentWireError, ObapRequestId,
-    write_agent_request,
+    AgentNamesRequest, AgentNamesResult, AgentReadRequest, AgentReadResult, AgentRequest,
+    AgentResult, AgentWireError, ObapRequestId, write_agent_request,
 };
 
 use super::{ExchangeAttempt, LocalClient, exchange_once};
@@ -25,22 +25,54 @@ impl LocalClient {
         request: AgentReadRequest,
         deadline: Instant,
         wake: Option<BorrowedFd<'_>>,
-    ) -> Result<AgentReadResult, AgentReadError> {
+    ) -> Result<AgentReadResult, AgentExchangeError> {
+        let request_id = request.request_id().clone();
+        match self.submit_agent_before_cancellable(AgentRequest::Read(request), deadline, wake)? {
+            AgentResult::Read(result) => Ok(result),
+            AgentResult::Names(_) => {
+                self.retire_with_agent_failure(request_id, AgentExchangeFailure::UnexpectedResponse)
+            }
+        }
+    }
+
+    /// Names mutations share the same one-shot exchange. A lost reply is
+    /// ambiguous and retires the session; this method never replays it.
+    #[cfg(any(target_os = "linux", windows))]
+    pub(crate) fn submit_agent_names_before_cancellable(
+        &mut self,
+        request: AgentNamesRequest,
+        deadline: Instant,
+        wake: Option<BorrowedFd<'_>>,
+    ) -> Result<AgentNamesResult, AgentExchangeError> {
+        let request_id = request.request_id().clone();
+        match self.submit_agent_before_cancellable(AgentRequest::Names(request), deadline, wake)? {
+            AgentResult::Names(result) => Ok(result),
+            AgentResult::Read(_) => {
+                self.retire_with_agent_failure(request_id, AgentExchangeFailure::UnexpectedResponse)
+            }
+        }
+    }
+
+    fn submit_agent_before_cancellable(
+        &mut self,
+        request: AgentRequest,
+        deadline: Instant,
+        wake: Option<BorrowedFd<'_>>,
+    ) -> Result<AgentResult, AgentExchangeError> {
         if self.connection.is_none() {
-            return Err(AgentReadError::SessionUnavailable);
+            return Err(AgentExchangeError::SessionUnavailable);
         }
 
         let request_id = request.request_id().clone();
-        let operation = AgentReadOperation::of(&request);
+        let operation = operation_of_request(&request);
         let mut frame = Vec::new();
-        write_agent_request(&mut frame, &AgentRequest::Read(request))
-            .map_err(AgentReadError::RequestEncoding)?;
+        write_agent_request(&mut frame, &request).map_err(AgentExchangeError::RequestEncoding)?;
         let deadline = self
             .submission_deadline_before(deadline)
-            .map_err(AgentReadError::RequestNotSubmitted)?;
+            .map_err(AgentExchangeError::RequestNotSubmitted)?;
         let attempt = {
             let Some(connection) = self.connection.as_mut() else {
-                return Err(AgentReadError::SessionUnavailable);
+                return Err(AgentExchangeError::SessionUnavailable);
             };
             exchange_once(
                 connection,
@@ -55,19 +87,20 @@ impl LocalClient {
         let result = match attempt {
             ExchangeAttempt::Result(result) => result,
             ExchangeAttempt::NotSubmitted(error) => {
-                return Err(AgentReadError::RequestNotSubmitted(error));
+                return Err(AgentExchangeError::RequestNotSubmitted(error));
             }
             ExchangeAttempt::WriteFailed(error) => {
-                return self.retire_with_agent_failure(request_id, AgentReadFailure::Write(error));
+                return self
+                    .retire_with_agent_failure(request_id, AgentExchangeFailure::Write(error));
             }
             ExchangeAttempt::ReadFailed(error) => {
                 return self
-                    .retire_with_agent_failure(request_id, AgentReadFailure::Response(error));
+                    .retire_with_agent_failure(request_id, AgentExchangeFailure::Response(error));
             }
             ExchangeAttempt::ReadDeadline(error) => {
                 return self.retire_with_agent_failure(
                     request_id,
-                    AgentReadFailure::ResponseDeadline(error),
+                    AgentExchangeFailure::ResponseDeadline(error),
                 );
             }
         };
@@ -75,19 +108,15 @@ impl LocalClient {
             let received = result.request_id().clone();
             return self.retire_with_agent_failure(
                 request_id.clone(),
-                AgentReadFailure::CorrelationMismatch {
+                AgentExchangeFailure::CorrelationMismatch {
                     expected: request_id,
                     received,
                 },
             );
         }
-        let AgentResult::Read(result) = result else {
+        if operation_of_result(&result) != operation {
             return self
-                .retire_with_agent_failure(request_id, AgentReadFailure::UnexpectedResponse);
-        };
-        if AgentReadOperation::of_result(&result) != operation {
-            return self
-                .retire_with_agent_failure(request_id, AgentReadFailure::UnexpectedResponse);
+                .retire_with_agent_failure(request_id, AgentExchangeFailure::UnexpectedResponse);
         }
         Ok(result)
     }
@@ -95,10 +124,10 @@ impl LocalClient {
     fn retire_with_agent_failure<Value>(
         &mut self,
         request_id: ObapRequestId,
-        reason: AgentReadFailure,
-    ) -> Result<Value, AgentReadError> {
+        reason: AgentExchangeFailure,
+    ) -> Result<Value, AgentExchangeError> {
         self.connection.take();
-        Err(AgentReadError::Failed { request_id, reason })
+        Err(AgentExchangeError::Failed { request_id, reason })
     }
 }
 
@@ -142,17 +171,17 @@ impl AgentReadOperation {
 }
 
 #[derive(Debug)]
-pub(crate) enum AgentReadError {
+pub(crate) enum AgentExchangeError {
     SessionUnavailable,
     RequestEncoding(AgentWireError),
     RequestNotSubmitted(io::Error),
     Failed {
         request_id: ObapRequestId,
-        reason: AgentReadFailure,
+        reason: AgentExchangeFailure,
     },
 }
 
-impl fmt::Display for AgentReadError {
+impl fmt::Display for AgentExchangeError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::SessionUnavailable => formatter.write_str("local Client Session is unavailable"),
@@ -173,7 +202,7 @@ impl fmt::Display for AgentReadError {
     }
 }
 
-impl std::error::Error for AgentReadError {
+impl std::error::Error for AgentExchangeError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::RequestEncoding(error) => Some(error),
@@ -184,11 +213,11 @@ impl std::error::Error for AgentReadError {
     }
 }
 
-/// Why a submitted OBAP read could not produce a trustworthy typed result;
+/// Why a submitted OBAP request could not produce a trustworthy typed result;
 /// every variant means the exchange outcome is unknown and the session is
 /// retired.
 #[derive(Debug)]
-pub(crate) enum AgentReadFailure {
+pub(crate) enum AgentExchangeFailure {
     Write(io::Error),
     Response(AgentWireError),
     ResponseDeadline(io::Error),
@@ -199,13 +228,13 @@ pub(crate) enum AgentReadFailure {
     },
 }
 
-impl fmt::Display for AgentReadFailure {
+impl fmt::Display for AgentExchangeFailure {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Write(error) => write!(formatter, "request write failed: {error}"),
-            Self::Response(error) => write!(formatter, "invalid read result: {error}"),
+            Self::Response(error) => write!(formatter, "invalid Agent result: {error}"),
             Self::ResponseDeadline(error) => {
-                write!(formatter, "read response failed: {error}")
+                write!(formatter, "Agent response failed: {error}")
             }
             Self::UnexpectedResponse => {
                 formatter.write_str("response kind does not match the request operation")
@@ -218,12 +247,42 @@ impl fmt::Display for AgentReadFailure {
     }
 }
 
-impl std::error::Error for AgentReadFailure {
+impl std::error::Error for AgentExchangeFailure {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Write(error) | Self::ResponseDeadline(error) => Some(error),
             Self::Response(error) => Some(error),
             Self::UnexpectedResponse | Self::CorrelationMismatch { .. } => None,
         }
+    }
+}
+
+/// Family plus operation, independent of request identity and outcome.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum Operation {
+    Read(AgentReadOperation),
+    Resolve,
+    NamesList,
+    NameAssign,
+    NameRelease,
+}
+
+fn operation_of_request(request: &AgentRequest) -> Operation {
+    match request {
+        AgentRequest::Read(request) => Operation::Read(AgentReadOperation::of(request)),
+        AgentRequest::Names(AgentNamesRequest::Resolve { .. }) => Operation::Resolve,
+        AgentRequest::Names(AgentNamesRequest::NamesList { .. }) => Operation::NamesList,
+        AgentRequest::Names(AgentNamesRequest::NameAssign { .. }) => Operation::NameAssign,
+        AgentRequest::Names(AgentNamesRequest::NameRelease { .. }) => Operation::NameRelease,
+    }
+}
+
+fn operation_of_result(result: &AgentResult) -> Operation {
+    match result {
+        AgentResult::Read(result) => Operation::Read(AgentReadOperation::of_result(result)),
+        AgentResult::Names(AgentNamesResult::Resolve { .. }) => Operation::Resolve,
+        AgentResult::Names(AgentNamesResult::NamesList { .. }) => Operation::NamesList,
+        AgentResult::Names(AgentNamesResult::NameAssign { .. }) => Operation::NameAssign,
+        AgentResult::Names(AgentNamesResult::NameRelease { .. }) => Operation::NameRelease,
     }
 }

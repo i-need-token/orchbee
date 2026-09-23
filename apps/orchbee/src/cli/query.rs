@@ -1,6 +1,9 @@
-//! The single read-only Site query: existing-only rendezvous, one OBLC
-//! admission, one snapshot read, then the session is dropped. Nothing here may
-//! create directories, acquire locks, start processes, or mutate the Workbench.
+//! Existing-only Site admission and bounded query exchanges. Snapshot queries
+//! are read-only; the names child owns one explicit Agent alias exchange.
+//! Neither path activates a Site, starts a process, or mutates the Workbench.
+
+#[cfg(any(target_os = "linux", windows))]
+mod agent_names;
 
 #[cfg(any(target_os = "linux", windows))]
 use orchbee_local_ipc::LocalIo as BorrowedFd;
@@ -52,7 +55,7 @@ use super::{
 #[cfg(any(target_os = "linux", windows))]
 use crate::invocation::{Resource, Target};
 #[cfg(any(target_os = "linux", windows))]
-use crate::local_client::agent::{AgentReadError, AgentReadFailure, AgentReadOperation};
+use crate::local_client::agent::{AgentExchangeError, AgentExchangeFailure, AgentReadOperation};
 #[cfg(any(target_os = "linux", windows))]
 use crate::local_client::workbench::{
     LaunchProfileCatalogReadError, LaunchProfileCatalogReadFailure, SnapshotReadError,
@@ -1042,16 +1045,18 @@ mod tests {
                 AgentReadOperation::Get,
                 AgentReadOperation::Explain,
             ] {
-                let not_submitted =
-                    classify_agent_read(AgentReadError::RequestNotSubmitted(marker()), operation);
+                let not_submitted = classify_agent_read(
+                    AgentExchangeError::RequestNotSubmitted(marker()),
+                    operation,
+                );
                 assert_eq!(not_submitted.kind, FailureKind::InternalFailure);
                 for reason in [
-                    AgentReadFailure::Write(marker()),
-                    AgentReadFailure::ResponseDeadline(marker()),
-                    AgentReadFailure::Response(AgentWireError::Io(marker())),
+                    AgentExchangeFailure::Write(marker()),
+                    AgentExchangeFailure::ResponseDeadline(marker()),
+                    AgentExchangeFailure::Response(AgentWireError::Io(marker())),
                 ] {
                     let failure = classify_agent_read(
-                        AgentReadError::Failed {
+                        AgentExchangeError::Failed {
                             request_id: request_id.clone(),
                             reason,
                         },
@@ -2303,7 +2308,7 @@ enum AgentAttempt {
     /// The shared absolute budget expired before or after the exchange.
     Expired,
     /// One OBAP exchange settled to its raw result or typed failure.
-    Exchanged(Result<AgentReadResult, AgentReadError>),
+    Exchanged(Result<AgentReadResult, AgentExchangeError>),
 }
 
 /// The armed Agent interruption owner as one pollable descriptor plus one
@@ -2717,12 +2722,12 @@ fn wake_marker_failure(error: &std::io::Error) -> Option<Failure> {
 /// and any malformed/correlated violation to protocol-invalid — every
 /// document under the common `agent-read` stage, none with a source.
 #[cfg(any(target_os = "linux", windows))]
-fn classify_agent_read(error: AgentReadError, operation: AgentReadOperation) -> Failure {
+fn classify_agent_read(error: AgentExchangeError, operation: AgentReadOperation) -> Failure {
     match error {
-        AgentReadError::SessionUnavailable | AgentReadError::RequestEncoding(_) => {
+        AgentExchangeError::SessionUnavailable | AgentExchangeError::RequestEncoding(_) => {
             Failure::new(FailureKind::InternalFailure)
         }
-        AgentReadError::RequestNotSubmitted(error) => {
+        AgentExchangeError::RequestNotSubmitted(error) => {
             if let Some(failure) = wake_marker_failure(&error) {
                 failure
             } else if is_deadline_elapsed(&error) {
@@ -2731,16 +2736,16 @@ fn classify_agent_read(error: AgentReadError, operation: AgentReadOperation) -> 
                 Failure::new(FailureKind::TransportLoss).details(agent_read_details(operation))
             }
         }
-        AgentReadError::Failed { reason, .. } => classify_agent_failure(reason, operation),
+        AgentExchangeError::Failed { reason, .. } => classify_agent_failure(reason, operation),
     }
 }
 
 #[cfg(any(target_os = "linux", windows))]
-fn classify_agent_failure(reason: AgentReadFailure, operation: AgentReadOperation) -> Failure {
+fn classify_agent_failure(reason: AgentExchangeFailure, operation: AgentReadOperation) -> Failure {
     match reason {
-        AgentReadFailure::Write(error)
-        | AgentReadFailure::ResponseDeadline(error)
-        | AgentReadFailure::Response(AgentWireError::Io(error)) => {
+        AgentExchangeFailure::Write(error)
+        | AgentExchangeFailure::ResponseDeadline(error)
+        | AgentExchangeFailure::Response(AgentWireError::Io(error)) => {
             if let Some(failure) = wake_marker_failure(&error) {
                 failure
             } else if is_deadline_elapsed(&error) {
@@ -2749,9 +2754,9 @@ fn classify_agent_failure(reason: AgentReadFailure, operation: AgentReadOperatio
                 Failure::new(FailureKind::TransportLoss).details(agent_read_details(operation))
             }
         }
-        AgentReadFailure::Response(_)
-        | AgentReadFailure::UnexpectedResponse
-        | AgentReadFailure::CorrelationMismatch { .. } => agent_protocol_invalid(operation),
+        AgentExchangeFailure::Response(_)
+        | AgentExchangeFailure::UnexpectedResponse
+        | AgentExchangeFailure::CorrelationMismatch { .. } => agent_protocol_invalid(operation),
     }
 }
 
@@ -3089,4 +3094,17 @@ mod wait_tests {
             serde_json::json!(7)
         );
     }
+}
+
+#[cfg(any(target_os = "linux", windows))]
+pub(super) fn names_command(
+    command: &crate::invocation::AgentNamesCommand,
+) -> super::agent_names::Execution {
+    agent_names::execute(command)
+}
+#[cfg(not(any(target_os = "linux", windows)))]
+pub(super) fn names_command(
+    _command: &crate::invocation::AgentNamesCommand,
+) -> super::agent_names::Execution {
+    super::agent_names::Execution::failed(Failure::new(FailureKind::ServiceUnavailable))
 }

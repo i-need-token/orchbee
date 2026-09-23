@@ -7,10 +7,9 @@
 use std::io::Cursor;
 
 use orchbee_agent_observation_protocol::{
-    AgentContractError, AgentListOutcome, AgentListOutcomeEnvelope, AgentListRejectionReason,
-    AgentNamesRequest, AgentReadRequest, AgentReadResult, AgentRequest, AgentResult,
-    AgentSafeInteger, AgentWireError, ObapRequestId, read_agent_result, write_agent_request,
-    write_agent_result,
+    AgentListOutcome, AgentListOutcomeEnvelope, AgentListRejectionReason, AgentNamesRequest,
+    AgentReadRequest, AgentReadResult, AgentRequest, AgentResult, AgentSafeInteger, AgentWireError,
+    ObapRequestId, read_agent_result, write_agent_request, write_agent_result,
 };
 use orchbee_client_server_protocol::{ClientMessage, ServerMessage, read_server_message};
 
@@ -46,8 +45,8 @@ fn run_agent<Stream: std::io::Read + std::io::Write>(
         |_request| panic!("unexpected OBCS request"),
         |_request| panic!("unexpected Workbench request"),
         |request| {
-            assert_eq!(request, list_request());
-            Ok(result.clone())
+            assert_eq!(request, AgentRequest::Read(list_request()));
+            Ok(AgentResult::Read(result.clone()))
         },
     )
 }
@@ -107,8 +106,8 @@ fn interleaves_agent_and_obcs_records_preserving_response_before_next_request() 
         |request: ClientMessage| -> ServerMessage { super::denied_result(&request) },
         |_request| panic!("unexpected Workbench request"),
         |received| {
-            assert_eq!(received, request);
-            Ok(result.clone())
+            assert_eq!(received, AgentRequest::Read(request.clone()));
+            Ok(AgentResult::Read(result.clone()))
         },
     )
     .expect_err("EOF must end the session");
@@ -138,7 +137,7 @@ fn interleaves_agent_and_obcs_records_preserving_response_before_next_request() 
 
 #[test]
 fn ends_on_malformed_agent_records_without_reaching_the_executor() {
-    let executor = |_request: AgentReadRequest| -> Result<AgentReadResult, AgentReadFault> {
+    let executor = |_request: AgentRequest| -> Result<AgentResult, AgentReadFault> {
         unreachable!("malformed records must not execute")
     };
 
@@ -195,35 +194,41 @@ fn ends_on_malformed_agent_records_without_reaching_the_executor() {
     assert!(stream.output.is_empty());
 }
 
-/// A well-formed names-family request is a loud contract rejection at the
-/// demux: the session ends, the read executor never runs, and no result —
-/// let alone a fabricated names answer — is written.
+/// Names share the same sequential record loop and correlation rules as reads.
 #[test]
-fn ends_on_names_family_requests_without_reaching_the_executor() {
-    let executor = |_request: AgentReadRequest| -> Result<AgentReadResult, AgentReadFault> {
-        unreachable!("names requests must not reach the read executor")
+fn routes_names_without_reinterpreting_them_as_reads() {
+    use orchbee_agent_observation_protocol::{
+        AgentNamesListOutcome, AgentNamesListOutcomeEnvelope, AgentNamesResult,
     };
+    let request_id = ObapRequestId::parse(super::FIRST_REQUEST_ID).unwrap();
+    let request = AgentRequest::Names(AgentNamesRequest::NamesList {
+        request_id: request_id.clone(),
+    });
+    let response = AgentResult::Names(AgentNamesResult::NamesList {
+        request_id,
+        result: AgentNamesListOutcomeEnvelope {
+            outcome: AgentNamesListOutcome::Listed { bindings: vec![] },
+        },
+    });
     let mut input = Vec::new();
-    write_agent_request(
-        &mut input,
-        &AgentRequest::Names(AgentNamesRequest::NamesList {
-            request_id: ObapRequestId::parse(super::FIRST_REQUEST_ID).unwrap(),
-        }),
-    )
-    .unwrap();
-    let mut stream = super::MemoryStream::new(input);
+    write_agent_request(&mut input, &request).unwrap();
+    let mut stream = super::MemoryStream::new(input).with_chunks(1, 2);
     assert!(matches!(
         super::super::run(
             &mut stream,
-            |_request| panic!("unexpected OBCS request"),
-            |_request| panic!("unexpected Workbench request"),
-            executor,
+            |_| panic!("unexpected OBCS request"),
+            |_| panic!("unexpected Workbench request"),
+            |received| {
+                assert_eq!(received, request);
+                Ok(response.clone())
+            },
         ),
-        Err(ApplicationSessionError::Agent(AgentWireError::Contract(
-            AgentContractError::WrongDocumentKind
-        )))
+        Err(ApplicationSessionError::Prefix(_))
     ));
-    assert!(stream.output.is_empty());
+    assert_eq!(
+        read_agent_result(&mut Cursor::new(stream.output)).unwrap(),
+        response
+    );
 }
 
 #[test]

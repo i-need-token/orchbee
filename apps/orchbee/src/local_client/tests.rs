@@ -29,7 +29,7 @@ use orchbee_local_client_protocol::{
 };
 use orchbee_local_ipc::{AsLocalIo, LocalIo, PollFlags};
 
-use super::agent::{AgentReadError, AgentReadFailure};
+use super::agent::{AgentExchangeError, AgentExchangeFailure};
 use super::{
     ClientSessionConnection, DeadlineIo, IoChunkLimits, LocalClient, LocalClientConnectError,
     LocalOperationClock, MonotonicClock, OutcomeUnknownReason, ResultKind, SubmissionDeadline,
@@ -1514,7 +1514,7 @@ fn agent_read_wake_ready_before_write_is_request_not_submitted() -> TestResult {
         Instant::now() + Duration::from_secs(5),
         Some(wake_read.as_local_io()),
     ) {
-        Err(AgentReadError::RequestNotSubmitted(error)) => {
+        Err(AgentExchangeError::RequestNotSubmitted(error)) => {
             assert!(exchange_wake_ready(&error), "readiness marker: {error:?}")
         }
         other => panic!("expected RequestNotSubmitted wake marker, got {other:?}"),
@@ -1525,7 +1525,7 @@ fn agent_read_wake_ready_before_write_is_request_not_submitted() -> TestResult {
 }
 
 /// A wake observation inside the response wait surfaces inside
-/// `AgentReadError::Failed` through `AgentWireError::Io` — the marker
+/// `AgentExchangeError::Failed` through `AgentWireError::Io` — the marker
 /// traverses every error layer without being read or retried.
 #[test]
 fn agent_read_wake_ready_mid_response_surfaces_through_io() -> TestResult {
@@ -1552,8 +1552,8 @@ fn agent_read_wake_ready_mid_response_surfaces_through_io() -> TestResult {
         Instant::now() + Duration::from_secs(5),
         Some(wake_read.as_local_io()),
     ) {
-        Err(AgentReadError::Failed { reason, .. }) => match reason {
-            AgentReadFailure::Response(AgentWireError::Io(error)) => {
+        Err(AgentExchangeError::Failed { reason, .. }) => match reason {
+            AgentExchangeFailure::Response(AgentWireError::Io(error)) => {
                 assert!(exchange_wake_ready(&error), "readiness marker: {error:?}")
             }
             other => panic!("expected Response(Io) wake marker, got {other:?}"),
@@ -1611,10 +1611,10 @@ fn agent_read_names_family_result_retires_the_session() -> TestResult {
         Instant::now() + Duration::from_secs(5),
         None,
     ) {
-        Err(AgentReadError::Failed { request_id, reason }) => {
+        Err(AgentExchangeError::Failed { request_id, reason }) => {
             assert_eq!(request_id.as_str(), FIRST_REQUEST_ID);
             assert!(
-                matches!(reason, AgentReadFailure::UnexpectedResponse),
+                matches!(reason, AgentExchangeFailure::UnexpectedResponse),
                 "expected UnexpectedResponse, got {reason:?}"
             );
         }

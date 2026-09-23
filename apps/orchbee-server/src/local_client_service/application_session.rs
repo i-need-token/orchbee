@@ -4,8 +4,7 @@ use std::{
 };
 
 use orchbee_agent_observation_protocol::{
-    AGENT_MAGIC, AgentContractError, AgentReadRequest, AgentReadResult, AgentRequest, AgentResult,
-    AgentWireError, read_agent_request, write_agent_result,
+    AGENT_MAGIC, AgentRequest, AgentResult, AgentWireError, read_agent_request, write_agent_result,
 };
 use orchbee_client_server_protocol::{
     ClientMessage, FRAME_MAGIC, PASTE_RECORD_MAGIC, ReadMessageError, SEND_RECORD_MAGIC,
@@ -23,7 +22,7 @@ pub(super) fn run<Stream>(
     stream: &mut Stream,
     mut execute: impl FnMut(ClientMessage) -> ServerMessage,
     mut execute_workbench: impl FnMut(WorkbenchRequest) -> WorkbenchExecution,
-    mut execute_agent: impl FnMut(AgentReadRequest) -> Result<AgentReadResult, AgentReadFault>,
+    mut execute_agent: impl FnMut(AgentRequest) -> Result<AgentResult, AgentReadFault>,
 ) -> Result<(), ApplicationSessionError>
 where
     Stream: Read + Write,
@@ -50,17 +49,10 @@ where
                     .map_err(ApplicationSessionError::Workbench)?;
             }
             AGENT_MAGIC => {
-                let AgentRequest::Read(request) =
-                    read_agent_request(&mut Cursor::new(prefix).chain(&mut *stream))
-                        .map_err(ApplicationSessionError::Agent)?
-                else {
-                    return Err(ApplicationSessionError::Agent(AgentWireError::Contract(
-                        AgentContractError::WrongDocumentKind,
-                    )));
-                };
-                let result = execute_agent(request).map_err(ApplicationSessionError::AgentFault)?;
-                write_agent_result(stream, &AgentResult::Read(result))
+                let request = read_agent_request(&mut Cursor::new(prefix).chain(&mut *stream))
                     .map_err(ApplicationSessionError::Agent)?;
+                let result = execute_agent(request).map_err(ApplicationSessionError::AgentFault)?;
+                write_agent_result(stream, &result).map_err(ApplicationSessionError::Agent)?;
             }
             _ => return Err(ApplicationSessionError::UnknownProtocol),
         }

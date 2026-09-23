@@ -1,0 +1,122 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.agent.rename",
+	"title": "orchbee agent rename envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.agent.rename"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"type": "object",
+			"required": ["kind", "requestId"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "agent-names"
+				},
+				"requestId": {
+					"$ref": "#/$defs/obapRequestId"
+				}
+			}
+		},
+		"result": {
+			"anyOf": [
+				{
+					"type": "object",
+					"required": ["kind", "sessionId", "name", "previousName"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "assigned"
+						},
+						"sessionId": {
+							"$ref": "#/$defs/sessionId"
+						},
+						"name": {
+							"$ref": "#/$defs/agentName"
+						},
+						"previousName": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/agentName"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "sessionId", "name"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "unchanged"
+						},
+						"sessionId": {
+							"$ref": "#/$defs/sessionId"
+						},
+						"name": {
+							"$ref": "#/$defs/agentName"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "sessionId", "name"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "released"
+						},
+						"sessionId": {
+							"$ref": "#/$defs/sessionId"
+						},
+						"name": {
+							"$ref": "#/$defs/agentName"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "sessionId"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "unchanged"
+						},
+						"sessionId": {
+							"$ref": "#/$defs/sessionId"
+						}
+					}
+				}
+			]
+		}
+	},
+	"$defs": {
+		"agentName": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9_-]{0,31}$"
+		},
+		"sessionId": {
+			"$ref": "#/$defs/opaqueIdentity"
+		},
+		"opaqueIdentity": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9._:-]{1,128}$"
+		},
+		"obapRequestId": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"$comment": "Request identity: exactly 32 lowercase hexadecimal characters and never the zero sentinel; the nonzero rule is a semantic invariant enforced by each binding."
+		}
+	}
+}

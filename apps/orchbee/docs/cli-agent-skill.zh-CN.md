@@ -1,5 +1,7 @@
 # Orchbee 原生 CLI Agent 指引
 
+用 `agent rename <session-id> <name>` 设置唯一运行时别名，`agent names` 列出绑定。`agent resolve <name>` 返回供 get/explain/wait 使用的完整会话 ID。名称与会话 ID 冲突时，`--name <alias>` 明确选择别名，`--session <id>` 明确选择 ID。`agent rename <target> --clear` 只释放名称。会话结束或 Site dispose 后名称消失。重命名回复丢失是结果未知，禁止盲目重放。
+
 ## 发现当前构建
 
 使用 `orchbee --help`、`orchbee help <family>` 和 `orchbee help <family> <command>` 获取精确语法。`orchbee --version`、`orchbee --skill`、`orchbee completion powershell` 和 `orchbee api schema` 均可离线使用。`orchbee api schema <schema-id>` 输出内嵌结果 schema。原生程序与 Desktop CLI 的能力不同；应读取实际调用程序的帮助。

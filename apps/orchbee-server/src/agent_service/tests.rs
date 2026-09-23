@@ -78,7 +78,11 @@ fn listed(result: AgentReadResult) -> (Vec<String>, Option<AgentListCursor>, u64
 
 #[test]
 fn empty_runtime_lists_nothing_and_rejects_unknown_sessions() {
-    let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+    let service = AgentService::open(AgentPolicy {
+        read: true,
+        manage: true,
+    })
+    .unwrap();
     let (items, next_cursor, revision) =
         listed(service.execute(list_request(1, false, 50, None)).unwrap());
     assert!(items.is_empty());
@@ -120,7 +124,11 @@ fn empty_runtime_lists_nothing_and_rejects_unknown_sessions() {
 
 #[test]
 fn denied_policy_rejects_every_operation() {
-    let service = AgentService::open(AgentPolicy { read: false }).unwrap();
+    let service = AgentService::open(AgentPolicy {
+        read: false,
+        manage: false,
+    })
+    .unwrap();
     let AgentReadResult::List { result, .. } =
         service.execute(list_request(1, false, 50, None)).unwrap()
     else {
@@ -456,8 +464,14 @@ fn filters_ended_sessions_by_include_ended() {
 /// retire seam detaches the joined presentation on that same cell.
 #[test]
 fn bridge_dispatches_hook_envelope_into_the_read_path_runtime() {
-    let service =
-        AgentService::open_hook_fixture(AgentPolicy { read: true }, "fixture.sock").unwrap();
+    let service = AgentService::open_hook_fixture(
+        AgentPolicy {
+            read: true,
+            manage: true,
+        },
+        "fixture.sock",
+    )
+    .unwrap();
     // Native wire profile: presentation ids are 32-hex, never the corpus's
     // `desktop:presentation:` fixture shape.
     let presentation_id = "aa".repeat(16);
@@ -597,8 +611,14 @@ fn reports_runtime_unavailable_after_disposal() {
 /// the pre-fault mutation is never observable.
 #[test]
 fn a_panicked_fold_permanently_poisons_the_single_state_cell() {
-    let service =
-        AgentService::open_hook_fixture(AgentPolicy { read: true }, "fixture.sock").unwrap();
+    let service = AgentService::open_hook_fixture(
+        AgentPolicy {
+            read: true,
+            manage: true,
+        },
+        "fixture.sock",
+    )
+    .unwrap();
     let presentation_id = "aa".repeat(16);
     let creation_id = "01".repeat(16);
     service
@@ -902,7 +922,11 @@ mod native_leaf {
     /// (revision 2), not a separate first-attach event.
     #[test]
     fn held_hint_replays_into_canonical_runtime_on_binding_commit() {
-        let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+        let service = AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap();
         let t0 = Instant::now();
         let carrier = carrier_id(0xaa, 1);
         // Oracle literals: C1 = "01"*16 (join generation), P1 = "aa"*16.
@@ -1074,7 +1098,11 @@ mod native_leaf {
     /// registration is gone), so nothing reaches the runtime.
     #[test]
     fn carrier_retire_drops_join_fences_atomically() {
-        let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+        let service = AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap();
         let t0 = Instant::now();
         let carrier = carrier_id(1, 1);
 
@@ -1105,7 +1133,11 @@ mod native_leaf {
     /// head of reconcile and can never replay onto a late binding.
     #[test]
     fn expired_held_record_never_replays_on_late_binding() {
-        let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+        let service = AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap();
         let t0 = Instant::now();
         let carrier = carrier_id(1, 1);
         service.native_admit_carrier(carrier, t0).unwrap().unwrap();
@@ -1130,7 +1162,11 @@ mod native_leaf {
     /// expels an aged held record without any other entry.
     #[test]
     fn native_gap_and_sweep_seams() {
-        let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+        let service = AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap();
         let t0 = Instant::now();
         let carrier = carrier_id(1, 1);
         service.native_admit_carrier(carrier, t0).unwrap().unwrap();
@@ -1154,7 +1190,11 @@ mod native_leaf {
     /// unavailability.
     #[test]
     fn combined_fold_fault_poisons_the_whole_cell() {
-        let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+        let service = AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap();
         let t0 = Instant::now();
         let carrier = carrier_id(1, 1);
 
@@ -1194,7 +1234,11 @@ mod native_leaf {
     /// service clock origin. Single-threaded: no endpoint exists.
     #[test]
     fn admit_seam_schedules_partial_match_on_the_call_instant() {
-        let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+        let service = AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap();
         let t0 = Instant::now();
         let carrier = carrier_id(0xcc, 1);
         service.native_admit_carrier(carrier, t0).unwrap().unwrap();
@@ -1225,7 +1269,11 @@ mod native_leaf {
     /// the earlier admit's stale base, already in the past.
     #[test]
     fn native_funnel_sync_schedules_on_the_hint_instant() {
-        let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+        let service = AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap();
         let t0 = Instant::now();
         let carrier = carrier_id(0xcd, 1);
         service.native_admit_carrier(carrier, t0).unwrap().unwrap();
@@ -1261,7 +1309,11 @@ mod native_leaf {
     /// performs in the real-thread cases.
     #[test]
     fn tick_seam_drains_the_scheduled_settlement() {
-        let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+        let service = AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap();
         let t0 = Instant::now();
         let carrier = carrier_id(0xce, 1);
         service.native_admit_carrier(carrier, t0).unwrap().unwrap();
@@ -1315,7 +1367,11 @@ mod native_leaf {
         /// load-bearing gate order.
         #[test]
         fn denied_requests_reject_without_invoking_the_provider() {
-            let service = AgentService::open(AgentPolicy { read: false }).unwrap();
+            let service = AgentService::open(AgentPolicy {
+                read: false,
+                manage: false,
+            })
+            .unwrap();
 
             let AgentReadResult::List {
                 request_id: echoed,
@@ -1525,7 +1581,11 @@ mod native_leaf {
         /// subsequent valid snapshot reconciles and clones in one fold.
         #[test]
         fn reconcile_and_snapshot_rejects_ambiguous_facts_atomically() {
-            let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+            let service = AgentService::open(AgentPolicy {
+                read: true,
+                manage: true,
+            })
+            .unwrap();
             let t0 = Instant::now();
             let carrier = carrier_id(1, 1);
             service.native_admit_carrier(carrier, t0).unwrap().unwrap();
@@ -1571,7 +1631,11 @@ mod native_leaf {
         /// an old seam — the provider IS the future owner's shape.
         #[test]
         fn prepared_read_serves_the_runtime_the_leaf_reconciles() {
-            let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+            let service = AgentService::open(AgentPolicy {
+                read: true,
+                manage: true,
+            })
+            .unwrap();
             let t0 = Instant::now();
             let carrier = carrier_id(0xcc, 1);
             service.native_admit_carrier(carrier, t0).unwrap().unwrap();
@@ -1641,7 +1705,11 @@ mod native_leaf {
         /// session record stays retrievable, and no history disappears.
         #[test]
         fn ended_history_survives_empty_reconcile_through_prepared_read() {
-            let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+            let service = AgentService::open(AgentPolicy {
+                read: true,
+                manage: true,
+            })
+            .unwrap();
             let t0 = Instant::now();
             let carrier = carrier_id(0xdd, 1);
             service.native_admit_carrier(carrier, t0).unwrap().unwrap();
@@ -1778,7 +1846,11 @@ mod native_leaf {
         /// the legacy read.
         #[test]
         fn poisoned_cell_surfaces_unavailable_through_the_prepared_path() {
-            let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+            let service = AgentService::open(AgentPolicy {
+                read: true,
+                manage: true,
+            })
+            .unwrap();
             let t0 = Instant::now();
             let carrier = carrier_id(1, 1);
             assert!(
@@ -1877,7 +1949,11 @@ mod native_leaf {
         /// still return the live W, and the fenced final serves.
         #[test]
         fn empty_page_captures_the_live_watermark() {
-            let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+            let service = AgentService::open(AgentPolicy {
+                read: true,
+                manage: true,
+            })
+            .unwrap();
             let t0 = Instant::now();
             let carrier = carrier_id(1, 7);
             service.native_admit_carrier(carrier, t0).unwrap().unwrap();
@@ -1896,7 +1972,11 @@ mod native_leaf {
         /// including a stale tail below it) still returns the live W.
         #[test]
         fn all_dedup_and_stale_pages_return_the_live_watermark() {
-            let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+            let service = AgentService::open(AgentPolicy {
+                read: true,
+                manage: true,
+            })
+            .unwrap();
             let t0 = Instant::now();
             let carrier = carrier_id(1, 1);
             service.native_admit_carrier(carrier, t0).unwrap().unwrap();
@@ -1929,7 +2009,11 @@ mod native_leaf {
         /// before any apply, with zero mutation.
         #[test]
         fn mismatched_or_absent_carrier_applies_nothing() {
-            let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+            let service = AgentService::open(AgentPolicy {
+                read: true,
+                manage: true,
+            })
+            .unwrap();
             let t0 = Instant::now();
 
             // No carrier installed at all.
@@ -1962,7 +2046,11 @@ mod native_leaf {
         /// same guard, so there is no mid-page interleave to observe.
         #[test]
         fn page_applies_whole_or_not_at_all() {
-            let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+            let service = AgentService::open(AgentPolicy {
+                read: true,
+                manage: true,
+            })
+            .unwrap();
             let t0 = Instant::now();
             let carrier = carrier_id(1, 1);
             service.native_admit_carrier(carrier, t0).unwrap().unwrap();
@@ -2005,7 +2093,11 @@ mod native_leaf {
         /// 8160 <= 8165) apply whole — the legal page bound is real.
         #[test]
         fn maximum_legal_page_applies_whole() {
-            let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+            let service = AgentService::open(AgentPolicy {
+                read: true,
+                manage: true,
+            })
+            .unwrap();
             let t0 = Instant::now();
             let carrier = carrier_id(1, 1);
             service.native_admit_carrier(carrier, t0).unwrap().unwrap();
@@ -2024,7 +2116,11 @@ mod native_leaf {
         /// Covers same-generation different-worker replacement.
         #[test]
         fn replaced_carrier_fences_the_final_snapshot() {
-            let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+            let service = AgentService::open(AgentPolicy {
+                read: true,
+                manage: true,
+            })
+            .unwrap();
             let t0 = Instant::now();
             let old = carrier_id(1, 7);
             service.native_admit_carrier(old, t0).unwrap().unwrap();
@@ -2050,7 +2146,11 @@ mod native_leaf {
         /// CarrierAppeared, never a silent stale serve.
         #[test]
         fn appeared_carrier_fences_the_nocarrier_expectation() {
-            let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+            let service = AgentService::open(AgentPolicy {
+                read: true,
+                manage: true,
+            })
+            .unwrap();
             let t0 = Instant::now();
 
             let snapshot = service
@@ -2071,7 +2171,11 @@ mod native_leaf {
         /// met serves; unmet refuses with the live values.
         #[test]
         fn barrier_met_serves_and_unmet_refuses() {
-            let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+            let service = AgentService::open(AgentPolicy {
+                read: true,
+                manage: true,
+            })
+            .unwrap();
             let t0 = Instant::now();
             let carrier = carrier_id(1, 1);
             service.native_admit_carrier(carrier, t0).unwrap().unwrap();
@@ -2096,7 +2200,11 @@ mod native_leaf {
         /// permanently and for every seam.
         #[test]
         fn atomic_rejection_and_fold_poison_are_distinct_axes() {
-            let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+            let service = AgentService::open(AgentPolicy {
+                read: true,
+                manage: true,
+            })
+            .unwrap();
             let t0 = Instant::now();
             let carrier = carrier_id(1, 1);
             service.native_admit_carrier(carrier, t0).unwrap().unwrap();

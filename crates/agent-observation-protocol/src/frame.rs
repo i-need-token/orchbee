@@ -181,6 +181,7 @@ fn read_frame(
         Direction::Result => match kind {
             2 => MAXIMUM_AGENT_LIST_RESULT_BYTES,
             10 => MAXIMUM_AGENT_NAMES_RESULT_BYTES,
+            8 | 12 | 14 => MAXIMUM_AGENT_SMALL_OUTCOME_BYTES,
             _ => MAXIMUM_AGENT_SESSION_RESULT_BYTES,
         },
     };

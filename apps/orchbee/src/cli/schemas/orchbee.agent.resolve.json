@@ -1,0 +1,67 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.agent.resolve",
+	"title": "orchbee agent resolve envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.agent.resolve"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"type": "object",
+			"required": ["kind", "requestId"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "agent-names"
+				},
+				"requestId": {
+					"$ref": "#/$defs/obapRequestId"
+				}
+			}
+		},
+		"result": {
+			"anyOf": [
+				{
+					"type": "object",
+					"required": ["kind", "sessionId", "resolvedBy"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "resolved"
+						},
+						"sessionId": {
+							"$ref": "#/$defs/sessionId"
+						},
+						"resolvedBy": {
+							"enum": ["session-id", "name"]
+						}
+					}
+				}
+			]
+		}
+	},
+	"$defs": {
+		"agentName": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9_-]{0,31}$"
+		},
+		"sessionId": {
+			"$ref": "#/$defs/opaqueIdentity"
+		},
+		"opaqueIdentity": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9._:-]{1,128}$"
+		},
+		"obapRequestId": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"$comment": "Request identity: exactly 32 lowercase hexadecimal characters and never the zero sentinel; the nonzero rule is a semantic invariant enforced by each binding."
+		}
+	}
+}

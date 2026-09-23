@@ -1,8 +1,8 @@
 use std::{ffi::OsString, path::PathBuf};
 
 use orchbee_agent_observation_protocol::{
-    AgentListCursor, AgentSafeInteger, AgentSessionId, DEFAULT_LIST_LIMIT, MAXIMUM_LIST_LIMIT,
-    MAXIMUM_SAFE_INTEGER,
+    AgentListCursor, AgentName, AgentSafeInteger, AgentSessionId, AgentSessionSelector,
+    DEFAULT_LIST_LIMIT, MAXIMUM_LIST_LIMIT, MAXIMUM_SAFE_INTEGER,
 };
 use orchbee_workbench_protocol::{
     LaunchEnvironment, LaunchOptions, LaunchProfileName, LaunchProfileSelector, LaunchSelection,
@@ -158,6 +158,9 @@ pub(crate) enum CommandPath {
     AgentExplain,
     AgentWait,
     AgentDoctor,
+    AgentNames,
+    AgentResolve,
+    AgentRename,
     AgentIntegrationList,
     AgentIntegrationExplain,
     AgentIntegrationEnable,
@@ -215,6 +218,9 @@ impl CommandPath {
             Self::AgentExplain => "agent explain",
             Self::AgentWait => "agent wait",
             Self::AgentDoctor => "agent doctor",
+            Self::AgentNames => "agent names",
+            Self::AgentResolve => "agent resolve",
+            Self::AgentRename => "agent rename",
             Self::AgentIntegrationList => "agent integration list",
             Self::AgentIntegrationExplain => "agent integration explain",
             Self::AgentIntegrationEnable => "agent integration enable",
@@ -804,6 +810,17 @@ pub(crate) enum AgentIntegrationCommand {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum AgentNamesCommand {
+    List,
+    Resolve(AgentSessionSelector),
+    Assign {
+        target: AgentSessionSelector,
+        name: AgentName,
+    },
+    Release(AgentSessionSelector),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
     /// `mouse` is the `--mouse off|on` selection: whether host pointer
     /// reporting is armed for the session. Only the explicit `tui` path
@@ -838,6 +855,10 @@ pub(crate) enum Request {
     /// `agent integration`: the local provider-onboarding surface — runs
     /// entirely off ambient PATH and the cohort sidecar, never contacts a
     /// Site.
+    AgentNames {
+        command: AgentNamesCommand,
+        format: OutputFormat,
+    },
     AgentIntegration {
         command: AgentIntegrationCommand,
         format: OutputFormat,
@@ -903,6 +924,7 @@ pub(crate) enum ExpectedValue {
     LaunchArguments,
     LaunchEnvironment,
     AgentSessionId,
+    AgentName,
     AgentListLimit,
     AgentCursor,
     /// The `agent wait --until` operand: one of the twelve canonical
@@ -1134,6 +1156,8 @@ struct Options {
     /// `agent doctor --asset-root <path>`: repeatable, append-ordered.
     asset_roots: Vec<String>,
     name: Option<String>,
+    session: Option<String>,
+    clear: bool,
     profile: Option<String>,
     provider: Option<String>,
     adapter_source: Option<String>,
@@ -1174,6 +1198,7 @@ const VALUE_FLAGS: &[&str] = &[
     "--match",
     "--mouse",
     "--name",
+    "--session",
     "--project",
     "--provider",
     "--profile",
@@ -1476,11 +1501,14 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                 index += 1;
             }
             "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
-            | "--include-ended" | "--new-tab" | "--paste" | "--unwrap" | "--current" => {
+            | "--include-ended" | "--new-tab" | "--paste" | "--unwrap" | "--current"
+            | "--clear" => {
                 let (seen, option) = if token == "--standalone" {
                     (&mut options.standalone, "--standalone")
                 } else if token == "--current" {
                     (&mut options.current, "--current")
+                } else if token == "--clear" {
+                    (&mut options.clear, "--clear")
                 } else if token == "--confirm" {
                     (&mut options.confirm, "--confirm")
                 } else if token == "--history" {
@@ -1619,6 +1647,7 @@ fn apply_value_flag(
         "--cursor" => &mut options.cursor,
         "--after-revision" => &mut options.after_revision,
         "--name" => &mut options.name,
+        "--session" => &mut options.session,
         "--profile" => &mut options.profile,
         "--adapter-source" => &mut options.adapter_source,
         "--regex" => &mut options.regex,
@@ -1832,6 +1861,56 @@ fn resolve_words(
                 },
                 options,
             ))
+        }
+        ["agent", "names"] => {
+            reject_filters(options, UsageContext::Path("agent names"), envelope)?;
+            Ok(Request::AgentNames {
+                command: AgentNamesCommand::List,
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
+        ["agent", "resolve", rest @ ..] => {
+            let context = UsageContext::Path("agent resolve");
+            check_scope(options, AGENT_TARGET_SCOPE, context, envelope)?;
+            Ok(Request::AgentNames {
+                command: AgentNamesCommand::Resolve(agent_selector(
+                    rest, options, context, envelope,
+                )?),
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
+        ["agent", "rename", rest @ ..] => {
+            let context = UsageContext::Path("agent rename");
+            check_scope(
+                options,
+                Scope {
+                    clear: true,
+                    ..AGENT_TARGET_SCOPE
+                },
+                context,
+                envelope,
+            )?;
+            let command = if options.clear {
+                AgentNamesCommand::Release(agent_selector(rest, options, context, envelope)?)
+            } else {
+                let Some((value, selectors)) = rest.split_last() else {
+                    return Err(usage_with(
+                        UsageReason::MissingRequired {
+                            context,
+                            requirement: "<target> <new-name> or --clear",
+                        },
+                        envelope,
+                    ));
+                };
+                AgentNamesCommand::Assign {
+                    target: agent_selector(selectors, options, context, envelope)?,
+                    name: agent_name(value, context, envelope)?,
+                }
+            };
+            Ok(Request::AgentNames {
+                command,
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
         }
         ["agent", "doctor"] => {
             let context = UsageContext::Path("agent doctor");
@@ -3001,6 +3080,9 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["agent", "explain"] => HelpTopic::Command(CommandPath::AgentExplain),
         ["agent", "wait"] => HelpTopic::Command(CommandPath::AgentWait),
         ["agent", "doctor"] => HelpTopic::Command(CommandPath::AgentDoctor),
+        ["agent", "names"] => HelpTopic::Command(CommandPath::AgentNames),
+        ["agent", "resolve"] => HelpTopic::Command(CommandPath::AgentResolve),
+        ["agent", "rename"] => HelpTopic::Command(CommandPath::AgentRename),
         ["agent", "integration"] => HelpTopic::Family(Family::AgentIntegration),
         ["agent", "integration", "list"] => HelpTopic::Command(CommandPath::AgentIntegrationList),
         ["agent", "integration", "explain"] => {
@@ -3169,6 +3251,8 @@ struct Scope {
     asset_root: bool,
     /// `launch-profile create --name <n>`: the required catalog name.
     name: bool,
+    session: bool,
+    clear: bool,
     /// `tab create|panel split --profile <sel>`: the catalog-launch
     /// selector, exclusive with the explicit `--exec`/`--arg` form.
     profile: bool,
@@ -3222,6 +3306,8 @@ const NO_OPTIONS: Scope = Scope {
     provider: false,
     asset_root: false,
     name: false,
+    session: false,
+    clear: false,
     profile: false,
     adapter_source: false,
     request: false,
@@ -3236,6 +3322,12 @@ const TUI_SCOPE: Scope = Scope {
 };
 
 /// `agent list`: the three pagination/filter options of the read grammar.
+const AGENT_TARGET_SCOPE: Scope = Scope {
+    name: true,
+    session: true,
+    ..NO_OPTIONS
+};
+
 const AGENT_LIST_SCOPE: Scope = Scope {
     include_ended: true,
     limit: true,
@@ -3457,6 +3549,8 @@ fn business_options(options: &Options) -> bool {
         || !options.providers.is_empty()
         || !options.asset_roots.is_empty()
         || options.name.is_some()
+        || options.session.is_some()
+        || options.clear
         || options.profile.is_some()
         || options.provider.is_some()
         || options.adapter_source.is_some()
@@ -3595,6 +3689,12 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if !options.asset_roots.is_empty() && !scope.asset_root {
         return Some("--asset-root");
+    }
+    if options.session.is_some() && !scope.session {
+        return Some("--session");
+    }
+    if options.clear && !scope.clear {
+        return Some("--clear");
     }
     if options.name.is_some() && !scope.name {
         return Some("--name");
@@ -4948,3 +5048,73 @@ fn reject_filters(
 
 #[cfg(test)]
 mod tests;
+
+fn agent_name(
+    value: &str,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<AgentName, ParseFailure> {
+    AgentName::parse(value).map_err(|_| {
+        usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "name",
+                value: value.to_owned(),
+                expected: ExpectedValue::AgentName,
+            },
+            envelope,
+        )
+    })
+}
+
+fn agent_selector(
+    words: &[&str],
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<AgentSessionSelector, ParseFailure> {
+    if words.len() > 1 {
+        return Err(usage_with(
+            UsageReason::UnexpectedArgument {
+                context,
+                value: words[1].to_owned(),
+            },
+            envelope,
+        ));
+    }
+    let selected = usize::from(!words.is_empty())
+        + usize::from(options.session.is_some())
+        + usize::from(options.name.is_some());
+    if selected > 1 {
+        return Err(usage_with(
+            UsageReason::ConflictingOptions {
+                context,
+                first: "<target>",
+                second: "--session / --name",
+            },
+            envelope,
+        ));
+    }
+    if let Some(value) = words.first() {
+        return Ok(AgentSessionSelector::Auto {
+            target: agent_session_id(value, context, envelope)?,
+        });
+    }
+    if let Some(value) = &options.session {
+        return Ok(AgentSessionSelector::Session {
+            session_id: agent_session_id(value, context, envelope)?,
+        });
+    }
+    if let Some(value) = &options.name {
+        return Ok(AgentSessionSelector::Name {
+            name: agent_name(value, context, envelope)?,
+        });
+    }
+    Err(usage_with(
+        UsageReason::MissingRequired {
+            context,
+            requirement: "<target> or --session <id> or --name <alias>",
+        },
+        envelope,
+    ))
+}

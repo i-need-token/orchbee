@@ -8,6 +8,24 @@ use std::{
 };
 
 struct Fixture(PathBuf);
+
+#[test]
+fn capsule_copy_budget_includes_the_manifest_beside_the_maximum_payload() {
+    let fixture = Fixture::new();
+    let source = fixture.0.join("source");
+    fs::create_dir(&source).unwrap();
+    for index in 0..4 {
+        fs::write(
+            source.join(format!("payload-{index}")),
+            vec![b'x'; 512 * 1024],
+        )
+        .unwrap();
+    }
+    fs::write(source.join("capsule.json"), vec![b' '; 1024]).unwrap();
+    files::copy_tree(&source, &fixture.0.join("fits")).unwrap();
+    fs::write(source.join("one-byte-too-many"), b"x").unwrap();
+    assert!(files::copy_tree(&source, &fixture.0.join("over-budget")).is_err());
+}
 impl Fixture {
     fn new() -> Self {
         let mut nonce = [0; 16];

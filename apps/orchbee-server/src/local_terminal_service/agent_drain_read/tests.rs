@@ -300,7 +300,11 @@ fn drain_read_serves_the_canonical_member() {
     let owner = register(&workers, generation);
     let service = LocalTerminalService::new(workers);
     let presentation = open_member(&service, generation);
-    let agents = AgentService::open(AgentPolicy { read: true }).unwrap();
+    let agents = AgentService::open(AgentPolicy {
+        read: true,
+        manage: true,
+    })
+    .unwrap();
     agents
         .native_admit_carrier(carrier(generation), Instant::now())
         .unwrap()
@@ -396,7 +400,11 @@ fn drain_read_serves_the_canonical_member() {
 fn no_carrier_serves_an_empty_list() {
     let service = LocalTerminalService::new(registry());
     let _presentation = open_member(&service, NonZeroU64::MIN);
-    let agents = AgentService::open(AgentPolicy { read: true }).unwrap();
+    let agents = AgentService::open(AgentPolicy {
+        read: true,
+        manage: true,
+    })
+    .unwrap();
     let result = list_via_pump(&service, &agents, Instant::now() + WINDOW, 1).unwrap();
     let (items, _revision) = listed(result);
     assert!(items.is_empty());
@@ -409,7 +417,11 @@ fn pending_worker_admission_is_unavailable_not_no_carrier() {
     let workers = registry();
     let _generation = admit_generation(&workers);
     let service = LocalTerminalService::new(workers);
-    let agents = AgentService::open(AgentPolicy { read: true }).unwrap();
+    let agents = AgentService::open(AgentPolicy {
+        read: true,
+        manage: true,
+    })
+    .unwrap();
     let result = list_via_pump(&service, &agents, Instant::now() + WINDOW, 1).unwrap();
     assert_eq!(
         unavailable(result),
@@ -427,7 +439,11 @@ fn carrier_rotation_between_admission_and_drain_is_fenced() {
     let gen1 = admit_generation(&workers);
     let owner1 = register(&workers, gen1);
     let service = LocalTerminalService::new(workers.clone());
-    let agents = AgentService::open(AgentPolicy { read: true }).unwrap();
+    let agents = AgentService::open(AgentPolicy {
+        read: true,
+        manage: true,
+    })
+    .unwrap();
     agents
         .native_admit_carrier(carrier(gen1), Instant::now())
         .unwrap()
@@ -469,7 +485,11 @@ fn unanswered_exchange_reports_unavailable_at_the_deadline() {
     let generation = admit_generation(&workers);
     let _owner = register(&workers, generation);
     let service = LocalTerminalService::new(workers);
-    let agents = AgentService::open(AgentPolicy { read: true }).unwrap();
+    let agents = AgentService::open(AgentPolicy {
+        read: true,
+        manage: true,
+    })
+    .unwrap();
     agents
         .native_admit_carrier(carrier(generation), Instant::now())
         .unwrap()
@@ -502,7 +522,11 @@ fn expired_deadline_refuses_before_any_exchange() {
     let generation = admit_generation(&workers);
     let _owner = register(&workers, generation);
     let service = LocalTerminalService::new(workers);
-    let agents = AgentService::open(AgentPolicy { read: true }).unwrap();
+    let agents = AgentService::open(AgentPolicy {
+        read: true,
+        manage: true,
+    })
+    .unwrap();
     agents
         .native_admit_carrier(carrier(generation), Instant::now())
         .unwrap()
@@ -535,7 +559,11 @@ fn unadmitted_leaf_refuses_a_valid_page() {
     let generation = admit_generation(&workers);
     let owner = register(&workers, generation);
     let service = LocalTerminalService::new(workers);
-    let agents = AgentService::open(AgentPolicy { read: true }).unwrap();
+    let agents = AgentService::open(AgentPolicy {
+        read: true,
+        manage: true,
+    })
+    .unwrap();
     // No `native_admit_carrier` — the leaf has no carrier tuple, so the
     // fold fences the valid reply as `CarrierMismatch`.
     let (peer, owner_thread) = spawn_owner(owner);
@@ -579,7 +607,11 @@ fn an_incomplete_page_forces_a_second_exchange_before_serving() {
     let generation = admit_generation(&workers);
     let owner = register(&workers, generation);
     let service = LocalTerminalService::new(workers);
-    let agents = AgentService::open(AgentPolicy { read: true }).unwrap();
+    let agents = AgentService::open(AgentPolicy {
+        read: true,
+        manage: true,
+    })
+    .unwrap();
     agents
         .native_admit_carrier(carrier(generation), Instant::now())
         .unwrap()
@@ -644,7 +676,11 @@ fn an_incomplete_page_forces_a_second_exchange_before_serving() {
 #[test]
 fn poisoned_agent_state_reports_unavailable() {
     let service = LocalTerminalService::new(registry());
-    let agents = AgentService::open(AgentPolicy { read: true }).unwrap();
+    let agents = AgentService::open(AgentPolicy {
+        read: true,
+        manage: true,
+    })
+    .unwrap();
     assert!(
         agents
             .native_poison_after_mutation_for_test(carrier(NonZeroU64::MIN), Instant::now())
@@ -662,7 +698,11 @@ fn poisoned_agent_state_reports_unavailable() {
 #[test]
 fn disposed_runtime_reports_unavailable() {
     let service = LocalTerminalService::new(registry());
-    let agents = AgentService::open(AgentPolicy { read: true }).unwrap();
+    let agents = AgentService::open(AgentPolicy {
+        read: true,
+        manage: true,
+    })
+    .unwrap();
     agents.shutdown();
     let result = list_via_pump(&service, &agents, Instant::now() + WINDOW, 1).unwrap();
     assert_eq!(
@@ -681,7 +721,11 @@ fn retired_carrier_serves_the_retained_snapshot() {
     let owner = register(&workers, generation);
     let service = LocalTerminalService::new(workers);
     let presentation = open_member(&service, generation);
-    let agents = AgentService::open(AgentPolicy { read: true }).unwrap();
+    let agents = AgentService::open(AgentPolicy {
+        read: true,
+        manage: true,
+    })
+    .unwrap();
     agents
         .native_admit_carrier(carrier(generation), Instant::now())
         .unwrap()

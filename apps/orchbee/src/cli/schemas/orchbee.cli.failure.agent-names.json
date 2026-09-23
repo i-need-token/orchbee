@@ -1,0 +1,100 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.cli.failure.agent-names",
+	"title": "orchbee Agent names failure envelope",
+	"type": "object",
+	"required": ["schema", "version", "failure"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.cli.failure.agent-names"
+		},
+		"version": {
+			"const": 1
+		},
+		"failure": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": [
+						"cancelled",
+						"denied",
+						"internal-failure",
+						"not-found",
+						"outcome-unknown",
+						"output-too-large",
+						"protocol-invalid",
+						"rejected",
+						"service-unavailable",
+						"timeout",
+						"transport-loss"
+					]
+				},
+				"details": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"stage": {
+							"const": "agent-names"
+						},
+						"reason": {
+							"enum": [
+								"not-found",
+								"read-denied",
+								"manage-denied",
+								"name-in-use",
+								"session-not-found",
+								"session-ended",
+								"name-not-found",
+								"capacity-exceeded",
+								"reply-not-confirmed"
+							]
+						},
+						"operation": {
+							"enum": ["names", "resolve", "rename", "clear-name"]
+						},
+						"requestId": {
+							"$ref": "#/$defs/obapRequestId"
+						},
+						"conflictSessionId": {
+							"$ref": "#/$defs/sessionId"
+						}
+					}
+				}
+			}
+		},
+		"source": {
+			"type": "object",
+			"required": ["kind", "requestId"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "agent-names"
+				},
+				"requestId": {
+					"$ref": "#/$defs/obapRequestId"
+				}
+			}
+		}
+	},
+	"$defs": {
+		"agentName": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9_-]{0,31}$"
+		},
+		"sessionId": {
+			"$ref": "#/$defs/opaqueIdentity"
+		},
+		"opaqueIdentity": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9._:-]{1,128}$"
+		},
+		"obapRequestId": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"$comment": "Request identity: exactly 32 lowercase hexadecimal characters and never the zero sentinel; the nonzero rule is a semantic invariant enforced by each binding."
+		}
+	}
+}

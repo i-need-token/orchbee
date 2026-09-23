@@ -7,7 +7,7 @@
 
 `apps/orchbee-server` 拥有对 `packages/agent` 在基提交
 `0d4b685a1b7db9405ca94908385e0534ddd41dc9` 所定义确定性语义的忠实 Rust 实现。
-该模块由 `main.rs` 在 `#[cfg(unix)]` 下注册：规范运行时存在于 **Server 二进制
+该模块由 `main.rs` 在 `#[cfg(any(unix, windows))]` 下注册：规范运行时存在于 **Server 二进制
 crate** 内部，绝不进入库（`lib.rs` 不导出任何 Agent 内容且保持原样），不存在公开
 API、新 crate 或第二份规范状态。
 
@@ -132,15 +132,30 @@ ingress `socket_path`、`RegistrationFact::binding`，以及 drain exchange 的 
 
 ## 会话命名侧表
 
-未实现——本节仅记录当前行为。OBAP wire 联合收纳了 names 请求/结果家族
-（请求 kind `7/9/11/13`，结果 kind `8/10/12/14`），
-`orchbee-agent-observation-protocol` 携带编解码与定型 DTO，但 `AgentState`
-不持有 names 表、`AgentService` 不执行任何 names 操作、`AgentPolicy` 没有
-`manage` 门，CLI 也不暴露 names 命令。`schemas/agent-observation/v1` 只覆盖
-read 家族（kind 1–6）。良构 names 请求到达 `application_session` 解复用后
-以 wire 契约错误（`WrongDocumentKind`）应答并终结会话——不调用读执行器、
-不写回结果。未来实现切片的候选设计见
+OBAP names 家族由 `agent_service/names.rs` 在同一个 `AgentState` 状态单元中实现。
+两个私有有序映射持有名称 → 会话和会话 → 名称；名称只属于当前运行时，不进入 canonical
+会话文档，也不持久化。名称格式为 `[a-z][a-z0-9_-]{0,31}`。每个名称和每个会话至多一个
+绑定，上限 512。新增绑定检查上限；满额时原子重命名仍可成功。重名拒绝携带已有占用者的会话身份。
+
+每次 `with_state` fold 在释放叶子互斥锁前协调两张映射，移除指向缺席或 ended 会话的绑定。
+dispose 清空映射。poison 和 dispose 回答 `runtime-unavailable`，不伪造空表成功。
+精确会话选择器接受任意生命周期的保留身份；赋名还要求 live。名称选择器只查询别名表。
+auto 优先检查精确会话是否存在（包括 ended 历史），再查询名称；显式名称选择可避开冲突。
+已有但未命名的会话释放名称是 unchanged；缺席的显式名称被拒绝。
+
+read 门控制 resolve/list，独立 manage 门控制 assign/release。策略门先于观察准备。
+调用者的既有 drain provider 在状态单元外执行一次；成功后，单次 fold 重查当前运行时，
+原子完成定位与修改。准备所得克隆只证明新鲜度，不作为过期的存活性依据。叶子 fold 内不执行
+socket I/O、不获取外层锁。顺序应用会话解复用路由两个 OBAP 家族并写回一个相关结果。
+修改回复丢失时结果未知，不设重放账本。
+
+`schemas/agent-observation/v1` 覆盖 kind 1–14。原生 `agent names`、`agent resolve`
+和 `agent rename` 消费 names 家族；既有 get/explain/wait 仍接受会话 ID。直接按名称定位
+这些命令的后续设计保留在
 [`proposals/agent/session-names.md`](../../../proposals/agent/session-names.zh-CN.md)。
+确定性服务测试覆盖重名、原子重命名、ID 优先、满额、生命周期清理、策略分离、过期准备、
+dispose、poison 和并发抢占。wire 与 Windows 进程测试覆盖上限、schema 合规回复、
+错误操作类型和修改结果未知。
 
 ## 权威语义（断言）
 

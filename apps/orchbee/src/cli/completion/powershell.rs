@@ -19,7 +19,7 @@ pub(super) fn render() -> String {
             commands.push(json!({
                 "words": [family, verb],
                 "flags": command_flags(&path),
-                "operand": OPERAND_PATHS.contains(&path.as_str()),
+                "operand": if path == "agent:rename" { 2 } else { usize::from(OPERAND_PATHS.contains(&path.as_str())) },
                 "directions": DIRECTION_VALUES.iter().find(|(key, _)| *key == path).map(|(_, values)| *values).unwrap_or(&[]),
             }));
         }

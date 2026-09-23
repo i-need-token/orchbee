@@ -36,7 +36,7 @@ use crate::cli::results::{AgentWaitDoc, Projection, agent_source};
 use crate::cli::source::{ArmedSignals, Finish};
 use crate::cli::{Failure, FailureKind};
 use crate::invocation::AgentWaitCondition;
-use crate::local_client::agent::{AgentReadError, AgentReadFailure, AgentReadOperation};
+use crate::local_client::agent::{AgentExchangeError, AgentExchangeFailure, AgentReadOperation};
 use crate::local_client::{LocalClient, exchange_wake_fault, exchange_wake_ready};
 
 /// The private first poll interval — no public flag exposes it.
@@ -449,33 +449,33 @@ fn freshness_kind(freshness: AgentObservationFreshness) -> &'static str {
 /// The io carrier inside a failed exchange, when one exists — the shared
 /// wake-marker and deadline probes inspect the same error the single-read
 /// classifier weighs.
-fn wait_io_error(error: &AgentReadError) -> Option<&std::io::Error> {
+fn wait_io_error(error: &AgentExchangeError) -> Option<&std::io::Error> {
     match error {
-        AgentReadError::RequestNotSubmitted(error) => Some(error),
-        AgentReadError::Failed { reason, .. } => match reason {
-            AgentReadFailure::Write(error) | AgentReadFailure::ResponseDeadline(error) => {
+        AgentExchangeError::RequestNotSubmitted(error) => Some(error),
+        AgentExchangeError::Failed { reason, .. } => match reason {
+            AgentExchangeFailure::Write(error) | AgentExchangeFailure::ResponseDeadline(error) => {
                 Some(error)
             }
-            AgentReadFailure::Response(AgentWireError::Io(error)) => Some(error),
-            AgentReadFailure::Response(_)
-            | AgentReadFailure::UnexpectedResponse
-            | AgentReadFailure::CorrelationMismatch { .. } => None,
+            AgentExchangeFailure::Response(AgentWireError::Io(error)) => Some(error),
+            AgentExchangeFailure::Response(_)
+            | AgentExchangeFailure::UnexpectedResponse
+            | AgentExchangeFailure::CorrelationMismatch { .. } => None,
         },
-        AgentReadError::SessionUnavailable | AgentReadError::RequestEncoding(_) => None,
+        AgentExchangeError::SessionUnavailable | AgentExchangeError::RequestEncoding(_) => None,
     }
 }
 
 /// A provisional wake marker surviving inside the exchange error: the
 /// loop stops and the owner's arbitration decides — never classified
 /// here.
-fn wait_wake_marker(error: &AgentReadError) -> bool {
+fn wait_wake_marker(error: &AgentExchangeError) -> bool {
     wait_io_error(error)
         .is_some_and(|error| exchange_wake_ready(error) || exchange_wake_fault(error))
 }
 
 /// A deadline-elapsed exchange error: the per-read bound fired before the
 /// shared total — the caller decides which of the two deadlines reports.
-fn wait_deadline_elapsed(error: &AgentReadError) -> bool {
+fn wait_deadline_elapsed(error: &AgentExchangeError) -> bool {
     wait_io_error(error).is_some_and(is_deadline_elapsed)
 }
 

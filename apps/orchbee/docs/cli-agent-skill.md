@@ -1,5 +1,7 @@
 # Orchbee native CLI Agent guide
 
+Use `agent rename <session-id> <name>` for a unique runtime alias and `agent names` to list bindings. `agent resolve <name>` returns the full session ID for get/explain/wait. `--name <alias>` explicitly selects an alias when it collides with a session ID; `--session <id>` explicitly selects the ID. `agent rename <target> --clear` releases only the name. Names disappear on session end or Site disposal. A lost rename reply is outcome-unknown; never replay it blindly.
+
 ## Discover this build
 
 Use `orchbee --help`, `orchbee help <family>`, and `orchbee help <family> <command>` to discover exact grammar. `orchbee --version`, `orchbee --skill`, `orchbee completion powershell`, and `orchbee api schema` work offline. `orchbee api schema <schema-id>` prints an embedded result schema. The native executable and Desktop CLI have different capabilities; use the help from the executable you will invoke.

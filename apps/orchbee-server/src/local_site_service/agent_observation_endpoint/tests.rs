@@ -232,7 +232,13 @@ fn connect_send(service_path: &std::path::Path, body: &[u8]) -> UnixStream {
 #[test]
 fn matched_envelope_applies_immediately_without_a_timer() {
     let dir = tmp_dir("matched");
-    let service = Arc::new(AgentService::open(AgentPolicy { read: true }).unwrap());
+    let service = Arc::new(
+        AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap(),
+    );
     seed_correlation(&service, 0xaa, 1);
 
     let endpoint = bind(&dir).unwrap().start(Arc::clone(&service));
@@ -260,7 +266,13 @@ fn matched_envelope_applies_immediately_without_a_timer() {
 #[test]
 fn partially_matched_envelope_settles_via_endpoint_tick() {
     let dir = tmp_dir("partial");
-    let service = Arc::new(AgentService::open(AgentPolicy { read: true }).unwrap());
+    let service = Arc::new(
+        AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap(),
+    );
     seed_correlation(&service, 0xab, 1);
 
     let endpoint = bind(&dir).unwrap().start(Arc::clone(&service));
@@ -292,7 +304,13 @@ fn partially_matched_envelope_settles_via_endpoint_tick() {
 #[test]
 fn unmatched_envelope_acks_but_never_applies() {
     let dir = tmp_dir("unmatched");
-    let service = Arc::new(AgentService::open(AgentPolicy { read: true }).unwrap());
+    let service = Arc::new(
+        AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap(),
+    );
     let endpoint = bind(&dir).unwrap().start(Arc::clone(&service));
     let mut client = connect_send(endpoint.path(), &envelope(&[7], 7, "visible"));
     assert_eq!(read_ack(&mut client), ACK.to_vec());
@@ -312,7 +330,13 @@ fn unmatched_envelope_acks_but_never_applies() {
 #[test]
 fn zero_correlation_envelope_is_refused_at_parse() {
     let dir = tmp_dir("zero-corr");
-    let service = Arc::new(AgentService::open(AgentPolicy { read: true }).unwrap());
+    let service = Arc::new(
+        AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap(),
+    );
     let endpoint = bind(&dir).unwrap().start(Arc::clone(&service));
     let mut client = connect_send(endpoint.path(), &envelope(&[], 3, "visible"));
     assert!(read_ack(&mut client).is_empty());
@@ -333,7 +357,13 @@ fn zero_correlation_envelope_is_refused_at_parse() {
 #[test]
 fn externally_created_timer_settles_via_capped_poll() {
     let dir = tmp_dir("external-timer");
-    let service = Arc::new(AgentService::open(AgentPolicy { read: true }).unwrap());
+    let service = Arc::new(
+        AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap(),
+    );
     // Binding live; NO held event — the hint routes straight through.
     let t0 = Instant::now();
     let carrier = carrier_id(0xcc, 1);
@@ -392,7 +422,13 @@ fn externally_created_timer_settles_via_capped_poll() {
 #[test]
 fn oversize_body_is_destroyed_without_ack() {
     let dir = tmp_dir("oversize");
-    let service = Arc::new(AgentService::open(AgentPolicy { read: true }).unwrap());
+    let service = Arc::new(
+        AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap(),
+    );
     let endpoint = bind(&dir).unwrap().start(Arc::clone(&service));
     let body = vec![b'x'; MAX_OBSERVATION_BODY_BYTES + 1];
     let mut client = connect_send(endpoint.path(), &body);
@@ -404,7 +440,13 @@ fn oversize_body_is_destroyed_without_ack() {
 #[test]
 fn stalled_reader_is_swept_at_deadline() {
     let dir = tmp_dir("stalled");
-    let service = Arc::new(AgentService::open(AgentPolicy { read: true }).unwrap());
+    let service = Arc::new(
+        AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap(),
+    );
     let endpoint = bind(&dir).unwrap().start(Arc::clone(&service));
     let mut client = UnixStream::connect(endpoint.path()).unwrap();
     client.write_all(b"{\"partial\":").unwrap();
@@ -420,7 +462,13 @@ fn stalled_reader_is_swept_at_deadline() {
 #[test]
 fn disposed_runtime_closes_without_ack() {
     let dir = tmp_dir("disposed");
-    let service = Arc::new(AgentService::open(AgentPolicy { read: true }).unwrap());
+    let service = Arc::new(
+        AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap(),
+    );
     service.shutdown();
     let endpoint = bind(&dir).unwrap().start(Arc::clone(&service));
     let mut client = connect_send(endpoint.path(), &envelope(&[1], 1, "visible"));
@@ -436,7 +484,13 @@ fn disposed_runtime_closes_without_ack() {
 #[test]
 fn poisoned_cell_keeps_serving_honest_closes() {
     let dir = tmp_dir("poisoned");
-    let service = Arc::new(AgentService::open(AgentPolicy { read: true }).unwrap());
+    let service = Arc::new(
+        AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap(),
+    );
     service
         .poison_state_after_mutation_for_test(&agent_harness::session_observed("s.fault", 7.0))
         .unwrap_err();
@@ -454,7 +508,13 @@ fn poisoned_cell_keeps_serving_honest_closes() {
 #[test]
 fn identity_mismatch_leaves_replacement_path() {
     let dir = tmp_dir("identity");
-    let service = Arc::new(AgentService::open(AgentPolicy { read: true }).unwrap());
+    let service = Arc::new(
+        AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap(),
+    );
     let socket_path = dir.join(OBSERVATION_SOCKET_NAME);
 
     // Bound-never-started: own socket reclaimed on drop.
@@ -487,7 +547,13 @@ fn identity_mismatch_leaves_replacement_path() {
 #[test]
 fn drop_with_live_connection_reaps_thread() {
     let dir = tmp_dir("live-drop");
-    let service = Arc::new(AgentService::open(AgentPolicy { read: true }).unwrap());
+    let service = Arc::new(
+        AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap(),
+    );
     let endpoint = bind(&dir).unwrap().start(Arc::clone(&service));
     let socket_path = endpoint.path().to_owned();
     let mut live = UnixStream::connect(&socket_path).unwrap();
@@ -505,7 +571,13 @@ fn drop_with_live_connection_reaps_thread() {
 #[test]
 fn connection_cap_is_enforced() {
     let dir = tmp_dir("cap");
-    let service = Arc::new(AgentService::open(AgentPolicy { read: true }).unwrap());
+    let service = Arc::new(
+        AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap(),
+    );
     let endpoint = bind(&dir).unwrap().start(Arc::clone(&service));
     let mut held = Vec::new();
     for _ in 0..MAX_ACTIVE_CONNECTIONS {
@@ -528,7 +600,13 @@ fn connection_cap_is_enforced() {
 #[test]
 fn interleaved_connections_each_served() {
     let dir = tmp_dir("interleaved");
-    let service = Arc::new(AgentService::open(AgentPolicy { read: true }).unwrap());
+    let service = Arc::new(
+        AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap(),
+    );
     seed_correlation(&service, 0xbb, 9);
     let endpoint = bind(&dir).unwrap().start(Arc::clone(&service));
     let mut matched = connect_send(endpoint.path(), &envelope(&[9], 9, "visible"));
@@ -546,7 +624,13 @@ fn interleaved_connections_each_served() {
 #[test]
 fn stalled_readers_close_on_their_own_deadlines() {
     let dir = tmp_dir("staggered");
-    let service = Arc::new(AgentService::open(AgentPolicy { read: true }).unwrap());
+    let service = Arc::new(
+        AgentService::open(AgentPolicy {
+            read: true,
+            manage: true,
+        })
+        .unwrap(),
+    );
     let endpoint = bind(&dir).unwrap().start(Arc::clone(&service));
     let mut first = UnixStream::connect(endpoint.path()).unwrap();
     first.write_all(b"{\"partial\":").unwrap();
@@ -694,7 +778,11 @@ fn post_admit_recheck_gates_the_ack_arm() {
 /// connections and zero settlement timers.
 #[test]
 fn poll_timeout_is_min_of_conn_deadline_and_cap() {
-    let service = AgentService::open(AgentPolicy { read: true }).unwrap();
+    let service = AgentService::open(AgentPolicy {
+        read: true,
+        manage: true,
+    })
+    .unwrap();
     let now = Instant::now();
 
     // Idle: the cap alone bounds the wake — always finite.

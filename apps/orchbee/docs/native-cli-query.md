@@ -22,6 +22,38 @@ side effects implemented under `src/invocation.rs` and `src/cli/**`. It implemen
 accepted CLI-Q design and both challenge dispositions; where prose and code disagree, the
 behavior is a bug to fix, not a fork to keep.
 
+## Agent session names
+
+`agent names` lists all live aliases in the running Site. `agent resolve <target>`
+returns a full session ID, testing exact ID existence before aliases. `agent rename
+<target> <new-name>` assigns or atomically replaces a name; `agent rename <target>
+--clear` releases it without stopping the session. Replace the target operand with
+`--session <id>` or `--name <alias>` for explicit selection; exactly one selector is
+required. Names match `[a-z][a-z0-9_-]{0,31}` and are case-sensitive. They are unique,
+limited to 512 live bindings, and released when the session ends, is removed, or the
+Site runtime is disposed. Restarting a Site starts with an empty alias table.
+
+All three commands admit `--format text|json`. The embedded success schemas are
+`orchbee.agent.names`, `orchbee.agent.resolve`, and `orchbee.agent.rename`, version 1;
+post-admission failures use `orchbee.cli.failure.agent-names`, version 1. Correlated
+semantic answers carry an `agent-names` source with the OBAP request ID. Schema catalog
+version 11 includes these four new documents. Invalid names or conflicting selectors
+fail with exit 2 before any runtime access. A collision is exit 3 and identifies the
+incumbent session; it never overwrites that session's name.
+
+Each command owns one five-second deadline spanning cohort validation, existing-only
+Site discovery, admission and one OBAP exchange. Signals participate in transport
+waits; the session closes before signal arbitration and output. A confirmed reply
+remains authoritative if a signal races its completion. A submitted mutation without
+a trustworthy matching reply returns outcome-unknown (exit 8), including cancellation,
+and is never replayed. A known pre-submission cancellation is exit 130. No alias
+cache, provider process, new Site, or canonical-session mutation is involved.
+
+`get`, `explain`, and `wait` still take a full session ID. Resolve a name once and pass
+that ID until direct target support lands; a later rename cannot change a pinned ID.
+Windows process evidence covers real named-pipe admission, the four wire operations,
+schema-valid results, lost/mismatched mutation replies, and parse-before-effect.
+
 ## Inputs and trust boundary
 
 - `argv`: bounded hostile input. Total UTF-8 bytes across arguments may not exceed 64 KiB

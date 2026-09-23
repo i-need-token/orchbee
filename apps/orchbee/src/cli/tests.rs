@@ -234,6 +234,9 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::AgentExplain,
         CommandPath::AgentGet,
         CommandPath::AgentList,
+        CommandPath::AgentNames,
+        CommandPath::AgentRename,
+        CommandPath::AgentResolve,
         CommandPath::AgentIntegrationDisable,
         CommandPath::AgentIntegrationEnable,
         CommandPath::AgentIntegrationExplain,
@@ -279,6 +282,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::WorkspaceGet,
         CommandPath::WorkspaceList,
         CommandPath::WorkspaceRename,
+        CommandPath::WorktreeList,
     ];
     for command in &commands {
         for locale in [Locale::EnUs, Locale::ZhCn] {
@@ -309,6 +313,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         "terminal",
         "tui",
         "workspace",
+        "worktree",
     ];
     let verbs = [
         "accept-directory",
@@ -326,8 +331,10 @@ fn fixed_outputs_are_far_below_the_bound() {
         "integration",
         "list",
         "move",
+        "names",
         "read",
         "rename",
+        "resolve",
         "schema",
         "send",
         "snapshot",

@@ -22,6 +22,13 @@ fn real_powershell_completes_scoped_grammar_without_runtime() {
         ),
         ("orchbee panel ", "current", true),
         ("orchbee help panel ", "current", true),
+        ("orchbee agent ", "rename", true),
+        ("orchbee agent rename a alpha --f", "--format", true),
+        ("orchbee agent rename a alpha --c", "--clear", false),
+        ("orchbee agent rename a --c", "--clear", true),
+        ("orchbee agent rename --name a alpha --f", "--format", true),
+        ("orchbee agent resolve --name a --s", "--session", false),
+        ("orchbee agent resolve a --n", "--name", false),
         ("orchbee panel current --p", "--panel", true),
         ("orchbee panel current -- ", "--panel", false),
         (

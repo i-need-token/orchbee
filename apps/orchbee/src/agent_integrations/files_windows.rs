@@ -170,7 +170,8 @@ pub(crate) fn write_file_exclusive(path: &Path, bytes: &[u8]) -> io::Result<()> 
 }
 
 pub(crate) fn copy_tree(source: &Path, target: &Path) -> io::Result<()> {
-    let mut budget = (129usize, 2 * 1024 * 1024usize);
+    // Payload validation excludes the separately bounded capsule manifest.
+    let mut budget = (129usize, 2 * 1024 * 1024usize + 1024);
     copy_entry(source, target, 0, &mut budget)
 }
 

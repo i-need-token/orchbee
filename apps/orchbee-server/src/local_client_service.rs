@@ -39,7 +39,10 @@ pub(crate) fn start(
     let listener = UnixListener::bind(endpoint)?;
     #[cfg(unix)]
     fs::set_permissions(endpoint, fs::Permissions::from_mode(0o600))?;
-    let agents = Arc::new(AgentService::open(AgentPolicy { read: true })?);
+    let agents = Arc::new(AgentService::open(AgentPolicy {
+        read: true,
+        manage: true,
+    })?);
     start_listener(listener, expected_cohort, terminals, agents)
 }
 
@@ -234,7 +237,18 @@ fn handle_candidate(
         &mut records,
         |request| session.execute(request),
         |request| workbench.execute(request),
-        |request| agents.execute_prepared(request, || terminals.prepare_agent_drain_read(agents)),
+        |request| match request {
+            orchbee_agent_observation_protocol::AgentRequest::Read(request) => agents
+                .execute_prepared(request, || terminals.prepare_agent_drain_read(agents))
+                .map(orchbee_agent_observation_protocol::AgentResult::Read),
+            orchbee_agent_observation_protocol::AgentRequest::Names(request) => {
+                Ok(orchbee_agent_observation_protocol::AgentResult::Names(
+                    agents.execute_names_prepared(request, || {
+                        terminals.prepare_agent_drain_read(agents)
+                    }),
+                ))
+            }
+        },
     );
 }
 

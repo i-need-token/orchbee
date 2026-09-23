@@ -9,6 +9,10 @@
 [README.md](README.md)。
 如有冲突，以英文为准。
 
+用 `agent rename <session-id> <name>` 设置运行时名称，`agent names` 列出名称，
+`agent resolve <name>` 获取完整会话 ID。`agent rename <target> --clear` 释放名称。
+名称唯一，在会话结束或 Site 停止后消失。
+
 ## 命令面
 
 裸调用和显式 `tui` 调用先准入继承的交互终端和有效 cell geometry，再在 Windows 和 Linux 上运行下面的

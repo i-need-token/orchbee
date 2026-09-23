@@ -86,8 +86,8 @@ fn offline_catalog_is_closed_and_current_panel_schema_is_discoverable() {
     let schemas = document["result"]["schemas"]
         .as_object()
         .expect("dictionary");
-    assert_eq!(document["version"], 10);
-    assert_eq!(schemas.len(), 41);
+    assert_eq!(document["version"], 11);
+    assert_eq!(schemas.len(), 45);
     let validator =
         jsonschema::draft202012::new(&schemas["orchbee.api.schema"]).expect("catalog schema");
     validator.validate(&document).expect("valid catalog");
@@ -95,7 +95,7 @@ fn offline_catalog_is_closed_and_current_panel_schema_is_discoverable() {
         jsonschema::draft202012::new(schema).expect("schema compiles");
     }
     let mut stale = document.clone();
-    stale["version"] = serde_json::json!(9);
+    stale["version"] = serde_json::json!(10);
     assert!(!validator.is_valid(&stale));
     let mut missing = document.clone();
     missing["result"]["schemas"]

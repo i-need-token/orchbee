@@ -6,28 +6,45 @@
 	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
-		"schema": { "const": "orchbee.api.schema" },
-		"version": { "const": 10 },
+		"schema": {
+			"const": "orchbee.api.schema"
+		},
+		"version": {
+			"const": 11
+		},
 		"source": {
 			"type": "object",
 			"required": ["kind"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": { "const": "embedded" }
+				"kind": {
+					"const": "embedded"
+				}
 			}
 		},
 		"result": {
 			"type": "object",
 			"additionalProperties": false,
-			"oneOf": [{ "required": ["schema"] }, { "required": ["schemas"] }],
+			"oneOf": [
+				{
+					"required": ["schema"]
+				},
+				{
+					"required": ["schemas"]
+				}
+			],
 			"properties": {
 				"schema": {
 					"type": "object",
 					"required": ["schemaId", "document"],
 					"additionalProperties": false,
 					"properties": {
-						"schemaId": { "$ref": "#/$defs/schemaId" },
-						"document": { "type": "object" }
+						"schemaId": {
+							"$ref": "#/$defs/schemaId"
+						},
+						"document": {
+							"type": "object"
+						}
 					}
 				},
 				"schemas": {
@@ -40,11 +57,15 @@
 						"orchbee.agent.integration.plan",
 						"orchbee.agent.integrations",
 						"orchbee.agent.list",
+						"orchbee.agent.names",
+						"orchbee.agent.rename",
+						"orchbee.agent.resolve",
 						"orchbee.agent.wait",
 						"orchbee.api.schema",
 						"orchbee.api.snapshot",
 						"orchbee.cli.failure",
 						"orchbee.cli.failure.agent",
+						"orchbee.cli.failure.agent-names",
 						"orchbee.cli.failure.close",
 						"orchbee.cli.failure.launch-profile",
 						"orchbee.cli.failure.source",
@@ -75,8 +96,12 @@
 						"orchbee.workspace.list",
 						"orchbee.worktree.list"
 					],
-					"propertyNames": { "$ref": "#/$defs/schemaId" },
-					"additionalProperties": { "type": "object" }
+					"propertyNames": {
+						"$ref": "#/$defs/schemaId"
+					},
+					"additionalProperties": {
+						"type": "object"
+					}
 				}
 			}
 		}
@@ -91,11 +116,15 @@
 				"orchbee.agent.integration.plan",
 				"orchbee.agent.integrations",
 				"orchbee.agent.list",
+				"orchbee.agent.names",
+				"orchbee.agent.rename",
+				"orchbee.agent.resolve",
 				"orchbee.agent.wait",
 				"orchbee.api.schema",
 				"orchbee.api.snapshot",
 				"orchbee.cli.failure",
 				"orchbee.cli.failure.agent",
+				"orchbee.cli.failure.agent-names",
 				"orchbee.cli.failure.close",
 				"orchbee.cli.failure.launch-profile",
 				"orchbee.cli.failure.source",

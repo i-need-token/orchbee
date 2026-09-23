@@ -16,6 +16,31 @@ provider 接入——对调用用户的 provider 配置做有界读取与受管�
 预算、单请求只读状态机、单命令 mutation 状态机与输出副作用。它落实已接受的 CLI-Q 设计与两轮
 挑战裁决；文字与代码不一致时，行为是要修的缺陷，不是要保留的分叉。
 
+## Agent 会话名称
+
+`agent names` 列出运行中 Site 的所有存活别名。`agent resolve <target>` 返回完整会话 ID，
+优先检查精确 ID 是否存在，再查别名。`agent rename <target> <new-name>` 赋名或原子替换
+名称；`agent rename <target> --clear` 只释放名称，不停止会话。可把目标位置参数替换成
+`--session <id>` 或 `--name <alias>` 明确选择；必须且只能使用一种选择器。
+名称格式为 `[a-z][a-z0-9_-]{0,31}`，区分大小写且唯一，上限 512 个存活绑定。
+会话结束、移除或 Site 运行时 dispose 后释放名称；Site 重启后的别名表为空。
+
+三个命令均接受 `--format text|json`。内嵌成功 schema 为 `orchbee.agent.names`、
+`orchbee.agent.resolve` 与 `orchbee.agent.rename`，均为 version 1；接纳后的失败使用
+`orchbee.cli.failure.agent-names` version 1。相关语义结果携带 `agent-names` source
+和 OBAP request ID。Schema 目录 version 11 纳入这四份新文档。非法名称或冲突选择器在
+任何运行时访问前以退出码 2 失败。重名以退出码 3 拒绝并标明占用者，绝不覆盖其名称。
+
+每个命令的单一五秒截止覆盖 cohort 校验、仅查已有 Site、接纳和一次 OBAP 交换。
+信号参与传输等待；会话在信号仲裁与输出前关闭。确认回复与信号竞态时，已确认回复仍为
+权威结果。已提交修改若没有可信匹配回复，包括取消时，返回 outcome-unknown（退出码 8），
+绝不重放。已知在提交前取消返回 130。不引入别名缓存、不调用 provider、不创建 Site，
+也不修改 canonical 会话文档。
+
+`get`、`explain` 和 `wait` 仍接受完整会话 ID。直接目标支持完成前，可先解析名称并传入
+得到的 ID；后续重命名不会改变已固定的 ID。Windows 进程证据覆盖真实命名管道接纳、
+四种 wire 操作、schema 合规结果、丢失或不匹配的修改回复，以及效果前解析。
+
 ## 输入与信任边界
 
 - `argv`：有界敌意输入。全部参数的 UTF-8 总字节不超过 64 KiB（65,536）。任一非 UTF-8 参数或

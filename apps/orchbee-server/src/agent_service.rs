@@ -1,4 +1,4 @@
-//! The binary-private Agent observation read service. It owns the one
+//! The binary-private Agent observation and runtime alias service. It owns the one
 //! canonical `AgentState` cell behind a leaf lock — the single
 //! `AgentRuntime` plus the hook translator, which borrows the
 //! runtime per call instead of owning a second one — mints and verifies
@@ -14,6 +14,7 @@
 
 mod cursor;
 mod map;
+mod names;
 #[cfg(test)]
 mod tests;
 
@@ -159,6 +160,8 @@ use cursor::{AgentCursorRejection, AgentListCursorAuthority};
 pub(crate) struct AgentPolicy {
     /// Whether the admitted client may execute Agent read operations.
     pub read: bool,
+    /// Whether the admitted client may assign or release session aliases.
+    pub manage: bool,
 }
 
 /// A request that cannot be answered because canonical state could not be
@@ -190,6 +193,7 @@ pub(crate) struct AgentState {
     /// Worker drain / registry admission path owns every producer;
     /// callers pass already-fenced facts in.
     native: NativeObservation,
+    names: names::Names,
     /// One monotonic origin owned by the service; leaf timestamps and
     /// the JSM `now_ms` translator clock both derive from it so a benign
     /// earlier caller instant saturates to zero instead of panicking.
@@ -211,6 +215,7 @@ impl AgentState {
                 crate::agent::JoinOptions::default(),
             ),
             native: NativeObservation::new(),
+            names: names::Names::default(),
             clock_origin: Instant::now(),
         }
     }
@@ -329,7 +334,10 @@ impl AgentService {
     ) -> Result<R, AgentFoldUnavailable> {
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let mut state = self.state.lock().map_err(|_| AgentFoldUnavailable)?;
-            Ok(f(&mut state))
+            let result = f(&mut state);
+            let AgentState { runtime, names, .. } = &mut *state;
+            names.reconcile(runtime);
+            Ok(result)
         }))
         .unwrap_or(Err(AgentFoldUnavailable))
     }

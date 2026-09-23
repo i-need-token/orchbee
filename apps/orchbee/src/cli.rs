@@ -1,3 +1,4 @@
+pub(crate) mod agent_names;
 mod caller_context;
 mod completion;
 pub(crate) mod config;
