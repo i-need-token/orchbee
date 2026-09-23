@@ -25,7 +25,8 @@ provider 接入——对调用用户的 provider 配置做有界读取与受管�
 - 环境：`ORCHBEE_RUNTIME_BASE`（可选，默认 `/tmp`）选择运行基座；`LC_ALL`/`LC_MESSAGES`/`LANG`
   选择诊断 locale。`agent doctor` 另外读取 `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3`
   （观察端点 override，其 endpoint 事实原样报告）、供有界可执行文件扫描的继承 `PATH`，以及
-  provider 目标前缀所用的 `HOME`。调用者模式的 `panel current` 还读取下文说明的
+  Linux 上 provider 目标前缀所用的 `HOME`。Windows 使用原生用户配置目录，
+  并读取可选非空 `CODEX_HOME` 选择 Codex 配置。调用者模式的 `panel current` 还读取下文说明的
   `ORCHBEE_TERMINAL_ID` 与 `ORCHBEE_WORKER_ID`。不读取其他任何环境变量。
 - 文件系统：解析出的运行基座、Site scope 目录 `orchbee-native-<euid>` 及其
   `client.sock`/`worker.sock`、activation 标记、当前可执行文件同目录的 `cohort.json` 与四个
@@ -345,19 +346,37 @@ selector 候选是命令本已读取的那份快照中可见的成员——对�
 `config check` 纯本地：不 connect socket、不取锁、不 mkdir/chmod；其 cohort 检查使用单独的
 checked 5 秒预算。`site diagnose` 同属纯本地命令——只做描述符相对的路径与锁观察；绝不
 connect、绝不创建锁或标记、绝不修复——共享一个在有界文件系统操作之间检查的协作式 5 秒
-预算。非 Linux 平台对网络查询与 mutation 产出 `service-unavailable`
+预算。Linux 和 Windows 以外的平台对网络查询与 mutation 产出 `service-unavailable`
 `{stage:"platform",reason:"unsupported-platform"}`，对 `config check` 产出同 details 的
-`check-failed`；不存在向无界连接 API 的回退。`site start` 与 `site diagnose` 在非 Linux
-平台以同 details 的 `service-unavailable` 应答。
+`check-failed`；不存在向无界连接 API 的回退。`site start` 在 Linux/Windows 以外、
+`site diagnose` 在 Linux 以外的平台以同 details 的 `service-unavailable` 应答。
 
 `agent doctor` 是离线 provider 钩子诊断：仅凭有界文件系统事实解释 Agent 观察为何可能无法
 到达。它不执行 provider 命令、不 connect socket、不发现 Site、不取锁、不做任何写入——检查集
 即上文声明的集合，每次 lstat/read/list/PATH 扫描都运行在同一个 5 秒协作预算下，至多 64 个探测
-项、聚合 16 MiB 读取与单文件/计数上限，项间设取消检查点。非 Linux 平台以
+项、聚合 16 MiB 读取与单文件/计数上限，项间设取消检查点。Linux 和 Windows 以外的平台以
 `check-failed` `{stage:"platform",reason:"unsupported-platform",command:"agent doctor"}`
 应答。触及上限的运行仍产出文档并标 `complete:false`——部分事实是显式的，绝不静默丢弃——
 `providers[]` 始终按规范次序报告每个所选 provider。`hints[]` 仅作观察：每个
 `{id,evidence,text}` 指明其引用的具体事实行，不含因果、修复或信任断言。
+
+### Windows Agent 诊断细化
+
+Windows `agent doctor` 负责相同的有界离线观测流程，输出 `orchbee.agent.doctor` 版本 2；
+现有 Linux 输出仍为版本 1。hook 声明和自洽胶囊只能证明安装事实。随附的 0.4.0 hook 载荷仍
+依赖 POSIX shell 命令、Unix socket 发现和 `/dev/tty`；Windows 输出
+`endpoint.socket.state="not-inspected"`、`reason="windows-hook-transport-unavailable"`
+以及本地化提示，不检查命名管道或推断 Site 存活。完整检查也可以报告此已知限制；`complete`
+表示探测覆盖完整度，不表示可用性。Windows 托管安装与 Agent start/prompt 仍属于后续工作。
+
+| 字段         | 契约                                                                                                                                                                                                                                                                               |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 输入与所有者 | 原生 doctor 独占负责只读文件系统、PATH 和环境观测。Windows home 使用原生用户配置目录；非空绝对 `CODEX_HOME` 指向现存非重解析目录时选择该 Codex 配置。空 `CODEX_HOME` 使用默认目录；无效非空根报告不可检查，不静默替换。该只读准入比 Codex 对相对路径或符号链接覆盖做规范化更严格。 |
+| 准入         | 打开普通文件时不跟随末级重解析点，在有界读取前根据已打开句柄检查元数据。拒绝设备命名空间和相对路径；重解析条目不检查。祖先路径分量与同步文件系统延迟不属于硬截止时间保证。                                                                                                         |
+| 决策         | provider 配置缺失、禁用、冲突或不可读，原生可执行文件或脚本可见或缺失，Node 可见或缺失，胶囊自洽、损坏或预算不足，以及 Windows hook 传输不受支持，分别报告。PATH 搜索不执行条目，也不推断插件命令支持。                                                                            |
+| 兼容性       | Windows 接受原生绝对路径及 Windows 路径使用的单行 TOML 字面量字符串。既有 Linux 扫描语义和输出版本不变。嵌入 schema 将新增 Windows endpoint 词汇限定到版本 2。                                                                                                                     |
+| 副作用与边界 | 不执行 provider、不连接 socket、不激活 Site、不加锁、不写入。沿用 5 秒协作预算、64 项、16 MiB 总读取量及各探测上限。取消返回 130；生成完整或部分诊断文档均返回 0。                                                                                                                 |
+| 证据与限制   | Windows 隔离进程测试覆盖本地化及 schema 合法输出、路径和配置隔离、缺失及已安装声明、损坏资源与零安装副作用。文件系统测试覆盖拒绝重解析点及读取预算。不声称 Windows hook 已可投递或完成独立评审；按用户要求不执行 TLA。                                                             |
 
 `terminal read` 沿用第 1–5 步原样不变，然后在同一 deadline 内让已准入的 session 保持存活
 ——绝无第二次准入——完成一次只读 viewer 观察：
@@ -1285,7 +1304,7 @@ disposition 交付——OS 默认终止遵循 shell 的 `128 + signal` 约定，
 | `site start` 激活 deadline 到期；取锁 `TimedOut`                                                                                    | `timeout`                                                                  | 7         | `{stage:"activation"}`                                                                        |
 | `site start` 标记/探针/锁 io 失败（非超时）                                                                                         | `internal-failure`                                                         | 1         | `{stage:"activation"}`                                                                        |
 | `site diagnose` 完整或部分事实文档——unsafe/uninspectable 行是事实而非失败                                                           | 类型化 `orchbee.site.diagnose` 文档                                        | 0         | 行 `state`/`reason` 字段                                                                      |
-| 非 Linux 网络查询、mutation、`site start`、`site diagnose`、`config check` 或 `agent doctor`                                        | `service-unavailable`/`check-failed`                                       | 4/1       | `{stage:"platform",reason:"unsupported-platform"[,command]}`                                  |
+| `site diagnose` 在 Linux 以外；网络查询、mutation、`site start`、`config check` 或 `agent doctor` 在 Linux/Windows 以外             | `service-unavailable`/`check-failed`                                       | 4/1       | `{stage:"platform",reason:"unsupported-platform"[,command]}`                                  |
 | `agent doctor` 在探测项之间捕获合格信号                                                                                             | `cancelled`                                                                | 130       | `{stage:"agent-doctor"}`——部分文档仅由预算耗尽产生                                            |
 | `terminal wait-output` 期限耗尽未命中                                                                                               | `timeout`                                                                  | 7         | `{stage:"wait",timeoutMs,observed}`                                                           |
 | `terminal wait-output` 期间收到 HUP/INT/QUIT/TERM                                                                                   | `cancelled`                                                                | 130       | `{stage:"wait",cleanup}`                                                                      |

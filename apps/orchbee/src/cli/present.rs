@@ -1049,7 +1049,7 @@ fn name_value_block(out: &mut Bounded, result: &Value) -> Result<(), TooLarge> {
 /// sections. Field names render verbatim like `config check`; hint text
 /// comes from the locale, and every fact streams through the shared detail
 /// writer into the bounded sink.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn agent_doctor(
     out: &mut Bounded,
     result: &Value,
@@ -1136,7 +1136,7 @@ pub(crate) fn agent_doctor(
 /// text rendering — `providers.<id>.<field>` rows name their provider and
 /// `asset.roots[<i>]` rows name their root path (or `origin` when the path
 /// is not UTF-8). Mirrors the subjects the emitter cited.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn doctor_hint_subjects(result: &Value, hint: &Value) -> Vec<String> {
     let mut subjects = Vec::new();
     for row in hint["evidence"].as_array().into_iter().flatten() {
@@ -1164,7 +1164,7 @@ fn doctor_hint_subjects(result: &Value, hint: &Value) -> Vec<String> {
 
 /// One doctor fact row: `state`, then `reason` when present, then every
 /// detail field through the shared writer.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn doctor_fact(out: &mut Bounded, fact: &Value) -> Result<(), TooLarge> {
     out.push(fact["state"].as_str().unwrap_or("unknown"))?;
     if let Some(reason) = fact["reason"].as_str() {

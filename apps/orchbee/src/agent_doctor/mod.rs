@@ -5,12 +5,14 @@
 //! liveness. `fs` is the module's only IO boundary; `probes` is the pure
 //! classification half.
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 mod fs;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 mod probes;
 #[cfg(all(test, target_os = "linux"))]
 mod tests;
+#[cfg(all(test, windows))]
+mod windows_tests;
 
 /// The closed `--provider` vocabulary, in canonical row order. The grammar
 /// validates against this list on every platform — selector validity is a
@@ -29,32 +31,30 @@ pub(crate) const PROVIDER_IDS: &[&str] = &[
     "qwen-code",
 ];
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use std::{
     path::Path,
     time::{Duration, Instant},
 };
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use serde_json::{Map, Value, json};
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 use crate::cli::stage_reason_details;
 use crate::cli::{Failure, FailureKind, Output, failure_output};
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use crate::cli::{
     config::{local_runtime_source, path_detail},
     output, stage_details,
 };
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 use crate::termination_signal::{TerminationSignal, TerminationSource};
 use crate::{invocation::OutputFormat, localization::Locale};
 
-#[cfg(target_os = "linux")]
-use fs::{
-    CapsuleWalk, DirEntries, EntryKind, FileRead, FingerprintWalk, ListKind, Lstat, SocketFact,
-};
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
+use fs::{CapsuleWalk, DirEntries, EntryKind, FileRead, FingerprintWalk, ListKind, Lstat};
+#[cfg(any(target_os = "linux", windows))]
 use probes::{
     BootstrapVerdict, ClinePackage, HookReason, HookState, MarkerParse, ModuleUrlRoot, ProbeKind,
     Provider, RootState,
@@ -62,48 +62,48 @@ use probes::{
 
 /// The cooperative run budget: checked between probe items — synchronous
 /// filesystem operations promise no hard IO deadline.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const RUN_BUDGET: Duration = Duration::from_secs(5);
 /// Total probe items a run admits: ≤10 provider targets + ≤11 executable
 /// scans (10 providers + node) + ≤20 roots + env + socket = ≤43, under 64.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const MAX_PROBE_ITEMS: usize = 64;
 /// Aggregate bytes all probes may read in one run.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const MAX_TOTAL_READ_BYTES: u64 = 16 * 1024 * 1024;
 /// `asset.roots` row cap: ≤4 supplied + ≤16 recorded.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const MAX_ROOTS: usize = 20;
 /// Recorded roots admitted across all providers.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const MAX_RECORDED_ROOTS: usize = 16;
 /// `hints` row cap.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const MAX_HINTS: usize = 16;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const CODEX_CONFIG_BYTES: u64 = 512 * 1024;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const GUARDED_MARKER_BYTES: u64 = 16 * 1024;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const CLINE_MANIFEST_BYTES: u64 = 16 * 1024;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const CLINE_MAX_INSTALLS: usize = 128;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const CAPSULE_MANIFEST_BYTES: u64 = 1024;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const BOOTSTRAP_BYTES: u64 = 64 * 1024;
 
 /// The bounded read/item/clock budget one run holds. `fs` consumes read
 /// bytes through it; the orchestrator reserves probe items through it.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) struct Budget {
     deadline: Instant,
     items: usize,
     bytes: u64,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 impl Budget {
     fn new() -> Self {
         Self {
@@ -133,7 +133,7 @@ impl Budget {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 /// A recorded root candidate declared inside an admitted provider file.
 struct RootCandidate {
     /// The provider whose file declared the root.
@@ -144,7 +144,7 @@ struct RootCandidate {
     path: Vec<u8>,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 /// One probed root row — the `asset.roots` entry plus the state the
 /// declaring provider's hook mapping consumes.
 struct RootOutcome {
@@ -152,7 +152,7 @@ struct RootOutcome {
     detail: Map<String, Value>,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 /// The hook outcome a consistent recorded root unlocks.
 enum ConsistentOutcome {
     /// Codex: `enabled=false` → `disabled`; `true` → `present` with
@@ -162,7 +162,7 @@ enum ConsistentOutcome {
     Present { reason: HookReason },
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 /// The target probe's raw result before the recorded-root fold.
 enum HookProbe {
     /// A finished verdict with its detail object.
@@ -182,7 +182,7 @@ enum HookProbe {
     },
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn final_verdict(state: HookState, reason: HookReason) -> HookProbe {
     HookProbe::Final {
         state,
@@ -194,7 +194,7 @@ fn final_verdict(state: HookState, reason: HookReason) -> HookProbe {
 /// `orchbee agent doctor [--provider <id>]... [--asset-root <path>]...
 /// [--format text|json]` — one offline diagnostic document; exit 0 whenever
 /// a complete or partial document was produced.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn run(
     providers: &[String],
     asset_roots: &[String],
@@ -217,7 +217,7 @@ pub(crate) fn run(
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn run(
     _providers: &[String],
     _asset_roots: &[String],
@@ -237,7 +237,7 @@ pub(crate) fn run(
     )
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 /// The facts the document assembles — provider rows in canonical order,
 /// root rows in flag-then-declaration order, the shared environment and
 /// endpoint facts, and the completeness bit.
@@ -253,7 +253,7 @@ struct DoctorRun {
 /// canonical order, the single node scan, roots (supplied in flag order,
 /// recorded in declaration order), then environment and endpoint — every
 /// item behind a budget checkpoint and the pending termination signal.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn inspect(
     selected: &[String],
     supplied: &[String],
@@ -428,7 +428,7 @@ fn inspect(
 
 /// The inherited `PATH` value as raw bytes for the scanner — an unset PATH
 /// scans as empty (every directory admission fails).
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn path_env_or(path_env: &Option<std::ffi::OsString>) -> &std::ffi::OsStr {
     path_env
         .as_deref()
@@ -438,7 +438,7 @@ fn path_env_or(path_env: &Option<std::ffi::OsString>) -> &std::ffi::OsStr {
 /// Folds the recorded-root outcome into a pending hook verdict. The root's
 /// observed state is always retained as a bounded detail fact — an explicit
 /// `disabled` verdict never erases an observed root problem.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn finalize_hook(
     probe: HookProbe,
     recorded: &[RootCandidate],
@@ -502,7 +502,7 @@ fn finalize_hook(
 
 /// One provider's hook-target probe — dispatches on the declared
 /// inspection kind.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn probe_provider(
     provider: &Provider,
     home: &Path,
@@ -531,14 +531,29 @@ fn probe_provider(
 /// syntax is not proof of contradiction); no plugin → `absent`; explicit
 /// `enabled = false` → `disabled` (the recorded root still contributes its
 /// detail row); `true`/unspecified → the recorded-root outcome.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn probe_codex(
     provider: &Provider,
     home: &Path,
     recorded: &mut Vec<RootCandidate>,
     budget: &mut Budget,
 ) -> HookProbe {
+    #[cfg(target_os = "linux")]
     let target = home.join(provider.home_target);
+    #[cfg(windows)]
+    let target = match fs::codex_configuration_path(home) {
+        Some(path) => path,
+        None => {
+            return HookProbe::Final {
+                state: HookState::Unknown,
+                reason: HookReason::Unreadable,
+                detail: Map::from_iter([(
+                    "configurationRoot".to_owned(),
+                    json!("invalid-CODEX_HOME"),
+                )]),
+            };
+        }
+    };
     if !fs::path_admitted(&target) {
         return target_too_long(&target);
     }
@@ -601,7 +616,7 @@ fn probe_codex(
 /// A guarded extension directory (`gemini`, `qwen-code`): directory →
 /// marker → fingerprint self-consistency. `disabled` is unreachable — the
 /// format carries no enablement field.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn probe_guarded(provider: &Provider, home: &Path, budget: &mut Budget) -> HookProbe {
     let target = home.join(provider.home_target);
     if !fs::path_admitted(&target) {
@@ -689,7 +704,7 @@ fn probe_guarded(provider: &Provider, home: &Path, budget: &mut Budget) -> HookP
 /// template self-derivation, then the embedded `moduleUrl`'s recorded
 /// root. `disabled` is unreachable — the format carries no enablement
 /// field.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn probe_bootstrap(
     provider: &Provider,
     home: &Path,
@@ -761,7 +776,7 @@ fn probe_bootstrap(
 /// `_installed/local` tree scans each `package/` for the entry payload and
 /// its `package.json` marker. `disabled` is unreachable — the format
 /// carries no enablement field.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn probe_cline(provider: &Provider, home: &Path, budget: &mut Budget) -> HookProbe {
     let root = home.join(provider.home_target);
     if !fs::path_admitted(&root) {
@@ -874,7 +889,7 @@ fn probe_cline(provider: &Provider, home: &Path, budget: &mut Budget) -> HookPro
 
 /// Registers a recorded-root candidate; `Some(index)` when admitted, `None`
 /// when the ≤16 recorded cap is already full.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn recorded_root(
     recorded: &mut Vec<RootCandidate>,
     provider: &Provider,
@@ -895,7 +910,7 @@ fn recorded_root(
 
 /// A target path exceeding the byte admission cap — honestly
 /// `not-inspected` with the offending path attached, never truncated.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn target_too_long(path: &Path) -> HookProbe {
     let (key, value) = path_detail(path);
     HookProbe::Final {
@@ -907,7 +922,7 @@ fn target_too_long(path: &Path) -> HookProbe {
 
 /// The uniform uninspectable-file mapping — every bounded-IO failure is
 /// `unknown`, never a guessed contradiction.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn read_uninspectable(read: FileRead) -> HookProbe {
     let reason = match read {
         FileRead::Unreadable => HookReason::Unreadable,
@@ -927,7 +942,7 @@ fn read_uninspectable(read: FileRead) -> HookProbe {
 /// → digest equality. Only a proven non-conforming artifact is
 /// `inconsistent`; every bound/race/IO failure is an explicit
 /// uninspectable state.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn probe_root(path_bytes: &[u8], budget: &mut Budget) -> RootOutcome {
     if path_bytes.is_empty() || path_bytes.len() > fs::MAX_PATH_BYTES {
         return RootOutcome {
@@ -1077,7 +1092,7 @@ fn probe_root(path_bytes: &[u8], budget: &mut Budget) -> RootOutcome {
 
 /// One executable fact row: `present` carries the found path, `absent`
 /// carries the scan's truncation bit.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn executable_fact(scan: fs::PathScan) -> Value {
     match &scan.found {
         Some(bytes) => {
@@ -1099,7 +1114,7 @@ fn executable_fact(scan: fs::PathScan) -> Value {
 
 /// The `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` fact — the override hook
 /// payloads read; only its shape is classified, never interpreted.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn environment_fact() -> Value {
     match fs::env_value(probes::OBSERVATION_SOCKET_ENV) {
         fs::EnvValue::Unset => json!({ "state": "unset" }),
@@ -1108,7 +1123,7 @@ fn environment_fact() -> Value {
                 json!({ "state": "empty" })
             } else if bytes.len() > fs::MAX_PATH_BYTES {
                 json!({ "state": "path-too-long" })
-            } else if !bytes.starts_with(b"/") {
+            } else if !fs::path_from_bytes(&bytes).is_absolute() {
                 json!({ "state": "non-absolute" })
             } else {
                 json!({ "state": "absolute-path" })
@@ -1117,9 +1132,17 @@ fn environment_fact() -> Value {
     }
 }
 
+#[cfg(windows)]
+fn socket_fact() -> Value {
+    // The shipped hook payload cannot discover/deliver to the Windows Site
+    // endpoint. Offline inspection must not connect or invent its liveness.
+    json!({ "state": "not-inspected", "reason": "windows-hook-transport-unavailable" })
+}
+
 /// The endpoint fact — `lstat` of the derived path only; never a connect.
 #[cfg(target_os = "linux")]
 fn socket_fact() -> Value {
+    use fs::SocketFact;
     let euid = nix::unistd::geteuid().as_raw();
     let path = fs::observation_socket_path(euid);
     let path_state = || {
@@ -1168,7 +1191,7 @@ fn entry_kind(kind: EntryKind) -> &'static str {
 
 /// `{path}` or `{pathBytesHex}` — the byte-preserving field pair, never a
 /// lossy render.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn path_bytes_field(bytes: &[u8]) -> Map<String, Value> {
     let (key, value) = path_detail(&fs::path_from_bytes(bytes));
     Map::from_iter([(key, value)])
@@ -1181,7 +1204,7 @@ fn path_bytes_field(bytes: &[u8]) -> Map<String, Value> {
 /// The machine document stays locale-neutral; text output re-localizes the
 /// sentence from `id` and the subjects behind `evidence`. Capped at
 /// `MAX_HINTS`.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn build_hints(run: &DoctorRun) -> Vec<Value> {
     let mut hints: Vec<Value> = Vec::new();
     let mut push = |id: &str, evidence: Vec<String>, subjects: Vec<String>| {
@@ -1267,6 +1290,13 @@ fn build_hints(run: &DoctorRun) -> Vec<Value> {
     push("node-absent", node_missing_rows, node_missing);
 
     let socket_state = run.endpoint["socket"]["state"].as_str().unwrap_or_default();
+    if run.endpoint["socket"]["reason"] == "windows-hook-transport-unavailable" {
+        push(
+            "windows-hook-transport-unavailable",
+            vec!["endpoint.socket".to_owned()],
+            Vec::new(),
+        );
+    }
     if socket_state == "absent" && !hook_present.is_empty() {
         push(
             "endpoint-absent",
@@ -1318,7 +1348,7 @@ fn build_hints(run: &DoctorRun) -> Vec<Value> {
 
 /// Assembles and emits the document — exit 0 for complete and partial
 /// documents alike (a partial document is itself the answer).
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 fn emit(run: DoctorRun, format: OutputFormat, locale: Locale) -> Output {
     let result = json!({
         "complete": run.complete,
@@ -1342,7 +1372,7 @@ fn emit(run: DoctorRun, format: OutputFormat, locale: Locale) -> Output {
         OutputFormat::Json => {
             let document = json!({
                 "schema": "orchbee.agent.doctor",
-                "version": 1,
+                "version": if cfg!(windows) { 2 } else { 1 },
                 "source": local_runtime_source(),
                 "result": result,
             });

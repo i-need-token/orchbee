@@ -6,14 +6,20 @@
 	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
-		"schema": { "const": "orchbee.agent.doctor" },
-		"version": { "const": 1 },
+		"schema": {
+			"const": "orchbee.agent.doctor"
+		},
+		"version": {
+			"enum": [1, 2]
+		},
 		"source": {
 			"type": "object",
 			"required": ["kind"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": { "const": "local-runtime" }
+				"kind": {
+					"const": "local-runtime"
+				}
 			}
 		},
 		"result": {
@@ -21,18 +27,24 @@
 			"required": ["complete", "providers", "endpoint", "asset", "environment", "hints"],
 			"additionalProperties": false,
 			"properties": {
-				"complete": { "type": "boolean" },
+				"complete": {
+					"type": "boolean"
+				},
 				"providers": {
 					"type": "array",
 					"maxItems": 10,
-					"items": { "$ref": "#/$defs/providerRow" }
+					"items": {
+						"$ref": "#/$defs/providerRow"
+					}
 				},
 				"endpoint": {
 					"type": "object",
 					"required": ["socket"],
 					"additionalProperties": false,
 					"properties": {
-						"socket": { "$ref": "#/$defs/socketFact" }
+						"socket": {
+							"$ref": "#/$defs/socketFact"
+						}
 					}
 				},
 				"asset": {
@@ -43,7 +55,9 @@
 						"roots": {
 							"type": "array",
 							"maxItems": 20,
-							"items": { "$ref": "#/$defs/rootRow" }
+							"items": {
+								"$ref": "#/$defs/rootRow"
+							}
 						}
 					}
 				},
@@ -66,7 +80,9 @@
 										"unknown"
 									]
 								},
-								"reason": { "const": "budget-exhausted" }
+								"reason": {
+									"const": "budget-exhausted"
+								}
 							}
 						}
 					}
@@ -74,7 +90,9 @@
 				"hints": {
 					"type": "array",
 					"maxItems": 16,
-					"items": { "$ref": "#/$defs/hintRow" }
+					"items": {
+						"$ref": "#/$defs/hintRow"
+					}
 				}
 			}
 		}
@@ -95,9 +113,18 @@
 			]
 		},
 		"pathField": {
-			"oneOf": [{ "required": ["path"] }, { "required": ["pathBytesHex"] }],
+			"oneOf": [
+				{
+					"required": ["path"]
+				},
+				{
+					"required": ["pathBytesHex"]
+				}
+			],
 			"properties": {
-				"path": { "type": "string" },
+				"path": {
+					"type": "string"
+				},
 				"pathBytesHex": {
 					"type": "string",
 					"pattern": "^([0-9a-f]{2})+$"
@@ -111,13 +138,21 @@
 				"state": {
 					"enum": ["present", "absent", "unknown", "not-applicable"]
 				},
-				"reason": { "const": "budget-exhausted" },
+				"reason": {
+					"const": "budget-exhausted"
+				},
 				"detail": {
 					"type": "object",
 					"properties": {
-						"truncated": { "const": true }
+						"truncated": {
+							"const": true
+						}
 					},
-					"allOf": [{ "$ref": "#/$defs/pathField" }]
+					"allOf": [
+						{
+							"$ref": "#/$defs/pathField"
+						}
+					]
 				}
 			}
 		},
@@ -167,7 +202,9 @@
 						"contract-version-unrecognized"
 					]
 				},
-				"detail": { "type": "object" }
+				"detail": {
+					"type": "object"
+				}
 			}
 		},
 		"providerRow": {
@@ -175,17 +212,25 @@
 			"required": ["id", "executable", "runtime", "hook"],
 			"additionalProperties": false,
 			"properties": {
-				"id": { "$ref": "#/$defs/providerId" },
-				"executable": { "$ref": "#/$defs/executableFact" },
+				"id": {
+					"$ref": "#/$defs/providerId"
+				},
+				"executable": {
+					"$ref": "#/$defs/executableFact"
+				},
 				"runtime": {
 					"type": "object",
 					"required": ["node"],
 					"additionalProperties": false,
 					"properties": {
-						"node": { "$ref": "#/$defs/executableFact" }
+						"node": {
+							"$ref": "#/$defs/executableFact"
+						}
 					}
 				},
-				"hook": { "$ref": "#/$defs/hookFact" }
+				"hook": {
+					"$ref": "#/$defs/hookFact"
+				}
 			}
 		},
 		"socketFact": {
@@ -201,20 +246,33 @@
 						"unsafe-symlink",
 						"unreadable",
 						"path-too-long",
-						"unknown"
+						"unknown",
+						"not-inspected"
 					]
 				},
-				"reason": { "const": "budget-exhausted" },
+				"reason": {
+					"enum": ["budget-exhausted", "windows-hook-transport-unavailable"]
+				},
 				"detail": {
 					"type": "object",
 					"properties": {
 						"kind": {
 							"enum": ["regular", "directory", "socket", "other"]
 						},
-						"owner": { "type": "integer", "minimum": 0 },
-						"mode": { "type": "integer", "minimum": 0 }
+						"owner": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"mode": {
+							"type": "integer",
+							"minimum": 0
+						}
 					},
-					"allOf": [{ "$ref": "#/$defs/pathField" }]
+					"allOf": [
+						{
+							"$ref": "#/$defs/pathField"
+						}
+					]
 				}
 			}
 		},
@@ -241,12 +299,20 @@
 				"detail": {
 					"type": "object",
 					"properties": {
-						"declaredContractVersion": { "type": "number" },
-						"declaredPayloadVersion": { "type": "string" }
+						"declaredContractVersion": {
+							"type": "number"
+						},
+						"declaredPayloadVersion": {
+							"type": "string"
+						}
 					}
 				}
 			},
-			"allOf": [{ "$ref": "#/$defs/pathField" }]
+			"allOf": [
+				{
+					"$ref": "#/$defs/pathField"
+				}
+			]
 		},
 		"hintRow": {
 			"type": "object",
@@ -268,15 +334,104 @@
 						"env-override-invalid",
 						"root-anomaly",
 						"root-uninspectable",
-						"partial-document"
+						"partial-document",
+						"windows-hook-transport-unavailable"
 					]
 				},
 				"evidence": {
 					"type": "array",
-					"items": { "type": "string" }
+					"items": {
+						"type": "string"
+					}
 				},
-				"text": { "type": "string" }
+				"text": {
+					"type": "string"
+				}
 			}
 		}
-	}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 1
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"properties": {
+							"endpoint": {
+								"properties": {
+									"socket": {
+										"properties": {
+											"state": {
+												"not": {
+													"const": "not-inspected"
+												}
+											},
+											"reason": {
+												"const": "budget-exhausted"
+											}
+										}
+									}
+								}
+							},
+							"hints": {
+								"items": {
+									"properties": {
+										"id": {
+											"not": {
+												"const": "windows-hook-transport-unavailable"
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"result": {
+						"properties": {
+							"endpoint": {
+								"properties": {
+									"socket": {
+										"oneOf": [
+											{
+												"required": ["reason"],
+												"properties": {
+													"state": {
+														"const": "not-inspected"
+													},
+													"reason": {
+														"const": "windows-hook-transport-unavailable"
+													}
+												}
+											},
+											{
+												"required": ["reason"],
+												"properties": {
+													"state": {
+														"const": "unknown"
+													},
+													"reason": {
+														"const": "budget-exhausted"
+													}
+												}
+											}
+										]
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	]
 }

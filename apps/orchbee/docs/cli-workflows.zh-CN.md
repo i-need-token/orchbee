@@ -30,7 +30,20 @@ $created.result
 & $cli workspace close $created.result.workspaceId --confirm --format json
 ```
 
-使用终端前检查 `result.terminal.outcome`：`started` 确认启动；pending、failed、unavailable 或 unknown 需要根据返回 ID 查询资源。退出 TUI 不会关闭 Workspace。命令自动创建首个终端，并保持客户端焦点。Windows Agent integration、doctor 及 Site diagnose 尚不属于此流程。下方编号的 POSIX 示例描述已有 Linux 路径。
+使用终端前检查 `result.terminal.outcome`：`started` 确认启动；pending、failed、unavailable 或 unknown 需要根据返回 ID 查询资源。退出 TUI 不会关闭 Workspace。命令自动创建首个终端，并保持客户端焦点。Windows Agent integration 安装及 Site diagnose 尚不属于此流程。下方编号的 POSIX 示例描述已有 Linux 路径。
+
+## Windows Agent 诊断
+
+```powershell
+& $cli agent doctor --provider codex --format json
+& $cli agent doctor --provider codex --asset-root 'C:\path\to\cohort\agent-observation-adapters'
+```
+
+这些命令完全离线，不改变配置。它们检查原生用户配置目录（显式配置时使用 `CODEX_HOME`）、
+PATH 上的 provider 条目、Node 及声明的胶囊完整性。第二条命令增加一个显式胶囊检查根，
+不会安装它。版本 2 JSON 和本地化文本报告 `windows-hook-transport-unavailable`：随附 hook
+载荷仍需 Windows shell 和事件传输支持。已安装 hook 或 `complete:true` 不代表 Agent 看板
+已可用。托管 enable/disable 与 start/prompt 将在传输工作之后补齐。
 
 ## 前提条件
 

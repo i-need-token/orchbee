@@ -34,7 +34,8 @@ behavior is a bug to fix, not a fork to keep.
   `LC_ALL`/`LC_MESSAGES`/`LANG` select the diagnostic locale. `agent doctor` additionally reads
   `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` (the observation-endpoint override its endpoint fact
   reports verbatim), the inherited `PATH` for its bounded executable scan, and `HOME` for the
-  provider target prefixes. `panel current` in caller mode additionally reads
+  provider target prefixes on Linux. Windows uses the native user profile and an optional
+  non-empty `CODEX_HOME` for Codex configuration. `panel current` in caller mode additionally reads
   `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID` as described below. Nothing else is consulted.
 - Filesystem: the resolved runtime base, the Site scope directory
   `orchbee-native-<euid>`, its `client.sock`/`worker.sock`, the activation marker, and the
@@ -410,10 +411,10 @@ sequence on Linux; the first failing stage wins and determines the failure:
 5-second cohort budget for its cohort check. `site diagnose` is the same kind of purely local
 command — descriptor-relative path and lock observation only; it never connects, never creates
 a lock or a marker, and never repairs — over one cooperative 5-second budget checked between
-bounded filesystem operations. Non-Linux platforms produce `service-unavailable`
+bounded filesystem operations. Platforms other than Linux and Windows produce `service-unavailable`
 `{stage:"platform",reason:"unsupported-platform"}` for network queries and mutations and
 `check-failed` with the same details for `config check`; there is no fallback to unbounded
-connection APIs. `site start` and `site diagnose` on a non-Linux platform answer
+connection APIs. `site start` outside Linux/Windows and `site diagnose` outside Linux answer
 `service-unavailable` with the same platform details.
 
 `agent doctor` is the offline provider-hook diagnostic: it explains, from bounded filesystem
@@ -422,11 +423,30 @@ socket connect, no Site discovery, no lock, and no write of any kind — the ins
 the declared one above, and every lstat/read/list/PATH scan runs under one 5-second
 cooperative budget, ≤64 probe items, ≤16 MiB aggregate read, and per-file/count caps, with
 cancellation checkpoints between items. It answers `check-failed` with
-`{stage:"platform",reason:"unsupported-platform",command:"agent doctor"}` on non-Linux
-platforms. A run that meets a bound still produces its document with `complete:false` —
+`{stage:"platform",reason:"unsupported-platform",command:"agent doctor"}` on platforms other than Linux and Windows. A run that meets a bound still produces its document with `complete:false` —
 partial facts are explicit, never silently dropped — and `providers[]` always reports every
 selected provider in canonical order. `hints[]` are observation-only: each `{id,evidence,text}`
 names the concrete fact rows it cites and carries no causal, remedy, or trust claim.
+
+### Windows Agent diagnostic refinement
+
+Windows `agent doctor` owns the same bounded offline observation workflow. It emits
+`orchbee.agent.doctor` version 2; existing Linux output remains version 1. A hook declaration
+and a self-consistent capsule establish installation facts only. The shipped 0.4.0 hook payload
+still requires POSIX shell commands, Unix socket discovery and `/dev/tty`; Windows reports
+`endpoint.socket.state="not-inspected"` with `reason="windows-hook-transport-unavailable"`
+and a localized hint. This does not inspect a named pipe or infer Site liveness. A complete
+inspection can report this known limitation; `complete` describes probe coverage, not readiness.
+Managed Windows installation and Agent start/prompt remain subsequent workflow obligations.
+
+| Field               | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Inputs and owner    | Native doctor exclusively owns read-only filesystem/PATH/environment observations. Windows home uses the native user profile; a non-empty absolute `CODEX_HOME` naming an existing, non-reparse directory selects Codex configuration. Empty `CODEX_HOME` uses the default; invalid non-empty roots are uninspectable, never silently replaced. This read-only admission is stricter than Codex canonicalizing a relative or symlinked override. |
+| Admission           | Regular files are opened without following the final reparse point, then checked through the opened handle before bounded reads. Device namespaces and relative paths are rejected. Reparse entries are uninspected. Ancestor components and synchronous filesystem latency remain outside a hard deadline guarantee.                                                                                                                            |
+| Decisions           | Provider configuration absent/disabled/conflicting/unreadable, native executable or script visible/absent, Node visible/absent, capsule consistent/corrupt/over-budget, and unsupported Windows hook transport are separate facts. PATH search never executes an entry or infers plugin command support.                                                                                                                                         |
+| Compatibility       | Windows accepts native absolute paths and single-line TOML literal strings emitted for Windows paths. Existing Linux scanner semantics and output version remain unchanged. New Windows endpoint vocabulary is confined to version 2 in the embedded schema.                                                                                                                                                                                     |
+| Effects and bounds  | No provider execution, socket connection, Site activation, lock or write. Existing 5-second cooperative budget, 64 items, 16 MiB aggregate reads and per-probe caps apply. Cancellation returns exit 130; produced complete or partial diagnostic documents return exit 0.                                                                                                                                                                       |
+| Evidence and limits | Windows isolated process tests cover localized/schema-valid output, path/configuration isolation, missing and installed declarations, corrupt assets and zero setup effects. Filesystem tests cover reparse refusal and read budgets. No claim of working Windows hook delivery or independent review; TLA execution is excluded by user instruction.                                                                                            |
 
 `terminal read` shares steps 1–5 unchanged, then keeps the admitted session alive inside the
 same deadline — never a second admission — for one read-only viewer observation:
@@ -1512,7 +1532,7 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | `site start` activation deadline elapsed; lock acquisition `TimedOut`                                                                     | `timeout`                                                                  | 7         | `{stage:"activation"}`                                                                              |
 | `site start` marker/probe/lock io failure (non-timeout)                                                                                   | `internal-failure`                                                         | 1         | `{stage:"activation"}`                                                                              |
 | `site diagnose` complete or partial fact document — unsafe/uninspectable rows are facts, not failures                                     | typed `orchbee.site.diagnose` document                                     | 0         | row `state`/`reason` fields                                                                         |
-| non-Linux network query, mutation, `site start`, `site diagnose`, `config check`, or `agent doctor`                                       | `service-unavailable`/`check-failed`                                       | 4/1       | `{stage:"platform",reason:"unsupported-platform"[,command]}`                                        |
+| `site diagnose` outside Linux; network query, mutation, `site start`, `config check`, or `agent doctor` outside Linux/Windows             | `service-unavailable`/`check-failed`                                       | 4/1       | `{stage:"platform",reason:"unsupported-platform"[,command]}`                                        |
 | `agent doctor` captures an eligible signal between probe items                                                                            | `cancelled`                                                                | 130       | `{stage:"agent-doctor"}` — partial documents arise only from budget exhaustion                      |
 | `terminal wait-output` deadline exhausted without a match                                                                                 | `timeout`                                                                  | 7         | `{stage:"wait",timeoutMs,observed}`                                                                 |
 | HUP/INT/QUIT/TERM during `terminal wait-output`                                                                                           | `cancelled`                                                                | 130       | `{stage:"wait",cleanup}`                                                                            |

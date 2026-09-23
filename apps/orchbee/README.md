@@ -156,8 +156,12 @@ and Git worktree discovery. Console records feed the existing key and SGR mouse 
 mode guard restores the inherited input/output modes when leaving the TUI. Large byte records use
 bounded writes, and cancelled exchanges close their shared pipe without a detached flush thread.
 
-Current Windows limits: `site diagnose`, Agent integration installation, and Agent doctor are not
-implemented. The packaged hook adapters still require Unix TTY discovery, so launching an Agent in a
+Windows `agent doctor --provider codex --format json` now inspects local configuration, PATH,
+Node and capsule integrity without starting a Site or changing provider setup. Its version-2
+document explicitly reports that Windows hook delivery is unavailable; installed configuration
+is not proof of a working Agent connection.
+
+Current Windows limits: `site diagnose` and Agent integration installation are not implemented. The packaged hook adapters still require Unix TTY discovery, so launching an Agent in a
 pane does not promise hook-based Agent-board state. `terminal send --stdin` accepts redirected regular
 files and Windows pipes; an owned hidden Windows PowerShell reader makes pipe input cancellable.
 It is resolved from the OS system directory, never from PATH, and is terminated/reaped on failure.

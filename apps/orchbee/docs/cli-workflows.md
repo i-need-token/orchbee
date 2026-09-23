@@ -31,7 +31,22 @@ $created.result
 & $cli workspace close $created.result.workspaceId --confirm --format json
 ```
 
-Check `result.terminal.outcome` before using the terminal: `started` confirms launch, while pending, failed, unavailable or unknown results require inspection of the returned resources. Closing the TUI does not close the Workspace. The command creates the first terminal automatically and leaves client focus unchanged. Windows Agent integration and doctor, and Site diagnose remain outside this workflow. The numbered POSIX examples below describe the existing Linux path.
+Check `result.terminal.outcome` before using the terminal: `started` confirms launch, while pending, failed, unavailable or unknown results require inspection of the returned resources. Closing the TUI does not close the Workspace. The command creates the first terminal automatically and leaves client focus unchanged. Windows Agent integration installation and Site diagnose remain outside this workflow. The numbered POSIX examples below describe the existing Linux path.
+
+## Windows Agent diagnostics
+
+```powershell
+& $cli agent doctor --provider codex --format json
+& $cli agent doctor --provider codex --asset-root 'C:\path\to\cohort\agent-observation-adapters'
+```
+
+These commands are offline and leave configuration unchanged. They inspect the native user
+profile (`CODEX_HOME` when explicitly configured), provider entries on PATH, Node and declared
+capsule integrity. The second command adds an explicit capsule root; it does not install it.
+Version-2 JSON and localized text report `windows-hook-transport-unavailable`: the shipped
+hook payload still needs Windows shell and event-transport support. An installed hook or
+`complete:true` does not establish Agent-board readiness. Managed enable/disable and
+start/prompt follow that transport work.
 
 ## Prerequisites
 

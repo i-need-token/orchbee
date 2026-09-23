@@ -556,6 +556,20 @@ fn parse_assignment(line: &[u8]) -> Option<(&[u8], &[u8])> {
 /// `parseBasicString` — `JSON.parse` of the raw value producing a string,
 /// else `None`.
 fn basic_string(raw: &[u8]) -> Option<String> {
+    // Codex serializes Windows paths as TOML single-line literal strings.
+    #[cfg(windows)]
+    if let Some(literal) = raw
+        .strip_prefix(b"'")
+        .and_then(|raw| raw.strip_suffix(b"'"))
+    {
+        if literal
+            .iter()
+            .any(|byte| *byte == b'\'' || *byte < 0x20 || *byte == 0x7f)
+        {
+            return None;
+        }
+        return std::str::from_utf8(literal).ok().map(str::to_owned);
+    }
     serde_json::from_slice::<String>(raw).ok()
 }
 
@@ -615,6 +629,16 @@ pub(crate) fn derive_module_root(module_url: &str, suffix: &str) -> ModuleUrlRoo
     if decoded.contains(&0) || !decoded.starts_with(b"/") {
         return ModuleUrlRoot::Invalid;
     }
+    #[cfg(windows)]
+    let decoded = if decoded.len() >= 4
+        && decoded[1].is_ascii_alphabetic()
+        && decoded[2] == b':'
+        && decoded[3] == b'/'
+    {
+        decoded[1..].to_vec()
+    } else {
+        return ModuleUrlRoot::Invalid;
+    };
     let Some(root) = decoded
         .strip_suffix(suffix.as_bytes())
         .map(|root| root.to_vec())

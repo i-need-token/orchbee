@@ -4,21 +4,28 @@
 //! `probes.rs` and consumes byte vectors and typed outcomes, never a path.
 
 use std::{
-    ffi::{OsStr, OsString},
-    fs::{self, File},
-    io::{self, Read},
-    os::{
-        fd::OwnedFd,
-        unix::ffi::{OsStrExt, OsStringExt},
-    },
+    ffi::OsString,
+    fs,
     path::{Path, PathBuf},
 };
 
+#[cfg(target_os = "linux")]
 use nix::{
     errno::Errno,
     fcntl::OFlag,
     sys::stat::{FileStat, Mode, SFlag, fstat},
     unistd::{AccessFlags, access},
+};
+#[cfg(target_os = "linux")]
+use std::os::{
+    fd::OwnedFd,
+    unix::ffi::{OsStrExt, OsStringExt},
+};
+#[cfg(target_os = "linux")]
+use std::{
+    ffi::OsStr,
+    fs::File,
+    io::{self, Read},
 };
 
 use super::{
@@ -37,6 +44,7 @@ pub(crate) const MAX_PATH_BYTES: usize = 4096;
 pub(crate) enum EntryKind {
     Regular,
     Directory,
+    #[cfg(target_os = "linux")]
     Socket,
     Other,
 }
@@ -51,7 +59,9 @@ pub(crate) enum Lstat {
     /// An entry exists; `size` is the declared regular-file length.
     Entry {
         kind: EntryKind,
+        #[cfg(target_os = "linux")]
         uid: u32,
+        #[cfg(target_os = "linux")]
         mode: u32,
         size: u64,
     },
@@ -132,17 +142,20 @@ pub(crate) enum EnvValue {
 
 /// Native path admission in bytes — the typed `path-too-long` gate; no
 /// truncation and no lossy validation.
+#[cfg(target_os = "linux")]
 pub(crate) fn path_admitted(path: &Path) -> bool {
     let bytes = path.as_os_str().as_bytes();
     !bytes.is_empty() && bytes.len() <= MAX_PATH_BYTES
 }
 
 /// A path reconstructed from raw bytes (module-URL decoded roots).
+#[cfg(target_os = "linux")]
 pub(crate) fn path_from_bytes(bytes: &[u8]) -> PathBuf {
     PathBuf::from(OsString::from_vec(bytes.to_vec()))
 }
 
 /// `lstat` of the final component — the probe's no-follow observation.
+#[cfg(target_os = "linux")]
 pub(crate) fn lstat(path: &Path) -> Lstat {
     use std::os::unix::fs::{FileTypeExt, MetadataExt};
     let metadata = match fs::symlink_metadata(path) {
@@ -176,6 +189,7 @@ pub(crate) fn lstat(path: &Path) -> Lstat {
 /// inside the run's aggregate read budget. `O_NONBLOCK` prevents
 /// open-blocking on exotic kinds; it is not an IO deadline — the run-level
 /// budget remains cooperative.
+#[cfg(target_os = "linux")]
 pub(crate) fn read_regular(path: &Path, cap: u64, budget: &mut Budget) -> FileRead {
     let descriptor = match nix::fcntl::open(
         path,
@@ -193,6 +207,7 @@ pub(crate) fn read_regular(path: &Path, cap: u64, budget: &mut Budget) -> FileRe
 /// The `fstat` gate and bounded body read behind [`read_regular`]: a file
 /// that fits its own cap but not the remaining aggregate budget is
 /// `BudgetExhausted`, never `OverLimit`.
+#[cfg(target_os = "linux")]
 fn read_regular_descriptor(descriptor: OwnedFd, cap: u64, budget: &mut Budget) -> FileRead {
     let stat: FileStat = match fstat(&descriptor) {
         Ok(stat) => stat,
@@ -253,6 +268,14 @@ pub(crate) fn list_dir(path: &Path, maximum: usize) -> DirEntries {
             Ok(file_type) => file_type,
             Err(_) => return DirEntries::Unreadable,
         };
+        #[cfg(windows)]
+        if matches!(lstat(&entry.path()), Lstat::Symlink | Lstat::Unreadable) {
+            entries.push(DirEntry {
+                name: entry.file_name(),
+                kind: ListKind::Symlink,
+            });
+            continue;
+        }
         let kind = if file_type.is_symlink() {
             ListKind::Symlink
         } else if file_type.is_file() {
@@ -272,6 +295,7 @@ pub(crate) fn list_dir(path: &Path, maximum: usize) -> DirEntries {
 
 /// One environment variable of the owning process — raw bytes, never the
 /// managed child's environment.
+#[cfg(target_os = "linux")]
 pub(crate) fn env_value(name: &str) -> EnvValue {
     match std::env::var_os(name) {
         Some(value) => EnvValue::Value(value.as_bytes().to_vec()),
@@ -286,6 +310,7 @@ pub(crate) fn inherited_path() -> Option<OsString> {
 }
 
 /// The owning process's `HOME` value.
+#[cfg(target_os = "linux")]
 pub(crate) fn home_directory() -> Option<PathBuf> {
     std::env::var_os("HOME").map(PathBuf::from)
 }
@@ -294,6 +319,7 @@ pub(crate) fn home_directory() -> Option<PathBuf> {
 /// `resolveAgentExecutableCandidates`: name-shape gate, per-source ≤256
 /// directories, per-directory ≤4096 bytes, control-character and absoluteness
 /// admission, first-match `{access X_OK, stat isFile}`.
+#[cfg(target_os = "linux")]
 pub(crate) fn scan_path_for(name: &str, path_env: &OsStr) -> PathScan {
     if !valid_executable_name(name) {
         return PathScan {
@@ -343,6 +369,7 @@ pub(crate) fn scan_path_for(name: &str, path_env: &OsStr) -> PathScan {
 
 /// `/^[a-z][a-z0-9-]{0,31}$/` — the executable-name gate every provider
 /// literal already satisfies; enforced anyway so the port is total.
+#[cfg(target_os = "linux")]
 fn valid_executable_name(name: &str) -> bool {
     let bytes = name.as_bytes();
     (1..=32).contains(&bytes.len())
@@ -423,6 +450,10 @@ pub(crate) fn capsule_walk(root: &Path, budget: &mut Budget) -> CapsuleWalk {
                 Err(_) => return CapsuleWalk::Unreadable,
             };
             if file_type.is_symlink() {
+                return CapsuleWalk::UnsafeKind;
+            }
+            #[cfg(windows)]
+            if matches!(lstat(&entry.path()), Lstat::Symlink | Lstat::Unreadable) {
                 return CapsuleWalk::UnsafeKind;
             }
             // E-5: a non-UTF-8 payload path cannot be serialized like the JS
@@ -538,6 +569,10 @@ pub(crate) fn fingerprint_walk(root: &Path, budget: &mut Budget) -> FingerprintW
             if file_type.is_symlink() {
                 return FingerprintWalk::UnsafeKind;
             }
+            #[cfg(windows)]
+            if matches!(lstat(&entry.path()), Lstat::Symlink | Lstat::Unreadable) {
+                return FingerprintWalk::UnsafeKind;
+            }
             let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
                 return FingerprintWalk::Unreadable;
             };
@@ -606,6 +641,7 @@ fn sha256_hex(bytes: &[u8]) -> String {
 /// predicate: socket kind plus effective-uid ownership. `mode` is an
 /// informational detail only — a wrong-mode socket that still delivers
 /// must not self-contradict the diagnosis.
+#[cfg(target_os = "linux")]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SocketFact {
     /// A socket owned by the effective user.
@@ -623,12 +659,14 @@ pub(crate) enum SocketFact {
 }
 
 /// The observation endpoint filename inside the native runtime directory.
+#[cfg(target_os = "linux")]
 pub(crate) const OBSERVATION_SOCKET_NAME: &str = "agent-observation-v3.sock";
 
 /// The endpoint path the hook payloads resolve:
 /// `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` when it carries a non-empty value,
 /// else `<ORCHBEE_RUNTIME_BASE || /tmp>/orchbee-native-<euid>/agent-observation-v3.sock`.
 /// Pure path derivation — no inspection.
+#[cfg(target_os = "linux")]
 pub(crate) fn observation_socket_path(euid: u32) -> PathBuf {
     if let EnvValue::Value(value) = env_value(super::probes::OBSERVATION_SOCKET_ENV)
         && !value.is_empty()
@@ -645,6 +683,7 @@ pub(crate) fn observation_socket_path(euid: u32) -> PathBuf {
 
 /// The endpoint probe: `lstat` of the final component — never a connect —
 /// admitting exactly what the consumers admit (kind + owner).
+#[cfg(target_os = "linux")]
 pub(crate) fn observation_socket(path: &Path, euid: u32) -> SocketFact {
     match lstat(path) {
         Lstat::Absent => SocketFact::Absent,
@@ -659,3 +698,11 @@ pub(crate) fn observation_socket(path: &Path, euid: u32) -> SocketFact {
         },
     }
 }
+
+#[cfg(windows)]
+mod windows;
+#[cfg(windows)]
+pub(crate) use windows::{
+    codex_configuration_path, env_value, home_directory, lstat, path_admitted, path_from_bytes,
+    read_regular, scan_path_for,
+};
