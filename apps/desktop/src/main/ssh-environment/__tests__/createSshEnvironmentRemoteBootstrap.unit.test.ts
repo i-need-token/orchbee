@@ -56,13 +56,19 @@ const catalog: VerifiedSshEnvironmentReleaseCatalog = {
 };
 
 describe('SSH Environment remote bootstrap', () => {
-	it('builds a syntax-valid dual-platform program with no remote download path', () => {
+	it.runIf(process.platform !== 'win32')('passes the target POSIX shell syntax check', () => {
+		const bootstrap = createSshEnvironmentRemoteBootstrap({
+			catalog,
+			runtimeInstanceId: '1'.repeat(32),
+		});
+		expect(spawnSync('/bin/sh', ['-n', '-c', bootstrap.command]).status).toBe(0);
+	});
+	it('builds a dual-platform program with no remote download path', () => {
 		const bootstrap = createSshEnvironmentRemoteBootstrap({
 			catalog,
 			runtimeInstanceId: '1'.repeat(32),
 		});
 
-		expect(spawnSync('/bin/sh', ['-n', '-c', bootstrap.command]).status).toBe(0);
 		expect(bootstrap.command).toContain('orchbee_directory="$HOME/.orchbee"');
 		expect(bootstrap.command).toContain(
 			'runtime_version_directory="$runtime_versions_directory/0.2.0"',
@@ -105,7 +111,6 @@ describe('SSH Environment remote bootstrap', () => {
 			runtimeInstanceId: '1'.repeat(32),
 		});
 
-		expect(spawnSync('/bin/sh', ['-n', '-c', bootstrap.command]).status).toBe(0);
 		expect(bootstrap.command).toContain('Linux:x86_64)');
 		expect(bootstrap.command).toContain('getconf GNU_LIBC_VERSION');
 	});

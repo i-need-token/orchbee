@@ -23,6 +23,19 @@ afterEach(async () => {
 });
 
 describe('TerminalExitSpillStore', () => {
+	it.runIf(process.platform !== 'win32')(
+		'protects POSIX journal files and directories with owner-only modes',
+		async () => {
+			const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-terminal-exit-spill-'));
+			temporaryDirectories.push(directory);
+			const filePath = path.join(directory, 'recovery', 'terminal-exits-v1.json');
+			const store = new TerminalExitSpillStore(filePath);
+			await store.load();
+			expect(store.admit(terminalExit('1'), 'queue-full')).toEqual({ kind: 'admitted' });
+			expect((await stat(filePath)).mode & 0o777).toBe(0o600);
+			expect((await stat(path.dirname(filePath))).mode & 0o777).toBe(0o700);
+		},
+	);
 	it('persists the newest identity revision and reloads it as the durable owner', async () => {
 		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-terminal-exit-spill-'));
 		temporaryDirectories.push(directory);
@@ -44,8 +57,6 @@ describe('TerminalExitSpillStore', () => {
 		expect(reloaded.list()).toEqual([{ event: newest, reason: 'shutdown', state: 'pending' }]);
 		expect(await readFile(filePath, 'utf8')).toContain('"version":2');
 		expect(await readdir(path.dirname(filePath))).toEqual(['terminal-exits-v1.json']);
-		expect((await stat(filePath)).mode & 0o777).toBe(0o600);
-		expect((await stat(path.dirname(filePath))).mode & 0o777).toBe(0o700);
 	});
 
 	it('preserves a durable rejection separately from pending ownership', async () => {

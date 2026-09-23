@@ -791,6 +791,8 @@ serializer.
 
 ## Development
 
+Windows unit verification uses at most four Vitest workers for the process-heavy fixtures. POSIX socket, login-shell, permission-mode, and `/bin/sh` syntax witnesses run on POSIX hosts. Portable subprocess and ACK protocol checks also run on Windows; separate tests verify disabled Desktop observation ingress and the explicit Windows AskPass refusal. These boundaries do not claim managed Desktop Agent integration or SSH enrollment support on Windows.
+
 On Linux, Desktop's required shell-integration tests need Bash at `/bin/bash` and Zsh at `/bin/zsh`.
 Install both before running the unit suite or root merge gate; Linux CI provisions Zsh explicitly.
 

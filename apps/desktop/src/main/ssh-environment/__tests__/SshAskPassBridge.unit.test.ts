@@ -1,13 +1,14 @@
 import { once } from 'node:events';
-import { access, stat } from 'node:fs/promises';
+import { access, mkdtemp, readdir, rm, stat } from 'node:fs/promises';
 import { connect } from 'node:net';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 import { describe, expect, it, vi } from 'vitest';
 
 import { SshAskPassBridge, type SshAskPassBridgeOptions } from '../SshAskPassBridge';
 
-describe('SSH AskPass bridge', () => {
+describe.runIf(process.platform !== 'win32')('SSH AskPass bridge POSIX capability', () => {
 	it('uses an owner-only one-generation capability and removes its IPC on disposal', async () => {
 		const interaction = vi.fn<SshAskPassBridgeOptions['interaction']>().mockResolvedValue({
 			kind: 'submitted' as const,
@@ -79,6 +80,28 @@ describe('SSH AskPass bridge', () => {
 		await bridge.dispose();
 	});
 });
+
+it.runIf(process.platform === 'win32')(
+	'refuses Windows AskPass before creating IPC or presenting a prompt',
+	async () => {
+		const directory = await mkdtemp(join(tmpdir(), 'orchbee-askpass-refusal-'));
+		const interaction = vi.fn<SshAskPassBridgeOptions['interaction']>();
+		const bridge = new SshAskPassBridge({
+			helperEntryPath: join(directory, 'helper.cjs'),
+			runtimeExecutablePath: process.execPath,
+			temporaryRoot: directory,
+			interaction,
+		});
+		try {
+			await expect(bridge.start()).rejects.toThrow('AskPass bridge is unsupported on Windows.');
+			expect(interaction).not.toHaveBeenCalled();
+			expect(await readdir(directory)).toEqual([]);
+		} finally {
+			await bridge.dispose();
+			await rm(directory, { recursive: true });
+		}
+	},
+);
 
 function request(socketPath: string, payload: unknown): Promise<unknown> {
 	return new Promise((resolve, reject) => {

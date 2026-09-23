@@ -14,7 +14,9 @@ import type {
 } from '../agent-hook-observation-contract';
 import { AgentHookObservationIngress } from '../AgentHookObservationIngress';
 
-describe('AgentHookObservationIngress', () => {
+// Desktop composition supplies no observation socket on Windows. The native
+// Windows cohort has its own named-pipe ingress and process witnesses.
+describe.runIf(process.platform !== 'win32')('AgentHookObservationIngress POSIX socket', () => {
 	let ingress: AgentHookObservationIngress | undefined;
 	let runtimeDirectory: string | undefined;
 
@@ -316,6 +318,25 @@ describe('AgentHookObservationIngress', () => {
 		});
 		await ingress.start();
 		return { ingress, socketPath };
+	}
+});
+
+it('leaves observation disabled when composition supplies no endpoint', async () => {
+	const runtime = new AgentRuntime();
+	const ingress = new AgentHookObservationIngress(runtime, {
+		allocateIdentifier: () => 'disabled',
+		socketPath: null,
+	});
+	try {
+		await ingress.start();
+		await ingress.start();
+		const presentation = terminalPresentationId('desktop:disabled');
+		const generation = CreationIdSchema.parse('11'.repeat(16));
+		expect(ingress.environmentOverlayFor(presentation, generation)).toEqual([]);
+		ingress.observeTerminalApplicationSignal(signal(1, 1, generation), presentation);
+		expect(runtime.getSnapshot().sessions).toEqual([]);
+	} finally {
+		await ingress.dispose();
 	}
 });
 

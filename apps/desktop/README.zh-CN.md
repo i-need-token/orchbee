@@ -521,6 +521,8 @@ Desktop terminal-archive model 另外检查一个 retiring generation 的 stop/c
 
 ## 开发
 
+Windows 单元验证最多使用四个 Vitest worker，约束真实进程夹具的并发压力。POSIX socket、login shell、权限位及 `/bin/sh` 语法证据在 POSIX 主机运行。可移植的子进程与 ACK 协议检查也在 Windows 运行；另行验证 Desktop 观测入口禁用以及 Windows AskPass 的明确拒绝。这些验证边界不表示 Windows 已支持 Desktop 托管 Agent 集成或 SSH 接入。
+
 在 Linux 上，Desktop 的必需 shell 集成测试需要 `/bin/bash` 处的 Bash 和 `/bin/zsh` 处的 Zsh。
 运行单元测试或根合并门禁前须安装两者；Linux CI 会显式安装 Zsh。
 

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { closeSync, openSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -135,54 +136,63 @@ describe('Agent observation adapter resources', () => {
 		expect(writeHint).not.toHaveBeenCalled();
 	});
 
-	it('uses only the environment-addressed socket for a local Agent process', async () => {
-		const transport = await import(transportUrl);
-		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-local-socket-'));
-		const socketPath = path.join(directory, 'exact.sock');
-		const server = createServer();
-		try {
-			await new Promise<void>((resolve, reject) => {
-				server.once('error', reject);
-				server.listen(socketPath, resolve);
-			});
-			await expect(
-				transport.discoverObservationSockets({
-					ORCHBEE_AGENT_OBSERVATION_SOCKET_V3: socketPath,
-				}),
-			).resolves.toEqual([socketPath]);
-			await expect(
-				transport.discoverObservationSockets({
-					ORCHBEE_AGENT_OBSERVATION_SOCKET_V3: path.join(directory, 'missing.sock'),
-				}),
-			).resolves.toEqual([]);
-		} finally {
-			await new Promise<void>((resolve) => server.close(() => resolve()));
-			await rm(directory, { force: true, recursive: true });
-		}
-	});
+	it.runIf(process.platform !== 'win32')(
+		'uses only the environment-addressed socket for a local Agent process',
+		async () => {
+			const transport = await import(transportUrl);
+			const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-local-socket-'));
+			const socketPath = path.join(directory, 'exact.sock');
+			const server = createServer();
+			try {
+				await new Promise<void>((resolve, reject) => {
+					server.once('error', reject);
+					server.listen(socketPath, resolve);
+				});
+				await expect(
+					transport.discoverObservationSockets({
+						ORCHBEE_AGENT_OBSERVATION_SOCKET_V3: socketPath,
+					}),
+				).resolves.toEqual([socketPath]);
+				await expect(
+					transport.discoverObservationSockets({
+						ORCHBEE_AGENT_OBSERVATION_SOCKET_V3: path.join(directory, 'missing.sock'),
+					}),
+				).resolves.toEqual([]);
+			} finally {
+				await new Promise<void>((resolve) => server.close(() => resolve()));
+				await rm(directory, { force: true, recursive: true });
+			}
+		},
+	);
 
-	it('discovers forwarded candidates only from an explicit remote SSH environment', async () => {
-		const transport = await import(transportUrl);
-		const socketPath = path.join('/tmp', `orchbee-agent-v3-test_${process.pid}_${Date.now()}.sock`);
-		const server = createServer();
-		try {
-			await new Promise<void>((resolve, reject) => {
-				server.once('error', reject);
-				server.listen(socketPath, resolve);
-			});
-			await expect(
-				transport.discoverObservationSockets({ TERM_PROGRAM: 'WarpTerminal' }),
-			).resolves.toEqual([]);
-			await expect(
-				transport.discoverObservationSockets({
-					SSH_CONNECTION: '192.0.2.10 50000 192.0.2.20 22',
-				}),
-			).resolves.toContain(socketPath);
-		} finally {
-			await new Promise<void>((resolve) => server.close(() => resolve()));
-			await rm(socketPath, { force: true });
-		}
-	});
+	it.runIf(process.platform !== 'win32')(
+		'discovers forwarded candidates only from an explicit remote SSH environment',
+		async () => {
+			const transport = await import(transportUrl);
+			const socketPath = path.join(
+				'/tmp',
+				`orchbee-agent-v3-test_${process.pid}_${Date.now()}.sock`,
+			);
+			const server = createServer();
+			try {
+				await new Promise<void>((resolve, reject) => {
+					server.once('error', reject);
+					server.listen(socketPath, resolve);
+				});
+				await expect(
+					transport.discoverObservationSockets({ TERM_PROGRAM: 'WarpTerminal' }),
+				).resolves.toEqual([]);
+				await expect(
+					transport.discoverObservationSockets({
+						SSH_CONNECTION: '192.0.2.10 50000 192.0.2.20 22',
+					}),
+				).resolves.toContain(socketPath);
+			} finally {
+				await new Promise<void>((resolve) => server.close(() => resolve()));
+				await rm(socketPath, { force: true });
+			}
+		},
+	);
 
 	it('writes terminal hints once only after at least one endpoint returns the exact v3 ACK', async () => {
 		const transport = await import(transportUrl);
@@ -239,8 +249,8 @@ describe('Agent observation adapter resources', () => {
 		await expect(withAckServer(() => undefined, send)).resolves.toBe(false);
 	});
 
-	it(
-		'keeps every persisted command-hook entry silent when the runtime or Capsule script is absent',
+	it.runIf(process.platform !== 'win32')(
+		'keeps every persisted POSIX command-hook entry silent when the runtime or Capsule script is absent',
 		// Secondary guard for the asynchronous reads; the owned bounds are the
 		// monotonic fixture deadline and the per-spawn watchdog below.
 		{ timeout: 35_000 },
@@ -708,38 +718,41 @@ describe('Agent observation adapter resources', () => {
 		).toEqual(['/dev/pts/4', '/dev/pts/8', '/dev/pts/12']);
 	});
 
-	it('resolves direct, tmux, and Zellij client TTYs without mux passthrough', async () => {
-		const transport = await import(transportUrl);
-		const userId = process.getuid?.() ?? 501;
-		await expect(transport.resolveObservationTargets({ SSH_TTY: '/dev/pts/2' })).resolves.toEqual([
-			{ tty: '/dev/pts/2', visibility: 'unknown' },
-		]);
-		await expect(
-			transport.resolveObservationTargets(
-				{ TMUX_PANE: '%7' },
-				{
-					execute: async (_file: string, arguments_: readonly string[]) =>
-						arguments_[0] === 'display-message'
-							? 'work\n'
-							: '/dev/pts/4\twork\t%7\n/dev/pts/8\twork\t%2\n',
-				},
-			),
-		).resolves.toEqual([
-			{ tty: '/dev/pts/4', visibility: 'unknown' },
-			{ tty: '/dev/pts/8', visibility: 'hidden' },
-		]);
-		await expect(
-			transport.resolveObservationTargets(
-				{ ZELLIJ_PANE_ID: 'terminal_7', ZELLIJ_SESSION_NAME: 'work' },
-				{
-					execute: async (file: string) =>
-						file === 'zellij'
-							? 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n1 terminal_0 zsh\n'
-							: `${userId} 100 pts/4 zellij attach work\n`,
-				},
-			),
-		).resolves.toEqual([{ tty: '/dev/pts/4', visibility: 'hidden' }]);
-	});
+	it.runIf(process.platform !== 'win32')(
+		'resolves direct, tmux, and Zellij client TTYs without mux passthrough',
+		async () => {
+			const transport = await import(transportUrl);
+			const userId = process.getuid?.() ?? 501;
+			await expect(transport.resolveObservationTargets({ SSH_TTY: '/dev/pts/2' })).resolves.toEqual(
+				[{ tty: '/dev/pts/2', visibility: 'unknown' }],
+			);
+			await expect(
+				transport.resolveObservationTargets(
+					{ TMUX_PANE: '%7' },
+					{
+						execute: async (_file: string, arguments_: readonly string[]) =>
+							arguments_[0] === 'display-message'
+								? 'work\n'
+								: '/dev/pts/4\twork\t%7\n/dev/pts/8\twork\t%2\n',
+					},
+				),
+			).resolves.toEqual([
+				{ tty: '/dev/pts/4', visibility: 'unknown' },
+				{ tty: '/dev/pts/8', visibility: 'hidden' },
+			]);
+			await expect(
+				transport.resolveObservationTargets(
+					{ ZELLIJ_PANE_ID: 'terminal_7', ZELLIJ_SESSION_NAME: 'work' },
+					{
+						execute: async (file: string) =>
+							file === 'zellij'
+								? 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n1 terminal_0 zsh\n'
+								: `${userId} 100 pts/4 zellij attach work\n`,
+					},
+				),
+			).resolves.toEqual([{ tty: '/dev/pts/4', visibility: 'hidden' }]);
+		},
+	);
 
 	it('isolates resolver failures from every Agent adapter', async () => {
 		const transport = await import(transportUrl);
@@ -876,13 +889,17 @@ async function withAckServer(
 	send: (socketPath: string, envelope: unknown) => Promise<boolean>,
 ): Promise<boolean> {
 	const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-ack-'));
-	const socketPath = path.join(directory, 'ack.sock');
+	const socketPath =
+		process.platform === 'win32'
+			? String.raw`\\.\pipe\orchbee-adapter-ack-${randomUUID()}`
+			: path.join(directory, 'ack.sock');
 	const connections = new Set<Socket>();
 	const server = createServer({ allowHalfOpen: true }, (socket) => {
 		connections.add(socket);
 		socket.once('close', () => connections.delete(socket));
-		socket.resume();
-		socket.once('end', () => respond(socket));
+		// Windows named pipes do not deliver Unix-style half-close semantics.
+		// This fixture tests ACK admission; answer after receiving its request.
+		socket.once('data', () => respond(socket));
 	});
 	try {
 		await new Promise<void>((resolve, reject) => {
