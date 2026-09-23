@@ -10,7 +10,6 @@ use orchbee_agent_observation_protocol::{
     AgentResult, AgentWireError, ObapRequestId, write_agent_request,
 };
 
-#[cfg(windows)]
 use orchbee_agent_observation_protocol::{AgentLaunchRequest, AgentLaunchResult};
 
 use super::{ExchangeAttempt, LocalClient, exchange_once};

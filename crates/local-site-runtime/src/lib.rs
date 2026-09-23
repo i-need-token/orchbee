@@ -1,5 +1,9 @@
 //! Private native development runtime boundaries; applications own startup policy.
+#[cfg(windows)]
+mod activation_record_windows;
 mod cohort;
+#[cfg(windows)]
+pub use activation_record_windows::{ActivationState, RetainedActivationRecord};
 #[cfg_attr(windows, path = "rendezvous_windows.rs")]
 mod rendezvous;
 mod rendezvous_types;

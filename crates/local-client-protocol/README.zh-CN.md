@@ -1,5 +1,15 @@
 # 本机 Client 协议
 
+## 托管 Site 停止控制
+
+私有 OBLC v1 在现有 256 字节上限内增加类型 4/5，承载同用户、准确 cohort 的 Site 停止请求和状态响应。
+请求包含已验证 cohort、非零 128 位停止标识以及封闭的开始、状态或显式重试动作。响应回显该标识，区分未记录、
+处理中、失败、另一活动标识和非托管模式。处理中和失败状态保留正数尝试序号（最多 64）和封闭阶段；失败还保留
+原因及本次已知释放数量。响应绝不声明进程最终退出：托管所有者回收资源后的已准入 Windows 激活记录才是完成回执。
+重复开始不会重试效果；只有同一失败标识的显式重试可以推进尝试。停止中的新 Client hello 收到类型化的停止拒绝。
+未知标签、零标识、非法尝试序号和多余载荷字节均解码失败。编解码器自身不启动或停止进程，也不引入 Linux 或 macOS
+停止运行时。
+
 这是第一条 same-user POSIX Human Client-to-Server process spine 的私有、实验性 Rust connection
 contract 与具体 connecting adapter。它不是 public API、Worker protocol、terminal relay、TUI、
 activation mechanism、remote protocol 或 compatibility promise。

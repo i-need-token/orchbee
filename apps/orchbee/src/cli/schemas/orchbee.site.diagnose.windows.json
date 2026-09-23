@@ -10,7 +10,7 @@
 			"const": "orchbee.site.diagnose.windows"
 		},
 		"version": {
-			"const": 1
+			"const": 2
 		},
 		"source": {
 			"type": "object",
@@ -128,8 +128,35 @@
 						"minimum": 0,
 						"maximum": 65535
 					}
+				},
+				"activation": {
+					"enum": ["active", "stopped"]
+				},
+				"stopRequestId": {
+					"type": "string",
+					"pattern": "^(?!0{32}$)[0-9a-f]{32}$"
 				}
-			}
+			},
+			"allOf": [
+				{
+					"if": {
+						"required": ["activation"],
+						"properties": {
+							"activation": {
+								"const": "stopped"
+							}
+						}
+					},
+					"then": {
+						"required": ["stopRequestId"]
+					},
+					"else": {
+						"not": {
+							"required": ["stopRequestId"]
+						}
+					}
+				}
+			]
 		}
 	}
 }

@@ -266,6 +266,8 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::ProjectRename,
         CommandPath::SiteDiagnose,
         CommandPath::SiteStart,
+        CommandPath::SiteStop,
+        CommandPath::SiteStopStatus,
         CommandPath::Status,
         CommandPath::TabClose,
         CommandPath::TabCreate,
@@ -348,6 +350,8 @@ fn fixed_outputs_are_far_below_the_bound() {
         "snapshot",
         "split",
         "start",
+        "stop",
+        "stop-status",
         "wait",
         "wait-output",
     ];

@@ -28,7 +28,7 @@ Worker 保留精确生命周期观察，在返回 Disposed 前仅清理已销毁
 仍待实现；编解码器不实现重放、准入、清理或完整库存遍历。协议、Server、Worker 及原生
 Close 共同激活。旧私有 cohort 拒绝新增 tag；不定义混合 cohort 回退。
 
-kind 9 `TerminalLifecycleRequest` 和 kind 10 `TerminalLifecycleResult` 保持帧版本 1 及
+kind 9 `TerminalLifecycleRequest` 和 kind 10 `TerminalLifecycleResult` 使用帧版本 2 及
 8 KiB payload 上限。整数均为无符号大端，ID 均为非零 16 字节值。请求 kind 后依次为：
 生命周期能力版本（`u16`，当前为 1）、产品 Terminal ID（16）、Worker ID（16）、Worker
 代次（正 `u64`）、保留绑定 fence（正 `u64`）、新 lease ID（16）、lease Unix 毫秒到期值
@@ -469,6 +469,23 @@ pnpm test:tla:inventory
 pnpm lint:documentation
 pnpm lint:projects
 ```
+
+## 托管 Worker 停止
+
+Windows 托管 Site 生命周期在帧版本 2 和既有 8 KiB 上限下增加 kind 19/20。
+请求依次包含操作 ID、Worker ID（各 16 字节，整体非零）、正 Worker generation（u64）
+和协作式预算（u32，1..15000 毫秒），整数均为大端。仅精确准入的托管 Worker 可执行；
+非托管或身份不匹配在效果前拒绝。既有 20 秒 carrier 回应窗口不变，响应回显完整请求。
+
+结果 tag 为 1 NoHost、2 Stopped（Host epoch、u32 已释放计数）、3 Refused
+（1 Worker 不符、2 非托管）、4 Incomplete（可选 Host epoch、u32 已释放计数、阶段及
+失败原因）。NoHost 表示从未启动自有 Host 且后台任务已结束；Stopped 要求收敛／释放后
+确认自有 Host 退出。二者都不宣称 Worker 已退出，Server 须等待创建时保留的进程句柄。
+计数只描述本次尝试。阶段 1..5 为后台任务、库存、强制终止、释放及 Host 退出；失败
+1..5 为期限、传输、协议无效、Host 拒绝及进程等待。可选 epoch 使用 tag 0/1，存在时
+后接非零 ID。非法 tag、零值、预算越界和尾随字节均拒绝。编解码有效不产生终端权限，
+未知提交后不自动重放。正常断线不代表停止。此类型化交换向 Server 生命周期提供证据，
+绝不发布本地激活完成记录。
 
 ## 原生 Windows 路径细化
 

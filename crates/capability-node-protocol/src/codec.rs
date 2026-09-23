@@ -24,6 +24,7 @@ mod control;
 mod cwd_validation;
 mod lifecycle;
 mod send;
+mod shutdown;
 mod viewer;
 mod worktree_job;
 
@@ -47,6 +48,8 @@ pub const MAXIMUM_FRAME_PAYLOAD_BYTES: usize = 8 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CapabilityNodeMessage {
+    WorkerShutdownRequest(crate::WorkerShutdownRequest),
+    WorkerShutdownResult(crate::WorkerShutdownResult),
     TerminalLifecycleRequest(crate::TerminalLifecycleRequest),
     TerminalLifecycleResult(crate::TerminalLifecycleResult),
     TerminalControlRequest(crate::TerminalControlRequest),
@@ -157,6 +160,8 @@ pub fn write_message(
 
 fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
     match message {
+        CapabilityNodeMessage::WorkerShutdownRequest(value) => shutdown::encode_request(*value),
+        CapabilityNodeMessage::WorkerShutdownResult(value) => shutdown::encode_result(*value),
         CapabilityNodeMessage::TerminalLifecycleRequest(value) => lifecycle::encode_request(*value),
         CapabilityNodeMessage::TerminalLifecycleResult(value) => lifecycle::encode_result(*value),
         CapabilityNodeMessage::TerminalControlRequest(value) => control::encode_request(value),
@@ -212,6 +217,12 @@ fn decode_header(header: &[u8; FRAME_HEADER_BYTES]) -> Result<usize, ProtocolErr
 
 fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError> {
     match payload.first().copied() {
+        Some(19) => {
+            shutdown::decode_request(payload).map(CapabilityNodeMessage::WorkerShutdownRequest)
+        }
+        Some(20) => {
+            shutdown::decode_result(payload).map(CapabilityNodeMessage::WorkerShutdownResult)
+        }
         Some(9) => {
             lifecycle::decode_request(payload).map(CapabilityNodeMessage::TerminalLifecycleRequest)
         }

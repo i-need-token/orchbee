@@ -28,6 +28,36 @@ const SECOND_REQUEST_ID: &str = "22222222222222222222222222222222";
 const WORKER_ID: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 #[test]
+fn stop_admission_closes_before_effect_and_preserves_the_previous_complete_result() {
+    let request = immediate_create().unwrap();
+    let frame = encode_client_frame(&request).unwrap();
+    let mut input = frame.clone();
+    input.extend_from_slice(&frame);
+    let mut stream = MemoryStream::new(input);
+    let mut admissions = 0;
+    let mut effects = 0;
+    let result = super::run_guarded(
+        &mut stream,
+        |request| {
+            effects += 1;
+            denied_result(&request)
+        },
+        |_| panic!("Workbench"),
+        |_| panic!("Agent"),
+        || {
+            admissions += 1;
+            (admissions == 1).then_some(())
+        },
+    );
+    assert!(matches!(result, Err(ApplicationSessionError::Stopping)));
+    assert_eq!(effects, 1);
+    assert_eq!(
+        decode_server_frame(&stream.output).unwrap(),
+        denied_result(&request)
+    );
+}
+
+#[test]
 fn writes_injected_results_with_only_their_correlation_identity()
 -> Result<(), Box<dyn std::error::Error>> {
     let requests = [immediate_create()?, deferred_create()?, start()?];

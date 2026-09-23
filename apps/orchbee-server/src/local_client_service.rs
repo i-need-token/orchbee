@@ -26,7 +26,12 @@ use crate::workbench_service::{WorkbenchPolicy, WorkbenchService};
 #[cfg(test)]
 pub(crate) mod agent_harness;
 mod application_session;
+#[cfg(windows)]
+mod managed_windows;
 mod record_stream;
+mod stop_control;
+#[cfg(windows)]
+pub(crate) use managed_windows::{ManagedClients, start as start_managed_windows};
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 const MAXIMUM_CLIENT_CONNECTIONS: usize = 48;
@@ -46,7 +51,7 @@ pub(crate) fn start(
     start_listener(listener, expected_cohort, terminals, agents)
 }
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(target_os = "linux")]
 pub(crate) fn start_managed(
     endpoint: &Path,
     expected_cohort: &str,
@@ -160,7 +165,7 @@ fn serve(
 }
 
 fn handle_candidate(
-    mut stream: UnixStream,
+    stream: UnixStream,
     registry: &Arc<Mutex<ClientSessionRegistry>>,
     expected_cohort: &str,
     _connection_slot: ConnectionSlot,
@@ -168,6 +173,27 @@ fn handle_candidate(
     workbench: &WorkbenchService,
     agents: &AgentService,
 ) {
+    handle_candidate_control(
+        stream,
+        registry,
+        expected_cohort,
+        _connection_slot,
+        terminals,
+        workbench,
+        stop_control::StopControl::unmanaged(agents),
+    );
+}
+
+fn handle_candidate_control(
+    mut stream: UnixStream,
+    registry: &Arc<Mutex<ClientSessionRegistry>>,
+    expected_cohort: &str,
+    _connection_slot: ConnectionSlot,
+    terminals: &LocalTerminalService,
+    workbench: &WorkbenchService,
+    control: stop_control::StopControl<'_>,
+) {
+    let agents = control.agents;
     if stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT)).is_err()
         || stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT)).is_err()
         || require_same_effective_user(&stream).is_err()
@@ -195,6 +221,15 @@ fn handle_candidate(
             return;
         }
     };
+    if let LocalClientMessage::SiteStopRequest(request) = message {
+        if request.hello.cohort() != expected_cohort {
+            send_rejection(&mut stream, RejectionReason::IncompatibleCohort);
+            return;
+        }
+        let result = control.request(&request);
+        let _delivery = write_message(&mut stream, &LocalClientMessage::SiteStopResult(result));
+        return;
+    }
     let LocalClientMessage::ClientHello(hello) = message else {
         send_rejection(&mut stream, RejectionReason::WrongMessage);
         return;
@@ -203,6 +238,10 @@ fn handle_candidate(
         send_rejection(&mut stream, RejectionReason::IncompatibleCohort);
         return;
     }
+    let Some(admission_lease) = control.enter() else {
+        send_rejection(&mut stream, RejectionReason::Stopping);
+        return;
+    };
 
     let admission = match registry.lock() {
         Ok(mut registry) => registry.admit(),
@@ -228,12 +267,13 @@ fn handle_candidate(
     if stream.set_read_timeout(None).is_err() || stream.set_write_timeout(None).is_err() {
         return;
     }
+    drop(admission_lease);
 
     let Ok(mut records) = record_stream::ClientRecordStream::new(&stream) else {
         return;
     };
     let mut session = terminals.session();
-    let _session_result = application_session::run(
+    let _session_result = application_session::run_guarded(
         &mut records,
         |request| session.execute(request),
         |request| workbench.execute(request),
@@ -256,6 +296,7 @@ fn handle_candidate(
                 ))
             }
         },
+        || control.enter(),
     );
 }
 

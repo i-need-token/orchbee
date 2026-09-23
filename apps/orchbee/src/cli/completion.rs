@@ -173,7 +173,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
         ],
     ),
     ("project", &["create", "get", "list", "rename"]),
-    ("site", &["diagnose", "start"]),
+    ("site", &["diagnose", "start", "stop", "stop-status"]),
     ("tab", &["close", "create", "get", "list", "move", "rename"]),
     ("terminal", &["get", "list", "read", "send", "wait-output"]),
     (
@@ -195,6 +195,9 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
+    "--request-id",
+    "--retry",
+    "--detach",
     "--kind",
     "--project",
     "--workspace",
@@ -270,6 +273,16 @@ const REPEATABLE_FLAGS: &[&str] = &[
 /// `<family>:<verb>` (or `agent:integration:<verb>`) → the business flags
 /// that command admits. Commands not listed here admit none.
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    (
+        "site:stop",
+        &[
+            "--confirm",
+            "--request-id",
+            "--retry",
+            "--detach",
+            "--timeout",
+        ],
+    ),
     (
         "agent:start",
         &["--kind", "--panel", "--current", "--timeout", "--arg"],
@@ -488,6 +501,7 @@ const PROVIDER_VALUES: &[&str] = &[
 
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
+    "site:stop-status",
     "agent:start",
     "agent:explain",
     "agent:get",
@@ -572,7 +586,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
         ],
     ),
     ("project", &["create", "get", "list", "rename"]),
-    ("site", &["diagnose", "start"]),
+    ("site", &["diagnose", "start", "stop", "stop-status"]),
     ("tab", &["close", "create", "get", "list", "move", "rename"]),
     ("terminal", &["get", "list", "read", "send", "wait-output"]),
     (
@@ -660,6 +674,9 @@ fn flag_bit(flag: &str) -> &'static str {
         "--forever" => "seen_forever",
         "--adapter-source" => "seen_adapter_source",
         "--request" => "seen_request",
+        "--request-id" => "seen_request_id",
+        "--retry" => "seen_retry",
+        "--detach" => "seen_detach",
         "--generation" => "seen_generation",
         other => unreachable!("flag {other} lacks a seen bit"),
     }
@@ -676,7 +693,7 @@ fn flag_value(flag: &str) -> Option<&'static str> {
         "--provider" => Some("provider"),
         "--standalone" | "--confirm" | "--new-tab" | "--history" | "--enter" | "--stdin"
         | "--include-ended" | "--unwrap" | "--paste" | "--current" | "--clear" | "--wait"
-        | "--forever" => None,
+        | "--forever" | "--retry" | "--detach" => None,
         _ => Some("filter"),
     }
 }

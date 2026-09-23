@@ -2,8 +2,8 @@
 use super::{DiagnoseDocument, Failure, FailureKind};
 use crate::cli::config;
 use orchbee_local_site_runtime::{
-    ModeCheckedLocalSiteRendezvous as Rendezvous, RendezvousError, SiteLifetimeObservation,
-    SiteScope,
+    ActivationState, ModeCheckedLocalSiteRendezvous as Rendezvous, RendezvousError,
+    SiteLifetimeObservation, SiteScope,
 };
 use serde_json::{Map, Value, json};
 use std::{
@@ -101,8 +101,25 @@ fn collect_at(base: &Path, scope: &str, deadline: Instant) -> Result<DiagnoseDoc
     let mut advisories = Vec::new();
     let descendant = || row("uninspectable", Some("parent-unavailable"));
     let (marker, activation, lifetime, endpoints) = if let Some(site) = site {
-        let marker = step(deadline, &mut complete, || {
-            presence(site.activation_started())
+        let marker = step(deadline, &mut complete, || match site.activation_state() {
+            Ok(ActivationState::Absent) => row("absent", None),
+            Ok(state) => {
+                let mut result = private_row("known");
+                let stopped = matches!(state, ActivationState::Stopped { .. });
+                result.insert(
+                    "activation".to_owned(),
+                    json!(if stopped { "stopped" } else { "active" }),
+                );
+                if let ActivationState::Stopped { request_id } = state {
+                    let identity: String = request_id
+                        .iter()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect();
+                    result.insert("stopRequestId".to_owned(), json!(identity));
+                }
+                result
+            }
+            Err(error) => error_row(&error),
         });
         let activation = step(deadline, &mut complete, || {
             presence(site.activation_lock_exists())
@@ -152,7 +169,7 @@ fn collect_at(base: &Path, scope: &str, deadline: Instant) -> Result<DiagnoseDoc
             }
             endpoints.insert(name.to_owned(), Value::Object(path_row(&path, observed)));
         }
-        if marker.get("state") == Some(&json!("known")) {
+        if marker.get("activation") == Some(&json!("active")) {
             advisories.insert(0, "activation-recorded");
         }
         (marker, activation, lifetime, endpoints)
@@ -190,7 +207,7 @@ fn collect_at(base: &Path, scope: &str, deadline: Instant) -> Result<DiagnoseDoc
             .map(|(key, value)| (key.clone(), Value::Object(value.clone()))),
     );
     Ok(DiagnoseDocument {
-        envelope: json!({"schema":"orchbee.site.diagnose.windows", "version":1,
+        envelope: json!({"schema":"orchbee.site.diagnose.windows", "version":2,
             "source":config::local_runtime_source(), "result":result}),
         rows,
         advisories,

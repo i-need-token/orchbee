@@ -44,6 +44,7 @@ pub enum RejectionReason {
     WrongMessage,
     MalformedFrame,
     HandshakeTimeout,
+    Stopping,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -51,6 +52,8 @@ pub enum LocalClientMessage {
     ClientHello(ClientHello),
     ClientAccepted { generation: NonZeroU64 },
     Rejected { reason: RejectionReason },
+    SiteStopRequest(crate::SiteStopRequest),
+    SiteStopResult(crate::SiteStopResult),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -202,6 +205,8 @@ pub fn write_message(
 
 fn encode_payload(message: &LocalClientMessage) -> Result<Vec<u8>, ProtocolError> {
     let payload = match message {
+        LocalClientMessage::SiteStopRequest(request) => crate::site_stop::encode_request(request),
+        LocalClientMessage::SiteStopResult(result) => crate::site_stop::encode_result(result),
         LocalClientMessage::ClientHello(hello) => {
             let cohort_length =
                 u8::try_from(hello.cohort.len()).map_err(|_error| ProtocolError::InvalidCohort)?;
@@ -230,6 +235,10 @@ fn encode_payload(message: &LocalClientMessage) -> Result<Vec<u8>, ProtocolError
 
 fn decode_payload(payload: &[u8]) -> Result<LocalClientMessage, ProtocolError> {
     match payload.first().copied() {
+        Some(4) => {
+            crate::site_stop::decode_request(payload).map(LocalClientMessage::SiteStopRequest)
+        }
+        Some(5) => crate::site_stop::decode_result(payload).map(LocalClientMessage::SiteStopResult),
         Some(CLIENT_HELLO_KIND) => decode_client_hello(payload),
         Some(CLIENT_ACCEPTED_KIND) => decode_client_accepted(payload),
         Some(REJECTED_KIND) => decode_rejected(payload),
@@ -284,6 +293,7 @@ const fn encode_reason(reason: RejectionReason) -> u8 {
         RejectionReason::WrongMessage => 4,
         RejectionReason::MalformedFrame => 5,
         RejectionReason::HandshakeTimeout => 6,
+        RejectionReason::Stopping => 7,
     }
 }
 
@@ -295,6 +305,7 @@ const fn decode_reason(encoded: u8) -> Option<RejectionReason> {
         4 => Some(RejectionReason::WrongMessage),
         5 => Some(RejectionReason::MalformedFrame),
         6 => Some(RejectionReason::HandshakeTimeout),
+        7 => Some(RejectionReason::Stopping),
         _ => None,
     }
 }

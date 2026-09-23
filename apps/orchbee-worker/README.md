@@ -46,6 +46,27 @@ check. Explicit-endpoint mode does not start a Host; managed Linux mode uses the
 Connection retry, restart, inventory adoption, PTY/VT operations, Agent behavior, service installation,
 and recovery remain excluded.
 
+## Managed Windows explicit shutdown
+
+The managed Windows Worker retains its exact Host child handle until completion. A generation-fenced
+shutdown request permanently closes ordinary operation admission; unmanaged and wrong-generation
+requests refuse before effects. Shutdown first cancels and settles the discovery job, then uses the
+existing Host inventory, force and dispose contracts under one request deadline (at most 15 seconds).
+Each inventory request selects the first remaining terminal; force is sent once per selected active
+terminal in an attempt, and disposal requires a disposable observed phase and an exact acknowledgement.
+Prepared target cleanup retires local viewer/controller ownership only after that acknowledgement.
+An empty complete inventory permits broker disconnection, followed by a wait on the retained Host
+handle. Pipe disappearance alone cannot establish shutdown. The Server must separately confirm
+Worker exit before publishing restart authority.
+
+Incomplete attempts retain their failure stage, reason and count of known disposal acknowledgements
+from that attempt. The Worker then accepts only explicit shutdown requests. A subsequent attempt may
+continue a healthy connection or wait for an already-disconnected, empty Host; protocol or transport
+uncertainty retires the Host connection and never authorizes mutation replay, reconnection or adoption.
+Unknown discovery-child cleanup prevents success. A no-Host or confirmed Host-exit result ends the
+Worker after its bounded result-write attempt; ordinary Server loss retains its existing semantics.
+This Windows lifecycle does not add a Linux or macOS stop path.
+
 ## Managed Linux lazy Host startup
 
 The private `--local-site <absolute-runtime-directory>` entry verifies the shared runtime and

@@ -1,3 +1,4 @@
+use super::SiteStopCommand;
 use std::ffi::OsString;
 
 #[test]
@@ -414,6 +415,82 @@ fn site_start_admits_only_format() {
         parse(&["help", "site", "start"]),
         Ok(Request::Help(HelpTopic::Command(CommandPath::SiteStart)))
     );
+}
+
+#[test]
+fn site_stop_requires_confirmation_and_preserves_explicit_recovery_identity() {
+    let id = "11111111111111111111111111111111";
+    assert!(matches!(
+        parse(&["site", "stop", "--confirm"]),
+        Ok(Request::SiteStop {
+            command: SiteStopCommand::Stop {
+                id: None,
+                retry: false,
+                detach: false,
+                timeout_ms: 65_000
+            },
+            format: OutputFormat::Text
+        })
+    ));
+    assert!(matches!(
+        parse(&[
+            "site",
+            "stop",
+            "--confirm",
+            "--request-id",
+            id,
+            "--retry",
+            "--detach",
+            "--timeout=1",
+            "--format=json"
+        ]),
+        Ok(Request::SiteStop {
+            command: SiteStopCommand::Stop {
+                id: Some(_),
+                retry: true,
+                detach: true,
+                timeout_ms: 1
+            },
+            format: OutputFormat::Json
+        })
+    ));
+    assert!(matches!(
+        parse(&["site", "stop-status", id]),
+        Ok(Request::SiteStop {
+            command: SiteStopCommand::Status { .. },
+            ..
+        })
+    ));
+    for args in [
+        vec!["site", "stop"],
+        vec!["site", "stop", "--confirm", "--retry"],
+        vec![
+            "site",
+            "stop",
+            "--confirm",
+            "--request-id",
+            "00000000000000000000000000000000",
+        ],
+        vec![
+            "site",
+            "stop",
+            "--confirm",
+            "--request-id",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        ],
+        vec!["site", "stop", "--confirm", "--timeout=0"],
+        vec!["site", "stop", "--confirm", "--timeout=3600001"],
+        vec!["site", "stop", "--confirm", "--detach", "--detach"],
+        vec!["site", "stop-status", id, "--confirm"],
+        vec!["site", "stop-status", id, "--retry"],
+        vec!["site", "stop-status", "short"],
+        vec!["site", "stop-status"],
+        vec!["site", "start", "--detach"],
+        vec!["site", "diagnose", "--request-id", id],
+        vec!["--retry", "status"],
+    ] {
+        assert!(parse(&args).is_err(), "{args:?}");
+    }
 }
 
 #[test]

@@ -34,7 +34,7 @@ ambiguous binding refuses input. The same sequence bounds and send receipt apply
 
 Use `agent list/get/explain` for canonical session facts and `agent wait` with a declared condition, timeout, and optional `--after-revision` for later state. `terminal wait-output` can match existing retained output. Neither an old matching line nor an idle state proves a newly submitted task completed. Use `agent prompt <target> <text> --wait` to submit literal paste plus Enter and observe activity before matching a condition. It refuses pending attention and non-fresh/unknown state. A stalled, timed-out or cancelled wait retains its accepted submission receipt; inspect that receipt before any retry. An already-working Agent may finish its existing turn, so matching is not a prompt-specific completion guarantee. `--until` and `--timeout` require `--wait`; the default timeout is 600000 ms. Use `agent start alpha --kind codex --panel <id>` to launch in an idle Windows terminal and wait for verified readiness. The default timeout is 30000 ms (3001–300000 allowed). Without `--panel`, validated caller context is required. Arguments after `--` are literal; repeated `--arg=<value>` is an alternative. Inspect pending names with `agent names`. A timeout or cancellation does not kill the process; retain submission and reservation facts and never blindly replay.
 
-On Windows, `agent doctor` inspects local setup offline. `agent integration list/explain/enable/disable --provider <id>` manages Codex, OpenCode, Pi and OMP (`codex`, `opencode`, `pi`, `omp`); inspect its receipt and then list the observed state. Other providers remain manual-only. Windows `site diagnose` reports read-only runtime, lock and pipe-name facts using `orchbee.site.diagnose.windows` v1. Other unsupported operations return a typed failure; do not replace a failure with guessed state.
+On Windows, `agent doctor` inspects local setup offline. `agent integration list/explain/enable/disable --provider <id>` manages Codex, OpenCode, Pi and OMP (`codex`, `opencode`, `pi`, `omp`); inspect its receipt and then list the observed state. Other providers remain manual-only. Windows `site diagnose` reports read-only runtime, lock and pipe-name facts using `orchbee.site.diagnose.windows` v2. Other unsupported operations return a typed failure; do not replace a failure with guessed state.
 
 Destructive close/delete commands require `--confirm`. A closed Workspace does not delete its Git checkout or branch. Use Workspace close-status/close-resume when the close result requires recovery. Exiting a TUI client does not stop the Site.
 
@@ -61,7 +61,7 @@ the same lookup. Outside that process, use `panel current --panel <id-or-selecto
 Worker supplies `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID`; the query validates
 their current binding in one snapshot. Missing or stale context is an error, never
 a fallback to client focus. Explicit `--panel` ignores inherited context and cannot
-be combined with `--current`. `api schema` now returns catalog envelope version 18;
+be combined with `--current`. `api schema` now returns catalog envelope version 19;
 the new `orchbee.panel.current` document is version 1.
 
 Use explicit `--forever` on `agent wait` or `agent prompt --wait` for no total deadline; it conflicts with `--timeout`. The default remains 600000 ms and every read stays bounded. `--until blocked` matches fresh needs-attention; `--until done` matches fresh completed outcomes, without an unseen marker. Wait/prompt successes use version 2 with null timeoutMs for infinite mode; infinite read-timeout failures also use version 2. Windows Codex prompts add Right between paste and Enter to clear paste-burst Enter suppression.
@@ -82,3 +82,7 @@ ambiguous Agent, unsupported provider, or changed binding refuses without input.
 also rechecks fresh known state and pending attention. Inspect process-info and Agent
 facts to resolve the refusal; use `terminal send` only when explicitly targeting the
 terminal itself. A process may still exit after the preflight; inspect send receipts.
+
+## Windows Site stop
+
+`site stop --confirm --format json` ends the managed Site and its terminal processes. Use `--detach` to return after admission, retain `requestId`, and inspect with `site stop-status <request-id> --format json`. Timeout or Ctrl+C only ends the wait. Repeat with the same `--request-id` to observe the existing attempt; only `--retry --request-id <id> --confirm` retries a failed stop. A matching stopped record is a completion receipt, consumed by a subsequent `site start`; not-recorded does not disprove an earlier stop. Never infer completion from pipe absence. Linux and macOS stop are unsupported.

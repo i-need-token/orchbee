@@ -127,6 +127,7 @@ fn marker_lock_pipe_and_localization_are_facts_without_a_connection() {
     let document = fixture.document();
     assert_eq!(document["result"]["locks"]["siteLifetime"]["state"], "held");
     assert_eq!(document["result"]["marker"]["state"], "known");
+    assert_eq!(document["result"]["marker"]["activation"], "active");
     assert_eq!(document["result"]["endpoints"]["client"]["state"], "known");
     assert!(document["result"].get("hostScope").is_none());
     assert!(
@@ -148,6 +149,19 @@ fn marker_lock_pipe_and_localization_are_facts_without_a_connection() {
     let document = fixture.document();
     assert_eq!(document["result"]["locks"]["siteLifetime"]["state"], "free");
     assert_eq!(document["result"]["endpoints"]["client"]["state"], "absent");
+    // This fixture owns no child processes; it can publish a completed stop.
+    let mut record = site.retain_active_record().unwrap();
+    record.complete([1; 16]).unwrap();
+    let stopped = fixture.document();
+    assert_eq!(stopped["result"]["marker"]["state"], "known");
+    assert_eq!(stopped["result"]["marker"]["activation"], "stopped");
+    assert_eq!(
+        stopped["result"]["marker"]["stopRequestId"],
+        "01010101010101010101010101010101"
+    );
+    assert_eq!(stopped["result"]["advisories"], serde_json::json!([]));
+    drop(record);
+    site.commit_activation().unwrap();
     fs::write(
         site.runtime_directory().join("activation.started"),
         b"do not repair",

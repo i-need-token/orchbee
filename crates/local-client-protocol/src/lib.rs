@@ -1,4 +1,9 @@
 mod codec;
+mod site_stop;
+pub use site_stop::{
+    SiteStopRequest, SiteStopResult, SiteStopStatus, StopAction, StopAttempt, StopFailure, StopId,
+    StopPhase,
+};
 
 #[cfg(any(unix, windows))]
 mod connection;
@@ -13,3 +18,5 @@ pub use codec::{
 pub use connection::{
     ClientSessionConnection, ConnectClientError, UNIX_SOCKET_PATH_CAPACITY, unix_socket_path_fits,
 };
+#[cfg(windows)]
+pub use connection::{SiteStopExchangeError, exchange_site_stop_before};

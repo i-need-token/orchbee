@@ -12,6 +12,8 @@ mod local_site_service;
 mod local_terminal_service;
 #[cfg(any(unix, windows))]
 mod site_coordinator;
+#[cfg(any(windows, test))]
+mod site_shutdown;
 #[cfg(any(unix, windows))]
 mod terminal_coordinator;
 #[cfg(any(unix, windows))]

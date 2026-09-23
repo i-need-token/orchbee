@@ -1,5 +1,3 @@
-#[cfg(unix)]
-use std::io::Read;
 use std::io::{self};
 
 pub(crate) fn fresh_identity() -> io::Result<[u8; 16]> {

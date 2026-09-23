@@ -234,6 +234,36 @@ impl Drop for AgentObservationEndpoint {
     }
 }
 
+#[cfg(windows)]
+impl AgentObservationEndpoint {
+    /// Signals the owned ingress and joins it without renewing the Site stop deadline.
+    pub(crate) fn stop_before(&mut self, deadline: std::time::Instant) -> io::Result<()> {
+        if self
+            .thread
+            .as_ref()
+            .is_some_and(|thread| !thread.is_finished())
+        {
+            self.stop_writer.write_all(&[0])?;
+        }
+        while self
+            .thread
+            .as_ref()
+            .is_some_and(|thread| !thread.is_finished())
+        {
+            if std::time::Instant::now() >= deadline {
+                return Err(io::ErrorKind::TimedOut.into());
+            }
+            thread::sleep(std::time::Duration::from_millis(10));
+        }
+        if let Some(thread) = self.thread.take() {
+            thread
+                .join()
+                .map_err(|_| io::Error::other("Agent ingress panicked"))?;
+        }
+        Ok(())
+    }
+}
+
 enum ConnState {
     Reading { body: Vec<u8> },
     AckPending { written: usize },

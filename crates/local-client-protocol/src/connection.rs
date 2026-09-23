@@ -20,6 +20,25 @@ use crate::{
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 
+/// Retains whether a complete stop control record was submitted before exchange failure.
+#[cfg(windows)]
+#[derive(Debug)]
+pub struct SiteStopExchangeError {
+    pub failure: ConnectClientError,
+    pub submitted: bool,
+}
+
+/// One same-user stop/status control exchange, with no activation or mutation retry.
+#[cfg(windows)]
+pub fn exchange_site_stop_before(
+    endpoint: &Path,
+    request: crate::SiteStopRequest,
+    deadline: std::time::Instant,
+    wake: Option<LocalIo<'_>>,
+) -> Result<crate::SiteStopResult, SiteStopExchangeError> {
+    windows_admission::site_stop(endpoint, request, deadline, wake)
+}
+
 /// Byte capacity of a filesystem-path Unix socket address on this platform's
 /// socket ABI: `sockaddr_un.sun_path` minus the trailing NUL a pathname
 /// address requires. Derived from the ABI struct, not assumed portable —
@@ -96,7 +115,9 @@ impl ClientSessionConnection {
             LocalClientMessage::Rejected { reason } => {
                 return Err(ConnectClientError::Rejected(reason));
             }
-            LocalClientMessage::ClientHello(_) => {
+            LocalClientMessage::ClientHello(_)
+            | LocalClientMessage::SiteStopRequest(_)
+            | LocalClientMessage::SiteStopResult(_) => {
                 return Err(ConnectClientError::UnexpectedResponse);
             }
         };

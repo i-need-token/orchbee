@@ -1,0 +1,133 @@
+//! A retained Windows activation file is the completion capability. No pathname
+//! deletion, process discovery or stop authority is provided by this primitive.
+use std::{
+    fs::File,
+    io::{self, Read, Seek, SeekFrom, Write},
+};
+
+const STOPPED_PREFIX: &[u8] = b"orchbee-stopped-v1:";
+const MAXIMUM_RECORD_BYTES: usize = STOPPED_PREFIX.len() + 32;
+
+/// Strict existing-file observation; Stopped is a receipt, not independent process-liveness proof.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ActivationState {
+    Absent,
+    Active,
+    Stopped { request_id: [u8; 16] },
+}
+
+/// Pins an admitted active file without delete sharing for same-identity completion publication.
+pub struct RetainedActivationRecord {
+    file: File,
+    attempted: Option<[u8; 16]>,
+}
+
+fn invalid() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        "invalid Windows activation record",
+    )
+}
+
+fn parse(bytes: &[u8]) -> io::Result<ActivationState> {
+    if bytes.is_empty() {
+        return Ok(ActivationState::Active);
+    }
+    let hex = bytes.strip_prefix(STOPPED_PREFIX).ok_or_else(invalid)?;
+    if hex.len() != 32 {
+        return Err(invalid());
+    }
+    let mut request_id = [0; 16];
+    let digit = |byte| match byte {
+        b'0'..=b'9' => Ok(byte - b'0'),
+        b'a'..=b'f' => Ok(byte - b'a' + 10),
+        _ => Err(invalid()),
+    };
+    for (index, pair) in hex.chunks_exact(2).enumerate() {
+        request_id[index] = digit(pair[0])? * 16 + digit(pair[1])?;
+    }
+    if request_id == [0; 16] {
+        return Err(invalid());
+    }
+    Ok(ActivationState::Stopped { request_id })
+}
+
+pub(super) fn read(file: &mut File) -> io::Result<ActivationState> {
+    if file.metadata()?.len() > MAXIMUM_RECORD_BYTES as u64 {
+        return Err(invalid());
+    }
+    file.seek(SeekFrom::Start(0))?;
+    let mut bytes = Vec::with_capacity(MAXIMUM_RECORD_BYTES + 1);
+    file.take((MAXIMUM_RECORD_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)?;
+    parse(&bytes)
+}
+
+impl RetainedActivationRecord {
+    pub(super) fn new(mut file: File) -> io::Result<Self> {
+        if read(&mut file)? != ActivationState::Active {
+            return Err(invalid());
+        }
+        Ok(Self {
+            file,
+            attempted: None,
+        })
+    }
+
+    /// Call only after the lifecycle owner has confirmed all owned child exits.
+    /// I/O failure may leave a partial record; only this retained owner and ID
+    /// may retry it. Success means flushed record publication, not process proof.
+    pub fn complete(&mut self, request_id: [u8; 16]) -> io::Result<()> {
+        if request_id == [0; 16] {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        if let Some(attempted) = self.attempted {
+            if attempted != request_id {
+                return Err(io::ErrorKind::AlreadyExists.into());
+            }
+        } else {
+            if read(&mut self.file)? != ActivationState::Active {
+                return Err(invalid());
+            }
+            self.attempted = Some(request_id);
+        }
+        let mut bytes = Vec::with_capacity(MAXIMUM_RECORD_BYTES);
+        bytes.extend_from_slice(STOPPED_PREFIX);
+        for byte in request_id {
+            bytes.push(b"0123456789abcdef"[(byte >> 4) as usize]);
+            bytes.push(b"0123456789abcdef"[(byte & 15) as usize]);
+        }
+        self.file.seek(SeekFrom::Start(0))?;
+        self.file.write_all(&bytes)?;
+        self.file.set_len(bytes.len() as u64)?;
+        self.file.sync_data()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_empty_or_exact_nonzero_lowercase_receipts_are_valid() {
+        assert_eq!(parse(b"").unwrap(), ActivationState::Active);
+        assert_eq!(
+            parse(b"orchbee-stopped-v1:0123456789abcdef0123456789abcdef").unwrap(),
+            ActivationState::Stopped {
+                request_id: [
+                    1, 35, 69, 103, 137, 171, 205, 239, 1, 35, 69, 103, 137, 171, 205, 239
+                ]
+            }
+        );
+        for bad in [
+            b"x".as_slice(),
+            b"orchbee-stopped-v1:00000000000000000000000000000000",
+            b"orchbee-stopped-v1:0123456789ABCDEF0123456789abcdef",
+            b"orchbee-stopped-v1:01",
+            b"orchbee-stopped-v2:0123456789abcdef0123456789abcdef",
+            b"orchbee-stopped-v1:0123456789abcdef0123456789abcdef\n",
+        ] {
+            assert!(parse(bad).is_err());
+        }
+    }
+}

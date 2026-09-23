@@ -1,6 +1,7 @@
+#[cfg(not(windows))]
+use crate::local_client_service;
 use crate::{
     agent_service::{AgentPolicy, AgentService},
-    local_client_service,
     local_terminal_service::LocalTerminalService,
     worker_registry::WorkerRegistry,
 };
@@ -17,6 +18,8 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+#[cfg(windows)]
+mod stop_windows;
 
 pub(super) fn run(runtime: &Path) -> io::Result<()> {
     let deadline = Instant::now() + Duration::from_secs(20);
@@ -32,6 +35,8 @@ pub(super) fn run(runtime: &Path) -> io::Result<()> {
     else {
         return Err(io::Error::other("Site lifetime is already owned"));
     };
+    #[cfg(windows)]
+    let record = site.retain_active_record()?;
     #[cfg(unix)]
     nix::unistd::setsid()?;
     // The observation endpoint binds and starts before the Worker socket
@@ -64,6 +69,8 @@ pub(super) fn run(runtime: &Path) -> io::Result<()> {
         &cohort.executable(NativeArtifact::Worker),
         &[std::ffi::OsStr::new("--local-site"), runtime.as_os_str()],
     )?;
+    #[cfg(windows)]
+    let mut carrier = None;
     loop {
         if Instant::now() >= deadline {
             return Err(io::ErrorKind::TimedOut.into());
@@ -73,7 +80,13 @@ pub(super) fn run(runtime: &Path) -> io::Result<()> {
         }
         match listener.accept() {
             Ok((stream, _)) => {
-                super::handle_candidate(stream, &registry, cohort.identity(), Some(&agents))
+                #[cfg(not(windows))]
+                super::handle_candidate(stream, &registry, cohort.identity(), Some(&agents));
+                #[cfg(windows)]
+                {
+                    carrier =
+                        super::admit_candidate(stream, &registry, cohort.identity(), Some(&agents));
+                }
             }
             Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
                 thread::sleep(Duration::from_millis(10))
@@ -92,16 +105,44 @@ pub(super) fn run(runtime: &Path) -> io::Result<()> {
     }
     // The managed Site never enrolls a replacement Worker, even after this one disappears.
     drop(listener);
+    #[cfg(not(windows))]
     drop(worker);
+    #[cfg(windows)]
+    let handle = registry
+        .lock()
+        .map_err(|_| io::Error::other("Worker registry failed"))?
+        .request_handle()
+        .ok_or_else(|| io::Error::other("Worker carrier disappeared"))?;
     let terminals = Arc::new(LocalTerminalService::new(registry));
     terminals.start_close_maintenance()?;
-    let _clients = local_client_service::start_managed(
-        site.client_socket_path(),
-        cohort.identity(),
-        terminals,
-        agents,
-    )?;
-    loop {
-        thread::park();
+    #[cfg(windows)]
+    {
+        stop_windows::run(
+            stop_windows::Owners {
+                site,
+                lifetime: _lifetime,
+                record,
+                worker,
+                carrier: carrier
+                    .ok_or_else(|| io::Error::other("Worker wire owner did not start"))?,
+                handle,
+                ingress: _endpoint,
+                terminals,
+                agents,
+            },
+            cohort.identity(),
+        )
+    }
+    #[cfg(not(windows))]
+    {
+        let _clients = local_client_service::start_managed(
+            site.client_socket_path(),
+            cohort.identity(),
+            terminals,
+            agents,
+        )?;
+        loop {
+            thread::park();
+        }
     }
 }

@@ -44,7 +44,7 @@ impl Admission {
                     return Err(io::Error::from_raw_os_error(error));
                 }
             }
-            Err(error) => return Err(error),
+            Err(error) => return Err(error.into()),
         }
         orchbee_local_peer_credentials::require_same_effective_user(&admission.stream)?;
         admission.remaining()?;

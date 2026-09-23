@@ -149,23 +149,32 @@ fn write_ready_marker() -> io::Result<()> {
 }
 
 fn handle_candidate(
-    mut stream: UnixStream,
+    stream: UnixStream,
     registry: &Arc<Mutex<WorkerRegistry>>,
     expected_cohort: &str,
     agents: Option<&Arc<AgentService>>,
 ) {
+    let _owner = admit_candidate(stream, registry, expected_cohort, agents);
+}
+
+fn admit_candidate(
+    mut stream: UnixStream,
+    registry: &Arc<Mutex<WorkerRegistry>>,
+    expected_cohort: &str,
+    agents: Option<&Arc<AgentService>>,
+) -> Option<thread::JoinHandle<()>> {
     if stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT)).is_err()
         || stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT)).is_err()
         || require_same_effective_user(&stream).is_err()
     {
-        return;
+        return None;
     }
 
     let message = match read_message(&mut stream) {
         Ok(message) => message,
         Err(ReadMessageError::Protocol(ProtocolError::IncompatibleVersion { .. })) => {
             send_rejection(&mut stream, RejectionReason::IncompatibleProtocol);
-            return;
+            return None;
         }
         Err(ReadMessageError::Io(error))
             if matches!(
@@ -174,37 +183,37 @@ fn handle_candidate(
             ) =>
         {
             send_rejection(&mut stream, RejectionReason::HandshakeTimeout);
-            return;
+            return None;
         }
         Err(ReadMessageError::Io(_) | ReadMessageError::Protocol(_)) => {
             send_rejection(&mut stream, RejectionReason::MalformedFrame);
-            return;
+            return None;
         }
     };
     let LocalSiteMessage::WorkerHello(hello) = message else {
         send_rejection(&mut stream, RejectionReason::WrongMessage);
-        return;
+        return None;
     };
     if hello.cohort() != expected_cohort {
         send_rejection(&mut stream, RejectionReason::IncompatibleCohort);
-        return;
+        return None;
     }
     if CapabilityWorkerId::from_bytes(hello.worker_id().as_bytes()).is_err() {
         send_rejection(&mut stream, RejectionReason::MalformedFrame);
-        return;
+        return None;
     }
 
     let admission = match registry.lock() {
         Ok(mut registry) => registry.admit(hello.worker_id()),
-        Err(_poisoned) => return,
+        Err(_poisoned) => return None,
     };
     let generation = match admission {
         WorkerAdmission::Accepted { generation } => generation,
         WorkerAdmission::Duplicate { .. } => {
             send_rejection(&mut stream, RejectionReason::DuplicateWorker);
-            return;
+            return None;
         }
-        WorkerAdmission::GenerationExhausted => return,
+        WorkerAdmission::GenerationExhausted => return None,
     };
     if write_message(
         &mut stream,
@@ -213,7 +222,7 @@ fn handle_candidate(
     .is_err()
     {
         cancel_pending_admission(registry, generation);
-        return;
+        return None;
     }
 
     let carrier = create_worker_carrier(hello.worker_id(), generation);
@@ -227,13 +236,14 @@ fn handle_candidate(
         None => WorkerRegistry::register_carrier(registry, generation, carrier),
     }) else {
         cancel_pending_admission(registry, generation);
-        return;
+        return None;
     };
-    let _owner_thread = thread::Builder::new()
+    thread::Builder::new()
         .name("orchbee-local-worker".to_owned())
         .spawn(move || {
             let _exit = registered_owner.run(stream);
-        });
+        })
+        .ok()
 }
 
 fn send_rejection(stream: &mut UnixStream, reason: RejectionReason) {

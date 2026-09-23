@@ -6148,19 +6148,19 @@ fn project_rename_schema_is_strict_and_distinct() -> TestResult {
 /// `orchbee.mutation.result` still receipt schema retrieves offline under
 /// either locale, byte-identical.
 #[test]
-fn api_schema_catalog_is_v18_closed_and_self_consistent() -> TestResult {
-    let base = base_dir("catalog-v18");
+fn api_schema_catalog_is_v19_closed_and_self_consistent() -> TestResult {
+    let base = base_dir("catalog-v19");
     let api_schema = compiled_schema(&base, "orchbee.api.schema");
 
     let output = run(&base, &["api", "schema", "--format", "json"]);
     assert_eq!(output.status.code(), Some(0));
     let listed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(listed["schema"], "orchbee.api.schema");
-    assert_eq!(listed["version"], 18, "catalog envelope is v18");
+    assert_eq!(listed["version"], 19, "catalog envelope is v19");
     assert_eq!(listed["source"]["kind"], "embedded");
     assert!(api_schema.is_valid(&listed), "listing self-validates");
     let schemas = listed["result"]["schemas"].as_object().unwrap();
-    assert_eq!(schemas.len(), 53, "closed dictionary has 53 members");
+    assert_eq!(schemas.len(), 54, "closed dictionary has 54 members");
     assert!(
         schemas.contains_key("orchbee.project.rename"),
         "the rename receipt schema is registered"
@@ -6193,6 +6193,7 @@ fn api_schema_catalog_is_v18_closed_and_self_consistent() -> TestResult {
         "orchbee.agent.doctor",
         "orchbee.site.diagnose",
         "orchbee.site.diagnose.windows",
+        "orchbee.site.stop",
         "orchbee.launch-profile.list",
         "orchbee.launch-profile.get",
         "orchbee.cli.failure.launch-profile",
@@ -6234,12 +6235,13 @@ fn api_schema_catalog_is_v18_closed_and_self_consistent() -> TestResult {
         serde_json::json!(15),
         serde_json::json!(16),
         serde_json::json!(17),
+        serde_json::json!(18),
     ] {
         let mut stale = listed.clone();
         stale["version"] = stale_version.clone();
         assert!(
             !api_schema.is_valid(&stale),
-            "stale catalog {stale_version} fails under v18"
+            "stale catalog {stale_version} fails under v19"
         );
     }
 

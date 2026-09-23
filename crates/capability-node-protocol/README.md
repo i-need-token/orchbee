@@ -32,7 +32,7 @@ Worker execution and Server continuation remain pending; this codec does not imp
 admission, cleanup, or a whole inventory walk. Protocol, Server, Worker and native Close activate
 together. Old private cohorts reject the additive tags; no mixed-cohort fallback is defined.
 
-Kind 9 `TerminalLifecycleRequest` and kind 10 `TerminalLifecycleResult` retain frame version 1 and
+Kind 9 `TerminalLifecycleRequest` and kind 10 `TerminalLifecycleResult` use frame version 2 and
 the 8 KiB payload bound. All integers are unsigned big-endian and IDs are nonzero 16-byte values.
 The request body after its kind is, in order: lifecycle capability version (`u16`, current 1),
 product Terminal ID (16), Worker ID (16), Worker generation (`u64`, positive), retained binding fence
@@ -511,6 +511,29 @@ pnpm test:tla:inventory
 pnpm lint:documentation
 pnpm lint:projects
 ```
+
+## Managed Worker shutdown
+
+The Windows managed Site lifecycle adds kinds 19/20 under frame version 2 and the
+existing 8 KiB bound. The request contains operation ID and Worker ID (16 nonzero
+bytes each), positive Worker generation (u64), and a cooperative budget (u32,
+1..15000 ms), all integers big-endian. Only the exact admitted managed Worker may
+act; unmanaged or mismatched identity is a pre-effect refusal. The existing 20-second
+carrier reply window is unchanged. A reply echoes the complete request.
+
+Outcome tags are 1 NoHost, 2 Stopped (Host epoch, u32 disposed count), 3 Refused
+(1 wrong Worker, 2 unmanaged), and 4 Incomplete (optional Host epoch, u32 disposed
+count, stage and failure). NoHost means no owned Host was started and background
+jobs settled; Stopped requires the owned Host's exit after containment/disposal.
+Neither claims that the Worker has already exited; its Server must wait on the
+retained creation handle. Counts describe only this attempt. Stages 1..5 are
+background jobs, inventory, force, dispose and Host exit. Failures 1..5 are deadline,
+transport, invalid protocol, Host refusal and process wait. Optional epoch uses
+tag 0/1 followed by the nonzero ID when present. Invalid tags, zero values, budget
+overflow and trailing bytes are rejected. No terminal permission is inferred from
+codec validity and no request is automatically replayed after an unknown handoff.
+Normal connection loss is not shutdown. The typed exchange supplies evidence to
+the Server lifecycle; it never publishes the local activation completion record.
 
 ## Native Windows path refinement
 

@@ -40,6 +40,8 @@ orchbee <family> <command>       # 查询与 Workbench 修改命令
 orchbee api snapshot|schema      # 机器快照与内嵌 schema
 orchbee site start               # 确保本地 Site 正在运行（无需 TTY）
 orchbee site diagnose            # 只读的本地 Site 运行时事实
+orchbee site stop --confirm      # 停止托管 Windows Site 及其终端
+orchbee site stop-status <id>    # 查询停止尝试或完成回执
 orchbee config check             # 本地运行时检查
 orchbee help [<family>|<command>]
 orchbee completion bash|zsh|fish|powershell
@@ -159,7 +161,7 @@ Windows `agent doctor --provider codex --format json` 现在可以检查本地�
 和胶囊完整性，不启动 Site，也不改变 provider 接入配置。版本 3 文档报告 Windows 端点投递
 尚未检查；已安装配置不证明 Agent 已接通。
 
-Windows `agent integration list/explain/enable/disable --provider <id>` 可管理 Codex、OpenCode、Pi、OMP。详见 [Windows 集成契约](docs/windows-agent-integrations.zh-CN.md)。Windows `site diagnose` 使用 `orchbee.site.diagnose.windows` v1 报告只读运行时、锁和管道名称事实。Capsule 0.4.1 提供 Codex hook 与 JavaScript 模块，
+Windows `agent integration list/explain/enable/disable --provider <id>` 可管理 Codex、OpenCode、Pi、OMP。详见 [Windows 集成契约](docs/windows-agent-integrations.zh-CN.md)。Windows `site diagnose` 使用 `orchbee.site.diagnose.windows` v2 报告只读运行时、锁和管道名称事实。Capsule 0.4.1 提供 Codex hook 与 JavaScript 模块，
 通过原生 observation 管道与 Console 关联投递。Windows x64 cohort 包含保留关联信息所需的
 固定 ConPTY 运行时。Agent start 仍待完成，其他 provider 保留既有平台限制。
 `terminal send --stdin` 接受重定向普通文件和 Windows 管道；所属隐藏 Windows PowerShell
@@ -659,3 +661,7 @@ Snapshot read 不重试。Attachment 后仍须完成现有 controller 与 projec
 [原生 CLI 合约](docs/native-cli-query.zh-CN.md)。
 
 面向单个 Agent 的命令还支持 `--panel <id|@panel:suffix>` 或位置参数 Panel ID。位置参数优先按 Session ID 和名称解析，再回退到 Panel。Panel 选择主终端且要求唯一存活 Agent；等待固定到选定的 Session。
+
+## Windows 显式 Site 停止
+
+`site stop --confirm` 结束现有托管 Windows Site 及其终端进程。使用 `--detach` 仅等待准入，保留返回的标识供 `site stop-status <id>` 查询。显式重试必须使用 `--retry --request-id <id> --confirm`。取消或超时不撤销已接受的停止。准确匹配的已停止记录与空闲生命周期锁证明完成；下次 `site start` 消费记录并创建新 Site。详见 [CLI 停止契约](docs/native-cli-query.zh-CN.md#windows-site-停止)。尚未实现 Linux/macOS 停止运行时。

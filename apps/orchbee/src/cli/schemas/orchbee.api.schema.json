@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 18
+			"const": 19
 		},
 		"source": {
 			"type": "object",
@@ -90,6 +90,7 @@
 						"orchbee.site.diagnose",
 						"orchbee.site.diagnose.windows",
 						"orchbee.site.start",
+						"orchbee.site.stop",
 						"orchbee.status",
 						"orchbee.tab.get",
 						"orchbee.tab.list",
@@ -157,6 +158,7 @@
 				"orchbee.site.diagnose",
 				"orchbee.site.diagnose.windows",
 				"orchbee.site.start",
+				"orchbee.site.stop",
 				"orchbee.status",
 				"orchbee.tab.get",
 				"orchbee.tab.list",

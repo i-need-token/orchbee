@@ -108,6 +108,9 @@ fn main() -> ExitCode {
                 cli::mutation(command, format, locale)
             }
             Ok(invocation::Request::SiteStart { format }) => cli::site_start(format, locale),
+            Ok(invocation::Request::SiteStop { command, format }) => {
+                cli::site_stop(&command, format, locale)
+            }
             Ok(invocation::Request::SiteDiagnose { format }) => cli::site_diagnose(format, locale),
             Ok(invocation::Request::AgentStart { command, format }) => {
                 cli::run_agent_start(&command, format, locale)

@@ -219,6 +219,8 @@ pub(crate) enum CommandPath {
     ConfigCheck,
     SiteStart,
     SiteDiagnose,
+    SiteStop,
+    SiteStopStatus,
 }
 
 impl CommandPath {
@@ -284,6 +286,8 @@ impl CommandPath {
             Self::ConfigCheck => "config check",
             Self::SiteStart => "site start",
             Self::SiteDiagnose => "site diagnose",
+            Self::SiteStop => "site stop",
+            Self::SiteStopStatus => "site stop-status",
         }
     }
 }
@@ -876,8 +880,53 @@ pub(crate) enum AgentNamesCommand {
     Release(AgentTarget),
 }
 
+/// Parsed stop/status intent; destructive confirmation and flag conflicts are checked before use.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum SiteStopCommand {
+    Stop {
+        id: Option<orchbee_local_client_protocol::StopId>,
+        retry: bool,
+        detach: bool,
+        timeout_ms: u32,
+    },
+    Status {
+        id: orchbee_local_client_protocol::StopId,
+    },
+}
+
+fn stop_id(
+    value: &str,
+    context: UsageContext,
+    option: &'static str,
+    envelope: FailureEnvelope,
+) -> Result<orchbee_local_client_protocol::StopId, ParseFailure> {
+    let invalid = || {
+        usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option,
+                value: value.to_owned(),
+                expected: ExpectedValue::SiteStopId,
+            },
+            envelope,
+        )
+    };
+    if !valid_typed_id(value) || value == ZERO_IDENTITY {
+        return Err(invalid());
+    }
+    let mut bytes = [0; 16];
+    for (index, byte) in bytes.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).map_err(|_| invalid())?;
+    }
+    orchbee_local_client_protocol::StopId::new(bytes).map_err(|_| invalid())
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
+    SiteStop {
+        command: SiteStopCommand,
+        format: OutputFormat,
+    },
     /// `mouse` is the `--mouse off|on` selection: whether host pointer
     /// reporting is armed for the session. Only the explicit `tui` path
     /// admits the option; a bare `orchbee` always runs with it on.
@@ -978,6 +1027,7 @@ pub(crate) enum ExpectedValue {
     AgentStartTimeout,
     AgentStartProvider,
     AgentStartArgument,
+    SiteStopId,
     SendText,
     SendKey,
     /// The repeatable `--key` sequence bound: at most 64 values per request.
@@ -1159,6 +1209,9 @@ enum Token {
 
 #[derive(Default)]
 struct Options {
+    request_id: Option<String>,
+    detach: bool,
+    retry: bool,
     format: Option<OutputFormat>,
     project: Option<String>,
     directory: Option<String>,
@@ -1241,6 +1294,7 @@ struct Options {
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
+    "--request-id",
     "--adapter-source",
     "--after-revision",
     "--arg",
@@ -1570,7 +1624,7 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
             }
             "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
             | "--include-ended" | "--new-tab" | "--paste" | "--unwrap" | "--current"
-            | "--clear" | "--wait" | "--forever" => {
+            | "--clear" | "--wait" | "--forever" | "--detach" | "--retry" => {
                 let (seen, option) = if token == "--standalone" {
                     (&mut options.standalone, "--standalone")
                 } else if token == "--current" {
@@ -1583,6 +1637,10 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                     (&mut options.clear, "--clear")
                 } else if token == "--confirm" {
                     (&mut options.confirm, "--confirm")
+                } else if token == "--detach" {
+                    (&mut options.detach, "--detach")
+                } else if token == "--retry" {
+                    (&mut options.retry, "--retry")
                 } else if token == "--history" {
                     (&mut options.history, "--history")
                 } else if token == "--stdin" {
@@ -1725,6 +1783,7 @@ fn apply_value_flag(
         "--adapter-source" => &mut options.adapter_source,
         "--regex" => &mut options.regex,
         "--request" => &mut options.request,
+        "--request-id" => &mut options.request_id,
         "--generation" => &mut options.generation,
         "--lines" => &mut options.lines,
         "--panel" => &mut options.panel,
@@ -2919,6 +2978,62 @@ fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
+        ["site", "stop"] => {
+            let context = UsageContext::Path("site stop");
+            check_scope(
+                options,
+                Scope {
+                    confirm: true,
+                    request_id: true,
+                    detach: true,
+                    retry: true,
+                    timeout: true,
+                    ..NO_OPTIONS
+                },
+                context,
+                envelope,
+            )?;
+            if !options.confirm {
+                return Err(missing_required(context, "'--confirm'", envelope));
+            }
+            if options.retry && options.request_id.is_none() {
+                return Err(missing_required(context, "'--request-id'", envelope));
+            }
+            let id = options
+                .request_id
+                .as_deref()
+                .map(|value| stop_id(value, context, "--request-id", envelope))
+                .transpose()?;
+            let timeout_ms = if options.timeout.is_some() {
+                wait_timeout_option(options, context, envelope)?
+            } else {
+                65_000
+            };
+            Ok(Request::SiteStop {
+                command: SiteStopCommand::Stop {
+                    id,
+                    retry: options.retry,
+                    detach: options.detach,
+                    timeout_ms,
+                },
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
+        ["site", "stop-status", id] => {
+            let context = UsageContext::Path("site stop-status");
+            reject_filters(options, context, envelope)?;
+            Ok(Request::SiteStop {
+                command: SiteStopCommand::Status {
+                    id: stop_id(id, context, "<request-id>", envelope)?,
+                },
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
+        }
+        ["site", "stop-status"] => Err(missing_required(
+            UsageContext::Path("site stop-status"),
+            "<request-id>",
+            envelope,
+        )),
         ["completion", shell] => {
             reject_extras(options, UsageContext::Path("completion"), envelope)?;
             let shell = match *shell {
@@ -3330,6 +3445,16 @@ fn resolve_words(
             extra,
             envelope,
         )),
+        ["site", "stop", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("site stop"),
+            extra,
+            envelope,
+        )),
+        ["site", "stop-status", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("site stop-status"),
+            extra,
+            envelope,
+        )),
         ["site", verb, ..] => Err(unknown_command(UsageContext::Path("site"), verb, envelope)),
         ["completion"] => Err(missing_required(
             UsageContext::Path("completion"),
@@ -3458,6 +3583,8 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["config", "check"] => HelpTopic::Command(CommandPath::ConfigCheck),
         ["site", "start"] => HelpTopic::Command(CommandPath::SiteStart),
         ["site", "diagnose"] => HelpTopic::Command(CommandPath::SiteDiagnose),
+        ["site", "stop"] => HelpTopic::Command(CommandPath::SiteStop),
+        ["site", "stop-status"] => HelpTopic::Command(CommandPath::SiteStopStatus),
         _ => return None,
     })
 }
@@ -3481,6 +3608,9 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 /// is only meaningful whole.
 #[derive(Clone, Copy)]
 struct Scope {
+    request_id: bool,
+    detach: bool,
+    retry: bool,
     project: bool,
     /// `worktree list --directory <id>`: admits the strict directory-ID
     /// selector; it is an ID flag, never a path.
@@ -3579,6 +3709,9 @@ struct Scope {
 }
 
 const NO_OPTIONS: Scope = Scope {
+    request_id: false,
+    detach: false,
+    retry: false,
     project: false,
     directory: false,
     workspace: false,
@@ -3836,7 +3969,10 @@ const INTEGRATION_SCOPE: Scope = Scope {
 
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
-    options.directory.is_some()
+    options.request_id.is_some()
+        || options.detach
+        || options.retry
+        || options.directory.is_some()
         || options.label.is_some()
         || options.direction.is_some()
         || options.cols.is_some()
@@ -3881,6 +4017,15 @@ fn business_options(options: &Options) -> bool {
 /// The first named option present but outside `scope`, in the fixed `Options`
 /// declaration order — deterministic without any argv-order state.
 fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
+    if options.request_id.is_some() && !scope.request_id {
+        return Some("--request-id");
+    }
+    if options.detach && !scope.detach {
+        return Some("--detach");
+    }
+    if options.retry && !scope.retry {
+        return Some("--retry");
+    }
     if options.project.is_some() && !scope.project {
         return Some("--project");
     }

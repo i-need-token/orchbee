@@ -190,6 +190,54 @@ fn diagnostic_observations_never_create_and_release_the_lifetime_probe() {
 }
 
 #[test]
+fn completed_activation_is_pinned_idempotent_and_consumed_before_restart() {
+    use crate::ActivationState;
+    let fixture = Fixture::new();
+    let site = fixture.open("stop-cycle");
+    let marker = site.runtime_directory().join("activation.started");
+    assert_eq!(site.activation_state().unwrap(), ActivationState::Absent);
+    assert!(site.retain_active_record().is_err());
+    site.commit_activation().unwrap();
+    let mut record = site.retain_active_record().unwrap();
+    assert!(fs::rename(&marker, site.runtime_directory().join("replaced")).is_err());
+    assert!(record.complete([0; 16]).is_err());
+    assert!(site.commit_activation().is_err());
+    record.complete([1; 16]).unwrap();
+    let completed = fs::read(&marker).unwrap();
+    record.complete([1; 16]).unwrap();
+    assert_eq!(fs::read(&marker).unwrap(), completed);
+    assert!(record.complete([2; 16]).is_err());
+    assert_eq!(fs::read(&marker).unwrap(), completed);
+    assert_eq!(
+        site.activation_state().unwrap(),
+        ActivationState::Stopped {
+            request_id: [1; 16]
+        }
+    );
+    assert!(!site.activation_started().unwrap());
+    assert!(site.retain_active_record().is_err());
+    // Simulate torn I/O at the same retained file; only its existing owner
+    // may finish the same ID, while discovery/start must fail closed.
+    fs::write(&marker, b"orchbee-stopped-v1:01").unwrap();
+    assert!(site.activation_state().is_err());
+    assert!(site.commit_activation().is_err());
+    assert!(record.complete([2; 16]).is_err());
+    record.complete([1; 16]).unwrap();
+    drop(record);
+    site.commit_activation().unwrap();
+    assert_eq!(site.activation_state().unwrap(), ActivationState::Active);
+    assert!(fs::read(&marker).unwrap().is_empty());
+    let mut second = site.retain_active_record().unwrap();
+    second.complete([2; 16]).unwrap();
+    assert_eq!(
+        site.activation_state().unwrap(),
+        ActivationState::Stopped {
+            request_id: [2; 16]
+        }
+    );
+}
+
+#[test]
 fn native_cohort_rejects_tampering_and_manifest_version() {
     let fixture = Fixture::new();
     let mut artifacts = serde_json::Map::new();

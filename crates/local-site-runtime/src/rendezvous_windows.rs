@@ -148,15 +148,46 @@ impl ModeCheckedLocalSiteRendezvous {
         }
     }
     pub fn activation_started(&self) -> io::Result<bool> {
+        self.activation_state()
+            .map(|state| state == crate::ActivationState::Active)
+    }
+    /// Reads the bounded existing activation record without creating or repairing it.
+    /// Invalid or partial records return InvalidData; absence remains a distinct state.
+    pub fn activation_state(&self) -> io::Result<crate::ActivationState> {
         match permissions::open_file(&self.runtime.join("activation.started"), false, false) {
-            Ok(file) if file.metadata()?.len() == 0 => Ok(true),
-            Ok(_) => Err(permissions::denied()),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+            Ok(mut file) => crate::activation_record_windows::read(&mut file),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                Ok(crate::ActivationState::Absent)
+            }
             Err(error) => Err(error),
         }
     }
+    /// Retains a validated active file for the lifetime owner's later completion publication.
+    /// Missing, unsafe or non-active files fail admission and are never replaced.
+    pub fn retain_active_record(&self) -> io::Result<crate::RetainedActivationRecord> {
+        crate::RetainedActivationRecord::new(permissions::open_file(
+            &self.runtime.join("activation.started"),
+            false,
+            true,
+        )?)
+    }
     pub fn commit_activation(&self) -> io::Result<()> {
-        permissions::open_file(&self.runtime.join("activation.started"), true, true).map(drop)
+        let path = self.runtime.join("activation.started");
+        match permissions::open_file(&path, true, true) {
+            Ok(_) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                let mut file = permissions::open_file(&path, false, true)?;
+                if !matches!(
+                    crate::activation_record_windows::read(&mut file)?,
+                    crate::ActivationState::Stopped { .. }
+                ) {
+                    return Err(error);
+                }
+                file.set_len(0)?;
+                file.sync_data()
+            }
+            Err(error) => Err(error),
+        }
     }
 
     /// Inspect the existing activation lock without creating or acquiring it.

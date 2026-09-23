@@ -322,6 +322,29 @@ impl WorktreeDiscoverySlot {
         }
         CancelOutcome::Unknown
     }
+
+    /// Cancels the owned job and proves its child and pipes are settled before the deadline.
+    #[cfg(windows)]
+    pub(crate) fn stop_before(&self, deadline: Instant) -> io::Result<()> {
+        loop {
+            {
+                let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+                settle(&mut inner);
+                if inner.dead.is_some() {
+                    return Err(io::Error::other("discovery child cleanup is unknown"));
+                }
+                let Some(physical) = &inner.physical else {
+                    return Ok(());
+                };
+                physical.cancel.store(true, Ordering::Relaxed);
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(io::ErrorKind::TimedOut.into());
+            }
+            thread::sleep(remaining.min(POLL_SLICE));
+        }
+    }
 }
 
 impl Drop for WorktreeDiscoverySlot {

@@ -23,7 +23,7 @@ Agent 状态来自 Server 的 canonical Agent 模型，不从终端文字推断�
 三个命令均接受 `--format text|json`。内嵌成功 schema 为 `orchbee.agent.names`、
 `orchbee.agent.resolve` 与 `orchbee.agent.rename`；names 为 version 2，独立列出预留，另两者为 version 1；接纳后的失败使用
 `orchbee.cli.failure.agent-names` version 1。presentation 解析与 ambiguous-target 失败使用 version 2；launch-pending 失败使用 version 3；原有结果仍为 version 1。相关语义结果携带 `agent-names` source
-和 OBAP request ID。这四份文档与提示契约一起纳入 Schema 目录 version 18。非法名称或冲突选择器在
+和 OBAP request ID。这四份文档与提示契约一起纳入 Schema 目录 version 19。非法名称或冲突选择器在
 任何运行时访问前以退出码 2 失败。重名以退出码 3 拒绝并标明占用者，绝不覆盖其名称。
 
 每个命令的单一五秒截止覆盖 cohort 校验、仅查已有 Site、接纳、可选 Panel 解析和最终 OBAP 交换。
@@ -103,7 +103,7 @@ Server 仍验证终端当前绑定。
 
 Windows 中，canonical provider 为 `codex` 时，单次输入序列按字面 paste、Right、Enter 排列。Right 作为非字符边界，促使 Codex 刷出 paste-burst 缓冲并清除 Enter 抑制窗口；不向提示文本拼接转义码，也不以固定延时猜测投递速度。其他 provider 保持 paste、Enter，普通 `terminal send --paste --enter` 不增加按键。回执准确报告三条或两条记录；若在 Right 或 Enter 前停止，只报告实际接受的前缀，绝不补发或开始等待。该边界不证明输入框为空、焦点归属或 provider 已就绪。
 
-Schema 目录 version 18 共 53 份文档，包含提示成功与失败契约。
+Schema 目录 version 19 共 54 份文档，包含提示成功与失败契约。
 
 `orchbee.agent.prompt` 返回会话 ID、完整终端提交回执，以及可选的匹配观察/等待事实。
 发送拒绝、部分接受或不确定时沿用既有终端发送/失败契约，不开始等待。预检及提交后失败
@@ -355,6 +355,8 @@ orchbee agent integration disable --provider <id> [--adapter-source <abs>]
 orchbee api snapshot
 orchbee api schema [<schema-id>]
 orchbee site start
+orchbee site stop --confirm [--request-id <id>] [--retry] [--detach] [--timeout <ms>]
+orchbee site stop-status <request-id>
 orchbee site diagnose
 orchbee config check
 orchbee completion bash|zsh|fish|powershell
@@ -381,7 +383,7 @@ orchbee <recognized path> -h|--help
 `help`、`completion`、`tui`、`--version`、`--skill` 与裸调用是固定文本输出，不接受 `--format`；一个合法
 `--format=json` 会把随后产生的语法失败变成 JSON `invalid-usage` 失败文档，而 text/默认失败仍
 保持 stdout 为空。数据命令（`status`、全部 `list`/`get`、`workspace close-status`、`agent explain`、`agent doctor`、`agent wait`、
-`api snapshot`、`api schema`、`site start`、`site diagnose`、`config check`，以及全部四条 `agent integration` 命令）与全部 mutation 命令接受 `--format`。`api` 命令是机器面：`api snapshot` 或 `api schema` 成功时在
+`api snapshot`、`api schema`、`site start`、`site stop`、`site stop-status`、`site diagnose`、`config check`，以及全部四条 `agent integration` 命令）与全部 mutation 命令接受 `--format`。`api` 命令是机器面：`api snapshot` 或 `api schema` 成功时在
 两种 format 下输出同一份 JSON 文档；`api` 失败则与其他命令一样跟随所选 format——text/默认下
 只写 stderr、stdout 为空，只有 `--format json` 才产出失败 envelope。
 
@@ -852,17 +854,20 @@ cohort 验证之前开始，且绝不按阶段重置：
 无遗留；提交与 spawn 之间可能残留无存活属主的标记（后续调用随即应答
 `recovery-required`）；spawn 之后 Server 可能仍在运行。该命令绝不声称超时证明没有 Server
 启动，绝不重试 `recovery-required`，绝不修复或删除运行时状态。信号保持继承：不存在捕获
-阶段，中断即进程死亡，按惯例 `128 + signo` 退出，绝不产出 `cancelled` envelope。本切片不
-存在 `site stop`、restart 或修复动词。
+阶段，中断即进程死亡，按惯例 `128 + signo` 退出，绝不产出 `cancelled` envelope。下文说明 Windows 显式停止和后续启动；没有修复动词。
 
 ## Site 诊断
 
-Windows `site diagnose` 输出独立闭合的 `orchbee.site.diagnose.windows` v1，保留
-Linux v1 文档。原生目录为 v18/53。复用已有运行时路径／SID scope，不进行 cohort
+Windows `site diagnose` 输出独立闭合的 `orchbee.site.diagnose.windows` v2，保留
+Linux v1 文档。原生目录为 v19/54。复用已有运行时路径／SID scope，不进行 cohort
 准入、激活、端点连接或进程发现。有序行描述选定基目录、已准入运行时目录、标记、
 激活／生命周期锁及五个命名管道地址。Windows 不输出文件系统 Host socket scope 行，
 也不虚构 POSIX mode／UID。`private` 只表示已检查当前用户归属和运行时 DACL 白名单，
 不是持续有效的安全保证。
+
+版本 2 区分现有标记的 `activation: active|stopped`；Stopped 另带 `stopRequestId`，
+不记作缺失。只有 Active 附加 activation-recorded 通告。这是保留完成记录的观察，
+不是新的进程健康检查；后续启动会消费旧停止回执。
 
 每行给出 known/absent/uninspectable，生命周期锁另有 free/held/unsafe。父目录被拒绝、
 无效或缺失时，不检查所有后代。绝不获取激活锁；生命周期探针只打开已有且通过准入的
@@ -1319,8 +1324,8 @@ lifecycle 状态可以 resume——未知结果不可恢复——陈旧栅栏以
 close 失败 envelope 下报告为 `rejected`、`reason:"stale-generation"`，绝不产生第二次尝试。
 
 明确不交付：`project close`、`workspace focus`、`tab focus`、
-`panel resize`/`panel focus`、终端 open 操作、`site start`/`site diagnose` 之外的 Site
-生命周期命令（不存在 stop、restart、disable 或修复动词），以及一切远端操作。
+`panel resize`/`panel focus`、终端 open 操作、Site restart、disable、recovery 或
+修复命令（Windows 已支持 stop/status），以及一切远端操作。
 
 ## 失败矩阵
 
@@ -1736,8 +1741,12 @@ Windows Job。上述检查不证明 provider 任务完成、身份认证或原�
 
 JSON 封套为 `orchbee.panel.process-info` v2，schema 目录及双语帮助、补全与命令共同交付。证据覆盖隐式和显式目标、I/O 前的冲突拒绝、主与子终端选择、主绑定缺失、读取拒绝、响应身份错误、Host 错误保留、输出限额、viewer 回收，以及真实 Windows Site/Worker/Host 进程路由。共享类型化读取也是后续 Agent 启动和就绪工作的实际依赖，本身不关闭这些义务。
 
-Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界的错误代码；非法响应与传输失败使用通用 CLI 失败契约。成功的 `source` 同时记录快照 revision、OBCS request ID 与 Host correlation、epoch、attachment 和物理 Terminal ID；它们不是同一个身份。目录 version 18 包含 53 份 schema。
+Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界的错误代码；非法响应与传输失败使用通用 CLI 失败契约。成功的 `source` 同时记录快照 revision、OBCS request ID 与 Host correlation、epoch、attachment 和物理 Terminal ID；它们不是同一个身份。目录 version 19 包含 54 份 schema。
 
 ## Windows Agent 启动
 
-[Windows Agent 启动](windows-agent-start.zh-CN.md)拥有 `agent start`、名称预留与就绪流程、Windows 引用、预算和恢复契约。`agent names` v2 独立显示启动预留；名称失败对 launch-pending 使用 v3。Schema 目录为 v18，含 53 个 schema。
+[Windows Agent 启动](windows-agent-start.zh-CN.md)拥有 `agent start`、名称预留与就绪流程、Windows 引用、预算和恢复契约。`agent names` v2 独立显示启动预留；名称失败对 launch-pending 使用 v3。Schema 目录为 v19，含 54 个 schema。
+
+## Windows Site 停止
+
+`site stop --confirm [--request-id <32-hex>] [--retry] [--detach] [--timeout <ms>]` 停止现有托管 Windows Site，绝不激活新 Site。标识为非零小写 128 位十六进制值，省略时仅生成一次；`--retry` 必须提供标识。CLI 仅发送一次开始或重试请求，之后仅查询状态。`--detach` 立即返回已准入尝试；否则一个绝对截止时间（默认 65000 毫秒，范围 1–3600000 毫秒）覆盖运行时/cohort 准入、请求和轮询。取消或超时仅停止等待，不回滚已准入停止。每个运行时答案均保留请求标识，供 `site stop-status <id>` 查询。状态是事实文档，不是第二次变更。`orchbee.site.stop` v1 封套区分 stopped、pending、failed、busy、not-recorded、unmanaged 及 unavailable/unknown 传输结果；pending 可携带 detached、timed-out 或 cancelled 等待状态。已知 Server 失败保留尝试、阶段、原因及本次释放数量。只有准确匹配的严格已停止激活记录加上空闲的既有生命周期锁才能证明完成；端点消失、非法记录及不同标识均不能证明。后续启动消费该回执，因此未记录不能否定此前停止。Linux/macOS 返回 unsupported-platform，不产生运行时效果。

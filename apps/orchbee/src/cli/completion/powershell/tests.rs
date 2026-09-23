@@ -8,6 +8,15 @@ use std::{
 #[test]
 fn real_powershell_completes_scoped_grammar_without_runtime() {
     let cases = [
+        ("orchbee site st", "stop", true),
+        ("orchbee site st", "stop-status", true),
+        ("orchbee help site st", "stop-status", true),
+        ("orchbee site stop --c", "--confirm", true),
+        ("orchbee site stop --confirm --r", "--request-id", true),
+        ("orchbee site stop --confirm --d", "--detach", true),
+        ("orchbee site stop --detach --d", "--detach", false),
+        ("orchbee site stop-status abc --r", "--retry", false),
+        ("orchbee site stop-status abc --f", "--format", true),
         ("orchbee agent st", "start", true),
         ("orchbee agent start alpha --k", "--kind", true),
         ("orchbee agent start alpha --kind co", "codex", true),

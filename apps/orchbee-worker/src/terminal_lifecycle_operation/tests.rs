@@ -542,6 +542,8 @@ fn real_dispatch_loop_bypasses_unrelated_closed_viewer_cleanup_for_one_lifecycle
             drain: &fixture.drain,
             worktree_slot: &worktree_slot,
             site_runtime: None,
+            #[cfg(windows)]
+            managed_host: None,
         },
     );
     assert!(outcome.is_err());

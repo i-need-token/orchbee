@@ -32,9 +32,6 @@ pub(crate) use agent_terminal::{
 use orchbee_local_ipc::LocalIo as BorrowedFd;
 #[cfg(any(target_os = "linux", windows))]
 use std::time::{Duration, Instant};
-#[cfg(any(target_os = "linux", windows))]
-#[cfg(unix)]
-use std::{env, path::PathBuf};
 
 #[cfg(any(target_os = "linux", windows))]
 use orchbee_agent_observation_protocol::{
@@ -2220,8 +2217,10 @@ pub(crate) fn classify_connect(error: crate::local_client::LocalClientConnectErr
                 RejectionReason::CapacityExceeded => {
                     Failure::new(FailureKind::SessionCapacity).details(stage_details("admission"))
                 }
-                RejectionReason::HandshakeTimeout => Failure::new(FailureKind::ServiceUnavailable)
-                    .details(stage_details("admission")),
+                RejectionReason::HandshakeTimeout | RejectionReason::Stopping => {
+                    Failure::new(FailureKind::ServiceUnavailable)
+                        .details(stage_details("admission"))
+                }
                 RejectionReason::IncompatibleProtocol | RejectionReason::IncompatibleCohort => {
                     Failure::new(FailureKind::Incompatible).details(stage_details("admission"))
                 }

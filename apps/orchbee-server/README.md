@@ -1,5 +1,24 @@
 # Rust Orchbee Server
 
+## Managed Windows Site shutdown
+
+One stop identity owns the remaining managed Server lifetime. Accepting it atomically closes new
+application-record admission; existing admitted operations and result writes settle before cleanup.
+Duplicate start and status requests observe the retained attempt; a different identity is busy.
+Only explicit retry of the same failed identity starts another attempt, up to 64. Failure never
+reopens ordinary admission or authorizes an uncertain Host mutation replay. Each attempt has one
+60-second cooperative deadline, excluding uninterruptible operating-system calls.
+
+The owner retains the exact Worker child, stops Close maintenance, freezes the Worker carrier to
+shutdown-only traffic (settling queued unsent work as unavailable), and sends one bounded Worker
+shutdown request. A known no-Host/Host-stopped result and exact Worker exit must precede stopping
+Agent observation and Client listeners, waking and joining retained Client handlers, and publishing
+the stopped activation record. An activation guard excludes concurrent restart during publication
+and lifetime-lock release. Pipe absence or lost replies cannot prove completion. Failed attempts
+remain queryable while the control listener survives; after listener closure, the strict activation
+record is the only positive receipt. No process discovery, adoption, path removal or platform stop
+implementation for Linux/macOS is part of this owner.
+
 Experimental, unshipped private Rust Server application. It owns the in-memory Workbench
 navigation authority and private projection kernel, the first POSIX local Server-Worker process spine and serialized post-admission
 OBCN carrier, local Human Client/Client Session admission, and an in-memory terminal coordinator. The emitted

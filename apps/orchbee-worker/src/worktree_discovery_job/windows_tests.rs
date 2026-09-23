@@ -132,6 +132,37 @@ fn native_cancel_timeout_and_busy_release_the_exact_children() {
 }
 
 #[test]
+fn explicit_stop_cancels_and_settles_owned_child_and_refuses_unknown_cleanup() {
+    let slot = WorktreeDiscoverySlot::new();
+    slot.stop_before(Instant::now()).unwrap();
+    let witness = Arc::new(Mutex::new(JobWitness::default()));
+    let mut cmds = commands("Start-Sleep -Seconds 30", "exit 0");
+    cmds.test_hooks = Some(TestHooks {
+        faults: Faults::default(),
+        witness: Arc::clone(&witness),
+    });
+    start(&slot, 1, Duration::from_secs(15), cmds);
+    let until = Instant::now() + Duration::from_secs(3);
+    while witness.lock().unwrap().spawned.is_empty() && Instant::now() < until {
+        thread::sleep(POLL_SLICE);
+    }
+    assert_eq!(witness.lock().unwrap().spawned.len(), 1);
+    slot.stop_before(Instant::now() + Duration::from_secs(5))
+        .unwrap();
+    assert_eq!(
+        slot.poll(id(1)),
+        PollOutcome::Completed(JobOutcome::Cancelled)
+    );
+    let witness = witness.lock().unwrap();
+    assert_eq!(witness.spawned, witness.reaped);
+    slot.inner.lock().unwrap().dead = Some(id(2));
+    assert!(
+        slot.stop_before(Instant::now() + Duration::from_secs(1))
+            .is_err()
+    );
+}
+
+#[test]
 fn native_output_limits_and_failure_cleanup_are_bounded() {
     let slot = WorktreeDiscoverySlot::new();
     start(

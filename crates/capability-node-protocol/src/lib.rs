@@ -2,6 +2,11 @@ mod agent_drain;
 mod codec;
 mod error;
 mod identity;
+mod worker_shutdown;
+pub use worker_shutdown::{
+    ShutdownBudget, ShutdownFailure, ShutdownRefusal, ShutdownStage, WorkerShutdownOutcome,
+    WorkerShutdownRequest, WorkerShutdownResult,
+};
 mod terminal_cwd_validation;
 mod terminal_launch;
 mod terminal_lifecycle;

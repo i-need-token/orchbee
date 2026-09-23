@@ -174,7 +174,9 @@ fn invalid_responses_remain_typed_and_close_the_candidate() -> TestResult {
                     matches!(result, Err(ConnectClientError::Rejected(actual)) if actual == reason)
                 );
             }
-            LocalClientMessage::ClientHello(_) => assert!(matches!(
+            LocalClientMessage::ClientHello(_)
+            | LocalClientMessage::SiteStopRequest(_)
+            | LocalClientMessage::SiteStopResult(_) => assert!(matches!(
                 result,
                 Err(ConnectClientError::UnexpectedResponse)
             )),

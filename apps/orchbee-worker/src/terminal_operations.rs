@@ -28,6 +28,8 @@ mod lazy;
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) use lazy::run as run_lazy;
 mod server_transport;
+#[cfg(windows)]
+mod shutdown;
 
 #[cfg(test)]
 mod drain_tests;
@@ -56,6 +58,8 @@ pub(crate) fn run(
             drain,
             worktree_slot: &worktree_slot,
             site_runtime: None,
+            #[cfg(windows)]
+            managed_host: None,
         },
     )
 }
@@ -67,6 +71,8 @@ pub(crate) struct AdmittedAux<'a> {
     pub(crate) drain: &'a Rc<RefCell<AgentDrain>>,
     pub(crate) worktree_slot: &'a crate::worktree_discovery_job::WorktreeDiscoverySlot,
     pub(crate) site_runtime: Option<&'a std::path::Path>,
+    #[cfg(windows)]
+    pub(super) managed_host: Option<&'a mut shutdown::ManagedHost>,
 }
 
 pub(crate) fn run_admitted(
@@ -80,6 +86,37 @@ pub(crate) fn run_admitted(
     let epoch = HostEpoch::from_bytes(*host.host_epoch().as_bytes())?;
     loop {
         let request = server_transport::receive(server, Some(host))?;
+        #[cfg(windows)]
+        if let CapabilityNodeMessage::WorkerShutdownRequest(request) = request {
+            if let Some(reason) =
+                shutdown::refusal(request, worker_id, generation, aux.managed_host.is_some())
+            {
+                if server_transport::send(
+                    server,
+                    Some(host),
+                    &CapabilityNodeMessage::WorkerShutdownResult(
+                        orchbee_capability_node_protocol::WorkerShutdownResult {
+                            request,
+                            outcome:
+                                orchbee_capability_node_protocol::WorkerShutdownOutcome::Refused(
+                                    reason,
+                                ),
+                        },
+                    ),
+                )? {
+                    return Err(peer_closed().into());
+                }
+                continue;
+            }
+            return shutdown::run(
+                server,
+                request,
+                worker_id,
+                generation,
+                aux.worktree_slot,
+                aux.managed_host.map(|owner| (&*host, owner)),
+            );
+        }
         if let CapabilityNodeMessage::AgentDrainRequest(request) = request {
             let host_closed = dispatch_drain_request(
                 server,
@@ -211,7 +248,9 @@ pub(crate) fn run_admitted(
             CapabilityNodeMessage::AuthorizedTerminalStart(start) => {
                 kernel.admit_start(start, now, epoch)?
             }
-            CapabilityNodeMessage::AgentDrainRequest(_)
+            CapabilityNodeMessage::WorkerShutdownRequest(_)
+            | CapabilityNodeMessage::WorkerShutdownResult(_)
+            | CapabilityNodeMessage::AgentDrainRequest(_)
             | CapabilityNodeMessage::AgentDrainReply(_)
             | CapabilityNodeMessage::TerminalControlRequest(_)
             | CapabilityNodeMessage::TerminalCwdValidationRequest(_)

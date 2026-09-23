@@ -215,8 +215,8 @@ application startup policy, retry, remove stale endpoints, or grant recovery aut
 
 ## Windows refinement
 
-The native Windows adapter keeps the same activation/lifetime-lock and immutable
-attempt-marker state machine. It admits an absolute local path only after
+The native Windows adapter retains activation/lifetime-lock ownership; the explicit
+stop record below refines the original immutable attempt marker. It admits an absolute local path only after
 rejecting reparse points and retaining directory handles without delete sharing.
 The runtime parent and leaf must be owned by the token user with a DACL granting
 access only to that user, SYSTEM, or Administrators. Newly created leaves receive
@@ -238,10 +238,41 @@ self-reviewed refinement, not an independent review: the challenge cases include
 existing broad ACLs, path replacement, duplicate starts, and pipe impersonation.
 
 Windows read-only diagnostics reuse admission without creating a scope or file.
-The marker must still be empty, regular, single-link and privately owned. The
+The marker must be regular, single-link, privately owned and contain a valid activation record. The
 activation lock is inspected without locking. The lifetime observation opens only
 an existing admitted file, tries one nonblocking exclusive lock, and immediately
 releases it: absent/free/held/unsafe are observations, not service health. A probe
 can briefly contend with startup; failure never authorizes repair or deletion.
 Invalid parents prevent descendant inspection. Tests cover zero creation,
 free/held transitions, malformed markers and hard-link rejection.
+
+### Windows explicit-stop activation record
+
+The Windows stop refinement replaces the immutable-attempt-only interpretation
+with a bounded record in the same admitted `activation.started` file. Empty bytes
+mean Active; the exact ASCII prefix `orchbee-stopped-v1:` followed by a nonzero
+32-character lowercase hexadecimal stop request ID means Stopped. Absence remains
+distinct. Every other size, prefix or encoding is invalid and grants no restart.
+Linux retains its immutable empty-marker contract.
+
+The managed Server retains an existing Active file handle without delete sharing.
+Only its lifecycle owner may complete that record, after exact terminal containment,
+Host exit and Worker exit have been confirmed. Completion seeks, writes the bounded
+record, fixes its length and flushes data. Partial I/O is not success. The retained
+owner can retry only the same attempted ID; a different ID is refused. An exact
+already-completed ID is idempotent. Filesystem stalls are outside cooperative time
+bounds; crash-torn or malformed records fail closed. No pathname is deleted or
+replaced and no receipt proves that an unrelated process exited.
+
+Under the existing activation/lifetime guards, startup may consume only a valid
+Stopped record by truncating that same admitted file to Active before the single
+Server spawn. Failure after this boundary still requires recovery. A subsequent
+start consumes the previous stop receipt, so its absence never disproves an older
+stop. Older cohorts reject Stopped bytes and must be upgraded before restart.
+
+The decision partitions are absent/Active/Stopped/invalid, same/different stop ID,
+first completion/retry, and start before/after completion. Runtime tests establish
+strict parsing, zero versus malformed data, completion identity and restart cycles;
+managed lifecycle and process witnesses must establish the exit precondition before
+the public stop command can claim completion. This record primitive itself does not
+stop processes, acquire lifecycle authority, or perform automatic recovery.

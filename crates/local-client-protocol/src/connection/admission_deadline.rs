@@ -96,7 +96,9 @@ fn exchange_hello(
     match response? {
         LocalClientMessage::ClientAccepted { generation } => Ok(generation),
         LocalClientMessage::Rejected { reason } => Err(ConnectClientError::Rejected(reason)),
-        LocalClientMessage::ClientHello(_) => Err(ConnectClientError::UnexpectedResponse),
+        LocalClientMessage::ClientHello(_)
+        | LocalClientMessage::SiteStopRequest(_)
+        | LocalClientMessage::SiteStopResult(_) => Err(ConnectClientError::UnexpectedResponse),
     }
 }
 

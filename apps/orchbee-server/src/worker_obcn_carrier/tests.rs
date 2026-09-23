@@ -43,6 +43,93 @@ const TEST_IO_TIMEOUT: Duration = Duration::from_millis(80);
 const TEST_POLL_INTERVAL: Duration = Duration::from_millis(5);
 const TEST_COMPLETION_TIMEOUT: Duration = Duration::from_secs(2);
 
+#[test]
+fn shutdown_freezes_both_lanes_and_preserves_the_in_flight_request() -> TestResult {
+    use orchbee_capability_node_protocol::{
+        ShutdownBudget, WorkerShutdownOutcome, WorkerShutdownRequest, WorkerShutdownResult,
+    };
+    let (handle, owner, _shutdown, _server, _worker) = test_carrier()?;
+    let ordinary = WorkerOperationRequest::Launch(launch_request(authorization(
+        1,
+        1,
+        GENERATION.get(),
+        LOCAL_WORKER_ID,
+    )?)?);
+    let first = handle.admit(ordinary.clone(), false)?;
+    let in_flight = owner.queue.dispatch_next().ok_or("in flight")?;
+    let queued = handle.admit(ordinary.clone(), false)?;
+    let request = WorkerShutdownRequest {
+        operation_id: OperationId::from_bytes([8; 16])?,
+        worker_id: CapabilityWorkerId::from_bytes(LOCAL_WORKER_ID.as_bytes())?,
+        worker_generation: WorkerGeneration::new(GENERATION),
+        budget: ShutdownBudget::new(15_000)?,
+    };
+    let stopping = handle.admit(WorkerOperationRequest::Shutdown(request), false)?;
+    assert!(matches!(
+        queued.recv(),
+        Err(WorkerRequestError::Unavailable)
+    ));
+    assert!(matches!(
+        handle.admit(ordinary.clone(), false),
+        Err(WorkerRequestError::Unavailable)
+    ));
+    assert!(matches!(
+        handle.admit(ordinary, true),
+        Err(WorkerRequestError::Unavailable)
+    ));
+    let (low, _rx) = pending_for_test(WorkerOperationRequest::AgentDrain(
+        orchbee_capability_node_protocol::AgentDrainRequest {
+            worker_id: request.worker_id,
+            worker_generation: request.worker_generation,
+            token: NonZeroU64::MIN,
+            acknowledged: 0,
+        },
+    ))?;
+    assert_eq!(
+        owner.queue.try_admit(RequestLane::Low, low),
+        AdmitOutcome::Closed
+    );
+    assert!(send_completion(
+        in_flight,
+        Err(WorkerRequestError::NotDelivered(
+            WorkerTransportFailure::Closed
+        ))
+    ));
+    assert!(matches!(
+        first.recv(),
+        Err(WorkerRequestError::NotDelivered(_))
+    ));
+    let pending = owner.queue.dispatch_next().ok_or("shutdown pending")?;
+    assert_eq!(pending.request, WorkerOperationRequest::Shutdown(request));
+    let result = WorkerShutdownResult {
+        request,
+        outcome: WorkerShutdownOutcome::NoHost,
+    };
+    assert_eq!(
+        super::validate_response(
+            &pending.request,
+            CapabilityNodeMessage::WorkerShutdownResult(result)
+        ),
+        Ok(WorkerOperationResult::Shutdown(result))
+    );
+    let mut wrong = result;
+    wrong.request.budget = ShutdownBudget::new(14_999)?;
+    assert_eq!(
+        super::validate_response(
+            &pending.request,
+            CapabilityNodeMessage::WorkerShutdownResult(wrong)
+        ),
+        Err(WorkerResponseFailure::MismatchedAuthorization)
+    );
+    assert!(send_completion(
+        pending,
+        Ok(WorkerOperationResult::Shutdown(result))
+    ));
+    assert_eq!(stopping.recv()?, WorkerOperationResult::Shutdown(result));
+    assert!(owner.queue.dispatch_next().is_none());
+    Ok(())
+}
+
 type TestResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 
 #[test]

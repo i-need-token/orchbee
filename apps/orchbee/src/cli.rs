@@ -17,6 +17,8 @@ pub(crate) mod schema;
 pub(crate) mod send;
 mod site;
 mod site_diagnose;
+mod site_stop;
+pub(crate) use site_stop::run as site_stop;
 #[cfg(any(target_os = "linux", windows))]
 #[cfg_attr(windows, path = "cli/source_windows.rs")]
 pub(crate) mod source;

@@ -309,6 +309,8 @@ fn admitted_request_replies_with_host_observed_event() -> TestResult {
             drain: &drain,
             worktree_slot: &worktree_slot,
             site_runtime: None,
+            #[cfg(windows)]
+            managed_host: None,
         },
     );
     assert!(outcome.is_err());

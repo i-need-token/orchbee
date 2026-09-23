@@ -18,11 +18,27 @@ use orchbee_workbench_protocol::{
 use crate::agent_service::AgentReadFault;
 use crate::workbench_service::WorkbenchExecution;
 
+#[cfg(test)]
 pub(super) fn run<Stream>(
+    stream: &mut Stream,
+    execute: impl FnMut(ClientMessage) -> ServerMessage,
+    execute_workbench: impl FnMut(WorkbenchRequest) -> WorkbenchExecution,
+    execute_agent: impl FnMut(AgentRequest) -> Result<AgentResult, AgentReadFault>,
+) -> Result<(), ApplicationSessionError>
+where
+    Stream: Read + Write,
+{
+    run_guarded(stream, execute, execute_workbench, execute_agent, || {
+        Some(())
+    })
+}
+
+pub(super) fn run_guarded<Stream, Permit>(
     stream: &mut Stream,
     mut execute: impl FnMut(ClientMessage) -> ServerMessage,
     mut execute_workbench: impl FnMut(WorkbenchRequest) -> WorkbenchExecution,
     mut execute_agent: impl FnMut(AgentRequest) -> Result<AgentResult, AgentReadFault>,
+    mut admit: impl FnMut() -> Option<Permit>,
 ) -> Result<(), ApplicationSessionError>
 where
     Stream: Read + Write,
@@ -36,12 +52,14 @@ where
             FRAME_MAGIC | PASTE_RECORD_MAGIC | SEND_RECORD_MAGIC => {
                 let request = read_client_message(&mut Cursor::new(prefix).chain(&mut *stream))
                     .map_err(ApplicationSessionError::Read)?;
+                let _permit = admit().ok_or(ApplicationSessionError::Stopping)?;
                 let result = execute(request);
                 write_server_message(stream, &result).map_err(ApplicationSessionError::Write)?;
             }
             WORKBENCH_MAGIC => {
                 let request = read_workbench_request(&mut Cursor::new(prefix).chain(&mut *stream))
                     .map_err(ApplicationSessionError::Workbench)?;
+                let _permit = admit().ok_or(ApplicationSessionError::Stopping)?;
                 let WorkbenchExecution::Response(result) = execute_workbench(request) else {
                     return Err(ApplicationSessionError::WorkbenchOutcomeUnknown);
                 };
@@ -51,6 +69,7 @@ where
             AGENT_MAGIC => {
                 let request = read_agent_request(&mut Cursor::new(prefix).chain(&mut *stream))
                     .map_err(ApplicationSessionError::Agent)?;
+                let _permit = admit().ok_or(ApplicationSessionError::Stopping)?;
                 let result = execute_agent(request).map_err(ApplicationSessionError::AgentFault)?;
                 write_agent_result(stream, &result).map_err(ApplicationSessionError::Agent)?;
             }
@@ -61,6 +80,7 @@ where
 
 #[derive(Debug)]
 pub(super) enum ApplicationSessionError {
+    Stopping,
     Prefix(io::Error),
     UnknownProtocol,
     WorkbenchOutcomeUnknown,
@@ -74,6 +94,7 @@ pub(super) enum ApplicationSessionError {
 impl fmt::Display for ApplicationSessionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Stopping => formatter.write_str("Site is stopping"),
             Self::Prefix(error) => {
                 write!(formatter, "Application record prefix read failed: {error}")
             }
@@ -95,6 +116,7 @@ impl fmt::Display for ApplicationSessionError {
 impl std::error::Error for ApplicationSessionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::Stopping => None,
             Self::Prefix(error) => Some(error),
             Self::UnknownProtocol | Self::WorkbenchOutcomeUnknown => None,
             Self::Workbench(error) => Some(error),

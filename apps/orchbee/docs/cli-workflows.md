@@ -29,9 +29,12 @@ $created.result
 & $cli tui
 # Close this Workspace when finished:
 & $cli workspace close $created.result.workspaceId --confirm --format json
+# Or stop the whole Windows Site and all its terminals:
+$stopped = Invoke-OrchbeeJson -Words @('site', 'stop', '--confirm')
+& $cli site stop-status $stopped.result.requestId --format json
 ```
 
-Check `result.terminal.outcome` before using the terminal: `started` confirms launch, while pending, failed, unavailable or unknown results require inspection of the returned resources. Closing the TUI does not close the Workspace. The command creates the first terminal automatically and leaves client focus unchanged. Windows Codex onboarding uses `agent integration enable --provider codex`; Site diagnose remains outside this workflow. The numbered POSIX examples below describe the existing Linux path.
+Check `result.terminal.outcome` before using the terminal: `started` confirms launch, while pending, failed, unavailable or unknown results require inspection of the returned resources. Closing the TUI does not close the Workspace. The command creates the first terminal automatically and leaves client focus unchanged. Windows Codex onboarding uses `agent integration enable --provider codex`; `site diagnose` reports local Windows runtime facts without activating the Site. The numbered POSIX examples below describe the existing Linux path.
 
 ## Windows Agent diagnostics
 
@@ -46,7 +49,7 @@ capsule integrity. The second command adds an explicit capsule root; it does not
 Version-3 JSON and localized text report `windows-endpoint-not-inspected`. Capsule 0.4.1
 adds Windows Codex hooks, and Windows x64 cohorts include their required pinned ConPTY
 runtime. Doctor does not exercise that transport. An installed hook or `complete:true`
-does not establish Agent-board readiness. Managed enable/disable and start/prompt remain pending.
+does not establish Agent-board readiness. Managed enable/disable and `agent start`/`prompt` are available; see [Windows onboarding](windows-agent-integrations.md) and [startup](windows-agent-start.md).
 
 ## Prerequisites
 
@@ -90,7 +93,7 @@ orchbee status         # the running Site's Workbench snapshot
 `site start` runs the same connect-or-activate sequence the TUI uses. An
 interrupted or timed-out start can leave committed activation state behind;
 a later invocation then answers `rejected` with a recovery-required reason.
-No CLI command stops, repairs, or deletes a Site.
+Linux has no Site stop, repair or deletion command. Windows supports `site stop --confirm` and `site stop-status <id>`; a completed stop allows a later `site start`. Stop ends all terminal processes and discards the Site's in-memory state. A timeout or cancellation ends the CLI wait only: retain the request ID and query status. Use `--retry --request-id <id>` only to explicitly retry a failed stop.
 
 ## 2. Create a Project, Workspace, and directory
 

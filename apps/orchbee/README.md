@@ -44,6 +44,8 @@ orchbee <family> <command>       # queries and Workbench mutations
 orchbee api snapshot|schema      # machine snapshot and embedded schemas
 orchbee site start               # ensure the local Site is running (no TTY)
 orchbee site diagnose            # read-only local Site runtime facts
+orchbee site stop --confirm      # stop the Windows Site and its terminals
+orchbee site stop-status <id>    # inspect a retained stop attempt/receipt
 orchbee config check             # local runtime inspection
 orchbee help [<family>|<command>]
 orchbee completion bash|zsh|fish|powershell
@@ -178,7 +180,7 @@ Node and capsule integrity without starting a Site or changing provider setup. I
 document reports endpoint delivery as uninspected; installed configuration is not proof of
 a working Agent connection.
 
-Windows `agent integration list/explain/enable/disable --provider <id>` manages Codex, OpenCode, Pi and OMP. See the [Windows integration contract](docs/windows-agent-integrations.md). Windows `site diagnose` reports read-only runtime, lock and pipe-name facts using `orchbee.site.diagnose.windows` v1. Capsule 0.4.1 supplies Codex hooks and JavaScript modules using the native observation pipe and console correlation.
+Windows `agent integration list/explain/enable/disable --provider <id>` manages Codex, OpenCode, Pi and OMP. See the [Windows integration contract](docs/windows-agent-integrations.md). Windows `site diagnose` reports read-only runtime, lock and pipe-name facts using `orchbee.site.diagnose.windows` v2. Capsule 0.4.1 supplies Codex hooks and JavaScript modules using the native observation pipe and console correlation.
 Windows x64 cohorts include the pinned ConPTY runtime needed to preserve that correlation.
 Agent start remains pending; other providers retain their
 existing platform limits. `terminal send --stdin` accepts redirected regular
@@ -739,3 +741,7 @@ Workspace directory, then falls back to Worker home when absent. Environment val
 and bounded; see command help and [the native CLI contract](docs/native-cli-query.md).
 
 Targeted Agent commands also accept `--panel <id|@panel:suffix>` or a positional Panel ID. Session IDs and names take precedence over positional Panel fallback. Panels select their primary terminal and require one live Agent; waits pin the selected Session.
+
+## Windows explicit Site stop
+
+`site stop --confirm` ends the existing managed Windows Site and its terminal processes. Use `--detach` for admission only and retain the returned ID for `site stop-status <id>`. Explicit retry requires `--retry --request-id <id> --confirm`. Cancellation or timeout does not cancel an accepted stop. A matching stopped record and free lifetime lock prove completion; the next `site start` consumes that record and creates a fresh Site. See the [CLI stop contract](docs/native-cli-query.md#windows-site-stop). No Linux/macOS stop runtime is implemented.

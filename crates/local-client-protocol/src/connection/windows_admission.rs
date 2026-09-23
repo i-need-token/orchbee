@@ -8,19 +8,7 @@ pub(super) fn connect(
     deadline: Instant,
     wake: Option<LocalIo<'_>>,
 ) -> Result<ClientSessionConnection, ConnectClientError> {
-    let stream = loop {
-        check_wake(wake)?;
-        if Instant::now() >= deadline {
-            return Err(ConnectClientError::Io(io::ErrorKind::TimedOut.into()));
-        }
-        let slice = deadline.min(Instant::now() + Duration::from_millis(10));
-        match UnixStream::connect_before(endpoint, slice) {
-            Ok(stream) => break stream,
-            Err(error) if matches!(error.raw_os_error(), Some(121 | 231)) => {}
-            Err(error) => return Err(ConnectClientError::ConnectFailed(error)),
-        }
-    };
-    stream.set_nonblocking(true)?;
+    let stream = connect_stream(endpoint, deadline, wake)?;
     let mut transport = Admission {
         stream,
         deadline,
@@ -34,7 +22,9 @@ pub(super) fn connect(
             LocalClientMessage::Rejected { reason } => {
                 return Err(ConnectClientError::Rejected(reason));
             }
-            LocalClientMessage::ClientHello(_) => {
+            LocalClientMessage::ClientHello(_)
+            | LocalClientMessage::SiteStopRequest(_)
+            | LocalClientMessage::SiteStopResult(_) => {
                 return Err(ConnectClientError::UnexpectedResponse);
             }
         };
@@ -51,6 +41,70 @@ pub(super) fn connect(
         generation: exchange?,
         stream: transport.stream,
     })
+}
+
+fn connect_stream(
+    endpoint: &Path,
+    deadline: Instant,
+    wake: Option<LocalIo<'_>>,
+) -> Result<UnixStream, ConnectClientError> {
+    let stream = loop {
+        check_wake(wake)?;
+        if Instant::now() >= deadline {
+            return Err(ConnectClientError::Io(io::ErrorKind::TimedOut.into()));
+        }
+        let slice = deadline.min(Instant::now() + Duration::from_millis(10));
+        match UnixStream::connect_before(endpoint, slice) {
+            Ok(stream) => break stream,
+            Err(error) if matches!(error.raw_os_error(), Some(121 | 231)) => {}
+            Err(error) => return Err(ConnectClientError::ConnectFailed(error)),
+        }
+    };
+    stream.set_nonblocking(true)?;
+    Ok(stream)
+}
+
+pub(super) fn site_stop(
+    endpoint: &Path,
+    request: crate::SiteStopRequest,
+    deadline: Instant,
+    wake: Option<LocalIo<'_>>,
+) -> Result<crate::SiteStopResult, super::SiteStopExchangeError> {
+    let mut submitted = false;
+    let result = (|| {
+        let stream = connect_stream(endpoint, deadline, wake)?;
+        let mut transport = Admission {
+            stream,
+            deadline,
+            wake,
+            cancelled: None,
+        };
+        let exchange = (|| {
+            let id = request.id;
+            write_message(
+                &mut transport,
+                &LocalClientMessage::SiteStopRequest(request),
+            )?;
+            submitted = true;
+            let result = match read_message(&mut transport)? {
+                LocalClientMessage::SiteStopResult(result) if result.id == id => result,
+                LocalClientMessage::Rejected { reason } => {
+                    return Err(ConnectClientError::Rejected(reason));
+                }
+                _ => {
+                    return Err(ConnectClientError::UnexpectedResponse);
+                }
+            };
+            Ok(result)
+        })();
+        if exchange.is_err()
+            && let Some(cancelled) = transport.cancelled
+        {
+            return Err(cancelled);
+        }
+        exchange
+    })();
+    result.map_err(|failure| super::SiteStopExchangeError { failure, submitted })
 }
 
 fn check_wake(wake: Option<LocalIo<'_>>) -> Result<(), ConnectClientError> {

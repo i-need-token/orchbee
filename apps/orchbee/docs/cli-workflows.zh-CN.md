@@ -28,9 +28,12 @@ $created.result
 & $cli tui
 # Close this Workspace when finished:
 & $cli workspace close $created.result.workspaceId --confirm --format json
+# Or stop the whole Windows Site and all its terminals:
+$stopped = Invoke-OrchbeeJson -Words @('site', 'stop', '--confirm')
+& $cli site stop-status $stopped.result.requestId --format json
 ```
 
-使用终端前检查 `result.terminal.outcome`：`started` 确认启动；pending、failed、unavailable 或 unknown 需要根据返回 ID 查询资源。退出 TUI 不会关闭 Workspace。命令自动创建首个终端，并保持客户端焦点。Windows Codex 接入使用 `agent integration enable --provider codex`；Site diagnose 仍不属于此流程。下方编号的 POSIX 示例描述已有 Linux 路径。
+使用终端前检查 `result.terminal.outcome`：`started` 确认启动；pending、failed、unavailable 或 unknown 需要根据返回 ID 查询资源。退出 TUI 不会关闭 Workspace。命令自动创建首个终端，并保持客户端焦点。Windows Codex 接入使用 `agent integration enable --provider codex`；`site diagnose` 报告 Windows 本地运行时事实，不激活 Site。下方编号的 POSIX 示例描述已有 Linux 路径。
 
 ## Windows Agent 诊断
 
@@ -44,7 +47,7 @@ PATH 上的 provider 条目、Node 及声明的胶囊完整性。第二条命令
 不会安装它。版本 3 JSON 和本地化文本报告 `windows-endpoint-not-inspected`。Capsule 0.4.1
 新增 Windows Codex hook，Windows x64 cohort 包含其所需的固定 ConPTY 运行时。
 Doctor 不执行该传输。已安装 hook 或 `complete:true` 不代表 Agent 看板已可用。
-托管 enable/disable 与 start/prompt 仍待补齐。
+已支持托管 enable/disable 和 `agent start`/`prompt`；参见 [Windows 接入](windows-agent-integrations.zh-CN.md)与[启动](windows-agent-start.zh-CN.md)。
 
 ## 前提条件
 
@@ -84,7 +87,7 @@ orchbee status         # 运行中 Site 的 Workbench 快照
 
 `site start` 运行与 TUI 相同的连接或激活序列。被中断或超时的启动可能
 遗留已提交的激活状态；后续调用将以 `rejected` 加 recovery-required
-原因应答。没有任何 CLI 命令可以停止、修复或删除 Site。
+原因应答。Linux 尚无 Site 停止、修复或删除命令。Windows 支持 `site stop --confirm` 和 `site stop-status <id>`；完成停止后可再次 `site start`。停止会结束全部终端进程并丢弃 Site 内存状态。超时或取消仅结束 CLI 等待：保留请求 ID 并查询状态。仅需显式重试失败停止时使用 `--retry --request-id <id>`。
 
 ## 2. 创建 Project、Workspace 与目录
 

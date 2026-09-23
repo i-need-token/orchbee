@@ -67,6 +67,46 @@ impl Drop for RunningOwner {
 }
 
 impl LocalTerminalService {
+    /// Stops the maintenance submitter and joins it within the Site owner's deadline.
+    #[cfg(windows)]
+    pub(crate) fn stop_close_before(&self, deadline: Instant) -> io::Result<()> {
+        self.close_maintenance
+            .wake
+            .available
+            .store(false, Ordering::Release);
+        {
+            let mut state = self
+                .close_maintenance
+                .wake
+                .state
+                .lock()
+                .map_err(|_| io::Error::other("Close owner poisoned"))?;
+            state.stop = true;
+            self.close_maintenance.wake.changed.notify_all();
+        }
+        loop {
+            {
+                let mut handle = self
+                    .close_maintenance
+                    .handle
+                    .lock()
+                    .map_err(|_| io::Error::other("Close handle poisoned"))?;
+                if handle.as_ref().is_none_or(|thread| thread.is_finished()) {
+                    if let Some(thread) = handle.take() {
+                        thread
+                            .join()
+                            .map_err(|_| io::Error::other("Close owner panicked"))?;
+                    }
+                    return Ok(());
+                }
+            }
+            if Instant::now() >= deadline {
+                return Err(io::ErrorKind::TimedOut.into());
+            }
+            thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
+
     #[cfg(test)]
     pub(super) fn after_close_admission_for_test(&self, hook: impl FnOnce() + Send + 'static) {
         *self

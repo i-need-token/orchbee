@@ -1,5 +1,19 @@
 # Local Client Protocol
 
+## Managed Site stop control
+
+Private OBLC v1 additionally carries kinds 4/5 for same-user, exact-cohort Site stop requests and
+status responses, within the existing 256-byte bound. A request contains a validated cohort, nonzero
+128-bit stop identity and closed start/status/explicit-retry action. Responses echo that identity and
+distinguish not-recorded, pending, failed, another active identity and unmanaged mode. Pending/failed
+states retain a positive attempt (at most 64), a closed phase, and failures retain their reason and
+known disposal count for that attempt. A response never claims final process exit: the admitted
+Windows activation record is the completion receipt after the managed owner settles its resources.
+Duplicate start never retries effects; only explicit retry of the same failed identity may advance
+the attempt. New Client hellos during shutdown receive the typed stopping rejection. Unknown tags,
+zero identities, invalid attempts and trailing payload bytes fail decoding. The codec itself neither
+starts nor stops a process and does not introduce a Linux or macOS shutdown runtime.
+
 Private, experimental Rust connection contract and concrete connecting adapter for the first
 same-user POSIX Human Client-to-Server process spine. It is not a public API, Worker protocol,
 terminal relay, TUI, activation mechanism, remote protocol, or compatibility promise.

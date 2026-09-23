@@ -1,0 +1,226 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.site.stop",
+	"title": "Windows Site stop receipt or observed attempt",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.site.stop"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "local-runtime"
+				}
+			}
+		},
+		"result": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["requestId", "outcome"],
+					"properties": {
+						"requestId": {
+							"type": "string",
+							"pattern": "^(?!0{32}$)[0-9a-f]{32}$"
+						},
+						"outcome": {
+							"const": "stopped"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["requestId", "outcome"],
+					"properties": {
+						"requestId": {
+							"type": "string",
+							"pattern": "^(?!0{32}$)[0-9a-f]{32}$"
+						},
+						"outcome": {
+							"const": "not-recorded"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["requestId", "outcome"],
+					"properties": {
+						"requestId": {
+							"type": "string",
+							"pattern": "^(?!0{32}$)[0-9a-f]{32}$"
+						},
+						"outcome": {
+							"const": "unmanaged"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["requestId", "outcome", "activeRequestId"],
+					"properties": {
+						"requestId": {
+							"type": "string",
+							"pattern": "^(?!0{32}$)[0-9a-f]{32}$"
+						},
+						"outcome": {
+							"const": "busy"
+						},
+						"activeRequestId": {
+							"type": "string",
+							"pattern": "^(?!0{32}$)[0-9a-f]{32}$"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["requestId", "outcome", "attempt", "phase"],
+					"properties": {
+						"requestId": {
+							"type": "string",
+							"pattern": "^(?!0{32}$)[0-9a-f]{32}$"
+						},
+						"outcome": {
+							"const": "pending"
+						},
+						"attempt": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 64
+						},
+						"phase": {
+							"enum": [
+								"admission",
+								"background-jobs",
+								"inventory",
+								"force",
+								"dispose",
+								"host-exit",
+								"worker",
+								"worker-exit",
+								"ingress",
+								"clients",
+								"completion"
+							]
+						},
+						"wait": {
+							"enum": ["detached", "timed-out", "cancelled"]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["requestId", "outcome", "attempt", "phase", "reason", "disposedTerminals"],
+					"properties": {
+						"requestId": {
+							"type": "string",
+							"pattern": "^(?!0{32}$)[0-9a-f]{32}$"
+						},
+						"outcome": {
+							"const": "failed"
+						},
+						"attempt": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 64
+						},
+						"phase": {
+							"enum": [
+								"admission",
+								"background-jobs",
+								"inventory",
+								"force",
+								"dispose",
+								"host-exit",
+								"worker",
+								"worker-exit",
+								"ingress",
+								"clients",
+								"completion"
+							]
+						},
+						"reason": {
+							"enum": [
+								"deadline",
+								"unavailable",
+								"outcome-unknown",
+								"protocol",
+								"refused",
+								"process-wait",
+								"record-write"
+							]
+						},
+						"disposedTerminals": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 4294967295
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["requestId", "outcome", "reason"],
+					"properties": {
+						"requestId": {
+							"type": "string",
+							"pattern": "^(?!0{32}$)[0-9a-f]{32}$"
+						},
+						"outcome": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"enum": [
+								"runtime",
+								"unsupported-platform",
+								"signal-registration",
+								"signal-finalization",
+								"activation-record",
+								"cohort",
+								"rejected",
+								"transport"
+							]
+						},
+						"wait": {
+							"enum": ["timed-out", "cancelled"]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["requestId", "outcome", "reason"],
+					"properties": {
+						"requestId": {
+							"type": "string",
+							"pattern": "^(?!0{32}$)[0-9a-f]{32}$"
+						},
+						"outcome": {
+							"const": "unknown"
+						},
+						"reason": {
+							"enum": ["transport", "activation-record"]
+						},
+						"wait": {
+							"enum": ["timed-out", "cancelled"]
+						}
+					}
+				}
+			]
+		}
+	}
+}

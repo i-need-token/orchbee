@@ -1,5 +1,3 @@
-#[cfg(unix)]
-use std::fs::File;
 use std::{
     fmt, io,
     marker::PhantomData,

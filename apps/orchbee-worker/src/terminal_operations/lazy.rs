@@ -44,6 +44,33 @@ pub(crate) fn run(
     let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
     loop {
         let request = server_transport::receive(server, None)?;
+        #[cfg(windows)]
+        if let CapabilityNodeMessage::WorkerShutdownRequest(request) = request {
+            if let Some(reason) = super::shutdown::refusal(request, worker_id, generation, true) {
+                let _no_host = server_transport::send(
+                    server,
+                    None,
+                    &CapabilityNodeMessage::WorkerShutdownResult(
+                        orchbee_capability_node_protocol::WorkerShutdownResult {
+                            request,
+                            outcome:
+                                orchbee_capability_node_protocol::WorkerShutdownOutcome::Refused(
+                                    reason,
+                                ),
+                        },
+                    ),
+                )?;
+                continue;
+            }
+            return super::shutdown::run(
+                server,
+                request,
+                worker_id,
+                generation,
+                &worktree_slot,
+                None,
+            );
+        }
         if let CapabilityNodeMessage::AgentDrainRequest(request) = request {
             // Without a Host, send always reports host_closed=true; that flag
             // is expected here and does not retire the Server connection.
@@ -103,7 +130,7 @@ pub(crate) fn run(
         let started = prepared.and_then(|prepared| {
             start_host(cohort, runtime, Rc::clone(&drain)).map(|host| (prepared, host))
         });
-        let (prepared, mut host) = match started {
+        let (prepared, (mut host, _child)) = match started {
             Ok(started) => started,
             Err(error) => {
                 kernel.record_pre_handoff_failure(&dispatch, unix_milliseconds())?;
@@ -132,6 +159,8 @@ pub(crate) fn run(
         if closed {
             return Err(super::peer_closed().into());
         }
+        #[cfg(windows)]
+        let mut managed_host = super::shutdown::ManagedHost::new(_child);
         return super::run_admitted(
             server,
             &mut host,
@@ -142,6 +171,8 @@ pub(crate) fn run(
                 drain: &drain,
                 worktree_slot: &worktree_slot,
                 site_runtime: Some(runtime),
+                #[cfg(windows)]
+                managed_host: Some(&mut managed_host),
             },
         );
     }
@@ -151,7 +182,13 @@ fn start_host(
     cohort: &NativeCohort,
     runtime: &Path,
     drain: Rc<RefCell<AgentDrain>>,
-) -> Result<HostBrokerConnection, Box<dyn Error>> {
+) -> Result<
+    (
+        HostBrokerConnection,
+        orchbee_local_site_runtime::RetainedChild,
+    ),
+    Box<dyn Error>,
+> {
     let deadline = Instant::now() + Duration::from_secs(5);
     // The Host binds `<id>.s` relatively inside `host/` — a 34-byte leaf that
     // always fits — while the Worker connects through the derived absolute
@@ -204,7 +241,8 @@ fn start_host(
         #[cfg(windows)]
         {
             if orchbee_local_ipc::endpoint_exists(&endpoint)? {
-                return HostBrokerConnection::connect_before(&endpoint, deadline, drain);
+                return HostBrokerConnection::connect_before(&endpoint, deadline, drain)
+                    .map(|host| (host, child));
             }
             thread::sleep(Duration::from_millis(10));
         }
@@ -215,7 +253,8 @@ fn start_host(
                     && status.uid() == nix::unistd::geteuid().as_raw()
                     && status.mode() & 0o7777 == 0o600 =>
             {
-                return HostBrokerConnection::connect_before(&endpoint, deadline, drain);
+                return HostBrokerConnection::connect_before(&endpoint, deadline, drain)
+                    .map(|host| (host, child));
             }
             Ok(status)
                 if status.file_type().is_socket()
