@@ -1151,11 +1151,13 @@ mod tests {
             ObapRequestId::parse("11111111111111111111111111111111").expect("request id");
         let outcome = agent_armed_finish(
             AgentReadOperation::List,
-            |request_id| AgentReadRequest::List {
-                request_id,
-                include_ended: false,
-                limit: orchbee_agent_observation_protocol::AgentSafeInteger::new(50),
-                cursor: None,
+            |_, request_id, _, _| {
+                Ok(AgentReadRequest::List {
+                    request_id,
+                    include_ended: false,
+                    limit: orchbee_agent_observation_protocol::AgentSafeInteger::new(50),
+                    cursor: None,
+                })
             },
             Instant::now() + Duration::from_secs(10),
             request_id,
@@ -2309,6 +2311,8 @@ enum AgentAttempt {
     Expired,
     /// One OBAP exchange settled to its raw result or typed failure.
     Exchanged(Result<AgentReadResult, AgentExchangeError>),
+    /// Target resolution failed before any session read was submitted.
+    Target(Failure),
 }
 
 /// The armed Agent interruption owner as one pollable descriptor plus one
@@ -2344,7 +2348,12 @@ impl AgentWatch for ArmedSignals {
 #[cfg(any(target_os = "linux", windows))]
 fn agent_armed_run(
     operation: AgentReadOperation,
-    build: impl FnOnce(ObapRequestId) -> AgentReadRequest,
+    build: impl FnOnce(
+        &mut LocalClient,
+        ObapRequestId,
+        Instant,
+        Option<BorrowedFd<'_>>,
+    ) -> Result<AgentReadRequest, Failure>,
 ) -> Result<(ObapRequestId, AgentAttempt), AgentQueryError> {
     let total = deadline_after(AGENT_TOTAL_BUDGET).map_err(AgentQueryError::Admission)?;
     let request_id = obap_request_id().map_err(AgentQueryError::Admission)?;
@@ -2368,7 +2377,12 @@ fn agent_armed_run(
 #[cfg(any(target_os = "linux", windows))]
 fn agent_armed_finish(
     operation: AgentReadOperation,
-    build: impl FnOnce(ObapRequestId) -> AgentReadRequest,
+    build: impl FnOnce(
+        &mut LocalClient,
+        ObapRequestId,
+        Instant,
+        Option<BorrowedFd<'_>>,
+    ) -> Result<AgentReadRequest, Failure>,
     total: Instant,
     request_id: ObapRequestId,
     armed: impl AgentWatch,
@@ -2407,7 +2421,12 @@ fn agent_span(
     operation: AgentReadOperation,
     wake: Option<BorrowedFd<'_>>,
     request_id: ObapRequestId,
-    build: impl FnOnce(ObapRequestId) -> AgentReadRequest,
+    build: impl FnOnce(
+        &mut LocalClient,
+        ObapRequestId,
+        Instant,
+        Option<BorrowedFd<'_>>,
+    ) -> Result<AgentReadRequest, Failure>,
     acquire: impl FnOnce(Instant, Option<BorrowedFd<'_>>) -> Result<LocalClient, AgentAdmissionError>,
 ) -> AgentAttempt {
     let mut client = match acquire(total, wake) {
@@ -2418,7 +2437,11 @@ fn agent_span(
         drop(client);
         return AgentAttempt::Expired;
     }
-    let result = client.submit_agent_read_before_cancellable(build(request_id), total, wake);
+    let request = match build(&mut client, request_id, total, wake) {
+        Ok(request) => request,
+        Err(failure) => return AgentAttempt::Target(failure),
+    };
+    let result = client.submit_agent_read_before_cancellable(request, total, wake);
     // The Client Session is fully dropped before the owner arbitrates.
     drop(client);
     if agent_settle(total, operation).is_err() {
@@ -2479,6 +2502,7 @@ fn classify_attempt(
         AgentAttempt::Admission(AgentAdmissionError::Connect(error)) => {
             Err(AgentQueryError::Admission(classify_connect(error)))
         }
+        AgentAttempt::Target(failure) => Err(AgentQueryError::Read(failure)),
         AgentAttempt::Expired => Err(AgentQueryError::Read(
             Failure::new(FailureKind::Timeout).details(agent_timeout_details(operation)),
         )),
@@ -2498,14 +2522,15 @@ pub(crate) fn agent_list(
     limit: u64,
     cursor: Option<orchbee_agent_observation_protocol::AgentListCursor>,
 ) -> Result<(serde_json::Value, Projection), AgentQueryError> {
-    let (request_id, attempt) = agent_armed_run(AgentReadOperation::List, |request_id| {
-        AgentReadRequest::List {
-            request_id,
-            include_ended,
-            limit: AgentSafeInteger::new(limit),
-            cursor,
-        }
-    })?;
+    let (request_id, attempt) =
+        agent_armed_run(AgentReadOperation::List, |_, request_id, _, _| {
+            Ok(AgentReadRequest::List {
+                request_id,
+                include_ended,
+                limit: AgentSafeInteger::new(limit),
+                cursor,
+            })
+        })?;
     let AgentReadResult::List { result, .. } = classify_attempt(attempt, AgentReadOperation::List)?
     else {
         return Err(AgentQueryError::Read(agent_protocol_invalid(
@@ -2539,43 +2564,47 @@ pub(crate) fn agent_list(
 /// `agent get`: one OBAP get request, same admission/exchange discipline.
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) fn agent_get(
-    session_id: &AgentSessionId,
+    target: &orchbee_agent_observation_protocol::AgentSessionSelector,
 ) -> Result<(serde_json::Value, Projection), AgentQueryError> {
-    agent_session_read(
-        AgentReadOperation::Get,
-        |request_id| AgentReadRequest::Get {
-            request_id,
-            session_id: session_id.clone(),
-        },
-        session_id,
-    )
+    agent_session_read(AgentReadOperation::Get, target)
 }
 
-/// `agent explain`: one OBAP explain request, same admission/exchange
-/// discipline.
+/// `agent explain`: resolve once and read on the same admitted session.
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) fn agent_explain(
-    session_id: &AgentSessionId,
+    target: &orchbee_agent_observation_protocol::AgentSessionSelector,
 ) -> Result<(serde_json::Value, Projection), AgentQueryError> {
-    agent_session_read(
-        AgentReadOperation::Explain,
-        |request_id| AgentReadRequest::Explain {
-            request_id,
-            session_id: session_id.clone(),
-        },
-        session_id,
-    )
+    agent_session_read(AgentReadOperation::Explain, target)
 }
 
-/// The shared single-session read behind `agent get` and `agent explain`.
+/// Admission, optional target resolution and the read share one deadline.
 #[cfg(any(target_os = "linux", windows))]
 fn agent_session_read(
     operation: AgentReadOperation,
-    request: impl FnOnce(ObapRequestId) -> AgentReadRequest,
-    session_id: &AgentSessionId,
+    target: &orchbee_agent_observation_protocol::AgentSessionSelector,
 ) -> Result<(serde_json::Value, Projection), AgentQueryError> {
-    let (request_id, attempt) = agent_armed_run(operation, request)?;
+    let mut resolved = None;
+    let (request_id, attempt) = agent_armed_run(operation, |client, request_id, total, wake| {
+        let session_id = agent_names::resolve_on_session(client, target, total, wake)?;
+        resolved = Some(session_id.clone());
+        match operation {
+            AgentReadOperation::Get => Ok(AgentReadRequest::Get {
+                request_id,
+                session_id,
+            }),
+            AgentReadOperation::Explain => Ok(AgentReadRequest::Explain {
+                request_id,
+                session_id,
+            }),
+            _ => Err(Failure::new(FailureKind::InternalFailure)),
+        }
+    })?;
     let result = classify_attempt(attempt, operation)?;
+    let Some(session_id) = resolved.as_ref() else {
+        return Err(AgentQueryError::Read(Failure::new(
+            FailureKind::InternalFailure,
+        )));
+    };
     let source = super::results::agent_source(&request_id);
     match (operation, result) {
         (
@@ -2878,7 +2907,7 @@ pub(crate) fn agent_list(
 
 #[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn agent_get(
-    _session_id: &orchbee_agent_observation_protocol::AgentSessionId,
+    _target: &orchbee_agent_observation_protocol::AgentSessionSelector,
 ) -> Result<(serde_json::Value, super::results::Projection), AgentQueryError> {
     Err(AgentQueryError::Admission(
         super::Failure::new(super::FailureKind::ServiceUnavailable).details(
@@ -2889,7 +2918,7 @@ pub(crate) fn agent_get(
 
 #[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn agent_explain(
-    _session_id: &orchbee_agent_observation_protocol::AgentSessionId,
+    _target: &orchbee_agent_observation_protocol::AgentSessionSelector,
 ) -> Result<(serde_json::Value, super::results::Projection), AgentQueryError> {
     Err(AgentQueryError::Admission(
         super::Failure::new(super::FailureKind::ServiceUnavailable).details(
@@ -2900,7 +2929,7 @@ pub(crate) fn agent_explain(
 
 #[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn agent_wait(
-    _session_id: &orchbee_agent_observation_protocol::AgentSessionId,
+    _target: &orchbee_agent_observation_protocol::AgentSessionSelector,
     _until: &[crate::invocation::AgentWaitCondition],
     _after_revision: Option<orchbee_agent_observation_protocol::AgentSafeInteger>,
     _timeout_ms: u32,

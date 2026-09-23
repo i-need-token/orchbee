@@ -248,10 +248,21 @@ const REPEATABLE_FLAGS: &[&str] = &[
 /// that command admits. Commands not listed here admit none.
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("agent:list", &["--include-ended", "--limit", "--cursor"]),
+    ("agent:get", &["--session", "--name"]),
+    ("agent:explain", &["--session", "--name"]),
     ("agent:resolve", &["--session", "--name"]),
     ("agent:rename", &["--session", "--name", "--clear"]),
     ("agent:doctor", &["--provider", "--asset-root"]),
-    ("agent:wait", &["--until", "--after-revision", "--timeout"]),
+    (
+        "agent:wait",
+        &[
+            "--session",
+            "--name",
+            "--until",
+            "--after-revision",
+            "--timeout",
+        ],
+    ),
     ("agent:integration:list", INTEGRATION_COMMAND_FLAGS),
     ("agent:integration:explain", INTEGRATION_COMMAND_FLAGS),
     ("agent:integration:enable", INTEGRATION_COMMAND_FLAGS),

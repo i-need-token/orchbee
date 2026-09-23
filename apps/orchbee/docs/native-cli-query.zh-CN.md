@@ -1,20 +1,15 @@
 # 原生 CLI 查询
 
-状态：原生 `orchbee` 命令行面已接受的实现与正确性契约，覆盖只读查询批与首个有界
-Workbench mutation 批。查询命令是对已在运行的本地 Site 的只读观察；mutation 命令各自在
-[Mutations](#mutations) 安全契约下至多提交一次 effectful `workbench.command`。本面绝不创建、
-修复、锁定或激活 Site；查询不创建终端、viewer 或控制授权——唯一例外是 `terminal read`，
-它对已绑定终端持有一个短暂的只读 viewer attachment 并在输出前释放。`agent` 族通过
-Agent Observation Protocol（OBAP）读取 Server 的 canonical Agent session——类型化的
-只读视图，绝不从终端内容推断。`agent integration` 命令是例外：它们是纯本地的
-provider 接入——对调用用户的 provider 配置做有界读取与受管修改，绝不建 socket 连接、
-激活 Site 或发出 OBAP 请求。任何命令都不猜测 Worker、进程或 PTY 状态，也不要求 TTY。
-这是未发布的本地开发面；`apps/cli` 仍是
-已交付的 TypeScript CLI 权威；安装、发布、远端连接与 Site 生命周期操作不在范围内。
+状态：原生 `orchbee` 命令行的当前实现与正确性契约，覆盖查询、Workbench 修改、
+终端观察与输入、Agent 名称及本地 provider 接入。查询观察已有 Site；Workbench 修改
+遵循下文 mutation 契约。只有显式的 `site start` 和 TUI 启动路径可以激活 Site。
+Agent 状态来自 Server 的 canonical Agent 模型，不从终端文字推断；名称由 Server
+管理，`agent integration` 只管理调用用户的本地 provider 配置。每个命令的效果、
+预算和资源释放边界见相应章节。命令无需 TTY；交互式 TUI 有独立的终端准入要求。
+原生 CLI 仍为未打包的开发面，Desktop 的 `apps/cli` 是另一交付入口。
 
-归属：本记录拥有 `src/invocation.rs` 与 `src/cli/**` 实现的公共语法、结果 envelope、失败矩阵、
-预算、单请求只读状态机、单命令 mutation 状态机与输出副作用。它落实已接受的 CLI-Q 设计与两轮
-挑战裁决；文字与代码不一致时，行为是要修的缺陷，不是要保留的分叉。
+归属：本记录拥有 `src/invocation.rs` 与 `src/cli/**` 实现的公共语法、结果信封、失败矩阵、
+预算、交换状态机与输出副作用。文字与实现必须在同一变更中收敛。
 
 ## Agent 会话名称
 
@@ -37,9 +32,14 @@ provider 接入——对调用用户的 provider 配置做有界读取与受管�
 绝不重放。已知在提交前取消返回 130。不引入别名缓存、不调用 provider、不创建 Site，
 也不修改 canonical 会话文档。
 
-`get`、`explain` 和 `wait` 仍接受完整会话 ID。直接目标支持完成前，可先解析名称并传入
-得到的 ID；后续重命名不会改变已固定的 ID。Windows 进程证据覆盖真实命名管道接纳、
-四种 wire 操作、schema 合规结果、丢失或不匹配的修改回复，以及效果前解析。
+`get`、`explain` 和 `wait` 接受相同的位置目标或显式 `--session`/`--name` 选择器。
+精确的保留会话 ID 优先于名称；显式 ID 与不可能是名称的 token 直接读取。其余目标在
+同一个已接纳的 Client Session 上先发 Resolve。解析与读取共享原来的截止和信号所有者，
+不二次接纳或续期。wait 的首次解析受 `min(remaining_ms, 5000)` 约束，固定解析结果后再轮询；
+释放、重命名或复用别名不会改变等待目标。成功结果只使用实际读取的 `agent-read` source；
+解析拒绝使用自身的 `agent-names` source 与失败 schema，绝不伪造未执行读取的来源。
+Windows 进程证据覆盖真实管道接纳、名称解析后读取、固定目标轮询、共享五秒截止、
+显式 ID 直读、schema 合规失败、丢失或不匹配的修改回复，以及效果前解析。
 
 ## 输入与信任边界
 
@@ -259,8 +259,8 @@ orchbee launch-profile list | launch-profile get <selector>
 orchbee launch-profile create --name <name> --exec <path> [--arg <value>]...
 orchbee launch-profile delete <selector>
 orchbee agent list [--include-ended] [--limit <1-100>] [--cursor <v1.…>]
-orchbee agent get <session-id> | agent explain <session-id>
-orchbee agent wait <session-id> [--until <condition>]... [--after-revision <0-9007199254740991>] [--timeout <1-3600000>]
+orchbee agent get <target> | agent explain <target>
+orchbee agent wait <target> [--until <condition>]... [--after-revision <0-9007199254740991>] [--timeout <1-3600000>]
 orchbee agent doctor [--provider <id>]... [--asset-root <path>]...
 orchbee agent integration list [--provider <id>]
 orchbee agent integration explain --provider <id>
@@ -322,9 +322,9 @@ selector 语法。其他 token 在 resource 允许 label 时视为精确、区�
 操作数与 `--target-panel` 同样遵守（`panel` 规则，并在被移动 panel 自身所在
 tab 内解析）。`api schema` 接受非空
 schema ID；空串是 `invalid-identifier`（`resource="schema"`），无匹配是 `not-found`。
-`agent get`、`agent explain` 与 `agent wait` 接受 Agent session 身份：取自 `[A-Za-z0-9._:-]` 的
-1–128 字符不透明 token——绝不做 id/label 拆分；畸形 token 在任何运行时访问之前
-即 `invalid-usage`。
+`agent get`、`agent explain` 与 `agent wait` 的位置目标是 `[A-Za-z0-9._:-]` 的
+1–128 字符 token；按上述 ID 优先规则解析，或用 `--session`/`--name` 明确选择。
+畸形 token 在任何运行时访问前即 `invalid-usage`。
 `launch-profile get` 与 `launch-profile delete` 接受一个位置 `<selector>`，
 `--profile` 携带同一 token：`LaunchProfileSelector`——非空 UTF-8 字面量、至多 512
 字节（即名称上限，使每个受理的 selector 都能触达任一规则）。空或超长 token 为
@@ -646,10 +646,10 @@ inputSource:"file"|"stdin"}`，仅超时另带 `timeoutMs`（配置的共享预�
 
 `agent list`、`agent get` 与 `agent explain` 沿用与每个网络查询相同的
 cohort → discovery → socket → admission 前导，但共享一个在调用入口采样一次的绝对
-5 秒命令预算：前导、准入与单次 OBAP 交换共用同一个 ceiling，阶段之间绝不刷新——
+5 秒命令预算：前导、准入、可选名称解析与 OBAP 读取共用同一个 ceiling，阶段之间绝不刷新——
 预算耗尽的后续阶段不会启动，在 ceiling 上或其后完成的步骤结算为命令自身的
 timeout。它们完全跳过 Workbench 快照读取。它们在唯一已准入的 Client Session 上
-执行恰好一次 Agent Observation Protocol（OBAP）请求/结果交换：
+必要时先完成上述名称解析，再执行一次 Agent Observation Protocol（OBAP）读取交换：
 
 1. **请求**——一个 OBAP 帧（`OBAP` magic，version 1），使用全新铸造的
    `ObapRequestId`：`agent.session.list.request`（kind 1）携带 `includeEnded`、
@@ -1410,7 +1410,7 @@ deadline 到期在 wire 请求尚不存在时即退出。
   合格信号在输出最终化路径之后仍被阻塞。
 - 每次调用至多一次快照读取、一次准入，且读取与命令共用一个网络 deadline；`terminal read`
   的 viewer 交换与 `terminal send` 的唯一 send 复用同一 session 与同一 deadline——绝无
-  第二次准入或续期预算。Agent 读取对其唯一一次 OBAP 交换遵循同一纪律：一个请求、
+  第二次准入或续期预算。Agent 读取的可选名称解析及读取交换遵循同一纪律：每次请求均用
   全新 `ObapRequestId`、一个相关联结果，任何不可判定结果即 retire session 且绝不
   重放——且完全不取 Workbench 快照。
 - Agent 观察绝不虚构：结果是逐字的 wire outcome，`found` 的 `explanation` 是 Server

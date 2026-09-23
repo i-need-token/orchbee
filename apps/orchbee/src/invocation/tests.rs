@@ -4825,7 +4825,9 @@ const AGENT_CURSOR: &str = "v1.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVW
 /// and the opaque session identity operand.
 #[test]
 fn agent_read_grammar() {
-    use orchbee_agent_observation_protocol::{AgentListCursor, AgentSessionId};
+    use orchbee_agent_observation_protocol::{
+        AgentListCursor, AgentSessionId, AgentSessionSelector,
+    };
     let session = || AgentSessionId::parse("sess-alpha").expect("valid session id");
     let cursor = || AgentListCursor::parse(AGENT_CURSOR).expect("valid cursor");
 
@@ -4879,12 +4881,15 @@ fn agent_read_grammar() {
     // Session identity operands: opaque strings, never labels or typed ids.
     assert_eq!(
         parse(&["agent", "get", "sess-alpha"]),
-        Ok(query(QueryCommand::AgentGet(session()), OutputFormat::Text))
+        Ok(query(
+            QueryCommand::AgentGet(AgentSessionSelector::Auto { target: session() }),
+            OutputFormat::Text
+        ))
     );
     assert_eq!(
         parse(&["agent", "explain", "sess-alpha"]),
         Ok(query(
-            QueryCommand::AgentExplain(session()),
+            QueryCommand::AgentExplain(AgentSessionSelector::Auto { target: session() }),
             OutputFormat::Text
         ))
     );
@@ -4892,7 +4897,9 @@ fn agent_read_grammar() {
     assert_eq!(
         parse(&["agent", "get", ID]),
         Ok(query(
-            QueryCommand::AgentGet(AgentSessionId::parse(ID).expect("hex session id")),
+            QueryCommand::AgentGet(AgentSessionSelector::Auto {
+                target: AgentSessionId::parse(ID).expect("hex session id")
+            }),
             OutputFormat::Text
         ))
     );
@@ -4945,7 +4952,7 @@ fn agent_read_usage_failures() {
         usage_reason(&["agent", "get"]),
         UsageReason::MissingRequired {
             context: path("agent get"),
-            requirement: "<session>",
+            requirement: "<target> or --session <id> or --name <alias>",
         }
     );
     assert_eq!(
@@ -5053,7 +5060,7 @@ fn agent_read_usage_failures() {
 /// order, the safe-integer revision fence, and the 600000 ms default.
 #[test]
 fn agent_wait_grammar() {
-    use orchbee_agent_observation_protocol::AgentSessionId;
+    use orchbee_agent_observation_protocol::{AgentSessionId, AgentSessionSelector};
     let session = || AgentSessionId::parse("sess-alpha").expect("valid session id");
     let defaults = crate::invocation::DEFAULT_AGENT_WAIT_CONDITIONS.to_vec();
 
@@ -5063,7 +5070,7 @@ fn agent_wait_grammar() {
         parse(&["agent", "wait", "sess-alpha"]),
         Ok(query(
             QueryCommand::AgentWait {
-                session: session(),
+                session: AgentSessionSelector::Auto { target: session() },
                 until: defaults.clone(),
                 after_revision: None,
                 timeout_ms: 600_000,
@@ -5091,7 +5098,7 @@ fn agent_wait_grammar() {
         ]),
         Ok(query(
             QueryCommand::AgentWait {
-                session: session(),
+                session: AgentSessionSelector::Auto { target: session() },
                 until: vec![
                     crate::invocation::AgentWaitCondition::Stale,
                     crate::invocation::AgentWaitCondition::Failed,
@@ -5140,7 +5147,7 @@ fn agent_wait_grammar() {
         assert_eq!(
             command,
             QueryCommand::AgentWait {
-                session: session(),
+                session: AgentSessionSelector::Auto { target: session() },
                 until: vec![condition],
                 after_revision: None,
                 timeout_ms: 600_000,
@@ -5154,7 +5161,7 @@ fn agent_wait_grammar() {
             parse(&["agent", "wait", "sess-alpha", "--after-revision", value]),
             Ok(query(
                 QueryCommand::AgentWait {
-                    session: session(),
+                    session: AgentSessionSelector::Auto { target: session() },
                     until: defaults.clone(),
                     after_revision: Some(
                         orchbee_agent_observation_protocol::AgentSafeInteger::new(
@@ -5173,7 +5180,7 @@ fn agent_wait_grammar() {
             parse(&["agent", "wait", "sess-alpha", "--timeout", value]),
             Ok(query(
                 QueryCommand::AgentWait {
-                    session: session(),
+                    session: AgentSessionSelector::Auto { target: session() },
                     until: defaults.clone(),
                     after_revision: None,
                     timeout_ms: value.parse().expect("bound literal"),
@@ -5207,7 +5214,7 @@ fn agent_wait_usage_failures() {
         usage_reason(&["agent", "wait"]),
         UsageReason::MissingRequired {
             context: path("agent wait"),
-            requirement: "<session>",
+            requirement: "<target> or --session <id> or --name <alias>",
         }
     );
     assert_eq!(
@@ -6471,5 +6478,55 @@ fn doctor_test_root(posix: &str) -> String {
         format!("C:{posix}")
     } else {
         posix.to_owned()
+    }
+}
+
+#[test]
+fn agent_read_targets_accept_exactly_one_auto_session_or_name_selector() {
+    use orchbee_agent_observation_protocol::{AgentName, AgentSessionId, AgentSessionSelector};
+    for verb in ["get", "explain", "wait"] {
+        for (args, expected) in [
+            (
+                vec!["alpha"],
+                AgentSessionSelector::Auto {
+                    target: AgentSessionId::parse("alpha").unwrap(),
+                },
+            ),
+            (
+                vec!["--session", "alpha"],
+                AgentSessionSelector::Session {
+                    session_id: AgentSessionId::parse("alpha").unwrap(),
+                },
+            ),
+            (
+                vec!["--name=alpha"],
+                AgentSessionSelector::Name {
+                    name: AgentName::parse("alpha").unwrap(),
+                },
+            ),
+        ] {
+            let parsed = parse(&[vec!["agent", verb], args].concat()).unwrap();
+            let Request::Query { command, .. } = parsed else {
+                panic!("query");
+            };
+            let target = match command {
+                QueryCommand::AgentGet(target)
+                | QueryCommand::AgentExplain(target)
+                | QueryCommand::AgentWait {
+                    session: target, ..
+                } => target,
+                _ => panic!("target query"),
+            };
+            assert_eq!(target, expected);
+        }
+        for args in [
+            vec!["alpha", "--name", "beta"],
+            vec!["--name", "alpha", "--session", "beta"],
+            vec!["--name", "Upper"],
+            vec!["--session", "bad id"],
+            vec!["--name", "alpha", "extra"],
+        ] {
+            assert!(parse(&[vec!["agent", verb], args].concat()).is_err());
+        }
     }
 }

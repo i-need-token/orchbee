@@ -620,11 +620,12 @@ fn agent_output(
         Err(query::AgentQueryError::Admission(failure)) => {
             failure_output(failure, Some(format), locale)
         }
-        Err(query::AgentQueryError::Read(failure)) => failure_output(
-            failure.failure_schema(schema::AGENT_FAILURE_ID),
-            Some(format),
-            locale,
-        ),
+        Err(query::AgentQueryError::Read(mut failure)) => {
+            if failure.failure_schema.is_none() {
+                failure = failure.failure_schema(schema::AGENT_FAILURE_ID);
+            }
+            failure_output(failure, Some(format), locale)
+        }
         // Only the Linux signal owner constructs `Cancelled`.
         #[cfg(any(target_os = "linux", windows))]
         Err(query::AgentQueryError::Cancelled(cancelled)) => {

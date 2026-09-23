@@ -1,26 +1,19 @@
 # Native CLI Query
 
-Status: accepted implementation and correctness contract for the native `orchbee`
-command-line surface: the read-only query cohort plus the first bounded Workbench mutation
-cohort. Query commands are read-only observations of an already running local Site; mutation
-commands each submit at most one effectful `workbench.command` under the safety contract in
-[Mutations](#mutations). The surface never creates, repairs, locks, or activates a Site;
-queries never create terminals, viewers, or control grants — the single exception is
-`terminal read`, which holds one short-lived read-only viewer attachment against an already
-bound terminal and releases it before output. The `agent` family reads the Server's canonical
-Agent sessions through the Agent Observation Protocol (OBAP) — a typed read-only view, never
-inferred from terminal contents. The `agent integration` commands are the exception: they are
-purely local provider onboarding — bounded reads and managed mutations of the invoking user's
-provider configuration, never a socket connect, Site activation, or OBAP request. Nothing
-guesses Worker, process, or PTY state; and no command requires a TTY. This is an unpublished local development surface;
-`apps/cli` remains the delivered TypeScript CLI authority, and installation, distribution,
-remote connections, and Site lifecycle operations stay out of scope.
+Status: current implementation and correctness contract for the native `orchbee`
+command line, covering queries, Workbench mutations, terminal observation and input,
+Agent names, and local provider onboarding. Queries observe an existing Site; Workbench
+mutations follow the mutation contract below. Only explicit `site start` and the TUI
+startup path may activate a Site. Agent state comes from the Server's canonical model,
+never terminal-text inference; the Server owns names, while `agent integration` manages
+only the invoking user's local provider configuration. Each command's effects, budgets,
+and release boundaries are specified in its section. CLI commands need no TTY; the
+interactive TUI has separate terminal admission requirements. The native CLI remains
+an unpackaged development surface; Desktop's `apps/cli` is a separate delivery entry.
 
-Authority: this record owns the public grammar, result envelopes, failure matrix, budgets,
-single-request read-only state machine, single-command mutation state machine, and output
-side effects implemented under `src/invocation.rs` and `src/cli/**`. It implements the
-accepted CLI-Q design and both challenge dispositions; where prose and code disagree, the
-behavior is a bug to fix, not a fork to keep.
+Authority: this record owns the public grammar, result envelopes, failure matrix,
+budgets, exchange state machines and output effects implemented under `src/invocation.rs`
+and `src/cli/**`. Prose and implementation must converge in the same change.
 
 ## Agent session names
 
@@ -49,10 +42,18 @@ a trustworthy matching reply returns outcome-unknown (exit 8), including cancell
 and is never replayed. A known pre-submission cancellation is exit 130. No alias
 cache, provider process, new Site, or canonical-session mutation is involved.
 
-`get`, `explain`, and `wait` still take a full session ID. Resolve a name once and pass
-that ID until direct target support lands; a later rename cannot change a pinned ID.
-Windows process evidence covers real named-pipe admission, the four wire operations,
-schema-valid results, lost/mismatched mutation replies, and parse-before-effect.
+`get`, `explain`, and `wait` accept the same positional target or explicit
+`--session`/`--name` selector. Exact retained IDs take precedence over names; explicit
+IDs and tokens that cannot be names go directly to the read. Other targets first send
+Resolve on the same admitted Client Session. Resolution and reads share the original
+deadline and signal owner, without a second admission or renewed budget. A wait bounds
+initial resolution by `min(remaining_ms, 5000)` and pins the resolved ID before
+polling; releasing, renaming or reusing an alias never retargets it. Success publishes
+only the actual read's `agent-read` source. Resolution refusals use their own
+`agent-names` source and failure schema, never the identity of an unexecuted read.
+Windows process evidence covers real pipe admission, resolved reads, pinned polling,
+the shared five-second deadline, explicit-ID reads, schema-valid failures,
+lost/mismatched mutation replies and parse-before-effect.
 
 ## Inputs and trust boundary
 
@@ -311,8 +312,8 @@ orchbee launch-profile list | launch-profile get <selector>
 orchbee launch-profile create --name <name> --exec <path> [--arg <value>]...
 orchbee launch-profile delete <selector>
 orchbee agent list [--include-ended] [--limit <1-100>] [--cursor <v1.…>]
-orchbee agent get <session-id> | agent explain <session-id>
-orchbee agent wait <session-id> [--until <condition>]... [--after-revision <0-9007199254740991>] [--timeout <1-3600000>]
+orchbee agent get <target> | agent explain <target>
+orchbee agent wait <target> [--until <condition>]... [--after-revision <0-9007199254740991>] [--timeout <1-3600000>]
 orchbee agent doctor [--provider <id>]... [--asset-root <path>]...
 orchbee agent integration list [--provider <id>]
 orchbee agent integration explain --provider <id>
@@ -384,9 +385,9 @@ complete typed IDs and their own `@panel:`/`@terminal:` selectors only; anything
 target rules, and so do every mutation operand and `--target-panel` (the `panel` rule, resolved
 inside the moved panel's own tab). `api schema` takes a nonempty schema ID; an empty one is
 `invalid-identifier` with `resource="schema"`, an unmatched one is `not-found`.
-`agent get`, `agent explain`, and `agent wait` take an Agent session identity: an opaque token of 1–128
-characters drawn from `[A-Za-z0-9._:-]` — never an id/label split, and a malformed token
-is `invalid-usage` before any runtime access.
+`agent get`, `agent explain`, and `agent wait` take one positional token of 1–128
+characters drawn from `[A-Za-z0-9._:-]`, resolved by the ID-first rules above, or an
+explicit `--session`/`--name` selector. Malformed tokens are `invalid-usage` before runtime access.
 `launch-profile get` and `launch-profile delete` take one positional `<selector>`, and
 `--profile` carries the same token: a `LaunchProfileSelector` — a nonempty UTF-8 literal
 of at most 512 bytes (the name bound, so every admitted selector can reach either rule).
@@ -784,12 +785,12 @@ one paste record and, with `--enter`, a separate trailing Enter record.
 
 `agent list`, `agent get`, and `agent explain` run the same cohort → discovery → socket →
 admission preamble as every network query under one absolute 5-second command budget
-sampled once at invocation entry: the preamble, the admission, and the single OBAP
-exchange all share that ceiling, which is never refreshed between stages — a stage with
+sampled once at invocation entry: the preamble, admission, optional name resolution
+and OBAP read all share that ceiling, which is never refreshed between stages — a stage with
 no budget left never starts, and a step completing at or past the ceiling settles as the
 command's own timeout. They skip the Workbench snapshot read entirely. On the single
-admitted Client Session they perform exactly one Agent Observation Protocol (OBAP)
-request/result exchange:
+admitted Client Session they resolve the target when necessary as described above,
+then perform one Agent Observation Protocol (OBAP) read exchange:
 
 1. **Request** — one OBAP frame (`OBAP` magic, version 1) under a freshly minted
    `ObapRequestId`: `agent.session.list.request` (kind 1) carrying `includeEnded`,
@@ -832,8 +833,7 @@ document: `listed`/`found` are the only success outcomes; `rejected{read-denied}
 `rejected{cursor-invalid|cursor-stale}` → `rejected` (list only); `unavailable` →
 `service-unavailable` with `reason:"runtime-unavailable"`. A deadline elapsed inside the
 exchange is `timeout` with `timeoutMs:5000`; a transport fault is `transport-loss`; a
-malformed, mismatched, or miscorrelated frame is `protocol-invalid`. All post-admission
-failures carry `{stage:"agent-read",operation:"list"|"get"|"explain"}` (`"wait"` on the wait command's arms); the correlated
+malformed, mismatched, or miscorrelated frame is `protocol-invalid`. Failures from these read exchanges carry `{stage:"agent-read",operation:"list"|"get"|"explain"}` (`"wait"` on the wait command's arms); the correlated
 `agent-read` source is attached only to trustworthy semantic answers — transport,
 timeout, protocol-invalid, and cancelled failures carry none. Agent reads observe the Server's
 canonical Agent sessions only; an `ended` session is reported, never resurrected, and
@@ -1661,8 +1661,8 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 - There is at most one snapshot read per invocation, one admission per invocation, and one
   network deadline covering read and command; `terminal read`'s viewer exchanges and
   `terminal send`'s single send ride on that same session and deadline — never a second
-  admission or a renewed budget. Agent reads follow the same discipline for their one OBAP
-  exchange: one request under a fresh `ObapRequestId`, one correlated result, the session
+  admission or a renewed budget. Agent target resolution and reads follow the same
+  discipline: each exchange has a fresh `ObapRequestId` and one correlated result, the session
   retired on any ambiguous outcome and never replayed — and no Workbench snapshot is
   taken at all.
 - Agent observation never fabricates: results are the wire outcome verbatim, a `found`

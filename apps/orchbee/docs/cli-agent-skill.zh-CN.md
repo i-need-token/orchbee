@@ -1,6 +1,6 @@
 # Orchbee 原生 CLI Agent 指引
 
-用 `agent rename <session-id> <name>` 设置唯一运行时别名，`agent names` 列出绑定。`agent resolve <name>` 返回供 get/explain/wait 使用的完整会话 ID。名称与会话 ID 冲突时，`--name <alias>` 明确选择别名，`--session <id>` 明确选择 ID。`agent rename <target> --clear` 只释放名称。会话结束或 Site dispose 后名称消失。重命名回复丢失是结果未知，禁止盲目重放。
+用 `agent rename <session-id> <name>` 设置唯一运行时别名，`agent names` 列出绑定。`agent get <name>`、`agent explain <name>` 与 `agent wait <name>` 可直接解析名称；等待固定原会话，不因后续名称复用而改变目标。`agent resolve <name>` 也可显式取得完整 ID。名称与会话 ID 冲突时，`--name <alias>` 明确选择别名，`--session <id>` 明确选择 ID。`agent rename <target> --clear` 只释放名称。会话结束或 Site dispose 后名称消失。重命名回复丢失是结果未知，禁止盲目重放。
 
 ## 发现当前构建
 

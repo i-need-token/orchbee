@@ -49,7 +49,7 @@ const WAIT_POLL_MAXIMUM: Duration = Duration::from_millis(500);
 /// admission, all Gets, and all backoff. The decisive Get's request
 /// identity is the emitted document's only honest source.
 pub(crate) fn agent_wait(
-    session_id: &AgentSessionId,
+    target: &orchbee_agent_observation_protocol::AgentSessionSelector,
     until: &[AgentWaitCondition],
     after_revision: Option<AgentSafeInteger>,
     timeout_ms: u32,
@@ -63,7 +63,7 @@ pub(crate) fn agent_wait(
         total,
         start,
         AGENT_TOTAL_BUDGET,
-        session_id,
+        target,
         until,
         after_revision,
         timeout_ms,
@@ -85,7 +85,7 @@ fn agent_wait_finish(
     total: Instant,
     start: Instant,
     read_budget: Duration,
-    session_id: &AgentSessionId,
+    target: &orchbee_agent_observation_protocol::AgentSessionSelector,
     until: &[AgentWaitCondition],
     after_revision: Option<AgentSafeInteger>,
     timeout_ms: u32,
@@ -98,7 +98,7 @@ fn agent_wait_finish(
             total,
             start,
             read_budget,
-            session_id,
+            target,
             until,
             after_revision,
             timeout_ms,
@@ -178,7 +178,7 @@ fn agent_wait_span(
     total: Instant,
     start: Instant,
     read_budget: Duration,
-    session_id: &AgentSessionId,
+    target: &orchbee_agent_observation_protocol::AgentSessionSelector,
     until: &[AgentWaitCondition],
     after_revision: Option<AgentSafeInteger>,
     timeout_ms: u32,
@@ -189,6 +189,16 @@ fn agent_wait_span(
         Err(error) => return WaitAttempt::Admission(error),
         Ok(client) => client,
     };
+    let resolve_deadline = match bounded_deadline(Instant::now(), read_budget, total) {
+        Ok(deadline) => deadline,
+        Err(failure) => return WaitAttempt::Done(Err(failure)),
+    };
+    let session_id =
+        match super::agent_names::resolve_on_session(&mut client, target, resolve_deadline, wake) {
+            Ok(session_id) => session_id,
+            Err(failure) => return WaitAttempt::Done(Err(failure)),
+        };
+    let session_id = &session_id;
     let mut observations: u64 = 0;
     let mut last: Option<WaitObservation> = None;
     let mut backoff = WAIT_POLL_INITIAL;

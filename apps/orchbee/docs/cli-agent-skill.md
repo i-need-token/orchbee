@@ -1,6 +1,6 @@
 # Orchbee native CLI Agent guide
 
-Use `agent rename <session-id> <name>` for a unique runtime alias and `agent names` to list bindings. `agent resolve <name>` returns the full session ID for get/explain/wait. `--name <alias>` explicitly selects an alias when it collides with a session ID; `--session <id>` explicitly selects the ID. `agent rename <target> --clear` releases only the name. Names disappear on session end or Site disposal. A lost rename reply is outcome-unknown; never replay it blindly.
+Use `agent rename <session-id> <name>` for a unique runtime alias and `agent names` to list bindings. `agent get <name>`, `agent explain <name>` and `agent wait <name>` resolve directly; a wait pins the original session despite later name reuse. `agent resolve <name>` also exposes the full ID. `--name <alias>` explicitly selects an alias when it collides with a session ID; `--session <id>` explicitly selects the ID. `agent rename <target> --clear` releases only the name. Names disappear on session end or Site disposal. A lost rename reply is outcome-unknown; never replay it blindly.
 
 ## Discover this build
 

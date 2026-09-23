@@ -88,7 +88,7 @@ fn render(result: &AgentNamesResult, format: OutputFormat, locale: Locale) -> Ou
     }
 }
 
-fn rejection(
+pub(super) fn rejection(
     reason: Value,
     conflict: Option<&orchbee_agent_observation_protocol::AgentSessionId>,
 ) -> Failure {

@@ -13,7 +13,8 @@ English remains canonical.
 
 Use `agent rename <session-id> <name>` to assign a runtime name, `agent names` to list names,
 and `agent resolve <name>` to obtain the full session ID. `agent rename <target> --clear`
-releases a name. Names are unique and disappear when the session ends or the Site stops.
+releases a name. `agent get/explain/wait <name>` resolve directly; a wait pins its session
+even if the name is reused. Names are unique and disappear when the session ends or the Site stops.
 
 ## Command surface
 

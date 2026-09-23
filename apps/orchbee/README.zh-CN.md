@@ -11,6 +11,7 @@
 
 用 `agent rename <session-id> <name>` 设置运行时名称，`agent names` 列出名称，
 `agent resolve <name>` 获取完整会话 ID。`agent rename <target> --clear` 释放名称。
+`agent get/explain/wait <name>` 可直接解析名称；等待固定原会话，不因名称复用而改变目标。
 名称唯一，在会话结束或 Site 停止后消失。
 
 ## 命令面

@@ -84,6 +84,19 @@ fn real_powershell_completes_scoped_grammar_without_runtime() {
         ),
         ("orchbee tab move tab-1 --direction ", "left", false),
         ("orchbee tab move tab-1 --direction ", "next", true),
+        ("orchbee agent get --n", "--name", true),
+        (
+            "orchbee agent explain --session sess-1 --n",
+            "--name",
+            false,
+        ),
+        ("orchbee agent wait --name alpha --u", "--until", true),
+        ("orchbee agent wait alpha --s", "--session", false),
+        (
+            "orchbee agent get --name alpha extra --f",
+            "--format",
+            false,
+        ),
         ("orchbee --format json agent ", "list", true),
         ("orchbee --format json ", "tui", false),
         (

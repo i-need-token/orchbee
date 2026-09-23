@@ -29,8 +29,7 @@
 两个家族均已接通：原生 Agent 读取与 `agent names/resolve/rename` 通过 Server 的
 `application_session` 解复用和 `AgentService` 执行。已发布 schema 覆盖 kind 1–14。
 名称是由 Server 状态单元持有的运行时别名；协议只拥有有界 DTO 与校验。
-get/explain/wait 直接接受名称仍不在当前 CLI 语法中；见
-[`proposals/agent/session-names.md`](../../proposals/agent/session-names.zh-CN.md)。
+get/explain/wait 先在同一已接纳会话上解析名称，再按固定会话 ID 读取或轮询。CLI 拥有组合与预算。
 
 名称列表最多 512 个 live 绑定，按唯一名称排序，且会话身份不重复。
 name-in-use 拒绝必须标明占用者；其他赋名拒绝携带 null。结果 kind 8/12/14

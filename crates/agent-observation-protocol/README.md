@@ -32,9 +32,7 @@ the opaque list page-cursor wire shape. Its actual consumers are the native `orc
 Both families are live: native Agent reads and `agent names/resolve/rename` use the
 Server's `application_session` demux and `AgentService`. The published schema covers
 kinds 1–14. Names are runtime-scoped aliases owned by the Server cell; the protocol
-owns only their bounded DTOs and validation. Direct names in get/explain/wait remain
-outside the current CLI grammar; see
-[`proposals/agent/session-names.md`](../../proposals/agent/session-names.md).
+owns only their bounded DTOs and validation. Get/explain/wait resolve names on the same admitted session, then read or poll the pinned session ID. The CLI owns composition and budgets.
 
 Names lists contain at most 512 live bindings, sorted by unique name, with unique
 session identities. A name-in-use rejection must identify its incumbent; other

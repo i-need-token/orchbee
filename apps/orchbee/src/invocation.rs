@@ -347,13 +347,13 @@ pub(crate) enum QueryCommand {
         limit: u64,
         cursor: Option<AgentListCursor>,
     },
-    AgentGet(AgentSessionId),
-    AgentExplain(AgentSessionId),
+    AgentGet(AgentSessionSelector),
+    AgentExplain(AgentSessionSelector),
     /// `agent wait`: one held Client Session polls the canonical session
     /// document until a requested condition matches, the fence refuses, or
     /// the shared absolute deadline lands.
     AgentWait {
-        session: AgentSessionId,
+        session: AgentSessionSelector,
         /// The effective condition list — `DEFAULT_AGENT_WAIT_CONDITIONS`
         /// verbatim when `--until` is absent. Requested order is preserved
         /// for matching and the emitted echo.
@@ -1822,39 +1822,29 @@ fn resolve_words(
                 options,
             ))
         }
-        ["agent", "get", value] => {
-            reject_filters(options, UsageContext::Path("agent get"), envelope)?;
+        ["agent", verb @ ("get" | "explain"), rest @ ..] => {
+            let context = UsageContext::Path(if *verb == "get" {
+                "agent get"
+            } else {
+                "agent explain"
+            });
+            check_scope(options, AGENT_TARGET_SCOPE, context, envelope)?;
+            let target = agent_selector(rest, options, context, envelope)?;
             Ok(query(
-                QueryCommand::AgentGet(agent_session_id(
-                    value,
-                    UsageContext::Path("agent get"),
-                    envelope,
-                )?),
+                if *verb == "get" {
+                    QueryCommand::AgentGet(target)
+                } else {
+                    QueryCommand::AgentExplain(target)
+                },
                 options,
             ))
         }
-        ["agent", "explain", value] => {
-            reject_filters(options, UsageContext::Path("agent explain"), envelope)?;
-            Ok(query(
-                QueryCommand::AgentExplain(agent_session_id(
-                    value,
-                    UsageContext::Path("agent explain"),
-                    envelope,
-                )?),
-                options,
-            ))
-        }
-        ["agent", "wait", value] => {
-            check_scope(
-                options,
-                AGENT_WAIT_SCOPE,
-                UsageContext::Path("agent wait"),
-                envelope,
-            )?;
+        ["agent", "wait", rest @ ..] => {
             let context = UsageContext::Path("agent wait");
+            check_scope(options, AGENT_WAIT_SCOPE, context, envelope)?;
             Ok(query(
                 QueryCommand::AgentWait {
-                    session: agent_session_id(value, context, envelope)?,
+                    session: agent_selector(rest, options, context, envelope)?,
                     until: agent_until_option(options, context, envelope)?,
                     after_revision: agent_after_revision_option(options, context, envelope)?,
                     timeout_ms: agent_wait_timeout_option(options, context, envelope)?,
@@ -2625,36 +2615,6 @@ fn resolve_words(
             extra,
             envelope,
         )),
-        ["agent", "get"] => Err(missing_required(
-            UsageContext::Path("agent get"),
-            "<session>",
-            envelope,
-        )),
-        ["agent", "get", _, extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("agent get"),
-            extra,
-            envelope,
-        )),
-        ["agent", "explain"] => Err(missing_required(
-            UsageContext::Path("agent explain"),
-            "<session>",
-            envelope,
-        )),
-        ["agent", "explain", _, extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("agent explain"),
-            extra,
-            envelope,
-        )),
-        ["agent", "wait"] => Err(missing_required(
-            UsageContext::Path("agent wait"),
-            "<session>",
-            envelope,
-        )),
-        ["agent", "wait", _, extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("agent wait"),
-            extra,
-            envelope,
-        )),
         ["agent", "doctor", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("agent doctor"),
             extra,
@@ -3339,6 +3299,8 @@ const AGENT_LIST_SCOPE: Scope = Scope {
 /// timeout flag under the canonical wait meaning — the sole Agent scope
 /// that admits `--timeout`.
 const AGENT_WAIT_SCOPE: Scope = Scope {
+    name: true,
+    session: true,
     until: true,
     after_revision: true,
     timeout: true,

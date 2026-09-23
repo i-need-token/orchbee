@@ -75,7 +75,7 @@ __ORCHBEE_GRAMMAR__
             foreach ($flag in $seen) { if ($allowed -cnotcontains $flag) { $valid = $false } }
             if (@($seen | Where-Object { $_ -ceq '--provider' }).Count -gt 1 -and ($command.words -join ':') -cne 'agent:doctor') { $valid = $false }
             $operandLimit = [int]$command.operand
-            if (($command.words -join ':') -cin @('agent:resolve', 'agent:rename')) {
+            if (($command.words -join ':') -cin @('agent:get', 'agent:explain', 'agent:wait', 'agent:resolve', 'agent:rename')) {
                 if ($seen -ccontains '--session' -or $seen -ccontains '--name') { $operandLimit-- }
                 if ($seen -ccontains '--clear') { $operandLimit-- }
             }
@@ -93,7 +93,7 @@ __ORCHBEE_GRAMMAR__
             $allowed = @($command.flags)
             if ($command.words[0] -cne 'tui') { $allowed += '--format' }
             foreach ($flag in $allowed) {
-                if (($command.words -join ':') -cin @('agent:resolve', 'agent:rename')) {
+                if (($command.words -join ':') -cin @('agent:get', 'agent:explain', 'agent:wait', 'agent:resolve', 'agent:rename')) {
                     $operands = $positionals.Count - $command.words.Count
                     if ($operands -gt 0 -and $flag -cin @('--name', '--session')) { continue }
                     if ($flag -ceq '--clear' -and ($operands -gt 1 -or ($operands -gt 0 -and ($seen -ccontains '--name' -or $seen -ccontains '--session')))) { continue }

@@ -98,31 +98,88 @@ fn settle(
         Attempt::Admission(AgentAdmissionError::Connect(error)) => {
             Execution::failed(classify_connect(error))
         }
-        Attempt::Exchange(Err(error)) => {
-            let kind = match error {
-                AgentExchangeError::SessionUnavailable | AgentExchangeError::RequestEncoding(_) => {
-                    FailureKind::InternalFailure
-                }
-                AgentExchangeError::RequestNotSubmitted(error)
-                    if error.kind() == std::io::ErrorKind::TimedOut =>
-                {
-                    FailureKind::Timeout
-                }
-                AgentExchangeError::RequestNotSubmitted(_) => FailureKind::TransportLoss,
-                AgentExchangeError::Failed { reason, .. } => match reason {
-                    AgentExchangeFailure::ResponseDeadline(_) => FailureKind::Timeout,
-                    AgentExchangeFailure::Write(_)
-                    | AgentExchangeFailure::Response(
-                        orchbee_agent_observation_protocol::AgentWireError::Io(_),
-                    ) => FailureKind::TransportLoss,
-                    _ => FailureKind::ProtocolInvalid,
-                },
-            };
-            Execution::failed(Failure::new(kind).failure_schema(FAILURE_SCHEMA))
-        }
+        Attempt::Exchange(Err(error)) => Execution::failed(exchange_failure(error)),
     };
     execution.finalization = finalization;
     execution
+}
+
+fn exchange_failure(error: AgentExchangeError) -> Failure {
+    let kind = match error {
+        AgentExchangeError::SessionUnavailable | AgentExchangeError::RequestEncoding(_) => {
+            FailureKind::InternalFailure
+        }
+        AgentExchangeError::RequestNotSubmitted(error) => io_failure_kind(&error),
+        AgentExchangeError::Failed { reason, .. } => match reason {
+            AgentExchangeFailure::Write(error)
+            | AgentExchangeFailure::ResponseDeadline(error)
+            | AgentExchangeFailure::Response(
+                orchbee_agent_observation_protocol::AgentWireError::Io(error),
+            ) => io_failure_kind(&error),
+            _ => FailureKind::ProtocolInvalid,
+        },
+    };
+    Failure::new(kind).failure_schema(FAILURE_SCHEMA)
+}
+
+fn io_failure_kind(error: &std::io::Error) -> FailureKind {
+    if wake_marker_failure(error).is_some() {
+        FailureKind::InternalFailure
+    } else if is_deadline_elapsed(error) {
+        FailureKind::Timeout
+    } else {
+        FailureKind::TransportLoss
+    }
+}
+
+/// A name is resolved exactly once on the caller's held session. Selectors
+/// that cannot name an alias retain the existing direct-ID read contract.
+pub(super) fn resolve_on_session(
+    client: &mut LocalClient,
+    target: &orchbee_agent_observation_protocol::AgentSessionSelector,
+    total: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<AgentSessionId, Failure> {
+    use orchbee_agent_observation_protocol::{
+        AgentName, AgentResolveOutcome, AgentSessionSelector,
+    };
+    match target {
+        AgentSessionSelector::Session { session_id } => return Ok(session_id.clone()),
+        AgentSessionSelector::Auto { target } if AgentName::parse(target.as_str()).is_err() => {
+            return Ok(target.clone());
+        }
+        _ => {}
+    }
+    let request_id = obap_request_id()?;
+    let answer = client.submit_agent_names_before_cancellable(
+        AgentNamesRequest::Resolve {
+            request_id,
+            target: target.clone(),
+        },
+        total,
+        wake,
+    );
+    if Instant::now() >= total {
+        return Err(Failure::new(FailureKind::Timeout).failure_schema(FAILURE_SCHEMA));
+    }
+    let result = answer.map_err(exchange_failure)?;
+    let source = json!({"kind":"agent-names", "requestId": result.request_id()});
+    let AgentNamesResult::Resolve { result, .. } = result else {
+        return Err(Failure::new(FailureKind::ProtocolInvalid).failure_schema(FAILURE_SCHEMA));
+    };
+    match result.outcome {
+        AgentResolveOutcome::Resolved { session_id, .. } => Ok(session_id),
+        AgentResolveOutcome::Rejected { reason } => {
+            Err(crate::cli::agent_names::rejection(json!(reason), None)
+                .source(source)
+                .failure_schema(FAILURE_SCHEMA))
+        }
+        AgentResolveOutcome::Unavailable { .. } => {
+            Err(Failure::new(FailureKind::ServiceUnavailable)
+                .source(source)
+                .failure_schema(FAILURE_SCHEMA))
+        }
+    }
 }
 
 #[cfg(test)]

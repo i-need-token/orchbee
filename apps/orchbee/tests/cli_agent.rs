@@ -740,7 +740,17 @@ fn get_sigint_reports_its_own_operation() -> TestResult {
     let base = base_dir("aget-int");
     let scope = stage_scope(&base);
     let (peer, ready) = held_exchange_peer(&scope);
-    let child = spawn_cli(&base, &["agent", "get", "sess-alpha", "--format", "json"]);
+    let child = spawn_cli(
+        &base,
+        &[
+            "agent",
+            "get",
+            "--session",
+            "sess-alpha",
+            "--format",
+            "json",
+        ],
+    );
     ready
         .recv_timeout(Duration::from_secs(15))
         .expect("the request reached the held peer");
@@ -1078,7 +1088,17 @@ fn get_found_emits_verbatim_outcome() -> TestResult {
             ),
         );
     });
-    let output = run(&base, &["agent", "get", "sess-alpha", "--format", "json"]);
+    let output = run(
+        &base,
+        &[
+            "agent",
+            "get",
+            "--session",
+            "sess-alpha",
+            "--format",
+            "json",
+        ],
+    );
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(0));
     let document = document(&output);
@@ -1115,7 +1135,7 @@ fn get_text_renders_session_fields() -> TestResult {
             ),
         );
     });
-    let output = run(&base, &["agent", "get", "sess-alpha"]);
+    let output = run(&base, &["agent", "get", "--session", "sess-alpha"]);
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(0));
     let text = String::from_utf8(output.stdout).expect("text output is UTF-8");
@@ -1149,7 +1169,10 @@ fn get_not_found_maps_to_agent_failure_document() -> TestResult {
             }),
         );
     });
-    let output = run(&base, &["agent", "get", "sess-gone", "--format", "json"]);
+    let output = run(
+        &base,
+        &["agent", "get", "--session", "sess-gone", "--format", "json"],
+    );
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(3));
     let document = document(&output);
@@ -1187,7 +1210,14 @@ fn explain_found_emits_verbatim_outcome() -> TestResult {
     });
     let output = run(
         &base,
-        &["agent", "explain", "sess-alpha", "--format", "json"],
+        &[
+            "agent",
+            "explain",
+            "--session",
+            "sess-alpha",
+            "--format",
+            "json",
+        ],
     );
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(0));
@@ -1225,7 +1255,7 @@ fn explain_text_renders_derived_fields() -> TestResult {
             ),
         );
     });
-    let output = run(&base, &["agent", "explain", "sess-alpha"]);
+    let output = run(&base, &["agent", "explain", "--session", "sess-alpha"]);
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(0));
     let text = String::from_utf8(output.stdout).expect("text output is UTF-8");
@@ -1281,7 +1311,17 @@ fn wrong_result_kind_is_protocol_invalid() -> TestResult {
             listed_document(&request_id, serde_json::json!([]), serde_json::Value::Null),
         );
     });
-    let output = run(&base, &["agent", "get", "sess-alpha", "--format", "json"]);
+    let output = run(
+        &base,
+        &[
+            "agent",
+            "get",
+            "--session",
+            "sess-alpha",
+            "--format",
+            "json",
+        ],
+    );
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(5));
     let document = document(&output);
@@ -1315,7 +1355,10 @@ fn malformed_frame_is_protocol_invalid() -> TestResult {
 fn invalid_session_id_fails_before_any_session() -> TestResult {
     let base = base_dir("abadid");
     let scope = stage_scope(&base);
-    let output = run(&base, &["agent", "get", "bad id!", "--format", "json"]);
+    let output = run(
+        &base,
+        &["agent", "get", "--session", "bad id!", "--format", "json"],
+    );
     assert_eq!(output.status.code(), Some(2));
     let document = document(&output);
     assert_eq!(document["schema"], "orchbee.cli.failure");
@@ -1414,10 +1457,27 @@ fn agent_envelopes_validate_and_loose_variants_fail() -> TestResult {
         }
     });
     let list_out = run(&base, &["agent", "list", "--format", "json"]);
-    let get_out = run(&base, &["agent", "get", "sess-alpha", "--format", "json"]);
+    let get_out = run(
+        &base,
+        &[
+            "agent",
+            "get",
+            "--session",
+            "sess-alpha",
+            "--format",
+            "json",
+        ],
+    );
     let explain_out = run(
         &base,
-        &["agent", "explain", "sess-alpha", "--format", "json"],
+        &[
+            "agent",
+            "explain",
+            "--session",
+            "sess-alpha",
+            "--format",
+            "json",
+        ],
     );
     let denied = run(&base, &["agent", "list", "--format", "json"]);
     peer.join().expect("peer finished");
@@ -1610,7 +1670,17 @@ fn wait_matched_emits_wait_envelope_on_one_held_session() -> TestResult {
             ),
         );
     });
-    let output = run(&base, &["agent", "wait", "sess-alpha", "--format", "json"]);
+    let output = run(
+        &base,
+        &[
+            "agent",
+            "wait",
+            "--session",
+            "sess-alpha",
+            "--format",
+            "json",
+        ],
+    );
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(0));
     let document = document(&output);
@@ -1686,6 +1756,7 @@ fn wait_freshness_gates_status_and_preserves_requested_order() -> TestResult {
         &[
             "agent",
             "wait",
+            "--session",
             "sess-alpha",
             "--until",
             "idle",
@@ -1742,6 +1813,7 @@ fn wait_fence_ahead_refuses_after_one_observation() -> TestResult {
         &[
             "agent",
             "wait",
+            "--session",
             "sess-alpha",
             "--after-revision",
             "9",
@@ -1812,6 +1884,7 @@ fn wait_fence_equal_waits_for_later_revision() -> TestResult {
         &[
             "agent",
             "wait",
+            "--session",
             "sess-alpha",
             "--after-revision",
             "7",
@@ -1860,7 +1933,17 @@ fn wait_mid_wait_not_found_is_agent_failure() -> TestResult {
             }),
         );
     });
-    let output = run(&base, &["agent", "wait", "sess-gone", "--format", "json"]);
+    let output = run(
+        &base,
+        &[
+            "agent",
+            "wait",
+            "--session",
+            "sess-gone",
+            "--format",
+            "json",
+        ],
+    );
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(3));
     let document = document(&output);
@@ -1904,7 +1987,17 @@ fn wait_mid_wait_refusal_kinds_keep_their_family() -> TestResult {
                 }),
             );
         });
-        let output = run(&base, &["agent", "wait", "sess-alpha", "--format", "json"]);
+        let output = run(
+            &base,
+            &[
+                "agent",
+                "wait",
+                "--session",
+                "sess-alpha",
+                "--format",
+                "json",
+            ],
+        );
         peer.join().expect("peer finished");
         assert_eq!(output.status.code(), Some(code), "{kind}");
         let document = document(&output);
@@ -1942,6 +2035,7 @@ fn wait_read_deadline_records_the_admitted_budget() -> TestResult {
         &[
             "agent",
             "wait",
+            "--session",
             "sess-alpha",
             "--timeout",
             "60000",
@@ -2010,6 +2104,7 @@ fn wait_deadline_reports_completed_observations() -> TestResult {
         &[
             "agent",
             "wait",
+            "--session",
             "sess-alpha",
             "--timeout",
             "4000",
@@ -2051,7 +2146,17 @@ fn wait_sigint_during_held_exchange_is_typed_cancellation() -> TestResult {
     let base = base_dir("await-int");
     let scope = stage_scope(&base);
     let (peer, ready) = held_exchange_peer(&scope);
-    let child = spawn_cli(&base, &["agent", "wait", "sess-alpha", "--format", "json"]);
+    let child = spawn_cli(
+        &base,
+        &[
+            "agent",
+            "wait",
+            "--session",
+            "sess-alpha",
+            "--format",
+            "json",
+        ],
+    );
     ready
         .recv_timeout(Duration::from_secs(15))
         .expect("the request reached the held peer");
