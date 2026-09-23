@@ -4677,7 +4677,10 @@ fn doctor_asset_roots_option(
     envelope: FailureEnvelope,
 ) -> Result<Vec<String>, ParseFailure> {
     for value in &options.asset_roots {
-        if value.is_empty() || !value.starts_with('/') || value.as_bytes().contains(&0) {
+        if value.is_empty()
+            || !std::path::Path::new(value).is_absolute()
+            || value.as_bytes().contains(&0)
+        {
             return Err(usage_with(
                 UsageReason::InvalidValue {
                     context,

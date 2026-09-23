@@ -206,6 +206,54 @@ fn codex_installation_disabled_and_corrupt_capsule_facts_do_not_claim_delivery()
             .join("../desktop/resources/agent-observation-adapters"),
         &assets,
     );
+    let supplied = fixture.run(
+        &[
+            "agent",
+            "doctor",
+            "--provider",
+            "codex",
+            "--asset-root",
+            assets.to_str().unwrap(),
+            "--format",
+            "json",
+        ],
+        "en-US",
+        None,
+    );
+    assert!(
+        supplied.status.success(),
+        "{}",
+        String::from_utf8_lossy(&supplied.stderr)
+    );
+    let supplied: Value = serde_json::from_slice(&supplied.stdout).unwrap();
+    assert_eq!(
+        supplied["result"]["asset"]["roots"][0]["origin"],
+        "supplied"
+    );
+    assert_eq!(
+        supplied["result"]["asset"]["roots"][0]["state"],
+        "consistent"
+    );
+    for invalid in [
+        r"C:relative",
+        r"\rooted-on-current-drive",
+        "/posix-only",
+        "relative",
+    ] {
+        let output = fixture.run(
+            &[
+                "agent",
+                "doctor",
+                "--asset-root",
+                invalid,
+                "--format",
+                "json",
+            ],
+            "en-US",
+            None,
+        );
+        assert_eq!(output.status.code(), Some(2), "{invalid}");
+    }
     let explicit = fixture.0.join("explicit Codex home");
     // The wrong root contains a contradiction: CODEX_HOME must win.
     fs::write(

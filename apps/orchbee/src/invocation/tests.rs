@@ -1792,9 +1792,14 @@ fn joined_value_spelling_is_equivalent() {
                 "--provider",
                 "codex",
                 "--asset-root",
-                "/r",
+                &doctor_test_root("/r"),
             ][..],
-            &["agent", "doctor", "--provider=codex", "--asset-root=/r"][..],
+            &[
+                "agent",
+                "doctor",
+                "--provider=codex",
+                &format!("--asset-root={}", doctor_test_root("/r")),
+            ][..],
         ),
         (
             &[
@@ -5309,13 +5314,13 @@ fn agent_doctor_grammar() {
             "--provider",
             "qwen-code",
             "--asset-root",
-            "/opt/capsule-a",
+            &doctor_test_root("/opt/capsule-a"),
             "--provider",
             "codex",
             "--provider",
             "codex",
             "--asset-root",
-            "/opt/capsule-b",
+            &doctor_test_root("/opt/capsule-b"),
         ]),
         Ok(query(
             QueryCommand::AgentDoctor {
@@ -5324,7 +5329,10 @@ fn agent_doctor_grammar() {
                     "codex".to_owned(),
                     "codex".to_owned(),
                 ],
-                asset_roots: vec!["/opt/capsule-a".to_owned(), "/opt/capsule-b".to_owned()],
+                asset_roots: vec![
+                    doctor_test_root("/opt/capsule-a"),
+                    doctor_test_root("/opt/capsule-b")
+                ],
             },
             OutputFormat::Text
         ))
@@ -5360,22 +5368,22 @@ fn agent_doctor_grammar() {
             "agent",
             "doctor",
             "--asset-root",
-            "/a",
+            &doctor_test_root("/a"),
             "--asset-root",
-            "/b",
+            &doctor_test_root("/b"),
             "--asset-root",
-            "/c",
+            &doctor_test_root("/c"),
             "--asset-root",
-            "/d",
+            &doctor_test_root("/d"),
         ]),
         Ok(query(
             QueryCommand::AgentDoctor {
                 providers: Vec::new(),
                 asset_roots: vec![
-                    "/a".to_owned(),
-                    "/b".to_owned(),
-                    "/c".to_owned(),
-                    "/d".to_owned()
+                    doctor_test_root("/a"),
+                    doctor_test_root("/b"),
+                    doctor_test_root("/c"),
+                    doctor_test_root("/d")
                 ],
             },
             OutputFormat::Text
@@ -5444,20 +5452,22 @@ fn agent_doctor_usage_failures() {
             "agent",
             "doctor",
             "--asset-root",
-            "/a",
+            &doctor_test_root("/a"),
             "--asset-root",
-            "/b",
+            &doctor_test_root("/b"),
             "--asset-root",
-            "/c",
+            &doctor_test_root("/c"),
             "--asset-root",
-            "/d",
+            &doctor_test_root("/d"),
             "--asset-root",
-            "/e",
+            &doctor_test_root("/e"),
         ]),
         UsageReason::InvalidValue {
             context: path("agent doctor"),
             option: "--asset-root",
-            value: "/a /b /c /d /e".to_owned(),
+            value: ["/a", "/b", "/c", "/d", "/e"]
+                .map(doctor_test_root)
+                .join(" "),
             expected: ExpectedValue::AssetRootPath,
         }
     );
@@ -6381,5 +6391,13 @@ fn workspace_launch_requires_cwd_and_preserves_launch_values() {
         let mut words = vec!["workspace", "create", "--project", "P", "--label", "W"];
         words.extend(tail);
         assert!(parse(&words).is_err(), "{words:?}");
+    }
+}
+
+fn doctor_test_root(posix: &str) -> String {
+    if cfg!(windows) {
+        format!("C:{posix}")
+    } else {
+        posix.to_owned()
     }
 }
