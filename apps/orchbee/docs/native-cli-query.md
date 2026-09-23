@@ -30,7 +30,7 @@ All three commands admit `--format text|json`. The embedded success schemas are
 `orchbee.agent.names` version 2 (with separate pending reservations), and
 `orchbee.agent.resolve` and `orchbee.agent.rename`, version 1;
 post-admission failures use `orchbee.cli.failure.agent-names`, version 1. Presentation resolution and ambiguous-target failures use version 2; launch-pending failures use version 3; earlier outcomes keep version 1. Correlated
-semantic answers carry an `agent-names` source with the OBAP request ID. These four documents are included in schema catalog version 17, alongside the prompt contracts. Invalid names or conflicting selectors
+semantic answers carry an `agent-names` source with the OBAP request ID. These four documents are included in schema catalog version 18, alongside the prompt contracts. Invalid names or conflicting selectors
 fail with exit 2 before any runtime access. A collision is exit 3 and identifies the
 incumbent session; it never overwrites that session's name.
 
@@ -127,7 +127,7 @@ own turn. Polling can miss transitions and does not claim Herdr event replay.
 
 On Windows, canonical provider `codex` uses one ordered paste, Right, Enter sequence. Right is a non-character boundary that flushes Codex's paste-burst buffer and clears its Enter suppression window. It neither embeds escape bytes in prompt text nor guesses delivery speed with a fixed delay. Other providers retain paste, Enter; ordinary `terminal send --paste --enter` adds no boundary key. Receipts report the actual three or two records. Stopping before Right or Enter reports only the accepted prefix, never retries the suffix and never starts observation. This boundary does not establish an empty composer, foreground ownership or provider readiness.
 
-Schema catalog version 17 contains 52 documents, including the prompt success and failure contracts.
+Schema catalog version 18 contains 53 documents, including the prompt success and failure contracts.
 
 `orchbee.agent.prompt` returns the session ID, the full terminal submission receipt,
 and optional matched observation/wait facts. Refused/partial/unknown send outcomes retain
@@ -548,7 +548,7 @@ a lock or a marker, and never repairs — over one cooperative 5-second budget c
 bounded filesystem operations. Platforms other than Linux and Windows produce `service-unavailable`
 `{stage:"platform",reason:"unsupported-platform"}` for network queries and mutations and
 `check-failed` with the same details for `config check`; there is no fallback to unbounded
-connection APIs. `site start` outside Linux/Windows and `site diagnose` outside Linux answer
+connection APIs. `site start` outside Linux/Windows and `site diagnose` outside Linux/Windows answer
 `service-unavailable` with the same platform details.
 
 `agent doctor` is the offline provider-hook diagnostic: it explains, from bounded filesystem
@@ -1034,6 +1034,29 @@ so an interruption is process death under the conventional `128 + signo`, never 
 envelope. There is no `site stop`, restart, or repair verb in this slice.
 
 ## Site diagnostics
+
+On Windows, `site diagnose` emits `orchbee.site.diagnose.windows` v1, a separate
+closed schema preserving the Linux v1 document. The native catalog is v18/53.
+The same existing-only runtime path/SID scope is used without cohort admission,
+activation, endpoint connection or process discovery. Ordered rows describe the
+selected base, admitted runtime directory, marker, activation/lifetime locks and
+five named-pipe addresses. Windows has no filesystem Host socket scope row and
+does not invent POSIX mode/UID facts. `private` means current-user ownership and
+the runtime DACL allowlist were checked, not a fresh security guarantee.
+
+Each row reports known/absent/uninspectable, with free/held/unsafe also available
+for the lifetime lock. A denied/invalid/missing parent prevents all descendant
+inspection. The activation lock is never acquired. The lifetime probe opens only
+an existing admitted file and briefly tries an exclusive lock; it may contend
+with startup. Pipe names are unauthenticated facts from at most 2048 namespace
+entries per endpoint. Exhaustion is `observation-limit`, never absent. A five-second
+cooperative deadline produces partial coverage; filesystem stalls are excluded.
+`complete` means every row was attempted or parent-derived, not healthy. All
+handles are RAII-owned, including process termination by Ctrl+C. No repair, file
+creation/deletion, process launch/stop or retry occurs. Marker and pipe advisories
+describe current recovery policy only. Public Windows tests cover absent/held/free,
+invalid marker, Unicode paths, schema and localized text, and zero creation;
+runtime and IPC tests cover admission, real listeners and bounded observation.
 
 `site diagnose` is the read-only counterpart of activation: it reports bounded facts about the
 implicit per-euid local Site runtime without connecting to anything, creating anything, or
@@ -1667,7 +1690,7 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | `site start` activation deadline elapsed; lock acquisition `TimedOut`                                                                     | `timeout`                                                                  | 7         | `{stage:"activation"}`                                                                              |
 | `site start` marker/probe/lock io failure (non-timeout)                                                                                   | `internal-failure`                                                         | 1         | `{stage:"activation"}`                                                                              |
 | `site diagnose` complete or partial fact document — unsafe/uninspectable rows are facts, not failures                                     | typed `orchbee.site.diagnose` document                                     | 0         | row `state`/`reason` fields                                                                         |
-| `site diagnose` outside Linux; network query, mutation, `site start`, `config check`, or `agent doctor` outside Linux/Windows             | `service-unavailable`/`check-failed`                                       | 4/1       | `{stage:"platform",reason:"unsupported-platform"[,command]}`                                        |
+| `site diagnose` outside Linux/Windows; network query, mutation, `site start`, `config check`, or `agent doctor` outside Linux/Windows     | `service-unavailable`/`check-failed`                                       | 4/1       | `{stage:"platform",reason:"unsupported-platform"[,command]}`                                        |
 | `agent doctor` captures an eligible signal between probe items                                                                            | `cancelled`                                                                | 130       | `{stage:"agent-doctor"}` — partial documents arise only from budget exhaustion                      |
 | `terminal wait-output` deadline exhausted without a match                                                                                 | `timeout`                                                                  | 7         | `{stage:"wait",timeoutMs,observed}`                                                                 |
 | HUP/INT/QUIT/TERM during `terminal wait-output`                                                                                           | `cancelled`                                                                | 130       | `{stage:"wait",cleanup}`                                                                            |
@@ -1916,7 +1939,7 @@ invalid-context, stale-binding, child-Presentation and movement cases plus a rea
 Windows child-process witness. Desktop and global focus fallback remain excluded;
 TLA execution is deferred and is not claimed as evidence.
 
-The additive schema is registered in the closed `api schema` catalog version 17;
+The additive schema is registered in the closed `api schema` catalog version 18;
 other business document versions are unchanged.
 
 Windows Worker identities are fresh per Server connection, using the existing OS
@@ -2027,8 +2050,8 @@ One existing-only Client Session and one absolute five-second budget cover snaps
 
 The JSON envelope is `orchbee.panel.process-info` v2; the schema catalog and bilingual help/completion ship with the command. Evidence covers implicit and explicit targets, conflicts before I/O, primary-versus-child selection, absent primary bindings, denied reads, wrong response identities, preserved Host errors, bounded output, viewer cleanup, and the real Windows Site/Worker/Host process route. The shared typed read is also the actual dependency for subsequent Agent launch/readiness work; it does not close those obligations by itself.
 
-Expected Host refusals use `orchbee.cli.failure.process-info` v1 with the bounded failure code; invalid responses and transport failures retain the generic CLI failure contract. Successful `source` records snapshot revision, OBCS request ID, and Host correlation, epoch, attachment, and physical Terminal ID as distinct identities. Catalog version 17 contains 52 schemas.
+Expected Host refusals use `orchbee.cli.failure.process-info` v1 with the bounded failure code; invalid responses and transport failures retain the generic CLI failure contract. Successful `source` records snapshot revision, OBCS request ID, and Host correlation, epoch, attachment, and physical Terminal ID as distinct identities. Catalog version 18 contains 53 schemas.
 
 ## Windows Agent startup
 
-[Windows Agent startup](windows-agent-start.md) owns `agent start`, its reservation and readiness workflow, Windows quoting, budgets and recovery. `agent names` v2 includes separate pending reservations; names failures use v3 for launch-pending. The catalog is v17 with 52 schemas.
+[Windows Agent startup](windows-agent-start.md) owns `agent start`, its reservation and readiness workflow, Windows quoting, budgets and recovery. `agent names` v2 includes separate pending reservations; names failures use v3 for launch-pending. The catalog is v18 with 53 schemas.

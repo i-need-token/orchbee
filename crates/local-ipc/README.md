@@ -36,3 +36,12 @@ The direct implementation challenge considered pipe squatting, remote clients, i
 handles, partial records, read-ahead duplication, blocked writes, and clone cancellation.
 It is an explicit adversarial read, not independent review. Native evidence must pass
 before this transport is claimed as delivered.
+
+`endpoint_exists_before` observes the Windows pipe namespace without connecting.
+It validates the requested name, scans at most 2048 entries and checks the caller's
+monotonic deadline before each entry. `Some(true)` means a name was seen;
+`Some(false)` requires completed enumeration; `None` means the budget ended before
+absence could be established. These are separate-instant name facts, never peer
+identity or health. OS enumeration failures stay errors; filesystem stalls remain
+outside the cooperative budget. Tests retain an actual listener through inspection
+and check deadline/entry-budget exhaustion without manufacturing absence.

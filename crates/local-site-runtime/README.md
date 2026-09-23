@@ -236,3 +236,12 @@ is introduced. Native tests cover ACL rejection, hard-link and junction refusal,
 exclusivity, lock contention, distinct endpoints, and cohort tampering. This is a
 self-reviewed refinement, not an independent review: the challenge cases include
 existing broad ACLs, path replacement, duplicate starts, and pipe impersonation.
+
+Windows read-only diagnostics reuse admission without creating a scope or file.
+The marker must still be empty, regular, single-link and privately owned. The
+activation lock is inspected without locking. The lifetime observation opens only
+an existing admitted file, tries one nonblocking exclusive lock, and immediately
+releases it: absent/free/held/unsafe are observations, not service health. A probe
+can briefly contend with startup; failure never authorizes repair or deletion.
+Invalid parents prevent descendant inspection. Tests cover zero creation,
+free/held transitions, malformed markers and hard-link rejection.

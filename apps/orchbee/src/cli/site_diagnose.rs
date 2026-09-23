@@ -18,6 +18,11 @@ use super::{Failure, FailureKind, Output, failure_output, output};
 use crate::invocation::OutputFormat;
 use crate::localization::Locale;
 
+#[cfg(windows)]
+mod windows;
+#[cfg(windows)]
+use windows::collect;
+
 #[cfg(target_os = "linux")]
 use orchbee_local_site_runtime::{
     EntryKind, EntryObservation, ModeCheckedLocalSiteRendezvous, RendezvousError,
@@ -42,11 +47,11 @@ const ADVISORY_SOCKET_RESIDUE: &str = "socket-residue";
 /// The collected diagnose product: the machine envelope plus the row table
 /// and advisory tokens the text renderer shares with it.
 pub(crate) struct DiagnoseDocument {
-    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    #[cfg_attr(not(any(target_os = "linux", windows)), allow(dead_code))]
     pub(crate) envelope: Value,
-    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    #[cfg_attr(not(any(target_os = "linux", windows)), allow(dead_code))]
     pub(crate) rows: Vec<(String, Map<String, Value>)>,
-    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    #[cfg_attr(not(any(target_os = "linux", windows)), allow(dead_code))]
     pub(crate) advisories: Vec<&'static str>,
 }
 
@@ -485,7 +490,7 @@ fn envelope(
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 fn collect() -> Result<DiagnoseDocument, Failure> {
     Err(
         Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(

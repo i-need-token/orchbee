@@ -142,6 +142,54 @@ fn broad_existing_acl_is_rejected_without_repair() {
 }
 
 #[test]
+fn diagnostic_observations_never_create_and_release_the_lifetime_probe() {
+    use crate::SiteLifetimeObservation as Observation;
+    let fixture = Fixture::new();
+    let site = fixture.open("diagnose");
+    assert!(!site.activation_lock_exists().unwrap());
+    assert_eq!(
+        site.observe_site_lifetime_lock().unwrap(),
+        Observation::Absent
+    );
+    assert!(!site.activation_started().unwrap());
+    assert_eq!(fs::read_dir(site.runtime_directory()).unwrap().count(), 0);
+    let held = match site.try_acquire_site_lifetime_lock().unwrap() {
+        LockAttempt::Acquired(held) => held,
+        LockAttempt::Contended => panic!("new fixture is uncontended"),
+    };
+    assert_eq!(
+        site.observe_site_lifetime_lock().unwrap(),
+        Observation::Held
+    );
+    drop(held);
+    assert_eq!(
+        site.observe_site_lifetime_lock().unwrap(),
+        Observation::Free
+    );
+    assert!(matches!(
+        site.try_acquire_site_lifetime_lock().unwrap(),
+        LockAttempt::Acquired(_)
+    ));
+    let lock_path = site.runtime_directory().join("site-lifetime.lock");
+    fs::hard_link(&lock_path, fixture.0.join("lock-alias")).unwrap();
+    assert_eq!(
+        site.observe_site_lifetime_lock().unwrap(),
+        Observation::Unsafe
+    );
+    site.commit_activation().unwrap();
+    fs::write(
+        site.runtime_directory().join("activation.started"),
+        b"preserved",
+    )
+    .unwrap();
+    assert!(site.activation_started().is_err());
+    assert_eq!(
+        fs::read(site.runtime_directory().join("activation.started")).unwrap(),
+        b"preserved"
+    );
+}
+
+#[test]
 fn native_cohort_rejects_tampering_and_manifest_version() {
     let fixture = Fixture::new();
     let mut artifacts = serde_json::Map::new();

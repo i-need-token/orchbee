@@ -23,7 +23,7 @@ Agent 状态来自 Server 的 canonical Agent 模型，不从终端文字推断�
 三个命令均接受 `--format text|json`。内嵌成功 schema 为 `orchbee.agent.names`、
 `orchbee.agent.resolve` 与 `orchbee.agent.rename`；names 为 version 2，独立列出预留，另两者为 version 1；接纳后的失败使用
 `orchbee.cli.failure.agent-names` version 1。presentation 解析与 ambiguous-target 失败使用 version 2；launch-pending 失败使用 version 3；原有结果仍为 version 1。相关语义结果携带 `agent-names` source
-和 OBAP request ID。这四份文档与提示契约一起纳入 Schema 目录 version 17。非法名称或冲突选择器在
+和 OBAP request ID。这四份文档与提示契约一起纳入 Schema 目录 version 18。非法名称或冲突选择器在
 任何运行时访问前以退出码 2 失败。重名以退出码 3 拒绝并标明占用者，绝不覆盖其名称。
 
 每个命令的单一五秒截止覆盖 cohort 校验、仅查已有 Site、接纳、可选 Panel 解析和最终 OBAP 交换。
@@ -103,7 +103,7 @@ Server 仍验证终端当前绑定。
 
 Windows 中，canonical provider 为 `codex` 时，单次输入序列按字面 paste、Right、Enter 排列。Right 作为非字符边界，促使 Codex 刷出 paste-burst 缓冲并清除 Enter 抑制窗口；不向提示文本拼接转义码，也不以固定延时猜测投递速度。其他 provider 保持 paste、Enter，普通 `terminal send --paste --enter` 不增加按键。回执准确报告三条或两条记录；若在 Right 或 Enter 前停止，只报告实际接受的前缀，绝不补发或开始等待。该边界不证明输入框为空、焦点归属或 provider 已就绪。
 
-Schema 目录 version 17 共 52 份文档，包含提示成功与失败契约。
+Schema 目录 version 18 共 53 份文档，包含提示成功与失败契约。
 
 `orchbee.agent.prompt` 返回会话 ID、完整终端提交回执，以及可选的匹配观察/等待事实。
 发送拒绝、部分接受或不确定时沿用既有终端发送/失败契约，不开始等待。预检及提交后失败
@@ -460,7 +460,7 @@ connect、绝不创建锁或标记、绝不修复——共享一个在有界文�
 预算。Linux 和 Windows 以外的平台对网络查询与 mutation 产出 `service-unavailable`
 `{stage:"platform",reason:"unsupported-platform"}`，对 `config check` 产出同 details 的
 `check-failed`；不存在向无界连接 API 的回退。`site start` 在 Linux/Windows 以外、
-`site diagnose` 在 Linux 以外的平台以同 details 的 `service-unavailable` 应答。
+`site diagnose` 在 Linux/Windows 以外的平台以同 details 的 `service-unavailable` 应答。
 
 `agent doctor` 是离线 provider 钩子诊断：仅凭有界文件系统事实解释 Agent 观察为何可能无法
 到达。它不执行 provider 命令、不 connect socket、不发现 Site、不取锁、不做任何写入——检查集
@@ -856,6 +856,23 @@ cohort 验证之前开始，且绝不按阶段重置：
 存在 `site stop`、restart 或修复动词。
 
 ## Site 诊断
+
+Windows `site diagnose` 输出独立闭合的 `orchbee.site.diagnose.windows` v1，保留
+Linux v1 文档。原生目录为 v18/53。复用已有运行时路径／SID scope，不进行 cohort
+准入、激活、端点连接或进程发现。有序行描述选定基目录、已准入运行时目录、标记、
+激活／生命周期锁及五个命名管道地址。Windows 不输出文件系统 Host socket scope 行，
+也不虚构 POSIX mode／UID。`private` 只表示已检查当前用户归属和运行时 DACL 白名单，
+不是持续有效的安全保证。
+
+每行给出 known/absent/uninspectable，生命周期锁另有 free/held/unsafe。父目录被拒绝、
+无效或缺失时，不检查所有后代。绝不获取激活锁；生命周期探针只打开已有且通过准入的
+文件，短暂尝试独占锁，可能与启动争用。每个端点最多枚举 2048 个命名空间条目；
+管道名称未经身份认证，预算耗尽为 `observation-limit`，不记作不存在。五秒协作式期限
+可产生部分覆盖，文件系统停顿除外。`complete` 只表示每行已尝试或由父状态导出，
+不表示健康。所有句柄由 RAII 持有，Ctrl+C 终止进程时由系统释放。不修复、创建／删除
+文件、启动／停止进程或重试。标记和管道通告只描述当前恢复策略。Windows 公共进程
+测试覆盖 absent/held/free、非法标记、中文路径、schema、本地化文本和零创建；
+runtime／IPC 测试覆盖准入、真实监听器和有界观察。
 
 `site diagnose` 是激活的只读对偶面：它报告隐式 per-euid 本地 Site 运行时的有界事实，
 不 connect 任何东西、不创建任何东西、不修复任何东西。运行时基座与 `site start`
@@ -1416,7 +1433,7 @@ disposition 交付——OS 默认终止遵循 shell 的 `128 + signal` 约定，
 | `site start` 激活 deadline 到期；取锁 `TimedOut`                                                                                    | `timeout`                                                                  | 7         | `{stage:"activation"}`                                                                        |
 | `site start` 标记/探针/锁 io 失败（非超时）                                                                                         | `internal-failure`                                                         | 1         | `{stage:"activation"}`                                                                        |
 | `site diagnose` 完整或部分事实文档——unsafe/uninspectable 行是事实而非失败                                                           | 类型化 `orchbee.site.diagnose` 文档                                        | 0         | 行 `state`/`reason` 字段                                                                      |
-| `site diagnose` 在 Linux 以外；网络查询、mutation、`site start`、`config check` 或 `agent doctor` 在 Linux/Windows 以外             | `service-unavailable`/`check-failed`                                       | 4/1       | `{stage:"platform",reason:"unsupported-platform"[,command]}`                                  |
+| `site diagnose` 在 Linux/Windows 以外；网络查询、mutation、`site start`、`config check` 或 `agent doctor` 在 Linux/Windows 以外     | `service-unavailable`/`check-failed`                                       | 4/1       | `{stage:"platform",reason:"unsupported-platform"[,command]}`                                  |
 | `agent doctor` 在探测项之间捕获合格信号                                                                                             | `cancelled`                                                                | 130       | `{stage:"agent-doctor"}`——部分文档仅由预算耗尽产生                                            |
 | `terminal wait-output` 期限耗尽未命中                                                                                               | `timeout`                                                                  | 7         | `{stage:"wait",timeoutMs,observed}`                                                           |
 | `terminal wait-output` 期间收到 HUP/INT/QUIT/TERM                                                                                   | `cancelled`                                                                | 130       | `{stage:"wait",cleanup}`                                                                      |
@@ -1719,8 +1736,8 @@ Windows Job。上述检查不证明 provider 任务完成、身份认证或原�
 
 JSON 封套为 `orchbee.panel.process-info` v2，schema 目录及双语帮助、补全与命令共同交付。证据覆盖隐式和显式目标、I/O 前的冲突拒绝、主与子终端选择、主绑定缺失、读取拒绝、响应身份错误、Host 错误保留、输出限额、viewer 回收，以及真实 Windows Site/Worker/Host 进程路由。共享类型化读取也是后续 Agent 启动和就绪工作的实际依赖，本身不关闭这些义务。
 
-Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界的错误代码；非法响应与传输失败使用通用 CLI 失败契约。成功的 `source` 同时记录快照 revision、OBCS request ID 与 Host correlation、epoch、attachment 和物理 Terminal ID；它们不是同一个身份。目录 version 17 包含 52 份 schema。
+Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界的错误代码；非法响应与传输失败使用通用 CLI 失败契约。成功的 `source` 同时记录快照 revision、OBCS request ID 与 Host correlation、epoch、attachment 和物理 Terminal ID；它们不是同一个身份。目录 version 18 包含 53 份 schema。
 
 ## Windows Agent 启动
 
-[Windows Agent 启动](windows-agent-start.zh-CN.md)拥有 `agent start`、名称预留与就绪流程、Windows 引用、预算和恢复契约。`agent names` v2 独立显示启动预留；名称失败对 launch-pending 使用 v3。Schema 目录为 v17，含 52 个 schema。
+[Windows Agent 启动](windows-agent-start.zh-CN.md)拥有 `agent start`、名称预留与就绪流程、Windows 引用、预算和恢复契约。`agent names` v2 独立显示启动预留；名称失败对 launch-pending 使用 v3。Schema 目录为 v18，含 53 个 schema。

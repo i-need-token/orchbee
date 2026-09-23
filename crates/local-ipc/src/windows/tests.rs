@@ -24,6 +24,46 @@ fn pair() -> (LocalStream, LocalStream) {
 }
 
 #[test]
+fn bounded_namespace_observation_never_connects_or_invents_absence() {
+    use std::ffi::OsStr;
+    let path = endpoint();
+    let listener = LocalListener::bind(&path).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    assert_eq!(endpoint_exists_before(&path, deadline).unwrap(), Some(true));
+    assert_eq!(listener.readiness().unwrap(), Readiness::Pending);
+    let client = LocalStream::connect(&path).unwrap();
+    let (server, ()) = listener.accept().unwrap();
+    drop((client, server, listener));
+    assert_eq!(
+        endpoint_exists_before(&path, deadline).unwrap(),
+        Some(false)
+    );
+    assert_eq!(endpoint_exists_before(&path, Instant::now()).unwrap(), None);
+    let names = || [Ok("other".into()), Ok("TARGET".into())].into_iter();
+    assert_eq!(
+        observe_pipe_names(OsStr::new("target"), names(), deadline, 1).unwrap(),
+        None
+    );
+    assert_eq!(
+        observe_pipe_names(OsStr::new("target"), names(), deadline, 2).unwrap(),
+        Some(true)
+    );
+    assert_eq!(
+        observe_pipe_names(OsStr::new("missing"), names(), deadline, 3).unwrap(),
+        Some(false)
+    );
+    assert!(
+        observe_pipe_names(
+            OsStr::new("target"),
+            [Err(io::ErrorKind::PermissionDenied.into())].into_iter(),
+            deadline,
+            2
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn records_larger_than_pipe_capacity_progress_without_losing_bytes() {
     let (mut client, mut server) = pair();
     client

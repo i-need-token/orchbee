@@ -529,3 +529,37 @@ pub fn endpoint_exists(path: &Path) -> io::Result<bool> {
     }
     Ok(false)
 }
+
+/// Read-only name observation; `None` never claims absence after a budget limit.
+pub fn endpoint_exists_before(path: &Path, deadline: Instant) -> io::Result<Option<bool>> {
+    pipe_name(path)?;
+    if Instant::now() >= deadline {
+        return Ok(None);
+    }
+    let name = path.file_name().ok_or(io::ErrorKind::InvalidInput)?;
+    let names = std::fs::read_dir(r"\\.\pipe\")?.map(|entry| entry.map(|entry| entry.file_name()));
+    observe_pipe_names(name, names, deadline, 2048)
+}
+
+fn observe_pipe_names(
+    name: &std::ffi::OsStr,
+    mut names: impl Iterator<Item = io::Result<std::ffi::OsString>>,
+    deadline: Instant,
+    limit: usize,
+) -> io::Result<Option<bool>> {
+    for _ in 0..limit {
+        if Instant::now() >= deadline {
+            return Ok(None);
+        }
+        let Some(entry) = names.next() else {
+            return Ok(Some(false));
+        };
+        if entry?
+            .to_string_lossy()
+            .eq_ignore_ascii_case(&name.to_string_lossy())
+        {
+            return Ok(Some(true));
+        }
+    }
+    Ok(None)
+}

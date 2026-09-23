@@ -158,6 +158,42 @@ impl ModeCheckedLocalSiteRendezvous {
     pub fn commit_activation(&self) -> io::Result<()> {
         permissions::open_file(&self.runtime.join("activation.started"), true, true).map(drop)
     }
+
+    /// Inspect the existing activation lock without creating or acquiring it.
+    pub fn activation_lock_exists(&self) -> io::Result<bool> {
+        match permissions::open_file(
+            &self.runtime.join(LockKind::Activation.name()),
+            false,
+            false,
+        ) {
+            Ok(_) => Ok(true),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(error),
+        }
+    }
+
+    /// A momentary lock fact, not a process-health claim. No create or repair.
+    pub fn observe_site_lifetime_lock(&self) -> io::Result<SiteLifetimeObservation> {
+        let file = match permissions::open_file(
+            &self.runtime.join(LockKind::SiteLifetime.name()),
+            false,
+            true,
+        ) {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return Ok(SiteLifetimeObservation::Absent);
+            }
+            Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {
+                return Ok(SiteLifetimeObservation::Unsafe);
+            }
+            Err(error) => return Err(error),
+        };
+        match file.try_lock() {
+            Ok(()) => Ok(SiteLifetimeObservation::Free),
+            Err(TryLockError::WouldBlock) => Ok(SiteLifetimeObservation::Held),
+            Err(TryLockError::Error(error)) => Err(error),
+        }
+    }
     pub fn client_socket_exists(&self) -> io::Result<bool> {
         orchbee_local_ipc::endpoint_exists(&self.client)
     }

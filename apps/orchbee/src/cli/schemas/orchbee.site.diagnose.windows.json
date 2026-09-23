@@ -1,0 +1,135 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.site.diagnose.windows",
+	"title": "orchbee Windows site diagnose envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.site.diagnose.windows"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "local-runtime"
+				}
+			}
+		},
+		"result": {
+			"type": "object",
+			"required": [
+				"complete",
+				"scope",
+				"runtimeBase",
+				"runtimeDirectory",
+				"marker",
+				"locks",
+				"endpoints",
+				"advisories"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"complete": {
+					"type": "boolean"
+				},
+				"scope": {
+					"type": "string",
+					"pattern": "^orchbee-native-[0-9a-f]{32}$"
+				},
+				"runtimeBase": {
+					"$ref": "#/$defs/row"
+				},
+				"runtimeDirectory": {
+					"$ref": "#/$defs/row"
+				},
+				"marker": {
+					"$ref": "#/$defs/row"
+				},
+				"locks": {
+					"type": "object",
+					"required": ["activation", "siteLifetime"],
+					"additionalProperties": false,
+					"properties": {
+						"activation": {
+							"$ref": "#/$defs/row"
+						},
+						"siteLifetime": {
+							"$ref": "#/$defs/row"
+						}
+					}
+				},
+				"endpoints": {
+					"type": "object",
+					"required": ["client", "worker", "clientPending", "agentObservation", "hostEndpoint"],
+					"additionalProperties": false,
+					"properties": {
+						"client": {
+							"$ref": "#/$defs/row"
+						},
+						"worker": {
+							"$ref": "#/$defs/row"
+						},
+						"clientPending": {
+							"$ref": "#/$defs/row"
+						},
+						"agentObservation": {
+							"$ref": "#/$defs/row"
+						},
+						"hostEndpoint": {
+							"$ref": "#/$defs/row"
+						}
+					}
+				},
+				"advisories": {
+					"type": "array",
+					"items": {
+						"enum": ["activation-recorded", "pipe-name-present"]
+					}
+				}
+			}
+		}
+	},
+	"$defs": {
+		"row": {
+			"type": "object",
+			"required": ["state"],
+			"additionalProperties": false,
+			"properties": {
+				"state": {
+					"enum": ["known", "absent", "uninspectable", "free", "held", "unsafe"]
+				},
+				"reason": {
+					"enum": [
+						"denied",
+						"io-error",
+						"invalid-path",
+						"parent-unavailable",
+						"deadline",
+						"observation-limit"
+					]
+				},
+				"private": {
+					"const": true
+				},
+				"path": {
+					"type": "string"
+				},
+				"pathUtf16": {
+					"type": "array",
+					"items": {
+						"type": "integer",
+						"minimum": 0,
+						"maximum": 65535
+					}
+				}
+			}
+		}
+	}
+}
