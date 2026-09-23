@@ -18,6 +18,8 @@ mod site_diagnose;
 #[cfg_attr(windows, path = "cli/source_windows.rs")]
 pub(crate) mod source;
 mod text;
+#[cfg(any(target_os = "linux", windows))]
+mod wait_deadline;
 
 #[cfg(test)]
 mod tests;
@@ -286,12 +288,23 @@ pub(crate) fn failure_output(
     let stderr = locale.cli_failure(&failure);
     match format {
         Some(OutputFormat::Json) => {
+            let version = if failure.failure_schema == Some(schema::AGENT_FAILURE_ID)
+                && failure
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("timeoutMs"))
+                    == Some(&Value::Null)
+            {
+                2
+            } else {
+                1
+            };
             let mut document = Map::from_iter([
                 (
                     "schema".to_owned(),
                     json!(failure.failure_schema.unwrap_or(schema::FAILURE_ID)),
                 ),
-                ("version".to_owned(), json!(1)),
+                ("version".to_owned(), json!(version)),
             ]);
             let mut failure_object =
                 Map::from_iter([("kind".to_owned(), json!(failure.kind.as_str()))]);

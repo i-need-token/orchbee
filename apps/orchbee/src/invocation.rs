@@ -275,13 +275,15 @@ impl CommandPath {
     }
 }
 
-/// One canonical `agent wait` condition: the twelve-value vocabulary the
-/// canonical wait schema admits — nine fresh-gated status conditions plus
+/// One canonical `agent wait` condition: the fourteen-value vocabulary the
+/// CLI wait schema admits — eleven fresh-gated status conditions plus
 /// the three direct freshness conditions. `as_str` is the canonical
 /// kebab-case name used on the command line, inside `matchedConditions`,
 /// and in the emitted wait document's `until` echo.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum AgentWaitCondition {
+    Blocked,
+    Done,
     NeedsAttention,
     Failed,
     Succeeded,
@@ -299,6 +301,8 @@ pub(crate) enum AgentWaitCondition {
 impl AgentWaitCondition {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
+            Self::Blocked => "blocked",
+            Self::Done => "done",
             Self::NeedsAttention => "needs-attention",
             Self::Failed => "failed",
             Self::Succeeded => "succeeded",
@@ -316,6 +320,8 @@ impl AgentWaitCondition {
 
     fn parse(value: &str) -> Option<Self> {
         Some(match value {
+            "blocked" => Self::Blocked,
+            "done" => Self::Done,
             "needs-attention" => Self::NeedsAttention,
             "failed" => Self::Failed,
             "succeeded" => Self::Succeeded,
@@ -375,8 +381,8 @@ pub(crate) enum QueryCommand {
         after_revision: Option<AgentSafeInteger>,
         /// The total wait budget in milliseconds measured from command
         /// start, 1..=3600000, defaulting to 600000 — never `wait-output`'s
-        /// 30000.
-        timeout_ms: u32,
+        /// 30000. None is explicit --forever.
+        timeout_ms: Option<u32>,
     },
     /// `agent doctor`: the offline provider-diagnostics read — validated
     /// provider selectors in flag order and supplied asset roots in flag
@@ -833,7 +839,7 @@ pub(crate) enum AgentIntegrationCommand {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct AgentPromptWait {
     pub(crate) until: Vec<AgentWaitCondition>,
-    pub(crate) timeout_ms: u32,
+    pub(crate) timeout_ms: Option<u32>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -955,7 +961,7 @@ pub(crate) enum ExpectedValue {
     AgentName,
     AgentListLimit,
     AgentCursor,
-    /// The `agent wait --until` operand: one of the twelve canonical
+    /// The `agent wait --until` operand: one of the fourteen
     /// condition names.
     AgentWaitUntil,
     /// The `agent wait --after-revision` operand: a nonnegative
@@ -1187,6 +1193,7 @@ struct Options {
     session: Option<String>,
     clear: bool,
     prompt_wait: bool,
+    forever: bool,
     profile: Option<String>,
     provider: Option<String>,
     adapter_source: Option<String>,
@@ -1531,11 +1538,13 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
             }
             "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
             | "--include-ended" | "--new-tab" | "--paste" | "--unwrap" | "--current"
-            | "--clear" | "--wait" => {
+            | "--clear" | "--wait" | "--forever" => {
                 let (seen, option) = if token == "--standalone" {
                     (&mut options.standalone, "--standalone")
                 } else if token == "--current" {
                     (&mut options.current, "--current")
+                } else if token == "--forever" {
+                    (&mut options.forever, "--forever")
                 } else if token == "--wait" {
                     (&mut options.prompt_wait, "--wait")
                 } else if token == "--clear" {
@@ -1904,6 +1913,7 @@ fn resolve_words(
                 options,
                 Scope {
                     prompt_wait: true,
+                    forever: true,
                     until: true,
                     timeout: true,
                     ..AGENT_TARGET_SCOPE
@@ -1939,7 +1949,9 @@ fn resolve_words(
                     envelope,
                 ));
             }
-            if !options.prompt_wait && (!options.until.is_empty() || options.timeout.is_some()) {
+            if !options.prompt_wait
+                && (!options.until.is_empty() || options.timeout.is_some() || options.forever)
+            {
                 return Err(missing_required(context, "'--wait'", envelope));
             }
             let wait = if options.prompt_wait {
@@ -3380,6 +3392,7 @@ struct Scope {
     session: bool,
     clear: bool,
     prompt_wait: bool,
+    forever: bool,
     /// `tab create|panel split --profile <sel>`: the catalog-launch
     /// selector, exclusive with the explicit `--exec`/`--arg` form.
     profile: bool,
@@ -3436,6 +3449,7 @@ const NO_OPTIONS: Scope = Scope {
     session: false,
     clear: false,
     prompt_wait: false,
+    forever: false,
     profile: false,
     adapter_source: false,
     request: false,
@@ -3467,6 +3481,7 @@ const AGENT_LIST_SCOPE: Scope = Scope {
 /// timeout flag under the canonical wait meaning — the sole Agent scope
 /// that admits `--timeout`.
 const AGENT_WAIT_SCOPE: Scope = Scope {
+    forever: true,
     name: true,
     session: true,
     until: true,
@@ -3822,6 +3837,9 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.session.is_some() && !scope.session {
         return Some("--session");
+    }
+    if options.forever && !scope.forever {
+        return Some("--forever");
     }
     if options.prompt_wait && !scope.prompt_wait {
         return Some("--wait");
@@ -4787,7 +4805,7 @@ fn agent_session_id(
 }
 
 /// `agent wait --until <condition>`: the repeatable canonical condition
-/// vocabulary — every value must be one of the twelve names, a repeated
+/// vocabulary — every value must be one of the fourteen names, a repeated
 /// value is a duplicate flag, and an absent flag means the canonical
 /// default seven in canonical order.
 fn agent_until_option(
@@ -4855,12 +4873,25 @@ fn agent_wait_timeout_option(
     options: &Options,
     context: UsageContext,
     envelope: FailureEnvelope,
-) -> Result<u32, ParseFailure> {
+) -> Result<Option<u32>, ParseFailure> {
+    if options.forever {
+        if options.timeout.is_some() {
+            return Err(usage_with(
+                UsageReason::ConflictingOptions {
+                    context,
+                    first: "--forever",
+                    second: "--timeout",
+                },
+                envelope,
+            ));
+        }
+        return Ok(None);
+    }
     let Some(value) = options.timeout.clone() else {
-        return Ok(600_000);
+        return Ok(Some(600_000));
     };
     match value.parse::<u32>() {
-        Ok(timeout) if (1..=3_600_000).contains(&timeout) => Ok(timeout),
+        Ok(timeout) if (1..=3_600_000).contains(&timeout) => Ok(Some(timeout)),
         _ => Err(usage_with(
             UsageReason::InvalidValue {
                 context,

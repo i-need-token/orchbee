@@ -29,11 +29,12 @@ use serde_json::json;
 use super::{
     AGENT_TOTAL_BUDGET, AgentAdmissionError, AgentCancelled, AgentQueryError, AgentWatch,
     agent_protocol_invalid, agent_read_details, agent_session_details, agent_session_rejection,
-    agent_session_until, agent_unavailable_details, bounded_deadline, classify_agent_read,
-    classify_connect, deadline_after, is_deadline_elapsed, obap_request_id,
+    agent_session_until, agent_unavailable_details, classify_agent_read, classify_connect,
+    is_deadline_elapsed, obap_request_id,
 };
 use crate::cli::results::{AgentWaitDoc, Projection, agent_source};
 use crate::cli::source::{ArmedSignals, Finish};
+use crate::cli::wait_deadline::WaitDeadline;
 use crate::cli::{Failure, FailureKind};
 use crate::invocation::AgentWaitCondition;
 use crate::local_client::agent::{AgentExchangeError, AgentExchangeFailure, AgentReadOperation};
@@ -52,11 +53,10 @@ pub(crate) fn agent_wait(
     target: &orchbee_agent_observation_protocol::AgentSessionSelector,
     until: &[AgentWaitCondition],
     after_revision: Option<AgentSafeInteger>,
-    timeout_ms: u32,
+    timeout_ms: Option<u32>,
 ) -> Result<(serde_json::Value, Projection), AgentQueryError> {
     let start = Instant::now();
-    let total = deadline_after(Duration::from_millis(u64::from(timeout_ms)))
-        .map_err(AgentQueryError::Admission)?;
+    let total = WaitDeadline::new(start, timeout_ms).map_err(AgentQueryError::Admission)?;
     let armed = ArmedSignals::arm_interrupts()
         .map_err(|_| AgentQueryError::Admission(Failure::new(FailureKind::InternalFailure)))?;
     let attempt = agent_wait_finish(
@@ -82,13 +82,13 @@ pub(crate) fn agent_wait(
 /// no source.
 #[expect(clippy::too_many_arguments)]
 fn agent_wait_finish(
-    total: Instant,
+    total: WaitDeadline,
     start: Instant,
     read_budget: Duration,
     target: &orchbee_agent_observation_protocol::AgentSessionSelector,
     until: &[AgentWaitCondition],
     after_revision: Option<AgentSafeInteger>,
-    timeout_ms: u32,
+    timeout_ms: Option<u32>,
     armed: impl AgentWatch,
     acquire: impl FnOnce(Instant, Option<BorrowedFd<'_>>) -> Result<LocalClient, AgentAdmissionError>,
 ) -> Result<WaitAttempt, AgentQueryError> {
@@ -155,7 +155,7 @@ struct WaitObservation {
 /// Why a wait ended at a deadline — two distinct honest reasons, never
 /// conflated into one generic timeout.
 #[derive(Clone, Copy)]
-enum WaitDeadline {
+enum WaitDeadlineReason {
     /// `now >= total`: admission, every read, and every backoff together
     /// spent the whole shared budget.
     Total,
@@ -175,21 +175,25 @@ enum WaitDeadline {
 /// never a re-admission.
 #[expect(clippy::too_many_arguments)]
 fn agent_wait_span(
-    total: Instant,
+    total: WaitDeadline,
     start: Instant,
     read_budget: Duration,
     target: &orchbee_agent_observation_protocol::AgentSessionSelector,
     until: &[AgentWaitCondition],
     after_revision: Option<AgentSafeInteger>,
-    timeout_ms: u32,
+    timeout_ms: Option<u32>,
     wake: Option<BorrowedFd<'_>>,
     acquire: impl FnOnce(Instant, Option<BorrowedFd<'_>>) -> Result<LocalClient, AgentAdmissionError>,
 ) -> WaitAttempt {
-    let mut client = match acquire(total, wake) {
+    let admission = match total.step(Instant::now(), read_budget) {
+        Ok(deadline) => deadline,
+        Err(failure) => return WaitAttempt::Admission(AgentAdmissionError::Preamble(failure)),
+    };
+    let mut client = match acquire(admission, wake) {
         Err(error) => return WaitAttempt::Admission(error),
         Ok(client) => client,
     };
-    let resolve_deadline = match bounded_deadline(Instant::now(), read_budget, total) {
+    let resolve_deadline = match total.step(Instant::now(), read_budget) {
         Ok(deadline) => deadline,
         Err(failure) => return WaitAttempt::Done(Err(failure)),
     };
@@ -207,9 +211,9 @@ fn agent_wait_span(
     let outcome = loop {
         // Post-step total settlement before any new step: an expired
         // shared budget is always the wait's own timeout.
-        if Instant::now() >= total {
+        if total.expired(Instant::now()) {
             break wait_timeout(
-                WaitDeadline::Total,
+                WaitDeadlineReason::Total,
                 timeout_ms,
                 start,
                 observations,
@@ -221,7 +225,7 @@ fn agent_wait_span(
             Err(failure) => break WaitAttempt::Done(Err(failure)),
         };
         let now = Instant::now();
-        let read_deadline = match bounded_deadline(now, read_budget, total) {
+        let read_deadline = match total.step(now, read_budget) {
             Ok(deadline) => deadline,
             Err(failure) => break WaitAttempt::Done(Err(failure)),
         };
@@ -238,7 +242,7 @@ fn agent_wait_span(
         );
         // Post-step total settlement before the outcome may match or
         // classify — never a late success.
-        let settled = Instant::now() >= total;
+        let settled = total.expired(Instant::now());
         match result {
             Ok(AgentReadResult::Get {
                 request_id: answered,
@@ -258,7 +262,7 @@ fn agent_wait_span(
                 }
                 if settled {
                     break wait_timeout(
-                        WaitDeadline::Total,
+                        WaitDeadlineReason::Total,
                         timeout_ms,
                         start,
                         observations,
@@ -267,6 +271,11 @@ fn agent_wait_span(
                 }
                 match result.outcome {
                     AgentGetOutcome::Found { revision, session } => {
+                        if session.snapshot.session_id != *session_id {
+                            break WaitAttempt::Done(Err(agent_protocol_invalid(
+                                AgentReadOperation::Wait,
+                            )));
+                        }
                         // The canonical fence refuses only against the
                         // FIRST returned revision — it can never fire
                         // later (revision is monotonic); if it ever did,
@@ -331,7 +340,7 @@ fn agent_wait_span(
             Ok(_) => {
                 if settled {
                     break wait_timeout(
-                        WaitDeadline::Total,
+                        WaitDeadlineReason::Total,
                         timeout_ms,
                         start,
                         observations,
@@ -343,7 +352,7 @@ fn agent_wait_span(
             Err(error) => {
                 if settled {
                     break wait_timeout(
-                        WaitDeadline::Total,
+                        WaitDeadlineReason::Total,
                         timeout_ms,
                         start,
                         observations,
@@ -358,7 +367,7 @@ fn agent_wait_span(
                     // open — the exchange already retired the session and
                     // the wait never reconnects.
                     break wait_timeout(
-                        WaitDeadline::Read {
+                        WaitDeadlineReason::Read {
                             budget_ms: read_budget_ms,
                         },
                         timeout_ms,
@@ -373,7 +382,7 @@ fn agent_wait_span(
         // Bounded interruptible backoff: the wake descriptor joins the
         // sleep so a captured signal ends the wait promptly instead of at
         // the next poll boundary.
-        let remaining = total.saturating_duration_since(Instant::now());
+        let remaining = total.backoff(Instant::now(), backoff);
         if !remaining.is_zero() {
             if wait_backoff(wake, backoff.min(remaining)) {
                 break WaitAttempt::Wake;
@@ -418,6 +427,19 @@ pub(crate) fn condition_matches(
     session: &AgentSessionDetail,
 ) -> bool {
     match condition {
+        AgentWaitCondition::Blocked => {
+            condition_matches(AgentWaitCondition::NeedsAttention, session)
+        }
+        AgentWaitCondition::Done => {
+            session.snapshot.observation.freshness == AgentObservationFreshness::Fresh
+                && matches!(
+                    session.status,
+                    AgentSemanticStatus::Succeeded { .. }
+                        | AgentSemanticStatus::Failed { .. }
+                        | AgentSemanticStatus::Canceled { .. }
+                        | AgentSemanticStatus::Interrupted { .. }
+                )
+        }
         AgentWaitCondition::Fresh => {
             session.snapshot.observation.freshness == AgentObservationFreshness::Fresh
         }
@@ -545,8 +567,8 @@ fn revision_ahead_details(
 /// observed facts — `readBudgetMs` only under `read-deadline`, `last*`
 /// only when at least one observation completed.
 fn wait_timeout(
-    deadline: WaitDeadline,
-    timeout_ms: u32,
+    deadline: WaitDeadlineReason,
+    timeout_ms: Option<u32>,
     start: Instant,
     observations: u64,
     last: Option<&WaitObservation>,
@@ -558,11 +580,11 @@ fn wait_timeout(
         json!(start.elapsed().as_millis() as u64),
     );
     let reason = match deadline {
-        WaitDeadline::Total => "wait-deadline",
-        WaitDeadline::Read { .. } => "read-deadline",
+        WaitDeadlineReason::Total => "wait-deadline",
+        WaitDeadlineReason::Read { .. } => "read-deadline",
     };
     details.insert("reason".to_owned(), json!(reason));
-    if let WaitDeadline::Read { budget_ms } = deadline {
+    if let WaitDeadlineReason::Read { budget_ms } = deadline {
         details.insert("readBudgetMs".to_owned(), json!(budget_ms));
     }
     details.insert("completedObservations".to_owned(), json!(observations));
@@ -678,6 +700,31 @@ mod tests {
                 "{status} must not match under stale freshness"
             );
         }
+
+        for kind in ["succeeded", "failed", "canceled", "interrupted"] {
+            assert!(condition_matches(
+                AgentWaitCondition::Done,
+                &detail("fresh", json!({"kind":kind}))
+            ));
+            assert!(!condition_matches(
+                AgentWaitCondition::Done,
+                &detail("stale", json!({"kind":kind}))
+            ));
+        }
+        for kind in ["idle", "ended"] {
+            assert!(!condition_matches(
+                AgentWaitCondition::Done,
+                &detail("fresh", json!({"kind":kind}))
+            ));
+        }
+        assert!(condition_matches(
+            AgentWaitCondition::Blocked,
+            &detail("fresh", json!({"kind":"needs-attention", "count":1}))
+        ));
+        assert!(!condition_matches(
+            AgentWaitCondition::Blocked,
+            &detail("stale", json!({"kind":"needs-attention", "count":1}))
+        ));
 
         // A multi-condition request keeps the caller's order: `fresh` and
         // `idle` both hit a fresh idle document, in requested sequence.

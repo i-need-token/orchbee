@@ -62,3 +62,5 @@ Windows 上可用 `agent doctor` 离线检查本机配置。`agent integration l
 时返回错误，绝不回退到客户端焦点。显式 `--panel` 忽略继承上下文，不能与
 `--current` 同用。`api schema` 现在返回第 12 版目录 envelope；新增的
 `orchbee.panel.current` 文档为第 1 版。
+
+`agent wait` 或 `agent prompt --wait` 可显式加 `--forever`，与 `--timeout` 互斥；默认仍等待最多 600000 毫秒，单次读取始终有界。`--until blocked` 对应 fresh needs-attention，`--until done` 对应 fresh 完成结果集合，不表示未读。等待/prompt 成功为版本 2，无限模式的 timeoutMs 为 null；无限等待读取超时失败也为版本 2。Windows Codex 的提示提交在 paste 与 Enter 间加入 Right，以清除 paste-burst 对 Enter 的抑制。

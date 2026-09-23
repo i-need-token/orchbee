@@ -5073,7 +5073,7 @@ fn agent_wait_grammar() {
                 session: AgentSessionSelector::Auto { target: session() },
                 until: defaults.clone(),
                 after_revision: None,
-                timeout_ms: 600_000,
+                timeout_ms: Some(600_000),
             },
             OutputFormat::Text
         ))
@@ -5106,7 +5106,7 @@ fn agent_wait_grammar() {
                 after_revision: Some(orchbee_agent_observation_protocol::AgentSafeInteger::new(
                     42
                 )),
-                timeout_ms: 1_200,
+                timeout_ms: Some(1_200),
             },
             OutputFormat::Json
         ))
@@ -5150,7 +5150,7 @@ fn agent_wait_grammar() {
                 session: AgentSessionSelector::Auto { target: session() },
                 until: vec![condition],
                 after_revision: None,
-                timeout_ms: 600_000,
+                timeout_ms: Some(600_000),
             },
             "--until {name}"
         );
@@ -5168,7 +5168,7 @@ fn agent_wait_grammar() {
                             value.parse().expect("bound literal")
                         )
                     ),
-                    timeout_ms: 600_000,
+                    timeout_ms: Some(600_000),
                 },
                 OutputFormat::Text
             )),
@@ -5183,7 +5183,7 @@ fn agent_wait_grammar() {
                     session: AgentSessionSelector::Auto { target: session() },
                     until: defaults.clone(),
                     after_revision: None,
-                    timeout_ms: value.parse().expect("bound literal"),
+                    timeout_ms: Some(value.parse().expect("bound literal")),
                 },
                 OutputFormat::Text
             )),
@@ -5250,7 +5250,7 @@ fn agent_wait_usage_failures() {
         );
     }
     // Unknown condition names name the closed vocabulary.
-    for value in ["running", "done", "Idle", ""] {
+    for value in ["running", "finished", "Idle", ""] {
         assert_eq!(
             usage_reason(&["agent", "wait", "sess", "--until", value]),
             UsageReason::InvalidValue {
@@ -6596,7 +6596,7 @@ fn agent_terminal_grammar_validates_all_keys_and_exclusive_targets_before_effect
 fn prompt_grammar_keeps_text_literal_and_wait_options_explicit() {
     assert!(
         matches!(parse(&["agent", "prompt", "--name", "alpha", "line one\nline two", "--wait", "--until", "succeeded", "--timeout", "1234"]),
-        Ok(Request::Mutation { command: MutationCommand::AgentPrompt { text, wait: Some(wait), .. }, .. }) if text == "line one\nline two" && wait.timeout_ms == 1234)
+        Ok(Request::Mutation { command: MutationCommand::AgentPrompt { text, wait: Some(wait), .. }, .. }) if text == "line one\nline two" && wait.timeout_ms == Some(1234))
     );
     for words in [
         vec!["agent", "prompt", "alpha"],
@@ -6610,4 +6610,52 @@ fn prompt_grammar_keeps_text_literal_and_wait_options_explicit() {
         assert!(parse(&words).is_err(), "{words:?}");
     }
     assert!(parse(&["agent", "prompt", "alpha", "--", "--literal"]).is_ok());
+}
+
+#[test]
+fn infinite_agent_wait_is_explicit_and_rejects_conflicting_or_unscoped_flags() {
+    use crate::invocation::{AgentPromptWait, AgentWaitCondition};
+    assert!(
+        matches!(parse(&["agent", "wait", "alpha", "--forever", "--until", "done", "--until", "blocked"]),
+        Ok(Request::Query { command: QueryCommand::AgentWait { timeout_ms: None, until, .. }, .. }) if until == vec![AgentWaitCondition::Done, AgentWaitCondition::Blocked])
+    );
+    assert!(matches!(
+        parse(&["agent", "prompt", "alpha", "task", "--wait", "--forever"]),
+        Ok(Request::Mutation {
+            command: MutationCommand::AgentPrompt {
+                wait: Some(AgentPromptWait {
+                    timeout_ms: None,
+                    ..
+                }),
+                ..
+            },
+            ..
+        })
+    ));
+    for words in [
+        vec!["agent", "wait", "alpha", "--forever", "--timeout", "100"],
+        vec!["agent", "wait", "alpha", "--forever", "--forever"],
+        vec!["agent", "prompt", "alpha", "task", "--forever"],
+        vec![
+            "agent",
+            "prompt",
+            "alpha",
+            "task",
+            "--wait",
+            "--forever",
+            "--timeout",
+            "100",
+        ],
+        vec!["agent", "get", "alpha", "--forever"],
+        vec![
+            "terminal",
+            "wait-output",
+            "alpha",
+            "--match",
+            "ready",
+            "--forever",
+        ],
+    ] {
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
 }

@@ -25,7 +25,7 @@ Agent 状态来自 Server 的 canonical Agent 模型，不从终端文字推断�
 `orchbee.cli.failure.agent-names` version 1。相关语义结果携带 `agent-names` source
 和 OBAP request ID。这四份文档与提示契约一起纳入 Windows 中，canonical provider 为 `codex` 时，单次输入序列按字面 paste、Right、Enter 排列。Right 作为非字符边界，促使 Codex 刷出 paste-burst 缓冲并清除 Enter 抑制窗口；不向提示文本拼接转义码，也不以固定延时猜测投递速度。其他 provider 保持 paste、Enter，普通 `terminal send --paste --enter` 不增加按键。回执准确报告三条或两条记录；若在 Right 或 Enter 前停止，只报告实际接受的前缀，绝不补发或开始等待。该边界不证明输入框为空、焦点归属或 provider 已就绪。
 
-Schema 目录 version 12。非法名称或冲突选择器在
+Schema 目录 version 13。非法名称或冲突选择器在
 任何运行时访问前以退出码 2 失败。重名以退出码 3 拒绝并标明占用者，绝不覆盖其名称。
 
 每个命令的单一五秒截止覆盖 cohort 校验、仅查已有 Site、接纳和一次 OBAP 交换。
@@ -102,7 +102,7 @@ Server 仍验证终端当前绑定。
 不会抹去已确认提交。已在 working 的 Agent 可能完成既有轮次；匹配结果不标识本次提示
 自己的轮次。轮询可能漏掉转换，不宣称支持 Herdr 的事件重放。
 
-Schema 目录 version 12 共 47 份文档，包含提示成功与失败契约。
+Schema 目录 version 13 共 47 份文档，包含提示成功与失败契约。
 
 `orchbee.agent.prompt` 返回会话 ID、完整终端提交回执，以及可选的匹配观察/等待事实。
 发送拒绝、部分接受或不确定时沿用既有终端发送/失败契约，不开始等待。预检及提交后失败
@@ -114,6 +114,14 @@ Schema 目录 version 12 共 47 份文档，包含提示成功与失败契约。
 证据覆盖阻塞/未就绪拒绝且无终端效果、精确字面 paste 加 Enter、单次准入和不重放、
 working/idle 活动检查、更新的完成结果、固定会话读取、总期限/活动期限、部分及不确定发送、
 取消裁定和 schema 校验。原生权威观察仍是唯一 Agent 状态来源，不新增屏幕推断或 provider API。
+
+## Agent 等待策略
+
+`agent wait` 和 `agent prompt --wait` 增加显式 `--forever`，与 `--timeout` 互斥；prompt 的该选项仍要求 `--wait`。遵循仓库 CLI 进程契约，默认仍为 600000 ms，显式期限仍限 1–3600000 ms。无限模式没有总期限，但准入、目标解析及每次读取仍有五秒上限；读取失败后不重连，Ctrl-C 只停止等待。prompt 的非 working 活动门槛仍为五秒，不能因无限等待跳过。
+
+`--until blocked` 匹配 fresh 的 needs-attention；`--until done` 匹配 fresh 的 succeeded、failed、canceled 或 interrupted。它们是原生语义条件的组合，回执保留调用者选择的条件名；已有十二种条件及默认七种集合保留。`done` 不声称 Herdr 的“未看见”标记，关注/已读状态仍由后续客户端聚焦能力对齐。结束状态不被误判为 done。
+
+无限等待的读取超时失败使用 Agent failure 版本 2，有限等待失败保留版本 1。等待和 prompt 成功 envelope 使用版本 2；无限模式的 `timeoutMs` 为 null，有限模式为毫秒整数。等待读取超时失败也保留 null，明确失败来自单次读取而非总期限。catalog 版本随契约更新。时钟模型只保存一个可选单调总期限，不以极大整数模拟无限、不在轮询时刷新总预算。证据覆盖有界/无界准入、读取、退避与取消，原始总期限、prompt 活动门槛、条件集合和 schema。
 
 ## 输入与信任边界
 
@@ -268,8 +276,8 @@ working/idle 活动检查、更新的完成结果、固定会话读取、总期�
 - `--cursor <c>`：带值 flag，单次使用，仅 `agent list` 受理；铸造的
   `v1.<59>.<43>` 续页 token，逐字携带——真实性由 Server 侧校验，CLI 绝不验证。
   畸形 token 在任何运行时访问之前即 `invalid-usage`。
-- `--until <condition>`：可重复带值 flag，仅 `agent wait` 受理；每次出现取
-  十二名条件词表中的一个：`needs-attention`、`failed`、`succeeded`、
+- `--until <condition>`：可重复带值 flag，由 `agent wait` 和 `agent prompt --wait` 受理；每次出现取
+  十四名条件词表中的一个：`blocked`、`done`、`needs-attention`、`failed`、`succeeded`、
   `canceled`、`interrupted`、`working`、`idle`、`unknown`、`ended`、`fresh`、
   `stale`、`disconnected`。重复的值按请求顺序保留用于匹配与输出回显；重复
   同一值或未知名称均为 `invalid-usage`。完全省略 `--until` 时生效集为规范的
@@ -336,8 +344,8 @@ orchbee agent list [--include-ended] [--limit <1-100>] [--cursor <v1.…>]
 orchbee agent get <target> | agent explain <target>
 orchbee agent read <target> [--history --rows <n>] [--unwrap] [--lines <n>]
 orchbee agent send-keys <target> <key>...
-orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>]
-orchbee agent wait <target> [--until <condition>]... [--after-revision <0-9007199254740991>] [--timeout <1-3600000>]
+orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>] [--forever]
+orchbee agent wait <target> [--until <condition>]... [--after-revision <0-9007199254740991>] [--timeout <1-3600000>] [--forever]
 orchbee agent doctor [--provider <id>]... [--asset-root <path>]...
 orchbee agent integration list [--provider <id>]
 orchbee agent integration explain --provider <id>
@@ -400,7 +408,7 @@ selector 语法。其他 token 在 resource 允许 label 时视为精确、区�
 tab 内解析）。`api schema` 接受非空
 schema ID；空串是 `invalid-identifier`（`resource="schema"`），无匹配是 `not-found`。
 `agent get`、`agent explain` 与 `agent wait` 的位置目标是 `[A-Za-z0-9._:-]` 的
-1–128 字符 token；按上述 ID 优先规则解析，或用 `--session`/`--name` 明确选择。
+1–148 字符 token；按上述 ID 优先规则解析，或用 `--session`/`--name` 明确选择。
 畸形 token 在任何运行时访问前即 `invalid-usage`。
 `launch-profile get` 与 `launch-profile delete` 接受一个位置 `<selector>`，
 `--profile` 携带同一 token：`LaunchProfileSelector`——非空 UTF-8 字面量、至多 512
@@ -773,8 +781,8 @@ cancelled 失败均不携带。Agent 读取只观察 Server 的 canonical Agent 
 `agent wait` 是同一套机器之上的 CLI 侧组合，绝不是新的线上动词：一个已准入的
 Client Session 在整个等待期间被持有，用重复的 `agent.session.get.request` 交换
 轮询该 session——每轮新铸一个 `ObapRequestId`，每轮取回一份 snapshot+revision，
-绝不跨读取合并字段。在命令开始时采样的单一绝对单调 deadline 覆盖准入、每次读取
-与每次退避；每轮在 `min(5 s, remaining total)` 下运行。两次未命中观察之间，循环睡一个
+绝不跨读取合并字段。在命令开始时采样的可选绝对单调 deadline 覆盖准入、每次读取
+与每次退避；`--forever` 只省略该总期限；每轮在 `min(5 s, remaining total)` 下运行。两次未命中观察之间，循环睡一个
 可中断的私有退避：起始 50ms、每次静默轮翻倍、封顶 500ms 且受剩余预算约束——
 信号 wake 描述符并入该睡眠，持有的 session 在唯一的 finish 仲裁之前 drop，
 与单次读取完全一致。retire 或结果不可判定的交换之后绝不重新准入、重放或新开
@@ -782,7 +790,7 @@ session。
 
 每份返回的文档在客户端按请求顺序求值。三个新鲜度条件（`fresh`、`stale`、
 `disconnected`）直接匹配观察的 freshness；每个状态条件还要求 `fresh` 新鲜度
-且 status `kind` 等于该条件。多个条件可命中同一份文档——`matchedConditions`
+；原生状态条件匹配 status `kind`，`blocked` 和 `done` 使用上述组合。多个条件可命中同一份文档——`matchedConditions`
 按 `--until` 的请求顺序回显。没有基线或 poll-0 变更语义：第一次读取即可立即
 命中。`--after-revision` 是调用方给出的全局修订栅栏——不是回合级或事件因果
 身份。栅栏大于首个返回 revision 时，命令在恰好一次观察后以退出 3 拒绝
@@ -807,7 +815,7 @@ session。
 outcome 可能被后来的 turn 替换，freshness 在轮询之间移动。错过窗口不只由
 轮询间隔决定——Server 读取时长与调度同样会拉宽它——即便对一旦达成就保持
 为真的条件，也不存在 sticky-state 保证。命中时发出的 `orchbee.agent.wait`
-envelope（version 1）携带 `matchedConditions`、命中的 `revision`、完整的
+envelope（version 2）携带 `matchedConditions`、命中的 `revision`、完整的
 `session` 明细逐字段，以及 `wait` 回显 `{until, afterRevision?, timeoutMs, observations, elapsedMs}`；其 `source` 仅为决定性轮询的 `agent-read`
 requestId——失败、取消与不可信交换均不发布。text 输出为单行：
 `session <id> matched <conditions> at revision <n> after <ms>ms`。
@@ -1040,7 +1048,7 @@ inputStatus,cleanupStatus,reason?,target?}`. `payloadKind` 为 text、key、byte
   `contentAvailable`）——Server 的派生解读，绝非 CLI 推断。
 - `orchbee.agent.wait` → 命中的应答：
   `{matchedConditions,revision,session,wait}`，其中 `matchedConditions` 为生效
-  `until` 列表中按请求顺序排列的命中子集（1–12 个唯一条件名），`revision`
+  `until` 列表中按请求顺序排列的命中子集（1–14 个唯一条件名），`revision`
   为命中轮的全局运行时 revision，`session` 为该轮 wire `AgentSessionDetail`
   逐字段原样，`wait` 回显本次生效运行的 `{until,afterRevision?,timeoutMs,observations,elapsedMs}`——`afterRevision` 仅在提供时出现。
 - `orchbee.api.snapshot` → `{snapshot}`：完整 `WorkbenchProtocolDocument::Snapshot` 的语义化
@@ -1152,7 +1160,7 @@ service-unavailable,timeout,transport-loss}`，`details` 为按 kind 封闭的�
   （`{stage:"agent-read",operation[,reason|sessionId|timeoutMs]}`，其中
   `operation` ∈ `{explain,get,list,wait}`；`wait` 在 `rejected` 上增加
   `revisionAheadDetails` `{sessionId,afterRevision,revision}`、在 `timeout`
-  上增加 `waitTimeoutDetails` `{timeoutMs:1-3600000,elapsedMs,reason:wait-deadline|read-deadline,readBudgetMs?, completedObservations,lastStatusKind?,lastFreshness?,lastRevision?}`，而三个单次读取动词保持
+  上增加 `waitTimeoutDetails` `{timeoutMs:null|1-3600000,elapsedMs,reason:wait-deadline|read-deadline,readBudgetMs?, completedObservations,lastStatusKind?,lastFreshness?,lastRevision?}`，而三个单次读取动词保持
   `timeoutMs:5000`），`source` 仅出现在可信语义应答上。agent 命令的准入前失败
   仍使用通用 `orchbee.cli.failure` 文档。
 
@@ -1576,7 +1584,7 @@ poll 并对每个已应用帧加一次有界 `read-rows`——因此无需新 Se
 Host 校验实际目录并报告既有启动失败结果，不创建目录，也不静默替换为回退路径。
 
 环境覆盖继承/默认值：最多 32 组，名称和值合计最多 1024 个 UTF-8 字节；
-名称是 1–128 字节 ASCII 标识符。禁止 NUL 和忽略大小写后重复的名称，允许
+名称是 1–148 字节 ASCII 标识符。禁止 NUL 和忽略大小写后重复的名称，允许
 空值及值中的字面等号。`ORCHBEE_*`、`TERM`、`COLORTERM`、`TERM_PROGRAM`
 按忽略 ASCII 大小写保留。不进行 shell 展开、profile 修改或全局环境修改。
 用法诊断和 debug 投影不包含环境值。

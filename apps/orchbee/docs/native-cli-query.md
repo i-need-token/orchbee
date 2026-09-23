@@ -29,7 +29,7 @@ Site runtime is disposed. Restarting a Site starts with an empty alias table.
 All three commands admit `--format text|json`. The embedded success schemas are
 `orchbee.agent.names`, `orchbee.agent.resolve`, and `orchbee.agent.rename`, version 1;
 post-admission failures use `orchbee.cli.failure.agent-names`, version 1. Correlated
-semantic answers carry an `agent-names` source with the OBAP request ID. These four documents are included in schema catalog version 12, alongside the prompt contracts. Invalid names or conflicting selectors
+semantic answers carry an `agent-names` source with the OBAP request ID. These four documents are included in schema catalog version 13, alongside the prompt contracts. Invalid names or conflicting selectors
 fail with exit 2 before any runtime access. A collision is exit 3 and identifies the
 incumbent session; it never overwrites that session's name.
 
@@ -126,7 +126,7 @@ own turn. Polling can miss transitions and does not claim Herdr event replay.
 
 On Windows, canonical provider `codex` uses one ordered paste, Right, Enter sequence. Right is a non-character boundary that flushes Codex's paste-burst buffer and clears its Enter suppression window. It neither embeds escape bytes in prompt text nor guesses delivery speed with a fixed delay. Other providers retain paste, Enter; ordinary `terminal send --paste --enter` adds no boundary key. Receipts report the actual three or two records. Stopping before Right or Enter reports only the accepted prefix, never retries the suffix and never starts observation. This boundary does not establish an empty composer, foreground ownership or provider readiness.
 
-Schema catalog version 12 contains 47 documents, including the prompt success and failure contracts.
+Schema catalog version 13 contains 47 documents, including the prompt success and failure contracts.
 
 `orchbee.agent.prompt` returns the session ID, the full terminal submission receipt,
 and optional matched observation/wait facts. Refused/partial/unknown send outcomes retain
@@ -143,6 +143,14 @@ plus Enter, one admission and no replay, active/idle activity gates, newer compl
 outcomes, pinned-session reads, total/activity deadlines, partial and unknown sends,
 cancellation settlement, and schema validation. Native canonical observations remain the
 only Agent status authority; this command does not add screen inference or a provider API.
+
+## Agent wait policy
+
+`agent wait` and `agent prompt --wait` add explicit `--forever`, mutually exclusive with `--timeout`; prompt still requires `--wait`. Following the repository CLI process contract, the default remains 600000 ms and explicit finite timeouts remain 1–3600000 ms. Infinite mode has no total deadline, but admission, target resolution and each read retain five-second bounds. Read failure never reconnects; Ctrl-C stops only the wait. Prompt's five-second non-working activity gate still applies in infinite mode.
+
+`--until blocked` matches fresh needs-attention; `--until done` matches fresh succeeded, failed, canceled or interrupted. These compose native semantic conditions and preserve requested names in receipts; the existing twelve conditions and default seven-condition set remain available. `done` does not claim Herdr's unseen marker; attention/read acknowledgement remains owed with client focus capability. Ended does not match done.
+
+Wait and prompt success envelopes use version 2. Infinite read-timeout failures use Agent failure version 2; finite failures remain version 1. Infinite mode reports null `timeoutMs`; finite mode reports milliseconds. A wait read-timeout failure retains null, distinguishing a failed exchange from a total deadline. The catalog version advances with the contract. The clock model stores one optional monotonic deadline, never a huge integer standing for infinity or a renewed total budget per poll. Evidence covers finite/infinite admission, reads, backoff and cancellation, the original total deadline, prompt's activity gate, conditions and schema.
 
 ## Inputs and trust boundary
 
@@ -330,9 +338,9 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
   `v1.<59>.<43>` continuation token, carried verbatim — authenticity is verified
   Server-side, never at the CLI. A malformed token is `invalid-usage` before any
   runtime access.
-- `--until <condition>`: repeatable value flag, admitted only on `agent wait`; one
-  condition name per occurrence drawn from the twelve-name vocabulary
-  `needs-attention`, `failed`, `succeeded`, `canceled`, `interrupted`, `working`,
+- `--until <condition>`: repeatable value flag, admitted on `agent wait` and `agent prompt --wait`; one
+  condition name per occurrence drawn from the fourteen-name vocabulary
+  `blocked`, `done`, `needs-attention`, `failed`, `succeeded`, `canceled`, `interrupted`, `working`,
   `idle`, `unknown`, `ended`, `fresh`, `stale`, `disconnected`. Repeated values
   stay in requested order for matching and the emitted echo; a duplicate value or
   an unknown name is `invalid-usage`. Absent `--until` entirely, the effective set
@@ -404,8 +412,8 @@ orchbee agent list [--include-ended] [--limit <1-100>] [--cursor <v1.…>]
 orchbee agent get <target> | agent explain <target>
 orchbee agent read <target> [--history --rows <n>] [--unwrap] [--lines <n>]
 orchbee agent send-keys <target> <key>...
-orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>]
-orchbee agent wait <target> [--until <condition>]... [--after-revision <0-9007199254740991>] [--timeout <1-3600000>]
+orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>] [--forever]
+orchbee agent wait <target> [--until <condition>]... [--after-revision <0-9007199254740991>] [--timeout <1-3600000>] [--forever]
 orchbee agent doctor [--provider <id>]... [--asset-root <path>]...
 orchbee agent integration list [--provider <id>]
 orchbee agent integration explain --provider <id>
@@ -477,7 +485,7 @@ complete typed IDs and their own `@panel:`/`@terminal:` selectors only; anything
 target rules, and so do every mutation operand and `--target-panel` (the `panel` rule, resolved
 inside the moved panel's own tab). `api schema` takes a nonempty schema ID; an empty one is
 `invalid-identifier` with `resource="schema"`, an unmatched one is `not-found`.
-`agent get`, `agent explain`, and `agent wait` take one positional token of 1–128
+`agent get`, `agent explain`, and `agent wait` take one positional token of 1–148
 characters drawn from `[A-Za-z0-9._:-]`, resolved by the ID-first rules above, or an
 explicit `--session`/`--name` selector. Malformed tokens are `invalid-usage` before runtime access.
 `launch-profile get` and `launch-profile delete` take one positional `<selector>`, and
@@ -935,8 +943,8 @@ canonical Agent sessions only; an `ended` session is reported, never resurrected
 verb: one admitted Client Session is held for the whole wait and polls the session with
 repeated `agent.session.get.request` exchanges — one freshly minted `ObapRequestId` per
 poll, one returned snapshot+revision per poll, never fields merged across reads. One
-absolute monotonic deadline sampled at command start covers admission, every read, and
-every backoff; each poll runs under `min(5 s, remaining total)`. Between non-matching
+optional absolute monotonic deadline sampled at command start covers admission, every read, and
+every backoff; `--forever` omits only that total ceiling; each poll runs under `min(5 s, remaining total)`. Between non-matching
 observations the loop sleeps an interruptible private backoff starting at 50 ms,
 doubling per quiet poll, capped at 500 ms and by the remaining budget — the signal wake
 descriptor joins the sleep, and the held session is dropped before the single finish
@@ -945,8 +953,8 @@ session after a retired or ambiguous exchange.
 
 Each returned document is evaluated client-side in requested order. The three freshness
 conditions (`fresh`, `stale`, `disconnected`) match the observation's freshness
-directly; every status condition additionally requires `fresh` freshness and a status
-`kind` equal to the condition. Multiple conditions may match one document —
+directly; every status condition additionally requires `fresh` freshness. Native status
+conditions match the status `kind`; `blocked` and `done` use the compositions above. Multiple conditions may match one document —
 `matchedConditions` echoes them in the order `--until` requested them. There is no
 baseline or poll-0 change semantics: the first read may match immediately.
 `--after-revision` is a caller-supplied global-revision fence — it is not a turn-scoped
@@ -976,7 +984,7 @@ between two completed observations is missed: pending requests may clear, turn
 outcomes are replaced by later turns, and freshness moves between polls. The miss
 window is not bounded by the poll interval alone — Server read duration and scheduling
 also widen it — and no sticky-state guarantee exists even for conditions that stay
-true once reached. On a match the emitted `orchbee.agent.wait` envelope (version 1)
+true once reached. On a match the emitted `orchbee.agent.wait` envelope (version 2)
 carries `matchedConditions`, the satisfying `revision`, the full `session` detail
 verbatim, and a `wait` echo `{until, afterRevision?, timeoutMs, observations,
 elapsedMs}`; its `source` is the decisive poll's `agent-read` requestId only — failed,
@@ -1244,7 +1252,7 @@ inputStatus,cleanupStatus,reason?,target?}`. `payloadKind` is text, key, bytes, 
   `contentAvailable`) — the Server's derived reading, never a CLI inference.
 - `orchbee.agent.wait` → the matched answer:
   `{matchedConditions,revision,session,wait}` where `matchedConditions` is the
-  satisfying subset of the effective `until` list in requested order (1–12 unique
+  satisfying subset of the effective `until` list in requested order (1–14 unique
   condition names), `revision` is the satisfying poll's global runtime revision,
   `session` is that poll's wire `AgentSessionDetail` verbatim, and `wait` echoes the
   effective run `{until,afterRevision?,timeoutMs,observations,elapsedMs}` —
@@ -1368,7 +1376,7 @@ service-unavailable,timeout,transport-loss}` with a closed per-kind `details` vo
   (`{stage:"agent-read",operation[,reason|sessionId|timeoutMs]}` where `operation` ∈
   `{explain,get,list,wait}`; `wait` adds `revisionAheadDetails`
   `{sessionId,afterRevision,revision}` on `rejected` and `waitTimeoutDetails`
-  `{timeoutMs:1-3600000,elapsedMs,reason:wait-deadline|read-deadline,readBudgetMs?,
+  `{timeoutMs:null|1-3600000,elapsedMs,reason:wait-deadline|read-deadline,readBudgetMs?,
 completedObservations,lastStatusKind?,lastFreshness?,lastRevision?}` on `timeout`
   while the three single-read verbs keep `timeoutMs:5000`), and `source` only on
   trustworthy semantic answers. Pre-admission failures on the agent commands keep the
@@ -1854,7 +1862,7 @@ and stored profiles remain unchanged. The Host checks the actual directory and r
 the existing failed-launch result without creating a directory or substituting a fallback.
 
 The environment overlays inherited/default values. It admits at most 32 pairs and 1024
-combined UTF-8 name/value bytes; names are ASCII identifiers of 1–128 bytes. NUL and
+combined UTF-8 name/value bytes; names are ASCII identifiers of 1–148 bytes. NUL and
 case-insensitive duplicate names are rejected. Empty values and literal equals signs in
 values are allowed. `ORCHBEE_*`, `TERM`, `COLORTERM` and `TERM_PROGRAM` are reserved,
 ignoring ASCII case. There is no shell expansion, profile mutation or global environment
@@ -1907,7 +1915,7 @@ invalid-context, stale-binding, child-Presentation and movement cases plus a rea
 Windows child-process witness. Desktop and global focus fallback remain excluded;
 TLA execution is deferred and is not claimed as evidence.
 
-The additive schema is registered in the closed `api schema` catalog version 12;
+The additive schema is registered in the closed `api schema` catalog version 13;
 other business document versions are unchanged.
 
 Windows Worker identities are fresh per Server connection, using the existing OS

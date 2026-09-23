@@ -61,5 +61,7 @@ the same lookup. Outside that process, use `panel current --panel <id-or-selecto
 Worker supplies `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID`; the query validates
 their current binding in one snapshot. Missing or stale context is an error, never
 a fallback to client focus. Explicit `--panel` ignores inherited context and cannot
-be combined with `--current`. `api schema` now returns catalog envelope version 12;
+be combined with `--current`. `api schema` now returns catalog envelope version 13;
 the new `orchbee.panel.current` document is version 1.
+
+Use explicit `--forever` on `agent wait` or `agent prompt --wait` for no total deadline; it conflicts with `--timeout`. The default remains 600000 ms and every read stays bounded. `--until blocked` matches fresh needs-attention; `--until done` matches fresh completed outcomes, without an unseen marker. Wait/prompt successes use version 2 with null timeoutMs for infinite mode; infinite read-timeout failures also use version 2. Windows Codex prompts add Right between paste and Enter to clear paste-burst Enter suppression.

@@ -232,6 +232,7 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--session",
     "--clear",
     "--wait",
+    "--forever",
     "--adapter-source",
     "--request",
     "--generation",
@@ -274,7 +275,14 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("agent:send-keys", &["--session", "--name"]),
     (
         "agent:prompt",
-        &["--session", "--name", "--wait", "--until", "--timeout"],
+        &[
+            "--session",
+            "--name",
+            "--wait",
+            "--until",
+            "--timeout",
+            "--forever",
+        ],
     ),
     ("agent:explain", &["--session", "--name"]),
     ("agent:resolve", &["--session", "--name"]),
@@ -287,6 +295,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--name",
             "--until",
             "--after-revision",
+            "--forever",
             "--timeout",
         ],
     ),
@@ -421,9 +430,11 @@ const KEY_VALUES: &[&str] = &[
     "ctrl-d",
 ];
 
-/// The twelve canonical `agent wait --until` condition names — the same
+/// The fourteen `agent wait --until` condition names — the same
 /// vocabulary `invocation::AgentWaitCondition` parses.
 const UNTIL_VALUES: &[&str] = &[
+    "blocked",
+    "done",
     "needs-attention",
     "failed",
     "succeeded",
@@ -613,6 +624,7 @@ fn flag_bit(flag: &str) -> &'static str {
         "--session" => "seen_session",
         "--clear" => "seen_clear",
         "--wait" => "seen_prompt_wait",
+        "--forever" => "seen_forever",
         "--adapter-source" => "seen_adapter_source",
         "--request" => "seen_request",
         "--generation" => "seen_generation",
@@ -630,7 +642,8 @@ fn flag_value(flag: &str) -> Option<&'static str> {
         "--until" => Some("until"),
         "--provider" => Some("provider"),
         "--standalone" | "--confirm" | "--new-tab" | "--history" | "--enter" | "--stdin"
-        | "--include-ended" | "--unwrap" | "--paste" | "--current" | "--clear" => None,
+        | "--include-ended" | "--unwrap" | "--paste" | "--current" | "--clear" | "--wait"
+        | "--forever" => None,
         _ => Some("filter"),
     }
 }

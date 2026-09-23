@@ -6,8 +6,12 @@
 	"required": ["schema", "version", "failure"],
 	"additionalProperties": false,
 	"properties": {
-		"schema": { "const": "orchbee.cli.failure.agent" },
-		"version": { "const": 1 },
+		"schema": {
+			"const": "orchbee.cli.failure.agent"
+		},
+		"version": {
+			"enum": [1, 2]
+		},
 		"failure": {
 			"type": "object",
 			"required": ["kind"],
@@ -26,17 +30,25 @@
 						"transport-loss"
 					]
 				},
-				"details": { "type": "object" }
+				"details": {
+					"type": "object"
+				}
 			}
 		},
-		"source": { "$ref": "#/$defs/source" }
+		"source": {
+			"$ref": "#/$defs/source"
+		}
 	},
 	"allOf": [
 		{
 			"if": {
 				"properties": {
 					"failure": {
-						"properties": { "kind": { "const": "not-found" } },
+						"properties": {
+							"kind": {
+								"const": "not-found"
+							}
+						},
 						"required": ["kind"]
 					}
 				}
@@ -45,7 +57,11 @@
 				"properties": {
 					"failure": {
 						"required": ["details"],
-						"properties": { "details": { "$ref": "#/$defs/notFoundDetails" } }
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/notFoundDetails"
+							}
+						}
 					}
 				}
 			}
@@ -54,7 +70,11 @@
 			"if": {
 				"properties": {
 					"failure": {
-						"properties": { "kind": { "const": "denied" } },
+						"properties": {
+							"kind": {
+								"const": "denied"
+							}
+						},
 						"required": ["kind"]
 					}
 				}
@@ -63,7 +83,11 @@
 				"properties": {
 					"failure": {
 						"required": ["details"],
-						"properties": { "details": { "$ref": "#/$defs/deniedDetails" } }
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/deniedDetails"
+							}
+						}
 					}
 				}
 			}
@@ -72,7 +96,11 @@
 			"if": {
 				"properties": {
 					"failure": {
-						"properties": { "kind": { "const": "rejected" } },
+						"properties": {
+							"kind": {
+								"const": "rejected"
+							}
+						},
 						"required": ["kind"]
 					}
 				}
@@ -84,8 +112,12 @@
 						"properties": {
 							"details": {
 								"oneOf": [
-									{ "$ref": "#/$defs/rejectedDetails" },
-									{ "$ref": "#/$defs/revisionAheadDetails" }
+									{
+										"$ref": "#/$defs/rejectedDetails"
+									},
+									{
+										"$ref": "#/$defs/revisionAheadDetails"
+									}
 								]
 							}
 						}
@@ -97,7 +129,11 @@
 			"if": {
 				"properties": {
 					"failure": {
-						"properties": { "kind": { "const": "service-unavailable" } },
+						"properties": {
+							"kind": {
+								"const": "service-unavailable"
+							}
+						},
 						"required": ["kind"]
 					}
 				}
@@ -106,7 +142,11 @@
 				"properties": {
 					"failure": {
 						"required": ["details"],
-						"properties": { "details": { "$ref": "#/$defs/unavailableDetails" } }
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/unavailableDetails"
+							}
+						}
 					}
 				}
 			}
@@ -115,7 +155,11 @@
 			"if": {
 				"properties": {
 					"failure": {
-						"properties": { "kind": { "const": "timeout" } },
+						"properties": {
+							"kind": {
+								"const": "timeout"
+							}
+						},
 						"required": ["kind"]
 					}
 				}
@@ -127,8 +171,12 @@
 						"properties": {
 							"details": {
 								"oneOf": [
-									{ "$ref": "#/$defs/timeoutDetails" },
-									{ "$ref": "#/$defs/waitTimeoutDetails" }
+									{
+										"$ref": "#/$defs/timeoutDetails"
+									},
+									{
+										"$ref": "#/$defs/waitTimeoutDetails"
+									}
 								]
 							}
 						}
@@ -153,7 +201,11 @@
 				"properties": {
 					"failure": {
 						"required": ["details"],
-						"properties": { "details": { "$ref": "#/$defs/commonDetails" } }
+						"properties": {
+							"details": {
+								"$ref": "#/$defs/commonDetails"
+							}
+						}
 					}
 				}
 			}
@@ -162,14 +214,56 @@
 			"if": {
 				"properties": {
 					"failure": {
-						"properties": { "kind": { "const": "internal-failure" } },
+						"properties": {
+							"kind": {
+								"const": "internal-failure"
+							}
+						},
 						"required": ["kind"]
 					}
 				}
 			},
 			"then": {
 				"properties": {
-					"failure": { "not": { "required": ["details"] } }
+					"failure": {
+						"not": {
+							"required": ["details"]
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"details": {
+								"properties": {
+									"timeoutMs": {
+										"type": "null"
+									}
+								},
+								"required": ["timeoutMs"]
+							}
+						},
+						"required": ["details"]
+					}
+				},
+				"required": ["failure"]
+			},
+			"then": {
+				"properties": {
+					"version": {
+						"const": 2
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"version": {
+						"const": 1
+					}
 				}
 			}
 		}
@@ -178,15 +272,22 @@
 		"hexId": {
 			"type": "string",
 			"pattern": "^[0-9a-f]{32}$",
-			"not": { "const": "00000000000000000000000000000000" }
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
 		},
-		"opaqueId": { "type": "string", "pattern": "^[0-9A-Za-z._:-]{1,128}$" },
+		"opaqueId": {
+			"type": "string",
+			"pattern": "^[0-9A-Za-z._:-]{1,128}$"
+		},
 		"safeInteger": {
 			"type": "integer",
 			"minimum": 0,
 			"maximum": 9007199254740991
 		},
-		"operation": { "enum": ["explain", "get", "list", "wait"] },
+		"operation": {
+			"enum": ["explain", "get", "list", "wait"]
+		},
 		"statusKind": {
 			"enum": [
 				"needs-attention",
@@ -205,8 +306,12 @@
 			"required": ["stage", "operation"],
 			"additionalProperties": false,
 			"properties": {
-				"stage": { "const": "agent-read" },
-				"operation": { "$ref": "#/$defs/operation" }
+				"stage": {
+					"const": "agent-read"
+				},
+				"operation": {
+					"$ref": "#/$defs/operation"
+				}
 			}
 		},
 		"notFoundDetails": {
@@ -214,9 +319,15 @@
 			"required": ["stage", "operation", "sessionId"],
 			"additionalProperties": false,
 			"properties": {
-				"stage": { "const": "agent-read" },
-				"operation": { "enum": ["explain", "get", "wait"] },
-				"sessionId": { "$ref": "#/$defs/opaqueId" }
+				"stage": {
+					"const": "agent-read"
+				},
+				"operation": {
+					"enum": ["explain", "get", "wait"]
+				},
+				"sessionId": {
+					"$ref": "#/$defs/opaqueId"
+				}
 			}
 		},
 		"deniedDetails": {
@@ -224,9 +335,15 @@
 			"required": ["stage", "operation", "reason"],
 			"additionalProperties": false,
 			"properties": {
-				"stage": { "const": "agent-read" },
-				"operation": { "$ref": "#/$defs/operation" },
-				"reason": { "const": "read-denied" }
+				"stage": {
+					"const": "agent-read"
+				},
+				"operation": {
+					"$ref": "#/$defs/operation"
+				},
+				"reason": {
+					"const": "read-denied"
+				}
 			}
 		},
 		"rejectedDetails": {
@@ -234,9 +351,15 @@
 			"required": ["stage", "operation", "reason"],
 			"additionalProperties": false,
 			"properties": {
-				"stage": { "const": "agent-read" },
-				"operation": { "const": "list" },
-				"reason": { "enum": ["cursor-invalid", "cursor-stale"] }
+				"stage": {
+					"const": "agent-read"
+				},
+				"operation": {
+					"const": "list"
+				},
+				"reason": {
+					"enum": ["cursor-invalid", "cursor-stale"]
+				}
 			}
 		},
 		"revisionAheadDetails": {
@@ -244,11 +367,21 @@
 			"required": ["stage", "operation", "sessionId", "afterRevision", "revision"],
 			"additionalProperties": false,
 			"properties": {
-				"stage": { "const": "agent-read" },
-				"operation": { "const": "wait" },
-				"sessionId": { "$ref": "#/$defs/opaqueId" },
-				"afterRevision": { "$ref": "#/$defs/safeInteger" },
-				"revision": { "$ref": "#/$defs/safeInteger" }
+				"stage": {
+					"const": "agent-read"
+				},
+				"operation": {
+					"const": "wait"
+				},
+				"sessionId": {
+					"$ref": "#/$defs/opaqueId"
+				},
+				"afterRevision": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"revision": {
+					"$ref": "#/$defs/safeInteger"
+				}
 			}
 		},
 		"unavailableDetails": {
@@ -256,9 +389,15 @@
 			"required": ["stage", "operation", "reason"],
 			"additionalProperties": false,
 			"properties": {
-				"stage": { "const": "agent-read" },
-				"operation": { "$ref": "#/$defs/operation" },
-				"reason": { "const": "runtime-unavailable" }
+				"stage": {
+					"const": "agent-read"
+				},
+				"operation": {
+					"$ref": "#/$defs/operation"
+				},
+				"reason": {
+					"const": "runtime-unavailable"
+				}
 			}
 		},
 		"timeoutDetails": {
@@ -266,9 +405,15 @@
 			"required": ["stage", "operation", "timeoutMs"],
 			"additionalProperties": false,
 			"properties": {
-				"stage": { "const": "agent-read" },
-				"operation": { "enum": ["explain", "get", "list"] },
-				"timeoutMs": { "const": 5000 }
+				"stage": {
+					"const": "agent-read"
+				},
+				"operation": {
+					"enum": ["explain", "get", "list"]
+				},
+				"timeoutMs": {
+					"const": 5000
+				}
 			}
 		},
 		"waitTimeoutDetails": {
@@ -283,58 +428,102 @@
 			],
 			"additionalProperties": false,
 			"properties": {
-				"stage": { "const": "agent-read" },
-				"operation": { "const": "wait" },
+				"stage": {
+					"const": "agent-read"
+				},
+				"operation": {
+					"const": "wait"
+				},
 				"timeoutMs": {
-					"type": "integer",
+					"type": ["integer", "null"],
 					"minimum": 1,
 					"maximum": 3600000
 				},
-				"elapsedMs": { "$ref": "#/$defs/safeInteger" },
-				"reason": { "enum": ["read-deadline", "wait-deadline"] },
+				"elapsedMs": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"reason": {
+					"enum": ["read-deadline", "wait-deadline"]
+				},
 				"readBudgetMs": {
 					"type": "integer",
 					"minimum": 1,
 					"maximum": 5000
 				},
-				"completedObservations": { "$ref": "#/$defs/safeInteger" },
-				"lastStatusKind": { "$ref": "#/$defs/statusKind" },
-				"lastFreshness": { "enum": ["disconnected", "fresh", "stale"] },
-				"lastRevision": { "$ref": "#/$defs/safeInteger" }
+				"completedObservations": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"lastStatusKind": {
+					"$ref": "#/$defs/statusKind"
+				},
+				"lastFreshness": {
+					"enum": ["disconnected", "fresh", "stale"]
+				},
+				"lastRevision": {
+					"$ref": "#/$defs/safeInteger"
+				}
 			},
 			"allOf": [
 				{
 					"if": {
-						"properties": { "reason": { "const": "read-deadline" } },
+						"properties": {
+							"reason": {
+								"const": "read-deadline"
+							}
+						},
 						"required": ["reason"]
 					},
-					"then": { "required": ["readBudgetMs"] }
+					"then": {
+						"required": ["readBudgetMs"]
+					}
 				},
 				{
 					"if": {
-						"properties": { "reason": { "const": "wait-deadline" } },
+						"properties": {
+							"reason": {
+								"const": "wait-deadline"
+							}
+						},
 						"required": ["reason"]
 					},
-					"then": { "not": { "required": ["readBudgetMs"] } }
+					"then": {
+						"not": {
+							"required": ["readBudgetMs"]
+						}
+					}
 				},
 				{
 					"if": {
-						"properties": { "completedObservations": { "const": 0 } },
+						"properties": {
+							"completedObservations": {
+								"const": 0
+							}
+						},
 						"required": ["completedObservations"]
 					},
 					"then": {
 						"not": {
 							"anyOf": [
-								{ "required": ["lastStatusKind"] },
-								{ "required": ["lastFreshness"] },
-								{ "required": ["lastRevision"] }
+								{
+									"required": ["lastStatusKind"]
+								},
+								{
+									"required": ["lastFreshness"]
+								},
+								{
+									"required": ["lastRevision"]
+								}
 							]
 						}
 					}
 				},
 				{
 					"if": {
-						"properties": { "completedObservations": { "minimum": 1 } },
+						"properties": {
+							"completedObservations": {
+								"minimum": 1
+							}
+						},
 						"required": ["completedObservations"]
 					},
 					"then": {
@@ -348,8 +537,12 @@
 			"required": ["kind", "requestId"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": { "const": "agent-read" },
-				"requestId": { "$ref": "#/$defs/hexId" }
+				"kind": {
+					"const": "agent-read"
+				},
+				"requestId": {
+					"$ref": "#/$defs/hexId"
+				}
 			}
 		}
 	}

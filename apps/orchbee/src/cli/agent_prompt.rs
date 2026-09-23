@@ -35,6 +35,7 @@ pub(super) fn run(
 mod active {
     use super::*;
     use crate::cli::source::{ArmedSignals, Finish, SignalWatch};
+    use crate::cli::wait_deadline::WaitDeadline;
     use crate::cli::{output, query, send};
     use crate::invocation::AgentWaitCondition;
     use orchbee_agent_observation_protocol::{
@@ -56,7 +57,7 @@ mod active {
         conditions: Vec<AgentWaitCondition>,
         observations: u64,
         elapsed_ms: u64,
-        timeout_ms: u32,
+        timeout_ms: Option<u32>,
     }
 
     pub(super) fn run(
@@ -67,15 +68,10 @@ mod active {
         locale: Locale,
     ) -> Output {
         let start = Instant::now();
-        let duration = wait.map_or(READ_BUDGET, |wait| {
-            Duration::from_millis(u64::from(wait.timeout_ms))
-        });
-        let Some(total) = start.checked_add(duration) else {
-            return failure_output(
-                Failure::new(FailureKind::InternalFailure),
-                Some(format),
-                locale,
-            );
+        let timeout_ms = wait.map_or(Some(5000), |wait| wait.timeout_ms);
+        let total = match WaitDeadline::new(start, timeout_ms) {
+            Ok(total) => total,
+            Err(failure) => return failure_output(failure, Some(format), locale),
         };
         let armed = match ArmedSignals::arm_interrupts() {
             Ok(armed) => armed,
@@ -163,10 +159,10 @@ mod active {
         text: &str,
         wait: Option<&AgentPromptWait>,
         start: Instant,
-        total: Instant,
+        total: WaitDeadline,
         wake: Option<LocalIo<'_>>,
     ) -> Result<Sent, Failure> {
-        let admission = read_deadline(total);
+        let admission = total.step(Instant::now(), READ_BUDGET)?;
         let (mut client, _, snapshot) = query::snapshot_session_until(admission)?;
         let selected = query::resolve_agent_terminal(&mut client, &snapshot, target, admission)?;
         let before = &selected.observation.session;
@@ -217,34 +213,35 @@ mod active {
         before: &AgentSessionDetail,
         options: &AgentPromptWait,
         start: Instant,
-        total: Instant,
+        total: WaitDeadline,
         wake: Option<LocalIo<'_>>,
     ) -> Result<Matched, Failure> {
-        let effect = read_deadline(total);
+        let effect = total.step(Instant::now(), READ_BUDGET)?;
         let mut active = matches!(before.status, AgentSemanticStatus::Working { .. });
         let mut observations = 0;
         let mut backoff = Duration::from_millis(50);
         loop {
-            let limit = if active { total } else { effect };
-            if Instant::now() >= limit {
+            let now = Instant::now();
+            let limit = if active {
+                total.step(now, READ_BUDGET)?
+            } else {
+                effect
+            };
+            if total.expired(now) || (!active && now >= effect) {
                 return Err(prompt_error(
                     FailureKind::Timeout,
-                    if Instant::now() >= total {
+                    if total.expired(Instant::now()) {
                         "wait-deadline"
                     } else {
                         "prompt-stalled"
                     },
                 ));
             }
-            let result = query::read_agent_observation(
-                client,
-                &before.snapshot.session_id,
-                read_deadline(limit),
-                wake,
-            );
+            let result =
+                query::read_agent_observation(client, &before.snapshot.session_id, limit, wake);
             let read = result.map_err(|failure| {
                 let reason = if failure.kind == FailureKind::Timeout {
-                    if Instant::now() >= total {
+                    if total.expired(Instant::now()) {
                         "wait-deadline"
                     } else if !active && Instant::now() >= effect {
                         "prompt-stalled"
@@ -297,12 +294,6 @@ mod active {
                 && now.snapshot.last_outcome != before.snapshot.last_outcome)
     }
 
-    fn read_deadline(total: Instant) -> Instant {
-        Instant::now()
-            .checked_add(READ_BUDGET)
-            .map_or(total, |deadline| deadline.min(total))
-    }
-
     fn prompt_error(kind: FailureKind, reason: &'static str) -> Failure {
         Failure::new(kind)
             .failure_schema(FAILURE_SCHEMA)
@@ -341,7 +332,7 @@ mod active {
                 json!({"matchedConditions":matched.conditions.iter().map(|condition| condition.as_str()).collect::<Vec<_>>(), "timeoutMs":matched.timeout_ms, "observations":matched.observations, "elapsedMs":matched.elapsed_ms, "activityObserved":true}),
             ),
         };
-        let document = json!({"schema":"orchbee.agent.prompt", "version":1, "source":receipt["source"], "result":{"sessionId":session_id, "submission":receipt, "observation":observation, "wait":wait}});
+        let document = json!({"schema":"orchbee.agent.prompt", "version":2, "source":receipt["source"], "result":{"sessionId":session_id, "submission":receipt, "observation":observation, "wait":wait}});
         let encoded = match format {
             OutputFormat::Json => output::encode_document(&document),
             OutputFormat::Text => output::encode_text(&locale.cli_prompt_submitted(

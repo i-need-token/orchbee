@@ -2187,7 +2187,7 @@ fn wait_envelope_schema_admits_real_answers_only() -> TestResult {
         }
         serde_json::json!({
             "schema": "orchbee.agent.wait",
-            "version": 1,
+            "version": 2,
             "source": {"kind": "agent-read", "requestId": "11111111111111111111111111111111"},
             "result": {
                 "matchedConditions": matched,

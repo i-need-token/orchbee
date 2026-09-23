@@ -687,3 +687,98 @@ fn agent_terminal_never_acts_on_a_different_session_in_the_get_reply() {
     );
     assert_eq!(document["failure"]["kind"], "protocol-invalid");
 }
+
+#[test]
+fn infinite_wait_preserves_condition_names_and_rejects_a_different_session() {
+    let fixture = Fixture::new();
+    let rendezvous = fixture.rendezvous();
+    for (condition, wrong_session) in [("blocked", false), ("done", false), ("done", true)] {
+        let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
+        let handler = peer(listener, move |mut stream| {
+            let mut detail = session_detail(if wrong_session {
+                "sess-other"
+            } else {
+                "sess-alpha"
+            });
+            if condition == "done" {
+                detail["snapshot"]["pendingRequests"] = json!([]);
+                detail["snapshot"]["turn"] = json!({"kind":"idle"});
+                detail["snapshot"]["lastOutcome"] =
+                    json!({"kind":"succeeded", "eventId":"finished", "turnId":"turn-9"});
+                detail["status"] = json!({"kind":"succeeded"});
+            }
+            read_reply(
+                &mut stream,
+                "get",
+                json!({"kind":"found", "revision":7, "session":detail}),
+            );
+            assert_closed(&mut stream);
+        });
+        let output = fixture.run(&[
+            "agent",
+            "wait",
+            "--session",
+            "sess-alpha",
+            "--forever",
+            "--until",
+            condition,
+            "--format",
+            "json",
+        ]);
+        handler.join().unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(if wrong_session { 5 } else { 0 })
+        );
+        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        if wrong_session {
+            validate(
+                &document,
+                include_str!("../src/cli/schemas/orchbee.cli.failure.agent.json"),
+            );
+            assert_eq!(document["failure"]["kind"], "protocol-invalid");
+        } else {
+            validate(
+                &document,
+                include_str!("../src/cli/schemas/orchbee.agent.wait.json"),
+            );
+            assert_eq!(document["version"], 2);
+            assert_eq!(document["result"]["matchedConditions"], json!([condition]));
+            assert!(document["result"]["wait"]["timeoutMs"].is_null());
+        }
+    }
+}
+
+#[test]
+fn infinite_wait_still_times_out_a_stalled_read_without_reconnecting() {
+    let fixture = Fixture::new();
+    let rendezvous = fixture.rendezvous();
+    let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
+    let handler = peer(listener, move |mut stream| {
+        let AgentRequest::Read(_) = read_agent_request(&mut stream).unwrap() else {
+            panic!("get");
+        };
+        let started = Instant::now();
+        assert_closed(&mut stream);
+        assert!(started.elapsed() < Duration::from_millis(6500));
+    });
+    let output = fixture.run(&[
+        "agent",
+        "wait",
+        "--session",
+        "sess-alpha",
+        "--forever",
+        "--format",
+        "json",
+    ]);
+    handler.join().unwrap();
+    assert_eq!(output.status.code(), Some(7));
+    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+    validate(
+        &document,
+        include_str!("../src/cli/schemas/orchbee.cli.failure.agent.json"),
+    );
+    assert_eq!(document["version"], 2);
+    assert_eq!(document["failure"]["details"]["reason"], "read-deadline");
+    assert!(document["failure"]["details"]["timeoutMs"].is_null());
+}

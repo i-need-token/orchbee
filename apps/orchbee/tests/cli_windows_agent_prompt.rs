@@ -254,7 +254,11 @@ fn prompt_deadlines_distinguish_stalled_activity_from_an_earlier_caller_timeout(
     };
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
-    for (timeout, reason) in [("15000", "prompt-stalled"), ("3000", "wait-deadline")] {
+    for (timeout, reason) in [
+        ("15000", "prompt-stalled"),
+        ("3000", "wait-deadline"),
+        ("forever", "prompt-stalled"),
+    ] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let handler = peer(listener, move |mut stream| {
             bound_agent_reply(&mut stream, idle());
@@ -270,17 +274,15 @@ fn prompt_deadlines_distinguish_stalled_activity_from_an_earlier_caller_timeout(
                 }
             }
         });
-        let output = fixture.run(&[
-            "agent",
-            "prompt",
-            "alpha",
-            "task",
-            "--wait",
-            "--timeout",
-            timeout,
-            "--format",
-            "json",
-        ]);
+        let mut args = vec![
+            "agent", "prompt", "alpha", "task", "--wait", "--format", "json",
+        ];
+        if timeout == "forever" {
+            args.push("--forever");
+        } else {
+            args.extend(["--timeout", timeout]);
+        }
+        let output = fixture.run(&args);
         handler.join().unwrap();
         assert_eq!(
             output.status.code(),
@@ -366,7 +368,16 @@ fn prompt_to_an_already_working_agent_does_not_promise_a_new_turn() {
         assert_closed(&mut stream);
     });
     let output = fixture.run(&[
-        "agent", "prompt", "alpha", "task", "--wait", "--until", "working", "--format", "json",
+        "agent",
+        "prompt",
+        "alpha",
+        "task",
+        "--wait",
+        "--until",
+        "working",
+        "--forever",
+        "--format",
+        "json",
     ]);
     handler.join().unwrap();
     assert_eq!(output.status.code(), Some(0));

@@ -67,6 +67,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
 pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
     match command {
         QueryCommand::TerminalGet(_) => 3,
+        QueryCommand::AgentWait { .. } => 2,
         QueryCommand::TerminalRead { unwrap, lines, .. }
         | QueryCommand::AgentRead { unwrap, lines, .. }
             if *unwrap || lines.is_some() =>
@@ -1009,7 +1010,7 @@ pub(crate) struct AgentWaitDoc {
     pub(crate) session: Box<AgentSessionDetail>,
     pub(crate) until: Vec<AgentWaitCondition>,
     pub(crate) after_revision: Option<AgentSafeInteger>,
-    pub(crate) timeout_ms: u32,
+    pub(crate) timeout_ms: Option<u32>,
     pub(crate) observations: u64,
     pub(crate) elapsed_ms: u64,
 }

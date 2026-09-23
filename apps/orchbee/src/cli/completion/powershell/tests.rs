@@ -105,6 +105,24 @@ fn real_powershell_completes_scoped_grammar_without_runtime() {
             false,
         ),
         ("orchbee terminal read terminal-1 --p", "--paste", false),
+        ("orchbee agent wait alpha --f", "--forever", true),
+        ("orchbee agent wait alpha --forever --t", "--timeout", false),
+        (
+            "orchbee agent wait alpha --timeout 1 --f",
+            "--forever",
+            false,
+        ),
+        (
+            "orchbee agent prompt alpha task --wait --forever --u",
+            "--until",
+            true,
+        ),
+        ("orchbee agent wait alpha --until d", "done", true),
+        (
+            "orchbee agent prompt alpha task --wait --until b",
+            "blocked",
+            true,
+        ),
         ("orchbee tab create --standalone --w", "--workspace", false),
         (
             "orchbee panel split panel-1 --direction=",
