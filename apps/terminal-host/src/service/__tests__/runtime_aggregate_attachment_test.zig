@@ -577,9 +577,9 @@ test "discarding prepared input releases the engine-owned queue reservation" {
         "abc",
     );
     try std.testing.expect(input_preparation.accepted() != null);
-    try std.testing.expectEqual(@as(usize, 3), runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 3), terminal_runtime.testing.inputQueueSnapshot(runtime).client_charge.bytes);
     input_preparation.deinit();
-    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 0), terminal_runtime.testing.inputQueueSnapshot(runtime).client_charge.bytes);
     const replayed = try aggregate.attach(
         connection_id,
         attachment_id,
@@ -652,7 +652,9 @@ test "prepared input rejects a replacement attachment incarnation" {
     );
     defer semantic_preparation.deinit();
     try std.testing.expect(semantic_preparation.accepted() != null);
-    try std.testing.expectEqual(@as(usize, 4), first_runtime.pendingInputBytes());
+    // ConPTY may enqueue terminal replies independently of this uncommitted
+    // client reservation. Inspect the client bucket, not the aggregate queue.
+    try std.testing.expectEqual(@as(usize, 4), terminal_runtime.testing.inputQueueSnapshot(first_runtime).client_charge.bytes);
     _ = try aggregate.detach(connection_id, attachment_id);
     _ = try aggregate.attach(
         connection_id,
@@ -665,7 +667,7 @@ test "prepared input rejects a replacement attachment incarnation" {
         .core_rejected => |err| try std.testing.expectEqual(error.MissingResource, err),
         .accepted, .runtime_missing, .runtime_rejected => return error.ExpectedCoreRejection,
     }
-    try std.testing.expectEqual(@as(usize, 0), first_runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 0), terminal_runtime.testing.inputQueueSnapshot(first_runtime).client_charge.bytes);
 
     var input_preparation = aggregate.prepareRawInput(
         connection_id,
@@ -675,7 +677,7 @@ test "prepared input rejects a replacement attachment incarnation" {
     );
     defer input_preparation.deinit();
     try std.testing.expect(input_preparation.accepted() != null);
-    try std.testing.expectEqual(@as(usize, 5), first_runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 5), terminal_runtime.testing.inputQueueSnapshot(first_runtime).client_charge.bytes);
 
     _ = try aggregate.detach(connection_id, attachment_id);
     _ = try aggregate.attach(
@@ -689,8 +691,10 @@ test "prepared input rejects a replacement attachment incarnation" {
         .core_rejected => |err| try std.testing.expectEqual(error.MissingResource, err),
         .accepted, .runtime_missing, .runtime_rejected => return error.ExpectedCoreRejection,
     }
-    try std.testing.expectEqual(@as(usize, 0), first_runtime.pendingInputBytes());
-    try std.testing.expectEqual(@as(usize, 0), second_runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 0), terminal_runtime.testing.inputQueueSnapshot(first_runtime).client_charge.bytes);
+    try std.testing.expectEqual(@as(usize, 0), terminal_runtime.testing.inputQueueSnapshot(second_runtime).client_charge.bytes);
+    try std.testing.expectEqual(@as(usize, 0), terminal_runtime.testing.inputQueueSnapshot(first_runtime).published_client_entries);
+    try std.testing.expectEqual(@as(usize, 0), terminal_runtime.testing.inputQueueSnapshot(second_runtime).published_client_entries);
     try std.testing.expect(
         aggregate.core().findAttachment(attachment_id).?.terminal_id.eql(second_terminal_id),
     );
