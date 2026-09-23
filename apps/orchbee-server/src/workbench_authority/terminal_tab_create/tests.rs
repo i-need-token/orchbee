@@ -1240,3 +1240,147 @@ fn require_trace(condition: bool, message: &str) -> Result<(), String> {
         Err(message.to_owned())
     }
 }
+
+fn workspace_launch_command(authority: &WorkbenchAuthority) -> WorkbenchCommand {
+    let mut command = tab_command(
+        authority,
+        4001,
+        authority.projection.snapshot().revision.value(),
+        "launched",
+    );
+    command.action = WorkbenchAction::WorkspaceLaunch {
+        project_id: authority.projection.snapshot().navigation.projects[0]
+            .project_id
+            .clone(),
+        label: WorkbenchLabel::parse("launched").unwrap(),
+        geometry: geometry(80),
+        launch: None,
+        profile: None,
+        options: Box::new(orchbee_workbench_protocol::LaunchOptions {
+            cwd: Some(WorkbenchDirectoryPath::parse(r"C:\project space").unwrap()),
+            environment: Default::default(),
+        }),
+    };
+    command
+}
+
+#[test]
+fn workspace_launch_commits_one_revision_and_replays_pending_and_failed_terminal() {
+    let (mut authority, grant) = authority();
+    install_workspace(&mut authority, false);
+    // The fixture seeded identities through 504; preserve the authority cursor invariant.
+    authority.last_identity = 504;
+    let grant = grant.with_directory_association();
+    let command = workspace_launch_command(&authority);
+    let before = authority.projection.snapshot().clone();
+    let cursor = authority.last_identity;
+    let worker = binding(900).worker_id;
+    let WorkbenchTabCreateBegin::Admitted(admission) =
+        authority.begin_workspace_launch(Some(&grant), command.clone(), worker.clone())
+    else {
+        panic!("admitted");
+    };
+    assert_eq!(
+        admission.staged_metadata().workspace_launch(),
+        Some((
+            &worker,
+            &WorkbenchDirectoryPath::parse(r"C:\project space").unwrap()
+        ))
+    );
+    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(900)) else {
+        panic!("prepared");
+    };
+    let pending = prepared.commit().into_pending();
+    let after = authority.projection.snapshot().clone();
+    assert_eq!(after.revision.value(), before.revision.value() + 1);
+    assert_eq!(authority.last_identity, cursor + 6);
+    assert_eq!(
+        after.navigation.projects[0].workspaces.len(),
+        before.navigation.projects[0].workspaces.len() + 1
+    );
+    assert_eq!(
+        after.navigation.projects[0].directories.len(),
+        before.navigation.projects[0].directories.len() + 1
+    );
+    assert_eq!(after.terminal_contexts.last().unwrap().tabs.len(), 1);
+    assert_eq!(
+        &after.terminal_contexts[..before.terminal_contexts.len()],
+        before.terminal_contexts.as_slice()
+    );
+    let WorkbenchTabCreateBegin::Ready(replay) =
+        authority.begin_workspace_launch(Some(&grant), command.clone(), worker.clone())
+    else {
+        panic!("replay");
+    };
+    assert!(matches!(
+        replay.outcome,
+        WorkbenchCommandOutcome::WorkspaceLaunchPending { .. }
+    ));
+    let outcome = WorkbenchTerminalOutcome::Failed {
+        reason: orchbee_workbench_protocol::WorkbenchTerminalFailureReason::TerminalCreateFailed,
+    };
+    let settled = authority
+        .prepare_terminal_tab_settlement(pending, outcome)
+        .unwrap()
+        .commit();
+    assert!(matches!(
+        settled.outcome,
+        WorkbenchCommandOutcome::WorkspaceLaunched {
+            terminal_outcome: WorkbenchTerminalOutcome::Failed { .. },
+            ..
+        }
+    ));
+    let WorkbenchTabCreateBegin::Ready(replay) =
+        authority.begin_workspace_launch(Some(&grant), command, worker)
+    else {
+        panic!("final replay");
+    };
+    assert_eq!(replay, settled);
+    assert_eq!(authority.projection.snapshot(), &after);
+}
+
+#[test]
+fn workspace_launch_denied_or_abandoned_admission_preserves_every_resource() {
+    let (mut authority, grant) = authority();
+    install_workspace(&mut authority, false);
+    // The fixture seeded identities through 504; preserve the authority cursor invariant.
+    authority.last_identity = 504;
+    let command = workspace_launch_command(&authority);
+    let before = authority.projection.snapshot().clone();
+    let cursor = authority.last_identity;
+    for grant in [
+        None,
+        Some(grant.clone()),
+        Some(
+            WorkbenchGrant::manage_navigation(authority.site_id().clone())
+                .with_directory_association(),
+        ),
+    ] {
+        let result = authority
+            .preflight_workspace_launch(grant.as_ref(), &command)
+            .unwrap();
+        assert_eq!(result.outcome, WorkbenchCommandOutcome::Denied {});
+    }
+    let grant = grant.with_directory_association();
+    let WorkbenchTabCreateBegin::Admitted(admission) =
+        authority.begin_workspace_launch(Some(&grant), command.clone(), binding(900).worker_id)
+    else {
+        panic!("admitted");
+    };
+    drop(admission);
+    assert_eq!(authority.projection.snapshot(), &before);
+    assert_eq!(authority.last_identity, cursor);
+    assert!(authority.ledger.is_empty());
+    authority.last_identity = u128::MAX - 5;
+    assert!(matches!(
+        authority
+            .preflight_workspace_launch(Some(&grant), &command)
+            .unwrap()
+            .outcome,
+        WorkbenchCommandOutcome::Rejected {
+            reason: WorkbenchRejectionReason::IdentityExhausted,
+            ..
+        }
+    ));
+    assert_eq!(authority.projection.snapshot(), &before);
+}

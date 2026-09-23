@@ -114,6 +114,8 @@ Help 只写 stdout，失败只写 stderr；Version 写入一行与 locale 无关
 
 ## Windows 原生快速开始
 
+已有 Project 时，`workspace create --project <target> --label <label> --cwd C:\existing\repo` 用一个请求创建 Workspace 及首个终端。可附加 `--env NAME=VALUE`、显式 `--exec`/`--arg` 或 `--profile`。回执返回资源 ID 与终端结果；启动失败时保留 Workspace，供查询和显式关闭。PowerShell 示例见 [Windows 工作流](docs/cli-workflows.zh-CN.md#windows-目录工作区)。
+
 使用仓库固定版本的 Rust、Zig 工具链及 Node.js。在仓库根目录的 PowerShell 中运行；输出目录必须
 尚不存在，且父目录已经存在：
 

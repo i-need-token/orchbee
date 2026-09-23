@@ -1,12 +1,36 @@
 # 原生 CLI 工作流
 
-面向实验性 Linux 原生 `orchbee` CLI 的完整无头（headless）序列：启动
+Windows 目录工作区快速开始及已有 Linux 原生 `orchbee` CLI 的无头序列：启动
 本地 Site、建立 Project/Workspace/目录、拉起并驱动终端、查看
 worktree、观察 Agent，以及干净地关闭。命令清单见
 [README](../README.zh-CN.md)；完整语法、target 规则与 failure matrix
 由 [native CLI query](native-cli-query.zh-CN.md) 持有。本指南只覆盖受
 支持的端到端路径——选项与 target 措辞与 `orchbee help` 的输出一致，
 shell 片段仅作示意。
+
+## Windows 目录工作区
+
+使用 [Windows 快速开始](../README.zh-CN.md#windows-原生快速开始)中的完整 Windows 开发 cohort。替换下方可执行文件路径和现有目录路径。PowerShell 5.1 与 7 可直接读取 JSON，无需 jq。
+
+```powershell
+$cli = 'C:\path\to\cohort\orchbee.exe'
+function Invoke-OrchbeeJson([string[]]$Words) {
+    $output = & $cli @Words --format json
+    if ($LASTEXITCODE -ne 0) { throw ($output -join "`n") }
+    ($output -join "`n") | ConvertFrom-Json
+}
+Invoke-OrchbeeJson -Words @('site', 'start')
+$project = Invoke-OrchbeeJson -Words @('project', 'create', '--label', 'demo')
+$created = Invoke-OrchbeeJson -Words @('workspace', 'create', '--project', $project.result.projectId,
+    '--label', 'main', '--cwd', 'C:\existing\repo', '--env', 'DEMO=hello')
+$created.result
+& $cli workspace get $created.result.workspaceId --format json
+& $cli tui
+# Close this Workspace when finished:
+& $cli workspace close $created.result.workspaceId --confirm --format json
+```
+
+使用终端前检查 `result.terminal.outcome`：`started` 确认启动；pending、failed、unavailable 或 unknown 需要根据返回 ID 查询资源。退出 TUI 不会关闭 Workspace。命令自动创建首个终端，并保持客户端焦点。Windows Agent integration、doctor 及 Site diagnose 尚不属于此流程。下方编号的 POSIX 示例描述已有 Linux 路径。
 
 ## 前提条件
 
@@ -19,8 +43,8 @@ shell 片段仅作示意。
 
   然后运行 `/tmp/orchbee-native-dev/orchbee`。staged cohort 是四个必须
   出自同一次构建的可执行文件（CLI、Server、Worker、Host），外加观察适配器
-  负载目录，全部由清单钉住；非 Linux 平台不
-  被准入（`unsupported-platform`），且这不是已安装产品或系统服务。
+  负载目录，全部由清单钉住；这些前提适用于下方 Linux 示例，Windows 流程见上文。
+  这不是已安装产品或系统服务。
 
 - 若按下方片段提取 ID，需要 `PATH` 上有 `jq`；否则请手动从
   `--format json` 输出中读取相同字段。

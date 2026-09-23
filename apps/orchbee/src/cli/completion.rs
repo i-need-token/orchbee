@@ -251,7 +251,22 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("project:rename", &["--label"]),
     ("workspace:accept-directory", &["--path"]),
     ("workspace:list", &["--project"]),
-    ("workspace:create", &["--project", "--label"]),
+    (
+        "workspace:create",
+        &[
+            "--project",
+            "--label",
+            "--cwd",
+            "--env",
+            "--exec",
+            "--arg",
+            "--profile",
+            "--cols",
+            "--rows",
+            "--cell-width",
+            "--cell-height",
+        ],
+    ),
     ("workspace:rename", &["--label"]),
     ("workspace:close", &["--confirm"]),
     ("workspace:close-status", &["--project", "--workspace"]),
@@ -2677,9 +2692,10 @@ mod tests {
 
     #[test]
     fn launch_flags_are_scoped_and_repeatable() {
-        // `--exec`/`--arg` are admitted only by tab:create and panel:split.
+        // Explicit program selection belongs only to terminal launches and stored profiles.
         for (command, flags) in COMMAND_FLAGS {
-            let admits = *command == "tab:create"
+            let admits = *command == "workspace:create"
+                || *command == "tab:create"
                 || *command == "panel:split"
                 || *command == "launch-profile:create";
             assert_eq!(flags.contains(&"--exec"), admits, "{command} --exec");

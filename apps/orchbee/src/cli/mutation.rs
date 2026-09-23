@@ -578,6 +578,24 @@ mod linux {
                     label: label.clone(),
                 })
             }
+            MutationCommand::WorkspaceLaunch {
+                project,
+                label,
+                geometry,
+                launch,
+                profile,
+                options,
+            } => {
+                let project = resolve_project(snapshot, project)?;
+                Ok(WorkbenchAction::WorkspaceLaunch {
+                    project_id: project.project_id.clone(),
+                    label: label.clone(),
+                    geometry: *geometry,
+                    launch: launch.clone(),
+                    profile: profile.clone(),
+                    options: Box::new(options.clone()),
+                })
+            }
             MutationCommand::WorkspaceCreate { project, label } => {
                 let project = resolve_project(snapshot, project)?;
                 Ok(WorkbenchAction::WorkspaceCreate {
@@ -973,6 +991,45 @@ mod linux {
                         Err(not_submitted_failure(reason.into()))
                     }
                     WorkbenchSetupSubmission::OutcomeUnknown { request_id, reason } => {
+                        Err(unknown_failure(request_id, reason.reason()))
+                    }
+                }
+            }
+            WorkbenchAction::WorkspaceLaunch { options, .. } => {
+                use crate::local_client::workbench::workspace_launch::{
+                    WorkspaceLaunchRequest, WorkspaceLaunchSubmission,
+                };
+                let request = WorkspaceLaunchRequest::try_from(command).map_err(|_| internal())?;
+                match client.submit_workspace_launch(request, deadline) {
+                    WorkspaceLaunchSubmission::Committed(commit) => {
+                        let terminal = commit.terminal_outcome.as_ref().map_or(
+                            TerminalFact {
+                                outcome: "pending",
+                                reason: None,
+                                geometry: None,
+                            },
+                            terminal_fact,
+                        );
+                        Ok(receipt(&resolved, "workspace.create", "committed")
+                            .revision(commit.revision)
+                            .id("projectId", commit.project_id.as_str())
+                            .id("workspaceId", commit.workspace_id.as_str())
+                            .id("directoryId", commit.directory_id.as_str())
+                            .id("terminalContextId", commit.terminal_context_id.as_str())
+                            .id("tabId", commit.tab_id.as_str())
+                            .id("panelId", commit.panel_id.as_str())
+                            .id("presentationId", commit.presentation_id.as_str())
+                            .label(resolved_label(&resolved.action))
+                            .path(options.cwd.as_ref().ok_or_else(internal)?.as_str())
+                            .terminal(terminal))
+                    }
+                    WorkspaceLaunchSubmission::DefinitePrecommit(precommit) => {
+                        Err(precommit_failure(precommit.into(), &resolved.action))
+                    }
+                    WorkspaceLaunchSubmission::DefinitelyNotSubmitted(reason) => {
+                        Err(not_submitted_failure(reason.into()))
+                    }
+                    WorkspaceLaunchSubmission::OutcomeUnknown { request_id, reason } => {
                         Err(unknown_failure(request_id, reason.reason()))
                     }
                 }
@@ -1437,7 +1494,8 @@ mod linux {
 
     fn resolved_project_id(action: &WorkbenchAction) -> &str {
         match action {
-            WorkbenchAction::WorkspaceCreate { project_id, .. }
+            WorkbenchAction::WorkspaceLaunch { project_id, .. }
+            | WorkbenchAction::WorkspaceCreate { project_id, .. }
             | WorkbenchAction::WorkspacePrimaryDirectoryAccept { project_id, .. } => {
                 project_id.as_str()
             }
@@ -1467,6 +1525,7 @@ mod linux {
         match action {
             WorkbenchAction::ProjectCreate { label, .. }
             | WorkbenchAction::ProjectRename { label, .. }
+            | WorkbenchAction::WorkspaceLaunch { label, .. }
             | WorkbenchAction::WorkspaceCreate { label, .. }
             | WorkbenchAction::WorkspaceRename { label, .. }
             | WorkbenchAction::TabCreate { label, .. }
@@ -1670,7 +1729,11 @@ mod linux {
     /// always has one.
     fn resolved_profile_selector(action: &WorkbenchAction) -> &str {
         match action {
-            WorkbenchAction::TabCreate {
+            WorkbenchAction::WorkspaceLaunch {
+                profile: Some(selector),
+                ..
+            }
+            | WorkbenchAction::TabCreate {
                 profile: Some(selector),
                 ..
             }

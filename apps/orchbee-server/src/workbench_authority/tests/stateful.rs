@@ -349,7 +349,7 @@ fn run(steps: &[Step]) -> Result<(), String> {
                         "tab rename changed unrelated state",
                     )?;
                 }
-                WorkbenchAction::TabCreate { .. } => {
+                WorkbenchAction::WorkspaceLaunch { .. } | WorkbenchAction::TabCreate { .. } => {
                     return Err("pure trace generated tab.create".to_owned());
                 }
                 WorkbenchAction::PanelSplit { .. } => {

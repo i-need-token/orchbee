@@ -15,7 +15,17 @@ impl SiteCoordinator {
         };
         let grant = WorkbenchGrant::manage_navigation(authority.site_id().clone())
             .with_directory_association();
-        authority.preflight_workspace_directory(Some(&grant), command)
+        if matches!(
+            command.action,
+            orchbee_workbench_protocol::WorkbenchAction::WorkspaceLaunch { .. }
+        ) {
+            let grant =
+                WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone())
+                    .with_directory_association();
+            authority.preflight_workspace_launch(Some(&grant), command)
+        } else {
+            authority.preflight_workspace_directory(Some(&grant), command)
+        }
     }
 
     pub(crate) fn accept_workspace_directory(

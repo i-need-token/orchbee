@@ -98,6 +98,38 @@ impl SiteCoordinator {
         expiry: Option<LeaseExpiresAtUnixMilliseconds>,
         worker: Option<WorkerPlacement>,
     ) -> PreparedTerminalTabCreate {
+        self.prepare_terminal_creation(command, candidate, expiry, worker, None)
+    }
+
+    /// The caller holds registry then Site gates and has validated the directory
+    /// observation against this exact live Worker generation before entering.
+    pub(crate) fn prepare_workspace_launch(
+        &mut self,
+        command: WorkbenchCommand,
+        candidate: Option<RequestId>,
+        expiry: Option<LeaseExpiresAtUnixMilliseconds>,
+        worker: WorkerPlacement,
+    ) -> PreparedTerminalTabCreate {
+        let Ok(worker_id) = orchbee_workbench_protocol::WorkerId::parse(&format!(
+            "{:032x}",
+            u128::from_be_bytes(worker.worker_id.as_bytes())
+        )) else {
+            return PreparedTerminalTabCreate::Ready(unavailable(
+                &command,
+                WorkbenchCommandUnavailableReason::NoCompatibleWorker,
+            ));
+        };
+        self.prepare_terminal_creation(command, candidate, expiry, Some(worker), Some(worker_id))
+    }
+
+    fn prepare_terminal_creation(
+        &mut self,
+        command: WorkbenchCommand,
+        candidate: Option<RequestId>,
+        expiry: Option<LeaseExpiresAtUnixMilliseconds>,
+        worker: Option<WorkerPlacement>,
+        workspace_worker: Option<orchbee_workbench_protocol::WorkerId>,
+    ) -> PreparedTerminalTabCreate {
         let Self {
             terminals,
             workbench,
@@ -116,7 +148,8 @@ impl SiteCoordinator {
         // selector resolves inside admission under the coordinator lock; the
         // frozen stored selection then substitutes for the explicit launch.
         let explicit_launch = match &command.action {
-            WorkbenchAction::TabCreate { launch, .. } => launch.clone(),
+            WorkbenchAction::TabCreate { launch, .. }
+            | WorkbenchAction::WorkspaceLaunch { launch, .. } => launch.clone(),
             _ => None,
         };
         let launch = match explicit_launch
@@ -137,12 +170,22 @@ impl SiteCoordinator {
             }
         };
         let options = match &command.action {
-            WorkbenchAction::TabCreate { options, .. } => options.clone(),
+            WorkbenchAction::TabCreate { options, .. }
+            | WorkbenchAction::WorkspaceLaunch { options, .. } => options.clone(),
             _ => Default::default(),
         };
         let grant =
             WorkbenchGrant::manage_navigation_and_terminal_create(workbench.site_id().clone());
-        let admission = match workbench.begin_terminal_tab_create(Some(&grant), command) {
+        let begin = if let Some(worker_id) = workspace_worker {
+            workbench.begin_workspace_launch(
+                Some(&grant.with_directory_association()),
+                command,
+                worker_id,
+            )
+        } else {
+            workbench.begin_terminal_tab_create(Some(&grant), command)
+        };
+        let admission = match begin {
             WorkbenchTabCreateBegin::Ready(result) => {
                 return PreparedTerminalTabCreate::Ready(result);
             }

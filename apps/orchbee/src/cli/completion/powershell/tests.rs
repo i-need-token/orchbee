@@ -8,6 +8,18 @@ use std::{
 #[test]
 fn real_powershell_completes_scoped_grammar_without_runtime() {
     let cases = [
+        ("orchbee workspace create --c", "--cwd", true),
+        ("orchbee workspace create --cwd C:\\code --e", "--env", true),
+        (
+            "orchbee workspace create --cwd C:\\code --profile dev --e",
+            "--exec",
+            false,
+        ),
+        (
+            "orchbee workspace create --cwd C:\\code --cell-",
+            "--cell-width",
+            true,
+        ),
         ("orchbee panel ", "current", true),
         ("orchbee help panel ", "current", true),
         ("orchbee panel current --p", "--panel", true),

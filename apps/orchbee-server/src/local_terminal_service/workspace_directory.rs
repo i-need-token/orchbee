@@ -14,45 +14,76 @@ impl LocalTerminalService {
         &self,
         command: WorkbenchCommand,
     ) -> WorkbenchCommandResult {
+        match self.observe_workspace_directory(&command) {
+            Ok((request, observed)) => {
+                self.complete_workspace_directory(command, request, observed)
+            }
+            Err(result) => *result,
+        }
+    }
+
+    fn observe_workspace_directory(
+        &self,
+        command: &WorkbenchCommand,
+    ) -> Result<
+        (
+            TerminalCwdValidationRequest,
+            Result<TerminalCwdValidationResult, WorkerRequestError>,
+        ),
+        Box<WorkbenchCommandResult>,
+    > {
         // Entropy is an inert candidate; its failure must not hide a retained acceptance.
         let operation_id = validation_identity();
         let (handle, request) = {
             let Ok(workers) = self.workers.lock() else {
-                return unavailable(&command, WorkbenchCommandUnavailableReason::ServerBusy);
+                return Err(Box::new(unavailable(
+                    command,
+                    WorkbenchCommandUnavailableReason::ServerBusy,
+                )));
             };
             let Ok(coordinator) = self.coordinator.lock() else {
-                return unavailable(&command, WorkbenchCommandUnavailableReason::ServerBusy);
+                return Err(Box::new(unavailable(
+                    command,
+                    WorkbenchCommandUnavailableReason::ServerBusy,
+                )));
             };
-            if let Some(result) = coordinator.preflight_workspace_directory(&command) {
-                return result;
+            if let Some(result) = coordinator.preflight_workspace_directory(command) {
+                return Err(Box::new(result));
             }
             let Some(handle) = workers.request_handle() else {
-                return unavailable(
-                    &command,
+                return Err(Box::new(unavailable(
+                    command,
                     WorkbenchCommandUnavailableReason::NoCompatibleWorker,
-                );
+                )));
             };
             let Some(worker) = placement(Some(&handle)) else {
-                return unavailable(
-                    &command,
+                return Err(Box::new(unavailable(
+                    command,
                     WorkbenchCommandUnavailableReason::NoCompatibleWorker,
-                );
+                )));
             };
             let Some(operation_id) = operation_id else {
-                return unavailable(&command, WorkbenchCommandUnavailableReason::ServerBusy);
+                return Err(Box::new(unavailable(
+                    command,
+                    WorkbenchCommandUnavailableReason::ServerBusy,
+                )));
             };
-            let WorkbenchAction::WorkspacePrimaryDirectoryAccept { path, .. } = &command.action
-            else {
-                return unavailable(
-                    &command,
+            let path = match &command.action {
+                WorkbenchAction::WorkspacePrimaryDirectoryAccept { path, .. } => Some(path),
+                WorkbenchAction::WorkspaceLaunch { options, .. } => options.cwd.as_ref(),
+                _ => None,
+            };
+            let Some(path) = path else {
+                return Err(Box::new(unavailable(
+                    command,
                     WorkbenchCommandUnavailableReason::ServiceUnavailable,
-                );
+                )));
             };
             let Ok(cwd) = AbsoluteCwd::new(path.as_str()) else {
-                return unavailable(
-                    &command,
+                return Err(Box::new(unavailable(
+                    command,
                     WorkbenchCommandUnavailableReason::DirectoryUnavailable,
-                );
+                )));
             };
             (
                 handle,
@@ -67,7 +98,52 @@ impl LocalTerminalService {
 
         // The Worker observes the filesystem without registry or Site ownership held.
         let observed = handle.validate_terminal_cwd(request.clone());
-        self.complete_workspace_directory(command, request, observed)
+        Ok((request, observed))
+    }
+
+    pub(crate) fn execute_workspace_launch(
+        &self,
+        command: WorkbenchCommand,
+    ) -> Result<WorkbenchCommandResult, crate::site_coordinator::PostcommitCoordinationError> {
+        let (request, observed) = match self.observe_workspace_directory(&command) {
+            Ok(probe) => probe,
+            Err(result) => return Ok(*result),
+        };
+        let candidate = super::create_reference();
+        let expiry = super::lease_expiry();
+        let (prepared, handle) = {
+            let Ok(workers) = self.workers.lock() else {
+                return Ok(unavailable(
+                    &command,
+                    WorkbenchCommandUnavailableReason::ServerBusy,
+                ));
+            };
+            let Ok(mut coordinator) = self.coordinator.lock() else {
+                return Ok(unavailable(
+                    &command,
+                    WorkbenchCommandUnavailableReason::ServerBusy,
+                ));
+            };
+            if let Some(result) = coordinator.preflight_workspace_directory(&command) {
+                return Ok(result);
+            }
+            let handle = workers.request_handle();
+            let current = placement(handle.as_ref());
+            if let Err(reason) = validate_observation(&request, observed, current.as_ref()) {
+                return Ok(unavailable(&command, reason));
+            }
+            let Some(current) = current else {
+                return Ok(unavailable(
+                    &command,
+                    WorkbenchCommandUnavailableReason::NoCompatibleWorker,
+                ));
+            };
+            (
+                coordinator.prepare_workspace_launch(command, candidate, expiry, current),
+                handle,
+            )
+        };
+        self.dispatch_terminal_tab_create(prepared, handle)
     }
 
     fn complete_workspace_directory(
@@ -86,55 +162,37 @@ impl LocalTerminalService {
         if let Some(result) = coordinator.preflight_workspace_directory(&command) {
             return result;
         }
-        if placement(workers.request_handle().as_ref()).is_none_or(|worker| {
-            worker.worker_id != request.worker_id || worker.generation != request.worker_generation
-        }) {
-            return unavailable(
-                &command,
-                WorkbenchCommandUnavailableReason::NoCompatibleWorker,
-            );
+        let current = placement(workers.request_handle().as_ref());
+        match validate_observation(&request, observed, current.as_ref()) {
+            Ok(worker_id) => coordinator.accept_workspace_directory(command, worker_id),
+            Err(reason) => unavailable(&command, reason),
         }
-        let outcome = match observed {
-            Ok(result) if result.request == request => result.outcome,
-            Ok(_) => {
-                return unavailable(
-                    &command,
-                    WorkbenchCommandUnavailableReason::NoCompatibleWorker,
-                );
-            }
-            Err(WorkerRequestError::Backpressure) => {
-                return unavailable(&command, WorkbenchCommandUnavailableReason::ServerBusy);
-            }
-            Err(_) => {
-                return unavailable(
-                    &command,
-                    WorkbenchCommandUnavailableReason::NoCompatibleWorker,
-                );
-            }
-        };
-        match outcome {
-            TerminalCwdValidationOutcome::DirectoryUnavailable => unavailable(
-                &command,
-                WorkbenchCommandUnavailableReason::DirectoryUnavailable,
-            ),
-            TerminalCwdValidationOutcome::WorkerUnavailable => unavailable(
-                &command,
-                WorkbenchCommandUnavailableReason::NoCompatibleWorker,
-            ),
-            TerminalCwdValidationOutcome::DirectoryAvailable => {
-                let Ok(worker_id) = WorkerId::parse(&format!(
-                    "{:032x}",
-                    u128::from_be_bytes(request.worker_id.as_bytes())
-                )) else {
-                    return unavailable(
-                        &command,
-                        WorkbenchCommandUnavailableReason::NoCompatibleWorker,
-                    );
-                };
-                // Keep both gates through the authority's repeated admission and atomic commit.
-                coordinator.accept_workspace_directory(command, worker_id)
-            }
-        }
+    }
+}
+
+fn validate_observation(
+    request: &TerminalCwdValidationRequest,
+    observed: Result<TerminalCwdValidationResult, WorkerRequestError>,
+    current: Option<&crate::terminal_coordinator::WorkerPlacement>,
+) -> Result<WorkerId, WorkbenchCommandUnavailableReason> {
+    use WorkbenchCommandUnavailableReason::{DirectoryUnavailable, NoCompatibleWorker, ServerBusy};
+    if current.is_none_or(|worker| {
+        worker.worker_id != request.worker_id || worker.generation != request.worker_generation
+    }) {
+        return Err(NoCompatibleWorker);
+    }
+    match observed {
+        Ok(result) if result.request == *request => match result.outcome {
+            TerminalCwdValidationOutcome::DirectoryAvailable => WorkerId::parse(&format!(
+                "{:032x}",
+                u128::from_be_bytes(request.worker_id.as_bytes())
+            ))
+            .map_err(|_| NoCompatibleWorker),
+            TerminalCwdValidationOutcome::DirectoryUnavailable => Err(DirectoryUnavailable),
+            TerminalCwdValidationOutcome::WorkerUnavailable => Err(NoCompatibleWorker),
+        },
+        Err(WorkerRequestError::Backpressure) => Err(ServerBusy),
+        _ => Err(NoCompatibleWorker),
     }
 }
 

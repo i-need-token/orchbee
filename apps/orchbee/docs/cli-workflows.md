@@ -1,13 +1,37 @@
 # Native CLI Workflows
 
-A complete headless sequence for the experimental Linux-native `orchbee`
-CLI: start the local Site, build a Project/Workspace/directory, launch and
+Windows directory Workspace quick start and the existing Linux headless `orchbee`
+CLI sequence: start the local Site, build a Project/Workspace/directory, launch and
 drive a terminal, inspect worktrees, observe Agents, and close cleanly. The
 command inventory lives in the [README](../README.md); the full grammar,
 target rules, and failure matrix are owned by
 [native CLI query](native-cli-query.md). This guide covers the supported
 end-to-end path only — option and target wording matches what
 `orchbee help` prints, and shell snippets are illustrative.
+
+## Windows directory Workspace
+
+Use a complete Windows development cohort from the [Windows quick start](../README.md#native-windows-quick-start). Replace the executable and existing directory paths below. PowerShell 5.1 and 7 can read JSON without jq.
+
+```powershell
+$cli = 'C:\path\to\cohort\orchbee.exe'
+function Invoke-OrchbeeJson([string[]]$Words) {
+    $output = & $cli @Words --format json
+    if ($LASTEXITCODE -ne 0) { throw ($output -join "`n") }
+    ($output -join "`n") | ConvertFrom-Json
+}
+Invoke-OrchbeeJson -Words @('site', 'start')
+$project = Invoke-OrchbeeJson -Words @('project', 'create', '--label', 'demo')
+$created = Invoke-OrchbeeJson -Words @('workspace', 'create', '--project', $project.result.projectId,
+    '--label', 'main', '--cwd', 'C:\existing\repo', '--env', 'DEMO=hello')
+$created.result
+& $cli workspace get $created.result.workspaceId --format json
+& $cli tui
+# Close this Workspace when finished:
+& $cli workspace close $created.result.workspaceId --confirm --format json
+```
+
+Check `result.terminal.outcome` before using the terminal: `started` confirms launch, while pending, failed, unavailable or unknown results require inspection of the returned resources. Closing the TUI does not close the Workspace. The command creates the first terminal automatically and leaves client focus unchanged. Windows Agent integration and doctor, and Site diagnose remain outside this workflow. The numbered POSIX examples below describe the existing Linux path.
 
 ## Prerequisites
 
@@ -21,8 +45,8 @@ end-to-end path only — option and target wording matches what
   Then run `/tmp/orchbee-native-dev/orchbee`. The staged cohort is four
   executables (CLI, Server, Worker, Host) that must come from one build plus
   the observation-adapters payload directory, all pinned by the manifest;
-  non-Linux platforms are not admitted (`unsupported-platform`), and this
-  is not an installed product or a system service.
+  these prerequisites apply to the Linux examples below; the Windows flow is above.
+  This is not an installed product or a system service.
 
 - `jq` on `PATH` if you follow the id-extraction snippets below; otherwise
   read the same fields from `--format json` output manually.

@@ -303,3 +303,27 @@ fn typed_workspace_primary_directory_acceptance_preserves_exact_fields() {
 mod tab_close;
 mod workspace_close;
 mod worktree_list;
+
+#[test]
+fn workspace_launch_wire_requires_cwd_and_preserves_windows_environment() {
+    let mut value = serde_json::json!({
+        "kind": "workbench.command", "protocolVersion": 1,
+        "requestId": "00000000000000000000000000000011", "siteId": "00000000000000000000000000000012", "expectedRevision": "1",
+        "action": {"kind": "workspace.launch", "projectId": "00000000000000000000000000000013", "label": "开发",
+            "geometry": {"columns": 80, "rows": 24, "cellPixelWidth": 0, "cellPixelHeight": 0},
+            "options": {"cwd": "C:\\project space", "environment": [["DEMO", "a=b $literal"]]}}
+    });
+    let encoded = serde_json::to_vec(&value).unwrap();
+    let parsed = parse_workbench_request(&encoded).unwrap();
+    assert_eq!(
+        parse_workbench_request(&serialize_workbench_request(&parsed).unwrap()).unwrap(),
+        parsed
+    );
+    value["action"]["options"]
+        .as_object_mut()
+        .unwrap()
+        .remove("cwd");
+    assert!(parse_workbench_request(&serde_json::to_vec(&value).unwrap()).is_err());
+    value["action"]["options"]["cwd"] = serde_json::json!("relative");
+    assert!(parse_workbench_request(&serde_json::to_vec(&value).unwrap()).is_err());
+}

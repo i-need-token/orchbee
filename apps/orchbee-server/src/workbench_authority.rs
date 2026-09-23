@@ -983,7 +983,8 @@ impl PureWorkbenchAction {
             WorkbenchAction::LaunchProfileDelete { selector } => Self::LaunchProfileDelete {
                 selector: selector.clone(),
             },
-            WorkbenchAction::TabCreate { .. }
+            WorkbenchAction::WorkspaceLaunch { .. }
+            | WorkbenchAction::TabCreate { .. }
             | WorkbenchAction::PanelSplit { .. }
             | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
             | WorkbenchAction::TabMove { .. }

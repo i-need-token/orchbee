@@ -128,6 +128,8 @@ follow the owning record's failure matrix. This is not a stable public exit tabl
 
 ## Native Windows quick start
 
+With an existing Project, `workspace create --project <target> --label <label> --cwd C:\existing\repo` creates the Workspace and its first terminal in one request. Add `--env NAME=VALUE`, an explicit `--exec`/`--arg`, or `--profile` as needed. The receipt returns resource IDs and the terminal outcome; a failed launch retains the Workspace for inspection and explicit close. See the [Windows workflow](docs/cli-workflows.md#windows-directory-workspace) for PowerShell examples.
+
 Build with the repository's pinned Rust and Zig toolchains and Node.js. Run this from the repository
 root in PowerShell; the output directory must be new, and its parent must already exist:
 

@@ -670,6 +670,14 @@ pub(crate) enum MutationCommand {
         project: Target,
         label: WorkbenchLabel,
     },
+    WorkspaceLaunch {
+        project: Target,
+        label: WorkbenchLabel,
+        geometry: WorkbenchTerminalGeometry,
+        launch: Option<LaunchSelection>,
+        profile: Option<LaunchProfileSelector>,
+        options: LaunchOptions,
+    },
     WorkspaceRename {
         target: Target,
         label: WorkbenchLabel,
@@ -679,8 +687,8 @@ pub(crate) enum MutationCommand {
         path: WorkbenchDirectoryPath,
     },
     /// `workspace close <target> --confirm`: close every terminal in the
-    /// Workspace's Terminal Context; the Workspace, its checkout, branch,
-    /// and directories survive the close.
+    /// Workspace's Terminal Context, then remove the Workspace and Context.
+    /// The Project, checkout, branch and directories survive the close.
     WorkspaceClose {
         target: Target,
     },
@@ -1946,28 +1954,45 @@ fn resolve_words(
             ))
         }
         ["workspace", "create"] => {
-            check_scope(
-                options,
-                WORKSPACE_CREATE_SCOPE,
-                UsageContext::Path("workspace create"),
-                envelope,
-            )?;
-            Ok(mutation(
-                MutationCommand::WorkspaceCreate {
-                    project: target(
-                        required(
-                            &options.project,
-                            UsageContext::Path("workspace create"),
-                            "'--project'",
+            let context = UsageContext::Path("workspace create");
+            if options.cwd.is_some() {
+                check_scope(options, WORKSPACE_LAUNCH_SCOPE, context, envelope)?;
+                let project = target(
+                    required(&options.project, context, "'--project'", envelope)?,
+                    Resource::Project,
+                    envelope,
+                )?;
+                let label = label_option(options, context, envelope)?;
+                let geometry = geometry_option(options, context, envelope)?;
+                reject_launch_profile_conflict(options, context, envelope)?;
+                let launch = launch_option(options, context, envelope)?;
+                let profile = profile_option(options, context, envelope)?;
+                let launch_options = launch_options(options, context, envelope)?;
+                Ok(mutation(
+                    MutationCommand::WorkspaceLaunch {
+                        project,
+                        label,
+                        geometry,
+                        launch,
+                        profile,
+                        options: launch_options,
+                    },
+                    options,
+                ))
+            } else {
+                check_scope(options, WORKSPACE_CREATE_SCOPE, context, envelope)?;
+                Ok(mutation(
+                    MutationCommand::WorkspaceCreate {
+                        project: target(
+                            required(&options.project, context, "'--project'", envelope)?,
+                            Resource::Project,
                             envelope,
                         )?,
-                        Resource::Project,
-                        envelope,
-                    )?,
-                    label: label_option(options, UsageContext::Path("workspace create"), envelope)?,
-                },
-                options,
-            ))
+                        label: label_option(options, context, envelope)?,
+                    },
+                    options,
+                ))
+            }
         }
         ["workspace", "rename", value] => {
             check_scope(
@@ -3255,6 +3280,18 @@ const PANEL_CURRENT_SCOPE: Scope = Scope {
 
 const PANEL_LIST_SCOPE: Scope = Scope {
     tab: true,
+    ..NO_OPTIONS
+};
+
+const WORKSPACE_LAUNCH_SCOPE: Scope = Scope {
+    project: true,
+    label: true,
+    geometry: true,
+    exec: true,
+    cwd: true,
+    environment: true,
+    args: true,
+    profile: true,
     ..NO_OPTIONS
 };
 

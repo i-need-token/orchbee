@@ -46,6 +46,15 @@ impl LocalTerminalService {
                 coordinator.prepare_terminal_tab_create(command, candidate, expiry, current);
             (prepared, handle)
         };
+        self.dispatch_terminal_tab_create(prepared, handle)
+    }
+
+    /// Dispatch and settle an already admitted creation; all structural resources are committed.
+    pub(super) fn dispatch_terminal_tab_create(
+        &self,
+        prepared: PreparedTerminalTabCreate,
+        handle: Option<crate::worker_obcn_carrier::WorkerRequestHandle>,
+    ) -> Result<WorkbenchCommandResult, PostcommitCoordinationError> {
         let pending = match prepared {
             PreparedTerminalTabCreate::Ready(result) => return Ok(result),
             PreparedTerminalTabCreate::Dispatch(pending) => pending,

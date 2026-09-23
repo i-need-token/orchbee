@@ -55,6 +55,13 @@ impl WorkbenchService {
                 self.policy.manage_terminal_lifecycle
             }
             WorkbenchRequest::Command(command)
+                if matches!(command.action, WorkbenchAction::WorkspaceLaunch { .. }) =>
+            {
+                self.policy.manage_navigation
+                    && self.policy.associate_directory
+                    && self.policy.create_terminal
+            }
+            WorkbenchRequest::Command(command)
                 if matches!(
                     &command.action,
                     WorkbenchAction::TabClose { .. }
@@ -223,6 +230,14 @@ impl WorkbenchService {
                         .map(WorkbenchResponse::Command)
                         .unwrap_or_else(|| unavailable_or_denied(fallback, false)),
                 )
+            }
+            Err(WorkbenchRequest::Command(command))
+                if matches!(&command.action, WorkbenchAction::WorkspaceLaunch { .. }) =>
+            {
+                match self.terminals.execute_workspace_launch(command) {
+                    Ok(result) => WorkbenchExecution::Response(WorkbenchResponse::Command(result)),
+                    Err(_) => WorkbenchExecution::OutcomeUnknown,
+                }
             }
             Err(WorkbenchRequest::Command(command))
                 if matches!(&command.action, WorkbenchAction::TabCreate { .. }) =>

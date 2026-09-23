@@ -227,3 +227,96 @@ fn directory_association_requires_its_own_grant_and_navigation_without_launch_pe
         );
     }
 }
+
+#[test]
+fn workspace_launch_requires_navigation_directory_and_terminal_grants() {
+    let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
+        WorkerRegistry::new(),
+    ))));
+    let reader = WorkbenchService::new(
+        WorkbenchPolicy {
+            read: true,
+            manage_navigation: true,
+            associate_directory: false,
+            create_terminal: false,
+            manage_terminal_lifecycle: false,
+        },
+        Arc::clone(&terminals),
+    );
+    let read = WorkbenchRequest::SnapshotRead(SnapshotReadIntent {
+        protocol_version: ProtocolVersion,
+        request_id: WorkbenchRequestId::parse(&format!("{:032x}", 401)).unwrap(),
+    });
+    let WorkbenchResponse::Snapshot(before) = response(reader.execute(read.clone())) else {
+        panic!("snapshot expected")
+    };
+    let WorkbenchSnapshotOutcome::Available { snapshot } = &before.outcome else {
+        panic!("available snapshot expected")
+    };
+    let command = WorkbenchCommand {
+        protocol_version: ProtocolVersion,
+        request_id: WorkbenchRequestId::parse(&format!("{:032x}", 402)).unwrap(),
+        site_id: snapshot.site_id.clone(),
+        expected_revision: snapshot.revision,
+        action: WorkbenchAction::WorkspaceLaunch {
+            project_id: orchbee_workbench_protocol::WorkbenchProjectId::parse(&format!(
+                "{:032x}",
+                403
+            ))
+            .unwrap(),
+            label: WorkbenchLabel::parse("launch").unwrap(),
+            geometry: WorkbenchTerminalGeometry::new(80, 24, 0, 0).unwrap(),
+            launch: None,
+            profile: None,
+            options: Box::new(orchbee_workbench_protocol::LaunchOptions {
+                cwd: Some(
+                    orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(r"C:\workspace")
+                        .unwrap(),
+                ),
+                environment: Default::default(),
+            }),
+        },
+    };
+    for (manage_navigation, associate_directory, create_terminal) in [
+        (false, false, false),
+        (false, false, true),
+        (false, true, false),
+        (false, true, true),
+        (true, false, false),
+        (true, false, true),
+        (true, true, false),
+        (true, true, true),
+    ] {
+        let service = WorkbenchService::new(
+            WorkbenchPolicy {
+                read: true,
+                manage_navigation,
+                associate_directory,
+                create_terminal,
+                manage_terminal_lifecycle: false,
+            },
+            Arc::clone(&terminals),
+        );
+        let WorkbenchResponse::Command(result) =
+            response(service.execute(WorkbenchRequest::Command(command.clone())))
+        else {
+            panic!("command result expected")
+        };
+        if manage_navigation && associate_directory && create_terminal {
+            assert!(matches!(
+                result.outcome,
+                WorkbenchCommandOutcome::Rejected {
+                    reason:
+                        orchbee_workbench_protocol::WorkbenchRejectionReason::ProjectUnavailable,
+                    ..
+                }
+            ));
+        } else {
+            assert_eq!(result.outcome, WorkbenchCommandOutcome::Denied {});
+        }
+        assert_eq!(
+            response(reader.execute(read.clone())),
+            WorkbenchResponse::Snapshot(before.clone())
+        );
+    }
+}

@@ -1770,3 +1770,11 @@ IDs can repeat across Sites, so the exact Worker match is required to reject a c
 from a previous or different Site. No reconnect or adoption is introduced. A Tab
 close acceptance is not removal: lookup continues to reflect membership until the
 Server publishes its removal. Only then is the old caller binding not found.
+
+## Directory Workspace creation
+
+`workspace create --project <target> --label <label> --cwd <absolute-path>` creates a usable Workspace in one native Server request (`workspace.launch`). It accepts the same `--env`, `--exec`/`--arg`, `--profile` and all-or-none four geometry flags as `tab create`. These launch flags require `--cwd`; without it the original empty Workspace operation is unchanged. The existing Project is resolved from one snapshot. No focus or source-Workspace selection is inferred.
+
+The Worker probes the requested directory before the Server atomically registers the Workspace, directory, Terminal Context and first Tab/Panel/Presentation at one revision. Failed admission creates none of them. A successful commit returns the existing mutation v4 envelope with action `workspace.create`, `projectId`, `workspaceId`, `directoryId`, `terminalContextId`, `tabId`, `panelId`, `presentationId`, literal `path`, `label`, and `terminal`. The existing schema already admits these fields; its version and catalog are unchanged. Terminal launch can remain pending or fail after commit: keep the returned IDs, inspect the Workspace and explicitly close it if unwanted. An unknown response is never automatically replayed or rolled back.
+
+The unpublished native wire action requires `projectId`, `label`, `geometry`, and `options.cwd`; optional `launch` and `profile` remain mutually exclusive. It uses the existing 48 KiB launch request limit, exact request ledger and terminal settlement. `workspace-launch-pending` and `workspace-launched` echo the committed revision and all seven IDs; only the latter carries `terminalOutcome`. The Server owns all six new structural IDs and the terminal binding. Shared Workbench schemas and Desktop bindings do not establish this native extension's support. Activate and roll back the same complete binary cohort. The Server's [refinement record](../../orchbee-server/README.md#directory-workspace-launch) owns admission, commit and recovery.

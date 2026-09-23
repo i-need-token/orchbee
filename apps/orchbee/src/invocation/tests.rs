@@ -6330,3 +6330,56 @@ fn current_panel_grammar_has_explicit_or_caller_modes() {
         Ok(Request::Help(HelpTopic::Command(CommandPath::PanelCurrent)))
     );
 }
+
+#[test]
+fn workspace_launch_requires_cwd_and_preserves_launch_values() {
+    let Request::Mutation {
+        command: MutationCommand::WorkspaceLaunch {
+            options, launch, ..
+        },
+        ..
+    } = parse(&[
+        "workspace",
+        "create",
+        "--project",
+        "P",
+        "--label",
+        "开发",
+        "--cwd",
+        r"C:\project space",
+        "--env",
+        "DEMO=a=b $literal",
+        "--exec",
+        r"C:\Windows\System32\cmd.exe",
+        "--arg",
+        "/K",
+    ])
+    .unwrap()
+    else {
+        panic!("directory Workspace launch expected");
+    };
+    assert_eq!(options.cwd.unwrap().as_str(), r"C:\project space");
+    assert_eq!(
+        options.environment.entries(),
+        &[("DEMO".to_owned(), "a=b $literal".to_owned())]
+    );
+    assert_eq!(launch.unwrap().arguments(), &["/K"]);
+    for tail in [
+        vec!["--env", "A=B"],
+        vec!["--exec", r"C:\cmd.exe"],
+        vec!["--cols", "80"],
+        vec!["--cwd", "relative"],
+        vec![
+            "--cwd",
+            r"C:\project",
+            "--profile",
+            "P",
+            "--exec",
+            r"C:\cmd.exe",
+        ],
+    ] {
+        let mut words = vec!["workspace", "create", "--project", "P", "--label", "W"];
+        words.extend(tail);
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
+}

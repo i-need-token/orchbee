@@ -1,3 +1,7 @@
+//! Stages and settles terminal creation against a single authoritative projection.
+//! Directory Workspace launch shares this commit boundary and retained result ledger.
+mod workspace_launch;
+
 use std::sync::Arc;
 
 use orchbee_workbench_protocol::{
@@ -122,6 +126,7 @@ pub struct CommittedWorkbenchTabCreateMetadata {
     geometry: WorkbenchTerminalGeometry,
     standalone: bool,
     first: bool,
+    workspace: Option<Box<WorkspaceLaunchIds>>,
 }
 
 impl CommittedWorkbenchTabCreateMetadata {
@@ -176,6 +181,18 @@ impl CommittedWorkbenchTabCreateMetadata {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct WorkspaceLaunchIds {
+    project_id: orchbee_workbench_protocol::WorkbenchProjectId,
+    workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId,
+    directory_id: orchbee_workbench_protocol::WorkbenchDirectoryId,
+}
+
+struct WorkspaceLaunchPreparation {
+    candidate: orchbee_workbench_protocol::Snapshot,
+    ids: WorkspaceLaunchIds,
+}
+
 #[allow(clippy::large_enum_variant)]
 pub enum WorkbenchTabCreateBegin<'a> {
     Ready(WorkbenchCommandResult),
@@ -195,6 +212,7 @@ pub struct WorkbenchTabCreateAdmission<'a> {
     staged: StagedWorkbenchTabCreateMetadata,
     last_identity: u128,
     profile_use: Option<super::LaunchProfileUse>,
+    workspace: Option<WorkspaceLaunchPreparation>,
 }
 
 impl<'a> WorkbenchTabCreateAdmission<'a> {
@@ -237,8 +255,12 @@ impl<'a> WorkbenchTabCreateAdmission<'a> {
             staged,
             last_identity,
             profile_use: _,
+            workspace,
         } = self;
-        let mut candidate = authority.projection.snapshot().clone();
+        let (mut candidate, workspace) = match workspace {
+            Some(prepared) => (prepared.candidate, Some(prepared.ids)),
+            None => (authority.projection.snapshot().clone(), None),
+        };
         let Some(context) = candidate
             .terminal_contexts
             .iter_mut()
@@ -285,6 +307,7 @@ impl<'a> WorkbenchTabCreateAdmission<'a> {
             geometry: staged.geometry,
             standalone,
             first,
+            workspace: workspace.map(Box::new),
         };
         let Some(results) = TabCreateResultTable::new(&command, &metadata) else {
             return WorkbenchTabCreatePreparation::Ready(retire(authority, &command));
@@ -593,6 +616,7 @@ impl WorkbenchAuthority {
             },
             last_identity,
             profile_use,
+            workspace: None,
         }))
     }
 
@@ -742,6 +766,19 @@ fn prebuild(
 }
 
 fn pending_outcome(metadata: &CommittedWorkbenchTabCreateMetadata) -> WorkbenchCommandOutcome {
+    if let Some(workspace) = &metadata.workspace {
+        return WorkbenchCommandOutcome::WorkspaceLaunchPending {
+            revision: metadata.revision,
+            project_id: workspace.project_id.clone(),
+            workspace_id: workspace.workspace_id.clone(),
+            directory_id: workspace.directory_id.clone(),
+            terminal_context_id: metadata.terminal_context_id.clone(),
+            tab_id: metadata.tab_id.clone(),
+            panel_id: metadata.panel_id.clone(),
+            presentation_id: metadata.presentation_id.clone(),
+        };
+    }
+
     WorkbenchCommandOutcome::TabCreatePending {
         revision: metadata.revision,
         terminal_context_id: metadata.terminal_context_id.clone(),
@@ -755,6 +792,20 @@ fn final_outcome(
     metadata: &CommittedWorkbenchTabCreateMetadata,
     terminal_outcome: WorkbenchTerminalOutcome,
 ) -> WorkbenchCommandOutcome {
+    if let Some(workspace) = &metadata.workspace {
+        return WorkbenchCommandOutcome::WorkspaceLaunched {
+            revision: metadata.revision,
+            project_id: workspace.project_id.clone(),
+            workspace_id: workspace.workspace_id.clone(),
+            directory_id: workspace.directory_id.clone(),
+            terminal_context_id: metadata.terminal_context_id.clone(),
+            tab_id: metadata.tab_id.clone(),
+            panel_id: metadata.panel_id.clone(),
+            presentation_id: metadata.presentation_id.clone(),
+            terminal_outcome,
+        };
+    }
+
     WorkbenchCommandOutcome::TabCreated {
         revision: metadata.revision,
         terminal_context_id: metadata.terminal_context_id.clone(),

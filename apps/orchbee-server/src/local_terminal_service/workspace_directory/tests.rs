@@ -414,3 +414,130 @@ fn real_success_from_retired_generation_cannot_configure_replacement_worker() {
     );
     assert_eq!(snapshot(&service), before);
 }
+
+fn launch_command(service: &LocalTerminalService) -> WorkbenchCommand {
+    let association = association(service);
+    let WorkbenchAction::WorkspacePrimaryDirectoryAccept {
+        project_id, path, ..
+    } = association.action
+    else {
+        unreachable!()
+    };
+    command(
+        service,
+        500,
+        WorkbenchAction::WorkspaceLaunch {
+            project_id,
+            label: WorkbenchLabel::parse("launch").unwrap(),
+            geometry: orchbee_workbench_protocol::WorkbenchTerminalGeometry::new(80, 24, 0, 0)
+                .unwrap(),
+            launch: None,
+            profile: None,
+            options: Box::new(orchbee_workbench_protocol::LaunchOptions {
+                cwd: Some(path),
+                environment: Default::default(),
+            }),
+        },
+    )
+}
+
+#[test]
+fn workspace_launch_directory_failure_or_stale_probe_never_publishes_partial_resources() {
+    for stale in [false, true] {
+        let service = service();
+        let command = launch_command(&service);
+        let mut expected = snapshot(&service);
+        let mut peer = WorkerPeer::new(&service);
+        let result = thread::scope(|scope| {
+            let pending = scope.spawn(|| service.execute_workspace_launch(command.clone()));
+            let request = peer.read();
+            assert!(service.coordinator.try_lock().is_ok());
+            assert!(service.workers.try_lock().is_ok());
+            if stale {
+                navigation(
+                    &service,
+                    self::command(
+                        &service,
+                        501,
+                        WorkbenchAction::ProjectCreate {
+                            label: WorkbenchLabel::parse("concurrent").unwrap(),
+                        },
+                    ),
+                );
+                expected = snapshot(&service);
+            }
+            peer.reply(
+                request,
+                if stale {
+                    TerminalCwdValidationOutcome::DirectoryAvailable
+                } else {
+                    TerminalCwdValidationOutcome::DirectoryUnavailable
+                },
+            );
+            pending.join().unwrap().unwrap()
+        });
+        if stale {
+            assert!(matches!(
+                result.outcome,
+                WorkbenchCommandOutcome::Rejected {
+                    reason: orchbee_workbench_protocol::WorkbenchRejectionReason::RevisionMismatch,
+                    ..
+                }
+            ));
+        } else {
+            assert_eq!(
+                result,
+                unavailable(
+                    &command,
+                    WorkbenchCommandUnavailableReason::DirectoryUnavailable
+                )
+            );
+        }
+        assert_eq!(snapshot(&service), expected);
+    }
+}
+
+#[test]
+fn workspace_launch_replays_committed_pending_without_probe_and_keeps_resources_after_worker_loss()
+{
+    let service = service();
+    let command = launch_command(&service);
+    let before = snapshot(&service);
+    let mut peer = WorkerPeer::new(&service);
+    let result = thread::scope(|scope| {
+        let pending = scope.spawn(|| service.execute_workspace_launch(command.clone()));
+        let request = peer.read();
+        peer.reply(request, TerminalCwdValidationOutcome::DirectoryAvailable);
+        assert!(matches!(
+            read_message(&mut peer.peer).unwrap(),
+            CapabilityNodeMessage::AuthorizedTerminalLaunch(_)
+        ));
+        let replay = service.execute_workspace_launch(command.clone()).unwrap();
+        assert!(matches!(
+            replay.outcome,
+            WorkbenchCommandOutcome::WorkspaceLaunchPending { .. }
+        ));
+        let committed = snapshot(&service);
+        assert_eq!(committed.revision.value(), before.revision.value() + 1);
+        assert_eq!(
+            committed.navigation.projects[0].workspaces.len(),
+            before.navigation.projects[0].workspaces.len() + 1
+        );
+        assert_eq!(committed.terminal_contexts.last().unwrap().tabs.len(), 1);
+        drop(peer);
+        pending.join().unwrap().unwrap()
+    });
+    assert!(matches!(
+        result.outcome,
+        WorkbenchCommandOutcome::WorkspaceLaunched {
+            terminal_outcome:
+                orchbee_workbench_protocol::WorkbenchTerminalOutcome::OutcomeUnknown {},
+            ..
+        }
+    ));
+    assert_eq!(service.execute_workspace_launch(command).unwrap(), result);
+    assert_eq!(
+        snapshot(&service).revision.value(),
+        before.revision.value() + 1
+    );
+}

@@ -820,3 +820,11 @@ cover framing, logical-to-Host mapping, concurrency, real execution and retentio
 ## Windows native Site
 
 The managed Windows Site keeps the existing in-memory authority and lifecycle guard. It accepts current-token-user named-pipe peers and starts one exact sibling `orchbee-worker.exe` with handle inheritance disabled, so CLI output capture finishes independently of the retained Site. Runtime path, ACL, lock, marker, and cohort validation remain in `orchbee-local-site-runtime`. The Windows observation ingress accepts one bounded complete JSON value without Unix half-close; malformed connections do not terminate other clients. This ingress adapter does not port the Unix provider hooks. See the [Client quick start](../orchbee/README.md#native-windows-quick-start) for the usable surface and remaining limits.
+
+## Directory Workspace launch
+
+The native unpublished `workspace.launch` command creates a Workspace in an existing Project, accepts its absolute directory and creates its first terminal under one request identity. Navigation, directory association and terminal creation grants are all required. Explicit argv, environment and Launch Profiles use the existing bounded launch contracts. Client focus is outside this operation.
+
+The Server checks admission, releases its gates for a read-only Worker directory probe, then rechecks the request, revision and exact Worker generation under registry-to-Site locking. It prepares six structural identities and one candidate projection, reserves the retained result and terminal admission, and commits the Workspace, Directory, Context and first Tab/Panel/Presentation together at one revision. Failed admission publishes no partial Workspace. Terminal dispatch occurs only after commit; pending or failed launch retains all committed identities for inspection and explicit close. Exact replay never dispatches again. A lost response is outcome unknown and must not be automatically retried.
+
+This refinement reuses the Tab creation commit and settlement owner. Verification obligations cover grant separation, stale revision and Worker generation across the probe, capacity and identity bounds, exact replay, postcommit launch failure, and a Windows cwd/environment process witness. It does not claim durable restart recovery, Desktop support, focus changes or TLA execution.

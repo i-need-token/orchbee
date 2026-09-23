@@ -357,6 +357,19 @@ pub enum WorkbenchAction {
         project_id: WorkbenchProjectId,
         label: WorkbenchLabel,
     },
+    /// Atomically register a directory Workspace and its first terminal. The
+    /// required cwd belongs to the selected Worker and is probed before commit.
+    #[serde(rename = "workspace.launch")]
+    WorkspaceLaunch {
+        project_id: WorkbenchProjectId,
+        label: WorkbenchLabel,
+        geometry: WorkbenchTerminalGeometry,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        launch: Option<LaunchSelection>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        profile: Option<LaunchProfileSelector>,
+        options: Box<crate::LaunchOptions>,
+    },
     #[serde(rename = "workspace.rename")]
     WorkspaceRename {
         project_id: WorkbenchProjectId,
@@ -669,6 +682,27 @@ pub enum WorkbenchCommandOutcome {
         terminal_context_id: WorkbenchTerminalContextId,
         accepted_revision: WorkbenchRevision,
     },
+    WorkspaceLaunchPending {
+        revision: WorkbenchRevision,
+        project_id: WorkbenchProjectId,
+        workspace_id: WorkbenchWorkspaceId,
+        directory_id: WorkbenchDirectoryId,
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        presentation_id: TerminalPresentationId,
+    },
+    WorkspaceLaunched {
+        revision: WorkbenchRevision,
+        project_id: WorkbenchProjectId,
+        workspace_id: WorkbenchWorkspaceId,
+        directory_id: WorkbenchDirectoryId,
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        presentation_id: TerminalPresentationId,
+        terminal_outcome: WorkbenchTerminalOutcome,
+    },
     TabCreatePending {
         revision: WorkbenchRevision,
         terminal_context_id: WorkbenchTerminalContextId,
@@ -842,8 +876,16 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
     let WorkbenchRequest::Command(command) = request else {
         return Ok(());
     };
+    if let WorkbenchAction::WorkspaceLaunch { options, .. } = &command.action
+        && options.cwd.is_none()
+    {
+        return Err(ContractError::InvalidDocument);
+    }
     let conflicting = match &command.action {
-        WorkbenchAction::TabCreate {
+        WorkbenchAction::WorkspaceLaunch {
+            launch, profile, ..
+        }
+        | WorkbenchAction::TabCreate {
             launch, profile, ..
         }
         | WorkbenchAction::PanelSplit {
@@ -861,7 +903,9 @@ fn request_byte_limit(request: &WorkbenchRequest) -> usize {
     if matches!(
         request,
         WorkbenchRequest::Command(WorkbenchCommand {
-            action: WorkbenchAction::TabCreate { .. } | WorkbenchAction::PanelSplit { .. },
+            action: WorkbenchAction::TabCreate { .. }
+                | WorkbenchAction::PanelSplit { .. }
+                | WorkbenchAction::WorkspaceLaunch { .. },
             ..
         })
     ) {

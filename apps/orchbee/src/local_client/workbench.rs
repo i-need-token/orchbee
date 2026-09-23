@@ -33,6 +33,7 @@ mod tab_close;
 mod tab_move;
 pub(crate) mod tab_rename;
 mod workspace_close;
+pub(crate) mod workspace_launch;
 pub(crate) mod workspace_setup;
 pub(crate) use launch_profile::{LaunchProfileCatalogReadError, LaunchProfileCatalogReadFailure};
 pub(crate) use tab_close::{

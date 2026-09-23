@@ -1502,3 +1502,11 @@ Windows Worker 身份在每次连接 Server 时由已有 OS 随机身份源重�
 的终端共享该 ID。不同 Site 可能复用 Terminal ID，因此必须精确匹配 Worker，才能
 拒绝来自上一轮或另一 Site 的调用者。本次不引入重连或接管。Tab close 接纳不代表
 移除：Server 发布移除前，查询仍反映其成员状态；发布后才找不到旧调用者绑定。
+
+## 目录工作区创建
+
+`workspace create --project <target> --label <label> --cwd <absolute-path>` 用一个原生 Server 请求（`workspace.launch`）创建可用的 Workspace。支持与 `tab create` 相同的 `--env`、`--exec`/`--arg`、`--profile` 和必须成组提供的四个尺寸选项。这些启动选项要求 `--cwd`；不带 cwd 时保留原有空 Workspace 操作。从一次快照解析现有 Project，不推断焦点或源 Workspace。
+
+Worker 先探测请求目录，Server 再用一次修订原子登记 Workspace、目录、Terminal Context 及首个 Tab/Panel/Presentation。准入失败时不创建这些资源。提交成功返回现有 mutation v4 信封：action 为 `workspace.create`，包含 `projectId`、`workspaceId`、`directoryId`、`terminalContextId`、`tabId`、`panelId`、`presentationId`、字面 `path`、`label` 和 `terminal`。现有 schema 已允许这些字段，版本和目录不变。终端可能在提交后仍待定或启动失败：保留返回 ID，查询 Workspace，不再需要时显式关闭。响应未知时绝不自动重放或回滚。
+
+未发布的原生线协议动作要求 `projectId`、`label`、`geometry` 和 `options.cwd`；可选的 `launch` 与 `profile` 仍互斥。复用现有 48 KiB 启动请求上限、精确请求账本和终端结算。`workspace-launch-pending` 与 `workspace-launched` 回显已提交修订和全部七个 ID；只有后者携带 `terminalOutcome`。Server 拥有六个新结构 ID 及终端绑定。共享 Workbench schema 和 Desktop binding 不构成支持此原生扩展的证据。必须整体启用及回退同一构建 cohort。Server 的[细化记录](../../orchbee-server/README.zh-CN.md#目录工作区启动)持有准入、提交和恢复语义。
