@@ -665,6 +665,12 @@ impl Locale {
                 "a literal absolute adapter-source directory path"
             }
             (Self::ZhCn, ExpectedValue::AdapterSource) => "一个字面绝对 adapter-source 目录路径",
+            (Self::EnUs, ExpectedValue::PromptText) => {
+                "non-empty UTF-8 prompt within the 256 KiB paste and 64 KiB argv limits"
+            }
+            (Self::ZhCn, ExpectedValue::PromptText) => {
+                "非空 UTF-8 提示，受 256 KiB paste 和 64 KiB argv 限制"
+            }
             (Self::EnUs, ExpectedValue::SendKeySequence) => {
                 "a key name or 'ctrl+alt+shift+key' combination; repeatable, at most 64"
             }
@@ -2036,6 +2042,12 @@ impl Locale {
             (Self::ZhCn, CommandPath::LaunchProfileDelete) => HELP_LAUNCH_PROFILE_DELETE_ZH,
             (Self::EnUs, CommandPath::AgentList) => HELP_AGENT_LIST_EN,
             (Self::ZhCn, CommandPath::AgentList) => HELP_AGENT_LIST_ZH,
+            (Self::EnUs, CommandPath::AgentPrompt) => {
+                "orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>] [--format text|json]\n\nResolve one live Agent, refuse pending attention, and submit literal paste plus Enter.\nTargets: ID/name, --session <id>, or --name <alias>. --until/--timeout require --wait.\nWait first observes activity, then a matching condition; default timeout 600000 ms.\nA wait failure retains the accepted input receipt. Never replay uncertain input.\nA matching state does not identify a prompt-specific turn.\n"
+            }
+            (Self::ZhCn, CommandPath::AgentPrompt) => {
+                "orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>] [--format text|json]\n\n定位存活 Agent，有待处理请求时拒绝，再提交字面 paste 加 Enter。\n目标：ID/名称、--session <id> 或 --name <alias>。--until/--timeout 要求 --wait。\n先观察活动再等待条件匹配；默认超时 600000 毫秒。等待失败保留已接受输入回执。\n不重放不确定输入；状态匹配不标识本次提示自己的轮次。\n"
+            }
             (Self::EnUs, CommandPath::AgentRead) => {
                 "orchbee agent read <target> [--history --rows <n>] [--unwrap] [--lines <n>] [--format text|json]\n\nRead the terminal bound to one live Agent. Target: ID/name, --session <id>,\nor --name <alias>. Exactly one navigable binding is required. Uses terminal\nread/history envelopes; history excludes visible rows.\n"
             }
@@ -2148,8 +2160,8 @@ const HELP_SITE_ZH: &str = "orchbee site start|diagnose\n\n管理隐式的每用
 const HELP_SITE_START_EN: &str = "orchbee site start [--format text|json]\n\nEnsure the implicit per-user local Site is running. When no admitted\nSite answers, this invocation performs the existing activation sequence\n— the same locks, marker, Server spawn, and readiness admission the TUI\nstartup uses — and reports 'started'. When a running Site admits the\nreadiness probe, it reports 'already-running'. One absolute 20-second\nbudget covers the whole invocation.\n\n'--format json' emits the orchbee.site.start envelope. An interrupted\nor timed-out start may leave activation state behind; a later invocation\nthen answers refused with a recovery-required reason. The command never\nrepairs, stops, or deletes runtime state.\n";
 const HELP_SITE_START_ZH: &str = "orchbee site start [--format text|json]\n\n确保隐式的每用户本地 Site 正在运行。若没有已准入的 Site 应答，本次\n调用执行既有的激活序列——与 TUI 启动相同的锁、标记、Server 拉起\n与就绪准入——并报告 'started'。若运行中的 Site 准入了就绪探针，则\n报告 'already-running'。整个调用共享一个 20 秒绝对预算。\n\n'--format json' 输出 orchbee.site.start 封套。被中断或超时的启动\n可能遗留激活状态；后续调用将以拒绝加 recovery-required 原因应答。\n本命令绝不修复、停止或删除运行时状态。\n";
 
-const HELP_AGENT_EN: &str = "orchbee agent list|get|explain|doctor|wait|names|resolve|rename|read|send-keys|integration\n\nObserve Agent sessions tracked by the running local Site, or diagnose\nprovider hooks offline.\n  agent list [--include-ended] [--limit <n>] [--cursor <c>]\n                                List Agent sessions (live only unless\n                                --include-ended; 1-100 per page, default 50)\n  agent get <target>        Show one Agent session by ID or runtime name\n  agent explain <target>    Explain how one session's status and freshness\n                                were derived\n  agent doctor [--provider <id>]... [--asset-root <path>]...\n                                Explain, from bounded filesystem facts alone,\n                                why Agent observations may not arrive\n  agent wait <target> [--until <condition>]...\n                                Poll until a condition matches or the\n                                deadline lands\n  agent read <target>           Read the bound terminal\n  agent send-keys <target> <key>... Send semantic keys\n  agent names                  List runtime-scoped session names\n  agent resolve <target>       Resolve a session ID or name\n  agent rename <target> <name>  Assign or rename a live session; --clear releases\n  agent integration <command>   Local provider onboarding: list | explain |\n                                enable | disable — 'orchbee help agent\n                                integration' has the full sub-family\nTargets accept an exact session ID or a runtime name; --session and --name\nselect explicitly. A cursor is the\nserver-minted 'v1.<payload>.<tag>' token from a previous page. The session\nreads and 'doctor' above create, activate, or mutate nothing; 'agent\nintegration' manages local provider files instead and never contacts a\nSite.\n";
-const HELP_AGENT_ZH: &str = "orchbee agent list|get|explain|doctor|wait|names|resolve|rename|read|send-keys|integration\n\n观察运行中的本地 Site 跟踪的 Agent 会话，或离线诊断 provider 钩子。\n  agent list [--include-ended] [--limit <n>] [--cursor <c>]\n                                列出 Agent 会话（默认仅存活会话；每页\n                                1-100 条，默认 50）\n  agent get <target>        按会话 ID 或运行时名称显示一个 Agent 会话\n  agent explain <target>    解释一个会话的状态与新鲜度推导依据\n  agent doctor [--provider <id>]... [--asset-root <path>]...\n                                仅凭有界文件系统事实解释 Agent 观察为何\n                                可能未到达\n  agent wait <target> [--until <条件>]...\n                                轮询直到条件命中或截止到达\n  agent read <target>           读取绑定终端\n  agent send-keys <target> <key>... 发送语义按键\n  agent names                  列出运行时会话名称\n  agent resolve <target>       按会话 ID 或名称定位\n  agent rename <target> <name> 为存活会话命名；--clear 释放名称\n  agent integration <命令>      本地 provider 接入：list | explain |\n                                enable | disable——完整子命令族见\n                                'orchbee help agent integration'\n目标支持完整会话 ID 或运行时名称；--session 与 --name 可显式选择。\ncursor 是上一页返回的服务端铸造\n'v1.<payload>.<tag>' 令牌。上述会话读取与 'doctor' 不创建、不激活、\n不修改任何状态；'agent integration' 改为管理本地 provider 文件，且\n绝不接触 Site。\n";
+const HELP_AGENT_EN: &str = "orchbee agent list|get|explain|doctor|wait|names|resolve|rename|read|send-keys|prompt|integration\n\nObserve Agent sessions tracked by the running local Site, or diagnose\nprovider hooks offline.\n  agent list [--include-ended] [--limit <n>] [--cursor <c>]\n                                List Agent sessions (live only unless\n                                --include-ended; 1-100 per page, default 50)\n  agent get <target>        Show one Agent session by ID or runtime name\n  agent explain <target>    Explain how one session's status and freshness\n                                were derived\n  agent doctor [--provider <id>]... [--asset-root <path>]...\n                                Explain, from bounded filesystem facts alone,\n                                why Agent observations may not arrive\n  agent wait <target> [--until <condition>]...\n                                Poll until a condition matches or the\n                                deadline lands\n  agent prompt <target> <text>  Submit a prompt; --wait observes activity and state\n  agent read <target>           Read the bound terminal\n  agent send-keys <target> <key>... Send semantic keys\n  agent names                  List runtime-scoped session names\n  agent resolve <target>       Resolve a session ID or name\n  agent rename <target> <name>  Assign or rename a live session; --clear releases\n  agent integration <command>   Local provider onboarding: list | explain |\n                                enable | disable — 'orchbee help agent\n                                integration' has the full sub-family\nTargets accept an exact session ID or a runtime name; --session and --name\nselect explicitly. A cursor is the\nserver-minted 'v1.<payload>.<tag>' token from a previous page. The session\nreads and 'doctor' above create, activate, or mutate nothing; 'agent\nintegration' manages local provider files instead and never contacts a\nSite.\n";
+const HELP_AGENT_ZH: &str = "orchbee agent list|get|explain|doctor|wait|names|resolve|rename|read|send-keys|prompt|integration\n\n观察运行中的本地 Site 跟踪的 Agent 会话，或离线诊断 provider 钩子。\n  agent list [--include-ended] [--limit <n>] [--cursor <c>]\n                                列出 Agent 会话（默认仅存活会话；每页\n                                1-100 条，默认 50）\n  agent get <target>        按会话 ID 或运行时名称显示一个 Agent 会话\n  agent explain <target>    解释一个会话的状态与新鲜度推导依据\n  agent doctor [--provider <id>]... [--asset-root <path>]...\n                                仅凭有界文件系统事实解释 Agent 观察为何\n                                可能未到达\n  agent wait <target> [--until <条件>]...\n                                轮询直到条件命中或截止到达\n  agent prompt <target> <text>  提交提示；--wait 观察活动及状态\n  agent read <target>           读取绑定终端\n  agent send-keys <target> <key>... 发送语义按键\n  agent names                  列出运行时会话名称\n  agent resolve <target>       按会话 ID 或名称定位\n  agent rename <target> <name> 为存活会话命名；--clear 释放名称\n  agent integration <命令>      本地 provider 接入：list | explain |\n                                enable | disable——完整子命令族见\n                                'orchbee help agent integration'\n目标支持完整会话 ID 或运行时名称；--session 与 --name 可显式选择。\ncursor 是上一页返回的服务端铸造\n'v1.<payload>.<tag>' 令牌。上述会话读取与 'doctor' 不创建、不激活、\n不修改任何状态；'agent integration' 改为管理本地 provider 文件，且\n绝不接触 Site。\n";
 
 const HELP_AGENT_LIST_EN: &str = "orchbee agent list [--include-ended] [--limit <n>] [--cursor <c>] [--format text|json]\n\nList Agent sessions observed by the running local Site. '--include-ended'\nadds ended sessions; '--limit' selects 1-100 rows per page (default 50);\n'--cursor' continues from a previous page's server-minted nextCursor.\n'--format json' emits the orchbee.agent.list envelope.\n";
 const HELP_AGENT_LIST_ZH: &str = "orchbee agent list [--include-ended] [--limit <n>] [--cursor <c>] [--format text|json]\n\n列出运行中的本地 Site 观察到的 Agent 会话。'--include-ended' 包含已结束\n会话；'--limit' 每页 1-100 条（默认 50）；'--cursor' 从上一页服务端铸造\n的 nextCursor 继续。'--format json' 输出 orchbee.agent.list 封套。\n";
@@ -2644,3 +2656,43 @@ impl Locale {
 
 const HELP_PANEL_CURRENT_EN: &str = "orchbee panel current [--panel <panel-id> | --current] [--format text|json]\n\nRead the calling Panel, Tab and Workspace from one running Site snapshot.\nDefault and --current use ORCHBEE_TERMINAL_ID and ORCHBEE_WORKER_ID injected\ninto new Windows terminal processes. --panel accepts a complete typed ID or\n@panel:<suffix> and ignores the environment. The options are exclusive.\nMissing or stale context fails; no fallback to client focus and no activation.\n";
 const HELP_PANEL_CURRENT_ZH: &str = "orchbee panel current [--panel <panel-id> | --current] [--format text|json]\n\n从运行中 Site 的一次快照读取调用者所在 Panel、Tab 与 Workspace。\n默认和 --current 使用新 Windows 终端进程中注入的 ORCHBEE_TERMINAL_ID 与\nORCHBEE_WORKER_ID。--panel 接受完整类型化 ID 或 @panel:<suffix>，忽略环境变量。\n两个选项互斥。上下文缺失或过期时返回错误；不回退到客户端焦点，不激活 Site。\n";
+
+impl Locale {
+    #[cfg(any(target_os = "linux", windows))]
+    pub(crate) fn cli_prompt_submitted(self, session: &str, matched: bool) -> String {
+        match (self, matched) {
+            (Self::EnUs, false) => {
+                format!("Prompt input delivered to the terminal for Agent {session}.\n")
+            }
+            (Self::EnUs, true) => format!(
+                "Prompt input delivered to the terminal for Agent {session}; a wait condition matched.\n"
+            ),
+            (Self::ZhCn, false) => format!("提示输入已送达 Agent {session} 的终端。\n"),
+            (Self::ZhCn, true) => {
+                format!("提示输入已送达 Agent {session} 的终端，等待条件已匹配。\n")
+            }
+        }
+    }
+    #[cfg(any(target_os = "linux", windows))]
+    pub(crate) fn cli_prompt_hint(self, reason: &str) -> Option<&'static str> {
+        match (self, reason) {
+            (Self::EnUs, "agent-blocked") => Some(
+                "Agent needs attention. Resolve its pending request before submitting a prompt.",
+            ),
+            (Self::ZhCn, "agent-blocked") => Some("Agent 需要处理待决请求。处理后再提交提示。"),
+            (Self::EnUs, "agent-not-ready") => Some(
+                "Agent state is not fresh and known. Inspect agent get/explain before submitting.",
+            ),
+            (Self::ZhCn, "agent-not-ready") => {
+                Some("Agent 状态不够新鲜或仍未知。提交前请检查 agent get/explain。")
+            }
+            (Self::EnUs, "prompt-stalled") => Some(
+                "Input was accepted but no new Agent activity was observed. Inspect the terminal; do not blindly resend.",
+            ),
+            (Self::ZhCn, "prompt-stalled") => {
+                Some("输入已接受，但尚未观察到新的 Agent 活动。请检查终端，不要盲目重发。")
+            }
+            _ => None,
+        }
+    }
+}

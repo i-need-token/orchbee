@@ -3,7 +3,7 @@
 
 use super::*;
 use orchbee_agent_observation_protocol::{
-    AgentLifecycle, AgentSessionDetail, AgentSessionSelector,
+    AgentLifecycle, AgentSafeInteger, AgentSessionDetail, AgentSessionSelector,
 };
 
 pub(crate) fn read_agent_terminal(
@@ -24,17 +24,51 @@ pub(crate) fn agent_terminal_target(
     target: &AgentSessionSelector,
     deadline: Instant,
 ) -> Result<Target, Failure> {
+    resolve_agent_terminal(client, snapshot, target, deadline).map(|resolved| resolved.terminal)
+}
+
+pub(crate) struct AgentObservationRead {
+    pub(crate) request_id: ObapRequestId,
+    pub(crate) revision: AgentSafeInteger,
+    pub(crate) session: Box<AgentSessionDetail>,
+}
+
+pub(crate) struct ResolvedAgentTerminal {
+    pub(crate) terminal: Target,
+    pub(crate) observation: AgentObservationRead,
+}
+
+pub(crate) fn resolve_agent_terminal(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    target: &AgentSessionSelector,
+    deadline: Instant,
+) -> Result<ResolvedAgentTerminal, Failure> {
     let session_id = agent_names::resolve_on_session(client, target, deadline, None)?;
+    let observation = read_agent_observation(client, &session_id, deadline, None)?;
+    let terminal = select_terminal(snapshot, &observation.session)?;
+    Ok(ResolvedAgentTerminal {
+        terminal,
+        observation,
+    })
+}
+
+pub(crate) fn read_agent_observation(
+    client: &mut LocalClient,
+    session_id: &AgentSessionId,
+    deadline: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<AgentObservationRead, Failure> {
     let request_id = obap_request_id()?;
     let source = super::super::results::agent_source(&request_id);
     let result = client
         .submit_agent_read_before_cancellable(
             AgentReadRequest::Get {
-                request_id,
+                request_id: request_id.clone(),
                 session_id: session_id.clone(),
             },
             deadline,
-            None,
+            wake,
         )
         .map_err(|error| {
             classify_agent_read(error, AgentReadOperation::Get)
@@ -44,19 +78,24 @@ pub(crate) fn agent_terminal_target(
         return Err(Failure::new(FailureKind::Timeout));
     }
     let AgentReadResult::Get { result, .. } = result else {
-        return Err(agent_protocol_invalid(AgentReadOperation::Get));
+        return Err(agent_protocol_invalid(AgentReadOperation::Get)
+            .failure_schema(super::super::schema::AGENT_FAILURE_ID));
     };
     match result.outcome {
-        AgentGetOutcome::Found { session, .. } => {
-            if session.snapshot.session_id != session_id {
+        AgentGetOutcome::Found { session, revision } => {
+            if session.snapshot.session_id != *session_id {
                 return Err(agent_protocol_invalid(AgentReadOperation::Get)
                     .failure_schema(super::super::schema::AGENT_FAILURE_ID));
             }
-            select_terminal(snapshot, &session)
+            Ok(AgentObservationRead {
+                request_id,
+                revision,
+                session,
+            })
         }
         AgentGetOutcome::Rejected { reason } => {
             Err(
-                agent_session_rejection(AgentReadOperation::Get, reason, &session_id)
+                agent_session_rejection(AgentReadOperation::Get, reason, session_id)
                     .source(source)
                     .failure_schema(super::super::schema::AGENT_FAILURE_ID),
             )

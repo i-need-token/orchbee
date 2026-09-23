@@ -771,7 +771,9 @@ mod linux {
             }
             // `terminal send` never becomes a Workbench action; `cli::mutation`
             // routes it to the send executor before this resolver runs.
-            MutationCommand::TerminalSend { .. } | MutationCommand::AgentSendKeys { .. } => {
+            MutationCommand::TerminalSend { .. }
+            | MutationCommand::AgentSendKeys { .. }
+            | MutationCommand::AgentPrompt { .. } => {
                 Err(Failure::new(FailureKind::InternalFailure))
             }
         }

@@ -20,6 +20,10 @@ even if the name is reused. Names are unique and disappear when the session ends
 sends semantic keys through the existing terminal input receipt. Both also accept
 `--session <id>` and `--name <alias>`, and refuse missing or ambiguous bindings.
 
+`agent prompt <name> <text> --wait` submits literal paste plus Enter after a fresh,
+unblocked preflight. It observes activity before waiting for a condition and retains the
+input receipt on later timeout or cancellation; it does not promise turn causality.
+
 ## Command surface
 
 Bare and explicit `tui` invocation first admit the inherited interactive terminal and valid
@@ -172,7 +176,7 @@ a working Agent connection.
 
 Windows `agent integration list/explain/enable/disable --provider codex` manages the local Codex observation plugin. See the [Windows integration contract](docs/windows-agent-integrations.md). `site diagnose` remains unavailable. Capsule 0.4.1 adds Windows Codex hooks using the native observation pipe and console correlation.
 Windows x64 cohorts include the pinned ConPTY runtime needed to preserve that correlation.
-Agent start/prompt remain pending; other providers retain their
+Agent start remains pending; other providers retain their
 existing platform limits. `terminal send --stdin` accepts redirected regular
 files and Windows pipes; an owned hidden Windows PowerShell reader makes pipe input cancellable.
 It is resolved from the OS system directory, never from PATH, and is terminated/reaped on failure.

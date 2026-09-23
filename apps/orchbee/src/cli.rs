@@ -1,4 +1,5 @@
 pub(crate) mod agent_names;
+mod agent_prompt;
 mod caller_context;
 mod completion;
 pub(crate) mod config;
@@ -439,6 +440,9 @@ pub(crate) fn mutation(command: MutationCommand, format: OutputFormat, locale: L
     }
     if let MutationCommand::AgentSendKeys { target, keys } = &command {
         return send::run_agent(target, keys, format, locale);
+    }
+    if let MutationCommand::AgentPrompt { target, text, wait } = &command {
+        return agent_prompt::run(target, text, wait.as_ref(), format, locale);
     }
     mutation::run(&command, format, locale)
 }

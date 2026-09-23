@@ -32,7 +32,7 @@
 
 ## 观察 Agent 和关闭资源
 
-使用 `agent list/get/explain` 获取 canonical session 事实，使用声明了条件、超时及可选 `--after-revision` 的 `agent wait` 等待后续状态。`terminal wait-output` 可能匹配已有保留输出。旧的匹配行或 idle 状态都不能证明新提交的任务完成。当前构建没有 `agent start` 或 `agent prompt` 命令；不要虚构这些命令，也不要根据终端创建成功推断 Agent 已就绪。
+使用 `agent list/get/explain` 获取 canonical session 事实，使用声明了条件、超时及可选 `--after-revision` 的 `agent wait` 等待后续状态。`terminal wait-output` 可能匹配已有保留输出。旧的匹配行或 idle 状态都不能证明新提交的任务完成。使用 `agent prompt <target> <text> --wait` 提交字面 paste 加 Enter，先观察活动，再匹配条件。有待处理请求、状态过期或未知时拒绝。活动停滞、等待超时或取消仍保留已接受回执；再次操作前请检查回执。已在 working 的 Agent 可能结束既有轮次，匹配不保证本次提示自己的轮次完成。`--until` 和 `--timeout` 要求 `--wait`，默认超时 600000 毫秒。当前仍没有 `agent start`；不要根据终端创建成功推断 Agent 已就绪。
 
 Windows 上可用 `agent doctor` 离线检查本机配置。`agent integration list/explain/enable/disable --provider codex` 管理本机 Codex 插件；检查回执后再 list 确认观测状态。其他 provider 仍为 manual-only，`site diagnose` 仍不可用。其他不支持的操作返回类型化失败；不要用猜测的状态替代失败。
 
@@ -60,5 +60,5 @@ Windows 上可用 `agent doctor` 离线检查本机配置。`agent integration l
 使用 `panel current --panel <id-or-selector>`。Worker 提供 `ORCHBEE_TERMINAL_ID`
 和 `ORCHBEE_WORKER_ID`；查询在一次快照中核实它们的当前绑定。上下文缺失或过期
 时返回错误，绝不回退到客户端焦点。显式 `--panel` 忽略继承上下文，不能与
-`--current` 同用。`api schema` 现在返回第 10 版目录 envelope；新增的
+`--current` 同用。`api schema` 现在返回第 12 版目录 envelope；新增的
 `orchbee.panel.current` 文档为第 1 版。

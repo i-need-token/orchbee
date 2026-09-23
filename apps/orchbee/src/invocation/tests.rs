@@ -6591,3 +6591,23 @@ fn agent_terminal_grammar_validates_all_keys_and_exclusive_targets_before_effect
     words.push("enter");
     assert!(parse(&words).is_err());
 }
+
+#[test]
+fn prompt_grammar_keeps_text_literal_and_wait_options_explicit() {
+    assert!(
+        matches!(parse(&["agent", "prompt", "--name", "alpha", "line one\nline two", "--wait", "--until", "succeeded", "--timeout", "1234"]),
+        Ok(Request::Mutation { command: MutationCommand::AgentPrompt { text, wait: Some(wait), .. }, .. }) if text == "line one\nline two" && wait.timeout_ms == 1234)
+    );
+    for words in [
+        vec!["agent", "prompt", "alpha"],
+        vec!["agent", "prompt", "alpha", ""],
+        vec!["agent", "prompt", "alpha", "one", "two"],
+        vec!["agent", "prompt", "alpha", "text", "--until", "succeeded"],
+        vec!["agent", "prompt", "alpha", "text", "--timeout", "1234"],
+        vec!["agent", "prompt", "alpha", "text", "--wait", "--wait"],
+        vec!["agent", "get", "alpha", "--wait"],
+    ] {
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
+    assert!(parse(&["agent", "prompt", "alpha", "--", "--literal"]).is_ok());
+}

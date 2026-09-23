@@ -156,6 +156,7 @@ pub(crate) enum CommandPath {
     AgentList,
     AgentGet,
     AgentRead,
+    AgentPrompt,
     AgentSendKeys,
     AgentExplain,
     AgentWait,
@@ -218,6 +219,7 @@ impl CommandPath {
             Self::AgentList => "agent list",
             Self::AgentGet => "agent get",
             Self::AgentRead => "agent read",
+            Self::AgentPrompt => "agent prompt",
             Self::AgentSendKeys => "agent send-keys",
             Self::AgentExplain => "agent explain",
             Self::AgentWait => "agent wait",
@@ -769,6 +771,11 @@ pub(crate) enum MutationCommand {
     LaunchProfileDelete {
         selector: LaunchProfileSelector,
     },
+    AgentPrompt {
+        target: AgentSessionSelector,
+        text: String,
+        wait: Option<AgentPromptWait>,
+    },
     AgentSendKeys {
         target: AgentSessionSelector,
         keys: Vec<ParsedSendKey>,
@@ -821,6 +828,12 @@ pub(crate) enum AgentIntegrationCommand {
         provider: crate::agent_integrations::IntegrationId,
         adapter_source: Option<PathBuf>,
     },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct AgentPromptWait {
+    pub(crate) until: Vec<AgentWaitCondition>,
+    pub(crate) timeout_ms: u32,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -933,6 +946,7 @@ pub(crate) enum ExpectedValue {
     SendKey,
     /// The repeatable `--key` sequence bound: at most 64 values per request.
     SendKeySequence,
+    PromptText,
     MouseMode,
     Executable,
     LaunchArguments,
@@ -1172,6 +1186,7 @@ struct Options {
     name: Option<String>,
     session: Option<String>,
     clear: bool,
+    prompt_wait: bool,
     profile: Option<String>,
     provider: Option<String>,
     adapter_source: Option<String>,
@@ -1516,11 +1531,13 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
             }
             "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
             | "--include-ended" | "--new-tab" | "--paste" | "--unwrap" | "--current"
-            | "--clear" => {
+            | "--clear" | "--wait" => {
                 let (seen, option) = if token == "--standalone" {
                     (&mut options.standalone, "--standalone")
                 } else if token == "--current" {
                     (&mut options.current, "--current")
+                } else if token == "--wait" {
+                    (&mut options.prompt_wait, "--wait")
                 } else if token == "--clear" {
                     (&mut options.clear, "--clear")
                 } else if token == "--confirm" {
@@ -1877,6 +1894,67 @@ fn resolve_words(
                     history,
                     unwrap: options.unwrap,
                     lines: tail_lines_option(options, context, envelope)?,
+                },
+                options,
+            ))
+        }
+        ["agent", "prompt", rest @ ..] => {
+            let context = UsageContext::Path("agent prompt");
+            check_scope(
+                options,
+                Scope {
+                    prompt_wait: true,
+                    until: true,
+                    timeout: true,
+                    ..AGENT_TARGET_SCOPE
+                },
+                context,
+                envelope,
+            )?;
+            let selector_len = usize::from(
+                options.name.is_none() && options.session.is_none() && !rest.is_empty(),
+            );
+            let target = agent_selector(&rest[..selector_len], options, context, envelope)?;
+            let values = &rest[selector_len..];
+            let Some(text) = values.first() else {
+                return Err(missing_required(context, "<text>", envelope));
+            };
+            if values.len() > 1 {
+                return Err(usage_with(
+                    UsageReason::UnexpectedArgument {
+                        context,
+                        value: values[1].to_owned(),
+                    },
+                    envelope,
+                ));
+            }
+            if text.is_empty() || text.len() > 256 * 1024 {
+                return Err(usage_with(
+                    UsageReason::InvalidValue {
+                        context,
+                        option: "<text>",
+                        value: String::new(),
+                        expected: ExpectedValue::PromptText,
+                    },
+                    envelope,
+                ));
+            }
+            if !options.prompt_wait && (!options.until.is_empty() || options.timeout.is_some()) {
+                return Err(missing_required(context, "'--wait'", envelope));
+            }
+            let wait = if options.prompt_wait {
+                Some(AgentPromptWait {
+                    until: agent_until_option(options, context, envelope)?,
+                    timeout_ms: agent_wait_timeout_option(options, context, envelope)?,
+                })
+            } else {
+                None
+            };
+            Ok(mutation(
+                MutationCommand::AgentPrompt {
+                    target,
+                    text: (*text).to_owned(),
+                    wait,
                 },
                 options,
             ))
@@ -3123,6 +3201,7 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["agent", "list"] => HelpTopic::Command(CommandPath::AgentList),
         ["agent", "get"] => HelpTopic::Command(CommandPath::AgentGet),
         ["agent", "read"] => HelpTopic::Command(CommandPath::AgentRead),
+        ["agent", "prompt"] => HelpTopic::Command(CommandPath::AgentPrompt),
         ["agent", "send-keys"] => HelpTopic::Command(CommandPath::AgentSendKeys),
         ["agent", "explain"] => HelpTopic::Command(CommandPath::AgentExplain),
         ["agent", "wait"] => HelpTopic::Command(CommandPath::AgentWait),
@@ -3300,6 +3379,7 @@ struct Scope {
     name: bool,
     session: bool,
     clear: bool,
+    prompt_wait: bool,
     /// `tab create|panel split --profile <sel>`: the catalog-launch
     /// selector, exclusive with the explicit `--exec`/`--arg` form.
     profile: bool,
@@ -3355,6 +3435,7 @@ const NO_OPTIONS: Scope = Scope {
     name: false,
     session: false,
     clear: false,
+    prompt_wait: false,
     profile: false,
     adapter_source: false,
     request: false,
@@ -3741,6 +3822,9 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.session.is_some() && !scope.session {
         return Some("--session");
+    }
+    if options.prompt_wait && !scope.prompt_wait {
+        return Some("--wait");
     }
     if options.clear && !scope.clear {
         return Some("--clear");

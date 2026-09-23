@@ -18,6 +18,9 @@
 通过既有终端输入回执发送语义按键。两者也接受 `--session <id>` 和 `--name <alias>`，
 绑定缺失或有歧义时拒绝操作。
 
+`agent prompt <name> <text> --wait` 在新鲜且无阻塞的预检后提交字面 paste 加 Enter。
+先观察活动再等待条件，后续超时或取消仍保留输入回执；不承诺轮次因果。
+
 ## 命令面
 
 裸调用和显式 `tui` 调用先准入继承的交互终端和有效 cell geometry，再在 Windows 和 Linux 上运行下面的
@@ -154,7 +157,7 @@ Windows `agent doctor --provider codex --format json` 现在可以检查本地�
 
 Windows `agent integration list/explain/enable/disable --provider codex` 可管理本机 Codex 观测插件。详见 [Windows 集成契约](docs/windows-agent-integrations.zh-CN.md)。`site diagnose` 仍不可用。Capsule 0.4.1 增加 Windows Codex hook，
 通过原生 observation 管道与 Console 关联投递。Windows x64 cohort 包含保留关联信息所需的
-固定 ConPTY 运行时。Agent start/prompt 仍待完成，其他 provider 保留既有平台限制。
+固定 ConPTY 运行时。Agent start 仍待完成，其他 provider 保留既有平台限制。
 `terminal send --stdin` 接受重定向普通文件和 Windows 管道；所属隐藏 Windows PowerShell
 读取进程使管道输入可取消。它从操作系统系统目录解析，绝不通过 PATH 查找，失败时终止并回收。
 Shell 补全提供 bash/zsh/fish/powershell。在 PowerShell 中显式运行

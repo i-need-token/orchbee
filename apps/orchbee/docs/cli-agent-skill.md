@@ -32,7 +32,7 @@ ambiguous binding refuses input. The same sequence bounds and send receipt apply
 
 ## Observe Agents and close resources
 
-Use `agent list/get/explain` for canonical session facts and `agent wait` with a declared condition, timeout, and optional `--after-revision` for later state. `terminal wait-output` can match existing retained output. Neither an old matching line nor an idle state proves a newly submitted task completed. This build has no `agent start` or `agent prompt` command; do not invent those commands or infer Agent readiness from terminal creation.
+Use `agent list/get/explain` for canonical session facts and `agent wait` with a declared condition, timeout, and optional `--after-revision` for later state. `terminal wait-output` can match existing retained output. Neither an old matching line nor an idle state proves a newly submitted task completed. Use `agent prompt <target> <text> --wait` to submit literal paste plus Enter and observe activity before matching a condition. It refuses pending attention and non-fresh/unknown state. A stalled, timed-out or cancelled wait retains its accepted submission receipt; inspect that receipt before any retry. An already-working Agent may finish its existing turn, so matching is not a prompt-specific completion guarantee. `--until` and `--timeout` require `--wait`; the default timeout is 600000 ms. This build still has no `agent start`; do not infer Agent readiness from terminal creation.
 
 On Windows, `agent doctor` inspects local setup offline. `agent integration list/explain/enable/disable --provider codex` manages the local Codex plugin; inspect its receipt and then list the observed state. Other providers remain manual-only, and `site diagnose` remains unavailable. Other unsupported operations return a typed failure; do not replace a failure with guessed state.
 
@@ -61,5 +61,5 @@ the same lookup. Outside that process, use `panel current --panel <id-or-selecto
 Worker supplies `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID`; the query validates
 their current binding in one snapshot. Missing or stale context is an error, never
 a fallback to client focus. Explicit `--panel` ignores inherited context and cannot
-be combined with `--current`. `api schema` now returns catalog envelope version 10;
+be combined with `--current`. `api schema` now returns catalog envelope version 12;
 the new `orchbee.panel.current` document is version 1.

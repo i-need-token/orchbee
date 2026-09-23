@@ -8,6 +8,20 @@ use std::{
 #[test]
 fn real_powershell_completes_scoped_grammar_without_runtime() {
     let cases = [
+        ("orchbee agent ", "prompt", true),
+        ("orchbee agent prompt alpha 'two words' --w", "--wait", true),
+        (
+            "orchbee agent prompt --name alpha 'text' --u",
+            "--until",
+            true,
+        ),
+        ("orchbee agent prompt alpha 'text' --n", "--name", false),
+        (
+            "orchbee agent prompt alpha 'text' --wait --w",
+            "--wait",
+            false,
+        ),
+        ("orchbee agent get alpha --w", "--wait", false),
         ("orchbee agent ", "send-keys", true),
         ("orchbee agent read --name alpha --h", "--history", true),
         ("orchbee agent read alpha --n", "--name", false),

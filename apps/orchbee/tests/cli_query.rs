@@ -6148,19 +6148,19 @@ fn project_rename_schema_is_strict_and_distinct() -> TestResult {
 /// `orchbee.mutation.result` still receipt schema retrieves offline under
 /// either locale, byte-identical.
 #[test]
-fn api_schema_catalog_is_v11_closed_and_self_consistent() -> TestResult {
-    let base = base_dir("catalog-v11");
+fn api_schema_catalog_is_v12_closed_and_self_consistent() -> TestResult {
+    let base = base_dir("catalog-v12");
     let api_schema = compiled_schema(&base, "orchbee.api.schema");
 
     let output = run(&base, &["api", "schema", "--format", "json"]);
     assert_eq!(output.status.code(), Some(0));
     let listed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(listed["schema"], "orchbee.api.schema");
-    assert_eq!(listed["version"], 11, "catalog envelope is v11");
+    assert_eq!(listed["version"], 12, "catalog envelope is v12");
     assert_eq!(listed["source"]["kind"], "embedded");
     assert!(api_schema.is_valid(&listed), "listing self-validates");
     let schemas = listed["result"]["schemas"].as_object().unwrap();
-    assert_eq!(schemas.len(), 45, "closed dictionary has 45 members");
+    assert_eq!(schemas.len(), 47, "closed dictionary has 47 members");
     assert!(
         schemas.contains_key("orchbee.project.rename"),
         "the rename receipt schema is registered"
@@ -6229,7 +6229,7 @@ fn api_schema_catalog_is_v11_closed_and_self_consistent() -> TestResult {
         stale["version"] = stale_version.clone();
         assert!(
             !api_schema.is_valid(&stale),
-            "stale catalog {stale_version} fails under v11"
+            "stale catalog {stale_version} fails under v12"
         );
     }
 
@@ -6251,7 +6251,7 @@ fn api_schema_catalog_is_v11_closed_and_self_consistent() -> TestResult {
         "embedded schema retrieval is locale-neutral"
     );
     let named: serde_json::Value = serde_json::from_slice(&english.stdout)?;
-    assert_eq!(named["version"], 11);
+    assert_eq!(named["version"], 12);
     assert_eq!(
         named["result"]["schema"]["schemaId"],
         "orchbee.project.rename"

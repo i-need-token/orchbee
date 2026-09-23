@@ -23,7 +23,7 @@ Agent 状态来自 Server 的 canonical Agent 模型，不从终端文字推断�
 三个命令均接受 `--format text|json`。内嵌成功 schema 为 `orchbee.agent.names`、
 `orchbee.agent.resolve` 与 `orchbee.agent.rename`，均为 version 1；接纳后的失败使用
 `orchbee.cli.failure.agent-names` version 1。相关语义结果携带 `agent-names` source
-和 OBAP request ID。Schema 目录 version 11 纳入这四份新文档。非法名称或冲突选择器在
+和 OBAP request ID。这四份文档与提示契约一起纳入 Schema 目录 version 12。非法名称或冲突选择器在
 任何运行时访问前以退出码 2 失败。重名以退出码 3 拒绝并标明占用者，绝不覆盖其名称。
 
 每个命令的单一五秒截止覆盖 cohort 校验、仅查已有 Site、接纳和一次 OBAP 交换。
@@ -72,6 +72,46 @@ Server 仍验证终端当前绑定。
 嵌入的发送 schema 验证现有序列回执：载荷种类、记录数、已确认前缀、停止位置、编码
 字节数、部分接受和清理状态。通用歧义失败包含 Panel 与终端候选项。这些修正过时的 schema
 投影，不改变线路协议或回执版本。
+
+## Agent 提示提交
+
+`agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>]`
+与其他 Agent 命令使用相同 ID/名称选择器。文字为非空 UTF-8，受 256 KiB paste 上限和
+命令 64 KiB argv 封套限制。`--until` 和 `--timeout` 要求 `--wait`；等待条件与默认十分钟、
+最长一小时的超时和 `agent wait` 相同。不等待时总预算为五秒。
+
+一个仅连接既有 Site 的 Client Session 负责快照查找、一次 Agent 身份解析、权威预检 Get、
+一次 paste 加 Enter 发送以及后续 Get。预检要求会话存活、新鲜、状态已知且唯一绑定可导航
+终端。有待处理请求/needs-attention 时，在发送任何输入前以 `agent-blocked` 拒绝。这是
+采样预检，不会锁定 provider 后续状态或前台所有权。Server 在输入准入时仍验证终端绑定。
+
+| 状态     | 转换与证据                                                            | 保留效果                     |
+| -------- | --------------------------------------------------------------------- | ---------------------------- |
+| 已解析   | 在 min(总期限, 五秒) 内准入与解析                                     | 无                           |
+| 预检     | 新鲜、存活、已知、未阻塞且唯一绑定                                    | 无                           |
+| 发送     | 一次有序 paste 和 Enter 序列，不重放                                  | 精确终端回执                 |
+| 活动检查 | 预检已 working，或接受后五秒内观察到更新的 working/attention/轮次结果 | 后续任何错误都保留已接受回执 |
+| 条件等待 | 在原总期限内采样固定会话的状态/新鲜度条件                             | 不承诺轮次因果               |
+| 完成     | 释放会话，裁定取消，一次输出                                          | 不重放输入或取消 provider    |
+
+从非 working 状态开始等待时，先要求活动证据。若轮询之间错过短暂 working，更新的轮次
+结果也可作为证据。旧 idle 或不变的完成结果不能通过活动检查。活动期限耗尽为
+`prompt-stalled`；调用方期限先到则为 `wait-deadline`。后续读取错误、结束、超时或取消
+不会抹去已确认提交。已在 working 的 Agent 可能完成既有轮次；匹配结果不标识本次提示
+自己的轮次。轮询可能漏掉转换，不宣称支持 Herdr 的事件重放。
+
+Schema 目录 version 12 共 47 份文档，包含提示成功与失败契约。
+
+`orchbee.agent.prompt` 返回会话 ID、完整终端提交回执，以及可选的匹配观察/等待事实。
+发送拒绝、部分接受或不确定时沿用既有终端发送/失败契约，不开始等待。预检及提交后失败
+使用 `orchbee.cli.failure.agent-prompt`；提交后失败附回执，避免将等待失败误认为尚未提交。
+不带 `--wait` 的确认发送在取消与回复竞争时仍为权威结果。等待中的取消为退出码 130，
+附已接受回执。已提交输入存在歧义时，即使取消也保持退出码 8。所有会话均先释放，再完成
+信号处理和输出。回执不包含提示文字。
+
+证据覆盖阻塞/未就绪拒绝且无终端效果、精确字面 paste 加 Enter、单次准入和不重放、
+working/idle 活动检查、更新的完成结果、固定会话读取、总期限/活动期限、部分及不确定发送、
+取消裁定和 schema 校验。原生权威观察仍是唯一 Agent 状态来源，不新增屏幕推断或 provider API。
 
 ## 输入与信任边界
 
@@ -294,6 +334,7 @@ orchbee agent list [--include-ended] [--limit <1-100>] [--cursor <v1.…>]
 orchbee agent get <target> | agent explain <target>
 orchbee agent read <target> [--history --rows <n>] [--unwrap] [--lines <n>]
 orchbee agent send-keys <target> <key>...
+orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>]
 orchbee agent wait <target> [--until <condition>]... [--after-revision <0-9007199254740991>] [--timeout <1-3600000>]
 orchbee agent doctor [--provider <id>]... [--asset-root <path>]...
 orchbee agent integration list [--provider <id>]
@@ -426,7 +467,7 @@ Windows `agent doctor` 拥有相同的有界离线观察流程，输出 `orchbee
 原生 Windows Codex hook 传输，但 doctor 不连接命名管道，也不写 Console 关联 hint。
 端点保持 `not-inspected`，原因改为 `windows-endpoint-not-inspected`；配置和胶囊
 完整性不证明事件投递或 Site 存活。`complete` 描述探测覆盖率。
-Windows Codex 安装由 [Windows 集成契约](windows-agent-integrations.zh-CN.md) 负责；Agent start/prompt 仍待完成。
+Windows Codex 安装由 [Windows 集成契约](windows-agent-integrations.zh-CN.md) 负责；Agent start 仍待完成；prompt 组合契约见上文。
 
 | 字段         | 契约                                                                                                                                                                                                                                                                               |
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1574,7 +1615,7 @@ Workspace；环境中不缓存 Panel 或 Workspace 位置。缺失或不匹配�
 过期绑定、子 Presentation、移动场景及真实 Windows 子进程证据覆盖。Desktop 与全局
 焦点回退仍不在本次范围内；TLA 执行已延后，不作为已通过的证据。
 
-新增 schema 注册到封闭的 `api schema` 第 10 版目录；其他业务文档版本不变。
+新增 schema 注册到封闭的 `api schema` 第 12 版目录；其他业务文档版本不变。
 
 Windows Worker 身份在每次连接 Server 时由已有 OS 随机身份源重新生成；同一 Worker
 的终端共享该 ID。不同 Site 可能复用 Terminal ID，因此必须精确匹配 Worker，才能

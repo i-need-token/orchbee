@@ -7,7 +7,10 @@ mod agent_names;
 #[cfg(any(target_os = "linux", windows))]
 mod agent_terminal;
 #[cfg(any(target_os = "linux", windows))]
-pub(crate) use agent_terminal::{agent_terminal_target, read_agent_terminal};
+pub(crate) use agent_terminal::{
+    AgentObservationRead, agent_terminal_target, read_agent_observation, read_agent_terminal,
+    resolve_agent_terminal,
+};
 
 #[cfg(any(target_os = "linux", windows))]
 use orchbee_local_ipc::LocalIo as BorrowedFd;
@@ -78,7 +81,7 @@ use crate::termination_signal::{TerminationSignal, TerminationSource};
 #[cfg(any(target_os = "linux", windows))]
 mod agent_wait;
 #[cfg(any(target_os = "linux", windows))]
-pub(crate) use agent_wait::agent_wait;
+pub(crate) use agent_wait::{agent_wait, condition_matches, wait_backoff};
 
 #[cfg(any(target_os = "linux", windows))]
 const COHORT_BUDGET: Duration = Duration::from_secs(5);

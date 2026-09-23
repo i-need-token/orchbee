@@ -1,0 +1,354 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.cli.failure.agent-prompt",
+	"title": "orchbee.cli.failure.agent-prompt",
+	"type": "object",
+	"required": ["schema", "version", "failure"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.cli.failure.agent-prompt"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"oneOf": [
+				{
+					"$ref": "#/$defs/sendSource"
+				},
+				{
+					"$ref": "#/$defs/agentReadSource"
+				}
+			]
+		},
+		"failure": {
+			"type": "object",
+			"required": ["kind", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": [
+						"rejected",
+						"not-found",
+						"cancelled",
+						"timeout",
+						"service-unavailable",
+						"transport-loss",
+						"protocol-invalid",
+						"internal-failure"
+					]
+				},
+				"details": {
+					"type": "object",
+					"required": ["stage", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"stage": {
+							"const": "agent-prompt"
+						},
+						"reason": {
+							"enum": [
+								"agent-blocked",
+								"agent-not-ready",
+								"cancelled",
+								"signal-finalization-failed",
+								"interrupted",
+								"wait-deadline",
+								"prompt-stalled",
+								"read-deadline",
+								"wait-read-failed",
+								"session-ended"
+							]
+						},
+						"sessionId": {
+							"$ref": "#/$defs/opaqueId"
+						},
+						"submission": {
+							"$ref": "#/$defs/sendReceipt"
+						}
+					}
+				}
+			}
+		}
+	},
+	"$defs": {
+		"agentReadSource": {
+			"type": "object",
+			"required": ["kind", "requestId"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "agent-read"
+				},
+				"requestId": {
+					"$ref": "#/$defs/hexId"
+				}
+			}
+		},
+		"hexId": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"opaqueId": {
+			"type": "string",
+			"pattern": "^[0-9A-Za-z._:-]{1,128}$"
+		},
+		"sendReceipt": {
+			"type": "object",
+			"required": ["schema", "version", "source", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"schema": {
+					"const": "orchbee.terminal.send"
+				},
+				"version": {
+					"const": 1
+				},
+				"source": {
+					"$ref": "#/$defs/sendSource"
+				},
+				"result": {
+					"type": "object",
+					"required": [
+						"action",
+						"requestId",
+						"siteId",
+						"workerId",
+						"terminalId",
+						"inputStatus",
+						"cleanupStatus",
+						"payloadKind",
+						"records",
+						"recordsAccepted",
+						"firstStoppedRecord",
+						"acceptedEncodedBytes"
+					],
+					"additionalProperties": false,
+					"properties": {
+						"action": {
+							"const": "terminal.send"
+						},
+						"requestId": {
+							"$ref": "#/$defs/id"
+						},
+						"siteId": {
+							"$ref": "#/$defs/id"
+						},
+						"workerId": {
+							"$ref": "#/$defs/id"
+						},
+						"terminalId": {
+							"$ref": "#/$defs/id"
+						},
+						"payloadKind": {
+							"enum": ["text", "key", "bytes", "paste", "sequence"]
+						},
+						"recordBytes": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 1048576
+						},
+						"inputStatus": {
+							"enum": ["accepted", "not-submitted", "rejected", "unknown", "partial-accepted"]
+						},
+						"cleanupStatus": {
+							"enum": ["not-needed", "confirmed", "unconfirmed"]
+						},
+						"reason": {
+							"enum": [
+								"host-input-backpressure",
+								"host-input-invalid",
+								"host-input-limit-exceeded",
+								"host-input-unavailable",
+								"host-protocol-fault",
+								"host-rejected",
+								"host-unavailable",
+								"server-busy",
+								"stale-host-epoch",
+								"stale-worker-generation",
+								"terminal-runtime-unavailable",
+								"terminal-unavailable",
+								"worker-unavailable",
+								"input-budget-exhausted"
+							]
+						},
+						"target": {
+							"type": "object",
+							"required": ["workerGeneration", "hostEpoch", "hostTerminalId"],
+							"additionalProperties": false,
+							"properties": {
+								"workerGeneration": {
+									"type": "string",
+									"pattern": "^[1-9][0-9]*$"
+								},
+								"hostEpoch": {
+									"$ref": "#/$defs/id"
+								},
+								"hostTerminalId": {
+									"$ref": "#/$defs/id"
+								}
+							}
+						},
+						"records": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 64
+						},
+						"recordsAccepted": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 64
+						},
+						"firstStoppedRecord": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 64
+						},
+						"acceptedEncodedBytes": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 67108864
+						}
+					},
+					"allOf": [
+						{
+							"if": {
+								"properties": {
+									"inputStatus": {
+										"enum": ["not-submitted", "rejected", "partial-accepted"]
+									}
+								},
+								"required": ["inputStatus"]
+							},
+							"then": {
+								"required": ["reason"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"inputStatus": {
+										"enum": ["accepted", "unknown"]
+									}
+								},
+								"required": ["inputStatus"]
+							},
+							"then": {
+								"required": ["target"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"cleanupStatus": {
+										"enum": ["confirmed", "unconfirmed"]
+									}
+								},
+								"required": ["cleanupStatus"]
+							},
+							"then": {
+								"required": ["target"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"payloadKind": {
+										"enum": ["text", "bytes", "paste"]
+									}
+								},
+								"required": ["payloadKind"]
+							},
+							"then": {
+								"required": ["recordBytes"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"inputStatus": {
+										"const": "partial-accepted"
+									}
+								}
+							},
+							"then": {
+								"required": ["target"],
+								"properties": {
+									"recordsAccepted": {
+										"minimum": 1
+									},
+									"cleanupStatus": {
+										"enum": ["confirmed", "unconfirmed"]
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"inputStatus": {
+										"const": "accepted"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"recordsAccepted": {
+										"minimum": 1
+									},
+									"cleanupStatus": {
+										"enum": ["confirmed", "unconfirmed"]
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"inputStatus": {
+										"const": "unknown"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"cleanupStatus": {
+										"enum": ["not-needed", "unconfirmed"]
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		"sendSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "requestId", "snapshotRevision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "terminal.send"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"requestId": {
+					"$ref": "#/$defs/id"
+				},
+				"snapshotRevision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				}
+			}
+		}
+	}
+}

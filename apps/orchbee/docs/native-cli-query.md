@@ -29,8 +29,7 @@ Site runtime is disposed. Restarting a Site starts with an empty alias table.
 All three commands admit `--format text|json`. The embedded success schemas are
 `orchbee.agent.names`, `orchbee.agent.resolve`, and `orchbee.agent.rename`, version 1;
 post-admission failures use `orchbee.cli.failure.agent-names`, version 1. Correlated
-semantic answers carry an `agent-names` source with the OBAP request ID. Schema catalog
-version 11 includes these four new documents. Invalid names or conflicting selectors
+semantic answers carry an `agent-names` source with the OBAP request ID. These four documents are included in schema catalog version 12, alongside the prompt contracts. Invalid names or conflicting selectors
 fail with exit 2 before any runtime access. A collision is exit 3 and identifies the
 incumbent session; it never overwrites that session's name.
 
@@ -92,6 +91,56 @@ The embedded send schema validates the implemented sequence receipt: payload kin
 record count, confirmed prefix, stopped index, encoded byte count, partial acceptance,
 and cleanup status. Generic ambiguity failures include Panel and terminal candidates.
 These repair stale schema projections; wire and receipt versions remain unchanged.
+
+## Agent prompt submission
+
+`agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>]`
+uses the same ID/name selectors as other Agent commands. Text is non-empty UTF-8,
+bounded by the 256 KiB paste limit and the command's 64 KiB argv envelope. `--until`
+and `--timeout` require `--wait`; wait conditions and the default ten-minute,
+maximum one-hour timeout match `agent wait`. Without waiting, the budget is five seconds.
+
+One existing-only Client Session owns snapshot lookup, one resolved Agent identity,
+a canonical preflight Get, one paste-plus-Enter send, and any subsequent Gets. Preflight
+requires a live, fresh session with a known status and exactly one navigable terminal.
+Pending requests/needs-attention refuse with `agent-blocked` before any input. This is
+a sampled preflight, not an atomic lock on future provider state or foreground ownership.
+The Server still authorizes the terminal binding when admitting input.
+
+| State          | Transition and evidence                                                                                             | Retained effect                             |
+| -------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| Parsed         | Admit and resolve under min(total deadline, five seconds)                                                           | None                                        |
+| Preflight      | Fresh, live, known, unblocked and uniquely bound                                                                    | None                                        |
+| Send           | One ordered paste and Enter sequence, no replay                                                                     | Exact terminal receipt                      |
+| Activity gate  | Already working at preflight, or newer observed working/attention/turn outcome within five seconds after acceptance | Accepted receipt survives every later error |
+| Condition wait | Sample fresh status/freshness conditions on the pinned session under the original total deadline                    | No turn-causality claim                     |
+| Done           | Drop session, arbitrate cancellation, emit once                                                                     | No input replay or provider cancellation    |
+
+Waiting from a non-working state first requires evidence of activity. A newer turn
+outcome also qualifies when a short working interval was missed between polls. Old idle
+or an unchanged completed outcome cannot satisfy this gate. Gate expiry is
+`prompt-stalled`; an earlier caller deadline is `wait-deadline`. Subsequent read errors,
+end, timeout or cancellation do not erase the confirmed submission. An already-working
+Agent may complete its existing turn; a matching result does not identify the prompt's
+own turn. Polling can miss transitions and does not claim Herdr event replay.
+
+Schema catalog version 12 contains 47 documents, including the prompt success and failure contracts.
+
+`orchbee.agent.prompt` returns the session ID, the full terminal submission receipt,
+and optional matched observation/wait facts. Refused/partial/unknown send outcomes retain
+the existing terminal send/failure contract and never start a wait. Prompt preflight and
+post-submission failures use `orchbee.cli.failure.agent-prompt`; post-submission failures
+include the receipt so callers cannot mistake a wait failure for unsubmitted input.
+A confirmed send without `--wait` remains authoritative if cancellation races its reply.
+During a wait, cancellation is exit 130 with the accepted receipt. Ambiguous submitted
+input stays exit 8 even under cancellation. All sessions drop before signal finalization
+and output. No prompt text is included in receipts.
+
+Evidence covers blocked/not-ready refusals without terminal effects, exact literal paste
+plus Enter, one admission and no replay, active/idle activity gates, newer completed
+outcomes, pinned-session reads, total/activity deadlines, partial and unknown sends,
+cancellation settlement, and schema validation. Native canonical observations remain the
+only Agent status authority; this command does not add screen inference or a provider API.
 
 ## Inputs and trust boundary
 
@@ -353,6 +402,7 @@ orchbee agent list [--include-ended] [--limit <1-100>] [--cursor <v1.…>]
 orchbee agent get <target> | agent explain <target>
 orchbee agent read <target> [--history --rows <n>] [--unwrap] [--lines <n>]
 orchbee agent send-keys <target> <key>...
+orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>]
 orchbee agent wait <target> [--until <condition>]... [--after-revision <0-9007199254740991>] [--timeout <1-3600000>]
 orchbee agent doctor [--provider <id>]... [--asset-root <path>]...
 orchbee agent integration list [--provider <id>]
@@ -509,7 +559,7 @@ retains the prior version-2 vocabulary. Capsule 0.4.1 supports native Windows Co
 transport, but doctor never connects to a named pipe or writes console correlation hints.
 Its endpoint remains `not-inspected`, now with reason `windows-endpoint-not-inspected`;
 configuration and capsule integrity are not delivery or Site-liveness evidence. `complete`
-describes probe coverage. Windows Codex installation is owned by the [Windows integration contract](windows-agent-integrations.md); Agent start/prompt remain pending.
+describes probe coverage. Windows Codex installation is owned by the [Windows integration contract](windows-agent-integrations.md); Agent start remains pending; prompt composition is specified above.
 
 | Field               | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -1852,7 +1902,7 @@ invalid-context, stale-binding, child-Presentation and movement cases plus a rea
 Windows child-process witness. Desktop and global focus fallback remain excluded;
 TLA execution is deferred and is not claimed as evidence.
 
-The additive schema is registered in the closed `api schema` catalog version 10;
+The additive schema is registered in the closed `api schema` catalog version 12;
 other business document versions are unchanged.
 
 Windows Worker identities are fresh per Server connection, using the existing OS

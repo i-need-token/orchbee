@@ -102,6 +102,12 @@ pub(super) fn run_agent(
 }
 
 #[cfg(any(target_os = "linux", windows))]
+pub(super) use linux::{Receipt, receipt_output, submit_on_session};
+
+#[cfg(all(test, any(target_os = "linux", windows)))]
+pub(super) use linux::test_receipt;
+
+#[cfg(any(target_os = "linux", windows))]
 mod linux {
     use std::time::{Duration, Instant};
 
@@ -319,17 +325,88 @@ mod linux {
                 &agent_target
             }
         };
-        let (request, fact, facts) =
-            prepare(target, &input, &snapshot).map_err(SendError::Failure)?;
-        let source = send_source(&snapshot, request.request_id().as_str());
-        let submission = client.submit_terminal_send_before(request, deadline);
-        // The Client Session is fully dropped before the typed answer — or
-        // the submission failure — is mapped into output.
+        let result = submit_on_session(&mut client, &snapshot, target, &input, deadline);
         drop(client);
-        match submission {
-            Err(error) => Err(SendError::Failure(classify_send(error).source(source))),
-            Ok(result) => Ok(answer(&result, &fact, &facts, source)),
+        result.map(Receipt::into_answer).map_err(SendError::Failure)
+    }
+
+    /// A held-session caller retains typed delivery facts until its session
+    /// closes. JSON projection and output remain after that release boundary.
+    pub(crate) struct Receipt {
+        result: TerminalSendResult,
+        fact: PayloadFact,
+        facts: RequestFacts,
+        source: Value,
+    }
+
+    impl Receipt {
+        pub(crate) fn accepted(&self) -> bool {
+            matches!(
+                self.result.outcome(),
+                TerminalSendOutcome::Accepted {
+                    cleanup: SendCleanupStatus::Confirmed,
+                    ..
+                }
+            )
         }
+        fn into_answer(self) -> SendAnswer {
+            answer(&self.result, &self.fact, &self.facts, self.source)
+        }
+        pub(crate) fn document(&self) -> Value {
+            let projected = answer(&self.result, &self.fact, &self.facts, self.source.clone());
+            json!({"schema": TERMINAL_SEND_ID, "version":1, "source":projected.source, "result":projected.result})
+        }
+    }
+
+    pub(crate) fn submit_on_session(
+        client: &mut crate::local_client::LocalClient,
+        snapshot: &Snapshot,
+        target: &Target,
+        input: &TerminalSendInput,
+        deadline: Instant,
+    ) -> Result<Receipt, Failure> {
+        let (request, fact, facts) = prepare(target, input, snapshot)?;
+        let source = send_source(snapshot, request.request_id().as_str());
+        let result = client
+            .submit_terminal_send_before(request, deadline)
+            .map_err(|error| classify_send(error).source(source.clone()))?;
+        Ok(Receipt {
+            result,
+            fact,
+            facts,
+            source,
+        })
+    }
+
+    /// Typed protocol fixture for the prompt owner's cross-family cancellation
+    /// witnesses. No runtime/test hook exists in production builds.
+    #[cfg(test)]
+    pub(crate) fn test_receipt(outcome: TerminalSendOutcome) -> Receipt {
+        use orchbee_client_server_protocol::{HostEpoch, HostTerminalId, RequestId, SendTarget};
+        let request = RequestId::parse("11111111111111111111111111111111").unwrap();
+        let target = SendTarget::new(
+            std::num::NonZeroU64::MIN,
+            HostEpoch::parse("22222222222222222222222222222222").unwrap(),
+            HostTerminalId::parse("33333333333333333333333333333333").unwrap(),
+        );
+        Receipt {
+            result: TerminalSendResult::new(request.clone(), Some(target), outcome).unwrap(),
+            fact: PayloadFact {
+                kind: "sequence",
+                records: 2,
+                record_bytes: None,
+            },
+            facts: RequestFacts {
+                site_id: "44444444444444444444444444444444".to_owned(),
+                worker_id: "55555555555555555555555555555555".to_owned(),
+                terminal_id: "66666666666666666666666666666666".to_owned(),
+            },
+            source: json!({"kind":"terminal.send", "siteId":"44444444444444444444444444444444", "requestId":request.as_str(), "snapshotRevision":"1"}),
+        }
+    }
+
+    pub(crate) fn receipt_output(receipt: Receipt, format: OutputFormat, locale: Locale) -> Output {
+        answer_output(&receipt.into_answer(), format, locale)
     }
 
     /// Resolve the binding and build the single request. Every wire identity

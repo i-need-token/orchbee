@@ -413,7 +413,10 @@ fn classify_wait_attempt(
 /// freshness conditions match the observation's freshness directly;
 /// every status condition requires `fresh` freshness and a status kind
 /// equal to the condition's canonical name.
-fn condition_matches(condition: AgentWaitCondition, session: &AgentSessionDetail) -> bool {
+pub(crate) fn condition_matches(
+    condition: AgentWaitCondition,
+    session: &AgentSessionDetail,
+) -> bool {
     match condition {
         AgentWaitCondition::Fresh => {
             session.snapshot.observation.freshness == AgentObservationFreshness::Fresh
@@ -493,7 +496,7 @@ fn wait_deadline_elapsed(error: &AgentExchangeError) -> bool {
 /// for up to `duration`; `true` means it reported readiness or an
 /// unrecoverable poll fault, and the owner's arbitration must run before
 /// any further step.
-fn wait_backoff(wake: Option<BorrowedFd<'_>>, duration: Duration) -> bool {
+pub(crate) fn wait_backoff(wake: Option<BorrowedFd<'_>>, duration: Duration) -> bool {
     let Some(fd) = wake else {
         if !duration.is_zero() {
             std::thread::sleep(duration);
