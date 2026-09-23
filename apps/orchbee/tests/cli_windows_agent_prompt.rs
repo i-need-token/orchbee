@@ -22,7 +22,7 @@ fn completed() -> Value {
     detail["status"] = json!({"kind":"succeeded"});
     detail
 }
-fn accept_prompt(stream: &mut LocalStream, expected: &str) {
+fn prompt_request(stream: &mut LocalStream, expected: &str, codex: bool) -> TerminalSendRequest {
     let ClientMessage::TerminalSend(request) = read_client_message(stream).unwrap() else {
         panic!("single send");
     };
@@ -31,17 +31,29 @@ fn accept_prompt(stream: &mut LocalStream, expected: &str) {
         "33333333333333333333333333333333"
     );
     let records = request.records().as_slice();
-    assert_eq!(records.len(), 2);
+    assert_eq!(records.len(), if codex { 3 } else { 2 });
     let SendRecord::Paste { content } = &records[0] else {
         panic!("literal paste");
     };
     assert_eq!(content.as_bytes(), expected.as_bytes());
     assert!(matches!(
-        &records[1],
+        records.last().unwrap(),
         SendRecord::Key {
             key: SendKey::Enter
         }
     ));
+    if codex {
+        assert!(matches!(
+            &records[1],
+            SendRecord::Key {
+                key: SendKey::Right
+            }
+        ));
+    }
+    request
+}
+fn accept_prompt(stream: &mut LocalStream, expected: &str) {
+    let request = prompt_request(stream, expected, false);
     let target = SendTarget::new(
         std::num::NonZeroU64::MIN,
         HostEpoch::parse("66666666666666666666666666666666").unwrap(),
@@ -364,4 +376,86 @@ fn prompt_to_an_already_working_agent_does_not_promise_a_new_turn() {
         include_str!("../src/cli/schemas/orchbee.agent.prompt.json"),
     );
     assert_eq!(document["result"]["wait"]["observations"], 1);
+}
+
+#[test]
+fn windows_codex_boundary_precedes_enter_and_partial_delivery_is_never_completed_by_retry() {
+    let fixture = Fixture::new();
+    let rendezvous = fixture.rendezvous();
+    for partial in [false, true] {
+        let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
+        let handler = peer(listener, move |mut stream| {
+            let mut detail = idle();
+            detail["snapshot"]["providerId"] = json!("codex");
+            bound_agent_reply(&mut stream, detail);
+            let request = prompt_request(&mut stream, "literal\n中文", true);
+            let target = SendTarget::new(
+                std::num::NonZeroU64::MIN,
+                HostEpoch::parse("66666666666666666666666666666666").unwrap(),
+                HostTerminalId::parse("77777777777777777777777777777777").unwrap(),
+            );
+            let outcome = if partial {
+                TerminalSendOutcome::Unavailable {
+                    reason: SendUnavailableReason::InputBudgetExhausted,
+                    progress: SendProgress::stopped(2, 16),
+                    cleanup: SendCleanupStatus::Confirmed,
+                }
+            } else {
+                TerminalSendOutcome::Accepted {
+                    progress: SendProgress::complete(3, 17),
+                    cleanup: SendCleanupStatus::Confirmed,
+                }
+            };
+            write_server_message(
+                &mut stream,
+                &ServerMessage::TerminalSendResult(
+                    TerminalSendResult::new(request.request_id().clone(), Some(target), outcome)
+                        .unwrap(),
+                ),
+            )
+            .unwrap();
+            assert_closed(&mut stream);
+        });
+        let mut args = vec![
+            "agent",
+            "prompt",
+            "alpha",
+            "literal\n中文",
+            "--format",
+            "json",
+        ];
+        if partial {
+            args.push("--wait");
+        }
+        let output = fixture.run(&args);
+        handler.join().unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(if partial { 9 } else { 0 }),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        let receipt = if partial {
+            validate(
+                &document,
+                include_str!("../src/cli/schemas/orchbee.terminal.send.json"),
+            );
+            &document
+        } else {
+            validate(
+                &document,
+                include_str!("../src/cli/schemas/orchbee.agent.prompt.json"),
+            );
+            &document["result"]["submission"]
+        };
+        assert_eq!(receipt["result"]["records"], 3);
+        assert_eq!(
+            receipt["result"]["recordsAccepted"],
+            if partial { 2 } else { 3 }
+        );
+        if partial {
+            assert_eq!(receipt["result"]["firstStoppedRecord"], 2);
+        }
+    }
 }

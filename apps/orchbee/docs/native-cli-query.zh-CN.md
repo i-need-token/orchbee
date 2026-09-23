@@ -23,7 +23,9 @@ Agent 状态来自 Server 的 canonical Agent 模型，不从终端文字推断�
 三个命令均接受 `--format text|json`。内嵌成功 schema 为 `orchbee.agent.names`、
 `orchbee.agent.resolve` 与 `orchbee.agent.rename`，均为 version 1；接纳后的失败使用
 `orchbee.cli.failure.agent-names` version 1。相关语义结果携带 `agent-names` source
-和 OBAP request ID。这四份文档与提示契约一起纳入 Schema 目录 version 12。非法名称或冲突选择器在
+和 OBAP request ID。这四份文档与提示契约一起纳入 Windows 中，canonical provider 为 `codex` 时，单次输入序列按字面 paste、Right、Enter 排列。Right 作为非字符边界，促使 Codex 刷出 paste-burst 缓冲并清除 Enter 抑制窗口；不向提示文本拼接转义码，也不以固定延时猜测投递速度。其他 provider 保持 paste、Enter，普通 `terminal send --paste --enter` 不增加按键。回执准确报告三条或两条记录；若在 Right 或 Enter 前停止，只报告实际接受的前缀，绝不补发或开始等待。该边界不证明输入框为空、焦点归属或 provider 已就绪。
+
+Schema 目录 version 12。非法名称或冲突选择器在
 任何运行时访问前以退出码 2 失败。重名以退出码 3 拒绝并标明占用者，绝不覆盖其名称。
 
 每个命令的单一五秒截止覆盖 cohort 校验、仅查已有 Site、接纳和一次 OBAP 交换。
@@ -1013,14 +1015,15 @@ tabId,terminalContextId}}]}`；`terminal get` 在 `terminal` 下返回同一身�
   行——而早于 `startRow` 的行从未被请求，不算遗漏。text 输出与 `terminal read` 一致：每个
   发出的行渲染为一行转义文本加标记。
 - `orchbee.terminal.send` → `{action:"terminal.send",requestId,siteId,workerId,terminalId,
-payloadKind,recordBytes?,key?,inputStatus,cleanupStatus,reason?,acceptedBytes?,target?}`——
-  请求自身事实加上 Server 的两轴应答：`payloadKind:"text"` 携带 `recordBytes`（单条输入
-  记录的字节长度，含折叠的回车），`payloadKind:"key"` 携带 `key`；`inputStatus`/
-  `cleanupStatus` 为逐字结果类别；`reason` 为类型化拒绝/不可用 token；`acceptedBytes`
-  仅在 `accepted` 时出现；`target` 为 Server 实际准入的物理 incarnation
-  （`workerGeneration`、`hostEpoch`、`hostTerminalId`）——只要应答承认一个（`accepted`、
-  `outcome-unknown` 或任何 cleanup 义务）即出现，准入前拒绝则缺席。提交的文本绝不回显到
-  文档或诊断的任何位置。
+payloadKind,records,recordBytes?,recordsAccepted,firstStoppedRecord,acceptedEncodedBytes,
+inputStatus,cleanupStatus,reason?,target?}`. `payloadKind` 为 text、key、bytes、paste 或 sequence；
+  `records` 为提交记录总数。`recordBytes` 仅表示单条内容记录的字节数（text/bytes 可含折入的 CR），
+  不猜测后续语义按键的编码字节数。`recordsAccepted`、可空的零基 `firstStoppedRecord` 和
+  `acceptedEncodedBytes` 原样报告已确认进度；回复丢失的失败 envelope 不伪造这些字段。
+  `inputStatus` 包括 accepted、rejected、partial-accepted、not-submitted、unknown；
+  `cleanupStatus` 独立报告清理结果。`reason` 为类型化拒绝/不可用原因。可选 `target` 是 Server
+  实际准入的物理实例（`workerGeneration`、`hostEpoch`、`hostTerminalId`）。回执及诊断绝不回显
+  提交内容。旧 `key` 和 `acceptedBytes` 字段不是当前序列回执的一部分。
 - `orchbee.agent.list` → 逐字的 `listed` outcome：
   `{kind:"listed",items:[<session summary>…],nextCursor|null,revision}`，每个 summary
   即 wire `AgentSessionSummary`（session/provider/lifecycle/语义状态/freshness/观察
@@ -1380,7 +1383,7 @@ disposition 交付——OS 默认终止遵循 shell 的 `128 + signal` 约定，
 | send `SessionUnavailable`/`RequestEncoding`                                                                                         | `internal-failure`                                                         | 1         | 省略                                                                                          |
 | send `OutcomeUnknown`（写/读/无效结果/correlation）                                                                                 | `outcome-unknown`                                                          | 8         | `{stage:"send",requestId,reason}`                                                             |
 | `terminal.send.result` `Rejected`/`Unavailable`                                                                                     | 类型化应答，非失败 envelope                                                | 3/4       | send 结果 `reason`、`cleanupStatus`；`host-protocol-fault` 退出 5                             |
-| `terminal.send.result` `Accepted` + `Unconfirmed` cleanup                                                                           | 类型化应答，非失败 envelope                                                | 5         | send 结果 `acceptedBytes`、`cleanupStatus`                                                    |
+| `terminal.send.result` `Accepted` + `Unconfirmed` cleanup                                                                           | 类型化应答，非失败 envelope                                                | 5         | send 结果 `recordsAccepted`、`acceptedEncodedBytes`、`cleanupStatus`                          |
 | agent `RequestNotSubmitted`/`Write`/`ResponseDeadline`/`Response(Io)`（deadline 未耗尽）                                            | `transport-loss`                                                           | 5         | `{stage:"agent-read",operation}`                                                              |
 | agent 交换或准入后步骤内共享总 deadline 耗尽                                                                                        | `timeout`                                                                  | 7         | `{stage:"agent-read",operation,timeoutMs:5000}`                                               |
 | agent armed span 捕获合格 SIGINT 或 SIGTERM（任意阶段；HUP/QUIT 保持原始 disposition）                                              | `cancelled`                                                                | 130       | `{stage:"agent-read",operation}`                                                              |

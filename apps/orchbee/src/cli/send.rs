@@ -102,7 +102,7 @@ pub(super) fn run_agent(
 }
 
 #[cfg(any(target_os = "linux", windows))]
-pub(super) use linux::{Receipt, receipt_output, submit_on_session};
+pub(super) use linux::{Receipt, receipt_output, submit_prompt_on_session};
 
 #[cfg(all(test, any(target_os = "linux", windows)))]
 pub(super) use linux::test_receipt;
@@ -358,14 +358,54 @@ mod linux {
         }
     }
 
-    pub(crate) fn submit_on_session(
+    fn submit_on_session(
         client: &mut crate::local_client::LocalClient,
         snapshot: &Snapshot,
         target: &Target,
         input: &TerminalSendInput,
         deadline: Instant,
     ) -> Result<Receipt, Failure> {
-        let (request, fact, facts) = prepare(target, input, snapshot)?;
+        submit_prepared(
+            client,
+            snapshot,
+            prepare(target, input, snapshot)?,
+            deadline,
+        )
+    }
+
+    pub(crate) fn submit_prompt_on_session(
+        client: &mut crate::local_client::LocalClient,
+        snapshot: &Snapshot,
+        target: &Target,
+        text: &str,
+        codex_boundary: bool,
+        deadline: Instant,
+    ) -> Result<Receipt, Failure> {
+        let internal = |_| Failure::new(FailureKind::InternalFailure);
+        let mut records = vec![SendRecord::Paste {
+            content: SendPasteContent::new(text.as_bytes().to_vec()).map_err(internal)?,
+        }];
+        if codex_boundary {
+            // A semantic key flushes Windows Codex's paste-burst buffer before
+            // Enter. Keep it inside this one sequence, never a second send.
+            records.push(SendRecord::Key {
+                key: SendKey::Right,
+            });
+        }
+        records.push(SendRecord::Key {
+            key: SendKey::Enter,
+        });
+        let records = SendRecords::new(records).map_err(internal)?;
+        let prepared = prepare_records(target, snapshot, (records, "sequence", Some(text.len())))?;
+        submit_prepared(client, snapshot, prepared, deadline)
+    }
+
+    fn submit_prepared(
+        client: &mut crate::local_client::LocalClient,
+        snapshot: &Snapshot,
+        (request, fact, facts): (TerminalSendRequest, PayloadFact, RequestFacts),
+        deadline: Instant,
+    ) -> Result<Receipt, Failure> {
         let source = send_source(snapshot, request.request_id().as_str());
         let result = client
             .submit_terminal_send_before(request, deadline)
@@ -418,10 +458,17 @@ mod linux {
         input: &TerminalSendInput,
         snapshot: &Snapshot,
     ) -> Result<(TerminalSendRequest, PayloadFact, RequestFacts), Failure> {
+        prepare_records(target, snapshot, send_records(input)?)
+    }
+
+    fn prepare_records(
+        target: &Target,
+        snapshot: &Snapshot,
+        (records, kind, record_bytes): (SendRecords, &'static str, Option<usize>),
+    ) -> Result<(TerminalSendRequest, PayloadFact, RequestFacts), Failure> {
         // Resolve a full ID or @terminal selector from the current snapshot.
         let row = results::terminal_select(snapshot, target)
             .map_err(|failure| failure.source(results::snapshot_source(snapshot)))?;
-        let (records, kind, record_bytes) = send_records(input)?;
         let fact = PayloadFact {
             kind,
             records: records.len(),
@@ -450,8 +497,8 @@ mod linux {
 
     /// The ordered wire records the parsed input produces plus the honest
     /// `payloadKind` label. `recordBytes` is reported only for a single
-    /// content-bearing record — multi-record sequences report the record
-    /// count instead, never a guessed sum. Every constructor re-checks the
+    /// content-bearing record, even when followed by semantic keys; it never
+    /// guesses their encoded byte length. Every constructor re-checks the
     /// bounds the parser already enforced, so impossible argv cannot
     /// produce a malformed record.
     fn send_records(

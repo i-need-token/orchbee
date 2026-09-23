@@ -36,7 +36,7 @@ mod active {
     use super::*;
     use crate::cli::source::{ArmedSignals, Finish, SignalWatch};
     use crate::cli::{output, query, send};
-    use crate::invocation::{AgentWaitCondition, TerminalSendInput};
+    use crate::invocation::AgentWaitCondition;
     use orchbee_agent_observation_protocol::{
         AgentLifecycle, AgentObservationFreshness, AgentSemanticStatus, AgentSessionDetail,
     };
@@ -190,15 +190,13 @@ mod active {
         if query::wait_backoff(wake, Duration::from_millis(1)) {
             return Err(prompt_error(FailureKind::InternalFailure, "interrupted"));
         }
-        let input = TerminalSendInput::Paste {
-            content: text.as_bytes().to_vec(),
-            enter: true,
-        };
-        let receipt = send::submit_on_session(
+        let codex_boundary = cfg!(windows) && before.snapshot.provider_id.as_str() == "codex";
+        let receipt = send::submit_prompt_on_session(
             &mut client,
             &snapshot,
             &selected.terminal,
-            &input,
+            text,
+            codex_boundary,
             admission,
         )?;
         let waited = if receipt.accepted() {

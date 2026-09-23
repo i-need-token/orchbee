@@ -124,6 +124,8 @@ end, timeout or cancellation do not erase the confirmed submission. An already-w
 Agent may complete its existing turn; a matching result does not identify the prompt's
 own turn. Polling can miss transitions and does not claim Herdr event replay.
 
+On Windows, canonical provider `codex` uses one ordered paste, Right, Enter sequence. Right is a non-character boundary that flushes Codex's paste-burst buffer and clears its Enter suppression window. It neither embeds escape bytes in prompt text nor guesses delivery speed with a fixed delay. Other providers retain paste, Enter; ordinary `terminal send --paste --enter` adds no boundary key. Receipts report the actual three or two records. Stopping before Right or Enter reports only the accepted prefix, never retries the suffix and never starts observation. This boundary does not establish an empty composer, foreground ownership or provider readiness.
+
 Schema catalog version 12 contains 47 documents, including the prompt success and failure contracts.
 
 `orchbee.agent.prompt` returns the session ID, the full terminal submission receipt,
@@ -1214,15 +1216,18 @@ tabId,terminalContextId}}]}`; `terminal get` returns the same identity facts und
   `startRow` were never requested, not omitted. Text output matches `terminal read`: one escaped
   line per emitted row plus the marker.
 - `orchbee.terminal.send` → `{action:"terminal.send",requestId,siteId,workerId,terminalId,
-payloadKind,recordBytes?,key?,inputStatus,cleanupStatus,reason?,acceptedBytes?,target?}` —
-  the request's own facts plus the Server's two-axis answer: `payloadKind:"text"` carries
-  `recordBytes` (the single input record's byte length, including the folded carriage
-  return), `payloadKind:"key"` carries `key`; `inputStatus`/`cleanupStatus` are verbatim
-  outcome classes; `reason` is the typed rejection/unavailable token; `acceptedBytes` only on
-  `accepted`; `target` is the physical incarnation the Server admitted
-  (`workerGeneration`,`hostEpoch`,`hostTerminalId`) — present whenever the answer admits one
-  (`accepted`, `outcome-unknown`, or any cleanup obligation), absent on pre-admission
-  refusals. The submitted text is never echoed anywhere in the document or diagnostics.
+payloadKind,records,recordBytes?,recordsAccepted,firstStoppedRecord,acceptedEncodedBytes,
+inputStatus,cleanupStatus,reason?,target?}`. `payloadKind` is text, key, bytes, paste or sequence;
+  `records` is the submitted record count. `recordBytes` describes the single content record
+  (including a folded CR for text/bytes), never a guessed encoding size for trailing semantic
+  keys. `recordsAccepted`, nullable zero-based `firstStoppedRecord` and `acceptedEncodedBytes`
+  report confirmed progress verbatim; a lost-response failure envelope does not fabricate them.
+  `inputStatus` is accepted, rejected, partial-accepted, not-submitted or unknown;
+  `cleanupStatus` independently reports cleanup. `reason` is the typed rejection/unavailability
+  token. Optional `target` is the physical incarnation actually admitted by the Server
+  (`workerGeneration`, `hostEpoch`, `hostTerminalId`). Submitted content is never echoed in
+  receipts or diagnostics. The obsolete `key` and `acceptedBytes` fields are not part of the
+  current sequence receipt.
 - `orchbee.agent.list` → the `listed` outcome verbatim:
   `{kind:"listed",items:[<session summary>…],nextCursor|null,revision}` where each summary
   is the wire `AgentSessionSummary` (session/provider/lifecycle/semantic status/freshness/
@@ -1629,7 +1634,7 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | send `SessionUnavailable`/`RequestEncoding`                                                                                               | `internal-failure`                                                         | 1         | omitted                                                                                             |
 | send `OutcomeUnknown` (write/read/invalid-result/correlation)                                                                             | `outcome-unknown`                                                          | 8         | `{stage:"send",requestId,reason}`                                                                   |
 | `terminal.send.result` `Rejected`/`Unavailable`                                                                                           | typed answer, not a failure envelope                                       | 3/4       | send result `reason`, `cleanupStatus`; `host-protocol-fault` exits 5                                |
-| `terminal.send.result` `Accepted` + `Unconfirmed` cleanup                                                                                 | typed answer, not a failure envelope                                       | 5         | send result `acceptedBytes`, `cleanupStatus`                                                        |
+| `terminal.send.result` `Accepted` + `Unconfirmed` cleanup                                                                                 | typed answer, not a failure envelope                                       | 5         | send result `recordsAccepted`, `acceptedEncodedBytes`, `cleanupStatus`                              |
 | agent `RequestNotSubmitted`/`Write`/`ResponseDeadline`/`Response(Io)` (deadline not elapsed)                                              | `transport-loss`                                                           | 5         | `{stage:"agent-read",operation}`                                                                    |
 | agent exchange or post-admission step with the shared total deadline elapsed                                                              | `timeout`                                                                  | 7         | `{stage:"agent-read",operation,timeoutMs:5000}`                                                     |
 | agent armed span captures an eligible SIGINT or SIGTERM (any stage; HUP/QUIT stay raw)                                                    | `cancelled`                                                                | 130       | `{stage:"agent-read",operation}`                                                                    |

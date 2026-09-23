@@ -150,9 +150,7 @@ socket I/O、不获取外层锁。顺序应用会话解复用路由两个 OBAP �
 修改回复丢失时结果未知，不设重放账本。
 
 `schemas/agent-observation/v1` 覆盖 kind 1–14。原生 `agent names`、`agent resolve`
-和 `agent rename` 消费 names 家族；既有 get/explain/wait 仍接受会话 ID。直接按名称定位
-这些命令的后续设计保留在
-[`proposals/agent/session-names.md`](../../../proposals/agent/session-names.zh-CN.md)。
+和 `agent rename` 消费 names 家族；get/explain/wait 及终端控制命令在同一个已准入会话上解析名称，并固定解析后的会话 ID。CLI 组合与期限由 [原生 CLI 契约](../../orchbee/docs/native-cli-query.zh-CN.md) 负责。
 确定性服务测试覆盖重名、原子重命名、ID 优先、满额、生命周期清理、策略分离、过期准备、
 dispose、poison 和并发抢占。wire 与 Windows 进程测试覆盖上限、schema 合规回复、
 错误操作类型和修改结果未知。
@@ -393,8 +391,7 @@ Server 代码的依赖，远端（非托管）路径保持既有行为。被替�
 
 持久化/持久状态、远端（非托管）Agent 观察与
 任何远端 Agent 扩展、wait/watch、`changes`、观察 fold 之外的规范模型变更、
-names 侧表与会话删除（均未实现——候选设计与 `delete.request` 路由义务见
-[`proposals/agent/session-names.md`](../../../proposals/agent/session-names.zh-CN.md)）、TUI 消费者、wire 帧/编解码归属
+规范会话删除、TUI 消费者、wire 帧/编解码归属
 （`orchbee-agent-observation-protocol` crate）、游标秘密及其轮换策略
 （`agent_service`）、CLI 语法、渲染与本地化、TypeScript 行为变更，以及监听器/
 wait 并发。面向客户端的读取预算不变；私有泵窗口是服务器内部常量，不是产品设置

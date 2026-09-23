@@ -171,9 +171,7 @@ The sequential application-session demux routes both OBAP families and writes ex
 one correlated result. A lost mutation reply is outcome-unknown, without a replay ledger.
 
 `schemas/agent-observation/v1` covers kinds 1–14. Native `agent names`, `agent resolve`,
-and `agent rename` consume the names family; existing get/explain/wait still accept
-session IDs. Their direct name-target follow-up remains in
-[`proposals/agent/session-names.md`](../../../proposals/agent/session-names.md).
+and `agent rename` consume the names family; get/explain/wait and terminal control commands resolve names on the same admitted session and pin the resulting session ID. CLI composition and deadlines belong to the [native CLI contract](../../orchbee/docs/native-cli-query.md).
 Deterministic service tests cover collision, atomic rename, exact-ID precedence,
 full capacity, lifecycle cleanup, policy separation, stale preparation, disposal,
 poison, and concurrent claims. Wire and Windows process tests cover bounds,
@@ -472,10 +470,7 @@ thread before the identity-gated unlink.
 Persistence/durable state,
 remote (non-managed) Agent observation and any remote Agent
 extension, waits/watches, `changes`, canonical-model mutations beyond the
-observation folds, the names sidecar and session deletion (both
-unimplemented — the candidate design and the `delete.request` routing
-obligation live in
-[`proposals/agent/session-names.md`](../../../proposals/agent/session-names.md)),
+observation folds, canonical session deletion,
 TUI
 consumers, wire framing/codec ownership (the `orchbee-agent-observation-protocol`
 crate), cursor secrets and their rotation policy (`agent_service`), CLI grammar,
