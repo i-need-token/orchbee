@@ -442,6 +442,31 @@ pub(crate) fn render(
             ]
         }),
         Projection::PanelGet(doc) => panel_doc(out, doc, text),
+        Projection::PanelProcessInfo(doc) => {
+            field(out, text.terminal, &doc.terminal.terminal_id)?;
+            field(
+                out,
+                locale.cli_process_root(),
+                &doc.info.root_pid.to_string(),
+            )?;
+            table(
+                out,
+                &locale.cli_process_headers(),
+                &doc.info.processes,
+                |process| {
+                    vec![
+                        process.pid.to_string(),
+                        process
+                            .parent_pid
+                            .map_or_else(|| "null".to_owned(), |pid| pid.to_string()),
+                        process.creation_time.to_string(),
+                        escape(process.image.as_deref().unwrap_or("null")),
+                        escape(process.command_line.as_deref().unwrap_or("null")),
+                        escape(process.current_directory.as_deref().unwrap_or("null")),
+                    ]
+                },
+            )
+        }
         Projection::TerminalList(rows) => terminal_table(out, text, rows),
         // `terminal read` emits the observed content itself: one output line
         // per emitted grid row — or, under `--unwrap`, per joined logical

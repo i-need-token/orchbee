@@ -415,6 +415,10 @@ pub fn build(builder: *std.Build) void {
                 .file = builder.path("src/platform/process_job_windows.c"),
                 .flags = authored_c_flags,
             });
+            platform_module.addCSourceFile(.{
+                .file = builder.path("src/platform/process_query_windows.c"),
+                .flags = authored_c_flags,
+            });
             black_box_test_module.addIncludePath(builder.path("src/transport"));
             black_box_test_module.addCSourceFile(.{
                 .file = builder.path("src/transport/local_ipc_windows.c"),

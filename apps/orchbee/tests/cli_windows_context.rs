@@ -24,29 +24,31 @@ fn run(arguments: &[&str], terminal: Option<&str>, worker: Option<&str>, locale:
 
 #[test]
 fn missing_and_invalid_context_fail_before_runtime_without_value_echo() {
-    for (terminal, worker) in [
-        (None, None),
-        (Some("untrusted-secret-value"), Some("invalid")),
-        (Some("00000000000000000000000000000001"), None),
-    ] {
-        for locale in ["en_US.UTF-8", "zh_CN.UTF-8"] {
-            let output = run(
-                &["panel", "current", "--format", "json"],
-                terminal,
-                worker,
-                locale,
-            );
-            assert_eq!(output.status.code(), Some(2));
-            let document: serde_json::Value =
-                serde_json::from_slice(&output.stdout).expect("document");
-            assert_eq!(document["failure"]["kind"], "invalid-usage");
-            assert!(document.get("source").is_none());
-            let diagnostic = String::from_utf8(output.stderr).expect("diagnostic");
-            assert!(diagnostic.contains("panel current --panel"));
-            assert!(!diagnostic.contains("untrusted-secret-value"));
-            let text = run(&["panel", "current"], terminal, worker, locale);
-            assert_eq!(text.status.code(), Some(2));
-            assert!(text.stdout.is_empty());
+    for verb in ["current", "process-info"] {
+        for (terminal, worker) in [
+            (None, None),
+            (Some("untrusted-secret-value"), Some("invalid")),
+            (Some("00000000000000000000000000000001"), None),
+        ] {
+            for locale in ["en_US.UTF-8", "zh_CN.UTF-8"] {
+                let output = run(
+                    &["panel", verb, "--format", "json"],
+                    terminal,
+                    worker,
+                    locale,
+                );
+                assert_eq!(output.status.code(), Some(2));
+                let document: serde_json::Value =
+                    serde_json::from_slice(&output.stdout).expect("document");
+                assert_eq!(document["failure"]["kind"], "invalid-usage");
+                assert!(document.get("source").is_none());
+                let diagnostic = String::from_utf8(output.stderr).expect("diagnostic");
+                assert!(diagnostic.contains("panel current --panel"));
+                assert!(!diagnostic.contains("untrusted-secret-value"));
+                let text = run(&["panel", verb], terminal, worker, locale);
+                assert_eq!(text.status.code(), Some(2));
+                assert!(text.stdout.is_empty());
+            }
         }
     }
 }
@@ -86,8 +88,8 @@ fn offline_catalog_is_closed_and_current_panel_schema_is_discoverable() {
     let schemas = document["result"]["schemas"]
         .as_object()
         .expect("dictionary");
-    assert_eq!(document["version"], 14);
-    assert_eq!(schemas.len(), 47);
+    assert_eq!(document["version"], 15);
+    assert_eq!(schemas.len(), 49);
     let validator =
         jsonschema::draft202012::new(&schemas["orchbee.api.schema"]).expect("catalog schema");
     validator.validate(&document).expect("valid catalog");

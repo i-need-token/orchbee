@@ -6419,6 +6419,68 @@ fn current_panel_grammar_has_explicit_or_caller_modes() {
 }
 
 #[test]
+fn panel_process_info_grammar_rejects_conflicting_targets_before_effects() {
+    for words in [
+        vec!["panel", "process-info"],
+        vec!["panel", "process-info", "--current"],
+    ] {
+        assert_eq!(
+            parse(&words),
+            Ok(Request::Query {
+                command: QueryCommand::PanelProcessInfo(None),
+                format: OutputFormat::Text
+            })
+        );
+    }
+    for words in [
+        vec!["panel", "process-info", "@panel:abc"],
+        vec!["--panel=@panel:abc", "panel", "process-info"],
+        vec!["panel", "process-info", "--", "@panel:abc"],
+    ] {
+        assert_eq!(
+            parse(&words),
+            Ok(Request::Query {
+                command: QueryCommand::PanelProcessInfo(Some(Target::Selector(
+                    "@panel:abc".into()
+                ))),
+                format: OutputFormat::Text
+            })
+        );
+    }
+    for words in [
+        vec!["panel", "process-info", "@panel:abc", "--current"],
+        vec![
+            "panel",
+            "process-info",
+            "@panel:abc",
+            "--panel",
+            "@panel:abc",
+        ],
+        vec![
+            "panel",
+            "process-info",
+            "--current",
+            "--panel",
+            "@panel:abc",
+        ],
+        vec!["panel", "process-info", "--current", "--current"],
+        vec!["panel", "process-info", "--current=true"],
+        vec!["panel", "process-info", "@panel:abc", "@panel:def"],
+        vec!["panel", "process-info", "--panel"],
+        vec!["panel", "process-info", "--history", "1"],
+        vec!["panel", "process-info", "--panel", "label"],
+    ] {
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
+    assert_eq!(
+        parse(&["panel", "process-info", "--help"]),
+        Ok(Request::Help(HelpTopic::Command(
+            CommandPath::PanelProcessInfo
+        )))
+    );
+}
+
+#[test]
 fn workspace_launch_requires_cwd_and_preserves_launch_values() {
     let Request::Mutation {
         command: MutationCommand::WorkspaceLaunch {

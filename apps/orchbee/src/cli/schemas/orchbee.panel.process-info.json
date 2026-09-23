@@ -1,0 +1,186 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.panel.process-info",
+	"title": "orchbee Panel process information envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.panel.process-info"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"$ref": "#/$defs/source"
+		},
+		"result": {
+			"type": "object",
+			"required": ["terminal", "scope", "rootPid", "processes"],
+			"additionalProperties": false,
+			"properties": {
+				"terminal": {
+					"$ref": "#/$defs/terminal"
+				},
+				"scope": {
+					"const": "windows-job"
+				},
+				"rootPid": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4294967295
+				},
+				"processes": {
+					"type": "array",
+					"maxItems": 64,
+					"items": {
+						"$ref": "#/$defs/process"
+					}
+				}
+			}
+		}
+	},
+	"$defs": {
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"positiveDecimal": {
+			"type": "string",
+			"pattern": "^[1-9][0-9]*$"
+		},
+		"terminal": {
+			"type": "object",
+			"required": ["terminalId", "workerId", "boundTo"],
+			"additionalProperties": false,
+			"properties": {
+				"terminalId": {
+					"$ref": "#/$defs/id"
+				},
+				"workerId": {
+					"$ref": "#/$defs/id"
+				},
+				"boundTo": {
+					"type": "object",
+					"required": ["presentationId", "panelId", "tabId", "terminalContextId"],
+					"additionalProperties": false,
+					"properties": {
+						"presentationId": {
+							"$ref": "#/$defs/id"
+						},
+						"panelId": {
+							"$ref": "#/$defs/id"
+						},
+						"tabId": {
+							"$ref": "#/$defs/id"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/id"
+						}
+					}
+				}
+			}
+		},
+		"snapshotSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench-snapshot"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"revision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				}
+			}
+		},
+		"process": {
+			"type": "object",
+			"required": ["pid", "parentPid", "creationTime", "image", "commandLine", "currentDirectory"],
+			"additionalProperties": false,
+			"properties": {
+				"pid": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4294967295
+				},
+				"parentPid": {
+					"oneOf": [
+						{
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4294967295
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"creationTime": {
+					"$ref": "#/$defs/positiveDecimal"
+				},
+				"image": {
+					"type": ["string", "null"],
+					"maxLength": 4096,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"commandLine": {
+					"type": ["string", "null"],
+					"maxLength": 4096,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"currentDirectory": {
+					"type": ["string", "null"],
+					"maxLength": 4096,
+					"pattern": "^[^\\u0000]*$"
+				}
+			}
+		},
+		"source": {
+			"type": "object",
+			"required": [
+				"kind",
+				"siteId",
+				"snapshotRevision",
+				"requestId",
+				"hostRequestId",
+				"hostEpoch",
+				"attachmentId",
+				"hostTerminalId"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "terminal-process-query"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"snapshotRevision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				},
+				"requestId": {
+					"$ref": "#/$defs/id"
+				},
+				"hostRequestId": {
+					"$ref": "#/$defs/id"
+				},
+				"hostEpoch": {
+					"$ref": "#/$defs/id"
+				},
+				"attachmentId": {
+					"$ref": "#/$defs/id"
+				},
+				"hostTerminalId": {
+					"$ref": "#/$defs/id"
+				}
+			}
+		}
+	}
+}

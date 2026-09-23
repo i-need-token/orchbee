@@ -7,6 +7,17 @@ mod agent_names;
 #[cfg(any(target_os = "linux", windows))]
 mod agent_target;
 #[cfg(any(target_os = "linux", windows))]
+mod process_info;
+#[cfg(any(target_os = "linux", windows))]
+pub(crate) use process_info::panel_process_info;
+
+#[cfg(not(any(target_os = "linux", windows)))]
+pub(crate) fn panel_process_info(
+    _target: Option<&crate::invocation::Target>,
+) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
+    Err(super::Failure::new(super::FailureKind::ServiceUnavailable))
+}
+#[cfg(any(target_os = "linux", windows))]
 mod agent_terminal;
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) use agent_terminal::{

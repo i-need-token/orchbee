@@ -38,6 +38,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
         QueryCommand::PanelList { .. } => "orchbee.panel.list",
         QueryCommand::PanelCurrent(_) => "orchbee.panel.current",
         QueryCommand::PanelGet(_) => "orchbee.panel.get",
+        QueryCommand::PanelProcessInfo(_) => "orchbee.panel.process-info",
         QueryCommand::TerminalList => "orchbee.terminal.list",
         QueryCommand::TerminalGet(_) => "orchbee.terminal.get",
         QueryCommand::TerminalRead { history, .. } | QueryCommand::AgentRead { history, .. } => {
@@ -231,6 +232,12 @@ pub(crate) struct TerminalRow {
     pub(crate) panel_id: String,
     pub(crate) tab_id: String,
     pub(crate) terminal_context_id: String,
+}
+
+#[derive(Debug)]
+pub(crate) struct PanelProcessInfoDoc {
+    pub(crate) terminal: TerminalRow,
+    pub(crate) info: orchbee_terminal_protocol::TerminalProcessInfo,
 }
 
 /// `terminal get` v3: the Server's point-in-time join — the current routing
@@ -984,6 +991,7 @@ pub(crate) enum Projection {
     TabGet(TabDoc),
     PanelList(Vec<PanelRow>),
     PanelGet(PanelDoc),
+    PanelProcessInfo(PanelProcessInfoDoc),
     TerminalList(Vec<TerminalRow>),
     TerminalGet(TerminalGetDoc),
     TerminalRead(TerminalReadDoc),
@@ -1191,6 +1199,19 @@ impl Projection {
                         })
                     })
                     .collect::<Vec<_>>(),
+            }),
+            Self::PanelProcessInfo(doc) => json!({
+                "terminal": terminal_row_json(&doc.terminal),
+                "scope": "windows-job",
+                "rootPid": doc.info.root_pid,
+                "processes": doc.info.processes.iter().map(|process| json!({
+                    "pid": process.pid,
+                    "parentPid": process.parent_pid,
+                    "creationTime": process.creation_time.to_string(),
+                    "image": process.image,
+                    "commandLine": process.command_line,
+                    "currentDirectory": process.current_directory,
+                })).collect::<Vec<_>>(),
             }),
             Self::PanelGet(doc) => json!({
                 "panel": {
@@ -1938,7 +1959,8 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
         // check` never reach a snapshot projection, and Agent reads are
         // answered by the OBAP exchange, never a snapshot projection.
         // `launch-profile list`/`get` ride their own typed catalog read.
-        QueryCommand::PanelCurrent(None)
+        QueryCommand::PanelProcessInfo(_)
+        | QueryCommand::PanelCurrent(None)
         | QueryCommand::AgentList { .. }
         | QueryCommand::AgentGet(_)
         | QueryCommand::AgentRead { .. }

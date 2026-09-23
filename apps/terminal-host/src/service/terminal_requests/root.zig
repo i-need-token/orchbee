@@ -30,6 +30,7 @@ pub fn dispatch(
     const success = try host_response.requireControlJsonSuccess(success_response);
     var handler: Handler = .{ .context = context, .success = success };
     switch (operation) {
+        .read_process_info => try handler.handleReadProcessInfo(connection_id, envelope, correlation_id, outgoing),
         .ping => try handler.handlePing(envelope, correlation_id, outgoing),
         .list_terminals => try handler.handleList(envelope, correlation_id, outgoing),
         .create_terminal => try handler.handleCreate(connection_id, envelope, correlation_id, outgoing),
@@ -69,6 +70,7 @@ pub fn dispatch(
 }
 
 const Handler = struct {
+    const handleReadProcessInfo = @import("processes.zig").handleReadProcessInfo;
     context: *Context,
     success: host_response.ControlJsonSuccess,
 

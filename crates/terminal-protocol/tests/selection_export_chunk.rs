@@ -10,7 +10,7 @@ use orchbee_terminal_protocol::{
 };
 
 const FIXTURE: &[u8] = include_bytes!(
-    "../../../packages/terminal-protocol/fixtures/selection-export-chunk-v0.0.24.bin"
+    "../../../packages/terminal-protocol/fixtures/selection-export-chunk-v0.0.25.bin"
 );
 
 #[test]

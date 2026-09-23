@@ -626,6 +626,14 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
                 }
             }
         }
+        QueryCommand::PanelProcessInfo(target) => {
+            match query::panel_process_info(target.as_ref()) {
+                Err(failure) => failure_output(failure, Some(format), locale),
+                Ok((source, projection)) => {
+                    success_output(projection, source, &command, format, locale)
+                }
+            }
+        }
         QueryCommand::PanelCurrent(target) => {
             match caller_context::read(
                 target.as_ref(),

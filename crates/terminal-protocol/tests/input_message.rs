@@ -9,9 +9,9 @@ use orchbee_terminal_protocol::{
 use serde_json::Value;
 
 const CONTROL_FIXTURE: &str =
-    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.24.json");
+    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.25.json");
 const WRITE_INPUT_FIXTURE: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/write-input-v0.0.24.bin");
+    include_bytes!("../../../packages/terminal-protocol/fixtures/write-input-v0.0.25.bin");
 
 #[test]
 fn canonical_input_messages_decode_and_reencode_byte_for_byte() -> Result<(), Box<dyn Error>> {

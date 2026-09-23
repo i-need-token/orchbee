@@ -68,4 +68,5 @@ pub const MessageKind = struct {
     pub const terminal_control_accepted: u16 = 76;
     pub const apply_terminal_theme: u16 = 77;
     pub const terminal_theme_result: u16 = 78;
+    pub const read_process_info: u16 = 79;
 };

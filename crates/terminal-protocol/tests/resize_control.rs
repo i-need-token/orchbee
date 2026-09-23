@@ -8,7 +8,7 @@ use orchbee_terminal_protocol::{
 use serde_json::Value;
 
 const CONTROL_FIXTURE: &str =
-    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.24.json");
+    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.25.json");
 
 #[test]
 fn canonical_resize_payloads_decode_and_reencode_byte_for_byte() -> Result<(), Box<dyn Error>> {

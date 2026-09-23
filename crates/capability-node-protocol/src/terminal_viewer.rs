@@ -89,6 +89,7 @@ pub enum TerminalViewerAction {
         terminal_id: HostTerminalId,
     },
     Poll,
+    ReadProcessInfo,
     FrameApplied {
         sequence: NonZeroU64,
         generation: NonZeroU64,

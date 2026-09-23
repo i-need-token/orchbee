@@ -198,6 +198,7 @@ pub(crate) enum CommandPath {
     PanelList,
     PanelCurrent,
     PanelGet,
+    PanelProcessInfo,
     PanelSplit,
     PanelClose,
     PanelMove,
@@ -261,6 +262,7 @@ impl CommandPath {
             Self::PanelList => "panel list",
             Self::PanelCurrent => "panel current",
             Self::PanelGet => "panel get",
+            Self::PanelProcessInfo => "panel process-info",
             Self::PanelSplit => "panel split",
             Self::PanelClose => "panel close",
             Self::PanelMove => "panel move",
@@ -423,6 +425,7 @@ pub(crate) enum QueryCommand {
     },
     PanelCurrent(Option<Target>),
     PanelGet(Target),
+    PanelProcessInfo(Option<Target>),
     TerminalList,
     TerminalGet(Target),
     TerminalRead {
@@ -2492,6 +2495,40 @@ fn resolve_words(
                 .transpose()?;
             Ok(query(QueryCommand::PanelList { tab }, options))
         }
+        ["panel", "process-info", operands @ ..] => {
+            let context = UsageContext::Path("panel process-info");
+            check_scope(options, PANEL_CURRENT_SCOPE, context, envelope)?;
+            if let [_, extra, ..] = operands {
+                return Err(unexpected_argument(context, extra, envelope));
+            }
+            if (options.panel.is_some() && options.current)
+                || (!operands.is_empty() && (options.panel.is_some() || options.current))
+            {
+                return Err(usage_with(
+                    UsageReason::ConflictingOptions {
+                        context,
+                        first: if operands.is_empty() {
+                            "--panel"
+                        } else {
+                            "panel-id"
+                        },
+                        second: if options.current {
+                            "--current"
+                        } else {
+                            "--panel"
+                        },
+                    },
+                    envelope,
+                ));
+            }
+            let panel = operands
+                .first()
+                .map(|value| (*value).to_owned())
+                .or_else(|| options.panel.clone())
+                .map(|value| target(value, Resource::Panel, envelope))
+                .transpose()?;
+            Ok(query(QueryCommand::PanelProcessInfo(panel), options))
+        }
         ["panel", "current"] => {
             let context = UsageContext::Path("panel current");
             check_scope(options, PANEL_CURRENT_SCOPE, context, envelope)?;
@@ -3280,6 +3317,7 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["panel", "list"] => HelpTopic::Command(CommandPath::PanelList),
         ["panel", "current"] => HelpTopic::Command(CommandPath::PanelCurrent),
         ["panel", "get"] => HelpTopic::Command(CommandPath::PanelGet),
+        ["panel", "process-info"] => HelpTopic::Command(CommandPath::PanelProcessInfo),
         ["panel", "split"] => HelpTopic::Command(CommandPath::PanelSplit),
         ["panel", "close"] => HelpTopic::Command(CommandPath::PanelClose),
         ["panel", "move"] => HelpTopic::Command(CommandPath::PanelMove),

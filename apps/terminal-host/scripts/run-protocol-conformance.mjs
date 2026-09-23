@@ -9,26 +9,26 @@ const projectionFixture =
 const packedProjectionConformanceFixture =
 	require.resolve('@orchbee/terminal-protocol/fixtures/packed-projection-conformance-v0.0.3.json');
 const envelopeFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/transport-envelope-v0.0.24.bin');
-const inputFixture = require.resolve('@orchbee/terminal-protocol/fixtures/write-input-v0.0.24.bin');
+	require.resolve('@orchbee/terminal-protocol/fixtures/transport-envelope-v0.0.25.bin');
+const inputFixture = require.resolve('@orchbee/terminal-protocol/fixtures/write-input-v0.0.25.bin');
 const keyInputFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/key-input-v0.0.24.bin');
+	require.resolve('@orchbee/terminal-protocol/fixtures/key-input-v0.0.25.bin');
 const textInputFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/text-input-v0.0.24.bin');
+	require.resolve('@orchbee/terminal-protocol/fixtures/text-input-v0.0.25.bin');
 const mouseInputFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/mouse-input-v0.0.24.bin');
+	require.resolve('@orchbee/terminal-protocol/fixtures/mouse-input-v0.0.25.bin');
 const focusInputFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/focus-input-v0.0.24.bin');
+	require.resolve('@orchbee/terminal-protocol/fixtures/focus-input-v0.0.25.bin');
 const pasteInputFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/paste-input-v0.0.24.bin');
+	require.resolve('@orchbee/terminal-protocol/fixtures/paste-input-v0.0.25.bin');
 const pasteAutoInputFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/paste-auto-input-v0.0.24.bin');
+	require.resolve('@orchbee/terminal-protocol/fixtures/paste-auto-input-v0.0.25.bin');
 const terminalFailedFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/terminal-failed-v0.0.24.json');
+	require.resolve('@orchbee/terminal-protocol/fixtures/terminal-failed-v0.0.25.json');
 const controlFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/control-conformance-v0.0.24.json');
+	require.resolve('@orchbee/terminal-protocol/fixtures/control-conformance-v0.0.25.json');
 const utf8BomFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/utf8-bom-conformance-v0.0.24.json');
+	require.resolve('@orchbee/terminal-protocol/fixtures/utf8-bom-conformance-v0.0.25.json');
 const rowWindowFixture =
 	require.resolve('@orchbee/terminal-protocol/fixtures/terminal-row-window-v0.0.3.bin');
 

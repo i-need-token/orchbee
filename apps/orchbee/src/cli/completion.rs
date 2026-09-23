@@ -161,7 +161,15 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     ("config", &["check"]),
     (
         "panel",
-        &["close", "current", "get", "list", "move", "split"],
+        &[
+            "close",
+            "current",
+            "get",
+            "list",
+            "move",
+            "process-info",
+            "split",
+        ],
     ),
     ("project", &["create", "get", "list", "rename"]),
     ("site", &["diagnose", "start"]),
@@ -365,6 +373,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("tab:move", &["--direction"]),
     ("tab:close", &["--confirm"]),
     ("panel:current", &["--panel", "--current"]),
+    ("panel:process-info", &["--panel", "--current"]),
     ("panel:list", &["--tab"]),
     (
         "panel:split",
@@ -486,6 +495,7 @@ const OPERAND_PATHS: &[&str] = &[
     "launch-profile:get",
     "panel:close",
     "panel:get",
+    "panel:process-info",
     "panel:move",
     "panel:split",
     "project:get",
@@ -544,7 +554,15 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     ("config", &["check"]),
     (
         "panel",
-        &["close", "current", "get", "list", "move", "split"],
+        &[
+            "close",
+            "current",
+            "get",
+            "list",
+            "move",
+            "process-info",
+            "split",
+        ],
     ),
     ("project", &["create", "get", "list", "rename"]),
     ("site", &["diagnose", "start"]),
@@ -907,8 +925,8 @@ fn after_flag_cases_bash() -> String {
         .map(|flag| {
             let patterns = flag_admission_patterns(flag, "|", false);
             match *flag {
-                "--panel" => format!("                            {patterns}) ((seen_current)) && done=1 ;;"),
-                "--current" => format!("                            {patterns}) ((seen_panel)) && done=1 ;;"),
+                "--panel" => format!("                            {patterns}) if ((seen_current)) || [[ $family:$sub == panel:process-info && $state == operand ]]; then done=1; fi ;;"),
+                "--current" => format!("                            {patterns}) if ((seen_panel)) || [[ $family:$sub == panel:process-info && $state == operand ]]; then done=1; fi ;;"),
                 "--workspace" => {
                     format!(
                         "                            {patterns}) ((seen_standalone)) && done=1 ;;"
@@ -977,7 +995,7 @@ fn scope_cases_bash() -> String {
                 // `--profile`/explicit-launch pair is exclusive on the two
                 // profile-selecting commands.
                 let mut exclusive = String::new();
-                if command == "panel:current" {
+                if matches!(command.as_str(), "panel:current" | "panel:process-info") {
                     exclusive.push_str("((seen_panel && seen_current)) && done=1\n                                        ");
                 }
                 if *family == "tab" {
@@ -1012,7 +1030,7 @@ fn verb_cases_bash() -> String {
                 .map(|(index, verb)| {
                     let command = format!("{family}:{verb}");
                     let allowed = command_flags(&command).join(" ");
-                    let guard = if command == "panel:current" {
+                    let guard = if matches!(command.as_str(), "panel:current" | "panel:process-info") {
                         " && ((!seen_panel || !seen_current))"
                     } else if command == "tab:create" {
                         " && ((!seen_workspace || !seen_standalone)) && ((!seen_profile || (!seen_exec && !seen_arg)))"
@@ -1132,7 +1150,9 @@ fn extras_cases_bash() -> String {
                         "--provider" | "--asset-root" | "--until" => "0".to_owned(),
                         _ => flag_bit(flag).to_owned(),
                     };
-                    format!("                (({cond})) || extras=\"$extras {flag}\"")
+                    if *command == "panel:process-info" && matches!(*flag, "--panel" | "--current") {
+                        format!("                [[ $state != operand ]] && (( !({cond}) )) && extras=\"$extras {flag}\"")
+                    } else { format!("                (({cond})) || extras=\"$extras {flag}\"") }
                 })
                 .collect::<Vec<_>>()
                 .join("\n");
@@ -1423,6 +1443,7 @@ fn bash() -> String {
             "                        esac ;;\n",
             "                    after)\n",
             "                        case \"$family:$sub\" in\n",
+            "                            panel:process-info) if ((seen_panel || seen_current)); then done=1; else state=operand; fi ;;\n",
             "                            {operand_paths}) state=operand ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
@@ -1772,6 +1793,7 @@ fn zsh() -> String {
             "                        esac ;;\n",
             "                    after)\n",
             "                        case \"$family:$sub\" in\n",
+            "                            panel:process-info) if ((seen_panel || seen_current)); then done=1; else state=operand; fi ;;\n",
             "                            {operand_paths}) state=operand ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
@@ -2021,8 +2043,8 @@ fn after_flag_cases_fish() -> String {
         .map(|flag| {
             let patterns = flag_admission_patterns(flag, " ", true);
             match *flag {
-                "--panel" => format!("                            case {patterns}; if test $seen_current -eq 1; set done 1; end"),
-                "--current" => format!("                            case {patterns}; if test $seen_panel -eq 1; set done 1; end"),
+                "--panel" => format!("                            case {patterns}; if test $seen_current -eq 1; or begin; test \"$family:$sub\" = panel:process-info; and test $state = operand; end; set done 1; end"),
+                "--current" => format!("                            case {patterns}; if test $seen_panel -eq 1; or begin; test \"$family:$sub\" = panel:process-info; and test $state = operand; end; set done 1; end"),
                 "--workspace" => {
                     format!("                            case {patterns}; if test $seen_standalone -eq 1; set done 1; end")
                 }
@@ -2066,7 +2088,7 @@ fn scope_cases_fish() -> String {
             verbs.iter().map(move |verb| {
                 let command = format!("{family}:{verb}");
                 let allowed = command_flags(&command).join(" ");
-                let exclusive = if command == "panel:current" {
+                let exclusive = if matches!(command.as_str(), "panel:current" | "panel:process-info") {
                     "\n                                        if test $seen_panel -eq 1 -a $seen_current -eq 1; set done 1; end".to_owned()
                 } else if *family == "tab" {
                     "\n                                        if test $seen_workspace -eq 1 -a $seen_standalone -eq 1; set done 1; end".to_owned()
@@ -2102,7 +2124,7 @@ fn verb_cases_fish() -> String {
                     // The exclusive pair must not both be seen for a tab verb
                     // to remain viable; `send` dies once `--key` stands next
                     // to a text payload bit.
-                    if command == "panel:current" {
+                    if matches!(command.as_str(), "panel:current" | "panel:process-info") {
                         format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test $seen_panel -eq 0 -o $seen_current -eq 0; set -a verbs {verb}; end\n                end")
                     } else if command == "tab:create" {
                         format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test $seen_workspace -eq 0 -o $seen_standalone -eq 0\n                        if test $seen_profile -eq 0 -o $seen_exec -eq 0\n                            if test $seen_profile -eq 0 -o $seen_arg -eq 0; set -a verbs {verb}; end\n                        end\n                    end\n                end")
@@ -2211,7 +2233,9 @@ fn extras_cases_fish() -> String {
                         "--provider" | "--asset-root" | "--until" => "0 -eq 0".to_owned(),
                         _ => format!("${} -eq 0", flag_bit(flag)),
                     };
-                    format!("                if test {cond}; set -a candidates {flag}; end")
+                    if *command == "panel:process-info" && matches!(*flag, "--panel" | "--current") {
+                        format!("                if test $state != operand; and test {cond}; set -a candidates {flag}; end")
+                    } else { format!("                if test {cond}; set -a candidates {flag}; end") }
                 })
                 .collect::<Vec<_>>()
                 .join("\n");
@@ -2488,6 +2512,7 @@ fn fish() -> String {
             "                        end\n",
             "                    case after\n",
             "                        switch \"$family:$sub\"\n",
+            "                            case panel:process-info; if test $seen_panel -eq 1 -o $seen_current -eq 1; set done 1; else; set state operand; end\n",
             "                            case {operand_paths}; set state operand\n",
             "                            case '*'; set done 1\n",
             "                        end\n",

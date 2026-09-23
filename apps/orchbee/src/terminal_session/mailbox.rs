@@ -3036,6 +3036,13 @@ impl CommandMailbox {
         loop {
             Self::ensure_open(&state).map_err(EventError::Closed)?;
             if matches!(&state.event, EventCell::Reply(current, _) if current == wait_key) {
+                #[cfg(test)]
+                if self.ui_reply_resume_checkpoint.load(Ordering::SeqCst) == 1 {
+                    drop(state);
+                    self.stop_at_ui_reply_resume_checkpoint();
+                    (state, observed_at) = self.lock_with_fresh_sample(clock);
+                    continue;
+                }
                 return self
                     .take_deposited_reply_locked(&mut state, wait_key)
                     .map_err(EventError::Closed);
@@ -3085,14 +3092,7 @@ impl CommandMailbox {
                 .unwrap_or(deadline)
                 .saturating_duration_since(observed_at);
             let (next, _timed_out) = self.wait_timeout(state, remaining.min(CONDITION_WAIT_SLICE));
-            #[cfg(test)]
-            let exact_reply_deposited =
-                matches!(&next.event, EventCell::Reply(current, _) if current == wait_key);
             drop(next);
-            #[cfg(test)]
-            if exact_reply_deposited {
-                self.stop_at_ui_reply_resume_checkpoint();
-            }
             (state, observed_at) = self.lock_with_fresh_sample(clock);
             #[cfg(test)]
             if self.ui_reply_await_sample_checkpoint.load(Ordering::SeqCst) == 1 {
@@ -3111,6 +3111,13 @@ impl CommandMailbox {
         loop {
             Self::ensure_open(&state)?;
             if matches!(&state.event, EventCell::Reply(current, _) if current == wait_key) {
+                #[cfg(test)]
+                if self.ui_reply_resume_checkpoint.load(Ordering::SeqCst) == 1 {
+                    drop(state);
+                    self.stop_at_ui_reply_resume_checkpoint();
+                    state = self.lock();
+                    continue;
+                }
                 return self.take_deposited_reply_locked(&mut state, wait_key);
             }
             let exact_pending = matches!(&state.event, EventCell::AwaitingUi(current) if current == wait_key)
@@ -3123,12 +3130,6 @@ impl CommandMailbox {
                 return Err(self.close_locked(&mut state, CarrierFailure::Protocol));
             }
             state = self.wait(state);
-            #[cfg(test)]
-            if matches!(&state.event, EventCell::Reply(current, _) if current == wait_key) {
-                drop(state);
-                self.stop_at_ui_reply_resume_checkpoint();
-                state = self.lock();
-            }
         }
     }
 
@@ -3752,6 +3753,8 @@ impl CommandMailbox {
     }
 
     #[cfg(test)]
+    /// Park before consuming an exact reply, whether it preceded the await or
+    /// woke a condition waiter. Always release the mutex and revalidate after it.
     pub(super) fn pause_next_ui_reply_resume_for_test(&self) -> WorkerResumeCheckpoint<'_> {
         Self::arm_resume_checkpoint(&self.ui_reply_resume_checkpoint)
     }

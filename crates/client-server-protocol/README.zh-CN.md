@@ -227,3 +227,7 @@ UTF-8 字节，名称为 1..128 字节的 ASCII 标识符，不含 NUL，不允�
 v2 schema/corpus 覆盖 launch selection、environment、profile provenance、send sequence progress 及全部五类 OBSN input record。Conformance 验证独立编写的 canonical bytes 与 negative case。这证明原生 OBCS 一致性，不代表 Desktop 或 Workbench schema 对齐。
 
 原生 v2 帧在分配前限制为 48 KiB。组合最大转义 cwd、executable/argv 与环境的测试覆盖请求预算；旧 32 KiB 上限无法容纳该合法组合。
+
+## 终端进程读取（未发布）
+
+`TerminalViewerAction::ReadProcessInfo`（`read-process-info`）仅携带既有 `attachmentId`。它使用当前 viewer 授权，以 record 结果返回原样、相关联的 Host kind-79 进程样本或 kind-5 typed failure。Server 验证 Host epoch、请求关联、attachment 及物理终端身份，绝不用启动参数替代当前进程事实。原生 `panel process-info` 消费者解释 Host 的类型化结果。读取不创建 controller、输入或 resize 授权，不推进帧反馈，也不把缺失或变化中的进程观察转换为空成功。沿用既有会话期限与临时 viewer 回收规则，要求同一开发版本整体部署。

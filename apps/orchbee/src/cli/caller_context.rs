@@ -14,6 +14,31 @@ struct Caller {
     worker: WorkerId,
 }
 
+pub(super) struct PanelTarget(PanelTargetKind);
+enum PanelTargetKind {
+    Explicit(Target),
+    Caller(Caller),
+}
+
+impl PanelTarget {
+    pub(super) fn prepare(
+        explicit: Option<&Target>,
+        environment: impl FnMut(&str) -> Option<OsString>,
+    ) -> Result<Self, Failure> {
+        match explicit {
+            Some(target) => Ok(Self(PanelTargetKind::Explicit(target.clone()))),
+            None => Caller::read(environment).map(|caller| Self(PanelTargetKind::Caller(caller))),
+        }
+    }
+
+    pub(super) fn resolve(self, snapshot: &Snapshot) -> Result<Target, Failure> {
+        match self.0 {
+            PanelTargetKind::Explicit(target) => Ok(target),
+            PanelTargetKind::Caller(caller) => caller.panel(snapshot),
+        }
+    }
+}
+
 impl Caller {
     fn read(mut environment: impl FnMut(&str) -> Option<OsString>) -> Result<Self, Failure> {
         let terminal = environment("ORCHBEE_TERMINAL_ID").ok_or_else(invalid_context)?;
@@ -60,19 +85,12 @@ pub(super) fn read(
 ) -> Result<(Value, results::Projection), Failure> {
     // Explicit mode never consults caller state. Missing/invalid caller state
     // fails before the runtime capability can be invoked.
-    let caller = explicit
-        .is_none()
-        .then(|| Caller::read(environment))
-        .transpose()?;
+    let caller = PanelTarget::prepare(explicit, environment)?;
     let snapshot = snapshot()?;
     let source = results::snapshot_source(&snapshot);
-    let target = match (explicit, caller) {
-        (Some(target), _) => target.clone(),
-        (None, Some(caller)) => caller
-            .panel(&snapshot)
-            .map_err(|error| error.source(source.clone()))?,
-        (None, None) => return Err(Failure::new(FailureKind::InternalFailure)),
-    };
+    let target = caller
+        .resolve(&snapshot)
+        .map_err(|error| error.source(source.clone()))?;
     results::project(&QueryCommand::PanelGet(target), &snapshot)
         .map(|projection| (source.clone(), projection))
         .map_err(|error| error.source(source))

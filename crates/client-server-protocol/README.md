@@ -249,3 +249,7 @@ overlay, participates in request identity. The Server converts it to the indepen
 The v2 schema/corpus covers launch selection, environment, profile provenance, send sequence progress and all five OBSN input record kinds. Conformance verifies independently authored canonical bytes and negative cases. This establishes native OBCS agreement, not Desktop or Workbench schema parity.
 
 Native v2 frames are bounded at 48 KiB before allocation. A combined maximum escaped cwd, executable/argv and environment test covers the request budget; the older 32 KiB bound cannot contain that valid combination.
+
+## Terminal process reads (unpublished)
+
+`TerminalViewerAction::ReadProcessInfo` (`read-process-info`) carries only the existing `attachmentId`. It uses the current viewer grant and returns an unchanged, correlated Host kind-79 process sample or kind-5 typed failure in a record outcome. Server validates Host epoch, request correlation, attachment and physical terminal identity; it never supplies launch parameters as current process facts. The native `panel process-info` consumer interprets the typed Host result. This read creates no controller, input or resize grant, does not advance frame feedback, and never converts missing or changed process observations to empty success. Existing session deadlines and transient-viewer cleanup apply. Same-development-cohort deployment is required.

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import {
+	TerminalProcessInfoSchema,
 	TerminalThemeResultSchema,
 	AttachmentAcknowledgedSchema,
 	AttachmentCapabilitiesSchema,
@@ -675,6 +676,12 @@ function createControlConformanceFixture() {
 			{ ...attachment, sequence: '5' },
 			'HistoryObserved',
 		),
+		read_process_info: controlRequestText(
+			MessageKind.readProcessInfo,
+			{ attachmentId },
+			'ReadProcessInfo',
+		),
+
 		list_terminals: controlRequestText(
 			MessageKind.listTerminals,
 			{
@@ -1115,6 +1122,26 @@ function createControlConformanceFixture() {
 			'TerminalFailed',
 		),
 		terminal_identity: controlText(TerminalIdentitySchema, identity, 'TerminalIdentity'),
+		process_info: controlText(
+			TerminalProcessInfoSchema,
+			{
+				attachmentId,
+				terminalId,
+				kind: 'windows-job',
+				rootPid: 41,
+				processes: [
+					{
+						pid: 41,
+						parentPid: 17,
+						creationTime: '133999999999999999',
+						image: 'C:\\Windows\\System32\\cmd.exe',
+						commandLine: 'cmd /C echo 中文 😀',
+						currentDirectory: null,
+					},
+				],
+			},
+			'ReadProcessInfo response',
+		),
 		terminal_list: controlText(
 			TerminalListSchema,
 			{ inventoryGeneration: '9', nextCursor: null, terminals: terminalSummaries },

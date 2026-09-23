@@ -33,7 +33,7 @@ pub const terminal_row_window_format_patch: u8 = 3;
 pub const transport_envelope_header_bytes = 64;
 pub const current_protocol_major: u16 = 0;
 pub const current_protocol_minor: u16 = 0;
-pub const current_protocol_patch: u16 = 24;
+pub const current_protocol_patch: u16 = 25;
 
 pub const Limits = struct {
     pub const cell_pixel_dimension = 4096;
@@ -111,6 +111,7 @@ pub const PayloadEncoding = enum(u8) {
 /// Native dispatch operation owned by the protocol adapter. It is not a wire
 /// field; it makes Host request coverage exhaustive when the registry grows.
 pub const RequestOperation = enum {
+    read_process_info,
     apply_terminal_theme,
     attach_terminal,
     claim_resize_lease,
@@ -212,6 +213,7 @@ pub fn messageContract(kind: u16) ?MessageContract {
         M.protocol_rejected => responseOnly("ProtocolRejected", .control_json),
         M.ping => requestAndResponse("Ping", .ping, .control_json, M.ping, .control_json),
         M.typed_failure => responseOnly("TypedFailure", .control_json),
+        M.read_process_info => requestAndResponse("ReadProcessInfo", .read_process_info, .control_json, M.read_process_info, .control_json),
         M.list_terminals => requestAndResponse(
             "ListTerminals",
             .list_terminals,

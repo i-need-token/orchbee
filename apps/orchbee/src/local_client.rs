@@ -369,6 +369,9 @@ impl LocalClient {
                     | TerminalViewerAction::NeedSnapshot { .. },
                 TerminalViewerOutcome::FeedbackAccepted {}
             ) | (
+                TerminalViewerAction::ReadProcessInfo { .. },
+                TerminalViewerOutcome::Record(_)
+            ) | (
                 TerminalViewerAction::ReadRows { .. }
                     | TerminalViewerAction::ReadViewportRows { .. },
                 TerminalViewerOutcome::Record(_) | TerminalViewerOutcome::RowsRejected { .. }

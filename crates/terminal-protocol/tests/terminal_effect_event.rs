@@ -12,7 +12,7 @@ use orchbee_terminal_protocol::{
 use serde_json::Value;
 
 const CONTROL_FIXTURE: &str =
-    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.24.json");
+    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.25.json");
 const METADATA_EXAMPLE: &str = concat!(
     "{\"currentDirectory\":\"file://orchbee-host/workspace\",\"identity\":{",
     "\"creationId\":\"11111111111111111111111111111111\",",

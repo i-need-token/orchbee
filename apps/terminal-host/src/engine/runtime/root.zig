@@ -1,5 +1,6 @@
 const contracts = @import("contracts.zig");
 const handle = @import("handle.zig");
+pub const ProcessSample = @import("terminal-host-platform").process.ProcessSample;
 
 pub const pending_input_capacity_bytes = contracts.pending_input_capacity_bytes;
 pub const max_pending_application_signals = contracts.max_pending_application_signals;

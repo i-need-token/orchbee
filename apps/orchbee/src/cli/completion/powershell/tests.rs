@@ -8,6 +8,30 @@ use std::{
 #[test]
 fn real_powershell_completes_scoped_grammar_without_runtime() {
     let cases = [
+        ("orchbee panel ", "process-info", true),
+        ("orchbee panel process-info --p", "--panel", true),
+        ("orchbee panel process-info --current --p", "--panel", false),
+        (
+            "orchbee panel process-info '@panel:222' --c",
+            "--current",
+            false,
+        ),
+        (
+            "orchbee panel process-info '@panel:222' --p",
+            "--panel",
+            false,
+        ),
+        (
+            "orchbee panel process-info '@panel:222' --f",
+            "--format",
+            true,
+        ),
+        (
+            "orchbee panel process-info --current '@panel:222' --f",
+            "--format",
+            false,
+        ),
+        ("orchbee help panel ", "process-info", true),
         ("orchbee agent get --p", "--panel", true),
         (
             "orchbee agent get --panel '@panel:222' --n",

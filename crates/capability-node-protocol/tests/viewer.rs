@@ -12,6 +12,7 @@ fn viewer_controls_round_trip_every_closed_action_and_outcome() -> TestResult {
             terminal_id: HostTerminalId::from_bytes([4; 16])?,
         },
         TerminalViewerAction::Poll,
+        TerminalViewerAction::ReadProcessInfo,
         TerminalViewerAction::FrameApplied {
             sequence: NonZeroU64::MIN,
             generation: NonZeroU64::MIN,
@@ -503,7 +504,7 @@ fn history_viewport_actions_reject_out_of_bounds_and_unknown_values() -> TestRes
 
     let mut unknown_action =
         encode_message(&CapabilityNodeMessage::TerminalViewerRequest(request))?;
-    unknown_action[65] = 12;
+    unknown_action[65] = 13;
     assert!(decode_message(&unknown_action).is_err());
     Ok(())
 }

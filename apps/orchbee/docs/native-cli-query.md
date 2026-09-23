@@ -29,7 +29,7 @@ Site runtime is disposed. Restarting a Site starts with an empty alias table.
 All three commands admit `--format text|json`. The embedded success schemas are
 `orchbee.agent.names`, `orchbee.agent.resolve`, and `orchbee.agent.rename`, version 1;
 post-admission failures use `orchbee.cli.failure.agent-names`, version 1. Presentation resolution and ambiguous-target failures use version 2; earlier outcomes keep version 1. Correlated
-semantic answers carry an `agent-names` source with the OBAP request ID. These four documents are included in schema catalog version 14, alongside the prompt contracts. Invalid names or conflicting selectors
+semantic answers carry an `agent-names` source with the OBAP request ID. These four documents are included in schema catalog version 15, alongside the prompt contracts. Invalid names or conflicting selectors
 fail with exit 2 before any runtime access. A collision is exit 3 and identifies the
 incumbent session; it never overwrites that session's name.
 
@@ -126,7 +126,7 @@ own turn. Polling can miss transitions and does not claim Herdr event replay.
 
 On Windows, canonical provider `codex` uses one ordered paste, Right, Enter sequence. Right is a non-character boundary that flushes Codex's paste-burst buffer and clears its Enter suppression window. It neither embeds escape bytes in prompt text nor guesses delivery speed with a fixed delay. Other providers retain paste, Enter; ordinary `terminal send --paste --enter` adds no boundary key. Receipts report the actual three or two records. Stopping before Right or Enter reports only the accepted prefix, never retries the suffix and never starts observation. This boundary does not establish an empty composer, foreground ownership or provider readiness.
 
-Schema catalog version 14 contains 47 documents, including the prompt success and failure contracts.
+Schema catalog version 15 contains 49 documents, including the prompt success and failure contracts.
 
 `orchbee.agent.prompt` returns the session ID, the full terminal submission receipt,
 and optional matched observation/wait facts. Refused/partial/unknown send outcomes retain
@@ -1915,7 +1915,7 @@ invalid-context, stale-binding, child-Presentation and movement cases plus a rea
 Windows child-process witness. Desktop and global focus fallback remain excluded;
 TLA execution is deferred and is not claimed as evidence.
 
-The additive schema is registered in the closed `api schema` catalog version 14;
+The additive schema is registered in the closed `api schema` catalog version 15;
 other business document versions are unchanged.
 
 Windows Worker identities are fresh per Server connection, using the existing OS
@@ -1964,3 +1964,13 @@ attachments and atomic rename refusal. Windows process tests cover the shared ad
 ID/name precedence, pinned waits, pre-mutation read failures and exact terminal selection.
 Real Site/Worker/ConPTY evidence covers the integrated command path. These checks do not
 establish provider foreground ownership or readiness. TLA execution remains deferred.
+
+## Panel process information
+
+`panel process-info [<panel-id>] [--panel <panel-id> | --current]` reads the Windows Job of the Panel's primary Terminal. Positional and explicit Panel targets are exclusive; complete IDs and `@panel:<suffix>` use the existing Panel resolver. Without an explicit target, validate `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID` before admission, then derive the caller's Panel from one Workbench snapshot. Missing or stale caller context fails rather than guessing a focused client. The primary presentation must have a terminal binding; children are not fallback candidates.
+
+One existing-only Client Session and one absolute five-second budget cover snapshot, transient read-only viewer admission, one process read, and best-effort detach. Session drop owns remaining viewer cleanup. The Server revalidates Worker generation and physical terminal binding; Worker and Host retain process authority. Success publishes the exact typed Windows Job sample with Panel/Terminal routing context and correlated read provenance. The sequential snapshot and sample do not claim an atomic cross-owner observation. Host failures remain explicit, are never empty process success, and are not retried. Strings are escaped in text output; machine creation times remain decimal strings. The response describes owned processes, not a Windows foreground process group or Agent interactive readiness.
+
+The JSON envelope is `orchbee.panel.process-info` v1; the schema catalog and bilingual help/completion ship with the command. Evidence covers implicit and explicit targets, conflicts before I/O, primary-versus-child selection, absent primary bindings, denied reads, wrong response identities, preserved Host errors, bounded output, viewer cleanup, and the real Windows Site/Worker/Host process route. The shared typed read is also the actual dependency for subsequent Agent launch/readiness work; it does not close those obligations by itself.
+
+Expected Host refusals use `orchbee.cli.failure.process-info` v1 with the bounded failure code; invalid responses and transport failures retain the generic CLI failure contract. Successful `source` records snapshot revision, OBCS request ID, and Host correlation, epoch, attachment, and physical Terminal ID as distinct identities. Catalog version 15 contains 49 schemas.

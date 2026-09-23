@@ -32,6 +32,7 @@ import {
 import { isControlRequestKind, MessageKind } from './envelope';
 import type { MessageKind as MessageKindValue } from './envelope';
 import { ProtocolErrorCode, protocolFailure } from './protocol-result';
+import { ReadProcessInfoSchema } from './process-info';
 import type { ProtocolResult } from './protocol-result';
 
 /**
@@ -50,6 +51,8 @@ export function encodeControlRequest(
 		);
 	}
 	switch (kind) {
+		case MessageKind.readProcessInfo:
+			return encodeControlJson(value, ReadProcessInfoSchema);
 		case MessageKind.applyTerminalTheme:
 			return encodeControlJson(value, ApplyTerminalThemeSchema);
 		case MessageKind.hello:

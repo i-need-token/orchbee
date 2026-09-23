@@ -566,6 +566,13 @@ pub const MESSAGE_CONTRACTS: &[MessageContract] = &[
         None,
         Some(PayloadEncoding::ControlJson)
     ),
+    contract!(
+        79,
+        "ReadProcessInfo",
+        None,
+        Some(request(PayloadEncoding::ControlJson, 79)),
+        Some(PayloadEncoding::ControlJson)
+    ),
 ];
 
 #[must_use]

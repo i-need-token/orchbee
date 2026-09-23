@@ -1,4 +1,5 @@
 export const MessageKind = {
+	readProcessInfo: 79,
 	applyTerminalTheme: 77,
 	attachTerminal: 20,
 	attachmentCapabilities: 22,
@@ -101,6 +102,12 @@ const raw = PayloadEncoding.rawBytes;
  * its successful response kind, so producers do not repeat that association.
  */
 export const MESSAGE_CONTRACTS = {
+	[MessageKind.readProcessInfo]: {
+		eventEncoding: null,
+		name: 'ReadProcessInfo',
+		request: { payloadEncoding: control, successKind: MessageKind.readProcessInfo },
+		responseEncoding: control,
+	},
 	[MessageKind.hello]: {
 		eventEncoding: null,
 		name: 'Hello',

@@ -515,3 +515,7 @@ pnpm lint:projects
 ## Native Windows path refinement
 
 Absolute wire paths accept a POSIX leading slash or an ASCII drive letter followed by `:` and `/` or `\`, optionally prefixed by `\\?\` for a Windows verbatim drive path. This lexical rule is independent of the decoder platform; bytes are preserved without expansion or normalization. Backslash-rooted, drive-relative, UNC, and device paths are not admitted by this Windows increment. Existing byte bounds and NUL/Unicode validation remain unchanged. The execution owner still validates the path against its local filesystem before effects.
+
+## Terminal process reads (unpublished)
+
+Viewer action tag 12 is `ReadProcessInfo`, with no bytes after the tag; it uses the request's existing attachment ID. Worker requires that exact retained viewer and sends one Host `ReadProcessInfo` (OBTP kind 79) with a fresh correlation. The response is bounded to 64 KiB plus the envelope and returned unchanged as `Record`, including a well-formed correlated Host `TypedFailure`. An observed result must echo the exact attachment and physical terminal. Wrong Worker/generation, missing viewer, wrong Host epoch or invalid result fails through existing rejection/carrier outcomes. No process enumeration runs in Worker; Host remains the owner. A process read neither acknowledges a frame nor creates input authority. Existing action encodings remain unchanged; the development cohort must be updated together.

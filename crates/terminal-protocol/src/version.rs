@@ -8,5 +8,5 @@ pub struct ProtocolVersion {
 pub const CURRENT_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {
     major: 0,
     minor: 0,
-    patch: 24,
+    patch: 25,
 };

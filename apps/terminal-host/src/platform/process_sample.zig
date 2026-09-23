@@ -1,0 +1,33 @@
+const std = @import("std");
+
+pub const maximum_processes = 64;
+pub const maximum_text_code_units = 4096;
+pub const Error = error{ OutOfMemory, ProcessSampleUnavailable, ProcessSampleUnsupported, ProcessSampleChanged, ProcessSampleLimit };
+
+/// Owned diagnostic facts. No field grants foreground or input authority.
+pub const Process = struct {
+    pid: u32,
+    parent_pid: ?u32,
+    creation_time: u64,
+    image: ?[]const u8,
+    command_line: ?[]const u8,
+    current_directory: ?[]const u8,
+
+    pub fn deinit(self: Process, allocator: std.mem.Allocator) void {
+        if (self.image) |value| allocator.free(value);
+        if (self.command_line) |value| allocator.free(value);
+        if (self.current_directory) |value| allocator.free(value);
+    }
+};
+
+pub const Sample = struct {
+    allocator: std.mem.Allocator,
+    root_pid: u32,
+    processes: []Process,
+
+    pub fn deinit(self: *Sample) void {
+        for (self.processes) |process| process.deinit(self.allocator);
+        self.allocator.free(self.processes);
+        self.* = undefined;
+    }
+};

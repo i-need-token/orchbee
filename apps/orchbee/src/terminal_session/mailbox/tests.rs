@@ -1630,6 +1630,14 @@ fn refresh_generation_is_single_pending_and_moves_through_three_exact_stages() {
 
 #[test]
 fn deposited_refresh_reply_can_be_superseded_before_worker_reacquires_mailbox() {
+    for reply_first in [false, true] {
+        for bounded in [false, true] {
+            assert_refresh_reply_resume_window(reply_first, bounded);
+        }
+    }
+}
+
+fn assert_refresh_reply_resume_window(reply_first: bool, bounded: bool) {
     let base = Instant::now();
     let deadline = base + Duration::from_secs(50);
     let clock = FakeClock::new(base);
@@ -1668,11 +1676,26 @@ fn deposited_refresh_reply_can_be_superseded_before_worker_reacquires_mailbox() 
     let prepared = session.prepare_refresh(refresh_generation, WorkbenchSnapshotOutcome::Denied {});
     let checkpoint = mailbox.pause_next_ui_reply_resume_for_test();
     std::thread::scope(|scope| {
-        let worker = scope.spawn(|| {
-            let reply = mailbox.await_ui_reply(&wait).unwrap();
-            (reply, mailbox.execution_fence(&refresh_lease))
-        });
-        assert!(mailbox.await_condition_waiter_before(Instant::now() + Duration::from_secs(2)));
+        let spawn_worker = || {
+            scope.spawn(|| {
+                let reply = if bounded {
+                    mailbox
+                        .await_ui_reply_before_using(&wait, deadline, &clock)
+                        .unwrap()
+                } else {
+                    mailbox.await_ui_reply(&wait).unwrap()
+                };
+                (reply, mailbox.execution_fence(&refresh_lease))
+            })
+        };
+        let worker = if reply_first {
+            None
+        } else {
+            Some(spawn_worker())
+        };
+        if !reply_first {
+            assert!(mailbox.await_condition_waiter_before(Instant::now() + Duration::from_secs(2)));
+        }
         assert_eq!(
             mailbox
                 .deposit_ui_reply_before_using(&wait, &clock, |_| {
@@ -1688,6 +1711,7 @@ fn deposited_refresh_reply_can_be_superseded_before_worker_reacquires_mailbox() 
             MutationResult::Applied
         );
         assert_eq!(mailbox.pending_refresh_stage(), None);
+        let worker = worker.unwrap_or_else(spawn_worker);
         assert!(checkpoint.await_reached_before(Instant::now() + Duration::from_secs(2)));
         let admitted = mailbox
             .try_enqueue_switch_for(

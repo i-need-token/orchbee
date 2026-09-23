@@ -63,3 +63,5 @@ pub const writeSelectionChanged = interaction.writeSelectionChanged;
 pub const selectionExportStarted = interaction.selectionExportStarted;
 pub const selectionExportFinished = interaction.selectionExportFinished;
 pub const writeSelectionExportFinished = interaction.writeSelectionExportFinished;
+pub const processInfo = @import("encode_process.zig").processInfo;
+pub const writeProcessInfo = @import("encode_process.zig").writeProcessInfo;

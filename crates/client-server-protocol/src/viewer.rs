@@ -67,6 +67,9 @@ pub enum TerminalViewerAction {
     Poll {
         attachment_id: ViewerId,
     },
+    ReadProcessInfo {
+        attachment_id: ViewerId,
+    },
     FrameApplied {
         attachment_id: ViewerId,
         #[serde(with = "crate::number::positive_decimal")]
@@ -193,6 +196,7 @@ impl TerminalViewerAction {
         match self {
             Self::Attach { .. } | Self::AttachBinding { .. } => None,
             Self::Poll { attachment_id }
+            | Self::ReadProcessInfo { attachment_id }
             | Self::FrameApplied { attachment_id, .. }
             | Self::NeedSnapshot { attachment_id, .. }
             | Self::ReadRows { attachment_id, .. }

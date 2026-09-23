@@ -10,9 +10,9 @@ use orchbee_terminal_protocol::{
 use serde::Deserialize;
 
 const CONTROL_FIXTURE: &str =
-    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.24.json");
+    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.25.json");
 const ENVELOPE_FIXTURE: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/transport-envelope-v0.0.24.bin");
+    include_bytes!("../../../packages/terminal-protocol/fixtures/transport-envelope-v0.0.25.bin");
 const FRAME_FIXTURE: &[u8] =
     include_bytes!("../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin");
 

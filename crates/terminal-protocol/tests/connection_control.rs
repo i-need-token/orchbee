@@ -11,7 +11,7 @@ use orchbee_terminal_protocol::{
 use serde_json::Value;
 
 const CONTROL_FIXTURE: &str =
-    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.24.json");
+    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.25.json");
 
 #[test]
 fn every_canonical_connection_payload_decodes_and_reencodes_byte_for_byte()
@@ -218,7 +218,7 @@ fn identity_version_and_feature_boundaries_are_strict() -> Result<(), Box<dyn Er
     }
 
     let version_boundary = hello_payload.replacen(
-        "\"protocol\":{\"major\":0,\"minor\":0,\"patch\":24}",
+        "\"protocol\":{\"major\":0,\"minor\":0,\"patch\":25}",
         "\"protocol\":{\"major\":65535,\"minor\":65535,\"patch\":65535}",
         1,
     );

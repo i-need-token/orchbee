@@ -384,6 +384,7 @@ fn buildTextRowWindow(
 }
 
 const ControlCommandsFixture = struct {
+    read_process_info: []const u8,
     apply_terminal_theme: []const u8,
     attach_terminal: []const u8,
     claim_resize_lease: []const u8,
@@ -416,6 +417,7 @@ const ControlCommandsFixture = struct {
 };
 
 const ControlOutputsFixture = struct {
+    process_info: []const u8,
     attachment_acknowledged: []const u8,
     attachment_capabilities: []const u8,
     empty: []const u8,
@@ -1213,6 +1215,10 @@ test "every TypeScript control command fixture crosses the native typed decoder"
         defer decoded.deinit();
     }
     {
+        var decoded = try control_decode.decodeReadProcessInfo(allocator, commands.read_process_info);
+        defer decoded.deinit();
+    }
+    {
         var decoded = try control_decode.decodeListTerminals(allocator, commands.list_terminals);
         defer decoded.deinit();
     }
@@ -1438,6 +1444,19 @@ test "native control replies and events conform to TypeScript schemas" {
     const theme_operation_id = TestIdentifier{ .bytes = [_]u8{0x66} ** 16 };
     const other_theme_operation_id = TestIdentifier{ .bytes = [_]u8{0x77} ** 16 };
 
+    const process_row = .{
+        .pid = @as(u32, 41),
+        .parent_pid = @as(?u32, 17),
+        .creation_time = @as(u64, 133999999999999999),
+        .image = @as(?[]const u8, "C:\\Windows\\System32\\cmd.exe"),
+        .command_line = @as(?[]const u8, "cmd /C echo 中文 😀"),
+        .current_directory = @as(?[]const u8, null),
+    };
+    const process_rows = [_]@TypeOf(process_row){process_row};
+    try expectOwnedJson(allocator, outputs.process_info, try control_encode.processInfo(allocator, attachment_id, terminal_id, .{
+        .root_pid = @as(u32, 41),
+        .processes = &process_rows,
+    }));
     try expectJsonEquivalent(allocator, outputs.empty, control_encode.empty_control);
     try expectOwnedJson(allocator, outputs.protocol_rejected, try control_encode.protocolRejected(
         allocator,

@@ -1,4 +1,12 @@
 export {
+	MAXIMUM_PROCESS_SAMPLE_ROWS,
+	MAXIMUM_PROCESS_TEXT_UTF16_UNITS,
+	ReadProcessInfoSchema,
+	TerminalProcessInfoSchema,
+} from './process-info';
+export type { ReadProcessInfo, TerminalProcessInfo } from './process-info';
+
+export {
 	ApplyTerminalThemeSchema,
 	AttachTerminalSchema,
 	AttachmentAcknowledgedSchema,

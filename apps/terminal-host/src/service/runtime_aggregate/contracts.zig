@@ -19,6 +19,11 @@ pub const TerminalIdentity = struct {
     terminal_id: core_module.TerminalId,
 };
 
+pub const TerminalProcessSample = struct {
+    terminal_id: core_module.TerminalId,
+    sample: terminal_runtime.ProcessSample,
+};
+
 pub const TerminalExitNotice = host_runtime_maintenance.TerminalExitNotice;
 pub const TerminalFailureNotice = host_runtime_maintenance.TerminalFailureNotice;
 pub const TerminalOutcomeNotice = host_runtime_maintenance.TerminalOutcomeNotice;

@@ -53,6 +53,7 @@ pub const Dispatcher = struct {
         switch (request_contract.operation) {
             .hello => unreachable,
             .ping,
+            .read_process_info,
             .list_terminals,
             .create_terminal,
             .start_terminal,

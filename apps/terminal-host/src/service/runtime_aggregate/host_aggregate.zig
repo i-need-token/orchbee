@@ -136,5 +136,6 @@ pub const HostRuntimeAggregate = struct {
 
     // interaction-access boundary.
     pub const historyAccess = interaction_access.historyAccess;
+    pub const sampleTerminalProcesses = interaction_access.sampleTerminalProcesses;
     pub const selectionAccess = interaction_access.selectionAccess;
 };

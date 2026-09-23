@@ -24,6 +24,7 @@ pub(super) fn encode_request(value: TerminalViewerRequest) -> Vec<u8> {
             bytes.extend_from_slice(&terminal_id.as_bytes());
         }
         TerminalViewerAction::Poll => bytes.push(2),
+        TerminalViewerAction::ReadProcessInfo => bytes.push(12),
         TerminalViewerAction::FrameApplied {
             sequence,
             generation,
@@ -134,6 +135,7 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<TerminalViewerRequest, Prot
             terminal_id: crate::HostTerminalId::from_bytes(reader.read_array()?)?,
         },
         2 => TerminalViewerAction::Poll,
+        12 => TerminalViewerAction::ReadProcessInfo,
         3 => TerminalViewerAction::FrameApplied {
             sequence: positive(reader.read_u64()?)?,
             generation: positive(reader.read_u64()?)?,

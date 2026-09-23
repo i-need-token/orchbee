@@ -6,7 +6,7 @@
 | 线主         | `@orchbee/terminal-protocol`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | 本土消费者   | `apps/terminal-host` 使用声明的模式和夹具导出来实现有界本机调度和 Zig 一致性                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Rust binding | 尚未发布的独立 `crates/terminal-protocol` binding 镜像完整 message registry、固定 OBTP envelope、connection-control payload、kind-10 terminal-inventory control、kind 12-19 非创建 lifecycle control、kind 20-25 attachment control、kind-30/31 raw-input 交换、kind-32/33 resize-control 交换、kind 34-39 semantic-input request、kind-43/44 projection-feedback control、kind-45/50 row-access control、kind 47-49 projection demand、kind 51-54 history control、kind 55-58 terminal-effect event 表示、kind 60-62 selection control、kind 63-68 selection-export 表示，以及 kind 70-73 terminal-configuration control；尚未发布的 Rust Worker 只为现有 Host handshake 消费 envelope 与 connection-control 子集 |
-| 参考范围     | 精确协议 `0.0.24`；OBTF 格式 `0.0.3`；OBPB 格式 `0.0.2`；OBRW 格式 `0.0.3`；OBKG 格式 `0.0.2`；输入/选择编解码器；失败术语；边界；以及夹具                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 参考范围     | 精确协议 `0.0.25`；OBTF 格式 `0.0.3`；OBPB 格式 `0.0.2`；OBRW 格式 `0.0.3`；OBKG 格式 `0.0.2`；输入/选择编解码器；失败术语；边界；以及夹具                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | 变更规则     | 字段、消息语义、线协议字节、边界或夹具发生变化时，必须更新本文、两种语言实现、每个生产者/消费者及证据                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 ## 建模记录
@@ -39,7 +39,7 @@
 | `TerminalThemeOperationId` | 应用程序为一个终端主题比较和设置操作创建的幂等性身份                         |
 | `CorrelationId`            | `Hello` 之后的每个请求和响应都需要；全零信封字节意味着仅握手消息或事件不存在 |
 
-当前协议版本精确为 `0.0.24`。`Hello`、`HelloAccepted` 与每个传输信封都携带该精确版本。不同的主版本、次版本或补丁版本均被拒绝；该预发布契约不包含任何协商范围、兼容模式或历史消息结构。打包 OBTF 帧格式精确为 `0.0.3`；OBPB 投影缓冲区格式精确为 `0.0.2`；OBRW 行窗口格式精确为 `0.0.3`；OBKG 图形扩展格式精确为 `0.0.2`。对应解码器只接受这些精确格式。虽然这些契约的主版本为 `0`，仓库只保留当前尚未发布的契约，不为开发修订保留变更日志。首次公开发布时契约版本变为 `1.0.0`；此后每项外部可观察契约变化都要更新所属语义版本，并在 [`../docs/version-history.md`](../docs/version-history.md) 记录。Host 构建版本是用于标识可执行文件的独立语义版本；`HelloAccepted.hostVersion` 仅将其用于诊断，不要求构建版本与协议版本一同递增。
+当前协议版本精确为 `0.0.25`。`Hello`、`HelloAccepted` 与每个传输信封都携带该精确版本。不同的主版本、次版本或补丁版本均被拒绝；该预发布契约不包含任何协商范围、兼容模式或历史消息结构。打包 OBTF 帧格式精确为 `0.0.3`；OBPB 投影缓冲区格式精确为 `0.0.2`；OBRW 行窗口格式精确为 `0.0.3`；OBKG 图形扩展格式精确为 `0.0.2`。对应解码器只接受这些精确格式。虽然这些契约的主版本为 `0`，仓库只保留当前尚未发布的契约，不为开发修订保留变更日志。首次公开发布时契约版本变为 `1.0.0`；此后每项外部可观察契约变化都要更新所属语义版本，并在 [`../docs/version-history.md`](../docs/version-history.md) 记录。Host 构建版本是用于标识可执行文件的独立语义版本；`HelloAccepted.hostVersion` 仅将其用于诊断，不要求构建版本与协议版本一同递增。
 
 ## 控制合约
 
@@ -64,6 +64,12 @@
 `TerminalConfiguration` 当前包含 `scrollbackBytes`。内置默认值为 10,000,000 个十进制字节；零会禁用保留回滚；安全上限为 1,000,000,000 个十进制字节。`TerminalLaunch` 携带显式配置或 `null`；首次创建时，`null` 解析为 Host 当前终端默认值。未解析的启动值参与 `CreationId` 摘要，因此即使 Host 默认值后来变化，幂等重试仍保持稳定。`SetTerminalDefaults` 只影响后续终端。`UpdateTerminalConfiguration` 会变更一个保留终端。增加回滚预算可以保留历史；减少预算会淘汰满足边界所需的最旧行。行被淘汰时，Host 会推进内容修订与生成，并使历史锚点、选择/导出状态与投影基准失效。清单摘要会报告有效配置及其独立配置修订，以及完整的当前运行时主题状态及其独立主题修订。
 
 JSON 内的规范无符号 64 位整数使用十进制文本，除了值 `0` 之外，没有符号、空格、指数或前导零。打包二进制使用小端无符号整数。
+
+### 进程采样
+
+`ReadProcessInfo`（kind 79，control JSON 请求和响应）限定于一个具有读取能力的 `attachmentId`。响应回显 `attachmentId` 及其确切的 `terminalId`，并包含 `kind: "windows-job"`、正 uint32 `rootPid`，以及按 PID 排序、最多 64 行且 PID 唯一的 `processes` 数组。每行包含正 uint32 `pid`、必须存在且可空的正 uint32 `parentPid`、正的规范十进制 uint64 `creationTime`（Windows FILETIME），以及必须存在且可空的 `image`、`commandLine`、`currentDirectory`。文本为不含 NUL 的严格 Unicode，每项最多 4096 个 UTF-16 code unit；完整响应仍受 64 KiB control 限额约束。已退出的根进程可以不在进程行中，但其保留身份仍提供 `rootPid`。
+
+Host 拥有采样与 attachment 授权。未知或不可读 attachment 返回 `missing-resource`；平台不支持返回 `process-sample-unsupported`；成员变化返回 `process-sample-changed`；OS 或预算失败返回 `process-sample-unavailable`；容量或编码长度超限返回 `limit-exceeded`。失败绝不转换为空成功。样本描述一个保留 Windows Job 的顺序观察，不是原子进程树、前台进程组、输入许可或就绪保证。远程检查不可用时，可选字段可以缺失。消费者必须关联实际响应及 attachment/terminal 身份后才能使用这些事实。
 
 ## 运行时绑定
 
@@ -164,7 +170,7 @@ TypeScript 生产者使用 `encodeInputRequest`；消息类型选择原始或语
 
 未列出的号码未分配。标题和当前目录更改通过终端 frame 和带精确 identity 的 metadata event 传播。初始调整大小租约权限通过附件许可返回；稍后的所有权 transfer 使用附件作用域的 claim 与完整 event。
 
-`MESSAGE_CONTRACTS` 是该表背后的可执行 TypeScript 注册表。其原生镜像通过 `control-conformance-v0.0.24.json` 逐字段检查。因此，新增或修改 kind 时，必须原子更新注册表、原生镜像、编解码器、夹具及消费者。
+`MESSAGE_CONTRACTS` 是该表背后的可执行 TypeScript 注册表。其原生镜像通过 `control-conformance-v0.0.25.json` 逐字段检查。因此，新增或修改 kind 时，必须原子更新注册表、原生镜像、编解码器、夹具及消费者。
 
 `TerminalBell` 是包含 `attachmentId` 和正规范终端响铃 `sequence` 的仅事件控制记录。主机以终端的当前序列为新的可读取附件设置基线，因此在连接或重新连接时不会重播较早的铃声。当提交其确切的传出记录时，每个后续序列都会针对每个实时可读附件发出一次。该事件没有客户端确认，仅携带语义意图；声音、视觉闪烁、通知和可访问性策略仍然是应用程序效果而不是线路行为。
 

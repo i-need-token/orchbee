@@ -8,6 +8,7 @@ const SelectionAccess = contracts.SelectionAccess;
 
 const AccessBinding = struct {
     attachment_id: core_module.AttachmentId,
+    terminal_id: core_module.TerminalId,
     runtime: *terminal_runtime.TerminalRuntime,
     theme_revision: u64,
 };
@@ -31,8 +32,22 @@ fn resolveAccess(
     }
     return .{
         .attachment_id = attachment_id,
+        .terminal_id = attachment.terminal_id,
         .runtime = runtime,
         .theme_revision = terminal.themeState().revision,
+    };
+}
+
+pub fn sampleTerminalProcesses(
+    self: anytype,
+    allocator: @import("std").mem.Allocator,
+    connection_id: core_module.ConnectionId,
+    attachment_id: core_module.AttachmentId,
+) !contracts.TerminalProcessSample {
+    const binding = try resolveAccess(self, connection_id, attachment_id);
+    return .{
+        .terminal_id = binding.terminal_id,
+        .sample = try binding.runtime.sampleProcesses(allocator),
     };
 }
 

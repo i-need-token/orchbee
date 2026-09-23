@@ -2244,6 +2244,7 @@ impl UiDriver {
             | Some(TerminalViewerAction::AttachBinding { .. })
             | Some(TerminalViewerAction::Poll { .. })
             | Some(TerminalViewerAction::ReadRows { .. })
+            | Some(TerminalViewerAction::ReadProcessInfo { .. })
             | Some(TerminalViewerAction::SetProjectionDemand { .. })
             | Some(TerminalViewerAction::SetHistoryDemand { .. })
             | Some(TerminalViewerAction::ReadViewportRows { .. })

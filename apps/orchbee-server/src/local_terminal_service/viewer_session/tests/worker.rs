@@ -62,6 +62,7 @@ pub(super) fn run(mut peer: UnixStream, effects: Arc<Mutex<Vec<Effect>>>) {
                                 WorkerOutcome::Empty
                             }
                         }
+                        WorkerAction::ReadProcessInfo => WorkerOutcome::Rejected(ViewerRejection::HostRejected),
                         WorkerAction::FrameApplied { .. } | WorkerAction::NeedSnapshot { .. } => {
                             effects.lock().unwrap().push(Effect::Feedback(id));
                             if let Some((_, _, flight)) = viewers.get_mut(&id) {

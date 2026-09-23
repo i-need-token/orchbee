@@ -20,6 +20,18 @@ Authority is divided deliberately:
 An implementation comment, source layout description, or protocol codec must not define a second
 version of a fact owned here.
 
+## Terminal process queries
+
+A read-capable attachment may request a fresh process sample for its exact retained terminal. The engine owns the process resources; brokers never inspect arbitrary PIDs, infer ownership from hooks, or substitute initial launch parameters for current facts. The query does not mutate terminal state, input, focus, or lifecycle. A disconnected attachment, deferred terminal, unavailable platform, changing process membership, exhausted bound, or OS query failure has an explicit failure result; it is never an empty successful sample.
+
+On Windows, the engine enumerates only its retained Job Object (at most 64 processes), opens each candidate, and verifies membership on the opened handle before observing it. PID plus creation time identifies an observation. Membership is rechecked after the bounded sample; a changed set fails rather than publishing a partial idle claim. Handles belong to the query and are closed on every path. The retained root process handle supplies the launch PID even after root exit. No system-wide process enumeration or persistent process cache is introduced.
+
+Each process exposes PID, nullable parent PID, creation time, and nullable image path, command line, and current directory. UTF-16 strings are bounded to 4096 code units each and decoded strictly. Missing access, unsupported remote layout, invalid text, or a changing remote descriptor yields an absent optional field. Remote process parameters are untrusted diagnostic data, never shell syntax or authority. Native and WOW64 parameter layouts are isolated in the Windows adapter; unavailable layouts fail closed. The total encoded reply obeys the existing 64 KiB control bound; oversize results fail without truncating membership. A monotonic 250 ms sampling budget is checked between process observations; it does not promise to preempt a stuck kernel call.
+
+The response is a sequential observation, not an atomic process-tree snapshot, foreground group, or input-delivery guarantee. Equal membership before and after cannot detect a process born and exited entirely between samples. Windows has no POSIX foreground process group; higher-level Agent detection must state its inference and reject missing or ambiguous evidence. Other platform adapters return unsupported; this work does not add macOS/Linux process inspection.
+
+The principal operation is `sampleProcesses(allocator) -> owned sample | unavailable | changed | limit | unsupported`. The Host resolves read authority before entering it and releases the sample after response encoding. The actual consumers are `panel process-info` and subsequent Agent launch/input readiness guards through the existing Server/Worker viewer route. Verification covers empty and multi-process Jobs, escaped/unrelated PIDs, PID identity, nullable fields, remote descriptor bounds, query failures, changed membership, over-capacity, allocation cleanup, denied attachments, and an actual Windows shell/child lifecycle. No query proves that an Agent has rendered an interactive prompt.
+
 ## Purpose
 
 Terminal Host is Orchbee's local authoritative terminal-execution service. For one active trusted
@@ -1537,7 +1549,7 @@ the terminal mutex, so a completion or failure that races after Core validation
 cannot admit stale input or resize authority.
 
 Core retains that admitted value as immutable attach-replay identity and initializes current
-capability revision `1`. Protocol `0.0.24` permits only the input bit to change live; read and resize
+capability revision `1`. Protocol `0.0.25` permits only the input bit to change live; read and resize
 remain equal to the admitted value. Every successful attach or update reply returns the complete
 current capabilities and revision.
 
@@ -1814,3 +1826,5 @@ its state declaration, public facade, and transaction implementations into named
 Keep one authoritative owner and make cross-unit commits explicit; merely moving code while
 duplicating authority, permitting illegal state combinations, or hiding cross-owner commits is not
 a boundary improvement.
+
+The opaque runtime handle composes a private `process_handle.zig` adapter for process sampling, completion and termination. This adapter only converts the handle to private State and delegates to the existing process/lifecycle owners; it introduces no state, ordering change, or new process authority. This keeps process-facing growth out of the general runtime facade.

@@ -1,0 +1,74 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.cli.failure.process-info",
+	"title": "orchbee process query Host failure envelope",
+	"type": "object",
+	"required": ["schema", "version", "failure"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.cli.failure.process-info"
+		},
+		"version": {
+			"const": 1
+		},
+		"failure": {
+			"type": "object",
+			"required": ["kind", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": ["rejected", "service-unavailable"]
+				},
+				"details": {
+					"type": "object",
+					"required": ["stage", "operation", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"stage": {
+							"const": "viewer"
+						},
+						"operation": {
+							"const": "read-process-info"
+						},
+						"reason": {
+							"enum": [
+								"limit-exceeded",
+								"missing-resource",
+								"process-sample-unsupported",
+								"process-sample-changed",
+								"process-sample-unavailable"
+							]
+						}
+					}
+				}
+			}
+		},
+		"source": {
+			"$ref": "#/$defs/snapshotSource"
+		}
+	},
+	"$defs": {
+		"snapshotSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench-snapshot"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"revision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				}
+			}
+		},
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		}
+	}
+}

@@ -2014,6 +2014,8 @@ impl Locale {
             (Self::ZhCn, CommandPath::PanelCurrent) => HELP_PANEL_CURRENT_ZH,
             (Self::EnUs, CommandPath::PanelGet) => HELP_PANEL_GET_EN,
             (Self::ZhCn, CommandPath::PanelGet) => HELP_PANEL_GET_ZH,
+            (Self::EnUs, CommandPath::PanelProcessInfo) => HELP_PANEL_PROCESS_INFO_EN,
+            (Self::ZhCn, CommandPath::PanelProcessInfo) => HELP_PANEL_PROCESS_INFO_ZH,
             (Self::EnUs, CommandPath::PanelSplit) => HELP_PANEL_SPLIT_EN,
             (Self::ZhCn, CommandPath::PanelSplit) => HELP_PANEL_SPLIT_ZH,
             (Self::EnUs, CommandPath::PanelClose) => HELP_PANEL_CLOSE_EN,
@@ -2148,8 +2150,8 @@ const HELP_WORKSPACE_ZH: &str = "orchbee workspace list|get|create|rename|accept
 const HELP_TAB_EN: &str = "orchbee tab list|get|create|rename|move|close\n\nQuery and mutate Tab resources in the running local Site.\n  tab list [--workspace <t> | --standalone]  List Tabs, optionally filtered\n  tab get <target>                           Show one Tab by exact ID, @tab:<suffix>, or label\n  tab create (--workspace <t>|--standalone) --label <l> [--cols <n> --rows <n> --cell-width <px> --cell-height <px>] [--profile <s> | --exec <abs> [--arg <v>]...]\n                                             Create one Tab in one context\n  tab rename <target> --label <l>            Rename one Tab\n  tab move <target> --direction <d>          Move one Tab within its strip\n  tab close <target> --confirm               Close one Tab\n'--workspace' and '--standalone' are mutually exclusive single-use selectors.\n";
 const HELP_TAB_ZH: &str = "orchbee tab list|get|create|rename|move|close\n\n查询并修改本地 Site 中的 Tab 资源。\n  tab list [--workspace <t> | --standalone]  列出 Tab，可按 Workspace 或独立上下文过滤\n  tab get <target>                           按精确 ID、@tab:<suffix> 或 label 显示一个 Tab\n  tab create (--workspace <t>|--standalone) --label <l> [--cols <n> --rows <n> --cell-width <px> --cell-height <px>] [--profile <s> | --exec <abs> [--arg <v>]...]\n                                             在某个上下文内创建一个 Tab\n  tab rename <target> --label <l>            重命名一个 Tab\n  tab move <target> --direction <d>          在标签条内移动一个 Tab\n  tab close <target> --confirm               关闭一个 Tab\n'--workspace' 与 '--standalone' 互斥且各只能用一次。\n";
 
-const HELP_PANEL_EN: &str = "orchbee panel list|get|current|split|close|move\n\nQuery and mutate Panel resources in the running local Site.\n  panel list [--tab <t>]                   List Panels, optionally inside one Tab\n  panel current [--panel <panel-id> | --current]\n                                           Locate the calling Panel from its current binding\n  panel get <panel-id>                     Show one Panel by its complete typed ID or @panel:<suffix>\n  panel split <panel-id> --direction <d> --label <l> [--cols <n> --rows <n> --cell-width <px> --cell-height <px>] [--profile <s> | --exec <abs> [--arg <v>]...]\n                                           Split one Panel, creating a sibling\n  panel close <panel-id> --confirm         Close one Panel\n  panel move <panel-id> --target-panel <panel-id> --direction <d>\n                                           Move one Panel next to a sibling\nPanels have no independent label; complete 32-hex IDs and @panel:<suffix>\nselectors are accepted.\n";
-const HELP_PANEL_ZH: &str = "orchbee panel list|get|current|split|close|move\n\n查询并修改本地 Site 中的 Panel 资源。\n  panel list [--tab <t>]                   列出 Panel，可按某个 Tab 过滤\n  panel current [--panel <panel-id> | --current]\n                                           从当前绑定定位调用者 Panel\n  panel get <panel-id>                     按完整类型化 ID 或 @panel:<suffix> 显示一个 Panel\n  panel split <panel-id> --direction <d> --label <l> [--cols <n> --rows <n> --cell-width <px> --cell-height <px>] [--profile <s> | --exec <abs> [--arg <v>]...]\n                                           分裂一个 Panel，创建一个相邻 Panel\n  panel close <panel-id> --confirm         关闭一个 Panel\n  panel move <panel-id> --target-panel <panel-id> --direction <d>\n                                           将一个 Panel 移动到某个相邻 Panel 旁\nPanel 没有独立 label；接受完整 32 位小写十六进制 ID 与 @panel:<suffix> 选择器。\n";
+const HELP_PANEL_EN: &str = "orchbee panel list|get|current|process-info|split|close|move\n\nQuery and mutate Panel resources in the running local Site.\n  panel list [--tab <t>]                   List Panels, optionally inside one Tab\n  panel current [--panel <panel-id> | --current]\n                                           Locate the calling Panel from its current binding\n  panel process-info [<panel-id>]          Inspect primary Terminal process information\n  panel get <panel-id>                     Show one Panel by its complete typed ID or @panel:<suffix>\n  panel split <panel-id> --direction <d> --label <l> [--cols <n> --rows <n> --cell-width <px> --cell-height <px>] [--profile <s> | --exec <abs> [--arg <v>]...]\n                                           Split one Panel, creating a sibling\n  panel close <panel-id> --confirm         Close one Panel\n  panel move <panel-id> --target-panel <panel-id> --direction <d>\n                                           Move one Panel next to a sibling\nPanels have no independent label; complete 32-hex IDs and @panel:<suffix>\nselectors are accepted.\n";
+const HELP_PANEL_ZH: &str = "orchbee panel list|get|current|process-info|split|close|move\n\n查询并修改本地 Site 中的 Panel 资源。\n  panel list [--tab <t>]                   列出 Panel，可按某个 Tab 过滤\n  panel current [--panel <panel-id> | --current]\n                                           从当前绑定定位调用者 Panel\n  panel process-info [<panel-id>]          查询主 Terminal 的进程信息\n  panel get <panel-id>                     按完整类型化 ID 或 @panel:<suffix> 显示一个 Panel\n  panel split <panel-id> --direction <d> --label <l> [--cols <n> --rows <n> --cell-width <px> --cell-height <px>] [--profile <s> | --exec <abs> [--arg <v>]...]\n                                           分裂一个 Panel，创建一个相邻 Panel\n  panel close <panel-id> --confirm         关闭一个 Panel\n  panel move <panel-id> --target-panel <panel-id> --direction <d>\n                                           将一个 Panel 移动到某个相邻 Panel 旁\nPanel 没有独立 label；接受完整 32 位小写十六进制 ID 与 @panel:<suffix> 选择器。\n";
 
 const HELP_TERMINAL_EN: &str = "orchbee terminal list|get|read|wait-output|send\n\nQuery terminals bound by Workbench Presentations in the running local Site,\nor send one input record to one of them.\n  terminal list                List every bound terminal\n  terminal get <terminal-id>   Show one terminal by ID or @terminal:<suffix>\n  terminal read <terminal-id> [--history --rows <n>] [--unwrap] [--lines <n>]\n                               Read the terminal's visible content; the paired\n                               flags read retained history rows instead\n  terminal wait-output <terminal-id> --match <text> | --regex <pattern>\n                               Wait for text in the terminal's retained output\n  terminal send <terminal-id>  Send text or one key to the terminal's input\nTerminal targets accept a complete typed ID or an @terminal:<suffix> selector.\nA terminal invisible to any Presentation binding cannot be listed, read,\nwaited on, or sent to; a binding proves structure only, not that a process\nis alive.\n";
 const HELP_TERMINAL_ZH: &str = "orchbee terminal list|get|read|wait-output|send\n\n查询本地 Site 中被 Workbench Presentation 绑定的终端，或向其中一个终端发送一条输入。\n  terminal list                列出所有已绑定终端\n  terminal get <terminal-id>   按完整类型化 ID 或 @terminal:<suffix> 显示一个终端\n  terminal read <terminal-id> [--history --rows <n>] [--unwrap] [--lines <n>]\n                               读取终端当前可见内容；成对 flag 时改为读取\n                               保留历史行\n  terminal wait-output <terminal-id> --match <text> | --regex <pattern>\n                               等待终端保留输出中出现匹配内容\n  terminal send <terminal-id>  向终端输入发送文本或一个按键\n未被任何 Presentation 引用的终端不可见、不可读、不可等待也不可发送；绑定只证明结构，不证明进程存活。\n";
@@ -2693,6 +2695,31 @@ impl Locale {
                 Some("输入已接受，但尚未观察到新的 Agent 活动。请检查终端，不要盲目重发。")
             }
             _ => None,
+        }
+    }
+}
+
+const HELP_PANEL_PROCESS_INFO_EN: &str = "orchbee panel process-info [<panel-id>] [--panel <panel-id> | --current] [--format text|json]\n\nRead the primary Terminal's Windows Job process information. Complete Panel IDs\nand @panel:<suffix> are accepted. Without a target, use the calling Terminal's\nvalidated context. Explicit and positional targets are exclusive. Each sample\nreports owned processes with PID, creation time, image, command line and cwd;\nunavailable optional fields are null. This is a bounded read of the running Site.\n";
+const HELP_PANEL_PROCESS_INFO_ZH: &str = "orchbee panel process-info [<panel-id>] [--panel <panel-id> | --current] [--format text|json]\n\n读取主 Terminal 的 Windows Job 进程信息，接受完整 Panel ID 或 @panel:<suffix>。\n未指定目标时使用经过验证的调用终端上下文；显式选项与位置参数目标互斥。\n样本列出归属进程的 PID、创建时间、映像、命令行和 cwd；不可用的可选字段为 null。\n这是对运行中 Site 的有界读取。\n";
+
+impl Locale {
+    pub(crate) const fn cli_process_headers(self) -> [&'static str; 6] {
+        match self {
+            Self::EnUs => [
+                "PID",
+                "Parent PID",
+                "Created",
+                "Image",
+                "Command line",
+                "Directory",
+            ],
+            Self::ZhCn => ["PID", "父 PID", "创建时间", "映像", "命令行", "目录"],
+        }
+    }
+    pub(crate) const fn cli_process_root(self) -> &'static str {
+        match self {
+            Self::EnUs => "Root PID",
+            Self::ZhCn => "根 PID",
         }
     }
 }

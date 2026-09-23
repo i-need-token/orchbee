@@ -49,7 +49,7 @@ Main 在允许客户端之前加载并验证共享文档一次。可用的文档
 
 Coordinator 与 transport 无关，支持独立 page session，并且没有产品数量上限。Electron 使用直接 `MessagePort` adapter。显式 Browser 访问把 `apps/server` 与 `apps/gateway` 启动为按需 Utility Process；Desktop 拥有两者的 lifecycle，并为每个已鉴权页面分配恰好一对 client-session/projection port。Server 负责 renderer 交付、个人访问令牌校验与签名 session Cookie 签发；Gateway 负责签名 Cookie 与 exact-Origin 准入、framing，以及 loopback 或显式选择 trusted LAN 上的 transport backpressure。Gateway 绝不接收 application-lifetime port 或 Host connection。`apps/web` 负责与 platform 无关的 Workbench client runtime，以及普通 Browser、Gateway Browser client 与 Electron 使用的唯一 renderer application。开发 Electron 通过 loopback Web origin 上的 User-Agent discovery。Packaged Desktop 在 Electron ready 前注册标准 secure `orchbee:` scheme，从 `orchbee://app` 提供 Web build，并对 Browser Router document request 回退到 `index.html`。Desktop 负责 renderer resource 交付，而不是另一套 renderer source tree。参见 [`docs/multi-client-session-coordinator.md`](docs/multi-client-session-coordinator.md) 与 [`../web/docs/navigation-routing.md`](../web/docs/navigation-routing.md)。
 
-Desktop 严格要求唯一的当前 Host 协议 `0.0.24`；预发布版本既不协商，也不记录历史协议变体。Electron 使用 `42.8.0`，即紧邻本仓库所选当前 Electron 主版本的前一主版本中的最终发布。
+Desktop 严格要求唯一的当前 Host 协议 `0.0.25`；预发布版本既不协商，也不记录历史协议变体。Electron 使用 `42.8.0`，即紧邻本仓库所选当前 Electron 主版本的前一主版本中的最终发布。
 
 `HostConnection` 在每个代理调用者上拥有一个连接全局出站窗口：最多 64 个未应答请求记录和 4 个 MiB 编码请求字节。它会保留该许可，直到相关响应或连接失败为止。已返回 `false` 的完整窗口或节点可写在切换之前拒绝工作，并可重试 `host-transport-backpressure`；在 `drain` 之前没有请求写入恢复。如果移交的请求达到其截止日期，Desktop 将终止连接，并使用不可重试的 `host-request-outcome-unknown` 拒绝所有待处理和未来的请求，因此在出现不明确的结果后，永远不会重播输入。
 

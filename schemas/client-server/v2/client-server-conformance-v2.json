@@ -585,6 +585,11 @@
 			"direction": "server-to-client",
 			"name": "send-partial-budget-exhausted",
 			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"input-budget-exhausted\",\"progress\":{\"recordsAccepted\":2,\"firstStoppedRecord\":2,\"acceptedEncodedBytes\":0},\"cleanup\":\"confirmed\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-read-process-info",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-process-info\",\"attachmentId\":\"33333333333333333333333333333333\"}}"
 		}
 	],
 	"equivalentMessages": [
@@ -2041,6 +2046,30 @@
 			"name": "send-progress-accepted-without-cleanup",
 			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\",\"progress\":{\"recordsAccepted\":1,\"firstStoppedRecord\":1,\"acceptedEncodedBytes\":1},\"cleanup\":\"not-needed\"}}",
 			"boundary": "semantic"
+		},
+		{
+			"name": "viewer-process-info-missing-attachment",
+			"direction": "client-to-server",
+			"boundary": "schema",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-process-info\"}}"
+		},
+		{
+			"name": "viewer-process-info-zero-attachment",
+			"direction": "client-to-server",
+			"boundary": "schema",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-process-info\",\"attachmentId\":\"00000000000000000000000000000000\"}}"
+		},
+		{
+			"name": "viewer-process-info-arbitrary-pid",
+			"direction": "client-to-server",
+			"boundary": "schema",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-process-info\",\"attachmentId\":\"33333333333333333333333333333333\",\"pid\":41}}"
+		},
+		{
+			"name": "viewer-process-info-arbitrary-terminal",
+			"direction": "client-to-server",
+			"boundary": "schema",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-process-info\",\"attachmentId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\"}}"
 		}
 	],
 	"workingDirectoryCases": [

@@ -45,6 +45,7 @@ impl LocalTerminalSession<'_> {
                 return self.attach(issued);
             }
             Action::Poll { .. }
+            | Action::ReadProcessInfo { .. }
             | Action::FrameApplied { .. }
             | Action::NeedSnapshot { .. }
             | Action::ReadRows { .. }
@@ -119,6 +120,7 @@ impl LocalTerminalSession<'_> {
                 sequence: *sequence,
                 reason: snapshot_reason(*reason),
             },
+            Action::ReadProcessInfo { .. } => WorkerAction::ReadProcessInfo,
             Action::ReadRows {
                 start_row,
                 row_count,
@@ -217,6 +219,9 @@ impl LocalTerminalSession<'_> {
                     // HistoryChanged record on another action remains a strict
                     // route violation.
                     let accepted = match request.action() {
+                        Action::ReadProcessInfo { .. } => {
+                            valid_process_record(viewer, request_id, &record)
+                        }
                         Action::ReadRows { .. } => {
                             valid_rows_record(request.action(), viewer, request_id, &record)
                         }
@@ -291,6 +296,45 @@ impl LocalTerminalSession<'_> {
                 unavailable(Unavailable::TerminalRuntimeUnavailable)
             }
         }
+    }
+}
+
+fn valid_process_record(
+    viewer: &ViewerAttachment<'_>,
+    operation: OperationId,
+    record: &[u8],
+) -> bool {
+    use orchbee_terminal_protocol::{
+        ConnectionControl, MAXIMUM_CONTROL_JSON_BYTES, ProcessInfoControl,
+        TRANSPORT_ENVELOPE_HEADER_BYTES, decode_connection_control, decode_process_info_control,
+    };
+    if record.len() > TRANSPORT_ENVELOPE_HEADER_BYTES + MAXIMUM_CONTROL_JSON_BYTES {
+        return false;
+    }
+    let (Ok(envelope), Ok(correlation)) = (
+        decode_transport_envelope(record),
+        CorrelationId::from_bytes(operation.as_bytes()),
+    ) else {
+        return false;
+    };
+    if envelope.protocol != CURRENT_PROTOCOL_VERSION
+        || envelope.role != MessageRole::Response
+        || envelope.correlation_id != Some(correlation)
+        || envelope.host_epoch != Some(viewer.projection.host_epoch)
+        || envelope.optional_message
+        || envelope.payload_encoding != PayloadEncoding::ControlJson
+    {
+        return false;
+    }
+    match decode_process_info_control(envelope.kind, envelope.role, envelope.payload) {
+        Ok(ProcessInfoControl::ProcessInfo(info)) => {
+            info.attachment_id == viewer.projection.attachment_id
+                && info.terminal_id.as_bytes() == &viewer.target.identity.terminal_id().as_bytes()
+        }
+        _ => matches!(
+            decode_connection_control(envelope.kind, envelope.role, envelope.payload),
+            Ok(ConnectionControl::TypedFailure(_))
+        ),
     }
 }
 

@@ -46,6 +46,7 @@ const SERVER_GUARD_TIMEOUT: Duration = Duration::from_secs(1);
 use super::test_server::TestDirectory;
 use super::test_server::{FakeServer, connect_with_adjustable_clock};
 
+mod process_info;
 mod workbench;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;

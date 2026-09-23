@@ -8,13 +8,12 @@ const state = @import("state.zig");
 const creation_ops = @import("creation.zig");
 const lifecycle_ops = @import("lifecycle.zig");
 const metadata_ops = @import("metadata.zig");
-const completion_ops = @import("completion.zig");
+const process_handle = @import("process_handle.zig");
 const failure_ops = @import("failure.zig");
 const feedback_handle = @import("feedback_handle.zig");
 const projection_ops = @import("projection.zig");
 const input_handle = @import("input_handle.zig");
 const terminal_control_ops = @import("terminal_control.zig");
-const process_io_ops = @import("process_io.zig");
 const resize_ops = @import("resize.zig");
 const scrollback_compression_ops = @import("scrollback_compression.zig");
 const theme_ops = @import("theme.zig");
@@ -29,8 +28,16 @@ pub const PreparedAttachment = prepared_attachment.Type(TerminalRuntime);
 pub const ReadCommitGuard = read_commit_guard.Type(TerminalRuntime);
 const InputHandle = input_handle.Type(TerminalRuntime, PreparedInput);
 const FeedbackHandle = feedback_handle.Type(TerminalRuntime);
+const ProcessHandle = process_handle.Type(TerminalRuntime);
 
 pub const TerminalRuntime = opaque {
+    pub const sampleProcesses = ProcessHandle.sampleProcesses;
+    pub const completion = ProcessHandle.completion;
+    pub const waitForCompletion = ProcessHandle.waitForCompletion;
+    pub const terminate = ProcessHandle.terminate;
+    pub const containmentConfirmed = ProcessHandle.containmentConfirmed;
+    pub const forceTerminate = ProcessHandle.forceTerminate;
+
     pub fn create(
         allocator: std.mem.Allocator,
         launch: pty_process.Launch,
@@ -60,14 +67,6 @@ pub const TerminalRuntime = opaque {
 
     pub fn destroyAfterShutdown(self: *TerminalRuntime) void {
         return lifecycle_ops.destroyAfterShutdown(stateFrom(self));
-    }
-
-    pub fn completion(self: *const TerminalRuntime) contracts.Completion {
-        return completion_ops.completion(stateFromConst(self));
-    }
-
-    pub fn waitForCompletion(self: *TerminalRuntime) !contracts.Completion {
-        return completion_ops.waitForCompletion(stateFrom(self));
     }
 
     pub fn isResizeFenced(self: *const TerminalRuntime) bool {
@@ -198,18 +197,6 @@ pub const TerminalRuntime = opaque {
         next_theme: contracts.TerminalTheme,
     ) !contracts.ThemeUpdate {
         return theme_ops.applyTheme(stateFrom(self), next_theme);
-    }
-
-    pub fn terminate(self: *TerminalRuntime) !void {
-        return process_io_ops.terminate(stateFrom(self));
-    }
-
-    pub fn containmentConfirmed(self: *const TerminalRuntime) bool {
-        return process_io_ops.containmentConfirmed(stateFromConst(self));
-    }
-
-    pub fn forceTerminate(self: *TerminalRuntime) !void {
-        return process_io_ops.forceTerminate(stateFrom(self));
     }
 
     pub fn plainString(self: *TerminalRuntime, allocator: std.mem.Allocator) ![]const u8 {

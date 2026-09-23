@@ -13,6 +13,7 @@ mod inventory;
 mod lifecycle;
 mod limits;
 mod message;
+mod process_info;
 mod projection_demand;
 mod projection_feedback;
 mod resize;
@@ -94,6 +95,11 @@ pub use limits::{
 pub use message::{
     MESSAGE_CONTRACTS, MessageContract, MessageRole, PayloadEncoding, RequestMessageContract,
     message_contract,
+};
+pub use process_info::{
+    EncodedProcessInfoControl, MAXIMUM_PROCESS_SAMPLE_ROWS, MAXIMUM_PROCESS_TEXT_UTF16_UNITS,
+    ProcessInfoControl, READ_PROCESS_INFO_KIND, TerminalProcess, TerminalProcessInfo,
+    decode_process_info_control, encode_process_info_control,
 };
 pub use projection_demand::{
     EncodedProjectionDemandControl, ProjectionBlockReason, ProjectionBlocked, ProjectionDemand,

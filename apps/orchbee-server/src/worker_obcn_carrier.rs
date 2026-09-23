@@ -1224,6 +1224,7 @@ fn validate_response(
                 (&expected.action, &actual.outcome),
                 (Action::Attach { .. }, Outcome::Attached)
                     | (Action::Poll, Outcome::Empty | Outcome::Record(_))
+                    | (Action::ReadProcessInfo, Outcome::Record(_))
                     | (
                         Action::FrameApplied { .. } | Action::NeedSnapshot { .. },
                         Outcome::FeedbackAccepted

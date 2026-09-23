@@ -12,7 +12,7 @@ use orchbee_terminal_protocol::{
 use serde_json::Value;
 
 const CONTROL_FIXTURE: &str =
-    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.24.json");
+    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.25.json");
 
 #[test]
 fn canonical_selection_payloads_round_trip_in_every_legal_direction() -> Result<(), Box<dyn Error>>

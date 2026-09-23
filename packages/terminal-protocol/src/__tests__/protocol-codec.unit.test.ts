@@ -41,7 +41,7 @@ if (!hostEpoch.ok) throw new Error(hostEpoch.detail);
 
 const frameFixtureUrl = new URL('../../fixtures/terminal-frame-v0.0.3.bin', import.meta.url);
 const envelopeFixtureUrl = new URL(
-	'../../fixtures/transport-envelope-v0.0.24.bin',
+	'../../fixtures/transport-envelope-v0.0.25.bin',
 	import.meta.url,
 );
 const malformedFixtureUrl = new URL('../../fixtures/malformed-frame-v0.0.3.json', import.meta.url);

@@ -10,7 +10,7 @@ use orchbee_terminal_protocol::{
 use serde_json::{Value, json};
 
 const CONTROL_FIXTURE: &str =
-    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.24.json");
+    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.25.json");
 
 #[test]
 fn canonical_row_access_payloads_round_trip_byte_for_byte() -> Result<(), Box<dyn Error>> {

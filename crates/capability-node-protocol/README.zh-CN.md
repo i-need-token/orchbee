@@ -473,3 +473,7 @@ pnpm lint:projects
 ## 原生 Windows 路径细化
 
 线协议中的绝对路径接受 POSIX 前导斜杠，或 ASCII 盘符后跟 `:` 及 `/` 或 `\`；Windows 逐字盘符路径可以带 `\\?\` 前缀。词法规则不依赖解码器所在平台；字节保持原样，不展开、不规范化。本次 Windows 增量不接受反斜杠根路径、盘符相对路径、UNC 或设备路径。既有字节上限和 NUL／Unicode 校验不变。执行方仍须在产生效果前依据本地文件系统验证路径。
+
+## 终端进程读取（未发布）
+
+Viewer action tag 12 为 `ReadProcessInfo`，tag 后没有额外字节，使用请求中既有的 attachment ID。Worker 要求确切的保留 viewer，并以新的关联身份发送一次 Host `ReadProcessInfo`（OBTP kind 79）。响应限制为 64 KiB 加信封，以 `Record` 原样返回，其中也允许格式正确且相关联的 Host `TypedFailure`。成功观察必须回显确切的 attachment 与物理终端。Worker/generation 不匹配、viewer 缺失、Host epoch 错误或结果无效均通过既有拒绝或 carrier 失败返回。Worker 不枚举进程，Host 仍为事实所有者。进程读取既不确认帧，也不创建输入权限。现有 action 编码保持不变，开发版本必须整体更新。
