@@ -12,7 +12,7 @@ The bare `orchbee` command launches the interactive TUI. Use explicit commands f
 
 Use `orchbee status --format json` or `orchbee api snapshot` to inspect the running Site, then the appropriate `project`, `workspace`, `tab`, `panel`, `terminal`, `worktree`, or `agent` list/get command. Follow each command's declared filters and use returned stable IDs. Labels and suffix selectors are only accepted where help declares them; ambiguous targets must be resolved explicitly.
 
-`orchbee terminal read <terminal-id> --history --rows 50 --lines 50 --unwrap --format json` reads retained output. Output can contain secrets; forward only what the task needs. Read/query commands do not create missing resources. Workspace creation, directory admission, and initial Tab creation are separate commands in this build; use their help for required parameters.
+`orchbee terminal read <terminal-id> --history --rows 50 --lines 50 --unwrap --format json` reads retained output. Output can contain secrets; forward only what the task needs. Read/query commands do not create missing resources. Use `workspace create --project <target> --label <label> --cwd <absolute-path>` to admit a directory and create the Workspace with its first terminal in one request. Inspect the separate committed-resource and terminal-launch outcomes.
 
 `orchbee agent read --name alpha --lines 50 --format json` reads the visible terminal
 for a live named session. Add `--history --rows 50` for retained scrollback instead.
@@ -61,9 +61,24 @@ the same lookup. Outside that process, use `panel current --panel <id-or-selecto
 Worker supplies `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID`; the query validates
 their current binding in one snapshot. Missing or stale context is an error, never
 a fallback to client focus. Explicit `--panel` ignores inherited context and cannot
-be combined with `--current`. `api schema` now returns catalog envelope version 14;
+be combined with `--current`. `api schema` now returns catalog envelope version 16;
 the new `orchbee.panel.current` document is version 1.
 
 Use explicit `--forever` on `agent wait` or `agent prompt --wait` for no total deadline; it conflicts with `--timeout`. The default remains 600000 ms and every read stays bounded. `--until blocked` matches fresh needs-attention; `--until done` matches fresh completed outcomes, without an unseen marker. Wait/prompt successes use version 2 with null timeoutMs for infinite mode; infinite read-timeout failures also use version 2. Windows Codex prompts add Right between paste and Enter to clear paste-burst Enter suppression.
 
 Targeted Agent commands also accept `--panel <id|@panel:suffix>` or a positional Panel ID. Session IDs and names take precedence over positional Panel fallback. Panels select their primary terminal and require one live Agent; waits pin the selected Session.
+
+## Inspect processes before Agent input
+
+`orchbee panel process-info --panel <id|@panel:suffix> --format json` reads the actual
+Windows Job. Omit the target inside an Orchbee terminal to use validated caller context.
+The v2 document includes live cwd, precise creation identity, Windows argv projection,
+provider recognition and a foreground estimate. Null fields and ambiguous selection are
+explicit; this estimate does not prove interactive readiness.
+
+Windows `agent send-keys` and `agent prompt` check the expected running provider and
+re-read the same session/presentation generation before sending. A Shell, mismatched or
+ambiguous Agent, unsupported provider, or changed binding refuses without input. Prompt
+also rechecks fresh known state and pending attention. Inspect process-info and Agent
+facts to resolve the refusal; use `terminal send` only when explicitly targeting the
+terminal itself. A process may still exit after the preflight; inspect send receipts.

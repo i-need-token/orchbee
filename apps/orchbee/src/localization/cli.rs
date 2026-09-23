@@ -2132,8 +2132,8 @@ impl Locale {
     }
 }
 
-const ROOT_HELP_EN: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [operands] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee site diagnose [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish|powershell\n  orchbee -h|--help\n  orchbee --version\n  orchbee --skill\n\nModes and queries:\n  orchbee              Open the local terminal (Windows/Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee launch-profile list | get\n  orchbee agent        list | get | explain | doctor | wait\n  orchbee agent integration\n                       list | explain | enable | disable — local provider\n                       onboarding; never contacts a Site\n  orchbee api          Machine snapshot and embedded schema documents\n\nSite lifecycle:\n  orchbee site start   Ensure the local Site is running (no TTY needed)\n  orchbee site diagnose\n                       Inspect the local Site runtime — read-only facts\n\nMutations (one command per invocation, against the running Site):\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n  orchbee launch-profile create | delete\n\nInspection and help:\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee -h|--help    Show this help; after a family or command path, show\n                       that path's help\n  orchbee --version    Show the version\n  orchbee --skill      Print the embedded Agent guide (offline)\n\nRun 'orchbee help <family>' for filters and target rules, or\n'orchbee help <family> <command>' for one mutation's full syntax.\n";
-const ROOT_HELP_ZH: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [操作数] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee site diagnose [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish|powershell\n  orchbee -h|--help\n  orchbee --version\n  orchbee --skill\n\n模式与查询：\n  orchbee              打开本地终端（Windows/Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee launch-profile list | get\n  orchbee agent        list | get | explain | doctor | wait\n  orchbee agent integration\n                       list | explain | enable | disable——本地 provider\n                       接入；绝不接触 Site\n  orchbee api          机器快照与内嵌 schema 文档\n\nSite 生命周期：\n  orchbee site start   确保本地 Site 正在运行（无需 TTY）\n  orchbee site diagnose\n                       检查本地 Site 运行时——只读事实\n\n修改命令（每次调用执行一条命令，作用于运行中的 Site）：\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n  orchbee launch-profile create | delete\n\n检查与帮助：\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee -h|--help    显示此帮助；跟在 family 或命令路径后时显示该路径的帮助\n  orchbee --version    显示版本\n  orchbee --skill      离线输出内嵌 Agent 指引\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则，或\n'orchbee help <family> <command>' 查看单条修改命令的完整语法。\n";
+const ROOT_HELP_EN: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [operands] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee site diagnose [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish|powershell\n  orchbee -h|--help\n  orchbee --version\n  orchbee --skill\n\nModes and queries:\n  orchbee              Open the local terminal (Windows/Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee project      list | get\n  orchbee workspace    list | get | close-status\n  orchbee tab          list | get\n  orchbee panel        list | get | current | process-info\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee launch-profile list | get\n  orchbee agent        list | get | explain | doctor | wait | names | resolve\n                       read | send-keys | prompt | rename\n  orchbee agent integration\n                       list | explain | enable | disable — local provider\n                       onboarding; never contacts a Site\n  orchbee api          Machine snapshot and embedded schema documents\n\nSite lifecycle:\n  orchbee site start   Ensure the local Site is running (no TTY needed)\n  orchbee site diagnose\n                       Inspect the local Site runtime — read-only facts\n\nMutations (one command per invocation, against the running Site):\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n                       close | close-resume\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n  orchbee launch-profile create | delete\n\nInspection and help:\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee -h|--help    Show this help; after a family or command path, show\n                       that path's help\n  orchbee --version    Show the version\n  orchbee --skill      Print the embedded Agent guide (offline)\n\nRun 'orchbee help <family>' for filters and target rules, or\n'orchbee help <family> <command>' for one mutation's full syntax.\n";
+const ROOT_HELP_ZH: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui [--mouse on|off]\n  orchbee status [--format text|json]\n  orchbee <family> <command> [操作数] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee site start [--format text|json]\n  orchbee site diagnose [--format text|json]\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish|powershell\n  orchbee -h|--help\n  orchbee --version\n  orchbee --skill\n\n模式与查询：\n  orchbee              打开本地终端（Windows/Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee project      list | get\n  orchbee workspace    list | get | close-status\n  orchbee tab          list | get\n  orchbee panel        list | get | current | process-info\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee worktree     list\n  orchbee launch-profile list | get\n  orchbee agent        list | get | explain | doctor | wait | names | resolve\n                       read | send-keys | prompt | rename\n  orchbee agent integration\n                       list | explain | enable | disable——本地 provider\n                       接入；绝不接触 Site\n  orchbee api          机器快照与内嵌 schema 文档\n\nSite 生命周期：\n  orchbee site start   确保本地 Site 正在运行（无需 TTY）\n  orchbee site diagnose\n                       检查本地 Site 运行时——只读事实\n\n修改命令（每次调用执行一条命令，作用于运行中的 Site）：\n  orchbee project      create | rename\n  orchbee workspace    create | rename | accept-directory\n                       close | close-resume\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n  orchbee launch-profile create | delete\n\n检查与帮助：\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee -h|--help    显示此帮助；跟在 family 或命令路径后时显示该路径的帮助\n  orchbee --version    显示版本\n  orchbee --skill      离线输出内嵌 Agent 指引\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则，或\n'orchbee help <family> <command>' 查看单条修改命令的完整语法。\n";
 
 const HELP_TUI_EN: &str = "orchbee tui [--mouse on|off]\n\nOpen the local terminal interface (Windows/Linux development cohort).\nA bare 'orchbee' invocation does the same.\n\n  --mouse on|off   Host pointer capture for pane hit-testing; on by\n                   default. Only the explicit 'tui' route accepts it.\n";
 const HELP_TUI_ZH: &str = "orchbee tui [--mouse on|off]\n\n打开本地终端界面（Windows/Linux 开发 cohort）。\n裸 'orchbee' 调用效果相同。\n\n  --mouse on|off   宿主机指针捕获，用于面板命中；默认开启。\n                   只有显式 'tui' 路由接受该选项。\n";
@@ -2703,7 +2703,7 @@ const HELP_PANEL_PROCESS_INFO_EN: &str = "orchbee panel process-info [<panel-id>
 const HELP_PANEL_PROCESS_INFO_ZH: &str = "orchbee panel process-info [<panel-id>] [--panel <panel-id> | --current] [--format text|json]\n\n读取主 Terminal 的 Windows Job 进程信息，接受完整 Panel ID 或 @panel:<suffix>。\n未指定目标时使用经过验证的调用终端上下文；显式选项与位置参数目标互斥。\n样本列出归属进程的 PID、创建时间、映像、命令行和 cwd；不可用的可选字段为 null。\n这是对运行中 Site 的有界读取。\n";
 
 impl Locale {
-    pub(crate) const fn cli_process_headers(self) -> [&'static str; 6] {
+    pub(crate) const fn cli_process_headers(self) -> [&'static str; 8] {
         match self {
             Self::EnUs => [
                 "PID",
@@ -2712,14 +2712,66 @@ impl Locale {
                 "Image",
                 "Command line",
                 "Directory",
+                "Arguments",
+                "Provider",
             ],
-            Self::ZhCn => ["PID", "父 PID", "创建时间", "映像", "命令行", "目录"],
+            Self::ZhCn => [
+                "PID",
+                "父 PID",
+                "创建时间",
+                "映像",
+                "命令行",
+                "目录",
+                "参数",
+                "Provider",
+            ],
         }
     }
     pub(crate) const fn cli_process_root(self) -> &'static str {
         match self {
             Self::EnUs => "Root PID",
             Self::ZhCn => "根 PID",
+        }
+    }
+    pub(crate) const fn cli_process_foreground(self) -> &'static str {
+        match self {
+            Self::EnUs => "Foreground estimate (kind · PID · provider)",
+            Self::ZhCn => "前台估计（类型 · PID · provider）",
+        }
+    }
+    pub(crate) fn cli_agent_runtime_hint(self, reason: &str) -> Option<&'static str> {
+        match (self, reason) {
+            (Self::EnUs, "agent-provider-unsupported") => Some(
+                "This Agent provider has no runtime identification rule. Inspect panel process-info before using terminal send explicitly.",
+            ),
+            (Self::ZhCn, "agent-provider-unsupported") => Some(
+                "此 Agent provider 尚无运行时识别规则。请先检查 panel process-info，再显式使用 terminal send。",
+            ),
+            (Self::EnUs, "agent-not-running") => Some(
+                "The terminal no longer contains the expected Agent. Inspect panel process-info and agent get before sending input.",
+            ),
+            (Self::ZhCn, "agent-not-running") => {
+                Some("终端中已找不到预期 Agent。发送前请检查 panel process-info 和 agent get。")
+            }
+            (Self::EnUs, "agent-runtime-ambiguous") => Some(
+                "Several Agent processes cannot be resolved to one foreground chain. Inspect panel process-info before sending input.",
+            ),
+            (Self::ZhCn, "agent-runtime-ambiguous") => {
+                Some("多个 Agent 进程无法确定为一条前台链。发送前请检查 panel process-info。")
+            }
+            (Self::EnUs, "agent-provider-mismatch") => Some(
+                "The running Agent differs from the selected session. Inspect panel process-info and select the intended Agent.",
+            ),
+            (Self::ZhCn, "agent-provider-mismatch") => Some(
+                "实际运行的 Agent 与所选会话不同。请检查 panel process-info 并重新选择目标 Agent。",
+            ),
+            (Self::EnUs, "agent-binding-changed") => Some(
+                "The Agent binding changed during preflight. Resolve the target again before sending input.",
+            ),
+            (Self::ZhCn, "agent-binding-changed") => {
+                Some("预检期间 Agent 绑定已变化。发送前请重新解析目标。")
+            }
+            _ => None,
         }
     }
 }

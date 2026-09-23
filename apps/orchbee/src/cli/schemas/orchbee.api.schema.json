@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 15
+			"const": 16
 		},
 		"source": {
 			"type": "object",
@@ -68,6 +68,7 @@
 						"orchbee.cli.failure.agent",
 						"orchbee.cli.failure.agent-names",
 						"orchbee.cli.failure.agent-prompt",
+						"orchbee.cli.failure.agent-runtime",
 						"orchbee.cli.failure.close",
 						"orchbee.cli.failure.launch-profile",
 						"orchbee.cli.failure.process-info",
@@ -131,6 +132,7 @@
 				"orchbee.cli.failure.agent",
 				"orchbee.cli.failure.agent-names",
 				"orchbee.cli.failure.agent-prompt",
+				"orchbee.cli.failure.agent-runtime",
 				"orchbee.cli.failure.close",
 				"orchbee.cli.failure.launch-profile",
 				"orchbee.cli.failure.process-info",

@@ -165,24 +165,16 @@ mod active {
         let admission = total.step(Instant::now(), READ_BUDGET)?;
         let (mut client, _, snapshot) = query::snapshot_session_until(admission)?;
         let selected = query::resolve_agent_terminal(&mut client, &snapshot, target, admission)?;
+        #[cfg(windows)]
+        let selected = {
+            // Refuse already-known blockers before collecting processes, then
+            // check readiness again against the re-read pinned observation.
+            check_ready(&selected.observation)?;
+            query::verify_agent_terminal(&mut client, &snapshot, selected, admission)?
+        };
+        check_ready(&selected.observation)?;
         let before = &selected.observation.session;
         let session_id = before.snapshot.session_id.clone();
-        let blocked = !before.snapshot.pending_requests.is_empty()
-            || matches!(before.status, AgentSemanticStatus::NeedsAttention { .. });
-        if blocked {
-            return Err(prompt_error(FailureKind::Rejected, "agent-blocked").source(
-                super::super::results::agent_source(&selected.observation.request_id),
-            ));
-        }
-        if before.snapshot.observation.freshness != AgentObservationFreshness::Fresh
-            || matches!(before.status, AgentSemanticStatus::Unknown { .. })
-        {
-            return Err(
-                prompt_error(FailureKind::Rejected, "agent-not-ready").source(
-                    super::super::results::agent_source(&selected.observation.request_id),
-                ),
-            );
-        }
         if query::wait_backoff(wake, Duration::from_millis(1)) {
             return Err(prompt_error(FailureKind::InternalFailure, "interrupted"));
         }
@@ -206,6 +198,23 @@ mod active {
             session_id: session_id.as_str().to_owned(),
             waited,
         })
+    }
+
+    fn check_ready(observation: &query::AgentObservationRead) -> Result<(), Failure> {
+        let before = &observation.session;
+        let blocked = !before.snapshot.pending_requests.is_empty()
+            || matches!(before.status, AgentSemanticStatus::NeedsAttention { .. });
+        if blocked {
+            return Err(prompt_error(FailureKind::Rejected, "agent-blocked")
+                .source(super::super::results::agent_source(&observation.request_id)));
+        }
+        if before.snapshot.observation.freshness != AgentObservationFreshness::Fresh
+            || matches!(before.status, AgentSemanticStatus::Unknown { .. })
+        {
+            return Err(prompt_error(FailureKind::Rejected, "agent-not-ready")
+                .source(super::super::results::agent_source(&observation.request_id)));
+        }
+        Ok(())
     }
 
     fn observe(

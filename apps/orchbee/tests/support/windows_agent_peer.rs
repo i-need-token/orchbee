@@ -147,7 +147,7 @@ pub(super) fn session_detail(session_id: &str) -> serde_json::Value {
     serde_json::json!({
         "snapshot": {
             "sessionId": session_id,
-            "providerId": "acme.agent",
+            "providerId": "claude-code",
             "lifecycle": "live",
             "executionLocation": {"executionLocationId": "host:7"},
             "observation": {
@@ -254,4 +254,100 @@ pub(super) fn bound_agent_reply(stream: &mut LocalStream, detail: Value) {
         "get",
         json!({"kind":"found", "revision":1, "session":detail}),
     );
+}
+
+pub(super) fn runtime_preflight(stream: &mut LocalStream, detail: Value) {
+    let provider = detail["snapshot"]["providerId"].as_str().unwrap();
+    process_reply(stream, vec![process(10, None, &format!("{provider}.exe"))]);
+    read_reply(
+        stream,
+        "get",
+        json!({"kind":"found","revision":2,"session":detail}),
+    );
+}
+
+pub(super) fn process(
+    pid: u32,
+    parent_pid: Option<u32>,
+    image: &str,
+) -> orchbee_terminal_protocol::TerminalProcess {
+    orchbee_terminal_protocol::TerminalProcess {
+        pid,
+        parent_pid,
+        creation_time: u64::from(pid),
+        image: Some(image.into()),
+        command_line: Some(image.into()),
+        current_directory: Some("C:\\工作 😀".into()),
+    }
+}
+
+pub(super) fn process_reply(
+    stream: &mut LocalStream,
+    processes: Vec<orchbee_terminal_protocol::TerminalProcess>,
+) {
+    use orchbee_client_server_protocol::{
+        ClientMessage, ServerMessage, TerminalViewerAction, TerminalViewerOutcome,
+        TerminalViewerResult, ViewerId, read_client_message, write_server_message,
+    };
+    use orchbee_terminal_protocol::{
+        AttachmentId, CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, HostEpoch, MessageRole,
+        PayloadEncoding, ProcessInfoControl, TerminalId, TerminalProcessInfo,
+        encode_process_info_control, encode_transport_envelope,
+    };
+    let attachment = AttachmentId::from_bytes([8; 16]).unwrap();
+    let viewer = ViewerId::parse(&attachment.to_text()).unwrap();
+    let epoch = HostEpoch::from_bytes([6; 16]).unwrap();
+    let control =
+        encode_process_info_control(&ProcessInfoControl::ProcessInfo(TerminalProcessInfo {
+            attachment_id: attachment,
+            terminal_id: TerminalId::from_bytes([7; 16]).unwrap(),
+            root_pid: 10,
+            processes,
+        }))
+        .unwrap();
+    let record = encode_transport_envelope(&Envelope {
+        protocol: CURRENT_PROTOCOL_VERSION,
+        role: MessageRole::Response,
+        kind: control.kind,
+        optional_message: false,
+        payload_encoding: PayloadEncoding::ControlJson,
+        correlation_id: Some(CorrelationId::from_bytes([9; 16]).unwrap()),
+        host_epoch: Some(epoch),
+        payload: &control.payload,
+    })
+    .unwrap();
+    for (stage, outcome) in [
+        (
+            "attach",
+            TerminalViewerOutcome::Attached {
+                attachment_id: viewer.clone(),
+                host_epoch: orchbee_client_server_protocol::HostEpoch::parse(&epoch.to_text())
+                    .unwrap(),
+            },
+        ),
+        ("query", TerminalViewerOutcome::Record(record)),
+        ("detach", TerminalViewerOutcome::Detached {}),
+    ] {
+        let ClientMessage::TerminalViewer(request) = read_client_message(stream).unwrap() else {
+            panic!("read-only process {stage} before any input");
+        };
+        match (stage, request.action()) {
+            ("attach", TerminalViewerAction::AttachBinding { terminal_id, .. }) => {
+                assert_eq!(terminal_id.as_str(), "33333333333333333333333333333333")
+            }
+            ("query", TerminalViewerAction::ReadProcessInfo { attachment_id })
+            | ("detach", TerminalViewerAction::Detach { attachment_id }) => {
+                assert_eq!(attachment_id, &viewer)
+            }
+            _ => panic!("unexpected preflight operation"),
+        }
+        write_server_message(
+            stream,
+            &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
+                request.request_id().clone(),
+                outcome,
+            )),
+        )
+        .unwrap();
+    }
 }

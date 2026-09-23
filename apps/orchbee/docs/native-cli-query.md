@@ -29,7 +29,7 @@ Site runtime is disposed. Restarting a Site starts with an empty alias table.
 All three commands admit `--format text|json`. The embedded success schemas are
 `orchbee.agent.names`, `orchbee.agent.resolve`, and `orchbee.agent.rename`, version 1;
 post-admission failures use `orchbee.cli.failure.agent-names`, version 1. Presentation resolution and ambiguous-target failures use version 2; earlier outcomes keep version 1. Correlated
-semantic answers carry an `agent-names` source with the OBAP request ID. These four documents are included in schema catalog version 15, alongside the prompt contracts. Invalid names or conflicting selectors
+semantic answers carry an `agent-names` source with the OBAP request ID. These four documents are included in schema catalog version 16, alongside the prompt contracts. Invalid names or conflicting selectors
 fail with exit 2 before any runtime access. A collision is exit 3 and identifies the
 incumbent session; it never overwrites that session's name.
 
@@ -126,7 +126,7 @@ own turn. Polling can miss transitions and does not claim Herdr event replay.
 
 On Windows, canonical provider `codex` uses one ordered paste, Right, Enter sequence. Right is a non-character boundary that flushes Codex's paste-burst buffer and clears its Enter suppression window. It neither embeds escape bytes in prompt text nor guesses delivery speed with a fixed delay. Other providers retain paste, Enter; ordinary `terminal send --paste --enter` adds no boundary key. Receipts report the actual three or two records. Stopping before Right or Enter reports only the accepted prefix, never retries the suffix and never starts observation. This boundary does not establish an empty composer, foreground ownership or provider readiness.
 
-Schema catalog version 15 contains 49 documents, including the prompt success and failure contracts.
+Schema catalog version 16 contains 50 documents, including the prompt success and failure contracts.
 
 `orchbee.agent.prompt` returns the session ID, the full terminal submission receipt,
 and optional matched observation/wait facts. Refused/partial/unknown send outcomes retain
@@ -1915,7 +1915,7 @@ invalid-context, stale-binding, child-Presentation and movement cases plus a rea
 Windows child-process witness. Desktop and global focus fallback remain excluded;
 TLA execution is deferred and is not claimed as evidence.
 
-The additive schema is registered in the closed `api schema` catalog version 15;
+The additive schema is registered in the closed `api schema` catalog version 16;
 other business document versions are unchanged.
 
 Windows Worker identities are fresh per Server connection, using the existing OS
@@ -1967,10 +1967,63 @@ establish provider foreground ownership or readiness. TLA execution remains defe
 
 ## Panel process information
 
+### Windows interpretation and Agent input preflight
+
+`src/cli/processes.rs` owns a bounded, stateless interpretation of the validated Host
+sample. The Host alone owns process collection. Each process adds nullable `argv` and
+`providerId`; `foreground` reports `kind`, nullable `pid`, and nullable `providerId`.
+The process result is version 2. Windows `CommandLineToArgvW`, through the existing
+safe `winsafe` shell binding, interprets nonempty command lines of at most 4096 UTF-16
+units without NUL. Empty or unavailable commands remain null; there is no substitution
+of the CLI's own command line, shell expansion, file lookup, or environment access.
+These are Windows argument parsing rules, not proof of another executable's parser.
+The Windows-only feature adds no crate, version, build script, or process execution.
+
+The executable image must identify an Agent directly, or identify a known runtime
+whose actual script entrypoint identifies one. Eval/command payloads and arbitrary
+later arguments never identify an Agent. Known package entrypoints and executable
+aliases are explicit. Provider matching is a diagnostic heuristic, not executable
+authentication. It does not create canonical Agent state or establish readiness.
+
+| Sample interpretation                                 | Foreground projection                | Input preflight                        |
+| ----------------------------------------------------- | ------------------------------------ | -------------------------------------- |
+| One Agent candidate is an ancestor of every candidate | `agent-chain`, selected PID/provider | Expected canonical provider must match |
+| Several unrelated candidates                          | `ambiguous`, null PID/provider       | Refuse                                 |
+| No candidate, retained root is present                | `root`, root PID, null provider      | Refuse                                 |
+| Root absent and no unique candidate                   | `unavailable`, null PID/provider     | Refuse                                 |
+
+Parent edges only connect sampled processes whose parent creation time is no later
+than the child's. Traversal is bounded by the sample size and detects cycles; a reused
+parent PID cannot manufacture an ancestor. This adopts Herdr's Windows ancestor-chain
+selection intent from `e0507237`, within Orchbee's retained Job, without global scans
+or the Git Bash environment-marker escape fallback. Ambiguity stays explicit rather
+than looking like an available shell. No POSIX foreground process group is claimed.
+
+On Windows, `agent send-keys` and `agent prompt` resolve the canonical session and its
+exact terminal, query this terminal on the same admitted session, check the expected
+canonical provider ID (not an executable alias), then re-read the pinned Agent before sending. The second read must preserve
+provider, live lifecycle, and the selected navigable presentation and its generation. Prompt freshness
+and blocker checks use this latest observation as well. All steps share the existing
+five-second input deadline; each viewer has a detach attempt before the next step, with session
+drop as cleanup fallback. A preflight failure sends no input. The low-level `terminal
+send` remains available for explicit terminal input. The checks and later input are
+not atomic: a process can exit after observation. Existing send receipts and unknown
+outcome rules still apply; there is no retry or process lease.
+
+Runtime mismatches use `orchbee.cli.failure.agent-runtime` v1 with the correlated
+process source and bounded `stage/reason/sessionId/expectedProvider/detectedProvider`
+details. Unknown providers, absent Agents, ambiguous chains, provider mismatch, and
+changed canonical binding are distinct refusals. Collection and transport failures
+retain their original typed failure. Verification covers Windows Unicode/quoting,
+empty-command protection, runtime eval decoys, ancestor/cycle/reused-parent cases,
+closed result schemas, real CLI/named-pipe preflight ordering and no-input refusals,
+and a real isolated Windows Job witness. These checks do not prove provider task
+completion, authentication, or atomic foreground ownership.
+
 `panel process-info [<panel-id>] [--panel <panel-id> | --current]` reads the Windows Job of the Panel's primary Terminal. Positional and explicit Panel targets are exclusive; complete IDs and `@panel:<suffix>` use the existing Panel resolver. Without an explicit target, validate `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID` before admission, then derive the caller's Panel from one Workbench snapshot. Missing or stale caller context fails rather than guessing a focused client. The primary presentation must have a terminal binding; children are not fallback candidates.
 
 One existing-only Client Session and one absolute five-second budget cover snapshot, transient read-only viewer admission, one process read, and best-effort detach. Session drop owns remaining viewer cleanup. The Server revalidates Worker generation and physical terminal binding; Worker and Host retain process authority. Success publishes the exact typed Windows Job sample with Panel/Terminal routing context and correlated read provenance. The sequential snapshot and sample do not claim an atomic cross-owner observation. Host failures remain explicit, are never empty process success, and are not retried. Strings are escaped in text output; machine creation times remain decimal strings. The response describes owned processes, not a Windows foreground process group or Agent interactive readiness.
 
-The JSON envelope is `orchbee.panel.process-info` v1; the schema catalog and bilingual help/completion ship with the command. Evidence covers implicit and explicit targets, conflicts before I/O, primary-versus-child selection, absent primary bindings, denied reads, wrong response identities, preserved Host errors, bounded output, viewer cleanup, and the real Windows Site/Worker/Host process route. The shared typed read is also the actual dependency for subsequent Agent launch/readiness work; it does not close those obligations by itself.
+The JSON envelope is `orchbee.panel.process-info` v2; the schema catalog and bilingual help/completion ship with the command. Evidence covers implicit and explicit targets, conflicts before I/O, primary-versus-child selection, absent primary bindings, denied reads, wrong response identities, preserved Host errors, bounded output, viewer cleanup, and the real Windows Site/Worker/Host process route. The shared typed read is also the actual dependency for subsequent Agent launch/readiness work; it does not close those obligations by itself.
 
-Expected Host refusals use `orchbee.cli.failure.process-info` v1 with the bounded failure code; invalid responses and transport failures retain the generic CLI failure contract. Successful `source` records snapshot revision, OBCS request ID, and Host correlation, epoch, attachment, and physical Terminal ID as distinct identities. Catalog version 15 contains 49 schemas.
+Expected Host refusals use `orchbee.cli.failure.process-info` v1 with the bounded failure code; invalid responses and transport failures retain the generic CLI failure contract. Successful `source` records snapshot revision, OBCS request ID, and Host correlation, epoch, attachment, and physical Terminal ID as distinct identities. Catalog version 16 contains 50 schemas.

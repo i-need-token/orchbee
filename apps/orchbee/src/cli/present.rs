@@ -443,29 +443,40 @@ pub(crate) fn render(
         }),
         Projection::PanelGet(doc) => panel_doc(out, doc, text),
         Projection::PanelProcessInfo(doc) => {
+            let view = super::processes::interpret(&doc.info);
             field(out, text.terminal, &doc.terminal.terminal_id)?;
             field(
                 out,
                 locale.cli_process_root(),
                 &doc.info.root_pid.to_string(),
             )?;
-            table(
+            field(
                 out,
-                &locale.cli_process_headers(),
-                &doc.info.processes,
-                |process| {
-                    vec![
-                        process.pid.to_string(),
-                        process
-                            .parent_pid
-                            .map_or_else(|| "null".to_owned(), |pid| pid.to_string()),
-                        process.creation_time.to_string(),
-                        escape(process.image.as_deref().unwrap_or("null")),
-                        escape(process.command_line.as_deref().unwrap_or("null")),
-                        escape(process.current_directory.as_deref().unwrap_or("null")),
-                    ]
-                },
-            )
+                locale.cli_process_foreground(),
+                &format!(
+                    "{} · {} · {}",
+                    view.foreground.selection.as_str(),
+                    view.foreground
+                        .pid
+                        .map_or_else(|| "null".into(), |pid| pid.to_string()),
+                    view.foreground.provider.unwrap_or("null")
+                ),
+            )?;
+            table(out, &locale.cli_process_headers(), &view.processes, |row| {
+                let process = row.facts;
+                vec![
+                    process.pid.to_string(),
+                    process
+                        .parent_pid
+                        .map_or_else(|| "null".to_owned(), |pid| pid.to_string()),
+                    process.creation_time.to_string(),
+                    escape(process.image.as_deref().unwrap_or("null")),
+                    escape(process.command_line.as_deref().unwrap_or("null")),
+                    escape(process.current_directory.as_deref().unwrap_or("null")),
+                    escape(&serde_json::json!(row.argv).to_string()),
+                    row.provider.unwrap_or("null").to_owned(),
+                ]
+            })
         }
         Projection::TerminalList(rows) => terminal_table(out, text, rows),
         // `terminal read` emits the observed content itself: one output line

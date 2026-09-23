@@ -7,18 +7,22 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::{Command, Output, Stdio},
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 struct Fixture(PathBuf);
 impl Fixture {
     fn new() -> Self {
+        // Windows wall-clock samples can be equal in concurrent test threads.
+        static SEQUENCE: AtomicU64 = AtomicU64::new(0);
         let root = std::env::temp_dir().join(format!(
-            "orchbee-windows-doctor-{}-{}",
+            "orchbee-windows-doctor-{}-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
-                .as_nanos()
+                .as_nanos(),
+            SEQUENCE.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir(&root).unwrap();
         for directory in ["用户 home/.codex", "explicit Codex home", "bin"] {

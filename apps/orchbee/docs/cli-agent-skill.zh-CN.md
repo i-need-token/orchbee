@@ -12,7 +12,7 @@
 
 使用 `orchbee status --format json` 或 `orchbee api snapshot` 检查运行中的 Site，再使用相应的 `project`、`workspace`、`tab`、`panel`、`terminal`、`worktree` 或 `agent` list/get 命令。遵循各命令声明的过滤参数，使用返回的稳定 ID。仅在帮助声明支持时使用标签和后缀选择器；有歧义的目标必须明确解析。
 
-`orchbee terminal read <terminal-id> --history --rows 50 --lines 50 --unwrap --format json` 读取保留输出。输出可能含有秘密，只转发任务需要的内容。读取/查询命令不会创建缺失资源。当前构建中，创建 Workspace、接纳目录和创建初始 Tab 是独立命令；必填参数以各自帮助为准。
+`orchbee terminal read <terminal-id> --history --rows 50 --lines 50 --unwrap --format json` 读取保留输出。输出可能含有秘密，只转发任务需要的内容。读取/查询命令不会创建缺失资源。使用 `workspace create --project <target> --label <label> --cwd <absolute-path>`，一次请求接纳目录并创建 Workspace 和首个终端。分别检查资源提交和终端启动结果。
 
 `orchbee agent read --name alpha --lines 50 --format json` 读取存活命名会话的可见终端。
 添加 `--history --rows 50` 则改为读取保留的滚动历史。结果使用终端 read/history schema，
@@ -60,9 +60,22 @@ Windows 上可用 `agent doctor` 离线检查本机配置。`agent integration l
 使用 `panel current --panel <id-or-selector>`。Worker 提供 `ORCHBEE_TERMINAL_ID`
 和 `ORCHBEE_WORKER_ID`；查询在一次快照中核实它们的当前绑定。上下文缺失或过期
 时返回错误，绝不回退到客户端焦点。显式 `--panel` 忽略继承上下文，不能与
-`--current` 同用。`api schema` 现在返回第 14 版目录 envelope；新增的
+`--current` 同用。`api schema` 现在返回第 16 版目录 envelope；新增的
 `orchbee.panel.current` 文档为第 1 版。
 
 `agent wait` 或 `agent prompt --wait` 可显式加 `--forever`，与 `--timeout` 互斥；默认仍等待最多 600000 毫秒，单次读取始终有界。`--until blocked` 对应 fresh needs-attention，`--until done` 对应 fresh 完成结果集合，不表示未读。等待/prompt 成功为版本 2，无限模式的 timeoutMs 为 null；无限等待读取超时失败也为版本 2。Windows Codex 的提示提交在 paste 与 Enter 间加入 Right，以清除 paste-burst 对 Enter 的抑制。
 
 面向单个 Agent 的命令还支持 `--panel <id|@panel:suffix>` 或位置参数 Panel ID。位置参数优先按 Session ID 和名称解析，再回退到 Panel。Panel 选择主终端且要求唯一存活 Agent；等待固定到选定的 Session。
+
+## 在 Agent 输入前检查进程
+
+`orchbee panel process-info --panel <id|@panel:suffix> --format json` 查询真实 Windows
+Job。在 Orchbee 终端内可省略目标，使用经过校验的调用方上下文。v2 文档包含实时 cwd、
+精确创建身份、Windows argv 投影、provider 识别和前台估计。null 字段与选择歧义明确
+返回；前台估计不证明交互已经就绪。
+
+Windows 的 `agent send-keys` 与 `agent prompt` 会核对实际运行的 provider，并在发送前
+重读同一会话／presentation generation。Shell、不同或有歧义的 Agent、未知 provider
+以及绑定变化都会拒绝且不输入。prompt 还会复查状态是否新鲜、已知、有待处理请求。
+请检查 process-info 与 Agent 事实解决拒绝；只有明确要直接操作终端时才用 `terminal send`。
+进程仍可能在预检后退出，因此需要检查发送回执。

@@ -10,6 +10,8 @@ mod agent_target;
 mod process_info;
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) use process_info::panel_process_info;
+#[cfg(windows)]
+use process_info::read_terminal_processes;
 
 #[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn panel_process_info(
@@ -19,10 +21,11 @@ pub(crate) fn panel_process_info(
 }
 #[cfg(any(target_os = "linux", windows))]
 mod agent_terminal;
+#[cfg(windows)]
+pub(crate) use agent_terminal::verify_agent_terminal;
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) use agent_terminal::{
-    AgentObservationRead, agent_terminal_target, read_agent_observation, read_agent_terminal,
-    resolve_agent_terminal,
+    AgentObservationRead, read_agent_observation, read_agent_terminal, resolve_agent_terminal,
 };
 
 #[cfg(any(target_os = "linux", windows))]

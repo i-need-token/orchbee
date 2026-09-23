@@ -10,14 +10,14 @@
 			"const": "orchbee.panel.process-info"
 		},
 		"version": {
-			"const": 1
+			"const": 2
 		},
 		"source": {
 			"$ref": "#/$defs/source"
 		},
 		"result": {
 			"type": "object",
-			"required": ["terminal", "scope", "rootPid", "processes"],
+			"required": ["terminal", "scope", "rootPid", "processes", "foreground"],
 			"additionalProperties": false,
 			"properties": {
 				"terminal": {
@@ -37,6 +37,79 @@
 					"items": {
 						"$ref": "#/$defs/process"
 					}
+				},
+				"foreground": {
+					"type": "object",
+					"required": ["kind", "pid", "providerId"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"enum": ["agent-chain", "root", "ambiguous", "unavailable"]
+						},
+						"pid": {
+							"type": ["integer", "null"],
+							"minimum": 1,
+							"maximum": 4294967295
+						},
+						"providerId": {
+							"type": ["string", "null"],
+							"pattern": "^[0-9A-Za-z._:-]{1,128}$"
+						}
+					},
+					"oneOf": [
+						{
+							"properties": {
+								"kind": {
+									"const": "agent-chain"
+								},
+								"pid": {
+									"type": "integer"
+								},
+								"providerId": {
+									"type": "string"
+								}
+							}
+						},
+						{
+							"properties": {
+								"kind": {
+									"const": "root"
+								},
+								"pid": {
+									"type": "integer"
+								},
+								"providerId": {
+									"type": "null"
+								}
+							}
+						},
+						{
+							"properties": {
+								"kind": {
+									"const": "ambiguous"
+								},
+								"pid": {
+									"type": "null"
+								},
+								"providerId": {
+									"type": "null"
+								}
+							}
+						},
+						{
+							"properties": {
+								"kind": {
+									"const": "unavailable"
+								},
+								"pid": {
+									"type": "null"
+								},
+								"providerId": {
+									"type": "null"
+								}
+							}
+						}
+					]
 				}
 			}
 		}
@@ -101,7 +174,16 @@
 		},
 		"process": {
 			"type": "object",
-			"required": ["pid", "parentPid", "creationTime", "image", "commandLine", "currentDirectory"],
+			"required": [
+				"pid",
+				"parentPid",
+				"creationTime",
+				"image",
+				"commandLine",
+				"currentDirectory",
+				"argv",
+				"providerId"
+			],
 			"additionalProperties": false,
 			"properties": {
 				"pid": {
@@ -138,6 +220,19 @@
 					"type": ["string", "null"],
 					"maxLength": 4096,
 					"pattern": "^[^\\u0000]*$"
+				},
+				"argv": {
+					"type": ["array", "null"],
+					"maxItems": 4096,
+					"items": {
+						"type": "string",
+						"maxLength": 4096,
+						"pattern": "^[^\\u0000]*$"
+					}
+				},
+				"providerId": {
+					"type": ["string", "null"],
+					"pattern": "^[0-9A-Za-z._:-]{1,128}$"
 				}
 			}
 		},

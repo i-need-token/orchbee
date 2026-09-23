@@ -44,8 +44,9 @@ process-wrap = { version = "=10.0.1", default-features = false, features = [
 ] }
 windows = { version = "=0.62.2", default-features = false, features = ["Win32_System_Threading"] }
 # System-directory lookup and inherited handle type admission for the owned,
-# cancellable stdin reader. Reuse the cohort's existing safe Windows bindings.
-winsafe = { workspace = true, features = ["kernel"] }
+# cancellable stdin reader, plus bounded CommandLineToArgv process projection.
+# Reuse the cohort's existing safe Windows bindings.
+winsafe = { workspace = true, features = ["kernel", "shell"] }
 winapi-util.workspace = true
 crossterm_winapi = { version = "=0.9.1", default-features = false }
 ctrlc = { version = "=3.5.2", default-features = false }

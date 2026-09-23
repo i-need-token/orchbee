@@ -37,6 +37,73 @@ pub(crate) struct ResolvedAgentTerminal {
     pub(crate) observation: AgentObservationRead,
 }
 
+/// A read-only preflight, not an atomic process lease over the later send.
+#[cfg(windows)]
+pub(crate) fn verify_agent_terminal(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    selected: ResolvedAgentTerminal,
+    deadline: Instant,
+) -> Result<ResolvedAgentTerminal, Failure> {
+    use super::super::processes::{Selection, interpret, provider};
+    let before = &selected.observation.session.snapshot;
+    let (source, document) =
+        read_terminal_processes(client, deadline, snapshot, &selected.terminal)?;
+    let view = interpret(&document.info);
+    let expected = provider(before.provider_id.as_str())
+        .filter(|canonical| *canonical == before.provider_id.as_str());
+    let detected = view.foreground.provider;
+    let refusal = |reason: &str| {
+        Failure::new(FailureKind::Rejected)
+            .failure_schema("orchbee.cli.failure.agent-runtime")
+            .source(source.clone())
+            .details(serde_json::Map::from_iter([
+                ("stage".into(), serde_json::json!("agent-runtime")),
+                ("reason".into(), serde_json::json!(reason)),
+                (
+                    "sessionId".into(),
+                    serde_json::json!(before.session_id.as_str()),
+                ),
+                (
+                    "expectedProvider".into(),
+                    serde_json::json!(before.provider_id.as_str()),
+                ),
+                ("detectedProvider".into(), serde_json::json!(detected)),
+            ]))
+    };
+    if expected.is_none() {
+        return Err(refusal("agent-provider-unsupported"));
+    }
+    match view.foreground.selection {
+        Selection::Ambiguous => return Err(refusal("agent-runtime-ambiguous")),
+        Selection::Root | Selection::Unavailable => return Err(refusal("agent-not-running")),
+        Selection::AgentChain => {}
+    }
+    if expected != detected {
+        return Err(refusal("agent-provider-mismatch"));
+    }
+    let observation = read_agent_observation(client, &before.session_id, deadline, None)?;
+    let latest = &observation.session.snapshot;
+    if latest.provider_id != before.provider_id
+        || latest.lifecycle != AgentLifecycle::Live
+        || !latest.presentation_attachments.iter().any(|binding| {
+            binding.navigable
+                && binding.presentation_id.as_str() == document.terminal.presentation_id
+                && before.presentation_attachments.iter().any(|previous| {
+                    previous.navigable
+                        && previous.presentation_id == binding.presentation_id
+                        && previous.generation == binding.generation
+                })
+        })
+    {
+        return Err(refusal("agent-binding-changed"));
+    }
+    Ok(ResolvedAgentTerminal {
+        terminal: selected.terminal,
+        observation,
+    })
+}
+
 pub(crate) fn resolve_agent_terminal(
     client: &mut LocalClient,
     snapshot: &Snapshot,

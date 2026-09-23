@@ -1,0 +1,107 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.cli.failure.agent-runtime",
+	"title": "orchbee Agent runtime refusal",
+	"type": "object",
+	"required": ["schema", "version", "source", "failure"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.cli.failure.agent-runtime"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"$ref": "#/$defs/source"
+		},
+		"failure": {
+			"type": "object",
+			"required": ["kind", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "rejected"
+				},
+				"details": {
+					"type": "object",
+					"required": ["stage", "reason", "sessionId", "expectedProvider", "detectedProvider"],
+					"additionalProperties": false,
+					"properties": {
+						"stage": {
+							"const": "agent-runtime"
+						},
+						"reason": {
+							"enum": [
+								"agent-provider-unsupported",
+								"agent-runtime-ambiguous",
+								"agent-not-running",
+								"agent-provider-mismatch",
+								"agent-binding-changed"
+							]
+						},
+						"sessionId": {
+							"type": "string",
+							"pattern": "^[0-9A-Za-z._:-]{1,128}$"
+						},
+						"expectedProvider": {
+							"type": "string",
+							"pattern": "^[0-9A-Za-z._:-]{1,128}$"
+						},
+						"detectedProvider": {
+							"type": ["string", "null"],
+							"pattern": "^[0-9A-Za-z._:-]{1,128}$"
+						}
+					}
+				}
+			}
+		}
+	},
+	"$defs": {
+		"source": {
+			"type": "object",
+			"required": [
+				"kind",
+				"siteId",
+				"snapshotRevision",
+				"requestId",
+				"hostRequestId",
+				"hostEpoch",
+				"attachmentId",
+				"hostTerminalId"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "terminal-process-query"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"snapshotRevision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				},
+				"requestId": {
+					"$ref": "#/$defs/id"
+				},
+				"hostRequestId": {
+					"$ref": "#/$defs/id"
+				},
+				"hostEpoch": {
+					"$ref": "#/$defs/id"
+				},
+				"attachmentId": {
+					"$ref": "#/$defs/id"
+				},
+				"hostTerminalId": {
+					"$ref": "#/$defs/id"
+				}
+			}
+		},
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		}
+	}
+}

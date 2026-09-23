@@ -2,8 +2,9 @@
 //! exactly one `terminal.send` request on the same admitted session. The
 //! Server authorizes the current binding during this admission and drives the
 //! temporary input-only attach → input → detach sequence; the CLI never takes
-//! a TUI controller, viewer, or resize lease and never retries an ambiguous
+//! a TUI controller or resize lease and never retries an ambiguous
 //! answer — an uncertain outcome surfaces as `outcome-unknown`, not a replay.
+//! Windows Agent targets first use a transient read viewer for process preflight.
 
 use super::Output;
 #[cfg(not(any(target_os = "linux", windows)))]
@@ -315,13 +316,22 @@ mod linux {
         let target = match target {
             SendTarget::Terminal(target) => target,
             SendTarget::Agent(target) => {
-                agent_target = super::super::query::agent_terminal_target(
+                let selected = super::super::query::resolve_agent_terminal(
                     &mut client,
                     &snapshot,
                     target,
                     deadline,
                 )
                 .map_err(SendError::Failure)?;
+                #[cfg(windows)]
+                let selected = super::super::query::verify_agent_terminal(
+                    &mut client,
+                    &snapshot,
+                    selected,
+                    deadline,
+                )
+                .map_err(SendError::Failure)?;
+                agent_target = selected.terminal;
                 &agent_target
             }
         };

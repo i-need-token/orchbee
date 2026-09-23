@@ -6148,19 +6148,19 @@ fn project_rename_schema_is_strict_and_distinct() -> TestResult {
 /// `orchbee.mutation.result` still receipt schema retrieves offline under
 /// either locale, byte-identical.
 #[test]
-fn api_schema_catalog_is_v15_closed_and_self_consistent() -> TestResult {
-    let base = base_dir("catalog-v15");
+fn api_schema_catalog_is_v16_closed_and_self_consistent() -> TestResult {
+    let base = base_dir("catalog-v16");
     let api_schema = compiled_schema(&base, "orchbee.api.schema");
 
     let output = run(&base, &["api", "schema", "--format", "json"]);
     assert_eq!(output.status.code(), Some(0));
     let listed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(listed["schema"], "orchbee.api.schema");
-    assert_eq!(listed["version"], 15, "catalog envelope is v15");
+    assert_eq!(listed["version"], 16, "catalog envelope is v16");
     assert_eq!(listed["source"]["kind"], "embedded");
     assert!(api_schema.is_valid(&listed), "listing self-validates");
     let schemas = listed["result"]["schemas"].as_object().unwrap();
-    assert_eq!(schemas.len(), 49, "closed dictionary has 49 members");
+    assert_eq!(schemas.len(), 50, "closed dictionary has 50 members");
     assert!(
         schemas.contains_key("orchbee.project.rename"),
         "the rename receipt schema is registered"
@@ -6228,12 +6228,15 @@ fn api_schema_catalog_is_v15_closed_and_self_consistent() -> TestResult {
         serde_json::json!(10),
         serde_json::json!(11),
         serde_json::json!(12),
+        serde_json::json!(13),
+        serde_json::json!(14),
+        serde_json::json!(15),
     ] {
         let mut stale = listed.clone();
         stale["version"] = stale_version.clone();
         assert!(
             !api_schema.is_valid(&stale),
-            "stale catalog {stale_version} fails under v15"
+            "stale catalog {stale_version} fails under v16"
         );
     }
 

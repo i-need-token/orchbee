@@ -438,6 +438,7 @@ fn agent_keys_use_the_exact_bound_terminal_once_and_preserve_unknown_outcomes() 
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let handler = peer(listener, move |mut stream| {
             bound_agent_reply(&mut stream, session_detail("sess-alpha"));
+            runtime_preflight(&mut stream, session_detail("sess-alpha"));
             let ClientMessage::TerminalSend(request) = read_client_message(&mut stream).unwrap()
             else {
                 panic!("one send");
@@ -994,6 +995,7 @@ fn panel_send_keeps_primary_presentation_when_the_agent_also_owns_a_child() {
             "get",
             json!({"kind":"found","revision":1,"session":detail}),
         );
+        runtime_preflight(&mut stream, detail.clone());
         let ClientMessage::TerminalSend(request) = read_client_message(&mut stream).unwrap() else {
             panic!("terminal send")
         };
@@ -1048,6 +1050,118 @@ fn missing_panel_is_a_snapshot_refusal_without_an_agent_operation() {
         &doc,
         include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
     );
+}
+
+#[test]
+fn agent_input_refuses_runtime_absence_decoys_mismatch_and_ambiguity_without_a_send() {
+    let fixture = Fixture::new();
+    let rendezvous = fixture.rendezvous();
+    for (case, reason) in [
+        ("shell", "agent-not-running"),
+        ("eval", "agent-not-running"),
+        ("mismatch", "agent-provider-mismatch"),
+        ("ambiguous", "agent-runtime-ambiguous"),
+        ("unknown", "agent-provider-unsupported"),
+        ("alias", "agent-provider-unsupported"),
+        ("empty", "agent-not-running"),
+    ] {
+        let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
+        let handler = peer(listener, move |mut stream| {
+            let mut detail = session_detail("sess-alpha");
+            if case == "unknown" {
+                detail["snapshot"]["providerId"] = json!("acme.agent");
+            }
+            if case == "alias" {
+                detail["snapshot"]["providerId"] = json!("codex.exe");
+            }
+            bound_agent_reply(&mut stream, detail);
+            let mut rows = vec![process(10, None, "cmd.exe")];
+            match case {
+                "shell" => {}
+                "empty" => rows.clear(),
+                "eval" => {
+                    let mut node = process(20, Some(10), "node.exe");
+                    node.command_line = Some("node.exe -e claude claude.js".into());
+                    rows.push(node);
+                }
+                "mismatch" => rows.push(process(20, Some(10), "codex.exe")),
+                "ambiguous" => {
+                    rows.push(process(20, Some(10), "claude.exe"));
+                    rows.push(process(30, Some(10), "codex.exe"));
+                }
+                "unknown" => rows.push(process(20, Some(10), "claude.exe")),
+                "alias" => rows.push(process(20, Some(10), "codex.exe")),
+                _ => unreachable!(),
+            }
+            process_reply(&mut stream, rows);
+            assert_closed(&mut stream);
+        });
+        let output = fixture.run(&["agent", "send-keys", "alpha", "enter", "--format", "json"]);
+        handler.join().unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(3),
+            "{case}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        validate(
+            &document,
+            include_str!("../src/cli/schemas/orchbee.cli.failure.agent-runtime.json"),
+        );
+        assert_eq!(document["failure"]["details"]["reason"], reason);
+        assert!(String::from_utf8_lossy(&output.stderr).contains("panel process-info"));
+    }
+}
+
+#[test]
+fn runtime_preflight_rechecks_canonical_binding_before_input() {
+    let fixture = Fixture::new();
+    let rendezvous = fixture.rendezvous();
+    for change in ["ended", "provider", "presentation", "generation"] {
+        let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
+        let handler = peer(listener, move |mut stream| {
+            bound_agent_reply(&mut stream, session_detail("sess-alpha"));
+            process_reply(&mut stream, vec![process(10, None, "claude.exe")]);
+            let mut next = session_detail("sess-alpha");
+            match change {
+                "ended" => {
+                    next["snapshot"]["lifecycle"] = json!("ended");
+                    next["snapshot"]["turn"] = json!({"kind":"idle"});
+                    next["snapshot"]["pendingRequests"] = json!([]);
+                    next["status"] = json!({"kind":"ended"});
+                }
+                "provider" => next["snapshot"]["providerId"] = json!("codex"),
+                "generation" => {
+                    next["snapshot"]["presentationAttachments"][0]["generation"] = json!("gen-new")
+                }
+                "presentation" => {
+                    next["snapshot"]["presentationAttachments"][0]["navigable"] = json!(false)
+                }
+                _ => unreachable!(),
+            }
+            read_reply(
+                &mut stream,
+                "get",
+                json!({"kind":"found","revision":2,"session":next}),
+            );
+            assert_closed(&mut stream);
+        });
+        let output = fixture.run(&["agent", "send-keys", "alpha", "enter", "--format", "json"]);
+        handler.join().unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(3),
+            "{change}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+        validate(
+            &doc,
+            include_str!("../src/cli/schemas/orchbee.cli.failure.agent-runtime.json"),
+        );
+        assert_eq!(doc["failure"]["details"]["reason"], "agent-binding-changed");
+    }
 }
 
 #[test]

@@ -98,9 +98,9 @@ const parseDescendantPid = harness.parseDescendantPid;
 const procCommEquals = harness.procCommEquals;
 const processAlive = harness.processAlive;
 
-// These fixtures own focus-mode transitions. Native startup output must not
-// change those modes between the manual operations and their assertions.
-fn GatedFocusProbe(comptime Probe: type) type {
+// These fixtures own mode transitions and reply accounting. Native startup
+// output must not change modes or queue replies between their manual operations.
+fn GatedReaderProbe(comptime Probe: type) type {
     return struct {
         probe: Probe,
         reader: TestGate = .{},
@@ -531,7 +531,7 @@ test "client input publication linearizes against post-exit client closure" {
     }
 }
 test "client admission closure rejects client commits while terminal replies still publish" {
-    var probe: GatedFocusProbe(WriterProbe) = .{ .probe = .{ .pause_at = .copied } };
+    var probe: GatedReaderProbe(WriterProbe) = .{ .probe = .{ .pause_at = .copied } };
     const runtime = try createRuntimeWithHooks(probe.hooks());
     probe.runtime = runtime;
     defer {
@@ -728,7 +728,7 @@ test "zero-byte semantic encodings do not retain queue metadata" {
     const posix_arguments = [_][]const u8{ "-c", "sleep 30" };
     const windows_arguments = [_][]const u8{ "/D", "/S", "/C", "ping -n 31 127.0.0.1 >nul" };
     const arguments = if (builtin.os.tag == .windows) &windows_arguments else &posix_arguments;
-    var probe: GatedFocusProbe(void) = .{ .probe = {} };
+    var probe: GatedReaderProbe(void) = .{ .probe = {} };
     const runtime = try createRuntimeWithHooksAndCommand(probe.hooks(), executable, arguments);
     probe.runtime = runtime;
     defer runtime.destroy();
@@ -783,7 +783,7 @@ test "semantic input limits apply to encoded terminal bytes" {
     const posix_arguments = [_][]const u8{ "-c", "sleep 30" };
     const windows_arguments = [_][]const u8{ "/D", "/S", "/C", "ping -n 31 127.0.0.1 >nul" };
     const arguments = if (builtin.os.tag == .windows) &windows_arguments else &posix_arguments;
-    var probe: GatedFocusProbe(void) = .{ .probe = {} };
+    var probe: GatedReaderProbe(void) = .{ .probe = {} };
     const runtime = try createRuntimeWithHooksAndCommand(probe.hooks(), executable, arguments);
     probe.runtime = runtime;
     defer runtime.destroy();
@@ -799,7 +799,7 @@ test "semantic input limits apply to encoded terminal bytes" {
     try runtime.forceTerminate();
 }
 test "shared terminal focus emits only aggregate zero and nonzero transitions" {
-    var probe: GatedFocusProbe(void) = .{ .probe = {} };
+    var probe: GatedReaderProbe(void) = .{ .probe = {} };
     const runtime = try harness.createIdleRuntimeWithGeometryAndHooks(80, 24, .{}, probe.hooks());
     probe.runtime = runtime;
     defer runtime.destroy();
@@ -847,7 +847,7 @@ test "shared terminal focus emits only aggregate zero and nonzero transitions" {
     try runtime.forceTerminate();
 }
 test "attachment repair orders key mouse and final aggregate focus release" {
-    var probe: GatedFocusProbe(void) = .{ .probe = {} };
+    var probe: GatedReaderProbe(void) = .{ .probe = {} };
     const runtime = try harness.createIdleRuntimeWithGeometryAndHooks(80, 24, .{
         .cell_pixel_height = 16,
         .cell_pixel_width = 8,
@@ -944,7 +944,7 @@ test "attachment repair orders key mouse and final aggregate focus release" {
     try runtime.forceTerminate();
 }
 test "attachment input reset repairs ownership, retains the ledger, and rejects stale input" {
-    var probe: GatedFocusProbe(void) = .{ .probe = {} };
+    var probe: GatedReaderProbe(void) = .{ .probe = {} };
     const runtime = try harness.createIdleRuntimeWithGeometryAndHooks(80, 24, .{
         .cell_pixel_height = 16,
         .cell_pixel_width = 8,
@@ -1416,7 +1416,7 @@ test "attachment detach repair uses its precharged input capacity" {
     try runtime.forceTerminate();
 }
 test "final aggregate focus release uses its precharged input capacity" {
-    var probe: GatedFocusProbe(WriterProbe) = .{ .probe = .{ .pause_at = .copied } };
+    var probe: GatedReaderProbe(WriterProbe) = .{ .probe = .{ .pause_at = .copied } };
     const runtime = try createRuntimeWithHooks(probe.hooks());
     probe.runtime = runtime;
     defer {
@@ -1515,7 +1515,7 @@ test "attachment detach repair allocation failure fences the live runtime" {
     ));
 }
 test "attachment input reset allocation failure fences and clears retained ownership" {
-    var probe: GatedFocusProbe(ContainmentProbe) = .{ .probe = .{ .pause_first_attempt = false } };
+    var probe: GatedReaderProbe(ContainmentProbe) = .{ .probe = .{ .pause_first_attempt = false } };
     const runtime = try createRuntimeWithHooks(probe.hooks());
     probe.runtime = runtime;
     defer {
@@ -2039,7 +2039,7 @@ test "linefeed mode expands carriage returns before semantic and reply admission
 }
 
 test "focus mode reports the aggregate immediately and rejects stale preparation" {
-    var probe: GatedFocusProbe(WriterProbe) = .{ .probe = .{ .pause_at = .copied } };
+    var probe: GatedReaderProbe(WriterProbe) = .{ .probe = .{ .pause_at = .copied } };
     const runtime = try createRuntimeWithHooks(probe.hooks());
     probe.runtime = runtime;
     defer {
@@ -2266,12 +2266,15 @@ test "confirmed local prompt clears orphaned mouse tracking without crossing pro
 }
 
 test "in-band size mode reports enable and both geometry commit paths" {
-    var probe: WriterProbe = .{ .pause_at = .copied };
+    var probe: GatedReaderProbe(WriterProbe) = .{ .probe = .{ .pause_at = .copied } };
     const runtime = try createRuntimeWithHooks(probe.hooks());
+    probe.runtime = runtime;
     defer {
-        probe.copied.release();
+        probe.reader.release();
+        probe.probe.copied.release();
         runtime.destroy();
     }
+    probe.reader.wait();
 
     try std.testing.expectEqual(
         ReaderBatchOutcome.committed,

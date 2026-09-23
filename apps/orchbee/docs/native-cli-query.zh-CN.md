@@ -23,7 +23,7 @@ Agent 状态来自 Server 的 canonical Agent 模型，不从终端文字推断�
 三个命令均接受 `--format text|json`。内嵌成功 schema 为 `orchbee.agent.names`、
 `orchbee.agent.resolve` 与 `orchbee.agent.rename`，均为 version 1；接纳后的失败使用
 `orchbee.cli.failure.agent-names` version 1。presentation 解析与 ambiguous-target 失败使用 version 2；原有结果仍为 version 1。相关语义结果携带 `agent-names` source
-和 OBAP request ID。这四份文档与提示契约一起纳入 Schema 目录 version 15。非法名称或冲突选择器在
+和 OBAP request ID。这四份文档与提示契约一起纳入 Schema 目录 version 16。非法名称或冲突选择器在
 任何运行时访问前以退出码 2 失败。重名以退出码 3 拒绝并标明占用者，绝不覆盖其名称。
 
 每个命令的单一五秒截止覆盖 cohort 校验、仅查已有 Site、接纳、可选 Panel 解析和最终 OBAP 交换。
@@ -103,7 +103,7 @@ Server 仍验证终端当前绑定。
 
 Windows 中，canonical provider 为 `codex` 时，单次输入序列按字面 paste、Right、Enter 排列。Right 作为非字符边界，促使 Codex 刷出 paste-burst 缓冲并清除 Enter 抑制窗口；不向提示文本拼接转义码，也不以固定延时猜测投递速度。其他 provider 保持 paste、Enter，普通 `terminal send --paste --enter` 不增加按键。回执准确报告三条或两条记录；若在 Right 或 Enter 前停止，只报告实际接受的前缀，绝不补发或开始等待。该边界不证明输入框为空、焦点归属或 provider 已就绪。
 
-Schema 目录 version 15 共 49 份文档，包含提示成功与失败契约。
+Schema 目录 version 16 共 50 份文档，包含提示成功与失败契约。
 
 `orchbee.agent.prompt` 返回会话 ID、完整终端提交回执，以及可选的匹配观察/等待事实。
 发送拒绝、部分接受或不确定时沿用既有终端发送/失败契约，不开始等待。预检及提交后失败
@@ -1671,10 +1671,52 @@ Session／名称行为和已有回执来源不变。解析回执可报告 `resol
 
 ## Panel 进程信息
 
+### Windows 解释与 Agent 输入预检
+
+`src/cli/processes.rs` 负责对经过校验的 Host 样本作有界、无状态的解释；进程采集仍只归
+Host 所有。每个进程增加可空 `argv` 和 `providerId`；`foreground` 返回 `kind`、可空
+`pid` 与可空 `providerId`。进程结果为 version 2。通过现有安全 `winsafe` shell 绑定
+调用 Windows `CommandLineToArgvW`，只解释非空、不含 NUL、至多 4096 个 UTF-16 单元
+的命令行。空或不可用命令保持 null，不替换成 CLI 自身命令行，不做 Shell 展开、文件
+查找或环境读取。这是 Windows 参数解析投影，不保证另一程序采用相同解析器。仅 Windows
+的 feature 不增加 crate、版本、构建脚本或进程执行。
+
+可执行映像必须直接标识 Agent，或者是已知运行时且其真实脚本入口标识 Agent。
+eval／command 内容和任意后续参数都不能标识 Agent。已知包入口与可执行别名采用
+显式列表。provider 匹配是诊断启发式，不是可执行文件认证；它不创建 canonical
+Agent 状态，也不代表已就绪。
+
+| 样本解释                        | 前台投影                            | 输入预检                        |
+| ------------------------------- | ----------------------------------- | ------------------------------- |
+| 一个 Agent 候选是所有候选的祖先 | `agent-chain`，选中 PID/provider    | 必须匹配预期 canonical provider |
+| 多个无祖先包含关系的候选        | `ambiguous`，PID/provider 为 null   | 拒绝                            |
+| 没有候选，保留的根进程仍存在    | `root`，根 PID，provider 为 null    | 拒绝                            |
+| 根进程缺失且没有唯一候选        | `unavailable`，PID/provider 为 null | 拒绝                            |
+
+父边只连接样本中创建时间不晚于子进程的父进程。遍历受样本大小限制并检测环；复用的
+父 PID 不能伪造祖先关系。它采用 Herdr `e0507237` 的 Windows 祖先链选择意图，但范围
+限制在 Orchbee 保留的 Job 内，不做全局扫描或 Git Bash 环境标记逃逸回退。歧义明确
+返回，不伪装成可用 Shell；不声称存在 POSIX 前台进程组。
+
+Windows 的 `agent send-keys` 和 `agent prompt` 先解析 canonical 会话及其精确终端，
+在同一已接纳会话上查询该终端、核对预期 canonical provider ID（非可执行别名），然后在发送前重读固定 Agent。
+第二次读取必须保持 provider、live 生命周期及选中的可导航 presentation 和 generation；prompt 也
+使用最新观察检查 freshness 与 blocker。全部步骤共享原有五秒输入截止；每个 viewer
+在下一步前尝试 detach，会话 drop 作为清理兜底。预检失败不发送输入。低层 `terminal send`
+继续用于显式终端输入。检查和后续输入不具备原子性，进程可能在观察后退出；原有发送
+回执与未知结果规则仍适用，不重试，也不声称持有进程租约。
+
+运行时不匹配使用 `orchbee.cli.failure.agent-runtime` v1，携带相关进程 source 和有界
+`stage/reason/sessionId/expectedProvider/detectedProvider` 详情。未知 provider、Agent
+缺失、候选歧义、provider 不匹配与 canonical 绑定变化分别拒绝；采集和传输失败保留
+原类型。验证覆盖 Windows Unicode／引号、空命令保护、运行时 eval 诱饵、祖先／环／
+复用父 PID、封闭结果 schema、真实 CLI／命名管道预检顺序及零输入拒绝，以及真实隔离
+Windows Job。上述检查不证明 provider 任务完成、身份认证或原子前台所有权。
+
 `panel process-info [<panel-id>] [--panel <panel-id> | --current]` 读取 Panel 主 Terminal 的 Windows Job。位置参数与显式 Panel 选项互斥；完整 ID 和 `@panel:<suffix>` 使用既有 Panel 解析器。没有显式目标时，先在接入前验证 `ORCHBEE_TERMINAL_ID` 和 `ORCHBEE_WORKER_ID`，再从一次 Workbench 快照推导调用者所在 Panel。调用上下文缺失或过期时失败，不猜测有焦点的客户端。主 presentation 必须绑定终端，子终端不作回退候选。
 
 一次仅接入既有 Site 的 Client Session 与一个绝对五秒预算覆盖快照、临时只读 viewer 接入、一次进程读取及尽力 detach。会话 drop 回收剩余 viewer。Server 再验证 Worker generation 与物理终端绑定；Worker 和 Host 保留进程事实授权边界。成功时发布确切的类型化 Windows Job 样本、Panel/Terminal 路由上下文和相关联的读取来源。顺序获取的快照与样本不宣称跨所有者原子观察。Host 失败保持明确，不转为空进程成功，也不重试。文本中的字符串经过转义，机器输出的创建时间保留十进制字符串。响应描述归属终端的进程，不代表 Windows 前台进程组或 Agent 的交互就绪状态。
 
-JSON 封套为 `orchbee.panel.process-info` v1，schema 目录及双语帮助、补全与命令共同交付。证据覆盖隐式和显式目标、I/O 前的冲突拒绝、主与子终端选择、主绑定缺失、读取拒绝、响应身份错误、Host 错误保留、输出限额、viewer 回收，以及真实 Windows Site/Worker/Host 进程路由。共享类型化读取也是后续 Agent 启动和就绪工作的实际依赖，本身不关闭这些义务。
+JSON 封套为 `orchbee.panel.process-info` v2，schema 目录及双语帮助、补全与命令共同交付。证据覆盖隐式和显式目标、I/O 前的冲突拒绝、主与子终端选择、主绑定缺失、读取拒绝、响应身份错误、Host 错误保留、输出限额、viewer 回收，以及真实 Windows Site/Worker/Host 进程路由。共享类型化读取也是后续 Agent 启动和就绪工作的实际依赖，本身不关闭这些义务。
 
-Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界的错误代码；非法响应与传输失败使用通用 CLI 失败契约。成功的 `source` 同时记录快照 revision、OBCS request ID 与 Host correlation、epoch、attachment 和物理 Terminal ID；它们不是同一个身份。目录 version 15 包含 49 份 schema。
+Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界的错误代码；非法响应与传输失败使用通用 CLI 失败契约。成功的 `source` 同时记录快照 revision、OBCS request ID 与 Host correlation、epoch、attachment 和物理 Terminal ID；它们不是同一个身份。目录 version 16 包含 50 份 schema。

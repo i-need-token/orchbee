@@ -28,7 +28,17 @@ fn read_on_session(
 ) -> Result<(Value, Projection), Failure> {
     let target = prepared.resolve(snapshot)?;
     let terminal = primary_terminal(snapshot, &target)?;
-    let (row, viewer, attachment, epoch, _) = attach_viewer(client, deadline, snapshot, &terminal)?;
+    read_terminal_processes(client, deadline, snapshot, &terminal)
+        .map(|(source, document)| (source, Projection::PanelProcessInfo(document)))
+}
+
+pub(crate) fn read_terminal_processes(
+    client: &mut LocalClient,
+    deadline: Instant,
+    snapshot: &Snapshot,
+    terminal: &Target,
+) -> Result<(Value, results::PanelProcessInfoDoc), Failure> {
+    let (row, viewer, attachment, epoch, _) = attach_viewer(client, deadline, snapshot, terminal)?;
     // All fallible work after attachment is inside the closure; even request
     // construction failure reaches detach. Dropping the session is the fallback.
     let outcome = (|| {
@@ -66,10 +76,10 @@ fn read_on_session(
         });
         Ok((
             source,
-            Projection::PanelProcessInfo(results::PanelProcessInfoDoc {
+            results::PanelProcessInfoDoc {
                 terminal: row,
                 info,
-            }),
+            },
         ))
     })();
     detach_viewer(client, deadline, viewer);

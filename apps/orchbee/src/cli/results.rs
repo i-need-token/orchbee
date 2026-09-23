@@ -68,7 +68,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
 pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
     match command {
         QueryCommand::TerminalGet(_) => 3,
-        QueryCommand::AgentWait { .. } => 2,
+        QueryCommand::AgentWait { .. } | QueryCommand::PanelProcessInfo(_) => 2,
         QueryCommand::TerminalRead { unwrap, lines, .. }
         | QueryCommand::AgentRead { unwrap, lines, .. }
             if *unwrap || lines.is_some() =>
@@ -1200,19 +1200,31 @@ impl Projection {
                     })
                     .collect::<Vec<_>>(),
             }),
-            Self::PanelProcessInfo(doc) => json!({
-                "terminal": terminal_row_json(&doc.terminal),
-                "scope": "windows-job",
-                "rootPid": doc.info.root_pid,
-                "processes": doc.info.processes.iter().map(|process| json!({
-                    "pid": process.pid,
-                    "parentPid": process.parent_pid,
-                    "creationTime": process.creation_time.to_string(),
-                    "image": process.image,
-                    "commandLine": process.command_line,
-                    "currentDirectory": process.current_directory,
-                })).collect::<Vec<_>>(),
-            }),
+            Self::PanelProcessInfo(doc) => {
+                let view = super::processes::interpret(&doc.info);
+                json!({
+                    "terminal": terminal_row_json(&doc.terminal),
+                    "scope": "windows-job",
+                    "rootPid": doc.info.root_pid,
+                    "foreground": {
+                        "kind": view.foreground.selection.as_str(),
+                        "pid": view.foreground.pid,
+                        "providerId": view.foreground.provider,
+                    },
+                    "processes": view.processes.iter().map(|row| {
+                        let process = row.facts;
+                        json!({
+                        "pid": process.pid,
+                        "parentPid": process.parent_pid,
+                        "creationTime": process.creation_time.to_string(),
+                        "image": process.image,
+                        "commandLine": process.command_line,
+                        "currentDirectory": process.current_directory,
+                        "argv": row.argv,
+                        "providerId": row.provider,
+                    })}).collect::<Vec<_>>(),
+                })
+            }
             Self::PanelGet(doc) => json!({
                 "panel": {
                     "panelId": doc.row.panel_id,

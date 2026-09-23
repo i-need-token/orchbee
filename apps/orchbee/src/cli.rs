@@ -8,6 +8,7 @@ pub(crate) mod integration;
 mod mutation;
 pub(crate) mod output;
 pub(crate) mod present;
+mod processes;
 mod query;
 pub(crate) mod results;
 pub(crate) mod schema;
@@ -293,7 +294,18 @@ pub(crate) fn failure_output(
     locale: Locale,
 ) -> Output {
     let status = failure.kind.exit_code();
-    let stderr = locale.cli_failure(&failure);
+    let mut stderr = locale.cli_failure(&failure);
+    if failure.failure_schema == Some("orchbee.cli.failure.agent-runtime")
+        && let Some(hint) = failure
+            .details
+            .as_ref()
+            .and_then(|details| details.get("reason"))
+            .and_then(Value::as_str)
+            .and_then(|reason| locale.cli_agent_runtime_hint(reason))
+    {
+        stderr.push_str(hint);
+        stderr.push('\n');
+    }
     match format {
         Some(OutputFormat::Json) => {
             let mut document = Map::from_iter([
