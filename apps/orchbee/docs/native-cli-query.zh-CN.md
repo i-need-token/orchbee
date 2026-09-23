@@ -41,6 +41,38 @@ Agent 状态来自 Server 的 canonical Agent 模型，不从终端文字推断�
 Windows 进程证据覆盖真实管道接纳、名称解析后读取、固定目标轮询、共享五秒截止、
 显式 ID 直读、schema 合规失败、丢失或不匹配的修改回复，以及效果前解析。
 
+## Agent 终端操作
+
+`agent read <target>` 和 `agent send-keys <target> <key>...` 接受与 `agent get`
+相同的会话 ID 或运行时名称选择器，包括显式 `--session` 和 `--name`。
+读取支持 `--history --rows <n>`、`--unwrap` 和 `--lines <n>`，边界和含义与
+`terminal read` 相同。发送最多接受 64 个语义按键或修饰键组合，产生任何效果前验证整个序列。
+
+CLI 组合既有责任方：在一个仅连接既有 Site 的 Client Session 中读取 Workbench
+快照，按需解析别名，再读取权威 Agent 会话。只有活动会话中可导航且存活的 presentation
+附件才能选中终端。关联时比较快照中已绑定终端的完整 presentation ID；不会将 Panel ID
+当成 presentation ID。没有匹配返回 not-found，多个匹配返回 ambiguous，两种情况
+均不附加 viewer 或提交输入。所有交换共享一个五秒期限。操作固定解析到的目标；输入准入时
+Server 仍验证终端当前绑定。
+
+| 状态             | 允许的下一操作                  | 失败效果                       |
+| ---------------- | ------------------------------- | ------------------------------ |
+| 已解析           | 快照准入和读取                  | 无终端效果                     |
+| 已持有快照       | 在同一会话中 Resolve 和权威 Get | 无终端效果                     |
+| 唯一绑定终端     | 既有终端读取或发送交换          | 沿用 viewer/输入清理规则       |
+| 已收到回复或失败 | 释放会话，投影输出              | 不重放；不确定发送仍为退出码 8 |
+
+成功复用 `orchbee.terminal.read`、`orchbee.terminal.history` 或
+`orchbee.terminal.send` schema 及实际终端来源。Agent 解析或读取失败保留自身关联的来源和
+失败 schema。不引入 provider 命令、Agent 生命周期转换、新 Site、别名缓存、输入所有权
+或逐轮因果保证。信号沿用既有终端操作行为；此组合不宣称新增可取消的 viewer 或输入传输。
+证据须覆盖互异的 presentation/Panel ID、非活动及不可导航附件、歧义绑定、效果前解析、
+单次会话准入以及发送失败不重放。
+
+嵌入的发送 schema 验证现有序列回执：载荷种类、记录数、已确认前缀、停止位置、编码
+字节数、部分接受和清理状态。通用歧义失败包含 Panel 与终端候选项。这些修正过时的 schema
+投影，不改变线路协议或回执版本。
+
 ## 输入与信任边界
 
 - `argv`：有界敌意输入。全部参数的 UTF-8 总字节不超过 64 KiB（65,536）。任一非 UTF-8 参数或
@@ -260,6 +292,8 @@ orchbee launch-profile create --name <name> --exec <path> [--arg <value>]...
 orchbee launch-profile delete <selector>
 orchbee agent list [--include-ended] [--limit <1-100>] [--cursor <v1.…>]
 orchbee agent get <target> | agent explain <target>
+orchbee agent read <target> [--history --rows <n>] [--unwrap] [--lines <n>]
+orchbee agent send-keys <target> <key>...
 orchbee agent wait <target> [--until <condition>]... [--after-revision <0-9007199254740991>] [--timeout <1-3600000>]
 orchbee agent doctor [--provider <id>]... [--asset-root <path>]...
 orchbee agent integration list [--provider <id>]

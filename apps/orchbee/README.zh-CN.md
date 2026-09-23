@@ -14,6 +14,10 @@
 `agent get/explain/wait <name>` 可直接解析名称；等待固定原会话，不因名称复用而改变目标。
 名称唯一，在会话结束或 Site 停止后消失。
 
+`agent read <name>` 读取唯一绑定的终端；`agent send-keys <name> enter`
+通过既有终端输入回执发送语义按键。两者也接受 `--session <id>` 和 `--name <alias>`，
+绑定缺失或有歧义时拒绝操作。
+
 ## 命令面
 
 裸调用和显式 `tui` 调用先准入继承的交互终端和有效 cell geometry，再在 Windows 和 Linux 上运行下面的

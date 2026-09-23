@@ -45,7 +45,7 @@ pub(super) fn run(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
-    linux::run(target, input, format, locale)
+    linux::run(SendTarget::Terminal(target), input, format, locale)
 }
 
 #[cfg(not(any(target_os = "linux", windows)))]
@@ -67,6 +67,41 @@ pub(super) fn run(
 }
 
 #[cfg(any(target_os = "linux", windows))]
+enum SendTarget<'a> {
+    Terminal(&'a Target),
+    Agent(&'a orchbee_agent_observation_protocol::AgentSessionSelector),
+}
+
+pub(super) fn run_agent(
+    target: &orchbee_agent_observation_protocol::AgentSessionSelector,
+    keys: &[crate::invocation::ParsedSendKey],
+    format: OutputFormat,
+    locale: Locale,
+) -> Output {
+    #[cfg(any(target_os = "linux", windows))]
+    {
+        linux::run(
+            SendTarget::Agent(target),
+            &TerminalSendInput::Keys(keys.to_vec()),
+            format,
+            locale,
+        )
+    }
+    #[cfg(not(any(target_os = "linux", windows)))]
+    {
+        let _ = (target, keys);
+        failure_output(
+            Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
+                "platform",
+                "unsupported-platform",
+            )),
+            Some(format),
+            locale,
+        )
+    }
+}
+
+#[cfg(any(target_os = "linux", windows))]
 mod linux {
     use std::time::{Duration, Instant};
 
@@ -85,7 +120,7 @@ mod linux {
         Failure, FailureKind, Output, SourceFinalization, failure_output, output, present, results,
         source_failure_output, stage_details,
     };
-    use super::{SendVerdict, TERMINAL_SEND_ID};
+    use super::{SendTarget, SendVerdict, TERMINAL_SEND_ID};
     use crate::invocation::{OutputFormat, Target, TerminalSendInput, TerminalSendKey};
     use crate::local_client::{OutcomeUnknownReason, SubmissionError};
     use crate::localization::Locale;
@@ -182,7 +217,7 @@ mod linux {
     }
 
     pub(super) fn run(
-        target: &Target,
+        target: SendTarget<'_>,
         input: &TerminalSendInput,
         format: OutputFormat,
         locale: Locale,
@@ -219,7 +254,7 @@ mod linux {
     /// `terminal.send` exchange — all under the single absolute deadline the
     /// command samples at entry. The session is fully dropped before the
     /// typed answer is mapped.
-    fn execute(target: &Target, input: &TerminalSendInput) -> Result<SendAnswer, SendError> {
+    fn execute(target: SendTarget<'_>, input: &TerminalSendInput) -> Result<SendAnswer, SendError> {
         let deadline = Instant::now()
             .checked_add(SEND_BUDGET)
             .ok_or_else(|| SendError::Failure(Failure::new(FailureKind::InternalFailure)))?;
@@ -270,6 +305,20 @@ mod linux {
         };
         let (mut client, deadline, snapshot) =
             snapshot_session_until(deadline).map_err(SendError::Failure)?;
+        let agent_target;
+        let target = match target {
+            SendTarget::Terminal(target) => target,
+            SendTarget::Agent(target) => {
+                agent_target = super::super::query::agent_terminal_target(
+                    &mut client,
+                    &snapshot,
+                    target,
+                    deadline,
+                )
+                .map_err(SendError::Failure)?;
+                &agent_target
+            }
+        };
         let (request, fact, facts) =
             prepare(target, &input, &snapshot).map_err(SendError::Failure)?;
         let source = send_source(&snapshot, request.request_id().as_str());

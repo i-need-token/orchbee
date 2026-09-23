@@ -437,6 +437,9 @@ pub(crate) fn mutation(command: MutationCommand, format: OutputFormat, locale: L
     if let MutationCommand::TerminalSend { target, input } = &command {
         return send::run(target, input, format, locale);
     }
+    if let MutationCommand::AgentSendKeys { target, keys } = &command {
+        return send::run_agent(target, keys, format, locale);
+    }
     mutation::run(&command, format, locale)
 }
 
@@ -496,6 +499,26 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
             format,
             locale,
         ),
+        QueryCommand::AgentRead {
+            target,
+            history,
+            unwrap,
+            lines,
+        } => {
+            match query::read_agent_terminal(
+                target,
+                *history,
+                results::ReadPresentation {
+                    unwrap: *unwrap,
+                    tail: *lines,
+                },
+            ) {
+                Err(failure) => failure_output(failure, Some(format), locale),
+                Ok((source, projection)) => {
+                    success_output(projection, source, &command, format, locale)
+                }
+            }
+        }
         QueryCommand::AgentGet(session_id) => {
             agent_output(query::agent_get(session_id), &command, format, locale)
         }

@@ -6530,3 +6530,64 @@ fn agent_read_targets_accept_exactly_one_auto_session_or_name_selector() {
         }
     }
 }
+
+#[test]
+fn agent_terminal_grammar_validates_all_keys_and_exclusive_targets_before_effects() {
+    use orchbee_agent_observation_protocol::AgentSessionSelector;
+    let command = parse(&[
+        "agent",
+        "send-keys",
+        "--name",
+        "alpha",
+        "enter",
+        "ctrl+shift+a",
+    ]);
+    assert!(matches!(command, Ok(Request::Mutation {
+        command: MutationCommand::AgentSendKeys { target: AgentSessionSelector::Name { .. }, keys }, ..
+    }) if keys.len() == 2));
+    assert!(matches!(
+        parse(&[
+            "agent",
+            "read",
+            "alpha",
+            "--history",
+            "--rows",
+            "20",
+            "--unwrap",
+            "--lines",
+            "2"
+        ]),
+        Ok(Request::Query {
+            command: QueryCommand::AgentRead {
+                history: Some(20),
+                unwrap: true,
+                lines: Some(2),
+                ..
+            },
+            ..
+        })
+    ));
+    for words in [
+        vec!["agent", "send-keys", "alpha"],
+        vec!["agent", "send-keys", "alpha", "enter", "not-a-key"],
+        vec![
+            "agent",
+            "send-keys",
+            "--name",
+            "alpha",
+            "--session",
+            "s1",
+            "enter",
+        ],
+        vec!["agent", "read", "alpha", "--name", "beta"],
+        vec!["agent", "read", "alpha", "--history"],
+        vec!["agent", "read", "alpha", "--rows", "20"],
+    ] {
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
+    let mut words = vec!["agent", "send-keys", "alpha"];
+    words.extend(std::iter::repeat_n("enter", 64));
+    assert!(parse(&words).is_ok());
+    words.push("enter");
+    assert!(parse(&words).is_err());
+}

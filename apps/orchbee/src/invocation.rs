@@ -155,6 +155,8 @@ pub(crate) enum CommandPath {
     Status,
     AgentList,
     AgentGet,
+    AgentRead,
+    AgentSendKeys,
     AgentExplain,
     AgentWait,
     AgentDoctor,
@@ -215,6 +217,8 @@ impl CommandPath {
             Self::Status => "status",
             Self::AgentList => "agent list",
             Self::AgentGet => "agent get",
+            Self::AgentRead => "agent read",
+            Self::AgentSendKeys => "agent send-keys",
             Self::AgentExplain => "agent explain",
             Self::AgentWait => "agent wait",
             Self::AgentDoctor => "agent doctor",
@@ -348,6 +352,12 @@ pub(crate) enum QueryCommand {
         cursor: Option<AgentListCursor>,
     },
     AgentGet(AgentSessionSelector),
+    AgentRead {
+        target: AgentSessionSelector,
+        history: Option<u16>,
+        unwrap: bool,
+        lines: Option<u16>,
+    },
     AgentExplain(AgentSessionSelector),
     /// `agent wait`: one held Client Session polls the canonical session
     /// document until a requested condition matches, the fence refuses, or
@@ -758,6 +768,10 @@ pub(crate) enum MutationCommand {
     /// resolves under the shared selector rule.
     LaunchProfileDelete {
         selector: LaunchProfileSelector,
+    },
+    AgentSendKeys {
+        target: AgentSessionSelector,
+        keys: Vec<ParsedSendKey>,
     },
     TerminalSend {
         target: Target,
@@ -1836,6 +1850,77 @@ fn resolve_words(
                 } else {
                     QueryCommand::AgentExplain(target)
                 },
+                options,
+            ))
+        }
+        ["agent", "read", rest @ ..] => {
+            let context = UsageContext::Path("agent read");
+            check_scope(
+                options,
+                Scope {
+                    name: true,
+                    session: true,
+                    ..TERMINAL_READ_SCOPE
+                },
+                context,
+                envelope,
+            )?;
+            let history = match (options.history, options.rows.is_some()) {
+                (true, true) => Some(history_rows_option(options, context, envelope)?),
+                (true, false) => return Err(missing_required(context, "'--rows'", envelope)),
+                (false, true) => return Err(missing_required(context, "'--history'", envelope)),
+                (false, false) => None,
+            };
+            Ok(query(
+                QueryCommand::AgentRead {
+                    target: agent_selector(rest, options, context, envelope)?,
+                    history,
+                    unwrap: options.unwrap,
+                    lines: tail_lines_option(options, context, envelope)?,
+                },
+                options,
+            ))
+        }
+        ["agent", "send-keys", rest @ ..] => {
+            let context = UsageContext::Path("agent send-keys");
+            check_scope(options, AGENT_TARGET_SCOPE, context, envelope)?;
+            let selector_len = usize::from(
+                options.name.is_none() && options.session.is_none() && !rest.is_empty(),
+            );
+            let target = agent_selector(&rest[..selector_len], options, context, envelope)?;
+            let values = &rest[selector_len..];
+            if values.is_empty() {
+                return Err(missing_required(context, "<key>...", envelope));
+            }
+            if values.len() > MAXIMUM_SEND_RECORDS {
+                return Err(usage_with(
+                    UsageReason::InvalidValue {
+                        context,
+                        option: "<key>",
+                        value: values[MAXIMUM_SEND_RECORDS].to_owned(),
+                        expected: ExpectedValue::SendKeySequence,
+                    },
+                    envelope,
+                ));
+            }
+            let keys = values
+                .iter()
+                .map(|value| {
+                    parse_send_key(value).ok_or_else(|| {
+                        usage_with(
+                            UsageReason::InvalidValue {
+                                context,
+                                option: "<key>",
+                                value: (*value).to_owned(),
+                                expected: ExpectedValue::SendKey,
+                            },
+                            envelope,
+                        )
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(mutation(
+                MutationCommand::AgentSendKeys { target, keys },
                 options,
             ))
         }
@@ -3037,6 +3122,8 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["agent"] => HelpTopic::Family(Family::Agent),
         ["agent", "list"] => HelpTopic::Command(CommandPath::AgentList),
         ["agent", "get"] => HelpTopic::Command(CommandPath::AgentGet),
+        ["agent", "read"] => HelpTopic::Command(CommandPath::AgentRead),
+        ["agent", "send-keys"] => HelpTopic::Command(CommandPath::AgentSendKeys),
         ["agent", "explain"] => HelpTopic::Command(CommandPath::AgentExplain),
         ["agent", "wait"] => HelpTopic::Command(CommandPath::AgentWait),
         ["agent", "doctor"] => HelpTopic::Command(CommandPath::AgentDoctor),

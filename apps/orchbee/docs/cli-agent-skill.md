@@ -12,7 +12,11 @@ The bare `orchbee` command launches the interactive TUI. Use explicit commands f
 
 Use `orchbee status --format json` or `orchbee api snapshot` to inspect the running Site, then the appropriate `project`, `workspace`, `tab`, `panel`, `terminal`, `worktree`, or `agent` list/get command. Follow each command's declared filters and use returned stable IDs. Labels and suffix selectors are only accepted where help declares them; ambiguous targets must be resolved explicitly.
 
-`orchbee terminal read <terminal-id> --history --lines 50 --unwrap --format json` reads retained output. Output can contain secrets; forward only what the task needs. Read/query commands do not create missing resources. Workspace creation, directory admission, and initial Tab creation are separate commands in this build; use their help for required parameters.
+`orchbee terminal read <terminal-id> --history --rows 50 --lines 50 --unwrap --format json` reads retained output. Output can contain secrets; forward only what the task needs. Read/query commands do not create missing resources. Workspace creation, directory admission, and initial Tab creation are separate commands in this build; use their help for required parameters.
+
+`orchbee agent read --name alpha --lines 50 --format json` reads the visible terminal
+for a live named session. Add `--history --rows 50` for retained scrollback instead.
+The result uses the terminal read/history schema and identifies the exact terminal.
 
 ## Send bounded input once
 
@@ -21,6 +25,10 @@ Use `orchbee status --format json` or `orchbee api snapshot` to inspect the runn
 Use exactly one source family: `--text`, repeated `--key`, `--file <path>`, or `--stdin`. File/stdin input preserves literal bytes, including non-UTF-8 data, with a 1 MiB bound including an appended carriage return. `--paste` is valid only with file/stdin and bounds content to 256 KiB; `--enter` adds a separate trailing Enter record after paste. The complete source is acquired and validated before sending anything. Empty input is rejected. All acquisition and transport share a five-second deadline.
 
 Inspect the result's input and cleanup outcomes independently. Partial acceptance is not whole-request success. An unknown outcome (exit 8) may already have delivered input: inspect the terminal before taking another action and never blindly replay the request. Sending does not acquire the TUI's controller or resize ownership.
+
+`orchbee agent send-keys --name alpha enter ctrl+c --format json` targets the Agent
+terminal directly. Full session IDs also work. A missing, ended, non-navigable or
+ambiguous binding refuses input. The same sequence bounds and send receipt apply.
 
 ## Observe Agents and close resources
 

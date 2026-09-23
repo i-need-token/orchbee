@@ -55,6 +55,44 @@ Windows process evidence covers real pipe admission, resolved reads, pinned poll
 the shared five-second deadline, explicit-ID reads, schema-valid failures,
 lost/mismatched mutation replies and parse-before-effect.
 
+## Agent terminal operations
+
+`agent read <target>` and `agent send-keys <target> <key>...` accept the same
+session ID or runtime name selectors as `agent get`, including explicit `--session`
+and `--name`. Read admits `--history --rows <n>`, `--unwrap`, and `--lines <n>`
+with the same bounds and meaning as `terminal read`. Send admits at most 64 semantic
+keys or modifier combinations and validates the entire sequence before any effects.
+
+The CLI composes existing owners: one existing-only Client Session reads a Workbench
+snapshot, optionally resolves an alias, and gets the canonical Agent session. Only
+an active session's navigable, live presentation attachments may select a terminal.
+The join compares full presentation IDs against bound terminals in the snapshot;
+a Panel ID is never treated as a presentation ID. Zero matches is not-found, multiple
+matches is ambiguous, and neither case attaches a viewer or submits input.
+One five-second deadline covers all exchanges. Resolution is pinned for the operation;
+the Server still authorizes the current terminal binding at input admission.
+
+| State                      | Allowed next operation                        | Failure effect                           |
+| -------------------------- | --------------------------------------------- | ---------------------------------------- |
+| Parsed                     | Snapshot admission/read                       | No terminal effects                      |
+| Snapshot held              | Resolve and canonical Get on the same session | No terminal effects                      |
+| Exactly one bound terminal | Existing terminal read or send exchange       | Existing viewer/input cleanup applies    |
+| Reply or failure           | Drop session, project output                  | No replay; uncertain send remains exit 8 |
+
+Success uses the existing `orchbee.terminal.read`, `orchbee.terminal.history`, or
+`orchbee.terminal.send` schema and its actual terminal source. Agent resolution/read
+failures retain their own correlated source and failure schema. No provider command,
+Agent lifecycle transition, new Site, alias cache, input ownership, or per-turn causal
+promise is introduced. Signals retain the existing terminal operation behavior; this
+composition does not claim a new cancellable viewer or input transport. Evidence must
+cover distinct presentation/Panel IDs, inactive and non-navigable attachments, ambiguous
+bindings, parse-before-effect, a single admitted session, and non-replayed send failures.
+
+The embedded send schema validates the implemented sequence receipt: payload kind,
+record count, confirmed prefix, stopped index, encoded byte count, partial acceptance,
+and cleanup status. Generic ambiguity failures include Panel and terminal candidates.
+These repair stale schema projections; wire and receipt versions remain unchanged.
+
 ## Inputs and trust boundary
 
 - `argv`: bounded hostile input. Total UTF-8 bytes across arguments may not exceed 64 KiB
@@ -313,6 +351,8 @@ orchbee launch-profile create --name <name> --exec <path> [--arg <value>]...
 orchbee launch-profile delete <selector>
 orchbee agent list [--include-ended] [--limit <1-100>] [--cursor <v1.…>]
 orchbee agent get <target> | agent explain <target>
+orchbee agent read <target> [--history --rows <n>] [--unwrap] [--lines <n>]
+orchbee agent send-keys <target> <key>...
 orchbee agent wait <target> [--until <condition>]... [--after-revision <0-9007199254740991>] [--timeout <1-3600000>]
 orchbee agent doctor [--provider <id>]... [--asset-root <path>]...
 orchbee agent integration list [--provider <id>]

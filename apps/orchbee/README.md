@@ -16,6 +16,10 @@ and `agent resolve <name>` to obtain the full session ID. `agent rename <target>
 releases a name. `agent get/explain/wait <name>` resolve directly; a wait pins its session
 even if the name is reused. Names are unique and disappear when the session ends or the Site stops.
 
+`agent read <name>` reads the uniquely bound terminal; `agent send-keys <name> enter`
+sends semantic keys through the existing terminal input receipt. Both also accept
+`--session <id>` and `--name <alias>`, and refuse missing or ambiguous bindings.
+
 ## Command surface
 
 Bare and explicit `tui` invocation first admit the inherited interactive terminal and valid

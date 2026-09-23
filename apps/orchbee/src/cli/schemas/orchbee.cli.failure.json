@@ -553,7 +553,7 @@
 			"enum": ["panel", "project", "schema", "tab", "terminal", "workspace"]
 		},
 		"ambiguityResource": {
-			"enum": ["project", "tab", "workspace"]
+			"enum": ["panel", "project", "tab", "terminal", "workspace"]
 		},
 		"identifierDetails": {
 			"type": "object",

@@ -12,7 +12,11 @@
 
 使用 `orchbee status --format json` 或 `orchbee api snapshot` 检查运行中的 Site，再使用相应的 `project`、`workspace`、`tab`、`panel`、`terminal`、`worktree` 或 `agent` list/get 命令。遵循各命令声明的过滤参数，使用返回的稳定 ID。仅在帮助声明支持时使用标签和后缀选择器；有歧义的目标必须明确解析。
 
-`orchbee terminal read <terminal-id> --history --lines 50 --unwrap --format json` 读取保留输出。输出可能含有秘密，只转发任务需要的内容。读取/查询命令不会创建缺失资源。当前构建中，创建 Workspace、接纳目录和创建初始 Tab 是独立命令；必填参数以各自帮助为准。
+`orchbee terminal read <terminal-id> --history --rows 50 --lines 50 --unwrap --format json` 读取保留输出。输出可能含有秘密，只转发任务需要的内容。读取/查询命令不会创建缺失资源。当前构建中，创建 Workspace、接纳目录和创建初始 Tab 是独立命令；必填参数以各自帮助为准。
+
+`orchbee agent read --name alpha --lines 50 --format json` 读取存活命名会话的可见终端。
+添加 `--history --rows 50` 则改为读取保留的滚动历史。结果使用终端 read/history schema，
+标识实际读取的终端。
 
 ## 单次发送有界输入
 
@@ -21,6 +25,10 @@
 必须恰好选择一种来源：`--text`、重复的 `--key`、`--file <path>` 或 `--stdin`。文件/stdin 原样保留字节，包括非 UTF-8 数据，连同附加回车不超过 1 MiB。`--paste` 仅用于文件/stdin，内容上限为 256 KiB；此时 `--enter` 在 paste 后附加独立的 Enter 记录。完整读取和校验来源后才发送任何内容，空输入被拒绝。读取和传输共用五秒期限。
 
 分别检查结果中的输入与清理结论。部分接受不等于整条请求成功。结果未知（退出码 8）时，输入可能已经送达：采取下一步操作前检查终端，绝不盲目重放请求。发送不会获取 TUI 的 controller 或 resize 所有权。
+
+`orchbee agent send-keys --name alpha enter ctrl+c --format json` 直接定位 Agent 终端。
+也支持完整会话 ID。绑定缺失、会话结束、不可导航或绑定有歧义时拒绝输入。沿用相同的
+序列边界和发送回执。
 
 ## 观察 Agent 和关闭资源
 

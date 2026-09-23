@@ -4,6 +4,10 @@
 
 #[cfg(any(target_os = "linux", windows))]
 mod agent_names;
+#[cfg(any(target_os = "linux", windows))]
+mod agent_terminal;
+#[cfg(any(target_os = "linux", windows))]
+pub(crate) use agent_terminal::{agent_terminal_target, read_agent_terminal};
 
 #[cfg(any(target_os = "linux", windows))]
 use orchbee_local_ipc::LocalIo as BorrowedFd;
@@ -182,12 +186,24 @@ pub(crate) fn read_terminal(
     history: Option<u16>,
     presentation: super::results::ReadPresentation,
 ) -> Result<(serde_json::Value, Projection), Failure> {
-    let (mut client, deadline, snapshot) = snapshot_session()?;
-    let source = super::results::snapshot_source(&snapshot);
+    let (client, deadline, snapshot) = snapshot_session()?;
+    read_terminal_on_session(client, deadline, &snapshot, target, history, presentation)
+}
+
+#[cfg(any(target_os = "linux", windows))]
+fn read_terminal_on_session(
+    mut client: LocalClient,
+    deadline: Instant,
+    snapshot: &Snapshot,
+    target: &Target,
+    history: Option<u16>,
+    presentation: super::results::ReadPresentation,
+) -> Result<(serde_json::Value, Projection), Failure> {
+    let source = super::results::snapshot_source(snapshot);
     let outcome = match history {
-        None => read_terminal_frame(&mut client, deadline, &snapshot, target)
+        None => read_terminal_frame(&mut client, deadline, snapshot, target)
             .map(|(row, frame)| Observed::Visible(row, frame)),
-        Some(rows) => read_terminal_history(&mut client, deadline, &snapshot, target, rows).map(
+        Some(rows) => read_terminal_history(&mut client, deadline, snapshot, target, rows).map(
             |(row, frame, window)| Observed::History {
                 row,
                 frame,
@@ -2825,6 +2841,19 @@ pub(crate) fn read_snapshot() -> Result<orchbee_workbench_protocol::Snapshot, su
 #[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn terminal_get(
     _target: &crate::invocation::Target,
+) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
+    Err(
+        super::Failure::new(super::FailureKind::ServiceUnavailable).details(
+            super::stage_reason_details("platform", "unsupported-platform"),
+        ),
+    )
+}
+
+#[cfg(not(any(target_os = "linux", windows)))]
+pub(crate) fn read_agent_terminal(
+    _target: &orchbee_agent_observation_protocol::AgentSessionSelector,
+    _history: Option<u16>,
+    _presentation: super::results::ReadPresentation,
 ) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
     Err(
         super::Failure::new(super::FailureKind::ServiceUnavailable).details(

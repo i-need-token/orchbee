@@ -40,7 +40,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
         QueryCommand::PanelGet(_) => "orchbee.panel.get",
         QueryCommand::TerminalList => "orchbee.terminal.list",
         QueryCommand::TerminalGet(_) => "orchbee.terminal.get",
-        QueryCommand::TerminalRead { history, .. } => {
+        QueryCommand::TerminalRead { history, .. } | QueryCommand::AgentRead { history, .. } => {
             if history.is_some() {
                 "orchbee.terminal.history"
             } else {
@@ -67,7 +67,12 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
 pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
     match command {
         QueryCommand::TerminalGet(_) => 3,
-        QueryCommand::TerminalRead { unwrap, lines, .. } if *unwrap || lines.is_some() => 2,
+        QueryCommand::TerminalRead { unwrap, lines, .. }
+        | QueryCommand::AgentRead { unwrap, lines, .. }
+            if *unwrap || lines.is_some() =>
+        {
+            2
+        }
         QueryCommand::TerminalWaitOutput {
             matcher: crate::invocation::WaitPattern::Regex(_),
             ..
@@ -1698,7 +1703,11 @@ pub(crate) fn not_found(resource: Resource, target: &Target) -> Failure {
     Failure::new(FailureKind::NotFound).details(target_details(resource, target.text()))
 }
 
-fn ambiguous(resource: Resource, target: &Target, mut candidates: Vec<String>) -> Failure {
+pub(super) fn ambiguous(
+    resource: Resource,
+    target: &Target,
+    mut candidates: Vec<String>,
+) -> Failure {
     let total = candidates.len();
     candidates.truncate(8);
     Failure::new(FailureKind::Ambiguous).details(Map::from_iter([
@@ -1931,6 +1940,7 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
         QueryCommand::PanelCurrent(None)
         | QueryCommand::AgentList { .. }
         | QueryCommand::AgentGet(_)
+        | QueryCommand::AgentRead { .. }
         | QueryCommand::AgentExplain(_)
         | QueryCommand::AgentWait { .. }
         | QueryCommand::AgentDoctor { .. }

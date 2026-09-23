@@ -6,9 +6,15 @@
 	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
-		"schema": { "const": "orchbee.terminal.send" },
-		"version": { "const": 1 },
-		"source": { "$ref": "#/$defs/sendSource" },
+		"schema": {
+			"const": "orchbee.terminal.send"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"$ref": "#/$defs/sendSource"
+		},
 		"result": {
 			"type": "object",
 			"required": [
@@ -18,38 +24,40 @@
 				"workerId",
 				"terminalId",
 				"inputStatus",
-				"cleanupStatus"
+				"cleanupStatus",
+				"payloadKind",
+				"records",
+				"recordsAccepted",
+				"firstStoppedRecord",
+				"acceptedEncodedBytes"
 			],
 			"additionalProperties": false,
 			"properties": {
-				"action": { "const": "terminal.send" },
-				"requestId": { "$ref": "#/$defs/id" },
-				"siteId": { "$ref": "#/$defs/id" },
-				"workerId": { "$ref": "#/$defs/id" },
-				"terminalId": { "$ref": "#/$defs/id" },
-				"payloadKind": { "enum": ["text", "key"] },
-				"recordBytes": { "type": "integer", "minimum": 1, "maximum": 4096 },
-				"key": {
-					"enum": [
-						"enter",
-						"escape",
-						"tab",
-						"backspace",
-						"delete",
-						"up",
-						"down",
-						"left",
-						"right",
-						"home",
-						"end",
-						"page-up",
-						"page-down",
-						"ctrl-c",
-						"ctrl-d"
-					]
+				"action": {
+					"const": "terminal.send"
+				},
+				"requestId": {
+					"$ref": "#/$defs/id"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"workerId": {
+					"$ref": "#/$defs/id"
+				},
+				"terminalId": {
+					"$ref": "#/$defs/id"
+				},
+				"payloadKind": {
+					"enum": ["text", "key", "bytes", "paste", "sequence"]
+				},
+				"recordBytes": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 1048576
 				},
 				"inputStatus": {
-					"enum": ["accepted", "not-submitted", "rejected", "unknown"]
+					"enum": ["accepted", "not-submitted", "rejected", "unknown", "partial-accepted"]
 				},
 				"cleanupStatus": {
 					"enum": ["not-needed", "confirmed", "unconfirmed"]
@@ -68,78 +76,182 @@
 						"stale-worker-generation",
 						"terminal-runtime-unavailable",
 						"terminal-unavailable",
-						"worker-unavailable"
+						"worker-unavailable",
+						"input-budget-exhausted"
 					]
 				},
-				"acceptedBytes": { "type": "integer", "minimum": 0, "maximum": 1048576 },
 				"target": {
 					"type": "object",
 					"required": ["workerGeneration", "hostEpoch", "hostTerminalId"],
 					"additionalProperties": false,
 					"properties": {
-						"workerGeneration": { "type": "string", "pattern": "^[1-9][0-9]*$" },
-						"hostEpoch": { "$ref": "#/$defs/id" },
-						"hostTerminalId": { "$ref": "#/$defs/id" }
+						"workerGeneration": {
+							"type": "string",
+							"pattern": "^[1-9][0-9]*$"
+						},
+						"hostEpoch": {
+							"$ref": "#/$defs/id"
+						},
+						"hostTerminalId": {
+							"$ref": "#/$defs/id"
+						}
 					}
+				},
+				"records": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 64
+				},
+				"recordsAccepted": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 64
+				},
+				"firstStoppedRecord": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 64
+				},
+				"acceptedEncodedBytes": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 67108864
 				}
 			},
 			"allOf": [
 				{
 					"if": {
-						"properties": { "inputStatus": { "const": "accepted" } },
+						"properties": {
+							"inputStatus": {
+								"enum": ["not-submitted", "rejected", "partial-accepted"]
+							}
+						},
 						"required": ["inputStatus"]
 					},
-					"then": { "required": ["acceptedBytes"] }
+					"then": {
+						"required": ["reason"]
+					}
 				},
 				{
 					"if": {
-						"properties": { "inputStatus": { "enum": ["not-submitted", "rejected"] } },
+						"properties": {
+							"inputStatus": {
+								"enum": ["accepted", "unknown"]
+							}
+						},
 						"required": ["inputStatus"]
 					},
-					"then": { "required": ["reason"] }
+					"then": {
+						"required": ["target"]
+					}
 				},
 				{
 					"if": {
-						"properties": { "inputStatus": { "enum": ["accepted", "unknown"] } },
-						"required": ["inputStatus"]
-					},
-					"then": { "required": ["target"] }
-				},
-				{
-					"if": {
-						"properties": { "cleanupStatus": { "enum": ["confirmed", "unconfirmed"] } },
+						"properties": {
+							"cleanupStatus": {
+								"enum": ["confirmed", "unconfirmed"]
+							}
+						},
 						"required": ["cleanupStatus"]
 					},
-					"then": { "required": ["target"] }
+					"then": {
+						"required": ["target"]
+					}
 				},
 				{
 					"if": {
-						"properties": { "payloadKind": { "const": "text" } },
+						"properties": {
+							"payloadKind": {
+								"enum": ["text", "bytes", "paste"]
+							}
+						},
 						"required": ["payloadKind"]
 					},
-					"then": { "required": ["recordBytes"] }
+					"then": {
+						"required": ["recordBytes"]
+					}
 				},
 				{
 					"if": {
-						"properties": { "payloadKind": { "const": "key" } },
-						"required": ["payloadKind"]
+						"properties": {
+							"inputStatus": {
+								"const": "partial-accepted"
+							}
+						}
 					},
-					"then": { "required": ["key"] }
+					"then": {
+						"required": ["target"],
+						"properties": {
+							"recordsAccepted": {
+								"minimum": 1
+							},
+							"cleanupStatus": {
+								"enum": ["confirmed", "unconfirmed"]
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"inputStatus": {
+								"const": "accepted"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"recordsAccepted": {
+								"minimum": 1
+							},
+							"cleanupStatus": {
+								"enum": ["confirmed", "unconfirmed"]
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"inputStatus": {
+								"const": "unknown"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"cleanupStatus": {
+								"enum": ["not-needed", "unconfirmed"]
+							}
+						}
+					}
 				}
 			]
 		}
 	},
 	"$defs": {
-		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
 		"sendSource": {
 			"type": "object",
 			"required": ["kind", "siteId", "requestId", "snapshotRevision"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": { "const": "terminal.send" },
-				"siteId": { "$ref": "#/$defs/id" },
-				"requestId": { "$ref": "#/$defs/id" },
-				"snapshotRevision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+				"kind": {
+					"const": "terminal.send"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"requestId": {
+					"$ref": "#/$defs/id"
+				},
+				"snapshotRevision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				}
 			}
 		}
 	}

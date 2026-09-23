@@ -75,7 +75,7 @@ __ORCHBEE_GRAMMAR__
             foreach ($flag in $seen) { if ($allowed -cnotcontains $flag) { $valid = $false } }
             if (@($seen | Where-Object { $_ -ceq '--provider' }).Count -gt 1 -and ($command.words -join ':') -cne 'agent:doctor') { $valid = $false }
             $operandLimit = [int]$command.operand
-            if (($command.words -join ':') -cin @('agent:get', 'agent:explain', 'agent:wait', 'agent:resolve', 'agent:rename')) {
+            if (($command.words -join ':') -cin @('agent:get', 'agent:read', 'agent:send-keys', 'agent:explain', 'agent:wait', 'agent:resolve', 'agent:rename')) {
                 if ($seen -ccontains '--session' -or $seen -ccontains '--name') { $operandLimit-- }
                 if ($seen -ccontains '--clear') { $operandLimit-- }
             }
@@ -90,10 +90,15 @@ __ORCHBEE_GRAMMAR__
         $offeredFlags = [System.Collections.Generic.List[string]]::new()
         foreach ($command in $viable) {
             if ($positionals.Count -lt $command.words.Count) { $candidates.Add($command.words[$positionals.Count]) }
+            if (($command.words -join ':') -ceq 'agent:send-keys') {
+                $targetWords = [int](-not ($seen -ccontains '--session' -or $seen -ccontains '--name'))
+                $keyCount = $positionals.Count - $command.words.Count - $targetWords
+                if ($keyCount -ge 0 -and $keyCount -lt 64) { foreach ($key in $grammar.keys) { $candidates.Add($key) } }
+            }
             $allowed = @($command.flags)
             if ($command.words[0] -cne 'tui') { $allowed += '--format' }
             foreach ($flag in $allowed) {
-                if (($command.words -join ':') -cin @('agent:get', 'agent:explain', 'agent:wait', 'agent:resolve', 'agent:rename')) {
+                if (($command.words -join ':') -cin @('agent:get', 'agent:read', 'agent:send-keys', 'agent:explain', 'agent:wait', 'agent:resolve', 'agent:rename')) {
                     $operands = $positionals.Count - $command.words.Count
                     if ($operands -gt 0 -and $flag -cin @('--name', '--session')) { continue }
                     if ($flag -ceq '--clear' -and ($operands -gt 1 -or ($operands -gt 0 -and ($seen -ccontains '--name' -or $seen -ccontains '--session')))) { continue }
