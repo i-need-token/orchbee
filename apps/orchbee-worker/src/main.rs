@@ -33,6 +33,12 @@ mod worker_options;
 mod worktree_discovery_job;
 #[cfg(any(unix, windows))]
 mod worktree_job_operation;
+#[cfg(windows)]
+mod worktree_mutation_job;
+#[cfg(any(unix, windows))]
+mod worktree_mutation_operation;
+#[cfg(windows)]
+mod worktree_mutation_windows;
 
 #[cfg(any(unix, windows))]
 use std::env;

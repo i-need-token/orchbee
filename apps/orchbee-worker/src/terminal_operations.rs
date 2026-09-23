@@ -48,7 +48,11 @@ pub(crate) fn run(
     host.stream().set_nonblocking(true)?;
     let kernel = AuthorizedHostOperationKernel::new(worker_id, generation)?;
     let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
-    run_admitted(
+    #[cfg(windows)]
+    let mutation_slot = crate::worktree_mutation_job::WorktreeMutationSlot::new(
+        crate::worktree_mutation_windows::run,
+    );
+    let outcome = run_admitted(
         server,
         host,
         worker_id,
@@ -57,11 +61,16 @@ pub(crate) fn run(
         AdmittedAux {
             drain,
             worktree_slot: &worktree_slot,
+            #[cfg(windows)]
+            mutation_slot: &mutation_slot,
             site_runtime: None,
             #[cfg(windows)]
             managed_host: None,
         },
-    )
+    );
+    #[cfg(windows)]
+    mutation_slot.stop_before(std::time::Instant::now() + Duration::from_secs(6))?;
+    outcome
 }
 
 /// Auxiliary channels admitted alongside the operation kernel: the Agent
@@ -70,6 +79,8 @@ pub(crate) fn run(
 pub(crate) struct AdmittedAux<'a> {
     pub(crate) drain: &'a Rc<RefCell<AgentDrain>>,
     pub(crate) worktree_slot: &'a crate::worktree_discovery_job::WorktreeDiscoverySlot,
+    #[cfg(windows)]
+    pub(crate) mutation_slot: &'a crate::worktree_mutation_job::WorktreeMutationSlot,
     pub(crate) site_runtime: Option<&'a std::path::Path>,
     #[cfg(windows)]
     pub(super) managed_host: Option<&'a mut shutdown::ManagedHost>,
@@ -114,6 +125,7 @@ pub(crate) fn run_admitted(
                 worker_id,
                 generation,
                 aux.worktree_slot,
+                aux.mutation_slot,
                 aux.managed_host.map(|owner| (&*host, owner)),
             );
         }
@@ -127,6 +139,26 @@ pub(crate) fn run_admitted(
                 generation,
             )?;
             if host_closed {
+                return Err(peer_closed().into());
+            }
+            continue;
+        }
+        if let CapabilityNodeMessage::WorktreeMutationRequest(request) = request {
+            #[cfg(windows)]
+            let result = crate::worktree_mutation_operation::execute(
+                request,
+                worker_id,
+                generation,
+                aux.mutation_slot,
+            );
+            #[cfg(not(windows))]
+            let result =
+                crate::worktree_mutation_operation::execute(request, worker_id, generation);
+            if server_transport::send(
+                server,
+                Some(host),
+                &CapabilityNodeMessage::WorktreeMutationResult(result),
+            )? {
                 return Err(peer_closed().into());
             }
             continue;
@@ -265,7 +297,9 @@ pub(crate) fn run_admitted(
             | CapabilityNodeMessage::TerminalViewerRequest(_)
             | CapabilityNodeMessage::TerminalViewerResult(_)
             | CapabilityNodeMessage::WorktreeJobRequest(_)
-            | CapabilityNodeMessage::WorktreeJobResult(_) => {
+            | CapabilityNodeMessage::WorktreeJobResult(_)
+            | CapabilityNodeMessage::WorktreeMutationRequest(_)
+            | CapabilityNodeMessage::WorktreeMutationResult(_) => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     "Server sent a Worker-to-Server result",

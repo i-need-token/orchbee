@@ -27,6 +27,7 @@ mod send;
 mod shutdown;
 mod viewer;
 mod worktree_job;
+mod worktree_mutation;
 
 const FRAME_MAGIC: [u8; 4] = *b"OBCN";
 const FRAME_HEADER_BYTES: usize = 8;
@@ -48,6 +49,8 @@ pub const MAXIMUM_FRAME_PAYLOAD_BYTES: usize = 8 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CapabilityNodeMessage {
+    WorktreeMutationRequest(crate::WorktreeMutationRequest),
+    WorktreeMutationResult(crate::WorktreeMutationResult),
     WorkerShutdownRequest(crate::WorkerShutdownRequest),
     WorkerShutdownResult(crate::WorkerShutdownResult),
     TerminalLifecycleRequest(crate::TerminalLifecycleRequest),
@@ -160,6 +163,12 @@ pub fn write_message(
 
 fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
     match message {
+        CapabilityNodeMessage::WorktreeMutationRequest(value) => {
+            worktree_mutation::encode_request(value)
+        }
+        CapabilityNodeMessage::WorktreeMutationResult(value) => {
+            worktree_mutation::encode_result(value)
+        }
         CapabilityNodeMessage::WorkerShutdownRequest(value) => shutdown::encode_request(*value),
         CapabilityNodeMessage::WorkerShutdownResult(value) => shutdown::encode_result(*value),
         CapabilityNodeMessage::TerminalLifecycleRequest(value) => lifecycle::encode_request(*value),
@@ -217,6 +226,10 @@ fn decode_header(header: &[u8; FRAME_HEADER_BYTES]) -> Result<usize, ProtocolErr
 
 fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError> {
     match payload.first().copied() {
+        Some(21) => worktree_mutation::decode_request(payload)
+            .map(CapabilityNodeMessage::WorktreeMutationRequest),
+        Some(22) => worktree_mutation::decode_result(payload)
+            .map(CapabilityNodeMessage::WorktreeMutationResult),
         Some(19) => {
             shutdown::decode_request(payload).map(CapabilityNodeMessage::WorkerShutdownRequest)
         }

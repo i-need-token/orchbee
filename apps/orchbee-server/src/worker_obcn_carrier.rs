@@ -1357,7 +1357,8 @@ fn validate_response(
             | CapabilityNodeMessage::AuthorizedTerminalStart(_)
             | CapabilityNodeMessage::TerminalViewerRequest(_)
             | CapabilityNodeMessage::TerminalSendRequest(_)
-            | CapabilityNodeMessage::AgentDrainRequest(_),
+            | CapabilityNodeMessage::AgentDrainRequest(_)
+            | CapabilityNodeMessage::WorktreeMutationRequest(_),
         ) => Err(WorkerResponseFailure::WrongDirection),
         (
             WorkerOperationRequest::Viewer(_),
@@ -1373,7 +1374,8 @@ fn validate_response(
             | CapabilityNodeMessage::TerminalStartResult(_),
         )
         | (_, CapabilityNodeMessage::AgentDrainReply(_))
-        | (_, CapabilityNodeMessage::TerminalSendResult(_)) => {
+        | (_, CapabilityNodeMessage::TerminalSendResult(_))
+        | (_, CapabilityNodeMessage::WorktreeMutationResult(_)) => {
             Err(WorkerResponseFailure::WrongResultKind)
         }
         (

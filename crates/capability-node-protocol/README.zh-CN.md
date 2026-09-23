@@ -494,3 +494,63 @@ Windows 托管 Site 生命周期在帧版本 2 和既有 8 KiB 上限下增加 k
 ## 终端进程读取（未发布）
 
 Viewer action tag 12 为 `ReadProcessInfo`，tag 后没有额外字节，使用请求中既有的 attachment ID。Worker 要求确切的保留 viewer，并以新的关联身份发送一次 Host `ReadProcessInfo`（OBTP kind 79）。响应限制为 64 KiB 加信封，以 `Record` 原样返回，其中也允许格式正确且相关联的 Host `TypedFailure`。成功观察必须回显确切的 attachment 与物理终端。Worker/generation 不匹配、viewer 缺失、Host epoch 错误或结果无效均通过既有拒绝或 carrier 失败返回。Worker 不枚举进程，Host 仍为事实所有者。进程读取既不确认帧，也不创建输入权限。现有 action 编码保持不变，开发版本必须整体更新。
+
+## Worktree 变更作业契约
+
+这一私有分阶段契约定义 Windows Worker Git 所有者与 Server Worktree 续执行的边界。
+Windows Worker 分派已实现此边界；Server 续执行仍待接入。单靠表示层不完成 CLI
+create/open/remove 流程。Server 拥有 Workspace
+关联；Worker 拥有 Git checkout 观测与副作用。不引入新依赖或 Unix 执行能力。
+
+请求携带非零操作 ID、Worker ID 及正 generation。Start 接纳已校验的意图；Poll 和
+Cancel 指向原 Start ID。Create 携带源目录、checkout 路径、分支及 base。Open 携带
+源目录和路径或分支二选一选择器。InspectRemove 观测已登记的 linked checkout 与
+脏状态。Remove 携带源目录、checkout、预期公共 Git 目录及 force。每个意图另有明确的
+仓库信任值。这些是语义参数，不是可执行文件、shell 表达式或任意 argv。
+
+路径沿用绝对、无 NUL 的 UTF-8 `AbsoluteCwd` 上限（4096 字节）。引用参数非空、
+最多 1024 字节、无 ASCII 控制字符或 DEL，且不能以 `-` 开头；Git 仍负责引用语法。
+每个意图或 checkout 观测的变长字段合计最多 7936 字节。诊断最多保留 2048 原始字节；
+它们是数据，不是产品文案或 shell 输入。
+
+| 所有者状态／事件            | 守卫与可观测后继状态                                 | 副作用与恢复                                       |
+| --------------------------- | ---------------------------------------------------- | -------------------------------------------------- |
+| 空闲／Start                 | 当前 Worker generation、有效意图且容量可用：Accepted | 单个所有者线程运行 Git 前保留意图及 Job ID         |
+| 已保留 ID／Start            | 相同意图：Existing；不同意图：Conflict               | 均不重复 Git                                       |
+| 运行中／其他 Start          | Busy                                                 | 不启动第二个物理作业                               |
+| 回执容量／新 Start          | 生命周期接纳 64 次后 Full                            | 不通过过期允许重放变更；重启改变 Worker generation |
+| 运行中／Poll                | 所有者收敛前 Pending                                 | 观测不触发 Git 命令                                |
+| 运行中／Cancel              | Registered                                           | 请求取消；不暗示回滚或丢弃已知副作用               |
+| 已收敛／Poll 或 Cancel      | 保留结果或 AlreadyTerminal                           | 重复观测不消费回执                                 |
+| 物理清理未获证实            | PhysicalUnknown 并退役接纳                           | 后续根进程状态不能把不确定升级为完成               |
+| Worker 或 generation 不匹配 | RejectedFencing                                      | 不接触所有者状态或进程                             |
+
+运行时所有者须实现这些转换；codec 测试仅证明表示层。成功 checkout 观测包含规范化
+仓库根、公共 Git 目录、checkout 路径、可选分支及脏状态。Remove 成功包含已删除路径。
+失败包含阶段、封闭原因、变更是否可能已发生以及有界诊断。阶段标签 1–6 为 Probe、
+Select、CheckBranch、DirtyCheck、Mutate、Verify。副作用标签 0/1 为 None/MayHaveChanged。
+中断或失败的 Git 变更绝不能表示成已证实回滚。
+
+OBCN 版本 2、kind 21 依次编码操作 ID（16）、Worker ID（16）、generation（u64）及
+action（u8：1 Start、2 Poll、3 Cancel）。Poll/Cancel 增加 Job ID（16）。Start 增加
+trust（严格布尔）、意图标签（1 Create、2 Open、3 InspectRemove、4 Remove）、源目录
+及按上文顺序排列的意图参数。Open 选择器标签 1/2 为路径／分支。Remove 的 force 位于
+预期公共目录之后。字符串与字节字段使用 u16 字节长度，整数为大端。解码运行全部
+UTF-8 校验及受检构造器。不接受未知标签、尾随字节、无效身份、布尔或 option。
+
+kind 22 依次编码操作 ID（16）、Job ID（16）、action 标签及 outcome 标签。Start
+标签 1–8 为 Accepted、Existing、Busy、Conflict、Full、SpawnFailed、PhysicalUnknown、
+Unsupported；255 为 RejectedFencing。Poll 标签 1–4 为 Pending、Completed、Unknown、
+PhysicalUnknown；255 为 RejectedFencing。Completed 增加 1 Checkout、2 Removed 或
+3 Failed。Checkout 字段沿用上文观测顺序，分支 option 与 dirty 布尔严格使用 0/1。
+Failed 增加阶段、副作用、失败标签及诊断。失败标签 1–14 为 GitFailed（可选 i32
+退出码）、SpawnUnavailable、SpawnFailed、InvalidRepository、CheckoutNotFound、
+MainCheckout、Dirty、InvalidReference、TooLarge、Timeout、Cancelled、Io、
+RepositoryChanged、AmbiguousCheckout。Cancel 标签 1–4 为 Registered、AlreadyTerminal、Unknown、
+PhysicalUnknown；255 为 RejectedFencing。
+
+最大请求是变长字段达到上限的 Create：7988 字节 payload。最大结果是 Checkout
+观测：7982 字节 payload。均低于现有 8192 字节帧 payload 上限。公共一致性测试覆盖
+手工推导 golden 帧、全部变体、最大长度、严格截断及畸形字段。不证明 Git 行为、
+文件系统身份、所有权、异步推进或关闭。私有 Server/Worker cohort 一起部署；旧 cohort
+拒绝新增标签。回滚替换 cohort，不迁移持久化协议数据。

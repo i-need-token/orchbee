@@ -141,3 +141,51 @@ fn failed_job_wait_never_becomes_cached_root_success_on_retry() {
     assert!(child.try_wait().is_err());
     assert_eq!(calls.load(Ordering::Relaxed), 1);
 }
+
+#[derive(Debug)]
+struct RejectWrappedChild;
+
+impl process_wrap::std::CommandWrapper for RejectWrappedChild {
+    fn wrap_child(
+        &mut self,
+        mut child: Box<dyn ChildWrapper>,
+        _: &CommandWrap,
+    ) -> io::Result<Box<dyn ChildWrapper>> {
+        // The fixture itself proves cleanup; the production adapter still only
+        // knows that native creation preceded an error and must preserve that fact.
+        child.start_kill()?;
+        child.wait()?;
+        Err(io::Error::other("controlled post-creation wrapper failure"))
+    }
+}
+
+#[test]
+fn spawn_failure_distinguishes_no_child_from_error_after_native_creation() {
+    let missing =
+        std::env::temp_dir().join(format!("orchbee-absent-git-{}.exe", std::process::id()));
+    assert!(!missing.exists());
+    let Err(failure) = GitChild::spawn(Command::new(missing)) else {
+        panic!("missing program spawned")
+    };
+    assert!(!failure.created);
+    assert_eq!(failure.error.kind(), io::ErrorKind::NotFound);
+
+    let mut command = Command::new(
+        std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap()).join("System32/cmd.exe"),
+    );
+    command
+        .args(["/d", "/c", "exit", "0"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    let mut wrapped = CommandWrap::from(command);
+    wrapped
+        .wrap(CreationFlags(CREATE_NO_WINDOW))
+        .wrap(JobObject)
+        .wrap(RejectWrappedChild);
+    let Err(failure) = GitChild::from_wrapped(wrapped) else {
+        panic!("rejecting wrapper succeeded")
+    };
+    assert!(failure.created);
+    assert_eq!(failure.error.kind(), io::ErrorKind::Other);
+}

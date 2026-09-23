@@ -541,6 +541,10 @@ fn real_dispatch_loop_bypasses_unrelated_closed_viewer_cleanup_for_one_lifecycle
         crate::terminal_operations::AdmittedAux {
             drain: &fixture.drain,
             worktree_slot: &worktree_slot,
+            #[cfg(windows)]
+            mutation_slot: &crate::worktree_mutation_job::WorktreeMutationSlot::new(
+                crate::worktree_mutation_windows::run,
+            ),
             site_runtime: None,
             #[cfg(windows)]
             managed_host: None,

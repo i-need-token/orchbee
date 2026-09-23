@@ -60,10 +60,20 @@ pub use terminal_lifecycle::{
 mod tests;
 
 mod worktree_job;
+mod worktree_mutation;
 pub use worktree_job::{
     MAXIMUM_WORKTREE_JOB_DIRECTORY_BYTES, MAXIMUM_WORKTREE_JOB_RESULT_FIELDS_BYTES,
     WorktreeJobAction, WorktreeJobCancelOutcome, WorktreeJobOutcome, WorktreeJobPollOutcome,
     WorktreeJobRequest, WorktreeJobResult, WorktreeJobStage, WorktreeJobStartOutcome,
+};
+pub use worktree_mutation::{
+    GitReference, MAXIMUM_GIT_REFERENCE_BYTES, MAXIMUM_WORKTREE_DIAGNOSTIC_BYTES,
+    MAXIMUM_WORKTREE_MUTATION_FIELDS_BYTES, WorktreeCheckout, WorktreeCheckoutSelector,
+    WorktreeMutation, WorktreeMutationCancelOutcome, WorktreeMutationCompletion,
+    WorktreeMutationEffect, WorktreeMutationError, WorktreeMutationFailure, WorktreeMutationIntent,
+    WorktreeMutationJobAction, WorktreeMutationOutcome, WorktreeMutationPollOutcome,
+    WorktreeMutationRequest, WorktreeMutationResult, WorktreeMutationStage,
+    WorktreeMutationStartOutcome,
 };
 
 mod terminal_control;

@@ -542,3 +542,72 @@ Absolute wire paths accept a POSIX leading slash or an ASCII drive letter follow
 ## Terminal process reads (unpublished)
 
 Viewer action tag 12 is `ReadProcessInfo`, with no bytes after the tag; it uses the request's existing attachment ID. Worker requires that exact retained viewer and sends one Host `ReadProcessInfo` (OBTP kind 79) with a fresh correlation. The response is bounded to 64 KiB plus the envelope and returned unchanged as `Record`, including a well-formed correlated Host `TypedFailure`. An observed result must echo the exact attachment and physical terminal. Wrong Worker/generation, missing viewer, wrong Host epoch or invalid result fails through existing rejection/carrier outcomes. No process enumeration runs in Worker; Host remains the owner. A process read neither acknowledges a frame nor creates input authority. Existing action encodings remain unchanged; the development cohort must be updated together.
+
+## Worktree mutation job contract
+
+This private staged contract defines the boundary for the Windows Worker Git owner
+and Server Worktree continuation. Windows Worker dispatch now implements this boundary;
+Server continuation remains pending. The representation alone does not complete the CLI
+create/open/remove workflow. Server owns Workspace association; Worker owns Git
+checkout observations and effects. No new dependency or Unix execution is admitted.
+
+The request carries one nonzero operation ID, Worker ID and positive generation.
+Start admits a checked intent; Poll and Cancel address the original Start ID.
+Create carries source directory, checkout path, branch and base. Open carries source
+and exactly one path or branch selector. InspectRemove observes one registered linked
+checkout and its dirty state. Remove carries source, checkout, expected common Git
+directory and force. Every intent also carries explicit repository trust. These are
+semantic operands, never an executable, shell expression or arbitrary argv.
+
+Paths use the existing absolute, NUL-free UTF-8 `AbsoluteCwd` limit (4096 bytes).
+Reference operands are nonempty, at most 1024 bytes, contain no ASCII control or DEL,
+and never begin with `-`; Git remains the reference-syntax authority. Variable fields
+sum to at most 7936 bytes per intent or checkout observation. Diagnostics retain at
+most 2048 raw bytes; they are data, never product copy or shell input.
+
+| Owner state / event            | Guard and observable next state                                     | Effect and recovery                                                  |
+| ------------------------------ | ------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Idle / Start                   | Current Worker generation, valid intent and free capacity: Accepted | Retain intent and Job ID before one owner thread can run Git         |
+| Retained ID / Start            | Identical intent: Existing; different intent: Conflict              | Neither repeats Git                                                  |
+| Running / another Start        | Busy                                                                | No second physical job                                               |
+| Receipt capacity / fresh Start | Full after 64 lifetime admissions                                   | No expiry permits mutation replay; restart changes Worker generation |
+| Running / Poll                 | Pending until owner settlement                                      | No Git command is triggered by observation                           |
+| Running / Cancel               | Registered                                                          | Request cancellation; never imply rollback or discard a known effect |
+| Settled / Poll or Cancel       | Retained outcome or AlreadyTerminal                                 | Repeat observation does not consume the receipt                      |
+| Unproven physical cleanup      | PhysicalUnknown and retired admission                               | No later root status upgrades uncertainty into completion            |
+| Wrong Worker or generation     | RejectedFencing                                                     | No owner state or process is touched                                 |
+
+The runtime owner must implement these transitions; codec tests establish only their
+representation. A successful checkout observation contains canonical repository root,
+common Git directory, checkout path, optional branch and dirty state. Remove success
+contains the removed checkout path. Failure contains stage, closed reason, whether a
+mutation may have occurred, and bounded diagnostics. Stage tags 1–6 are Probe, Select,
+CheckBranch, DirtyCheck, Mutate and Verify. Effect tags 0/1 are None/MayHaveChanged.
+An interrupted or failed Git mutation is never represented as proven rollback.
+
+OBCN version 2 kind 21 encodes operation ID (16), Worker ID (16), generation (u64),
+and action (u8: 1 Start, 2 Poll, 3 Cancel). Poll/Cancel add Job ID (16). Start adds
+trust (strict boolean), intent tag (1 Create, 2 Open, 3 InspectRemove, 4 Remove),
+source and its intent operands in the order above. Open selector tags 1/2 are path/branch.
+Remove force follows its expected common directory. Strings and byte fields use a
+u16 byte length; integers are big-endian. All UTF-8 and checked constructors run on
+decode. No unknown tag, trailing bytes, invalid identity, boolean or option is accepted.
+
+Kind 22 encodes operation ID (16), Job ID (16), action tag and outcome tag. Start
+tags 1–8 are Accepted, Existing, Busy, Conflict, Full, SpawnFailed, PhysicalUnknown,
+Unsupported; 255 is RejectedFencing. Poll tags 1–4 are Pending, Completed, Unknown,
+PhysicalUnknown; 255 is RejectedFencing. Completed adds 1 Checkout, 2 Removed or
+3 Failed. Checkout fields follow the observation order above, with strict 0/1 branch
+option and dirty boolean. Failed adds stage, effect, failure tag and diagnostics.
+Failure tags 1–14 are GitFailed (optional i32 exit code), SpawnUnavailable, SpawnFailed,
+InvalidRepository, CheckoutNotFound, MainCheckout, Dirty, InvalidReference, TooLarge,
+Timeout, Cancelled, Io, RepositoryChanged and AmbiguousCheckout. Cancel tags 1–4 are Registered,
+AlreadyTerminal, Unknown and PhysicalUnknown; 255 is RejectedFencing.
+
+The largest request is a maximum-field Create: 7988 payload bytes. The largest result
+is a Checkout observation: 7982 payload bytes. Both remain below the existing 8192-byte
+frame payload cap. Public conformance tests cover hand-derived golden frames, all
+variants, maximum lengths, strict truncations and malformed fields. They do not prove
+Git behavior, filesystem identity, ownership, asynchronous progress or shutdown.
+Deploy the private Server/Worker cohort together; older cohorts reject additive tags.
+Rollback replaces the cohort and migrates no durable protocol data.

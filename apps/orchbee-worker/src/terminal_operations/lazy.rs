@@ -42,140 +42,172 @@ pub(crate) fn run(
     // The discovery slot outlives the pre-Host phase: jobs admitted here stay
     // owned across the first Launch instead of being orphaned at handoff.
     let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
-    loop {
-        let request = server_transport::receive(server, None)?;
-        #[cfg(windows)]
-        if let CapabilityNodeMessage::WorkerShutdownRequest(request) = request {
-            if let Some(reason) = super::shutdown::refusal(request, worker_id, generation, true) {
-                let _no_host = server_transport::send(
+    #[cfg(windows)]
+    let mutation_slot = crate::worktree_mutation_job::WorktreeMutationSlot::new(
+        crate::worktree_mutation_windows::run,
+    );
+    let outcome = (|| {
+        loop {
+            let request = server_transport::receive(server, None)?;
+            #[cfg(windows)]
+            if let CapabilityNodeMessage::WorkerShutdownRequest(request) = request {
+                if let Some(reason) = super::shutdown::refusal(request, worker_id, generation, true)
+                {
+                    let _no_host = server_transport::send(
+                        server,
+                        None,
+                        &CapabilityNodeMessage::WorkerShutdownResult(
+                            orchbee_capability_node_protocol::WorkerShutdownResult {
+                                request,
+                                outcome:
+                                    orchbee_capability_node_protocol::WorkerShutdownOutcome::Refused(
+                                        reason,
+                                    ),
+                            },
+                        ),
+                    )?;
+                    continue;
+                }
+                return super::shutdown::run(
                     server,
+                    request,
+                    worker_id,
+                    generation,
+                    &worktree_slot,
+                    &mutation_slot,
                     None,
-                    &CapabilityNodeMessage::WorkerShutdownResult(
-                        orchbee_capability_node_protocol::WorkerShutdownResult {
-                            request,
-                            outcome:
-                                orchbee_capability_node_protocol::WorkerShutdownOutcome::Refused(
-                                    reason,
-                                ),
-                        },
-                    ),
+                );
+            }
+            if let CapabilityNodeMessage::AgentDrainRequest(request) = request {
+                // Without a Host, send always reports host_closed=true; that flag
+                // is expected here and does not retire the Server connection.
+                let _no_host = super::dispatch_drain_request(
+                    server, None, &drain, &request, worker_id, generation,
                 )?;
                 continue;
             }
-            return super::shutdown::run(
-                server,
-                request,
-                worker_id,
-                generation,
-                &worktree_slot,
-                None,
-            );
-        }
-        if let CapabilityNodeMessage::AgentDrainRequest(request) = request {
-            // Without a Host, send always reports host_closed=true; that flag
-            // is expected here and does not retire the Server connection.
-            let _no_host = super::dispatch_drain_request(
-                server, None, &drain, &request, worker_id, generation,
-            )?;
-            continue;
-        }
-        if let CapabilityNodeMessage::WorktreeJobRequest(request) = request {
-            // Worktree jobs need no Host; they answer directly in this loop.
-            let result = crate::worktree_job_operation::execute(
-                request,
-                worker_id,
-                generation,
-                &worktree_slot,
-            );
-            let _no_host = server_transport::send(
-                server,
-                None,
-                &CapabilityNodeMessage::WorktreeJobResult(result),
-            )?;
-            continue;
-        }
-        if let CapabilityNodeMessage::TerminalCwdValidationRequest(request) = request {
-            let result = crate::terminal_cwd_validation::validate(request, worker_id, generation);
-            // The send result reports Host closure, not Server closure. This pre-Host loop has no
-            // Host to observe, so only a result-write error retires the Server connection.
-            let _no_host = server_transport::send(
-                server,
-                None,
-                &CapabilityNodeMessage::TerminalCwdValidationResult(result),
-            )?;
-            continue;
-        }
-        let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = request else {
-            // No binding exists before the first Launch. Other non-Launch traffic retires this
-            // connection and cannot acquire Host-start authority.
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "expected first authorized Launch",
-            )
-            .into());
-        };
-        let dispatch = match kernel.admit_launch(launch, unix_milliseconds())? {
-            HostOperationAdmission::Dispatch(dispatch) => dispatch,
-            HostOperationAdmission::ResultReady => {
-                let result = super::take_result(&mut kernel)?;
-                let _no_host = server_transport::send(server, None, &result)?;
+            if let CapabilityNodeMessage::WorktreeMutationRequest(request) = request {
+                #[cfg(windows)]
+                let result = crate::worktree_mutation_operation::execute(
+                    request,
+                    worker_id,
+                    generation,
+                    &mutation_slot,
+                );
+                #[cfg(not(windows))]
+                let result =
+                    crate::worktree_mutation_operation::execute(request, worker_id, generation);
+                let _no_host = server_transport::send(
+                    server,
+                    None,
+                    &CapabilityNodeMessage::WorktreeMutationResult(result),
+                )?;
                 continue;
             }
-            HostOperationAdmission::SlotOccupied => {
-                return Err(io::Error::other("occupied operation slot").into());
+            if let CapabilityNodeMessage::WorktreeJobRequest(request) = request {
+                // Worktree jobs need no Host; they answer directly in this loop.
+                let result = crate::worktree_job_operation::execute(
+                    request,
+                    worker_id,
+                    generation,
+                    &worktree_slot,
+                );
+                let _no_host = server_transport::send(
+                    server,
+                    None,
+                    &CapabilityNodeMessage::WorktreeJobResult(result),
+                )?;
+                continue;
             }
-        };
-        // Preserve this exact kernel and dispatch across preparation and startup.
-        let prepared = super::prepare(&dispatch, Some(runtime));
-        let started = prepared.and_then(|prepared| {
-            start_host(cohort, runtime, Rc::clone(&drain)).map(|host| (prepared, host))
-        });
-        let (prepared, (mut host, _child)) = match started {
-            Ok(started) => started,
-            Err(error) => {
-                kernel.record_pre_handoff_failure(&dispatch, unix_milliseconds())?;
-                let result = super::take_result(&mut kernel)?;
-                let _delivery = server_transport::send(server, None, &result);
-                return Err(error);
+            if let CapabilityNodeMessage::TerminalCwdValidationRequest(request) = request {
+                let result =
+                    crate::terminal_cwd_validation::validate(request, worker_id, generation);
+                // The send result reports Host closure, not Server closure. This pre-Host loop has no
+                // Host to observe, so only a result-write error retires the Server connection.
+                let _no_host = server_transport::send(
+                    server,
+                    None,
+                    &CapabilityNodeMessage::TerminalCwdValidationResult(result),
+                )?;
+                continue;
             }
-        };
-        host.stream().set_nonblocking(true)?;
-        let disposition = prepared.execute(
-            &mut kernel,
-            &mut host,
-            server,
-            unix_milliseconds,
-            super::HOST_OPERATION_BUDGET,
-        )?;
-        if disposition == HostOperationDisposition::ServerClosed {
-            return Err(super::peer_closed().into());
+            let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = request else {
+                // No binding exists before the first Launch. Other non-Launch traffic retires this
+                // connection and cannot acquire Host-start authority.
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "expected first authorized Launch",
+                )
+                .into());
+            };
+            let dispatch = match kernel.admit_launch(launch, unix_milliseconds())? {
+                HostOperationAdmission::Dispatch(dispatch) => dispatch,
+                HostOperationAdmission::ResultReady => {
+                    let result = super::take_result(&mut kernel)?;
+                    let _no_host = server_transport::send(server, None, &result)?;
+                    continue;
+                }
+                HostOperationAdmission::SlotOccupied => {
+                    return Err(io::Error::other("occupied operation slot").into());
+                }
+            };
+            // Preserve this exact kernel and dispatch across preparation and startup.
+            let prepared = super::prepare(&dispatch, Some(runtime));
+            let started = prepared.and_then(|prepared| {
+                start_host(cohort, runtime, Rc::clone(&drain)).map(|host| (prepared, host))
+            });
+            let (prepared, (mut host, _child)) = match started {
+                Ok(started) => started,
+                Err(error) => {
+                    kernel.record_pre_handoff_failure(&dispatch, unix_milliseconds())?;
+                    let result = super::take_result(&mut kernel)?;
+                    let _delivery = server_transport::send(server, None, &result);
+                    return Err(error);
+                }
+            };
+            host.stream().set_nonblocking(true)?;
+            let disposition = prepared.execute(
+                &mut kernel,
+                &mut host,
+                server,
+                unix_milliseconds,
+                super::HOST_OPERATION_BUDGET,
+            )?;
+            if disposition == HostOperationDisposition::ServerClosed {
+                return Err(super::peer_closed().into());
+            }
+            let result = super::take_result(&mut kernel)?;
+            let closed = server_transport::send(
+                server,
+                (disposition == HostOperationDisposition::ResultReady).then_some(&host),
+                &result,
+            )?;
+            if closed {
+                return Err(super::peer_closed().into());
+            }
+            #[cfg(windows)]
+            let mut managed_host = super::shutdown::ManagedHost::new(_child);
+            return super::run_admitted(
+                server,
+                &mut host,
+                worker_id,
+                generation,
+                kernel,
+                super::AdmittedAux {
+                    drain: &drain,
+                    worktree_slot: &worktree_slot,
+                    #[cfg(windows)]
+                    mutation_slot: &mutation_slot,
+                    site_runtime: Some(runtime),
+                    #[cfg(windows)]
+                    managed_host: Some(&mut managed_host),
+                },
+            );
         }
-        let result = super::take_result(&mut kernel)?;
-        let closed = server_transport::send(
-            server,
-            (disposition == HostOperationDisposition::ResultReady).then_some(&host),
-            &result,
-        )?;
-        if closed {
-            return Err(super::peer_closed().into());
-        }
-        #[cfg(windows)]
-        let mut managed_host = super::shutdown::ManagedHost::new(_child);
-        return super::run_admitted(
-            server,
-            &mut host,
-            worker_id,
-            generation,
-            kernel,
-            super::AdmittedAux {
-                drain: &drain,
-                worktree_slot: &worktree_slot,
-                site_runtime: Some(runtime),
-                #[cfg(windows)]
-                managed_host: Some(&mut managed_host),
-            },
-        );
-    }
+    })();
+    #[cfg(windows)]
+    mutation_slot.stop_before(Instant::now() + Duration::from_secs(6))?;
+    outcome
 }
 
 fn start_host(

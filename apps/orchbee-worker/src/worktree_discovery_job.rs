@@ -104,7 +104,7 @@ struct CommandSpec {
 }
 
 impl CommandSpec {
-    fn spawn(&self) -> io::Result<SpawnedChild> {
+    fn spawn(&self) -> Result<SpawnedChild, SpawnFailure> {
         let mut command = Command::new(&self.program);
         command
             .args(&self.args)
@@ -125,7 +125,10 @@ impl CommandSpec {
             let (out, stdout) = ChildOutputReader::pipe()?;
             let (err, stderr) = ChildOutputReader::pipe()?;
             command.stdout(stdout).stderr(stderr);
-            let child = Child::spawn(command)?;
+            let child = Child::spawn(command).map_err(|failure| SpawnFailure {
+                error: failure.error,
+                created: failure.created,
+            })?;
             Ok(SpawnedChild {
                 child,
                 out: Some(out),
@@ -134,6 +137,21 @@ impl CommandSpec {
         }
     }
 }
+
+struct SpawnFailure {
+    error: io::Error,
+    created: bool,
+}
+
+impl From<io::Error> for SpawnFailure {
+    fn from(error: io::Error) -> Self {
+        Self {
+            error,
+            created: false,
+        }
+    }
+}
+
 struct SpawnedChild {
     child: Child,
     out: Option<ChildStdout>,
@@ -416,7 +434,14 @@ fn run_owner(commands: JobCommands, cancel: Arc<AtomicBool>, deadline: Instant) 
             return owner_report(JobOutcome::Timeout);
         }
         let child = match spec.spawn() {
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            Err(failure) if failure.created => {
+                return OwnerReport {
+                    outcome: JobOutcome::OwnerIo { stage: Some(stage) },
+                    child_reaped: false,
+                    pipes_closed: true,
+                };
+            }
+            Err(failure) if failure.error.kind() == io::ErrorKind::NotFound => {
                 return owner_report(JobOutcome::SpawnUnavailable { stage });
             }
             Err(_error) => return owner_report(JobOutcome::SpawnFailed { stage }),

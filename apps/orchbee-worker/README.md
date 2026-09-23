@@ -817,3 +817,48 @@ resistance relies on the OS random source. This changes no OBLS/OBCN fields and 
 not enable reconnect, inventory adoption, or migration of old Worker bindings.
 Mac/Linux retain their existing identity behavior. Two independent Windows Site
 process traces cover reused Terminal IDs and refusal of the old Worker context.
+
+## Windows Worktree mutation owner
+
+The [private mutation contract](../../crates/capability-node-protocol/README.md#worktree-mutation-job-contract)
+owns the checked intents and wire vocabulary. `worktree_mutation_job` owns admission,
+retained intent identity, one physical thread and completion receipts; the Windows Git
+adapter owns literal argv, bounded output and exact process settlement. The Server
+continuation remains responsible for Workspace association and end-to-end CLI recovery.
+
+Start validates Worker identity/generation before touching the slot. Equal retained
+ID/intent observes Existing; changed intent conflicts. One running job excludes another,
+and 64 lifetime admissions bound retained receipts without expiring mutation identities.
+A channel releases the owner only after its intent and join handle are retained. Poll
+joins only an already-finished thread. A panic or unproven process cleanup retires new
+admission and stays PhysicalUnknown. Cancellation is a request, never rollback. Site
+shutdown cancels and joins this owner before reporting that background work has stopped;
+pre-Host to Host handoff preserves the same slot. Normal transport exit also cancels
+and joins it within a cooperative six-second cleanup window. Drop only requests cancellation.
+
+Git execution has a 30-second work budget, 64 KiB stdout bound and 2 KiB diagnostic
+retention. These are cooperative admission budgets, not filesystem-call preemption.
+A tracked native-spawn boundary distinguishes known no-child failure from post-creation
+wrapper failure; the latter retires admission in discovery and mutation owners.
+Every read is nonblocking and quantum-bounded; cancellation or a limit settles
+the existing Job using the separate five-second cleanup budget. A mutation handoff
+changes the failure observation to MayHaveChanged before it can affect the filesystem.
+Only the existing Windows absolute drive-path contract is admitted; UNC/device and
+drive-relative paths are rejected. Inherited `GIT_*` variables cannot redirect repository, index or config. Explicit trust
+applies only to this command's source repository; global config is never changed.
+
+Create checks an existing local branch before choosing checkout or `-b` with base; base
+is ignored for an existing branch, matching Herdr. Open selects one registered checkout
+by path or branch. InspectRemove observes registration and dirty state. Remove rechecks
+common-directory identity, excludes the main checkout and invokes Git's dirty/force
+policy without deleting the branch or using a recursive filesystem fallback. Checkout
+and common-directory facts are canonical observations, not a transaction against another
+Git process or filesystem writer. A post-mutation observation failure preserves possible
+effects instead of claiming rollback.
+
+Native tests own disposable Git fixtures until the final child, pipe and repository
+consumer has ended. Transition tests cover duplicate/conflicting Start, capacity,
+cancellation, failed settlement and generation fencing. Real Git tests cover branch
+creation/reuse, open selectors, dirty refusal, force removal and branch preservation.
+These do not prove external-writer exclusion, abrupt Worker-death recovery or non-Windows
+execution. No CLI parity is inferred from this Worker boundary alone.

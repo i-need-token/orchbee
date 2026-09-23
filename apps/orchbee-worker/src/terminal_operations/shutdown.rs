@@ -133,6 +133,7 @@ pub(super) fn run(
     worker_id: WorkerId,
     generation: NonZeroU64,
     slot: &WorktreeDiscoverySlot,
+    mutation_slot: &crate::worktree_mutation_job::WorktreeMutationSlot,
     mut managed: Option<(&HostBrokerConnection, &mut ManagedHost)>,
 ) -> Result<(), Box<dyn Error>> {
     loop {
@@ -140,7 +141,10 @@ pub(super) fn run(
             Instant::now() + Duration::from_millis(u64::from(request.budget.milliseconds()));
         let outcome = if let Some(reason) = refusal(request, worker_id, generation, true) {
             WorkerShutdownOutcome::Refused(reason)
-        } else if let Err(error) = slot.stop_before(deadline) {
+        } else if let Err(error) = mutation_slot
+            .stop_before(deadline)
+            .and_then(|()| slot.stop_before(deadline))
+        {
             WorkerShutdownOutcome::Incomplete {
                 host_epoch: managed.as_ref().map(|(host, _)| {
                     HostEpoch::from_bytes(*host.host_epoch().as_bytes())

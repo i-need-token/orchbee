@@ -308,6 +308,10 @@ fn admitted_request_replies_with_host_observed_event() -> TestResult {
         super::AdmittedAux {
             drain: &drain,
             worktree_slot: &worktree_slot,
+            #[cfg(windows)]
+            mutation_slot: &crate::worktree_mutation_job::WorktreeMutationSlot::new(
+                crate::worktree_mutation_windows::run,
+            ),
             site_runtime: None,
             #[cfg(windows)]
             managed_host: None,

@@ -20,16 +20,32 @@ pub(crate) struct GitChild {
     settlement: Settlement,
 }
 
+#[derive(Debug)]
+pub(crate) struct GitSpawnFailure {
+    pub(crate) error: io::Error,
+    pub(crate) created: bool,
+}
+
 impl GitChild {
     /// Assignment happens while suspended, before any Git hook can spawn a child.
-    pub(crate) fn spawn(command: Command) -> io::Result<Self> {
+    pub(crate) fn spawn(command: Command) -> Result<Self, GitSpawnFailure> {
         let mut wrapped = CommandWrap::from(command);
         wrapped
             .wrap(CreationFlags(CREATE_NO_WINDOW))
             .wrap(JobObject);
-        let child = wrapped.spawn()?;
+        Self::from_wrapped(wrapped)
+    }
+
+    fn from_wrapped(mut wrapped: CommandWrap) -> Result<Self, GitSpawnFailure> {
+        let mut created = false;
+        let child = wrapped.spawn_with(|command| {
+            let child = command.spawn()?;
+            created = true;
+            Ok(child)
+        });
         // Release duplicate parent pipe writers before the caller drains output.
         drop(wrapped);
+        let child = child.map_err(|error| GitSpawnFailure { error, created })?;
         Ok(Self {
             child,
             settlement: Settlement::Running,

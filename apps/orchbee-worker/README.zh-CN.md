@@ -741,3 +741,38 @@ Windows 还会在连接 Server 之前，使用已有的 OS 随机源生成一个
 OBLS/OBCN 字段，也不启用重连、inventory 接管或旧 Worker 绑定迁移。
 Mac/Linux 保留原有身份行为。两次独立 Windows Site 进程轨迹覆盖 Terminal ID 复用
 时对旧 Worker 上下文的拒绝。
+
+## Windows Worktree 变更所有者
+
+[私有变更契约](../../crates/capability-node-protocol/README.zh-CN.md#worktree-变更作业契约)
+拥有受检意图与 wire 词汇。`worktree_mutation_job` 拥有接纳、保留意图身份、单个物理线程
+和完成回执；Windows Git 适配器拥有字面量 argv、有界输出及精确进程收敛。Server
+续执行仍负责 Workspace 关联与端到端 CLI 恢复。
+
+Start 在接触槽位前校验 Worker 身份／generation。相同保留 ID／意图观测 Existing；
+变更意图冲突。单个运行作业排斥其他作业，生命周期 64 次接纳在不让变更身份过期的
+前提下限制回执。channel 仅在意图及 join handle 已保留后释放所有者。Poll 只 join
+已结束线程。panic 或未证实的进程清理退役新接纳，并保持 PhysicalUnknown。取消只是
+请求，不是回滚。Site 关闭在报告后台工作停止前取消并 join 此所有者；从无 Host 到有
+Host 的交接保留同一槽位。正常传输退出也在协作式六秒清理窗口内取消并 join。
+Drop 只请求取消。
+
+Git 执行具有 30 秒工作预算、64 KiB stdout 上限及 2 KiB 诊断保留。这些是协作式
+接纳预算，不会抢占文件系统调用。受跟踪的原生创建边界区分已知无子进程失败与创建后
+包装失败；后者退役 discovery 和 mutation 所有者的新接纳。每次读取均非阻塞
+且按量限界；取消或超限使用独立的五秒清理预算收敛既有 Job。在变更可能影响文件系统
+之前，变更交付将失败观测改为 MayHaveChanged。只接纳现有 Windows 绝对盘符路径
+契约；拒绝 UNC／device 及盘符相对路径。继承的 `GIT_*` 变量不能重定向仓库、
+index 或配置。显式信任只作用于本命令的源仓库，绝不修改全局配置。
+
+Create 检查已有本地分支，再选择检出或使用 `-b` 与 base；已有分支忽略 base，与
+Herdr 一致。Open 按路径或分支选择一个已登记 checkout。InspectRemove 观测登记及
+脏状态。Remove 复查公共目录身份、排除主 checkout，并调用 Git 的 dirty／force 策略，
+不删除分支，也不使用递归文件系统回退删除。Checkout 和公共目录事实是规范化观测，
+不是对其他 Git 进程或文件系统写入者的事务。变更后观测失败保留可能发生的副作用，
+不宣称回滚。
+
+原生测试拥有一次性 Git 夹具，直到最后一个子进程、管道及仓库消费者结束。转换测试
+覆盖重复／冲突 Start、容量、取消、收敛失败及 generation fencing。真实 Git 测试覆盖
+分支创建／复用、打开选择器、脏目录拒绝、强制删除及分支保留。不证明外部写入者排斥、
+Worker 突然死亡恢复或非 Windows 执行。不会仅凭此 Worker 边界推导 CLI 对齐。

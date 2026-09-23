@@ -67,6 +67,9 @@ fn pre_host_stop_delivers_exact_no_host_result_then_ends() {
         WorkerId::from_bytes([2; 16]),
         NonZeroU64::new(3).unwrap(),
         &slot,
+        &crate::worktree_mutation_job::WorktreeMutationSlot::new(
+            crate::worktree_mutation_windows::run,
+        ),
         None,
     )
     .unwrap();
@@ -112,6 +115,9 @@ fn wrong_fence_in_stop_mode_preserves_owner_for_next_explicit_request() {
         WorkerId::from_bytes([2; 16]),
         NonZeroU64::new(3).unwrap(),
         &WorktreeDiscoverySlot::new(),
+        &crate::worktree_mutation_job::WorktreeMutationSlot::new(
+            crate::worktree_mutation_windows::run,
+        ),
         None,
     )
     .unwrap();
