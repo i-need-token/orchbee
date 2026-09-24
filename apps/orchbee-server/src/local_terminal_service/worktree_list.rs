@@ -38,8 +38,14 @@ struct ReadyTarget {
     operation_base: u128,
 }
 
+pub(super) struct ObservedWorktrees {
+    pub(super) common_directory: Vec<u8>,
+    pub(super) source_checkout: Option<Vec<u8>>,
+    pub(super) listing: Vec<u8>,
+}
+
 enum JobTerminal {
-    Completed { listing: Vec<u8> },
+    Completed(ObservedWorktrees),
     Failed(WorkbenchWorktreeListOutcome),
 }
 
@@ -48,6 +54,7 @@ enum JobTerminal {
 // unavailability or transport loss. Conversion to the public outcome
 // happens once at the execute boundary.
 enum JobFailure {
+    NotFound,
     Unavailable(WorktreeListUnavailableReason),
     TransportLoss,
 }
@@ -55,6 +62,7 @@ enum JobFailure {
 impl From<JobFailure> for WorkbenchWorktreeListOutcome {
     fn from(failure: JobFailure) -> Self {
         match failure {
+            JobFailure::NotFound => Self::NotFound {},
             JobFailure::Unavailable(reason) => Self::Unavailable { reason },
             JobFailure::TransportLoss => Self::TransportLoss {},
         }
@@ -107,11 +115,17 @@ impl JobDriver {
             })
     }
 
-    fn start(&mut self) -> Result<OperationId, JobFailure> {
+    fn start(&mut self, trust: Option<bool>) -> Result<OperationId, JobFailure> {
         let operation_id = self.operation_id()?;
         let result = self.request(
-            WorktreeJobAction::Start {
-                directory: self.directory_path.clone(),
+            match trust {
+                Some(trust_repository) => WorktreeJobAction::StartSource {
+                    directory: self.directory_path.clone(),
+                    trust_repository,
+                },
+                None => WorktreeJobAction::Start {
+                    directory: self.directory_path.clone(),
+                },
             },
             operation_id,
         )?;
@@ -130,7 +144,11 @@ impl JobDriver {
             WorktreeJobStartOutcome::Busy => Err(JobFailure::Unavailable(
                 WorktreeListUnavailableReason::ServerBusy,
             )),
-            WorktreeJobStartOutcome::InvalidDirectory
+            WorktreeJobStartOutcome::InvalidDirectory if trust.is_some() => {
+                Err(JobFailure::NotFound)
+            }
+            WorktreeJobStartOutcome::Unsupported
+            | WorktreeJobStartOutcome::InvalidDirectory
             | WorktreeJobStartOutcome::SpawnThreadFailed
             | WorktreeJobStartOutcome::RejectedFencing => Err(JobFailure::Unavailable(
                 WorktreeListUnavailableReason::WorkerUnavailable,
@@ -138,6 +156,37 @@ impl JobDriver {
             WorktreeJobStartOutcome::Dead => Err(JobFailure::Unavailable(
                 WorktreeListUnavailableReason::JobDead,
             )),
+        }
+    }
+
+    fn execute(
+        &mut self,
+        trust: Option<bool>,
+    ) -> Result<ObservedWorktrees, Box<WorkbenchWorktreeListOutcome>> {
+        if self.expired() {
+            return Err(Box::new(WorkbenchWorktreeListOutcome::Timeout {}));
+        }
+        let job_id = self
+            .start(trust)
+            .map_err(|failure| Box::new(WorkbenchWorktreeListOutcome::from(failure)))?;
+        loop {
+            if self.expired() || self.polls >= WORKTREE_LIST_MAXIMUM_POLLS {
+                return Err(Box::new(WorkbenchWorktreeListOutcome::Timeout {}));
+            }
+            self.polls += 1;
+            match self
+                .poll(job_id)
+                .map_err(|failure| Box::new(WorkbenchWorktreeListOutcome::from(failure)))?
+            {
+                PollStep::Pending => sleep(WORKTREE_LIST_POLL_INTERVAL),
+                PollStep::Done(JobTerminal::Completed(observed)) => {
+                    if observed.source_checkout.is_some() != trust.is_some() {
+                        return Err(Box::new(WorkbenchWorktreeListOutcome::MalformedListing {}));
+                    }
+                    return Ok(observed);
+                }
+                PollStep::Done(JobTerminal::Failed(outcome)) => return Err(Box::new(outcome)),
+            }
         }
     }
 
@@ -156,6 +205,30 @@ impl JobDriver {
         };
         Ok(poll_step(outcome))
     }
+}
+
+pub(super) fn discover_source(
+    handle: WorkerRequestHandle,
+    operation_base: u128,
+    directory_path: Vec<u8>,
+    trust: bool,
+    deadline: Instant,
+) -> Result<ObservedWorktrees, Box<WorkbenchWorktreeListOutcome>> {
+    let worker_id = WorkerId::from_bytes(handle.worker_id().as_bytes()).map_err(|_| {
+        Box::new(unavailable(
+            WorktreeListUnavailableReason::WorkerUnavailable,
+        ))
+    })?;
+    JobDriver {
+        worker_id,
+        generation: WorkerGeneration::new(handle.generation()),
+        handle,
+        operation_base,
+        deadline,
+        directory_path,
+        polls: 0,
+    }
+    .execute(Some(trust))
 }
 
 impl LocalTerminalService {
@@ -204,39 +277,9 @@ impl LocalTerminalService {
             polls: 0,
         };
 
-        // Start submits inside the elapsed budget; expiry before submit is the typed
-        // server-side timeout, not server-busy.
-        if driver.expired() {
-            return Some(worktree_result(
-                read.request_id,
-                WorkbenchWorktreeListOutcome::Timeout {},
-            ));
-        }
-        let job_id = match driver.start() {
-            Ok(job_id) => job_id,
-            Err(failure) => return Some(worktree_result(read.request_id, failure.into())),
-        };
-
-        loop {
-            if driver.expired() || driver.polls >= WORKTREE_LIST_MAXIMUM_POLLS {
-                return Some(worktree_result(
-                    read.request_id,
-                    WorkbenchWorktreeListOutcome::Timeout {},
-                ));
-            }
-            driver.polls += 1;
-            match driver.poll(job_id) {
-                Ok(PollStep::Pending) => sleep(WORKTREE_LIST_POLL_INTERVAL),
-                Ok(PollStep::Done(JobTerminal::Completed { listing })) => {
-                    return self.finish_worktree_list(read, &target, listing, deadline);
-                }
-                Ok(PollStep::Done(JobTerminal::Failed(outcome))) => {
-                    return Some(worktree_result(read.request_id, outcome));
-                }
-                Err(failure) => {
-                    return Some(worktree_result(read.request_id, failure.into()));
-                }
-            }
+        match driver.execute(None) {
+            Ok(observed) => self.finish_worktree_list(read, &target, observed.listing, deadline),
+            Err(outcome) => Some(worktree_result(read.request_id, *outcome)),
         }
     }
 
@@ -413,9 +456,25 @@ fn request_failure(error: WorkerRequestError) -> WorkbenchWorktreeListOutcome {
 fn poll_step(outcome: WorktreeJobPollOutcome) -> PollStep {
     match outcome {
         WorktreeJobPollOutcome::Pending => PollStep::Pending,
-        WorktreeJobPollOutcome::Completed { listing, .. } => {
-            PollStep::Done(JobTerminal::Completed { listing })
-        }
+        WorktreeJobPollOutcome::SourceCompleted {
+            common_dir,
+            source_checkout,
+            listing,
+            ..
+        } => PollStep::Done(JobTerminal::Completed(ObservedWorktrees {
+            common_directory: common_dir,
+            source_checkout: Some(source_checkout),
+            listing,
+        })),
+        WorktreeJobPollOutcome::Completed {
+            common_dir,
+            listing,
+            ..
+        } => PollStep::Done(JobTerminal::Completed(ObservedWorktrees {
+            common_directory: common_dir,
+            source_checkout: None,
+            listing,
+        })),
         WorktreeJobPollOutcome::GitFailed { stage, status, .. } => PollStep::Done(
             JobTerminal::Failed(WorkbenchWorktreeListOutcome::GitFailed {
                 stage: worktree_list_stage(stage),
@@ -505,7 +564,7 @@ struct RecordBuilder {
 
 // `git worktree list --porcelain -z`: NUL-terminated attribute fields, one bare
 // NUL record separator after every record, stream ends after the last separator.
-fn parse_worktree_listing(bytes: &[u8]) -> Result<Vec<WorktreeEntry>, ()> {
+pub(super) fn parse_worktree_listing(bytes: &[u8]) -> Result<Vec<WorktreeEntry>, ()> {
     let stripped = bytes.strip_suffix(&[0]).ok_or(())?;
     let mut entries = Vec::new();
     let mut record: Vec<&[u8]> = Vec::new();
@@ -514,7 +573,9 @@ fn parse_worktree_listing(bytes: &[u8]) -> Result<Vec<WorktreeEntry>, ()> {
             if record.is_empty() {
                 return Err(());
             }
-            entries.push(finish_record(&record)?);
+            let entry = finish_record(&record)?;
+            entry.validate().map_err(|_| ())?;
+            entries.push(entry);
             record.clear();
         } else {
             record.push(field);
@@ -537,9 +598,6 @@ fn finish_record(fields: &[&[u8]]) -> Result<WorktreeEntry, ()> {
     for (index, field) in fields.iter().enumerate() {
         if index == 0 {
             let path = field.strip_prefix(b"worktree ").ok_or(())?;
-            if !path.starts_with(b"/") {
-                return Err(());
-            }
             builder.path = Some(path.to_vec());
             continue;
         }

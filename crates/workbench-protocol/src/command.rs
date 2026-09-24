@@ -1,3 +1,10 @@
+mod json_fields;
+mod worktree_query;
+pub use worktree_query::{
+    MAXIMUM_ENCODED_WORKTREE_QUERY_RESULT_BYTES, WorkbenchWorktreeQuery,
+    WorkbenchWorktreeQueryOutcome, WorkbenchWorktreeQueryResult, WorktreeQueryEntry,
+    WorktreeQueryFailure, WorktreeQuerySource, WorktreeWorkspaceAssociation,
+};
 mod worktree_operation;
 use std::fmt;
 pub use worktree_operation::{
@@ -550,6 +557,8 @@ pub struct WorkbenchCommand {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchRequest {
+    #[serde(rename = "workbench.worktree.query")]
+    WorktreeQuery(WorkbenchWorktreeQuery),
     #[serde(rename = "workbench.worktree.operation")]
     WorktreeOperation(WorkbenchWorktreeRequest),
     #[serde(rename = "workbench.snapshot.read")]
@@ -851,6 +860,8 @@ pub struct WorkbenchSnapshotResult {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchResponse {
+    #[serde(rename = "workbench.worktree.query.result")]
+    WorktreeQuery(WorkbenchWorktreeQueryResult),
     #[serde(rename = "workbench.worktree.operation.result")]
     WorktreeOperation(WorkbenchWorktreeResult),
     #[serde(rename = "workbench.snapshot.result")]
@@ -959,6 +970,10 @@ pub fn serialize_workbench_response(
 
 fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(), ContractError> {
     match response {
+        WorkbenchResponse::WorktreeQuery(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKTREE_QUERY_RESULT_BYTES)?;
+            result.validate()
+        }
         WorkbenchResponse::WorktreeOperation(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES)?;
             result.validate()

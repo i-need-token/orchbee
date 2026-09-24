@@ -753,3 +753,7 @@ Server 检查准入，释放锁执行 Worker 只读目录探测，再按注册�
 ## Windows 保留 Worktree 续执行
 
 `workbench.worktree.operation` 接纳 Start、纯 Read 与尝试序号约束的 Resume。Workbench 权威最多保留 64 个操作，全局一个 Pending，并拥有规范 Workspace 关联；惰性维护所有者在 Client 断线后继续执行。registry 到 Site 接纳及发布复查来源和精确 Worker 实例；OBCN IPC 在两道门之外运行。Create/Open 观察 Worker 检出事实后才复用或启动 Workspace。Remove 在 Close 前检查脏状态，保留新 Workspace／目录准入，等待已知 Closed 后才提交 Git 移除。失败保留可能的 Git 影响、路径和 Workspace 已关闭事实。显式 Site 停止在 Close 维护及 Worker carrier 冻结前 join 此所有者。界限及恢复见 [CLI／续执行契约](../orchbee/docs/windows-worktrees.zh-CN.md) 与[共享协议](../../schemas/workbench/v1/workbench-worktree.schema.json)。
+
+## 只读 Worktree 来源查询
+
+`workbench.worktree.query` 解析显式 Workspace 或字面目录，无需 Project。它在 registry-to-Site 门内捕获来源及 Worker 实例，在门外执行一个有界发现 job，再复查并加入当前 Workspace 标签／身份。多个关联明确保留，不任取首个匹配，不改变焦点、创建 Workspace 或消耗变更回执。共享 porcelain 解析器接受 Windows 绝对驱动器路径及既有路径形式。来源变化、Worker 丢失、元数据无效及预算到期返回类型化失败。参见[所属契约](../orchbee/docs/windows-worktrees.zh-CN.md#按来源发现-worktree)。

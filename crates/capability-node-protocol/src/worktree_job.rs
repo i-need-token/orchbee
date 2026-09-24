@@ -34,12 +34,31 @@ impl WorktreeJobStage {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum WorktreeJobAction {
-    Start { directory: Vec<u8> },
-    Poll { job_id: OperationId },
-    Cancel { job_id: OperationId },
+    Start {
+        directory: Vec<u8>,
+    },
+    /// Windows source discovery; legacy Start bytes and behavior remain unchanged.
+    StartSource {
+        directory: Vec<u8>,
+        trust_repository: bool,
+    },
+    Poll {
+        job_id: OperationId,
+    },
+    Cancel {
+        job_id: OperationId,
+    },
 }
 
 impl WorktreeJobAction {
+    pub fn start_source(directory: Vec<u8>, trust_repository: bool) -> Result<Self, ProtocolError> {
+        Self::start(directory.clone())?;
+        Ok(Self::StartSource {
+            directory,
+            trust_repository,
+        })
+    }
+
     /// The directory must be an absolute, nonempty, NUL-free byte path before
     /// any request is constructed.
     pub fn start(directory: Vec<u8>) -> Result<Self, ProtocolError> {
@@ -78,6 +97,7 @@ pub enum WorktreeJobStartOutcome {
     InvalidDirectory,
     /// The owner thread could not be spawned; no child ever existed.
     SpawnThreadFailed,
+    Unsupported,
     /// The slot is permanently occupied by an uncertain cleanup tombstone.
     Dead,
     RejectedFencing,
@@ -86,6 +106,12 @@ pub enum WorktreeJobStartOutcome {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum WorktreeJobPollOutcome {
     Pending,
+    SourceCompleted {
+        common_dir: Vec<u8>,
+        source_checkout: Vec<u8>,
+        listing: Vec<u8>,
+        stderr: Vec<u8>,
+    },
     Completed {
         common_dir: Vec<u8>,
         listing: Vec<u8>,
@@ -118,6 +144,21 @@ pub enum WorktreeJobPollOutcome {
 }
 
 impl WorktreeJobPollOutcome {
+    pub fn source_completed(
+        common_dir: Vec<u8>,
+        source_checkout: Vec<u8>,
+        listing: Vec<u8>,
+        stderr: Vec<u8>,
+    ) -> Result<Self, ProtocolError> {
+        check_fields(common_dir.len() + source_checkout.len() + listing.len() + stderr.len())?;
+        Ok(Self::SourceCompleted {
+            common_dir,
+            source_checkout,
+            listing,
+            stderr,
+        })
+    }
+
     /// Construct a completed outcome only when the summed byte fields fit the
     /// wire budget; the caller emits `TooLarge { stage: None }` on overflow.
     pub fn completed(

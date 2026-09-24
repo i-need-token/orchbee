@@ -288,3 +288,61 @@ fn invalid(
         envelope,
     )
 }
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct WorktreeQueryCommand {
+    pub(crate) workspace: Option<Target>,
+    pub(crate) cwd: Option<WorkbenchDirectoryPath>,
+    pub(crate) trust_repository: bool,
+}
+
+pub(super) fn list(options: &Options, envelope: FailureEnvelope) -> Result<Request, ParseFailure> {
+    let context = UsageContext::Path("worktree list");
+    if options.project.is_some() || options.directory.is_some() {
+        check_scope(options, super::WORKTREE_LIST_SCOPE, context, envelope)?;
+        return Ok(super::query(
+            super::QueryCommand::WorktreeList {
+                project: target(
+                    super::required(&options.project, context, "'--project'", envelope)?,
+                    Resource::Project,
+                    envelope,
+                )?,
+                directory: super::directory_option(options, context, envelope)?,
+            },
+            options,
+        ));
+    }
+    check_scope(
+        options,
+        Scope {
+            workspace: true,
+            cwd: true,
+            trust_repository: true,
+            ..NO_OPTIONS
+        },
+        context,
+        envelope,
+    )?;
+    if options.workspace.is_some() && options.cwd.is_some() {
+        return Err(usage_with(
+            UsageReason::ConflictingOptions {
+                context,
+                first: "--workspace",
+                second: "--cwd",
+            },
+            envelope,
+        ));
+    }
+    Ok(Request::WorktreeQuery {
+        command: WorktreeQueryCommand {
+            workspace: options
+                .workspace
+                .as_ref()
+                .map(|value| target(value.clone(), Resource::Workspace, envelope))
+                .transpose()?,
+            cwd: launch_options(options, context, envelope)?.cwd,
+            trust_repository: options.trust_repository,
+        },
+        format: options.format.unwrap_or(OutputFormat::Text),
+    })
+}

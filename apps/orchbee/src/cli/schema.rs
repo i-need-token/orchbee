@@ -245,6 +245,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.workspace.list.json"),
     ),
     (
+        "orchbee.worktree.query",
+        include_str!("schemas/orchbee.worktree.query.json"),
+    ),
+    (
         "orchbee.worktree.list",
         include_str!("schemas/orchbee.worktree.list.json"),
     ),
@@ -317,7 +321,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
         "schema": "orchbee.api.schema",
         // Catalog envelope v20: registering new schema ids changes the closed
         // dictionary's shape; business document versions stay untouched.
-        "version": 20,
+        "version": 21,
         "source": embedded_source(),
         "result": result,
     });

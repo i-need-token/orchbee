@@ -8,6 +8,30 @@ use std::{
 #[test]
 fn real_powershell_completes_scoped_grammar_without_runtime() {
     let cases = [
+        ("orchbee worktree list --c", "--cwd", true),
+        ("orchbee worktree list --workspace w --c", "--cwd", false),
+        (
+            "orchbee worktree list --cwd C:/repo --p",
+            "--project",
+            false,
+        ),
+        ("orchbee worktree list --project p --d", "--directory", true),
+        (
+            "orchbee worktree list --directory abc --t",
+            "--trust-repository",
+            false,
+        ),
+        (
+            "orchbee worktree list --trust-repository --p",
+            "--project",
+            false,
+        ),
+        (
+            "orchbee worktree list --project p --cwd C:/repo ",
+            "--format",
+            false,
+        ),
+        ("orchbee worktree --project p --cwd C:/repo ", "list", false),
         ("orchbee worktree ", "create", true),
         ("orchbee help worktree ", "resume", true),
         ("orchbee worktree create --b", "--base", true),

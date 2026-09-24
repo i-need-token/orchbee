@@ -30,6 +30,7 @@ fn sh(script: &str) -> super::CommandSpec {
 
 fn commands(probe: &str, list: &str) -> super::JobCommands {
     super::JobCommands {
+        source: None,
         probe: sh(probe),
         list: sh(list),
         test_hooks: None,
@@ -308,6 +309,7 @@ fn owner_deadline_is_shared_across_both_commands() -> TestResult {
 fn spawn_unavailable_is_distinct_from_other_failures() -> TestResult {
     let slot = WorktreeDiscoverySlot::new();
     let cmds = super::JobCommands {
+        source: None,
         probe: super::CommandSpec {
             program: OsString::from("/nonexistent-orchbee-fixture"),
             args: Vec::new(),

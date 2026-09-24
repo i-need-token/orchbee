@@ -37,6 +37,8 @@ mod workspace_close;
 pub(crate) mod workspace_launch;
 pub(crate) mod workspace_setup;
 mod worktree_operation;
+#[cfg(windows)]
+pub(crate) mod worktree_query;
 pub(crate) use launch_profile::{LaunchProfileCatalogReadError, LaunchProfileCatalogReadFailure};
 pub(crate) use tab_close::{
     WorkbenchTabCloseAccepted, WorkbenchTabCloseFailure, WorkbenchTabCloseNotSubmitted,

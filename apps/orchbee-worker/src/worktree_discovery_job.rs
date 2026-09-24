@@ -47,6 +47,12 @@ pub(crate) enum Stage {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum JobOutcome {
+    SourceCompleted {
+        common_dir: Vec<u8>,
+        source_checkout: Vec<u8>,
+        listing: Vec<u8>,
+        stderr: Vec<u8>,
+    },
     Completed {
         common_dir: Vec<u8>,
         listing: Vec<u8>,
@@ -99,17 +105,36 @@ pub(crate) enum CancelOutcome {
 }
 
 struct CommandSpec {
+    #[cfg(windows)]
+    git_context: Option<(std::path::PathBuf, bool)>,
     program: OsString,
     args: Vec<OsString>,
 }
 
 impl CommandSpec {
-    fn spawn(&self) -> Result<SpawnedChild, SpawnFailure> {
+    fn prepare(&self) -> io::Result<Command> {
         let mut command = Command::new(&self.program);
+        #[cfg(windows)]
+        if let Some((path, trust)) = &self.git_context {
+            let invalid = || io::Error::new(io::ErrorKind::InvalidInput, "invalid Git repository");
+            let canonical =
+                crate::git_repository_windows::canonical_path(path).map_err(|()| invalid())?;
+            crate::git_repository_windows::configure(
+                &mut command,
+                Path::new(canonical.as_str()),
+                *trust,
+            )
+            .map_err(|()| invalid())?;
+            command.args(["--no-optional-locks", "-C", canonical.as_str()]);
+        }
         command
             .args(&self.args)
             .env("GIT_TERMINAL_PROMPT", "0")
             .stdin(Stdio::null());
+        Ok(command)
+    }
+
+    fn spawn(mut command: Command) -> Result<SpawnedChild, SpawnFailure> {
         #[cfg(unix)]
         {
             let mut child = command
@@ -159,6 +184,7 @@ struct SpawnedChild {
 }
 
 struct JobCommands {
+    source: Option<CommandSpec>,
     probe: CommandSpec,
     list: CommandSpec,
     test_hooks: Option<TestHooks>,
@@ -174,6 +200,8 @@ struct Faults {
     nonblock: bool,
     drain: bool,
     tail: bool,
+    #[cfg(test)]
+    cancel_after_prepare: bool,
 }
 
 #[derive(Default)]
@@ -188,7 +216,10 @@ struct JobWitness {
 fn git_commands(directory: &Path) -> JobCommands {
     let directory: OsString = directory.as_os_str().to_owned();
     JobCommands {
+        source: None,
         probe: CommandSpec {
+            #[cfg(windows)]
+            git_context: None,
             program: "git".into(),
             args: vec![
                 "--no-optional-locks".into(),
@@ -200,6 +231,8 @@ fn git_commands(directory: &Path) -> JobCommands {
             ],
         },
         list: CommandSpec {
+            #[cfg(windows)]
+            git_context: None,
             program: "git".into(),
             args: vec![
                 "--no-optional-locks".into(),
@@ -211,6 +244,25 @@ fn git_commands(directory: &Path) -> JobCommands {
                 "-z".into(),
             ],
         },
+        test_hooks: None,
+    }
+}
+
+#[cfg(windows)]
+fn source_commands(directory: &Path, trust: bool) -> JobCommands {
+    let git = |args: &[&str]| CommandSpec {
+        git_context: Some((directory.to_owned(), trust)),
+        program: "git.exe".into(),
+        args: args.iter().map(OsString::from).collect(),
+    };
+    JobCommands {
+        probe: git(&["rev-parse", "--path-format=absolute", "--git-common-dir"]),
+        source: Some(git(&[
+            "rev-parse",
+            "--path-format=absolute",
+            "--show-toplevel",
+        ])),
+        list: git(&["worktree", "list", "--porcelain", "-z"]),
         test_hooks: None,
     }
 }
@@ -256,6 +308,24 @@ impl WorktreeDiscoverySlot {
 
     pub(crate) fn start(&self, job_id: JobId, directory: &Path) -> StartOutcome {
         self.start_with(job_id, directory, JOB_TTL, git_commands(directory))
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn start_source(
+        &self,
+        job_id: JobId,
+        directory: &Path,
+        trust: bool,
+    ) -> StartOutcome {
+        if !crate::git_repository_windows::is_drive_path(directory) {
+            return StartOutcome::InvalidDirectory;
+        }
+        self.start_with(
+            job_id,
+            directory,
+            JOB_TTL,
+            source_commands(directory, trust),
+        )
     }
 
     fn start_with(
@@ -423,17 +493,33 @@ fn run_owner(commands: JobCommands, cancel: Arc<AtomicBool>, deadline: Instant) 
     let mut stderr = Vec::new();
     let mut probe_stdout: Option<Vec<u8>> = None;
     let mut list_stdout: Option<Vec<u8>> = None;
-    for (stage, spec) in [
-        (Stage::Probe, &commands.probe),
-        (Stage::List, &commands.list),
+    let mut source_stdout: Option<Vec<u8>> = None;
+    for (stage, spec, source) in [
+        (Stage::Probe, Some(&commands.probe), false),
+        (Stage::Probe, commands.source.as_ref(), true),
+        (Stage::List, Some(&commands.list), false),
     ] {
+        let Some(spec) = spec else { continue };
         if cancel.load(Ordering::Relaxed) {
             return owner_report(JobOutcome::Cancelled);
         }
         if Instant::now() >= deadline {
             return owner_report(JobOutcome::Timeout);
         }
-        let child = match spec.spawn() {
+        let prepared = spec.prepare().map_err(SpawnFailure::from);
+        #[cfg(test)]
+        if hooks.is_some_and(|hooks| hooks.faults.cancel_after_prepare) {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        // Preparation can touch the filesystem. The task retains ownership, and
+        // cancellation/expiry observed afterward must not start a Git child.
+        if cancel.load(Ordering::Relaxed) {
+            return owner_report(JobOutcome::Cancelled);
+        }
+        if Instant::now() >= deadline {
+            return owner_report(JobOutcome::Timeout);
+        }
+        let child = match prepared.and_then(CommandSpec::spawn) {
             Err(failure) if failure.created => {
                 return OwnerReport {
                     outcome: JobOutcome::OwnerIo { stage: Some(stage) },
@@ -464,6 +550,7 @@ fn run_owner(commands: JobCommands, cancel: Arc<AtomicBool>, deadline: Instant) 
             } => {
                 if status_code == Some(0) {
                     match stage {
+                        Stage::Probe if source => source_stdout = Some(stdout),
                         Stage::Probe => probe_stdout = Some(stdout),
                         Stage::List => list_stdout = Some(stdout),
                     }
@@ -483,6 +570,14 @@ fn run_owner(commands: JobCommands, cancel: Arc<AtomicBool>, deadline: Instant) 
                 };
             }
         }
+    }
+    if let Some(source_checkout) = source_stdout {
+        return owner_report(JobOutcome::SourceCompleted {
+            common_dir: probe_stdout.unwrap_or_default(),
+            source_checkout,
+            listing: list_stdout.unwrap_or_default(),
+            stderr,
+        });
     }
     owner_report(JobOutcome::Completed {
         common_dir: probe_stdout.unwrap_or_default(),
@@ -882,3 +977,6 @@ fn kill_reap(
 #[cfg(test)]
 #[cfg_attr(windows, path = "worktree_discovery_job/windows_tests.rs")]
 mod tests;
+
+#[cfg(all(test, windows))]
+mod source_tests;

@@ -36,6 +36,7 @@ mod viewer_session;
 mod workspace_directory;
 mod worktree_list;
 mod worktree_operation;
+mod worktree_query;
 
 // One queued plus one in-flight exchange, each with a two-second write and twenty-second read.
 const LEASE_LIFETIME_MILLISECONDS: u64 = 46_000;

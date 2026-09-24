@@ -111,6 +111,9 @@ fn main() -> ExitCode {
             Ok(invocation::Request::SiteStop { command, format }) => {
                 cli::site_stop(&command, format, locale)
             }
+            Ok(invocation::Request::WorktreeQuery { command, format }) => {
+                cli::run_worktree_query(&command, format, locale)
+            }
             Ok(invocation::Request::Worktree { command, format }) => {
                 cli::run_worktree(&command, format, locale)
             }

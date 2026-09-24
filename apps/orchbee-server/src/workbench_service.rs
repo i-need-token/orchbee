@@ -63,6 +63,7 @@ impl WorkbenchService {
             | WorkbenchRequest::TabCloseRead(_)
             | WorkbenchRequest::WorkspaceCloseRead(_)
             | WorkbenchRequest::WorktreeListRead(_)
+            | WorkbenchRequest::WorktreeQuery(_)
             | WorkbenchRequest::LaunchProfileCatalogRead(_) => self.policy.read,
             WorkbenchRequest::TabCloseResume(_) | WorkbenchRequest::WorkspaceCloseResume(_) => {
                 self.policy.manage_terminal_lifecycle
@@ -106,6 +107,11 @@ impl WorkbenchService {
             return WorkbenchExecution::Response(unavailable_or_denied(request, true));
         }
         match &request {
+            WorkbenchRequest::WorktreeQuery(query) => {
+                return WorkbenchExecution::Response(WorkbenchResponse::WorktreeQuery(
+                    self.terminals.execute_worktree_query(query.clone()),
+                ));
+            }
             WorkbenchRequest::WorktreeOperation(operation) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::WorktreeOperation(
                     self.terminals.execute_worktree_operation(operation.clone()),
@@ -280,6 +286,21 @@ impl WorkbenchService {
 
 fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchResponse {
     match request {
+        WorkbenchRequest::WorktreeQuery(request) => WorkbenchResponse::WorktreeQuery(
+            orchbee_workbench_protocol::WorkbenchWorktreeQueryResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                outcome: orchbee_workbench_protocol::WorkbenchWorktreeQueryOutcome::Failed {
+                    reason: if denied {
+                        orchbee_workbench_protocol::WorktreeQueryFailure::Denied {}
+                    } else {
+                        orchbee_workbench_protocol::WorktreeQueryFailure::Unavailable {
+                            reason: WorktreeListUnavailableReason::ServerBusy,
+                        }
+                    },
+                },
+            },
+        ),
         WorkbenchRequest::WorktreeOperation(request) => {
             WorkbenchResponse::WorktreeOperation(
                 orchbee_workbench_protocol::WorkbenchWorktreeResult {

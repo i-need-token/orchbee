@@ -326,3 +326,7 @@ implementation。
 ## 保留 Worktree 操作
 
 [`workbench-worktree.schema.json`](v1/workbench-worktree.schema.json) 拥有独立的 `workbench.worktree.operation` 请求与 `workbench.worktree.operation.result` 回答。OBWP kind 19/20 对应这两个方向，各有独立 96 KiB 分配前上限。操作 ID 与交换请求 ID 分离；Start 保留 Project 及意图，Read 观察，Resume 约束前次尝试（1–64）。结果独立保留 Git 事实与 Workspace 状态，包括关闭后移除失败。[共享语料](v1/workbench-worktree-conformance-v1.json) 由 Rust 与 TypeScript 双方消费，包含 JSON Schema 结构检查及明确的语义字节／跨字段检查。线协议本身不授予变更权限，也不暗示 Desktop 支持。运行时及 CLI 生命周期归 [Windows Worktree 所有者](../../apps/orchbee/docs/windows-worktrees.zh-CN.md)。
+
+## 按来源查询 Worktree
+
+[`workbench-worktree-query.schema.json`](v1/workbench-worktree-query.schema.json) 拥有 `workbench.worktree.query` 及其结果，使用 OBWP kinds 21/22。请求保留 16 KiB intent 上限；响应使用独立的 32 KiB 分配前上限。Workspace 或字面目录来源无需变更操作。结果包含 Git 检出事实及零个或多个规范 Workspace 关联。Rust 和 TypeScript 校验必填可空来源／退出码字段、严格闭合失败变体、UTF-8 路径／引用上限、唯一检出／Workspace 身份及来源／根目录／linked 关系。两者消费[共享查询语料](v1/workbench-worktree-query-conformance-v1.json)；JSON Schema 覆盖结构约束，绑定额外校验字节上限与跨条目关系。运行时行为属于 [Windows Worktree 所有者](../../apps/orchbee/docs/windows-worktrees.zh-CN.md)。

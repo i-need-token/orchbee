@@ -54,9 +54,9 @@ orchbee --help | --version
 
 Query families are `project`, `workspace`, `tab`, `panel`, `terminal`, `worktree`,
 `launch-profile`, and
-`agent` (`list`/`get`, plus `terminal read`/`wait-output`; `worktree list` requires
-`--project <target>` and `--directory <directory-id>` — a strict nonzero 32-lowercase-hex
-Workbench directory id, never a filesystem path or label; `launch-profile` offers `list`
+`agent` (`list`/`get`, plus `terminal read`/`wait-output`; Windows `worktree list` accepts
+`--workspace <target>` or `--cwd <absolute-path>` with optional command-local trust,
+or retains the legacy `--project <target>` and strict `--directory <directory-id>` pair; `launch-profile` offers `list`
 and `get <selector>` — a typed read of the running Site's launch profile catalog, resolved
 Server-side with no local pre-read; `agent` offers `list` with
 `--include-ended`/`--limit`/`--cursor` paging, `get <session-id>`, and `explain

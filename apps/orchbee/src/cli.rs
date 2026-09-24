@@ -20,6 +20,10 @@ mod site_diagnose;
 mod site_stop;
 pub(crate) use site_stop::run as site_stop;
 mod worktree_operation;
+mod worktree_query;
+pub(crate) use worktree_query::run as run_worktree_query;
+#[cfg(any(windows, test))]
+mod worktree_source;
 pub(crate) use worktree_operation::run as run_worktree;
 #[cfg(any(target_os = "linux", windows))]
 #[cfg_attr(windows, path = "cli/source_windows.rs")]

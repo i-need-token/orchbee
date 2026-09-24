@@ -88,3 +88,7 @@ pnpm --filter @orchbee/workbench-client-protocol test:exports
 ## Worktree 操作绑定
 
 `workbench-worktree-contract.ts` 实现[保留 Worktree 线契约](../../schemas/workbench/v1/workbench-worktree.schema.json)。请求／响应联合纳入 Start/Read/Resume 及保留的部分结果，并拥有独立 96 KiB 编码预算。严格对象、UTF-8 引用限制、尝试上限、检出／路径相等、Git 状态／诊断约束、复用／启动结果一致性均与独立 Rust 绑定对齐。双方消费[共享语料](../../schemas/workbench/v1/workbench-worktree-conformance-v1.json)。共享叶模块 `workbench-terminal-launch-contract.ts` 拥有终端尺寸与启动结果；command 模块保持既有导出且无循环依赖。该绑定不增加 Desktop 运行时命令。
+
+## Worktree 来源查询绑定
+
+`workbench-worktree-query-contract.ts` 将独立读取请求／结果加入共享联合，与 Rust 采用相同的 32 KiB 结果上限、严格可空字段、闭合失败及跨条目不变量。它结合 [JSON Schema](../../schemas/workbench/v1/workbench-worktree-query.schema.json) 消费[查询一致性语料](../../schemas/workbench/v1/workbench-worktree-query-conformance-v1.json)。该绑定不增加 Desktop 命令或变更权限。

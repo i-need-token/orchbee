@@ -484,7 +484,7 @@ fn initial_phase(intent: &WorktreeIntent) -> WorktreeOperationPhase {
         WorktreeIntent::Remove { .. } => WorktreeOperationPhase::InspectingRemove,
     }
 }
-fn same_path(left: &str, right: &str) -> bool {
+pub(super) fn same_path(left: &str, right: &str) -> bool {
     // Canonical Worker observations have normalized separators; admitted user paths may not.
     left.replace('\\', "/")
         .trim_end_matches('/')

@@ -1,6 +1,8 @@
 mod worktree;
 use std::{ffi::OsString, path::PathBuf};
-pub(crate) use worktree::{WorktreeCommand, WorktreeStartCommand, WorktreeStartKind};
+pub(crate) use worktree::{
+    WorktreeCommand, WorktreeQueryCommand, WorktreeStartCommand, WorktreeStartKind,
+};
 
 use orchbee_agent_observation_protocol::{
     AgentListCursor, AgentName, AgentSafeInteger, AgentSessionId, DEFAULT_LIST_LIMIT,
@@ -935,6 +937,10 @@ fn stop_id(
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
+    WorktreeQuery {
+        command: WorktreeQueryCommand,
+        format: OutputFormat,
+    },
     Worktree {
         command: WorktreeCommand,
         format: OutputFormat,
@@ -2932,21 +2938,7 @@ fn resolve_words(
             "<operation-id>",
             envelope,
         )),
-        ["worktree", "list"] => {
-            let context = UsageContext::Path("worktree list");
-            check_scope(options, WORKTREE_LIST_SCOPE, context, envelope)?;
-            Ok(query(
-                QueryCommand::WorktreeList {
-                    project: target(
-                        required(&options.project, context, "'--project'", envelope)?,
-                        Resource::Project,
-                        envelope,
-                    )?,
-                    directory: directory_option(options, context, envelope)?,
-                },
-                options,
-            ))
-        }
+        ["worktree", "list"] => worktree::list(options, envelope),
         ["launch-profile", "list"] => {
             reject_filters(options, UsageContext::Path("launch-profile list"), envelope)?;
             Ok(query(QueryCommand::LaunchProfileList, options))

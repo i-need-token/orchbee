@@ -1,3 +1,8 @@
+import {
+	WorkbenchWorktreeQuerySchema,
+	WorkbenchWorktreeQueryResultSchema,
+	WORKBENCH_MAXIMUM_ENCODED_WORKTREE_QUERY_RESULT_BYTES,
+} from './workbench-worktree-query-contract';
 import { z } from 'zod';
 import {
 	WorkbenchTerminalGeometrySchema,
@@ -214,6 +219,7 @@ export const WorkbenchRequestSchema = z
 		WorkbenchWorkspaceCloseReadSchema,
 		WorkbenchWorkspaceCloseResumeSchema,
 		WorkbenchWorktreeRequestSchema,
+		WorkbenchWorktreeQuerySchema,
 	])
 	.refine(
 		(value) =>
@@ -487,6 +493,7 @@ export const WorkbenchResponseSchema = z
 		WorkbenchWorkspaceCloseReadResultSchema,
 		WorkbenchWorkspaceCloseResumeResultSchema,
 		WorkbenchWorktreeResultSchema,
+		WorkbenchWorktreeQueryResultSchema,
 	])
 	.superRefine((value, context) => {
 		let maximum = WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES;
@@ -495,6 +502,8 @@ export const WorkbenchResponseSchema = z
 			value.kind === 'workbench.publication.result'
 		) {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES;
+		} else if (value.kind === 'workbench.worktree.query.result') {
+			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKTREE_QUERY_RESULT_BYTES;
 		} else if (value.kind === 'workbench.worktree.operation.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES;
 		} else if (value.kind === 'workbench.workspace-close.result') {

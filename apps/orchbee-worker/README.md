@@ -864,3 +864,7 @@ These do not prove external-writer exclusion, abrupt Worker-death recovery or no
 execution. No CLI parity is inferred from this Worker boundary alone.
 
 InspectSource resolves the checkout containing the source directory; Open permits the main checkout. Create re-observes its branch after Git completes, so a successful hook changing HEAD yields RepositoryChanged with possible effects, not a false successful association. The Server now consumes these observations through its retained continuation; ownership and cleanup remain in this Worker.
+
+## Windows source-based Worktree reads
+
+`StartSource` reuses the discovery owner and physical slot. Admission validates drive syntax only. Its owned task canonicalizes the directory and prepares trust, rechecks cancellation/deadline before spawning, and observes common Git directory and checkout root, then lists porcelain entries under one five-second job budget. Shared `git_repository_windows` removes inherited `GIT_*` repository/config injection and applies optional trust to the exact canonical repository for this command only; mutations use the same command preparation. Legacy Start bytes and behavior remain unchanged. Real Git tests cover main/linked subdirectories, untouched dirty files/configuration, exact trust scope and owner shutdown. See the [source-query contract](../orchbee/docs/windows-worktrees.md#source-based-discovery).

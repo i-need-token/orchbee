@@ -440,7 +440,16 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         "terminal:wait-output",
         &["--match", "--regex", "--rows", "--timeout"],
     ),
-    ("worktree:list", &["--project", "--directory"]),
+    (
+        "worktree:list",
+        &[
+            "--project",
+            "--directory",
+            "--workspace",
+            "--cwd",
+            "--trust-repository",
+        ],
+    ),
     (
         "worktree:create",
         &[
@@ -1022,14 +1031,16 @@ fn after_flag_cases_bash() -> String {
         .map(|flag| {
             let patterns = flag_admission_patterns(flag, "|", false);
             match *flag {
-                "--cwd" => format!("                            {patterns}) if [[ $family == worktree && $seen_workspace == 1 ]]; then done=1; fi ;;"),
+                "--project" | "--directory" => format!("                            {patterns}) if [[ $family:$sub == worktree:list ]] && ((seen_workspace || seen_cwd || seen_trust_repository)); then done=1; fi ;;"),
+                "--trust-repository" => format!("                            {patterns}) if [[ $family:$sub == worktree:list ]] && ((seen_project || seen_directory)); then done=1; fi ;;"),
+                "--cwd" => format!("                            {patterns}) if [[ $family == worktree && $seen_workspace == 1 ]] || {{ [[ $family:$sub == worktree:list ]] && ((seen_project || seen_directory)); }}; then done=1; fi ;;"),
                 "--path" => format!("                            {patterns}) if [[ $family:$sub == worktree:open && $seen_branch == 1 ]]; then done=1; fi ;;"),
                 "--branch" => format!("                            {patterns}) if [[ $family:$sub == worktree:open && $seen_path == 1 ]]; then done=1; fi ;;"),
                 "--panel" => format!("                            {patterns}) if ((seen_current)) || [[ $family:$sub == panel:process-info && $state == operand ]]; then done=1; fi ;;"),
                 "--current" => format!("                            {patterns}) if ((seen_panel)) || [[ $family:$sub == panel:process-info && $state == operand ]]; then done=1; fi ;;"),
                 "--workspace" => {
                     format!(
-                        "                            {patterns}) if ((seen_standalone)) || [[ $family == worktree && $seen_cwd == 1 ]]; then done=1; fi ;;"
+                        "                            {patterns}) if ((seen_standalone)) || [[ $family == worktree && $seen_cwd == 1 ]] || {{ [[ $family:$sub == worktree:list ]] && ((seen_project || seen_directory)); }}; then done=1; fi ;;"
                     )
                 }
                 "--standalone" => {
@@ -1100,6 +1111,7 @@ fn scope_cases_bash() -> String {
                 }
                 if *family == "worktree" {
                     exclusive.push_str("((seen_workspace && seen_cwd)) && done=1\n                                        ");
+                    if command == "worktree:list" { exclusive.push_str("(((seen_project || seen_directory) && (seen_workspace || seen_cwd || seen_trust_repository))) && done=1\n                                        "); }
                     if command == "worktree:open" { exclusive.push_str("((seen_path && seen_branch)) && done=1\n                                        "); }
                 }
                 if *family == "tab" {
@@ -1134,7 +1146,9 @@ fn verb_cases_bash() -> String {
                 .map(|(index, verb)| {
                     let command = format!("{family}:{verb}");
                     let allowed = command_flags(&command).join(" ");
-                    let guard = if command == "worktree:open" {
+                    let guard = if command == "worktree:list" {
+                        " && ((!seen_workspace || !seen_cwd)) && ((!seen_project && !seen_directory || !seen_workspace && !seen_cwd && !seen_trust_repository))"
+                    } else if command == "worktree:open" {
                         " && ((!seen_workspace || !seen_cwd)) && ((!seen_path || !seen_branch))"
                     } else if *family == "worktree" {
                         " && ((!seen_workspace || !seen_cwd))"
@@ -1218,6 +1232,9 @@ fn extras_cases_bash() -> String {
                 .iter()
                 .map(|flag| {
                     let cond = match *flag {
+                        "--workspace" | "--cwd" if *command == "worktree:list" => "seen_workspace || seen_cwd || seen_project || seen_directory".to_owned(),
+                        "--trust-repository" if *command == "worktree:list" => "seen_trust_repository || seen_project || seen_directory".to_owned(),
+                        "--project" | "--directory" if *command == "worktree:list" => format!("{} || seen_workspace || seen_cwd || seen_trust_repository", flag_bit(flag)),
                         "--workspace" | "--cwd" if command.starts_with("worktree:") => "seen_workspace || seen_cwd".to_owned(),
                         "--path" | "--branch" if *command == "worktree:open" => "seen_path || seen_branch".to_owned(),
                         "--panel" | "--current" => "seen_panel || seen_current".to_owned(),
@@ -2154,13 +2171,15 @@ fn after_flag_cases_fish() -> String {
         .map(|flag| {
             let patterns = flag_admission_patterns(flag, " ", true);
             match *flag {
-                "--cwd" => format!("                            case {patterns}; if test $family = worktree; and test $seen_workspace -eq 1; set done 1; end"),
+                "--project" | "--directory" => format!("                            case {patterns}; if test \"$family:$sub\" = worktree:list; and test $seen_workspace -eq 1 -o $seen_cwd -eq 1 -o $seen_trust_repository -eq 1; set done 1; end"),
+                "--trust-repository" => format!("                            case {patterns}; if test \"$family:$sub\" = worktree:list; and test $seen_project -eq 1 -o $seen_directory -eq 1; set done 1; end"),
+                "--cwd" => format!("                            case {patterns}; if test $family = worktree; and test $seen_workspace -eq 1; set done 1; end; if test \"$family:$sub\" = worktree:list; and test $seen_project -eq 1 -o $seen_directory -eq 1; set done 1; end"),
                 "--path" => format!("                            case {patterns}; if test \"$family:$sub\" = worktree:open; and test $seen_branch -eq 1; set done 1; end"),
                 "--branch" => format!("                            case {patterns}; if test \"$family:$sub\" = worktree:open; and test $seen_path -eq 1; set done 1; end"),
                 "--panel" => format!("                            case {patterns}; if test $seen_current -eq 1; or begin; test \"$family:$sub\" = panel:process-info; and test $state = operand; end; set done 1; end"),
                 "--current" => format!("                            case {patterns}; if test $seen_panel -eq 1; or begin; test \"$family:$sub\" = panel:process-info; and test $state = operand; end; set done 1; end"),
                 "--workspace" => {
-                    format!("                            case {patterns}; if test $seen_standalone -eq 1; or begin; test $family = worktree; and test $seen_cwd -eq 1; end; set done 1; end")
+                    format!("                            case {patterns}; if test $seen_standalone -eq 1; or begin; test $family = worktree; and test $seen_cwd -eq 1; end; set done 1; end; if test \"$family:$sub\" = worktree:list; and test $seen_project -eq 1 -o $seen_directory -eq 1; set done 1; end")
                 }
                 "--standalone" => {
                     format!("                            case {patterns}; if test $seen_workspace -eq 1; set done 1; end")
@@ -2204,6 +2223,7 @@ fn scope_cases_fish() -> String {
                 let allowed = command_flags(&command).join(" ");
                 let exclusive = if *family == "worktree" {
                     let mut guard = "\n                                        if test $seen_workspace -eq 1 -a $seen_cwd -eq 1; set done 1; end".to_owned();
+                    if command == "worktree:list" { guard.push_str("\n                                        if test $seen_project -eq 1 -o $seen_directory -eq 1; and test $seen_workspace -eq 1 -o $seen_cwd -eq 1 -o $seen_trust_repository -eq 1; set done 1; end"); }
                     if command == "worktree:open" { guard.push_str("\n                                        if test $seen_path -eq 1 -a $seen_branch -eq 1; set done 1; end"); }
                     guard
                 } else if matches!(command.as_str(), "panel:current" | "panel:process-info") {
@@ -2243,8 +2263,8 @@ fn verb_cases_fish() -> String {
                     // to remain viable; `send` dies once `--key` stands next
                     // to a text payload bit.
                     if *family == "worktree" {
-                        let selector = if command == "worktree:open" { "if test $seen_path -eq 0 -o $seen_branch -eq 0; " } else { "" };
-                        let close = if command == "worktree:open" { " end;" } else { "" };
+                        let selector = if command == "worktree:list" { "if begin; test $seen_project -eq 0 -a $seen_directory -eq 0; or test $seen_workspace -eq 0 -a $seen_cwd -eq 0 -a $seen_trust_repository -eq 0; end; " } else if command == "worktree:open" { "if test $seen_path -eq 0 -o $seen_branch -eq 0; " } else { "" };
+                        let close = if matches!(command.as_str(), "worktree:open" | "worktree:list") { " end;" } else { "" };
                         format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test $seen_workspace -eq 0 -o $seen_cwd -eq 0; {selector}set -a verbs {verb};{close} end\n                end")
                     } else if matches!(command.as_str(), "panel:current" | "panel:process-info") {
                         format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test $seen_panel -eq 0 -o $seen_current -eq 0; set -a verbs {verb}; end\n                end")
@@ -2316,6 +2336,9 @@ fn extras_cases_fish() -> String {
                 .iter()
                 .map(|flag| {
                     let cond = match *flag {
+                        "--workspace" | "--cwd" if *command == "worktree:list" => "$seen_workspace -eq 0 -a $seen_cwd -eq 0 -a $seen_project -eq 0 -a $seen_directory -eq 0".to_owned(),
+                        "--trust-repository" if *command == "worktree:list" => "$seen_trust_repository -eq 0 -a $seen_project -eq 0 -a $seen_directory -eq 0".to_owned(),
+                        "--project" | "--directory" if *command == "worktree:list" => format!("${} -eq 0 -a $seen_workspace -eq 0 -a $seen_cwd -eq 0 -a $seen_trust_repository -eq 0", flag_bit(flag)),
                         "--workspace" | "--cwd" if command.starts_with("worktree:") => "$seen_workspace -eq 0 -a $seen_cwd -eq 0".to_owned(),
                         "--path" | "--branch" if *command == "worktree:open" => "$seen_path -eq 0 -a $seen_branch -eq 0".to_owned(),
                         "--panel" | "--current" => "$seen_panel -eq 0 -a $seen_current -eq 0".to_owned(),

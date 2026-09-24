@@ -1,4 +1,5 @@
 //! Bounded native Worktree operation requests and independently observable partial outcomes.
+use super::json_fields::{deserialize_i32 as deserialize_status, deserialize_nullable};
 use crate::{
     ContractError, ProtocolVersion, SiteId, WorkbenchDirectoryPath, WorkbenchLabel,
     WorkbenchProjectId, WorkbenchRequestId, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
@@ -403,17 +404,6 @@ fn deserialize_attempt<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u32
         Err(de::Error::custom("invalid Worktree attempt"))
     }
 }
-fn deserialize_status<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<i32>, D::Error> {
-    Option::<f64>::deserialize(deserializer)?
-        .map(|value| {
-            if integral(value, f64::from(i32::MIN), f64::from(i32::MAX)) {
-                Ok(value as i32)
-            } else {
-                Err(de::Error::custom("invalid Git process status"))
-            }
-        })
-        .transpose()
-}
 fn deserialize_diagnostics<'de, D: Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Vec<u8>, D::Error> {
@@ -432,11 +422,6 @@ fn validate_progress(progress: &WorktreeProgress) -> Result<(), ContractError> {
     Ok(())
 }
 
-fn deserialize_nullable<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
-    deserializer: D,
-) -> Result<Option<T>, D::Error> {
-    Option::<T>::deserialize(deserializer)
-}
 fn deserialize_present<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
     deserializer: D,
 ) -> Result<Option<T>, D::Error> {

@@ -778,3 +778,7 @@ Herdr 一致。Open 按路径或分支选择一个已登记 checkout。InspectRe
 Worker 突然死亡恢复或非 Windows 执行。不会仅凭此 Worker 边界推导 CLI 对齐。
 
 InspectSource 解析包含源目录的检出；Open 允许主检出。Create 在 Git 完成后重新观察分支，因此成功 hook 改变 HEAD 时返回 RepositoryChanged 与可能的副作用，不会误报关联成功。Server 通过其保留续执行消费这些观测；物理所有权和清理仍留在 Worker。
+
+## Windows 按来源读取 Worktree
+
+`StartSource` 复用发现所有者及物理槽位。准入仅校验驱动器语法。所属任务规范化目录并准备信任，在启动前复查取消／deadline，再观察 Git 公共目录和检出根，再在同一个五秒 job 预算内列举 porcelain 条目。共享 `git_repository_windows` 清除继承的 `GIT_*` 仓库／配置注入，仅对本命令选定的准确规范仓库应用可选信任；变更也使用相同命令准备。原 Start 字节与行为不变。真实 Git 测试覆盖主／关联检出的子目录、不改动脏文件／配置、准确信任范围及所有者关闭。参见[来源查询契约](../orchbee/docs/windows-worktrees.zh-CN.md#按来源发现-worktree)。

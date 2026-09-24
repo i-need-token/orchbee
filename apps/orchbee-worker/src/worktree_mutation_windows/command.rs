@@ -32,27 +32,8 @@ impl Context<'_> {
         self.stage = stage;
         self.check()?;
         let mut command = Command::new("git.exe");
-        // Repository selection and config injection belong to this intent, not
-        // the environment inherited by the long-lived Worker.
-        for (name, _) in std::env::vars_os() {
-            if name
-                .to_string_lossy()
-                .to_ascii_uppercase()
-                .starts_with("GIT_")
-            {
-                command.env_remove(name);
-            }
-        }
-        command
-            .env("GIT_TERMINAL_PROMPT", "0")
-            .env("GIT_OPTIONAL_LOCKS", "0")
-            .env("LC_ALL", "C");
-        if self.trust {
-            let root = repository_candidate(Path::new(at))
-                .and_then(|path| super::canonical_path(&path).ok())
-                .ok_or_else(|| self.failure(Error::InvalidRepository, vec![]))?;
-            command.args(["-c", &format!("safe.directory={}", root.as_str())]);
-        }
+        crate::git_repository_windows::configure(&mut command, Path::new(at), self.trust)
+            .map_err(|_| self.failure(Error::InvalidRepository, vec![]))?;
         command.args(["-C", at]).args(args).stdin(Stdio::null());
         let (out, stdout) =
             ChildOutputReader::pipe().map_err(|_| self.failure(Error::Io, vec![]))?;
@@ -149,15 +130,6 @@ impl Context<'_> {
     pub(super) fn failure(&self, error: Error, diagnostics: Vec<u8>) -> Abort {
         failed(self.stage, self.changed, error, diagnostics)
     }
-}
-
-fn repository_candidate(at: &Path) -> Option<std::path::PathBuf> {
-    at.ancestors()
-        .find(|path| {
-            path.join(".git").exists()
-                || (path.join("HEAD").is_file() && path.join("objects").is_dir())
-        })
-        .map(Path::to_path_buf)
 }
 
 fn drain(

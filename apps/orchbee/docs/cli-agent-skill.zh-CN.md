@@ -87,3 +87,7 @@ Windows 的 `agent send-keys` 与 `agent prompt` 会核对实际运行的 provid
 ## 保留 Worktree 操作身份
 
 Windows 上按命令帮助使用 `worktree create/open/remove`。保留返回的操作 ID，脱离等待、超时或断线后用 `worktree status <id>` 查询；不要盲目重复不确定的 Git 副作用。同时读取检出结果与 Workspace 状态：后续 Git 移除失败时，已关闭的 Workspace 保持关闭。仅对明确可恢复的失败使用 `worktree resume <id> --generation <attempt> --confirm`。Remove 要求 `--confirm`；`--force` 允许丢弃脏检出中的改动。参见 [Worktree 契约](windows-worktrees.zh-CN.md)。
+
+## 从来源查询 Worktree
+
+Windows 上 `worktree list --cwd C:/code/repo --format json` 无需 Project。可改用 `--workspace <target>` 选择已注册 Workspace，或省略两者使用已校验调用者上下文／当前目录。无效调用者身份会被拒绝，绝不回退 cwd。`--trust-repository` 仅作用于本次查询。来源结果使用 `orchbee.worktree.query` v1，明确返回多个 Workspace 关联及类型化失败原因。原 `--project/--directory` 组合保留旧封套，不可混用来源 flag。两种形式均不激活 Site 或变更 Git。

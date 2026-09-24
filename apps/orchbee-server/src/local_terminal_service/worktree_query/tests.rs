@@ -1,0 +1,345 @@
+use super::*;
+use crate::{
+    worker_obcn_carrier::{WorkerWireExit, create_worker_carrier},
+    worker_registry::{WorkerAdmission, WorkerRegistry},
+};
+use orchbee_capability_node_protocol::{
+    CapabilityNodeMessage, WorktreeJobAction, WorktreeJobOutcome, WorktreeJobPollOutcome,
+    WorktreeJobRequest, WorktreeJobResult, WorktreeJobStartOutcome, read_message, write_message,
+};
+use orchbee_local_ipc::LocalStream;
+use orchbee_workbench_protocol::{
+    Snapshot, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchLabel,
+    WorkbenchProjectId, WorkbenchRequest, WorkbenchRequestId, WorkbenchWorkspaceId,
+};
+use std::{
+    net::Shutdown,
+    sync::{Arc, Mutex},
+    thread::{self, JoinHandle},
+};
+
+fn id(value: u128) -> WorkbenchRequestId {
+    WorkbenchRequestId::parse(&format!("{value:032x}")).unwrap()
+}
+struct Fixture {
+    service: Arc<LocalTerminalService>,
+    peer: LocalStream,
+    wire: Option<JoinHandle<WorkerWireExit>>,
+}
+impl Fixture {
+    fn new() -> Self {
+        let service = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
+            WorkerRegistry::new(),
+        ))));
+        let worker = orchbee_local_site_protocol::WorkerId::from_bytes([9; 16]);
+        let WorkerAdmission::Accepted { generation } =
+            service.workers.lock().unwrap().admit(worker)
+        else {
+            panic!("admit")
+        };
+        let owner = WorkerRegistry::register_carrier(
+            &service.workers,
+            generation,
+            create_worker_carrier(worker, generation),
+        )
+        .unwrap();
+        let (server, peer) = LocalStream::pair().unwrap();
+        peer.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        peer.set_write_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let wire = Some(thread::spawn(move || owner.run(server)));
+        service.start_close_maintenance().unwrap();
+        Self {
+            service,
+            peer,
+            wire,
+        }
+    }
+    fn snapshot(&self) -> Snapshot {
+        self.service
+            .coordinator
+            .lock()
+            .unwrap()
+            .worktree_authority()
+            .unwrap()
+            .snapshot()
+            .clone()
+    }
+    fn command(&self, value: u128, action: WorkbenchAction) -> WorkbenchCommand {
+        let snapshot = self.snapshot();
+        WorkbenchCommand {
+            protocol_version: ProtocolVersion,
+            request_id: id(value),
+            site_id: snapshot.site_id,
+            expected_revision: snapshot.revision,
+            action,
+        }
+    }
+    fn navigate(&self, value: u128, action: WorkbenchAction) -> WorkbenchCommandOutcome {
+        let request = WorkbenchRequest::Command(self.command(value, action));
+        let WorkbenchResponse::Command(result) = self
+            .service
+            .execute_workbench(request.try_into().unwrap(), true)
+            .unwrap()
+        else {
+            panic!("navigation")
+        };
+        result.outcome
+    }
+    fn project(&self) -> WorkbenchProjectId {
+        let WorkbenchCommandOutcome::ProjectCreated { project_id, .. } = self.navigate(
+            1,
+            WorkbenchAction::ProjectCreate {
+                label: WorkbenchLabel::parse("Repo").unwrap(),
+            },
+        ) else {
+            panic!("project")
+        };
+        project_id
+    }
+    fn workspace(
+        &self,
+        project: &WorkbenchProjectId,
+        value: u128,
+        path: &str,
+    ) -> WorkbenchWorkspaceId {
+        let WorkbenchCommandOutcome::WorkspaceCreated { workspace_id, .. } = self.navigate(
+            value,
+            WorkbenchAction::WorkspaceCreate {
+                project_id: project.clone(),
+                label: WorkbenchLabel::parse(&format!("Workspace {value}")).unwrap(),
+            },
+        ) else {
+            panic!("workspace")
+        };
+        let command = self.command(
+            value + 1,
+            WorkbenchAction::WorkspacePrimaryDirectoryAccept {
+                project_id: project.clone(),
+                workspace_id: workspace_id.clone(),
+                path: WorkbenchDirectoryPath::parse(path).unwrap(),
+            },
+        );
+        let result = self
+            .service
+            .coordinator
+            .lock()
+            .unwrap()
+            .accept_workspace_directory(command, WorkerId::parse(&"09".repeat(16)).unwrap());
+        assert!(matches!(
+            result.outcome,
+            WorkbenchCommandOutcome::WorkspacePrimaryDirectoryAccepted { .. }
+        ));
+        workspace_id
+    }
+    fn request(&self, source: WorktreeSource) -> WorkbenchWorktreeQuery {
+        WorkbenchWorktreeQuery {
+            protocol_version: ProtocolVersion,
+            request_id: id(1000),
+            site_id: self.snapshot().site_id,
+            source,
+            trust_repository: true,
+        }
+    }
+    fn spawn(&self, source: WorktreeSource) -> JoinHandle<WorkbenchWorktreeQueryResult> {
+        let request = self.request(source);
+        let service = Arc::clone(&self.service);
+        thread::spawn(move || service.execute_worktree_query(request))
+    }
+    fn receive(&mut self) -> WorktreeJobRequest {
+        let CapabilityNodeMessage::WorktreeJobRequest(request) =
+            read_message(&mut self.peer).unwrap()
+        else {
+            panic!("read-only discovery request")
+        };
+        request
+    }
+    fn reply(&mut self, request: &WorktreeJobRequest, outcome: WorktreeJobOutcome) {
+        let job_id = match request.action {
+            WorktreeJobAction::Start { .. } | WorktreeJobAction::StartSource { .. } => {
+                request.operation_id
+            }
+            WorktreeJobAction::Poll { job_id } | WorktreeJobAction::Cancel { job_id } => job_id,
+        };
+        write_message(
+            &mut self.peer,
+            &CapabilityNodeMessage::WorktreeJobResult(WorktreeJobResult {
+                operation_id: request.operation_id,
+                job_id,
+                outcome,
+            }),
+        )
+        .unwrap();
+    }
+    fn start(&mut self, path: &str) -> WorktreeJobRequest {
+        let request = self.receive();
+        assert_eq!(
+            request.action,
+            WorktreeJobAction::StartSource {
+                directory: path.as_bytes().to_vec(),
+                trust_repository: true
+            }
+        );
+        // The read may wait for IPC only after both gates have been released.
+        assert!(self.service.workers.try_lock().is_ok());
+        assert!(self.service.coordinator.try_lock().is_ok());
+        self.reply(
+            &request,
+            WorktreeJobOutcome::Start(WorktreeJobStartOutcome::Accepted),
+        );
+        let poll = self.receive();
+        assert!(
+            matches!(poll.action, WorktreeJobAction::Poll { job_id } if job_id == request.operation_id)
+        );
+        poll
+    }
+    fn complete(&mut self, request: &WorktreeJobRequest) {
+        self.reply(request, WorktreeJobOutcome::Poll(WorktreeJobPollOutcome::source_completed(
+            b"C:/r/.git\n".to_vec(), b"C:/w\n".to_vec(),
+            format!("worktree C:/r\0HEAD {}\0branch refs/heads/main\0\0worktree C:/w\0HEAD {}\0branch refs/heads/feature\0\0", "a".repeat(40), "b".repeat(40)).into_bytes(), vec![],
+        ).unwrap()));
+    }
+}
+impl Drop for Fixture {
+    fn drop(&mut self) {
+        let _stopped = self
+            .service
+            .stop_close_before(Instant::now() + Duration::from_secs(5));
+        let _disconnected = self.peer.shutdown(Shutdown::Both);
+        if let Some(wire) = self.wire.take() {
+            let _joined = wire.join();
+        }
+    }
+}
+
+#[test]
+fn directory_source_needs_no_project_and_never_holds_gates_during_git() {
+    let mut fixture = Fixture::new();
+    assert!(fixture.snapshot().navigation.projects.is_empty());
+    let read = fixture.spawn(WorktreeSource::Directory {
+        path: WorkbenchDirectoryPath::parse("C:/w/sub").unwrap(),
+    });
+    let poll = fixture.start("C:/w/sub");
+    fixture.complete(&poll);
+    let result = read.join().unwrap();
+    assert!(result.validate().is_ok());
+    let Outcome::Found {
+        source, entries, ..
+    } = result.outcome
+    else {
+        panic!("found")
+    };
+    assert_eq!(source.checkout_path.as_str(), "C:/w");
+    assert_eq!(source.workspace_id, None);
+    assert_eq!(entries.len(), 2);
+    assert!(entries.iter().all(|entry| entry.workspaces.is_empty()));
+    assert!(fixture.snapshot().navigation.projects.is_empty());
+}
+
+#[test]
+fn workspace_subdirectory_observation_joins_all_known_current_labels() {
+    let mut fixture = Fixture::new();
+    let project = fixture.project();
+    let source = fixture.workspace(&project, 10, "C:/w/sub");
+    let other = fixture.workspace(&project, 20, "C:/w");
+    let read = fixture.spawn(WorktreeSource::Workspace {
+        workspace_id: source.clone(),
+    });
+    let poll = fixture.start("C:/w/sub");
+    fixture.navigate(
+        30,
+        WorkbenchAction::WorkspaceRename {
+            project_id: project,
+            workspace_id: other.clone(),
+            label: WorkbenchLabel::parse("Fresh label").unwrap(),
+        },
+    );
+    fixture.complete(&poll);
+    let Outcome::Found {
+        entries,
+        workbench_revision,
+        ..
+    } = read.join().unwrap().outcome
+    else {
+        panic!("found")
+    };
+    assert_eq!(workbench_revision, fixture.snapshot().revision);
+    assert_eq!(entries[1].workspaces.len(), 2);
+    assert!(
+        entries[1]
+            .workspaces
+            .iter()
+            .any(|item| item.workspace_id == source)
+    );
+    assert!(
+        entries[1]
+            .workspaces
+            .iter()
+            .any(|item| item.workspace_id == other && item.label.as_str() == "Fresh label")
+    );
+}
+
+#[test]
+fn closed_source_cannot_publish_the_stale_git_observation() {
+    let mut fixture = Fixture::new();
+    let project = fixture.project();
+    let workspace = fixture.workspace(&project, 10, "C:/w");
+    let read = fixture.spawn(WorktreeSource::Workspace {
+        workspace_id: workspace.clone(),
+    });
+    let poll = fixture.start("C:/w");
+    let command = fixture.command(
+        30,
+        WorkbenchAction::WorkspaceClose {
+            project_id: project,
+            workspace_id: workspace.clone(),
+        },
+    );
+    fixture.service.execute_workspace_close(command).unwrap();
+    fixture.complete(&poll);
+    assert_eq!(
+        read.join().unwrap().outcome,
+        Outcome::Failed {
+            reason: Failure::SourceChanged {}
+        }
+    );
+}
+
+#[test]
+fn wrong_site_malformed_result_and_lost_worker_never_report_found() {
+    let mut fixture = Fixture::new();
+    let source = WorktreeSource::Directory {
+        path: WorkbenchDirectoryPath::parse("C:/w").unwrap(),
+    };
+    let mut denied = fixture.request(source.clone());
+    denied.site_id = orchbee_workbench_protocol::SiteId::parse(&"aa".repeat(16)).unwrap();
+    assert_eq!(
+        fixture.service.execute_worktree_query(denied).outcome,
+        Outcome::Failed {
+            reason: Failure::Denied {}
+        }
+    );
+    let read = fixture.spawn(source.clone());
+    let poll = fixture.start("C:/w");
+    fixture.reply(
+        &poll,
+        WorktreeJobOutcome::Poll(
+            WorktreeJobPollOutcome::completed(vec![], vec![], vec![]).unwrap(),
+        ),
+    );
+    assert_eq!(
+        read.join().unwrap().outcome,
+        Outcome::Failed {
+            reason: Failure::MalformedListing {}
+        }
+    );
+    let read = fixture.spawn(source);
+    let _poll = fixture.start("C:/w");
+    fixture.peer.shutdown(Shutdown::Both).unwrap();
+    assert!(matches!(
+        read.join().unwrap().outcome,
+        Outcome::Failed {
+            reason: Failure::TransportLoss {} | Failure::Unavailable { .. }
+        }
+    ));
+}

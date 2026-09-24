@@ -609,3 +609,7 @@ variants, maximum lengths, strict truncations and malformed fields. They do not 
 Git behavior, filesystem identity, ownership, asynchronous progress or shutdown.
 Deploy the private Server/Worker cohort together; older cohorts reject additive tags.
 Rollback replaces the cohort and migrates no durable protocol data.
+
+## Source-based Worktree discovery
+
+Kind 15 additionally admits `StartSource` action tag 4: a bounded absolute UTF-8 directory plus strict 0/1 command-local trust. Legacy Start tag 1 is unchanged. Start result tag 6 means unsupported execution. Poll result tag 13 is `SourceCompleted`: common-directory, source-checkout, listing and stderr bytes share the existing 7936-byte variable-data bound, with four explicit lengths. The Worker owns execution and cleanup; the new read consumes no mutation job receipt. Golden bytes, wrong-direction/trailing/truncated input, strict trust and combined bounds are covered in `tests/worktree_source.rs`.

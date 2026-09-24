@@ -9,6 +9,8 @@ mod tab_rename;
 mod workspace_close;
 mod workspace_setup;
 mod worktree_operation;
+#[cfg(windows)]
+mod worktree_query;
 use crate::local_client::{
     SystemMonotonicClock,
     workbench::{

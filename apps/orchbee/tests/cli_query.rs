@@ -2017,14 +2017,23 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
         ),
         "{engine} workspace verbs"
     );
-    // `worktree` has one verb; `worktree list` offers its two scoped flags.
+    // Worktree commands and both disjoint listing modes are discoverable.
     assert_eq!(
         sorted(complete(&["worktree", ""])),
         sorted(
-            ["list", "--format", "--format="]
-                .iter()
-                .map(|s| s.to_string())
-                .collect()
+            [
+                "list",
+                "create",
+                "open",
+                "remove",
+                "status",
+                "resume",
+                "--format",
+                "--format="
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
         ),
         "{engine} worktree verbs"
     );
@@ -2034,6 +2043,9 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
             [
                 "--project",
                 "--directory",
+                "--workspace",
+                "--cwd",
+                "--trust-repository",
                 "--format",
                 "--format=",
                 "--help"
@@ -6156,11 +6168,11 @@ fn api_schema_catalog_is_v20_closed_and_self_consistent() -> TestResult {
     assert_eq!(output.status.code(), Some(0));
     let listed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(listed["schema"], "orchbee.api.schema");
-    assert_eq!(listed["version"], 20, "catalog envelope is v20");
+    assert_eq!(listed["version"], 21, "catalog envelope is v21");
     assert_eq!(listed["source"]["kind"], "embedded");
     assert!(api_schema.is_valid(&listed), "listing self-validates");
     let schemas = listed["result"]["schemas"].as_object().unwrap();
-    assert_eq!(schemas.len(), 55, "closed dictionary has 55 members");
+    assert_eq!(schemas.len(), 56, "closed dictionary has 56 members");
     assert!(
         schemas.contains_key("orchbee.project.rename"),
         "the rename receipt schema is registered"
@@ -6241,7 +6253,7 @@ fn api_schema_catalog_is_v20_closed_and_self_consistent() -> TestResult {
         stale["version"] = stale_version.clone();
         assert!(
             !api_schema.is_valid(&stale),
-            "stale catalog {stale_version} fails under v20"
+            "stale catalog {stale_version} fails under v21"
         );
     }
 

@@ -271,3 +271,21 @@ export type {
 	WorkbenchWorktreeOutcome,
 	WorkbenchWorktreeResult,
 } from './workbench-worktree-contract';
+
+export {
+	WORKBENCH_MAXIMUM_ENCODED_WORKTREE_QUERY_RESULT_BYTES,
+	WorkbenchWorktreeQuerySchema,
+	WorkbenchWorktreeQueryResultSchema,
+	WorkbenchWorktreeQueryOutcomeSchema,
+	WorktreeQuerySourceSchema,
+	WorktreeWorkspaceAssociationSchema,
+	WorktreeQueryEntrySchema,
+	WorktreeQueryFailureSchema,
+	type WorktreeQuerySource,
+	type WorktreeWorkspaceAssociation,
+	type WorktreeQueryEntry,
+	type WorktreeQueryFailure,
+	type WorkbenchWorktreeQueryOutcome,
+	type WorkbenchWorktreeQuery,
+	type WorkbenchWorktreeQueryResult,
+} from './workbench-worktree-query-contract';

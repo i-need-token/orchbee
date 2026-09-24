@@ -23,6 +23,7 @@ use crate::workbench_projection::{
 mod terminal_membership;
 mod workspace_directory;
 mod worktree_operation;
+mod worktree_query;
 pub use terminal_membership::{
     PreparedStandaloneIntent, StandaloneIntentError, StandaloneIntentMetadata,
     WorkbenchTerminalInvariantError, WorkbenchTerminalMembership, WorkbenchTerminalTab,
@@ -124,7 +125,8 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             | WorkbenchRequest::WorkspaceCloseRead(_)
             | WorkbenchRequest::WorkspaceCloseResume(_)
             | WorkbenchRequest::WorktreeListRead(_)
-            | WorkbenchRequest::WorktreeOperation(_)) => Err(request),
+            | WorkbenchRequest::WorktreeOperation(_)
+            | WorkbenchRequest::WorktreeQuery(_)) => Err(request),
         }
     }
 }

@@ -1,4 +1,5 @@
 //! Windows Git worktree effects; the job slot owns this function's whole lifetime.
+use crate::git_repository_windows::canonical_path;
 use orchbee_capability_node_protocol::{
     AbsoluteCwd, GitReference, WorktreeCheckout, WorktreeCheckoutSelector, WorktreeMutation,
     WorktreeMutationCompletion as Completion, WorktreeMutationEffect,
@@ -314,28 +315,6 @@ impl Context<'_> {
         )
         .map_err(|_| self.failure(Error::TooLarge, vec![]))
     }
-}
-
-fn canonical_path(path: &Path) -> Result<AbsoluteCwd, ()> {
-    use std::path::{Component, Prefix};
-    // Keep this adapter inside the existing native drive-path contract. A wire
-    // POSIX path is valid for other Workers but is not absolute on Windows.
-    if !path.is_absolute()
-        || !matches!(path.components().next(), Some(Component::Prefix(prefix))
-            if matches!(prefix.kind(), Prefix::Disk(_) | Prefix::VerbatimDisk(_)))
-    {
-        return Err(());
-    }
-    let canonical = std::fs::canonicalize(path).map_err(|_| ())?;
-    let value = canonical.to_str().ok_or(())?;
-    if value.starts_with("\\\\?\\UNC\\") {
-        return Err(());
-    }
-    let normalized = value
-        .strip_prefix("\\\\?\\")
-        .unwrap_or(value)
-        .replace('\\', "/");
-    AbsoluteCwd::new(&normalized).map_err(|_| ())
 }
 
 fn failed(stage: Stage, changed: bool, error: Error, diagnostics: Vec<u8>) -> Abort {

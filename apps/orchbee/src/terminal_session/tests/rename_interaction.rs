@@ -68,6 +68,7 @@ impl RenameServer {
                             | WorkbenchRequest::WorkspaceCloseResume(_)
                             | WorkbenchRequest::WorktreeListRead(_)
                             | WorkbenchRequest::WorktreeOperation(_)
+                            | WorkbenchRequest::WorktreeQuery(_)
                             | WorkbenchRequest::LaunchProfileCatalogRead(_) => {
                                 return Err(io::Error::other(
                                     "Rename unexpectedly issued a non-command request",

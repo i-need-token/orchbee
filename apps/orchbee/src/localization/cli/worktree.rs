@@ -172,3 +172,111 @@ impl Locale {
         }
     }
 }
+
+#[cfg(any(windows, test))]
+impl Locale {
+    pub(crate) fn cli_worktree_query(
+        self,
+        outcome: &orchbee_workbench_protocol::WorkbenchWorktreeQueryOutcome,
+    ) -> String {
+        use orchbee_workbench_protocol::{
+            WorkbenchWorktreeQueryOutcome as O, WorktreeEntryText, WorktreeQueryFailure as F,
+        };
+        let word = |en, zh| match self {
+            Self::EnUs => en,
+            Self::ZhCn => zh,
+        };
+        match outcome {
+            O::Found {
+                source, entries, ..
+            } => {
+                let mut text = format!(
+                    "{}: {}\n{}: {}\n",
+                    word("Repository", "仓库"),
+                    escape(source.repository_root.as_str()),
+                    word("Source checkout", "来源检出"),
+                    escape(source.checkout_path.as_str())
+                );
+                for entry in entries {
+                    let checkout = &entry.checkout;
+                    let WorktreeEntryText::Utf8(path) = &checkout.path else {
+                        unreachable!("validated UTF-8 query")
+                    };
+                    let branch = match &checkout.branch {
+                        Some(WorktreeEntryText::Utf8(branch)) => branch.as_str(),
+                        _ if checkout.bare => word("bare", "裸仓库"),
+                        _ => word("detached HEAD", "分离 HEAD"),
+                    };
+                    let kind = if entry.linked {
+                        word("linked", "关联检出")
+                    } else {
+                        word("main", "主检出")
+                    };
+                    text.push_str(&format!(
+                        "\n{}  [{}]  {}\n",
+                        escape(path),
+                        kind,
+                        escape(branch)
+                    ));
+                    if checkout.locked {
+                        text.push_str(word("  Locked\n", "  已锁定\n"));
+                    }
+                    if checkout.prunable {
+                        text.push_str(word("  Prunable\n", "  可清理\n"));
+                    }
+                    if entry.workspaces.is_empty() {
+                        text.push_str(word("  No associated Workspace\n", "  未关联 Workspace\n"));
+                    }
+                    for workspace in &entry.workspaces {
+                        text.push_str(&format!(
+                            "  {}: {} ({})  {}: {}\n",
+                            word("Workspace", "Workspace"),
+                            escape(workspace.label.as_str()),
+                            workspace.workspace_id.as_str(),
+                            word("Project", "项目"),
+                            workspace.project_id.as_str()
+                        ));
+                    }
+                }
+                text
+            }
+            O::Failed { reason } => {
+                let message = match reason {
+                    F::NotFound {} => word("Source not found", "未找到来源"),
+                    F::Denied {} => word("Permission denied", "权限不足"),
+                    F::Unsupported {} => word("Unsupported platform", "当前平台不支持"),
+                    F::SourceChanged {} => word(
+                        "Source changed during the query; retry",
+                        "查询期间来源发生变化，请重试",
+                    ),
+                    F::Unavailable { .. } => word(
+                        "Worker or query slot unavailable",
+                        "Worker 或查询槽位不可用",
+                    ),
+                    F::GitFailed { .. } => word(
+                        "Git query failed; check the repository and its ownership",
+                        "Git 查询失败，请检查仓库及其所有权",
+                    ),
+                    F::SpawnUnavailable { .. } => {
+                        word("Git process owner unavailable", "Git 进程所有者不可用")
+                    }
+                    F::SpawnFailed { .. } => word("Could not start Git", "无法启动 Git"),
+                    F::TooLarge { .. } => word(
+                        "Worktree listing exceeds its output limit",
+                        "Worktree 列表超出输出上限",
+                    ),
+                    F::Timeout {} => word("Worktree query timed out", "Worktree 查询超时"),
+                    F::OwnerIo { .. } => word("Git query I/O failed", "Git 查询 I/O 失败"),
+                    F::TransportLoss {} => {
+                        word("Connection lost during the query", "查询期间连接中断")
+                    }
+                    F::MalformedListing {} => word(
+                        "Git returned an invalid worktree listing",
+                        "Git 返回了无效的 Worktree 列表",
+                    ),
+                };
+                format!("{message}\n")
+            }
+        }
+    }
+}

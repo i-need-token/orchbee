@@ -4,6 +4,8 @@ mod agent_drain;
 mod default_interactive_launch;
 #[cfg(windows)]
 mod git_process_windows;
+#[cfg(windows)]
+mod git_repository_windows;
 #[cfg(any(unix, windows))]
 mod host_connection;
 #[cfg(any(unix, windows, test))]

@@ -553,3 +553,7 @@ PhysicalUnknown；255 为 RejectedFencing。
 手工推导 golden 帧、全部变体、最大长度、严格截断及畸形字段。不证明 Git 行为、
 文件系统身份、所有权、异步推进或关闭。私有 Server/Worker cohort 一起部署；旧 cohort
 拒绝新增标签。回滚替换 cohort，不迁移持久化协议数据。
+
+## 按来源发现 Worktree
+
+Kind 15 新增 `StartSource` action tag 4：有界绝对 UTF-8 目录与严格 0/1 的命令局部信任。原 Start tag 1 保持不变。Start result tag 6 表示执行不受支持。Poll result tag 13 为 `SourceCompleted`：公共目录、来源检出、列表及 stderr 字节共享既有 7936 字节可变数据上限，各带独立长度。Worker 拥有执行及清理；该读取不消耗变更 job 回执。`tests/worktree_source.rs` 覆盖黄金字节、错误方向／尾随／截断输入、严格信任值及组合上限。

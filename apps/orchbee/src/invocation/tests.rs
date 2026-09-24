@@ -4891,7 +4891,6 @@ fn worktree_list_grammar() {
     for arguments in [
         &["worktree", "list", "--directory", ID2][..],
         &["worktree", "list", "--project", ID][..],
-        &["worktree", "list"][..],
     ] {
         let Err(failure) = parse(arguments) else {
             panic!("{arguments:?} must fail");

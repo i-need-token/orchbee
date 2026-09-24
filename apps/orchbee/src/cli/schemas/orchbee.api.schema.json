@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 20
+			"const": 21
 		},
 		"source": {
 			"type": "object",
@@ -104,7 +104,8 @@
 						"orchbee.workspace.get",
 						"orchbee.workspace.list",
 						"orchbee.worktree.list",
-						"orchbee.worktree.operation"
+						"orchbee.worktree.operation",
+						"orchbee.worktree.query"
 					],
 					"propertyNames": {
 						"$ref": "#/$defs/schemaId"
@@ -173,7 +174,8 @@
 				"orchbee.workspace.get",
 				"orchbee.workspace.list",
 				"orchbee.worktree.list",
-				"orchbee.worktree.operation"
+				"orchbee.worktree.operation",
+				"orchbee.worktree.query"
 			]
 		}
 	}

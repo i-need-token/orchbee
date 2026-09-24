@@ -1,6 +1,6 @@
 # Windows Worktree operations
 
-This record owns native CLI Worktree creation, opening, removal and recovery. Git effects belong to the Windows Worker; the Server owns retained operations and canonical Workspace association. The CLI waits for observations and never runs Git itself. `worktree list` keeps its existing registered-directory query contract.
+This record owns native CLI Worktree creation, opening, removal and recovery. Git effects belong to the Windows Worker; the Server owns retained operations and canonical Workspace association. The CLI waits for observations and never runs Git itself. `worktree list` supports source-based discovery and preserves its existing registered-directory query contract.
 
 ## Commands and defaults
 
@@ -26,7 +26,7 @@ Create, Open and Remove accept a caller-provided nonzero 32-lowercase-hex `--req
 
 `worktree status` is a pure read with a five-second total budget and does not activate the Site or start maintenance. `worktree resume` requires the exact `attempt` from a resumable failed status, supplied as `--generation`, and `--confirm` because the retained intent can remove user work. Attempt numbers range from 1 to 64. Records survive Client disconnection but not Server restart.
 
-The `orchbee.worktree.operation` version-1 envelope is registered in `api schema` catalog version 20 (55 documents). It contains the operation ID, local Site identity when known, a correlated Server reply or explicit unavailable/unknown observation, and a separate nullable waiting disposition. Pending and detached observations exit 0; terminal launch failures retain their own nonzero exit; Git or association failures exit 3, unavailable admission exits 4, lost connection exits 5, internal or inconsistent observation exits 1 while retaining the last reply, timeout exits 7, physical/submission uncertainty exits 8, and cancellation exits 130. Parsing and pre-submission target failures use the existing CLI failure envelope. Raw bounded Git diagnostics remain byte arrays in JSON and are escaped in localized text.
+The `orchbee.worktree.operation` version-1 envelope is registered in `api schema` catalog version 21 (56 documents). It contains the operation ID, local Site identity when known, a correlated Server reply or explicit unavailable/unknown observation, and a separate nullable waiting disposition. Pending and detached observations exit 0; terminal launch failures retain their own nonzero exit; Git or association failures exit 3, unavailable admission exits 4, lost connection exits 5, internal or inconsistent observation exits 1 while retaining the last reply, timeout exits 7, physical/submission uncertainty exits 8, and cancellation exits 130. Parsing and pre-submission target failures use the existing CLI failure envelope. Raw bounded Git diagnostics remain byte arrays in JSON and are escaped in localized text.
 
 ## Retained continuation
 
@@ -43,6 +43,26 @@ The `orchbee.worktree.operation` version-1 envelope is registered in `api schema
 The Server retains at most 64 operations and permits at most 64 attempts per operation. Worker jobs have their separate retained 64-admission bound. A continuation has a cooperative 120-second work budget; each Git step is bounded at 40 seconds, while the Worker owns its 30-second execution and five-second physical cleanup budgets. Reads and duplicate observations remain available when fresh admission fills. Unknown physical or transport settlement is not resumable. A Create with possible Git effects resumes by observing its retained path and branch rather than issuing another Git add. Remove recovery keeps an already closed Workspace closed and uses the retained repository root after the source checkout has gone.
 
 Registry-to-Site locking protects admission and canonical checks; IPC occurs outside both locks. While Remove is pending, new Workspace launches and primary-directory admissions are reserved globally. Existing associations are rechecked before close and deletion. These checks do not exclude arbitrary external Git/filesystem writers or constitute a filesystem transaction. Terminal outcomes are immutable once published. Maintenance owns its thread and explicitly joins on Site shutdown; Drop only requests cancellation.
+
+## Source-based discovery
+
+`worktree list --workspace <target>` and `worktree list --cwd <absolute-path>` select one source, with optional `--trust-repository`. With neither selector, a validated caller terminal selects its Workspace; outside Orchbee the current directory is used. Invalid caller identity never falls back. Listing needs no default Project, creates no Workspace and changes no focus. The existing `--project <target> --directory <id>` form retains its original request and result contract; the source form uses `orchbee.worktree.query`.
+
+Source queries use a five-second total CLI budget, do not activate a Site, and never replay an exchange. The source and legacy selector sets are mutually exclusive. JSON emits `{schema:"orchbee.worktree.query",version:1,result:<typed-reply>}` from catalog v21/56; a Server failure remains a typed reply. Exits are 0 for Found, 3 for missing/denied/changed source or Git failure, 4 for unsupported/unavailable, 5 for transport/malformed listing, 7 for timeout, and 1 for I/O/spawn/output-limit failure. Pre-admission/transport failures use the generic CLI failure schema; Ctrl+C exits 130 after releasing the signal owner. Human text escapes untrusted paths/labels and labels main/linked, detached/bare, locked/prunable and Workspace identities.
+
+The Server resolves the source and live Worker incarnation, releases all gates during Git IPC, then rechecks both before publishing. One read-only Worker job observes the common Git directory, source checkout root and porcelain listing. Command-local trust applies only to the selected canonical repository, without persistent configuration changes. Admission checks only drive-path syntax. Filesystem canonicalization and trust preparation run inside the owned task, followed by cancellation/deadline checks before child creation; missing directories return a typed preparation failure. OS filesystem calls are cooperative, not forcibly preempted. The read owner retains its five-second budget, one physical slot, bounded output and sixty-second receipt; it consumes no mutation-operation capacity. Windows Git drive paths pass the same absolute-path validation as other Worktree entries.
+
+The result reports the main repository root, common directory, source checkout, Git entry facts and known canonical Workspace associations. Multiple associations remain explicit, never an arbitrary first Workspace. Explicit source-Workspace membership is supported by its own Git observation; other associations require a known matching checkout path. This is an observation of Git followed by a canonical membership check, not an atomic filesystem transaction or proof about unknown path aliases.
+
+| Transition                          | Requirement                                   | Result                                          |
+| ----------------------------------- | --------------------------------------------- | ----------------------------------------------- |
+| Admit                               | Valid read policy, source and live Worker     | Capture source membership and Worker generation |
+| Observe                             | No coordinator/registry gate held             | One bounded read-only Git job                   |
+| Recheck                             | Same source membership and Worker incarnation | Join current known Workspace identities         |
+| Source or Worker changes            | Do not reuse the old observation              | Explicit failure                                |
+| Timeout, cancellation or disconnect | Worker retains physical cleanup ownership     | No mutation and no inferred success             |
+
+Strict request/result and binary-frame checks, shared Rust/TypeScript fixtures, source subdirectory/linked-checkout cases, denied trust, source/Worker changes and real Windows CLI reads provide evidence. Legacy listing remains covered independently.
 
 ## Verification
 

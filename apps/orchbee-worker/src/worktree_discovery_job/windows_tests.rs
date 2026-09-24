@@ -6,6 +6,7 @@ fn id(n: u8) -> JobId {
 
 fn shell(script: &str) -> CommandSpec {
     CommandSpec {
+        git_context: None,
         program: std::env::var_os("SystemRoot")
             .map(std::path::PathBuf::from)
             .unwrap()
@@ -26,6 +27,7 @@ fn shell(script: &str) -> CommandSpec {
 
 fn commands(probe: &str, list: &str) -> JobCommands {
     JobCommands {
+        source: None,
         probe: shell(probe),
         list: shell(list),
         test_hooks: None,

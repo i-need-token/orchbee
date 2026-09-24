@@ -420,15 +420,37 @@ fn poll_pending_and_completed_pass_through() {
     ));
 
     let listing = b"worktree /repo\0\0".to_vec();
-    let PollStep::Done(JobTerminal::Completed {
-        listing: observed, ..
-    }) = poll_step(WorktreeJobPollOutcome::Completed {
-        common_dir: b"/repo/.git".to_vec(),
-        listing: listing.clone(),
-        stderr: Vec::new(),
-    })
+    let PollStep::Done(JobTerminal::Completed(observed)) =
+        poll_step(WorktreeJobPollOutcome::Completed {
+            common_dir: b"/repo/.git".to_vec(),
+            listing: listing.clone(),
+            stderr: Vec::new(),
+        })
     else {
         panic!("completed must terminate with the listing");
     };
-    assert_eq!(observed, listing);
+    assert_eq!(observed.listing, listing);
+    assert_eq!(observed.source_checkout, None);
+}
+
+#[test]
+fn windows_drive_paths_use_shared_absolute_path_validation() {
+    for path in ["C:/repo/main", "D:/repo with spaces/linked"] {
+        let bytes = listing(&[&[
+            format!("worktree {path}").as_bytes(),
+            format!("HEAD {HEAD40}").as_bytes(),
+            b"branch refs/heads/main",
+        ]]);
+        let entries = parse_worktree_listing(&bytes).unwrap();
+        assert_eq!(entries[0].path, utf8(path));
+    }
+    for path in ["relative", "C:relative", ""] {
+        assert!(
+            parse_worktree_listing(&listing(&[&[
+                format!("worktree {path}").as_bytes(),
+                b"bare"
+            ]]))
+            .is_err()
+        );
+    }
 }

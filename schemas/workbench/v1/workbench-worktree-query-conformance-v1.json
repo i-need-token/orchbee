@@ -1,0 +1,1019 @@
+{
+	"valid": [
+		{
+			"name": "explicit-cwd-query",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.query",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"source": {
+					"kind": "directory",
+					"path": "C:/repo/sub"
+				},
+				"trustRepository": false
+			}
+		},
+		{
+			"name": "workspace-trust-query",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.query",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"source": {
+					"kind": "workspace",
+					"workspaceId": "00000000000000000000000000000006"
+				},
+				"trustRepository": true
+			}
+		},
+		{
+			"name": "linked-source-association",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "found",
+					"siteId": "00000000000000000000000000000002",
+					"workbenchRevision": "3",
+					"workerId": "00000000000000000000000000000004",
+					"source": {
+						"requestedPath": "C:/linked/sub",
+						"repositoryRoot": "C:/repo",
+						"commonDirectory": "C:/repo/.git",
+						"checkoutPath": "C:/linked",
+						"workspaceId": "00000000000000000000000000000006"
+					},
+					"entries": [
+						{
+							"checkout": {
+								"worktreePath": "C:/repo",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/main",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": false,
+							"workspaces": []
+						},
+						{
+							"checkout": {
+								"worktreePath": "C:/linked",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/feature",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": true,
+							"workspaces": [
+								{
+									"projectId": "00000000000000000000000000000005",
+									"workspaceId": "00000000000000000000000000000006",
+									"label": "feature"
+								}
+							]
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "multiple-known-associations",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "found",
+					"siteId": "00000000000000000000000000000002",
+					"workbenchRevision": "3",
+					"workerId": "00000000000000000000000000000004",
+					"source": {
+						"requestedPath": "C:/linked/sub",
+						"repositoryRoot": "C:/repo",
+						"commonDirectory": "C:/repo/.git",
+						"checkoutPath": "C:/linked",
+						"workspaceId": "00000000000000000000000000000006"
+					},
+					"entries": [
+						{
+							"checkout": {
+								"worktreePath": "C:/repo",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/main",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": false,
+							"workspaces": []
+						},
+						{
+							"checkout": {
+								"worktreePath": "C:/linked",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/feature",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": true,
+							"workspaces": [
+								{
+									"projectId": "00000000000000000000000000000005",
+									"workspaceId": "00000000000000000000000000000006",
+									"label": "feature"
+								},
+								{
+									"projectId": "00000000000000000000000000000007",
+									"workspaceId": "00000000000000000000000000000008",
+									"label": "second"
+								}
+							]
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "detached-source",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "found",
+					"siteId": "00000000000000000000000000000002",
+					"workbenchRevision": "3",
+					"workerId": "00000000000000000000000000000004",
+					"source": {
+						"requestedPath": "C:/linked/sub",
+						"repositoryRoot": "C:/repo",
+						"commonDirectory": "C:/repo/.git",
+						"checkoutPath": "C:/linked",
+						"workspaceId": null
+					},
+					"entries": [
+						{
+							"checkout": {
+								"worktreePath": "C:/repo",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/main",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": false,
+							"workspaces": []
+						},
+						{
+							"checkout": {
+								"worktreePath": "C:/linked",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": null,
+								"bare": false,
+								"detached": true,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": true,
+							"workspaces": [
+								{
+									"projectId": "00000000000000000000000000000005",
+									"workspaceId": "00000000000000000000000000000006",
+									"label": "feature"
+								}
+							]
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "failed",
+					"reason": {
+						"kind": "denied"
+					}
+				}
+			}
+		},
+		{
+			"name": "unsupported",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "failed",
+					"reason": {
+						"kind": "unsupported"
+					}
+				}
+			}
+		},
+		{
+			"name": "source-changed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "failed",
+					"reason": {
+						"kind": "source-changed"
+					}
+				}
+			}
+		},
+		{
+			"name": "git-failed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "failed",
+					"reason": {
+						"kind": "git-failed",
+						"stage": "probe",
+						"status": 128
+					}
+				}
+			}
+		},
+		{
+			"name": "owner-io",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "failed",
+					"reason": {
+						"kind": "owner-io",
+						"stage": null
+					}
+				}
+			}
+		},
+		{
+			"name": "too-large",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "failed",
+					"reason": {
+						"kind": "too-large",
+						"origin": "workbench-result"
+					}
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "missing-trust",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.query",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"source": {
+					"kind": "directory",
+					"path": "C:/repo/sub"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "null-source",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.query",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"source": null,
+				"trustRepository": false
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "conflicting-source",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.query",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"source": {
+					"kind": "directory",
+					"path": "C:/repo/sub",
+					"workspaceId": "00000000000000000000000000000006"
+				},
+				"trustRepository": false
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "relative-cwd",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.query",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"source": {
+					"kind": "directory",
+					"path": "relative"
+				},
+				"trustRepository": false
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-request-field",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.query",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"source": {
+					"kind": "directory",
+					"path": "C:/repo/sub"
+				},
+				"trustRepository": false,
+				"unrecognized": true
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "empty-list",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "found",
+					"siteId": "00000000000000000000000000000002",
+					"workbenchRevision": "3",
+					"workerId": "00000000000000000000000000000004",
+					"source": {
+						"requestedPath": "C:/linked/sub",
+						"repositoryRoot": "C:/repo",
+						"commonDirectory": "C:/repo/.git",
+						"checkoutPath": "C:/linked",
+						"workspaceId": "00000000000000000000000000000006"
+					},
+					"entries": []
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "main-marked-linked",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "found",
+					"siteId": "00000000000000000000000000000002",
+					"workbenchRevision": "3",
+					"workerId": "00000000000000000000000000000004",
+					"source": {
+						"requestedPath": "C:/linked/sub",
+						"repositoryRoot": "C:/repo",
+						"commonDirectory": "C:/repo/.git",
+						"checkoutPath": "C:/linked",
+						"workspaceId": "00000000000000000000000000000006"
+					},
+					"entries": [
+						{
+							"checkout": {
+								"worktreePath": "C:/repo",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/main",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": true,
+							"workspaces": []
+						},
+						{
+							"checkout": {
+								"worktreePath": "C:/linked",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/feature",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": true,
+							"workspaces": [
+								{
+									"projectId": "00000000000000000000000000000005",
+									"workspaceId": "00000000000000000000000000000006",
+									"label": "feature"
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "wrong-main-root",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "found",
+					"siteId": "00000000000000000000000000000002",
+					"workbenchRevision": "3",
+					"workerId": "00000000000000000000000000000004",
+					"source": {
+						"requestedPath": "C:/linked/sub",
+						"repositoryRoot": "C:/elsewhere",
+						"commonDirectory": "C:/repo/.git",
+						"checkoutPath": "C:/linked",
+						"workspaceId": "00000000000000000000000000000006"
+					},
+					"entries": [
+						{
+							"checkout": {
+								"worktreePath": "C:/repo",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/main",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": false,
+							"workspaces": []
+						},
+						{
+							"checkout": {
+								"worktreePath": "C:/linked",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/feature",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": true,
+							"workspaces": [
+								{
+									"projectId": "00000000000000000000000000000005",
+									"workspaceId": "00000000000000000000000000000006",
+									"label": "feature"
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "missing-source-checkout",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "found",
+					"siteId": "00000000000000000000000000000002",
+					"workbenchRevision": "3",
+					"workerId": "00000000000000000000000000000004",
+					"source": {
+						"requestedPath": "C:/linked/sub",
+						"repositoryRoot": "C:/repo",
+						"commonDirectory": "C:/repo/.git",
+						"checkoutPath": "C:/elsewhere",
+						"workspaceId": "00000000000000000000000000000006"
+					},
+					"entries": [
+						{
+							"checkout": {
+								"worktreePath": "C:/repo",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/main",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": false,
+							"workspaces": []
+						},
+						{
+							"checkout": {
+								"worktreePath": "C:/linked",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/feature",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": true,
+							"workspaces": [
+								{
+									"projectId": "00000000000000000000000000000005",
+									"workspaceId": "00000000000000000000000000000006",
+									"label": "feature"
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "unmatched-source-workspace",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "found",
+					"siteId": "00000000000000000000000000000002",
+					"workbenchRevision": "3",
+					"workerId": "00000000000000000000000000000004",
+					"source": {
+						"requestedPath": "C:/linked/sub",
+						"repositoryRoot": "C:/repo",
+						"commonDirectory": "C:/repo/.git",
+						"checkoutPath": "C:/linked",
+						"workspaceId": "00000000000000000000000000000009"
+					},
+					"entries": [
+						{
+							"checkout": {
+								"worktreePath": "C:/repo",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/main",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": false,
+							"workspaces": []
+						},
+						{
+							"checkout": {
+								"worktreePath": "C:/linked",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/feature",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": true,
+							"workspaces": [
+								{
+									"projectId": "00000000000000000000000000000005",
+									"workspaceId": "00000000000000000000000000000006",
+									"label": "feature"
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "missing-required-nullable-source-workspace",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "found",
+					"siteId": "00000000000000000000000000000002",
+					"workbenchRevision": "3",
+					"workerId": "00000000000000000000000000000004",
+					"source": {
+						"requestedPath": "C:/linked/sub",
+						"repositoryRoot": "C:/repo",
+						"commonDirectory": "C:/repo/.git",
+						"checkoutPath": "C:/linked"
+					},
+					"entries": [
+						{
+							"checkout": {
+								"worktreePath": "C:/repo",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/main",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": false,
+							"workspaces": []
+						},
+						{
+							"checkout": {
+								"worktreePath": "C:/linked",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/feature",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": true,
+							"workspaces": [
+								{
+									"projectId": "00000000000000000000000000000005",
+									"workspaceId": "00000000000000000000000000000006",
+									"label": "feature"
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "duplicate-workspace",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "found",
+					"siteId": "00000000000000000000000000000002",
+					"workbenchRevision": "3",
+					"workerId": "00000000000000000000000000000004",
+					"source": {
+						"requestedPath": "C:/linked/sub",
+						"repositoryRoot": "C:/repo",
+						"commonDirectory": "C:/repo/.git",
+						"checkoutPath": "C:/linked",
+						"workspaceId": "00000000000000000000000000000006"
+					},
+					"entries": [
+						{
+							"checkout": {
+								"worktreePath": "C:/repo",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/main",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": false,
+							"workspaces": [
+								{
+									"projectId": "00000000000000000000000000000005",
+									"workspaceId": "00000000000000000000000000000006",
+									"label": "feature"
+								}
+							]
+						},
+						{
+							"checkout": {
+								"worktreePath": "C:/linked",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/feature",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": true,
+							"workspaces": [
+								{
+									"projectId": "00000000000000000000000000000005",
+									"workspaceId": "00000000000000000000000000000006",
+									"label": "feature"
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "invalid-head",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "found",
+					"siteId": "00000000000000000000000000000002",
+					"workbenchRevision": "3",
+					"workerId": "00000000000000000000000000000004",
+					"source": {
+						"requestedPath": "C:/linked/sub",
+						"repositoryRoot": "C:/repo",
+						"commonDirectory": "C:/repo/.git",
+						"checkoutPath": "C:/linked",
+						"workspaceId": "00000000000000000000000000000006"
+					},
+					"entries": [
+						{
+							"checkout": {
+								"worktreePath": "C:/repo",
+								"head": "gggggggggggggggggggggggggggggggggggggggg",
+								"branch": "refs/heads/main",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": false,
+							"workspaces": []
+						},
+						{
+							"checkout": {
+								"worktreePath": "C:/linked",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/feature",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": true,
+							"workspaces": [
+								{
+									"projectId": "00000000000000000000000000000005",
+									"workspaceId": "00000000000000000000000000000006",
+									"label": "feature"
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "no-branch-or-detached",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "found",
+					"siteId": "00000000000000000000000000000002",
+					"workbenchRevision": "3",
+					"workerId": "00000000000000000000000000000004",
+					"source": {
+						"requestedPath": "C:/linked/sub",
+						"repositoryRoot": "C:/repo",
+						"commonDirectory": "C:/repo/.git",
+						"checkoutPath": "C:/linked",
+						"workspaceId": "00000000000000000000000000000006"
+					},
+					"entries": [
+						{
+							"checkout": {
+								"worktreePath": "C:/repo",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": null,
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": false,
+							"workspaces": []
+						},
+						{
+							"checkout": {
+								"worktreePath": "C:/linked",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/feature",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": true,
+							"workspaces": [
+								{
+									"projectId": "00000000000000000000000000000005",
+									"workspaceId": "00000000000000000000000000000006",
+									"label": "feature"
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "wrong-branch-ref",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "found",
+					"siteId": "00000000000000000000000000000002",
+					"workbenchRevision": "3",
+					"workerId": "00000000000000000000000000000004",
+					"source": {
+						"requestedPath": "C:/linked/sub",
+						"repositoryRoot": "C:/repo",
+						"commonDirectory": "C:/repo/.git",
+						"checkoutPath": "C:/linked",
+						"workspaceId": "00000000000000000000000000000006"
+					},
+					"entries": [
+						{
+							"checkout": {
+								"worktreePath": "C:/repo",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "feature",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": false,
+							"workspaces": []
+						},
+						{
+							"checkout": {
+								"worktreePath": "C:/linked",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/feature",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": true,
+							"workspaces": [
+								{
+									"projectId": "00000000000000000000000000000005",
+									"workspaceId": "00000000000000000000000000000006",
+									"label": "feature"
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-entry-field",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "found",
+					"siteId": "00000000000000000000000000000002",
+					"workbenchRevision": "3",
+					"workerId": "00000000000000000000000000000004",
+					"source": {
+						"requestedPath": "C:/linked/sub",
+						"repositoryRoot": "C:/repo",
+						"commonDirectory": "C:/repo/.git",
+						"checkoutPath": "C:/linked",
+						"workspaceId": "00000000000000000000000000000006"
+					},
+					"entries": [
+						{
+							"checkout": {
+								"worktreePath": "C:/repo",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/main",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": false,
+							"workspaces": [],
+							"unknown": true
+						},
+						{
+							"checkout": {
+								"worktreePath": "C:/linked",
+								"head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+								"branch": "refs/heads/feature",
+								"bare": false,
+								"detached": false,
+								"locked": false,
+								"prunable": false
+							},
+							"linked": true,
+							"workspaces": [
+								{
+									"projectId": "00000000000000000000000000000005",
+									"workspaceId": "00000000000000000000000000000006",
+									"label": "feature"
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-nullable-status",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "failed",
+					"reason": {
+						"kind": "git-failed",
+						"stage": "list"
+					}
+				}
+			},
+			"boundary": "schema"
+		}
+	],
+	"validJson": [
+		{
+			"name": "integral-status-normalization",
+			"direction": "response",
+			"json": "{\"kind\":\"workbench.worktree.query.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000001\",\"outcome\":{\"kind\":\"failed\",\"reason\":{\"kind\":\"git-failed\",\"stage\":\"list\",\"status\":-0.0}}}",
+			"canonical": {
+				"kind": "workbench.worktree.query.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "failed",
+					"reason": {
+						"kind": "git-failed",
+						"stage": "list",
+						"status": 0
+					}
+				}
+			}
+		}
+	],
+	"contractVersion": 1
+}

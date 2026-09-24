@@ -1,0 +1,86 @@
+use orchbee_capability_node_protocol::{
+    CapabilityNodeMessage, MAXIMUM_WORKTREE_JOB_RESULT_FIELDS_BYTES, OperationId, WorkerGeneration,
+    WorkerId, WorktreeJobAction, WorktreeJobOutcome, WorktreeJobPollOutcome, WorktreeJobRequest,
+    WorktreeJobResult, WorktreeJobStartOutcome, decode_message, encode_message,
+};
+use std::num::NonZeroU64;
+
+fn operation() -> OperationId {
+    OperationId::from_bytes([1; 16]).unwrap()
+}
+fn request(action: WorktreeJobAction) -> CapabilityNodeMessage {
+    CapabilityNodeMessage::WorktreeJobRequest(WorktreeJobRequest {
+        operation_id: operation(),
+        worker_id: WorkerId::from_bytes([2; 16]).unwrap(),
+        worker_generation: WorkerGeneration::new(NonZeroU64::new(3).unwrap()),
+        action,
+    })
+}
+fn result(outcome: WorktreeJobOutcome) -> CapabilityNodeMessage {
+    CapabilityNodeMessage::WorktreeJobResult(WorktreeJobResult {
+        operation_id: operation(),
+        job_id: operation(),
+        outcome,
+    })
+}
+fn frame(payload: &[u8]) -> Vec<u8> {
+    let mut bytes = b"OBCN\0\x02".to_vec();
+    bytes.extend(u16::try_from(payload.len()).unwrap().to_be_bytes());
+    bytes.extend(payload);
+    bytes
+}
+fn conformance(message: CapabilityNodeMessage) -> Vec<u8> {
+    let encoded = encode_message(&message).unwrap();
+    assert_eq!(decode_message(&encoded).unwrap(), message);
+    for length in 0..encoded.len() - 8 {
+        assert!(decode_message(&frame(&encoded[8..8 + length])).is_err());
+    }
+    let mut extended = encoded[8..].to_vec();
+    extended.push(0);
+    assert!(decode_message(&frame(&extended)).is_err());
+    encoded
+}
+
+#[test]
+fn source_start_has_a_separate_tag_and_strict_trust_boolean() {
+    let legacy = conformance(request(WorktreeJobAction::start(b"C:/r".to_vec()).unwrap()));
+    assert_eq!(&legacy[49..], b"\x01\x00\x04C:/r");
+    let source = conformance(request(
+        WorktreeJobAction::start_source(b"C:/r".to_vec(), true).unwrap(),
+    ));
+    assert_eq!(&source[49..], b"\x04\x01\x00\x04C:/r");
+    let mut malformed = source.clone();
+    malformed[50] = 2;
+    assert!(decode_message(&malformed).is_err());
+    for directory in [
+        b"relative".to_vec(),
+        b"C:/r\0bad".to_vec(),
+        vec![b'/'; 4097],
+    ] {
+        assert!(WorktreeJobAction::start_source(directory, false).is_err());
+    }
+}
+
+#[test]
+fn source_results_bound_all_four_fields_and_keep_unsupported_typed() {
+    let completed = WorktreeJobPollOutcome::source_completed(
+        b"C:/r/.git\n".to_vec(),
+        b"C:/r/subtree\n".to_vec(),
+        b"worktree C:/r\0bare\0\0".to_vec(),
+        vec![0, 255],
+    )
+    .unwrap();
+    let bytes = conformance(result(WorktreeJobOutcome::Poll(completed)));
+    assert_eq!(bytes[42], 13);
+    conformance(result(WorktreeJobOutcome::Start(
+        WorktreeJobStartOutcome::Unsupported,
+    )));
+    let cap = MAXIMUM_WORKTREE_JOB_RESULT_FIELDS_BYTES;
+    let at_limit =
+        WorktreeJobPollOutcome::source_completed(vec![1; cap], vec![], vec![], vec![]).unwrap();
+    let encoded = encode_message(&result(WorktreeJobOutcome::Poll(at_limit))).unwrap();
+    assert!(decode_message(&encoded).is_ok());
+    assert!(
+        WorktreeJobPollOutcome::source_completed(vec![1; cap], vec![2], vec![], vec![]).is_err()
+    );
+}
