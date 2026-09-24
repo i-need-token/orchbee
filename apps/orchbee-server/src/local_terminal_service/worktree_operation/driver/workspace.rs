@@ -13,6 +13,41 @@ use std::{
     time::{Duration, Instant},
 };
 impl Driver<'_> {
+    pub(super) fn associate_source(
+        &self,
+        checkout: orchbee_workbench_protocol::WorktreeCheckoutFacts,
+    ) -> Result<(), Failure> {
+        let workers = self
+            .service
+            .workers
+            .lock()
+            .map_err(|_| Failure::Internal {})?;
+        let handle = workers
+            .request_handle()
+            .ok_or(Failure::WorkerUnavailable {})?;
+        if handle.generation() != self.plan.worker_generation
+            || format!(
+                "{:032x}",
+                u128::from_be_bytes(handle.worker_id().as_bytes())
+            ) != self.plan.source.worker_id.as_str()
+        {
+            return Err(Failure::SourceChanged {});
+        }
+        let mut coordinator = self
+            .service
+            .coordinator
+            .lock()
+            .map_err(|_| Failure::Internal {})?;
+        if !coordinator
+            .worktree_authority()
+            .ok_or(Failure::Internal {})?
+            .associate_worktree_source(self.plan, checkout)
+        {
+            return Err(Failure::SourceChanged {});
+        }
+        Ok(())
+    }
+
     pub(super) fn recheck_source(&self) -> Result<(), Failure> {
         let _handle = self.worker()?;
         let mut coordinator = self

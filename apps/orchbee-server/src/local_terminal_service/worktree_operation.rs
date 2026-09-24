@@ -7,8 +7,6 @@ use orchbee_workbench_protocol::{
 };
 use std::{io, sync::Arc, time::Instant};
 mod driver;
-mod owner;
-pub(super) use owner::WorktreeMaintenance;
 
 impl LocalTerminalService {
     pub(crate) fn execute_worktree_operation(
@@ -80,7 +78,7 @@ impl LocalTerminalService {
         self.worktree_maintenance.stop_before(deadline)
     }
 
-    fn worktree_turn(&self, stop: &std::sync::atomic::AtomicBool) {
+    pub(super) fn worktree_turn(&self, stop: &std::sync::atomic::AtomicBool) {
         let plan = self.coordinator.lock().ok().and_then(|mut coordinator| {
             coordinator.worktree_authority()?.claim_worktree_operation()
         });

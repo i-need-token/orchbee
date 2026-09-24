@@ -246,3 +246,100 @@ fn wrong_site_denies_even_existing_receipts_and_missing_source_never_admits() {
     );
     assert!(authority.claim_worktree_operation().is_none());
 }
+
+#[test]
+fn observed_source_subdirectory_keeps_checkout_membership_until_directory_changes() {
+    use orchbee_workbench_protocol::{
+        WorkbenchAction, WorkbenchCommandOutcome, WorkbenchLabel, WorktreeCheckoutFacts,
+    };
+    let (mut authority, grant, project) = setup();
+    let created = submit(
+        &mut authority,
+        &grant,
+        command(
+            11,
+            1,
+            WorkbenchAction::WorkspaceCreate {
+                project_id: project.clone(),
+                label: WorkbenchLabel::parse("main").unwrap(),
+            },
+        ),
+    );
+    let WorkbenchCommandOutcome::WorkspaceCreated { workspace_id, .. } = created.outcome else {
+        panic!("workspace");
+    };
+    let worker = WorkerId::parse(&identity(20)).unwrap();
+    let result = authority.accept_workspace_directory(
+        Some(&grant),
+        command(
+            12,
+            2,
+            WorkbenchAction::WorkspacePrimaryDirectoryAccept {
+                project_id: project.clone(),
+                workspace_id: workspace_id.clone(),
+                path: WorkbenchDirectoryPath::parse("C:/repo/subdir").unwrap(),
+            },
+        ),
+        worker.clone(),
+    );
+    assert!(matches!(
+        result.outcome,
+        WorkbenchCommandOutcome::WorkspacePrimaryDirectoryAccepted { .. }
+    ));
+    let mut intent = intent();
+    let WorktreeIntent::Create { source, .. } = &mut intent else {
+        unreachable!()
+    };
+    *source = WorktreeSource::Workspace {
+        workspace_id: workspace_id.clone(),
+    };
+    apply(
+        &mut authority,
+        Some(&grant),
+        Action::Start {
+            operation_id: WorkbenchRequestId::parse(&identity(40)).unwrap(),
+            project_id: project.clone(),
+            intent,
+        },
+        true,
+    );
+    let plan = authority.claim_worktree_operation().unwrap();
+    let checkout = WorktreeCheckoutFacts {
+        repository_root: WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
+        common_directory: WorkbenchDirectoryPath::parse("C:/repo/.git").unwrap(),
+        path: WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
+        branch: None,
+        dirty: false,
+    };
+    assert!(authority.associate_worktree_source(&plan, checkout.clone()));
+    assert_eq!(authority.worktree_checkout(&workspace_id), Some(checkout));
+    assert!(authority.publish_worktree_operation(
+        &plan,
+        Status::Failed {
+            reason: Failure::SourceChanged {},
+            progress: plan.progress.clone(),
+            resumable: false
+        }
+    ));
+    let mut changed = authority.snapshot().clone();
+    changed.navigation.projects[0].directories[0].path =
+        WorkbenchDirectoryPath::parse("C:/elsewhere").unwrap();
+    authority.projection = crate::workbench_projection::WorkbenchProjectionStore::load(
+        &orchbee_workbench_protocol::serialize_document(
+            &orchbee_workbench_protocol::WorkbenchProtocolDocument::Snapshot(changed),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert!(authority.worktree_checkout(&workspace_id).is_none());
+    assert!(!authority.associate_worktree_source(
+        &plan,
+        WorktreeCheckoutFacts {
+            repository_root: WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
+            common_directory: WorkbenchDirectoryPath::parse("C:/repo/.git").unwrap(),
+            path: WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
+            branch: None,
+            dirty: false,
+        }
+    ));
+}

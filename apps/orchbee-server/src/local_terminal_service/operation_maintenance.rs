@@ -1,3 +1,4 @@
+//! Owned retained-operation wakeup, cancellation and explicit thread joining.
 use super::LocalTerminalService;
 use std::{
     io,
@@ -15,12 +16,21 @@ struct Wake {
     stop: AtomicBool,
     available: AtomicBool,
 }
-#[derive(Default)]
-pub(in super::super) struct WorktreeMaintenance {
+pub(super) struct OperationMaintenance {
+    name: &'static str,
+    turn: fn(&LocalTerminalService, &AtomicBool),
     wake: Arc<Wake>,
     handle: Mutex<Option<JoinHandle<()>>>,
 }
-impl WorktreeMaintenance {
+impl OperationMaintenance {
+    pub(super) fn new(name: &'static str, turn: fn(&LocalTerminalService, &AtomicBool)) -> Self {
+        Self {
+            name,
+            turn,
+            wake: Arc::default(),
+            handle: Mutex::new(None),
+        }
+    }
     pub(super) fn available(&self) -> bool {
         self.wake.available.load(Ordering::Acquire) && !self.wake.stop.load(Ordering::Acquire)
     }
@@ -34,7 +44,7 @@ impl WorktreeMaintenance {
         let mut handle = self
             .handle
             .lock()
-            .map_err(|_| io::Error::other("Worktree owner poisoned"))?;
+            .map_err(|_| io::Error::other("Retained operation owner poisoned"))?;
         if self.wake.stop.load(Ordering::Acquire) {
             return Err(io::ErrorKind::NotConnected.into());
         }
@@ -48,9 +58,10 @@ impl WorktreeMaintenance {
         let service = Arc::downgrade(service);
         let wake = Arc::clone(&self.wake);
         self.wake.available.store(true, Ordering::Release);
+        let turn = self.turn;
         match thread::Builder::new()
-            .name("orchbee-worktree-operations".into())
-            .spawn(move || run(service, wake))
+            .name(self.name.into())
+            .spawn(move || run(service, wake, turn))
         {
             Ok(thread) => {
                 *handle = Some(thread);
@@ -72,12 +83,12 @@ impl WorktreeMaintenance {
                 let mut handle = self
                     .handle
                     .lock()
-                    .map_err(|_| io::Error::other("Worktree handle poisoned"))?;
+                    .map_err(|_| io::Error::other("Retained operation handle poisoned"))?;
                 if handle.as_ref().is_none_or(|thread| thread.is_finished()) {
                     if let Some(thread) = handle.take() {
                         thread
                             .join()
-                            .map_err(|_| io::Error::other("Worktree owner panicked"))?;
+                            .map_err(|_| io::Error::other("Retained operation owner panicked"))?;
                     }
                     return Ok(());
                 }
@@ -89,7 +100,7 @@ impl WorktreeMaintenance {
         }
     }
 }
-impl Drop for WorktreeMaintenance {
+impl Drop for OperationMaintenance {
     fn drop(&mut self) {
         self.wake.available.store(false, Ordering::Release);
         self.wake.stop.store(true, Ordering::Release);
@@ -103,7 +114,11 @@ impl Drop for Running {
         self.0.available.store(false, Ordering::Release);
     }
 }
-fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>) {
+fn run(
+    service: Weak<LocalTerminalService>,
+    wake: Arc<Wake>,
+    turn: fn(&LocalTerminalService, &AtomicBool),
+) {
     let _running = Running(Arc::clone(&wake));
     loop {
         let Ok(mut pending) = wake.pending.lock() else {
@@ -121,7 +136,7 @@ fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>) {
             return;
         };
         // Claim and publish a queued request even if stop won before its first turn.
-        service.worktree_turn(&wake.stop);
+        turn(&service, &wake.stop);
         if wake.stop.load(Ordering::Acquire) {
             return;
         }

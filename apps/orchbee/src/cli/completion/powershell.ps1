@@ -76,6 +76,9 @@ __ORCHBEE_GRAMMAR__
             if ($command.words[0] -ceq 'worktree' -and $seen -ccontains '--workspace' -and $seen -ccontains '--cwd') { $valid = $false }
             if ($commandPath -ceq 'worktree:open' -and $seen -ccontains '--path' -and $seen -ccontains '--branch') { $valid = $false }
             if ($commandPath -ceq 'worktree:list' -and ($seen -ccontains '--project' -or $seen -ccontains '--directory') -and ($seen -ccontains '--workspace' -or $seen -ccontains '--cwd' -or $seen -ccontains '--trust-repository')) { $valid = $false }
+            foreach ($pair in $command.conflicts) {
+                if ($seen -ccontains $pair.flag -and @($pair.with | Where-Object { $seen -ccontains $_ }).Count -gt 0) { $valid = $false }
+            }
             foreach ($flag in $seen) { if ($allowed -cnotcontains $flag) { $valid = $false } }
             if (@($seen | Where-Object { $_ -ceq '--provider' }).Count -gt 1 -and ($command.words -join ':') -cne 'agent:doctor') { $valid = $false }
             $operandLimit = [int]$command.operand
@@ -112,6 +115,9 @@ __ORCHBEE_GRAMMAR__
                 if ($seen -ccontains $flag -and $grammar.repeatable -cnotcontains $flag -and -not ($flag -ceq '--provider' -and ($command.words -join ':') -ceq 'agent:doctor')) { continue }
                 if ($flag -ceq '--arg' -and $seen -cnotcontains '--exec' -and ($command.words -join ':') -cne 'agent:start') { continue }
                 $conflict = $false
+                foreach ($pair in $command.conflicts) {
+                    if ($pair.flag -ceq $flag -and @($pair.with | Where-Object { $seen -ccontains $_ }).Count -gt 0) { $conflict = $true }
+                }
                 if (($command.words -join ':') -ceq 'worktree:list') {
                     if (@('--project', '--directory') -ccontains $flag -and ($seen -ccontains '--workspace' -or $seen -ccontains '--cwd' -or $seen -ccontains '--trust-repository')) { $conflict = $true }
                     if (@('--workspace', '--cwd', '--trust-repository') -ccontains $flag -and ($seen -ccontains '--project' -or $seen -ccontains '--directory')) { $conflict = $true }

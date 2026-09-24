@@ -92,3 +92,7 @@ pnpm --filter @orchbee/workbench-client-protocol test:exports
 ## Worktree 来源查询绑定
 
 `workbench-worktree-query-contract.ts` 将独立读取请求／结果加入共享联合，与 Rust 采用相同的 32 KiB 结果上限、严格可空字段、闭合失败及跨条目不变量。它结合 [JSON Schema](../../schemas/workbench/v1/workbench-worktree-query.schema.json) 消费[查询一致性语料](../../schemas/workbench/v1/workbench-worktree-query-conformance-v1.json)。该绑定不增加 Desktop 命令或变更权限。
+
+## Workspace 组关闭绑定
+
+`workbench-workspace-group-close-contract.ts` 实现[组合同](../../schemas/workbench/v1/workbench-workspace-group-close.schema.json)，扩展请求/结果联合，复用现有子 Close 状态/代次 schema。绑定约束 16 KiB 请求、512 KiB 结果、128 个唯一捕获 Workspace、1–64 次尝试、源最后及已关闭前缀顺序、身份观测唯一性和真实的聚合关闭/恢复。必须存在、可为 null 的子操作观测区分尚未提交与已接纳但未观测。[共享样例](../../schemas/workbench/v1/workbench-workspace-group-close-conformance-v1.json) 同时检查独立 Rust 绑定和结构 schema。运行时接纳与单调发布仍由 Server 负责；此绑定不增加 Desktop CLI 动词。

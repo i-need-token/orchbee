@@ -86,6 +86,28 @@ impl SiteCoordinator {
         owner_available: bool,
         now: Instant,
     ) -> Option<WorkbenchCommandResult> {
+        self.execute_workspace_close_with_group(command, worker, owner_available, now, None)
+    }
+
+    pub(crate) fn execute_workspace_group_member_close(
+        &mut self,
+        command: WorkbenchCommand,
+        worker: Option<WorkerPlacement>,
+        owner_available: bool,
+        now: Instant,
+        token: (&orchbee_workbench_protocol::WorkbenchRequestId, u32, usize),
+    ) -> Option<WorkbenchCommandResult> {
+        self.execute_workspace_close_with_group(command, worker, owner_available, now, Some(token))
+    }
+
+    fn execute_workspace_close_with_group(
+        &mut self,
+        command: WorkbenchCommand,
+        worker: Option<WorkerPlacement>,
+        owner_available: bool,
+        now: Instant,
+        group: Option<(&orchbee_workbench_protocol::WorkbenchRequestId, u32, usize)>,
+    ) -> Option<WorkbenchCommandResult> {
         let Self {
             terminals,
             workbench,
@@ -94,7 +116,18 @@ impl SiteCoordinator {
         let workbench = workbench.as_mut()?;
         let grant =
             WorkbenchGrant::read_only(workbench.site_id().clone()).with_terminal_lifecycle();
-        let admission = match workbench.begin_workspace_close(Some(&grant), command) {
+        let begin = if let Some((operation_id, attempt, index)) = group {
+            workbench.begin_workspace_group_member_close(
+                Some(&grant),
+                command,
+                operation_id,
+                attempt,
+                index,
+            )
+        } else {
+            workbench.begin_workspace_close(Some(&grant), command)
+        };
+        let admission = match begin {
             WorkbenchWorkspaceCloseBegin::Ready(result) => return Some(result),
             WorkbenchWorkspaceCloseBegin::Admitted(admission) => admission,
         };

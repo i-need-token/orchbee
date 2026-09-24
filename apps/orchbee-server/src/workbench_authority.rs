@@ -22,7 +22,10 @@ use crate::workbench_projection::{
 
 mod terminal_membership;
 mod workspace_directory;
+mod workspace_group_close;
+mod worktree_membership;
 mod worktree_operation;
+pub use workspace_group_close::{WorkspaceGroupCloseMemberPlan, WorkspaceGroupClosePlan};
 mod worktree_query;
 pub use terminal_membership::{
     PreparedStandaloneIntent, StandaloneIntentError, StandaloneIntentMetadata,
@@ -126,7 +129,8 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             | WorkbenchRequest::WorkspaceCloseResume(_)
             | WorkbenchRequest::WorktreeListRead(_)
             | WorkbenchRequest::WorktreeOperation(_)
-            | WorkbenchRequest::WorktreeQuery(_)) => Err(request),
+            | WorkbenchRequest::WorktreeQuery(_)
+            | WorkbenchRequest::WorkspaceGroupClose(_)) => Err(request),
         }
     }
 }
@@ -242,6 +246,7 @@ pub struct WorkbenchAuthority {
     catalog_revision: u64,
     retired: bool,
     worktrees: worktree_operation::WorktreeOperations,
+    workspace_groups: workspace_group_close::WorkspaceGroupCloses,
 }
 
 impl WorkbenchAuthority {
@@ -268,6 +273,7 @@ impl WorkbenchAuthority {
             catalog_revision: 0,
             retired: false,
             worktrees: worktree_operation::WorktreeOperations::default(),
+            workspace_groups: workspace_group_close::WorkspaceGroupCloses::default(),
         })
     }
 

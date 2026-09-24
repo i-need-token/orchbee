@@ -609,6 +609,27 @@ impl WorkbenchAuthority {
         grant: Option<&WorkbenchGrant>,
         command: WorkbenchCommand,
     ) -> WorkbenchWorkspaceCloseBegin<'_> {
+        self.begin_workspace_close_with_group(grant, command, None)
+    }
+
+    /// Internal group capability: exact retained member, attempt and admission order are required.
+    pub fn begin_workspace_group_member_close(
+        &mut self,
+        grant: Option<&WorkbenchGrant>,
+        command: WorkbenchCommand,
+        operation_id: &orchbee_workbench_protocol::WorkbenchRequestId,
+        attempt: u32,
+        index: usize,
+    ) -> WorkbenchWorkspaceCloseBegin<'_> {
+        self.begin_workspace_close_with_group(grant, command, Some((operation_id, attempt, index)))
+    }
+
+    fn begin_workspace_close_with_group(
+        &mut self,
+        grant: Option<&WorkbenchGrant>,
+        command: WorkbenchCommand,
+        group: Option<(&orchbee_workbench_protocol::WorkbenchRequestId, u32, usize)>,
+    ) -> WorkbenchWorkspaceCloseBegin<'_> {
         let authorized = matches!(&command.action, WorkbenchAction::WorkspaceClose { .. })
             && grant.is_some_and(|grant| grant.site_id == *self.site_id() && grant.close_terminal);
         if !authorized {
@@ -672,6 +693,28 @@ impl WorkbenchAuthority {
         };
         if let Some(reason) = rejection {
             return WorkbenchWorkspaceCloseBegin::Ready(self.retain_rejection(command, reason));
+        }
+        if let Some((operation_id, attempt, index)) = group {
+            if !self.workspace_group_member_matches(
+                operation_id,
+                attempt,
+                index,
+                &project_id,
+                &workspace_id,
+            ) {
+                return WorkbenchWorkspaceCloseBegin::Ready(result(
+                    &command,
+                    WorkbenchCommandOutcome::Denied {},
+                ));
+            }
+        } else if !self
+            .worktree_group_members(&project_id, &workspace_id)
+            .is_ok_and(|selection| selection.members.len() == 1)
+        {
+            return WorkbenchWorkspaceCloseBegin::Ready(self.retain_rejection(
+                command,
+                WorkbenchRejectionReason::WorkspaceGroupCloseRequired,
+            ));
         }
         let workspace = snapshot
             .navigation

@@ -198,6 +198,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
+    "--group",
     "--branch",
     "--base",
     "--force",
@@ -365,11 +366,26 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         ],
     ),
     ("workspace:rename", &["--label"]),
-    ("workspace:close", &["--confirm"]),
-    ("workspace:close-status", &["--project", "--workspace"]),
+    (
+        "workspace:close",
+        &[
+            "--group",
+            "--confirm",
+            "--request-id",
+            "--detach",
+            "--timeout",
+        ],
+    ),
+    (
+        "workspace:close-status",
+        &["--project", "--workspace", "--group", "--request"],
+    ),
     (
         "workspace:close-resume",
         &[
+            "--group",
+            "--detach",
+            "--timeout",
             "--project",
             "--workspace",
             "--request",
@@ -705,6 +721,7 @@ fn flag_bit(flag: &str) -> &'static str {
         "--base" => "seen_base",
         "--force" => "seen_force",
         "--trust-repository" => "seen_trust_repository",
+        "--group" => "seen_group",
         "--kind" => "seen_kind",
         "--project" => "seen_project",
         "--panel" => "seen_panel",
@@ -774,7 +791,9 @@ fn flag_value(flag: &str) -> Option<&'static str> {
         "--provider" => Some("provider"),
         "--standalone" | "--confirm" | "--new-tab" | "--history" | "--enter" | "--stdin"
         | "--include-ended" | "--unwrap" | "--paste" | "--current" | "--clear" | "--wait"
-        | "--forever" | "--retry" | "--detach" | "--force" | "--trust-repository" => None,
+        | "--forever" | "--retry" | "--detach" | "--force" | "--trust-repository" | "--group" => {
+            None
+        }
         _ => Some("filter"),
     }
 }
@@ -1030,7 +1049,7 @@ fn after_flag_cases_bash() -> String {
         .iter()
         .map(|flag| {
             let patterns = flag_admission_patterns(flag, "|", false);
-            match *flag {
+            let mut arm = match *flag {
                 "--project" | "--directory" => format!("                            {patterns}) if [[ $family:$sub == worktree:list ]] && ((seen_workspace || seen_cwd || seen_trust_repository)); then done=1; fi ;;"),
                 "--trust-repository" => format!("                            {patterns}) if [[ $family:$sub == worktree:list ]] && ((seen_project || seen_directory)); then done=1; fi ;;"),
                 "--cwd" => format!("                            {patterns}) if [[ $family == worktree && $seen_workspace == 1 ]] || {{ [[ $family:$sub == worktree:list ]] && ((seen_project || seen_directory)); }}; then done=1; fi ;;"),
@@ -1082,7 +1101,18 @@ fn after_flag_cases_bash() -> String {
                     format!("                            {patterns}) ((seen_profile)) && done=1 ;;")
                 }
                 _ => format!("                            {patterns}) ;;"),
+            };
+            arm.truncate(arm.len() - " ;;".len());
+            if arm.ends_with(')') { arm.push_str(" :"); }
+            for command in ["workspace:close-status", "workspace:close-resume"] {
+                let conflicts = group_close_conflicts(command, flag);
+                if !conflicts.is_empty() {
+                    let bits = conflicts.iter().map(|flag| flag_bit(flag)).collect::<Vec<_>>().join(" || ");
+                    arm.push_str(&format!("; if [[ $family:$sub == {command} ]] && (({bits})); then done=1; fi"));
+                }
             }
+            arm.push_str(" ;;");
+            arm
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -1106,6 +1136,11 @@ fn scope_cases_bash() -> String {
                 // `--profile`/explicit-launch pair is exclusive on the two
                 // profile-selecting commands.
                 let mut exclusive = String::new();
+                for flag in command_flags(&command) {
+                    for conflict in group_close_conflicts(&command, flag) {
+                        exclusive.push_str(&format!("(({} && {})) && done=1\n                                        ", flag_bit(flag), flag_bit(conflict)));
+                    }
+                }
                 if matches!(command.as_str(), "panel:current" | "panel:process-info") {
                     exclusive.push_str("((seen_panel && seen_current)) && done=1\n                                        ");
                 }
@@ -1146,7 +1181,11 @@ fn verb_cases_bash() -> String {
                 .map(|(index, verb)| {
                     let command = format!("{family}:{verb}");
                     let allowed = command_flags(&command).join(" ");
-                    let guard = if command == "worktree:list" {
+                    let guard = if command == "workspace:close-status" {
+                        " && ((!seen_project && !seen_workspace || !seen_group && !seen_request))"
+                    } else if command == "workspace:close-resume" {
+                        " && ((!seen_project && !seen_workspace || !seen_group && !seen_detach && !seen_timeout))"
+                    } else if command == "worktree:list" {
                         " && ((!seen_workspace || !seen_cwd)) && ((!seen_project && !seen_directory || !seen_workspace && !seen_cwd && !seen_trust_repository))"
                     } else if command == "worktree:open" {
                         " && ((!seen_workspace || !seen_cwd)) && ((!seen_path || !seen_branch))"
@@ -1278,6 +1317,8 @@ fn extras_cases_bash() -> String {
                         "--provider" | "--asset-root" | "--until" => "0".to_owned(),
                         _ => flag_bit(flag).to_owned(),
                     };
+                    let conflicts = group_close_conflicts(command, flag).iter().map(|flag| flag_bit(flag)).collect::<Vec<_>>();
+                    let cond = if conflicts.is_empty() { cond } else { format!("{cond} || {}", conflicts.join(" || ")) };
                     if *command == "panel:process-info" && matches!(*flag, "--panel" | "--current") {
                         format!("                [[ $state != operand ]] && (( !({cond}) )) && extras=\"$extras {flag}\"")
                     } else { format!("                (({cond})) || extras=\"$extras {flag}\"") }
@@ -2170,7 +2211,7 @@ fn after_flag_cases_fish() -> String {
         .iter()
         .map(|flag| {
             let patterns = flag_admission_patterns(flag, " ", true);
-            match *flag {
+            let mut arm = match *flag {
                 "--project" | "--directory" => format!("                            case {patterns}; if test \"$family:$sub\" = worktree:list; and test $seen_workspace -eq 1 -o $seen_cwd -eq 1 -o $seen_trust_repository -eq 1; set done 1; end"),
                 "--trust-repository" => format!("                            case {patterns}; if test \"$family:$sub\" = worktree:list; and test $seen_project -eq 1 -o $seen_directory -eq 1; set done 1; end"),
                 "--cwd" => format!("                            case {patterns}; if test $family = worktree; and test $seen_workspace -eq 1; set done 1; end; if test \"$family:$sub\" = worktree:list; and test $seen_project -eq 1 -o $seen_directory -eq 1; set done 1; end"),
@@ -2206,7 +2247,15 @@ fn after_flag_cases_fish() -> String {
                     format!("                            case {patterns}; if test $seen_profile -eq 1; set done 1; end")
                 }
                 _ => format!("                            case {patterns}"),
+            };
+            for command in ["workspace:close-status", "workspace:close-resume"] {
+                let conflicts = group_close_conflicts(command, flag);
+                if !conflicts.is_empty() {
+                    let bits = conflicts.iter().map(|flag| format!("${} -eq 1", flag_bit(flag))).collect::<Vec<_>>().join(" -o ");
+                    arm.push_str(&format!("; if test \"$family:$sub\" = {command}; and test {bits}; set done 1; end"));
+                }
             }
+            arm
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -2221,7 +2270,11 @@ fn scope_cases_fish() -> String {
             verbs.iter().map(move |verb| {
                 let command = format!("{family}:{verb}");
                 let allowed = command_flags(&command).join(" ");
-                let exclusive = if *family == "worktree" {
+                let exclusive = if command == "workspace:close-status" {
+                    "\n                                        if test $seen_project -eq 1 -o $seen_workspace -eq 1; and test $seen_group -eq 1 -o $seen_request -eq 1; set done 1; end".to_owned()
+                } else if command == "workspace:close-resume" {
+                    "\n                                        if test $seen_project -eq 1 -o $seen_workspace -eq 1; and test $seen_group -eq 1 -o $seen_detach -eq 1 -o $seen_timeout -eq 1; set done 1; end".to_owned()
+                } else if *family == "worktree" {
                     let mut guard = "\n                                        if test $seen_workspace -eq 1 -a $seen_cwd -eq 1; set done 1; end".to_owned();
                     if command == "worktree:list" { guard.push_str("\n                                        if test $seen_project -eq 1 -o $seen_directory -eq 1; and test $seen_workspace -eq 1 -o $seen_cwd -eq 1 -o $seen_trust_repository -eq 1; set done 1; end"); }
                     if command == "worktree:open" { guard.push_str("\n                                        if test $seen_path -eq 1 -a $seen_branch -eq 1; set done 1; end"); }
@@ -2262,7 +2315,10 @@ fn verb_cases_fish() -> String {
                     // The exclusive pair must not both be seen for a tab verb
                     // to remain viable; `send` dies once `--key` stands next
                     // to a text payload bit.
-                    if *family == "worktree" {
+                    if command == "workspace:close-status" || command == "workspace:close-resume" {
+                        let group_clear = if command == "workspace:close-status" { "$seen_group -eq 0 -a $seen_request -eq 0" } else { "$seen_group -eq 0 -a $seen_detach -eq 0 -a $seen_timeout -eq 0" };
+                        format!("                if __orchbee_admit '{allowed}' $seen_flags; and begin; test $seen_project -eq 0 -a $seen_workspace -eq 0; or test {group_clear}; end; set -a verbs {verb}; end")
+                    } else if *family == "worktree" {
                         let selector = if command == "worktree:list" { "if begin; test $seen_project -eq 0 -a $seen_directory -eq 0; or test $seen_workspace -eq 0 -a $seen_cwd -eq 0 -a $seen_trust_repository -eq 0; end; " } else if command == "worktree:open" { "if test $seen_path -eq 0 -o $seen_branch -eq 0; " } else { "" };
                         let close = if matches!(command.as_str(), "worktree:open" | "worktree:list") { " end;" } else { "" };
                         format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test $seen_workspace -eq 0 -o $seen_cwd -eq 0; {selector}set -a verbs {verb};{close} end\n                end")
@@ -2381,6 +2437,8 @@ fn extras_cases_fish() -> String {
                         "--provider" | "--asset-root" | "--until" => "0 -eq 0".to_owned(),
                         _ => format!("${} -eq 0", flag_bit(flag)),
                     };
+                    let conflicts = group_close_conflicts(command, flag).iter().map(|flag| format!("${} -eq 0", flag_bit(flag))).collect::<Vec<_>>();
+                    let cond = if conflicts.is_empty() { cond } else { format!("{cond} -a {}", conflicts.join(" -a ")) };
                     if *command == "panel:process-info" && matches!(*flag, "--panel" | "--current") {
                         format!("                if test $state != operand; and test {cond}; set -a candidates {flag}; end")
                     } else { format!("                if test {cond}; set -a candidates {flag}; end") }
@@ -2834,6 +2892,21 @@ fn fish() -> String {
             .join("\n"),
         help_level3_cases = help_level3_cases_fish(),
     )
+}
+
+/// Alternative retained group selectors cannot be mixed with ordinary scope IDs.
+fn group_close_conflicts(command: &str, flag: &str) -> &'static [&'static str] {
+    match (command, flag) {
+        ("workspace:close-status", "--group" | "--request")
+        | ("workspace:close-resume", "--group" | "--detach" | "--timeout") => {
+            &["--project", "--workspace"]
+        }
+        ("workspace:close-status", "--project" | "--workspace") => &["--group", "--request"],
+        ("workspace:close-resume", "--project" | "--workspace") => {
+            &["--group", "--detach", "--timeout"]
+        }
+        _ => &[],
+    }
 }
 
 #[cfg(test)]

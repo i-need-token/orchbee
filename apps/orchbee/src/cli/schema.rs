@@ -32,6 +32,10 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.workspace.group-close",
+        include_str!("schemas/orchbee.workspace.group-close.json"),
+    ),
+    (
         "orchbee.worktree.operation",
         include_str!("schemas/orchbee.worktree.operation.json"),
     ),
@@ -319,9 +323,9 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog envelope v20: registering new schema ids changes the closed
+        // Catalog envelope v22: registering new schema ids changes the closed
         // dictionary's shape; business document versions stay untouched.
-        "version": 21,
+        "version": 22,
         "source": embedded_source(),
         "result": result,
     });

@@ -397,6 +397,7 @@
 				"revision-mismatch",
 				"project-unavailable",
 				"workspace-unavailable",
+				"workspace-group-close-required",
 				"workspace-directory-unavailable",
 				"workspace-directory-conflict",
 				"terminal-context-unavailable",

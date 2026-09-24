@@ -39,6 +39,9 @@ struct Fixture {
 }
 impl Fixture {
     fn new() -> Self {
+        Self::with_close_owner(true)
+    }
+    fn with_close_owner(start_owner: bool) -> Self {
         let service = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
             WorkerRegistry::new(),
         ))));
@@ -99,7 +102,9 @@ impl Fixture {
             result.outcome,
             WorkbenchCommandOutcome::WorkspacePrimaryDirectoryAccepted { .. }
         ));
-        service.start_close_maintenance().unwrap();
+        if start_owner {
+            service.start_close_maintenance().unwrap();
+        }
         Self {
             service,
             peer,
@@ -190,6 +195,9 @@ impl Fixture {
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
+        let _groups = self
+            .service
+            .stop_workspace_groups_before(Instant::now() + Duration::from_secs(10));
         let _stopped = self
             .service
             .stop_worktrees_before(Instant::now() + Duration::from_secs(10));
@@ -284,6 +292,10 @@ fn detached_open_reuses_and_renames_workspace_without_terminal_launch_or_locks_a
     fixture.reply(
         &poll,
         WorktreeMutationOutcome::Poll(WorktreeMutationPollOutcome::Completed(checkout(false))),
+    );
+    let opened = fixture.finish_job(checkout(false));
+    assert!(
+        matches!(opened.action, WorktreeMutationJobAction::Start(intent) if matches!(intent.mutation(), WorktreeMutation::Open(_)))
     );
     assert!(
         matches!(fixture.settled(), Status::Opened { workspace_id, reused: true, terminal_outcome: None, .. } if workspace_id == fixture.workspace)
@@ -415,4 +427,342 @@ fn site_stop_joins_the_retained_submitter_after_cancelling_its_job() {
         }
     ));
     assert!(!fixture.service.worktree_maintenance.available());
+}
+
+#[test]
+fn observed_source_open_then_group_close_retains_tombstones_without_git_deletion() {
+    use orchbee_workbench_protocol::{
+        WorkbenchWorkspaceGroupCloseRequest, WorkspaceGroupCloseAction as GroupAction,
+        WorkspaceGroupCloseOutcome as GroupOutcome, WorkspaceGroupCloseStatus as GroupStatus,
+    };
+    let mut fixture = Fixture::new();
+    let WorkbenchCommandOutcome::WorkspaceCreated {
+        workspace_id: main, ..
+    } = navigation(
+        &fixture.service,
+        50,
+        WorkbenchAction::WorkspaceCreate {
+            project_id: fixture.project.clone(),
+            label: WorkbenchLabel::parse("Main source").unwrap(),
+        },
+    )
+    else {
+        panic!("main");
+    };
+    let head = snapshot(&fixture.service);
+    let result = fixture
+        .service
+        .coordinator
+        .lock()
+        .unwrap()
+        .accept_workspace_directory(
+            WorkbenchCommand {
+                protocol_version: ProtocolVersion,
+                request_id: id(51),
+                site_id: head.site_id.clone(),
+                expected_revision: head.revision,
+                action: WorkbenchAction::WorkspacePrimaryDirectoryAccept {
+                    project_id: fixture.project.clone(),
+                    workspace_id: main.clone(),
+                    path: WorkbenchDirectoryPath::parse("C:/repo/subdir").unwrap(),
+                },
+            },
+            WorkerId::parse(&"09".repeat(16)).unwrap(),
+        );
+    assert!(matches!(
+        result.outcome,
+        WorkbenchCommandOutcome::WorkspacePrimaryDirectoryAccepted { .. }
+    ));
+    fixture.start(WorktreeIntent::Open {
+        source: WorktreeSource::Workspace {
+            workspace_id: main.clone(),
+        },
+        selector: WorktreeSelector::Path {
+            path: WorkbenchDirectoryPath::parse("C:/w").unwrap(),
+        },
+        label: None,
+        geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+        trust_repository: false,
+    });
+    let inspection = fixture.finish_job(Completion::Checkout(
+        WorktreeCheckout::new(
+            AbsoluteCwd::new("C:/repo").unwrap(),
+            AbsoluteCwd::new("C:/repo/.git").unwrap(),
+            AbsoluteCwd::new("C:/repo").unwrap(),
+            Some(GitReference::new("main").unwrap()),
+            false,
+        )
+        .unwrap(),
+    ));
+    assert!(
+        matches!(inspection.action, WorktreeMutationJobAction::Start(intent) if matches!(intent.mutation(), WorktreeMutation::InspectSource))
+    );
+    fixture.finish_job(checkout(false));
+    assert!(matches!(
+        fixture.settled(),
+        Status::Opened { reused: true, .. }
+    ));
+    let read = || WorkbenchWorkspaceGroupCloseRequest {
+        protocol_version: ProtocolVersion,
+        request_id: id(81),
+        site_id: head.site_id.clone(),
+        action: GroupAction::Read {
+            operation_id: id(80),
+        },
+    };
+    assert_eq!(
+        fixture
+            .service
+            .execute_workspace_group_close(read())
+            .outcome,
+        GroupOutcome::NotFound {}
+    );
+    assert!(
+        !fixture.service.group_close_maintenance.available(),
+        "read must not start a submitter"
+    );
+    let start = WorkbenchWorkspaceGroupCloseRequest {
+        protocol_version: ProtocolVersion,
+        request_id: id(82),
+        site_id: head.site_id.clone(),
+        action: GroupAction::Start {
+            operation_id: id(80),
+            project_id: fixture.project.clone(),
+            workspace_id: main.clone(),
+        },
+    };
+    assert!(matches!(
+        fixture
+            .service
+            .execute_workspace_group_close(start.clone())
+            .outcome,
+        GroupOutcome::Available { .. }
+    ));
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let closed = loop {
+        let result = fixture
+            .service
+            .execute_workspace_group_close(read())
+            .outcome;
+        if !matches!(
+            result,
+            GroupOutcome::Available {
+                status: GroupStatus::Pending {},
+                ..
+            }
+        ) {
+            break result;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "group continuation did not settle"
+        );
+        thread::sleep(Duration::from_millis(10));
+    };
+    let GroupOutcome::Available {
+        status: GroupStatus::Closed {},
+        members,
+        ..
+    } = &closed
+    else {
+        panic!("closed: {closed:?}");
+    };
+    assert_eq!(
+        members
+            .iter()
+            .map(|member| &member.workspace_id)
+            .collect::<Vec<_>>(),
+        vec![&fixture.workspace, &main]
+    );
+    assert!(
+        members
+            .iter()
+            .all(|member| member.close.as_ref().unwrap().is_closed())
+    );
+    assert!(
+        snapshot(&fixture.service).navigation.projects[0]
+            .workspaces
+            .is_empty()
+    );
+    assert_eq!(
+        fixture.service.execute_workspace_group_close(start).outcome,
+        closed
+    );
+    fixture
+        .service
+        .stop_workspace_groups_before(deadline)
+        .unwrap();
+    assert!(!fixture.service.group_close_maintenance.available());
+    assert_eq!(
+        fixture
+            .service
+            .execute_workspace_group_close(read())
+            .outcome,
+        closed
+    );
+    fixture
+        .peer
+        .set_read_timeout(Some(Duration::from_millis(50)))
+        .unwrap();
+    assert!(
+        read_message(&mut fixture.peer).is_err(),
+        "group Close must not submit Git deletion"
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn group_owner_resumes_admission_failure_but_refuses_stop_or_removed_source() {
+    use orchbee_workbench_protocol::{
+        WorkbenchWorkspaceGroupCloseRequest, WorkspaceGroupCloseAction as GroupAction,
+        WorkspaceGroupCloseFailure as GroupFailure, WorkspaceGroupCloseOutcome as GroupOutcome,
+        WorkspaceGroupCloseStatus as GroupStatus,
+    };
+    use std::sync::atomic::AtomicBool;
+    fn apply(fixture: &Fixture, action: GroupAction) -> GroupOutcome {
+        let head = snapshot(&fixture.service);
+        let workers = fixture.service.workers.lock().unwrap();
+        let handle = workers.request_handle().unwrap();
+        let mut coordinator = fixture.service.coordinator.lock().unwrap();
+        let authority = coordinator.worktree_authority().unwrap();
+        let grant = orchbee_server::WorkbenchGrant::read_only(head.site_id.clone())
+            .with_terminal_lifecycle();
+        authority
+            .execute_workspace_group_close(
+                Some(&grant),
+                WorkbenchWorkspaceGroupCloseRequest {
+                    protocol_version: ProtocolVersion,
+                    request_id: id(91),
+                    site_id: head.site_id,
+                    action,
+                },
+                Some((
+                    WorkerId::parse(&"09".repeat(16)).unwrap(),
+                    handle.generation(),
+                )),
+                true,
+            )
+            .outcome
+    }
+    for scenario in 0..3 {
+        let stopping = scenario == 1;
+        let removed = scenario == 2;
+        let mut fixture = Fixture::with_close_owner(removed);
+        assert!(matches!(
+            apply(
+                &fixture,
+                GroupAction::Start {
+                    operation_id: id(90),
+                    project_id: fixture.project.clone(),
+                    workspace_id: fixture.workspace.clone()
+                }
+            ),
+            GroupOutcome::Available { .. }
+        ));
+        if removed {
+            let head = snapshot(&fixture.service);
+            let response = fixture
+                .service
+                .execute_workspace_close(WorkbenchCommand {
+                    protocol_version: ProtocolVersion,
+                    request_id: id(92),
+                    site_id: head.site_id,
+                    expected_revision: head.revision,
+                    action: WorkbenchAction::WorkspaceClose {
+                        project_id: fixture.project.clone(),
+                        workspace_id: fixture.workspace.clone(),
+                    },
+                })
+                .unwrap();
+            assert!(matches!(
+                response.outcome,
+                WorkbenchCommandOutcome::WorkspaceCloseAccepted { .. }
+            ));
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while !snapshot(&fixture.service).navigation.projects[0]
+                .workspaces
+                .is_empty()
+            {
+                assert!(Instant::now() < deadline, "external Close must settle");
+                thread::sleep(Duration::from_millis(10));
+            }
+        }
+        fixture
+            .service
+            .workspace_group_close_turn(&AtomicBool::new(stopping));
+        let failed = apply(
+            &fixture,
+            GroupAction::Read {
+                operation_id: id(90),
+            },
+        );
+        let GroupOutcome::Available {
+            status: GroupStatus::Failed { reason, resumable },
+            members,
+            ..
+        } = failed
+        else {
+            panic!("failure");
+        };
+        assert_eq!(
+            reason,
+            if stopping {
+                GroupFailure::SiteStopping
+            } else if removed {
+                GroupFailure::SourceChanged
+            } else {
+                GroupFailure::ChildAdmission
+            }
+        );
+        assert_eq!(resumable, scenario == 0);
+        assert!(members.iter().all(|member| member.close.is_none()));
+        assert_eq!(
+            snapshot(&fixture.service).navigation.projects[0]
+                .workspaces
+                .len(),
+            usize::from(!removed)
+        );
+        if scenario == 0 {
+            fixture.service.start_close_maintenance().unwrap();
+            assert!(matches!(
+                apply(
+                    &fixture,
+                    GroupAction::Resume {
+                        operation_id: id(90),
+                        expected_attempt: 1
+                    }
+                ),
+                GroupOutcome::Available { attempt: 2, .. }
+            ));
+            fixture
+                .service
+                .workspace_group_close_turn(&AtomicBool::new(false));
+            assert!(matches!(
+                apply(
+                    &fixture,
+                    GroupAction::Read {
+                        operation_id: id(90)
+                    }
+                ),
+                GroupOutcome::Available {
+                    attempt: 2,
+                    status: GroupStatus::Closed {},
+                    ..
+                }
+            ));
+            assert!(
+                snapshot(&fixture.service).navigation.projects[0]
+                    .workspaces
+                    .is_empty()
+            );
+        }
+        fixture
+            .peer
+            .set_read_timeout(Some(Duration::from_millis(50)))
+            .unwrap();
+        assert!(
+            read_message(&mut fixture.peer).is_err(),
+            "empty Workspace closure cannot issue Git or terminal effects"
+        );
+    }
 }

@@ -1,4 +1,9 @@
 import {
+	WorkbenchWorkspaceGroupCloseRequestSchema,
+	WorkbenchWorkspaceGroupCloseResultSchema,
+	WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES,
+} from './workbench-workspace-group-close-contract';
+import {
 	WorkbenchWorktreeQuerySchema,
 	WorkbenchWorktreeQueryResultSchema,
 	WORKBENCH_MAXIMUM_ENCODED_WORKTREE_QUERY_RESULT_BYTES,
@@ -220,6 +225,7 @@ export const WorkbenchRequestSchema = z
 		WorkbenchWorkspaceCloseResumeSchema,
 		WorkbenchWorktreeRequestSchema,
 		WorkbenchWorktreeQuerySchema,
+		WorkbenchWorkspaceGroupCloseRequestSchema,
 	])
 	.refine(
 		(value) =>
@@ -235,6 +241,7 @@ export const WorkbenchRejectionReasonSchema = z.enum([
 	'revision-mismatch',
 	'project-unavailable',
 	'workspace-unavailable',
+	'workspace-group-close-required',
 	'workspace-directory-unavailable',
 	'workspace-directory-conflict',
 	'terminal-context-unavailable',
@@ -494,6 +501,7 @@ export const WorkbenchResponseSchema = z
 		WorkbenchWorkspaceCloseResumeResultSchema,
 		WorkbenchWorktreeResultSchema,
 		WorkbenchWorktreeQueryResultSchema,
+		WorkbenchWorkspaceGroupCloseResultSchema,
 	])
 	.superRefine((value, context) => {
 		let maximum = WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES;
@@ -502,6 +510,8 @@ export const WorkbenchResponseSchema = z
 			value.kind === 'workbench.publication.result'
 		) {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES;
+		} else if (value.kind === 'workbench.workspace-group-close.result') {
+			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES;
 		} else if (value.kind === 'workbench.worktree.query.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKTREE_QUERY_RESULT_BYTES;
 		} else if (value.kind === 'workbench.worktree.operation.result') {

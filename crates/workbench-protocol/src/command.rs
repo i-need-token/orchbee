@@ -1,3 +1,11 @@
+mod workspace_group_close;
+pub use workspace_group_close::{
+    MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES, MAXIMUM_WORKSPACE_GROUP_CLOSE_ATTEMPTS,
+    MAXIMUM_WORKSPACE_GROUP_CLOSE_MEMBERS, WorkbenchWorkspaceGroupCloseRequest,
+    WorkbenchWorkspaceGroupCloseResult, WorkspaceGroupCloseAction, WorkspaceGroupCloseChild,
+    WorkspaceGroupCloseFailure, WorkspaceGroupCloseMember, WorkspaceGroupCloseObservation,
+    WorkspaceGroupCloseOutcome, WorkspaceGroupCloseStatus, WorkspaceGroupCloseUnavailable,
+};
 mod json_fields;
 mod worktree_query;
 pub use worktree_query::{
@@ -557,6 +565,8 @@ pub struct WorkbenchCommand {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchRequest {
+    #[serde(rename = "workbench.workspace-group-close")]
+    WorkspaceGroupClose(WorkbenchWorkspaceGroupCloseRequest),
     #[serde(rename = "workbench.worktree.query")]
     WorktreeQuery(WorkbenchWorktreeQuery),
     #[serde(rename = "workbench.worktree.operation")]
@@ -588,6 +598,7 @@ pub enum WorkbenchRejectionReason {
     RevisionMismatch,
     ProjectUnavailable,
     WorkspaceUnavailable,
+    WorkspaceGroupCloseRequired,
     WorkspaceDirectoryUnavailable,
     WorkspaceDirectoryConflict,
     TerminalContextUnavailable,
@@ -860,6 +871,8 @@ pub struct WorkbenchSnapshotResult {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchResponse {
+    #[serde(rename = "workbench.workspace-group-close.result")]
+    WorkspaceGroupClose(WorkbenchWorkspaceGroupCloseResult),
     #[serde(rename = "workbench.worktree.query.result")]
     WorktreeQuery(WorkbenchWorktreeQueryResult),
     #[serde(rename = "workbench.worktree.operation.result")]
@@ -897,6 +910,9 @@ pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, Contr
 /// explicit `launch` and a `profile` selector are mutually exclusive on the
 /// terminal-launch actions.
 fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
+    if let WorkbenchRequest::WorkspaceGroupClose(request) = request {
+        return request.validate();
+    }
     if let WorkbenchRequest::WorktreeOperation(request) = request {
         return request.validate();
     }
@@ -970,6 +986,10 @@ pub fn serialize_workbench_response(
 
 fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(), ContractError> {
     match response {
+        WorkbenchResponse::WorkspaceGroupClose(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES)?;
+            result.validate()
+        }
         WorkbenchResponse::WorktreeQuery(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKTREE_QUERY_RESULT_BYTES)?;
             result.validate()

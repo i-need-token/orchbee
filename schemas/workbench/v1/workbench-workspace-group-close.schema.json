@@ -1,0 +1,328 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "urn:orchbee:schema:workbench-workspace-group-close:v1",
+	"$comment": "Bindings additionally enforce request16KiB/result512KiB, unique identities, source-last/child-prefix ordering, truthful Closed and explicit recovery eligibility. Existing Close owns child observations.",
+	"oneOf": [
+		{
+			"$ref": "#/$defs/request"
+		},
+		{
+			"$ref": "#/$defs/result"
+		}
+	],
+	"$defs": {
+		"requestId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+		},
+		"projectId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/projectId"
+		},
+		"workspaceId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
+		},
+		"siteId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+		},
+		"label": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+		},
+		"attempt": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 64
+		},
+		"action": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "start"
+						},
+						"operationId": {
+							"$ref": "#/$defs/requestId"
+						},
+						"projectId": {
+							"$ref": "#/$defs/projectId"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/workspaceId"
+						}
+					},
+					"required": ["kind", "operationId", "projectId", "workspaceId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "read"
+						},
+						"operationId": {
+							"$ref": "#/$defs/requestId"
+						}
+					},
+					"required": ["kind", "operationId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "resume"
+						},
+						"operationId": {
+							"$ref": "#/$defs/requestId"
+						},
+						"expectedAttempt": {
+							"$ref": "#/$defs/attempt"
+						}
+					},
+					"required": ["kind", "operationId", "expectedAttempt"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"request": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "workbench.workspace-group-close"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"siteId": {
+					"$ref": "#/$defs/siteId"
+				},
+				"action": {
+					"$ref": "#/$defs/action"
+				}
+			},
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"],
+			"additionalProperties": false
+		},
+		"observation": {
+			"type": "object",
+			"properties": {
+				"attemptGeneration": {
+					"$ref": "urn:orchbee:schema:workbench-command:v1#/$defs/tabCloseAttemptGeneration"
+				},
+				"status": {
+					"$ref": "urn:orchbee:schema:workbench-command:v1#/$defs/tabCloseStatus"
+				}
+			},
+			"required": ["attemptGeneration", "status"],
+			"additionalProperties": false
+		},
+		"child": {
+			"type": "object",
+			"properties": {
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"observation": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/observation"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["requestId", "observation"],
+			"additionalProperties": false
+		},
+		"member": {
+			"type": "object",
+			"properties": {
+				"projectId": {
+					"$ref": "#/$defs/projectId"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"label": {
+					"$ref": "#/$defs/label"
+				},
+				"close": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/child"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["projectId", "workspaceId", "label", "close"],
+			"additionalProperties": false
+		},
+		"status": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "pending"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "closed"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"enum": [
+								"source-changed",
+								"worker-unavailable",
+								"child-admission",
+								"child-blocked",
+								"outcome-unknown",
+								"deadline",
+								"site-stopping",
+								"internal"
+							]
+						},
+						"resumable": {
+							"type": "boolean"
+						}
+					},
+					"required": ["kind", "reason", "resumable"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"outcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "not-found"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "conflict"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "denied"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"enum": [
+								"unsupported",
+								"service-unavailable",
+								"busy",
+								"capacity",
+								"source-unavailable",
+								"ambiguous-membership",
+								"worker-unavailable",
+								"source-changed",
+								"not-resumable",
+								"stale-attempt",
+								"attempt-exhausted"
+							]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "available"
+						},
+						"projectId": {
+							"$ref": "#/$defs/projectId"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/workspaceId"
+						},
+						"attempt": {
+							"$ref": "#/$defs/attempt"
+						},
+						"status": {
+							"$ref": "#/$defs/status"
+						},
+						"members": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 128,
+							"items": {
+								"$ref": "#/$defs/member"
+							}
+						}
+					},
+					"required": ["kind", "projectId", "workspaceId", "attempt", "status", "members"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"result": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "workbench.workspace-group-close.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"operationId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"outcome": {
+					"$ref": "#/$defs/outcome"
+				}
+			},
+			"required": ["kind", "protocolVersion", "requestId", "operationId", "outcome"],
+			"additionalProperties": false
+		}
+	}
+}

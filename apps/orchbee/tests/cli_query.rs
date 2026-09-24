@@ -6168,11 +6168,11 @@ fn api_schema_catalog_is_v20_closed_and_self_consistent() -> TestResult {
     assert_eq!(output.status.code(), Some(0));
     let listed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(listed["schema"], "orchbee.api.schema");
-    assert_eq!(listed["version"], 21, "catalog envelope is v21");
+    assert_eq!(listed["version"], 22, "catalog envelope is v22");
     assert_eq!(listed["source"]["kind"], "embedded");
     assert!(api_schema.is_valid(&listed), "listing self-validates");
     let schemas = listed["result"]["schemas"].as_object().unwrap();
-    assert_eq!(schemas.len(), 56, "closed dictionary has 56 members");
+    assert_eq!(schemas.len(), 57, "closed dictionary has 57 members");
     assert!(
         schemas.contains_key("orchbee.project.rename"),
         "the rename receipt schema is registered"
@@ -6248,12 +6248,15 @@ fn api_schema_catalog_is_v20_closed_and_self_consistent() -> TestResult {
         serde_json::json!(16),
         serde_json::json!(17),
         serde_json::json!(18),
+        serde_json::json!(19),
+        serde_json::json!(20),
+        serde_json::json!(21),
     ] {
         let mut stale = listed.clone();
         stale["version"] = stale_version.clone();
         assert!(
             !api_schema.is_valid(&stale),
-            "stale catalog {stale_version} fails under v21"
+            "stale catalog {stale_version} fails under v22"
         );
     }
 

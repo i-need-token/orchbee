@@ -564,3 +564,7 @@ Host/平台失败恢复、改变 epoch 后接管、远程操作、打包及普�
 `WorkbenchTabCloseMemberRuntime` 携带精确 runtime observation 或精确的 `Uncreated` 产品 binding。每个捕获成员仍保留在有序 Close record 与 reservation 计量中。Uncreated 成员没有 runtime identity，直接进入 publication；它不发送 lifecycle 命令，也不进行 controller cleanup，因为从未有成功 identity 可用于准入 Viewer/controller。此处 `disposed-awaiting-publication` 表示已证明的不存在，不声称收到 Host Dispose acknowledgment。混合 scope 仍须在任何准入效果前解析全部 runtime 成员。maintenance owner 仍为必需，但全部为 Uncreated 的 scope 无需连接 Worker。
 
 Creating/Starting 仍为 busy。Unknown、保留 identity 的 unavailable、缺失或重复 binding、矛盾的 accepted Create facts 仍为 unavailable。既有 membership fence、request replay、publication revision、失败停驻与显式 resume 规则保持适用。Publication 重新验证完整有序 scope，包括 Uncreated 成员。测试覆盖真实 failed-Create settlement、无 Worker 移除、混合 scope 与 unknown-outcome 拒绝。
+
+## Workspace 组接纳
+
+普通 Workspace Close 对有关联组成员的已知主 checkout Workspace 返回 `workspace-group-close-required`，沿用相同的拒绝/重放规则。独立的[组 owner](../../orchbee/docs/windows-worktrees.zh-CN.md#workspace-组关闭) 冻结作用域，再将各子操作交给此生命周期。内部接纳令牌必须匹配保留操作、已领取的尝试、精确规范成员和前序已关闭成员前缀；线上 action 不包含绕过标志。子 Close 仍独自负责终端处置、代次围栏恢复及规范移除。组聚合读取携带精简子操作观测，现有 Workspace Close 读取继续保留完整终端成员。

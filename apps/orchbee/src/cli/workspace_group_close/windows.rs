@@ -1,0 +1,280 @@
+use super::{Answer, Observation, Wait, emit};
+use crate::{
+    cli::{
+        Failure, FailureKind, Output, failure_output, query,
+        source::{ArmedSignals, Finish, SignalWatch},
+    },
+    invocation::{OutputFormat, WorkspaceGroupCloseCommand},
+    localization::Locale,
+};
+use orchbee_workbench_protocol::{
+    SiteId, WorkbenchRequestId, WorkbenchWorkspaceGroupCloseRequest, WorkspaceGroupCloseAction,
+};
+use std::{
+    thread,
+    time::{Duration, Instant},
+};
+
+pub(super) fn run(
+    command: &WorkspaceGroupCloseCommand,
+    operation_id: WorkbenchRequestId,
+    format: OutputFormat,
+    locale: Locale,
+) -> Output {
+    let mut signals = match ArmedSignals::arm_interrupts() {
+        Ok(signals) => signals,
+        Err(_) => {
+            return failure_output(
+                Failure::new(FailureKind::InternalFailure),
+                Some(format),
+                locale,
+            );
+        }
+    };
+    let mut answer = Answer {
+        operation_id,
+        observation: Observation::Unavailable {
+            reason: "not-submitted",
+        },
+        wait: None,
+    };
+    let mut site_id = None;
+    let result = observe(command, &mut answer, &mut site_id, &mut signals);
+    let mut finalization = None;
+    let result = match signals.finish() {
+        Ok(Finish::Clear) => result,
+        Ok(Finish::Cancelled {
+            finalization: owed, ..
+        }) => {
+            finalization = Some(owed);
+            if result.is_err()
+                || answer.pending()
+                || matches!(
+                    answer.observation,
+                    Observation::Unknown { .. } | Observation::Unavailable { .. }
+                )
+            {
+                answer.wait = Some(Wait::Cancelled);
+            }
+            Ok(())
+        }
+        Err(_) => Err(Failure::new(FailureKind::InternalFailure)),
+    };
+    let result = if result.is_err()
+        && matches!(
+            answer.observation,
+            Observation::Server { .. } | Observation::Unknown { .. }
+        ) {
+        answer.wait = Some(Wait::ObservationFailed);
+        Ok(())
+    } else {
+        result
+    };
+    let mut output = match result {
+        Ok(()) => emit(site_id.as_ref(), answer, format, locale),
+        Err(error) => failure_output(error, Some(format), locale),
+    };
+    output.finalization = finalization;
+    output
+}
+
+fn observe(
+    command: &WorkspaceGroupCloseCommand,
+    answer: &mut Answer,
+    site_id: &mut Option<SiteId>,
+    signals: &mut ArmedSignals,
+) -> Result<(), Failure> {
+    let (detached, timeout, read) = match command {
+        WorkspaceGroupCloseCommand::Start {
+            detach, timeout_ms, ..
+        } => (*detach, *timeout_ms, false),
+        WorkspaceGroupCloseCommand::Resume {
+            detach, timeout_ms, ..
+        } => (*detach, *timeout_ms, false),
+        WorkspaceGroupCloseCommand::Status { .. } => (false, 5_000, true),
+    };
+    let deadline = Instant::now() + Duration::from_millis(u64::from(timeout));
+    if interrupted(answer, signals, deadline)? {
+        return Ok(());
+    }
+    let (mut client, _, snapshot) = query::snapshot_session_until(deadline)?;
+    *site_id = Some(snapshot.site_id.clone());
+    if interrupted(answer, signals, deadline)? {
+        return Ok(());
+    }
+    let action = match command {
+        WorkspaceGroupCloseCommand::Start { target, .. } => {
+            let (project, workspace) = crate::cli::results::resolve_or_fail(
+                snapshot.navigation.projects.iter().flat_map(|project| {
+                    project.workspaces.iter().map(move |workspace| {
+                        (
+                            workspace.workspace_id.as_str(),
+                            workspace.label.as_str(),
+                            (project, workspace),
+                        )
+                    })
+                }),
+                target,
+                crate::invocation::Resource::Workspace,
+            )?;
+            WorkspaceGroupCloseAction::Start {
+                operation_id: answer.operation_id.clone(),
+                project_id: project.project_id.clone(),
+                workspace_id: workspace.workspace_id.clone(),
+            }
+        }
+        WorkspaceGroupCloseCommand::Status { .. } => WorkspaceGroupCloseAction::Read {
+            operation_id: answer.operation_id.clone(),
+        },
+        WorkspaceGroupCloseCommand::Resume {
+            expected_attempt, ..
+        } => WorkspaceGroupCloseAction::Resume {
+            operation_id: answer.operation_id.clone(),
+            expected_attempt: *expected_attempt,
+        },
+    };
+    let request = WorkbenchWorkspaceGroupCloseRequest {
+        protocol_version: snapshot.protocol_version,
+        request_id: query::request_id()?,
+        site_id: snapshot.site_id.clone(),
+        action,
+    };
+    if interrupted(answer, signals, deadline)? {
+        return Ok(());
+    }
+    match client.submit_workspace_group_close(
+        request,
+        deadline.min(Instant::now() + Duration::from_secs(2)),
+        signals.poll_fd(),
+    ) {
+        Ok(reply) => answer.observation = Observation::Server { reply },
+        Err(error) => {
+            answer.observation = if error.submitted && !read {
+                Observation::Unknown {
+                    reason: error.reason,
+                }
+            } else {
+                Observation::Unavailable {
+                    reason: error.reason,
+                }
+            };
+            interrupted(answer, signals, deadline)?;
+            return Ok(());
+        }
+    }
+    if read || !answer.pending() {
+        return Ok(());
+    }
+    if detached {
+        answer.wait = Some(Wait::Detached);
+        return Ok(());
+    }
+    while answer.pending() {
+        if interrupted(answer, signals, deadline)? {
+            return Ok(());
+        }
+        thread::sleep(
+            Duration::from_millis(50).min(deadline.saturating_duration_since(Instant::now())),
+        );
+        if interrupted(answer, signals, deadline)? {
+            return Ok(());
+        }
+        let request = WorkbenchWorkspaceGroupCloseRequest {
+            protocol_version: snapshot.protocol_version,
+            request_id: query::request_id()?,
+            site_id: snapshot.site_id.clone(),
+            action: WorkspaceGroupCloseAction::Read {
+                operation_id: answer.operation_id.clone(),
+            },
+        };
+        match client.submit_workspace_group_close(
+            request,
+            deadline.min(Instant::now() + Duration::from_secs(2)),
+            signals.poll_fd(),
+        ) {
+            Ok(reply) if same_attempt(&answer.observation, &reply) => {
+                answer.observation = Observation::Server { reply }
+            }
+            Ok(_) => {
+                answer.wait = Some(Wait::ObservationFailed);
+                return Ok(());
+            }
+            Err(_) => {
+                if !interrupted(answer, signals, deadline)? {
+                    answer.wait = Some(Wait::TransportLost);
+                }
+                return Ok(());
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn same_attempt(
+    previous: &Observation,
+    next: &orchbee_workbench_protocol::WorkbenchWorkspaceGroupCloseResult,
+) -> bool {
+    use orchbee_workbench_protocol::WorkspaceGroupCloseOutcome as Outcome;
+    let Observation::Server { reply } = previous else {
+        return false;
+    };
+    let (
+        Outcome::Available {
+            project_id: before_project,
+            workspace_id: before_workspace,
+            attempt: before_attempt,
+            members: before_members,
+            ..
+        },
+        Outcome::Available {
+            project_id,
+            workspace_id,
+            attempt,
+            members,
+            ..
+        },
+    ) = (&reply.outcome, &next.outcome)
+    else {
+        return false;
+    };
+    before_project == project_id
+        && before_workspace == workspace_id
+        && before_attempt == attempt
+        && before_members.len() == members.len()
+        && before_members.iter().zip(members).all(|(before, after)| {
+            before.project_id == after.project_id
+                && before.workspace_id == after.workspace_id
+                && before.label == after.label
+                && before.close.as_ref().is_none_or(|child| {
+                    after.close.as_ref().is_some_and(|next| {
+                        child.request_id == next.request_id
+                            && (!child.is_closed() || child == next)
+                            && child.observation.as_ref().is_none_or(|old| {
+                                next.observation.as_ref().is_some_and(|new| {
+                                    new.attempt_generation >= old.attempt_generation
+                                })
+                            })
+                    })
+                })
+        })
+}
+
+fn interrupted(
+    answer: &mut Answer,
+    signals: &mut ArmedSignals,
+    deadline: Instant,
+) -> Result<bool, Failure> {
+    if signals
+        .take()
+        .map_err(|_| Failure::new(FailureKind::InternalFailure))?
+        .is_some()
+    {
+        answer.wait = Some(Wait::Cancelled);
+        Ok(true)
+    } else if Instant::now() >= deadline {
+        answer.wait = Some(Wait::TimedOut);
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}

@@ -205,6 +205,7 @@ fn classify_command_result(
                     | WorkbenchRejectionReason::RevisionMismatch
                     | WorkbenchRejectionReason::ProjectUnavailable
                     | WorkbenchRejectionReason::WorkspaceUnavailable
+                    | WorkbenchRejectionReason::WorkspaceGroupCloseRequired
                     | WorkbenchRejectionReason::ResourceLimit
                     | WorkbenchRejectionReason::RevisionExhausted
                     | WorkbenchRejectionReason::RequestIdentityConflict

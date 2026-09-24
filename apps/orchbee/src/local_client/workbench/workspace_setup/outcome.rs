@@ -151,7 +151,8 @@ fn compatible_rejection(action: &WorkbenchAction, reason: WorkbenchRejectionReas
             action,
             WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
         ),
-        WorkbenchRejectionReason::WorkspaceDirectoryUnavailable
+        WorkbenchRejectionReason::WorkspaceGroupCloseRequired
+        | WorkbenchRejectionReason::WorkspaceDirectoryUnavailable
         | WorkbenchRejectionReason::TerminalContextUnavailable
         | WorkbenchRejectionReason::TabUnavailable
         | WorkbenchRejectionReason::PanelUnavailable

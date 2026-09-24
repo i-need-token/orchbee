@@ -1,3 +1,5 @@
+mod workspace_group_close;
+pub(crate) use workspace_group_close::WorkspaceGroupCloseCommand;
 mod worktree;
 use std::{ffi::OsString, path::PathBuf};
 pub(crate) use worktree::{
@@ -937,6 +939,10 @@ fn stop_id(
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
+    WorkspaceGroupClose {
+        command: WorkspaceGroupCloseCommand,
+        format: OutputFormat,
+    },
     WorktreeQuery {
         command: WorktreeQueryCommand,
         format: OutputFormat,
@@ -1234,6 +1240,7 @@ enum Token {
 
 #[derive(Default)]
 struct Options {
+    group: bool,
     branch: Option<String>,
     base: Option<String>,
     force: bool,
@@ -1653,7 +1660,7 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                 apply_value_flag(&mut options, option, value, envelope)?;
                 index += 1;
             }
-            "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
+            "--group" | "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
             | "--include-ended" | "--new-tab" | "--paste" | "--unwrap" | "--current"
             | "--clear" | "--wait" | "--forever" | "--detach" | "--retry" | "--force"
             | "--trust-repository" => {
@@ -1671,6 +1678,8 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                     (&mut options.prompt_wait, "--wait")
                 } else if token == "--clear" {
                     (&mut options.clear, "--clear")
+                } else if token == "--group" {
+                    (&mut options.group, "--group")
                 } else if token == "--confirm" {
                     (&mut options.confirm, "--confirm")
                 } else if token == "--detach" {
@@ -2503,6 +2512,12 @@ fn resolve_words(
                 },
                 options,
             ))
+        }
+        ["workspace", "close", value] if options.group => {
+            workspace_group_close::start(value, options, envelope)
+        }
+        ["workspace", verb @ ("close-status" | "close-resume")] if options.group => {
+            workspace_group_close::retained(verb, options, envelope)
         }
         ["workspace", "close", value] => {
             check_scope(
@@ -3671,6 +3686,7 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 /// is only meaningful whole.
 #[derive(Clone, Copy)]
 struct Scope {
+    group: bool,
     branch: bool,
     base: bool,
     force: bool,
@@ -3776,6 +3792,7 @@ struct Scope {
 }
 
 const NO_OPTIONS: Scope = Scope {
+    group: false,
     branch: false,
     base: false,
     force: false,
@@ -4051,6 +4068,7 @@ fn business_options(options: &Options) -> bool {
         || options.cell_width.is_some()
         || options.cell_height.is_some()
         || options.confirm
+        || options.group
         || options.target_panel.is_some()
         || options.into_tab.is_some()
         || options.new_tab
@@ -4144,6 +4162,9 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.cell_height.is_some() && !scope.geometry {
         return Some("--cell-height");
+    }
+    if options.group && !scope.group {
+        return Some("--group");
     }
     if options.confirm && !scope.confirm {
         return Some("--confirm");

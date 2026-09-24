@@ -68,6 +68,43 @@ fn real_powershell_completes_scoped_grammar_without_runtime() {
             true,
         ),
         ("orchbee worktree create --branch ", "create", false),
+        ("orchbee workspace close demo --g", "--group", true),
+        ("orchbee workspace close demo --group --d", "--detach", true),
+        (
+            "orchbee workspace close-status --group --r",
+            "--request",
+            true,
+        ),
+        (
+            "orchbee workspace close-status --group --p",
+            "--project",
+            false,
+        ),
+        (
+            "orchbee workspace close-status --project x --g",
+            "--group",
+            false,
+        ),
+        (
+            "orchbee workspace close-status --project x --request y --f",
+            "--format",
+            false,
+        ),
+        (
+            "orchbee workspace close-resume --group --p",
+            "--project",
+            false,
+        ),
+        (
+            "orchbee workspace close-resume --project x --d",
+            "--detach",
+            false,
+        ),
+        (
+            "orchbee workspace close-resume --timeout 1 --w",
+            "--workspace",
+            false,
+        ),
         ("orchbee site st", "stop", true),
         ("orchbee site st", "stop-status", true),
         ("orchbee help site st", "stop-status", true),

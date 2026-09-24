@@ -670,3 +670,7 @@ Snapshot read 不重试。Attachment 后仍须完成现有 controller 与 projec
 ## Windows Worktree 操作
 
 `worktree create/open/remove/status/resume` 使用 Server 保留操作与 Windows Worker Git 执行。[Worktree 契约](docs/windows-worktrees.zh-CN.md) 拥有来源选择、默认值、确认、部分结果与恢复规则。这些命令不激活 Site 或改变 Client 焦点。
+
+## Windows Workspace 组关闭
+
+`workspace close <target> --group --confirm` 关闭捕获的 worktree 组，源工作区最后关闭，不删除 Git checkout。已知主 Workspace 若有关联成员就必须带 `--group`；关联 Workspace 只关闭自身。成员消失后使用 `workspace close-status --group --request <operation-id>`；只有明确可恢复失败才使用 `workspace close-resume --group --request <operation-id> --generation <attempt> --confirm`。组模式支持分离/有界等待，报告每个子 Close 的身份及已观测状态。参见[归属模型](docs/windows-worktrees.zh-CN.md#workspace-组关闭)。`api schema` v22 目录包含 57 份文档，其中 `orchbee.workspace.group-close` 为 v1。

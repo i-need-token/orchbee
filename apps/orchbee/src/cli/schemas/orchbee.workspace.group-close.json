@@ -1,0 +1,477 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.workspace.group-close",
+	"title": "Native Workspace group Close observation",
+	"type": "object",
+	"properties": {
+		"schema": {
+			"const": "orchbee.workspace.group-close"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "local-workspace-group"
+				},
+				"siteId": {
+					"anyOf": [
+						{
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$",
+							"not": {
+								"const": "00000000000000000000000000000000"
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["kind", "siteId"],
+			"additionalProperties": false
+		},
+		"result": {
+			"type": "object",
+			"properties": {
+				"operationId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"observation": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "server"
+								},
+								"reply": {
+									"type": "object",
+									"properties": {
+										"protocolVersion": {
+											"const": 1
+										},
+										"requestId": {
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$",
+											"not": {
+												"const": "00000000000000000000000000000000"
+											}
+										},
+										"operationId": {
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$",
+											"not": {
+												"const": "00000000000000000000000000000000"
+											}
+										},
+										"outcome": {
+											"oneOf": [
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "not-found"
+														}
+													},
+													"required": ["kind"],
+													"additionalProperties": false
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "conflict"
+														}
+													},
+													"required": ["kind"],
+													"additionalProperties": false
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "denied"
+														}
+													},
+													"required": ["kind"],
+													"additionalProperties": false
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "unavailable"
+														},
+														"reason": {
+															"enum": [
+																"unsupported",
+																"service-unavailable",
+																"busy",
+																"capacity",
+																"source-unavailable",
+																"ambiguous-membership",
+																"worker-unavailable",
+																"source-changed",
+																"not-resumable",
+																"stale-attempt",
+																"attempt-exhausted"
+															]
+														}
+													},
+													"required": ["kind", "reason"],
+													"additionalProperties": false
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "available"
+														},
+														"projectId": {
+															"type": "string",
+															"pattern": "^[0-9a-f]{32}$",
+															"not": {
+																"const": "00000000000000000000000000000000"
+															}
+														},
+														"workspaceId": {
+															"type": "string",
+															"pattern": "^[0-9a-f]{32}$",
+															"not": {
+																"const": "00000000000000000000000000000000"
+															}
+														},
+														"attempt": {
+															"type": "integer",
+															"minimum": 1,
+															"maximum": 64
+														},
+														"status": {
+															"oneOf": [
+																{
+																	"type": "object",
+																	"properties": {
+																		"kind": {
+																			"const": "pending"
+																		}
+																	},
+																	"required": ["kind"],
+																	"additionalProperties": false
+																},
+																{
+																	"type": "object",
+																	"properties": {
+																		"kind": {
+																			"const": "closed"
+																		}
+																	},
+																	"required": ["kind"],
+																	"additionalProperties": false
+																},
+																{
+																	"type": "object",
+																	"properties": {
+																		"kind": {
+																			"const": "failed"
+																		},
+																		"reason": {
+																			"enum": [
+																				"source-changed",
+																				"worker-unavailable",
+																				"child-admission",
+																				"child-blocked",
+																				"outcome-unknown",
+																				"deadline",
+																				"site-stopping",
+																				"internal"
+																			]
+																		},
+																		"resumable": {
+																			"type": "boolean"
+																		}
+																	},
+																	"required": ["kind", "reason", "resumable"],
+																	"additionalProperties": false
+																}
+															]
+														},
+														"members": {
+															"type": "array",
+															"minItems": 1,
+															"maxItems": 128,
+															"items": {
+																"type": "object",
+																"properties": {
+																	"projectId": {
+																		"type": "string",
+																		"pattern": "^[0-9a-f]{32}$",
+																		"not": {
+																			"const": "00000000000000000000000000000000"
+																		}
+																	},
+																	"workspaceId": {
+																		"type": "string",
+																		"pattern": "^[0-9a-f]{32}$",
+																		"not": {
+																			"const": "00000000000000000000000000000000"
+																		}
+																	},
+																	"label": {
+																		"type": "string",
+																		"minLength": 1,
+																		"maxLength": 512,
+																		"$comment": "The typed bindings enforce valid Unicode scalar text before this output is encoded."
+																	},
+																	"close": {
+																		"anyOf": [
+																			{
+																				"type": "object",
+																				"properties": {
+																					"requestId": {
+																						"type": "string",
+																						"pattern": "^[0-9a-f]{32}$",
+																						"not": {
+																							"const": "00000000000000000000000000000000"
+																						}
+																					},
+																					"observation": {
+																						"anyOf": [
+																							{
+																								"type": "object",
+																								"properties": {
+																									"attemptGeneration": {
+																										"type": "string",
+																										"pattern": "^[1-9][0-9]{0,19}$",
+																										"maxLength": 20,
+																										"format": "orchbee-uint64",
+																										"$comment": "One nonzero Close attempt-generation domain, distinct from Workbench revision; increment must be checked."
+																									},
+																									"status": {
+																										"oneOf": [
+																											{
+																												"type": "object",
+																												"properties": {
+																													"kind": {
+																														"const": "closing"
+																													},
+																													"phase": {
+																														"enum": [
+																															"queued",
+																															"waiting-grace",
+																															"waiting-outcome",
+																															"disposing"
+																														]
+																													}
+																												},
+																												"required": ["kind", "phase"],
+																												"additionalProperties": false
+																											},
+																											{
+																												"type": "object",
+																												"properties": {
+																													"kind": {
+																														"const": "cleanup-blocked"
+																													},
+																													"reason": {
+																														"enum": [
+																															"worker-unavailable",
+																															"host-refused",
+																															"cleanup-incomplete",
+																															"inventory-incomplete",
+																															"identity-conflict",
+																															"continuation-budget-exhausted",
+																															"resume-generation-exhausted"
+																														]
+																													},
+																													"resumable": {
+																														"type": "boolean"
+																													}
+																												},
+																												"required": ["kind", "reason", "resumable"],
+																												"additionalProperties": false
+																											},
+																											{
+																												"type": "object",
+																												"properties": {
+																													"kind": {
+																														"const": "outcome-unknown"
+																													},
+																													"phase": {
+																														"enum": [
+																															"terminate",
+																															"force",
+																															"dispose"
+																														]
+																													},
+																													"reason": {
+																														"enum": [
+																															"transport-lost",
+																															"deadline",
+																															"invalid-response"
+																														]
+																													}
+																												},
+																												"required": ["kind", "phase", "reason"],
+																												"additionalProperties": false
+																											},
+																											{
+																												"type": "object",
+																												"properties": {
+																													"kind": {
+																														"const": "disposed-awaiting-publication"
+																													},
+																													"reason": {
+																														"enum": [
+																															"target-cleanup-pending",
+																															"preparing",
+																															"preparation-failed",
+																															"authority-retired"
+																														]
+																													},
+																													"resumable": {
+																														"type": "boolean"
+																													}
+																												},
+																												"required": ["kind", "reason", "resumable"],
+																												"additionalProperties": false
+																											},
+																											{
+																												"type": "object",
+																												"properties": {
+																													"kind": {
+																														"const": "closed"
+																													},
+																													"revision": {
+																														"title": "WorkbenchRevision",
+																														"type": "string",
+																														"minLength": 1,
+																														"maxLength": 20,
+																														"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+																														"format": "orchbee-uint64"
+																													}
+																												},
+																												"required": ["kind", "revision"],
+																												"additionalProperties": false
+																											}
+																										]
+																									}
+																								},
+																								"required": ["attemptGeneration", "status"],
+																								"additionalProperties": false
+																							},
+																							{
+																								"type": "null"
+																							}
+																						]
+																					}
+																				},
+																				"required": ["requestId", "observation"],
+																				"additionalProperties": false
+																			},
+																			{
+																				"type": "null"
+																			}
+																		]
+																	}
+																},
+																"required": ["projectId", "workspaceId", "label", "close"],
+																"additionalProperties": false
+															}
+														}
+													},
+													"required": [
+														"kind",
+														"projectId",
+														"workspaceId",
+														"attempt",
+														"status",
+														"members"
+													],
+													"additionalProperties": false
+												}
+											]
+										}
+									},
+									"required": ["protocolVersion", "requestId", "operationId", "outcome"],
+									"additionalProperties": false
+								}
+							},
+							"required": ["kind", "reply"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "unavailable"
+								},
+								"reason": {
+									"enum": [
+										"unsupported-platform",
+										"not-submitted",
+										"session-unavailable",
+										"request-encoding",
+										"request-deadline",
+										"request-not-submitted",
+										"response-correlation",
+										"request-write",
+										"response-read",
+										"response-deadline"
+									]
+								}
+							},
+							"required": ["kind", "reason"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "unknown"
+								},
+								"reason": {
+									"enum": [
+										"unsupported-platform",
+										"not-submitted",
+										"session-unavailable",
+										"request-encoding",
+										"request-deadline",
+										"request-not-submitted",
+										"response-correlation",
+										"request-write",
+										"response-read",
+										"response-deadline"
+									]
+								}
+							},
+							"required": ["kind", "reason"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"wait": {
+					"enum": [
+						null,
+						"detached",
+						"cancelled",
+						"timed-out",
+						"transport-lost",
+						"observation-failed"
+					]
+				}
+			},
+			"required": ["operationId", "observation", "wait"],
+			"additionalProperties": false
+		}
+	},
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false
+}

@@ -59,10 +59,15 @@ impl Driver<'_> {
             match self.plan.phase {
                 Phase::ObservingSource => {
                     let source = self.checkout_job(WorktreeMutation::InspectSource)?;
-                    let (branch, _, path) = self.create_operands(Some(&source))?;
-                    let _checked_branch = branch;
-                    self.plan.progress.path = Some(path);
-                    self.advance(Phase::Creating)?;
+                    self.associate_source(source.clone())?;
+                    if matches!(self.plan.intent, WorktreeIntent::Create { .. }) {
+                        let (branch, _, path) = self.create_operands(Some(&source))?;
+                        let _checked_branch = branch;
+                        self.plan.progress.path = Some(path);
+                        self.advance(Phase::Creating)?;
+                    } else {
+                        self.advance(Phase::Opening)?;
+                    }
                 }
                 Phase::Creating => {
                     self.recheck_source()?;

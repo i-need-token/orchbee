@@ -330,3 +330,7 @@ implementation。
 ## 按来源查询 Worktree
 
 [`workbench-worktree-query.schema.json`](v1/workbench-worktree-query.schema.json) 拥有 `workbench.worktree.query` 及其结果，使用 OBWP kinds 21/22。请求保留 16 KiB intent 上限；响应使用独立的 32 KiB 分配前上限。Workspace 或字面目录来源无需变更操作。结果包含 Git 检出事实及零个或多个规范 Workspace 关联。Rust 和 TypeScript 校验必填可空来源／退出码字段、严格闭合失败变体、UTF-8 路径／引用上限、唯一检出／Workspace 身份及来源／根目录／linked 关系。两者消费[共享查询语料](v1/workbench-worktree-query-conformance-v1.json)；JSON Schema 覆盖结构约束，绑定额外校验字节上限与跨条目关系。运行时行为属于 [Windows Worktree 所有者](../../apps/orchbee/docs/windows-worktrees.zh-CN.md)。
+
+## Workspace 组关闭线上合同
+
+[`workbench-workspace-group-close.schema.json`](v1/workbench-workspace-group-close.schema.json) 定义 `workbench.workspace-group-close` 及其结果，OBWP kind 为 23/24。请求沿用 16 KiB intent 上限；结果具有独立的 512 KiB 分配前上限。Start 捕获作用域，Read 在源移除后仍使用操作 ID，Resume 对 1–64 次尝试设置围栏。Available 应答携带 1–128 个唯一有序成员，选定源排在最后。子记录为 null 表示尚未提交；子记录即使必须存在、可为 null 的观测不可用，也保留 Close 请求 ID。现有 Close 拥有状态与代次定义。绑定约束前序已关闭前缀、子 ID 唯一性、完整 Closed 声明及未知观测不可恢复。[共享样例](v1/workbench-workspace-group-close-conformance-v1.json) 覆盖 Rust、TypeScript 和结构 schema 校验。[运行时归属](../../apps/orchbee/docs/windows-worktrees.zh-CN.md#workspace-组关闭) 提供授权、物理清理和单调保留观测。

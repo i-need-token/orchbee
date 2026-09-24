@@ -7,6 +7,7 @@ use orchbee_workbench_protocol::{
 mod launch_profile;
 mod stateful;
 mod workspace_directory;
+mod workspace_group_close;
 mod worktree_operation;
 
 fn authority() -> (WorkbenchAuthority, WorkbenchGrant) {

@@ -7,6 +7,7 @@ mod tab_close;
 mod tab_move;
 mod tab_rename;
 mod workspace_close;
+mod workspace_group_close;
 mod workspace_setup;
 mod worktree_operation;
 #[cfg(windows)]

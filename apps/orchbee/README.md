@@ -749,3 +749,7 @@ Targeted Agent commands also accept `--panel <id|@panel:suffix>` or a positional
 ## Windows Worktree operations
 
 `worktree create/open/remove/status/resume` now uses retained Server operations and Windows Worker Git execution. The [Worktree contract](docs/windows-worktrees.md) owns source selection, defaults, confirmation, partial outcomes and recovery. These commands do not activate a Site or change Client focus.
+
+## Windows Workspace group Close
+
+`workspace close <target> --group --confirm` closes the captured worktree group, source last, without deleting Git checkouts. Known main Workspaces with associated members require `--group`; linked Workspaces close only themselves. Use `workspace close-status --group --request <operation-id>` after members disappear, and `workspace close-resume --group --request <operation-id> --generation <attempt> --confirm` only for a declared resumable failure. Group mode supports detached/bounded waiting and reports each child Close identity and observed state. See the [owning model](docs/windows-worktrees.md#workspace-group-closure). `api schema` catalog v22 contains 57 documents including `orchbee.workspace.group-close` v1.

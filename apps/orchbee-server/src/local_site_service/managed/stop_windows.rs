@@ -141,6 +141,10 @@ fn settle(
         .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
     owners
         .terminals
+        .stop_workspace_groups_before(deadline)
+        .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
+    owners
+        .terminals
         .stop_close_before(deadline)
         .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
     if !*worker_completed {

@@ -1,0 +1,1006 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "start",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-group-close",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": "00000000000000000000000000000004",
+					"workspaceId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "read",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-group-close",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "read",
+					"operationId": "00000000000000000000000000000003"
+				}
+			}
+		},
+		{
+			"name": "last-resume",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-group-close",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "resume",
+					"operationId": "00000000000000000000000000000003",
+					"expectedAttempt": 64
+				}
+			}
+		},
+		{
+			"name": "pending-frozen-members",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"workspaceId": "00000000000000000000000000000005",
+					"attempt": 1,
+					"status": {
+						"kind": "pending"
+					},
+					"members": [
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000006",
+							"label": "Workspace",
+							"close": null
+						},
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000005",
+							"label": "Workspace",
+							"close": null
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "accepted-not-observed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"workspaceId": "00000000000000000000000000000005",
+					"attempt": 1,
+					"status": {
+						"kind": "pending"
+					},
+					"members": [
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000006",
+							"label": "Workspace",
+							"close": {
+								"requestId": "00000000000000000000000000000007",
+								"observation": null
+							}
+						},
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000005",
+							"label": "Workspace",
+							"close": null
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "known-partial-deadline",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"workspaceId": "00000000000000000000000000000005",
+					"attempt": 1,
+					"status": {
+						"kind": "failed",
+						"reason": "deadline",
+						"resumable": true
+					},
+					"members": [
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000006",
+							"label": "Workspace",
+							"close": {
+								"requestId": "00000000000000000000000000000007",
+								"observation": {
+									"attemptGeneration": "1",
+									"status": {
+										"kind": "closed",
+										"revision": "8"
+									}
+								}
+							}
+						},
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000005",
+							"label": "Workspace",
+							"close": null
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "closed-parent-last",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"workspaceId": "00000000000000000000000000000005",
+					"attempt": 1,
+					"status": {
+						"kind": "closed"
+					},
+					"members": [
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000006",
+							"label": "Workspace",
+							"close": {
+								"requestId": "00000000000000000000000000000007",
+								"observation": {
+									"attemptGeneration": "1",
+									"status": {
+										"kind": "closed",
+										"revision": "8"
+									}
+								}
+							}
+						},
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000005",
+							"label": "Workspace",
+							"close": {
+								"requestId": "00000000000000000000000000000008",
+								"observation": {
+									"attemptGeneration": "1",
+									"status": {
+										"kind": "closed",
+										"revision": "8"
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "not-found",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "not-found"
+				}
+			}
+		},
+		{
+			"name": "denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "denied"
+				}
+			}
+		},
+		{
+			"name": "conflict",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "conflict"
+				}
+			}
+		},
+		{
+			"name": "unavailable-unsupported",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "unsupported"
+				}
+			}
+		},
+		{
+			"name": "unavailable-service-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "service-unavailable"
+				}
+			}
+		},
+		{
+			"name": "unavailable-busy",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "busy"
+				}
+			}
+		},
+		{
+			"name": "unavailable-capacity",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "capacity"
+				}
+			}
+		},
+		{
+			"name": "unavailable-source-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "source-unavailable"
+				}
+			}
+		},
+		{
+			"name": "unavailable-ambiguous-membership",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "ambiguous-membership"
+				}
+			}
+		},
+		{
+			"name": "unavailable-worker-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "worker-unavailable"
+				}
+			}
+		},
+		{
+			"name": "unavailable-source-changed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "source-changed"
+				}
+			}
+		},
+		{
+			"name": "unavailable-not-resumable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "not-resumable"
+				}
+			}
+		},
+		{
+			"name": "unavailable-stale-attempt",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "stale-attempt"
+				}
+			}
+		},
+		{
+			"name": "unavailable-attempt-exhausted",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "attempt-exhausted"
+				}
+			}
+		},
+		{
+			"name": "physical-unknown",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"workspaceId": "00000000000000000000000000000005",
+					"attempt": 1,
+					"status": {
+						"kind": "failed",
+						"reason": "outcome-unknown",
+						"resumable": false
+					},
+					"members": [
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000006",
+							"label": "Workspace",
+							"close": {
+								"requestId": "00000000000000000000000000000007",
+								"observation": {
+									"attemptGeneration": "18446744073709551615",
+									"status": {
+										"kind": "outcome-unknown",
+										"phase": "terminate",
+										"reason": "transport-lost"
+									}
+								}
+							}
+						},
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000005",
+							"label": "Workspace",
+							"close": null
+						}
+					]
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "invalid-attempt-0",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-group-close",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "resume",
+					"operationId": "00000000000000000000000000000003",
+					"expectedAttempt": 0
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "invalid-attempt-65",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-group-close",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "resume",
+					"operationId": "00000000000000000000000000000003",
+					"expectedAttempt": 65
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "invalid-attempt-1.5",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-group-close",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "resume",
+					"operationId": "00000000000000000000000000000003",
+					"expectedAttempt": 1.5
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "no-wire-bypass-flag",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-group-close",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": "00000000000000000000000000000004",
+					"workspaceId": "00000000000000000000000000000005",
+					"group": true
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "source-not-last",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"workspaceId": "00000000000000000000000000000005",
+					"attempt": 1,
+					"status": {
+						"kind": "pending"
+					},
+					"members": [
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000005",
+							"label": "Workspace",
+							"close": null
+						},
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000006",
+							"label": "Workspace",
+							"close": null
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "duplicate-workspace",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"workspaceId": "00000000000000000000000000000005",
+					"attempt": 1,
+					"status": {
+						"kind": "pending"
+					},
+					"members": [
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000006",
+							"label": "Workspace",
+							"close": null
+						},
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000006",
+							"label": "Workspace",
+							"close": null
+						},
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000005",
+							"label": "Workspace",
+							"close": null
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "missing-close",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"workspaceId": "00000000000000000000000000000005",
+					"attempt": 1,
+					"status": {
+						"kind": "pending"
+					},
+					"members": [
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000006",
+							"label": "Workspace"
+						},
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000005",
+							"label": "Workspace",
+							"close": null
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-observation",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"workspaceId": "00000000000000000000000000000005",
+					"attempt": 1,
+					"status": {
+						"kind": "pending"
+					},
+					"members": [
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000006",
+							"label": "Workspace",
+							"close": {
+								"requestId": "00000000000000000000000000000007"
+							}
+						},
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000005",
+							"label": "Workspace",
+							"close": null
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "no-children-but-closed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"workspaceId": "00000000000000000000000000000005",
+					"attempt": 1,
+					"status": {
+						"kind": "closed"
+					},
+					"members": [
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000006",
+							"label": "Workspace",
+							"close": null
+						},
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000005",
+							"label": "Workspace",
+							"close": null
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "empty-members",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"workspaceId": "00000000000000000000000000000005",
+					"attempt": 1,
+					"status": {
+						"kind": "pending"
+					},
+					"members": []
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "closed-after-gap",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"workspaceId": "00000000000000000000000000000005",
+					"attempt": 1,
+					"status": {
+						"kind": "pending"
+					},
+					"members": [
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000006",
+							"label": "Workspace",
+							"close": null
+						},
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000005",
+							"label": "Workspace",
+							"close": {
+								"requestId": "00000000000000000000000000000008",
+								"observation": {
+									"attemptGeneration": "1",
+									"status": {
+										"kind": "closed",
+										"revision": "8"
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "duplicate-child-id",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"workspaceId": "00000000000000000000000000000005",
+					"attempt": 1,
+					"status": {
+						"kind": "closed"
+					},
+					"members": [
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000006",
+							"label": "Workspace",
+							"close": {
+								"requestId": "00000000000000000000000000000007",
+								"observation": {
+									"attemptGeneration": "1",
+									"status": {
+										"kind": "closed",
+										"revision": "8"
+									}
+								}
+							}
+						},
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000005",
+							"label": "Workspace",
+							"close": {
+								"requestId": "00000000000000000000000000000007",
+								"observation": {
+									"attemptGeneration": "1",
+									"status": {
+										"kind": "closed",
+										"revision": "8"
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "child-is-group-id",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"workspaceId": "00000000000000000000000000000005",
+					"attempt": 1,
+					"status": {
+						"kind": "failed",
+						"reason": "deadline",
+						"resumable": true
+					},
+					"members": [
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000006",
+							"label": "Workspace",
+							"close": {
+								"requestId": "00000000000000000000000000000003",
+								"observation": {
+									"attemptGeneration": "1",
+									"status": {
+										"kind": "closed",
+										"revision": "8"
+									}
+								}
+							}
+						},
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000005",
+							"label": "Workspace",
+							"close": null
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "resume-unknown",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"workspaceId": "00000000000000000000000000000005",
+					"attempt": 1,
+					"status": {
+						"kind": "failed",
+						"reason": "outcome-unknown",
+						"resumable": true
+					},
+					"members": [
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000006",
+							"label": "Workspace",
+							"close": {
+								"requestId": "00000000000000000000000000000007",
+								"observation": {
+									"attemptGeneration": "18446744073709551615",
+									"status": {
+										"kind": "outcome-unknown",
+										"phase": "terminate",
+										"reason": "transport-lost"
+									}
+								}
+							}
+						},
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000005",
+							"label": "Workspace",
+							"close": null
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "resume-unobserved",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"workspaceId": "00000000000000000000000000000005",
+					"attempt": 1,
+					"status": {
+						"kind": "failed",
+						"reason": "deadline",
+						"resumable": true
+					},
+					"members": [
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000006",
+							"label": "Workspace",
+							"close": {
+								"requestId": "00000000000000000000000000000007",
+								"observation": null
+							}
+						},
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000005",
+							"label": "Workspace",
+							"close": null
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "resume-changed-source",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-group-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"workspaceId": "00000000000000000000000000000005",
+					"attempt": 1,
+					"status": {
+						"kind": "failed",
+						"reason": "source-changed",
+						"resumable": true
+					},
+					"members": [
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000006",
+							"label": "Workspace",
+							"close": {
+								"requestId": "00000000000000000000000000000007",
+								"observation": {
+									"attemptGeneration": "1",
+									"status": {
+										"kind": "closed",
+										"revision": "8"
+									}
+								}
+							}
+						},
+						{
+							"projectId": "00000000000000000000000000000004",
+							"workspaceId": "00000000000000000000000000000005",
+							"label": "Workspace",
+							"close": null
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		}
+	],
+	"validJson": [
+		{
+			"name": "decimal-attempt",
+			"direction": "request",
+			"json": "{\"kind\": \"workbench.workspace-group-close\", \"protocolVersion\": 1, \"requestId\": \"00000000000000000000000000000001\", \"siteId\": \"00000000000000000000000000000002\", \"action\": {\"kind\": \"resume\", \"operationId\": \"00000000000000000000000000000003\", \"expectedAttempt\": 6.4e1}}",
+			"canonical": {
+				"kind": "workbench.workspace-group-close",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "resume",
+					"operationId": "00000000000000000000000000000003",
+					"expectedAttempt": 64
+				}
+			}
+		}
+	]
+}

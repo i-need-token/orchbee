@@ -1828,6 +1828,9 @@ mod linux {
             WorkbenchRejectionReason::RevisionMismatch => "revision-mismatch",
             WorkbenchRejectionReason::ProjectUnavailable => "project-unavailable",
             WorkbenchRejectionReason::WorkspaceUnavailable => "workspace-unavailable",
+            WorkbenchRejectionReason::WorkspaceGroupCloseRequired => {
+                "workspace-group-close-required"
+            }
             WorkbenchRejectionReason::WorkspaceDirectoryUnavailable => {
                 "workspace-directory-unavailable"
             }

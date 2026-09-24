@@ -3,9 +3,9 @@ use super::{WorkbenchAuthority, WorkbenchGrant};
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchProjectId, WorkbenchRequestId, WorkbenchWorkspaceId,
     WorkbenchWorktreeAction, WorkbenchWorktreeOutcome, WorkbenchWorktreeRequest,
-    WorkbenchWorktreeResult, WorkerId, WorktreeAdmissionFailure, WorktreeCheckoutFacts,
-    WorktreeGitEffect, WorktreeIntent, WorktreeOperationPhase, WorktreeOperationStatus,
-    WorktreeProgress, WorktreeSource, WorktreeWorkspaceDisposition,
+    WorkbenchWorktreeResult, WorkerId, WorktreeAdmissionFailure, WorktreeGitEffect, WorktreeIntent,
+    WorktreeOperationPhase, WorktreeOperationStatus, WorktreeProgress, WorktreeSource,
+    WorktreeWorkspaceDisposition,
 };
 use std::{collections::BTreeMap, num::NonZeroU64};
 
@@ -34,20 +34,20 @@ struct Record {
     status: WorktreeOperationStatus,
     claimed: bool,
 }
-#[derive(Clone)]
-struct Association {
-    project_id: WorkbenchProjectId,
-    workspace_id: WorkbenchWorkspaceId,
-    worker_id: WorkerId,
-    checkout: WorktreeCheckoutFacts,
-}
 #[derive(Default)]
 pub(super) struct WorktreeOperations {
     records: BTreeMap<WorkbenchRequestId, Record>,
-    associations: Vec<Association>,
+    pub(super) associations: Vec<super::worktree_membership::Association>,
 }
 
 impl WorkbenchAuthority {
+    pub(super) fn worktrees_pending(&self) -> bool {
+        self.worktrees
+            .records
+            .values()
+            .any(|record| matches!(record.status, WorktreeOperationStatus::Pending { .. }))
+    }
+
     /// Every request is pure under this gate; the retained owner claims accepted work separately.
     pub fn execute_worktree_request(
         &mut self,
@@ -120,12 +120,7 @@ impl WorkbenchAuthority {
         if self.retired || !owner_available {
             return unavailable(WorktreeAdmissionFailure::ServiceUnavailable);
         }
-        if self
-            .worktrees
-            .records
-            .values()
-            .any(|record| matches!(record.status, WorktreeOperationStatus::Pending { .. }))
-        {
+        if self.worktrees_pending() || self.workspace_group_close_active() {
             return unavailable(WorktreeAdmissionFailure::Busy);
         }
         let Some((worker_id, generation)) = worker else {
@@ -316,7 +311,7 @@ impl WorkbenchAuthority {
                         (phase, next),
                         (
                             WorktreeOperationPhase::ObservingSource,
-                            WorktreeOperationPhase::Creating
+                            WorktreeOperationPhase::Creating | WorktreeOperationPhase::Opening
                         ) | (
                             WorktreeOperationPhase::Creating | WorktreeOperationPhase::Opening,
                             WorktreeOperationPhase::Attaching
@@ -369,28 +364,6 @@ impl WorkbenchAuthority {
             })
     }
 
-    pub fn checkout_workspaces(
-        &self,
-        path: &orchbee_workbench_protocol::WorkbenchDirectoryPath,
-        worker: &WorkerId,
-    ) -> Vec<(WorkbenchProjectId, WorkbenchWorkspaceId)> {
-        self.snapshot()
-            .navigation
-            .projects
-            .iter()
-            .flat_map(|project| {
-                project.workspaces.iter().filter_map(|workspace| {
-                    let directory = project.directories.iter().find(|directory| {
-                        Some(&directory.directory_id) == workspace.primary_directory_id.as_ref()
-                    })?;
-                    (directory.worker_id == *worker
-                        && same_path(directory.path.as_str(), path.as_str()))
-                    .then(|| (project.project_id.clone(), workspace.workspace_id.clone()))
-                })
-            })
-            .collect()
-    }
-
     pub fn worktree_workspace_available(
         &self,
         project_id: &WorkbenchProjectId,
@@ -418,55 +391,6 @@ impl WorkbenchAuthority {
                 && matches!(record.status, WorktreeOperationStatus::Pending { .. })
         })
     }
-
-    pub fn worktree_checkout(
-        &self,
-        workspace_id: &WorkbenchWorkspaceId,
-    ) -> Option<WorktreeCheckoutFacts> {
-        let association = self
-            .worktrees
-            .associations
-            .iter()
-            .find(|entry| entry.workspace_id == *workspace_id)?;
-        self.checkout_workspaces(&association.checkout.path, &association.worker_id)
-            .contains(&(association.project_id.clone(), workspace_id.clone()))
-            .then(|| association.checkout.clone())
-    }
-
-    pub fn associate_worktree(
-        &mut self,
-        plan: &WorktreeOperationPlan,
-        workspace_id: &WorkbenchWorkspaceId,
-        checkout: WorktreeCheckoutFacts,
-    ) -> bool {
-        if !self
-            .checkout_workspaces(&checkout.path, &plan.source.worker_id)
-            .contains(&(plan.project_id.clone(), workspace_id.clone()))
-        {
-            return false;
-        }
-        // Sweep dead associations under the same canonical gate; operation receipts remain retained.
-        let snapshot = self.snapshot().clone();
-        self.worktrees.associations.retain(|association| {
-            snapshot.navigation.projects.iter().any(|project| {
-                project.project_id == association.project_id
-                    && project
-                        .workspaces
-                        .iter()
-                        .any(|workspace| workspace.workspace_id == association.workspace_id)
-            })
-        });
-        self.worktrees
-            .associations
-            .retain(|association| association.workspace_id != *workspace_id);
-        self.worktrees.associations.push(Association {
-            project_id: plan.project_id.clone(),
-            workspace_id: workspace_id.clone(),
-            worker_id: plan.source.worker_id.clone(),
-            checkout,
-        });
-        true
-    }
 }
 impl Record {
     fn outcome(&self) -> WorkbenchWorktreeOutcome {
@@ -480,7 +404,7 @@ impl Record {
 fn initial_phase(intent: &WorktreeIntent) -> WorktreeOperationPhase {
     match intent {
         WorktreeIntent::Create { .. } => WorktreeOperationPhase::ObservingSource,
-        WorktreeIntent::Open { .. } => WorktreeOperationPhase::Opening,
+        WorktreeIntent::Open { .. } => WorktreeOperationPhase::ObservingSource,
         WorktreeIntent::Remove { .. } => WorktreeOperationPhase::InspectingRemove,
     }
 }

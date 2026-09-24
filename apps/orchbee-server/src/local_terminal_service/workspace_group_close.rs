@@ -1,0 +1,107 @@
+//! Windows group Close transport and retained continuation; reads never start maintenance.
+use super::LocalTerminalService;
+use crate::worker_obcn_carrier::WorkerRequestHandle;
+use orchbee_server::WorkbenchGrant;
+use orchbee_workbench_protocol::{
+    ProtocolVersion, WorkbenchWorkspaceGroupCloseRequest, WorkbenchWorkspaceGroupCloseResult,
+    WorkerId, WorkspaceGroupCloseAction as Action, WorkspaceGroupCloseOutcome as Outcome,
+    WorkspaceGroupCloseUnavailable as Unavailable,
+};
+use std::{
+    io,
+    num::NonZeroU64,
+    sync::{Arc, atomic::AtomicBool},
+    time::Instant,
+};
+mod driver;
+impl LocalTerminalService {
+    pub(crate) fn execute_workspace_group_close(
+        self: &Arc<Self>,
+        request: WorkbenchWorkspaceGroupCloseRequest,
+    ) -> WorkbenchWorkspaceGroupCloseResult {
+        let response = |outcome| WorkbenchWorkspaceGroupCloseResult {
+            protocol_version: ProtocolVersion,
+            request_id: request.request_id.clone(),
+            operation_id: request.action.operation_id().clone(),
+            outcome,
+        };
+        match self.workbench_site_matches(&request.site_id) {
+            Some(true) => {}
+            Some(false) => return response(Outcome::Denied {}),
+            None => {
+                return response(Outcome::Unavailable {
+                    reason: Unavailable::ServiceUnavailable,
+                });
+            }
+        }
+        let mutating = !matches!(request.action, Action::Read { .. });
+        if mutating && !cfg!(windows) {
+            return response(Outcome::Unavailable {
+                reason: Unavailable::Unsupported,
+            });
+        }
+        if mutating && self.group_close_maintenance.ensure(self).is_err() {
+            return response(Outcome::Unavailable {
+                reason: Unavailable::ServiceUnavailable,
+            });
+        }
+        let result = {
+            let Ok(workers) = self.workers.lock() else {
+                return response(Outcome::Unavailable {
+                    reason: Unavailable::ServiceUnavailable,
+                });
+            };
+            let Ok(mut coordinator) = self.coordinator.lock() else {
+                return response(Outcome::Unavailable {
+                    reason: Unavailable::ServiceUnavailable,
+                });
+            };
+            let Some(authority) = coordinator.worktree_authority() else {
+                return response(Outcome::Unavailable {
+                    reason: Unavailable::ServiceUnavailable,
+                });
+            };
+            let grant =
+                WorkbenchGrant::read_only(authority.site_id().clone()).with_terminal_lifecycle();
+            authority.execute_workspace_group_close(
+                Some(&grant),
+                request,
+                worker_identity(workers.request_handle().as_ref()),
+                self.group_close_maintenance.available(),
+            )
+        };
+        if mutating {
+            self.group_close_maintenance.notify();
+        }
+        result
+    }
+    #[cfg(any(windows, test))]
+    pub(crate) fn stop_workspace_groups_before(&self, deadline: Instant) -> io::Result<()> {
+        self.group_close_maintenance.stop_before(deadline)
+    }
+    pub(super) fn workspace_group_close_turn(&self, stop: &AtomicBool) {
+        let plan = self.coordinator.lock().ok().and_then(|mut coordinator| {
+            coordinator
+                .worktree_authority()?
+                .claim_workspace_group_close()
+        });
+        let Some(mut plan) = plan else {
+            return;
+        };
+        let status = driver::run(self, &mut plan, stop);
+        if let Ok(mut coordinator) = self.coordinator.lock()
+            && let Some(authority) = coordinator.worktree_authority()
+        {
+            let _published = authority.publish_workspace_group_close(&plan, status);
+        }
+    }
+}
+fn worker_identity(handle: Option<&WorkerRequestHandle>) -> Option<(WorkerId, NonZeroU64)> {
+    let handle = handle?;
+    let id = WorkerId::parse(&format!(
+        "{:032x}",
+        u128::from_be_bytes(handle.worker_id().as_bytes())
+    ))
+    .ok()?;
+    Some((id, handle.generation()))
+}

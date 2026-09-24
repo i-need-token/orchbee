@@ -757,3 +757,7 @@ Server 检查准入，释放锁执行 Worker 只读目录探测，再按注册�
 ## 只读 Worktree 来源查询
 
 `workbench.worktree.query` 解析显式 Workspace 或字面目录，无需 Project。它在 registry-to-Site 门内捕获来源及 Worker 实例，在门外执行一个有界发现 job，再复查并加入当前 Workspace 标签／身份。多个关联明确保留，不任取首个匹配，不改变焦点、创建 Workspace 或消耗变更回执。共享 porcelain 解析器接受 Windows 绝对驱动器路径及既有路径形式。来源变化、Worker 丢失、元数据无效及预算到期返回类型化失败。参见[所属契约](../orchbee/docs/windows-worktrees.zh-CN.md#按来源发现-worktree)。
+
+## 保留的 Workspace 组关闭
+
+`workbench.workspace-group-close` 保留接纳时的有界成员集合，以源最后关闭的顺序组合现有 Workspace Close 回执。已核实的 Worktree 源关联支持主目录位于子目录，并保留精确 Directory/Worker 代次证明。普通主工作区 Close 拒绝多 Workspace 组；只有精确的保留组成员令牌才能绕过保护。组与 Worktree 的新修改在 Pending 期间互相保留执行权。共享维护生命周期适配器拥有各自的唤醒/线程/加入实例；Windows Site stop 在 Close 维护冻结前加入两个提交者。[归属模型](../orchbee/docs/windows-worktrees.zh-CN.md#workspace-组关闭) 定义上限、部分失败和恢复；[线上 schema](../../schemas/workbench/v1/workbench-workspace-group-close.schema.json) 定义公开字节。组关闭不调用 Git 删除。

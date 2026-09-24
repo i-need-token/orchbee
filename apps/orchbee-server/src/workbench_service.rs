@@ -45,6 +45,16 @@ impl WorkbenchService {
 
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         let permitted = match &request {
+            WorkbenchRequest::WorkspaceGroupClose(request) => {
+                if matches!(
+                    request.action,
+                    orchbee_workbench_protocol::WorkspaceGroupCloseAction::Read { .. }
+                ) {
+                    self.policy.read
+                } else {
+                    self.policy.manage_terminal_lifecycle
+                }
+            }
             WorkbenchRequest::WorktreeOperation(request) => {
                 if matches!(
                     request.action,
@@ -107,6 +117,12 @@ impl WorkbenchService {
             return WorkbenchExecution::Response(unavailable_or_denied(request, true));
         }
         match &request {
+            WorkbenchRequest::WorkspaceGroupClose(request) => {
+                return WorkbenchExecution::Response(WorkbenchResponse::WorkspaceGroupClose(
+                    self.terminals
+                        .execute_workspace_group_close(request.clone()),
+                ));
+            }
             WorkbenchRequest::WorktreeQuery(query) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::WorktreeQuery(
                     self.terminals.execute_worktree_query(query.clone()),
@@ -286,6 +302,18 @@ impl WorkbenchService {
 
 fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchResponse {
     match request {
+        WorkbenchRequest::WorkspaceGroupClose(request) => WorkbenchResponse::WorkspaceGroupClose(
+            orchbee_workbench_protocol::WorkbenchWorkspaceGroupCloseResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                operation_id: request.action.operation_id().clone(),
+                outcome: if denied {
+                    orchbee_workbench_protocol::WorkspaceGroupCloseOutcome::Denied {}
+                } else {
+                    orchbee_workbench_protocol::WorkspaceGroupCloseOutcome::Unavailable { reason: orchbee_workbench_protocol::WorkspaceGroupCloseUnavailable::ServiceUnavailable }
+                },
+            },
+        ),
         WorkbenchRequest::WorktreeQuery(request) => WorkbenchResponse::WorktreeQuery(
             orchbee_workbench_protocol::WorkbenchWorktreeQueryResult {
                 protocol_version: ProtocolVersion,

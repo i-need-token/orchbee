@@ -26,6 +26,7 @@ use crate::{
 mod agent_drain_read;
 mod close_maintenance;
 mod controller_session;
+mod operation_maintenance;
 mod panel_split;
 mod projection;
 mod send;
@@ -34,6 +35,7 @@ mod tab_close;
 mod tab_create;
 mod viewer_session;
 mod workspace_directory;
+mod workspace_group_close;
 mod worktree_list;
 mod worktree_operation;
 mod worktree_query;
@@ -55,7 +57,8 @@ const AGENT_DRAIN_READ_RETRY: Duration = Duration::from_millis(25);
 
 pub(crate) struct LocalTerminalService {
     close_maintenance: close_maintenance::CloseMaintenance,
-    worktree_maintenance: worktree_operation::WorktreeMaintenance,
+    worktree_maintenance: operation_maintenance::OperationMaintenance,
+    group_close_maintenance: operation_maintenance::OperationMaintenance,
     standalone_changed: std::sync::Condvar,
     standalone_wait: std::time::Duration,
     workers: Arc<Mutex<WorkerRegistry>>,
@@ -82,7 +85,14 @@ impl LocalTerminalService {
             .and_then(|site| orchbee_server::WorkbenchAuthority::new(site).ok());
         Self {
             close_maintenance: close_maintenance::CloseMaintenance::default(),
-            worktree_maintenance: worktree_operation::WorktreeMaintenance::default(),
+            worktree_maintenance: operation_maintenance::OperationMaintenance::new(
+                "orchbee-worktree-operations",
+                Self::worktree_turn,
+            ),
+            group_close_maintenance: operation_maintenance::OperationMaintenance::new(
+                "orchbee-workspace-group-close",
+                Self::workspace_group_close_turn,
+            ),
             standalone_changed: std::sync::Condvar::new(),
             standalone_wait: std::time::Duration::from_secs(46),
             workers,

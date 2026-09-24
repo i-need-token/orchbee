@@ -34,6 +34,7 @@ mod tab_close;
 mod tab_move;
 pub(crate) mod tab_rename;
 mod workspace_close;
+mod workspace_group_close;
 pub(crate) mod workspace_launch;
 pub(crate) mod workspace_setup;
 mod worktree_operation;

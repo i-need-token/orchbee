@@ -61,7 +61,7 @@ the same lookup. Outside that process, use `panel current --panel <id-or-selecto
 Worker supplies `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID`; the query validates
 their current binding in one snapshot. Missing or stale context is an error, never
 a fallback to client focus. Explicit `--panel` ignores inherited context and cannot
-be combined with `--current`. `api schema` now returns catalog envelope version 21;
+be combined with `--current`. `api schema` now returns catalog envelope version 22;
 the new `orchbee.panel.current` document is version 1.
 
 Use explicit `--forever` on `agent wait` or `agent prompt --wait` for no total deadline; it conflicts with `--timeout`. The default remains 600000 ms and every read stays bounded. `--until blocked` matches fresh needs-attention; `--until done` matches fresh completed outcomes, without an unseen marker. Wait/prompt successes use version 2 with null timeoutMs for infinite mode; infinite read-timeout failures also use version 2. Windows Codex prompts add Right between paste and Enter to clear paste-burst Enter suppression.
@@ -94,3 +94,7 @@ On Windows use `worktree create/open/remove` with the flags from command help. R
 ## Query Worktrees from a source
 
 On Windows, `worktree list --cwd C:/code/repo --format json` requires no Project. Use `--workspace <target>` instead to select a registered Workspace, or omit both to use validated caller context/current directory. Invalid caller identity is a refusal, never a cwd fallback. `--trust-repository` applies only to this query. Source results use `orchbee.worktree.query` v1 with explicit multiple Workspace associations and typed failure reasons. The legacy `--project/--directory` pair retains its old envelope and cannot mix with source flags. Neither form activates a Site or mutates Git.
+
+## Close a Windows worktree group
+
+Use `workspace close <target> --group --confirm` when the main Workspace has linked members. Linked Workspace targets close only themselves. Git paths and branches are preserved. Retain the operation ID from the `orchbee.workspace.group-close` reply; use `workspace close-status --group --request <operation-id>` even after the source disappears. For a resumable failure, use `workspace close-resume --group --request <operation-id> --generation <attempt> --confirm`. Inspect every captured member's Close identity and observation; null `close` means unsubmitted, while a child with null `observation` has been accepted but not observed. Never replay an unknown result. `--detach`, timeout or Ctrl+C only stop waiting. Scope selectors `--project`/`--workspace` belong to ordinary status/resume and cannot be mixed with group mode.

@@ -19,7 +19,9 @@ mod site;
 mod site_diagnose;
 mod site_stop;
 pub(crate) use site_stop::run as site_stop;
+mod workspace_group_close;
 mod worktree_operation;
+pub(crate) use workspace_group_close::run as run_workspace_group_close;
 mod worktree_query;
 pub(crate) use worktree_query::run as run_worktree_query;
 #[cfg(any(windows, test))]

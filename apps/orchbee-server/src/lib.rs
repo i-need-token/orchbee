@@ -34,6 +34,7 @@ pub use workbench_authority::{
     WorkbenchTerminalInvariantError, WorkbenchTerminalMembership, WorkbenchTerminalTab,
     WorkbenchWorkspaceCloseAdmission, WorkbenchWorkspaceCloseBegin,
     WorkbenchWorkspaceCloseResumeAdmission, WorkbenchWorkspaceCloseResumeBegin,
-    WorkbenchWorkspaceCloseResumePreparation, WorktreeListResolution, WorktreeListTarget,
-    WorktreeOperationPlan, WorktreeSourceTarget,
+    WorkbenchWorkspaceCloseResumePreparation, WorkspaceGroupCloseMemberPlan,
+    WorkspaceGroupClosePlan, WorktreeListResolution, WorktreeListTarget, WorktreeOperationPlan,
+    WorktreeSourceTarget,
 };
