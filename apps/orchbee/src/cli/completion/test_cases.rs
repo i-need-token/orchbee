@@ -1,6 +1,29 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee panel ", "swap", true),
+    ("orchbee help panel ", "swap", true),
+    ("orchbee panel swap --w", "--with", true),
+    ("orchbee panel swap --direction ", "up", true),
+    ("orchbee panel swap --direction ", "above", false),
+    ("orchbee panel swap --direction=", "--direction=left", true),
+    ("orchbee panel swap '@panel:06' --p", "--panel", false),
+    (
+        "orchbee panel swap --with '@panel:07' --d",
+        "--direction",
+        false,
+    ),
+    ("orchbee panel swap --direction up --w", "--with", false),
+    ("orchbee panel swap --current --p", "--panel", false),
+    (
+        "orchbee panel swap --panel '@panel:06' --c",
+        "--current",
+        false,
+    ),
+    ("orchbee panel swap --d", "--detach", false),
+    ("orchbee panel swap --r", "--request-id", false),
+    ("orchbee --with '@panel:07' panel ", "rename", false),
+    ("orchbee --with '@panel:07' panel ", "swap", true),
     ("orchbee panel ", "rename", true),
     ("orchbee help panel ", "rename", true),
     ("orchbee panel rename '@panel:06' --l", "--label", true),

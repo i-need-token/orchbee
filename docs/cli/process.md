@@ -32,7 +32,9 @@ later phase:
    syntactic failure touches no configuration, filesystem, cohort, or endpoint.
 3. Answer offline commands — help, version, completion, and schema listings — from the build alone.
 4. Discover the runtime through the configured base and reject unsafe paths without repairing them.
-5. Admit exactly one session and submit at most one read and, for a mutation, at most one effect.
+5. Admit exactly one session. Ordinary commands perform at most one read and one effect.
+   Declared observation commands may repeat bounded reads; declared workflows may execute a finite
+   sequence of named effect phases under the same original deadline.
 6. Prepare the complete output, then write it once.
 
 ## Deadlines and waits
@@ -52,12 +54,19 @@ later phase:
 | Rule               | Contract                                                                                                                                                                                                                                                                                                                     |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Reads              | Create no directory, lock, marker, terminal, viewer, or grant. A declared read-side attachment is held minimally, released before output, and named in the owning guide.                                                                                                                                                     |
-| One submission     | A mutation submits at most one effect per invocation under one request identity, either caller-supplied or freshly generated after grammar validation, never before.                                                                                                                                                         |
+| One submission     | An ordinary mutation has one effect phase. A declared workflow names each finite phase in its owning contract; each phase submits at most once under its own identity generated or admitted after grammar validation. A workflow never retries a phase or hides earlier committed effects when a later phase fails.          |
 | No replay          | The invocation never retries, replays, or resubmits an effect. An undetermined result is reported as unknown outcome with the request identity, not guessed or repeated.                                                                                                                                                     |
-| Precommit refusals | Refused, unavailable, broken-channel, and incompatible outcomes on a mutation are definite: nothing was applied, and the caller may resubmit under a new identity.                                                                                                                                                           |
+| Precommit refusals | A definite precommit refusal means that phase applied nothing. Earlier workflow effects remain independently recorded; a later refusal never authorizes replaying the whole workflow. Transport ambiguity remains unknown, never a guessed refusal.                                                                          |
 | Detachment         | `--detach` returns once the submission is accepted and yields the request identity; a later `get` or `wait` observes it. Detachment never changes what was submitted.                                                                                                                                                        |
 | Reads of output    | Terminal or transcript reads return current content only, are never redacted automatically, and are documented as possibly containing secrets so callers limit what they forward.                                                                                                                                            |
 | Durable state      | The process owns none for reads and mutations: no history, cache, lock file, or PID file; the service is the only durable authority. An activation verb is the declared exception — it may create the runtime directory, hold its locks, commit its marker, and spawn the service, and the owning guide names each artifact. |
+
+A declared workflow records its phase order, authoritative commit points, refusal and unknown
+outcomes, cancellation cuts, and bounded recovery before implementation. Every later phase must
+consume the exact earlier receipt it depends on. A known commit survives failed publication or
+Client acknowledgment; a compound success requires every declared success condition. No cross-owner
+atomicity is implied by one CLI invocation. Recovery or release effects must be explicitly declared,
+bounded by the original deadline, and separately reported. No hidden compensating mutation is allowed.
 
 ## Signals and cancellation
 

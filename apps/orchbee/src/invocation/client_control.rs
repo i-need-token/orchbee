@@ -55,7 +55,20 @@ pub(crate) enum ClientNavigationTarget {
     },
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum PanelSwapDestination {
+    Pair(Target),
+    Direction(ClientPanelDirection),
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct PanelSwapCommand {
+    pub(crate) source: Option<Target>,
+    pub(crate) destination: PanelSwapDestination,
+    pub(crate) client: Option<WorkbenchClientId>,
+    pub(crate) timeout_ms: u32,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ClientCommand {
+    Swap(PanelSwapCommand),
     List,
     Get(WorkbenchClientId),
     ControlStatus(WorkbenchRequestId),
@@ -90,6 +103,7 @@ pub(super) fn parse(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     let command = match words {
+        ["panel", "swap", rest @ ..] => parse_swap(rest, options, envelope)?,
         ["layout", "set-split-ratio"] => parse_ratio(options, envelope)?,
         ["layout"] => {
             return Err(usage_with(
@@ -413,21 +427,7 @@ fn navigation(
     context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<ClientCommand, ParseFailure> {
-    let client = options
-        .client
-        .as_deref()
-        .map(|value| {
-            WorkbenchClientId::parse(value).map_err(|_| {
-                invalid(
-                    value,
-                    "--client",
-                    ExpectedValue::ClientId,
-                    context,
-                    envelope,
-                )
-            })
-        })
-        .transpose()?;
+    let client = client_id(options, context, envelope)?;
     let operation_id = options
         .request_id
         .as_deref()
@@ -560,4 +560,112 @@ fn parse_ratio(
         context,
         envelope,
     )
+}
+
+fn client_id(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<Option<WorkbenchClientId>, ParseFailure> {
+    options
+        .client
+        .as_deref()
+        .map(|value| {
+            WorkbenchClientId::parse(value).map_err(|_| {
+                invalid(
+                    value,
+                    "--client",
+                    ExpectedValue::ClientId,
+                    context,
+                    envelope,
+                )
+            })
+        })
+        .transpose()
+}
+
+fn parse_swap(
+    rest: &[&str],
+    options: &Options,
+    envelope: FailureEnvelope,
+) -> Result<ClientCommand, ParseFailure> {
+    let context = UsageContext::Path("panel swap");
+    check_scope(
+        options,
+        Scope {
+            panel: true,
+            current: true,
+            swap_target: true,
+            direction: true,
+            client: true,
+            timeout: true,
+            ..NO_OPTIONS
+        },
+        context,
+        envelope,
+    )?;
+    if rest.len() > 1 {
+        return Err(usage_with(
+            UsageReason::UnexpectedArgument {
+                context,
+                value: rest[1].into(),
+            },
+            envelope,
+        ));
+    }
+    let selectors: Vec<_> = [
+        ("<source>", !rest.is_empty()),
+        ("--panel", options.panel.is_some()),
+        ("--current", options.current),
+    ]
+    .into_iter()
+    .filter(|(_, present)| *present)
+    .collect();
+    if selectors.len() > 1 {
+        return Err(usage_with(
+            UsageReason::ConflictingOptions {
+                context,
+                first: selectors[0].0,
+                second: selectors[1].0,
+            },
+            envelope,
+        ));
+    }
+    let source = rest
+        .first()
+        .copied()
+        .or(options.panel.as_deref())
+        .map(|value| target(value.into(), Resource::Panel, envelope))
+        .transpose()?;
+    let destination = match (&options.swap_target, &options.direction) {
+        (Some(_), Some(_)) => {
+            return Err(usage_with(
+                UsageReason::ConflictingOptions {
+                    context,
+                    first: "--with",
+                    second: "--direction",
+                },
+                envelope,
+            ));
+        }
+        (Some(value), None) => {
+            PanelSwapDestination::Pair(target(value.clone(), Resource::Panel, envelope)?)
+        }
+        (None, Some(value)) => {
+            PanelSwapDestination::Direction(panel_direction(value, context, envelope)?)
+        }
+        (None, None) => {
+            return Err(missing_required(
+                context,
+                "'--with' or '--direction'",
+                envelope,
+            ));
+        }
+    };
+    Ok(ClientCommand::Swap(PanelSwapCommand {
+        source,
+        destination,
+        client: client_id(options, context, envelope)?,
+        timeout_ms: wait_timeout_option(options, context, envelope)?,
+    }))
 }

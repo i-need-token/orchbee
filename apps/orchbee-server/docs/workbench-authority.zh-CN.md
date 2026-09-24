@@ -734,3 +734,5 @@ Linux/WSL 集成证据覆盖 40 个库测试、102 个二进制测试、26 个 C
 
 schema、两种绑定及消费它们的二进制作为一个尚未发布的 v1 激活批次共同推进。
 旧的封闭解码器拒绝扩展。回退恢复整个批次；不声明混合版本发布、持久迁移或跨重启重放。
+
+Panel swap 使用共享结构 placement 权威，在同一 Tab 中原子交换完整叶子，保留 Split／slot 及终端身份。Windows CLI 通过原 Client 单独确认源聚焦；后续失败或聚焦未知不抹去已知 canonical 提交。[原生 Panel 交换](../../orchbee/docs/native-panel-swap.zh-CN.md) 拥有工作流程、回执及证据。

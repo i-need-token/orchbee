@@ -1,0 +1,616 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.panel.swap",
+	"title": "orchbee staged Panel swap receipt",
+	"type": "object",
+	"properties": {
+		"schema": {
+			"const": "orchbee.panel.swap"
+		},
+		"version": {
+			"const": 1
+		},
+		"siteId": {
+			"$ref": "#/$defs/siteId"
+		},
+		"clientId": {
+			"$ref": "#/$defs/clientId"
+		},
+		"baseRevision": {
+			"$ref": "#/$defs/revision"
+		},
+		"source": {
+			"$ref": "#/$defs/panel"
+		},
+		"target": {
+			"anyOf": [
+				{
+					"$ref": "#/$defs/panel"
+				},
+				{
+					"type": "null"
+				}
+			]
+		},
+		"direction": {
+			"anyOf": [
+				{
+					"enum": ["left", "right", "up", "down"]
+				},
+				{
+					"type": "null"
+				}
+			]
+		},
+		"layoutOperationId": {
+			"anyOf": [
+				{
+					"$ref": "#/$defs/requestId"
+				},
+				{
+					"type": "null"
+				}
+			]
+		},
+		"layoutRevision": {
+			"anyOf": [
+				{
+					"$ref": "#/$defs/revision"
+				},
+				{
+					"type": "null"
+				}
+			]
+		},
+		"requestId": {
+			"anyOf": [
+				{
+					"$ref": "#/$defs/requestId"
+				},
+				{
+					"type": "null"
+				}
+			]
+		},
+		"canonical": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "not-submitted"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unknown"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "committed"
+						},
+						"revision": {
+							"$ref": "#/$defs/revision"
+						}
+					},
+					"required": ["kind", "revision"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unchanged"
+						},
+						"revision": {
+							"$ref": "#/$defs/revision"
+						}
+					},
+					"required": ["kind", "revision"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "refused"
+						},
+						"outcome": {
+							"oneOf": [
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "denied"
+										}
+									},
+									"required": ["kind"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "rejected"
+										},
+										"revision": {
+											"$ref": "#/$defs/revision"
+										},
+										"reason": {
+											"$ref": "#/$defs/rejectionReason"
+										}
+									},
+									"required": ["kind", "revision", "reason"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "unavailable"
+										},
+										"reason": {
+											"$ref": "#/$defs/commandUnavailableReason"
+										}
+									},
+									"required": ["kind", "reason"],
+									"additionalProperties": false
+								}
+							]
+						}
+					},
+					"required": ["kind", "outcome"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"focus": {
+			"anyOf": [
+				{
+					"type": "object",
+					"properties": {
+						"operationId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/requestId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"observation": {
+							"oneOf": [
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "not-submitted"
+										}
+									},
+									"required": ["kind"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "unknown"
+										}
+									},
+									"required": ["kind"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "server"
+										},
+										"result": {
+											"oneOf": [
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "queued"
+														}
+													},
+													"required": ["kind"],
+													"additionalProperties": false
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "delivered"
+														}
+													},
+													"required": ["kind"],
+													"additionalProperties": false
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "applied"
+														},
+														"view": {
+															"$ref": "#/$defs/view"
+														}
+													},
+													"required": ["kind", "view"],
+													"additionalProperties": false
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "rejected"
+														},
+														"reason": {
+															"$ref": "#/$defs/reason"
+														}
+													},
+													"required": ["kind", "reason"],
+													"additionalProperties": false
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "incomplete"
+														},
+														"reason": {
+															"$ref": "#/$defs/reason"
+														},
+														"view": {
+															"anyOf": [
+																{
+																	"$ref": "#/$defs/view"
+																},
+																{
+																	"type": "null"
+																}
+															]
+														}
+													},
+													"required": ["kind", "reason", "view"],
+													"additionalProperties": false
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "not-found"
+														}
+													},
+													"required": ["kind"],
+													"additionalProperties": false
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "conflict"
+														}
+													},
+													"required": ["kind"],
+													"additionalProperties": false
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "denied"
+														}
+													},
+													"required": ["kind"],
+													"additionalProperties": false
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "unavailable"
+														},
+														"reason": {
+															"enum": [
+																"client-unavailable",
+																"server-busy",
+																"receipt-capacity",
+																"unsupported",
+																"sequence-exhausted"
+															]
+														}
+													},
+													"required": ["kind", "reason"],
+													"additionalProperties": false
+												}
+											]
+										}
+									},
+									"required": ["kind", "result"],
+									"additionalProperties": false
+								}
+							]
+						},
+						"wait": {
+							"anyOf": [
+								{
+									"enum": [
+										"detached",
+										"timed-out",
+										"cancelled",
+										"transport-lost",
+										"observation-failed"
+									]
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["operationId", "observation", "wait"],
+					"additionalProperties": false
+				},
+				{
+					"type": "null"
+				}
+			]
+		},
+		"stage": {
+			"enum": ["resolution", "exchange", "client-observation", "focus", "complete"]
+		},
+		"reason": {
+			"anyOf": [
+				{
+					"enum": [
+						"same-panel",
+						"cross-tab",
+						"no-neighbor",
+						"layout-unconfirmed",
+						"layout-revision-changed",
+						"source-unavailable",
+						"client-unavailable",
+						"client-selection-changed"
+					]
+				},
+				{
+					"type": "null"
+				}
+			]
+		},
+		"failure": {
+			"anyOf": [
+				{
+					"enum": [
+						"ambiguous",
+						"cancelled",
+						"check-failed",
+						"denied",
+						"incompatible",
+						"internal-failure",
+						"invalid-identifier",
+						"invalid-usage",
+						"not-found",
+						"outcome-unknown",
+						"output-too-large",
+						"protocol-invalid",
+						"rejected",
+						"service-unavailable",
+						"session-capacity",
+						"timeout",
+						"transport-loss"
+					]
+				},
+				{
+					"type": "null"
+				}
+			]
+		},
+		"outcome": {
+			"enum": ["swapped", "incomplete", "unchanged", "unknown", "not-swapped"]
+		}
+	},
+	"required": [
+		"schema",
+		"version",
+		"siteId",
+		"clientId",
+		"baseRevision",
+		"source",
+		"target",
+		"direction",
+		"layoutOperationId",
+		"layoutRevision",
+		"requestId",
+		"canonical",
+		"focus",
+		"stage",
+		"reason",
+		"failure",
+		"outcome"
+	],
+	"additionalProperties": false,
+	"$defs": {
+		"panel": {
+			"type": "object",
+			"properties": {
+				"terminalContextId": {
+					"$ref": "#/$defs/terminalContextId"
+				},
+				"tabId": {
+					"$ref": "#/$defs/tabId"
+				},
+				"panelId": {
+					"$ref": "#/$defs/panelId"
+				}
+			},
+			"required": ["terminalContextId", "tabId", "panelId"],
+			"additionalProperties": false
+		},
+		"clientId": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"revision": {
+			"title": "WorkbenchRevision",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 20,
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"format": "orchbee-uint64"
+		},
+		"rejectionReason": {
+			"enum": [
+				"site-mismatch",
+				"revision-mismatch",
+				"project-unavailable",
+				"workspace-unavailable",
+				"workspace-group-close-required",
+				"workspace-directory-unavailable",
+				"workspace-directory-conflict",
+				"terminal-context-unavailable",
+				"tab-unavailable",
+				"panel-unavailable",
+				"panel-not-leaf",
+				"last-panel-in-tab",
+				"same-tab",
+				"resource-limit",
+				"identity-exhausted",
+				"revision-exhausted",
+				"request-identity-conflict"
+			]
+		},
+		"view": {
+			"type": "object",
+			"properties": {
+				"workbenchRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"phase": {
+					"$ref": "#/$defs/phase"
+				},
+				"selection": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/selection"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["workbenchRevision", "phase", "selection"],
+			"additionalProperties": false
+		},
+		"selection": {
+			"type": "object",
+			"properties": {
+				"terminalContextId": {
+					"$ref": "#/$defs/terminalContextId"
+				},
+				"tabId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/tabId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"panelId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/panelId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"zoomed": {
+					"type": "boolean"
+				},
+				"panelCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65535
+				}
+			},
+			"required": ["terminalContextId", "tabId", "panelId", "zoomed", "panelCount"],
+			"additionalProperties": false
+		},
+		"siteId": {
+			"title": "SiteId",
+			"$ref": "#/$defs/identity"
+		},
+		"reason": {
+			"enum": [
+				"busy",
+				"stale-view",
+				"target-unavailable",
+				"projection-unavailable",
+				"interrupted",
+				"client-disconnected",
+				"expired",
+				"unsupported"
+			]
+		},
+		"requestId": {
+			"title": "WorkbenchRequestId",
+			"$ref": "#/$defs/identity"
+		},
+		"phase": {
+			"enum": ["starting", "ready", "busy", "unavailable"]
+		},
+		"identity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"tabId": {
+			"title": "WorkbenchTabId",
+			"$ref": "#/$defs/identity"
+		},
+		"panelId": {
+			"title": "WorkbenchPanelId",
+			"$ref": "#/$defs/identity"
+		},
+		"terminalContextId": {
+			"title": "WorkbenchTerminalContextId",
+			"$ref": "#/$defs/identity"
+		},
+		"commandUnavailableReason": {
+			"enum": [
+				"request-ledger-full",
+				"no-compatible-worker",
+				"server-busy",
+				"service-unavailable",
+				"terminal-busy",
+				"terminal-runtime-unavailable",
+				"directory-unavailable"
+			]
+		}
+	}
+}

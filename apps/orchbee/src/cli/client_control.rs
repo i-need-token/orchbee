@@ -19,6 +19,8 @@ mod layout;
 #[cfg(any(windows, test))]
 mod selection;
 #[cfg(windows)]
+mod swap;
+#[cfg(windows)]
 mod windows;
 
 #[cfg(any(windows, test))]

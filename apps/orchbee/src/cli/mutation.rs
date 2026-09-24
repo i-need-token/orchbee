@@ -347,10 +347,10 @@ mod linux {
         WorkbenchPanelCloseAccepted, WorkbenchPanelCloseFailure, WorkbenchPanelCloseNotSubmitted,
         WorkbenchPanelClosePrecommit, WorkbenchPanelCloseRequest, WorkbenchPanelCloseSubmission,
     };
-    use crate::local_client::workbench::panel_move::{
-        WorkbenchPanelMoveCommit, WorkbenchPanelMoveNotSubmitted,
-        WorkbenchPanelMoveOutcomeUnknownReason, WorkbenchPanelMovePrecommit,
-        WorkbenchPanelMoveRequest, WorkbenchPanelMoveSubmission,
+    use crate::local_client::workbench::panel_placement::{
+        WorkbenchPanelPlacementCommit, WorkbenchPanelPlacementNotSubmitted,
+        WorkbenchPanelPlacementOutcomeUnknownReason, WorkbenchPanelPlacementPrecommit,
+        WorkbenchPanelPlacementRequest, WorkbenchPanelPlacementSubmission,
     };
     use crate::local_client::workbench::panel_relocate::{
         WorkbenchPanelRelocateCommit, WorkbenchPanelRelocateNotSubmitted,
@@ -517,7 +517,7 @@ mod linux {
         (WorkbenchTabMoveNotSubmitted, WorkbenchTabMovePrecommit, WorkbenchTabMoveOutcomeUnknownReason);
         (WorkbenchTabCloseNotSubmitted, WorkbenchTabClosePrecommit, WorkbenchTabCloseFailure);
         (WorkbenchPanelCloseNotSubmitted, WorkbenchPanelClosePrecommit, WorkbenchPanelCloseFailure);
-        (WorkbenchPanelMoveNotSubmitted, WorkbenchPanelMovePrecommit, WorkbenchPanelMoveOutcomeUnknownReason);
+        (WorkbenchPanelPlacementNotSubmitted, WorkbenchPanelPlacementPrecommit, WorkbenchPanelPlacementOutcomeUnknownReason);
         (WorkbenchPanelRelocateNotSubmitted, WorkbenchPanelRelocatePrecommit, WorkbenchPanelRelocateOutcomeUnknownReason);
         (WorkbenchWorkspaceCloseNotSubmitted, WorkbenchWorkspaceClosePrecommit, WorkbenchWorkspaceCloseFailure);
     }
@@ -1456,30 +1456,29 @@ mod linux {
                 direction,
             } => {
                 let request =
-                    WorkbenchPanelMoveRequest::try_from(command).map_err(|_| internal())?;
+                    WorkbenchPanelPlacementRequest::try_from(command).map_err(|_| internal())?;
                 let base = receipt(&resolved, "panel.move", "committed")
                     .id("terminalContextId", terminal_context_id.as_str())
                     .id("tabId", tab_id.as_str())
                     .id("panelId", panel_id.as_str())
                     .id("targetPanelId", target_panel_id.as_str())
                     .direction(panel_direction(*direction));
-                match client.submit_workbench_panel_move(request, deadline) {
-                    WorkbenchPanelMoveSubmission::Committed(WorkbenchPanelMoveCommit {
-                        revision,
-                        ..
-                    }) => Ok(base.revision(revision)),
-                    WorkbenchPanelMoveSubmission::Unchanged { revision } => Ok(Receipt {
+                match client.submit_workbench_panel_placement(request, deadline) {
+                    WorkbenchPanelPlacementSubmission::Committed(
+                        WorkbenchPanelPlacementCommit { revision, .. },
+                    ) => Ok(base.revision(revision)),
+                    WorkbenchPanelPlacementSubmission::Unchanged { revision } => Ok(Receipt {
                         outcome: "unchanged",
                         ..base
                     }
                     .revision(revision)),
-                    WorkbenchPanelMoveSubmission::DefinitePrecommit(precommit) => {
+                    WorkbenchPanelPlacementSubmission::DefinitePrecommit(precommit) => {
                         Err(precommit_failure(precommit.into(), &resolved.action))
                     }
-                    WorkbenchPanelMoveSubmission::DefinitelyNotSubmitted(reason) => {
+                    WorkbenchPanelPlacementSubmission::DefinitelyNotSubmitted(reason) => {
                         Err(not_submitted_failure(reason.into()))
                     }
-                    WorkbenchPanelMoveSubmission::OutcomeUnknown { request_id, reason } => {
+                    WorkbenchPanelPlacementSubmission::OutcomeUnknown { request_id, reason } => {
                         Err(unknown_failure(request_id, reason.reason()))
                     }
                 }
@@ -1529,8 +1528,9 @@ mod linux {
                         Err(unknown_failure(request_id, reason.reason()))
                     }
                 }
-            } // The grammar's mutation cohort now exhausts every wire action; a
-              // new variant fails to compile here until it is modeled.
+            }
+            // Swap is a declared canonical-plus-focus workflow, never an ordinary mutation.
+            WorkbenchAction::PanelSwap { .. } => Err(Failure::new(FailureKind::InternalFailure)),
         }
     }
 

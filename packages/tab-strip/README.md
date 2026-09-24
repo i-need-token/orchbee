@@ -94,3 +94,5 @@ pnpm --filter @orchbee/tab-strip test
 pnpm --filter @orchbee/tab-strip verify:correctness
 pnpm --filter @orchbee/tab-strip test:exports
 ```
+
+Pixel-exact animation midpoint witnesses control one shared monotonic clock for pickup, frame callbacks and pointer retargeting. They retain exact geometry and unchanged-start-time assertions; constructing a midpoint from a live fractional timestamp can cross an integer-pixel rounding boundary.

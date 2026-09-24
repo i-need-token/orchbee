@@ -76,6 +76,6 @@ Client 可能拒绝包含覆盖项的快照，不声称混合版本兼容。没�
 回退契约切片；合入后使用匹配 cohort，或先通过该 cohort 清除覆盖项再回退。绝不为了让旧
 读取方接受快照而悄悄改写回退标签或丢弃规范覆盖项。
 
-CLI 读取封套 `orchbee.panel.get`、`orchbee.panel.current` 与 `orchbee.api.snapshot` 为版本 2。窗格读取保留创建时的 `label`，增加可空 `customLabel` 及实际显示的 `displayLabel`；原始快照保留缺省时省略的规范自定义标题字段。Schema 目录为 v28，共 63 份文档。
+CLI 读取封套 `orchbee.panel.get`、`orchbee.panel.current` 与 `orchbee.api.snapshot` 为版本 2。窗格读取保留创建时的 `label`，增加可空 `customLabel` 及实际显示的 `displayLabel`；原始快照保留缺省时省略的规范自定义标题字段。Schema 目录为 v29，共 64 份文档。
 
 叶窗格标题栏中，显式自定义标题先于序号显示，保证窄窗格优先显示用户文本。没有自定义标题的标题栏保留既有本地化资源前缀。两种形式使用同一净化和显示单元截断规则。

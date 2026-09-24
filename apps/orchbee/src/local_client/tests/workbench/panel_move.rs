@@ -1,8 +1,8 @@
 use super::*;
-use crate::local_client::workbench::panel_move::{
-    WorkbenchPanelMoveCommit, WorkbenchPanelMoveNotSubmitted,
-    WorkbenchPanelMoveOutcomeUnknownReason, WorkbenchPanelMovePrecommit, WorkbenchPanelMoveRequest,
-    WorkbenchPanelMoveSubmission,
+use crate::local_client::workbench::panel_placement::{
+    WorkbenchPanelPlacementCommit, WorkbenchPanelPlacementNotSubmitted,
+    WorkbenchPanelPlacementOutcomeUnknownReason, WorkbenchPanelPlacementPrecommit,
+    WorkbenchPanelPlacementRequest, WorkbenchPanelPlacementSubmission,
 };
 use orchbee_workbench_protocol::WorkbenchPanelSplitDirection;
 
@@ -37,7 +37,7 @@ fn moved(
 }
 
 #[test]
-fn opaque_panel_move_request_rejects_other_actions_unchanged() {
+fn opaque_panel_placement_request_rejects_unrelated_actions_unchanged() {
     for direction in [
         WorkbenchPanelSplitDirection::Above,
         WorkbenchPanelSplitDirection::Below,
@@ -52,13 +52,64 @@ fn opaque_panel_move_request_rejects_other_actions_unchanged() {
             unreachable!()
         };
         *actual = direction;
-        assert!(WorkbenchPanelMoveRequest::try_from(command).is_ok());
+        assert!(WorkbenchPanelPlacementRequest::try_from(command).is_ok());
     }
     let command = tab_create_command(FIRST_REQUEST_ID, 7);
     assert_eq!(
-        WorkbenchPanelMoveRequest::try_from(command.clone()).unwrap_err(),
+        WorkbenchPanelPlacementRequest::try_from(command.clone()).unwrap_err(),
         command
     );
+}
+
+#[test]
+fn panel_swap_wake_after_submission_retires_unknown_without_replay() -> TestResult {
+    let (submitted, wait_for_submission) = std::sync::mpsc::channel();
+    let (wake_read, mut wake_write) = UnixStream::pair()?;
+    let server = FakeServer::start(move |mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 51)?;
+        let WorkbenchRequest::Command(command) =
+            read_workbench_request(&mut stream).map_err(io::Error::other)?
+        else {
+            panic!("swap");
+        };
+        assert!(matches!(command.action, WorkbenchAction::PanelSwap { .. }));
+        submitted.send(()).map_err(io::Error::other)?;
+        assert_eq!(
+            stream.read(&mut [0])?,
+            0,
+            "wake closes the carrier without replay"
+        );
+        Ok(())
+    })?;
+    let wake = std::thread::spawn(move || -> io::Result<()> {
+        wait_for_submission
+            .recv_timeout(Duration::from_secs(5))
+            .map_err(io::Error::other)?;
+        wake_write.write_all(b"x")
+    });
+    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let mut command = panel_move_command(7);
+    command.action = WorkbenchAction::PanelSwap {
+        terminal_context_id: context_id(30),
+        tab_id: WorkbenchTabId::parse(&id(31)).unwrap(),
+        panel_id: WorkbenchPanelId::parse(&id(32)).unwrap(),
+        target_panel_id: WorkbenchPanelId::parse(&id(33)).unwrap(),
+    };
+    let answer = client.submit_workbench_panel_placement_with_wake(
+        WorkbenchPanelPlacementRequest::try_from(command).unwrap(),
+        client.operation_clock().now() + Duration::from_secs(5),
+        Some(wake_read.as_local_io()),
+    );
+    assert!(matches!(
+        answer,
+        WorkbenchPanelPlacementSubmission::OutcomeUnknown { .. }
+    ));
+    assert!(client.generation().is_none());
+    wake.join().unwrap()?;
+    drop(client);
+    server.finish()?;
+    Ok(())
 }
 
 #[test]
@@ -118,14 +169,14 @@ fn panel_move_preserves_exact_commit_noop_and_compatible_precommit() -> TestResu
             .map_err(io::Error::other)
         })?;
         let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
-        let actual = client.submit_workbench_panel_move(
-            WorkbenchPanelMoveRequest::try_from(panel_move_command(7)).unwrap(),
+        let actual = client.submit_workbench_panel_placement(
+            WorkbenchPanelPlacementRequest::try_from(panel_move_command(7)).unwrap(),
             client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
         );
         match (outcome, actual) {
             (
                 WorkbenchCommandOutcome::Unchanged { revision: expected },
-                WorkbenchPanelMoveSubmission::Unchanged { revision },
+                WorkbenchPanelPlacementSubmission::Unchanged { revision },
             ) => assert_eq!(revision, expected),
             (
                 WorkbenchCommandOutcome::PanelMoved {
@@ -135,10 +186,10 @@ fn panel_move_preserves_exact_commit_noop_and_compatible_precommit() -> TestResu
                     panel_id,
                     target_panel_id,
                 },
-                WorkbenchPanelMoveSubmission::Committed(actual),
+                WorkbenchPanelPlacementSubmission::Committed(actual),
             ) => assert_eq!(
                 actual,
-                WorkbenchPanelMoveCommit {
+                WorkbenchPanelPlacementCommit {
                     revision,
                     terminal_context_id,
                     tab_id,
@@ -148,14 +199,14 @@ fn panel_move_preserves_exact_commit_noop_and_compatible_precommit() -> TestResu
             ),
             (
                 WorkbenchCommandOutcome::Denied {},
-                WorkbenchPanelMoveSubmission::DefinitePrecommit(
-                    WorkbenchPanelMovePrecommit::Denied,
+                WorkbenchPanelPlacementSubmission::DefinitePrecommit(
+                    WorkbenchPanelPlacementPrecommit::Denied,
                 ),
             ) => {}
             (
                 WorkbenchCommandOutcome::Rejected { revision, reason },
-                WorkbenchPanelMoveSubmission::DefinitePrecommit(
-                    WorkbenchPanelMovePrecommit::Rejected {
+                WorkbenchPanelPlacementSubmission::DefinitePrecommit(
+                    WorkbenchPanelPlacementPrecommit::Rejected {
                         revision: actual,
                         reason: actual_reason,
                     },
@@ -163,8 +214,8 @@ fn panel_move_preserves_exact_commit_noop_and_compatible_precommit() -> TestResu
             ) => assert_eq!((actual, actual_reason), (revision, reason)),
             (
                 WorkbenchCommandOutcome::Unavailable { reason },
-                WorkbenchPanelMoveSubmission::DefinitePrecommit(
-                    WorkbenchPanelMovePrecommit::Unavailable { reason: actual },
+                WorkbenchPanelPlacementSubmission::DefinitePrecommit(
+                    WorkbenchPanelPlacementPrecommit::Unavailable { reason: actual },
                 ),
             ) => assert_eq!(actual, reason),
             other => panic!("unexpected panel.move classification {other:?}"),
@@ -218,7 +269,7 @@ fn panel_move_retires_impossible_revisions_identities_and_action_results() -> Te
     ] {
         let result = invalid_move(baseline, command_response(FIRST_REQUEST_ID, outcome))?;
         assert!(
-            matches!(result, WorkbenchPanelMoveSubmission::OutcomeUnknown {request_id,..} if request_id.as_str()==FIRST_REQUEST_ID)
+            matches!(result, WorkbenchPanelPlacementSubmission::OutcomeUnknown {request_id,..} if request_id.as_str()==FIRST_REQUEST_ID)
         );
     }
     Ok(())
@@ -231,13 +282,13 @@ fn panel_move_retires_wrong_kind_and_correlation_without_replay() -> TestResult 
             7,
             WorkbenchResponse::Snapshot(snapshot_result(FIRST_REQUEST_ID))
         )?,
-        WorkbenchPanelMoveSubmission::OutcomeUnknown {
-            reason: WorkbenchPanelMoveOutcomeUnknownReason::UnexpectedResponse,
+        WorkbenchPanelPlacementSubmission::OutcomeUnknown {
+            reason: WorkbenchPanelPlacementOutcomeUnknownReason::UnexpectedResponse,
             ..
         }
     ));
     assert!(
-        matches!(invalid_move(7, command_response(SECOND_REQUEST_ID,moved(8,30,31,32,33)))?, WorkbenchPanelMoveSubmission::OutcomeUnknown {reason: WorkbenchPanelMoveOutcomeUnknownReason::CorrelationMismatch {expected,received},..} if expected.as_str()==FIRST_REQUEST_ID && received.as_str()==SECOND_REQUEST_ID)
+        matches!(invalid_move(7, command_response(SECOND_REQUEST_ID,moved(8,30,31,32,33)))?, WorkbenchPanelPlacementSubmission::OutcomeUnknown {reason: WorkbenchPanelPlacementOutcomeUnknownReason::CorrelationMismatch {expected,received},..} if expected.as_str()==FIRST_REQUEST_ID && received.as_str()==SECOND_REQUEST_ID)
     );
     Ok(())
 }
@@ -260,7 +311,7 @@ fn panel_move_prewrite_expiry_preserves_carrier_and_sends_no_frame() -> TestResu
     let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
     let deadline = client.operation_clock().now();
     assert!(
-        matches!(client.submit_workbench_panel_move(WorkbenchPanelMoveRequest::try_from(panel_move_command(7)).unwrap(),deadline),WorkbenchPanelMoveSubmission::DefinitelyNotSubmitted(WorkbenchPanelMoveNotSubmitted::RequestNotSubmitted(error)) if error.kind()==io::ErrorKind::TimedOut)
+        matches!(client.submit_workbench_panel_placement(WorkbenchPanelPlacementRequest::try_from(panel_move_command(7)).unwrap(),deadline),WorkbenchPanelPlacementSubmission::DefinitelyNotSubmitted(WorkbenchPanelPlacementNotSubmitted::RequestNotSubmitted(error)) if error.kind()==io::ErrorKind::TimedOut)
     );
     assert_eq!(
         client.submit_workbench_snapshot_read(snapshot_request(SECOND_REQUEST_ID))?,
@@ -275,7 +326,7 @@ fn panel_move_prewrite_expiry_preserves_carrier_and_sends_no_frame() -> TestResu
 fn invalid_move(
     baseline: u64,
     response: WorkbenchResponse,
-) -> Result<WorkbenchPanelMoveSubmission, Box<dyn std::error::Error>> {
+) -> Result<WorkbenchPanelPlacementSubmission, Box<dyn std::error::Error>> {
     let server = FakeServer::start(move |mut stream| {
         expect_hello(&mut stream, COHORT)?;
         admit(&mut stream, 54)?;
@@ -287,11 +338,87 @@ fn invalid_move(
         require_retirement(&mut stream)
     })?;
     let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
-    let result = client.submit_workbench_panel_move(
-        WorkbenchPanelMoveRequest::try_from(panel_move_command(baseline)).unwrap(),
+    let result = client.submit_workbench_panel_placement(
+        WorkbenchPanelPlacementRequest::try_from(panel_move_command(baseline)).unwrap(),
         client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
     );
     assert_eq!(client.generation(), None);
     server.finish()?;
     Ok(result)
+}
+
+fn panel_swap_command() -> WorkbenchCommand {
+    workbench_command(
+        FIRST_REQUEST_ID,
+        7,
+        WorkbenchAction::PanelSwap {
+            terminal_context_id: context_id(30),
+            tab_id: WorkbenchTabId::parse(&id(31)).unwrap(),
+            panel_id: WorkbenchPanelId::parse(&id(32)).unwrap(),
+            target_panel_id: WorkbenchPanelId::parse(&id(33)).unwrap(),
+        },
+    )
+}
+fn swapped() -> WorkbenchCommandOutcome {
+    WorkbenchCommandOutcome::PanelSwapped {
+        revision: WorkbenchRevision::new(8),
+        terminal_context_id: context_id(30),
+        tab_id: WorkbenchTabId::parse(&id(31)).unwrap(),
+        panel_id: WorkbenchPanelId::parse(&id(32)).unwrap(),
+        target_panel_id: WorkbenchPanelId::parse(&id(33)).unwrap(),
+    }
+}
+
+#[test]
+fn panel_swap_accepts_only_its_commit_and_retires_cross_action_or_lost_replies() -> TestResult {
+    for outcome in [
+        Some(swapped()),
+        Some(moved(8, 30, 31, 32, 33)),
+        None,
+        Some(WorkbenchCommandOutcome::Unchanged {
+            revision: WorkbenchRevision::new(7),
+        }),
+    ] {
+        let valid = outcome == Some(swapped());
+        let server = FakeServer::start(move |mut stream| {
+            expect_hello(&mut stream, COHORT)?;
+            admit(&mut stream, 71)?;
+            assert_eq!(
+                read_workbench_request(&mut stream).map_err(io::Error::other)?,
+                WorkbenchRequest::Command(panel_swap_command())
+            );
+            if let Some(outcome) = outcome {
+                write_workbench_response(&mut stream, &command_response(FIRST_REQUEST_ID, outcome))
+                    .map_err(io::Error::other)?;
+                require_retirement(&mut stream)?;
+            }
+            Ok(())
+        })?;
+        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let answer = client.submit_workbench_panel_placement(
+            WorkbenchPanelPlacementRequest::try_from(panel_swap_command()).unwrap(),
+            client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
+        );
+        if valid {
+            assert!(matches!(
+                answer,
+                WorkbenchPanelPlacementSubmission::Committed(_)
+            ));
+            assert_eq!(client.generation().map(NonZeroU64::get), Some(71));
+        } else {
+            assert!(matches!(
+                answer,
+                WorkbenchPanelPlacementSubmission::OutcomeUnknown { .. }
+            ));
+            assert_eq!(client.generation(), None);
+        }
+        drop(client);
+        server.finish()?;
+    }
+    // A Panel swap result also cannot acknowledge the old move action.
+    assert!(matches!(
+        invalid_move(7, command_response(FIRST_REQUEST_ID, swapped()))?,
+        WorkbenchPanelPlacementSubmission::OutcomeUnknown { .. }
+    ));
+    Ok(())
 }

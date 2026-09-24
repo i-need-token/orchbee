@@ -2584,6 +2584,41 @@
 					"label": "a\nb"
 				}
 			}
+		},
+		{
+			"name": "swap-command",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.swap",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"targetPanelId": "00000000000000000000000000000007"
+				}
+			}
+		},
+		{
+			"name": "swap-committed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "panel-swapped",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"targetPanelId": "00000000000000000000000000000007"
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -8149,6 +8184,42 @@
 				}
 			},
 			"boundary": "schema"
+		},
+		{
+			"name": "swap-does-not-admit-direction",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.swap",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"targetPanelId": "00000000000000000000000000000007",
+					"direction": "left"
+				}
+			}
+		},
+		{
+			"name": "swap-requires-target",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.swap",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006"
+				}
+			}
 		}
 	],
 	"invalidJson": [

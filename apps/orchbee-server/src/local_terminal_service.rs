@@ -221,14 +221,14 @@ impl LocalTerminalService {
             .execute_terminal_tab_move(command)
     }
 
-    pub(crate) fn execute_terminal_panel_move(
+    pub(crate) fn execute_terminal_panel_placement(
         &self,
         command: orchbee_workbench_protocol::WorkbenchCommand,
     ) -> Option<orchbee_workbench_protocol::WorkbenchCommandResult> {
         self.coordinator
             .lock()
             .ok()?
-            .execute_terminal_panel_move(command)
+            .execute_terminal_panel_placement(command)
     }
 
     pub(crate) fn execute_terminal_panel_relocate(

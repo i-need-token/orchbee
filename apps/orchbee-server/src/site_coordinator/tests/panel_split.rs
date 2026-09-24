@@ -710,7 +710,9 @@ fn bare_open_replay_survives_a_legal_leaf_reorder_and_retargets_only_through_clo
         panel_b.clone(),
         WorkbenchPanelSplitDirection::Right,
     );
-    let moved = coordinator.execute_terminal_panel_move(movement).unwrap();
+    let moved = coordinator
+        .execute_terminal_panel_placement(movement)
+        .unwrap();
     assert!(matches!(
         moved.outcome,
         WorkbenchCommandOutcome::PanelMoved { .. }

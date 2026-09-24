@@ -34,6 +34,10 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.panel.swap",
+        include_str!("schemas/orchbee.panel.swap.json"),
+    ),
+    (
         PANEL_RENAME_RESULT_ID,
         include_str!("schemas/orchbee.panel.rename.json"),
     ),
@@ -349,8 +353,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog v28 adds Panel rename and v2 title-aware Panel/snapshot reads.
-        "version": 28,
+        // Catalog v29 adds the staged Panel swap receipt.
+        "version": 29,
         "source": embedded_source(),
         "result": result,
     });

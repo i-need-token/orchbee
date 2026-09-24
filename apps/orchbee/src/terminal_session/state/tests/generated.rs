@@ -5,7 +5,7 @@ use super::super::panel::{
 use super::*;
 use crate::client_view::PanelDirection;
 use crate::local_client::workbench::{
-    panel_close::WorkbenchPanelCloseAccepted, panel_move::WorkbenchPanelMoveCommit,
+    panel_close::WorkbenchPanelCloseAccepted, panel_placement::WorkbenchPanelPlacementCommit,
     panel_split::WorkbenchPanelSplitCommit,
 };
 use orchbee_workbench_protocol::{
@@ -2257,7 +2257,7 @@ fn commit_edit(
                 return Err("move graft");
             }
             Ok((
-                PanelCommit::Move(WorkbenchPanelMoveCommit {
+                PanelCommit::Move(WorkbenchPanelPlacementCommit {
                     revision: WorkbenchRevision::new(revision),
                     terminal_context_id,
                     tab_id,

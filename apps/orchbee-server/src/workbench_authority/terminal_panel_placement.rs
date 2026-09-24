@@ -11,12 +11,12 @@ use orchbee_workbench_protocol::{
 };
 
 #[allow(clippy::large_enum_variant)]
-pub enum WorkbenchPanelMoveBegin<'a> {
+pub enum WorkbenchPanelPlacementBegin<'a> {
     Ready(WorkbenchCommandResult),
-    Admitted(Box<WorkbenchPanelMoveAdmission<'a>>),
+    Admitted(Box<WorkbenchPanelPlacementAdmission<'a>>),
 }
 
-pub struct WorkbenchPanelMoveAdmission<'a> {
+pub struct WorkbenchPanelPlacementAdmission<'a> {
     authority: &'a mut WorkbenchAuthority,
     command: WorkbenchCommand,
     terminal_context_id: WorkbenchTerminalContextId,
@@ -24,18 +24,24 @@ pub struct WorkbenchPanelMoveAdmission<'a> {
     tab_id: WorkbenchTabId,
     panel_id: WorkbenchPanelId,
     target_panel_id: WorkbenchPanelId,
-    direction: WorkbenchPanelSplitDirection,
+    placement: Placement,
+}
+
+#[derive(Clone, Copy)]
+enum Placement {
+    Move(WorkbenchPanelSplitDirection),
+    Swap,
 }
 
 #[allow(clippy::large_enum_variant)]
-pub enum WorkbenchPanelMovePreparation<'a> {
+pub enum WorkbenchPanelPlacementPreparation<'a> {
     Ready(WorkbenchCommandResult),
-    Prepared(Box<PreparedWorkbenchPanelMove<'a>>),
+    Prepared(Box<PreparedWorkbenchPanelPlacement<'a>>),
 }
 
-pub struct PreparedWorkbenchPanelMove<'a>(PreparedCommandCommit<'a>);
+pub struct PreparedWorkbenchPanelPlacement<'a>(PreparedCommandCommit<'a>);
 
-impl PreparedWorkbenchPanelMove<'_> {
+impl PreparedWorkbenchPanelPlacement<'_> {
     #[must_use]
     pub fn result(&self) -> &WorkbenchCommandResult {
         &self.0.response
@@ -47,7 +53,7 @@ impl PreparedWorkbenchPanelMove<'_> {
     }
 }
 
-impl<'a> WorkbenchPanelMoveAdmission<'a> {
+impl<'a> WorkbenchPanelPlacementAdmission<'a> {
     #[must_use]
     pub fn standalone_membership(&self) -> Option<&WorkbenchTerminalMembership> {
         self.membership.as_ref()
@@ -60,7 +66,7 @@ impl<'a> WorkbenchPanelMoveAdmission<'a> {
 
     /// Site validates standalone bootstrap composition before resolving its target or no-op.
     #[must_use]
-    pub fn finish(self) -> WorkbenchPanelMovePreparation<'a> {
+    pub fn finish(self) -> WorkbenchPanelPlacementPreparation<'a> {
         let plan = match self.plan() {
             Ok(plan) => plan,
             Err(PlanFailure::Rejected(reason)) => CommitPlan {
@@ -70,27 +76,32 @@ impl<'a> WorkbenchPanelMoveAdmission<'a> {
                 outcome: self.authority.rejected(reason),
             },
             Err(PlanFailure::Internal) => {
-                return WorkbenchPanelMovePreparation::Ready(self.authority.retire(&self.command));
+                return WorkbenchPanelPlacementPreparation::Ready(
+                    self.authority.retire(&self.command),
+                );
             }
         };
-        // An open aggregate Close fences a committed same-Tab move: publication re-proves
+        // An open aggregate Close fences a committed same-Tab placement: publication re-proves
         // the complete captured ordered leaf membership. Rejection and no-op `Unchanged`
         // outcomes keep their precedence, and the transient busy retains nothing.
-        if matches!(plan.outcome, WorkbenchCommandOutcome::PanelMoved { .. })
-            && self
-                .authority
-                .aggregate_close_fences_tab(&self.terminal_context_id, &self.tab_id)
+        if matches!(
+            plan.outcome,
+            WorkbenchCommandOutcome::PanelMoved { .. }
+                | WorkbenchCommandOutcome::PanelSwapped { .. }
+        ) && self
+            .authority
+            .aggregate_close_fences_tab(&self.terminal_context_id, &self.tab_id)
         {
-            return WorkbenchPanelMovePreparation::Ready(result(
+            return WorkbenchPanelPlacementPreparation::Ready(result(
                 &self.command,
                 unavailable(WorkbenchCommandUnavailableReason::TerminalBusy),
             ));
         }
         match self.authority.prepare_command_commit(self.command, plan) {
-            Ok(prepared) => WorkbenchPanelMovePreparation::Prepared(Box::new(
-                PreparedWorkbenchPanelMove(prepared),
+            Ok(prepared) => WorkbenchPanelPlacementPreparation::Prepared(Box::new(
+                PreparedWorkbenchPanelPlacement(prepared),
             )),
-            Err(result) => WorkbenchPanelMovePreparation::Ready(*result),
+            Err(result) => WorkbenchPanelPlacementPreparation::Ready(*result),
         }
     }
 
@@ -118,22 +129,15 @@ impl<'a> WorkbenchPanelMoveAdmission<'a> {
             ));
         }
         if self.panel_id == self.target_panel_id
-            || panel_at_move_target(
-                &tab.root,
-                &self.panel_id,
-                &self.target_panel_id,
-                self.direction,
-            )
+            || matches!(self.placement, Placement::Move(direction) if panel_at_move_target(
+                &tab.root, &self.panel_id, &self.target_panel_id, direction))
         {
             return Ok(self.authority.unchanged());
         }
-        let last_identity = allocate(self.authority.last_identity, 3)?;
-        let split_id = WorkbenchSplitId::parse(&identity(last_identity - 2))
-            .map_err(|_error| PlanFailure::Internal)?;
-        let first_slot_id = WorkbenchPanelSlotId::parse(&identity(last_identity - 1))
-            .map_err(|_error| PlanFailure::Internal)?;
-        let second_slot_id = WorkbenchPanelSlotId::parse(&identity(last_identity))
-            .map_err(|_error| PlanFailure::Internal)?;
+        let last_identity = match self.placement {
+            Placement::Move(_) => Some(allocate(self.authority.last_identity, 3)?),
+            Placement::Swap => None,
+        };
         let mut candidate = self.authority.projection.snapshot().clone();
         let revision = self.authority.next_revision()?;
         let tab = candidate
@@ -147,18 +151,41 @@ impl<'a> WorkbenchPanelMoveAdmission<'a> {
                     .find(|tab| tab.tab_id == self.tab_id)
             })
             .ok_or(PlanFailure::Internal)?;
-        // The source leaf is retained whole: identity, Presentations, and bindings move with it.
-        let moved = take_leaf_panel(&mut tab.root, &self.panel_id).ok_or(PlanFailure::Internal)?;
-        let insertion = PanelMoveInsertion {
-            target_panel_id: self.target_panel_id.clone(),
-            direction: self.direction,
-            moved,
-            split_id,
-            first_slot_id,
-            second_slot_id,
-        };
-        if !insert_leaf_panel(&mut tab.root, &insertion) {
-            return Err(PlanFailure::Internal);
+        match self.placement {
+            Placement::Move(direction) => {
+                let cursor = last_identity.ok_or(PlanFailure::Internal)?;
+                let moved =
+                    take_leaf_panel(&mut tab.root, &self.panel_id).ok_or(PlanFailure::Internal)?;
+                let insertion = PanelMoveInsertion {
+                    target_panel_id: self.target_panel_id.clone(),
+                    direction,
+                    moved,
+                    split_id: WorkbenchSplitId::parse(&identity(cursor - 2))
+                        .map_err(|_| PlanFailure::Internal)?,
+                    first_slot_id: WorkbenchPanelSlotId::parse(&identity(cursor - 1))
+                        .map_err(|_| PlanFailure::Internal)?,
+                    second_slot_id: WorkbenchPanelSlotId::parse(&identity(cursor))
+                        .map_err(|_| PlanFailure::Internal)?,
+                };
+                if !insert_leaf_panel(&mut tab.root, &insertion) {
+                    return Err(PlanFailure::Internal);
+                }
+            }
+            Placement::Swap => {
+                let source = find_leaf_node(&tab.root, &self.panel_id)
+                    .ok_or(PlanFailure::Internal)?
+                    .clone();
+                let target = find_leaf_node(&tab.root, &self.target_panel_id)
+                    .ok_or(PlanFailure::Internal)?
+                    .clone();
+                exchange_leaf_nodes(
+                    &mut tab.root,
+                    &self.panel_id,
+                    &self.target_panel_id,
+                    &source,
+                    &target,
+                );
+            }
         }
         candidate.revision = revision;
         let encoded = serialize_document(&WorkbenchProtocolDocument::Snapshot(candidate)).map_err(
@@ -176,50 +203,82 @@ impl<'a> WorkbenchPanelMoveAdmission<'a> {
             .map_err(|_error| PlanFailure::Internal)?;
         Ok(CommitPlan {
             projection: Some(projection),
-            last_identity: Some(last_identity),
+            last_identity,
             catalog_next: None,
-            outcome: WorkbenchCommandOutcome::PanelMoved {
-                revision,
-                terminal_context_id: self.terminal_context_id.clone(),
-                tab_id: self.tab_id.clone(),
-                panel_id: self.panel_id.clone(),
-                target_panel_id: self.target_panel_id.clone(),
+            outcome: match self.placement {
+                Placement::Move(_) => WorkbenchCommandOutcome::PanelMoved {
+                    revision,
+                    terminal_context_id: self.terminal_context_id.clone(),
+                    tab_id: self.tab_id.clone(),
+                    panel_id: self.panel_id.clone(),
+                    target_panel_id: self.target_panel_id.clone(),
+                },
+                Placement::Swap => WorkbenchCommandOutcome::PanelSwapped {
+                    revision,
+                    terminal_context_id: self.terminal_context_id.clone(),
+                    tab_id: self.tab_id.clone(),
+                    panel_id: self.panel_id.clone(),
+                    target_panel_id: self.target_panel_id.clone(),
+                },
             },
         })
     }
 }
 
 impl WorkbenchAuthority {
-    pub fn begin_terminal_panel_move(
+    pub fn begin_terminal_panel_placement(
         &mut self,
         grant: Option<&WorkbenchGrant>,
         command: WorkbenchCommand,
-    ) -> WorkbenchPanelMoveBegin<'_> {
-        let authorized = matches!(&command.action, WorkbenchAction::PanelMove { .. })
-            && grant
-                .is_some_and(|grant| grant.site_id == *self.site_id() && grant.mutate_navigation);
+    ) -> WorkbenchPanelPlacementBegin<'_> {
+        let authorized = matches!(
+            &command.action,
+            WorkbenchAction::PanelMove { .. } | WorkbenchAction::PanelSwap { .. }
+        ) && grant
+            .is_some_and(|grant| grant.site_id == *self.site_id() && grant.mutate_navigation);
         if !authorized {
-            return WorkbenchPanelMoveBegin::Ready(result(
+            return WorkbenchPanelPlacementBegin::Ready(result(
                 &command,
                 WorkbenchCommandOutcome::Denied {},
             ));
         }
         if let Some(result) = self.command_preflight(&command) {
-            return WorkbenchPanelMoveBegin::Ready(result);
+            return WorkbenchPanelPlacementBegin::Ready(result);
         }
-        let WorkbenchAction::PanelMove {
-            terminal_context_id,
-            tab_id,
-            panel_id,
-            target_panel_id,
-            direction,
-        } = command.action.clone()
-        else {
-            return WorkbenchPanelMoveBegin::Ready(result(
-                &command,
-                unavailable(WorkbenchCommandUnavailableReason::ServiceUnavailable),
-            ));
-        };
+        let (terminal_context_id, tab_id, panel_id, target_panel_id, placement) =
+            match command.action.clone() {
+                WorkbenchAction::PanelMove {
+                    terminal_context_id,
+                    tab_id,
+                    panel_id,
+                    target_panel_id,
+                    direction,
+                } => (
+                    terminal_context_id,
+                    tab_id,
+                    panel_id,
+                    target_panel_id,
+                    Placement::Move(direction),
+                ),
+                WorkbenchAction::PanelSwap {
+                    terminal_context_id,
+                    tab_id,
+                    panel_id,
+                    target_panel_id,
+                } => (
+                    terminal_context_id,
+                    tab_id,
+                    panel_id,
+                    target_panel_id,
+                    Placement::Swap,
+                ),
+                _ => {
+                    return WorkbenchPanelPlacementBegin::Ready(result(
+                        &command,
+                        unavailable(WorkbenchCommandUnavailableReason::ServiceUnavailable),
+                    ));
+                }
+            };
         let snapshot = self.projection.snapshot();
         let rejection = if command.site_id != snapshot.site_id {
             Some(WorkbenchRejectionReason::SiteMismatch)
@@ -238,7 +297,7 @@ impl WorkbenchAuthority {
             None
         };
         if let Some(reason) = rejection {
-            return WorkbenchPanelMoveBegin::Ready(self.retain_rejection(command, reason));
+            return WorkbenchPanelPlacementBegin::Ready(self.retain_rejection(command, reason));
         }
         // Tree membership admits Split-bearing contexts; the standalone composition check
         // compares it against Site composition only for the standalone context.
@@ -247,17 +306,19 @@ impl WorkbenchAuthority {
         {
             match self.tree_standalone_membership() {
                 Ok(membership) => Some(membership),
-                Err(_invariant) => return WorkbenchPanelMoveBegin::Ready(self.retire(&command)),
+                Err(_invariant) => {
+                    return WorkbenchPanelPlacementBegin::Ready(self.retire(&command));
+                }
             }
         } else {
             if super::terminal_membership::tree_terminal_membership(snapshot, &terminal_context_id)
                 .is_err()
             {
-                return WorkbenchPanelMoveBegin::Ready(self.retire(&command));
+                return WorkbenchPanelPlacementBegin::Ready(self.retire(&command));
             }
             None
         };
-        WorkbenchPanelMoveBegin::Admitted(Box::new(WorkbenchPanelMoveAdmission {
+        WorkbenchPanelPlacementBegin::Admitted(Box::new(WorkbenchPanelPlacementAdmission {
             authority: self,
             command,
             terminal_context_id,
@@ -265,8 +326,37 @@ impl WorkbenchAuthority {
             tab_id,
             panel_id,
             target_panel_id,
-            direction,
+            placement,
         }))
+    }
+}
+
+fn find_leaf_node<'a>(node: &'a PanelNode, id: &WorkbenchPanelId) -> Option<&'a PanelNode> {
+    match node {
+        PanelNode::Panel { panel_id, .. } => (panel_id == id).then_some(node),
+        PanelNode::Split { children, .. } => children
+            .iter()
+            .find_map(|slot| find_leaf_node(&slot.node, id)),
+    }
+}
+
+// One traversal replaces each original leaf once; a replacement is never visited again.
+fn exchange_leaf_nodes(
+    node: &mut PanelNode,
+    source_id: &WorkbenchPanelId,
+    target_id: &WorkbenchPanelId,
+    source: &PanelNode,
+    target: &PanelNode,
+) {
+    match node {
+        PanelNode::Panel { panel_id, .. } if panel_id == source_id => *node = target.clone(),
+        PanelNode::Panel { panel_id, .. } if panel_id == target_id => *node = source.clone(),
+        PanelNode::Panel { .. } => {}
+        PanelNode::Split { children, .. } => {
+            for slot in children.iter_mut() {
+                exchange_leaf_nodes(&mut slot.node, source_id, target_id, source, target);
+            }
+        }
     }
 }
 

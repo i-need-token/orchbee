@@ -205,13 +205,21 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath, CompletionShell, Family, HelpTopic, Request, parse_request,
     };
     use std::ffi::OsString;
-    let mut bodies = vec![
-        super::completion::render(CompletionShell::Bash),
-        super::completion::render(CompletionShell::Zsh),
-        super::completion::render(CompletionShell::Fish),
-        super::completion::render(CompletionShell::PowerShell),
-        super::completion::render(CompletionShell::Elvish),
-    ];
+    let mut bodies: Vec<_> = [
+        CompletionShell::Bash,
+        CompletionShell::Zsh,
+        CompletionShell::Fish,
+        CompletionShell::PowerShell,
+        CompletionShell::Elvish,
+    ]
+    .into_iter()
+    .map(|shell| {
+        (
+            format!("completion {shell:?}"),
+            super::completion::render(shell),
+        )
+    })
+    .collect();
     for family in [
         Family::Agent,
         Family::AgentIntegration,
@@ -228,8 +236,12 @@ fn fixed_outputs_are_far_below_the_bound() {
         Family::Terminal,
         Family::Workspace,
     ] {
-        bodies.push(super::text::help(HelpTopic::Family(family), Locale::EnUs).to_owned());
-        bodies.push(super::text::help(HelpTopic::Family(family), Locale::ZhCn).to_owned());
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            bodies.push((
+                format!("{family:?} help {locale:?}"),
+                super::text::help(HelpTopic::Family(family), locale).to_owned(),
+            ));
+        }
     }
     // Every `CommandPath` variant, in both locales — the bound must cover the
     // mutation helps as well as the queries.
@@ -292,6 +304,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::TabMove,
         CommandPath::TabRename,
         CommandPath::PanelRename,
+        CommandPath::PanelSwap,
         CommandPath::TerminalGet,
         CommandPath::TerminalList,
         CommandPath::TerminalRead,
@@ -315,7 +328,10 @@ fn fixed_outputs_are_far_below_the_bound() {
     ];
     for command in &commands {
         for locale in [Locale::EnUs, Locale::ZhCn] {
-            bodies.push(super::text::help(HelpTopic::Command(*command), locale).to_owned());
+            bodies.push((
+                format!("{command:?} help {locale:?}"),
+                super::text::help(HelpTopic::Command(*command), locale).to_owned(),
+            ));
         }
     }
     // Coverage contract — manual vocabulary, verified both directions:
@@ -347,6 +363,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         "worktree",
     ];
     let verbs = [
+        "swap",
         "resize",
         "set-split-ratio",
         "control-status",
@@ -434,16 +451,16 @@ fn fixed_outputs_are_far_below_the_bound() {
         topics.contains(&CommandPath::PanelSplit) && topics.contains(&CommandPath::WorkspaceCreate),
         "the grammar walk must resolve real mutation help topics"
     );
-    for body in &bodies {
+    for (name, body) in &bodies {
         // Heuristic guardrail, not a protocol contract: the real emission
-        // bound is `output::LIMIT` (8 MiB). 128 KiB keeps fixed bodies ~64x
-        // under it while leaving honest headroom for grammar growth — the
-        // completion walker emits per-command forbidden-bit arms, so each new
-        // family adds a proportional slice (the launch-profile family moved
-        // the largest script from ~62 KiB to ~70 KiB).
+        // bound is `output::LIMIT` (8 MiB). Keep fixed bodies at least 32x
+        // under it. The finite static grammar grows with command/flag scopes:
+        // at 79 command paths Fish emits 132382 bytes, while the Windows
+        // shells remain below 34 KiB. This reminder detects abnormal growth;
+        // the separate exact-limit tests enforce the runtime contract.
         assert!(
-            body.len() < 128 * 1024,
-            "fixed output {} bytes must stay far under the bound",
+            body.len() < output::LIMIT / 32,
+            "{name}: fixed output {} bytes must stay at least 32x under the bound",
             body.len()
         );
     }

@@ -5,7 +5,7 @@ use crate::client_view::PanelDirection;
 #[cfg(any(target_os = "linux", windows))]
 use crate::local_client::workbench::WorkbenchTabCloseAccepted;
 use crate::local_client::workbench::panel_close::WorkbenchPanelCloseAccepted;
-use crate::local_client::workbench::panel_move::WorkbenchPanelMoveCommit;
+use crate::local_client::workbench::panel_placement::WorkbenchPanelPlacementCommit;
 use crate::local_client::workbench::panel_split::WorkbenchPanelSplitCommit;
 use crate::terminal_session::state::panel::{
     PanelCommit, PanelDecision, PanelIntent, PanelOperation, PanelPrecommit, PanelRequestKind,
@@ -427,7 +427,7 @@ fn move_commit(operation: &PanelOperation) -> PanelCommit {
     else {
         panic!("move intent")
     };
-    PanelCommit::Move(WorkbenchPanelMoveCommit {
+    PanelCommit::Move(WorkbenchPanelPlacementCommit {
         revision: WorkbenchRevision::new(operation.baseline().revision().value() + 1),
         terminal_context_id: operation.baseline().terminal_context_id().clone(),
         tab_id: operation.target().tab_id().clone(),
@@ -1695,7 +1695,7 @@ fn tab_unavailable_sub_arms_cover_only_defensive_tiers() {
     // `TabUnavailable` is producible on the wire ONLY for Move intents
     // (`connection/native/panel.rs:152-159`), and a real `Rejected{TabUnavailable}`
     // always carries `revision == expected == baseline` — the server checks
-    // `expected != current` FIRST (`terminal_panel_move.rs:224-225`) and answers
+    // `expected != current` FIRST (the shared placement authority preflight) and answers
     // `Rejected{RevisionMismatch, revision: current}` before `plan()` could emit
     // anything else (`workbench_authority.rs:446-450`). Even `revision == baseline`
     // requires degenerate input: the client's own baseline would already lack the Tab,

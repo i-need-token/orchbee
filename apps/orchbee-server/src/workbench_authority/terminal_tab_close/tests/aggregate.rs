@@ -9,7 +9,7 @@ use orchbee_workbench_protocol::{
 };
 
 use crate::workbench_authority::{
-    WorkbenchPanelMoveBegin, WorkbenchPanelMovePreparation, WorkbenchPanelSplitBegin,
+    WorkbenchPanelPlacementBegin, WorkbenchPanelPlacementPreparation, WorkbenchPanelSplitBegin,
     WorkbenchPanelSplitPreparation,
 };
 
@@ -466,12 +466,12 @@ fn aggregate_close_fences_same_tab_split_and_move_until_publication() {
             direction: WorkbenchPanelSplitDirection::Right,
         },
     );
-    let WorkbenchPanelMoveBegin::Admitted(moving) =
-        authority.begin_terminal_panel_move(Some(&grant), movement)
+    let WorkbenchPanelPlacementBegin::Admitted(moving) =
+        authority.begin_terminal_panel_placement(Some(&grant), movement)
     else {
         panic!("move admission")
     };
-    let WorkbenchPanelMovePreparation::Ready(fenced_move) = moving.finish() else {
+    let WorkbenchPanelPlacementPreparation::Ready(fenced_move) = moving.finish() else {
         panic!("pending aggregate Close must fence the move before commit")
     };
     assert!(matches!(
@@ -481,6 +481,34 @@ fn aggregate_close_fences_same_tab_split_and_move_until_publication() {
         }
     ));
     assert_eq!(authority.ledger.len(), retained);
+
+    let before_swap = authority.projection.snapshot().clone();
+    let swap = command(
+        &authority,
+        10003,
+        WorkbenchAction::PanelSwap {
+            terminal_context_id: context_id.clone(),
+            tab_id: closing_tab_id.clone(),
+            panel_id: closing_members[0].panel_id().clone(),
+            target_panel_id: closing_members[1].panel_id().clone(),
+        },
+    );
+    let WorkbenchPanelPlacementBegin::Admitted(swapping) =
+        authority.begin_terminal_panel_placement(Some(&grant), swap)
+    else {
+        panic!("swap admission")
+    };
+    let WorkbenchPanelPlacementPreparation::Ready(fenced_swap) = swapping.finish() else {
+        panic!("aggregate Close must fence swap")
+    };
+    assert!(matches!(
+        fenced_swap.outcome,
+        WorkbenchCommandOutcome::Unavailable {
+            reason: WorkbenchCommandUnavailableReason::TerminalBusy
+        }
+    ));
+    assert_eq!(authority.ledger.len(), retained);
+    assert_eq!(authority.projection.snapshot(), &before_swap);
 
     // Ledger replay precedes the fence.
     let WorkbenchTabCloseBegin::Ready(replayed) =
@@ -591,12 +619,12 @@ fn leaf_close_leaves_same_tab_split_and_move_admissible() {
             direction: WorkbenchPanelSplitDirection::Left,
         },
     );
-    let WorkbenchPanelMoveBegin::Admitted(moving) =
-        authority.begin_terminal_panel_move(Some(&grant), movement)
+    let WorkbenchPanelPlacementBegin::Admitted(moving) =
+        authority.begin_terminal_panel_placement(Some(&grant), movement)
     else {
         panic!("leaf Close must not fence the same-Tab move")
     };
-    let WorkbenchPanelMovePreparation::Prepared(prepared_move) = moving.finish() else {
+    let WorkbenchPanelPlacementPreparation::Prepared(prepared_move) = moving.finish() else {
         panic!("leaf Close must not fence the same-Tab move")
     };
     let moved = prepared_move.commit();

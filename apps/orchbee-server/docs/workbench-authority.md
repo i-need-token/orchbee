@@ -877,3 +877,5 @@ not constitute a passing root verification gate.
 Schema, both bindings and consuming binaries move together in one unpublished v1 activation cohort.
 Old closed decoders reject the extension. Rollback restores the whole cohort; no mixed-version
 rollout, durable migration or cross-restart replay is claimed.
+
+Panel swap uses the shared structural placement authority for one atomic same-Tab whole-leaf exchange, preserving Split/slot and terminal identities. The Windows CLI separately acknowledges source focus through the original Client; known canonical commits survive later failure or unknown focus. [Native Panel swap](../../orchbee/docs/native-panel-swap.md) owns the workflow, receipt and evidence.

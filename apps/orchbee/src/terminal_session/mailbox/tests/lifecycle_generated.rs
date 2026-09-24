@@ -10,7 +10,7 @@ use crate::{
     client_view::PanelDirection,
     local_client::workbench::{
         WorkbenchTabCreateCommit, WorkbenchTabCreatePrecommit, WorkbenchTabCreateRequest,
-        panel_close::WorkbenchPanelCloseAccepted, panel_move::WorkbenchPanelMoveCommit,
+        panel_close::WorkbenchPanelCloseAccepted, panel_placement::WorkbenchPanelPlacementCommit,
         panel_split::WorkbenchPanelSplitCommit,
     },
     terminal_projection::TerminalProjection,
@@ -4905,7 +4905,7 @@ impl Authority {
                 direction,
             } => {
                 self.apply_move(&tab_id, operation.panel_id(), target_panel_id, *direction)?;
-                Ok(PanelCommit::Move(WorkbenchPanelMoveCommit {
+                Ok(PanelCommit::Move(WorkbenchPanelPlacementCommit {
                     revision,
                     terminal_context_id: context_id(3),
                     tab_id,

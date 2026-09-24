@@ -1,5 +1,7 @@
 use std::{num::NonZeroU64, time::Instant};
 
+mod swap;
+
 use super::*;
 use crate::workbench_authority::{
     CloseContinuationNext, CloseStepObservation, WorkbenchPanelSplitBegin,
@@ -57,11 +59,11 @@ fn submit(
     grant: &WorkbenchGrant,
     command: WorkbenchCommand,
 ) -> WorkbenchCommandResult {
-    match authority.begin_terminal_panel_move(Some(grant), command) {
-        WorkbenchPanelMoveBegin::Ready(result) => result,
-        WorkbenchPanelMoveBegin::Admitted(admission) => match admission.finish() {
-            WorkbenchPanelMovePreparation::Ready(result) => result,
-            WorkbenchPanelMovePreparation::Prepared(prepared) => prepared.commit(),
+    match authority.begin_terminal_panel_placement(Some(grant), command) {
+        WorkbenchPanelPlacementBegin::Ready(result) => result,
+        WorkbenchPanelPlacementBegin::Admitted(admission) => match admission.finish() {
+            WorkbenchPanelPlacementPreparation::Ready(result) => result,
+            WorkbenchPanelPlacementPreparation::Prepared(prepared) => prepared.commit(),
         },
     }
 }
@@ -582,8 +584,8 @@ fn panel_move_without_navigation_grant_is_denied() {
         WorkbenchCommandOutcome::Denied {}
     );
     assert!(matches!(
-        authority.begin_terminal_panel_move(None, request),
-        WorkbenchPanelMoveBegin::Ready(result) if result.outcome == WorkbenchCommandOutcome::Denied {}
+        authority.begin_terminal_panel_placement(None, request),
+        WorkbenchPanelPlacementBegin::Ready(result) if result.outcome == WorkbenchCommandOutcome::Denied {}
     ));
     assert_eq!(authority.projection.snapshot(), &before);
 }
@@ -793,8 +795,8 @@ fn revision_gate_precedes_membership_after_a_legal_peer_close() {
             .collect();
     assert_eq!(remaining, vec![panel_a.clone()]);
 
-    let WorkbenchPanelMoveBegin::Ready(result) =
-        authority.begin_terminal_panel_move(Some(&grant), stale_move.clone())
+    let WorkbenchPanelPlacementBegin::Ready(result) =
+        authority.begin_terminal_panel_placement(Some(&grant), stale_move.clone())
     else {
         panic!("a stale move is rejected at the revision gate, never admitted")
     };
@@ -807,8 +809,8 @@ fn revision_gate_precedes_membership_after_a_legal_peer_close() {
     );
     // The rejection is retained: replaying the identical command returns the stored entry
     // rather than re-running the gate.
-    let WorkbenchPanelMoveBegin::Ready(replay) =
-        authority.begin_terminal_panel_move(Some(&grant), stale_move)
+    let WorkbenchPanelPlacementBegin::Ready(replay) =
+        authority.begin_terminal_panel_placement(Some(&grant), stale_move)
     else {
         panic!("a replayed stale move stays a ready result")
     };

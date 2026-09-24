@@ -1,7 +1,8 @@
 mod client_control;
 mod schema_export;
 pub(crate) use client_control::{
-    ClientCommand, ClientLayoutTarget, ClientNavigationTarget, LayoutQuery, ZoomMode,
+    ClientCommand, ClientLayoutTarget, ClientNavigationTarget, LayoutQuery, PanelSwapCommand,
+    PanelSwapDestination, ZoomMode,
 };
 mod workspace_group_close;
 pub(crate) use workspace_group_close::WorkspaceGroupCloseCommand;
@@ -226,6 +227,7 @@ pub(crate) enum CommandPath {
     TabCreate,
     TabRename,
     PanelRename,
+    PanelSwap,
     TabMove,
     TabClose,
     PanelList,
@@ -312,6 +314,7 @@ impl CommandPath {
             Self::TabCreate => "tab create",
             Self::TabRename => "tab rename",
             Self::PanelRename => "panel rename",
+            Self::PanelSwap => "panel swap",
             Self::TabMove => "tab move",
             Self::TabClose => "tab close",
             Self::PanelList => "panel list",
@@ -1332,6 +1335,7 @@ struct Options {
     panel: Option<String>,
     current: bool,
     target_panel: Option<String>,
+    swap_target: Option<String>,
     /// `panel move --into-tab <t>`: the sibling-Tab relocation target.
     into_tab: Option<String>,
     /// `panel move --new-tab`: the new-Tab relocation destination flag.
@@ -1421,6 +1425,7 @@ const VALUE_FLAGS: &[&str] = &[
     "--file",
     "--generation",
     "--into-tab",
+    "--with",
     "--key",
     "--kind",
     "--label",
@@ -1918,6 +1923,7 @@ fn apply_value_flag(
         "--panel" => &mut options.panel,
         "--target-panel" => &mut options.target_panel,
         "--into-tab" => &mut options.into_tab,
+        "--with" => &mut options.swap_target,
 
         // Every reachable `option` is a `VALUE_FLAGS` member and the match
         // is total over that list — `--mouse` is the sole member diverted
@@ -2046,7 +2052,7 @@ fn resolve_words(
         | ["workspace" | "tab", "focus", ..]
         | [
             "panel",
-            "focus" | "zoom" | "layout" | "neighbor" | "edges" | "resize",
+            "focus" | "zoom" | "layout" | "neighbor" | "edges" | "resize" | "swap",
             ..,
         ] => client_control::parse(words, options, envelope),
 
@@ -3761,6 +3767,7 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["tab", "create"] => HelpTopic::Command(CommandPath::TabCreate),
         ["tab", "rename"] => HelpTopic::Command(CommandPath::TabRename),
         ["panel", "rename"] => HelpTopic::Command(CommandPath::PanelRename),
+        ["panel", "swap"] => HelpTopic::Command(CommandPath::PanelSwap),
         ["tab", "move"] => HelpTopic::Command(CommandPath::TabMove),
         ["tab", "close"] => HelpTopic::Command(CommandPath::TabClose),
         ["panel", "list"] => HelpTopic::Command(CommandPath::PanelList),
@@ -3849,6 +3856,7 @@ struct Scope {
     panel: bool,
     current: bool,
     target_panel: bool,
+    swap_target: bool,
     /// `panel move --into-tab <t>`: admits the sibling-Tab relocation
     /// destination selector.
     into_tab: bool,
@@ -3960,6 +3968,7 @@ const NO_OPTIONS: Scope = Scope {
     panel: false,
     current: false,
     target_panel: false,
+    swap_target: false,
     into_tab: false,
     new_tab: false,
     history: false,
@@ -4225,6 +4234,7 @@ fn business_options(options: &Options) -> bool {
         || options.confirm
         || options.group
         || options.target_panel.is_some()
+        || options.swap_target.is_some()
         || options.into_tab.is_some()
         || options.new_tab
         || options.history
@@ -4353,6 +4363,9 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.target_panel.is_some() && !scope.target_panel {
         return Some("--target-panel");
+    }
+    if options.swap_target.is_some() && !scope.swap_target {
+        return Some("--with");
     }
     if options.into_tab.is_some() && !scope.into_tab {
         return Some("--into-tab");

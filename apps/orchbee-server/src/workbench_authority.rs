@@ -53,10 +53,10 @@ pub use terminal_tab_move::{
     PreparedWorkbenchTabMove, WorkbenchTabMoveAdmission, WorkbenchTabMoveBegin,
     WorkbenchTabMovePreparation,
 };
-mod terminal_panel_move;
-pub use terminal_panel_move::{
-    PreparedWorkbenchPanelMove, WorkbenchPanelMoveAdmission, WorkbenchPanelMoveBegin,
-    WorkbenchPanelMovePreparation,
+mod terminal_panel_placement;
+pub use terminal_panel_placement::{
+    PreparedWorkbenchPanelPlacement, WorkbenchPanelPlacementAdmission,
+    WorkbenchPanelPlacementBegin, WorkbenchPanelPlacementPreparation,
 };
 mod terminal_panel_relocate;
 pub use terminal_panel_relocate::{
@@ -1070,6 +1070,7 @@ impl PureWorkbenchAction {
             | WorkbenchAction::TabClose { .. }
             | WorkbenchAction::PanelClose { .. }
             | WorkbenchAction::PanelMove { .. }
+            | WorkbenchAction::PanelSwap { .. }
             | WorkbenchAction::PanelRelocate { .. }
             | WorkbenchAction::WorkspaceClose { .. } => return None,
         })

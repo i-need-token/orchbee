@@ -3,6 +3,118 @@ use crate::cli::escape::escape;
 use serde_json::Value;
 
 impl Locale {
+    pub(crate) fn cli_panel_swap(self, document: &Value) -> String {
+        let (title, client, source, target, canonical, request, revision, reason) = match self {
+            Self::EnUs => (
+                "Panel swap",
+                "Client",
+                "Source",
+                "Target",
+                "Positions",
+                "Request",
+                "Revision",
+                "Reason",
+            ),
+            Self::ZhCn => (
+                "窗格交换",
+                "客户端",
+                "来源",
+                "目标",
+                "位置结果",
+                "请求",
+                "修订",
+                "原因",
+            ),
+        };
+        let outcome = match (self, document["outcome"].as_str().unwrap_or("not-swapped")) {
+            (Self::EnUs, "swapped") => "exchanged and focused",
+            (Self::ZhCn, "swapped") => "已交换并聚焦",
+            (Self::EnUs, "unchanged") => "unchanged",
+            (Self::ZhCn, "unchanged") => "未改变",
+            (Self::EnUs, "incomplete") => {
+                "incomplete; inspect the committed result before retrying"
+            }
+            (Self::ZhCn, "incomplete") => "未完整完成；重试前检查已提交结果",
+            (Self::EnUs, "unknown") => "unknown; inspect current positions before retrying",
+            (Self::ZhCn, "unknown") => "结果未知；重试前检查当前位置",
+            (Self::EnUs, _) => "not exchanged",
+            (Self::ZhCn, _) => "未交换",
+        };
+        let state = match (
+            self,
+            document["canonical"]["kind"]
+                .as_str()
+                .unwrap_or("not-submitted"),
+        ) {
+            (Self::EnUs, "committed") => "committed",
+            (Self::ZhCn, "committed") => "已提交",
+            (Self::EnUs, "unchanged") => "unchanged",
+            (Self::ZhCn, "unchanged") => "未改变",
+            (Self::EnUs, "refused") => "refused",
+            (Self::ZhCn, "refused") => "已拒绝",
+            (Self::EnUs, "unknown") => "unknown",
+            (Self::ZhCn, "unknown") => "未知",
+            (Self::EnUs, _) => "not submitted",
+            (Self::ZhCn, _) => "未提交",
+        };
+        let mut text = format!(
+            "{title}: {outcome}\n{client}: {}\n{source}: {}\n{target}: {}\n{canonical}: {state}\n",
+            escape(document["clientId"].as_str().unwrap_or("-")),
+            escape(document["source"]["panelId"].as_str().unwrap_or("-")),
+            escape(document["target"]["panelId"].as_str().unwrap_or("-"))
+        );
+        for (label, value) in [
+            (request, &document["requestId"]),
+            (revision, &document["canonical"]["revision"]),
+        ] {
+            if let Some(value) = value.as_str() {
+                text.push_str(&format!("{label}: {}\n", escape(value)));
+            }
+        }
+        if let Some(value) = document["reason"].as_str() {
+            let message = match (self, value) {
+                (Self::ZhCn, "cross-tab") => "两个窗格不在同一标签页",
+                (Self::ZhCn, "same-panel") => "来源和目标是同一窗格",
+                (Self::ZhCn, "no-neighbor") => "该方向没有邻居",
+                (Self::ZhCn, "layout-unconfirmed") => "尚未确认布局读取",
+                (Self::ZhCn, "layout-revision-changed") => "布局修订已改变",
+                (Self::ZhCn, "source-unavailable") => "来源窗格不可用",
+                (Self::ZhCn, "client-unavailable") => "客户端不可用",
+                (Self::ZhCn, "client-selection-changed") => "客户端选择已改变",
+                (Self::EnUs, "cross-tab") => "the Panels belong to different Tabs",
+                (Self::EnUs, "same-panel") => "source and target are the same Panel",
+                (Self::EnUs, "no-neighbor") => "no neighbor in that direction",
+                (Self::EnUs, "layout-unconfirmed") => "layout read is unconfirmed",
+                (Self::EnUs, "layout-revision-changed") => "layout revision changed",
+                (Self::EnUs, "source-unavailable") => "source Panel is unavailable",
+                (Self::EnUs, "client-unavailable") => "Client is unavailable",
+                (Self::EnUs, "client-selection-changed") => "Client selection changed",
+                _ => value,
+            };
+            text.push_str(&format!("{reason}: {}\n", escape(message)));
+        }
+        if !document["focus"].is_null() {
+            let focus = &document["focus"];
+            let label = match self {
+                Self::EnUs => "Focus",
+                Self::ZhCn => "聚焦",
+            };
+            let state = focus["observation"]["result"]["kind"]
+                .as_str()
+                .or_else(|| focus["observation"]["kind"].as_str())
+                .unwrap_or("unavailable");
+            text.push_str(&format!("{label}: {}\n", self.client_control_state(state)));
+            if let Some(id) = focus["operationId"].as_str() {
+                text.push_str(&format!("orchbee client control-status {}\n", escape(id)));
+            }
+            if let Some(wait) = focus["wait"].as_str() {
+                text.push_str(self.client_control_state(wait));
+                text.push('\n');
+            }
+        }
+        text
+    }
+
     pub(crate) fn cli_client_control(self, document: &Value) -> String {
         let control = document["schema"] == "orchbee.client.control";
         let outcome = if control {

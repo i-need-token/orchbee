@@ -20,6 +20,9 @@ use std::{
 };
 
 pub(super) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale) -> Output {
+    if let ClientCommand::Swap(command) = command {
+        return super::swap::run(command, format, locale);
+    }
     let timeout = match command {
         ClientCommand::Navigate { timeout_ms, .. } => *timeout_ms,
         _ => 5_000,
@@ -122,6 +125,7 @@ fn observe(
         return Ok(());
     }
     let action = match command {
+        ClientCommand::Swap(_) => return Err(Failure::new(FailureKind::InternalFailure)),
         ClientCommand::List => ClientViewAction::List {},
         ClientCommand::Get(client_id) => ClientViewAction::Get {
             client_id: client_id.clone(),
@@ -170,9 +174,66 @@ fn observe(
     if interrupted(answer, signals, deadline)? {
         return Ok(());
     }
+    exchange_and_wait(
+        &mut client,
+        &snapshot.site_id,
+        action,
+        matches!(command, ClientCommand::Navigate { detach: false, .. }),
+        deadline,
+        signals,
+        answer,
+    )
+}
+
+pub(super) fn submit_control(
+    client: &mut LocalClient,
+    site_id: &SiteId,
+    command: ClientViewControl,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<Answer, Failure> {
+    let mut answer = Answer {
+        status_only: false,
+        operation_id: Some(command.operation_id.clone()),
+        site_id: Some(site_id.clone()),
+        reply: None,
+        unknown: false,
+        wait: None,
+    };
+    if !interrupted(&mut answer, signals, deadline)? {
+        let result = exchange_and_wait(
+            client,
+            site_id,
+            ClientViewAction::Submit {
+                command: Box::new(command),
+            },
+            true,
+            deadline,
+            signals,
+            &mut answer,
+        );
+        if let Err(error) = result {
+            if answer.reply.is_none() && !answer.unknown {
+                return Err(error);
+            }
+            answer.wait = Some(Wait::ObservationFailed);
+        }
+    }
+    Ok(answer)
+}
+
+fn exchange_and_wait(
+    client: &mut LocalClient,
+    site_id: &SiteId,
+    action: ClientViewAction,
+    wait: bool,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+    answer: &mut Answer,
+) -> Result<(), Failure> {
     // Every subsequent exchange is a retained Read. A lost Submit is never replayed.
     let submitted = matches!(action, ClientViewAction::Submit { .. });
-    match exchange(&mut client, &snapshot.site_id, action, deadline, signals) {
+    match exchange(client, site_id, action, deadline, signals) {
         Ok(reply) => answer.reply = Some(reply),
         Err(error) if submitted => {
             answer.unknown = true;
@@ -181,10 +242,10 @@ fn observe(
         }
         Err(error) => return Err(error),
     }
-    let ClientCommand::Navigate { detach, .. } = command else {
+    if !submitted {
         return Ok(());
-    };
-    if *detach {
+    }
+    if !wait {
         if answer.pending() {
             answer.wait = Some(Wait::Detached);
         }
@@ -205,8 +266,8 @@ fn observe(
             .clone()
             .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
         match exchange(
-            &mut client,
-            &snapshot.site_id,
+            client,
+            site_id,
             ClientViewAction::Read { operation_id },
             deadline,
             signals,
@@ -252,7 +313,7 @@ fn monotonic(previous: &WorkbenchClientViewResult, next: &WorkbenchClientViewRes
             _ => previous.status == next.status,
         }
 }
-fn exchange(
+pub(super) fn exchange(
     client: &mut LocalClient,
     site_id: &SiteId,
     action: ClientViewAction,

@@ -287,6 +287,26 @@ pub fn build(builder: *std.Build) void {
         .optimize = optimize,
     });
     platform_test_module.addImport("terminal-host-platform", platform_module);
+    const platform_test_options = builder.addOptions();
+    if (target.result.os.tag == .windows) {
+        const descendant_module = builder.createModule(.{
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        });
+        descendant_module.addCSourceFile(.{
+            .file = builder.path("src/platform/__tests__/retained_descendant_windows.c"),
+            .flags = authored_c_flags,
+        });
+        const descendant = builder.addExecutable(.{
+            .name = "terminal-host-retained-descendant-fixture",
+            .root_module = descendant_module,
+        });
+        platform_test_options.addOptionPath("retained_descendant_fixture", descendant.getEmittedBin());
+    } else {
+        platform_test_options.addOption([]const u8, "retained_descendant_fixture", "");
+    }
+    platform_test_module.addOptions("platform_test_options", platform_test_options);
     const engine_test_module = builder.createModule(.{
         .root_source_file = builder.path("src/engine/__tests__/engine_test.zig"),
         .target = target,

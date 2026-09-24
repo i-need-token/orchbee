@@ -5476,8 +5476,8 @@
 			"config": "apps/orchbee-server/formal/tla/WorkbenchPanelMove.cfg",
 			"claims": ["apps/orchbee-server/docs/workbench-authority.md"],
 			"triggers": [
-				"apps/orchbee-server/src/workbench_authority/terminal_panel_move.rs",
-				"apps/orchbee-server/src/workbench_authority/terminal_panel_move/**",
+				"apps/orchbee-server/src/workbench_authority/terminal_panel_placement.rs",
+				"apps/orchbee-server/src/workbench_authority/terminal_panel_placement/**",
 				"apps/orchbee-server/src/workbench_authority/terminal_membership.rs",
 				"apps/orchbee-server/src/site_coordinator.rs",
 				"apps/orchbee-server/docs/workbench-authority.md",
@@ -5513,8 +5513,8 @@
 			"triggers": [
 				"apps/orchbee-server/src/workbench_authority/terminal_panel_split.rs",
 				"apps/orchbee-server/src/workbench_authority/terminal_panel_split/**",
-				"apps/orchbee-server/src/workbench_authority/terminal_panel_move.rs",
-				"apps/orchbee-server/src/workbench_authority/terminal_panel_move/**",
+				"apps/orchbee-server/src/workbench_authority/terminal_panel_placement.rs",
+				"apps/orchbee-server/src/workbench_authority/terminal_panel_placement/**",
 				"apps/orchbee-server/src/workbench_authority/terminal_membership.rs",
 				"apps/orchbee-server/src/workbench_authority/terminal_tab_close*",
 				"apps/orchbee-server/src/workbench_authority/terminal_tab_close/**",
@@ -5549,6 +5549,46 @@
 				"ObserveLeafContraction",
 				"ObserveMovedMembers",
 				"ObserveMoveDuringLeafClose"
+			]
+		},
+		{
+			"id": "workbench-panel-swap",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/WorkbenchPanelSwap.tla",
+			"config": "apps/orchbee-server/formal/tla/WorkbenchPanelSwap.cfg",
+			"claims": [
+				"apps/orchbee/docs/native-panel-swap.md",
+				"apps/orchbee-server/docs/workbench-authority.md"
+			],
+			"triggers": [
+				"apps/orchbee-server/src/workbench_authority/terminal_panel_placement.rs",
+				"apps/orchbee-server/src/workbench_authority/terminal_panel_placement/**",
+				"apps/orchbee/src/cli/client_control/swap/**",
+				"apps/orchbee/src/cli/client_control/swap.rs",
+				"apps/orchbee/src/local_client/workbench/panel_placement.rs",
+				"crates/workbench-protocol/src/command.rs",
+				"apps/orchbee/docs/native-panel-swap.md",
+				"apps/orchbee/docs/native-panel-swap.zh-CN.md",
+				"apps/orchbee/src/cli/client_control/windows.rs",
+				"apps/orchbee/src/cli/client_control/selection.rs",
+				"apps/orchbee/tests/cli_windows_panel_swap.rs",
+				"packages/workbench-client-protocol/src/workbench-command-contract.ts",
+				"schemas/workbench/v1/workbench-command.schema.json"
+			],
+			"timeoutMilliseconds": 180000,
+			"workers": 1,
+			"requiredCoverage": [
+				"ResolvePair",
+				"ResolveNoop",
+				"RefuseSwap",
+				"CommitSwap",
+				"LoseSwapReply",
+				"ObserveReady",
+				"StopWaiting",
+				"ApplyFocus",
+				"LoseFocusReply",
+				"RefuseFocus"
 			]
 		},
 		{

@@ -604,8 +604,8 @@ test('Workbench tab-close owners select the panel split model', () => {
 		'apps/orchbee-server/src/workbench_authority/terminal_tab_close/admission.rs',
 		'apps/orchbee-server/src/workbench_authority/terminal_tab_close/publication.rs',
 		'apps/orchbee-server/src/workbench_authority/terminal_tab_close/tests.rs',
-		'apps/orchbee-server/src/workbench_authority/terminal_panel_move.rs',
-		'apps/orchbee-server/src/workbench_authority/terminal_panel_move/tests.rs',
+		'apps/orchbee-server/src/workbench_authority/terminal_panel_placement.rs',
+		'apps/orchbee-server/src/workbench_authority/terminal_panel_placement/tests.rs',
 	]) {
 		assert.equal(
 			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
@@ -875,6 +875,30 @@ test('viewer/controller protocol and routing owners select the terminal relay mo
 		assert.equal(
 			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
 				({ id }) => id === 'local-terminal-relay',
+			),
+			true,
+			changedPath,
+		);
+	}
+});
+
+test('Panel swap workflow, carrier and canonical owners select the staged swap model', () => {
+	for (const changedPath of [
+		'apps/orchbee-server/src/workbench_authority/terminal_panel_placement.rs',
+		'apps/orchbee-server/src/workbench_authority/terminal_panel_placement/tests/swap.rs',
+		'apps/orchbee/src/local_client/workbench/panel_placement.rs',
+		'apps/orchbee/src/cli/client_control/windows.rs',
+		'apps/orchbee/src/cli/client_control/selection.rs',
+		'apps/orchbee/src/cli/client_control/swap.rs',
+		'apps/orchbee/src/cli/client_control/swap/receipt.rs',
+		'apps/orchbee/tests/cli_windows_panel_swap.rs',
+		'crates/workbench-protocol/src/command.rs',
+		'packages/workbench-client-protocol/src/workbench-command-contract.ts',
+		'schemas/workbench/v1/workbench-command.schema.json',
+	]) {
+		assert.equal(
+			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
+				({ id }) => id === 'workbench-panel-swap',
 			),
 			true,
 			changedPath,

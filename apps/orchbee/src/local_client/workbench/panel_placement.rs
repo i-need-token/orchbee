@@ -10,28 +10,48 @@ use orchbee_workbench_protocol::{
 use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
 
 impl LocalClient {
-    pub(crate) fn submit_workbench_panel_move(
+    pub(crate) fn submit_workbench_panel_placement(
         &mut self,
-        request: WorkbenchPanelMoveRequest,
+        request: WorkbenchPanelPlacementRequest,
         deadline: Instant,
-    ) -> WorkbenchPanelMoveSubmission {
+    ) -> WorkbenchPanelPlacementSubmission {
+        self.submit_workbench_panel_placement_with_wake(request, deadline, None)
+    }
+
+    pub(crate) fn submit_workbench_panel_placement_with_wake(
+        &mut self,
+        request: WorkbenchPanelPlacementRequest,
+        deadline: Instant,
+        wake: Option<orchbee_local_ipc::LocalIo<'_>>,
+    ) -> WorkbenchPanelPlacementSubmission {
         if self.connection.is_none() {
-            return WorkbenchPanelMoveSubmission::DefinitelyNotSubmitted(
-                WorkbenchPanelMoveNotSubmitted::SessionUnavailable,
+            return WorkbenchPanelPlacementSubmission::DefinitelyNotSubmitted(
+                WorkbenchPanelPlacementNotSubmitted::SessionUnavailable,
             );
         }
         let command = request.0;
         let request_id = command.request_id.clone();
         let expected_revision = command.expected_revision;
-        let WorkbenchAction::PanelMove {
+        let kind = if matches!(command.action, WorkbenchAction::PanelSwap { .. }) {
+            PlacementKind::Swap
+        } else {
+            PlacementKind::Move
+        };
+        let (WorkbenchAction::PanelMove {
             terminal_context_id,
             tab_id,
             panel_id,
             target_panel_id,
             ..
-        } = &command.action
+        }
+        | WorkbenchAction::PanelSwap {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+            target_panel_id,
+        }) = &command.action
         else {
-            unreachable!("opaque panel-move request only admits panel.move")
+            unreachable!("opaque placement request admits only panel.move or panel.swap")
         };
         let expected_context = terminal_context_id.clone();
         let expected_tab = tab_id.clone();
@@ -40,21 +60,21 @@ impl LocalClient {
         let mut frame = Vec::new();
         if let Err(error) = write_workbench_request(&mut frame, &WorkbenchRequest::Command(command))
         {
-            return WorkbenchPanelMoveSubmission::DefinitelyNotSubmitted(
-                WorkbenchPanelMoveNotSubmitted::RequestEncoding(error),
+            return WorkbenchPanelPlacementSubmission::DefinitelyNotSubmitted(
+                WorkbenchPanelPlacementNotSubmitted::RequestEncoding(error),
             );
         }
         let deadline = match self.submission_deadline_before(deadline) {
             Ok(deadline) => deadline,
             Err(error) => {
-                return WorkbenchPanelMoveSubmission::DefinitelyNotSubmitted(
-                    WorkbenchPanelMoveNotSubmitted::RequestNotSubmitted(error),
+                return WorkbenchPanelPlacementSubmission::DefinitelyNotSubmitted(
+                    WorkbenchPanelPlacementNotSubmitted::RequestNotSubmitted(error),
                 );
             }
         };
         let Some(connection) = self.connection.as_mut() else {
-            return WorkbenchPanelMoveSubmission::DefinitelyNotSubmitted(
-                WorkbenchPanelMoveNotSubmitted::SessionUnavailable,
+            return WorkbenchPanelPlacementSubmission::DefinitelyNotSubmitted(
+                WorkbenchPanelPlacementNotSubmitted::SessionUnavailable,
             );
         };
         let attempt = exchange_once(
@@ -62,46 +82,46 @@ impl LocalClient {
             &self.clock,
             deadline,
             self.io_chunk_limits,
-            None,
+            wake,
             &frame,
             |io| read_workbench_response(io),
         );
         let response = match attempt {
             ExchangeAttempt::Result(response) => response,
             ExchangeAttempt::NotSubmitted(error) => {
-                return WorkbenchPanelMoveSubmission::DefinitelyNotSubmitted(
-                    WorkbenchPanelMoveNotSubmitted::RequestNotSubmitted(error),
+                return WorkbenchPanelPlacementSubmission::DefinitelyNotSubmitted(
+                    WorkbenchPanelPlacementNotSubmitted::RequestNotSubmitted(error),
                 );
             }
             ExchangeAttempt::WriteFailed(error) => {
-                return self.retire_with_panel_move_unknown(
+                return self.retire_with_panel_placement_unknown(
                     request_id,
-                    WorkbenchPanelMoveOutcomeUnknownReason::Write(error),
+                    WorkbenchPanelPlacementOutcomeUnknownReason::Write(error),
                 );
             }
             ExchangeAttempt::ReadFailed(error) => {
-                return self.retire_with_panel_move_unknown(
+                return self.retire_with_panel_placement_unknown(
                     request_id,
-                    WorkbenchPanelMoveOutcomeUnknownReason::Response(error),
+                    WorkbenchPanelPlacementOutcomeUnknownReason::Response(error),
                 );
             }
             ExchangeAttempt::ReadDeadline(error) => {
-                return self.retire_with_panel_move_unknown(
+                return self.retire_with_panel_placement_unknown(
                     request_id,
-                    WorkbenchPanelMoveOutcomeUnknownReason::ResponseDeadline(error),
+                    WorkbenchPanelPlacementOutcomeUnknownReason::ResponseDeadline(error),
                 );
             }
         };
         let WorkbenchResponse::Command(result) = response else {
-            return self.retire_with_panel_move_unknown(
+            return self.retire_with_panel_placement_unknown(
                 request_id,
-                WorkbenchPanelMoveOutcomeUnknownReason::UnexpectedResponse,
+                WorkbenchPanelPlacementOutcomeUnknownReason::UnexpectedResponse,
             );
         };
         if result.request_id != request_id {
-            return self.retire_with_panel_move_unknown(
+            return self.retire_with_panel_placement_unknown(
                 request_id.clone(),
-                WorkbenchPanelMoveOutcomeUnknownReason::CorrelationMismatch {
+                WorkbenchPanelPlacementOutcomeUnknownReason::CorrelationMismatch {
                     expected: request_id,
                     received: result.request_id,
                 },
@@ -113,30 +133,34 @@ impl LocalClient {
             &expected_tab,
             &expected_panel,
             &expected_target,
+            kind,
             result.outcome,
         ) {
             Ok(submission) => submission,
-            Err(reason) => self.retire_with_panel_move_unknown(request_id, reason),
+            Err(reason) => self.retire_with_panel_placement_unknown(request_id, reason),
         }
     }
 
-    fn retire_with_panel_move_unknown(
+    fn retire_with_panel_placement_unknown(
         &mut self,
         request_id: WorkbenchRequestId,
-        reason: WorkbenchPanelMoveOutcomeUnknownReason,
-    ) -> WorkbenchPanelMoveSubmission {
+        reason: WorkbenchPanelPlacementOutcomeUnknownReason,
+    ) -> WorkbenchPanelPlacementSubmission {
         self.connection.take();
-        WorkbenchPanelMoveSubmission::OutcomeUnknown { request_id, reason }
+        WorkbenchPanelPlacementSubmission::OutcomeUnknown { request_id, reason }
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct WorkbenchPanelMoveRequest(WorkbenchCommand);
+pub(crate) struct WorkbenchPanelPlacementRequest(WorkbenchCommand);
 
-impl TryFrom<WorkbenchCommand> for WorkbenchPanelMoveRequest {
+impl TryFrom<WorkbenchCommand> for WorkbenchPanelPlacementRequest {
     type Error = WorkbenchCommand;
     fn try_from(command: WorkbenchCommand) -> Result<Self, Self::Error> {
-        if matches!(command.action, WorkbenchAction::PanelMove { .. }) {
+        if matches!(
+            command.action,
+            WorkbenchAction::PanelMove { .. } | WorkbenchAction::PanelSwap { .. }
+        ) {
             Ok(Self(command))
         } else {
             Err(command)
@@ -145,7 +169,7 @@ impl TryFrom<WorkbenchCommand> for WorkbenchPanelMoveRequest {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum WorkbenchPanelMovePrecommit {
+pub(crate) enum WorkbenchPanelPlacementPrecommit {
     Rejected {
         revision: WorkbenchRevision,
         reason: WorkbenchRejectionReason,
@@ -157,7 +181,7 @@ pub(crate) enum WorkbenchPanelMovePrecommit {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct WorkbenchPanelMoveCommit {
+pub(crate) struct WorkbenchPanelPlacementCommit {
     pub(crate) revision: WorkbenchRevision,
     pub(crate) terminal_context_id: WorkbenchTerminalContextId,
     pub(crate) tab_id: WorkbenchTabId,
@@ -166,42 +190,42 @@ pub(crate) struct WorkbenchPanelMoveCommit {
 }
 
 #[derive(Debug)]
-pub(crate) enum WorkbenchPanelMoveSubmission {
-    DefinitelyNotSubmitted(WorkbenchPanelMoveNotSubmitted),
-    DefinitePrecommit(WorkbenchPanelMovePrecommit),
+pub(crate) enum WorkbenchPanelPlacementSubmission {
+    DefinitelyNotSubmitted(WorkbenchPanelPlacementNotSubmitted),
+    DefinitePrecommit(WorkbenchPanelPlacementPrecommit),
     Unchanged {
         revision: WorkbenchRevision,
     },
-    Committed(WorkbenchPanelMoveCommit),
+    Committed(WorkbenchPanelPlacementCommit),
     OutcomeUnknown {
         request_id: WorkbenchRequestId,
-        reason: WorkbenchPanelMoveOutcomeUnknownReason,
+        reason: WorkbenchPanelPlacementOutcomeUnknownReason,
     },
 }
 
 #[derive(Debug)]
-pub(crate) enum WorkbenchPanelMoveNotSubmitted {
+pub(crate) enum WorkbenchPanelPlacementNotSubmitted {
     SessionUnavailable,
     RequestEncoding(WorkbenchWireError),
     RequestNotSubmitted(io::Error),
 }
 
-impl fmt::Display for WorkbenchPanelMoveNotSubmitted {
+impl fmt::Display for WorkbenchPanelPlacementNotSubmitted {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::SessionUnavailable => f.write_str("local Client Session is unavailable"),
             Self::RequestEncoding(error) => {
-                write!(f, "OBWP panel.move request encoding failed: {error}")
+                write!(f, "OBWP Panel placement request encoding failed: {error}")
             }
             Self::RequestNotSubmitted(error) => write!(
                 f,
-                "OBWP panel.move request failed before any transport handoff: {error}"
+                "OBWP Panel placement request failed before any transport handoff: {error}"
             ),
         }
     }
 }
 
-impl std::error::Error for WorkbenchPanelMoveNotSubmitted {
+impl std::error::Error for WorkbenchPanelPlacementNotSubmitted {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::SessionUnavailable => None,
@@ -212,7 +236,7 @@ impl std::error::Error for WorkbenchPanelMoveNotSubmitted {
 }
 
 #[derive(Debug)]
-pub(crate) enum WorkbenchPanelMoveOutcomeUnknownReason {
+pub(crate) enum WorkbenchPanelPlacementOutcomeUnknownReason {
     Write(io::Error),
     Response(WorkbenchWireError),
     ResponseDeadline(io::Error),
@@ -247,7 +271,7 @@ pub(crate) enum WorkbenchPanelMoveOutcomeUnknownReason {
     },
 }
 
-impl fmt::Display for WorkbenchPanelMoveOutcomeUnknownReason {
+impl fmt::Display for WorkbenchPanelPlacementOutcomeUnknownReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Write(error) => write!(f, "request write failed: {error}"),
@@ -291,7 +315,7 @@ impl fmt::Display for WorkbenchPanelMoveOutcomeUnknownReason {
     }
 }
 
-impl std::error::Error for WorkbenchPanelMoveOutcomeUnknownReason {
+impl std::error::Error for WorkbenchPanelPlacementOutcomeUnknownReason {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Write(error) | Self::ResponseDeadline(error) => Some(error),
@@ -309,14 +333,31 @@ impl std::error::Error for WorkbenchPanelMoveOutcomeUnknownReason {
     }
 }
 
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum PlacementKind {
+    Move,
+    Swap,
+}
+
 fn classify_outcome(
     expected_revision: WorkbenchRevision,
     expected_context: &WorkbenchTerminalContextId,
     expected_tab: &WorkbenchTabId,
     expected_panel: &WorkbenchPanelId,
     expected_target: &WorkbenchPanelId,
+    kind: PlacementKind,
     outcome: WorkbenchCommandOutcome,
-) -> Result<WorkbenchPanelMoveSubmission, WorkbenchPanelMoveOutcomeUnknownReason> {
+) -> Result<WorkbenchPanelPlacementSubmission, WorkbenchPanelPlacementOutcomeUnknownReason> {
+    let compatible_commit = matches!(
+        (&outcome, kind),
+        (
+            WorkbenchCommandOutcome::PanelMoved { .. },
+            PlacementKind::Move
+        ) | (
+            WorkbenchCommandOutcome::PanelSwapped { .. },
+            PlacementKind::Swap
+        )
+    );
     match outcome {
         WorkbenchCommandOutcome::Rejected { revision, reason }
             if matches!(
@@ -330,15 +371,18 @@ fn classify_outcome(
                     | WorkbenchRejectionReason::RevisionExhausted
                     | WorkbenchRejectionReason::IdentityExhausted
                     | WorkbenchRejectionReason::RequestIdentityConflict
-            ) =>
+            ) && (kind == PlacementKind::Move
+                || reason != WorkbenchRejectionReason::IdentityExhausted) =>
         {
-            Ok(WorkbenchPanelMoveSubmission::DefinitePrecommit(
-                WorkbenchPanelMovePrecommit::Rejected { revision, reason },
+            Ok(WorkbenchPanelPlacementSubmission::DefinitePrecommit(
+                WorkbenchPanelPlacementPrecommit::Rejected { revision, reason },
             ))
         }
-        WorkbenchCommandOutcome::Denied {} => Ok(WorkbenchPanelMoveSubmission::DefinitePrecommit(
-            WorkbenchPanelMovePrecommit::Denied,
-        )),
+        WorkbenchCommandOutcome::Denied {} => {
+            Ok(WorkbenchPanelPlacementSubmission::DefinitePrecommit(
+                WorkbenchPanelPlacementPrecommit::Denied,
+            ))
+        }
         WorkbenchCommandOutcome::Unavailable { reason }
             if matches!(
                 reason,
@@ -347,13 +391,15 @@ fn classify_outcome(
                     | WorkbenchCommandUnavailableReason::ServiceUnavailable
             ) =>
         {
-            Ok(WorkbenchPanelMoveSubmission::DefinitePrecommit(
-                WorkbenchPanelMovePrecommit::Unavailable { reason },
+            Ok(WorkbenchPanelPlacementSubmission::DefinitePrecommit(
+                WorkbenchPanelPlacementPrecommit::Unavailable { reason },
             ))
         }
-        WorkbenchCommandOutcome::Unchanged { revision } => {
+        WorkbenchCommandOutcome::Unchanged { revision }
+            if kind == PlacementKind::Move || expected_panel == expected_target =>
+        {
             validate_revision(expected_revision, revision)?;
-            Ok(WorkbenchPanelMoveSubmission::Unchanged { revision })
+            Ok(WorkbenchPanelPlacementSubmission::Unchanged { revision })
         }
         WorkbenchCommandOutcome::PanelMoved {
             revision,
@@ -361,43 +407,50 @@ fn classify_outcome(
             tab_id,
             panel_id,
             target_panel_id,
-        } => {
+        }
+        | WorkbenchCommandOutcome::PanelSwapped {
+            revision,
+            terminal_context_id,
+            tab_id,
+            panel_id,
+            target_panel_id,
+        } if compatible_commit => {
             let successor = expected_revision.value().checked_add(1).ok_or(
-                WorkbenchPanelMoveOutcomeUnknownReason::ExpectedRevisionOverflow {
+                WorkbenchPanelPlacementOutcomeUnknownReason::ExpectedRevisionOverflow {
                     expected: expected_revision,
                 },
             )?;
             validate_revision(WorkbenchRevision::new(successor), revision)?;
             if &terminal_context_id != expected_context {
                 return Err(
-                    WorkbenchPanelMoveOutcomeUnknownReason::TerminalContextMismatch {
+                    WorkbenchPanelPlacementOutcomeUnknownReason::TerminalContextMismatch {
                         expected: expected_context.clone(),
                         received: terminal_context_id,
                     },
                 );
             }
             if &tab_id != expected_tab {
-                return Err(WorkbenchPanelMoveOutcomeUnknownReason::TabMismatch {
+                return Err(WorkbenchPanelPlacementOutcomeUnknownReason::TabMismatch {
                     expected: expected_tab.clone(),
                     received: tab_id,
                 });
             }
             if &panel_id != expected_panel {
-                return Err(WorkbenchPanelMoveOutcomeUnknownReason::PanelMismatch {
+                return Err(WorkbenchPanelPlacementOutcomeUnknownReason::PanelMismatch {
                     expected: expected_panel.clone(),
                     received: panel_id,
                 });
             }
             if &target_panel_id != expected_target {
                 return Err(
-                    WorkbenchPanelMoveOutcomeUnknownReason::TargetPanelMismatch {
+                    WorkbenchPanelPlacementOutcomeUnknownReason::TargetPanelMismatch {
                         expected: expected_target.clone(),
                         received: target_panel_id,
                     },
                 );
             }
-            Ok(WorkbenchPanelMoveSubmission::Committed(
-                WorkbenchPanelMoveCommit {
+            Ok(WorkbenchPanelPlacementSubmission::Committed(
+                WorkbenchPanelPlacementCommit {
                     revision,
                     terminal_context_id,
                     tab_id,
@@ -406,17 +459,17 @@ fn classify_outcome(
                 },
             ))
         }
-        _ => Err(WorkbenchPanelMoveOutcomeUnknownReason::ActionIncompatible),
+        _ => Err(WorkbenchPanelPlacementOutcomeUnknownReason::ActionIncompatible),
     }
 }
 
 fn validate_revision(
     expected: WorkbenchRevision,
     received: WorkbenchRevision,
-) -> Result<(), WorkbenchPanelMoveOutcomeUnknownReason> {
+) -> Result<(), WorkbenchPanelPlacementOutcomeUnknownReason> {
     if expected == received {
         Ok(())
     } else {
-        Err(WorkbenchPanelMoveOutcomeUnknownReason::RevisionMismatch { expected, received })
+        Err(WorkbenchPanelPlacementOutcomeUnknownReason::RevisionMismatch { expected, received })
     }
 }

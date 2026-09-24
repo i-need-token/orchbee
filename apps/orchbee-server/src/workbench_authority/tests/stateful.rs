@@ -389,6 +389,7 @@ fn run(steps: &[Step]) -> Result<(), String> {
                 }
                 WorkbenchAction::TabMove { .. }
                 | WorkbenchAction::PanelMove { .. }
+                | WorkbenchAction::PanelSwap { .. }
                 | WorkbenchAction::PanelRelocate { .. } => {
                     return Err("direct navigation trace generated Site-composed move".to_owned());
                 }

@@ -43,10 +43,15 @@ refused in review regardless of its tests.
   fails if any capability is touched.
 - Every offline command is run the same way and must succeed.
 - A read command is run against a scripted endpoint that records every request; the test asserts
-  exactly one admission and one read, and no create, lock, or grant.
+  exactly one admission and one read, and no create, lock, or grant. A declared observation command
+  additionally proves bounded repeated reads without an effect.
 - A mutation is run against a scripted endpoint that fails after accepting the submission; the
   test asserts one submission, no retry, and an unknown-outcome document carrying the request
   identity.
+- A declared workflow faults every phase boundary and submission response. Evidence checks its
+  finite phase order, exact receipt dependencies, one submission per effect phase, unchanged total
+  deadline, and retained known effects on later failure, cancellation or unknown outcome. Rejected
+  and no-op paths prove which later phases cannot run.
 - An activation verb is run against a real or staged runtime fixture: a cold invocation brings
   the service up, a repeat invocation reports already-running, a staged half-activation refuses
   without mutating the committed state, and the whole attempt honors one invocation-owned

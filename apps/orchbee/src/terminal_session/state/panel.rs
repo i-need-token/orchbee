@@ -10,7 +10,7 @@ use crate::{
     client_view::PanelDirection,
     local_client::workbench::{
         panel_close::{WorkbenchPanelCloseAccepted, WorkbenchPanelClosePrecommit},
-        panel_move::{WorkbenchPanelMoveCommit, WorkbenchPanelMovePrecommit},
+        panel_placement::{WorkbenchPanelPlacementCommit, WorkbenchPanelPlacementPrecommit},
         panel_split::{WorkbenchPanelSplitCommit, WorkbenchPanelSplitPrecommit},
     },
 };
@@ -112,7 +112,7 @@ impl PanelOperation {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) enum PanelCommit {
     Split(WorkbenchPanelSplitCommit),
-    Move(WorkbenchPanelMoveCommit),
+    Move(WorkbenchPanelPlacementCommit),
 }
 
 impl PanelCommit {
@@ -336,14 +336,16 @@ impl From<WorkbenchPanelSplitPrecommit> for PanelPrecommit {
     }
 }
 
-impl From<WorkbenchPanelMovePrecommit> for PanelPrecommit {
-    fn from(precommit: WorkbenchPanelMovePrecommit) -> Self {
+impl From<WorkbenchPanelPlacementPrecommit> for PanelPrecommit {
+    fn from(precommit: WorkbenchPanelPlacementPrecommit) -> Self {
         match precommit {
-            WorkbenchPanelMovePrecommit::Rejected { revision, reason } => {
+            WorkbenchPanelPlacementPrecommit::Rejected { revision, reason } => {
                 Self::Rejected { revision, reason }
             }
-            WorkbenchPanelMovePrecommit::Denied => Self::Denied,
-            WorkbenchPanelMovePrecommit::Unavailable { reason } => Self::Unavailable { reason },
+            WorkbenchPanelPlacementPrecommit::Denied => Self::Denied,
+            WorkbenchPanelPlacementPrecommit::Unavailable { reason } => {
+                Self::Unavailable { reason }
+            }
         }
     }
 }

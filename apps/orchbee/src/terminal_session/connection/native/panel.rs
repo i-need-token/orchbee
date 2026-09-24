@@ -5,9 +5,9 @@ use crate::{
             WorkbenchPanelCloseNotSubmitted, WorkbenchPanelCloseRequest,
             WorkbenchPanelCloseSubmission,
         },
-        panel_move::{
-            WorkbenchPanelMoveNotSubmitted, WorkbenchPanelMovePrecommit, WorkbenchPanelMoveRequest,
-            WorkbenchPanelMoveSubmission,
+        panel_placement::{
+            WorkbenchPanelPlacementNotSubmitted, WorkbenchPanelPlacementPrecommit,
+            WorkbenchPanelPlacementRequest, WorkbenchPanelPlacementSubmission,
         },
         panel_split::{
             WorkbenchPanelSplitNotSubmitted, WorkbenchPanelSplitRequest,
@@ -135,7 +135,7 @@ impl NativeExecutor {
                 direction,
             } => {
                 let request =
-                    WorkbenchPanelMoveRequest::try_from(command(WorkbenchAction::PanelMove {
+                    WorkbenchPanelPlacementRequest::try_from(command(WorkbenchAction::PanelMove {
                         terminal_context_id: baseline.terminal_context_id().clone(),
                         tab_id: operation.target().tab_id().clone(),
                         panel_id: operation.panel_id().clone(),
@@ -143,17 +143,22 @@ impl NativeExecutor {
                         direction: *direction,
                     }))
                     .map_err(|_command| CarrierFailure::Protocol)?;
-                match self.client.submit_workbench_panel_move(request, cutoff) {
-                    WorkbenchPanelMoveSubmission::DefinitelyNotSubmitted(reason) => {
-                        if matches!(reason, WorkbenchPanelMoveNotSubmitted::SessionUnavailable)
-                            || self.client.generation().is_none()
+                match self
+                    .client
+                    .submit_workbench_panel_placement(request, cutoff)
+                {
+                    WorkbenchPanelPlacementSubmission::DefinitelyNotSubmitted(reason) => {
+                        if matches!(
+                            reason,
+                            WorkbenchPanelPlacementNotSubmitted::SessionUnavailable
+                        ) || self.client.generation().is_none()
                         {
                             return Err(CarrierFailure::Transport);
                         }
                         PanelResult::NotSubmitted
                     }
-                    WorkbenchPanelMoveSubmission::DefinitePrecommit(
-                        WorkbenchPanelMovePrecommit::Rejected {
+                    WorkbenchPanelPlacementSubmission::DefinitePrecommit(
+                        WorkbenchPanelPlacementPrecommit::Rejected {
                             revision,
                             reason: WorkbenchRejectionReason::TabUnavailable,
                         },
@@ -161,13 +166,13 @@ impl NativeExecutor {
                         revision,
                         outcome: self.read_panel_snapshot(cutoff)?,
                     },
-                    WorkbenchPanelMoveSubmission::DefinitePrecommit(precommit) => {
+                    WorkbenchPanelPlacementSubmission::DefinitePrecommit(precommit) => {
                         PanelResult::Precommit(precommit.into())
                     }
-                    WorkbenchPanelMoveSubmission::Unchanged { revision } => {
+                    WorkbenchPanelPlacementSubmission::Unchanged { revision } => {
                         PanelResult::Unchanged(revision)
                     }
-                    WorkbenchPanelMoveSubmission::Committed(commit) => {
+                    WorkbenchPanelPlacementSubmission::Committed(commit) => {
                         if self.pending_panel.is_some() || self.pending_create.is_some() {
                             return Err(CarrierFailure::Protocol);
                         }
@@ -179,7 +184,7 @@ impl NativeExecutor {
                             outcome: self.read_panel_snapshot(cutoff)?,
                         }
                     }
-                    WorkbenchPanelMoveSubmission::OutcomeUnknown { .. } => {
+                    WorkbenchPanelPlacementSubmission::OutcomeUnknown { .. } => {
                         return Err(CarrierFailure::OutcomeUnknown);
                     }
                 }

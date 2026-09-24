@@ -580,6 +580,13 @@ force Job termination always remains an error, even if the root has exited. Exit
 liveness test. The receipt proves accepted termination submission only: actual child exit, Job
 emptiness, PTY EOF and containment retain their existing independent observations.
 
+The Windows retained-descendant termination witness uses a test-only child with explicit
+begin/ready kernel events and no natural exit timer. Job membership is observed before releasing
+the begin event, proving that a process count alone is not a readiness acknowledgment. Only after
+the child signals ready does the test terminate the root, require a retained descendant, then force
+the Job and require complete containment. The test's Job owns cleanup on every path; event handles
+are released after the owned processes stop. This fixture is a test-build dependency, never installed.
+
 An unrecoverable runtime failure fences new client and terminal-generated input, stops further PTY
 ingestion, retains the last revision known to be coherent, records the first linearly published
 failure as its typed primary cause, and starts

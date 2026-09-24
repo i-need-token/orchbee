@@ -513,6 +513,14 @@ pub enum WorkbenchAction {
         target_panel_id: WorkbenchPanelId,
         direction: WorkbenchPanelSplitDirection,
     },
+    /// Exchange complete leaf nodes without changing their existing Split/slot structure.
+    #[serde(rename = "panel.swap")]
+    PanelSwap {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        target_panel_id: WorkbenchPanelId,
+    },
     /// Relocate one leaf Panel inside its own TerminalContext: insert it at
     /// the root of another existing Tab or append it as a new Tab. The leaf
     /// is retained whole — Panel, Presentation, and terminal binding
@@ -809,6 +817,13 @@ pub enum WorkbenchCommandOutcome {
         accepted_revision: WorkbenchRevision,
     },
     PanelMoved {
+        revision: WorkbenchRevision,
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        target_panel_id: WorkbenchPanelId,
+    },
+    PanelSwapped {
         revision: WorkbenchRevision,
         terminal_context_id: WorkbenchTerminalContextId,
         tab_id: WorkbenchTabId,

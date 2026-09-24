@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     client_view::PanelDirection,
     local_client::workbench::{
-        panel_close::WorkbenchPanelCloseAccepted, panel_move::WorkbenchPanelMoveCommit,
+        panel_close::WorkbenchPanelCloseAccepted, panel_placement::WorkbenchPanelPlacementCommit,
         panel_split::WorkbenchPanelSplitCommit,
     },
     terminal_session::state::{
@@ -144,7 +144,7 @@ fn move_commit(operation: &PanelOperation, revision: u64) -> PanelCommit {
     else {
         panic!("fixture operation must carry a move intent");
     };
-    PanelCommit::Move(WorkbenchPanelMoveCommit {
+    PanelCommit::Move(WorkbenchPanelPlacementCommit {
         revision: WorkbenchRevision::new(revision),
         terminal_context_id: operation.baseline().terminal_context_id().clone(),
         tab_id: operation.target().tab_id().clone(),

@@ -2846,6 +2846,10 @@ describe('TabStrip', () => {
 			configurable: true,
 			value: requestAnimationFrame,
 		});
+		// Use the same exact clock for pickup, frame sampling, and pointer retargeting.
+		// A fractional wall-clock origin can round a fabricated midpoint below 0.5.
+		let now = 1_000;
+		const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
 		try {
 			const model = new TabModel({
 				tabs: [
@@ -2883,9 +2887,8 @@ describe('TabStrip', () => {
 			const callbacks = requestAnimationFrame.mock.calls.flatMap((call) =>
 				call[0] === undefined ? [] : [call[0]],
 			);
-			act(() =>
-				callbacks.forEach((callback) => callback(startedAt + DRAG_START_ANIMATION_DURATION_MS / 2)),
-			);
+			now = startedAt + DRAG_START_ANIMATION_DURATION_MS / 2;
+			act(() => callbacks.forEach((callback) => callback(now)));
 
 			const draggedA = requireDefined(
 				document.querySelector<HTMLElement>(
@@ -2908,6 +2911,7 @@ describe('TabStrip', () => {
 			expect(startedSession.dragStartTime).toBe(startedAt);
 			fireEvent.pointerUp(window, { pointerId: 153, clientX: 271, clientY: 20 });
 		} finally {
+			clock.mockRestore();
 			if (requestAnimationFrameDescriptor) {
 				Object.defineProperty(window, 'requestAnimationFrame', requestAnimationFrameDescriptor);
 			} else {

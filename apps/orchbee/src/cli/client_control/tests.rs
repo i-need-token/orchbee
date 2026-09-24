@@ -41,6 +41,68 @@ fn snapshot() -> Snapshot {
 }
 
 #[test]
+fn panel_swap_grammar_selects_one_source_and_one_destination_with_one_budget() {
+    let parse = |words: &[&str]| invocation::parse_request(words.iter().map(OsString::from));
+    let id = "00000000000000000000000000000007";
+    for source in [
+        vec![],
+        vec![id],
+        vec!["--panel", "@panel:07"],
+        vec!["--current"],
+    ] {
+        for destination in [vec!["--with", "@panel:08"], vec!["--direction", "up"]] {
+            let mut words = vec!["panel", "swap"];
+            words.extend(source.clone());
+            words.extend(destination);
+            let Request::Client {
+                command: ClientCommand::Swap(command),
+                ..
+            } = parse(&words).unwrap()
+            else {
+                panic!("swap");
+            };
+            assert_eq!(command.timeout_ms, 30_000);
+            assert!(command.client.is_none());
+            words.extend(["--client", id, "--timeout=3600000", "--format=json"]);
+            let Request::Client {
+                command: ClientCommand::Swap(command),
+                format,
+            } = parse(&words).unwrap()
+            else {
+                panic!("swap");
+            };
+            assert_eq!(command.timeout_ms, 3_600_000);
+            assert_eq!(command.client.unwrap().as_str(), id);
+            assert_eq!(format, OutputFormat::Json);
+        }
+    }
+    for tail in [
+        vec![],
+        vec!["--direction", "above"],
+        vec!["--with", "label:name"],
+        vec!["--with", id, "--direction", "up"],
+        vec![id, "--panel", id, "--with", id],
+        vec![id, "--current", "--with", id],
+        vec!["--panel", id, "--current", "--with", id],
+        vec![id, id, "--with", id],
+        vec!["--with", id, "--detach"],
+        vec!["--with", id, "--request-id", id],
+        vec!["--with", id, "--timeout=0"],
+        vec!["--with", id, "--timeout=3600001"],
+        vec!["--with", id, "--client=bad"],
+        vec!["--with", id, "--with", id],
+    ] {
+        let mut words = vec!["panel", "swap"];
+        words.extend(tail);
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
+    for words in [["panel", "swap", "--help"], ["help", "panel", "swap"]] {
+        assert!(matches!(parse(&words).unwrap(), Request::Help(_)));
+    }
+    assert!(parse(&["panel", "rename", id, "--with", id]).is_err());
+}
+
+#[test]
 fn client_control_grammar_validates_all_paths_and_conflicts_before_runtime() {
     let parse = |words: &[&str]| invocation::parse_request(words.iter().map(OsString::from));
     let id = "00000000000000000000000000000007";

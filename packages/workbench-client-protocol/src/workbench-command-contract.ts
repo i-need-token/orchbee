@@ -189,6 +189,15 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	z
 		.strictObject({
+			kind: z.literal('panel.swap'),
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			panelId: WorkbenchPanelIdSchema,
+			targetPanelId: WorkbenchPanelIdSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
 			kind: z.literal('panel.relocate'),
 			terminalContextId: WorkbenchTerminalContextIdSchema,
 			tabId: WorkbenchTabIdSchema,
@@ -408,6 +417,16 @@ export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('panel-moved'),
+			revision: WorkbenchRevisionSchema,
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			panelId: WorkbenchPanelIdSchema,
+			targetPanelId: WorkbenchPanelIdSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('panel-swapped'),
 			revision: WorkbenchRevisionSchema,
 			terminalContextId: WorkbenchTerminalContextIdSchema,
 			tabId: WorkbenchTabIdSchema,

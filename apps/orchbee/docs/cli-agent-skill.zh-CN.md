@@ -114,3 +114,5 @@ Windows 上，`orchbee api schema [<schema-id>] --output <path>` 将相同 JSON 
 `panel focus [source] --direction left|right|up|down` 在指定 TUI 的未缩放单元格布局中查找一个邻居，保留缩放；无邻居返回 `direction-unchanged`，不切换到来源 Tab。找到邻居后固定目标，仅在绘制成功后返回 `direction-focused`。回执查询不重复移动。
 
 `panel resize [panel] --direction left|right|up|down [--amount <number>]` 调整一个符合条件的分割边界，保留焦点和缩放。`layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path root|0.1 --ratio <number>` 设置精确二进制分割路径。两者都路由到一个 Windows TUI，并保留 `layout-adjusted` 回执。当前标签页的变化等待绘制，非活动标签页只保存、不导航。有限比例限制为 0.1–0.9；有限 resize 数量转为绝对值且最多 0.5，默认 0.05。比例归该 TUI 会话所有，重启后不恢复。参见[布局契约](windows-client-layout.zh-CN.md)。
+
+`panel swap [source] --with <target>` 交换同一 Tab 中两个 Panel 的位置；改用 `--direction left|right|up|down` 可选择邻居。随后在选中的 Windows Client 聚焦来源。使用精确 ID 或 `@panel:<suffix>`，路由不明确时指定 `--client`。同一 Panel、跨 Tab 和无邻居保持位置与焦点不变。`orchbee.panel.swap` 回执区分 canonical 提交与聚焦确认：非零退出码仍可能保留已提交交换。继续操作前先检查回执和布局，绝不盲目重试交换。等待中断后可用聚焦操作 ID 调用 `client control-status`。参见[交换契约](native-panel-swap.zh-CN.md)。

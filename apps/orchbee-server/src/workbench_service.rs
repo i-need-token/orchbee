@@ -273,11 +273,14 @@ impl WorkbenchService {
                 )
             }
             Err(WorkbenchRequest::Command(command))
-                if matches!(&command.action, WorkbenchAction::PanelMove { .. }) =>
+                if matches!(
+                    &command.action,
+                    WorkbenchAction::PanelMove { .. } | WorkbenchAction::PanelSwap { .. }
+                ) =>
             {
                 WorkbenchExecution::Response(
                     self.terminals
-                        .execute_terminal_panel_move(command)
+                        .execute_terminal_panel_placement(command)
                         .map(WorkbenchResponse::Command)
                         .unwrap_or_else(|| unavailable_or_denied(fallback, false)),
                 )

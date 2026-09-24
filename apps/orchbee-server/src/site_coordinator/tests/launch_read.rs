@@ -194,7 +194,9 @@ fn launch_read_re_resolves_route_and_revision_after_membership_moves() {
             direction: WorkbenchPanelSplitDirection::Right,
         },
     };
-    let moved = coordinator.execute_terminal_panel_move(movement).unwrap();
+    let moved = coordinator
+        .execute_terminal_panel_placement(movement)
+        .unwrap();
     assert!(matches!(
         moved.outcome,
         WorkbenchCommandOutcome::PanelMoved { .. }
