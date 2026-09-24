@@ -673,18 +673,20 @@ Snapshot read 不重试。Attachment 后仍须完成现有 controller 与 projec
 
 ## Windows Workspace 组关闭
 
-`workspace close <target> --group --confirm` 关闭捕获的 worktree 组，源工作区最后关闭，不删除 Git checkout。已知主 Workspace 若有关联成员就必须带 `--group`；关联 Workspace 只关闭自身。成员消失后使用 `workspace close-status --group --request <operation-id>`；只有明确可恢复失败才使用 `workspace close-resume --group --request <operation-id> --generation <attempt> --confirm`。组模式支持分离/有界等待，报告每个子 Close 的身份及已观测状态。参见[归属模型](docs/windows-worktrees.zh-CN.md#workspace-组关闭)。`api schema` v25 目录包含 62 份文档，其中 `orchbee.workspace.group-close` 为 v1。
+`workspace close <target> --group --confirm` 关闭捕获的 worktree 组，源工作区最后关闭，不删除 Git checkout。已知主 Workspace 若有关联成员就必须带 `--group`；关联 Workspace 只关闭自身。成员消失后使用 `workspace close-status --group --request <operation-id>`；只有明确可恢复失败才使用 `workspace close-resume --group --request <operation-id> --generation <attempt> --confirm`。组模式支持分离/有界等待，报告每个子 Close 的身份及已观测状态。参见[归属模型](docs/windows-worktrees.zh-CN.md#workspace-组关闭)。`api schema` v26 目录包含 62 份文档，其中 `orchbee.workspace.group-close` 为 v1。
 
 ## Windows Client 导航
 
-[Windows Client 视图控制](docs/windows-client-control.zh-CN.md) 拥有 `client list/get/control-status`、`workspace focus`、`tab focus`、`panel focus` 和 `panel zoom`。导航通过 `--client` 或无歧义且已校验的调用者上下文定位一个 current TUI。只提交一次，并等待绘制确认；超时或 Ctrl+C 仅停止等待。单 Panel 缩放有明确无操作回执。目录 v25 包含 62 个 schema，新增均为 v1 的 `orchbee.client.view`、`orchbee.client.control` 和 `orchbee.cli.failure.client-control`。未增加操作系统窗口激活或 Mac/Linux 控制运行时。
+[Windows Client 视图控制](docs/windows-client-control.zh-CN.md) 拥有 `client list/get/control-status`、`workspace focus`、`tab focus`、`panel focus` 和 `panel zoom`。导航通过 `--client` 或无歧义且已校验的调用者上下文定位一个 current TUI。只提交一次，并等待绘制确认；超时或 Ctrl+C 仅停止等待。单 Panel 缩放有明确无操作回执。目录 v26 包含 62 个 schema，新增均为 v1 的 `orchbee.client.view`、`orchbee.client.control` 和 `orchbee.cli.failure.client-control`。未增加操作系统窗口激活或 Mac/Linux 控制运行时。
 
 Windows 进程测试在 Git for Windows Bash 中执行输出的补全，通过 `git --exec-path` 定位；该见证要求已安装此 Bash。检查命令动词前后的互斥选项，不连接 Site。PowerShell 另有真实 Shell 语法见证。
 
 ## Windows schema 导出
 
-`api schema [<schema-id>] --output <path>` 离线导出内嵌 JSON 文档，同时将其输出到 stdout。目标父目录必须存在；完整的同目录文件替换已有普通目标文件。[导出契约](docs/native-cli-query.zh-CN.md#windows-离线-schema-导出) 拥有失败阶段、临时文件清理以及发布后的 stdout 失败。目录 v25 包含 62 份文档，包括 `orchbee.cli.failure.schema-export` v1。
+`api schema [<schema-id>] --output <path>` 离线导出内嵌 JSON 文档，同时将其输出到 stdout。目标父目录必须存在；完整的同目录文件替换已有普通目标文件。[导出契约](docs/native-cli-query.zh-CN.md#windows-离线-schema-导出) 拥有失败阶段、临时文件清理以及发布后的 stdout 失败。目录 v26 包含 62 份文档，包括 `orchbee.cli.failure.schema-export` v1。
 
 ## Windows Panel 布局查询
 
-`panel layout`、`panel neighbor --direction left|right|up|down` 和 `panel edges` 检查精确的 Windows TUI Client。它们接受位置参数 Panel、`--panel` 或 `--current`，路由有歧义时使用 `--client`。读取保持焦点和终端尺寸，支持非活动或未访问目标。`orchbee.panel.layout` v1 保留单元格几何、可为 null 的隐藏矩形、未缩放邻居、物理边缘结果及操作回执。参见[几何契约](docs/windows-client-layout.zh-CN.md)。目录 v25 包含 62 份文档；原生命令清单包含 75 条路径。
+`panel layout`、`panel neighbor --direction left|right|up|down` 和 `panel edges` 检查精确的 Windows TUI Client。它们接受位置参数 Panel、`--panel` 或 `--current`，路由有歧义时使用 `--client`。读取保持焦点和终端尺寸，支持非活动或未访问目标。`orchbee.panel.layout` v1 保留单元格几何、可为 null 的隐藏矩形、未缩放邻居、物理边缘结果及操作回执。参见[几何契约](docs/windows-client-layout.zh-CN.md)。目录 v26 包含 62 份文档；原生命令清单包含 75 条路径。
+
+`panel focus [source] --direction left|right|up|down` 在指定 TUI 的未缩放单元格布局中查找一个邻居，保留缩放；无邻居返回 `direction-unchanged`，不切换到来源 Tab。找到邻居后固定目标，仅在绘制成功后返回 `direction-focused`。回执查询不重复移动。

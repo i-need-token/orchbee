@@ -729,7 +729,7 @@ fn snapshot_terminal(index: usize) -> TerminalId {
     TerminalId::parse(&format!("{:032x}", 1004 + index * 10)).unwrap()
 }
 
-pub(super) fn snapshot(count: usize, revision: u64) -> Snapshot {
+pub(in crate::terminal_session) fn snapshot(count: usize, revision: u64) -> Snapshot {
     let context = WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap();
     Snapshot {
         navigation: Navigation {

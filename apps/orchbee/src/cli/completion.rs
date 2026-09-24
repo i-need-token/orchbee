@@ -346,6 +346,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     (
         "panel:focus",
         &[
+            "--direction",
             "--client",
             "--request-id",
             "--detach",
@@ -615,6 +616,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
 /// `<family>:<verb>` → the words its `--direction` flag accepts. Only
 /// direction-admitting commands appear.
 const DIRECTION_VALUES: &[(&str, &[&str])] = &[
+    ("panel:focus", &["left", "right", "up", "down"]),
     ("panel:neighbor", &["left", "right", "up", "down"]),
     ("tab:move", &["first", "last", "next", "previous"]),
     ("panel:split", &["above", "below", "left", "right"]),

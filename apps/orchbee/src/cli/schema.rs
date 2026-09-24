@@ -344,9 +344,9 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog envelope v25: registering new schema ids changes the closed
+        // Catalog envelope v26: directional control extends the embedded
         // dictionary's shape; business document versions stay untouched.
-        "version": 25,
+        "version": 26,
         "source": embedded_source(),
         "result": result,
     });

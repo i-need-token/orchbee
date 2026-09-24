@@ -128,7 +128,9 @@ impl NativeUi {
             return ControlStep::ZoomUnchanged;
         }
         let (context_id, tab_id, panel_id) = match &command.intent {
-            ClientViewIntent::Layout { .. } => return ControlStep::Failed(Reason::Unsupported),
+            ClientViewIntent::Layout { .. } | ClientViewIntent::FocusDirection { .. } => {
+                return ControlStep::Failed(Reason::Unsupported);
+            }
             ClientViewIntent::Context {
                 terminal_context_id,
             } => (terminal_context_id, None, None),
@@ -211,6 +213,18 @@ impl NativeUi {
         if let Some(panel_id) = panel_id
             && state.focus_panel_id() != Some(panel_id)
         {
+            // A context/Tab can be Ready before its sibling viewers converge.
+            // Wait for the existing setup owner, never mint a second attachment.
+            if !state.panel_viewer_live(panel_id) {
+                return if state
+                    .pane_by_panel(panel_id)
+                    .is_some_and(|pane| !pane.attachable() || pane.fault().is_some())
+                {
+                    ControlStep::Failed(Reason::ProjectionUnavailable)
+                } else {
+                    ControlStep::Waiting
+                };
+            }
             self.move_panel_focus_to(panel_id);
             if self
                 .state

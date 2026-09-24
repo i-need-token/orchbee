@@ -107,6 +107,9 @@ pub(super) fn intent(
         ClientNavigationTarget::Layout {
             target: explicit, ..
         }
+        | ClientNavigationTarget::FocusDirection {
+            target: explicit, ..
+        }
         | ClientNavigationTarget::Panel(explicit)
         | ClientNavigationTarget::Zoom {
             target: explicit, ..
@@ -138,6 +141,14 @@ pub(super) fn intent(
             let context_id = context.terminal_context_id.clone();
             let tab_id = tab.tab_id.clone();
             let panel_id = panel.clone();
+            if let ClientNavigationTarget::FocusDirection { direction, .. } = target {
+                return Ok(ClientViewIntent::FocusDirection {
+                    terminal_context_id: context_id,
+                    tab_id,
+                    panel_id,
+                    direction: *direction,
+                });
+            }
             if matches!(target, ClientNavigationTarget::Layout { .. }) {
                 return Ok(ClientViewIntent::Layout {
                     terminal_context_id: context_id,

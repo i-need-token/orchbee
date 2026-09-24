@@ -327,6 +327,12 @@ check schema 1 orchbee --output file.json api ''
 check snapshot 0 orchbee --output file.json api ''
 check --output 0 orchbee api schema --output file.json --o
 check layout 1 orchbee panel ''
+check --direction 1 orchbee panel focus --d
+check up 1 orchbee panel focus --direction ''
+check above 0 orchbee panel focus --direction ''
+check focus 1 orchbee --direction down panel ''
+check --direction 0 orchbee panel focus --direction down --d
+check --direction 0 orchbee tab focus main --d
 check up 1 orchbee panel neighbor --direction ''
 check above 0 orchbee panel neighbor --direction ''
 check --direction 0 orchbee panel layout --d

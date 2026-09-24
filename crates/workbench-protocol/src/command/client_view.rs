@@ -1,5 +1,8 @@
 //! Ephemeral Client-owned selection and connection-scoped, acknowledged navigation.
-use super::{client_layout::ClientPanelLayout, json_fields::deserialize_nullable};
+use super::{
+    client_layout::{ClientPanelDirection, ClientPanelLayout},
+    json_fields::deserialize_nullable,
+};
 use crate::identity::WorkbenchClientId;
 use crate::{
     ContractError, ProtocolVersion, SiteId, WorkbenchPanelId, WorkbenchRequestId,
@@ -106,6 +109,12 @@ pub struct ClientViewRecord {
     deny_unknown_fields
 )]
 pub enum ClientViewIntent {
+    FocusDirection {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        direction: ClientPanelDirection,
+    },
     Layout {
         terminal_context_id: WorkbenchTerminalContextId,
         tab_id: WorkbenchTabId,
@@ -136,6 +145,24 @@ pub enum ClientViewIntent {
     },
 }
 impl ClientViewIntent {
+    /// Pin one previously resolved directional neighbor as an exact navigation target.
+    #[must_use]
+    pub fn directional_target(&self, destination: &WorkbenchPanelId) -> Option<Self> {
+        let Self::FocusDirection {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        (destination != panel_id).then(|| Self::Panel {
+            terminal_context_id: terminal_context_id.clone(),
+            tab_id: tab_id.clone(),
+            panel_id: destination.clone(),
+        })
+    }
     #[must_use]
     pub fn is_single_panel_zoom_observed(
         &self,
@@ -207,7 +234,7 @@ impl ClientViewIntent {
             return false;
         };
         match self {
-            Self::ToggleZoom { .. } | Self::Layout { .. } => false,
+            Self::ToggleZoom { .. } | Self::Layout { .. } | Self::FocusDirection { .. } => false,
             Self::Context {
                 terminal_context_id,
             } => selection.terminal_context_id == *terminal_context_id,
@@ -272,6 +299,8 @@ pub enum ClientViewControlReason {
     deny_unknown_fields
 )]
 pub enum ClientViewCompletionOutcome {
+    DirectionFocused { panel_id: WorkbenchPanelId },
+    DirectionUnchanged { layout_revision: WorkbenchRevision },
     LayoutRead { layout: Box<ClientPanelLayout> },
     Applied {},
     ZoomUnchanged {},
@@ -293,6 +322,14 @@ pub struct ClientViewCompletion {
     deny_unknown_fields
 )]
 pub enum ClientViewControlStatus {
+    DirectionFocused {
+        panel_id: WorkbenchPanelId,
+        view: ClientViewObservation,
+    },
+    DirectionUnchanged {
+        layout_revision: WorkbenchRevision,
+        view: ClientViewObservation,
+    },
     LayoutRead {
         layout: Box<ClientPanelLayout>,
         view: ClientViewObservation,
@@ -333,6 +370,46 @@ pub struct ClientViewOperation {
 impl ClientViewOperation {
     pub fn validate(&self) -> Result<(), ContractError> {
         match &self.status {
+            ClientViewControlStatus::DirectionFocused { panel_id, view } => {
+                view.validate()?;
+                if self
+                    .command
+                    .intent
+                    .directional_target(panel_id)
+                    .is_none_or(|target| {
+                        !target.is_observed(view, self.command.minimum_workbench_revision)
+                    })
+                {
+                    return Err(ContractError::InvalidDocument);
+                }
+            }
+            ClientViewControlStatus::DirectionUnchanged {
+                layout_revision,
+                view,
+            } => {
+                view.validate()?;
+                let ClientViewIntent::FocusDirection {
+                    terminal_context_id,
+                    tab_id,
+                    ..
+                } = &self.command.intent
+                else {
+                    return Err(ContractError::InvalidDocument);
+                };
+                let selected = view.selection.as_ref().is_some_and(|selection| {
+                    &selection.terminal_context_id == terminal_context_id
+                        && selection.tab_id.as_ref() == Some(tab_id)
+                });
+                if *layout_revision < self.command.minimum_workbench_revision
+                    || matches!(
+                        view.phase,
+                        ClientViewPhase::Starting | ClientViewPhase::Busy
+                    )
+                    || (selected && *layout_revision != view.workbench_revision)
+                {
+                    return Err(ContractError::InvalidDocument);
+                }
+            }
             ClientViewControlStatus::LayoutRead { layout, view } => {
                 layout.validate()?;
                 view.validate()?;

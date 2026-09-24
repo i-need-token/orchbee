@@ -88,6 +88,8 @@ fn outcome_exit(outcome: &ClientViewOutcome) -> u8 {
         ClientViewOutcome::Operation { operation } => match &operation.status {
             ClientViewControlStatus::Queued {}
             | ClientViewControlStatus::Delivered {}
+            | ClientViewControlStatus::DirectionFocused { .. }
+            | ClientViewControlStatus::DirectionUnchanged { .. }
             | ClientViewControlStatus::LayoutRead { .. }
             | ClientViewControlStatus::Applied { .. }
             | ClientViewControlStatus::ZoomUnchanged { .. }

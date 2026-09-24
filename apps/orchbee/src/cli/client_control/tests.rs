@@ -491,3 +491,105 @@ fn layout_queries_keep_exact_routing_and_emit_closed_locale_independent_document
             .unwrap();
     }
 }
+
+#[test]
+fn directional_focus_grammar_resolves_source_and_explicit_success_variants() {
+    use orchbee_workbench_protocol::ClientPanelDirection;
+    let parse = |words: &[&str]| invocation::parse_request(words.iter().map(OsString::from));
+    for (word, direction) in [
+        ("left", ClientPanelDirection::Left),
+        ("right", ClientPanelDirection::Right),
+        ("up", ClientPanelDirection::Up),
+        ("down", ClientPanelDirection::Down),
+    ] {
+        for args in [
+            vec!["panel", "focus", "--direction", word],
+            vec!["panel", "focus", "--current", "--direction", word],
+            vec![
+                "--direction",
+                word,
+                "panel",
+                "focus",
+                "--panel",
+                "@panel:06",
+            ],
+        ] {
+            let Request::Client {
+                command: ClientCommand::Navigate { target, .. },
+                ..
+            } = parse(&args).unwrap()
+            else {
+                panic!("client");
+            };
+            assert!(
+                matches!(&target,ClientNavigationTarget::FocusDirection{direction:d,..} if *d==direction)
+            );
+            let intent = selection::intent(&target, &record(), None, &snapshot()).unwrap();
+            assert!(
+                matches!(intent,ClientViewIntent::FocusDirection{direction:d,..} if d==direction)
+            );
+        }
+    }
+    for args in [
+        vec!["panel", "focus", "--direction", "above"],
+        vec!["panel", "focus", "--direction"],
+        vec!["panel", "focus", "--direction", "up", "--direction", "down"],
+        vec!["panel", "focus", "--direction", "up", "--on"],
+        vec![
+            "panel",
+            "focus",
+            "--current",
+            "--panel",
+            "@panel:06",
+            "--direction",
+            "up",
+        ],
+        vec!["tab", "focus", "shell", "--direction", "up"],
+        vec!["workspace", "focus", "main", "--direction", "up"],
+    ] {
+        assert!(parse(&args).is_err(), "{args:?}");
+    }
+    let schema: Value =
+        serde_json::from_str(include_str!("../schemas/orchbee.client.control.json")).unwrap();
+    let validator = jsonschema::draft202012::new(&schema).unwrap();
+    for (name, en, zh) in [
+        (
+            "direction-focused",
+            "Neighbor focused and drawn",
+            "已聚焦相邻面板并绘制",
+        ),
+        (
+            "direction-unchanged",
+            "No neighbor; selection unchanged",
+            "该方向没有相邻面板，选择未改变",
+        ),
+    ] {
+        let WorkbenchResponse::ClientView(reply) = serde_json::from_value(sample(name)).unwrap()
+        else {
+            panic!("reply");
+        };
+        let ClientViewOutcome::Operation { operation } = &reply.outcome else {
+            panic!("operation");
+        };
+        let answer = Answer {
+            status_only: false,
+            operation_id: Some(operation.command.operation_id.clone()),
+            site_id: Some(reply.site_id.clone()),
+            reply: Some(reply),
+            unknown: false,
+            wait: None,
+        };
+        assert_eq!(answer.exit_code(), 0);
+        assert!(validator.is_valid(&answer.document()));
+        assert!(
+            String::from_utf8(emit(&answer, OutputFormat::Text, Locale::EnUs).stdout)
+                .unwrap()
+                .contains(en)
+        );
+        assert!(
+            String::from_utf8(emit(&answer, OutputFormat::Text, Locale::ZhCn).stdout)
+                .unwrap()
+                .contains(zh)
+        );
+    }
+}

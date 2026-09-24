@@ -22,13 +22,19 @@ impl NativeUi {
         viewport: Rect,
         sidebar: SidebarSurface,
     ) -> Result<ClientPanelLayout, Reason> {
-        let ClientViewIntent::Layout {
-            terminal_context_id,
-            tab_id,
-            panel_id,
-        } = &command.intent
-        else {
-            return Err(Reason::Unsupported);
+        let (terminal_context_id, tab_id, panel_id) = match &command.intent {
+            ClientViewIntent::Layout {
+                terminal_context_id,
+                tab_id,
+                panel_id,
+            }
+            | ClientViewIntent::FocusDirection {
+                terminal_context_id,
+                tab_id,
+                panel_id,
+                ..
+            } => (terminal_context_id, tab_id, panel_id),
+            _ => return Err(Reason::Unsupported),
         };
         let state = self.state.as_ref().ok_or(Reason::ProjectionUnavailable)?;
         if snapshot.site_id != *state.cache().site_id()

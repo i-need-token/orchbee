@@ -4,13 +4,13 @@ EXTENDS Naturals, FiniteSets, TLC
 \* Connection identities are admitted, never reused generations. This bounded
 \* model refines routing, UI interference and post-draw acknowledgement; Rust
 \* witnesses own exact elapsed-time, byte, capacity and sequence boundaries.
-CONSTANTS Clients, Operations, Owner, MaxRevision, LayoutOperations, LayoutBudget
+CONSTANTS Clients, Operations, Owner, MaxRevision, LayoutOperations, LayoutBudget, DirectionOperations
 VARIABLES connected, fresh, revision, expected, status, deliveries, effect, drawn
 
 vars == <<connected, fresh, revision, expected, status, deliveries, effect, drawn>>
 ModelOwner == [o \in Operations |-> IF o = "one" THEN "client-a" ELSE "client-b"]
 Pending == {"queued", "delivered"}
-Completed == {"applied", "rejected", "incomplete", "layout-read"}
+Completed == {"applied", "rejected", "incomplete", "layout-read", "direction-unchanged"}
 States == Pending \cup Completed \cup {"absent", "expired"}
 
 LayoutPending == {o \in LayoutOperations : status[o] \in Pending}
@@ -21,6 +21,8 @@ ReservedBytes == 2 * Cardinality(LayoutPending) + Cardinality(LayoutCompleted)
 ASSUME /\ IsFiniteSet(Clients) /\ IsFiniteSet(Operations)
        /\ Owner \in [Operations -> Clients] /\ MaxRevision > 0
        /\ LayoutOperations \subseteq Operations /\ LayoutBudget >= 2
+       /\ DirectionOperations \subseteq Operations
+       /\ DirectionOperations \cap LayoutOperations = {}
 
 Init ==
   /\ connected = Clients
@@ -97,6 +99,15 @@ ObserveLayout(o) ==
   /\ status' = [status EXCEPT ![o] = "layout-read"]
   /\ UNCHANGED <<connected, fresh, revision, expected, deliveries, effect, drawn>>
 
+NoNeighbor(o) ==
+  /\ o \in DirectionOperations
+  /\ status[o] = "delivered"
+  /\ o \notin effect
+  /\ Owner[o] \in connected \cap fresh
+  /\ expected[o] = revision[Owner[o]]
+  /\ status' = [status EXCEPT ![o] = "direction-unchanged"]
+  /\ UNCHANGED <<connected, fresh, revision, expected, deliveries, effect, drawn>>
+
 Interrupt(o) ==
   /\ status[o] = "delivered"
   /\ status' = [status EXCEPT ![o] = IF o \in effect THEN "incomplete" ELSE "rejected"]
@@ -125,7 +136,7 @@ ExpireReceipt(o) ==
 ReadOrReplay == UNCHANGED vars
 Next == (\E c \in Clients : Sample(c) \/ Freeze(c) \/ Disconnect(c))
      \/ (\E o \in Operations : Submit(o) \/ Deliver(o) \/ RejectStale(o)
-          \/ UiStep(o) \/ Draw(o) \/ Acknowledge(o) \/ ObserveLayout(o) \/ Interrupt(o)
+          \/ UiStep(o) \/ Draw(o) \/ Acknowledge(o) \/ ObserveLayout(o) \/ NoNeighbor(o) \/ Interrupt(o)
           \/ ExpireQueue(o) \/ ExpireReceipt(o)) \/ ReadOrReplay
 Spec == Init /\ [][Next]_vars
 
@@ -143,5 +154,7 @@ OneActiveCommand == \A c \in Clients : Cardinality({o \in Operations : Owner[o] 
 LayoutReadsArePure == /\ effect \cap LayoutOperations = {}
                       /\ drawn \cap LayoutOperations = {}
 LayoutReadRequiresDelivery == \A o \in Operations : status[o] = "layout-read" => o \in LayoutOperations /\ deliveries[o] = 1
+NoNeighborIsPure == \A o \in Operations : status[o] = "direction-unchanged" =>
+                     o \in DirectionOperations /\ deliveries[o] = 1 /\ o \notin effect /\ o \notin drawn
 LayoutBudgetBounded == ReservedBytes <= LayoutBudget
 =============================================================================

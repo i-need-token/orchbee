@@ -503,3 +503,88 @@ fn layout_reservations_bound_pending_payloads_and_shrink_after_valid_completion(
         0
     );
 }
+
+#[test]
+fn directional_receipts_validate_destination_and_survive_disconnect_without_reexecution() {
+    use orchbee_workbench_protocol::{ClientPanelDirection, ClientViewIntent, WorkbenchPanelId};
+    for found in [false, true] {
+        let now = Instant::now();
+        let mut registry = ClientViewRegistry::default();
+        execute(&mut registry, 1, sample(), now);
+        let mut command = command(3, 1);
+        let ClientViewIntent::Panel {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+        } = command.intent
+        else {
+            panic!("panel");
+        };
+        command.intent = ClientViewIntent::FocusDirection {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+            direction: ClientPanelDirection::Right,
+        };
+        let submit = ClientViewAction::Submit {
+            command: Box::new(command),
+        };
+        assert!(matches!(
+            status(execute(&mut registry, 20, submit.clone(), now)),
+            ClientViewControlStatus::Queued {}
+        ));
+        assert!(matches!(
+            execute(&mut registry, 1, sample(), now),
+            ClientViewOutcome::Synchronized {
+                control: Some(_),
+                ..
+            }
+        ));
+        let mut ack = acknowledge(3);
+        let ClientViewAction::Synchronize {
+            view,
+            view_revision,
+            completion,
+            ..
+        } = &mut ack
+        else {
+            panic!("sync");
+        };
+        let destination = WorkbenchPanelId::parse(&format!("{:032x}", 99)).unwrap();
+        let outcome = if found {
+            view.selection.as_mut().unwrap().panel_id = Some(destination.clone());
+            *view_revision = ClientViewSequence::new(3).unwrap();
+            ClientViewCompletionOutcome::DirectionFocused {
+                panel_id: destination,
+            }
+        } else {
+            ClientViewCompletionOutcome::DirectionUnchanged {
+                layout_revision: WorkbenchRevision::new(12),
+            }
+        };
+        completion.as_mut().unwrap().outcome = outcome;
+        let mut invalid = ack.clone();
+        if let ClientViewAction::Synchronize { completion, .. } = &mut invalid {
+            completion.as_mut().unwrap().outcome = ClientViewCompletionOutcome::Applied {};
+        }
+        assert!(matches!(
+            execute(&mut registry, 1, invalid, now),
+            ClientViewOutcome::Conflict {}
+        ));
+        assert!(matches!(
+            execute(&mut registry, 2, ack.clone(), now),
+            ClientViewOutcome::Conflict {}
+        ));
+        assert!(matches!(
+            execute(&mut registry, 1, ack, now),
+            ClientViewOutcome::Synchronized { control: None, .. }
+        ));
+        let completed = status(read(&mut registry, 3, now));
+        assert_eq!(
+            matches!(completed, ClientViewControlStatus::DirectionFocused { .. }),
+            found
+        );
+        registry.disconnect(owner(1), now);
+        assert_eq!(status(execute(&mut registry, 20, submit, now)), completed);
+    }
+}

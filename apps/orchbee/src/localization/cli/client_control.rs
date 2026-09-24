@@ -133,6 +133,10 @@ impl Locale {
             (Self::ZhCn, "delivered") => "已投递，等待界面确认",
             (Self::EnUs, "applied") => "Applied and drawn",
             (Self::ZhCn, "applied") => "已应用并绘制",
+            (Self::EnUs, "direction-focused") => "Neighbor focused and drawn",
+            (Self::ZhCn, "direction-focused") => "已聚焦相邻面板并绘制",
+            (Self::EnUs, "direction-unchanged") => "No neighbor; selection unchanged",
+            (Self::ZhCn, "direction-unchanged") => "该方向没有相邻面板，选择未改变",
             (Self::EnUs, "layout-read") => "Layout observed",
             (Self::ZhCn, "layout-read") => "已观测布局",
             (Self::EnUs, "zoom-toggled") => "Zoom toggled and drawn",
@@ -255,18 +259,18 @@ pub(super) const HELP_TAB_FOCUS_ZH: &str = r"用法: orchbee tab focus <tab> [--
 省略 --client 时，经校验的调用者 Terminal／Worker 信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。成功要求观测到目标选择且成功绘制。--detach 或中断仅结束等待；使用操作标识查询 client control-status。
 ";
 
-pub(super) const HELP_PANEL_FOCUS_EN: &str = r"Usage: orchbee panel focus [panel] [--panel <panel> | --current] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]
+pub(super) const HELP_PANEL_FOCUS_EN: &str = r"Usage: orchbee panel focus [panel] [--panel <panel> | --current] [--direction left|right|up|down] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]
 
-Select a Panel in one Windows TUI, including its owning Tab and Workspace.
+Select a Panel in one Windows TUI, including its owning Tab and Workspace. With --direction, resolve one neighbor from this source before navigation, preserving zoom. No neighbor returns direction-unchanged without selecting the source; unavailable geometry fails. A found neighbor returns direction-focused after drawing.
 
-Without --client, validated caller Terminal/Worker metadata selects a unique focused TUI; outside a caller, exactly one current TUI is required. Partial or invalid caller metadata fails. Explicit --client ignores caller metadata. Default timeout: 30000ms (1..3600000). Success requires observed selection and a successful draw. --detach or interruption ends waiting only; query client control-status with the operation ID.
+Without --client, validated caller Terminal/Worker metadata selects a unique focused TUI; outside a caller, exactly one current TUI is required. Partial or invalid caller metadata fails. Explicit --client ignores caller metadata. Default timeout: 30000ms (1..3600000). Focus success requires observed selection and a successful draw; no-neighbor succeeds without changing selection or drawing. --detach or interruption ends waiting only; query client control-status with the operation ID.
 ";
 
-pub(super) const HELP_PANEL_FOCUS_ZH: &str = r"用法: orchbee panel focus [panel] [--panel <panel> | --current] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]
+pub(super) const HELP_PANEL_FOCUS_ZH: &str = r"用法: orchbee panel focus [panel] [--panel <panel> | --current] [--direction left|right|up|down] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]
 
-在一个 Windows TUI 中选中面板及其所属标签页和工作区。
+在一个 Windows TUI 中选中面板及其所属标签页和工作区。--direction 在导航前从来源解析一个邻居，保留缩放。没有邻居时返回 direction-unchanged，不选择来源；几何不可用时失败。找到邻居则在绘制后返回 direction-focused。
 
-省略 --client 时，经校验的调用者 Terminal／Worker 信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。成功要求观测到目标选择且成功绘制。--detach 或中断仅结束等待；使用操作标识查询 client control-status。
+省略 --client 时，经校验的调用者 Terminal／Worker 信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。聚焦成功要求观测到目标选择且成功绘制；无邻居成功不改变选择，也不要求绘制。--detach 或中断仅结束等待；使用操作标识查询 client control-status。
 ";
 
 pub(super) const HELP_PANEL_ZOOM_EN: &str = r"Usage: orchbee panel zoom [panel] [--panel <panel> | --current] [--toggle | --on | --off] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]

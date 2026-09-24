@@ -966,3 +966,103 @@ fn departed_pane_pending_draw_settles_no_feedback_not_frame_applied() {
     );
     mailbox.finish_lease(lease).expect("lease finish");
 }
+
+/// Extend the ready split fixture through the peer's actual attachment/setup intake.
+pub(in crate::terminal_session) fn attach_split_peer(
+    ui: &mut NativeUi,
+    mailbox: &CommandMailbox,
+    clock: &LocalOperationClock,
+) {
+    let state = ui.state.as_ref().unwrap();
+    let focus = state.focus_panel_id().unwrap().clone();
+    let peer = state.cache().tabs()[0].panel(1).unwrap().panel_id().clone();
+    let geometry = Geometry::new(80, 24, 8, 16).unwrap();
+    ui.observe_panes(&[(focus, 0, geometry), (peer.clone(), 1, geometry)]);
+    while let Some(lease) = mailbox.try_recv().unwrap() {
+        mailbox.finish_lease(lease).unwrap();
+    }
+    let key = ui
+        .state
+        .as_ref()
+        .unwrap()
+        .pane_by_panel(&peer)
+        .unwrap()
+        .pane_ref()
+        .clone();
+    for event in [
+        WorkerEvent::Attached {
+            key: key.clone(),
+            projection: TerminalProjection::new(
+                AttachmentId::parse(&format!("{:032x}", 4011)).unwrap(),
+                HostEpoch::parse(&format!("{:032x}", 4012)).unwrap(),
+            ),
+        },
+        WorkerEvent::SetupConfigured {
+            key: key.clone(),
+            mode: ControllerMode::ReadOnly,
+            applied_geometry: None,
+        },
+    ] {
+        let wait = mailbox
+            .publish_event_before(
+                event,
+                EventDeadline::Forward(
+                    clock.now() + crate::terminal_session::state::OPERATION_TOTAL,
+                ),
+                clock,
+            )
+            .unwrap();
+        ui.tick();
+        assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    }
+    assert!(ui.state.as_ref().unwrap().panel_viewer_live(&peer));
+    while let Some(lease) = mailbox.try_recv().unwrap() {
+        mailbox.finish_lease(lease).unwrap();
+    }
+}
+
+#[test]
+fn remote_panel_focus_refuses_a_faulted_peer_instead_of_waiting_or_reattaching() {
+    use crate::terminal_session::client_control::{ControlStep, StepProgress};
+    use orchbee_workbench_protocol::{
+        ClientViewControl, ClientViewControlReason, ClientViewIntent, ClientViewSequence,
+        WorkbenchClientId, WorkbenchRequestId,
+    };
+    let (mut ui, mailbox, clock, _elapsed) = ready_split_ui();
+    attach_split_peer(&mut ui, &mailbox, &clock);
+    let state = ui.state.as_ref().unwrap();
+    let tab = &state.cache().tabs()[0];
+    let peer = tab.panel(1).unwrap().panel_id().clone();
+    let key = state.pane_by_panel(&peer).unwrap().pane_ref();
+    let command = ClientViewControl {
+        operation_id: WorkbenchRequestId::parse(&format!("{:032x}", 9001)).unwrap(),
+        client_id: WorkbenchClientId::parse(&format!("{:032x}", 9002)).unwrap(),
+        expected_view_revision: ClientViewSequence::new(1).unwrap(),
+        minimum_workbench_revision: state.cache().revision(),
+        intent: ClientViewIntent::Panel {
+            terminal_context_id: state.cache().terminal_context_id().clone(),
+            tab_id: tab.tab_id().clone(),
+            panel_id: peer.clone(),
+        },
+    };
+    mailbox
+        .publish_notice_before(
+            WorkerEvent::PaneFailed {
+                key,
+                fault: crate::terminal_session::state::PaneFault::ViewerLost,
+            },
+            clock.now() + crate::terminal_session::state::OPERATION_TOTAL,
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(!ui.state.as_ref().unwrap().panel_viewer_live(&peer));
+    let before = ui.control_observation(false);
+    let mut progress = StepProgress::default();
+    assert!(matches!(
+        ui.control_step(&command, &mut progress),
+        ControlStep::Failed(ClientViewControlReason::ProjectionUnavailable)
+    ));
+    assert!(!progress.had_effect);
+    assert_eq!(ui.control_observation(false), before);
+}

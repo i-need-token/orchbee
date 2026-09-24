@@ -193,7 +193,10 @@ fn run(
             return;
         };
         let delivery = if let Some(control) = control {
-            let layout_snapshot = if matches!(control.intent, ClientViewIntent::Layout { .. }) {
+            let layout_snapshot = if matches!(
+                control.intent,
+                ClientViewIntent::Layout { .. } | ClientViewIntent::FocusDirection { .. }
+            ) {
                 let Some(next) = exchange_id.checked_add(1) else {
                     return;
                 };

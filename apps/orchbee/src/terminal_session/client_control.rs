@@ -28,6 +28,7 @@ pub(super) enum ControlStep {
 }
 struct Pending {
     command: ClientViewControl,
+    execution: ClientViewControl,
     progress: StepProgress,
     deadline: Instant,
     interrupted: bool,
@@ -141,33 +142,30 @@ impl ClientControl {
                 }
                 return false;
             }
-            if matches!(command.intent, ClientViewIntent::Layout { .. }) {
-                let outcome = match (delivery.layout_snapshot, self.viewport) {
-                    (Some(snapshot), Some((viewport, sidebar))) => {
-                        native.read_client_layout(&command, &snapshot, viewport, sidebar)
+            let execution = match prepare_control(
+                native,
+                &command,
+                delivery.layout_snapshot.as_ref(),
+                self.viewport,
+            ) {
+                Ok(execution) => execution,
+                Err(outcome) => {
+                    if !lane.complete(
+                        sample,
+                        ClientViewCompletion {
+                            operation_id: command.operation_id,
+                            outcome,
+                        },
+                    ) {
+                        self.close();
                     }
-                    _ => Err(Reason::ProjectionUnavailable),
-                };
-                let outcome = match outcome {
-                    Ok(layout) => ClientViewCompletionOutcome::LayoutRead {
-                        layout: Box::new(layout),
-                    },
-                    Err(reason) => ClientViewCompletionOutcome::Rejected { reason },
-                };
-                if !lane.complete(
-                    sample,
-                    ClientViewCompletion {
-                        operation_id: command.operation_id,
-                        outcome,
-                    },
-                ) {
-                    self.close();
+                    // Layout reads and no-neighbor decisions have no display side effects.
+                    return false;
                 }
-                // Read-only completion never asks the shell to synchronize sizes or redraw.
-                return false;
-            }
+            };
             self.pending = Some(Pending {
                 command,
+                execution,
                 progress: StepProgress::default(),
                 deadline: self.clock.now() + super::state::OPERATION_TOTAL,
                 interrupted: false,
@@ -182,7 +180,7 @@ impl ClientControl {
         } else if self.clock.now() >= pending.deadline {
             ControlStep::Failed(Reason::Expired)
         } else {
-            native.control_step(&pending.command, &mut pending.progress)
+            native.control_step(&pending.execution, &mut pending.progress)
         };
         match step {
             ControlStep::Waiting => view_changed,
@@ -234,11 +232,19 @@ impl ClientControl {
             .filter(|pending| pending.awaiting_draw && !pending.interrupted)
             .and_then(|pending| {
                 let outcome = if pending
-                    .command
+                    .execution
                     .intent
                     .is_observed(&view, pending.command.minimum_workbench_revision)
                 {
-                    ClientViewCompletionOutcome::Applied {}
+                    match (&pending.command.intent, &pending.execution.intent) {
+                        (
+                            ClientViewIntent::FocusDirection { .. },
+                            ClientViewIntent::Panel { panel_id, .. },
+                        ) => ClientViewCompletionOutcome::DirectionFocused {
+                            panel_id: panel_id.clone(),
+                        },
+                        _ => ClientViewCompletionOutcome::Applied {},
+                    }
                 } else if let Some(previously_zoomed) = pending.progress.toggle_origin
                     && pending.command.intent.is_toggle_observed(
                         &view,
@@ -284,6 +290,53 @@ impl ClientControl {
             lane.close();
         }
     }
+}
+
+/// Resolve geometry exactly once, before any navigation. Err is a terminal receipt,
+/// including successful reads and no-neighbor observations that require no draw.
+fn prepare_control(
+    native: &NativeUi,
+    command: &ClientViewControl,
+    snapshot: Option<&orchbee_workbench_protocol::Snapshot>,
+    viewport: Option<(ratatui::layout::Rect, crate::client_view::SidebarSurface)>,
+) -> Result<ClientViewControl, ClientViewCompletionOutcome> {
+    if !matches!(
+        command.intent,
+        ClientViewIntent::Layout { .. } | ClientViewIntent::FocusDirection { .. }
+    ) {
+        return Ok(command.clone());
+    }
+    let layout = match (snapshot, viewport) {
+        (Some(snapshot), Some((viewport, sidebar))) => {
+            native.read_client_layout(command, snapshot, viewport, sidebar)
+        }
+        _ => Err(Reason::ProjectionUnavailable),
+    }
+    .map_err(|reason| ClientViewCompletionOutcome::Rejected { reason })?;
+    let ClientViewIntent::FocusDirection { direction, .. } = &command.intent else {
+        return Err(ClientViewCompletionOutcome::LayoutRead {
+            layout: Box::new(layout),
+        });
+    };
+    if !layout.source_available {
+        return Err(ClientViewCompletionOutcome::Rejected {
+            reason: Reason::ProjectionUnavailable,
+        });
+    }
+    let Some(destination) = layout.neighbors.get(*direction) else {
+        return Err(ClientViewCompletionOutcome::DirectionUnchanged {
+            layout_revision: layout.workbench_revision,
+        });
+    };
+    let intent = command.intent.directional_target(destination).ok_or(
+        ClientViewCompletionOutcome::Rejected {
+            reason: Reason::ProjectionUnavailable,
+        },
+    )?;
+    Ok(ClientViewControl {
+        intent,
+        ..command.clone()
+    })
 }
 
 #[cfg(test)]

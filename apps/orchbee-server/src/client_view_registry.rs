@@ -255,6 +255,18 @@ impl ClientViewRegistry {
                 return ClientViewOutcome::Conflict {};
             }
             let status = match &completion.outcome {
+                ClientViewCompletionOutcome::DirectionFocused { panel_id } => {
+                    ClientViewControlStatus::DirectionFocused {
+                        panel_id: panel_id.clone(),
+                        view: view.clone(),
+                    }
+                }
+                ClientViewCompletionOutcome::DirectionUnchanged { layout_revision } => {
+                    ClientViewControlStatus::DirectionUnchanged {
+                        layout_revision: *layout_revision,
+                        view: view.clone(),
+                    }
+                }
                 ClientViewCompletionOutcome::LayoutRead { layout } => {
                     ClientViewControlStatus::LayoutRead {
                         layout: layout.clone(),

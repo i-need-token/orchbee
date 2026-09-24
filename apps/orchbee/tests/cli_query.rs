@@ -6160,15 +6160,15 @@ fn project_rename_schema_is_strict_and_distinct() -> TestResult {
 /// `orchbee.mutation.result` still receipt schema retrieves offline under
 /// either locale, byte-identical.
 #[test]
-fn api_schema_catalog_is_v25_closed_and_self_consistent() -> TestResult {
-    let base = base_dir("catalog-v25");
+fn api_schema_catalog_is_v26_closed_and_self_consistent() -> TestResult {
+    let base = base_dir("catalog-v26");
     let api_schema = compiled_schema(&base, "orchbee.api.schema");
 
     let output = run(&base, &["api", "schema", "--format", "json"]);
     assert_eq!(output.status.code(), Some(0));
     let listed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(listed["schema"], "orchbee.api.schema");
-    assert_eq!(listed["version"], 25, "catalog envelope is v25");
+    assert_eq!(listed["version"], 26, "catalog envelope is v26");
     assert_eq!(listed["source"]["kind"], "embedded");
     assert!(api_schema.is_valid(&listed), "listing self-validates");
     let schemas = listed["result"]["schemas"].as_object().unwrap();
@@ -6254,12 +6254,13 @@ fn api_schema_catalog_is_v25_closed_and_self_consistent() -> TestResult {
         serde_json::json!(22),
         serde_json::json!(23),
         serde_json::json!(24),
+        serde_json::json!(25),
     ] {
         let mut stale = listed.clone();
         stale["version"] = stale_version.clone();
         assert!(
             !api_schema.is_valid(&stale),
-            "stale catalog {stale_version} fails under v25"
+            "stale catalog {stale_version} fails under v26"
         );
     }
 

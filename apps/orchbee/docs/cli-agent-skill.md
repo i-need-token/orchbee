@@ -113,3 +113,5 @@ On Windows, `orchbee api schema [<schema-id>] --output <path>` writes the same J
 ## Inspect a Windows TUI layout
 
 Use `panel layout [<panel>] --client <id> --format json` to inspect cells without selecting the target Tab or resizing a terminal. `panel neighbor --direction left|right|up|down` returns a nullable neighbor ID; `panel edges` returns physical boundary booleans. Both accept the same Panel/Client selectors. Read `projection.sourceAvailable`: a hidden source has no neighbor/edge claim and exits 3. Pending or failed observations have null `projection`. Inactive geometry is explicitly unselected, and absent local focus stays null. All three preserve the full layout and operation identity; inspect retained results with `client control-status` after detach or interrupted waiting.
+
+`panel focus [source] --direction left|right|up|down` finds one neighbor in the selected TUI's unzoomed cell layout and preserves zoom. No neighbor returns `direction-unchanged` without activating the source Tab. A found destination is pinned and returns `direction-focused` only after a successful draw. Receipt reads never repeat the movement.

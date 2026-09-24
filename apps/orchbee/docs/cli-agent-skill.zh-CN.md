@@ -110,3 +110,5 @@ Windows 上，`orchbee api schema [<schema-id>] --output <path>` 将相同 JSON 
 ## 检查 Windows TUI 布局
 
 使用 `panel layout [<panel>] --client <id> --format json` 检查单元格，不选择目标 Tab 或调整终端尺寸。`panel neighbor --direction left|right|up|down` 返回可为 null 的邻居 ID；`panel edges` 返回物理边界布尔值。两者接受相同的 Panel/Client 选择器。读取 `projection.sourceAvailable`：隐藏源不作邻居／边缘判断，退出码为 3。待处理或失败观测的 `projection` 为 null。非活动几何明确标为未选中，没有本地焦点时保持 null。三条命令均保留完整布局与操作身份；分离或等待中断后通过 `client control-status` 检查保留结果。
+
+`panel focus [source] --direction left|right|up|down` 在指定 TUI 的未缩放单元格布局中查找一个邻居，保留缩放；无邻居返回 `direction-unchanged`，不切换到来源 Tab。找到邻居后固定目标，仅在绘制成功后返回 `direction-focused`。回执查询不重复移动。

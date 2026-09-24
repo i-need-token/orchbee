@@ -102,3 +102,5 @@ pnpm --filter @orchbee/workbench-client-protocol test:exports
 `workbench-client-view-contract.ts` 使用严格 Zod 结构和语义检查独立绑定 [Client 视图契约](../../schemas/workbench/README.zh-CN.md#易失-client-视图控制)。Rust 与 JSON Schema 证据也消费[共享语料](../../schemas/workbench/v1/workbench-client-view-conformance-v1.json)。该绑定不将 Client 本地选择放入规范 Workbench 快照，也不暴露 Desktop CLI 命令。
 
 `workbench-client-layout-contract.ts` 校验有界单元格矩形、可为 null 的可见性／焦点、唯一 split／slot／Panel 身份、有限比例、物理包含关系及独立重新计算的方向邻居。Client 视图校验把布局读取绑定到精确目标及最低 revision；选中观测还必须与已发布 Client 视图匹配。共享语料覆盖有效的非活动／隐藏目标，以及被拒绝的跨字段、边界和引用违规。
+
+方向控制新增 `focus-direction` 意图、`direction-focused` 和 `direction-unchanged` 回执，沿用普通 25/26 帧。成功聚焦校验区别于来源的精确目标和已观测视图；无邻居回执校验来源布局版本，支持当前选择位于其他上下文。共享语料覆盖闭合形状、版本、目标、意图不匹配和无效方向。

@@ -235,6 +235,28 @@
 					},
 					"required": ["kind", "terminalContextId", "tabId", "panelId"],
 					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "focus-direction"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "#/$defs/panelId"
+						},
+						"direction": {
+							"enum": ["left", "right", "up", "down"]
+						}
+					},
+					"required": ["kind", "terminalContextId", "tabId", "panelId", "direction"],
+					"additionalProperties": false
 				}
 			]
 		},
@@ -357,6 +379,32 @@
 							},
 							"required": ["kind", "layout"],
 							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "direction-focused"
+								},
+								"panelId": {
+									"$ref": "#/$defs/panelId"
+								}
+							},
+							"required": ["kind", "panelId"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "direction-unchanged"
+								},
+								"layoutRevision": {
+									"$ref": "#/$defs/revision"
+								}
+							},
+							"required": ["kind", "layoutRevision"],
+							"additionalProperties": false
 						}
 					]
 				}
@@ -478,6 +526,38 @@
 						}
 					},
 					"required": ["kind", "layout", "view"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "direction-focused"
+						},
+						"panelId": {
+							"$ref": "#/$defs/panelId"
+						},
+						"view": {
+							"$ref": "#/$defs/view"
+						}
+					},
+					"required": ["kind", "panelId", "view"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "direction-unchanged"
+						},
+						"layoutRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"view": {
+							"$ref": "#/$defs/view"
+						}
+					},
+					"required": ["kind", "layoutRevision", "view"],
 					"additionalProperties": false
 				}
 			]

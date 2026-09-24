@@ -342,3 +342,5 @@ implementation。
 ## Client 布局观测
 
 Client 视图契约还拥有 `layout` 意图及 `layout-read` 完成／状态。OBWP 帧类型 27/28 使用专用的 1 MiB 分配前上限；25/26 保留 16 KiB／64 KiB 限制。载荷保留必填但可为 null 的焦点与几何、规范 Panel／split 身份、有限比例、源可用性及四个重新计算的邻居。Rust 与 TypeScript 独立依据扩展共享语料校验边界、引用、实际单元格包含关系及精确请求／视图对应关系。[Windows 布局所有者](../../apps/orchbee/docs/windows-client-layout.zh-CN.md)定义几何、内存预留及只读行为。
+
+方向控制新增 `focus-direction` 意图、`direction-focused` 和 `direction-unchanged` 回执，沿用普通 25/26 帧。成功聚焦校验区别于来源的精确目标和已观测视图；无邻居回执校验来源布局版本，支持当前选择位于其他上下文。共享语料覆盖闭合形状、版本、目标、意图不匹配和无效方向。

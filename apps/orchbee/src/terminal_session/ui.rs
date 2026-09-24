@@ -555,7 +555,7 @@ mod create_membership_tests;
 #[cfg(test)]
 mod location_labels_tests;
 #[cfg(test)]
-mod membership_tests;
+pub(in crate::terminal_session) mod membership_tests;
 #[cfg(test)]
 pub(in crate::terminal_session) mod move_membership_tests;
 #[cfg(test)]

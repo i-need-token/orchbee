@@ -34,7 +34,7 @@ Server reserves 1 MiB from a 16 MiB encoded-layout budget before queuing each qu
 
 Evidence covers exact chrome/rounding/minimum geometry, nested and degenerate trees, independent neighbor-order vectors, generated hierarchy invariants with reduced replay, inactive and unvisited targets, no selection/attachment/resize side effects, two-Client isolation, stale membership, snapshot failure, bounds, capacity, interruption and shutdown. Rust, TypeScript and JSON Schema share a conformance corpus but have independent validators. Controlled Windows TUI traces connect these contracts to a real display. TLA model assets describe the extended receipt lifecycle; execution is deferred by the user and is not claimed. Same-author checks do not constitute independent review.
 
-Ratio mutation, directional focus, swaps and layout import/apply have separate delivery slices. This read contract does not claim those capabilities. The extension is additive within exact cohort admission; rollback discards only volatile Client observations and receipts, with no canonical-state migration.
+Directional focus uses this projection before navigation, as specified in [Client view control](windows-client-control.md#directional-panel-focus). Ratio mutation, swaps and layout import/apply have separate delivery slices. This read contract does not claim those capabilities. The extension is additive within exact cohort admission; rollback discards only volatile Client observations and receipts, with no canonical-state migration.
 
 ## Verification mapping
 

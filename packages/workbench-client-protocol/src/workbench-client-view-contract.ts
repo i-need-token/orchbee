@@ -1,4 +1,7 @@
-import { ClientPanelLayoutSchema } from './workbench-client-layout-contract';
+import {
+	ClientPanelDirectionSchema,
+	ClientPanelLayoutSchema,
+} from './workbench-client-layout-contract';
 import { z } from 'zod';
 import {
 	SiteIdSchema,
@@ -59,6 +62,13 @@ const contextTarget = { terminalContextId: WorkbenchTerminalContextIdSchema };
 const tabTarget = { ...contextTarget, tabId: WorkbenchTabIdSchema };
 const panelTarget = { ...tabTarget, panelId: WorkbenchPanelIdSchema };
 export const ClientViewIntentSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('focus-direction'),
+			...panelTarget,
+			direction: ClientPanelDirectionSchema,
+		})
+		.readonly(),
 	z.strictObject({ kind: z.literal('layout'), ...panelTarget }).readonly(),
 	z.strictObject({ kind: z.literal('context'), ...contextTarget }).readonly(),
 	z.strictObject({ kind: z.literal('tab'), ...tabTarget }).readonly(),
@@ -90,6 +100,15 @@ export const ClientViewCompletionSchema = z
 		operationId: WorkbenchRequestIdSchema,
 		outcome: z.discriminatedUnion('kind', [
 			z
+				.strictObject({ kind: z.literal('direction-focused'), panelId: WorkbenchPanelIdSchema })
+				.readonly(),
+			z
+				.strictObject({
+					kind: z.literal('direction-unchanged'),
+					layoutRevision: WorkbenchRevisionSchema,
+				})
+				.readonly(),
+			z
 				.strictObject({ kind: z.literal('layout-read'), layout: ClientPanelLayoutSchema })
 				.readonly(),
 			z.strictObject({ kind: z.literal('zoom-toggled'), previouslyZoomed: z.boolean() }).readonly(),
@@ -104,6 +123,20 @@ export const ClientViewCompletionSchema = z
 	})
 	.readonly();
 export const ClientViewControlStatusSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('direction-focused'),
+			panelId: WorkbenchPanelIdSchema,
+			view: ClientViewObservationSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('direction-unchanged'),
+			layoutRevision: WorkbenchRevisionSchema,
+			view: ClientViewObservationSchema,
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('layout-read'),
@@ -140,6 +173,40 @@ export const ClientViewOperationSchema = z
 		status: ClientViewControlStatusSchema,
 	})
 	.superRefine(({ command, status }, context) => {
+		if (status.kind === 'direction-focused' || status.kind === 'direction-unchanged') {
+			const { intent } = command;
+			const { view } = status;
+			const { selection } = view;
+			if (intent.kind !== 'focus-direction') {
+				context.addIssue({
+					code: 'custom',
+					message: 'Directional receipt requires directional intent',
+				});
+				return;
+			}
+			const selected =
+				selection !== null &&
+				selection.terminalContextId === intent.terminalContextId &&
+				selection.tabId === intent.tabId;
+			const settled = view.phase !== 'starting' && view.phase !== 'busy';
+			const valid =
+				status.kind === 'direction-focused'
+					? settled &&
+						selected &&
+						selection !== null &&
+						selection.panelId === status.panelId &&
+						status.panelId !== intent.panelId &&
+						BigInt(view.workbenchRevision) >= BigInt(command.minimumWorkbenchRevision)
+					: settled &&
+						BigInt(status.layoutRevision) >= BigInt(command.minimumWorkbenchRevision) &&
+						(!selected || status.layoutRevision === view.workbenchRevision);
+			if (!valid)
+				context.addIssue({
+					code: 'custom',
+					message: 'Directional target or source revision is not observed',
+				});
+			return;
+		}
 		if (status.kind === 'layout-read') {
 			const { layout, view } = status;
 			const { intent } = command;
@@ -197,6 +264,7 @@ export const ClientViewOperationSchema = z
 				zoomMatches =
 					intent.kind !== 'toggle-zoom' &&
 					intent.kind !== 'layout' &&
+					intent.kind !== 'focus-direction' &&
 					(intent.kind !== 'zoom' || selection?.zoomed === intent.enabled);
 				break;
 		}

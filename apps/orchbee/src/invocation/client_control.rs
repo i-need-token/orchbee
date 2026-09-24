@@ -27,6 +27,10 @@ pub(crate) enum ClientNavigationTarget {
     Workspace(Target),
     Tab(Target),
     Panel(Option<Target>),
+    FocusDirection {
+        target: Option<Target>,
+        direction: ClientPanelDirection,
+    },
     Zoom {
         target: Option<Target>,
         mode: ZoomMode,
@@ -163,7 +167,7 @@ pub(super) fn parse(
             check_scope(
                 options,
                 Scope {
-                    direction: *verb == "neighbor",
+                    direction: *verb == "neighbor" || (panel && *verb == "focus"),
                     client: true,
                     request_id: true,
                     detach: true,
@@ -235,21 +239,7 @@ pub(super) fn parse(
                                 let value = options.direction.as_deref().ok_or_else(|| {
                                     missing_required(context, "--direction", envelope)
                                 })?;
-                                let direction = match value {
-                                    "left" => ClientPanelDirection::Left,
-                                    "right" => ClientPanelDirection::Right,
-                                    "up" => ClientPanelDirection::Up,
-                                    "down" => ClientPanelDirection::Down,
-                                    _ => {
-                                        return Err(invalid(
-                                            value,
-                                            "--direction",
-                                            ExpectedValue::LayoutDirection,
-                                            context,
-                                            envelope,
-                                        ));
-                                    }
-                                };
+                                let direction = panel_direction(value, context, envelope)?;
                                 LayoutQuery::Neighbor(direction)
                             }
                         };
@@ -283,6 +273,11 @@ pub(super) fn parse(
                             } else {
                                 ZoomMode::Toggle
                             },
+                        }
+                    } else if let Some(value) = options.direction.as_deref() {
+                        ClientNavigationTarget::FocusDirection {
+                            target,
+                            direction: panel_direction(value, context, envelope)?,
                         }
                     } else {
                         ClientNavigationTarget::Panel(target)
@@ -356,4 +351,24 @@ pub(super) fn parse(
         command,
         format: options.format.unwrap_or(OutputFormat::Text),
     })
+}
+
+fn panel_direction(
+    value: &str,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<ClientPanelDirection, ParseFailure> {
+    match value {
+        "left" => Ok(ClientPanelDirection::Left),
+        "right" => Ok(ClientPanelDirection::Right),
+        "up" => Ok(ClientPanelDirection::Up),
+        "down" => Ok(ClientPanelDirection::Down),
+        _ => Err(invalid(
+            value,
+            "--direction",
+            ExpectedValue::LayoutDirection,
+            context,
+            envelope,
+        )),
+    }
 }

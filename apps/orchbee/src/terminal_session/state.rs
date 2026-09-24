@@ -463,7 +463,6 @@ impl PaneRecord {
         self.attached
     }
 
-    #[cfg(test)]
     pub(super) const fn fault(&self) -> Option<PaneFault> {
         self.fault
     }
