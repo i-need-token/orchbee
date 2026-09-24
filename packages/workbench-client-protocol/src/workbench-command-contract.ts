@@ -1,4 +1,9 @@
 import {
+	WorkbenchClientViewRequestSchema,
+	WorkbenchClientViewResultSchema,
+	WORKBENCH_MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES,
+} from './workbench-client-view-contract';
+import {
 	WorkbenchWorkspaceGroupCloseRequestSchema,
 	WorkbenchWorkspaceGroupCloseResultSchema,
 	WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES,
@@ -226,6 +231,7 @@ export const WorkbenchRequestSchema = z
 		WorkbenchWorktreeRequestSchema,
 		WorkbenchWorktreeQuerySchema,
 		WorkbenchWorkspaceGroupCloseRequestSchema,
+		WorkbenchClientViewRequestSchema,
 	])
 	.refine(
 		(value) =>
@@ -502,6 +508,7 @@ export const WorkbenchResponseSchema = z
 		WorkbenchWorktreeResultSchema,
 		WorkbenchWorktreeQueryResultSchema,
 		WorkbenchWorkspaceGroupCloseResultSchema,
+		WorkbenchClientViewResultSchema,
 	])
 	.superRefine((value, context) => {
 		let maximum = WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES;
@@ -510,6 +517,8 @@ export const WorkbenchResponseSchema = z
 			value.kind === 'workbench.publication.result'
 		) {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES;
+		} else if (value.kind === 'workbench.client-view.result') {
+			maximum = WORKBENCH_MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES;
 		} else if (value.kind === 'workbench.workspace-group-close.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES;
 		} else if (value.kind === 'workbench.worktree.query.result') {

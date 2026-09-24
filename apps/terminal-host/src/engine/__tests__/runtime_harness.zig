@@ -181,6 +181,30 @@ pub const HookedThreadSpawner = struct {
     }
 };
 
+/// Keep injected reader-batch assertions independent of real PTY startup output.
+pub fn GatedPtyProbe(comptime Probe: type) type {
+    return struct {
+        probe: Probe,
+        reader: TestGate = .{},
+        runtime: *TerminalRuntime = undefined,
+
+        fn read(context: *anyopaque, buffer: []u8) anyerror!usize {
+            const probe: *Probe = @ptrCast(@alignCast(context));
+            const self: *@This() = @fieldParentPtr("probe", probe);
+            self.reader.pause();
+            return runtimeState(self.runtime).process.read(buffer);
+        }
+
+        pub fn hooks(self: *@This()) RuntimeTestingHooks {
+            var result = self.probe.hooks();
+            std.debug.assert(result.context.? == @as(*anyopaque, @ptrCast(&self.probe)));
+            std.debug.assert(result.read_pty == null);
+            result.read_pty = read;
+            return result;
+        }
+    };
+}
+
 pub fn createRuntimeWithHooks(hooks: RuntimeTestingHooks) !*TerminalRuntime {
     const builtin = @import("builtin");
     var spawner: HookedThreadSpawner = .{ .hooks = hooks };

@@ -146,3 +146,7 @@ pnpm --filter @orchbee/workbench-client-protocol test:exports
 ## Workspace group Close binding
 
 `workbench-workspace-group-close-contract.ts` implements the [group contract](../../schemas/workbench/v1/workbench-workspace-group-close.schema.json) and extends request/result unions. It reuses the existing child Close status/generation schemas. The binding enforces 16 KiB requests, 512 KiB results, 128 unique captured Workspaces, 1–64 attempts, source-last and closed-prefix ordering, unique identity observations and truthful aggregate closure/recovery. Required-nullable child observations distinguish unsubmitted from accepted-but-unobserved work. The [shared corpus](../../schemas/workbench/v1/workbench-workspace-group-close-conformance-v1.json) exercises the independent Rust binding and structural schema. Runtime admission and monotonic publication remain Server-owned; this binding adds no Desktop CLI verb.
+
+## Client view binding
+
+`workbench-client-view-contract.ts` independently binds the [Client view contract](../../schemas/workbench/README.md#ephemeral-client-view-control) with strict Zod shapes and semantic checks. The [shared corpus](../../schemas/workbench/v1/workbench-client-view-conformance-v1.json) is also consumed by Rust and JSON Schema witnesses. It does not place Client-local selection in canonical Workbench snapshots or expose a Desktop CLI command.

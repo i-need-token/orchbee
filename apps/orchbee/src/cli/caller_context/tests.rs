@@ -188,3 +188,33 @@ fn validate_failure(failure: Failure) {
         .validate(&document)
         .expect("valid failure envelope");
 }
+
+#[test]
+fn optional_client_caller_requires_both_ids_or_neither_and_reads_each_once() {
+    for mask in 0..4 {
+        let mut reads = Vec::new();
+        let result = PanelTarget::prepare_optional(|name| {
+            reads.push(name.to_owned());
+            if (name == "ORCHBEE_TERMINAL_ID" && mask & 1 != 0)
+                || (name == "ORCHBEE_WORKER_ID" && mask & 2 != 0)
+            {
+                environment(name)
+            } else {
+                None
+            }
+        });
+        assert_eq!(reads, ["ORCHBEE_TERMINAL_ID", "ORCHBEE_WORKER_ID"]);
+        match mask {
+            0 => assert!(result.unwrap().is_none()),
+            3 => assert_eq!(
+                result
+                    .unwrap()
+                    .unwrap()
+                    .resolve(&snapshot(false, false))
+                    .unwrap(),
+                Target::Id(hex(4))
+            ),
+            _ => assert!(result.is_err()),
+        }
+    }
+}

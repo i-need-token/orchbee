@@ -111,6 +111,14 @@ fn main() -> ExitCode {
             Ok(invocation::Request::SiteStop { command, format }) => {
                 cli::site_stop(&command, format, locale)
             }
+            Ok(invocation::Request::SchemaExport {
+                schema_id,
+                path,
+                format,
+            }) => cli::export_schema(schema_id.as_deref(), &path, format, locale),
+            Ok(invocation::Request::Client { command, format }) => {
+                cli::run_client_control(&command, format, locale)
+            }
             Ok(invocation::Request::WorkspaceGroupClose { command, format }) => {
                 cli::run_workspace_group_close(&command, format, locale)
             }

@@ -1749,9 +1749,15 @@ test "application terminal controls reject counter exhaustion before mutation" {
     try expectCanonicalSnapshotEqual(revision_before, revision_after);
 }
 test "reader applies terminal-driven 80 and 132 column modes to the PTY before commit" {
-    var resize_probe: TerminalDrivenResizeProbe = .{};
-    const runtime = try createRuntimeWithHooks(resize_probe.hooks());
-    defer runtime.destroy();
+    var probe: harness.GatedPtyProbe(TerminalDrivenResizeProbe) = .{ .probe = .{} };
+    const resize_probe = &probe.probe;
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    probe.runtime = runtime;
+    defer {
+        probe.reader.release();
+        runtime.destroy();
+    }
+    probe.reader.wait();
 
     const initial = runtime.geometry();
     try std.testing.expectEqual(@as(u16, 80), initial.columns);

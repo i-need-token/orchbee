@@ -1,3 +1,5 @@
+#[cfg(windows)]
+mod client_control;
 #[cfg(test)]
 use crate::terminal_projection::TerminalProjection;
 use crate::{
@@ -134,6 +136,8 @@ enum SessionTask {
 }
 
 pub(crate) struct TerminalSession {
+    #[cfg(windows)]
+    client_control: Option<client_control::ClientControl>,
     backend: SessionBackend,
     task: Option<SessionTask>,
     shutdown: LocalClientShutdown,
@@ -162,6 +166,11 @@ impl TerminalSession {
                 let task = thread::Builder::new()
                     .name("orchbee-terminal-session".into())
                     .spawn(move || connection::run_native(client, geometry, worker_mailbox))?;
+                #[cfg(windows)]
+                let client_control = Some(client_control::ClientControl::new(
+                    origin.clone(),
+                    clock.clone(),
+                ));
                 let mut native = ui::NativeUi::new(mailbox, clock);
                 // The Agent board's read lane reconnects on its own admitted
                 // session so an OBAP ambiguity retires the lane, never the
@@ -169,6 +178,8 @@ impl TerminalSession {
                 #[cfg(any(target_os = "linux", windows))]
                 native.set_agent_board_origin(origin.clone());
                 Ok(Self {
+                    #[cfg(windows)]
+                    client_control,
                     backend: SessionBackend::Native(Box::new(native)),
                     task: Some(SessionTask::Native(task)),
                     shutdown,
@@ -224,6 +235,8 @@ impl TerminalSession {
                 }
             })?;
         Ok(Self {
+            #[cfg(windows)]
+            client_control: None,
             backend: SessionBackend::Legacy(Box::new(LegacySession {
                 commands: Some(commands),
                 events: Some(events),
@@ -288,10 +301,24 @@ impl TerminalSession {
     }
 
     // Only the shell's successful draw calls this, so an undrawn frame is never acknowledged.
+    #[cfg(windows)]
+    pub(crate) fn client_control_tick(&mut self, shell_blocked: bool) -> bool {
+        match (&mut self.client_control, &mut self.backend) {
+            (Some(control), SessionBackend::Native(native)) => control.tick(native, shell_blocked),
+            _ => false,
+        }
+    }
+
     pub(crate) fn after_draw(&mut self) {
         self.retirement_redraw_pending = false;
         match &mut self.backend {
-            SessionBackend::Native(native) => native.after_draw(),
+            SessionBackend::Native(native) => {
+                native.after_draw();
+                #[cfg(windows)]
+                if let Some(control) = &mut self.client_control {
+                    control.after_draw(native);
+                }
+            }
             #[cfg(test)]
             SessionBackend::Legacy(legacy) => legacy.after_draw(),
         }
@@ -604,6 +631,10 @@ impl TerminalInputPort for TerminalSession {
     }
 
     fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+        #[cfg(windows)]
+        if let Some(control) = &mut self.client_control {
+            control.interrupt();
+        }
         #[cfg(any(target_os = "linux", windows))]
         if action == ClientAction::OpenWorkbenchNavigator
             && self.task.is_none()
@@ -632,6 +663,10 @@ impl TerminalInputPort for TerminalSession {
 
 impl Drop for TerminalSession {
     fn drop(&mut self) {
+        #[cfg(windows)]
+        if let Some(control) = &mut self.client_control {
+            control.close();
+        }
         match &mut self.backend {
             SessionBackend::Native(native) => {
                 native.close(state::CarrierFailure::Closed);

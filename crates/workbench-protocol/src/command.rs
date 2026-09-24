@@ -1,3 +1,12 @@
+mod client_view;
+pub use client_view::{
+    ClientViewAction, ClientViewAvailability, ClientViewCompletion, ClientViewCompletionOutcome,
+    ClientViewControl, ClientViewControlReason, ClientViewControlStatus, ClientViewIntent,
+    ClientViewObservation, ClientViewOperation, ClientViewOutcome, ClientViewPhase,
+    ClientViewRecord, ClientViewSelection, ClientViewSequence, ClientViewUnavailable,
+    MAXIMUM_CLIENT_VIEWS, MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES, WorkbenchClientViewRequest,
+    WorkbenchClientViewResult,
+};
 mod workspace_group_close;
 pub use workspace_group_close::{
     MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES, MAXIMUM_WORKSPACE_GROUP_CLOSE_ATTEMPTS,
@@ -565,6 +574,8 @@ pub struct WorkbenchCommand {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchRequest {
+    #[serde(rename = "workbench.client-view")]
+    ClientView(WorkbenchClientViewRequest),
     #[serde(rename = "workbench.workspace-group-close")]
     WorkspaceGroupClose(WorkbenchWorkspaceGroupCloseRequest),
     #[serde(rename = "workbench.worktree.query")]
@@ -871,6 +882,8 @@ pub struct WorkbenchSnapshotResult {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchResponse {
+    #[serde(rename = "workbench.client-view.result")]
+    ClientView(WorkbenchClientViewResult),
     #[serde(rename = "workbench.workspace-group-close.result")]
     WorkspaceGroupClose(WorkbenchWorkspaceGroupCloseResult),
     #[serde(rename = "workbench.worktree.query.result")]
@@ -910,6 +923,9 @@ pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, Contr
 /// explicit `launch` and a `profile` selector are mutually exclusive on the
 /// terminal-launch actions.
 fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
+    if let WorkbenchRequest::ClientView(request) = request {
+        return request.validate();
+    }
     if let WorkbenchRequest::WorkspaceGroupClose(request) = request {
         return request.validate();
     }
@@ -986,6 +1002,10 @@ pub fn serialize_workbench_response(
 
 fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(), ContractError> {
     match response {
+        WorkbenchResponse::ClientView(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES)?;
+            result.validate()
+        }
         WorkbenchResponse::WorkspaceGroupClose(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES)?;
             result.validate()

@@ -13,28 +13,7 @@ const TerminalDrivenResizeProbe = harness.TerminalDrivenResizeProbe;
 const TerminalRuntime = harness.TerminalRuntime;
 const WriterProbe = harness.WriterProbe;
 
-fn GatedPtyProbe(comptime Probe: type) type {
-    return struct {
-        probe: Probe,
-        reader: harness.TestGate = .{},
-        runtime: *TerminalRuntime = undefined,
-
-        fn read(context: *anyopaque, buffer: []u8) anyerror!usize {
-            const probe: *Probe = @ptrCast(@alignCast(context));
-            const self: *@This() = @fieldParentPtr("probe", probe);
-            self.reader.pause();
-            return runtimeState(self.runtime).process.read(buffer);
-        }
-
-        fn hooks(self: *@This()) harness.RuntimeTestingHooks {
-            var result = self.probe.hooks();
-            std.debug.assert(result.context.? == @as(*anyopaque, @ptrCast(&self.probe)));
-            std.debug.assert(result.read_pty == null);
-            result.read_pty = read;
-            return result;
-        }
-    };
-}
+const GatedPtyProbe = harness.GatedPtyProbe;
 
 fn viewportGeometry(runtime: *TerminalRuntime) Geometry {
     const runtime_state = runtimeState(runtime);

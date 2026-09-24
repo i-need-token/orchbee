@@ -13,11 +13,12 @@ use std::{
     io::Read,
     path::PathBuf,
     process::{Command, Output, Stdio},
+    sync::{Mutex, mpsc},
     thread,
     time::{Duration, Instant},
 };
 
-pub(super) struct Fixture(pub(super) PathBuf);
+pub(super) struct Fixture(pub(super) PathBuf, Mutex<Option<mpsc::Sender<Instant>>>);
 impl Fixture {
     pub(super) fn new() -> Self {
         let mut nonce = [0; 16];
@@ -54,7 +55,7 @@ impl Fixture {
             json!({"schemaVersion":2,"artifacts":artifacts}).to_string(),
         )
         .unwrap();
-        Self(root)
+        Self(root, Mutex::new(None))
     }
 
     pub(super) fn rendezvous(&self) -> ModeCheckedLocalSiteRendezvous {
@@ -70,17 +71,26 @@ impl Fixture {
     }
 
     pub(super) fn run(&self, arguments: &[&str]) -> Output {
-        Command::new(self.0.join("orchbee.exe"))
+        let child = Command::new(self.0.join("orchbee.exe"))
             .args(arguments)
             .env("ORCHBEE_RUNTIME_BASE", self.0.join("runtime"))
             .env("LC_ALL", "en_US.UTF-8")
             .stdin(Stdio::null())
-            .output()
-            .unwrap()
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        if let Some(launched) = self.1.lock().unwrap().take() {
+            // The peer may already have accepted before CreateProcess returns.
+            let _ = launched.send(Instant::now());
+        }
+        child.wait_with_output().unwrap()
     }
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
+        // Wake an admission peer when child creation unwinds before notification.
+        self.1.lock().unwrap().take();
         let target = self.0.canonicalize().unwrap();
         assert!(target.starts_with(std::env::temp_dir().canonicalize().unwrap()));
         assert!(
@@ -96,17 +106,33 @@ impl Drop for Fixture {
 }
 
 pub(super) fn peer(
+    fixture: &Fixture,
     listener: LocalListener,
     script: impl FnOnce(LocalStream) + Send + 'static,
 ) -> thread::JoinHandle<()> {
     listener.set_nonblocking(true).unwrap();
+    let (launched, launch) = mpsc::channel();
+    assert!(fixture.1.lock().unwrap().replace(launched).is_none());
     thread::spawn(move || {
-        let deadline = Instant::now() + Duration::from_secs(15);
+        // OS process creation is fixture setup, not the CLI admission interval.
+        let mut deadline = None;
         let mut stream = loop {
             match listener.accept() {
                 Ok((stream, _)) => break stream,
                 Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                    assert!(Instant::now() < deadline, "CLI admission timeout");
+                    if deadline.is_none() {
+                        match launch.try_recv() {
+                            Ok(started) => deadline = Some(started + Duration::from_secs(15)),
+                            Err(mpsc::TryRecvError::Empty) => {}
+                            Err(mpsc::TryRecvError::Disconnected) => {
+                                panic!("CLI launch cancelled before admission");
+                            }
+                        }
+                    }
+                    assert!(
+                        deadline.is_none_or(|until| Instant::now() < until),
+                        "CLI admission timeout"
+                    );
                     thread::sleep(Duration::from_millis(5));
                 }
                 Err(error) => panic!("named-pipe accept: {error}"),

@@ -1,3 +1,5 @@
+#[cfg(windows)]
+pub(crate) mod client_view;
 use orchbee_local_ipc::LocalIo as BorrowedFd;
 use std::{fmt, io, time::Instant};
 

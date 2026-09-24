@@ -1,3 +1,7 @@
+mod schema_export;
+pub(crate) use schema_export::run as export_schema;
+mod client_control;
+pub(crate) use client_control::run as run_client_control;
 pub(crate) mod agent_names;
 mod agent_prompt;
 mod agent_start;

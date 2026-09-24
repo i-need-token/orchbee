@@ -48,7 +48,7 @@ orchbee completion bash|zsh|fish|powershell
 orchbee --help | --version
 ```
 
-查询 family 为 `project`、`workspace`、`tab`、`panel`、`terminal`、`worktree`、
+查询 family 为 `client`、`project`、`workspace`、`tab`、`panel`、`terminal`、`worktree`、
 `launch-profile`、`agent`（`list`/`get`，另有
 `terminal read`/`wait-output`；Windows `worktree list` 接受 `--workspace <target>` 或
 `--cwd <absolute-path>`，支持可选的命令局部信任；同时保留原有 `--project <target>` 与
@@ -673,4 +673,14 @@ Snapshot read 不重试。Attachment 后仍须完成现有 controller 与 projec
 
 ## Windows Workspace 组关闭
 
-`workspace close <target> --group --confirm` 关闭捕获的 worktree 组，源工作区最后关闭，不删除 Git checkout。已知主 Workspace 若有关联成员就必须带 `--group`；关联 Workspace 只关闭自身。成员消失后使用 `workspace close-status --group --request <operation-id>`；只有明确可恢复失败才使用 `workspace close-resume --group --request <operation-id> --generation <attempt> --confirm`。组模式支持分离/有界等待，报告每个子 Close 的身份及已观测状态。参见[归属模型](docs/windows-worktrees.zh-CN.md#workspace-组关闭)。`api schema` v22 目录包含 57 份文档，其中 `orchbee.workspace.group-close` 为 v1。
+`workspace close <target> --group --confirm` 关闭捕获的 worktree 组，源工作区最后关闭，不删除 Git checkout。已知主 Workspace 若有关联成员就必须带 `--group`；关联 Workspace 只关闭自身。成员消失后使用 `workspace close-status --group --request <operation-id>`；只有明确可恢复失败才使用 `workspace close-resume --group --request <operation-id> --generation <attempt> --confirm`。组模式支持分离/有界等待，报告每个子 Close 的身份及已观测状态。参见[归属模型](docs/windows-worktrees.zh-CN.md#workspace-组关闭)。`api schema` v24 目录包含 61 份文档，其中 `orchbee.workspace.group-close` 为 v1。
+
+## Windows Client 导航
+
+[Windows Client 视图控制](docs/windows-client-control.zh-CN.md) 拥有 `client list/get/control-status`、`workspace focus`、`tab focus`、`panel focus` 和 `panel zoom`。导航通过 `--client` 或无歧义且已校验的调用者上下文定位一个 current TUI。只提交一次，并等待绘制确认；超时或 Ctrl+C 仅停止等待。单 Panel 缩放有明确无操作回执。目录 v24 包含 61 个 schema，新增均为 v1 的 `orchbee.client.view`、`orchbee.client.control` 和 `orchbee.cli.failure.client-control`。未增加操作系统窗口激活或 Mac/Linux 控制运行时。
+
+Windows 进程测试在 Git for Windows Bash 中执行输出的补全，通过 `git --exec-path` 定位；该见证要求已安装此 Bash。检查命令动词前后的互斥选项，不连接 Site。PowerShell 另有真实 Shell 语法见证。
+
+## Windows schema 导出
+
+`api schema [<schema-id>] --output <path>` 离线导出内嵌 JSON 文档，同时将其输出到 stdout。目标父目录必须存在；完整的同目录文件替换已有普通目标文件。[导出契约](docs/native-cli-query.zh-CN.md#windows-离线-schema-导出) 拥有失败阶段、临时文件清理以及发布后的 stdout 失败。目录 v24 包含 61 份文档，包括 `orchbee.cli.failure.schema-export` v1。

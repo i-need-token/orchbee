@@ -96,3 +96,7 @@ pnpm --filter @orchbee/workbench-client-protocol test:exports
 ## Workspace 组关闭绑定
 
 `workbench-workspace-group-close-contract.ts` 实现[组合同](../../schemas/workbench/v1/workbench-workspace-group-close.schema.json)，扩展请求/结果联合，复用现有子 Close 状态/代次 schema。绑定约束 16 KiB 请求、512 KiB 结果、128 个唯一捕获 Workspace、1–64 次尝试、源最后及已关闭前缀顺序、身份观测唯一性和真实的聚合关闭/恢复。必须存在、可为 null 的子操作观测区分尚未提交与已接纳但未观测。[共享样例](../../schemas/workbench/v1/workbench-workspace-group-close-conformance-v1.json) 同时检查独立 Rust 绑定和结构 schema。运行时接纳与单调发布仍由 Server 负责；此绑定不增加 Desktop CLI 动词。
+
+## Client 视图绑定
+
+`workbench-client-view-contract.ts` 使用严格 Zod 结构和语义检查独立绑定 [Client 视图契约](../../schemas/workbench/README.zh-CN.md#易失-client-视图控制)。Rust 与 JSON Schema 证据也消费[共享语料](../../schemas/workbench/v1/workbench-client-view-conformance-v1.json)。该绑定不将 Client 本地选择放入规范 Workbench 快照，也不暴露 Desktop CLI 命令。

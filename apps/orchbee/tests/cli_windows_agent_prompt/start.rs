@@ -121,6 +121,7 @@ fn run_with_timeout(
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
     let peer = peer(
+        &fixture,
         LocalListener::bind(rendezvous.client_socket_path()).unwrap(),
         script,
     );

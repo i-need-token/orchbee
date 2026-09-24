@@ -1,0 +1,696 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "urn:orchbee:schema:workbench-client-view:v1",
+	"$comment": "Independent bindings additionally enforce u64 sequence bounds, selection relationships, unique Client IDs, synchronized control fences, observed Applied targets and request16KiB/result64KiB bounds. Client view is ephemeral and never canonical Workbench focus.",
+	"oneOf": [
+		{
+			"$ref": "#/$defs/request"
+		},
+		{
+			"$ref": "#/$defs/result"
+		}
+	],
+	"$defs": {
+		"siteId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/siteId"
+		},
+		"requestId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+		},
+		"terminalContextId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+		},
+		"tabId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+		},
+		"panelId": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+		},
+		"revision": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+		},
+		"clientId": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"sequence": {
+			"type": "string",
+			"pattern": "^[1-9][0-9]{0,19}$"
+		},
+		"phase": {
+			"enum": ["starting", "ready", "busy", "unavailable"]
+		},
+		"selection": {
+			"type": "object",
+			"properties": {
+				"terminalContextId": {
+					"$ref": "#/$defs/terminalContextId"
+				},
+				"tabId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/tabId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"panelId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/panelId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"zoomed": {
+					"type": "boolean"
+				},
+				"panelCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65535
+				}
+			},
+			"required": ["terminalContextId", "tabId", "panelId", "zoomed", "panelCount"],
+			"additionalProperties": false
+		},
+		"view": {
+			"type": "object",
+			"properties": {
+				"workbenchRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"phase": {
+					"$ref": "#/$defs/phase"
+				},
+				"selection": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/selection"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["workbenchRevision", "phase", "selection"],
+			"additionalProperties": false
+		},
+		"client": {
+			"type": "object",
+			"properties": {
+				"clientId": {
+					"$ref": "#/$defs/clientId"
+				},
+				"heartbeat": {
+					"$ref": "#/$defs/sequence"
+				},
+				"viewRevision": {
+					"$ref": "#/$defs/sequence"
+				},
+				"view": {
+					"$ref": "#/$defs/view"
+				},
+				"availability": {
+					"enum": ["current", "stale"]
+				}
+			},
+			"required": ["clientId", "heartbeat", "viewRevision", "view", "availability"],
+			"additionalProperties": false
+		},
+		"intent": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "context"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/terminalContextId"
+						}
+					},
+					"required": ["kind", "terminalContextId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "tab"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/tabId"
+						}
+					},
+					"required": ["kind", "terminalContextId", "tabId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "panel"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "#/$defs/panelId"
+						}
+					},
+					"required": ["kind", "terminalContextId", "tabId", "panelId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "zoom"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "#/$defs/panelId"
+						},
+						"enabled": {
+							"type": "boolean"
+						}
+					},
+					"required": ["kind", "terminalContextId", "tabId", "panelId", "enabled"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "toggle-zoom"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "#/$defs/panelId"
+						}
+					},
+					"required": ["kind", "terminalContextId", "tabId", "panelId"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"control": {
+			"type": "object",
+			"properties": {
+				"operationId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"clientId": {
+					"$ref": "#/$defs/clientId"
+				},
+				"expectedViewRevision": {
+					"$ref": "#/$defs/sequence"
+				},
+				"minimumWorkbenchRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"intent": {
+					"$ref": "#/$defs/intent"
+				}
+			},
+			"required": [
+				"operationId",
+				"clientId",
+				"expectedViewRevision",
+				"minimumWorkbenchRevision",
+				"intent"
+			],
+			"additionalProperties": false
+		},
+		"reason": {
+			"enum": [
+				"busy",
+				"stale-view",
+				"target-unavailable",
+				"projection-unavailable",
+				"interrupted",
+				"client-disconnected",
+				"expired",
+				"unsupported"
+			]
+		},
+		"completion": {
+			"type": "object",
+			"properties": {
+				"operationId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"outcome": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "applied"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "rejected"
+								},
+								"reason": {
+									"$ref": "#/$defs/reason"
+								}
+							},
+							"required": ["kind", "reason"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "incomplete"
+								},
+								"reason": {
+									"$ref": "#/$defs/reason"
+								}
+							},
+							"required": ["kind", "reason"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "zoom-unchanged"
+								}
+							},
+							"required": ["kind"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "zoom-toggled"
+								},
+								"previouslyZoomed": {
+									"type": "boolean"
+								}
+							},
+							"required": ["kind", "previouslyZoomed"],
+							"additionalProperties": false
+						}
+					]
+				}
+			},
+			"required": ["operationId", "outcome"],
+			"additionalProperties": false
+		},
+		"status": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "queued"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "delivered"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "applied"
+						},
+						"view": {
+							"$ref": "#/$defs/view"
+						}
+					},
+					"required": ["kind", "view"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "rejected"
+						},
+						"reason": {
+							"$ref": "#/$defs/reason"
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "incomplete"
+						},
+						"reason": {
+							"$ref": "#/$defs/reason"
+						},
+						"view": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/view"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind", "reason", "view"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "zoom-unchanged"
+						},
+						"view": {
+							"$ref": "#/$defs/view"
+						}
+					},
+					"required": ["kind", "view"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "zoom-toggled"
+						},
+						"view": {
+							"$ref": "#/$defs/view"
+						},
+						"previouslyZoomed": {
+							"type": "boolean"
+						}
+					},
+					"required": ["kind", "view", "previouslyZoomed"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"operation": {
+			"type": "object",
+			"properties": {
+				"command": {
+					"$ref": "#/$defs/control"
+				},
+				"status": {
+					"$ref": "#/$defs/status"
+				}
+			},
+			"required": ["command", "status"],
+			"additionalProperties": false
+		},
+		"action": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "synchronize"
+						},
+						"heartbeat": {
+							"$ref": "#/$defs/sequence"
+						},
+						"viewRevision": {
+							"$ref": "#/$defs/sequence"
+						},
+						"view": {
+							"$ref": "#/$defs/view"
+						},
+						"completion": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/completion"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind", "heartbeat", "viewRevision", "view", "completion"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "list"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "get"
+						},
+						"clientId": {
+							"$ref": "#/$defs/clientId"
+						}
+					},
+					"required": ["kind", "clientId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "submit"
+						},
+						"command": {
+							"$ref": "#/$defs/control"
+						}
+					},
+					"required": ["kind", "command"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "read"
+						},
+						"operationId": {
+							"$ref": "#/$defs/requestId"
+						}
+					},
+					"required": ["kind", "operationId"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"outcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "synchronized"
+						},
+						"client": {
+							"$ref": "#/$defs/client"
+						},
+						"control": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind", "client", "control"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "listed"
+						},
+						"clients": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/client"
+							},
+							"maxItems": 32
+						}
+					},
+					"required": ["kind", "clients"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "found"
+						},
+						"client": {
+							"$ref": "#/$defs/client"
+						}
+					},
+					"required": ["kind", "client"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "operation"
+						},
+						"operation": {
+							"$ref": "#/$defs/operation"
+						}
+					},
+					"required": ["kind", "operation"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "not-found"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "conflict"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "denied"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"enum": [
+								"client-unavailable",
+								"server-busy",
+								"receipt-capacity",
+								"unsupported",
+								"sequence-exhausted"
+							]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"request": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "workbench.client-view"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"siteId": {
+					"$ref": "#/$defs/siteId"
+				},
+				"action": {
+					"$ref": "#/$defs/action"
+				}
+			},
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "action"],
+			"additionalProperties": false
+		},
+		"result": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "workbench.client-view.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"siteId": {
+					"$ref": "#/$defs/siteId"
+				},
+				"outcome": {
+					"$ref": "#/$defs/outcome"
+				}
+			},
+			"required": ["kind", "protocolVersion", "requestId", "siteId", "outcome"],
+			"additionalProperties": false
+		}
+	}
+}

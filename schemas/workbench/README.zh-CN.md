@@ -334,3 +334,7 @@ implementation。
 ## Workspace 组关闭线上合同
 
 [`workbench-workspace-group-close.schema.json`](v1/workbench-workspace-group-close.schema.json) 定义 `workbench.workspace-group-close` 及其结果，OBWP kind 为 23/24。请求沿用 16 KiB intent 上限；结果具有独立的 512 KiB 分配前上限。Start 捕获作用域，Read 在源移除后仍使用操作 ID，Resume 对 1–64 次尝试设置围栏。Available 应答携带 1–128 个唯一有序成员，选定源排在最后。子记录为 null 表示尚未提交；子记录即使必须存在、可为 null 的观测不可用，也保留 Close 请求 ID。现有 Close 拥有状态与代次定义。绑定约束前序已关闭前缀、子 ID 唯一性、完整 Closed 声明及未知观测不可恢复。[共享样例](v1/workbench-workspace-group-close-conformance-v1.json) 覆盖 Rust、TypeScript 和结构 schema 校验。[运行时归属](../../apps/orchbee/docs/windows-worktrees.zh-CN.md#workspace-组关闭) 提供授权、物理清理和单调保留观测。
+
+## 易失 Client 视图控制
+
+[`workbench-client-view.schema.json`](v1/workbench-client-view.schema.json) 拥有 Client 发现、仅所有者可执行的同步及经确认的导航，与规范 Workbench 快照分离。OBWP kind 25／26 将请求限制为 16 KiB、结果限制为 64 KiB。独立 Rust／TypeScript 绑定及[共享语料](v1/workbench-client-view-conformance-v1.json) 校验必填可空字段、非零 u64 序列、最多 32 个唯一 Client、同步命令版本约束，以及已观测 Applied 或单 Panel zoom-unchanged 结果。[Windows 运行时契约](../../apps/orchbee/docs/windows-client-control.zh-CN.md) 拥有新鲜期、回执保留、路由、绘制后确认和停机。`ClientViewControl` 是登记的有界生命周期模型；模型执行是单独的证据。

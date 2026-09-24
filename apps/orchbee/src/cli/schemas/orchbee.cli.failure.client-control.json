@@ -1,0 +1,56 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.cli.failure.client-control",
+	"title": "Native Client routing failure",
+	"type": "object",
+	"properties": {
+		"schema": {
+			"const": "orchbee.cli.failure.client-control"
+		},
+		"version": {
+			"const": 1
+		},
+		"failure": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"enum": ["ambiguous", "not-found", "service-unavailable", "rejected"]
+				},
+				"details": {
+					"type": "object",
+					"properties": {
+						"stage": {
+							"const": "client-selection"
+						},
+						"reason": {
+							"enum": [
+								"client-not-found",
+								"client-stale",
+								"client-ambiguous",
+								"client-panel-unavailable"
+							]
+						},
+						"candidates": {
+							"type": "array",
+							"maxItems": 32,
+							"uniqueItems": true,
+							"items": {
+								"type": "string",
+								"pattern": "^[0-9a-f]{32}$",
+								"not": {
+									"const": "00000000000000000000000000000000"
+								}
+							}
+						}
+					},
+					"required": ["stage", "reason", "candidates"],
+					"additionalProperties": false
+				}
+			},
+			"required": ["kind", "details"],
+			"additionalProperties": false
+		}
+	},
+	"required": ["schema", "version", "failure"],
+	"additionalProperties": false
+}

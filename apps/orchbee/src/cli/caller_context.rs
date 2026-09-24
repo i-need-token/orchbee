@@ -21,6 +21,24 @@ enum PanelTargetKind {
 }
 
 impl PanelTarget {
+    /// No caller means an external CLI. Partial or malformed caller metadata is never a fallback.
+    #[cfg(any(windows, test))]
+    pub(super) fn prepare_optional(
+        mut environment: impl FnMut(&str) -> Option<OsString>,
+    ) -> Result<Option<Self>, Failure> {
+        let terminal = environment("ORCHBEE_TERMINAL_ID");
+        let worker = environment("ORCHBEE_WORKER_ID");
+        if terminal.is_none() && worker.is_none() {
+            return Ok(None);
+        }
+        Self::prepare(None, |name| match name {
+            "ORCHBEE_TERMINAL_ID" => terminal.clone(),
+            "ORCHBEE_WORKER_ID" => worker.clone(),
+            _ => None,
+        })
+        .map(Some)
+    }
+
     pub(super) fn prepare(
         explicit: Option<&Target>,
         environment: impl FnMut(&str) -> Option<OsString>,

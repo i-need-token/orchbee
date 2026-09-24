@@ -761,3 +761,7 @@ Server 检查准入，释放锁执行 Worker 只读目录探测，再按注册�
 ## 保留的 Workspace 组关闭
 
 `workbench.workspace-group-close` 保留接纳时的有界成员集合，以源最后关闭的顺序组合现有 Workspace Close 回执。已核实的 Worktree 源关联支持主目录位于子目录，并保留精确 Directory/Worker 代次证明。普通主工作区 Close 拒绝多 Workspace 组；只有精确的保留组成员令牌才能绕过保护。组与 Worktree 的新修改在 Pending 期间互相保留执行权。共享维护生命周期适配器拥有各自的唤醒/线程/加入实例；Windows Site stop 在 Close 维护冻结前加入两个提交者。[归属模型](../orchbee/docs/windows-worktrees.zh-CN.md#workspace-组关闭) 定义上限、部分失败和恢复；[线上 schema](../../schemas/workbench/v1/workbench-workspace-group-close.schema.json) 定义公开字节。组关闭不调用 Git 删除。
+
+## Windows Client 视图路由
+
+传输接纳仍与界面类型无关。已接纳的 Windows Session 可额外以 Server 分配的 generation 身份发布一个易失交互视图。`client_view_registry` 拥有有界路由、新鲜期及保留的投递回执；`WorkbenchClientSession` 提供认证所有权和断开清理。规范 Workbench 权威与终端载体所有权保持分离。[Client 控制所属契约](../orchbee/docs/windows-client-control.zh-CN.md) 定义线上协议、绘制后确认、生命周期及证据；`ClientViewControl` 提供有界生命周期模型.

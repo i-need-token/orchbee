@@ -36,15 +36,33 @@ mod tests;
 pub(crate) struct WorkbenchService {
     terminals: Arc<LocalTerminalService>,
     policy: WorkbenchPolicy,
+    #[cfg(windows)]
+    client_views: std::sync::Mutex<crate::client_view_registry::ClientViewRegistry>,
 }
 
 impl WorkbenchService {
     pub(crate) fn new(policy: WorkbenchPolicy, terminals: Arc<LocalTerminalService>) -> Self {
-        Self { terminals, policy }
+        Self {
+            terminals,
+            policy,
+            #[cfg(windows)]
+            client_views: std::sync::Mutex::default(),
+        }
+    }
+
+    pub(crate) const fn client_session(
+        &self,
+        generation: std::num::NonZeroU64,
+    ) -> WorkbenchClientSession<'_> {
+        WorkbenchClientSession {
+            service: self,
+            generation,
+        }
     }
 
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         let permitted = match &request {
+            WorkbenchRequest::ClientView(_) => self.policy.read,
             WorkbenchRequest::WorkspaceGroupClose(request) => {
                 if matches!(
                     request.action,
@@ -117,6 +135,9 @@ impl WorkbenchService {
             return WorkbenchExecution::Response(unavailable_or_denied(request, true));
         }
         match &request {
+            WorkbenchRequest::ClientView(_) => {
+                return WorkbenchExecution::Response(unavailable_or_denied(request, false));
+            }
             WorkbenchRequest::WorkspaceGroupClose(request) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::WorkspaceGroupClose(
                     self.terminals
@@ -302,6 +323,20 @@ impl WorkbenchService {
 
 fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchResponse {
     match request {
+        WorkbenchRequest::ClientView(request) => {
+            WorkbenchResponse::ClientView(orchbee_workbench_protocol::WorkbenchClientViewResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                site_id: request.site_id,
+                outcome: if denied {
+                    orchbee_workbench_protocol::ClientViewOutcome::Denied {}
+                } else {
+                    orchbee_workbench_protocol::ClientViewOutcome::Unavailable {
+                        reason: orchbee_workbench_protocol::ClientViewUnavailable::Unsupported,
+                    }
+                },
+            })
+        }
         WorkbenchRequest::WorkspaceGroupClose(request) => WorkbenchResponse::WorkspaceGroupClose(
             orchbee_workbench_protocol::WorkbenchWorkspaceGroupCloseResult {
                 protocol_version: ProtocolVersion,
@@ -466,5 +501,64 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                 }
             },
         }),
+    }
+}
+
+/// The authenticated Session, rather than a caller-controlled payload, owns view publication.
+pub(crate) struct WorkbenchClientSession<'a> {
+    service: &'a WorkbenchService,
+    generation: std::num::NonZeroU64,
+}
+impl WorkbenchClientSession<'_> {
+    pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
+        #[cfg(windows)]
+        if let WorkbenchRequest::ClientView(request) = request {
+            use orchbee_workbench_protocol::{
+                ClientViewAction, ClientViewOutcome, ClientViewUnavailable,
+                WorkbenchClientViewResult,
+            };
+            let allowed = self.service.policy.read
+                && (!matches!(request.action, ClientViewAction::Submit { .. })
+                    || self.service.policy.manage_navigation);
+            let outcome = if !allowed
+                || self
+                    .service
+                    .terminals
+                    .workbench_site_matches(&request.site_id)
+                    != Some(true)
+            {
+                ClientViewOutcome::Denied {}
+            } else if let Ok(mut registry) = self.service.client_views.lock() {
+                registry.execute(self.generation, request.action, std::time::Instant::now())
+            } else {
+                ClientViewOutcome::Unavailable {
+                    reason: ClientViewUnavailable::ServerBusy,
+                }
+            };
+            return WorkbenchExecution::Response(WorkbenchResponse::ClientView(
+                WorkbenchClientViewResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: request.request_id,
+                    site_id: request.site_id,
+                    outcome,
+                },
+            ));
+        }
+        self.service.execute(request)
+    }
+}
+impl Drop for WorkbenchClientSession<'_> {
+    fn drop(&mut self) {
+        #[cfg(windows)]
+        {
+            let mut registry = self
+                .service
+                .client_views
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            registry.disconnect(self.generation, std::time::Instant::now());
+        }
+        #[cfg(not(windows))]
+        let _generation = self.generation;
     }
 }

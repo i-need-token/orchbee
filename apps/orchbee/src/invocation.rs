@@ -1,3 +1,6 @@
+mod client_control;
+mod schema_export;
+pub(crate) use client_control::{ClientCommand, ClientNavigationTarget, ZoomMode};
 mod workspace_group_close;
 pub(crate) use workspace_group_close::WorkspaceGroupCloseCommand;
 mod worktree;
@@ -129,6 +132,7 @@ pub(crate) enum HelpTopic {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Family {
+    Client,
     Agent,
     /// `agent integration`: the provider-onboarding sub-family under Agent.
     AgentIntegration,
@@ -149,6 +153,7 @@ impl Family {
     /// The family's real help-path spelling, as `help_topic` recognizes it.
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
+            Self::Client => "client",
             Self::Agent => "agent",
             Self::AgentIntegration => "agent integration",
             Self::Project => "project",
@@ -168,6 +173,14 @@ impl Family {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CommandPath {
+    ClientList,
+    ClientGet,
+    ClientControlStatus,
+    WorkspaceFocus,
+    TabFocus,
+    PanelFocus,
+    PanelZoom,
+
     Tui,
     Status,
     AgentList,
@@ -240,6 +253,14 @@ impl CommandPath {
     /// The command's real help-path spelling, as `help_topic` recognizes it.
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
+            Self::ClientList => "client list",
+            Self::ClientGet => "client get",
+            Self::ClientControlStatus => "client control-status",
+            Self::WorkspaceFocus => "workspace focus",
+            Self::TabFocus => "tab focus",
+            Self::PanelFocus => "panel focus",
+            Self::PanelZoom => "panel zoom",
+
             Self::Tui => "tui",
             Self::Status => "status",
             Self::AgentList => "agent list",
@@ -941,6 +962,15 @@ fn stop_id(
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
+    SchemaExport {
+        schema_id: Option<String>,
+        path: String,
+        format: OutputFormat,
+    },
+    Client {
+        command: ClientCommand,
+        format: OutputFormat,
+    },
     WorkspaceGroupClose {
         command: WorkspaceGroupCloseCommand,
         format: OutputFormat,
@@ -1036,6 +1066,9 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    OutputFilePath,
+    ClientId,
+    ClientOperationId,
     WorktreeReference,
     WorktreeOperationId,
     WorktreeAttempt,
@@ -1243,6 +1276,11 @@ enum Token {
 
 #[derive(Default)]
 struct Options {
+    output: Option<String>,
+    client: Option<String>,
+    zoom_on: bool,
+    zoom_off: bool,
+    zoom_toggle: bool,
     group: bool,
     branch: Option<String>,
     base: Option<String>,
@@ -1333,6 +1371,8 @@ struct Options {
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
+    "--output",
+    "--client",
     "--branch",
     "--base",
     "--request-id",
@@ -1666,8 +1706,14 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
             "--group" | "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
             | "--include-ended" | "--new-tab" | "--paste" | "--unwrap" | "--current"
             | "--clear" | "--wait" | "--forever" | "--detach" | "--retry" | "--force"
-            | "--trust-repository" => {
-                let (seen, option) = if token == "--force" {
+            | "--trust-repository" | "--on" | "--off" | "--toggle" => {
+                let (seen, option) = if token == "--on" {
+                    (&mut options.zoom_on, "--on")
+                } else if token == "--off" {
+                    (&mut options.zoom_off, "--off")
+                } else if token == "--toggle" {
+                    (&mut options.zoom_toggle, "--toggle")
+                } else if token == "--force" {
                     (&mut options.force, "--force")
                 } else if token == "--trust-repository" {
                     (&mut options.trust_repository, "--trust-repository")
@@ -1804,6 +1850,7 @@ fn apply_value_flag(
         return Ok(());
     }
     let slot = match option {
+        "--output" => &mut options.output,
         "--branch" => &mut options.branch,
         "--base" => &mut options.base,
         "--project" => &mut options.project,
@@ -1834,6 +1881,7 @@ fn apply_value_flag(
         "--regex" => &mut options.regex,
         "--request" => &mut options.request,
         "--request-id" => &mut options.request_id,
+        "--client" => &mut options.client,
         "--generation" => &mut options.generation,
         "--lines" => &mut options.lines,
         "--panel" => &mut options.panel,
@@ -1962,6 +2010,10 @@ fn resolve_words(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     match words {
+        ["client", ..] | ["workspace" | "tab", "focus", ..] | ["panel", "focus" | "zoom", ..] => {
+            client_control::parse(words, options, envelope)
+        }
+
         [] => {
             // Bare invocation keeps TUI; a selected format or any option
             // (including `--mouse`) is usage — the flag exists only on the
@@ -3004,22 +3056,8 @@ fn resolve_words(
             reject_filters(options, UsageContext::Path("api snapshot"), envelope)?;
             Ok(query(QueryCommand::ApiSnapshot, options))
         }
-        ["api", "schema"] => {
-            reject_filters(options, UsageContext::Path("api schema"), envelope)?;
-            Ok(query(QueryCommand::ApiSchema { schema_id: None }, options))
-        }
-        ["api", "schema", schema_id] => {
-            reject_filters(options, UsageContext::Path("api schema"), envelope)?;
-            if schema_id.is_empty() {
-                return Err(identifier(Resource::Schema, String::new(), envelope));
-            }
-            Ok(query(
-                QueryCommand::ApiSchema {
-                    schema_id: Some((*schema_id).to_owned()),
-                },
-                options,
-            ))
-        }
+        ["api", "schema"] => schema_export::request(None, options, envelope),
+        ["api", "schema", schema_id] => schema_export::request(Some(schema_id), options, envelope),
         ["config", "check"] => {
             reject_filters(options, UsageContext::Path("config check"), envelope)?;
             Ok(query(QueryCommand::ConfigCheck, options))
@@ -3577,6 +3615,15 @@ fn resolve_help_path(
 /// their command help. Anything else is not a help path at all.
 fn help_topic(path: &[&str]) -> Option<HelpTopic> {
     Some(match path {
+        ["client"] => HelpTopic::Family(Family::Client),
+        ["client", "list"] => HelpTopic::Command(CommandPath::ClientList),
+        ["client", "get"] => HelpTopic::Command(CommandPath::ClientGet),
+        ["client", "control-status"] => HelpTopic::Command(CommandPath::ClientControlStatus),
+        ["workspace", "focus"] => HelpTopic::Command(CommandPath::WorkspaceFocus),
+        ["tab", "focus"] => HelpTopic::Command(CommandPath::TabFocus),
+        ["panel", "focus"] => HelpTopic::Command(CommandPath::PanelFocus),
+        ["panel", "zoom"] => HelpTopic::Command(CommandPath::PanelZoom),
+
         ["tui"] => HelpTopic::Command(CommandPath::Tui),
         ["status"] => HelpTopic::Command(CommandPath::Status),
         ["agent"] => HelpTopic::Family(Family::Agent),
@@ -3689,6 +3736,11 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 /// is only meaningful whole.
 #[derive(Clone, Copy)]
 struct Scope {
+    output: bool,
+    client: bool,
+    zoom_on: bool,
+    zoom_off: bool,
+    zoom_toggle: bool,
     group: bool,
     branch: bool,
     base: bool,
@@ -3795,6 +3847,11 @@ struct Scope {
 }
 
 const NO_OPTIONS: Scope = Scope {
+    output: false,
+    client: false,
+    zoom_on: false,
+    zoom_off: false,
+    zoom_toggle: false,
     group: false,
     branch: false,
     base: false,
@@ -4060,7 +4117,12 @@ const INTEGRATION_SCOPE: Scope = Scope {
 
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
-    options.request_id.is_some()
+    options.output.is_some()
+        || options.client.is_some()
+        || options.zoom_on
+        || options.zoom_off
+        || options.zoom_toggle
+        || options.request_id.is_some()
         || options.detach
         || options.retry
         || options.directory.is_some()
@@ -4109,6 +4171,9 @@ fn business_options(options: &Options) -> bool {
 /// The first named option present but outside `scope`, in the fixed `Options`
 /// declaration order — deterministic without any argv-order state.
 fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
+    if options.output.is_some() && !scope.output {
+        return Some("--output");
+    }
     if options.branch.is_some() && !scope.branch {
         return Some("--branch");
     }
@@ -4120,6 +4185,18 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.trust_repository && !scope.trust_repository {
         return Some("--trust-repository");
+    }
+    if options.client.is_some() && !scope.client {
+        return Some("--client");
+    }
+    if options.zoom_on && !scope.zoom_on {
+        return Some("--on");
+    }
+    if options.zoom_off && !scope.zoom_off {
+        return Some("--off");
+    }
+    if options.zoom_toggle && !scope.zoom_toggle {
+        return Some("--toggle");
     }
     if options.request_id.is_some() && !scope.request_id {
         return Some("--request-id");

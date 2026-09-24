@@ -52,7 +52,7 @@ orchbee completion bash|zsh|fish|powershell
 orchbee --help | --version
 ```
 
-Query families are `project`, `workspace`, `tab`, `panel`, `terminal`, `worktree`,
+Query families are `client`, `project`, `workspace`, `tab`, `panel`, `terminal`, `worktree`,
 `launch-profile`, and
 `agent` (`list`/`get`, plus `terminal read`/`wait-output`; Windows `worktree list` accepts
 `--workspace <target>` or `--cwd <absolute-path>` with optional command-local trust,
@@ -752,4 +752,14 @@ Targeted Agent commands also accept `--panel <id|@panel:suffix>` or a positional
 
 ## Windows Workspace group Close
 
-`workspace close <target> --group --confirm` closes the captured worktree group, source last, without deleting Git checkouts. Known main Workspaces with associated members require `--group`; linked Workspaces close only themselves. Use `workspace close-status --group --request <operation-id>` after members disappear, and `workspace close-resume --group --request <operation-id> --generation <attempt> --confirm` only for a declared resumable failure. Group mode supports detached/bounded waiting and reports each child Close identity and observed state. See the [owning model](docs/windows-worktrees.md#workspace-group-closure). `api schema` catalog v22 contains 57 documents including `orchbee.workspace.group-close` v1.
+`workspace close <target> --group --confirm` closes the captured worktree group, source last, without deleting Git checkouts. Known main Workspaces with associated members require `--group`; linked Workspaces close only themselves. Use `workspace close-status --group --request <operation-id>` after members disappear, and `workspace close-resume --group --request <operation-id> --generation <attempt> --confirm` only for a declared resumable failure. Group mode supports detached/bounded waiting and reports each child Close identity and observed state. See the [owning model](docs/windows-worktrees.md#workspace-group-closure). `api schema` catalog v24 contains 61 documents including `orchbee.workspace.group-close` v1.
+
+## Windows Client navigation
+
+[Windows Client view control](docs/windows-client-control.md) owns `client list/get/control-status`, `workspace focus`, `tab focus`, `panel focus` and `panel zoom`. Navigation targets one current TUI via `--client` or unambiguous validated caller context. It submits once and waits for a drawn acknowledgement; timeout or Ctrl+C stops waiting only. Single-panel zoom has an explicit no-op receipt. Catalog v24 includes 61 schemas, adding `orchbee.client.view`, `orchbee.client.control` and `orchbee.cli.failure.client-control`, all v1. No operating-system window activation or Mac/Linux control runtime is added.
+
+Windows process tests execute the emitted completion in Git for Windows Bash, found relative to `git --exec-path`; that installed Bash is required for this witness. Conflicting flags are checked before and after their command verb without contacting a Site. PowerShell has a separate real-shell grammar witness.
+
+## Windows schema export
+
+`api schema [<schema-id>] --output <path>` exports the embedded JSON document offline and also emits it on stdout. The destination parent must exist; a complete sibling file replaces an existing regular target. The [export contract](docs/native-cli-query.md#windows-offline-schema-export) owns failure stages, temporary cleanup and post-publication stdout failures. Catalog v24 contains 61 documents, including `orchbee.cli.failure.schema-export` v1.

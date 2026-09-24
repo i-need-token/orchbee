@@ -170,18 +170,36 @@ fn job_runner_captures_output_and_enforces_limit() {
     ));
 }
 
-struct CancelAt(Instant);
-impl crate::termination_signal::TerminationSource for CancelAt {
+struct CancelWhenChildReady {
+    ready: PathBuf,
+    child: std::cell::RefCell<Option<winsafe::guard::CloseHandleGuard<winsafe::HPROCESS>>>,
+}
+impl crate::termination_signal::TerminationSource for CancelWhenChildReady {
     fn requested(&self) -> bool {
-        Instant::now() >= self.0
+        if self.child.borrow().is_some() {
+            return true;
+        }
+        let pid = match fs::read_to_string(&self.ready) {
+            Ok(pid) => pid.parse::<u32>().expect("atomically published child PID"),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return false,
+            Err(error) => panic!("read child readiness: {error}"),
+        };
+        // Hold the exact process object before signalling cancellation, avoiding PID reuse.
+        let handle = winsafe::HPROCESS::OpenProcess(winsafe::co::PROCESS::SYNCHRONIZE, false, pid)
+            .expect("open live fixture descendant");
+        self.child.replace(Some(handle));
+        true
     }
 }
 
 #[test]
 fn cancellation_and_timeout_kill_descendants() {
     let fixture = Fixture::new();
-    let script = "const {spawn}=require('node:child_process'); const child=spawn(process.execPath,['-e',`const fs=require('node:fs');fs.writeFileSync('child-ready','yes');setTimeout(()=>fs.writeFileSync('escaped','bad'),1800);setInterval(()=>{},1000);`],{stdio:'ignore'});setInterval(()=>{},1000);";
-    let cancel = CancelAt(Instant::now() + Duration::from_millis(1000));
+    let script = "const {spawn}=require('node:child_process'); const child=spawn(process.execPath,['-e',`const fs=require('node:fs');fs.writeFileSync('child-starting',String(process.pid));fs.renameSync('child-starting','child-ready');setTimeout(()=>fs.writeFileSync('escaped','bad'),1800);setInterval(()=>{},1000);`],{stdio:'ignore'});setInterval(()=>{},1000);";
+    let cancel = CancelWhenChildReady {
+        ready: fixture.0.join("child-ready"),
+        child: std::cell::RefCell::new(None),
+    };
     assert!(matches!(
         fixture.run(script, Some(&cancel)),
         exec::CommandResult::Cancelled
@@ -190,7 +208,17 @@ fn cancellation_and_timeout_kill_descendants() {
         fixture.0.join("child-ready").exists(),
         "descendant must have started"
     );
-    std::thread::sleep(Duration::from_millis(1300));
+    let child = cancel.child.borrow();
+    let handle = child
+        .as_ref()
+        .expect("descendant observed before cancellation");
+    assert_eq!(
+        handle
+            .WaitForSingleObject(Some(1000))
+            .expect("wait for descendant"),
+        winsafe::co::WAIT::OBJECT_0,
+        "exact descendant must exit after Job cancellation"
+    );
     assert!(
         !fixture.0.join("escaped").exists(),
         "descendant survived cancellation"

@@ -256,6 +256,7 @@ fn handle_candidate_control(
         ClientSessionAdmission::GenerationExhausted => return,
     };
     let _session_registration = ClientSessionRegistration::new(Arc::clone(registry), generation);
+    let workbench_session = workbench.client_session(generation);
     if write_message(
         &mut stream,
         &LocalClientMessage::ClientAccepted { generation },
@@ -276,7 +277,7 @@ fn handle_candidate_control(
     let _session_result = application_session::run_guarded(
         &mut records,
         |request| session.execute(request),
-        |request| workbench.execute(request),
+        |request| workbench_session.execute(request),
         |request| match request {
             orchbee_agent_observation_protocol::AgentRequest::Read(request) => agents
                 .execute_prepared(request, || terminals.prepare_agent_drain_read(agents))

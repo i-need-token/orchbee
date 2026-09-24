@@ -1,0 +1,60 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.cli.failure.schema-export",
+	"title": "Offline schema file export failure",
+	"type": "object",
+	"required": ["schema", "version", "source", "failure"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.cli.failure.schema-export"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "embedded"
+				}
+			}
+		},
+		"failure": {
+			"type": "object",
+			"required": ["kind", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "write-failed"
+				},
+				"details": {
+					"type": "object",
+					"required": ["stage", "path", "temporaryPath"],
+					"additionalProperties": false,
+					"properties": {
+						"stage": {
+							"enum": [
+								"destination",
+								"create-temporary",
+								"write-temporary",
+								"sync-temporary",
+								"publish"
+							]
+						},
+						"path": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 4096
+						},
+						"temporaryPath": {
+							"type": ["string", "null"]
+						}
+					}
+				}
+			}
+		}
+	}
+}

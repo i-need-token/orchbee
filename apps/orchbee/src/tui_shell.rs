@@ -399,6 +399,26 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
             return Ok(LoopExit::Signal);
         }
 
+        if terminal_input.client_control_tick(
+            view.overlay().is_some()
+                || view.prefix_active()
+                || crate::tui_layout::project_shell_areas(
+                    to_area(dimensions),
+                    view.sidebar_surface(),
+                )
+                .tier
+                    == crate::tui_layout::ViewportTier::TooSmall,
+        ) {
+            synchronize_viewport(
+                terminal,
+                viewport,
+                &mut view,
+                terminal_input,
+                &mut dimensions,
+            )?;
+            dispatcher.invalidate_hit_map();
+            redraw = true;
+        }
         if redraw {
             draw_surface(terminal, &mut view, chrome, terminal_input, &mut dispatcher)?;
         }
@@ -641,6 +661,9 @@ pub(crate) fn pane_geometries(
 }
 
 trait TerminalSurface: crate::terminal_input::TerminalInputPort {
+    fn client_control_tick(&mut self, _shell_blocked: bool) -> bool {
+        false
+    }
     fn tick(&mut self) -> bool {
         false
     }
@@ -661,6 +684,10 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
 }
 impl TerminalSurface for UnavailableTerminalInputPort {}
 impl TerminalSurface for crate::terminal_session::TerminalSession {
+    #[cfg(windows)]
+    fn client_control_tick(&mut self, shell_blocked: bool) -> bool {
+        self.client_control_tick(shell_blocked)
+    }
     fn tick(&mut self) -> bool {
         self.tick()
     }

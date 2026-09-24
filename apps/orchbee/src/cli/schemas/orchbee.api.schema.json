@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 22
+			"const": 24
 		},
 		"source": {
 			"type": "object",
@@ -106,7 +106,11 @@
 						"orchbee.worktree.list",
 						"orchbee.worktree.operation",
 						"orchbee.worktree.query",
-						"orchbee.workspace.group-close"
+						"orchbee.workspace.group-close",
+						"orchbee.client.view",
+						"orchbee.client.control",
+						"orchbee.cli.failure.client-control",
+						"orchbee.cli.failure.schema-export"
 					],
 					"propertyNames": {
 						"$ref": "#/$defs/schemaId"
@@ -177,7 +181,11 @@
 				"orchbee.worktree.list",
 				"orchbee.worktree.operation",
 				"orchbee.worktree.query",
-				"orchbee.workspace.group-close"
+				"orchbee.workspace.group-close",
+				"orchbee.client.view",
+				"orchbee.client.control",
+				"orchbee.cli.failure.client-control",
+				"orchbee.cli.failure.schema-export"
 			]
 		}
 	}

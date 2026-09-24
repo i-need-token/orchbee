@@ -682,11 +682,21 @@ test "input-only capability downgrade and replay return an all-false current bin
         attachment.capabilities,
     );
 }
-fn awaitFrameBatch(service: *HostService, connection: *const ConnectionState) !Outgoing {
+fn awaitFrameBatch(service: *HostService, connection: *const ConnectionState, metadata_events: *usize) !Outgoing {
     const timer = try platform_boundary.monotonic.Timer.start();
     while (timer.read() < 10 * std.time.ns_per_s) {
         var batch = try pollEventsChecked(service, connection);
-        if (batch.records().len != 0) return batch;
+        errdefer batch.deinit();
+        var feedback_only = batch.records().len != 0;
+        for (batch.records()) |record| {
+            const envelope = try protocol.validateTransportEnvelope(record);
+            feedback_only = feedback_only and (envelope.kind == MessageKind.terminal_metadata_changed or
+                envelope.kind == MessageKind.terminal_application_signal);
+            if (envelope.kind == MessageKind.terminal_metadata_changed) metadata_events.* += 1;
+        }
+        // Startup feedback has its own scheduler batch; it is not a frame.
+        // Other nonempty batches still face the caller's exact frame assertions.
+        if (batch.records().len != 0 and !feedback_only) return batch;
         batch.deinit();
         // Native output can change generation between capture and commit.
         // That rejected capture publishes nothing; allow the next scheduled
@@ -918,7 +928,8 @@ test "I/O successful responses use supplied request contracts and publish input 
     _ = try expectContractSuccess(&demanded, demand_contract, [_]u8{0x52} ** 16);
 
     try std.testing.expect(serviceAggregate(&service).setNextProjectionAt(terminal_id, 0));
-    var first_frame_batch = try awaitFrameBatch(&service, &connection);
+    var metadata_events: usize = 0;
+    var first_frame_batch = try awaitFrameBatch(&service, &connection, &metadata_events);
     defer first_frame_batch.deinit();
     const first_frame = try onlyTerminalFrame(&first_frame_batch);
     var need_snapshot_buffer: [160]u8 = undefined;
@@ -944,9 +955,15 @@ test "I/O successful responses use supplied request contracts and publish input 
     );
 
     try std.testing.expect(serviceAggregate(&service).setNextProjectionAt(terminal_id, 0));
-    var second_frame_batch = try awaitFrameBatch(&service, &connection);
+    try std.testing.expectEqual(
+        @as(terminal_runtime.testing.ReaderBatchOutcomeType, .committed),
+        harness.commitReaderBatch(runtime, "\x1b]2;request contract test title\x07"),
+    );
+    metadata_events = 0;
+    var second_frame_batch = try awaitFrameBatch(&service, &connection, &metadata_events);
     defer second_frame_batch.deinit();
     const second_frame = try onlyTerminalFrame(&second_frame_batch);
+    try std.testing.expect(metadata_events > 0);
     try std.testing.expectEqual(protocol.FrameKind.snapshot, second_frame.kind);
     try std.testing.expectEqual(first_frame.sequence + 1, second_frame.sequence);
     var frame_applied_buffer: [256]u8 = undefined;

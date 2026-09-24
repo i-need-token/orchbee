@@ -92,7 +92,7 @@ fn prompt_refuses_attention_and_nonfresh_state_before_input() {
             detail["snapshot"]["observation"]["freshness"] = json!("stale");
         }
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let handler = peer(listener, move |mut stream| {
+        let handler = peer(&fixture, listener, move |mut stream| {
             bound_agent_reply(&mut stream, detail);
             assert_closed(&mut stream);
         });
@@ -135,7 +135,7 @@ fn prompt_rechecks_freshness_and_blockers_after_process_preflight() {
     let rendezvous = fixture.rendezvous();
     for blocked in [false, true] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let handler = peer(listener, move |mut stream| {
+        let handler = peer(&fixture, listener, move |mut stream| {
             bound_agent_reply(&mut stream, idle());
             let mut next = if blocked {
                 session_detail("sess-alpha")
@@ -180,7 +180,7 @@ fn prompt_pastes_literal_text_once_and_keeps_the_terminal_receipt() {
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let text = "private line one\n中文 'quotes' $(literal)";
-    let handler = peer(listener, move |mut stream| {
+    let handler = peer(&fixture, listener, move |mut stream| {
         bound_agent_reply(&mut stream, idle());
         runtime_preflight(&mut stream, idle());
         accept_prompt(&mut stream, text);
@@ -212,7 +212,7 @@ fn prompt_wait_rejects_old_idle_but_accepts_a_new_completed_turn_when_working_wa
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-    let handler = peer(listener, move |mut stream| {
+    let handler = peer(&fixture, listener, move |mut stream| {
         bound_agent_reply(&mut stream, idle());
         runtime_preflight(&mut stream, idle());
         accept_prompt(&mut stream, "task");
@@ -256,7 +256,7 @@ fn prompt_lost_send_reply_is_unknown_and_a_later_read_loss_keeps_accepted_input(
     let rendezvous = fixture.rendezvous();
     for after_send in [false, true] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let handler = peer(listener, move |mut stream| {
+        let handler = peer(&fixture, listener, move |mut stream| {
             bound_agent_reply(&mut stream, idle());
             runtime_preflight(&mut stream, idle());
             if after_send {
@@ -310,7 +310,7 @@ fn prompt_deadlines_distinguish_stalled_activity_from_an_earlier_caller_timeout(
         ("forever", "prompt-stalled"),
     ] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let handler = peer(listener, move |mut stream| {
+        let handler = peer(&fixture, listener, move |mut stream| {
             bound_agent_reply(&mut stream, idle());
             runtime_preflight(&mut stream, idle());
             accept_prompt(&mut stream, "task");
@@ -359,7 +359,7 @@ fn prompt_partial_delivery_never_starts_waiting_or_resubmits_the_prompt() {
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-    let handler = peer(listener, move |mut stream| {
+    let handler = peer(&fixture, listener, move |mut stream| {
         bound_agent_reply(&mut stream, idle());
         runtime_preflight(&mut stream, idle());
         let ClientMessage::TerminalSend(request) = read_client_message(&mut stream).unwrap() else {
@@ -406,7 +406,7 @@ fn prompt_to_an_already_working_agent_does_not_promise_a_new_turn() {
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-    let handler = peer(listener, move |mut stream| {
+    let handler = peer(&fixture, listener, move |mut stream| {
         let mut detail = session_detail("sess-alpha");
         detail["snapshot"]["pendingRequests"] = json!([]);
         detail["status"] = json!({"kind":"working", "phase":"working", "activity":"tool"});
@@ -448,7 +448,7 @@ fn windows_codex_boundary_precedes_enter_and_partial_delivery_is_never_completed
     let rendezvous = fixture.rendezvous();
     for partial in [false, true] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let handler = peer(listener, move |mut stream| {
+        let handler = peer(&fixture, listener, move |mut stream| {
             let mut detail = idle();
             detail["snapshot"]["providerId"] = json!("codex");
             bound_agent_reply(&mut stream, detail.clone());
@@ -530,7 +530,7 @@ fn panel_prompt_submits_to_the_primary_binding() {
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-    let handler = peer(listener, move |mut stream| {
+    let handler = peer(&fixture, listener, move |mut stream| {
         bound_snapshot_reply(&mut stream);
         resolve_reply(
             &mut stream,

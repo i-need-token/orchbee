@@ -1,5 +1,6 @@
 //! Embedded JSON Schema dictionary. Every document ships inside the binary so
-//! `api schema` never touches the filesystem, the network, or a Site.
+//! dictionary reads never touch the filesystem, the network, or a Site.
+//! Explicit file publication belongs to the separate schema exporter.
 
 use serde_json::{Map, Value, json};
 
@@ -31,6 +32,22 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
+    (
+        "orchbee.cli.failure.schema-export",
+        include_str!("schemas/orchbee.cli.failure.schema-export.json"),
+    ),
+    (
+        "orchbee.client.view",
+        include_str!("schemas/orchbee.client.view.json"),
+    ),
+    (
+        "orchbee.client.control",
+        include_str!("schemas/orchbee.client.control.json"),
+    ),
+    (
+        "orchbee.cli.failure.client-control",
+        include_str!("schemas/orchbee.cli.failure.client-control.json"),
+    ),
     (
         "orchbee.workspace.group-close",
         include_str!("schemas/orchbee.workspace.group-close.json"),
@@ -323,9 +340,9 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog envelope v22: registering new schema ids changes the closed
+        // Catalog envelope v24: registering new schema ids changes the closed
         // dictionary's shape; business document versions stay untouched.
-        "version": 22,
+        "version": 24,
         "source": embedded_source(),
         "result": result,
     });

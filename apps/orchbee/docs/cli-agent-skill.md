@@ -61,8 +61,7 @@ the same lookup. Outside that process, use `panel current --panel <id-or-selecto
 Worker supplies `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID`; the query validates
 their current binding in one snapshot. Missing or stale context is an error, never
 a fallback to client focus. Explicit `--panel` ignores inherited context and cannot
-be combined with `--current`. `api schema` now returns catalog envelope version 22;
-the new `orchbee.panel.current` document is version 1.
+be combined with `--current`. The `orchbee.panel.current` document is version 1.
 
 Use explicit `--forever` on `agent wait` or `agent prompt --wait` for no total deadline; it conflicts with `--timeout`. The default remains 600000 ms and every read stays bounded. `--until blocked` matches fresh needs-attention; `--until done` matches fresh completed outcomes, without an unseen marker. Wait/prompt successes use version 2 with null timeoutMs for infinite mode; infinite read-timeout failures also use version 2. Windows Codex prompts add Right between paste and Enter to clear paste-burst Enter suppression.
 
@@ -100,3 +99,13 @@ Windows Worktree `--cwd` and create/open `--path` also accept caller-relative pa
 ## Close a Windows worktree group
 
 Use `workspace close <target> --group --confirm` when the main Workspace has linked members. Linked Workspace targets close only themselves. Git paths and branches are preserved. Retain the operation ID from the `orchbee.workspace.group-close` reply; use `workspace close-status --group --request <operation-id>` even after the source disappears. For a resumable failure, use `workspace close-resume --group --request <operation-id> --generation <attempt> --confirm`. Inspect every captured member's Close identity and observation; null `close` means unsubmitted, while a child with null `observation` has been accepted but not observed. Never replay an unknown result. `--detach`, timeout or Ctrl+C only stop waiting. Scope selectors `--project`/`--workspace` belong to ordinary status/resume and cannot be mixed with group mode.
+
+## Control one Windows TUI
+
+Use `client list --format json` and retain the exact current `clientId`. With multiple views, pass `--client <id>`; never choose the first. `workspace focus <target>`, `tab focus <target>` and `panel focus [<target>]` navigate that TUI. `panel zoom [<target>] --on|--off|--toggle` changes its Tab zoom; default is toggle, resolved once by the TUI after target activation. No OS window is activated.
+
+Retain `operationId` from `orchbee.client.control` and use `client control-status <operation-id>` after detach, timeout, Ctrl+C or unknown submission. `queued` and `delivered` are pending; only `applied`, `zoom-toggled` or the explicit single-panel `zoom-unchanged` acknowledge drawing. Incomplete may retain partial navigation. Reads never reapply a command; do not repeat an uncertain toggle. Receipts are volatile and completed ones expire after 60 seconds. An absent receipt is not proof of no effect.
+
+## Export schemas offline
+
+On Windows, `orchbee api schema [<schema-id>] --output <path>` writes the same JSON to a literal file path and stdout. The parent directory must exist. Existing regular files are replaced only after complete preparation; unknown IDs write nothing. Retain a reported temporary path if cleanup fails. A stdout failure after publication does not undo the file. Use `--format json` for typed export failures.

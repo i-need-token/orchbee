@@ -130,7 +130,8 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             | WorkbenchRequest::WorktreeListRead(_)
             | WorkbenchRequest::WorktreeOperation(_)
             | WorkbenchRequest::WorktreeQuery(_)
-            | WorkbenchRequest::WorkspaceGroupClose(_)) => Err(request),
+            | WorkbenchRequest::WorkspaceGroupClose(_)
+            | WorkbenchRequest::ClientView(_)) => Err(request),
         }
     }
 }

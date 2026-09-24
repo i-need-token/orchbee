@@ -15,6 +15,16 @@ use std::{
     time::{Duration, Instant},
 };
 
+fn join_peer(handler: thread::JoinHandle<()>, output: &std::process::Output) {
+    assert!(
+        handler.join().is_ok(),
+        "peer failed; CLI status={} stdout={} stderr={}",
+        output.status,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 #[test]
 fn names_commands_exchange_correlated_typed_results_on_windows() {
     let fixture = Fixture::new();
@@ -50,7 +60,7 @@ fn names_commands_exchange_correlated_typed_results_on_windows() {
         let operation = (*operation).to_owned();
         let outcome = outcome.clone();
         let expected = outcome.clone();
-        let handler = peer(listener, move |mut stream| {
+        let handler = peer(&fixture, listener, move |mut stream| {
             let AgentRequest::Names(request) = read_agent_request(&mut stream).unwrap() else {
                 panic!("names request");
             };
@@ -79,7 +89,7 @@ fn names_commands_exchange_correlated_typed_results_on_windows() {
         });
         let arguments = [*arguments, &["--format", "json"]].concat();
         let output = fixture.run(&arguments);
-        handler.join().unwrap();
+        join_peer(handler, &output);
         assert!(
             output.status.success(),
             "{}",
@@ -97,7 +107,7 @@ fn lost_and_mismatched_mutation_replies_are_unknown_without_replay() {
     let rendezvous = fixture.rendezvous();
     for wrong_reply in [false, true] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let handler = peer(listener, move |mut stream| {
+        let handler = peer(&fixture, listener, move |mut stream| {
             let AgentRequest::Names(request) = read_agent_request(&mut stream).unwrap() else {
                 panic!("names request");
             };
@@ -109,7 +119,7 @@ fn lost_and_mismatched_mutation_replies_are_unknown_without_replay() {
             }
         });
         let output = fixture.run(&["agent", "rename", "s1", "alpha", "--format", "json"]);
-        handler.join().unwrap();
+        join_peer(handler, &output);
         assert_eq!(output.status.code(), Some(8));
         let document: Value = serde_json::from_slice(&output.stdout).unwrap();
         validate(
@@ -165,7 +175,7 @@ fn named_get_and_explain_share_one_admission_and_publish_only_the_read_source() 
     let rendezvous = fixture.rendezvous();
     for verb in ["get", "explain"] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let handler = peer(listener, move |mut stream| {
+        let handler = peer(&fixture, listener, move |mut stream| {
             let resolution = resolve_reply(
                 &mut stream,
                 json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"name"}),
@@ -180,7 +190,7 @@ fn named_get_and_explain_share_one_admission_and_publish_only_the_read_source() 
             assert_closed(&mut stream);
         });
         let output = fixture.run(&["agent", verb, "alpha", "--format", "json"]);
-        handler.join().unwrap();
+        join_peer(handler, &output);
         assert!(
             output.status.success(),
             "{}",
@@ -208,7 +218,7 @@ fn named_wait_resolves_once_and_keeps_polling_the_original_session() {
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-    let handler = peer(listener, move |mut stream| {
+    let handler = peer(&fixture, listener, move |mut stream| {
         resolve_reply(
             &mut stream,
             json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"name"}),
@@ -241,7 +251,7 @@ fn named_wait_resolves_once_and_keeps_polling_the_original_session() {
         "--format",
         "json",
     ]);
-    handler.join().unwrap();
+    join_peer(handler, &output);
     assert!(
         output.status.success(),
         "{}",
@@ -265,12 +275,12 @@ fn unresolved_name_publishes_its_own_failure_without_get_or_wait_poll() {
     let rendezvous = fixture.rendezvous();
     for verb in ["get", "explain", "wait"] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let handler = peer(listener, move |mut stream| {
+        let handler = peer(&fixture, listener, move |mut stream| {
             resolve_reply(&mut stream, json!({"kind":"rejected","reason":"not-found"}));
             assert_closed(&mut stream);
         });
         let output = fixture.run(&["agent", verb, "--name", "missing", "--format", "json"]);
-        handler.join().unwrap();
+        join_peer(handler, &output);
         assert_eq!(output.status.code(), Some(3));
         let document: Value = serde_json::from_slice(&output.stdout).unwrap();
         validate(
@@ -287,7 +297,7 @@ fn explicit_session_bypasses_name_resolution_even_for_a_valid_alias_spelling() {
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-    let handler = peer(listener, move |mut stream| {
+    let handler = peer(&fixture, listener, move |mut stream| {
         read_reply(
             &mut stream,
             "get",
@@ -303,7 +313,7 @@ fn explicit_session_bypasses_name_resolution_even_for_a_valid_alias_spelling() {
         "--format",
         "json",
     ]);
-    handler.join().unwrap();
+    join_peer(handler, &output);
     assert!(output.status.success());
 }
 
@@ -312,7 +322,7 @@ fn named_get_resolution_and_read_share_the_original_five_second_deadline() {
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-    let handler = peer(listener, move |mut stream| {
+    let handler = peer(&fixture, listener, move |mut stream| {
         // Spending most of the command budget on resolution must leave only
         // the remainder for Get; renewing another five seconds would fail.
         let AgentRequest::Names(request) = read_agent_request(&mut stream).unwrap() else {
@@ -336,7 +346,7 @@ fn named_get_resolution_and_read_share_the_original_five_second_deadline() {
         );
     });
     let output = fixture.run(&["agent", "get", "--name", "alpha", "--format", "json"]);
-    handler.join().unwrap();
+    join_peer(handler, &output);
     assert_eq!(output.status.code(), Some(7));
     let document: Value = serde_json::from_slice(&output.stdout).unwrap();
     validate(
@@ -386,7 +396,7 @@ fn agent_terminal_refuses_inactive_missing_and_ambiguous_bindings_before_termina
                 _ => unreachable!(),
             }
             let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-            let handler = peer(listener, move |mut stream| {
+            let handler = peer(&fixture, listener, move |mut stream| {
                 bound_agent_reply(&mut stream, detail);
                 assert_closed(&mut stream);
             });
@@ -395,7 +405,7 @@ fn agent_terminal_refuses_inactive_missing_and_ambiguous_bindings_before_termina
                 arguments.push("enter");
             }
             let output = fixture.run(&arguments);
-            handler.join().unwrap();
+            join_peer(handler, &output);
             assert_eq!(
                 output.status.code(),
                 Some(3),
@@ -436,7 +446,7 @@ fn agent_keys_use_the_exact_bound_terminal_once_and_preserve_unknown_outcomes() 
     let rendezvous = fixture.rendezvous();
     for mode in ["accepted", "partial", "rejected", "unknown", "lost"] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let handler = peer(listener, move |mut stream| {
+        let handler = peer(&fixture, listener, move |mut stream| {
             bound_agent_reply(&mut stream, session_detail("sess-alpha"));
             runtime_preflight(&mut stream, session_detail("sess-alpha"));
             let ClientMessage::TerminalSend(request) = read_client_message(&mut stream).unwrap()
@@ -499,7 +509,7 @@ fn agent_keys_use_the_exact_bound_terminal_once_and_preserve_unknown_outcomes() 
             "--format",
             "json",
         ]);
-        handler.join().unwrap();
+        join_peer(handler, &output);
         assert_eq!(
             output.status.code(),
             Some(match mode {
@@ -529,7 +539,7 @@ fn agent_read_attaches_only_to_the_exact_presentation_join() {
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-    let handler = peer(listener, move |mut stream| {
+    let handler = peer(&fixture, listener, move |mut stream| {
         bound_agent_reply(&mut stream, session_detail("sess-alpha"));
         let ClientMessage::TerminalViewer(request) = read_client_message(&mut stream).unwrap()
         else {
@@ -554,7 +564,7 @@ fn agent_read_attaches_only_to_the_exact_presentation_join() {
         assert_closed(&mut stream);
     });
     let output = fixture.run(&["agent", "read", "alpha", "--format", "json"]);
-    handler.join().unwrap();
+    join_peer(handler, &output);
     assert_eq!(output.status.code(), Some(4));
     let document: Value = serde_json::from_slice(&output.stdout).unwrap();
     validate(
@@ -574,7 +584,7 @@ fn agent_read_returns_a_schema_valid_frame_and_detaches_before_output() {
     let rendezvous = fixture.rendezvous();
     for projected in [false, true] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let handler = peer(listener, move |mut stream| {
+        let handler = peer(&fixture, listener, move |mut stream| {
             bound_agent_reply(&mut stream, session_detail("sess-alpha"));
             let bytes = include_bytes!(
                 "../../../packages/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin"
@@ -641,7 +651,7 @@ fn agent_read_returns_a_schema_valid_frame_and_detaches_before_output() {
             arguments.extend(["--unwrap", "--lines", "1"]);
         }
         let output = fixture.run(&arguments);
-        handler.join().unwrap();
+        join_peer(handler, &output);
         assert_eq!(
             output.status.code(),
             Some(0),
@@ -666,7 +676,7 @@ fn agent_terminal_never_acts_on_a_different_session_in_the_get_reply() {
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-    let handler = peer(listener, move |mut stream| {
+    let handler = peer(&fixture, listener, move |mut stream| {
         bound_agent_reply(&mut stream, session_detail("other-session"));
         assert_closed(&mut stream);
     });
@@ -679,7 +689,7 @@ fn agent_terminal_never_acts_on_a_different_session_in_the_get_reply() {
         "--format",
         "json",
     ]);
-    handler.join().unwrap();
+    join_peer(handler, &output);
     assert_eq!(output.status.code(), Some(5));
     let document: Value = serde_json::from_slice(&output.stdout).unwrap();
     validate(
@@ -695,7 +705,7 @@ fn infinite_wait_preserves_condition_names_and_rejects_a_different_session() {
     let rendezvous = fixture.rendezvous();
     for (condition, wrong_session) in [("blocked", false), ("done", false), ("done", true)] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let handler = peer(listener, move |mut stream| {
+        let handler = peer(&fixture, listener, move |mut stream| {
             let mut detail = session_detail(if wrong_session {
                 "sess-other"
             } else {
@@ -726,7 +736,7 @@ fn infinite_wait_preserves_condition_names_and_rejects_a_different_session() {
             "--format",
             "json",
         ]);
-        handler.join().unwrap();
+        join_peer(handler, &output);
         assert_eq!(
             output.status.code(),
             Some(if wrong_session { 5 } else { 0 })
@@ -755,7 +765,7 @@ fn infinite_wait_still_times_out_a_stalled_read_without_reconnecting() {
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-    let handler = peer(listener, move |mut stream| {
+    let handler = peer(&fixture, listener, move |mut stream| {
         let AgentRequest::Read(_) = read_agent_request(&mut stream).unwrap() else {
             panic!("get");
         };
@@ -772,7 +782,7 @@ fn infinite_wait_still_times_out_a_stalled_read_without_reconnecting() {
         "--format",
         "json",
     ]);
-    handler.join().unwrap();
+    join_peer(handler, &output);
     assert_eq!(output.status.code(), Some(7));
     let document: Value = serde_json::from_slice(&output.stdout).unwrap();
     validate(
@@ -813,7 +823,7 @@ fn panel_get_and_wait_share_admission_and_pin_the_primary_presentations_session(
     let rendezvous = fixture.rendezvous();
     for wait in [false, true] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let handler = peer(listener, move |mut stream| {
+        let handler = peer(&fixture, listener, move |mut stream| {
             bound_snapshot_reply(&mut stream);
             presentation_reply(
                 &mut stream,
@@ -851,7 +861,7 @@ fn panel_get_and_wait_share_admission_and_pin_the_primary_presentations_session(
             args.extend(["--until", "idle", "--timeout", "5000"]);
         }
         let output = fixture.run(&args);
-        handler.join().unwrap();
+        join_peer(handler, &output);
         assert_eq!(
             output.status.code(),
             Some(0),
@@ -877,7 +887,7 @@ fn positional_panel_fallback_preserves_session_or_alias_precedence_and_resolve_p
     for resolved_by in ["session-id", "name", "presentation"] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let (source_tx, source_rx) = std::sync::mpsc::channel();
-        let handler = peer(listener, move |mut stream| {
+        let handler = peer(&fixture, listener, move |mut stream| {
             let source = if resolved_by == "presentation" {
                 resolve_reply(&mut stream, json!({"kind":"rejected","reason":"not-found"}));
                 bound_snapshot_reply(&mut stream);
@@ -902,7 +912,7 @@ fn positional_panel_fallback_preserves_session_or_alias_precedence_and_resolve_p
             "--format",
             "json",
         ]);
-        handler.join().unwrap();
+        join_peer(handler, &output);
         let source = source_rx.recv().unwrap();
         assert_eq!(
             output.status.code(),
@@ -930,7 +940,7 @@ fn panel_rename_distinguishes_ambiguous_refusal_from_a_pre_mutation_read_loss() 
     let rendezvous = fixture.rendezvous();
     for read_loss in [false, true] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let handler = peer(listener, move |mut stream| {
+        let handler = peer(&fixture, listener, move |mut stream| {
             if read_loss {
                 assert!(matches!(
                     orchbee_workbench_protocol::read_workbench_request(&mut stream).unwrap(),
@@ -955,7 +965,7 @@ fn panel_rename_distinguishes_ambiguous_refusal_from_a_pre_mutation_read_loss() 
             "--format",
             "json",
         ]);
-        handler.join().unwrap();
+        join_peer(handler, &output);
         let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
         assert_ne!(doc["failure"]["kind"], "outcome-unknown");
         if read_loss {
@@ -981,7 +991,7 @@ fn panel_send_keeps_primary_presentation_when_the_agent_also_owns_a_child() {
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-    let handler = peer(listener, move |mut stream| {
+    let handler = peer(&fixture, listener, move |mut stream| {
         bound_snapshot_reply(&mut stream);
         presentation_reply(
             &mut stream,
@@ -1014,7 +1024,7 @@ fn panel_send_keeps_primary_presentation_when_the_agent_also_owns_a_child() {
         "--format",
         "json",
     ]);
-    handler.join().unwrap();
+    join_peer(handler, &output);
     let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(doc["failure"]["kind"], "outcome-unknown", "{doc}");
     assert_eq!(output.status.code(), Some(8));
@@ -1029,7 +1039,7 @@ fn missing_panel_is_a_snapshot_refusal_without_an_agent_operation() {
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-    let handler = peer(listener, move |mut stream| {
+    let handler = peer(&fixture, listener, move |mut stream| {
         bound_snapshot_reply(&mut stream);
         assert_closed(&mut stream);
     });
@@ -1042,7 +1052,7 @@ fn missing_panel_is_a_snapshot_refusal_without_an_agent_operation() {
         "--format",
         "json",
     ]);
-    handler.join().unwrap();
+    join_peer(handler, &output);
     let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(doc["failure"]["kind"], "not-found");
     assert_eq!(doc["failure"]["details"]["resource"], "panel");
@@ -1066,7 +1076,7 @@ fn agent_input_refuses_runtime_absence_decoys_mismatch_and_ambiguity_without_a_s
         ("empty", "agent-not-running"),
     ] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let handler = peer(listener, move |mut stream| {
+        let handler = peer(&fixture, listener, move |mut stream| {
             let mut detail = session_detail("sess-alpha");
             if case == "unknown" {
                 detail["snapshot"]["providerId"] = json!("acme.agent");
@@ -1097,7 +1107,7 @@ fn agent_input_refuses_runtime_absence_decoys_mismatch_and_ambiguity_without_a_s
             assert_closed(&mut stream);
         });
         let output = fixture.run(&["agent", "send-keys", "alpha", "enter", "--format", "json"]);
-        handler.join().unwrap();
+        join_peer(handler, &output);
         assert_eq!(
             output.status.code(),
             Some(3),
@@ -1120,7 +1130,7 @@ fn runtime_preflight_rechecks_canonical_binding_before_input() {
     let rendezvous = fixture.rendezvous();
     for change in ["ended", "provider", "presentation", "generation"] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let handler = peer(listener, move |mut stream| {
+        let handler = peer(&fixture, listener, move |mut stream| {
             bound_agent_reply(&mut stream, session_detail("sess-alpha"));
             process_reply(&mut stream, vec![process(10, None, "claude.exe")]);
             let mut next = session_detail("sess-alpha");
@@ -1148,7 +1158,7 @@ fn runtime_preflight_rechecks_canonical_binding_before_input() {
             assert_closed(&mut stream);
         });
         let output = fixture.run(&["agent", "send-keys", "alpha", "enter", "--format", "json"]);
-        handler.join().unwrap();
+        join_peer(handler, &output);
         assert_eq!(
             output.status.code(),
             Some(3),
@@ -1169,7 +1179,7 @@ fn a_panel_get_refuses_a_reply_for_another_session() {
     let fixture = Fixture::new();
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-    let handler = peer(listener, move |mut stream| {
+    let handler = peer(&fixture, listener, move |mut stream| {
         bound_snapshot_reply(&mut stream);
         presentation_reply(
             &mut stream,
@@ -1184,7 +1194,7 @@ fn a_panel_get_refuses_a_reply_for_another_session() {
         assert_closed(&mut stream);
     });
     let output = fixture.run(&["agent", "get", "--panel", "@panel:222", "--format", "json"]);
-    handler.join().unwrap();
+    join_peer(handler, &output);
     let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(doc["failure"]["kind"], "protocol-invalid");
     assert!(doc.get("source").is_none());

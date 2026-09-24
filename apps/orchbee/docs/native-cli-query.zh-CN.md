@@ -23,7 +23,7 @@ Agent 状态来自 Server 的 canonical Agent 模型，不从终端文字推断�
 三个命令均接受 `--format text|json`。内嵌成功 schema 为 `orchbee.agent.names`、
 `orchbee.agent.resolve` 与 `orchbee.agent.rename`；names 为 version 2，独立列出预留，另两者为 version 1；接纳后的失败使用
 `orchbee.cli.failure.agent-names` version 1。presentation 解析与 ambiguous-target 失败使用 version 2；launch-pending 失败使用 version 3；原有结果仍为 version 1。相关语义结果携带 `agent-names` source
-和 OBAP request ID。这四份文档与提示契约一起纳入 Schema 目录 version 22。非法名称或冲突选择器在
+和 OBAP request ID。这四份文档与提示契约一起纳入 Schema 目录 version 24。非法名称或冲突选择器在
 任何运行时访问前以退出码 2 失败。重名以退出码 3 拒绝并标明占用者，绝不覆盖其名称。
 
 每个命令的单一五秒截止覆盖 cohort 校验、仅查已有 Site、接纳、可选 Panel 解析和最终 OBAP 交换。
@@ -103,7 +103,7 @@ Server 仍验证终端当前绑定。
 
 Windows 中，canonical provider 为 `codex` 时，单次输入序列按字面 paste、Right、Enter 排列。Right 作为非字符边界，促使 Codex 刷出 paste-burst 缓冲并清除 Enter 抑制窗口；不向提示文本拼接转义码，也不以固定延时猜测投递速度。其他 provider 保持 paste、Enter，普通 `terminal send --paste --enter` 不增加按键。回执准确报告三条或两条记录；若在 Right 或 Enter 前停止，只报告实际接受的前缀，绝不补发或开始等待。该边界不证明输入框为空、焦点归属或 provider 已就绪。
 
-Schema 目录 version 22 共 57 份文档，包含提示成功与失败契约。
+Schema 目录 version 24 共 61 份文档，包含提示成功与失败契约。
 
 `orchbee.agent.prompt` 返回会话 ID、完整终端提交回执，以及可选的匹配观察/等待事实。
 发送拒绝、部分接受或不确定时沿用既有终端发送/失败契约，不开始等待。预检及提交后失败
@@ -351,8 +351,13 @@ orchbee agent integration list [--provider <id>]
 orchbee agent integration explain --provider <id>
 orchbee agent integration enable --provider <id> [--adapter-source <abs>]
 orchbee agent integration disable --provider <id> [--adapter-source <abs>]
+orchbee client list | client get <client-id> | client control-status <operation-id>
+orchbee workspace focus <target> [--client <id>]
+orchbee tab focus <target> [--client <id>]
+orchbee panel focus [<target>] [--panel <target> | --current] [--client <id>]
+orchbee panel zoom [<target>] [--panel <target> | --current] [--toggle | --on | --off] [--client <id>]
 orchbee api snapshot
-orchbee api schema [<schema-id>]
+orchbee api schema [<schema-id>] [--output <path>]
 orchbee site start
 orchbee site stop --confirm [--request-id <id>] [--retry] [--detach] [--timeout <ms>]
 orchbee site stop-status <request-id>
@@ -364,15 +369,15 @@ orchbee help <recognized path>
 orchbee <recognized path> -h|--help
 ```
 
-帮助主题：根级；`project`、`workspace`、`worktree`、`tab`、`panel`、`terminal`、`launch-profile`、`agent`、
+帮助主题：根级；`client`、`project`、`workspace`、`worktree`、`tab`、`panel`、`terminal`、`launch-profile`、`agent`、
 `agent integration`、`api`、`site`、
-`config`、`completion` 十三个族；以及包括 `tui` 在内的每条完整命令路径。`help` 只接受已识别的路径（不带
+`config`、`completion` 等族；以及包括 `tui` 在内的每条完整命令路径。`help` 只接受已识别的路径（不带
 过滤器、不带 format）。路径末尾的 `-h` 或 `--help` 是同一路径上的同一请求：`orchbee --help`、
 `project --help`、`project get --help` 输出的内容与 `help`、`help project`、`help project get`
 完全相同。后缀 help 优先于缺失的业务参数（`project get --help` 描述 `project get`），但不优先于
 已给出的业务参数或多余 token（`project get x --help`、`status extra --help` 都是 usage）。未列出的
 目标如 `help help`、`help version`、`help --version` 按未知路径 → usage。Help、`--version`、
-`--skill`、`completion` 与 `api schema` 绝不触碰平台、运行、cohort 或 Site 状态。
+`--skill`、`completion` 与不带 `--output` 的 `api schema` 绝不触碰平台、运行、cohort 或 Site 状态。显式 Windows schema 导出仅操作调用者选择的文件目标及自有同目录临时文件。
 `--skill` 必须是根命令的唯一参数，输出内嵌且本地化的 CLI 使用指南。PowerShell
 补全是静态语法投影：绝不执行用户表达式或查询 Site；需显式加载，不修改 shell profile。
 
@@ -858,7 +863,7 @@ cohort 验证之前开始，且绝不按阶段重置：
 ## Site 诊断
 
 Windows `site diagnose` 输出独立闭合的 `orchbee.site.diagnose.windows` v2，保留
-Linux v1 文档。原生目录为 v22/57。复用已有运行时路径／SID scope，不进行 cohort
+Linux v1 文档。原生目录为 v24/61。复用已有运行时路径／SID scope，不进行 cohort
 准入、激活、端点连接或进程发现。有序行描述选定基目录、已准入运行时目录、标记、
 激活／生命周期锁及五个命名管道地址。Windows 不输出文件系统 Host socket scope 行，
 也不虚构 POSIX mode／UID。`private` 只表示已检查当前用户归属和运行时 DACL 白名单，
@@ -934,7 +939,7 @@ terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresent
 （`content` 的 `lines`/`lineCount`/`tail` 成员），`orchbee.terminal.wait-output` 在
 `--regex` 命中时（`match` 的 `patternKind`/`matchLength`/`matched`/`matchedTruncated`/
 `startsMidLine`/`endsMidLine` 成员）。三者不带 flag 的输出保持 `version:1` 逐字节不变。
-`orchbee.api.schema` 目录 envelope 为 `version:9`：
+`orchbee.api.schema` 目录 envelope 为 `version:24`：
 注册新的 schema id 会改变封闭字典的形状，按版本规则属目录形状变化而非业务变化：
 
 - `source.kind="workbench-snapshot"`：带同一份已验证快照的 `siteId` 与十进制字符串
@@ -1322,8 +1327,7 @@ scope 以 `not-closing` 作答。`workspace close-resume` 是保留 lifecycle �
 lifecycle 状态可以 resume——未知结果不可恢复——陈旧栅栏以类型化 `stale` 应答落定，在
 close 失败 envelope 下报告为 `rejected`、`reason:"stale-generation"`，绝不产生第二次尝试。
 
-明确不交付：`project close`、`workspace focus`、`tab focus`、
-`panel resize`/`panel focus`、终端 open 操作、Site restart、disable、recovery 或
+明确不交付：`project close`、`panel resize`、终端 open 操作、Site restart、disable、recovery 或
 修复命令（Windows 已支持 stop/status），以及一切远端操作。
 
 ## 失败矩阵
@@ -1648,7 +1652,7 @@ Workspace；环境中不缓存 Panel 或 Workspace 位置。缺失或不匹配�
 过期绑定、子 Presentation、移动场景及真实 Windows 子进程证据覆盖。Desktop 与全局
 焦点回退仍不在本次范围内；TLA 执行已延后，不作为已通过的证据。
 
-新增 schema 注册到封闭的 `api schema` 第 14 版目录；其他业务文档版本不变。
+新增 schema 注册到封闭的 `api schema` 第 24 版目录；其他业务文档版本不变。
 
 Windows Worker 身份在每次连接 Server 时由已有 OS 随机身份源重新生成；同一 Worker
 的终端共享该 ID。不同 Site 可能复用 Terminal ID，因此必须精确匹配 Worker，才能
@@ -1740,11 +1744,11 @@ Windows Job。上述检查不证明 provider 任务完成、身份认证或原�
 
 JSON 封套为 `orchbee.panel.process-info` v2，schema 目录及双语帮助、补全与命令共同交付。证据覆盖隐式和显式目标、I/O 前的冲突拒绝、主与子终端选择、主绑定缺失、读取拒绝、响应身份错误、Host 错误保留、输出限额、viewer 回收，以及真实 Windows Site/Worker/Host 进程路由。共享类型化读取也是后续 Agent 启动和就绪工作的实际依赖，本身不关闭这些义务。
 
-Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界的错误代码；非法响应与传输失败使用通用 CLI 失败契约。成功的 `source` 同时记录快照 revision、OBCS request ID 与 Host correlation、epoch、attachment 和物理 Terminal ID；它们不是同一个身份。目录 version 22 包含 57 份 schema。
+Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界的错误代码；非法响应与传输失败使用通用 CLI 失败契约。成功的 `source` 同时记录快照 revision、OBCS request ID 与 Host correlation、epoch、attachment 和物理 Terminal ID；它们不是同一个身份。目录 version 24 包含 61 份 schema。
 
 ## Windows Agent 启动
 
-[Windows Agent 启动](windows-agent-start.zh-CN.md)拥有 `agent start`、名称预留与就绪流程、Windows 引用、预算和恢复契约。`agent names` v2 独立显示启动预留；名称失败对 launch-pending 使用 v3。Schema 目录为 v22，含 57 个 schema。
+[Windows Agent 启动](windows-agent-start.zh-CN.md)拥有 `agent start`、名称预留与就绪流程、Windows 引用、预算和恢复契约。`agent names` v2 独立显示启动预留；名称失败对 launch-pending 使用 v3。Schema 目录为 v24，含 61 个 schema。
 
 ## Windows Site 停止
 
@@ -1752,12 +1756,36 @@ Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界�
 
 ## Windows 保留 Worktree 操作
 
-[Worktree 契约](windows-worktrees.zh-CN.md) 拥有 `worktree create/open/remove/status/resume`、来源／Project 推导、各命令 flag、操作身份、确认、等待、输出与恢复规则。它扩展本记录早先仅 list 的语法：Create/Open 接受可选标签和终端尺寸、源 Workspace 或 cwd，以及路径／分支选择器；Create 另接受 base。Remove 接受 force，要求 Workspace 及确认；Resume 要求操作 ID、generation 及确认。五条均接受 text/JSON；只有修改命令按该契约接受请求身份、信任与等待。`orchbee.worktree.operation` 封套列入目录 v22（57 个文档）。
+[Worktree 契约](windows-worktrees.zh-CN.md) 拥有 `worktree create/open/remove/status/resume`、来源／Project 推导、各命令 flag、操作身份、确认、等待、输出与恢复规则。它扩展本记录早先仅 list 的语法：Create/Open 接受可选标签和终端尺寸、源 Workspace 或 cwd，以及路径／分支选择器；Create 另接受 base。Remove 接受 force，要求 Workspace 及确认；Resume 要求操作 ID、generation 及确认。五条均接受 text/JSON；只有修改命令按该契约接受请求身份、信任与等待。`orchbee.worktree.operation` 封套列入目录 v24（61 个文档）。
 
-Windows `worktree list` 额外接受来源 Workspace/cwd 与可选命令局部信任，默认采用调用者上下文／当前目录，无需 Project。本记录前面的已注册目录语法及封套仅适用于原 `--project/--directory` 形式。[来源发现契约](windows-worktrees.zh-CN.md#按来源发现-worktree) 拥有独立的 `orchbee.worktree.query` 结果（目录 v22/57）、互斥规则、总 deadline、失败退出码及已知 Workspace 关联。
+Windows `worktree list` 额外接受来源 Workspace/cwd 与可选命令局部信任，默认采用调用者上下文／当前目录，无需 Project。本记录前面的已注册目录语法及封套仅适用于原 `--project/--directory` 形式。[来源发现契约](windows-worktrees.zh-CN.md#按来源发现-worktree) 拥有独立的 `orchbee.worktree.query` 结果（目录 v24/61）、互斥规则、总 deadline、失败退出码及已知 Workspace 关联。
 
 ## Workspace 组关闭投影
 
-Windows `workspace close <target> --group --confirm` 使用独立的保留组合同；普通 Close 保持现有语法和文档。组 Close 接受 `--request-id`、`--detach` 和 `--timeout`（1–3600000 毫秒，默认 120000）。组状态使用 `workspace close-status --group --request <operation-id>`，纯读取预算五秒。组 Resume 使用 `workspace close-resume --group --request <operation-id> --generation <1..64> --confirm`，支持相同的 detach/timeout 选项。`--project` 和 `--workspace` 不能与组模式同用。这些是现有三个动词的选项；原生命令清单仍为 65 个。
+Windows `workspace close <target> --group --confirm` 使用独立的保留组合同；普通 Close 保持现有语法和文档。组 Close 接受 `--request-id`、`--detach` 和 `--timeout`（1–3600000 毫秒，默认 120000）。组状态使用 `workspace close-status --group --request <operation-id>`，纯读取预算五秒。组 Resume 使用 `workspace close-resume --group --request <operation-id> --generation <1..64> --confirm`，支持相同的 detach/timeout 选项。`--project` 和 `--workspace` 不能与组模式同用。这些是现有三个动词的选项；原生命令清单为 72 个。
 
 `orchbee.workspace.group-close` v1 封套将保留的 Server 事实与可为 null 的调用者等待状态分开。source 为 `local-workspace-group`，Site ID 必须存在但可为 null。Start/Resume 只发送一次，后续请求均为读取，并固定到相同尝试和捕获成员身份。交付后丢失应答保留为未知，绝不自动重放。Pending/Closed 退出 0；拒绝或已知关闭失败退出 3；不可用/Worker 丢失/Site 停止退出 4；结果未知退出 8；内部错误或观测矛盾退出 1；等待连接中断/超时/取消分别退出 5/7/130，保留最后应答。[组归属与恢复](windows-worktrees.zh-CN.md#workspace-组关闭) 定义成员、上限和子操作观测。schema 均为内嵌；帮助、`--skill` 和四种补全投影均包含组形式，不探测 Site。
+
+## Windows Client 导航
+
+[Windows Client 视图控制](windows-client-control.zh-CN.md) 拥有 `client list/get/control-status`、`workspace focus`、`tab focus`、`panel focus` 和 `panel zoom`。导航通过 `--client` 或无歧义且已校验的调用者上下文定位一个 current TUI。只提交一次，并等待绘制确认；超时或 Ctrl+C 仅停止等待。单 Panel 缩放有明确无操作回执。目录 v24 包含 61 个 schema，新增均为 v1 的 `orchbee.client.view`、`orchbee.client.control` 和 `orchbee.cli.failure.client-control`。未增加操作系统窗口激活或 Mac/Linux 控制运行时。
+
+## Windows 离线 schema 导出
+
+`api schema [<schema-id>] --output <path>` 显式发布与 stdout 完全相同的完整 JSON 文档。`--format text|json` 控制失败呈现；成功时 stdout 与文件字节均为带末尾换行的相同 JSON。省略 `--output` 时保留现有只读行为。
+
+解析器接受非空、不超过 4,096 UTF-8 字节的字面文件路径，在副作用前校验全部参数，不展开变量或前导波浪号。相对路径以调用进程目录为基准。拒绝 Windows 设备名、备用数据流和含糊的盘符相对路径。此命令不选择或启动 Site，不读取运行时配置，也不从网络获取 schema。本次不新增 Mac/Linux 文件导出运行时。
+
+Schema 所有者先解析内嵌 ID，并在任何文件操作前准备完整的有界文档。未知 ID 保留现有 not-found 结果且不创建内容。Windows 导出器解析目标，拒绝已有的非普通文件或重解析目标，以独占方式创建随机同目录临时文件 `.orchbee-schema-<nonce>.tmp`，写入并同步完整文档，关闭句柄，再通过一次重命名发布。允许替换已有普通目标文件；不创建父目录，不回退为截断写入，不自动重试。
+
+| 阶段                   | 结果与归属                                                          |
+| ---------------------- | ------------------------------------------------------------------- |
+| 语法或内嵌查询失败     | 无文件副作用；沿用现有类型化失败                                    |
+| 目标或临时文件准备失败 | 目标不变；返回本地导出失败                                          |
+| 写入、同步或发布失败   | 未成功发布；删除自有临时文件并报告具体失败阶段                      |
+| 临时文件清理失败       | 保留并报告其路径，供调用者删除自有残留                              |
+| 重命名成功             | 完整目标已发布；输出预先准备的 stdout，后续 stdout 失败不会回滚文件 |
+
+专用 `orchbee.cli.failure.schema-export` 第 1 版文档包含 `write-failed`、封闭阶段值、字面目标以及可空的残留临时路径，退出码为 1。只有 `--format json` 会在 stdout 输出该文档，并始终在 stderr 给出本地化诊断。不改变 provider、终端、规范 Workbench 状态或运行时身份。进程崩溃可能遗留可识别、尚未发布的同目录临时文件；发布不声称父目录具有断电持久性。
+
+维护中的 Windows 进程检查覆盖中文／空格和相对路径、完整及指定 schema、替换、语法／未知 ID 隔离、缺失父目录、目录目标、锁定目标时原字节保留、失败输出 schema 校验及正常清理无残留。选定文件导出能力以 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 `src/cli/api.rs` 为参考；Orchbee 保留自身 schema 封套及完整文件发布约束。

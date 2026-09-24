@@ -571,6 +571,8 @@ fn native_session_with_identity(
         .spawn(move || connection::run_native(client, geometry, worker_mailbox))?;
     Ok((
         TerminalSession {
+            #[cfg(windows)]
+            client_control: None,
             backend: SessionBackend::Native(Box::new(ui::NativeUi::new(
                 Arc::clone(&mailbox),
                 clock,
@@ -1841,6 +1843,8 @@ fn input_admission_is_bounded_and_failure_cannot_accept_more_work() -> TestResul
     let (shutdown, _peer) = UnixStream::pair()?;
     let (commands, _receiver) = mpsc::sync_channel(8);
     let mut session = TerminalSession {
+        #[cfg(windows)]
+        client_control: None,
         backend: SessionBackend::Legacy(Box::new(LegacySession {
             commands: Some(commands),
             events: None,

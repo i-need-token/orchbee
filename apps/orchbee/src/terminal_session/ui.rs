@@ -1,3 +1,5 @@
+#[cfg(windows)]
+mod client_control;
 use super::{
     mailbox::{
         AdmissionError, CausalSettlement, CommandMailbox, CreateMarker, CreatePrecommitOutcome,
@@ -553,11 +555,11 @@ mod location_labels_tests;
 #[cfg(test)]
 mod membership_tests;
 #[cfg(test)]
-mod move_membership_tests;
+pub(in crate::terminal_session) mod move_membership_tests;
 #[cfg(test)]
 mod panel_input_tests;
 #[cfg(test)]
-mod publication_hint_tests;
+pub(in crate::terminal_session) mod publication_hint_tests;
 #[cfg(test)]
 mod rename_membership_tests;
 #[cfg(all(test, any(target_os = "linux", windows)))]

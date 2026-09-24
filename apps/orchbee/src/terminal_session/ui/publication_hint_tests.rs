@@ -592,7 +592,7 @@ pub(super) fn starting_split_ui() -> (
 /// Builds a ready UI over one tab split into two horizontal panels so panel
 /// focus has a real target: the MovePanelFocus switch moves `desired` to a fresh
 /// generation key without clearing the UI's observed Poll serial.
-pub(super) fn ready_split_ui() -> (
+pub(in crate::terminal_session) fn ready_split_ui() -> (
     NativeUi,
     Arc<CommandMailbox>,
     LocalOperationClock,

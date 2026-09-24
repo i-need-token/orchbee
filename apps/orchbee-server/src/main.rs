@@ -4,6 +4,8 @@ mod agent;
 mod agent_service;
 #[cfg(any(unix, windows))]
 mod client_session_registry;
+#[cfg(any(windows, test))]
+mod client_view_registry;
 #[cfg(any(unix, windows))]
 mod local_client_service;
 #[cfg(any(unix, windows))]

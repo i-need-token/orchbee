@@ -3460,6 +3460,19 @@ impl NativeSessionState {
             }
             _ => return SelectionPlan::Busy,
         };
+        self.plan_selection_index(index)
+    }
+
+    pub(super) fn plan_selection_index(&self, index: usize) -> SelectionPlan {
+        if self.mutation_blocks_structure()
+            || self.rename_draft_blocks_structure()
+            || index >= self.cache.tabs().len()
+        {
+            return SelectionPlan::Busy;
+        }
+        let Some(anchor) = self.active().map(SelectedTab::index) else {
+            return SelectionPlan::Busy;
+        };
         if self.pending_refresh.is_some() {
             return if index == anchor {
                 SelectionPlan::NoOp

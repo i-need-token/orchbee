@@ -4113,6 +4113,39 @@
 			]
 		},
 		{
+			"id": "client-view-control",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/ClientViewControl.tla",
+			"config": "apps/orchbee-server/formal/tla/ClientViewControl.cfg",
+			"claims": ["apps/orchbee/docs/windows-client-control.md", "schemas/workbench/README.md"],
+			"triggers": [
+				"apps/orchbee-server/src/client_view_registry.rs",
+				"apps/orchbee-server/src/client_view_registry/**",
+				"apps/orchbee-server/src/workbench_service.rs",
+				"apps/orchbee-server/src/local_client_service.rs",
+				"apps/orchbee/src/terminal_session/client_control.rs",
+				"apps/orchbee/src/terminal_session/client_control/**",
+				"apps/orchbee/src/terminal_session/ui/client_control.rs",
+				"crates/workbench-protocol/src/command/client_view.rs"
+			],
+			"requiredCoverage": [
+				"Sample",
+				"Freeze",
+				"Submit",
+				"Deliver",
+				"RejectStale",
+				"UiStep",
+				"Draw",
+				"Acknowledge",
+				"Interrupt",
+				"Disconnect",
+				"ExpireQueue",
+				"ExpireReceipt",
+				"ReadOrReplay"
+			]
+		},
+		{
 			"id": "local-client-sessions",
 			"owner": "orchbee-server",
 			"workspace": "apps/orchbee-server",

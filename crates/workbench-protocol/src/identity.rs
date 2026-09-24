@@ -70,6 +70,7 @@ macro_rules! define_identity {
 }
 
 define_identity!(SiteId);
+define_identity!(WorkbenchClientId);
 define_identity!(WorkbenchRequestId);
 define_identity!(WorkbenchProjectId);
 define_identity!(WorkbenchWorkspaceId);

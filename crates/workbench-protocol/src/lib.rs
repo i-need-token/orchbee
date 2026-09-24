@@ -10,17 +10,23 @@ pub use carrier::{
     write_workbench_request, write_workbench_response,
 };
 pub use command::{
+    ClientViewAction, ClientViewAvailability, ClientViewCompletion, ClientViewCompletionOutcome,
+    ClientViewControl, ClientViewControlReason, ClientViewControlStatus, ClientViewIntent,
+    ClientViewObservation, ClientViewOperation, ClientViewOutcome, ClientViewPhase,
+    ClientViewRecord, ClientViewSelection, ClientViewSequence, ClientViewUnavailable,
     LaunchProfileCatalogOutcome, LaunchProfileCatalogRevision, LaunchProfileEntry, LaunchProfileId,
-    LaunchProfileName, LaunchProfileSelector, LaunchSelection,
-    MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES, MAXIMUM_ENCODED_LAUNCH_PROFILE_CATALOG_RESULT_BYTES,
-    MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES, MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES,
+    LaunchProfileName, LaunchProfileSelector, LaunchSelection, MAXIMUM_CLIENT_VIEWS,
+    MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES, MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES,
+    MAXIMUM_ENCODED_LAUNCH_PROFILE_CATALOG_RESULT_BYTES, MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES,
+    MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES,
     MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES, MAXIMUM_ENCODED_WORKTREE_LIST_RESULT_BYTES,
     MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES, MAXIMUM_ENCODED_WORKTREE_QUERY_RESULT_BYTES,
     MAXIMUM_LAUNCH_PROFILE_CANDIDATES, MAXIMUM_LAUNCH_PROFILE_CATALOG_BYTES,
     MAXIMUM_LAUNCH_PROFILE_ENTRIES, MAXIMUM_LAUNCH_SELECTION_ARGUMENTS,
     MAXIMUM_LAUNCH_SELECTION_BYTES, MAXIMUM_RESULT_PUBLICATIONS,
     MAXIMUM_WORKSPACE_GROUP_CLOSE_ATTEMPTS, MAXIMUM_WORKSPACE_GROUP_CLOSE_MEMBERS,
-    MAXIMUM_WORKTREE_OPERATION_ATTEMPTS, PublicationReadIntent, WorkbenchAction, WorkbenchCommand,
+    MAXIMUM_WORKTREE_OPERATION_ATTEMPTS, PublicationReadIntent, WorkbenchAction,
+    WorkbenchClientViewRequest, WorkbenchClientViewResult, WorkbenchCommand,
     WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchCommandUnavailableReason,
     WorkbenchLabel, WorkbenchLaunchProfileCatalogRead, WorkbenchLaunchProfileCatalogResult,
     WorkbenchPanelRelocateDestination, WorkbenchPanelSplitDirection, WorkbenchPublicationOutcome,
@@ -60,9 +66,10 @@ pub use directory::{
 
 pub use identity::{
     IdentityError, ProtocolVersion, RevisionError, SiteId, TerminalId, TerminalPresentationId,
-    WorkbenchDirectoryId, WorkbenchPanelId, WorkbenchPanelSlotId, WorkbenchProjectId,
-    WorkbenchRequestId, WorkbenchRevision, WorkbenchSplitId, WorkbenchTabGroupId, WorkbenchTabId,
-    WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId,
+    WorkbenchClientId, WorkbenchDirectoryId, WorkbenchPanelId, WorkbenchPanelSlotId,
+    WorkbenchProjectId, WorkbenchRequestId, WorkbenchRevision, WorkbenchSplitId,
+    WorkbenchTabGroupId, WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
+    WorkerId,
 };
 pub use model::{
     Delta, DeltaChange, DeltaRejectionReason, Directory, Navigation, PanelNode, PanelOrientation,

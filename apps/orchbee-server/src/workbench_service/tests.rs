@@ -320,3 +320,6 @@ fn workspace_launch_requires_navigation_directory_and_terminal_grants() {
         );
     }
 }
+
+#[cfg(windows)]
+mod client_view;
