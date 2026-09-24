@@ -1,6 +1,8 @@
 mod workspace_group_close;
 pub(crate) use workspace_group_close::WorkspaceGroupCloseCommand;
 mod worktree;
+#[cfg(windows)]
+mod worktree_path_windows;
 use std::{ffi::OsString, path::PathBuf};
 pub(crate) use worktree::{
     WorktreeCommand, WorktreeQueryCommand, WorktreeStartCommand, WorktreeStartKind,
@@ -1045,6 +1047,7 @@ pub(crate) enum ExpectedValue {
     Shell,
     HistoryRows,
     DirectoryPath,
+    WorktreePath,
     /// The `--directory` worktree-list selector: a nonzero 32-character
     /// lowercase hexadecimal Workbench directory ID.
     DirectoryId,

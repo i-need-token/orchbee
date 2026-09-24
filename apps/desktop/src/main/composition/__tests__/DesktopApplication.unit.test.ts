@@ -1695,6 +1695,14 @@ describe('DesktopApplication', () => {
 
 	it('keeps a real composed exit owned while binding persistence is temporarily unavailable', async () => {
 		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-composition-'));
+		const retainedWrite = createDeferred<void>();
+		const put = FileTerminalBindingStore.prototype.put;
+		const writeObserver = vi
+			.spyOn(FileTerminalBindingStore.prototype, 'put')
+			.mockImplementation(async function (this: FileTerminalBindingStore, binding) {
+				await put.call(this, binding);
+				if (binding.state.kind === 'retained') retainedWrite.resolve();
+			});
 		let application: DesktopApplication | undefined;
 		try {
 			const runtime = createRuntime(
@@ -1745,16 +1753,14 @@ describe('DesktopApplication', () => {
 				},
 			};
 			const bindingStore = new FileTerminalBindingStore(runtime.terminalBindingStorePath);
-			await vi.waitFor(async () => {
-				const stored = await bindingStore.load();
-				if (stored.kind !== 'available') throw new Error('Binding store is not available.');
-				// Planned and create-requested records precede the final startup write.
-				expect(
-					stored.document.bindings.find(
-						(binding) => binding.creationId === createRequest.creationId,
-					)?.state.kind,
-				).toBe('retained');
-			});
+			// Planned and create-requested writes precede the actual retained commit.
+			await retainedWrite.promise;
+			const stored = await bindingStore.load();
+			if (stored.kind !== 'available') throw new Error('Binding store is not available.');
+			expect(
+				stored.document.bindings.find((binding) => binding.creationId === createRequest.creationId)
+					?.state.kind,
+			).toBe('retained');
 			const backupPath = `${runtime.terminalBindingStorePath}.backup`;
 			await rename(runtime.terminalBindingStorePath, backupPath);
 			await mkdir(runtime.terminalBindingStorePath);
@@ -1785,8 +1791,12 @@ describe('DesktopApplication', () => {
 				).length,
 			).toBe(1);
 		} finally {
-			await application?.shutdown();
-			await rm(directory, { recursive: true, force: true });
+			try {
+				await application?.shutdown();
+			} finally {
+				writeObserver.mockRestore();
+				await rm(directory, { recursive: true, force: true });
+			}
 		}
 	});
 

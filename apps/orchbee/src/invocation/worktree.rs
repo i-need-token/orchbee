@@ -2,7 +2,7 @@ use super::{
     ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
     Resource, Scope, Target, UsageContext, UsageReason, WorkbenchDirectoryPath, WorkbenchLabel,
     WorkbenchRequestId, WorkbenchTerminalGeometry, check_scope, geometry_option, label_option,
-    launch_options, missing_required, path_option, target, usage_with, wait_timeout_option,
+    missing_required, target, usage_with, wait_timeout_option,
 };
 use orchbee_workbench_protocol::{WorktreeReference, WorktreeSelector};
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -123,7 +123,7 @@ pub(super) fn start(
     let path = options
         .path
         .as_ref()
-        .map(|_| path_option(options, context, envelope))
+        .map(|value| worktree_path(value, context, "--path", envelope))
         .transpose()?;
     let kind = match verb {
         "create" => WorktreeStartKind::Create { branch, base, path },
@@ -162,7 +162,11 @@ pub(super) fn start(
             .map(|value| target(value.clone(), Resource::Project, envelope))
             .transpose()?,
         workspace,
-        cwd: launch_options(options, context, envelope)?.cwd,
+        cwd: options
+            .cwd
+            .as_deref()
+            .map(|value| worktree_path(value, context, "--cwd", envelope))
+            .transpose()?,
         kind,
         label: options
             .label
@@ -340,9 +344,49 @@ pub(super) fn list(options: &Options, envelope: FailureEnvelope) -> Result<Reque
                 .as_ref()
                 .map(|value| target(value.clone(), Resource::Workspace, envelope))
                 .transpose()?,
-            cwd: launch_options(options, context, envelope)?.cwd,
+            cwd: options
+                .cwd
+                .as_deref()
+                .map(|value| worktree_path(value, context, "--cwd", envelope))
+                .transpose()?,
             trust_repository: options.trust_repository,
         },
         format: options.format.unwrap_or(OutputFormat::Text),
+    })
+}
+
+fn worktree_path(
+    value: &str,
+    context: UsageContext,
+    option: &'static str,
+    envelope: FailureEnvelope,
+) -> Result<WorkbenchDirectoryPath, ParseFailure> {
+    #[cfg(windows)]
+    {
+        use super::worktree_path_windows::{PathFailure, normalize};
+        normalize(value, |name| std::env::var_os(name), std::env::current_dir).map_err(|failure| {
+            match failure {
+                PathFailure::Input => invalid(
+                    context,
+                    option,
+                    value,
+                    ExpectedValue::WorktreePath,
+                    envelope,
+                ),
+                PathFailure::Context(name) => {
+                    invalid(context, name, "", ExpectedValue::DirectoryPath, envelope)
+                }
+            }
+        })
+    }
+    #[cfg(not(windows))]
+    WorkbenchDirectoryPath::parse(value).map_err(|_| {
+        invalid(
+            context,
+            option,
+            value,
+            ExpectedValue::WorktreePath,
+            envelope,
+        )
     })
 }

@@ -12,13 +12,13 @@ orchbee worktree status <operation-id> --format json
 orchbee worktree resume <operation-id> --generation <attempt> --confirm
 ```
 
-Create 与 Open 接受 `--workspace <target>` 或 `--cwd <absolute-path>` 二选一。均省略时，经校验的调用者终端选择其规范 Workspace；Orchbee 外使用当前目录。部分、过期或无效的调用者身份绝不回退到 cwd。可从 Workspace 推导项目，或只有一个 Project 时，可省略 `--project`。项目有歧义或不存在均在提交前失败；此命令不创建默认 Project。
+Create 与 Open 接受 `--workspace <target>` 或 `--cwd <path>` 二选一。均省略时，经校验的调用者终端选择其规范 Workspace；Orchbee 外使用当前目录。部分、过期或无效的调用者身份绝不回退到 cwd。可从 Workspace 推导项目，或只有一个 Project 时，可省略 `--project`。项目有歧义或不存在均在提交前失败；此命令不创建默认 Project。
 
 Create 接受可选的 `--branch`、`--base`、`--path` 与 `--label`。默认分支为 `worktree/<full-operation-id>`，base 为 `HEAD`，路径为 `<main-repository-parent>/<main-repository-name>-worktrees/<branch-slug>`。路径名将 ASCII 字母、数字、`_`、`-` 以外的字符替换为 `-`；绝不覆盖已有路径。已有本地分支忽略 base。Open 必须提供 `--path` 或 `--branch` 之一；分支有歧义须使用路径。主检出与关联检出均可打开。同项目中已有唯一 Workspace 时复用，`--label` 也会重命名它。新关联创建 Workspace 并启动其首个默认 shell 终端。可选四项尺寸参数遵循 `tab create`；Workspace 已提交但终端启动失败或不确定时仍保留在结果中。
 
 Remove 要求 `--workspace` 与 `--confirm`。关闭 Workspace 前检查登记关系、公共 Git 目录与脏状态。`--force` 明确允许 Git 丢弃检出目录中的改动。拒绝主检出、裸仓库及关联到其他已知 Workspace 的检出目录。移除成功保留分支，不使用递归文件系统删除兜底。
 
-`--trust-repository` 仅对此次 Git 命令授予信任，不修改全局或仓库配置。Windows 路径为字面绝对盘符路径；不展开 `~` 或环境变量。源路径可位于检出目录内部。引用参数非空、至多 1024 UTF-8 字节，不能以 `-` 开头或包含 ASCII 控制字符；分支语法由 Git 校验。所有命令均不改变 Client 焦点。Mac/Linux 变更执行与 Desktop 命令暴露不在此 Windows 实现范围内。
+`--trust-repository` 仅对此次 Git 命令授予信任，不修改全局或仓库配置。Windows Worktree 的 `--cwd` 及 create/open 的 `--path` 接受绝对驱动器路径、相对 CLI 当前目录的路径，以及开头的 `~`、`~/` 或 `~\`。绝对路径拼写保留。主目录按非空 `USERPROFILE`、`HOMEDRIVE` 加 `HOMEPATH`、`HOME` 的顺序选择；已选择但格式错误的主目录直接失败，不再回退。只有显式主目录操作数才由 CLI 读取这些变量，Worker 不读取。输入及展开后的 UTF-8 路径均不超过 4096 字节。归一化不打开或 canonicalize 文件，新检出目标无需已存在。不支持的 UNC／设备命名空间和驱动器相对路径会被拒绝。不执行 shell、通配符、`$VAR` 或 `%VAR%` 替换，普通路径分量中的这些字符保持字面含义。其他命令沿用各自声明的路径策略。源路径可位于检出目录内部。引用参数非空、至多 1024 UTF-8 字节，不能以 `-` 开头或包含 ASCII 控制字符；分支语法由 Git 校验。所有命令均不改变 Client 焦点。Mac/Linux 变更执行与 Desktop 命令暴露不在此 Windows 实现范围内。
 
 ## 等待与机器输出
 
@@ -46,7 +46,7 @@ registry 到 Site 的锁顺序保护接纳与规范事实检查；IPC 在两把�
 
 ## 按来源发现 Worktree
 
-`worktree list --workspace <target>` 与 `worktree list --cwd <absolute-path>` 选择一个来源，可附加 `--trust-repository`。两者均省略时，已验证的调用者终端选择其 Workspace；Orchbee 外使用当前目录。无效调用者身份绝不回退。查询无需默认 Project，不创建 Workspace，也不改变焦点。原有 `--project <target> --directory <id>` 形式保持原请求及结果契约；来源形式使用 `orchbee.worktree.query`。
+`worktree list --workspace <target>` 与 `worktree list --cwd <path>` 选择一个来源，可附加 `--trust-repository`。两者均省略时，已验证的调用者终端选择其 Workspace；Orchbee 外使用当前目录。无效调用者身份绝不回退。查询无需默认 Project，不创建 Workspace，也不改变焦点。原有 `--project <target> --directory <id>` 形式保持原请求及结果契约；来源形式使用 `orchbee.worktree.query`。
 
 来源查询采用五秒 CLI 总预算，不激活 Site，绝不重放交换。来源选择器与旧选择器组互斥。JSON 从目录 v22/57 输出 `{schema:"orchbee.worktree.query",version:1,result:<typed-reply>}`；Server 失败保留类型化回答。Found 退出 0，来源不存在／拒绝／变化或 Git 失败退出 3，不支持／不可用退出 4，传输／列表无效退出 5，超时退出 7，I/O／启动／输出上限失败退出 1。准入前／传输失败使用通用 CLI 失败 Schema；Ctrl+C 在释放信号所有者后退出 130。人类文本转义不可信路径／标签，并标示主／关联检出、分离／裸仓库、锁定／可清理状态及 Workspace 身份。
 
@@ -68,6 +68,8 @@ Server 解析来源及存活 Worker 代际，在 Git IPC 期间释放所有锁�
 
 维护中的测试覆盖严格语法与确认、调用者身份与 cwd、部分结果及诊断转义、操作／交换关联、EOF 后不重放、授权及容量、脱离等待后的复用、Close 前拒绝脏目录、Close 后移除失败与显式恢复，以及 Site 关闭前取消。真实可丢弃的 Windows Git 夹具覆盖来源子目录、主检出打开、分支复用、强制移除、分支保留和成功 hook 改变所选分支。Rust 与 TypeScript 消费同一 Worktree 一致性语料；JSON Schema 覆盖结构校验，绑定实现字节限制与跨字段关系。这些是同作者测试和复查，不宣称独立审查或 TLA 执行。
 
+Windows 路径适配器是对显式环境与当前目录输入的有界纯转换。固定 Herdr e0507237 的常见路径向量覆盖相对路径拼接、波浪号分隔符及主目录优先级；严格拒绝无效上下文是有意的差异。测试覆盖未使用环境／cwd 隔离、UTF-8 和 4096 字节上限、歧义根路径、不探测文件系统，以及访问运行时前隐去环境值的解析错误。实际 Windows Git 查询／创建／打开覆盖相对及波浪号操作数。这是有界对齐证据，不代表验证了所有 Windows 文件系统别名。
+
 ## Workspace 组关闭
 
 `workspace close <target> --group --confirm` 关闭已捕获的 worktree 组，不删除 Git checkout 或分支。已知主 checkout 的 Workspace 若有关联成员，普通 Close 会返回 `workspace-group-close-required`；关联 checkout 的 Workspace 即使带 `--group` 也只关闭自身。成员关系来自已观测的 checkout/common-directory 事实、精确的规范 Directory 和 Worker 实例，不能依赖标签或任意路径前缀。Create 和 Open 同时保留源 Workspace 的已观测 checkout，支持位于 checkout 内部的主 Directory。Directory 改变后该观测失效。精确匹配主根目录的 Directory 可加入已知仓库组；仓库身份歧义必须拒绝。
@@ -84,7 +86,7 @@ Server 在接纳时冻结最多 128 个成员，最后关闭选定的源 Workspa
 | 子操作接纳             | 精确的保留成员及当前规范源                    | 等待前保存一个子 Close ID                 |
 | 子操作 Closed          | 已知 Close 墓碑                               | 推进下一成员，源最后关闭                  |
 | 子操作受阻或接纳拒绝   | 停止序列                                      | Failed 保留部分成员；已知安全失败可恢复   |
-| 结果未知或源改变       | 不再提交另一 Close                            | 不可恢复失败，保留原子操作事实            |
+| 结果未知或源改变       | 不再提交另一 Close                            | 不可恢复失败，保留原有子操作事实          |
 | Resume                 | 精确失败代次且明确允许恢复                    | 新尝试沿用原成员及子操作身份              |
 | Read、超时或调用者退出 | 读取不推进状态；调用者只结束等待              | 保留 owner 独立继续                       |
 | Site stop              | Close 维护冻结前停止并加入组提交者            | 不再接纳子操作，已有 Close owner 负责结算 |

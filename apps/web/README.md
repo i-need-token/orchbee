@@ -414,3 +414,7 @@ pnpm desktop
 ```
 
 Electron loads the Web development URL and is detected from its User-Agent. Packaged Electron serves this application's production build from the standard secure `orchbee://app` origin; `apps/desktop` owns packaging and resource delivery but no second renderer implementation. In Desktop, open **Settings → Browser access**. The default action starts loopback-only access and opens the system Browser. Trusted-LAN preview must be enabled explicitly and always displays that HTTP is unencrypted and possession of the link grants full terminal control. The renderer receives sanitized Origins only; Desktop Main owns the secret-link copy and open effects.
+
+## Unit verification
+
+Run `pnpm --filter @orchbee/web test` for the unit suite. On Windows, Vitest uses at most four workers (or the available CPU count if smaller), bounding process creation and filesystem contention when other workspace suites run concurrently. All files, assertions and deadlines remain enabled; other platforms retain the runner defaults.

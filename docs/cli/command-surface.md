@@ -119,9 +119,10 @@ reference is a defect, and so is the reverse.
 
 ## Environment variables
 
-| Rule         | Contract                                                                                                                                                          |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Namespace    | Every variable the executable reads or injects is named `ORCHBEE_*`; the owning application guide lists each one with its purpose, reader, and writer.            |
-| Injected     | A variable injected into managed processes by an Orchbee runtime, such as a launcher path or runtime directory, is authoritative over a caller-provided conflict. |
-| Locale       | `LC_ALL`, `LC_MESSAGES`, and `LANG` select the diagnostic locale according to [Rust](../RUST.md#localized-product-copy); no `ORCHBEE_*` variable overrides them.  |
-| Nothing else | No undocumented variable, current-directory content, or repository file influences an invocation.                                                                 |
+| Rule                  | Contract                                                                                                                                                                                                                                       |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Namespace             | Except for the explicit platform inputs below, every variable the executable reads or injects is named `ORCHBEE_*`; the owning application guide lists each one with its purpose, reader, and writer.                                          |
+| Injected              | A variable injected into managed processes by an Orchbee runtime, such as a launcher path or runtime directory, is authoritative over a caller-provided conflict.                                                                              |
+| Locale                | `LC_ALL`, `LC_MESSAGES`, and `LANG` select the diagnostic locale according to [Rust](../RUST.md#localized-product-copy); no `ORCHBEE_*` variable overrides them.                                                                               |
+| Nothing else          | No undocumented variable, current-directory content, or repository file influences an invocation.                                                                                                                                              |
+| User-directory inputs | A command may declare platform home-directory variables solely for an explicit user-path operand. The owning guide names their readers, precedence, validation and failure behavior. They never select a runtime or introduce shell expansion. |

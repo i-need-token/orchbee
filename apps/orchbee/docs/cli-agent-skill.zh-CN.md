@@ -92,6 +92,8 @@ Windows 上按命令帮助使用 `worktree create/open/remove`。保留返回的
 
 Windows 上 `worktree list --cwd C:/code/repo --format json` 无需 Project。可改用 `--workspace <target>` 选择已注册 Workspace，或省略两者使用已校验调用者上下文／当前目录。无效调用者身份会被拒绝，绝不回退 cwd。`--trust-repository` 仅作用于本次查询。来源结果使用 `orchbee.worktree.query` v1，明确返回多个 Workspace 关联及类型化失败原因。原 `--project/--directory` 组合保留旧封套，不可混用来源 flag。两种形式均不激活 Site 或变更 Git。
 
+Windows Worktree 的 `--cwd` 与 create/open 的 `--path` 也接受相对调用者目录的路径及前导 `~`。主目录优先级为 `USERPROFILE`、`HOMEDRIVE`+`HOMEPATH`、`HOME`；选中的值无效时会在访问运行时前失败。除此之外路径按字面处理，不做 shell 或变量展开。
+
 ## 关闭 Windows worktree 组
 
 主 Workspace 有关联成员时使用 `workspace close <target> --group --confirm`。关联 Workspace 目标只关闭自身。Git 路径和分支保留。保留 `orchbee.workspace.group-close` 应答中的操作 ID；即使源已消失，也可使用 `workspace close-status --group --request <operation-id>`。对可恢复失败使用 `workspace close-resume --group --request <operation-id> --generation <attempt> --confirm`。检查每个捕获成员的 Close 身份和观测；`close` 为 null 表示尚未提交，子操作的 `observation` 为 null 则表示已接纳但尚未观测。绝不重放未知结果。`--detach`、超时或 Ctrl+C 只结束等待。作用域选择器 `--project`/`--workspace` 属于普通 status/resume，不能与组模式混用。

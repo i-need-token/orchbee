@@ -202,3 +202,7 @@ pnpm desktop
 ```
 
 Electron加载Web开发URL并从其User-Agent中检测到。打包的 Electron 从标准安全 `orchbee://app` 源提供此应用程序的生产构建； `apps/desktop` 拥有打包和资源交付，但没有第二个渲染器实现。在桌面中，打开 **设置 → 浏览器访问**。默认操作启动仅环回访问并打开系统浏览器。必须明确启用 Trusted-LAN 预览，并始终显示 HTTP 未加密，并且拥有该链接将授予完全终端控制权。渲染器仅接收经过清理的起源； Desktop Main拥有秘密链接复制和开放效果。
+
+## 单元验证
+
+运行 `pnpm --filter @orchbee/web test` 执行单元测试。Windows 上 Vitest 最多使用四个工作进程（可用 CPU 更少时取其数量），以限制其他 workspace 套件并发时的进程创建及文件系统竞争。所有文件、断言和 deadline 保留；其他平台沿用运行器默认值。

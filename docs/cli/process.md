@@ -11,15 +11,15 @@ executable are authoritative in [Rust](../RUST.md#local-process-and-ipc-boundari
 
 ## Inputs and trust boundary
 
-| Input             | Contract                                                                                                                                                                                |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Arguments         | Hostile. The total argument size has a declared bound; a non-Unicode argument or an overflow is a usage failure with empty standard output, whatever else the arguments spell.          |
-| Environment       | Only the documented `ORCHBEE_*` variables and the locale variables are read. A malformed documented value is a usage or local failure that names the variable; it is never defaulted.   |
-| Standard input    | Read only when the command declares an input operand such as `--input-file -`. Input is capped before decoding and decoded as strict UTF-8 JSON or the declared format.                 |
-| Files             | Read only from an explicitly named operand, capped before decoding, and never discovered from the current directory, the repository, or a project file.                                 |
-| Terminal          | Never read. No command depends on a controlling terminal, its size, or its capabilities; a command that launches an interface hands the terminal to the `tui/` lifecycle after parsing. |
-| Runtime responses | Trusted only after the typed transport and protocol layers admitted them. Verdicts are never re-derived from display text, error-kind guesses, or byte counts.                          |
-| Snapshot data     | Labels, paths, and terminal text are arbitrary Unicode treated as hostile for every human surface and preserved as data in machine output.                                              |
+| Input             | Contract                                                                                                                                                                                                                                                                                       |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Arguments         | Hostile. The total argument size has a declared bound; a non-Unicode argument or an overflow is a usage failure with empty standard output, whatever else the arguments spell.                                                                                                                 |
+| Environment       | Only documented `ORCHBEE_*`, locale, and explicitly declared platform user-directory inputs are read. User-directory inputs are scoped to operand expansion, never runtime discovery. A malformed documented value is a usage or local failure that names the variable; it is never defaulted. |
+| Standard input    | Read only when the command declares an input operand such as `--input-file -`. Input is capped before decoding and decoded as strict UTF-8 JSON or the declared format.                                                                                                                        |
+| Files             | Read only from an explicitly named operand, capped before decoding, and never discovered from the current directory, the repository, or a project file.                                                                                                                                        |
+| Terminal          | Never read. No command depends on a controlling terminal, its size, or its capabilities; a command that launches an interface hands the terminal to the `tui/` lifecycle after parsing.                                                                                                        |
+| Runtime responses | Trusted only after the typed transport and protocol layers admitted them. Verdicts are never re-derived from display text, error-kind guesses, or byte counts.                                                                                                                                 |
+| Snapshot data     | Labels, paths, and terminal text are arbitrary Unicode treated as hostile for every human surface and preserved as data in machine output.                                                                                                                                                     |
 
 ## Parse before effect
 

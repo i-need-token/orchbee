@@ -150,8 +150,8 @@
 			"zhCnSha256": "04231e59a1ced2fd7928f4c5ccb30fd53560152a17526af7e9f377dadbe91c61"
 		},
 		"apps/orchbee/docs/cli-agent-skill.md": {
-			"englishSha256": "9c9e2612cc1a88ed696b46c20984a9110a28c5c2d66c0e4be7f68a3fe02ee8f8",
-			"zhCnSha256": "de6ac146f76f762045f50db707a2d6ceed7b6f461e1ca1e13c14f512a8734339"
+			"englishSha256": "1e43a99476a99ab3239a76e0c65fc302169929cb1e793aa9131a057263e0975a",
+			"zhCnSha256": "0b2399c1e65fd4504220f519182b0ffd2e02238d0ac24ef9440b14ce9a32e8e8"
 		},
 		"apps/orchbee/docs/cli-workflows.md": {
 			"englishSha256": "5667ff6d40a2c7efa0a5d6d6b33ece6556ad16bca4208ab85c32ed21b3c12c37",
@@ -222,8 +222,8 @@
 			"zhCnSha256": "417abb2eeb68f6d341ac9925d45060035a2afe198ad93663366fa57fd6fc6e73"
 		},
 		"apps/orchbee/docs/windows-worktrees.md": {
-			"englishSha256": "a91c9b87c15a51c07be50bd607ffbc28022e7521e711a8caa7383e28141c1ab1",
-			"zhCnSha256": "6b9cb6701a0c7bc7e6ceabeab3034ccbb4577f8a429fd233b12d52fff354e34f"
+			"englishSha256": "7fc77f579ee106defc7379eaed37ae5ca18ad9d64a6be1293a25505819a21092",
+			"zhCnSha256": "210f3ef36e0f29634dbe9e3f88c67fce5bd36ee0d4994af816a4215991937ef9"
 		},
 		"apps/server/README.md": {
 			"englishSha256": "332ffbc750feb60fb3f23dc7a536970e929cb56c529b2f253f109f41bc8d7370",
@@ -246,8 +246,8 @@
 			"zhCnSha256": "c66fddbd19595e7a6358293faa8b68536bfeb8bf01152ee99ba64b5d4851b94c"
 		},
 		"apps/web/README.md": {
-			"englishSha256": "d4f3f33b633e625e7692204bc40eb8ecd86f54086200f1c2b98f9109381fa284",
-			"zhCnSha256": "781de74c11fb022efa89d9db11ed14e486bb73ed59b7cb158447f5e0d9e1c2e0"
+			"englishSha256": "d3f6dd95b68d46d7c983d90edb72043cb9e3ea6c14bbb7ecd59d3658f322baaa",
+			"zhCnSha256": "79bf6623ab7d64058426d408f9233674f4dcb0cfeec29796d6be45e12829911a"
 		},
 		"apps/web/docs/keyboard-shortcuts.md": {
 			"englishSha256": "d5b14080a84020726028045c20bef2b4963fd49e246d8a472bf75797a981f2b5",
@@ -338,8 +338,8 @@
 			"zhCnSha256": "fdc03e8b6406a04fef47fc8c217c5147b4dd1f3ab92dc5fd545a58800150a660"
 		},
 		"docs/RUST.md": {
-			"englishSha256": "8fce532ba9dd12f07f1f7f0d2794f387e44925b51798581d9f19fee7c39bee16",
-			"zhCnSha256": "f9187a4212a997c24be7600b6c6e705467c8010af26af87d7e13d0aba281bc8b"
+			"englishSha256": "6eb3351c2251aac856bf0fa6031a86835e81fb64ee5758194765245bad05eb9c",
+			"zhCnSha256": "5e8ebe7736ebff514cf661622061561aec4f1ed218621dfeb38d4749318b881f"
 		},
 		"docs/TESTING.md": {
 			"englishSha256": "ba6ca1764da301f06561eb0895eedd356dca6817d7ac0912848b201e17ebb7fd",
@@ -358,16 +358,16 @@
 			"zhCnSha256": "eca21f3f0c442c402e55b08b1c98ed42e0e2316f9c7e59adce1a1684889e14fd"
 		},
 		"docs/cli/command-surface.md": {
-			"englishSha256": "02093b9a4fef37bb5ee6fdda2392f5ae2c4d96e0ec89910ccb06c3d2233db513",
-			"zhCnSha256": "c5d2b1dd71e922f37127085189b28a36a3a8122f25584f15791cec55a7e4824a"
+			"englishSha256": "65135321d8230239cac19872d04a195f76c2637fcd5b2a2bd98af481cd32d92e",
+			"zhCnSha256": "67e8fcdb1d3371d95f331d6bc14494dab289f6d6688f05f19578bf1d6ff7c567"
 		},
 		"docs/cli/output.md": {
 			"englishSha256": "cac57901c01e858029e3664503e750be1e67eed5740d37348bbcbabd2721a9c2",
 			"zhCnSha256": "1cec9cde1a64d644555e4157079d51227702ca7b0a7cfc306740b010edbc9199"
 		},
 		"docs/cli/process.md": {
-			"englishSha256": "93be43171f39f528d68f40167214d784ca60bddfb2ea4530e8c4dbc7970de540",
-			"zhCnSha256": "727614166822df7bba22d04bf67d8625d848bcd32e99e580bfdaadb80a337557"
+			"englishSha256": "fb41ece4a5d5b06291845dad2d98c5ea4fc29e239a5d1aeabbf062244ecfa537",
+			"zhCnSha256": "43e54f03c9a5c48c817a42f5f39676e6848d0f64d10982b8254bf73ab75d54d3"
 		},
 		"docs/cli/verification.md": {
 			"englishSha256": "5c6c8883c9830c6adb5f8b570fb68ff157bade493df8a4dd309015aad92d887b",

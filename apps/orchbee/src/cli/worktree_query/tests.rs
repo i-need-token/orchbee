@@ -29,7 +29,7 @@ fn source_grammar_is_disjoint_from_registered_directory_and_mutation_flags() {
             "--directory=00000000000000000000000000000001",
             "--workspace=w",
         ],
-        vec!["--cwd=relative"],
+        vec!["--cwd=C:relative"],
         vec!["--confirm"],
         vec!["--detach"],
         vec!["--path=C:/repo"],
