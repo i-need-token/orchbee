@@ -106,3 +106,7 @@ Windows Worktree 的 `--cwd` 与 create/open 的 `--path` 也接受相对调用�
 ## 离线导出 schema
 
 Windows 上，`orchbee api schema [<schema-id>] --output <path>` 将相同 JSON 写入字面文件路径与 stdout。父目录必须存在。完整准备后才替换已有普通文件；未知 ID 不写文件。若清理失败，应保留返回的临时文件路径。发布后的 stdout 失败不会撤销文件。使用 `--format json` 获取类型化导出失败。
+
+## 检查 Windows TUI 布局
+
+使用 `panel layout [<panel>] --client <id> --format json` 检查单元格，不选择目标 Tab 或调整终端尺寸。`panel neighbor --direction left|right|up|down` 返回可为 null 的邻居 ID；`panel edges` 返回物理边界布尔值。两者接受相同的 Panel/Client 选择器。读取 `projection.sourceAvailable`：隐藏源不作邻居／边缘判断，退出码为 3。待处理或失败观测的 `projection` 为 null。非活动几何明确标为未选中，没有本地焦点时保持 null。三条命令均保留完整布局与操作身份；分离或等待中断后通过 `client control-status` 检查保留结果。

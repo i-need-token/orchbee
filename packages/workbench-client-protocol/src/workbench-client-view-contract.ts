@@ -1,3 +1,4 @@
+import { ClientPanelLayoutSchema } from './workbench-client-layout-contract';
 import { z } from 'zod';
 import {
 	SiteIdSchema,
@@ -58,6 +59,7 @@ const contextTarget = { terminalContextId: WorkbenchTerminalContextIdSchema };
 const tabTarget = { ...contextTarget, tabId: WorkbenchTabIdSchema };
 const panelTarget = { ...tabTarget, panelId: WorkbenchPanelIdSchema };
 export const ClientViewIntentSchema = z.discriminatedUnion('kind', [
+	z.strictObject({ kind: z.literal('layout'), ...panelTarget }).readonly(),
 	z.strictObject({ kind: z.literal('context'), ...contextTarget }).readonly(),
 	z.strictObject({ kind: z.literal('tab'), ...tabTarget }).readonly(),
 	z.strictObject({ kind: z.literal('panel'), ...panelTarget }).readonly(),
@@ -87,6 +89,9 @@ export const ClientViewCompletionSchema = z
 	.strictObject({
 		operationId: WorkbenchRequestIdSchema,
 		outcome: z.discriminatedUnion('kind', [
+			z
+				.strictObject({ kind: z.literal('layout-read'), layout: ClientPanelLayoutSchema })
+				.readonly(),
 			z.strictObject({ kind: z.literal('zoom-toggled'), previouslyZoomed: z.boolean() }).readonly(),
 			z.strictObject({ kind: z.enum(['applied', 'zoom-unchanged']) }).readonly(),
 			z
@@ -99,6 +104,13 @@ export const ClientViewCompletionSchema = z
 	})
 	.readonly();
 export const ClientViewControlStatusSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('layout-read'),
+			layout: ClientPanelLayoutSchema,
+			view: ClientViewObservationSchema,
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('zoom-toggled'),
@@ -128,6 +140,35 @@ export const ClientViewOperationSchema = z
 		status: ClientViewControlStatusSchema,
 	})
 	.superRefine(({ command, status }, context) => {
+		if (status.kind === 'layout-read') {
+			const { layout, view } = status;
+			const { intent } = command;
+			const { selection } = view;
+			if (intent.kind !== 'layout') {
+				context.addIssue({ code: 'custom', message: 'Layout receipt requires layout intent' });
+				return;
+			}
+			const selected =
+				selection !== null &&
+				selection.terminalContextId === intent.terminalContextId &&
+				selection.tabId === intent.tabId;
+			if (
+				layout.terminalContextId !== intent.terminalContextId ||
+				layout.tabId !== intent.tabId ||
+				layout.sourcePanelId !== intent.panelId ||
+				BigInt(layout.workbenchRevision) < BigInt(command.minimumWorkbenchRevision) ||
+				layout.selected !== selected ||
+				(selected &&
+					(selection === null ||
+						layout.focusedPanelId !== selection.panelId ||
+						layout.zoomed !== selection.zoomed ||
+						layout.panels.length !== selection.panelCount ||
+						layout.workbenchRevision !== view.workbenchRevision))
+			) {
+				context.addIssue({ code: 'custom', message: 'Layout target is not observed' });
+			}
+			return;
+		}
 		if (
 			status.kind !== 'applied' &&
 			status.kind !== 'zoom-unchanged' &&
@@ -155,6 +196,7 @@ export const ClientViewOperationSchema = z
 			case 'applied':
 				zoomMatches =
 					intent.kind !== 'toggle-zoom' &&
+					intent.kind !== 'layout' &&
 					(intent.kind !== 'zoom' || selection?.zoomed === intent.enabled);
 				break;
 		}

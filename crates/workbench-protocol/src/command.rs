@@ -1,3 +1,8 @@
+mod client_layout;
+pub use client_layout::{
+    ClientCellRect, ClientPanelArea, ClientPanelDirection, ClientPanelLayout, ClientPanelNeighbors,
+    ClientSplitArea, ClientSplitRatio, MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES,
+};
 mod client_view;
 pub use client_view::{
     ClientViewAction, ClientViewAvailability, ClientViewCompletion, ClientViewCompletionOutcome,
@@ -911,7 +916,7 @@ pub enum WorkbenchResponse {
 }
 
 pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, ContractError> {
-    enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES)?;
+    enforce_encoded_limit(encoded, MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES)?;
     let request: WorkbenchRequest =
         serde_json::from_slice(encoded).map_err(|_error| ContractError::InvalidDocument)?;
     enforce_encoded_limit(encoded, request_byte_limit(&request))?;
@@ -959,6 +964,22 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
 }
 
 fn request_byte_limit(request: &WorkbenchRequest) -> usize {
+    if matches!(
+        request,
+        WorkbenchRequest::ClientView(WorkbenchClientViewRequest {
+            action: ClientViewAction::Synchronize {
+                completion: Some(ClientViewCompletion {
+                    outcome: ClientViewCompletionOutcome::LayoutRead { .. },
+                    ..
+                }),
+                ..
+            },
+            ..
+        })
+    ) {
+        return MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES;
+    }
+
     if matches!(request, WorkbenchRequest::WorktreeOperation(_)) {
         return MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES;
     }
@@ -1003,7 +1024,14 @@ pub fn serialize_workbench_response(
 fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(), ContractError> {
     match response {
         WorkbenchResponse::ClientView(result) => {
-            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES)?;
+            let maximum = if matches!(&result.outcome, ClientViewOutcome::Operation { operation }
+                if matches!(operation.status, ClientViewControlStatus::LayoutRead { .. }))
+            {
+                MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES
+            } else {
+                MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES
+            };
+            enforce_encoded_limit(encoded, maximum)?;
             result.validate()
         }
         WorkbenchResponse::WorkspaceGroupClose(result) => {

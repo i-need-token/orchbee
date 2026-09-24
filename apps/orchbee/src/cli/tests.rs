@@ -209,10 +209,12 @@ fn fixed_outputs_are_far_below_the_bound() {
         super::completion::render(CompletionShell::Bash),
         super::completion::render(CompletionShell::Zsh),
         super::completion::render(CompletionShell::Fish),
+        super::completion::render(CompletionShell::PowerShell),
     ];
     for family in [
         Family::Agent,
         Family::AgentIntegration,
+        Family::Client,
         Family::Api,
         Family::Completion,
         Family::Config,
@@ -230,6 +232,16 @@ fn fixed_outputs_are_far_below_the_bound() {
     // Every `CommandPath` variant, in both locales — the bound must cover the
     // mutation helps as well as the queries.
     let commands = [
+        CommandPath::ClientList,
+        CommandPath::ClientGet,
+        CommandPath::ClientControlStatus,
+        CommandPath::WorkspaceFocus,
+        CommandPath::TabFocus,
+        CommandPath::PanelFocus,
+        CommandPath::PanelZoom,
+        CommandPath::PanelLayout,
+        CommandPath::PanelNeighbor,
+        CommandPath::PanelEdges,
         CommandPath::AgentDoctor,
         CommandPath::AgentExplain,
         CommandPath::AgentGet,
@@ -311,6 +323,7 @@ fn fixed_outputs_are_far_below_the_bound() {
     // everything the walk does enumerate. Both legal surfaces are walked:
     // trailing `--help` and the `help` prefix.
     let roots = [
+        "client",
         "agent",
         "api",
         "completion",
@@ -328,6 +341,12 @@ fn fixed_outputs_are_far_below_the_bound() {
         "worktree",
     ];
     let verbs = [
+        "control-status",
+        "focus",
+        "zoom",
+        "layout",
+        "neighbor",
+        "edges",
         "accept-directory",
         "check",
         "close",

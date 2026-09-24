@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 24
+			"const": 25
 		},
 		"source": {
 			"type": "object",
@@ -185,7 +185,8 @@
 				"orchbee.client.view",
 				"orchbee.client.control",
 				"orchbee.cli.failure.client-control",
-				"orchbee.cli.failure.schema-export"
+				"orchbee.cli.failure.schema-export",
+				"orchbee.panel.layout"
 			]
 		}
 	}

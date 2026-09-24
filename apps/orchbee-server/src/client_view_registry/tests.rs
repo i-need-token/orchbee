@@ -353,3 +353,153 @@ fn queued_expiry_and_view_capacity_have_exact_boundaries() {
 }
 
 mod traces;
+
+#[test]
+fn layout_reservations_bound_pending_payloads_and_shrink_after_valid_completion() {
+    let now = Instant::now();
+    let mut registry = ClientViewRegistry::default();
+    let layout_command = |id, target| {
+        let mut command = command(id, target);
+        let ClientViewIntent::Panel {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+        } = command.intent
+        else {
+            panic!("panel");
+        };
+        command.intent = ClientViewIntent::Layout {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+        };
+        command
+    };
+    let query = |registry: &mut ClientViewRegistry, id, target| {
+        execute(
+            registry,
+            30,
+            ClientViewAction::Submit {
+                command: Box::new(layout_command(id, target)),
+            },
+            now,
+        )
+    };
+    for id in 1..=17 {
+        execute(&mut registry, id, sample(), now);
+    }
+    for id in 1..=16 {
+        assert_eq!(
+            status(query(&mut registry, 100 + id, id)),
+            ClientViewControlStatus::Queued {}
+        );
+    }
+    assert!(matches!(
+        query(&mut registry, 117, 17),
+        ClientViewOutcome::Unavailable {
+            reason: ClientViewUnavailable::ReceiptCapacity
+        }
+    ));
+    assert_eq!(
+        registry
+            .receipts
+            .values()
+            .map(|receipt| receipt.layout_reservation)
+            .sum::<usize>(),
+        MAXIMUM_LAYOUT_RESERVATION
+    );
+    assert!(matches!(
+        execute(&mut registry, 1, sample(), now),
+        ClientViewOutcome::Synchronized {
+            control: Some(_),
+            ..
+        }
+    ));
+
+    let corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json"
+    ))
+    .unwrap();
+    let document = &corpus["valid"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["name"] == "complete-layout")
+        .unwrap()["document"];
+    let WorkbenchRequest::ClientView(mut request) =
+        parse_workbench_request(&serde_json::to_vec(document).unwrap()).unwrap()
+    else {
+        panic!("view");
+    };
+    let ClientViewAction::Synchronize {
+        heartbeat,
+        completion,
+        ..
+    } = &mut request.action
+    else {
+        panic!("sync");
+    };
+    *heartbeat = ClientViewSequence::new(2).unwrap();
+    completion.as_mut().unwrap().operation_id = operation_id(101);
+    assert!(matches!(
+        execute(&mut registry, 1, request.action, now),
+        ClientViewOutcome::Synchronized { .. }
+    ));
+    let retained = registry.receipts[&operation_id(101)].layout_reservation;
+    assert!(retained > 0 && retained < MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES);
+    assert!(matches!(
+        status(read(&mut registry, 101, now)),
+        ClientViewControlStatus::LayoutRead { .. }
+    ));
+    // The retained small result still consumes bytes: with15 full reservations there is not
+    // yet an entire1MiB free. Releasing one pending owner makes the next reservation possible.
+    assert!(matches!(
+        query(&mut registry, 117, 17),
+        ClientViewOutcome::Unavailable {
+            reason: ClientViewUnavailable::ReceiptCapacity
+        }
+    ));
+    registry.disconnect(owner(2), now);
+    assert_eq!(
+        status(query(&mut registry, 117, 17)),
+        ClientViewControlStatus::Queued {}
+    );
+
+    // A duplicate retains the same observation without reserving a second payload.
+    let reserved = registry
+        .receipts
+        .values()
+        .map(|receipt| receipt.layout_reservation)
+        .sum::<usize>();
+    assert!(matches!(
+        status(query(&mut registry, 101, 1)),
+        ClientViewControlStatus::LayoutRead { .. }
+    ));
+    assert_eq!(
+        registry
+            .receipts
+            .values()
+            .map(|receipt| receipt.layout_reservation)
+            .sum::<usize>(),
+        reserved
+    );
+    registry.disconnect(owner(2), now);
+    assert_eq!(registry.receipts[&operation_id(102)].layout_reservation, 0);
+    registry.disconnect(owner(1), now);
+    assert_eq!(
+        registry.receipts[&operation_id(101)].layout_reservation,
+        retained
+    );
+    assert!(matches!(
+        read(&mut registry, 101, now + RECEIPT_RETENTION),
+        ClientViewOutcome::NotFound {}
+    ));
+    assert_eq!(
+        registry
+            .receipts
+            .values()
+            .map(|receipt| receipt.layout_reservation)
+            .sum::<usize>(),
+        0
+    );
+}

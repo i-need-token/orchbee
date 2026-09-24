@@ -133,6 +133,8 @@ impl Locale {
             (Self::ZhCn, "delivered") => "已投递，等待界面确认",
             (Self::EnUs, "applied") => "Applied and drawn",
             (Self::ZhCn, "applied") => "已应用并绘制",
+            (Self::EnUs, "layout-read") => "Layout observed",
+            (Self::ZhCn, "layout-read") => "已观测布局",
             (Self::EnUs, "zoom-toggled") => "Zoom toggled and drawn",
             (Self::ZhCn, "zoom-toggled") => "缩放已切换并绘制",
             (Self::EnUs, "zoom-unchanged") => "Single panel; zoom unchanged",

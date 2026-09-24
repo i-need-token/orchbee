@@ -4,17 +4,23 @@ EXTENDS Naturals, FiniteSets, TLC
 \* Connection identities are admitted, never reused generations. This bounded
 \* model refines routing, UI interference and post-draw acknowledgement; Rust
 \* witnesses own exact elapsed-time, byte, capacity and sequence boundaries.
-CONSTANTS Clients, Operations, Owner, MaxRevision
+CONSTANTS Clients, Operations, Owner, MaxRevision, LayoutOperations, LayoutBudget
 VARIABLES connected, fresh, revision, expected, status, deliveries, effect, drawn
 
 vars == <<connected, fresh, revision, expected, status, deliveries, effect, drawn>>
 ModelOwner == [o \in Operations |-> IF o = "one" THEN "client-a" ELSE "client-b"]
 Pending == {"queued", "delivered"}
-Completed == {"applied", "rejected", "incomplete"}
+Completed == {"applied", "rejected", "incomplete", "layout-read"}
 States == Pending \cup Completed \cup {"absent", "expired"}
+
+LayoutPending == {o \in LayoutOperations : status[o] \in Pending}
+LayoutCompleted == {o \in LayoutOperations : status[o] = "layout-read"}
+\* One unit abstracts a bounded completed payload; two reserve its maximum.
+ReservedBytes == 2 * Cardinality(LayoutPending) + Cardinality(LayoutCompleted)
 
 ASSUME /\ IsFiniteSet(Clients) /\ IsFiniteSet(Operations)
        /\ Owner \in [Operations -> Clients] /\ MaxRevision > 0
+       /\ LayoutOperations \subseteq Operations /\ LayoutBudget >= 2
 
 Init ==
   /\ connected = Clients
@@ -40,6 +46,7 @@ Freeze(c) ==
 
 Submit(o) ==
   /\ status[o] = "absent"
+  /\ (o \notin LayoutOperations \/ ReservedBytes + 2 <= LayoutBudget)
   /\ Owner[o] \in connected \cap fresh
   /\ ~\E other \in Operations : Owner[other] = Owner[o] /\ status[other] \in Pending
   /\ status' = [status EXCEPT ![o] = "queued"]
@@ -61,6 +68,7 @@ RejectStale(o) ==
   /\ UNCHANGED <<connected, fresh, revision, expected, deliveries, effect, drawn>>
 
 UiStep(o) ==
+  /\ o \notin LayoutOperations
   /\ status[o] = "delivered"
   /\ o \notin effect
   /\ Owner[o] \in connected \cap fresh
@@ -79,6 +87,14 @@ Acknowledge(o) ==
   /\ status[o] = "delivered"
   /\ o \in drawn
   /\ status' = [status EXCEPT ![o] = "applied"]
+  /\ UNCHANGED <<connected, fresh, revision, expected, deliveries, effect, drawn>>
+
+ObserveLayout(o) ==
+  /\ o \in LayoutOperations
+  /\ status[o] = "delivered"
+  /\ Owner[o] \in connected \cap fresh
+  /\ expected[o] = revision[Owner[o]]
+  /\ status' = [status EXCEPT ![o] = "layout-read"]
   /\ UNCHANGED <<connected, fresh, revision, expected, deliveries, effect, drawn>>
 
 Interrupt(o) ==
@@ -109,7 +125,7 @@ ExpireReceipt(o) ==
 ReadOrReplay == UNCHANGED vars
 Next == (\E c \in Clients : Sample(c) \/ Freeze(c) \/ Disconnect(c))
      \/ (\E o \in Operations : Submit(o) \/ Deliver(o) \/ RejectStale(o)
-          \/ UiStep(o) \/ Draw(o) \/ Acknowledge(o) \/ Interrupt(o)
+          \/ UiStep(o) \/ Draw(o) \/ Acknowledge(o) \/ ObserveLayout(o) \/ Interrupt(o)
           \/ ExpireQueue(o) \/ ExpireReceipt(o)) \/ ReadOrReplay
 Spec == Init /\ [][Next]_vars
 
@@ -124,4 +140,8 @@ AppliedRequiresDraw == \A o \in Operations : status[o] = "applied" => o \in draw
 EffectsRequireDelivery == \A o \in effect : deliveries[o] = 1
 PendingRequiresConnection == \A o \in Operations : status[o] \in Pending => Owner[o] \in connected
 OneActiveCommand == \A c \in Clients : Cardinality({o \in Operations : Owner[o] = c /\ status[o] \in Pending}) <= 1
+LayoutReadsArePure == /\ effect \cap LayoutOperations = {}
+                      /\ drawn \cap LayoutOperations = {}
+LayoutReadRequiresDelivery == \A o \in Operations : status[o] = "layout-read" => o \in LayoutOperations /\ deliveries[o] = 1
+LayoutBudgetBounded == ReservedBytes <= LayoutBudget
 =============================================================================

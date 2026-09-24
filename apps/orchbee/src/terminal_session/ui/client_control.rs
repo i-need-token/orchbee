@@ -128,6 +128,7 @@ impl NativeUi {
             return ControlStep::ZoomUnchanged;
         }
         let (context_id, tab_id, panel_id) = match &command.intent {
+            ClientViewIntent::Layout { .. } => return ControlStep::Failed(Reason::Unsupported),
             ClientViewIntent::Context {
                 terminal_context_id,
             } => (terminal_context_id, None, None),

@@ -372,3 +372,5 @@ fn collapses_an_unfittable_split_to_the_selected_leaf() {
         Some(Rect::new(0, 1, 8, 8))
     );
 }
+
+mod generated;

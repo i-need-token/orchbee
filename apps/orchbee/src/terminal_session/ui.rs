@@ -1,5 +1,7 @@
 #[cfg(windows)]
 mod client_control;
+#[cfg(windows)]
+mod client_layout;
 use super::{
     mailbox::{
         AdmissionError, CausalSettlement, CommandMailbox, CreateMarker, CreatePrecommitOutcome,

@@ -293,6 +293,25 @@
 					},
 					"required": ["kind", "terminalContextId", "tabId", "panelId"],
 					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "layout"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "#/$defs/panelId"
+						}
+					},
+					"required": ["kind", "terminalContextId", "tabId", "panelId"],
+					"additionalProperties": false
 				}
 			]
 		},
@@ -435,6 +454,22 @@
 					},
 					"required": ["kind", "view", "previouslyZoomed"],
 					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "layout-read"
+						},
+						"layout": {
+							"$ref": "#/$defs/layout"
+						},
+						"view": {
+							"$ref": "#/$defs/view"
+						}
+					},
+					"required": ["kind", "layout", "view"],
+					"additionalProperties": false
 				}
 			]
 		},
@@ -523,6 +558,254 @@
 			"not": {
 				"const": "00000000000000000000000000000000"
 			}
+		},
+		"cellRect": {
+			"type": "object",
+			"properties": {
+				"x": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65535
+				},
+				"y": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65535
+				},
+				"width": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65535
+				},
+				"height": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65535
+				}
+			},
+			"required": ["x", "y", "width", "height"],
+			"additionalProperties": false
+		},
+		"panelArea": {
+			"type": "object",
+			"properties": {
+				"panelId": {
+					"$ref": "#/$defs/panelId"
+				},
+				"unzoomed": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/cellRect"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"terminal": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/cellRect"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"displayed": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/cellRect"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["panelId", "unzoomed", "terminal", "displayed"],
+			"additionalProperties": false
+		},
+		"splitArea": {
+			"type": "object",
+			"properties": {
+				"splitId": {
+					"$ref": "#/$defs/splitId"
+				},
+				"firstSlotId": {
+					"$ref": "#/$defs/panelSlotId"
+				},
+				"secondSlotId": {
+					"$ref": "#/$defs/panelSlotId"
+				},
+				"orientation": {
+					"enum": ["horizontal", "vertical"]
+				},
+				"ratio": {
+					"type": "number",
+					"minimum": 0.1,
+					"maximum": 0.9
+				},
+				"area": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/cellRect"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"divider": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/cellRect"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": [
+				"splitId",
+				"firstSlotId",
+				"secondSlotId",
+				"orientation",
+				"ratio",
+				"area",
+				"divider"
+			],
+			"additionalProperties": false
+		},
+		"neighbors": {
+			"type": "object",
+			"properties": {
+				"left": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/panelId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"right": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/panelId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"up": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/panelId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"down": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/panelId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["left", "right", "up", "down"],
+			"additionalProperties": false
+		},
+		"layout": {
+			"type": "object",
+			"properties": {
+				"terminalContextId": {
+					"$ref": "#/$defs/terminalContextId"
+				},
+				"tabId": {
+					"$ref": "#/$defs/tabId"
+				},
+				"sourcePanelId": {
+					"$ref": "#/$defs/panelId"
+				},
+				"workbenchRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"viewport": {
+					"$ref": "#/$defs/cellRect"
+				},
+				"area": {
+					"$ref": "#/$defs/cellRect"
+				},
+				"selected": {
+					"type": "boolean"
+				},
+				"zoomed": {
+					"type": "boolean"
+				},
+				"focusedPanelId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/panelId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"sourceAvailable": {
+					"type": "boolean"
+				},
+				"neighbors": {
+					"$ref": "#/$defs/neighbors"
+				},
+				"panels": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 4096,
+					"items": {
+						"$ref": "#/$defs/panelArea"
+					}
+				},
+				"splits": {
+					"type": "array",
+					"maxItems": 4096,
+					"items": {
+						"$ref": "#/$defs/splitArea"
+					}
+				}
+			},
+			"required": [
+				"terminalContextId",
+				"tabId",
+				"sourcePanelId",
+				"workbenchRevision",
+				"viewport",
+				"area",
+				"selected",
+				"zoomed",
+				"focusedPanelId",
+				"sourceAvailable",
+				"neighbors",
+				"panels",
+				"splits"
+			],
+			"additionalProperties": false
+		},
+		"splitId": {
+			"$ref": "#/$defs/identity"
+		},
+		"panelSlotId": {
+			"$ref": "#/$defs/identity"
 		}
 	}
 }

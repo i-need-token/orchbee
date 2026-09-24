@@ -224,3 +224,81 @@ fn targeted_toggle_captures_once_and_only_acknowledges_the_opposite_drawn_state(
         .unwrap();
     }
 }
+
+#[test]
+fn layout_read_completes_without_draw_resize_or_selection_and_pins_its_sample() {
+    use crate::{
+        client_view::SidebarSurface, terminal_session::ui::publication_hint_tests::split_snapshot,
+    };
+    use ratatui::layout::Rect;
+    for available in [false, true] {
+        let (mut native, mailbox, clock, _elapsed) = ready_split_ui();
+        let initial = mailbox.try_recv().unwrap().unwrap();
+        assert!(matches!(
+            initial.record(),
+            super::super::mailbox::QueuedCommand::Poll(_)
+        ));
+        mailbox.finish_lease(initial).unwrap();
+        let mut control = controller(clock);
+        control.observe_geometry(Rect::new(0, 0, 120, 40), SidebarSurface::Hidden);
+        assert!(!control.tick(&mut native, false));
+        let before = native.control_observation(false).unwrap();
+        let mut command = command(&control, None);
+        let ClientViewIntent::Panel {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+        } = command.intent
+        else {
+            panic!("panel");
+        };
+        command.intent = ClientViewIntent::Layout {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+        };
+        control
+            .lane
+            .as_ref()
+            .unwrap()
+            .inject_delivery_for_test(lane::Delivery {
+                command: command.clone(),
+                layout_snapshot: available.then(|| split_snapshot(1)),
+            });
+        assert!(
+            !control.tick(&mut native, false),
+            "a read must not ask the shell to resize"
+        );
+        let (sample, completed) = completion(&control).unwrap();
+        let status = match completed.outcome {
+            ClientViewCompletionOutcome::LayoutRead { layout } if available => {
+                assert!(layout.selected);
+                assert_eq!(layout.viewport.width, 120);
+                ClientViewControlStatus::LayoutRead {
+                    layout,
+                    view: sample.view.clone(),
+                }
+            }
+            ClientViewCompletionOutcome::Rejected { reason } if !available => {
+                assert_eq!(reason, Reason::ProjectionUnavailable);
+                ClientViewControlStatus::Rejected { reason }
+            }
+            other => panic!("unexpected completion {other:?}"),
+        };
+        ClientViewOperation { command, status }.validate().unwrap();
+        assert_eq!(native.control_observation(false).unwrap(), before);
+        assert!(mailbox.try_recv().unwrap().is_none());
+        assert!(control.pending.is_none());
+        control.observe_geometry(Rect::new(0, 0, 80, 25), SidebarSurface::Docked);
+        assert!(!control.tick(&mut native, false));
+        assert_eq!(completion(&control).unwrap().0.view, sample.view);
+        if let ClientViewCompletionOutcome::LayoutRead { layout } =
+            completion(&control).unwrap().1.outcome
+        {
+            assert_eq!(
+                layout.viewport.width, 120,
+                "later geometry cannot rewrite the retained read"
+            );
+        }
+    }
+}

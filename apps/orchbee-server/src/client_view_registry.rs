@@ -1,9 +1,10 @@
 //! Bounded ephemeral views and delivery receipts. No transport or UI effects occur here.
 use orchbee_workbench_protocol::{
     ClientViewAction, ClientViewAvailability, ClientViewCompletion, ClientViewCompletionOutcome,
-    ClientViewControl, ClientViewControlReason, ClientViewControlStatus, ClientViewObservation,
-    ClientViewOperation, ClientViewOutcome, ClientViewPhase, ClientViewRecord, ClientViewSequence,
-    ClientViewUnavailable, MAXIMUM_CLIENT_VIEWS, WorkbenchClientId, WorkbenchRequestId,
+    ClientViewControl, ClientViewControlReason, ClientViewControlStatus, ClientViewIntent,
+    ClientViewObservation, ClientViewOperation, ClientViewOutcome, ClientViewPhase,
+    ClientViewRecord, ClientViewSequence, ClientViewUnavailable, MAXIMUM_CLIENT_VIEWS,
+    MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES, WorkbenchClientId, WorkbenchRequestId,
 };
 use std::{
     collections::BTreeMap,
@@ -15,6 +16,7 @@ const FRESHNESS: Duration = Duration::from_secs(5);
 const QUEUE_LIFETIME: Duration = Duration::from_secs(5);
 const RECEIPT_RETENTION: Duration = Duration::from_secs(60);
 const MAXIMUM_RECEIPTS: usize = 256;
+const MAXIMUM_LAYOUT_RESERVATION: usize = 16 * MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES;
 
 struct PublishedView {
     record: ClientViewRecord,
@@ -35,9 +37,15 @@ struct Receipt {
     operation: ClientViewOperation,
     submitted_at: Instant,
     completed_at: Option<Instant>,
+    layout_reservation: usize,
 }
 impl Receipt {
     fn settle(&mut self, status: ClientViewControlStatus, now: Instant) {
+        self.layout_reservation = match &status {
+            ClientViewControlStatus::LayoutRead { layout, .. } => serde_json::to_vec(layout)
+                .map_or(MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES, |encoded| encoded.len()),
+            _ => 0,
+        };
         self.operation.status = status;
         self.completed_at = Some(now);
     }
@@ -155,7 +163,19 @@ impl ClientViewRegistry {
         else {
             return unavailable(ClientViewUnavailable::ClientUnavailable);
         };
-        if self.receipts.len() >= MAXIMUM_RECEIPTS {
+        let layout_reservation = if matches!(command.intent, ClientViewIntent::Layout { .. }) {
+            MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES
+        } else {
+            0
+        };
+        let reserved: usize = self
+            .receipts
+            .values()
+            .map(|receipt| receipt.layout_reservation)
+            .sum();
+        if self.receipts.len() >= MAXIMUM_RECEIPTS
+            || reserved.saturating_add(layout_reservation) > MAXIMUM_LAYOUT_RESERVATION
+        {
             return unavailable(ClientViewUnavailable::ReceiptCapacity);
         }
         let reason = if client.availability != ClientViewAvailability::Current
@@ -185,6 +205,11 @@ impl ClientViewRegistry {
                 operation,
                 submitted_at: now,
                 completed_at,
+                layout_reservation: if completed_at.is_none() {
+                    layout_reservation
+                } else {
+                    0
+                },
             },
         );
         outcome
@@ -229,10 +254,16 @@ impl ClientViewRegistry {
             {
                 return ClientViewOutcome::Conflict {};
             }
-            let status = match completion.outcome {
+            let status = match &completion.outcome {
+                ClientViewCompletionOutcome::LayoutRead { layout } => {
+                    ClientViewControlStatus::LayoutRead {
+                        layout: layout.clone(),
+                        view: view.clone(),
+                    }
+                }
                 ClientViewCompletionOutcome::ZoomToggled { previously_zoomed } => {
                     ClientViewControlStatus::ZoomToggled {
-                        previously_zoomed,
+                        previously_zoomed: *previously_zoomed,
                         view: view.clone(),
                     }
                 }
@@ -243,11 +274,11 @@ impl ClientViewRegistry {
                     ClientViewControlStatus::Applied { view: view.clone() }
                 }
                 ClientViewCompletionOutcome::Rejected { reason } => {
-                    ClientViewControlStatus::Rejected { reason }
+                    ClientViewControlStatus::Rejected { reason: *reason }
                 }
                 ClientViewCompletionOutcome::Incomplete { reason } => {
                     ClientViewControlStatus::Incomplete {
-                        reason,
+                        reason: *reason,
                         view: Some(view.clone()),
                     }
                 }

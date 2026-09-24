@@ -109,3 +109,7 @@ Retain `operationId` from `orchbee.client.control` and use `client control-statu
 ## Export schemas offline
 
 On Windows, `orchbee api schema [<schema-id>] --output <path>` writes the same JSON to a literal file path and stdout. The parent directory must exist. Existing regular files are replaced only after complete preparation; unknown IDs write nothing. Retain a reported temporary path if cleanup fails. A stdout failure after publication does not undo the file. Use `--format json` for typed export failures.
+
+## Inspect a Windows TUI layout
+
+Use `panel layout [<panel>] --client <id> --format json` to inspect cells without selecting the target Tab or resizing a terminal. `panel neighbor --direction left|right|up|down` returns a nullable neighbor ID; `panel edges` returns physical boundary booleans. Both accept the same Panel/Client selectors. Read `projection.sourceAvailable`: a hidden source has no neighbor/edge claim and exits 3. Pending or failed observations have null `projection`. Inactive geometry is explicitly unselected, and absent local focus stays null. All three preserve the full layout and operation identity; inspect retained results with `client control-status` after detach or interrupted waiting.

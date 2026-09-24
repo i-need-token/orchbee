@@ -1,6 +1,6 @@
 use ratatui::layout::{Constraint, Layout, Rect};
 
-use orchbee_workbench_protocol::PanelOrientation;
+use orchbee_workbench_protocol::{PanelOrientation, WorkbenchPanelSlotId, WorkbenchSplitId};
 
 use crate::{client_view::SidebarSurface, terminal_session::NativePanelTree};
 
@@ -347,9 +347,21 @@ pub(crate) struct LeafArea {
 /// paints. Session geometry must consume `leaves` — never a recomputed path —
 /// so a drawn pane and a resized pane cannot diverge.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct PanelTreeProjection {
+pub(crate) struct PanelTreeProjection<'a> {
     pub(crate) leaves: Vec<LeafArea>,
     pub(crate) dividers: Vec<Rect>,
+    pub(crate) splits: Vec<SplitArea<'a>>,
+}
+
+/// Canonical split identity and its resolved geometry; collapsed descendants have no area.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SplitArea<'a> {
+    pub(crate) split_id: &'a WorkbenchSplitId,
+    pub(crate) first_slot_id: &'a WorkbenchPanelSlotId,
+    pub(crate) second_slot_id: &'a WorkbenchPanelSlotId,
+    pub(crate) orientation: PanelOrientation,
+    pub(crate) area: Option<Rect>,
+    pub(crate) divider: Option<Rect>,
 }
 
 /// Project `tree` onto `area` exactly the way [`render_panel_tree`] paints it:
@@ -361,17 +373,17 @@ pub(crate) fn project_panel_tree(
     area: Rect,
     tree: &NativePanelTree,
     active_panel: Option<usize>,
-) -> PanelTreeProjection {
+) -> PanelTreeProjection<'_> {
     let mut projection = PanelTreeProjection::default();
     collect_panel_tree(area, tree, active_panel, &mut projection);
     projection
 }
 
-fn collect_panel_tree(
+fn collect_panel_tree<'a>(
     area: Rect,
-    tree: &NativePanelTree,
+    tree: &'a NativePanelTree,
     active_panel: Option<usize>,
-    projection: &mut PanelTreeProjection,
+    projection: &mut PanelTreeProjection<'a>,
 ) {
     match tree {
         NativePanelTree::Panel { panel_index } => projection.leaves.push(LeafArea {
@@ -383,25 +395,63 @@ fn collect_panel_tree(
             first,
             second,
             orientation,
-            ..
-        } => match divide_panes(area, *orientation) {
-            Some(division) => {
-                projection.dividers.push(division.divider);
-                collect_panel_tree(division.first, first, active_panel, projection);
-                collect_panel_tree(division.second, second, active_panel, projection);
-            }
-            None => {
-                if let Some(NativePanelTree::Panel { panel_index }) =
-                    active_leaf(tree, active_panel).or_else(|| first_leaf(tree))
-                {
-                    projection.leaves.push(LeafArea {
-                        panel_index: *panel_index,
-                        leaf: area,
-                        content: pane_content(area),
-                    });
+            split_id,
+            first_slot_id,
+            second_slot_id,
+        } => {
+            let division = divide_panes(area, *orientation);
+            projection.splits.push(SplitArea {
+                split_id,
+                first_slot_id,
+                second_slot_id,
+                orientation: *orientation,
+                area: (!area.is_empty()).then_some(area),
+                divider: division.map(|division| division.divider),
+            });
+            match division {
+                Some(division) => {
+                    projection.dividers.push(division.divider);
+                    collect_panel_tree(division.first, first, active_panel, projection);
+                    collect_panel_tree(division.second, second, active_panel, projection);
+                }
+                None => {
+                    collect_hidden_splits(first, &mut projection.splits);
+                    collect_hidden_splits(second, &mut projection.splits);
+                    if let Some(NativePanelTree::Panel { panel_index }) =
+                        active_leaf(tree, active_panel).or_else(|| first_leaf(tree))
+                    {
+                        projection.leaves.push(LeafArea {
+                            panel_index: *panel_index,
+                            leaf: area,
+                            content: pane_content(area),
+                        });
+                    }
                 }
             }
-        },
+        }
+    }
+}
+
+fn collect_hidden_splits<'a>(tree: &'a NativePanelTree, output: &mut Vec<SplitArea<'a>>) {
+    if let NativePanelTree::Split {
+        first,
+        second,
+        split_id,
+        first_slot_id,
+        second_slot_id,
+        orientation,
+    } = tree
+    {
+        output.push(SplitArea {
+            split_id,
+            first_slot_id,
+            second_slot_id,
+            orientation: *orientation,
+            area: None,
+            divider: None,
+        });
+        collect_hidden_splits(first, output);
+        collect_hidden_splits(second, output);
     }
 }
 
@@ -424,7 +474,7 @@ fn first_leaf(tree: &NativePanelTree) -> Option<&NativePanelTree> {
 /// The content rect of the leaf the live terminal attaches to: the active
 /// panel when it is projected, otherwise the first projected leaf (the same
 /// fallback the renderer uses when the active leaf cannot be placed).
-impl PanelTreeProjection {
+impl PanelTreeProjection<'_> {
     pub(crate) fn active_content(&self, active_panel: Option<usize>) -> Option<Rect> {
         self.leaves
             .iter()

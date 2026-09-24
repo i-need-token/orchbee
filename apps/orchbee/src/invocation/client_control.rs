@@ -4,7 +4,7 @@ use super::{
     Resource, Scope, Target, UsageContext, UsageReason, check_scope, missing_required, target,
     usage_with, wait_timeout_option,
 };
-use orchbee_workbench_protocol::{WorkbenchClientId, WorkbenchRequestId};
+use orchbee_workbench_protocol::{ClientPanelDirection, WorkbenchClientId, WorkbenchRequestId};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ZoomMode {
@@ -12,8 +12,18 @@ pub(crate) enum ZoomMode {
     On,
     Off,
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum LayoutQuery {
+    Layout,
+    Neighbor(ClientPanelDirection),
+    Edges,
+}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ClientNavigationTarget {
+    Layout {
+        target: Option<Target>,
+        query: LayoutQuery,
+    },
     Workspace(Target),
     Tab(Target),
     Panel(Option<Target>),
@@ -126,7 +136,7 @@ pub(super) fn parse(
         }
         [
             family @ ("workspace" | "tab" | "panel"),
-            verb @ ("focus" | "zoom"),
+            verb @ ("focus" | "zoom" | "layout" | "neighbor" | "edges"),
             rest @ ..,
         ] => {
             let panel = *family == "panel";
@@ -136,6 +146,9 @@ pub(super) fn parse(
                 ("tab", "focus") => "tab focus",
                 ("panel", "focus") => "panel focus",
                 ("panel", "zoom") => "panel zoom",
+                ("panel", "layout") => "panel layout",
+                ("panel", "neighbor") => "panel neighbor",
+                ("panel", "edges") => "panel edges",
                 _ => {
                     return Err(usage_with(
                         UsageReason::UnknownCommand {
@@ -150,6 +163,7 @@ pub(super) fn parse(
             check_scope(
                 options,
                 Scope {
+                    direction: *verb == "neighbor",
                     client: true,
                     request_id: true,
                     detach: true,
@@ -213,7 +227,34 @@ pub(super) fn parse(
                     let target = explicit
                         .map(|value| target(value.into(), Resource::Panel, envelope))
                         .transpose()?;
-                    if zoom {
+                    if matches!(*verb, "layout" | "neighbor" | "edges") {
+                        let query = match *verb {
+                            "layout" => LayoutQuery::Layout,
+                            "edges" => LayoutQuery::Edges,
+                            _ => {
+                                let value = options.direction.as_deref().ok_or_else(|| {
+                                    missing_required(context, "--direction", envelope)
+                                })?;
+                                let direction = match value {
+                                    "left" => ClientPanelDirection::Left,
+                                    "right" => ClientPanelDirection::Right,
+                                    "up" => ClientPanelDirection::Up,
+                                    "down" => ClientPanelDirection::Down,
+                                    _ => {
+                                        return Err(invalid(
+                                            value,
+                                            "--direction",
+                                            ExpectedValue::LayoutDirection,
+                                            context,
+                                            envelope,
+                                        ));
+                                    }
+                                };
+                                LayoutQuery::Neighbor(direction)
+                            }
+                        };
+                        ClientNavigationTarget::Layout { target, query }
+                    } else if zoom {
                         let selected: Vec<_> = [
                             ("--on", options.zoom_on),
                             ("--off", options.zoom_off),

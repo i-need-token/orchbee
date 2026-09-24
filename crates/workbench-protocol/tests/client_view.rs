@@ -30,7 +30,8 @@ fn shared_client_view_corpus_has_matching_typed_json_and_frame_results() {
                         request
                     );
                     write_workbench_request(&mut frame, &request).unwrap();
-                    assert_eq!(&frame[..8], b"OBWP\0\x01\0\x19");
+                    let kind = u16::try_from(case["frameKind"].as_u64().unwrap_or(25)).unwrap();
+                    assert_eq!(&frame[6..8], &kind.to_be_bytes());
                     assert_eq!(
                         read_workbench_request(&mut frame.as_slice()).unwrap(),
                         request
@@ -47,7 +48,8 @@ fn shared_client_view_corpus_has_matching_typed_json_and_frame_results() {
                         response
                     );
                     write_workbench_response(&mut frame, &response).unwrap();
-                    assert_eq!(&frame[..8], b"OBWP\0\x01\0\x1a");
+                    let kind = u16::try_from(case["frameKind"].as_u64().unwrap_or(26)).unwrap();
+                    assert_eq!(&frame[6..8], &kind.to_be_bytes());
                     assert_eq!(
                         read_workbench_response(&mut frame.as_slice()).unwrap(),
                         response

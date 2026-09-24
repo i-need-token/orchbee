@@ -1,4 +1,19 @@
 export {
+	ClientCellRectSchema,
+	ClientPanelDirectionSchema,
+	ClientPanelAreaSchema,
+	ClientSplitAreaSchema,
+	ClientPanelNeighborsSchema,
+	ClientPanelLayoutSchema,
+	WORKBENCH_MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES,
+	type ClientCellRect,
+	type ClientPanelDirection,
+	type ClientPanelArea,
+	type ClientSplitArea,
+	type ClientPanelNeighbors,
+	type ClientPanelLayout,
+} from './workbench-client-layout-contract';
+export {
 	MAX_PROJECTED_TERMINAL_IMAGE_PREVIEW_BYTES,
 	ProjectedAttachmentBootstrapSchema,
 	ProjectedTerminalOutcomeSchema,

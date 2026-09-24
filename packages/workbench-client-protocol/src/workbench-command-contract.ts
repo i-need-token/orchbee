@@ -1,3 +1,4 @@
+import { WORKBENCH_MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES } from './workbench-client-layout-contract';
 import {
 	WorkbenchClientViewRequestSchema,
 	WorkbenchClientViewResultSchema,
@@ -233,14 +234,18 @@ export const WorkbenchRequestSchema = z
 		WorkbenchWorkspaceGroupCloseRequestSchema,
 		WorkbenchClientViewRequestSchema,
 	])
-	.refine(
-		(value) =>
-			encodedBytes(value) <=
-			(value.kind === 'workbench.worktree.operation'
-				? WORKBENCH_MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES
-				: WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES),
-		'Workbench request exceeds its encoded limit',
-	);
+	.refine((value) => {
+		let maximum = WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES;
+		if (value.kind === 'workbench.worktree.operation')
+			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES;
+		if (
+			value.kind === 'workbench.client-view' &&
+			value.action.kind === 'synchronize' &&
+			value.action.completion?.outcome.kind === 'layout-read'
+		)
+			maximum = WORKBENCH_MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES;
+		return encodedBytes(value) <= maximum;
+	}, 'Workbench request exceeds its encoded limit');
 
 export const WorkbenchRejectionReasonSchema = z.enum([
 	'site-mismatch',
@@ -518,7 +523,10 @@ export const WorkbenchResponseSchema = z
 		) {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES;
 		} else if (value.kind === 'workbench.client-view.result') {
-			maximum = WORKBENCH_MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES;
+			maximum =
+				value.outcome.kind === 'operation' && value.outcome.operation.status.kind === 'layout-read'
+					? WORKBENCH_MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES
+					: WORKBENCH_MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES;
 		} else if (value.kind === 'workbench.workspace-group-close.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES;
 		} else if (value.kind === 'workbench.worktree.query.result') {

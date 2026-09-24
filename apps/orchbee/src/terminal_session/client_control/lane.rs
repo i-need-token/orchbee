@@ -2,9 +2,10 @@
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_workbench_protocol::{
-    ClientViewAction, ClientViewCompletion, ClientViewControl, ClientViewObservation,
-    ClientViewOutcome, ClientViewSequence, ProtocolVersion, SiteId, WorkbenchClientViewRequest,
-    WorkbenchRequestId,
+    ClientViewAction, ClientViewCompletion, ClientViewControl, ClientViewIntent,
+    ClientViewObservation, ClientViewOutcome, ClientViewSequence, ProtocolVersion, SiteId,
+    Snapshot, SnapshotReadIntent, WorkbenchClientViewRequest, WorkbenchRequestId,
+    WorkbenchSnapshotOutcome,
 };
 use std::{
     io,
@@ -19,11 +20,15 @@ pub(super) struct Sample {
     pub(super) revision: ClientViewSequence,
     pub(super) view: ClientViewObservation,
 }
+pub(super) struct Delivery {
+    pub(super) command: ClientViewControl,
+    pub(super) layout_snapshot: Option<Snapshot>,
+}
 #[derive(Default)]
 struct Handoff {
     sample: Option<Sample>,
     completion: Option<(Sample, ClientViewCompletion)>,
-    control: Option<ClientViewControl>,
+    control: Option<Delivery>,
     stopped: bool,
     failed: bool,
 }
@@ -85,7 +90,7 @@ impl ClientControlLane {
         signal.notify_one();
         true
     }
-    pub(super) fn take_control(&self) -> Option<ClientViewControl> {
+    pub(super) fn take_control(&self) -> Option<Delivery> {
         self.shared.0.lock().ok()?.control.take()
     }
     pub(super) fn failed(&self) -> bool {
@@ -187,6 +192,41 @@ fn run(
         let ClientViewOutcome::Synchronized { control, .. } = result.outcome else {
             return;
         };
+        let delivery = if let Some(control) = control {
+            let layout_snapshot = if matches!(control.intent, ClientViewIntent::Layout { .. }) {
+                let Some(next) = exchange_id.checked_add(1) else {
+                    return;
+                };
+                exchange_id = next;
+                let Ok(request_id) = WorkbenchRequestId::parse(&format!("{exchange_id:032x}"))
+                else {
+                    return;
+                };
+                let Ok(result) = client.submit_workbench_snapshot_read_before_cancellable(
+                    SnapshotReadIntent {
+                        protocol_version: ProtocolVersion,
+                        request_id,
+                    },
+                    clock.now() + Duration::from_secs(2),
+                    Some(wake.as_local_io()),
+                ) else {
+                    return;
+                };
+                match result.outcome {
+                    WorkbenchSnapshotOutcome::Available { snapshot } => Some(snapshot),
+                    WorkbenchSnapshotOutcome::Unavailable { .. }
+                    | WorkbenchSnapshotOutcome::Denied {} => None,
+                }
+            } else {
+                None
+            };
+            Some(Delivery {
+                command: *control,
+                layout_snapshot,
+            })
+        } else {
+            None
+        };
         let Ok(mut handoff) = lock.lock() else {
             return;
         };
@@ -200,11 +240,11 @@ fn run(
             }
             handoff.completion = None;
         }
-        if let Some(control) = control {
+        if let Some(delivery) = delivery {
             if handoff.control.is_some() {
                 return;
             }
-            handoff.control = Some(*control);
+            handoff.control = Some(delivery);
         }
         next_exchange = Instant::now() + Duration::from_millis(100);
     }
@@ -221,13 +261,19 @@ impl ClientControlLane {
         }
     }
     pub(super) fn inject_for_test(&self, control: ClientViewControl) {
+        self.inject_delivery_for_test(Delivery {
+            command: control,
+            layout_snapshot: None,
+        });
+    }
+    pub(super) fn inject_delivery_for_test(&self, delivery: Delivery) {
         assert!(
             self.shared
                 .0
                 .lock()
                 .unwrap()
                 .control
-                .replace(control)
+                .replace(delivery)
                 .is_none()
         );
     }

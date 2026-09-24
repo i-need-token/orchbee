@@ -6,7 +6,7 @@ use crate::{
         failure_output, query,
         source::{ArmedSignals, Finish, SignalWatch},
     },
-    invocation::{ClientCommand, OutputFormat},
+    invocation::{ClientCommand, ClientNavigationTarget, OutputFormat},
     local_client::{LocalClient, workbench::client_view::ClientViewExchangeError},
     localization::Locale,
 };
@@ -94,7 +94,13 @@ pub(super) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale)
             Some(format),
             locale,
         ),
-        Ok(()) => emit(&answer, format, locale),
+        Ok(()) => match command {
+            ClientCommand::Navigate {
+                target: ClientNavigationTarget::Layout { query, .. },
+                ..
+            } => super::layout::emit(&answer, *query, format, locale),
+            _ => emit(&answer, format, locale),
+        },
         Err(error) => failure_output(error, Some(format), locale),
     };
     output.finalization = finalization;

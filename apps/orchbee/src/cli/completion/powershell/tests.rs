@@ -8,6 +8,14 @@ use std::{
 #[test]
 fn real_powershell_completes_scoped_grammar_without_runtime() {
     let cases = [
+        ("orchbee panel ", "layout", true),
+        ("orchbee panel neighbor --direction ", "up", true),
+        ("orchbee panel neighbor --direction ", "above", false),
+        ("orchbee panel layout --d", "--direction", false),
+        ("orchbee panel edges --current --p", "--panel", false),
+        ("orchbee panel neighbor --current abc ", "--format", false),
+        ("orchbee --direction up panel ", "neighbor", true),
+        ("orchbee --direction up panel ", "layout", false),
         ("orchbee api schema --o", "--output", true),
         ("orchbee api snapshot --o", "--output", false),
         ("orchbee --output file.json api ", "schema", true),

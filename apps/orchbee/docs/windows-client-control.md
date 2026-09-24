@@ -19,6 +19,7 @@ A control command contains operation identity, exact Client identity, expected v
 - Panel: select the exact Panel in its Tab/context.
 - Zoom: set the exact selected Panel's Tab zoom to an explicit boolean.
 - ToggleZoom: toggle that Tab once from the state observed by its UI owner after target activation.
+- Layout: read exact target geometry without selecting or resizing; the [layout owner](windows-client-layout.md) defines its observation and budget.
 
 Toggle resolution belongs to the TUI and is retained for the delivered operation. Equal operation identity and complete command returns its retained observation, including after the Client disconnects. Changed command data conflicts. After receipt expiry, absence does not establish that an earlier command had no effect.
 
@@ -60,3 +61,5 @@ Evidence must cover owner isolation, two Clients, stale/frozen UI, revision chan
 ### Targeted zoom toggle
 
 `ToggleZoom` is an exact target intent. The UI captures the target Tab's prior zoom once after activating that Tab, then preserves that decision across Panel focus and subsequent ticks. `ZoomToggled` carries `previouslyZoomed` and a successfully drawn observation with the inverse zoom value. It cannot acknowledge a plain `Zoom` intent. Single-panel targets report `ZoomUnchanged`; they do not claim a toggle occurred. Interrupted navigation remains incomplete, and status reads never execute another toggle.
+
+Layout reads use the same one-delivery lane but complete with `layout-read` without a draw acknowledgement. Dedicated frame kinds 27/28 carry their larger bounded payloads. `ClientViewControl` also abstracts read purity and pending/result memory reservations; exact payload accounting is exercised by registry tests.

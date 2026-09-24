@@ -526,7 +526,7 @@ fn manual_clean_flight_hint_stays_pending_through_refusal_and_drains_once() {
     assert!(mailbox.try_recv().unwrap().is_none());
 }
 
-pub(super) fn split_snapshot(revision: u64) -> Snapshot {
+pub(in crate::terminal_session) fn split_snapshot(revision: u64) -> Snapshot {
     let mut baseline = snapshot(2, revision);
     let original_root = baseline.terminal_contexts[0].tabs[0].root.clone();
     baseline.terminal_contexts[0].tabs[0].root = PanelNode::Split {

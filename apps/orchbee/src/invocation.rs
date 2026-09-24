@@ -1,6 +1,6 @@
 mod client_control;
 mod schema_export;
-pub(crate) use client_control::{ClientCommand, ClientNavigationTarget, ZoomMode};
+pub(crate) use client_control::{ClientCommand, ClientNavigationTarget, LayoutQuery, ZoomMode};
 mod workspace_group_close;
 pub(crate) use workspace_group_close::WorkspaceGroupCloseCommand;
 mod worktree;
@@ -180,6 +180,9 @@ pub(crate) enum CommandPath {
     TabFocus,
     PanelFocus,
     PanelZoom,
+    PanelLayout,
+    PanelNeighbor,
+    PanelEdges,
 
     Tui,
     Status,
@@ -260,6 +263,9 @@ impl CommandPath {
             Self::TabFocus => "tab focus",
             Self::PanelFocus => "panel focus",
             Self::PanelZoom => "panel zoom",
+            Self::PanelLayout => "panel layout",
+            Self::PanelNeighbor => "panel neighbor",
+            Self::PanelEdges => "panel edges",
 
             Self::Tui => "tui",
             Self::Status => "status",
@@ -1077,6 +1083,7 @@ pub(crate) enum ExpectedValue {
     Dimension,
     TabDirection,
     PanelDirection,
+    LayoutDirection,
     Shell,
     HistoryRows,
     DirectoryPath,
@@ -2010,9 +2017,13 @@ fn resolve_words(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     match words {
-        ["client", ..] | ["workspace" | "tab", "focus", ..] | ["panel", "focus" | "zoom", ..] => {
-            client_control::parse(words, options, envelope)
-        }
+        ["client", ..]
+        | ["workspace" | "tab", "focus", ..]
+        | [
+            "panel",
+            "focus" | "zoom" | "layout" | "neighbor" | "edges",
+            ..,
+        ] => client_control::parse(words, options, envelope),
 
         [] => {
             // Bare invocation keeps TUI; a selected format or any option
@@ -3623,6 +3634,9 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["tab", "focus"] => HelpTopic::Command(CommandPath::TabFocus),
         ["panel", "focus"] => HelpTopic::Command(CommandPath::PanelFocus),
         ["panel", "zoom"] => HelpTopic::Command(CommandPath::PanelZoom),
+        ["panel", "layout"] => HelpTopic::Command(CommandPath::PanelLayout),
+        ["panel", "neighbor"] => HelpTopic::Command(CommandPath::PanelNeighbor),
+        ["panel", "edges"] => HelpTopic::Command(CommandPath::PanelEdges),
 
         ["tui"] => HelpTopic::Command(CommandPath::Tui),
         ["status"] => HelpTopic::Command(CommandPath::Status),

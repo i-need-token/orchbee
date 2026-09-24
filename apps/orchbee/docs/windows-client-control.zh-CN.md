@@ -19,6 +19,7 @@
 - Panel：选择所属 Tab／context 中的精确 Panel。
 - Zoom：将精确选中 Panel 所在 Tab 的缩放设为显式布尔值。
 - ToggleZoom：UI 所有者激活目标后，从观测到的状态切换该 Tab 一次。
+- Layout：读取精确目标几何，不选择或调整尺寸；[布局所有者](windows-client-layout.zh-CN.md)定义其观测与预算。
 
 toggle 由 TUI 解析，并为这次已投递操作保留解析结果。相同操作身份和完整命令返回保留的观测，即使 Client 已断开。命令数据改变会冲突。回执过期后的缺失不能证明原命令没有效果。
 
@@ -60,3 +61,5 @@ TUI 退出时控制通道停止、唤醒阻塞 I/O 并 join。Server Session 清
 ### 指定目标的缩放切换
 
 `ToggleZoom` 是精确目标意图。UI 激活目标 Tab 后，只采样一次该 Tab 原有的缩放状态，并在 Panel 焦点切换和后续循环中保留此决定。`ZoomToggled` 携带 `previouslyZoomed` 及成功绘制后的观察，缩放值必须与原值相反。它不能确认普通的 `Zoom` 意图。单 Panel 目标返回 `ZoomUnchanged`，不声称发生了缩放切换。导航中断仍返回未完成，状态查询不会再次执行切换。
+
+布局读取使用同一个单次投递通道，但无需绘制确认，直接以 `layout-read` 完成。专用帧类型 27/28 承载其较大的有界载荷。`ClientViewControl` 还抽象只读纯度以及待处理／结果内存预留；registry 测试验证精确载荷计费。

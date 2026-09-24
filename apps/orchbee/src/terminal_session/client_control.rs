@@ -3,7 +3,8 @@ use super::ui::NativeUi;
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};
 use orchbee_workbench_protocol::{
     ClientViewCompletion, ClientViewCompletionOutcome, ClientViewControl,
-    ClientViewControlReason as Reason, ClientViewObservation, ClientViewPhase, ClientViewSequence,
+    ClientViewControlReason as Reason, ClientViewIntent, ClientViewObservation, ClientViewPhase,
+    ClientViewSequence,
 };
 use std::time::Instant;
 
@@ -42,6 +43,7 @@ pub(super) struct ClientControl {
     observed: Option<ClientViewObservation>,
     pending: Option<Pending>,
     shell_blocked: bool,
+    viewport: Option<(ratatui::layout::Rect, crate::client_view::SidebarSurface)>,
 }
 impl ClientControl {
     pub(super) const fn new(origin: LocalClientOrigin, clock: LocalOperationClock) -> Self {
@@ -55,7 +57,15 @@ impl ClientControl {
             observed: None,
             pending: None,
             shell_blocked: false,
+            viewport: None,
         }
+    }
+    pub(super) fn observe_geometry(
+        &mut self,
+        viewport: ratatui::layout::Rect,
+        sidebar: crate::client_view::SidebarSurface,
+    ) {
+        self.viewport = Some((viewport, sidebar));
     }
     fn sample(&mut self, view: ClientViewObservation) -> Option<Sample> {
         self.heartbeat = self.heartbeat.checked_add(1)?;
@@ -103,7 +113,8 @@ impl ClientControl {
             self.close();
             return false;
         }
-        if let Some(command) = lane.take_control() {
+        if let Some(delivery) = lane.take_control() {
+            let command = delivery.command;
             if self.pending.is_some() {
                 self.close();
                 return false;
@@ -128,6 +139,31 @@ impl ClientControl {
                 ) {
                     self.close();
                 }
+                return false;
+            }
+            if matches!(command.intent, ClientViewIntent::Layout { .. }) {
+                let outcome = match (delivery.layout_snapshot, self.viewport) {
+                    (Some(snapshot), Some((viewport, sidebar))) => {
+                        native.read_client_layout(&command, &snapshot, viewport, sidebar)
+                    }
+                    _ => Err(Reason::ProjectionUnavailable),
+                };
+                let outcome = match outcome {
+                    Ok(layout) => ClientViewCompletionOutcome::LayoutRead {
+                        layout: Box::new(layout),
+                    },
+                    Err(reason) => ClientViewCompletionOutcome::Rejected { reason },
+                };
+                if !lane.complete(
+                    sample,
+                    ClientViewCompletion {
+                        operation_id: command.operation_id,
+                        outcome,
+                    },
+                ) {
+                    self.close();
+                }
+                // Read-only completion never asks the shell to synchronize sizes or redraw.
                 return false;
             }
             self.pending = Some(Pending {

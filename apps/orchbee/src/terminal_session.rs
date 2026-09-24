@@ -302,9 +302,17 @@ impl TerminalSession {
 
     // Only the shell's successful draw calls this, so an undrawn frame is never acknowledged.
     #[cfg(windows)]
-    pub(crate) fn client_control_tick(&mut self, shell_blocked: bool) -> bool {
+    pub(crate) fn client_control_tick(
+        &mut self,
+        shell_blocked: bool,
+        viewport: ratatui::layout::Rect,
+        sidebar: crate::client_view::SidebarSurface,
+    ) -> bool {
         match (&mut self.client_control, &mut self.backend) {
-            (Some(control), SessionBackend::Native(native)) => control.tick(native, shell_blocked),
+            (Some(control), SessionBackend::Native(native)) => {
+                control.observe_geometry(viewport, sidebar);
+                control.tick(native, shell_blocked)
+            }
             _ => false,
         }
     }

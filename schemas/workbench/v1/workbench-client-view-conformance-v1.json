@@ -1102,6 +1102,537 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "submit-layout",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "layout",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "complete-layout",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "synchronize",
+					"heartbeat": "1",
+					"viewRevision": "2",
+					"view": {
+						"workbenchRevision": "12",
+						"phase": "ready",
+						"selection": {
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"zoomed": false,
+							"panelCount": 2
+						}
+					},
+					"completion": {
+						"operationId": "00000000000000000000000000000003",
+						"outcome": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 27
+		},
+		{
+			"name": "layout-read",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28
+		},
+		{
+			"name": "inactive-layout-read",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": false,
+								"zoomed": false,
+								"focusedPanelId": null,
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "0000000000000000000000000000001e",
+									"panelId": "0000000000000000000000000000001f",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28
+		},
+		{
+			"name": "hidden-source-layout-read",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000008"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000008",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": false,
+								"neighbors": {
+									"left": null,
+									"right": null,
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": null,
+										"terminal": null,
+										"displayed": null
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": null,
+										"divider": null
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28
 		}
 	],
 	"invalid": [
@@ -3098,6 +3629,2892 @@
 				}
 			},
 			"boundary": "schema"
+		},
+		{
+			"name": "layout-missing-focusedPanelId",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "schema"
+		},
+		{
+			"name": "layout-missing-sourceAvailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "schema"
+		},
+		{
+			"name": "layout-missing-neighbors",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": true,
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "schema"
+		},
+		{
+			"name": "layout-missing-nullable-rect",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "schema"
+		},
+		{
+			"name": "layout-unknown-field",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								],
+								"extra": true
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "schema"
+		},
+		{
+			"name": "layout-nonfinite-ratio",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": null,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "schema"
+		},
+		{
+			"name": "layout-out-of-range-ratio",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.99,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "schema"
+		},
+		{
+			"name": "layout-cell-overflow",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 65530,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "semantic"
+		},
+		{
+			"name": "layout-content-outside-outer",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 50,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "semantic"
+		},
+		{
+			"name": "layout-unknown-source",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "000000000000000000000000000003e7",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "semantic"
+		},
+		{
+			"name": "layout-false-availability",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": false,
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "semantic"
+		},
+		{
+			"name": "layout-false-edge",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": null,
+									"right": null,
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "semantic"
+		},
+		{
+			"name": "layout-self-neighbor",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": "00000000000000000000000000000006",
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "semantic"
+		},
+		{
+			"name": "layout-duplicate-panel",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "semantic"
+		},
+		{
+			"name": "layout-duplicate-slot",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000015",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "semantic"
+		},
+		{
+			"name": "layout-wrong-divider-width",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 2,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "semantic"
+		},
+		{
+			"name": "layout-mismatched-target",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "000000000000000000000000000003e7"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "semantic"
+		},
+		{
+			"name": "layout-stale-revision",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "13",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "semantic"
+		},
+		{
+			"name": "layout-cannot-ack-panel",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "panel",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "semantic"
+		},
+		{
+			"name": "layout-cannot-use-ordinary-applied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "applied",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "semantic"
+		},
+		{
+			"name": "layout-false-selected",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": false,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "semantic"
+		},
+		{
+			"name": "layout-selected-count-mismatch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "layout",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006"
+							}
+						},
+						"status": {
+							"kind": "layout-read",
+							"layout": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"sourcePanelId": "00000000000000000000000000000006",
+								"workbenchRevision": "12",
+								"viewport": {
+									"x": 0,
+									"y": 0,
+									"width": 100,
+									"height": 30
+								},
+								"area": {
+									"x": 1,
+									"y": 2,
+									"width": 98,
+									"height": 26
+								},
+								"selected": true,
+								"zoomed": false,
+								"focusedPanelId": "00000000000000000000000000000006",
+								"sourceAvailable": true,
+								"neighbors": {
+									"left": null,
+									"right": "00000000000000000000000000000008",
+									"up": null,
+									"down": null
+								},
+								"panels": [
+									{
+										"panelId": "00000000000000000000000000000006",
+										"unzoomed": {
+											"x": 1,
+											"y": 2,
+											"width": 49,
+											"height": 26
+										},
+										"terminal": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										},
+										"displayed": {
+											"x": 1,
+											"y": 3,
+											"width": 49,
+											"height": 25
+										}
+									},
+									{
+										"panelId": "00000000000000000000000000000008",
+										"unzoomed": {
+											"x": 51,
+											"y": 2,
+											"width": 48,
+											"height": 26
+										},
+										"terminal": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										},
+										"displayed": {
+											"x": 51,
+											"y": 3,
+											"width": 48,
+											"height": 25
+										}
+									}
+								],
+								"splits": [
+									{
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"orientation": "horizontal",
+										"ratio": 0.5,
+										"area": {
+											"x": 1,
+											"y": 2,
+											"width": 98,
+											"height": 26
+										},
+										"divider": {
+											"x": 50,
+											"y": 2,
+											"width": 1,
+											"height": 26
+										}
+									}
+								]
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 1
+								}
+							}
+						}
+					}
+				}
+			},
+			"frameKind": 28,
+			"boundary": "semantic"
 		}
 	],
 	"validJson": [

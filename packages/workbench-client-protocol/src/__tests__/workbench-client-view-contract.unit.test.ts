@@ -9,6 +9,7 @@ const caseSchema = z.strictObject({
 	direction: z.enum(['request', 'response']),
 	document: z.unknown(),
 	boundary: z.enum(['schema', 'semantic']).optional(),
+	frameKind: z.number().int().min(1).max(28).optional(),
 });
 const corpusSchema = z.strictObject({
 	contractVersion: z.literal(1),

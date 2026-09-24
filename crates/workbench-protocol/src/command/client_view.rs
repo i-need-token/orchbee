@@ -1,5 +1,5 @@
 //! Ephemeral Client-owned selection and connection-scoped, acknowledged navigation.
-use super::json_fields::deserialize_nullable;
+use super::{client_layout::ClientPanelLayout, json_fields::deserialize_nullable};
 use crate::identity::WorkbenchClientId;
 use crate::{
     ContractError, ProtocolVersion, SiteId, WorkbenchPanelId, WorkbenchRequestId,
@@ -106,6 +106,11 @@ pub struct ClientViewRecord {
     deny_unknown_fields
 )]
 pub enum ClientViewIntent {
+    Layout {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+    },
     Context {
         terminal_context_id: WorkbenchTerminalContextId,
     },
@@ -202,7 +207,7 @@ impl ClientViewIntent {
             return false;
         };
         match self {
-            Self::ToggleZoom { .. } => false,
+            Self::ToggleZoom { .. } | Self::Layout { .. } => false,
             Self::Context {
                 terminal_context_id,
             } => selection.terminal_context_id == *terminal_context_id,
@@ -267,6 +272,7 @@ pub enum ClientViewControlReason {
     deny_unknown_fields
 )]
 pub enum ClientViewCompletionOutcome {
+    LayoutRead { layout: Box<ClientPanelLayout> },
     Applied {},
     ZoomUnchanged {},
     ZoomToggled { previously_zoomed: bool },
@@ -287,6 +293,10 @@ pub struct ClientViewCompletion {
     deny_unknown_fields
 )]
 pub enum ClientViewControlStatus {
+    LayoutRead {
+        layout: Box<ClientPanelLayout>,
+        view: ClientViewObservation,
+    },
     Queued {},
     Delivered {},
     Applied {
@@ -323,6 +333,37 @@ pub struct ClientViewOperation {
 impl ClientViewOperation {
     pub fn validate(&self) -> Result<(), ContractError> {
         match &self.status {
+            ClientViewControlStatus::LayoutRead { layout, view } => {
+                layout.validate()?;
+                view.validate()?;
+                let ClientViewIntent::Layout {
+                    terminal_context_id,
+                    tab_id,
+                    panel_id,
+                } = &self.command.intent
+                else {
+                    return Err(ContractError::InvalidDocument);
+                };
+                let selected = view.selection.as_ref().is_some_and(|selection| {
+                    &selection.terminal_context_id == terminal_context_id
+                        && selection.tab_id.as_ref() == Some(tab_id)
+                });
+                if &layout.terminal_context_id != terminal_context_id
+                    || &layout.tab_id != tab_id
+                    || &layout.source_panel_id != panel_id
+                    || layout.workbench_revision < self.command.minimum_workbench_revision
+                    || layout.selected != selected
+                    || (selected
+                        && view.selection.as_ref().is_none_or(|selection| {
+                            layout.focused_panel_id != selection.panel_id
+                                || layout.zoomed != selection.zoomed
+                                || layout.panels.len() != usize::from(selection.panel_count)
+                                || layout.workbench_revision != view.workbench_revision
+                        }))
+                {
+                    return Err(ContractError::InvalidDocument);
+                }
+            }
             ClientViewControlStatus::ZoomToggled {
                 previously_zoomed,
                 view,
@@ -401,8 +442,18 @@ pub struct WorkbenchClientViewRequest {
 }
 impl WorkbenchClientViewRequest {
     pub fn validate(&self) -> Result<(), ContractError> {
-        if let ClientViewAction::Synchronize { view, .. } = &self.action {
+        if let ClientViewAction::Synchronize {
+            view, completion, ..
+        } = &self.action
+        {
             view.validate()?;
+            if let Some(ClientViewCompletion {
+                outcome: ClientViewCompletionOutcome::LayoutRead { layout },
+                ..
+            }) = completion
+            {
+                layout.validate()?;
+            }
         }
         Ok(())
     }

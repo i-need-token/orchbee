@@ -85,6 +85,20 @@ pub fn write_workbench_response(
 
 fn request_kind(request: &WorkbenchRequest) -> u16 {
     match request {
+        WorkbenchRequest::ClientView(request)
+            if matches!(
+                request.action,
+                crate::ClientViewAction::Synchronize {
+                    completion: Some(crate::ClientViewCompletion {
+                        outcome: crate::ClientViewCompletionOutcome::LayoutRead { .. },
+                        ..
+                    }),
+                    ..
+                }
+            ) =>
+        {
+            27
+        }
         WorkbenchRequest::ClientView(_) => 25,
         WorkbenchRequest::WorkspaceGroupClose(_) => 23,
         WorkbenchRequest::WorktreeQuery(_) => 21,
@@ -103,6 +117,13 @@ fn request_kind(request: &WorkbenchRequest) -> u16 {
 
 fn response_kind(response: &WorkbenchResponse) -> u16 {
     match response {
+        WorkbenchResponse::ClientView(result)
+            if matches!(&result.outcome,
+            crate::ClientViewOutcome::Operation { operation } if matches!(operation.status,
+                crate::ClientViewControlStatus::LayoutRead { .. })) =>
+        {
+            28
+        }
         WorkbenchResponse::ClientView(_) => 26,
         WorkbenchResponse::WorkspaceGroupClose(_) => 24,
         WorkbenchResponse::WorktreeQuery(_) => 22,
@@ -130,12 +151,12 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
         || (request
             && !matches!(
                 kind,
-                1 | 2 | 5 | 7 | 9 | 11 | 13 | 15 | 17 | 19 | 21 | 23 | 25
+                1 | 2 | 5 | 7 | 9 | 11 | 13 | 15 | 17 | 19 | 21 | 23 | 25 | 27
             ))
         || (!request
             && !matches!(
                 kind,
-                3 | 4 | 6 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 22 | 24 | 26
+                3 | 4 | 6 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 22 | 24 | 26 | 28
             ))
     {
         return Err(WorkbenchWireError::InvalidHeader);
@@ -148,6 +169,8 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
         MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES
     } else if request && kind == 2 {
         crate::MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES
+    } else if matches!(kind, 27 | 28) {
+        crate::MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES
     } else if kind == 26 {
         crate::MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES
     } else if kind == 24 {

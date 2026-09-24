@@ -78,3 +78,94 @@ fn closing_the_lane_wakes_and_joins_blocked_admission_and_exchange() {
         server.finish().unwrap();
     }
 }
+
+#[test]
+fn closing_during_the_one_layout_snapshot_read_wakes_and_joins_without_delivery() {
+    use orchbee_workbench_protocol::{parse_workbench_response, write_workbench_response};
+    let corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json"
+    ))
+    .unwrap();
+    let document = |name: &str| {
+        corpus["valid"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|case| case["name"] == name)
+            .unwrap()["document"]
+            .clone()
+    };
+    let mut reply = document("synchronized");
+    reply["outcome"]["control"]["intent"] =
+        document("submit-layout")["action"]["command"]["intent"].clone();
+    let reply = parse_workbench_response(&serde_json::to_vec(&reply).unwrap()).unwrap();
+    let (reached_tx, reached_rx) = mpsc::sync_channel(1);
+    let server = FakeServer::start_connections(2, move |index, mut stream| {
+        assert!(matches!(
+            read_message(&mut stream).map_err(io::Error::other)?,
+            LocalClientMessage::ClientHello(_)
+        ));
+        write_message(
+            &mut stream,
+            &LocalClientMessage::ClientAccepted {
+                generation: NonZeroU64::new(if index == 1 { 7 } else { 1 }).unwrap(),
+            },
+        )
+        .map_err(io::Error::other)?;
+        if index == 1 {
+            assert!(matches!(
+                read_workbench_request(&mut stream).map_err(io::Error::other)?,
+                WorkbenchRequest::ClientView(_)
+            ));
+            write_workbench_response(&mut stream, &reply).map_err(io::Error::other)?;
+            let WorkbenchRequest::SnapshotRead(request) =
+                read_workbench_request(&mut stream).map_err(io::Error::other)?
+            else {
+                panic!("exactly one canonical read");
+            };
+            assert_eq!(
+                request.request_id.as_str(),
+                "00000000000000000000000000000002"
+            );
+            reached_tx.send(()).unwrap();
+            let mut byte = [0];
+            assert_eq!(
+                stream.read(&mut byte)?,
+                0,
+                "shutdown interrupts the snapshot read without another request"
+            );
+        }
+        Ok(())
+    })
+    .unwrap();
+    let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+    let origin = client.origin();
+    let clock = client.operation_clock();
+    drop(client);
+    let WorkbenchRequest::ClientView(request) =
+        parse_workbench_request(&serde_json::to_vec(&document("synchronize")).unwrap()).unwrap()
+    else {
+        panic!("view");
+    };
+    let ClientViewAction::Synchronize {
+        heartbeat,
+        view_revision,
+        view,
+        ..
+    } = request.action
+    else {
+        panic!("sample");
+    };
+    let mut lane = ClientControlLane::spawn(origin, clock, request.site_id).unwrap();
+    assert!(lane.publish(Sample {
+        heartbeat,
+        revision: view_revision,
+        view: *view
+    }));
+    reached_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+    assert!(lane.take_control().is_none());
+    lane.close();
+    assert!(lane.task.is_none());
+    assert!(lane.take_control().is_none());
+    server.finish().unwrap();
+}

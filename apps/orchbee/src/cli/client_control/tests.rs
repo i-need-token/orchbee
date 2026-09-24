@@ -343,3 +343,151 @@ fn client_control_routing_failures_are_closed_schema_documents() {
         validator.validate(&document).unwrap();
     }
 }
+
+#[test]
+fn layout_grammar_accepts_current_targets_and_rejects_direction_or_target_ambiguity() {
+    use crate::invocation::LayoutQuery;
+    use orchbee_workbench_protocol::ClientPanelDirection;
+    let parse = |words: &[&str]| invocation::parse_request(words.iter().map(OsString::from));
+    for verb in ["layout", "neighbor", "edges"] {
+        let mut words = vec!["panel", verb, "--current"];
+        if verb == "neighbor" {
+            words.extend(["--direction", "up"]);
+        }
+        let Request::Client {
+            command: ClientCommand::Navigate { target, .. },
+            ..
+        } = parse(&words).unwrap()
+        else {
+            panic!("layout query");
+        };
+        assert!(matches!(target, ClientNavigationTarget::Layout { .. }));
+        assert!(matches!(
+            parse(&["help", "panel", verb]).unwrap(),
+            Request::Help(_)
+        ));
+    }
+    let Request::Client {
+        command: ClientCommand::Navigate { target, .. },
+        ..
+    } = parse(&["--direction=left", "panel", "neighbor"]).unwrap()
+    else {
+        panic!("neighbor");
+    };
+    assert_eq!(
+        target,
+        ClientNavigationTarget::Layout {
+            target: None,
+            query: LayoutQuery::Neighbor(ClientPanelDirection::Left)
+        }
+    );
+    for words in [
+        vec!["panel", "neighbor"],
+        vec!["panel", "neighbor", "--direction", "above"],
+        vec!["panel", "layout", "--direction", "right"],
+        vec!["panel", "edges", "--on"],
+        vec![
+            "panel",
+            "layout",
+            "00000000000000000000000000000006",
+            "--current",
+        ],
+        vec![
+            "panel",
+            "neighbor",
+            "--panel",
+            "00000000000000000000000000000006",
+            "--current",
+            "--direction",
+            "up",
+        ],
+        vec!["panel", "edges", "--timeout", "0"],
+        vec!["workspace", "layout", "label:x"],
+    ] {
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
+}
+
+#[test]
+fn layout_queries_keep_exact_routing_and_emit_closed_locale_independent_documents() {
+    use crate::invocation::LayoutQuery;
+    use orchbee_workbench_protocol::ClientPanelDirection;
+    let target = ClientNavigationTarget::Layout {
+        target: None,
+        query: LayoutQuery::Edges,
+    };
+    assert!(matches!(
+        selection::intent(&target, &record(), None, &snapshot()).unwrap(),
+        ClientViewIntent::Layout { .. }
+    ));
+    let schema: Value =
+        serde_json::from_str(include_str!("../schemas/orchbee.panel.layout.json")).unwrap();
+    let validator = jsonschema::draft202012::new(&schema).unwrap();
+    for name in [
+        "layout-read",
+        "inactive-layout-read",
+        "hidden-source-layout-read",
+    ] {
+        let WorkbenchResponse::ClientView(reply) = serde_json::from_value(sample(name)).unwrap()
+        else {
+            panic!("view result");
+        };
+        let mut answer = answer_without_reply(None);
+        answer.site_id = Some(reply.site_id.clone());
+        answer.reply = Some(reply);
+        for query in [
+            LayoutQuery::Layout,
+            LayoutQuery::Neighbor(ClientPanelDirection::Right),
+            LayoutQuery::Edges,
+        ] {
+            let en = layout::emit(&answer, query, OutputFormat::Json, Locale::EnUs);
+            let zh = layout::emit(&answer, query, OutputFormat::Json, Locale::ZhCn);
+            assert_eq!(en.stdout, zh.stdout);
+            let document: Value = serde_json::from_slice(&en.stdout).unwrap();
+            validator.validate(&document).unwrap();
+            match query {
+                LayoutQuery::Layout => {
+                    assert_eq!(document["projection"], serde_json::json!({"kind":"layout"}))
+                }
+                LayoutQuery::Neighbor(_) => {
+                    assert_eq!(document["projection"]["direction"], "right");
+                    assert!(document["projection"].get("neighborPanelId").is_some());
+                }
+                LayoutQuery::Edges => {
+                    assert_eq!(
+                        document["projection"]["sourceAvailable"],
+                        name != "hidden-source-layout-read"
+                    );
+                    for direction in ["left", "right", "up", "down"] {
+                        assert_eq!(
+                            document["projection"][direction].is_null(),
+                            name == "hidden-source-layout-read"
+                        );
+                    }
+                }
+            }
+            let hidden_query =
+                name == "hidden-source-layout-read" && !matches!(query, LayoutQuery::Layout);
+            assert_eq!(en.status, if hidden_query { 3 } else { 0 });
+            let text = layout::emit(&answer, query, OutputFormat::Text, Locale::ZhCn);
+            assert!(!text.stdout.is_empty());
+            assert_eq!(text.status, en.status);
+        }
+    }
+    for wait in [
+        Some(Wait::TimedOut),
+        Some(Wait::Cancelled),
+        Some(Wait::Detached),
+        None,
+    ] {
+        let output = layout::emit(
+            &answer_without_reply(wait),
+            LayoutQuery::Layout,
+            OutputFormat::Json,
+            Locale::EnUs,
+        );
+        validator
+            .validate(&serde_json::from_slice::<Value>(&output.stdout).unwrap())
+            .unwrap();
+    }
+}

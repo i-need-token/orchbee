@@ -15,6 +15,8 @@ use orchbee_workbench_protocol::{
 use serde_json::json;
 
 #[cfg(any(windows, test))]
+mod layout;
+#[cfg(any(windows, test))]
 mod selection;
 #[cfg(windows)]
 mod windows;
@@ -86,6 +88,7 @@ fn outcome_exit(outcome: &ClientViewOutcome) -> u8 {
         ClientViewOutcome::Operation { operation } => match &operation.status {
             ClientViewControlStatus::Queued {}
             | ClientViewControlStatus::Delivered {}
+            | ClientViewControlStatus::LayoutRead { .. }
             | ClientViewControlStatus::Applied { .. }
             | ClientViewControlStatus::ZoomUnchanged { .. }
             | ClientViewControlStatus::ZoomToggled { .. } => 0,

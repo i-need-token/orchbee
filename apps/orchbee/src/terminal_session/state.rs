@@ -3396,6 +3396,11 @@ impl NativeSessionState {
     /// Read-side adjudication: the active Tab draws zoomed exactly while its
     /// flag survives AND its current cache membership stays multi-leaf — a
     /// stale retained flag can never paint a zoom.
+    /// Observe the retained flag against the queried Tab's authoritative membership, without GC.
+    pub(super) fn layout_zoomed(&self, tab: &NativeSimpleTab) -> bool {
+        tab.panel_count() > 1 && self.zoomed_tabs.contains(tab.tab_id())
+    }
+
     pub(super) fn zoom_active(&self) -> bool {
         let Some(index) = self.active().map(SelectedTab::index) else {
             return false;
@@ -3403,7 +3408,7 @@ impl NativeSessionState {
         self.cache
             .tabs()
             .get(index)
-            .is_some_and(|tab| tab.panel_count() > 1 && self.zoomed_tabs.contains(tab.tab_id()))
+            .is_some_and(|tab| self.layout_zoomed(tab))
     }
 
     /// A flag's latest-known membership: the current cache answers for its
