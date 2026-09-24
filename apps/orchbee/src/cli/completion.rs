@@ -97,7 +97,12 @@
 //! - help → help topics / children
 //! - completion → shells + `--help`
 
+mod elvish;
+mod grammar;
 mod powershell;
+
+#[cfg(all(test, windows))]
+mod test_cases;
 
 use crate::invocation::CompletionShell;
 
@@ -850,7 +855,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
 /// reaches a third help level.
 const HELP_LEVEL3: &[(&str, &[&str])] = &[("agent:integration", INTEGRATION_VERBS)];
 
-const SHELLS: &[&str] = &["bash", "fish", "powershell", "zsh"];
+const SHELLS: &[&str] = &["bash", "elvish", "fish", "powershell", "zsh"];
 const FORMAT_VALUES: &[&str] = &["text", "json"];
 
 pub(crate) fn render(shell: CompletionShell) -> String {
@@ -859,6 +864,7 @@ pub(crate) fn render(shell: CompletionShell) -> String {
         CompletionShell::Zsh => zsh(),
         CompletionShell::Fish => fish(),
         CompletionShell::PowerShell => powershell::render(),
+        CompletionShell::Elvish => elvish::render(),
     }
 }
 

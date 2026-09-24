@@ -48,7 +48,7 @@ orchbee site stop --confirm      # stop the Windows Site and its terminals
 orchbee site stop-status <id>    # inspect a retained stop attempt/receipt
 orchbee config check             # local runtime inspection
 orchbee help [<family>|<command>]
-orchbee completion bash|zsh|fish|powershell
+orchbee completion bash|zsh|fish|powershell|elvish
 orchbee --help | --version
 ```
 
@@ -186,8 +186,10 @@ Agent start remains pending; other providers retain their
 existing platform limits. `terminal send --stdin` accepts redirected regular
 files and Windows pipes; an owned hidden Windows PowerShell reader makes pipe input cancellable.
 It is resolved from the OS system directory, never from PATH, and is terminated/reaped on failure.
-Shell completion supports bash/zsh/fish/powershell. In PowerShell, load it explicitly with
+Shell completion supports bash/zsh/fish/powershell/elvish. In PowerShell, load it explicitly with
 `Invoke-Expression (orchbee completion powershell | Out-String)`; no profile is changed.
+In interactive Elvish 0.21, use `eval (orchbee completion elvish | slurp)`; the static callback
+registers both `orchbee` and `orchbee.exe` without querying a Site or modifying profiles.
 For Unicode pipelines in Windows PowerShell 5.1, set `$OutputEncoding = [Text.UTF8Encoding]::new($false)` in the invoking script; PowerShell chooses the bytes sent to a native command. Orchbee preserves those bytes and does not repair prior shell encoding loss.
 `orchbee --skill` prints the embedded [Agent guide](docs/cli-agent-skill.md) offline. Signing, automatic updates, crash recovery, macOS startup, and a packaged
 replacement for the delivered TypeScript CLI are separate work.

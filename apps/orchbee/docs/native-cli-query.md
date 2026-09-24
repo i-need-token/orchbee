@@ -431,7 +431,7 @@ orchbee site stop --confirm [--request-id <id>] [--retry] [--detach] [--timeout 
 orchbee site stop-status <request-id>
 orchbee site diagnose
 orchbee config check
-orchbee completion bash|zsh|fish|powershell
+orchbee completion bash|zsh|fish|powershell|elvish
 orchbee --skill
 orchbee help <recognized path>
 orchbee <recognized path> -h|--help
@@ -450,6 +450,25 @@ targets such as `help help`, `help version`, `help --version` are unknown paths 
 `--skill` must be the sole root argument and emits the localized, embedded CLI usage guide.
 PowerShell completion is a static grammar projection: it never executes user expressions or
 queries a Site; loading it is explicit and does not modify a shell profile.
+
+Elvish completion uses the same Rust-owned JSON grammar as PowerShell. Its callback receives
+literal words (command first, unfinished word last) from the interactive editor. Per invocation,
+the pure walker records completed positionals, seen flags, literal values and a pending value
+owner. `--` and terminal options stop completion; invalid scope, duplicates or conflicts leave
+no viable command. Viable paths determine the next command word, unused compatible flags,
+operand budget and closed enum values; a joined value keeps its `--flag=` prefix. Freeform
+values have no candidates. The callback emits each candidate once, leaving matching and quoting
+to Elvish. It evaluates no supplied word and starts no process. Registration covers `orchbee`
+and `orchbee.exe` only, without changing profiles or other completers. The generated script is
+bounded by the existing 128 KiB output limit. Load explicitly in interactive Elvish 0.21 with
+`eval (orchbee completion elvish | slurp)`.
+
+The shared completion fixtures check accepted and dead prefixes, help depth, target conflicts,
+enum ownership and joined spelling. The Elvish interpreter test is explicitly ignored by the
+portable gate and must be run with `ORCHBEE_TEST_ELVISH` pointing to an interpreter; absence
+fails that requested test. It supplies a registration namespace to exercise the unmodified script
+without an editor. Windows ConPTY evidence separately checks real interactive registration and
+loading. This proves static completion, not runtime target discovery or other operating systems.
 
 `[<geometry>]` stands for the optional all-or-none group `--cols <n> --rows <n>
 --cell-width <n> --cell-height <n>`; omitted, the command requests the default 80x24

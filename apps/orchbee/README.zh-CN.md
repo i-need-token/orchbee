@@ -44,7 +44,7 @@ orchbee site stop --confirm      # 停止托管 Windows Site 及其终端
 orchbee site stop-status <id>    # 查询停止尝试或完成回执
 orchbee config check             # 本地运行时检查
 orchbee help [<family>|<command>]
-orchbee completion bash|zsh|fish|powershell
+orchbee completion bash|zsh|fish|powershell|elvish
 orchbee --help | --version
 ```
 
@@ -167,8 +167,10 @@ Windows `agent integration list/explain/enable/disable --provider <id>` 可管�
 固定 ConPTY 运行时。Agent start 仍待完成，其他 provider 保留既有平台限制。
 `terminal send --stdin` 接受重定向普通文件和 Windows 管道；所属隐藏 Windows PowerShell
 读取进程使管道输入可取消。它从操作系统系统目录解析，绝不通过 PATH 查找，失败时终止并回收。
-Shell 补全提供 bash/zsh/fish/powershell。在 PowerShell 中显式运行
+Shell 补全提供 bash/zsh/fish/powershell/elvish。在 PowerShell 中显式运行
 `Invoke-Expression (orchbee completion powershell | Out-String)` 加载，不会修改 profile。
+在交互式 Elvish 0.21 中执行 `eval (orchbee completion elvish | slurp)`；静态回调注册
+`orchbee` 与 `orchbee.exe`，不查询 Site 或修改 profile。
 在 Windows PowerShell 5.1 中使用 Unicode 管道时，在调用脚本内设置 `$OutputEncoding = [Text.UTF8Encoding]::new($false)`；传给原生命令的字节由 PowerShell 编码。Orchbee 原样保留字节，不修复 shell 已经造成的编码损失。
 `orchbee --skill` 离线输出内嵌 [Agent 指引](docs/cli-agent-skill.zh-CN.md)。签名、自动更新、崩溃恢复、macOS 启动，以及替换已交付 TypeScript CLI
 的正式打包属于后续工作。

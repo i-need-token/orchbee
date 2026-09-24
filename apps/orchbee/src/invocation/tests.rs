@@ -187,6 +187,10 @@ fn offline_skill_is_a_sole_root_mode() {
         parse(&["completion", "powershell"]),
         Ok(Request::Completion(CompletionShell::PowerShell))
     );
+    assert_eq!(
+        parse(&["completion", "elvish"]),
+        Ok(Request::Completion(CompletionShell::Elvish))
+    );
 }
 
 fn usage(envelope: FailureEnvelope) -> ParseFailure {
@@ -726,7 +730,7 @@ fn text_and_unselected_syntax_failures_stay_silent() {
         &["tui", "--mouse", "off", "--help"],
         &["tui", "--", "--mouse", "off"],
         &["completion"],
-        &["completion", "elvish"],
+        &["completion", "unknown-shell"],
         &["completion", "bash", "extra"],
         &["api", "snapshot", "extra"],
         &["config"],
@@ -3504,11 +3508,11 @@ fn usage_failures_carry_their_concrete_reason() {
             },
         ),
         (
-            &["completion", "elvish"],
+            &["completion", "unknown-shell"],
             UsageReason::InvalidValue {
                 context: path("completion"),
                 option: "<shell>",
-                value: "elvish".to_owned(),
+                value: "unknown-shell".to_owned(),
                 expected: ExpectedValue::Shell,
             },
         ),

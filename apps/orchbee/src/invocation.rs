@@ -124,6 +124,7 @@ pub(crate) enum CompletionShell {
     Zsh,
     Fish,
     PowerShell,
+    Elvish,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -3165,6 +3166,7 @@ fn resolve_words(
                 "zsh" => CompletionShell::Zsh,
                 "fish" => CompletionShell::Fish,
                 "powershell" => CompletionShell::PowerShell,
+                "elvish" => CompletionShell::Elvish,
                 _ => {
                     return Err(usage_with(
                         UsageReason::InvalidValue {

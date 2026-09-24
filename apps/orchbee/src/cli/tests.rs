@@ -210,6 +210,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         super::completion::render(CompletionShell::Zsh),
         super::completion::render(CompletionShell::Fish),
         super::completion::render(CompletionShell::PowerShell),
+        super::completion::render(CompletionShell::Elvish),
     ];
     for family in [
         Family::Agent,

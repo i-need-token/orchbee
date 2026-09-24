@@ -363,7 +363,7 @@ orchbee site stop --confirm [--request-id <id>] [--retry] [--detach] [--timeout 
 orchbee site stop-status <request-id>
 orchbee site diagnose
 orchbee config check
-orchbee completion bash|zsh|fish|powershell
+orchbee completion bash|zsh|fish|powershell|elvish
 orchbee --skill
 orchbee help <recognized path>
 orchbee <recognized path> -h|--help
@@ -380,6 +380,21 @@ orchbee <recognized path> -h|--help
 `--skill`、`completion` 与不带 `--output` 的 `api schema` 绝不触碰平台、运行、cohort 或 Site 状态。显式 Windows schema 导出仅操作调用者选择的文件目标及自有同目录临时文件。
 `--skill` 必须是根命令的唯一参数，输出内嵌且本地化的 CLI 使用指南。PowerShell
 补全是静态语法投影：绝不执行用户表达式或查询 Site；需显式加载，不修改 shell profile。
+
+Elvish 补全与 PowerShell 使用同一份由 Rust 维护的 JSON 语法。回调接收交互编辑器提供的
+字面词语（命令在首位，未完成词在末位）。每次调用的纯解析器记录已完成的位置参数、已见
+flag、字面值和待消费值的所属 flag。`--` 与终止选项停止补全；非法作用域、重复或冲突使可行
+命令集合为空。可行路径决定下一个命令词、未使用且兼容的 flag、操作数预算和封闭枚举值；
+连写值保留 `--flag=` 前缀。自由形式的值没有候选。回调去重输出候选，匹配与引用由 Elvish
+负责。它不求值任何传入词语，也不启动进程。只注册 `orchbee` 与 `orchbee.exe`，不修改
+profile 或其他补全器。生成脚本遵循现有的 128 KiB 输出上限。在交互式 Elvish 0.21 中显式
+执行 `eval (orchbee completion elvish | slurp)` 加载。
+
+共享补全用例检查可接受与失效前缀、帮助深度、目标冲突、枚举所属参数及连写形式。Elvish
+解释器测试在可移植验收中明确忽略；手动执行时必须用 `ORCHBEE_TEST_ELVISH` 指定解释器，
+缺少解释器会使该次测试失败。测试提供注册命名空间，在无编辑器环境执行未经修改的脚本。
+Windows ConPTY 证据单独检查实际交互注册与加载。这证明静态补全，不涵盖运行时目标发现
+或其他操作系统。
 
 `[<geometry>]` 代表可选的全有或全无组 `--cols <n> --rows <n> --cell-width <n>
 --cell-height <n>`；省略时命令请求默认的 80x24 网格与未知单元像素 (0,0)。

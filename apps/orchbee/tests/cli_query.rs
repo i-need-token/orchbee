@@ -2710,7 +2710,7 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
     assert_eq!(
         sorted(complete(&["completion", ""])),
         sorted(
-            ["bash", "fish", "zsh", "--help"]
+            ["bash", "elvish", "fish", "powershell", "zsh", "--help"]
                 .iter()
                 .map(|s| s.to_string())
                 .collect()
