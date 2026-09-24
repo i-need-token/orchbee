@@ -588,3 +588,101 @@ fn directional_receipts_validate_destination_and_survive_disconnect_without_reex
         assert_eq!(status(execute(&mut registry, 20, submit, now)), completed);
     }
 }
+
+#[test]
+fn ratio_receipts_require_exact_owner_target_and_value_and_never_reexecute_on_read() {
+    use orchbee_workbench_protocol::{
+        ClientLayoutAdjustment, ClientLayoutChange, ClientSplitChange, ClientSplitPath,
+        ClientSplitRatio, WorkbenchPanelSlotId, WorkbenchSplitId, WorkbenchTabId,
+    };
+    for selected in [false, true] {
+        let now = Instant::now();
+        let mut registry = ClientViewRegistry::default();
+        execute(&mut registry, 1, sample(), now);
+        let mut command = command(3, 1);
+        let ClientViewIntent::Panel {
+            terminal_context_id,
+            mut tab_id,
+            ..
+        } = command.intent
+        else {
+            panic!()
+        };
+        if !selected {
+            tab_id = WorkbenchTabId::parse(&format!("{:032x}", 99)).unwrap();
+        }
+        command.intent = ClientViewIntent::SetSplitRatio {
+            terminal_context_id: terminal_context_id.clone(),
+            tab_id: tab_id.clone(),
+            path: ClientSplitPath::new(vec![]).unwrap(),
+            ratio: ClientSplitRatio::new(0.7).unwrap(),
+        };
+        let submit = ClientViewAction::Submit {
+            command: Box::new(command),
+        };
+        assert!(matches!(
+            status(execute(&mut registry, 20, submit.clone(), now)),
+            ClientViewControlStatus::Queued {}
+        ));
+        assert!(matches!(
+            execute(&mut registry, 1, sample(), now),
+            ClientViewOutcome::Synchronized {
+                control: Some(_),
+                ..
+            }
+        ));
+        let adjustment = ClientLayoutAdjustment {
+            terminal_context_id,
+            tab_id,
+            workbench_revision: WorkbenchRevision::new(12),
+            selected,
+            change: ClientLayoutChange::Split {
+                split: ClientSplitChange {
+                    split_id: WorkbenchSplitId::parse(&format!("{:032x}", 90)).unwrap(),
+                    first_slot_id: WorkbenchPanelSlotId::parse(&format!("{:032x}", 91)).unwrap(),
+                    second_slot_id: WorkbenchPanelSlotId::parse(&format!("{:032x}", 92)).unwrap(),
+                    previous_ratio: ClientSplitRatio::HALF,
+                    ratio: ClientSplitRatio::new(0.7).unwrap(),
+                },
+            },
+        };
+        let mut ack = acknowledge(3);
+        let ClientViewAction::Synchronize { completion, .. } = &mut ack else {
+            panic!()
+        };
+        completion.as_mut().unwrap().outcome = ClientViewCompletionOutcome::LayoutAdjusted {
+            adjustment: adjustment.clone(),
+        };
+        let mut invalid = ack.clone();
+        let ClientViewAction::Synchronize { completion, .. } = &mut invalid else {
+            panic!()
+        };
+        let ClientViewCompletionOutcome::LayoutAdjusted { adjustment } =
+            &mut completion.as_mut().unwrap().outcome
+        else {
+            panic!()
+        };
+        let ClientLayoutChange::Split { split } = &mut adjustment.change else {
+            panic!()
+        };
+        split.ratio = ClientSplitRatio::new(0.8).unwrap();
+        assert!(matches!(
+            execute(&mut registry, 1, invalid, now),
+            ClientViewOutcome::Conflict {}
+        ));
+        assert!(matches!(
+            execute(&mut registry, 2, ack.clone(), now),
+            ClientViewOutcome::Conflict {}
+        ));
+        assert!(matches!(
+            execute(&mut registry, 1, ack, now),
+            ClientViewOutcome::Synchronized { control: None, .. }
+        ));
+        let completed = status(read(&mut registry, 3, now));
+        assert!(
+            matches!(&completed,ClientViewControlStatus::LayoutAdjusted {adjustment,..} if adjustment.selected==selected)
+        );
+        registry.disconnect(owner(1), now);
+        assert_eq!(status(execute(&mut registry, 20, submit, now)), completed);
+    }
+}

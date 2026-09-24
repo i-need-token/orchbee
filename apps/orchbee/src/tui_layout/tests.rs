@@ -1,6 +1,8 @@
 use ratatui::layout::Rect;
 
-use orchbee_workbench_protocol::{PanelOrientation, WorkbenchPanelSlotId, WorkbenchSplitId};
+use orchbee_workbench_protocol::{
+    ClientSplitRatio, PanelOrientation, WorkbenchPanelSlotId, WorkbenchSplitId,
+};
 
 use crate::{client_view::SidebarSurface, terminal_session::NativePanelTree};
 
@@ -169,7 +171,8 @@ fn centers_overlays_toward_the_top_left_cell() {
 #[test]
 fn divides_panes_with_one_shared_divider_cell() {
     let area = Rect::new(2, 1, 21, 9);
-    let division = divide_panes(area, PanelOrientation::Horizontal).unwrap();
+    let division =
+        divide_panes(area, PanelOrientation::Horizontal, ClientSplitRatio::HALF).unwrap();
 
     assert_eq!(division.divider, Rect::new(12, 1, 1, 9));
     assert_eq!(division.first, Rect::new(2, 1, 10, 9));
@@ -177,7 +180,7 @@ fn divides_panes_with_one_shared_divider_cell() {
     assert!(!division.first.intersects(division.divider));
     assert!(!division.second.intersects(division.divider));
 
-    let vertical = divide_panes(area, PanelOrientation::Vertical).unwrap();
+    let vertical = divide_panes(area, PanelOrientation::Vertical, ClientSplitRatio::HALF).unwrap();
     assert_eq!(vertical.divider, Rect::new(2, 5, 21, 1));
     assert_eq!(vertical.first, Rect::new(2, 1, 21, 4));
     assert_eq!(vertical.second, Rect::new(2, 6, 21, 4));
@@ -186,15 +189,27 @@ fn divides_panes_with_one_shared_divider_cell() {
 #[test]
 fn refuses_pane_division_below_the_leaf_minimum() {
     assert_eq!(
-        divide_panes(Rect::new(0, 0, 8, 9), PanelOrientation::Horizontal),
+        divide_panes(
+            Rect::new(0, 0, 8, 9),
+            PanelOrientation::Horizontal,
+            ClientSplitRatio::HALF
+        ),
         None
     );
     assert_eq!(
-        divide_panes(Rect::new(0, 0, 20, 6), PanelOrientation::Vertical),
+        divide_panes(
+            Rect::new(0, 0, 20, 6),
+            PanelOrientation::Vertical,
+            ClientSplitRatio::HALF
+        ),
         None
     );
     assert_eq!(
-        divide_panes(Rect::new(0, 0, 9, 2), PanelOrientation::Horizontal),
+        divide_panes(
+            Rect::new(0, 0, 9, 2),
+            PanelOrientation::Horizontal,
+            ClientSplitRatio::HALF
+        ),
         None
     );
 }
@@ -251,7 +266,9 @@ fn split(
 #[test]
 fn projects_a_single_panel_to_one_leaf() {
     let tree = panel(2);
-    let projection = project_panel_tree(Rect::new(1, 1, 90, 38), &tree, Some(0));
+    let projection = project_panel_tree(Rect::new(1, 1, 90, 38), &tree, Some(0), &|_, _, _| {
+        ClientSplitRatio::HALF
+    });
 
     assert_eq!(
         projection.leaves,
@@ -271,7 +288,9 @@ fn projects_a_single_panel_to_one_leaf() {
 #[test]
 fn projects_a_split_into_leaves_sharing_one_divider() {
     let tree = split(panel(0), panel(1), PanelOrientation::Horizontal, 10);
-    let projection = project_panel_tree(Rect::new(0, 0, 21, 9), &tree, Some(1));
+    let projection = project_panel_tree(Rect::new(0, 0, 21, 9), &tree, Some(1), &|_, _, _| {
+        ClientSplitRatio::HALF
+    });
 
     assert_eq!(projection.dividers, vec![Rect::new(10, 0, 1, 9)]);
     assert_eq!(
@@ -317,7 +336,9 @@ fn projects_nested_splits_with_one_divider_per_split() {
         PanelOrientation::Horizontal,
         10,
     );
-    let projection = project_panel_tree(Rect::new(0, 0, 41, 19), &tree, Some(2));
+    let projection = project_panel_tree(Rect::new(0, 0, 41, 19), &tree, Some(2), &|_, _, _| {
+        ClientSplitRatio::HALF
+    });
 
     assert_eq!(
         projection.dividers,
@@ -353,7 +374,9 @@ fn projects_nested_splits_with_one_divider_per_split() {
 fn collapses_an_unfittable_split_to_the_selected_leaf() {
     let tree = split(panel(0), panel(1), PanelOrientation::Horizontal, 10);
     // 8 columns cannot fit two >=4-column panes plus a divider.
-    let projection = project_panel_tree(Rect::new(0, 0, 8, 9), &tree, Some(1));
+    let projection = project_panel_tree(Rect::new(0, 0, 8, 9), &tree, Some(1), &|_, _, _| {
+        ClientSplitRatio::HALF
+    });
 
     assert_eq!(projection.leaves.len(), 1);
     assert_eq!(projection.leaves[0].panel_index, 1);
@@ -365,7 +388,9 @@ fn collapses_an_unfittable_split_to_the_selected_leaf() {
     );
 
     // With no matching selection the first leaf wins.
-    let fallback = project_panel_tree(Rect::new(0, 0, 8, 9), &tree, Some(9));
+    let fallback = project_panel_tree(Rect::new(0, 0, 8, 9), &tree, Some(9), &|_, _, _| {
+        ClientSplitRatio::HALF
+    });
     assert_eq!(fallback.leaves[0].panel_index, 0);
     assert_eq!(
         fallback.active_content(Some(9)),
@@ -374,3 +399,46 @@ fn collapses_an_unfittable_split_to_the_selected_leaf() {
 }
 
 mod generated;
+
+#[test]
+fn weighted_cells_round_once_and_clamp_to_both_child_minimums() {
+    for (width, ratio, expected) in [
+        (8, 0.1, None),
+        (9, 0.1, Some(4)),
+        (10, 0.9, Some(5)),
+        (22, 0.5, Some(11)),
+        (22, 0.25, Some(5)),
+        (22, 0.9, Some(17)),
+    ] {
+        let result = divide_panes(
+            Rect::new(7, 9, width, 20),
+            PanelOrientation::Horizontal,
+            ClientSplitRatio::new(ratio).unwrap(),
+        );
+        assert_eq!(
+            result.map(|division| division.first.width),
+            expected,
+            "{width} {ratio}"
+        );
+        if let Some(division) = result {
+            assert_eq!(division.first.width + division.second.width + 1, width);
+            assert_eq!(division.second.x, division.divider.x + 1);
+        }
+    }
+    let tree = split(
+        panel(0),
+        split(panel(1), panel(2), PanelOrientation::Vertical, 200),
+        PanelOrientation::Horizontal,
+        100,
+    );
+    let ratio = ClientSplitRatio::new(0.25).unwrap();
+    let projection = project_panel_tree(Rect::new(0, 0, 41, 21), &tree, Some(2), &|_, _, _| ratio);
+    assert_eq!(projection.leaves[0].leaf, Rect::new(0, 0, 10, 21));
+    assert_eq!(projection.leaves[1].leaf, Rect::new(11, 0, 30, 5));
+    assert_eq!(projection.leaves[2].leaf, Rect::new(11, 6, 30, 15));
+    assert!(projection.splits.iter().all(|split| split.ratio == ratio));
+    let hidden = project_panel_tree(Rect::new(0, 0, 8, 6), &tree, Some(2), &|_, _, _| ratio);
+    assert_eq!(hidden.leaves.len(), 1);
+    assert!(hidden.splits.iter().all(|split| split.ratio == ratio));
+    assert!(hidden.splits[1].area.is_none());
+}

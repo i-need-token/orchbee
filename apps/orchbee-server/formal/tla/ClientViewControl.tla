@@ -4,13 +4,13 @@ EXTENDS Naturals, FiniteSets, TLC
 \* Connection identities are admitted, never reused generations. This bounded
 \* model refines routing, UI interference and post-draw acknowledgement; Rust
 \* witnesses own exact elapsed-time, byte, capacity and sequence boundaries.
-CONSTANTS Clients, Operations, Owner, MaxRevision, LayoutOperations, LayoutBudget, DirectionOperations
+CONSTANTS Clients, Operations, Owner, MaxRevision, LayoutOperations, LayoutBudget, DirectionOperations, RatioOperations, InactiveRatioOperations
 VARIABLES connected, fresh, revision, expected, status, deliveries, effect, drawn
 
 vars == <<connected, fresh, revision, expected, status, deliveries, effect, drawn>>
 ModelOwner == [o \in Operations |-> IF o = "one" THEN "client-a" ELSE "client-b"]
 Pending == {"queued", "delivered"}
-Completed == {"applied", "rejected", "incomplete", "layout-read", "direction-unchanged"}
+Completed == {"applied", "rejected", "incomplete", "layout-read", "direction-unchanged", "ratio-applied", "ratio-stored", "ratio-unchanged"}
 States == Pending \cup Completed \cup {"absent", "expired"}
 
 LayoutPending == {o \in LayoutOperations : status[o] \in Pending}
@@ -23,6 +23,9 @@ ASSUME /\ IsFiniteSet(Clients) /\ IsFiniteSet(Operations)
        /\ LayoutOperations \subseteq Operations /\ LayoutBudget >= 2
        /\ DirectionOperations \subseteq Operations
        /\ DirectionOperations \cap LayoutOperations = {}
+       /\ RatioOperations \subseteq Operations
+       /\ RatioOperations \cap (LayoutOperations \cup DirectionOperations) = {}
+       /\ InactiveRatioOperations \subseteq RatioOperations
 
 Init ==
   /\ connected = Clients
@@ -79,6 +82,7 @@ UiStep(o) ==
   /\ UNCHANGED <<connected, fresh, revision, expected, status, deliveries, drawn>>
 
 Draw(o) ==
+  /\ o \notin InactiveRatioOperations
   /\ status[o] = "delivered"
   /\ o \in effect
   /\ expected[o] = revision[Owner[o]]
@@ -88,7 +92,7 @@ Draw(o) ==
 Acknowledge(o) ==
   /\ status[o] = "delivered"
   /\ o \in drawn
-  /\ status' = [status EXCEPT ![o] = "applied"]
+  /\ status' = [status EXCEPT ![o] = IF o \in RatioOperations THEN "ratio-applied" ELSE "applied"]
   /\ UNCHANGED <<connected, fresh, revision, expected, deliveries, effect, drawn>>
 
 ObserveLayout(o) ==
@@ -106,6 +110,25 @@ NoNeighbor(o) ==
   /\ Owner[o] \in connected \cap fresh
   /\ expected[o] = revision[Owner[o]]
   /\ status' = [status EXCEPT ![o] = "direction-unchanged"]
+  /\ UNCHANGED <<connected, fresh, revision, expected, deliveries, effect, drawn>>
+
+\* One commit may be acknowledged without drawing only for an inactive target.
+StoreRatio(o) ==
+  /\ o \in InactiveRatioOperations
+  /\ status[o] = "delivered"
+  /\ o \in effect
+  /\ Owner[o] \in connected \cap fresh
+  /\ expected[o] = revision[Owner[o]]
+  /\ status' = [status EXCEPT ![o] = "ratio-stored"]
+  /\ UNCHANGED <<connected, fresh, revision, expected, deliveries, effect, drawn>>
+
+RatioUnchanged(o) ==
+  /\ o \in RatioOperations
+  /\ status[o] = "delivered"
+  /\ o \notin effect
+  /\ Owner[o] \in connected \cap fresh
+  /\ expected[o] = revision[Owner[o]]
+  /\ status' = [status EXCEPT ![o] = "ratio-unchanged"]
   /\ UNCHANGED <<connected, fresh, revision, expected, deliveries, effect, drawn>>
 
 Interrupt(o) ==
@@ -136,7 +159,7 @@ ExpireReceipt(o) ==
 ReadOrReplay == UNCHANGED vars
 Next == (\E c \in Clients : Sample(c) \/ Freeze(c) \/ Disconnect(c))
      \/ (\E o \in Operations : Submit(o) \/ Deliver(o) \/ RejectStale(o)
-          \/ UiStep(o) \/ Draw(o) \/ Acknowledge(o) \/ ObserveLayout(o) \/ NoNeighbor(o) \/ Interrupt(o)
+          \/ UiStep(o) \/ Draw(o) \/ Acknowledge(o) \/ ObserveLayout(o) \/ NoNeighbor(o) \/ StoreRatio(o) \/ RatioUnchanged(o) \/ Interrupt(o)
           \/ ExpireQueue(o) \/ ExpireReceipt(o)) \/ ReadOrReplay
 Spec == Init /\ [][Next]_vars
 
@@ -156,5 +179,12 @@ LayoutReadsArePure == /\ effect \cap LayoutOperations = {}
 LayoutReadRequiresDelivery == \A o \in Operations : status[o] = "layout-read" => o \in LayoutOperations /\ deliveries[o] = 1
 NoNeighborIsPure == \A o \in Operations : status[o] = "direction-unchanged" =>
                      o \in DirectionOperations /\ deliveries[o] = 1 /\ o \notin effect /\ o \notin drawn
+RatioCompletionIsHonest ==
+  /\ \A o \in Operations : status[o] = "ratio-applied" =>
+       o \in RatioOperations \ InactiveRatioOperations /\ o \in drawn
+  /\ \A o \in Operations : status[o] = "ratio-stored" =>
+       o \in InactiveRatioOperations /\ o \in effect /\ o \notin drawn
+  /\ \A o \in Operations : status[o] = "ratio-unchanged" =>
+       o \in RatioOperations /\ deliveries[o] = 1 /\ o \notin effect /\ o \notin drawn
 LayoutBudgetBounded == ReservedBytes <= LayoutBudget
 =============================================================================

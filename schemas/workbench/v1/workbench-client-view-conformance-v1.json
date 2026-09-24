@@ -1848,6 +1848,452 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "resize-adjusted-selected",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "resize",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006",
+								"direction": "right",
+								"amount": 0.05
+							}
+						},
+						"status": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"workbenchRevision": "12",
+								"selected": true,
+								"change": {
+									"kind": "split",
+									"split": {
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"previousRatio": 0.5,
+										"ratio": 0.55
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "resize-adjusted-inactive-old-selected-view",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "resize",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006",
+								"direction": "right",
+								"amount": 0.05
+							}
+						},
+						"status": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"workbenchRevision": "12",
+								"selected": false,
+								"change": {
+									"kind": "split",
+									"split": {
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"previousRatio": 0.5,
+										"ratio": 0.55
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "1",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000037",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "resize-no-split",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "resize",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006",
+								"direction": "right",
+								"amount": 0.05
+							}
+						},
+						"status": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"workbenchRevision": "12",
+								"selected": true,
+								"change": {
+									"kind": "no-split"
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "resize-clamped-unchanged",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "resize",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006",
+								"direction": "down",
+								"amount": 0.5
+							}
+						},
+						"status": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"workbenchRevision": "12",
+								"selected": true,
+								"change": {
+									"kind": "split",
+									"split": {
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"previousRatio": 0.9,
+										"ratio": 0.9
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "ratio-set-root",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "set-split-ratio",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"path": [],
+								"ratio": 0.55
+							}
+						},
+						"status": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"workbenchRevision": "12",
+								"selected": true,
+								"change": {
+									"kind": "split",
+									"split": {
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"previousRatio": 0.5,
+										"ratio": 0.55
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "ratio-set-max-path",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "set-split-ratio",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"path": [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
+								"ratio": 0.55
+							}
+						},
+						"status": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"workbenchRevision": "12",
+								"selected": true,
+								"change": {
+									"kind": "split",
+									"split": {
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"previousRatio": 0.5,
+										"ratio": 0.55
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "submit-resize",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "resize",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"direction": "right",
+							"amount": 0.05
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "submit-set-split-ratio",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "set-split-ratio",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"path": [],
+							"ratio": 0.55
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "ack-layout-adjusted",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "synchronize",
+					"heartbeat": "1",
+					"viewRevision": "2",
+					"view": {
+						"workbenchRevision": "12",
+						"phase": "ready",
+						"selection": {
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"zoomed": false,
+							"panelCount": 2
+						}
+					},
+					"completion": {
+						"operationId": "00000000000000000000000000000003",
+						"outcome": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"workbenchRevision": "12",
+								"selected": true,
+								"change": {
+									"kind": "split",
+									"split": {
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"previousRatio": 0.5,
+										"ratio": 0.55
+									}
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -7398,6 +7844,1222 @@
 									"panelId": "00000000000000000000000000000006",
 									"zoomed": false,
 									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "resize-negative-amount",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "resize",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"direction": "right",
+							"amount": -0.001
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "resize-excess-amount",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "resize",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"direction": "right",
+							"amount": 0.501
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "resize-unknown-direction",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "resize",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"direction": "above",
+							"amount": 0.05
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "resize-missing-amount",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "resize",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"direction": "right"
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "ratio-nonbinary-path",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "set-split-ratio",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"path": [2],
+							"ratio": 0.55
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "ratio-deep-path",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "set-split-ratio",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"path": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+							"ratio": 0.55
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "ratio-fraction-path",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "set-split-ratio",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"path": [0.5],
+							"ratio": 0.55
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "ratio-boolean-path",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "set-split-ratio",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"path": [true],
+							"ratio": 0.55
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "ratio-string-path",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "set-split-ratio",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"path": "root",
+							"ratio": 0.55
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "ratio-too-small",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "set-split-ratio",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"path": [],
+							"ratio": 0.099
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "ratio-too-large",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "set-split-ratio",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"path": [],
+							"ratio": 0.901
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "ratio-missing-path",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "set-split-ratio",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"ratio": 0.55
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "ratio-forbidden-panel",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "submit",
+					"command": {
+						"operationId": "00000000000000000000000000000003",
+						"clientId": "00000000000000000000000000000007",
+						"expectedViewRevision": "2",
+						"minimumWorkbenchRevision": "12",
+						"intent": {
+							"kind": "set-split-ratio",
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"path": [],
+							"ratio": 0.55,
+							"panelId": "00000000000000000000000000000006"
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "adjustment-missing-selected",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "resize",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006",
+								"direction": "right",
+								"amount": 0.05
+							}
+						},
+						"status": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"workbenchRevision": "12",
+								"change": {
+									"kind": "split",
+									"split": {
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"previousRatio": 0.5,
+										"ratio": 0.55
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "adjustment-unknown-field",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "resize",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006",
+								"direction": "right",
+								"amount": 0.05
+							}
+						},
+						"status": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"workbenchRevision": "12",
+								"selected": true,
+								"change": {
+									"kind": "split",
+									"split": {
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"previousRatio": 0.5,
+										"ratio": 0.55
+									}
+								},
+								"changed": true
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "adjustment-repeated-slot",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "resize",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006",
+								"direction": "right",
+								"amount": 0.05
+							}
+						},
+						"status": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"workbenchRevision": "12",
+								"selected": true,
+								"change": {
+									"kind": "split",
+									"split": {
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000015",
+										"previousRatio": 0.5,
+										"ratio": 0.55
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "adjustment-missing-old-ratio",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "resize",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006",
+								"direction": "right",
+								"amount": 0.05
+							}
+						},
+						"status": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"workbenchRevision": "12",
+								"selected": true,
+								"change": {
+									"kind": "split",
+									"split": {
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"ratio": 0.55
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "adjustment-invalid-old-ratio",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "resize",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006",
+								"direction": "right",
+								"amount": 0.05
+							}
+						},
+						"status": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"workbenchRevision": "12",
+								"selected": true,
+								"change": {
+									"kind": "split",
+									"split": {
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"previousRatio": 0.01,
+										"ratio": 0.55
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "adjustment-mismatched-tab",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "resize",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006",
+								"direction": "right",
+								"amount": 0.05
+							}
+						},
+						"status": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000063",
+								"workbenchRevision": "12",
+								"selected": true,
+								"change": {
+									"kind": "split",
+									"split": {
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"previousRatio": 0.5,
+										"ratio": 0.55
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "adjustment-stale-source",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "resize",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006",
+								"direction": "right",
+								"amount": 0.05
+							}
+						},
+						"status": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"workbenchRevision": "11",
+								"selected": true,
+								"change": {
+									"kind": "split",
+									"split": {
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"previousRatio": 0.5,
+										"ratio": 0.55
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "adjustment-inconsistent-selection",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "resize",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006",
+								"direction": "right",
+								"amount": 0.05
+							}
+						},
+						"status": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"workbenchRevision": "12",
+								"selected": false,
+								"change": {
+									"kind": "split",
+									"split": {
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"previousRatio": 0.5,
+										"ratio": 0.55
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "adjustment-inconsistent-view-revision",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "resize",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006",
+								"direction": "right",
+								"amount": 0.05
+							}
+						},
+						"status": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"workbenchRevision": "12",
+								"selected": true,
+								"change": {
+									"kind": "split",
+									"split": {
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"previousRatio": 0.5,
+										"ratio": 0.55
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "13",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "adjustment-busy-view",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "resize",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006",
+								"direction": "right",
+								"amount": 0.05
+							}
+						},
+						"status": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"workbenchRevision": "12",
+								"selected": true,
+								"change": {
+									"kind": "split",
+									"split": {
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"previousRatio": 0.5,
+										"ratio": 0.55
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "busy",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "resize-wrong-signed-delta",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "resize",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"panelId": "00000000000000000000000000000006",
+								"direction": "right",
+								"amount": 0.05
+							}
+						},
+						"status": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"workbenchRevision": "12",
+								"selected": true,
+								"change": {
+									"kind": "split",
+									"split": {
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"previousRatio": 0.5,
+										"ratio": 0.45
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "ratio-wrong-result",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "set-split-ratio",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"path": [],
+								"ratio": 0.55
+							}
+						},
+						"status": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"workbenchRevision": "12",
+								"selected": true,
+								"change": {
+									"kind": "split",
+									"split": {
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000016",
+										"previousRatio": 0.5,
+										"ratio": 0.7
+									}
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "ratio-cannot-no-split",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "set-split-ratio",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"path": [],
+								"ratio": 0.55
+							}
+						},
+						"status": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"workbenchRevision": "12",
+								"selected": true,
+								"change": {
+									"kind": "no-split"
+								}
+							},
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "ratio-cannot-ack-plain-applied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.client-view.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "operation",
+					"operation": {
+						"command": {
+							"operationId": "00000000000000000000000000000003",
+							"clientId": "00000000000000000000000000000007",
+							"expectedViewRevision": "2",
+							"minimumWorkbenchRevision": "12",
+							"intent": {
+								"kind": "set-split-ratio",
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"path": [],
+								"ratio": 0.55
+							}
+						},
+						"status": {
+							"kind": "applied",
+							"view": {
+								"workbenchRevision": "12",
+								"phase": "ready",
+								"selection": {
+									"terminalContextId": "00000000000000000000000000000004",
+									"tabId": "00000000000000000000000000000005",
+									"panelId": "00000000000000000000000000000006",
+									"zoomed": false,
+									"panelCount": 2
+								}
+							}
+						}
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "ratio-ack-repeated-slots",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "synchronize",
+					"heartbeat": "1",
+					"viewRevision": "2",
+					"view": {
+						"workbenchRevision": "12",
+						"phase": "ready",
+						"selection": {
+							"terminalContextId": "00000000000000000000000000000004",
+							"tabId": "00000000000000000000000000000005",
+							"panelId": "00000000000000000000000000000006",
+							"zoomed": false,
+							"panelCount": 2
+						}
+					},
+					"completion": {
+						"operationId": "00000000000000000000000000000003",
+						"outcome": {
+							"kind": "layout-adjusted",
+							"adjustment": {
+								"terminalContextId": "00000000000000000000000000000004",
+								"tabId": "00000000000000000000000000000005",
+								"workbenchRevision": "12",
+								"selected": true,
+								"change": {
+									"kind": "split",
+									"split": {
+										"splitId": "00000000000000000000000000000014",
+										"firstSlotId": "00000000000000000000000000000015",
+										"secondSlotId": "00000000000000000000000000000015",
+										"previousRatio": 0.5,
+										"ratio": 0.55
+									}
 								}
 							}
 						}

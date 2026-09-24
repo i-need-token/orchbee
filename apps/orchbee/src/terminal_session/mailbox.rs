@@ -1395,7 +1395,9 @@ impl CommandMailbox {
         let current = match &command {
             // Focus-scoped input is admitted only for the focus pane itself.
             QueuedCommand::Input(tagged) => state.desired.key() == Some(tagged.key().pane()),
-            QueuedCommand::Resize(tagged) => state.desired.key() == Some(tagged.key().pane()),
+            // Geometry serves each visible controlling pane. The state owner
+            // gates zoom and controller mode; the mailbox fences incarnation.
+            QueuedCommand::Resize(tagged) => state.desired.admits(tagged.key()),
             // Ordinary polls may serve any pane in the last reconciled set —
             // exact incarnation membership, so background viewers keep polling.
             QueuedCommand::Poll(tagged) => state.desired.admits(tagged.key()),

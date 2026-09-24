@@ -772,7 +772,7 @@ impl NativeExecutor {
         }
     }
 
-    /// Input and resize serve the focus pane alone; the pane must still hold a
+    /// Input serves the pane focused at admission; the pane must still hold a
     /// controlling lease. A focus-scoped command that arrives for a degraded
     /// or detached pane is dropped — pane-local failure never kills the
     /// session carrying unrelated panes.

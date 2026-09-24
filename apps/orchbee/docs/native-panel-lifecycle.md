@@ -91,9 +91,10 @@ only its own `PaneRef` settles (`settle_pane_detached`). Anchor-level teardown
 (`drop_anchor_panes`) replaces a whole epoch atomically through `PreparedDesiredInstall`, while a
 same-Tab focus move is local and never departs or re-mints a record.
 
-Mailbox admission partitions by command scope: input and resize admit only while their pane is
-the logical focus at enqueue time; polls admit every exact non-departing incarnation of the
-desired set. An admitted command keeps the `PaneRef` it captured at enqueue — dispatch fences on
+Mailbox admission partitions by command scope: input admits only while its pane is the logical
+focus at enqueue time; resize and polls admit every exact non-departing incarnation of the
+desired set. The state owner requests sizes only for attached controlling panes in the visible
+set: all unzoomed leaves, or the focused leaf under zoom. Read-only and hidden panes do not resize. An admitted command keeps the `PaneRef` it captured at enqueue — dispatch fences on
 that exact reference and does not re-check focus, so accepted input still lands on its original
 pane after a focus move and never migrates to the newly focused pane. Commands or worker events
 that arrive tagged with a retired incarnation — queued before a rebind or settled late — are
@@ -139,7 +140,7 @@ departed pane settles (`DepartedEventuallyDisposesOrReappears`).
 | `setup_target` attach outcome classification and `settle_without_attachment` (`SessionPhaseKind::RetryableAttachUnavailable`)                                                     | `OfferAttachReply`, `CompleteAttach`, `ParkAttachUnavailable`, `FailAttach`, `ExpireAttach`, `ParkedHasNoAttachment`, `RejectedAttachNeverRetires`, `ParkedSettlesViaMembership` |
 | Close `Accepted` receipt vs later publication/removal                                                                                                                             | `ReceiveCloseAccepted`, `ConsumeCloseAccepted`, `PeerCloseLeaf`, `CloseReceiptKeepsSelection`                                                                                    |
 | `PaneKey`/`PaneRef`/`PaneRecord`, `sync_pane_set`, `depart_all_panes`, `drop_anchor_panes`, `settle_pane_detached` (`terminal_session/state.rs`, `state/membership.rs`)           | `rec[p]`, `MintPane`, `VanishLeaf`, `ReappearLeaf`, `SettleDetachProof`, `AdvanceAnchorEpoch`, `LiveRecordsShareCurrentAnchor`, `DepartingCarriesNoFrameWork`                    |
-| Mailbox admission split — input/resize bind the logical focus pane at enqueue, polls the exact incarnation (`terminal_session/mailbox.rs` `admits`)                               | `Admitted`, `EnqueueFocusControl`, `EnqueuePoll`, `EnqueueStaleCommand`, `DequeueAdmit`, `DropStaleQueueCommand`                                                                 |
+| Mailbox admission split — input binds logical focus; resize/polls bind exact desired-set incarnations (`terminal_session/mailbox.rs` `admits`)                                    | `Admitted`, `EnqueueFocusControl`, `EnqueuePaneResize`, `EnqueuePoll`, `EnqueueStaleCommand`, `DequeueAdmit`, `DropStaleQueueCommand`                                            |
 | Executor exact-incarnation fence in `run_input`/`run_resize`/`run_poll` (`terminal_session/connection/native.rs`) — dispatch keeps the frozen `PaneRef` and never re-checks focus | `ExecuteControl` delivery gate, `ExecutePoll` pending deposit, `ExpireInflight`                                                                                                  |
 | Poll result causal settlement pending the draw pass (`publish_poll_result_before`/`take_causal_before`, `CausalSettlement::NoFeedback` on depart)                                 | `rec[p].pending` deposit, `PendingFrameIsLiveAttachedProjected`, depart clearing `pending`                                                                                       |
 | Per-record `stage_drawn_frame` / `mark_feedback_accepted` / `invalidate_projection_frame`                                                                                         | `DrawPendingFrame`, `SettleFrameAck`, `AcceptedFrameIsOwnStaged`, `AcceptedImpliesAttachedLiveProjected`                                                                         |

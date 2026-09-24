@@ -772,8 +772,8 @@ split、close 与 move 的总和；同一基线到最终快照的比较即可接
 每个可见叶子都在共享的单 Client HostViewers 预算（8）内拥有自己的 viewer 挂接：Session 为
 每个叶子保存一条 pane 记录，其稳定 `PaneKey` 由原始选中 anchor 与叶子的 `WorkbenchPanelId`
 组成，每条记录的物理挂接是签发挂接目标时铸造的 `PaneRef` incarnation。poll 对每个已放行
-pane incarnation 持续进行，非活动叶子持续渲染自己的实时帧；input 与 resize 仅放行焦点 pane
-的精确 incarnation。
+pane incarnation 持续进行，非活动叶子持续渲染自己的实时帧。input 仅放行焦点 pane；resize
+放行每个可见且持有控制权的 pane 的精确 incarnation。只读 pane 不会为 resize 获取控制权。
 
 在已连接 Native Session 中，`Ctrl+B h`、`j`、`k` 和 `l` 是 Client 本地焦点操作。当方向上存在
 相邻叶子时，Session 把焦点 pane 选中移到该叶子的既有记录上，不 detach、不重新挂接、也不重编

@@ -61,6 +61,9 @@ impl Locale {
                 text.push_str(&format!("{}: {}\n", labels[0], escape(id)));
             }
             self.client_selection_text(&mut text, &status["view"]["selection"], &labels);
+            if state == "layout-adjusted" {
+                self.client_adjustment_text(&mut text, &status["adjustment"]);
+            }
             if let Some(reason) = status["reason"]
                 .as_str()
                 .or_else(|| outcome["reason"].as_str())
@@ -86,6 +89,35 @@ impl Locale {
             text.push_str(&format!("orchbee client control-status {}\n", escape(id)));
         }
         text
+    }
+    fn client_adjustment_text(self, text: &mut String, adjustment: &Value) {
+        let split = &adjustment["change"]["split"];
+        let no_split = adjustment["change"]["kind"] == "no-split";
+        let changed = !no_split && split["previousRatio"] != split["ratio"];
+        let outcome = match (self, no_split, changed, adjustment["selected"] == true) {
+            (Self::EnUs, true, _, _) => "No eligible split; unchanged",
+            (Self::ZhCn, true, _, _) => "没有可调整的分割，保持不变",
+            (Self::EnUs, _, false, _) => "Ratio unchanged",
+            (Self::ZhCn, _, false, _) => "比例未改变",
+            (Self::EnUs, _, true, true) => "Ratio changed and drawn",
+            (Self::ZhCn, _, true, true) => "比例已改变并绘制",
+            (Self::EnUs, _, true, false) => "Ratio stored for inactive Tab",
+            (Self::ZhCn, _, true, false) => "已保存非活动标签页的比例",
+        };
+        let (target, ratio) = match self {
+            Self::EnUs => ("Target Tab", "Ratio"),
+            Self::ZhCn => ("目标标签页", "比例"),
+        };
+        text.push_str(&format!(
+            "{outcome}\n{target}: {}\n",
+            escape(adjustment["tabId"].as_str().unwrap_or(""))
+        ));
+        if !no_split {
+            text.push_str(&format!(
+                "{ratio}: {} -> {}\n",
+                split["previousRatio"], split["ratio"]
+            ));
+        }
     }
     fn client_record_text(self, text: &mut String, client: &Value, labels: &[&str; 9]) {
         text.push_str(&format!(
@@ -137,6 +169,8 @@ impl Locale {
             (Self::ZhCn, "direction-focused") => "已聚焦相邻面板并绘制",
             (Self::EnUs, "direction-unchanged") => "No neighbor; selection unchanged",
             (Self::ZhCn, "direction-unchanged") => "该方向没有相邻面板，选择未改变",
+            (Self::EnUs, "layout-adjusted") => "Layout adjustment completed",
+            (Self::ZhCn, "layout-adjusted") => "布局调整已完成",
             (Self::EnUs, "layout-read") => "Layout observed",
             (Self::ZhCn, "layout-read") => "已观测布局",
             (Self::EnUs, "zoom-toggled") => "Zoom toggled and drawn",
@@ -285,4 +319,37 @@ pub(super) const HELP_PANEL_ZOOM_ZH: &str = r"用法: orchbee panel zoom [panel]
 设置选中面板的缩放。默认为切换，在激活目标标签页后只解析一次原缩放状态；单面板开启或切换缩放成功返回 zoom-unchanged。
 
 省略 --client 时，经校验的调用者 Terminal／Worker 信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。成功要求观测到目标选择且成功绘制。--detach 或中断仅结束等待；使用操作标识查询 client control-status。
+";
+
+pub(super) const HELP_LAYOUT_EN: &str = r"Usage: orchbee layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path <root|0.1> --ratio <number> [--client <client-id>] [--format text|json]
+
+Adjust a split in one Windows TUI without changing focus. See orchbee help layout set-split-ratio.
+";
+pub(super) const HELP_LAYOUT_ZH: &str = r"用法: orchbee layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path <root|0.1> --ratio <number> [--client <client-id>] [--format text|json]
+
+调整一个 Windows TUI 的分割，不改变焦点。详见 orchbee help layout set-split-ratio。
+";
+pub(super) const HELP_PANEL_RESIZE_EN: &str = r"Usage: orchbee panel resize [panel] [--panel <panel> | --current] --direction left|right|up|down [--amount <number>] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]
+
+Adjust the nearest eligible split around the source. The finite amount defaults to 0.05, becomes absolute and is capped at 0.5; the resulting ratio is clamped to 0.1..0.9. Requested edge wins, with opposite-edge fallback. No eligible split succeeds unchanged; hidden geometry fails. Focus and zoom are preserved.
+
+Select one positional/--panel/--current target. Without a target, use the validated caller Panel or the selected Client's current Panel. Without --client, caller metadata selects one focused TUI; outside a caller exactly one current TUI is required. Explicit --client ignores caller metadata. Selected changes require a successful draw; inactive changes store without selecting or attaching. Ratios last for this TUI session and affect only this Client. Default timeout: 30000ms (1..3600000). --detach or interruption stops waiting only; query client control-status with the operation ID.
+";
+pub(super) const HELP_PANEL_RESIZE_ZH: &str = r"用法: orchbee panel resize [panel] [--panel <panel> | --current] --direction left|right|up|down [--amount <number>] [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]
+
+调整来源周围最近的可用分割。有限 amount 默认为 0.05，取绝对值并限制为至多 0.5；结果比例限制到 0.1..0.9。优先请求边缘，找不到则回退到对侧边缘。无可用分割成功返回不变；隐藏几何失败。保留焦点及 zoom。
+
+位置参数、--panel、--current 三选一。省略目标时使用经校验的调用者面板，或选中客户端的当前面板。省略 --client 时由调用者信息选择唯一聚焦 TUI；外部调用要求恰好一个有效 TUI。显式 --client 忽略调用者信息。选中目标的改变要求成功绘制；非活动目标保存比例，不选择或附着。比例仅在本次 TUI 会话中有效，且只影响本客户端。默认超时 30000ms（1..3600000）。--detach 或中断仅停止等待；使用操作标识查询 client control-status。
+";
+pub(super) const HELP_LAYOUT_RATIO_EN: &str = r"Usage: orchbee layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path <root|0.1> --ratio <number> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]
+
+Set one split's nominal ratio, clamping a finite number to 0.1..0.9. root addresses the Tab root; 0 and 1 select first/second children, separated by dots, at most 16 steps. A leaf or missing path fails. Hidden splits are supported. No target uses the caller/current Panel's Tab; explicit --tab addresses a Tab directly. Target selectors are exclusive. Focus and zoom are preserved.
+
+Without --client, validated caller metadata selects one focused TUI; outside a caller exactly one current TUI is required. Explicit --client ignores caller metadata. Changed selected ratios require successful drawing; inactive changes are stored without navigation or attachment. An unchanged ratio requests no draw. Ratios are Client-local and last for this TUI session. Default timeout: 30000ms (1..3600000). --detach or interruption stops waiting only; query client control-status with the operation ID.
+";
+pub(super) const HELP_LAYOUT_RATIO_ZH: &str = r"用法: orchbee layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path <root|0.1> --ratio <number> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]
+
+设置一个分割的名义比例，将有限数值限制到 0.1..0.9。root 表示标签页根；0 和 1 选择第一／第二子节点，用点分隔，至多 16 步。叶节点或不存在的路径失败。支持隐藏分割。省略目标时使用调用者／当前面板的标签页；显式 --tab 直接指定标签页。目标选择器互斥。保留焦点及 zoom。
+
+省略 --client 时，经校验的调用者信息选择唯一聚焦 TUI；外部调用要求恰好一个有效 TUI。显式 --client 忽略调用者信息。选中目标的比例改变要求成功绘制；非活动目标保存比例，不导航或附着。比例未变时不请求绘制。比例由各客户端独立持有，仅在本次 TUI 会话中有效。默认超时 30000ms（1..3600000）。--detach 或中断仅停止等待；使用操作标识查询 client control-status。
 ";

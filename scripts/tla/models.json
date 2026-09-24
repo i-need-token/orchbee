@@ -2980,7 +2980,8 @@
 				"RejectStaleFrameAck",
 				"SettlePaneFault",
 				"RejectStalePaneFault",
-				"ClosePane"
+				"ClosePane",
+				"EnqueuePaneResize"
 			],
 			"variants": [
 				{
@@ -4134,7 +4135,10 @@
 				"crates/workbench-protocol/src/command/client_view.rs",
 				"apps/orchbee/src/terminal_session/ui/client_layout.rs",
 				"apps/orchbee/src/terminal_session/ui/client_layout/**",
-				"crates/workbench-protocol/src/command/client_layout.rs"
+				"crates/workbench-protocol/src/command/client_layout.rs",
+				"crates/workbench-protocol/src/command/client_layout_adjustment.rs",
+				"apps/orchbee/src/terminal_session/state/split_ratios.rs",
+				"apps/orchbee/src/terminal_session/state/split_ratios/**"
 			],
 			"requiredCoverage": [
 				"Sample",
@@ -4147,6 +4151,8 @@
 				"Acknowledge",
 				"ObserveLayout",
 				"NoNeighbor",
+				"StoreRatio",
+				"RatioUnchanged",
 				"Interrupt",
 				"Disconnect",
 				"ExpireQueue",

@@ -81,8 +81,8 @@ Client 绝不合并无法关联的面板结果。放行要求 Session 稳定、�
 anchor 级拆除（`drop_anchor_panes`）经由 `PreparedDesiredInstall` 原子替换整个代次，而同 Tab
 焦点移动是本地的，绝不令记录离场或重铸。
 
-信箱准入按命令作用域分划：input 与 resize 仅在入队时其 pane 为逻辑焦点才放行；poll 放行
-期望集合中每条精确非 departing incarnation。被放行的命令保留其入队时捕获的 `PaneRef`——
+信箱准入按命令作用域分划：input 仅在入队时其 pane 为逻辑焦点才放行；resize 与 poll 放行
+期望集合中每条精确非 departing incarnation。状态所有者只为可见集合中已附着且持有控制权的 pane 请求尺寸：未缩放时为所有叶子，缩放时仅为焦点叶子。只读和隐藏 pane 不调整尺寸。被放行的命令保留其入队时捕获的 `PaneRef`——
 dispatch 按该精确引用栅栏且不复查焦点，因此已接受的输入在焦点移动后仍落在原 pane，绝不
 迁移到新焦点 pane。携带已退 incarnation 到达的命令或 worker 事件——重绑前已排队或
 迟到结算——在精确 `PaneRef` 处被丢弃或拒绝，绝不重放到重新绑定的附着上。poll 结果作为
@@ -123,7 +123,7 @@ input 总是到达其标记的精确挂接 incarnation，且该命令入队时�
 | `setup_target` 附着结果分类与 `settle_without_attachment`（`SessionPhaseKind::RetryableAttachUnavailable`）                                                              | `OfferAttachReply`、`CompleteAttach`、`ParkAttachUnavailable`、`FailAttach`、`ExpireAttach`、`ParkedHasNoAttachment`、`RejectedAttachNeverRetires`、`ParkedSettlesViaMembership` |
 | 关闭 `Accepted` 回执与后续发布/移除                                                                                                                                      | `ReceiveCloseAccepted`、`ConsumeCloseAccepted`、`PeerCloseLeaf`、`CloseReceiptKeepsSelection`                                                                                    |
 | `PaneKey`/`PaneRef`/`PaneRecord`、`sync_pane_set`、`depart_all_panes`、`drop_anchor_panes`、`settle_pane_detached`（`terminal_session/state.rs`、`state/membership.rs`） | `rec[p]`、`MintPane`、`VanishLeaf`、`ReappearLeaf`、`SettleDetachProof`、`AdvanceAnchorEpoch`、`LiveRecordsShareCurrentAnchor`、`DepartingCarriesNoFrameWork`                    |
-| 信箱准入分划——input/resize 在入队时绑定逻辑焦点 pane、poll 走精确 incarnation（`terminal_session/mailbox.rs` 的 `admits`）                                               | `Admitted`、`EnqueueFocusControl`、`EnqueuePoll`、`EnqueueStaleCommand`、`DequeueAdmit`、`DropStaleQueueCommand`                                                                 |
+| 信箱准入分划——input 在入队时绑定逻辑焦点，resize/poll 绑定期望集合中的精确 incarnation（`terminal_session/mailbox.rs` 的 `admits`）                                      | `Admitted`、`EnqueueFocusControl`、`EnqueuePaneResize`、`EnqueuePoll`、`EnqueueStaleCommand`、`DequeueAdmit`、`DropStaleQueueCommand`                                            |
 | `run_input`/`run_resize`/`run_poll` 中的执行器精确 incarnation 栅栏（`terminal_session/connection/native.rs`）——dispatch 保留冻结的 `PaneRef`，绝不复查焦点              | `ExecuteControl` 交付门、`ExecutePoll` pending 存放、`ExpireInflight`                                                                                                            |
 | poll 结果在绘制通道前的因果结算（`publish_poll_result_before`/`take_causal_before`，离场时 `CausalSettlement::NoFeedback`）                                              | `rec[p].pending` 存放、`PendingFrameIsLiveAttachedProjected`、离场清 `pending`                                                                                                   |
 | 逐记录 `stage_drawn_frame`/`mark_feedback_accepted`/`invalidate_projection_frame`                                                                                        | `DrawPendingFrame`、`SettleFrameAck`、`AcceptedFrameIsOwnStaged`、`AcceptedImpliesAttachedLiveProjected`                                                                         |

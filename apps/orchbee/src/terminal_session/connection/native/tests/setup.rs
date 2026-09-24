@@ -1194,7 +1194,7 @@ impl UiDriver {
     }
 
     /// Mirrors `NativeUi::observe_panes`: the leaf-geometry report syncs the
-    /// pane set, queues focus-pane resizes, and schedules the reconcile
+    /// pane set, queues visible controlling-pane resizes, and schedules the reconcile
     /// snapshot the executor converges its attachments against.
     pub(super) fn observe_panes(
         &mut self,

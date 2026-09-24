@@ -220,6 +220,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         Family::Config,
         Family::LaunchProfile,
         Family::Panel,
+        Family::Layout,
         Family::Project,
         Family::Site,
         Family::Tab,
@@ -242,6 +243,8 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::PanelLayout,
         CommandPath::PanelNeighbor,
         CommandPath::PanelEdges,
+        CommandPath::PanelResize,
+        CommandPath::LayoutSetSplitRatio,
         CommandPath::AgentDoctor,
         CommandPath::AgentExplain,
         CommandPath::AgentGet,
@@ -323,6 +326,7 @@ fn fixed_outputs_are_far_below_the_bound() {
     // everything the walk does enumerate. Both legal surfaces are walked:
     // trailing `--help` and the `help` prefix.
     let roots = [
+        "layout",
         "client",
         "agent",
         "api",
@@ -341,6 +345,8 @@ fn fixed_outputs_are_far_below_the_bound() {
         "worktree",
     ];
     let verbs = [
+        "resize",
+        "set-split-ratio",
         "control-status",
         "focus",
         "zoom",

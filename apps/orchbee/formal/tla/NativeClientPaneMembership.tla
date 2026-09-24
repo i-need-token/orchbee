@@ -49,7 +49,7 @@ NoFrame == 0
 Frames == 1..MaxFrame
 Incarnations == 1..MaxIncarnation
 
-ControlKinds == {"control"}
+ControlKinds == {"control", "resize"}
 CommandKinds == ControlKinds \cup {"poll"}
 Idle == "idle"
 
@@ -119,7 +119,7 @@ ViewerCount == Cardinality({p \in Panes : viewer[p] # NoViewer})
 \* not follow a later focus move. Polls admit only an exact non-departing
 \* incarnation of the desired set.
 Admitted(command) ==
-  IF command.kind \in ControlKinds
+  IF command.kind = "control"
   THEN HasRecord(command.pane) /\ ~rec[command.pane].departing
   ELSE HasRecord(command.pane)
        /\ rec[command.pane].incarnation = command.incarnation
@@ -222,11 +222,21 @@ ProjectPane ==
 \* ------------------------- queue / executor -------------------------
 
 EnqueueFocusControl ==
-  \E kind \in ControlKinds :
+  \E kind \in {"control"} :
     /\ Len(queue) < MaxQueue
     /\ HasRecord(focus) /\ ~rec[focus].departing
     /\ queue' = Append(queue,
          Command(kind, focus, rec[focus].incarnation, TRUE))
+    /\ UNCHANGED <<anchor, focus, leaf, rec, viewer, inflight, nextInc,
+                   frameCursor, appliedCount, allTaggedValid>>
+
+\* Geometry admission is per exact live desired-set incarnation; visibility,
+\* zoom and controller ownership are refined by the Native state owner.
+EnqueuePaneResize ==
+  \E p \in Panes :
+    /\ Len(queue) < MaxQueue
+    /\ Live(p) /\ rec[p].attached
+    /\ queue' = Append(queue, Command("resize", p, rec[p].incarnation, FALSE))
     /\ UNCHANGED <<anchor, focus, leaf, rec, viewer, inflight, nextInc,
                    frameCursor, appliedCount, allTaggedValid>>
 
@@ -381,6 +391,7 @@ Next ==
   \/ AttachPane
   \/ ProjectPane
   \/ EnqueueFocusControl
+  \/ EnqueuePaneResize
   \/ EnqueuePoll
   \/ EnqueueStaleCommand
   \/ DequeueAdmit
@@ -454,7 +465,7 @@ InputsDeliverOnlyToTaggedLiveFocus ==
 \* admitted while that pane held focus — focus gates admission at enqueue time
 \* only, never delivery.
 DeliverableControlWasFocusAdmitted ==
-  inflight # NoCommand /\ inflight.kind \in ControlKinds
+  inflight # NoCommand /\ inflight.kind = "control"
   /\ viewer[inflight.pane] # NoViewer
   /\ viewer[inflight.pane] = inflight.incarnation /\ Live(inflight.pane)
     => inflight.focusAdmitted

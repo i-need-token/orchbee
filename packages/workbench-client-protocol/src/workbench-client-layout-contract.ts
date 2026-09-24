@@ -7,6 +7,7 @@ import {
 	WorkbenchPanelSlotIdSchema,
 	WorkbenchRevisionSchema,
 	WORKBENCH_MAXIMUM_PANEL_NODES_PER_CONTEXT,
+	WORKBENCH_MAXIMUM_PANEL_NODE_DEPTH,
 } from './workbench-semantic-contract';
 
 export const WORKBENCH_MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES = 1024 * 1024;
@@ -24,6 +25,35 @@ export const ClientCellRectSchema = z
 	)
 	.readonly();
 export const ClientPanelDirectionSchema = z.enum(['left', 'right', 'up', 'down']);
+export const ClientSplitRatioSchema = z.number().min(0.1).max(0.9);
+export const ClientResizeAmountSchema = z.number().min(0).max(0.5);
+export const ClientSplitPathSchema = z
+	.array(z.union([z.literal(0), z.literal(1)]))
+	.max(WORKBENCH_MAXIMUM_PANEL_NODE_DEPTH)
+	.readonly();
+const ClientSplitChangeSchema = z
+	.strictObject({
+		splitId: WorkbenchSplitIdSchema,
+		firstSlotId: WorkbenchPanelSlotIdSchema,
+		secondSlotId: WorkbenchPanelSlotIdSchema,
+		previousRatio: ClientSplitRatioSchema,
+		ratio: ClientSplitRatioSchema,
+	})
+	.refine((split) => split.firstSlotId !== split.secondSlotId, 'Split slots must differ')
+	.readonly();
+export const ClientLayoutAdjustmentSchema = z
+	.strictObject({
+		terminalContextId: WorkbenchTerminalContextIdSchema,
+		tabId: WorkbenchTabIdSchema,
+		workbenchRevision: WorkbenchRevisionSchema,
+		selected: z.boolean(),
+		change: z.discriminatedUnion('kind', [
+			z.strictObject({ kind: z.literal('no-split') }).readonly(),
+			z.strictObject({ kind: z.literal('split'), split: ClientSplitChangeSchema }).readonly(),
+		]),
+	})
+	.readonly();
+
 export const ClientPanelAreaSchema = z
 	.strictObject({
 		panelId: WorkbenchPanelIdSchema,
@@ -38,7 +68,7 @@ export const ClientSplitAreaSchema = z
 		firstSlotId: WorkbenchPanelSlotIdSchema,
 		secondSlotId: WorkbenchPanelSlotIdSchema,
 		orientation: z.enum(['horizontal', 'vertical']),
-		ratio: z.number().min(0.1).max(0.9),
+		ratio: ClientSplitRatioSchema,
 		area: ClientCellRectSchema.nullable(),
 		divider: ClientCellRectSchema.nullable(),
 	})

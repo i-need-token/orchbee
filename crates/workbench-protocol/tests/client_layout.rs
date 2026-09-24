@@ -405,3 +405,101 @@ fn physical_edges_do_not_infer_boundaries_from_missing_neighbors() {
     layout.validate().unwrap();
     assert_eq!(layout.at_edge(Direction::Left), None);
 }
+
+#[test]
+fn resize_amount_and_binary_paths_reject_unbounded_or_ambiguous_values() {
+    use orchbee_workbench_protocol::{ClientResizeAmount, ClientSplitPath};
+    for amount in [f64::NAN, f64::INFINITY, -0.01, 0.500_001] {
+        assert!(ClientResizeAmount::new(amount).is_err());
+    }
+    let maximum = ClientResizeAmount::new(0.5).unwrap();
+    assert_eq!(
+        maximum
+            .apply(ClientSplitRatio::HALF, Direction::Right)
+            .value(),
+        0.9
+    );
+    assert_eq!(
+        maximum.apply(ClientSplitRatio::HALF, Direction::Up).value(),
+        0.1
+    );
+    let zero = ClientResizeAmount::new(-0.0).unwrap();
+    assert_eq!(serde_json::to_string(&zero).unwrap(), "0.0");
+    assert_eq!(
+        zero.apply(ClientSplitRatio::HALF, Direction::Left),
+        ClientSplitRatio::HALF
+    );
+    for path in [vec![], vec![0], vec![1; 16]] {
+        let typed = ClientSplitPath::new(path.clone()).unwrap();
+        assert_eq!(typed.indices(), path);
+        assert_eq!(
+            serde_json::from_str::<ClientSplitPath>(&serde_json::to_string(&typed).unwrap())
+                .unwrap(),
+            typed
+        );
+    }
+    for path in [vec![2], vec![0; 17]] {
+        assert!(ClientSplitPath::new(path).is_err());
+    }
+    for encoded in ["[true]", "[0.5]", "[-1]", "[256]", "\"root\"", "null"] {
+        assert!(
+            serde_json::from_str::<ClientSplitPath>(encoded).is_err(),
+            "{encoded}"
+        );
+    }
+}
+
+#[test]
+fn resize_border_prioritizes_requested_edge_then_opposite_and_canonical_ties() {
+    use orchbee_workbench_protocol::{
+        ClientSplitArea, PanelOrientation, WorkbenchPanelSlotId, WorkbenchSplitId,
+    };
+    let mut layout: ClientPanelLayout = serde_json::from_value(layout_document()).unwrap();
+    layout.panels[0].unzoomed = Some(rect(31, 12, 20, 10));
+    let split = |id: u32, x: u16, y: u16, height: u16| ClientSplitArea {
+        split_id: WorkbenchSplitId::parse(&format!("{id:032x}")).unwrap(),
+        first_slot_id: WorkbenchPanelSlotId::parse(&format!("{:032x}", id + 100)).unwrap(),
+        second_slot_id: WorkbenchPanelSlotId::parse(&format!("{:032x}", id + 200)).unwrap(),
+        orientation: PanelOrientation::Horizontal,
+        ratio: ClientSplitRatio::HALF,
+        area: Some(rect(0, y, 80, height)),
+        divider: Some(rect(x, y, 1, height)),
+    };
+    layout.splits = vec![
+        split(8, 30, 2, 20),
+        split(9, 51, 12, 10),
+        split(1, 51, 12, 10),
+    ];
+    assert_eq!(
+        layout
+            .resize_split(Direction::Right)
+            .unwrap()
+            .unwrap()
+            .split_id,
+        layout.splits[1].split_id
+    );
+    assert_eq!(
+        layout
+            .resize_split(Direction::Left)
+            .unwrap()
+            .unwrap()
+            .split_id,
+        layout.splits[0].split_id
+    );
+    assert!(layout.resize_split(Direction::Up).unwrap().is_none());
+    // Requested edge at distance 2 is ineligible; exterior resize uses the opposite edge.
+    layout.splits[1].divider.as_mut().unwrap().x = 53;
+    layout.splits[2].area.as_mut().unwrap().y = 22; // touches only, no positive overlap
+    assert_eq!(
+        layout
+            .resize_split(Direction::Right)
+            .unwrap()
+            .unwrap()
+            .split_id,
+        layout.splits[0].split_id
+    );
+    layout.splits[0].divider = None;
+    assert!(layout.resize_split(Direction::Right).unwrap().is_none());
+    layout.panels[0].unzoomed = None;
+    assert!(layout.resize_split(Direction::Right).is_err());
+}

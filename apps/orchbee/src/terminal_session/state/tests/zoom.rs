@@ -180,6 +180,34 @@ fn zoom_follows_the_focus_move_without_detaching_viewers() {
 }
 
 #[test]
+fn unzoomed_geometry_resizes_each_controlling_leaf_without_moving_focus() {
+    let mut state = zoom_ready();
+    let peer = attach_nonfirst_leaf(&mut state);
+    let focus = state.focus_pane_ref().unwrap();
+    let observed = [
+        (focus.pane().panel().clone(), 0, geometry(96)),
+        (peer.pane().panel().clone(), 1, geometry(64)),
+    ];
+    let resizes = state.admit_observed_geometries(&observed);
+    assert_eq!(
+        resizes,
+        vec![(focus.clone(), geometry(96)), (peer.clone(), geometry(64))]
+    );
+    for (key, geometry) in resizes {
+        assert!(state.record_admitted_geometry(&key, geometry));
+    }
+    assert!(state.admit_observed_geometries(&observed).is_empty());
+    assert_eq!(state.focus_pane_ref(), Some(focus));
+    assert!(state.record_setup_configuration_t(&peer, ControllerMode::ReadOnly, None));
+    assert!(
+        state
+            .admit_observed_geometries(&[(peer.pane().panel().clone(), 1, geometry(72))])
+            .is_empty()
+    );
+    assert!(state.invariant_holds());
+}
+
+#[test]
 fn hidden_leaf_geometry_is_never_admitted_for_resize() {
     let mut state = zoom_ready();
     let peer = attach_nonfirst_leaf(&mut state);

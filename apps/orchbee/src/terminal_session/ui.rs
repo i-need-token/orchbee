@@ -162,6 +162,16 @@ pub(crate) struct NativeTabView<'a> {
 }
 
 impl<'a> NativeTabView<'a> {
+    /// Resolve this Client's split weight against exact ordered slot identities.
+    pub(crate) fn split_ratio(
+        &self,
+        split: &orchbee_workbench_protocol::WorkbenchSplitId,
+        first: &orchbee_workbench_protocol::WorkbenchPanelSlotId,
+        second: &orchbee_workbench_protocol::WorkbenchPanelSlotId,
+    ) -> orchbee_workbench_protocol::ClientSplitRatio {
+        self.inner.split_ratio(split, first, second)
+    }
+
     pub(crate) const fn position(&self) -> usize {
         self.inner.position()
     }
@@ -906,7 +916,7 @@ impl NativeUi {
 
     /// The leaf-geometry report the shell paints with: each `(panel_id,
     /// panel_index, content geometry)` entry syncs one pane's record. The
-    /// report installs/departs records, resizes the focus pane when its leaf
+    /// report installs/departs records, resizes visible controlling panes when a leaf
     /// moved, and schedules the reconcile snapshot that converges viewers.
     pub(super) fn observe_panes(&mut self, observed: &[(WorkbenchPanelId, usize, Geometry)]) {
         if self.retirement_failure.is_some() {

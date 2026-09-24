@@ -2,7 +2,7 @@
 use super::ui::NativeUi;
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};
 use orchbee_workbench_protocol::{
-    ClientViewCompletion, ClientViewCompletionOutcome, ClientViewControl,
+    ClientLayoutAdjustment, ClientViewCompletion, ClientViewCompletionOutcome, ClientViewControl,
     ClientViewControlReason as Reason, ClientViewIntent, ClientViewObservation, ClientViewPhase,
     ClientViewSequence,
 };
@@ -26,10 +26,84 @@ pub(super) enum ControlStep {
     ZoomUnchanged,
     Failed(Reason),
 }
+enum Execution {
+    Navigation {
+        target: ClientViewControl,
+        progress: StepProgress,
+    },
+    Adjustment {
+        adjustment: ClientLayoutAdjustment,
+        before: ClientViewObservation,
+    },
+}
+impl Execution {
+    fn had_effect(&self) -> bool {
+        match self {
+            Self::Navigation { progress, .. } => progress.had_effect,
+            Self::Adjustment { .. } => true,
+        }
+    }
+    fn step(&mut self, native: &mut NativeUi) -> ControlStep {
+        match self {
+            Self::Navigation { target, progress } => native.control_step(target, progress),
+            Self::Adjustment { adjustment, before } => {
+                if native.adjustment_observed(adjustment, before) {
+                    ControlStep::Observed
+                } else {
+                    ControlStep::Failed(Reason::StaleView)
+                }
+            }
+        }
+    }
+    fn outcome(
+        &self,
+        native: &NativeUi,
+        command: &ClientViewControl,
+        view: &ClientViewObservation,
+    ) -> Option<ClientViewCompletionOutcome> {
+        match self {
+            Self::Adjustment { adjustment, before } => native
+                .adjustment_observed(adjustment, before)
+                .then(|| ClientViewCompletionOutcome::LayoutAdjusted {
+                    adjustment: adjustment.clone(),
+                }),
+            Self::Navigation { target, progress } => {
+                if target
+                    .intent
+                    .is_observed(view, command.minimum_workbench_revision)
+                {
+                    Some(match (&command.intent, &target.intent) {
+                        (
+                            ClientViewIntent::FocusDirection { .. },
+                            ClientViewIntent::Panel { panel_id, .. },
+                        ) => ClientViewCompletionOutcome::DirectionFocused {
+                            panel_id: panel_id.clone(),
+                        },
+                        _ => ClientViewCompletionOutcome::Applied {},
+                    })
+                } else if let Some(previously_zoomed) = progress.toggle_origin
+                    && command.intent.is_toggle_observed(
+                        view,
+                        command.minimum_workbench_revision,
+                        previously_zoomed,
+                    )
+                {
+                    Some(ClientViewCompletionOutcome::ZoomToggled { previously_zoomed })
+                } else if command
+                    .intent
+                    .is_single_panel_zoom_observed(view, command.minimum_workbench_revision)
+                {
+                    Some(ClientViewCompletionOutcome::ZoomUnchanged {})
+                } else {
+                    None
+                }
+            }
+        }
+    }
+}
 struct Pending {
     command: ClientViewControl,
-    execution: ClientViewControl,
-    progress: StepProgress,
+    execution: Execution,
     deadline: Instant,
     interrupted: bool,
     awaiting_draw: bool,
@@ -142,31 +216,76 @@ impl ClientControl {
                 }
                 return false;
             }
-            let execution = match prepare_control(
-                native,
-                &command,
-                delivery.layout_snapshot.as_ref(),
-                self.viewport,
+            let execution = if matches!(
+                command.intent,
+                ClientViewIntent::Resize { .. } | ClientViewIntent::SetSplitRatio { .. }
             ) {
-                Ok(execution) => execution,
-                Err(outcome) => {
-                    if !lane.complete(
-                        sample,
-                        ClientViewCompletion {
-                            operation_id: command.operation_id,
-                            outcome,
-                        },
-                    ) {
-                        self.close();
+                let prepared = delivery
+                    .layout_snapshot
+                    .as_ref()
+                    .ok_or(Reason::ProjectionUnavailable)
+                    .and_then(|snapshot| {
+                        let adjustment =
+                            native.prepare_layout_adjustment(&command, snapshot, self.viewport)?;
+                        native.commit_layout_adjustment(snapshot, &adjustment)?;
+                        Ok(adjustment)
+                    });
+                match prepared {
+                    Ok(adjustment) if adjustment.selected && adjustment.change.changed() => {
+                        Execution::Adjustment {
+                            adjustment,
+                            before: sample.view.clone(),
+                        }
                     }
-                    // Layout reads and no-neighbor decisions have no display side effects.
-                    return false;
+                    result => {
+                        let outcome = match result {
+                            Ok(adjustment) => {
+                                ClientViewCompletionOutcome::LayoutAdjusted { adjustment }
+                            }
+                            Err(reason) => ClientViewCompletionOutcome::Rejected { reason },
+                        };
+                        if !lane.complete(
+                            sample,
+                            ClientViewCompletion {
+                                operation_id: command.operation_id,
+                                outcome,
+                            },
+                        ) {
+                            self.close();
+                        }
+                        return false;
+                    }
+                }
+            } else {
+                let target = match prepare_control(
+                    native,
+                    &command,
+                    delivery.layout_snapshot.as_ref(),
+                    self.viewport,
+                ) {
+                    Ok(execution) => execution,
+                    Err(outcome) => {
+                        if !lane.complete(
+                            sample,
+                            ClientViewCompletion {
+                                operation_id: command.operation_id,
+                                outcome: *outcome,
+                            },
+                        ) {
+                            self.close();
+                        }
+                        // Layout reads and no-neighbor decisions have no display side effects.
+                        return false;
+                    }
+                };
+                Execution::Navigation {
+                    target,
+                    progress: StepProgress::default(),
                 }
             };
             self.pending = Some(Pending {
                 command,
                 execution,
-                progress: StepProgress::default(),
                 deadline: self.clock.now() + super::state::OPERATION_TOTAL,
                 interrupted: false,
                 awaiting_draw: false,
@@ -180,7 +299,7 @@ impl ClientControl {
         } else if self.clock.now() >= pending.deadline {
             ControlStep::Failed(Reason::Expired)
         } else {
-            native.control_step(&pending.execution, &mut pending.progress)
+            pending.execution.step(native)
         };
         match step {
             ControlStep::Waiting => view_changed,
@@ -192,7 +311,7 @@ impl ClientControl {
             ControlStep::Failed(reason) => {
                 let completion = ClientViewCompletion {
                     operation_id: pending.command.operation_id.clone(),
-                    outcome: if pending.progress.had_effect {
+                    outcome: if pending.execution.had_effect() {
                         ClientViewCompletionOutcome::Incomplete { reason }
                     } else {
                         ClientViewCompletionOutcome::Rejected { reason }
@@ -231,36 +350,7 @@ impl ClientControl {
             .as_ref()
             .filter(|pending| pending.awaiting_draw && !pending.interrupted)
             .and_then(|pending| {
-                let outcome = if pending
-                    .execution
-                    .intent
-                    .is_observed(&view, pending.command.minimum_workbench_revision)
-                {
-                    match (&pending.command.intent, &pending.execution.intent) {
-                        (
-                            ClientViewIntent::FocusDirection { .. },
-                            ClientViewIntent::Panel { panel_id, .. },
-                        ) => ClientViewCompletionOutcome::DirectionFocused {
-                            panel_id: panel_id.clone(),
-                        },
-                        _ => ClientViewCompletionOutcome::Applied {},
-                    }
-                } else if let Some(previously_zoomed) = pending.progress.toggle_origin
-                    && pending.command.intent.is_toggle_observed(
-                        &view,
-                        pending.command.minimum_workbench_revision,
-                        previously_zoomed,
-                    )
-                {
-                    ClientViewCompletionOutcome::ZoomToggled { previously_zoomed }
-                } else if pending.command.intent.is_single_panel_zoom_observed(
-                    &view,
-                    pending.command.minimum_workbench_revision,
-                ) {
-                    ClientViewCompletionOutcome::ZoomUnchanged {}
-                } else {
-                    return None;
-                };
+                let outcome = pending.execution.outcome(native, &pending.command, &view)?;
                 Some(ClientViewCompletion {
                     operation_id: pending.command.operation_id.clone(),
                     outcome,
@@ -299,7 +389,7 @@ fn prepare_control(
     command: &ClientViewControl,
     snapshot: Option<&orchbee_workbench_protocol::Snapshot>,
     viewport: Option<(ratatui::layout::Rect, crate::client_view::SidebarSurface)>,
-) -> Result<ClientViewControl, ClientViewCompletionOutcome> {
+) -> Result<ClientViewControl, Box<ClientViewCompletionOutcome>> {
     if !matches!(
         command.intent,
         ClientViewIntent::Layout { .. } | ClientViewIntent::FocusDirection { .. }
@@ -314,19 +404,19 @@ fn prepare_control(
     }
     .map_err(|reason| ClientViewCompletionOutcome::Rejected { reason })?;
     let ClientViewIntent::FocusDirection { direction, .. } = &command.intent else {
-        return Err(ClientViewCompletionOutcome::LayoutRead {
+        return Err(Box::new(ClientViewCompletionOutcome::LayoutRead {
             layout: Box::new(layout),
-        });
+        }));
     };
     if !layout.source_available {
-        return Err(ClientViewCompletionOutcome::Rejected {
+        return Err(Box::new(ClientViewCompletionOutcome::Rejected {
             reason: Reason::ProjectionUnavailable,
-        });
+        }));
     }
     let Some(destination) = layout.neighbors.get(*direction) else {
-        return Err(ClientViewCompletionOutcome::DirectionUnchanged {
+        return Err(Box::new(ClientViewCompletionOutcome::DirectionUnchanged {
             layout_revision: layout.workbench_revision,
-        });
+        }));
     };
     let intent = command.intent.directional_target(destination).ok_or(
         ClientViewCompletionOutcome::Rejected {

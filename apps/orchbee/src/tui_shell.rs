@@ -569,8 +569,13 @@ pub(crate) fn active_pane_area(
         .and_then(|position| position.checked_sub(1))
         .and_then(|index| native.tab(index))?;
     let area = if framed && tab.panel_count() > 1 && !native.zoom_active() {
-        crate::tui_layout::project_panel_tree(content, tab.panel_tree(), tab.active_panel())
-            .active_content(tab.active_panel())
+        crate::tui_layout::project_panel_tree(
+            content,
+            tab.panel_tree(),
+            tab.active_panel(),
+            &|split, first, second| tab.split_ratio(split, first, second),
+        )
+        .active_content(tab.active_panel())
     } else {
         Some(content)
     }?;
@@ -630,8 +635,12 @@ pub(crate) fn pane_geometries(
         .map_err(io::Error::other)
     };
     if framed && tab.panel_count() > 1 {
-        let projection =
-            tui_layout::project_panel_tree(content, tab.panel_tree(), tab.active_panel());
+        let projection = tui_layout::project_panel_tree(
+            content,
+            tab.panel_tree(),
+            tab.active_panel(),
+            &|split, first, second| tab.split_ratio(split, first, second),
+        );
         let mut panes = Vec::with_capacity(projection.leaves.len());
         for leaf in &projection.leaves {
             let Some(panel) = tab.panel(leaf.panel_index) else {

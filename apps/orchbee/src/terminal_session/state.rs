@@ -29,6 +29,7 @@ mod panel_close;
 pub(super) mod rename_draft;
 #[cfg(any(target_os = "linux", windows))]
 pub(super) mod retired_membership;
+mod split_ratios;
 mod switch_membership;
 mod tab_close;
 pub(super) mod tab_rename;
@@ -1128,6 +1129,7 @@ pub(super) struct NativeSessionState {
     /// Never wired, shared between Clients, or persisted; bounded by the
     /// same navigation retention the context snapshots already obey.
     zoomed_tabs: std::collections::BTreeSet<WorkbenchTabId>,
+    split_ratios: split_ratios::SplitRatios,
 }
 
 impl NativeSessionState {
@@ -1193,6 +1195,7 @@ impl NativeSessionState {
             pending_membership: None,
             settled_create: None,
             zoomed_tabs: std::collections::BTreeSet::new(),
+            split_ratios: split_ratios::SplitRatios::default(),
         };
         Some((state, target))
     }
@@ -2050,8 +2053,8 @@ impl NativeSessionState {
         true
     }
 
-    /// The resize a changed focus leaf owes the executor. Only the focus pane
-    /// admits a controlling resize; the caller records the admission through
+    /// The resizes changed visible controlling leaves owe the executor. Zoom
+    /// excludes hidden peers; the caller records each admission through
     /// [`Self::record_admitted_geometry`] once the command is queued, so a
     /// Full/Busy refusal simply retries on the next observation.
     pub(super) fn admit_observed_geometries(
@@ -2063,10 +2066,11 @@ impl NativeSessionState {
             let Some(focus) = self.desired.as_ref() else {
                 break;
             };
-            if focus.panel() != panel_id {
+            if self.zoom_active() && focus.panel() != panel_id {
                 continue;
             }
-            let Some(record) = self.pane_record(focus) else {
+            let pane = PaneKey::new(focus.anchor().clone(), panel_id.clone());
+            let Some(record) = self.pane_record(&pane) else {
                 continue;
             };
             if record.departing
@@ -3392,6 +3396,29 @@ impl NativeSessionState {
         true
     }
 
+    /// Read one Client-local ratio only when both ordered slot identities still match.
+    pub(super) fn split_ratio(
+        &self,
+        context: &WorkbenchTerminalContextId,
+        tab: &WorkbenchTabId,
+        split: &orchbee_workbench_protocol::WorkbenchSplitId,
+        first: &orchbee_workbench_protocol::WorkbenchPanelSlotId,
+        second: &orchbee_workbench_protocol::WorkbenchPanelSlotId,
+    ) -> orchbee_workbench_protocol::ClientSplitRatio {
+        self.split_ratios.get(context, tab, split, first, second)
+    }
+
+    pub(super) fn commit_layout_adjustment(
+        &mut self,
+        snapshot: &orchbee_workbench_protocol::Snapshot,
+        adjustment: &orchbee_workbench_protocol::ClientLayoutAdjustment,
+    ) -> Result<(), orchbee_workbench_protocol::ClientViewControlReason> {
+        if snapshot.site_id != *self.cache.site_id() || snapshot.revision < self.cache.revision() {
+            return Err(orchbee_workbench_protocol::ClientViewControlReason::StaleView);
+        }
+        self.split_ratios.commit(snapshot, adjustment)
+    }
+
     /// Read-side adjudication: the active Tab draws zoomed exactly while its
     /// flag survives AND its current cache membership stays multi-leaf — a
     /// stale retained flag can never paint a zoom.
@@ -3804,6 +3831,8 @@ impl<'a> NativeSessionView<'a> {
             .filter(|active| active.index() == index)
             .map(SelectedTab::panel_index);
         Some(NativeTabView {
+            ratios: &self.state.split_ratios,
+            context: self.state.cache.terminal_context_id(),
             tab,
             position: index + 1,
             active: active_panel.is_some(),
@@ -3855,6 +3884,8 @@ impl<'a> NativeSessionView<'a> {
 
 #[derive(Clone, Copy)]
 pub(super) struct NativeTabView<'a> {
+    ratios: &'a split_ratios::SplitRatios,
+    context: &'a WorkbenchTerminalContextId,
     tab: &'a NativeSimpleTab,
     position: usize,
     active: bool,
@@ -3862,6 +3893,16 @@ pub(super) struct NativeTabView<'a> {
 }
 
 impl<'a> NativeTabView<'a> {
+    pub(super) fn split_ratio(
+        &self,
+        split: &orchbee_workbench_protocol::WorkbenchSplitId,
+        first: &orchbee_workbench_protocol::WorkbenchPanelSlotId,
+        second: &orchbee_workbench_protocol::WorkbenchPanelSlotId,
+    ) -> orchbee_workbench_protocol::ClientSplitRatio {
+        self.ratios
+            .get(self.context, self.tab.tab_id(), split, first, second)
+    }
+
     pub(super) const fn position(&self) -> usize {
         self.position
     }

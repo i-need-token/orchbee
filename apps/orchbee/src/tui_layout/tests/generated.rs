@@ -8,6 +8,7 @@ enum Action {
     Collapse { target: u8 },
     Focus { target: u8 },
     Resize { width: u16, height: u16 },
+    Ratio { target: u8, tenths: u8 },
 }
 
 fn encode(actions: &[Action]) -> String {
@@ -18,6 +19,7 @@ fn encode(actions: &[Action]) -> String {
             Action::Collapse { target } => [1, u16::from(target), 0],
             Action::Focus { target } => [2, u16::from(target), 0],
             Action::Resize { width, height } => [3, width, height],
+            Action::Ratio { target, tenths } => [4, u16::from(target), u16::from(tenths)],
         })
         .collect();
     serde_json::to_string(&records).unwrap()
@@ -41,6 +43,10 @@ fn decode(encoded: &str) -> Vec<Action> {
             3 => Action::Resize {
                 width: first,
                 height: second,
+            },
+            4 => Action::Ratio {
+                target: u8::try_from(first).unwrap(),
+                tenths: u8::try_from(second).unwrap(),
             },
             _ => panic!("unknown serialized action {kind}"),
         })
@@ -107,6 +113,7 @@ fn replay(actions: &[Action]) -> Result<u16, String> {
     let mut focus = Some(0);
     let mut area = Rect::new(7, 9, 120, 40);
     let mut coverage = 0_u16;
+    let mut ratios = std::collections::BTreeMap::new();
     for action in actions {
         let mut leaves = Vec::new();
         ids(&tree, &mut leaves, &mut Vec::new());
@@ -133,6 +140,17 @@ fn replay(actions: &[Action]) -> Result<u16, String> {
                 area = Rect::new(7, 9, width, height);
                 coverage |= 16;
             }
+            Action::Ratio { target, tenths } => {
+                let mut splits = Vec::new();
+                ids(&tree, &mut Vec::new(), &mut splits);
+                if !splits.is_empty() {
+                    ratios.insert(
+                        splits[usize::from(target) % splits.len()].clone(),
+                        ClientSplitRatio::new(f64::from(tenths) / 10.0).unwrap(),
+                    );
+                    coverage |= 256;
+                }
+            }
             _ => {}
         }
         leaves.clear();
@@ -141,7 +159,12 @@ fn replay(actions: &[Action]) -> Result<u16, String> {
         if focus.is_none_or(|id| !leaves.contains(&id)) {
             focus = leaves.first().copied();
         }
-        let projected = project_panel_tree(area, &tree, focus);
+        let projected = project_panel_tree(area, &tree, focus, &|split, _, _| {
+            ratios
+                .get(split.as_str())
+                .copied()
+                .unwrap_or(ClientSplitRatio::HALF)
+        });
         if split_ids.len() > 1 {
             coverage |= 32;
         }
@@ -226,7 +249,12 @@ fn replay(actions: &[Action]) -> Result<u16, String> {
                 }
             }
         }
-        let repeated = project_panel_tree(area, &tree, focus);
+        let repeated = project_panel_tree(area, &tree, focus, &|split, _, _| {
+            ratios
+                .get(split.as_str())
+                .copied()
+                .unwrap_or(ClientSplitRatio::HALF)
+        });
         if repeated.leaves != projected.leaves || repeated.dividers != projected.dividers {
             return Err("read projection changed on replay".into());
         }
@@ -286,13 +314,17 @@ fn generated_hierarchy_changes_preserve_geometry_and_replayable_observation() {
             random ^= random >> 7;
             random ^= random << 17;
             let target = u8::try_from(random & 255).unwrap();
-            actions.push(match random % 6 {
+            actions.push(match random % 7 {
                 0 | 1 => Action::Split {
                     target,
                     vertical: random & 256 != 0,
                 },
                 2 => Action::Collapse { target },
                 3 => Action::Focus { target },
+                4 => Action::Ratio {
+                    target,
+                    tenths: 1 + u8::try_from((random >> 12) % 9).unwrap(),
+                },
                 _ => Action::Resize {
                     width: [8, 9, 19, 20, 59, 60, 99, 100, 121][index % 9],
                     height: [2, 3, 6, 7, 11, 12, 23, 24, 41][(index / 9) % 9],
@@ -310,7 +342,7 @@ fn generated_hierarchy_changes_preserve_geometry_and_replayable_observation() {
         }
     }
     assert_eq!(
-        coverage, 255,
+        coverage, 511,
         "every declared action/topology/geometry class must be reached"
     );
 }

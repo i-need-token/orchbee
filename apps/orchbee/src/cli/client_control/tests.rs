@@ -593,3 +593,221 @@ fn directional_focus_grammar_resolves_source_and_explicit_success_variants() {
         );
     }
 }
+
+#[test]
+fn ratio_and_resize_grammar_normalizes_finite_values_and_resolves_exact_targets() {
+    use crate::invocation::ClientLayoutTarget;
+    let parse = |args: &[&str]| invocation::parse_request(args.iter().map(OsString::from));
+    for (value, expected) in [("0", 0.0), ("-0.05", 0.05), ("2", 0.5)] {
+        let Request::Client {
+            command: ClientCommand::Navigate { target, .. },
+            ..
+        } = parse(&[
+            "panel",
+            "resize",
+            "--current",
+            "--direction",
+            "right",
+            "--amount",
+            value,
+        ])
+        .unwrap()
+        else {
+            panic!()
+        };
+        let intent = selection::intent(&target, &record(), None, &snapshot()).unwrap();
+        assert!(matches!(intent,ClientViewIntent::Resize {amount,..} if amount.value()==expected));
+    }
+    for (value, expected) in [("-1", 0.1), ("0.25", 0.25), ("2", 0.9)] {
+        for selector in [
+            vec![],
+            vec!["--current"],
+            vec!["--panel", "@panel:06"],
+            vec!["--tab", "shell"],
+        ] {
+            let mut words = vec![
+                "layout",
+                "set-split-ratio",
+                "--path",
+                "0.1",
+                "--ratio",
+                value,
+            ];
+            words.extend(selector);
+            let Request::Client {
+                command: ClientCommand::Navigate { target, .. },
+                ..
+            } = parse(&words).unwrap()
+            else {
+                panic!()
+            };
+            let intent = selection::intent(&target, &record(), None, &snapshot()).unwrap();
+            assert!(
+                matches!(intent,ClientViewIntent::SetSplitRatio {path,ratio,tab_id,..} if path.indices()==[0,1] && ratio.value()==expected && tab_id.as_str()==format!("{:032x}",5))
+            );
+        }
+    }
+    let Request::Client {
+        command: ClientCommand::Navigate { target, .. },
+        ..
+    } = parse(&[
+        "layout",
+        "set-split-ratio",
+        "--path",
+        "root",
+        "--ratio",
+        ".5",
+        "--tab",
+        "shell",
+    ])
+    .unwrap()
+    else {
+        panic!()
+    };
+    assert!(
+        matches!(target,ClientNavigationTarget::SetSplitRatio {target:ClientLayoutTarget::Tab(_),path,..} if path.indices().is_empty())
+    );
+    for words in [
+        vec!["panel", "resize"],
+        vec!["panel", "resize", "--direction", "above"],
+        vec!["panel", "resize", "--direction", "up", "--amount", "NaN"],
+        vec!["panel", "resize", "--direction", "up", "--amount", "inf"],
+        vec!["panel", "resize", "--direction", "up", "--ratio", ".5"],
+        vec!["panel", "focus", "--amount", ".5"],
+        vec!["layout"],
+        vec!["layout", "set-split-ratio"],
+        vec![
+            "layout",
+            "set-split-ratio",
+            "--path",
+            "root",
+            "--ratio",
+            "-inf",
+        ],
+        vec![
+            "layout",
+            "set-split-ratio",
+            "--path",
+            "0..1",
+            "--ratio",
+            ".5",
+        ],
+        vec!["layout", "set-split-ratio", "--path", "2", "--ratio", ".5"],
+        vec![
+            "layout",
+            "set-split-ratio",
+            "--path",
+            "0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0",
+            "--ratio",
+            ".5",
+        ],
+        vec![
+            "layout",
+            "set-split-ratio",
+            "shell",
+            "--path",
+            "root",
+            "--ratio",
+            ".5",
+        ],
+        vec![
+            "layout",
+            "set-split-ratio",
+            "--tab",
+            "shell",
+            "--current",
+            "--path",
+            "root",
+            "--ratio",
+            ".5",
+        ],
+        vec![
+            "layout",
+            "set-split-ratio",
+            "--tab",
+            "shell",
+            "--panel",
+            "@panel:06",
+            "--path",
+            "root",
+            "--ratio",
+            ".5",
+        ],
+        vec![
+            "layout",
+            "set-split-ratio",
+            "--path",
+            "root",
+            "--ratio",
+            ".5",
+            "--amount",
+            ".1",
+        ],
+        vec!["status", "--ratio", ".5"],
+    ] {
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
+    for words in [
+        vec!["layout", "--help"],
+        vec!["layout", "set-split-ratio", "--help"],
+        vec!["panel", "resize", "--help"],
+    ] {
+        assert!(matches!(parse(&words).unwrap(), Request::Help(_)));
+    }
+}
+
+#[test]
+fn layout_adjustment_receipts_have_closed_json_and_honest_bilingual_text() {
+    let schema: Value =
+        serde_json::from_str(include_str!("../schemas/orchbee.client.control.json")).unwrap();
+    let validator = jsonschema::draft202012::new(&schema).unwrap();
+    for (name, en, zh) in [
+        (
+            "resize-adjusted-selected",
+            "Ratio changed and drawn",
+            "比例已改变并绘制",
+        ),
+        (
+            "resize-adjusted-inactive-old-selected-view",
+            "Ratio stored for inactive Tab",
+            "已保存非活动标签页的比例",
+        ),
+        (
+            "resize-no-split",
+            "No eligible split; unchanged",
+            "没有可调整的分割",
+        ),
+        ("resize-clamped-unchanged", "Ratio unchanged", "比例未改变"),
+        (
+            "ratio-set-root",
+            "Ratio changed and drawn",
+            "比例已改变并绘制",
+        ),
+    ] {
+        let WorkbenchResponse::ClientView(reply) = serde_json::from_value(sample(name)).unwrap()
+        else {
+            panic!()
+        };
+        let ClientViewOutcome::Operation { operation } = &reply.outcome else {
+            panic!()
+        };
+        let answer = Answer {
+            status_only: false,
+            operation_id: Some(operation.command.operation_id.clone()),
+            site_id: Some(reply.site_id.clone()),
+            reply: Some(reply),
+            unknown: false,
+            wait: None,
+        };
+        assert_eq!(answer.exit_code(), 0);
+        validator.validate(&answer.document()).unwrap();
+        for (locale, expected) in [(Locale::EnUs, en), (Locale::ZhCn, zh)] {
+            assert!(
+                String::from_utf8(emit(&answer, OutputFormat::Text, locale).stdout)
+                    .unwrap()
+                    .contains(expected),
+                "{name}"
+            );
+        }
+    }
+}

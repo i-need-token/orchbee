@@ -75,3 +75,5 @@ TUI 退出时控制通道停止、唤醒阻塞 I/O 并 join。Server Session 清
 找到邻居后，将其一次性固定为精确的目标 Panel。现有的有序选择和绘制确认执行该固定目标，回执保留原始方向意图。后续 tick、视口变化、状态查询和重放都不会再次执行方向移动。`direction-focused` 携带目标 Panel 和观测视图；目标必须区别于来源，并匹配要求的上下文、Tab 和最低版本。即使找到的邻居已经获得焦点，也在绘制后返回此结果。保留缩放状态。本地打断和成员丢失沿用已有 rejected/incomplete 语义，不激活操作系统窗口。
 
 两种新完成结果沿用普通有界帧 25/26。Rust、TypeScript 和 JSON Schema 拒绝未知变体和字段；语义校验器拒绝意图不符的方向结果、以来源充当目标、视图不符以及过期的来源版本。Server 保留原始操作，不自行解析几何。TLA 抽象增加没有副作用和绘制的无邻居完成，执行仍延期。维护的控制器和注册表见证覆盖无邻居纯度、固定目标、绘制顺序、打断和回执重放。Windows ConPTY 证据覆盖精确 Client 隔离及非活动来源行为。固定版本 Herdr 的方向聚焦处理器提供无邻居行为参考；Orchbee 保留自己的单元格布局和认证 Client 路由。
+
+`panel resize [panel] --direction left|right|up|down [--amount <number>]` 调整一个符合条件的分割边界，保留焦点和缩放。`layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path root|0.1 --ratio <number>` 设置精确二进制分割路径。两者都路由到一个 Windows TUI，并保留 `layout-adjusted` 回执。当前标签页的变化等待绘制，非活动标签页只保存、不导航。有限比例限制为 0.1–0.9；有限 resize 数量转为绝对值且最多 0.5，默认 0.05。比例归该 TUI 会话所有，重启后不恢复。参见[布局契约](windows-client-layout.zh-CN.md)。

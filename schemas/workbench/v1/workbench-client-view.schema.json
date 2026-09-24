@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "urn:orchbee:schema:workbench-client-view:v1",
-	"$comment": "Independent bindings enforce sequence bounds, Client ownership and selection, exact layout targets, cell containment, canonical neighbor ordering, node/identity limits and encoded layout envelope reservation. OBWP25/26 retain16KiB/64KiB; layout completion/result use27/28 at1MiB. Geometry is an ephemeral Client observation.",
+	"$comment": "Independent bindings enforce sequence bounds, Client ownership and selection, exact layout targets, cell containment, canonical neighbor ordering, node/identity limits and encoded layout envelope reservation. OBWP25/26 retain16KiB/64KiB; layout completion/result use27/28 at1MiB. Geometry is an ephemeral Client observation. Client ratio adjustments preserve selection, validate exact intent/revision and normalized signed delta, and use ordinary25/26 limits.",
 	"oneOf": [
 		{
 			"$ref": "#/$defs/request"
@@ -257,6 +257,53 @@
 					},
 					"required": ["kind", "terminalContextId", "tabId", "panelId", "direction"],
 					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "resize"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "#/$defs/panelId"
+						},
+						"direction": {
+							"enum": ["left", "right", "up", "down"]
+						},
+						"amount": {
+							"$ref": "#/$defs/resizeAmount"
+						}
+					},
+					"required": ["kind", "terminalContextId", "tabId", "panelId", "direction", "amount"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "set-split-ratio"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/tabId"
+						},
+						"path": {
+							"$ref": "#/$defs/splitPath"
+						},
+						"ratio": {
+							"$ref": "#/$defs/splitRatio"
+						}
+					},
+					"required": ["kind", "terminalContextId", "tabId", "path", "ratio"],
+					"additionalProperties": false
 				}
 			]
 		},
@@ -404,6 +451,19 @@
 								}
 							},
 							"required": ["kind", "layoutRevision"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "layout-adjusted"
+								},
+								"adjustment": {
+									"$ref": "#/$defs/layoutAdjustment"
+								}
+							},
+							"required": ["kind", "adjustment"],
 							"additionalProperties": false
 						}
 					]
@@ -558,6 +618,22 @@
 						}
 					},
 					"required": ["kind", "layoutRevision", "view"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "layout-adjusted"
+						},
+						"adjustment": {
+							"$ref": "#/$defs/layoutAdjustment"
+						},
+						"view": {
+							"$ref": "#/$defs/view"
+						}
+					},
+					"required": ["kind", "adjustment", "view"],
 					"additionalProperties": false
 				}
 			]
@@ -1066,6 +1142,95 @@
 				"panels",
 				"splits"
 			],
+			"additionalProperties": false
+		},
+		"splitRatio": {
+			"type": "number",
+			"minimum": 0.1,
+			"maximum": 0.9
+		},
+		"resizeAmount": {
+			"type": "number",
+			"minimum": 0,
+			"maximum": 0.5
+		},
+		"splitPath": {
+			"type": "array",
+			"items": {
+				"type": "integer",
+				"enum": [0, 1]
+			},
+			"maxItems": 16
+		},
+		"splitChange": {
+			"type": "object",
+			"properties": {
+				"splitId": {
+					"$ref": "#/$defs/splitId"
+				},
+				"firstSlotId": {
+					"$ref": "#/$defs/panelSlotId"
+				},
+				"secondSlotId": {
+					"$ref": "#/$defs/panelSlotId"
+				},
+				"previousRatio": {
+					"$ref": "#/$defs/splitRatio"
+				},
+				"ratio": {
+					"$ref": "#/$defs/splitRatio"
+				}
+			},
+			"required": ["splitId", "firstSlotId", "secondSlotId", "previousRatio", "ratio"],
+			"additionalProperties": false
+		},
+		"layoutChange": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "no-split"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "split"
+						},
+						"split": {
+							"$ref": "#/$defs/splitChange"
+						}
+					},
+					"required": ["kind", "split"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"layoutAdjustment": {
+			"type": "object",
+			"properties": {
+				"terminalContextId": {
+					"$ref": "#/$defs/terminalContextId"
+				},
+				"tabId": {
+					"$ref": "#/$defs/tabId"
+				},
+				"workbenchRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"selected": {
+					"type": "boolean"
+				},
+				"change": {
+					"$ref": "#/$defs/layoutChange"
+				}
+			},
+			"required": ["terminalContextId", "tabId", "workbenchRevision", "selected", "change"],
 			"additionalProperties": false
 		}
 	}

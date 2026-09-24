@@ -438,6 +438,53 @@
 					},
 					"required": ["kind", "terminalContextId", "tabId", "panelId", "direction"],
 					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "resize"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "#/$defs/panelId"
+						},
+						"direction": {
+							"enum": ["left", "right", "up", "down"]
+						},
+						"amount": {
+							"$ref": "#/$defs/resizeAmount"
+						}
+					},
+					"required": ["kind", "terminalContextId", "tabId", "panelId", "direction", "amount"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "set-split-ratio"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "#/$defs/tabId"
+						},
+						"path": {
+							"$ref": "#/$defs/splitPath"
+						},
+						"ratio": {
+							"$ref": "#/$defs/splitRatio"
+						}
+					},
+					"required": ["kind", "terminalContextId", "tabId", "path", "ratio"],
+					"additionalProperties": false
 				}
 			]
 		},
@@ -627,6 +674,22 @@
 						}
 					},
 					"required": ["kind", "layoutRevision", "view"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "layout-adjusted"
+						},
+						"adjustment": {
+							"$ref": "#/$defs/layoutAdjustment"
+						},
+						"view": {
+							"$ref": "#/$defs/view"
+						}
+					},
+					"required": ["kind", "adjustment", "view"],
 					"additionalProperties": false
 				}
 			]
@@ -964,6 +1027,95 @@
 		},
 		"panelSlotId": {
 			"$ref": "#/$defs/identity"
+		},
+		"splitRatio": {
+			"type": "number",
+			"minimum": 0.1,
+			"maximum": 0.9
+		},
+		"resizeAmount": {
+			"type": "number",
+			"minimum": 0,
+			"maximum": 0.5
+		},
+		"splitPath": {
+			"type": "array",
+			"items": {
+				"type": "integer",
+				"enum": [0, 1]
+			},
+			"maxItems": 16
+		},
+		"splitChange": {
+			"type": "object",
+			"properties": {
+				"splitId": {
+					"$ref": "#/$defs/splitId"
+				},
+				"firstSlotId": {
+					"$ref": "#/$defs/panelSlotId"
+				},
+				"secondSlotId": {
+					"$ref": "#/$defs/panelSlotId"
+				},
+				"previousRatio": {
+					"$ref": "#/$defs/splitRatio"
+				},
+				"ratio": {
+					"$ref": "#/$defs/splitRatio"
+				}
+			},
+			"required": ["splitId", "firstSlotId", "secondSlotId", "previousRatio", "ratio"],
+			"additionalProperties": false
+		},
+		"layoutChange": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "no-split"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "split"
+						},
+						"split": {
+							"$ref": "#/$defs/splitChange"
+						}
+					},
+					"required": ["kind", "split"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"layoutAdjustment": {
+			"type": "object",
+			"properties": {
+				"terminalContextId": {
+					"$ref": "#/$defs/terminalContextId"
+				},
+				"tabId": {
+					"$ref": "#/$defs/tabId"
+				},
+				"workbenchRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"selected": {
+					"type": "boolean"
+				},
+				"change": {
+					"$ref": "#/$defs/layoutChange"
+				}
+			},
+			"required": ["terminalContextId", "tabId", "workbenchRevision", "selected", "change"],
+			"additionalProperties": false
 		}
 	}
 }

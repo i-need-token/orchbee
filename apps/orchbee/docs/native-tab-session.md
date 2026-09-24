@@ -946,8 +946,8 @@ owns its own viewer attachment inside the shared per-Client HostViewers budget (
 keeps one pane record per leaf under a stable `PaneKey` — the original selection anchor plus the
 leaf's `WorkbenchPanelId` — and each record's physical attachment is a `PaneRef` incarnation minted
 when its attach target was issued. Polls continue for every admitted pane incarnation, so inactive
-leaves keep rendering their own live frames; input and resize admit only the focused pane's exact
-incarnation.
+leaves keep rendering their own live frames. Input admits only the focused pane; resize admits
+each visible controlling pane's exact incarnation. Read-only panes never acquire control for resize.
 
 In a connected Native Session, `Ctrl+B h`, `j`, `k`, and `l` are Client-local focus actions. When a
 direction has a neighboring leaf, the Session moves the focused-pane selection to that leaf's

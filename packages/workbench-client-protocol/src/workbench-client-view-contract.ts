@@ -1,5 +1,9 @@
 import {
 	ClientPanelDirectionSchema,
+	ClientLayoutAdjustmentSchema,
+	ClientResizeAmountSchema,
+	ClientSplitPathSchema,
+	ClientSplitRatioSchema,
 	ClientPanelLayoutSchema,
 } from './workbench-client-layout-contract';
 import { z } from 'zod';
@@ -64,6 +68,22 @@ const panelTarget = { ...tabTarget, panelId: WorkbenchPanelIdSchema };
 export const ClientViewIntentSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
+			kind: z.literal('resize'),
+			...panelTarget,
+			direction: ClientPanelDirectionSchema,
+			amount: ClientResizeAmountSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('set-split-ratio'),
+			...tabTarget,
+			path: ClientSplitPathSchema,
+			ratio: ClientSplitRatioSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
 			kind: z.literal('focus-direction'),
 			...panelTarget,
 			direction: ClientPanelDirectionSchema,
@@ -100,6 +120,12 @@ export const ClientViewCompletionSchema = z
 		operationId: WorkbenchRequestIdSchema,
 		outcome: z.discriminatedUnion('kind', [
 			z
+				.strictObject({
+					kind: z.literal('layout-adjusted'),
+					adjustment: ClientLayoutAdjustmentSchema,
+				})
+				.readonly(),
+			z
 				.strictObject({ kind: z.literal('direction-focused'), panelId: WorkbenchPanelIdSchema })
 				.readonly(),
 			z
@@ -123,6 +149,13 @@ export const ClientViewCompletionSchema = z
 	})
 	.readonly();
 export const ClientViewControlStatusSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('layout-adjusted'),
+			adjustment: ClientLayoutAdjustmentSchema,
+			view: ClientViewObservationSchema,
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('direction-focused'),
@@ -173,6 +206,50 @@ export const ClientViewOperationSchema = z
 		status: ClientViewControlStatusSchema,
 	})
 	.superRefine(({ command, status }, context) => {
+		if (status.kind === 'layout-adjusted') {
+			const { intent } = command;
+			if (intent.kind !== 'resize' && intent.kind !== 'set-split-ratio') {
+				context.addIssue({
+					code: 'custom',
+					message: 'Layout adjustment requires resize or ratio intent',
+				});
+				return;
+			}
+			const { adjustment, view } = status;
+			const selected =
+				view.selection !== null &&
+				view.selection.terminalContextId === intent.terminalContextId &&
+				view.selection.tabId === intent.tabId;
+			const change = adjustment.change;
+			let ratioMatches: boolean;
+			if (change.kind === 'no-split') ratioMatches = intent.kind === 'resize';
+			else if (intent.kind === 'set-split-ratio')
+				ratioMatches = change.split.ratio === intent.ratio;
+			else {
+				const signed =
+					intent.direction === 'right' || intent.direction === 'down'
+						? intent.amount
+						: -intent.amount;
+				ratioMatches =
+					change.split.ratio === Math.max(0.1, Math.min(0.9, change.split.previousRatio + signed));
+			}
+			if (
+				!ratioMatches ||
+				adjustment.terminalContextId !== intent.terminalContextId ||
+				adjustment.tabId !== intent.tabId ||
+				adjustment.selected !== selected ||
+				BigInt(adjustment.workbenchRevision) < BigInt(command.minimumWorkbenchRevision) ||
+				(selected && adjustment.workbenchRevision !== view.workbenchRevision) ||
+				view.phase === 'starting' ||
+				view.phase === 'busy'
+			) {
+				context.addIssue({
+					code: 'custom',
+					message: 'Layout adjustment target, revision or ratio is inconsistent',
+				});
+			}
+			return;
+		}
 		if (status.kind === 'direction-focused' || status.kind === 'direction-unchanged') {
 			const { intent } = command;
 			const { view } = status;
@@ -265,6 +342,8 @@ export const ClientViewOperationSchema = z
 					intent.kind !== 'toggle-zoom' &&
 					intent.kind !== 'layout' &&
 					intent.kind !== 'focus-direction' &&
+					intent.kind !== 'resize' &&
+					intent.kind !== 'set-split-ratio' &&
 					(intent.kind !== 'zoom' || selection?.zoomed === intent.enabled);
 				break;
 		}
@@ -277,7 +356,8 @@ export const ClientViewOperationSchema = z
 			selection.terminalContextId === intent.terminalContextId &&
 			(intent.kind === 'context' ||
 				(selection.tabId === intent.tabId &&
-					(intent.kind === 'tab' || (selection.panelId === intent.panelId && zoomMatches))));
+					(intent.kind === 'tab' ||
+						('panelId' in intent && selection.panelId === intent.panelId && zoomMatches))));
 		if (!observed || !zoomMatches)
 			context.addIssue({ code: 'custom', message: 'Applied target is not observed' });
 	})

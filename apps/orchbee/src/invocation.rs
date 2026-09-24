@@ -1,6 +1,8 @@
 mod client_control;
 mod schema_export;
-pub(crate) use client_control::{ClientCommand, ClientNavigationTarget, LayoutQuery, ZoomMode};
+pub(crate) use client_control::{
+    ClientCommand, ClientLayoutTarget, ClientNavigationTarget, LayoutQuery, ZoomMode,
+};
 mod workspace_group_close;
 pub(crate) use workspace_group_close::WorkspaceGroupCloseCommand;
 mod worktree;
@@ -140,6 +142,7 @@ pub(crate) enum Family {
     Workspace,
     Tab,
     Panel,
+    Layout,
     Terminal,
     Worktree,
     LaunchProfile,
@@ -160,6 +163,7 @@ impl Family {
             Self::Workspace => "workspace",
             Self::Tab => "tab",
             Self::Panel => "panel",
+            Self::Layout => "layout",
             Self::Terminal => "terminal",
             Self::Worktree => "worktree",
             Self::LaunchProfile => "launch-profile",
@@ -179,6 +183,8 @@ pub(crate) enum CommandPath {
     WorkspaceFocus,
     TabFocus,
     PanelFocus,
+    PanelResize,
+    LayoutSetSplitRatio,
     PanelZoom,
     PanelLayout,
     PanelNeighbor,
@@ -262,6 +268,8 @@ impl CommandPath {
             Self::WorkspaceFocus => "workspace focus",
             Self::TabFocus => "tab focus",
             Self::PanelFocus => "panel focus",
+            Self::PanelResize => "panel resize",
+            Self::LayoutSetSplitRatio => "layout set-split-ratio",
             Self::PanelZoom => "panel zoom",
             Self::PanelLayout => "panel layout",
             Self::PanelNeighbor => "panel neighbor",
@@ -1084,6 +1092,8 @@ pub(crate) enum ExpectedValue {
     TabDirection,
     PanelDirection,
     LayoutDirection,
+    FiniteNumber,
+    SplitPath,
     Shell,
     HistoryRows,
     DirectoryPath,
@@ -1304,6 +1314,8 @@ struct Options {
     standalone: bool,
     label: Option<String>,
     direction: Option<String>,
+    amount: Option<String>,
+    ratio: Option<String>,
     cols: Option<String>,
     rows: Option<String>,
     cell_width: Option<String>,
@@ -1392,6 +1404,8 @@ const VALUE_FLAGS: &[&str] = &[
     "--cols",
     "--cursor",
     "--direction",
+    "--amount",
+    "--ratio",
     "--directory",
     "--exec",
     "--cwd",
@@ -1866,6 +1880,8 @@ fn apply_value_flag(
         "--tab" => &mut options.tab,
         "--label" => &mut options.label,
         "--direction" => &mut options.direction,
+        "--amount" => &mut options.amount,
+        "--ratio" => &mut options.ratio,
         "--cols" => &mut options.cols,
         "--rows" => &mut options.rows,
         "--cell-width" => &mut options.cell_width,
@@ -2018,10 +2034,11 @@ fn resolve_words(
 ) -> Result<Request, ParseFailure> {
     match words {
         ["client", ..]
+        | ["layout", ..]
         | ["workspace" | "tab", "focus", ..]
         | [
             "panel",
-            "focus" | "zoom" | "layout" | "neighbor" | "edges",
+            "focus" | "zoom" | "layout" | "neighbor" | "edges" | "resize",
             ..,
         ] => client_control::parse(words, options, envelope),
 
@@ -3633,6 +3650,9 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["workspace", "focus"] => HelpTopic::Command(CommandPath::WorkspaceFocus),
         ["tab", "focus"] => HelpTopic::Command(CommandPath::TabFocus),
         ["panel", "focus"] => HelpTopic::Command(CommandPath::PanelFocus),
+        ["panel", "resize"] => HelpTopic::Command(CommandPath::PanelResize),
+        ["layout"] => HelpTopic::Family(Family::Layout),
+        ["layout", "set-split-ratio"] => HelpTopic::Command(CommandPath::LayoutSetSplitRatio),
         ["panel", "zoom"] => HelpTopic::Command(CommandPath::PanelZoom),
         ["panel", "layout"] => HelpTopic::Command(CommandPath::PanelLayout),
         ["panel", "neighbor"] => HelpTopic::Command(CommandPath::PanelNeighbor),
@@ -3772,6 +3792,8 @@ struct Scope {
     standalone: bool,
     label: bool,
     direction: bool,
+    amount: bool,
+    ratio: bool,
     geometry: bool,
     confirm: bool,
     panel: bool,
@@ -3881,6 +3903,8 @@ const NO_OPTIONS: Scope = Scope {
     standalone: false,
     label: false,
     direction: false,
+    amount: false,
+    ratio: false,
     geometry: false,
     confirm: false,
     panel: false,
@@ -4142,6 +4166,8 @@ fn business_options(options: &Options) -> bool {
         || options.directory.is_some()
         || options.label.is_some()
         || options.direction.is_some()
+        || options.amount.is_some()
+        || options.ratio.is_some()
         || options.cols.is_some()
         || options.rows.is_some()
         || options.cell_width.is_some()
@@ -4185,6 +4211,12 @@ fn business_options(options: &Options) -> bool {
 /// The first named option present but outside `scope`, in the fixed `Options`
 /// declaration order — deterministic without any argv-order state.
 fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
+    if options.amount.is_some() && !scope.amount {
+        return Some("--amount");
+    }
+    if options.ratio.is_some() && !scope.ratio {
+        return Some("--ratio");
+    }
     if options.output.is_some() && !scope.output {
         return Some("--output");
     }

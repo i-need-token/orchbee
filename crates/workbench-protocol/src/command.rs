@@ -1,7 +1,12 @@
 mod client_layout;
+mod client_layout_adjustment;
 pub use client_layout::{
     ClientCellRect, ClientPanelArea, ClientPanelDirection, ClientPanelLayout, ClientPanelNeighbors,
     ClientSplitArea, ClientSplitRatio, MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES,
+};
+pub use client_layout_adjustment::{
+    ClientLayoutAdjustment, ClientLayoutChange, ClientResizeAmount, ClientSplitChange,
+    ClientSplitPath,
 };
 mod client_view;
 pub use client_view::{

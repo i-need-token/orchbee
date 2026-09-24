@@ -4,7 +4,10 @@ use super::{
     Resource, Scope, Target, UsageContext, UsageReason, check_scope, missing_required, target,
     usage_with, wait_timeout_option,
 };
-use orchbee_workbench_protocol::{ClientPanelDirection, WorkbenchClientId, WorkbenchRequestId};
+use orchbee_workbench_protocol::{
+    ClientPanelDirection, ClientResizeAmount, ClientSplitPath, ClientSplitRatio, WorkbenchClientId,
+    WorkbenchRequestId,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ZoomMode {
@@ -19,7 +22,22 @@ pub(crate) enum LayoutQuery {
     Edges,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum ClientLayoutTarget {
+    Tab(Target),
+    Panel(Option<Target>),
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ClientNavigationTarget {
+    Resize {
+        target: Option<Target>,
+        direction: ClientPanelDirection,
+        amount: ClientResizeAmount,
+    },
+    SetSplitRatio {
+        target: ClientLayoutTarget,
+        path: ClientSplitPath,
+        ratio: ClientSplitRatio,
+    },
     Layout {
         target: Option<Target>,
         query: LayoutQuery,
@@ -72,6 +90,33 @@ pub(super) fn parse(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     let command = match words {
+        ["layout", "set-split-ratio"] => parse_ratio(options, envelope)?,
+        ["layout"] => {
+            return Err(usage_with(
+                UsageReason::MissingCommand {
+                    context: UsageContext::Path("layout"),
+                },
+                envelope,
+            ));
+        }
+        ["layout", "set-split-ratio", extra, ..] => {
+            return Err(usage_with(
+                UsageReason::UnexpectedArgument {
+                    context: UsageContext::Path("layout set-split-ratio"),
+                    value: (*extra).into(),
+                },
+                envelope,
+            ));
+        }
+        ["layout", ..] => {
+            return Err(usage_with(
+                UsageReason::UnknownCommand {
+                    context: UsageContext::Path("layout"),
+                    word: words.join(" "),
+                },
+                envelope,
+            ));
+        }
         ["client"] => {
             return Err(usage_with(
                 UsageReason::MissingCommand {
@@ -140,7 +185,7 @@ pub(super) fn parse(
         }
         [
             family @ ("workspace" | "tab" | "panel"),
-            verb @ ("focus" | "zoom" | "layout" | "neighbor" | "edges"),
+            verb @ ("focus" | "zoom" | "layout" | "neighbor" | "edges" | "resize"),
             rest @ ..,
         ] => {
             let panel = *family == "panel";
@@ -149,6 +194,7 @@ pub(super) fn parse(
                 ("workspace", "focus") => "workspace focus",
                 ("tab", "focus") => "tab focus",
                 ("panel", "focus") => "panel focus",
+                ("panel", "resize") => "panel resize",
                 ("panel", "zoom") => "panel zoom",
                 ("panel", "layout") => "panel layout",
                 ("panel", "neighbor") => "panel neighbor",
@@ -167,7 +213,9 @@ pub(super) fn parse(
             check_scope(
                 options,
                 Scope {
-                    direction: *verb == "neighbor" || (panel && *verb == "focus"),
+                    direction: matches!(*verb, "neighbor" | "resize")
+                        || (panel && *verb == "focus"),
+                    amount: *verb == "resize",
                     client: true,
                     request_id: true,
                     detach: true,
@@ -231,7 +279,29 @@ pub(super) fn parse(
                     let target = explicit
                         .map(|value| target(value.into(), Resource::Panel, envelope))
                         .transpose()?;
-                    if matches!(*verb, "layout" | "neighbor" | "edges") {
+                    if *verb == "resize" {
+                        let direction = panel_direction(
+                            options.direction.as_deref().ok_or_else(|| {
+                                missing_required(context, "--direction", envelope)
+                            })?,
+                            context,
+                            envelope,
+                        )?;
+                        let amount = finite_number(
+                            options.amount.as_deref().unwrap_or("0.05"),
+                            "--amount",
+                            context,
+                            envelope,
+                        )?
+                        .abs()
+                        .min(0.5);
+                        ClientNavigationTarget::Resize {
+                            target,
+                            direction,
+                            amount: ClientResizeAmount::new(amount)
+                                .expect("normalized finite amount"),
+                        }
+                    } else if matches!(*verb, "layout" | "neighbor" | "edges") {
                         let query = match *verb {
                             "layout" => LayoutQuery::Layout,
                             "edges" => LayoutQuery::Edges,
@@ -284,43 +354,7 @@ pub(super) fn parse(
                     }
                 }
             };
-            let client = options
-                .client
-                .as_deref()
-                .map(|value| {
-                    WorkbenchClientId::parse(value).map_err(|_| {
-                        invalid(
-                            value,
-                            "--client",
-                            ExpectedValue::ClientId,
-                            context,
-                            envelope,
-                        )
-                    })
-                })
-                .transpose()?;
-            let operation_id = options
-                .request_id
-                .as_deref()
-                .map(|value| {
-                    WorkbenchRequestId::parse(value).map_err(|_| {
-                        invalid(
-                            value,
-                            "--request-id",
-                            ExpectedValue::ClientOperationId,
-                            context,
-                            envelope,
-                        )
-                    })
-                })
-                .transpose()?;
-            ClientCommand::Navigate {
-                target,
-                client,
-                operation_id,
-                detach: options.detach,
-                timeout_ms: wait_timeout_option(options, context, envelope)?,
-            }
+            navigation(target, options, context, envelope)?
         }
         ["client", verb] if *verb == "get" || *verb == "control-status" => {
             return Err(missing_required(
@@ -371,4 +405,159 @@ fn panel_direction(
             envelope,
         )),
     }
+}
+
+fn navigation(
+    target: ClientNavigationTarget,
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<ClientCommand, ParseFailure> {
+    let client = options
+        .client
+        .as_deref()
+        .map(|value| {
+            WorkbenchClientId::parse(value).map_err(|_| {
+                invalid(
+                    value,
+                    "--client",
+                    ExpectedValue::ClientId,
+                    context,
+                    envelope,
+                )
+            })
+        })
+        .transpose()?;
+    let operation_id = options
+        .request_id
+        .as_deref()
+        .map(|value| {
+            WorkbenchRequestId::parse(value).map_err(|_| {
+                invalid(
+                    value,
+                    "--request-id",
+                    ExpectedValue::ClientOperationId,
+                    context,
+                    envelope,
+                )
+            })
+        })
+        .transpose()?;
+    Ok(ClientCommand::Navigate {
+        target,
+        client,
+        operation_id,
+        detach: options.detach,
+        timeout_ms: wait_timeout_option(options, context, envelope)?,
+    })
+}
+
+fn finite_number(
+    value: &str,
+    option: &'static str,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<f64, ParseFailure> {
+    value
+        .parse::<f64>()
+        .ok()
+        .filter(|number| number.is_finite())
+        .ok_or_else(|| {
+            invalid(
+                value,
+                option,
+                ExpectedValue::FiniteNumber,
+                context,
+                envelope,
+            )
+        })
+}
+
+fn parse_ratio(
+    options: &Options,
+    envelope: FailureEnvelope,
+) -> Result<ClientCommand, ParseFailure> {
+    let context = UsageContext::Path("layout set-split-ratio");
+    check_scope(
+        options,
+        Scope {
+            tab: true,
+            panel: true,
+            current: true,
+            path: true,
+            ratio: true,
+            client: true,
+            request_id: true,
+            detach: true,
+            timeout: true,
+            ..NO_OPTIONS
+        },
+        context,
+        envelope,
+    )?;
+    let selected: Vec<_> = [
+        ("--tab", options.tab.is_some()),
+        ("--panel", options.panel.is_some()),
+        ("--current", options.current),
+    ]
+    .into_iter()
+    .filter(|(_, present)| *present)
+    .map(|(flag, _)| flag)
+    .collect();
+    if selected.len() > 1 {
+        return Err(usage_with(
+            UsageReason::ConflictingOptions {
+                context,
+                first: selected[0],
+                second: selected[1],
+            },
+            envelope,
+        ));
+    }
+    let target = if let Some(tab) = &options.tab {
+        ClientLayoutTarget::Tab(target(tab.clone(), Resource::Tab, envelope)?)
+    } else {
+        ClientLayoutTarget::Panel(
+            options
+                .panel
+                .as_ref()
+                .map(|panel| target(panel.clone(), Resource::Panel, envelope))
+                .transpose()?,
+        )
+    };
+    let value = options
+        .path
+        .as_deref()
+        .ok_or_else(|| missing_required(context, "--path", envelope))?;
+    let path = if value == "root" {
+        Some(vec![])
+    } else {
+        value
+            .split('.')
+            .map(|step| match step {
+                "0" => Some(0),
+                "1" => Some(1),
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()
+    }
+    .and_then(|steps| ClientSplitPath::new(steps).ok())
+    .ok_or_else(|| invalid(value, "--path", ExpectedValue::SplitPath, context, envelope))?;
+    let value = options
+        .ratio
+        .as_deref()
+        .ok_or_else(|| missing_required(context, "--ratio", envelope))?;
+    let ratio =
+        ClientSplitRatio::new(finite_number(value, "--ratio", context, envelope)?.clamp(0.1, 0.9))
+            .expect("normalized finite ratio");
+    navigation(
+        ClientNavigationTarget::SetSplitRatio {
+            target,
+            path,
+            ratio,
+        },
+        options,
+        context,
+        envelope,
+    )
 }

@@ -255,6 +255,12 @@ impl ClientViewRegistry {
                 return ClientViewOutcome::Conflict {};
             }
             let status = match &completion.outcome {
+                ClientViewCompletionOutcome::LayoutAdjusted { adjustment } => {
+                    ClientViewControlStatus::LayoutAdjusted {
+                        adjustment: adjustment.clone(),
+                        view: view.clone(),
+                    }
+                }
                 ClientViewCompletionOutcome::DirectionFocused { panel_id } => {
                     ClientViewControlStatus::DirectionFocused {
                         panel_id: panel_id.clone(),

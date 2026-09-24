@@ -1,7 +1,7 @@
 //! Pure routing over one canonical snapshot and one bounded Client observation.
 use crate::{
     cli::{Failure, FailureKind, results},
-    invocation::{ClientNavigationTarget, Resource, Target, ZoomMode},
+    invocation::{ClientLayoutTarget, ClientNavigationTarget, Resource, Target, ZoomMode},
 };
 use orchbee_workbench_protocol::{
     ClientViewAvailability, ClientViewIntent, ClientViewRecord, Snapshot, WorkbenchClientId,
@@ -70,6 +70,44 @@ pub(super) fn intent(
     snapshot: &Snapshot,
 ) -> Result<ClientViewIntent, Failure> {
     match target {
+        ClientNavigationTarget::SetSplitRatio {
+            target,
+            path,
+            ratio,
+        } => {
+            let resolved = match target {
+                ClientLayoutTarget::Tab(target) => intent(
+                    &ClientNavigationTarget::Tab(target.clone()),
+                    client,
+                    caller,
+                    snapshot,
+                )?,
+                ClientLayoutTarget::Panel(target) => intent(
+                    &ClientNavigationTarget::Panel(target.clone()),
+                    client,
+                    caller,
+                    snapshot,
+                )?,
+            };
+            let (terminal_context_id, tab_id) = match resolved {
+                ClientViewIntent::Tab {
+                    terminal_context_id,
+                    tab_id,
+                }
+                | ClientViewIntent::Panel {
+                    terminal_context_id,
+                    tab_id,
+                    ..
+                } => (terminal_context_id, tab_id),
+                _ => unreachable!("resolved exact Tab or Panel"),
+            };
+            Ok(ClientViewIntent::SetSplitRatio {
+                terminal_context_id,
+                tab_id,
+                path: path.clone(),
+                ratio: *ratio,
+            })
+        }
         ClientNavigationTarget::Workspace(target) => {
             let workspace = results::resolve_or_fail(
                 snapshot.navigation.projects.iter().flat_map(|project| {
@@ -104,7 +142,10 @@ pub(super) fn intent(
                 tab_id: tab.tab_id.clone(),
             })
         }
-        ClientNavigationTarget::Layout {
+        ClientNavigationTarget::Resize {
+            target: explicit, ..
+        }
+        | ClientNavigationTarget::Layout {
             target: explicit, ..
         }
         | ClientNavigationTarget::FocusDirection {
@@ -141,6 +182,18 @@ pub(super) fn intent(
             let context_id = context.terminal_context_id.clone();
             let tab_id = tab.tab_id.clone();
             let panel_id = panel.clone();
+            if let ClientNavigationTarget::Resize {
+                direction, amount, ..
+            } = target
+            {
+                return Ok(ClientViewIntent::Resize {
+                    terminal_context_id: context_id,
+                    tab_id,
+                    panel_id,
+                    direction: *direction,
+                    amount: *amount,
+                });
+            }
             if let ClientNavigationTarget::FocusDirection { direction, .. } = target {
                 return Ok(ClientViewIntent::FocusDirection {
                     terminal_context_id: context_id,

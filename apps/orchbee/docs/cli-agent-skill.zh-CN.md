@@ -112,3 +112,5 @@ Windows 上，`orchbee api schema [<schema-id>] --output <path>` 将相同 JSON 
 使用 `panel layout [<panel>] --client <id> --format json` 检查单元格，不选择目标 Tab 或调整终端尺寸。`panel neighbor --direction left|right|up|down` 返回可为 null 的邻居 ID；`panel edges` 返回物理边界布尔值。两者接受相同的 Panel/Client 选择器。读取 `projection.sourceAvailable`：隐藏源不作邻居／边缘判断，退出码为 3。待处理或失败观测的 `projection` 为 null。非活动几何明确标为未选中，没有本地焦点时保持 null。三条命令均保留完整布局与操作身份；分离或等待中断后通过 `client control-status` 检查保留结果。
 
 `panel focus [source] --direction left|right|up|down` 在指定 TUI 的未缩放单元格布局中查找一个邻居，保留缩放；无邻居返回 `direction-unchanged`，不切换到来源 Tab。找到邻居后固定目标，仅在绘制成功后返回 `direction-focused`。回执查询不重复移动。
+
+`panel resize [panel] --direction left|right|up|down [--amount <number>]` 调整一个符合条件的分割边界，保留焦点和缩放。`layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path root|0.1 --ratio <number>` 设置精确二进制分割路径。两者都路由到一个 Windows TUI，并保留 `layout-adjusted` 回执。当前标签页的变化等待绘制，非活动标签页只保存、不导航。有限比例限制为 0.1–0.9；有限 resize 数量转为绝对值且最多 0.5，默认 0.05。比例归该 TUI 会话所有，重启后不恢复。参见[布局契约](windows-client-layout.zh-CN.md)。

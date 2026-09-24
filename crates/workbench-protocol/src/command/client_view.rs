@@ -1,6 +1,9 @@
 //! Ephemeral Client-owned selection and connection-scoped, acknowledged navigation.
 use super::{
-    client_layout::{ClientPanelDirection, ClientPanelLayout},
+    client_layout::{ClientPanelDirection, ClientPanelLayout, ClientSplitRatio},
+    client_layout_adjustment::{
+        ClientLayoutAdjustment, ClientLayoutChange, ClientResizeAmount, ClientSplitPath,
+    },
     json_fields::deserialize_nullable,
 };
 use crate::identity::WorkbenchClientId;
@@ -109,6 +112,19 @@ pub struct ClientViewRecord {
     deny_unknown_fields
 )]
 pub enum ClientViewIntent {
+    Resize {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        direction: ClientPanelDirection,
+        amount: ClientResizeAmount,
+    },
+    SetSplitRatio {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        path: ClientSplitPath,
+        ratio: ClientSplitRatio,
+    },
     FocusDirection {
         terminal_context_id: WorkbenchTerminalContextId,
         tab_id: WorkbenchTabId,
@@ -234,7 +250,11 @@ impl ClientViewIntent {
             return false;
         };
         match self {
-            Self::ToggleZoom { .. } | Self::Layout { .. } | Self::FocusDirection { .. } => false,
+            Self::ToggleZoom { .. }
+            | Self::Layout { .. }
+            | Self::FocusDirection { .. }
+            | Self::Resize { .. }
+            | Self::SetSplitRatio { .. } => false,
             Self::Context {
                 terminal_context_id,
             } => selection.terminal_context_id == *terminal_context_id,
@@ -299,6 +319,7 @@ pub enum ClientViewControlReason {
     deny_unknown_fields
 )]
 pub enum ClientViewCompletionOutcome {
+    LayoutAdjusted { adjustment: ClientLayoutAdjustment },
     DirectionFocused { panel_id: WorkbenchPanelId },
     DirectionUnchanged { layout_revision: WorkbenchRevision },
     LayoutRead { layout: Box<ClientPanelLayout> },
@@ -322,6 +343,10 @@ pub struct ClientViewCompletion {
     deny_unknown_fields
 )]
 pub enum ClientViewControlStatus {
+    LayoutAdjusted {
+        adjustment: ClientLayoutAdjustment,
+        view: ClientViewObservation,
+    },
     DirectionFocused {
         panel_id: WorkbenchPanelId,
         view: ClientViewObservation,
@@ -370,6 +395,58 @@ pub struct ClientViewOperation {
 impl ClientViewOperation {
     pub fn validate(&self) -> Result<(), ContractError> {
         match &self.status {
+            ClientViewControlStatus::LayoutAdjusted { adjustment, view } => {
+                adjustment.validate()?;
+                view.validate()?;
+                let (context, tab, expected) = match (&self.command.intent, &adjustment.change) {
+                    (
+                        ClientViewIntent::SetSplitRatio {
+                            terminal_context_id,
+                            tab_id,
+                            ratio,
+                            ..
+                        },
+                        ClientLayoutChange::Split { split },
+                    ) => (terminal_context_id, tab_id, split.ratio == *ratio),
+                    (
+                        ClientViewIntent::Resize {
+                            terminal_context_id,
+                            tab_id,
+                            direction,
+                            amount,
+                            ..
+                        },
+                        change,
+                    ) => (
+                        terminal_context_id,
+                        tab_id,
+                        match change {
+                            ClientLayoutChange::NoSplit {} => true,
+                            ClientLayoutChange::Split { split } => {
+                                amount.apply(split.previous_ratio, *direction) == split.ratio
+                            }
+                        },
+                    ),
+                    _ => return Err(ContractError::InvalidDocument),
+                };
+                let selected = view.selection.as_ref().is_some_and(|selection| {
+                    &selection.terminal_context_id == context
+                        && selection.tab_id.as_ref() == Some(tab)
+                });
+                if !expected
+                    || &adjustment.terminal_context_id != context
+                    || &adjustment.tab_id != tab
+                    || adjustment.workbench_revision < self.command.minimum_workbench_revision
+                    || adjustment.selected != selected
+                    || (selected && adjustment.workbench_revision != view.workbench_revision)
+                    || matches!(
+                        view.phase,
+                        ClientViewPhase::Starting | ClientViewPhase::Busy
+                    )
+                {
+                    return Err(ContractError::InvalidDocument);
+                }
+            }
             ClientViewControlStatus::DirectionFocused { panel_id, view } => {
                 view.validate()?;
                 if self
@@ -530,6 +607,13 @@ impl WorkbenchClientViewRequest {
             }) = completion
             {
                 layout.validate()?;
+            }
+            if let Some(ClientViewCompletion {
+                outcome: ClientViewCompletionOutcome::LayoutAdjusted { adjustment },
+                ..
+            }) = completion
+            {
+                adjustment.validate()?;
             }
         }
         Ok(())

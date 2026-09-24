@@ -8,6 +8,31 @@ use std::{
 #[test]
 fn real_powershell_completes_scoped_grammar_without_runtime() {
     let cases = [
+        ("orchbee layout ", "set-split-ratio", true),
+        ("orchbee panel resize --direction ", "down", true),
+        ("orchbee panel resize --direction ", "below", false),
+        ("orchbee panel resize @panel:06 --p", "--panel", false),
+        (
+            "orchbee layout set-split-ratio --tab shell --p",
+            "--panel",
+            false,
+        ),
+        (
+            "orchbee layout set-split-ratio --panel @panel:06 --t",
+            "--tab",
+            false,
+        ),
+        (
+            "orchbee layout set-split-ratio --current --t",
+            "--tab",
+            false,
+        ),
+        (
+            "orchbee layout set-split-ratio --tab shell --r",
+            "--ratio",
+            true,
+        ),
+        ("orchbee panel resize --a", "--amount", true),
         ("orchbee panel focus --d", "--direction", true),
         ("orchbee panel focus --direction ", "up", true),
         ("orchbee panel focus --direction ", "above", false),

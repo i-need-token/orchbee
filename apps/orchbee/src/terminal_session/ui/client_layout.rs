@@ -1,4 +1,5 @@
 //! Read-only target projection using canonical membership and the observing Client's geometry.
+mod adjustment;
 use super::NativeUi;
 use crate::{
     client_view::SidebarSurface,
@@ -78,8 +79,16 @@ impl NativeUi {
         let focused = selected.then(|| state.focus_panel_id().cloned()).flatten();
         let active_panel = focused.as_ref().and_then(|id| tab.panel_index(id));
         let zoomed = state.layout_zoomed(tab);
-        let (area, panels, splits) =
-            project_geometry(viewport, sidebar, tab, active_panel, zoomed)?;
+        let (area, panels, splits) = project_geometry(
+            viewport,
+            sidebar,
+            tab,
+            active_panel,
+            zoomed,
+            &|split, first, second| {
+                state.split_ratio(terminal_context_id, tab_id, split, first, second)
+            },
+        )?;
         let neighbors = ClientPanelNeighbors::from_panels(panel_id, &panels);
         let source_available = panels
             .iter()
@@ -112,6 +121,11 @@ fn project_geometry(
     tab: &NativeSimpleTab,
     active_panel: Option<usize>,
     zoomed: bool,
+    ratios: &impl Fn(
+        &orchbee_workbench_protocol::WorkbenchSplitId,
+        &orchbee_workbench_protocol::WorkbenchPanelSlotId,
+        &orchbee_workbench_protocol::WorkbenchPanelSlotId,
+    ) -> ClientSplitRatio,
 ) -> Result<(Rect, Vec<ClientPanelArea>, Vec<ClientSplitArea>), Reason> {
     let areas = tui_layout::project_shell_areas(viewport, sidebar);
     if areas.tier == ViewportTier::TooSmall {
@@ -127,6 +141,7 @@ fn project_geometry(
         if paned { content } else { Rect::default() },
         tab.panel_tree(),
         active_panel,
+        ratios,
     );
     let fallback = active_panel.unwrap_or(0);
     let mut panels = Vec::with_capacity(tab.panel_count());
@@ -158,7 +173,6 @@ fn project_geometry(
             displayed,
         });
     }
-    let ratio = ClientSplitRatio::new(0.5).map_err(|_| Reason::ProjectionUnavailable)?;
     let splits = projection
         .splits
         .iter()
@@ -167,7 +181,7 @@ fn project_geometry(
             first_slot_id: split.first_slot_id.clone(),
             second_slot_id: split.second_slot_id.clone(),
             orientation: split.orientation,
-            ratio,
+            ratio: split.ratio,
             area: split.area.map(cell),
             divider: split.divider.map(cell),
         })

@@ -2166,6 +2166,47 @@ fn setup_poll_key_is_not_an_ordinary_poll_obligation() {
     mailbox.finish_lease(lease).expect("lease finish");
 }
 
+#[test]
+fn peer_resize_requires_exact_membership_and_does_not_open_peer_input() {
+    let mailbox = bootstrapped_mailbox(1, 5);
+    let focus = mailbox.lock().desired.key().unwrap().clone();
+    let peer = PaneRef::new(
+        PaneKey::new(
+            focus.anchor().clone(),
+            WorkbenchPanelId::parse(&id(91)).unwrap(),
+        ),
+        2,
+    );
+    mailbox.lock().desired = MailboxMembership::Live {
+        desired: Some(focus.clone()),
+        panes: vec![PaneRef::new(focus.clone(), 1), peer.clone()],
+    };
+    assert!(matches!(
+        mailbox.try_enqueue(QueuedCommand::Input(Tagged::new(
+            peer.clone(),
+            ControlInput::new(vec![b'x']).unwrap()
+        ))),
+        Err(AdmissionError::StaleAttachment)
+    ));
+    let stale = PaneRef::new(peer.pane().clone(), 1);
+    assert!(matches!(
+        mailbox.try_enqueue(QueuedCommand::Resize(Tagged::new(stale, geometry(64)))),
+        Err(AdmissionError::StaleAttachment)
+    ));
+    mailbox
+        .try_enqueue(QueuedCommand::Resize(Tagged::new(
+            peer.clone(),
+            geometry(64),
+        )))
+        .unwrap();
+    assert_eq!(mailbox.lock().desired.key(), Some(&focus));
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    assert!(
+        matches!(lease.record(), QueuedCommand::Resize(tagged) if tagged.key() == &peer && *tagged.value() == geometry(64))
+    );
+    mailbox.finish_lease(lease).unwrap();
+}
+
 fn bootstrapped_mailbox(generation: u64, identity: u128) -> CommandMailbox {
     let mailbox = CommandMailbox::new(identity, Geometry::new(80, 24, 8, 16).unwrap());
     {

@@ -599,3 +599,385 @@ fn a_directional_destination_that_never_attaches_keeps_the_original_deadline() {
     );
     assert_eq!(native.control_observation(false).unwrap(), before);
 }
+
+fn ratio_command(control: &ClientControl, ratio: f64) -> ClientViewControl {
+    use orchbee_workbench_protocol::{ClientSplitPath, ClientSplitRatio};
+    let mut command = command(control, None);
+    let ClientViewIntent::Panel {
+        terminal_context_id,
+        tab_id,
+        ..
+    } = command.intent
+    else {
+        panic!()
+    };
+    command.intent = ClientViewIntent::SetSplitRatio {
+        terminal_context_id,
+        tab_id,
+        path: ClientSplitPath::new(vec![]).unwrap(),
+        ratio: ClientSplitRatio::new(ratio).unwrap(),
+    };
+    command
+}
+
+#[test]
+fn resize_commits_once_preserves_zoom_and_only_draw_or_interruption_settles_it() {
+    use crate::{
+        client_view::SidebarSurface, terminal_session::ui::publication_hint_tests::split_snapshot,
+    };
+    use orchbee_workbench_protocol::{
+        ClientLayoutChange, ClientPanelDirection, ClientResizeAmount,
+    };
+    use ratatui::layout::Rect;
+    for ending in ["draw", "interrupt", "expire"] {
+        let (mut native, mailbox, clock, elapsed) = ready_split_ui();
+        let poll = mailbox.try_recv().unwrap().unwrap();
+        mailbox.finish_lease(poll).unwrap();
+        native.apply_client_action(ClientAction::ToggleZoom);
+        let mut control = controller(clock);
+        control.observe_geometry(Rect::new(0, 0, 120, 40), SidebarSurface::Hidden);
+        control.tick(&mut native, false);
+        let before = native.control_observation(false).unwrap();
+        let mut command = command(&control, None);
+        let ClientViewIntent::Panel {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+        } = command.intent.clone()
+        else {
+            panic!()
+        };
+        command.intent = ClientViewIntent::Resize {
+            terminal_context_id: terminal_context_id.clone(),
+            tab_id: tab_id.clone(),
+            panel_id: panel_id.clone(),
+            direction: ClientPanelDirection::Right,
+            amount: ClientResizeAmount::new(0.1).unwrap(),
+        };
+        let snapshot = split_snapshot(1);
+        let mut query = command.clone();
+        query.intent = ClientViewIntent::Layout {
+            terminal_context_id,
+            tab_id,
+            panel_id,
+        };
+        control
+            .lane
+            .as_ref()
+            .unwrap()
+            .inject_delivery_for_test(lane::Delivery {
+                command: command.clone(),
+                layout_snapshot: Some(snapshot.clone()),
+            });
+        assert!(control.tick(&mut native, false));
+        assert!(completion(&control).is_none());
+        let deadline = control.pending.as_ref().unwrap().deadline;
+        for _ in 0..3 {
+            assert!(control.tick(&mut native, false));
+            let layout = native
+                .read_client_layout(
+                    &query,
+                    &snapshot,
+                    Rect::new(0, 0, 120, 40),
+                    SidebarSurface::Hidden,
+                )
+                .unwrap();
+            assert_eq!(
+                layout.splits[0].ratio.value(),
+                0.6,
+                "one invocation, one delta"
+            );
+            assert!(layout.zoomed);
+            assert_eq!(native.control_observation(false).unwrap(), before);
+            assert_eq!(control.pending.as_ref().unwrap().deadline, deadline);
+            assert!(completion(&control).is_none());
+        }
+        if ending == "draw" {
+            control.after_draw(&native);
+            let (sample, done) = completion(&control).unwrap();
+            let ClientViewCompletionOutcome::LayoutAdjusted { adjustment } = done.outcome else {
+                panic!()
+            };
+            let ClientLayoutChange::Split { split } = &adjustment.change else {
+                panic!()
+            };
+            assert_eq!(split.ratio.value(), 0.6);
+            ClientViewOperation {
+                command,
+                status: ClientViewControlStatus::LayoutAdjusted {
+                    adjustment,
+                    view: sample.view,
+                },
+            }
+            .validate()
+            .unwrap();
+        } else {
+            if ending == "interrupt" {
+                control.interrupt();
+            } else {
+                elapsed.store(51_000, std::sync::atomic::Ordering::SeqCst);
+            }
+            control.tick(&mut native, false);
+            assert_eq!(
+                completion(&control).unwrap().1.outcome,
+                ClientViewCompletionOutcome::Incomplete {
+                    reason: if ending == "interrupt" {
+                        Reason::Interrupted
+                    } else {
+                        Reason::Expired
+                    }
+                }
+            );
+            assert_eq!(
+                native
+                    .read_client_layout(
+                        &query,
+                        &snapshot,
+                        Rect::new(0, 0, 120, 40),
+                        SidebarSurface::Hidden
+                    )
+                    .unwrap()
+                    .splits[0]
+                    .ratio
+                    .value(),
+                0.6
+            );
+        }
+        assert!(control.pending.is_none());
+    }
+}
+
+#[test]
+fn unchanged_ratio_and_no_resize_border_do_not_request_draw_or_queue_native_work() {
+    use crate::{
+        client_view::SidebarSurface, terminal_session::ui::publication_hint_tests::split_snapshot,
+    };
+    use orchbee_workbench_protocol::{ClientPanelDirection, ClientResizeAmount};
+    use ratatui::layout::Rect;
+    for no_border in [false, true] {
+        let (mut native, mailbox, clock, _) = ready_split_ui();
+        let poll = mailbox.try_recv().unwrap().unwrap();
+        mailbox.finish_lease(poll).unwrap();
+        let mut control = controller(clock);
+        control.observe_geometry(Rect::new(0, 0, 120, 40), SidebarSurface::Hidden);
+        control.tick(&mut native, false);
+        let before = native.control_observation(false).unwrap();
+        let mut command = ratio_command(&control, 0.5);
+        if no_border {
+            let mut source = self::command(&control, None);
+            let ClientViewIntent::Panel {
+                terminal_context_id,
+                tab_id,
+                panel_id,
+            } = source.intent
+            else {
+                panic!()
+            };
+            source.intent = ClientViewIntent::Resize {
+                terminal_context_id,
+                tab_id,
+                panel_id,
+                direction: ClientPanelDirection::Up,
+                amount: ClientResizeAmount::new(0.1).unwrap(),
+            };
+            command = source;
+        }
+        control
+            .lane
+            .as_ref()
+            .unwrap()
+            .inject_delivery_for_test(lane::Delivery {
+                command: command.clone(),
+                layout_snapshot: Some(split_snapshot(1)),
+            });
+        assert!(!control.tick(&mut native, false));
+        let (sample, done) = completion(&control).unwrap();
+        let ClientViewCompletionOutcome::LayoutAdjusted { adjustment } = done.outcome else {
+            panic!()
+        };
+        assert!(!adjustment.change.changed());
+        assert_eq!(native.control_observation(false).unwrap(), before);
+        assert!(mailbox.try_recv().unwrap().is_none());
+        assert!(control.pending.is_none());
+        ClientViewOperation {
+            command,
+            status: ClientViewControlStatus::LayoutAdjusted {
+                adjustment,
+                view: sample.view,
+            },
+        }
+        .validate()
+        .unwrap();
+    }
+}
+
+#[test]
+fn inactive_and_unvisited_ratio_changes_store_without_selection_attachment_or_draw() {
+    use crate::{
+        client_view::SidebarSurface, terminal_session::ui::publication_hint_tests::split_snapshot,
+    };
+    use orchbee_workbench_protocol::{
+        ClientSplitPath, ClientSplitRatio, PanelNode, Snapshot, WorkbenchTerminalContextId,
+    };
+    use ratatui::layout::Rect;
+    fn new_identity(value: &mut serde_json::Value, next: &mut u32) {
+        match value {
+            serde_json::Value::Object(fields) => {
+                for child in fields.values_mut() {
+                    new_identity(child, next);
+                }
+            }
+            serde_json::Value::Array(items) => {
+                for child in items {
+                    new_identity(child, next);
+                }
+            }
+            serde_json::Value::String(text)
+                if text.len() == 32 && text.bytes().all(|byte| byte.is_ascii_hexdigit()) =>
+            {
+                *text = format!("{:032x}", *next);
+                *next += 1;
+            }
+            _ => {}
+        }
+    }
+    for unvisited in [false, true] {
+        let (mut native, mailbox, clock, _) = ready_split_ui();
+        let poll = mailbox.try_recv().unwrap().unwrap();
+        mailbox.finish_lease(poll).unwrap();
+        let mut snapshot = split_snapshot(2);
+        let mut tab = serde_json::to_value(&snapshot.terminal_contexts[0].tabs[0]).unwrap();
+        new_identity(&mut tab, &mut 10_000);
+        let target: orchbee_workbench_protocol::Tab = serde_json::from_value(tab.clone()).unwrap();
+        let mut value = serde_json::to_value(&snapshot).unwrap();
+        let context = if unvisited {
+            let context = WorkbenchTerminalContextId::parse(&format!("{:032x}", 991)).unwrap();
+            value["terminalContexts"]
+                .as_array_mut()
+                .unwrap()
+                .push(serde_json::json!({"terminalContextId":context,"groups":[],"tabs":[tab]}));
+            value["navigation"]["projects"] = serde_json::json!([{"projectId":format!("{:032x}",992),"label":"new","directories":[],"workspaces":[
+                {"workspaceId":format!("{:032x}",993),"label":"unvisited","primaryDirectoryId":null,"terminalContextId":context}]}]);
+            context
+        } else {
+            value["terminalContexts"][0]["tabs"]
+                .as_array_mut()
+                .unwrap()
+                .push(tab);
+            snapshot.terminal_contexts[0].terminal_context_id.clone()
+        };
+        snapshot = serde_json::from_value::<Snapshot>(value).unwrap();
+        // Ensure the test exercises an admissible Snapshot, not a partial cache shaped as one.
+        let document =
+            orchbee_workbench_protocol::WorkbenchProtocolDocument::Snapshot(snapshot.clone());
+        orchbee_workbench_protocol::parse_snapshot(&serde_json::to_vec(&document).unwrap())
+            .unwrap();
+        let mut control = controller(clock);
+        control.observe_geometry(Rect::new(0, 0, 120, 40), SidebarSurface::Hidden);
+        control.tick(&mut native, false);
+        let before = native.control_observation(false).unwrap();
+        let mut command = command(&control, None);
+        command.minimum_workbench_revision = snapshot.revision;
+        command.intent = ClientViewIntent::SetSplitRatio {
+            terminal_context_id: context.clone(),
+            tab_id: target.tab_id.clone(),
+            path: ClientSplitPath::new(vec![]).unwrap(),
+            ratio: ClientSplitRatio::new(0.7).unwrap(),
+        };
+        control
+            .lane
+            .as_ref()
+            .unwrap()
+            .inject_delivery_for_test(lane::Delivery {
+                command: command.clone(),
+                layout_snapshot: Some(snapshot.clone()),
+            });
+        assert!(
+            !control.tick(&mut native, false),
+            "inactive store cannot request shell geometry synchronization"
+        );
+        let (sample, done) = completion(&control).unwrap();
+        let ClientViewCompletionOutcome::LayoutAdjusted { adjustment } = done.outcome else {
+            panic!("{:?}", done.outcome)
+        };
+        assert!(!adjustment.selected);
+        assert!(adjustment.change.changed());
+        assert_eq!(sample.view, before.1);
+        ClientViewOperation {
+            command: command.clone(),
+            status: ClientViewControlStatus::LayoutAdjusted {
+                adjustment,
+                view: sample.view,
+            },
+        }
+        .validate()
+        .unwrap();
+        assert_eq!(native.control_observation(false).unwrap(), before);
+        assert!(mailbox.try_recv().unwrap().is_none());
+        let PanelNode::Split { children, .. } = &target.root else {
+            panic!()
+        };
+        let PanelNode::Panel { panel_id, .. } = &children[0].node else {
+            panic!()
+        };
+        command.intent = ClientViewIntent::Layout {
+            terminal_context_id: context,
+            tab_id: target.tab_id,
+            panel_id: panel_id.clone(),
+        };
+        let layout = native
+            .read_client_layout(
+                &command,
+                &snapshot,
+                Rect::new(0, 0, 120, 40),
+                SidebarSurface::Hidden,
+            )
+            .unwrap();
+        assert_eq!(layout.splits[0].ratio.value(), 0.7);
+        assert_eq!(layout.panels[0].unzoomed.unwrap().width, 82);
+        assert!(layout.focused_panel_id.is_none());
+    }
+}
+
+#[test]
+fn ratio_paths_require_matching_rendered_and_canonical_split_identity_before_commit() {
+    use crate::terminal_session::ui::publication_hint_tests::split_snapshot;
+    use orchbee_workbench_protocol::{ClientSplitPath, PanelNode};
+    for case in ["leaf", "reordered-slots", "missing-snapshot"] {
+        let (mut native, mailbox, clock, _) = ready_split_ui();
+        let poll = mailbox.try_recv().unwrap().unwrap();
+        mailbox.finish_lease(poll).unwrap();
+        let mut control = controller(clock);
+        control.tick(&mut native, false);
+        let before = native.control_observation(false).unwrap();
+        let mut command = ratio_command(&control, 0.7);
+        let mut snapshot = split_snapshot(2);
+        if case == "leaf" {
+            let ClientViewIntent::SetSplitRatio { path, .. } = &mut command.intent else {
+                panic!()
+            };
+            *path = ClientSplitPath::new(vec![0]).unwrap();
+        } else if case == "reordered-slots" {
+            let PanelNode::Split { children, .. } = &mut snapshot.terminal_contexts[0].tabs[0].root
+            else {
+                panic!()
+            };
+            children.swap(0, 1);
+        }
+        control
+            .lane
+            .as_ref()
+            .unwrap()
+            .inject_delivery_for_test(lane::Delivery {
+                command,
+                layout_snapshot: (case != "missing-snapshot").then_some(snapshot),
+            });
+        assert!(!control.tick(&mut native, false));
+        assert!(matches!(
+            completion(&control).unwrap().1.outcome,
+            ClientViewCompletionOutcome::Rejected { .. }
+        ));
+        assert_eq!(native.control_observation(false).unwrap(), before);
+        assert!(mailbox.try_recv().unwrap().is_none());
+    }
+}

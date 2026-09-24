@@ -1,6 +1,8 @@
 use ratatui::layout::{Constraint, Layout, Rect};
 
-use orchbee_workbench_protocol::{PanelOrientation, WorkbenchPanelSlotId, WorkbenchSplitId};
+use orchbee_workbench_protocol::{
+    ClientSplitRatio, PanelOrientation, WorkbenchPanelSlotId, WorkbenchSplitId,
+};
 
 use crate::{client_view::SidebarSurface, terminal_session::NativePanelTree};
 
@@ -234,11 +236,15 @@ pub(crate) struct PaneDivision {
     pub(crate) second: Rect,
 }
 
-pub(crate) fn divide_panes(area: Rect, orientation: PanelOrientation) -> Option<PaneDivision> {
+pub(crate) fn divide_panes(
+    area: Rect,
+    orientation: PanelOrientation,
+    ratio: ClientSplitRatio,
+) -> Option<PaneDivision> {
     match orientation {
         PanelOrientation::Horizontal => {
             let share = area.width.saturating_sub(1);
-            let first_width = share.div_ceil(2);
+            let first_width = split_extent(share, MINIMUM_PANE_COLUMNS, ratio)?;
             let second_width = share.saturating_sub(first_width);
             if first_width < MINIMUM_PANE_COLUMNS
                 || second_width < MINIMUM_PANE_COLUMNS
@@ -259,7 +265,7 @@ pub(crate) fn divide_panes(area: Rect, orientation: PanelOrientation) -> Option<
         }
         PanelOrientation::Vertical => {
             let share = area.height.saturating_sub(1);
-            let first_height = share.div_ceil(2);
+            let first_height = split_extent(share, MINIMUM_PANE_ROWS, ratio)?;
             let second_height = share.saturating_sub(first_height);
             if area.width < MINIMUM_PANE_COLUMNS
                 || first_height < MINIMUM_PANE_ROWS
@@ -279,6 +285,16 @@ pub(crate) fn divide_panes(area: Rect, orientation: PanelOrientation) -> Option<
             })
         }
     }
+}
+
+// The admitted ratio is finite and positive and share is u16, so rounding
+// cannot escape 0..=65535 before the minimum-size clamp.
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn split_extent(share: u16, minimum: u16, ratio: ClientSplitRatio) -> Option<u16> {
+    if share < minimum * 2 {
+        return None;
+    }
+    Some(((f64::from(share) * ratio.value()).round() as u16).clamp(minimum, share - minimum))
 }
 
 pub(crate) const fn pane_content(leaf: Rect) -> Rect {
@@ -360,22 +376,28 @@ pub(crate) struct SplitArea<'a> {
     pub(crate) first_slot_id: &'a WorkbenchPanelSlotId,
     pub(crate) second_slot_id: &'a WorkbenchPanelSlotId,
     pub(crate) orientation: PanelOrientation,
+    pub(crate) ratio: ClientSplitRatio,
     pub(crate) area: Option<Rect>,
     pub(crate) divider: Option<Rect>,
 }
 
 /// Project `tree` onto `area` exactly the way [`render_panel_tree`] paints it:
-/// recursive 50/50 splits separated by one shared divider cell, falling back
+/// recursive Client-weighted splits separated by one shared divider cell, falling back
 /// to the active leaf (or the first leaf) when a split cannot fit its minimum
 /// pane size. `active_panel` selects the fallback leaf and identifies which
 /// leaf the live terminal attaches to.
-pub(crate) fn project_panel_tree(
+pub(crate) fn project_panel_tree<'a>(
     area: Rect,
-    tree: &NativePanelTree,
+    tree: &'a NativePanelTree,
     active_panel: Option<usize>,
-) -> PanelTreeProjection<'_> {
+    ratios: &impl Fn(
+        &WorkbenchSplitId,
+        &WorkbenchPanelSlotId,
+        &WorkbenchPanelSlotId,
+    ) -> ClientSplitRatio,
+) -> PanelTreeProjection<'a> {
     let mut projection = PanelTreeProjection::default();
-    collect_panel_tree(area, tree, active_panel, &mut projection);
+    collect_panel_tree(area, tree, active_panel, ratios, &mut projection);
     projection
 }
 
@@ -383,6 +405,11 @@ fn collect_panel_tree<'a>(
     area: Rect,
     tree: &'a NativePanelTree,
     active_panel: Option<usize>,
+    ratios: &impl Fn(
+        &WorkbenchSplitId,
+        &WorkbenchPanelSlotId,
+        &WorkbenchPanelSlotId,
+    ) -> ClientSplitRatio,
     projection: &mut PanelTreeProjection<'a>,
 ) {
     match tree {
@@ -399,24 +426,26 @@ fn collect_panel_tree<'a>(
             first_slot_id,
             second_slot_id,
         } => {
-            let division = divide_panes(area, *orientation);
+            let ratio = ratios(split_id, first_slot_id, second_slot_id);
+            let division = divide_panes(area, *orientation, ratio);
             projection.splits.push(SplitArea {
                 split_id,
                 first_slot_id,
                 second_slot_id,
                 orientation: *orientation,
+                ratio,
                 area: (!area.is_empty()).then_some(area),
                 divider: division.map(|division| division.divider),
             });
             match division {
                 Some(division) => {
                     projection.dividers.push(division.divider);
-                    collect_panel_tree(division.first, first, active_panel, projection);
-                    collect_panel_tree(division.second, second, active_panel, projection);
+                    collect_panel_tree(division.first, first, active_panel, ratios, projection);
+                    collect_panel_tree(division.second, second, active_panel, ratios, projection);
                 }
                 None => {
-                    collect_hidden_splits(first, &mut projection.splits);
-                    collect_hidden_splits(second, &mut projection.splits);
+                    collect_hidden_splits(first, ratios, &mut projection.splits);
+                    collect_hidden_splits(second, ratios, &mut projection.splits);
                     if let Some(NativePanelTree::Panel { panel_index }) =
                         active_leaf(tree, active_panel).or_else(|| first_leaf(tree))
                     {
@@ -432,7 +461,15 @@ fn collect_panel_tree<'a>(
     }
 }
 
-fn collect_hidden_splits<'a>(tree: &'a NativePanelTree, output: &mut Vec<SplitArea<'a>>) {
+fn collect_hidden_splits<'a>(
+    tree: &'a NativePanelTree,
+    ratios: &impl Fn(
+        &WorkbenchSplitId,
+        &WorkbenchPanelSlotId,
+        &WorkbenchPanelSlotId,
+    ) -> ClientSplitRatio,
+    output: &mut Vec<SplitArea<'a>>,
+) {
     if let NativePanelTree::Split {
         first,
         second,
@@ -447,11 +484,12 @@ fn collect_hidden_splits<'a>(tree: &'a NativePanelTree, output: &mut Vec<SplitAr
             first_slot_id,
             second_slot_id,
             orientation: *orientation,
+            ratio: ratios(split_id, first_slot_id, second_slot_id),
             area: None,
             divider: None,
         });
-        collect_hidden_splits(first, output);
-        collect_hidden_splits(second, output);
+        collect_hidden_splits(first, ratios, output);
+        collect_hidden_splits(second, ratios, output);
     }
 }
 

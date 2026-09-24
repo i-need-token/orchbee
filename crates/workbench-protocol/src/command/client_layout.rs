@@ -16,6 +16,8 @@ pub const MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES: usize = 1024 * 1024;
 pub struct ClientSplitRatio(f64);
 impl Eq for ClientSplitRatio {}
 impl ClientSplitRatio {
+    /// The default equal split, before integer cell rounding.
+    pub const HALF: Self = Self(0.5);
     /// Admit the supported finite split range without silently clamping input.
     pub fn new(value: f64) -> Result<Self, ContractError> {
         if value.is_finite() && (0.1..=0.9).contains(&value) {

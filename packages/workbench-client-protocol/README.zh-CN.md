@@ -104,3 +104,5 @@ pnpm --filter @orchbee/workbench-client-protocol test:exports
 `workbench-client-layout-contract.ts` 校验有界单元格矩形、可为 null 的可见性／焦点、唯一 split／slot／Panel 身份、有限比例、物理包含关系及独立重新计算的方向邻居。Client 视图校验把布局读取绑定到精确目标及最低 revision；选中观测还必须与已发布 Client 视图匹配。共享语料覆盖有效的非活动／隐藏目标，以及被拒绝的跨字段、边界和引用违规。
 
 方向控制新增 `focus-direction` 意图、`direction-focused` 和 `direction-unchanged` 回执，沿用普通 25/26 帧。成功聚焦校验区别于来源的精确目标和已观测视图；无邻居回执校验来源布局版本，支持当前选择位于其他上下文。共享语料覆盖闭合形状、版本、目标、意图不匹配和无效方向。
+
+分割调整在 25/26 帧新增严格的 `resize`、`set-split-ratio` 意图及 `layout-adjusted` 回执。数量为有限的 0–0.5，比例为有限的 0.1–0.9，二进制分割路径最多 16 个索引。绑定独立校验目标／版本／视图关系、互不相同的有序 slot、精确 setter 数值或夹取后的有符号 resize 增量，以及仅 resize 可用的 no-split 结果。普通 Applied 不能确认这两种意图。共享语料包含 62 个有效、108 个无效文档；结构 JSON Schema 检查补充独立语义校验器。运行时生命周期、绘制顺序和非活动保存归 Windows 布局所有者管理。

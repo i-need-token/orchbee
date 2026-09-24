@@ -2719,10 +2719,9 @@ fn reconcile_readonly_setup_focus_move_completes_without_ready() -> TestResult {
 
 /// The `Ctrl+B z` trace end to end: the volatile flag flip emits no wire
 /// request, both viewers stay attached with their exact incarnations, and
-/// resize admission stays scoped to whichever pane is focused — the hidden
-/// peer's reports never reach the carrier while zoomed or after restore.
+/// resize admits only focus while zoomed, then restores both visible peers.
 #[test]
-fn zoom_trace_keeps_peer_viewer_alive_and_resize_focus_scoped() -> TestResult {
+fn zoom_trace_keeps_peers_alive_and_resizes_only_visible_controlling_panes() -> TestResult {
     let canonical = fixture_geometry()?;
     let zoomed_wide = Geometry::new(
         canonical.columns().checked_add(8).unwrap(),
@@ -2730,10 +2729,10 @@ fn zoom_trace_keeps_peer_viewer_alive_and_resize_focus_scoped() -> TestResult {
         canonical.cell_pixel_width(),
         canonical.cell_pixel_height(),
     )?;
-    // 9 post-Ready steps: focus Resize + the peer chain's five + one Resize
-    // per post-zoom observation leg. A flag flip emits nothing, so the
+    // 10 post-Ready steps: focus Resize + the peer chain's five + two zoom
+    // resizes + both visible leaves restored. A flag flip emits nothing, so the
     // script itself proves the toggle is wire-free.
-    let mut harness = Harness::start(steps(&[WireKind::Obcs; 9]), canonical)?;
+    let mut harness = Harness::start(steps(&[WireKind::Obcs; 10]), canonical)?;
     let (_anchor_a, _controller_a) =
         drive_controlling_ready_from_snapshot(&mut harness, split_snapshot(1), canonical)?;
     let pane_a = harness.ui.state().desired().cloned().unwrap();
@@ -2844,45 +2843,44 @@ fn zoom_trace_keeps_peer_viewer_alive_and_resize_focus_scoped() -> TestResult {
         UiEvent::SetupConfigured { .. }
     ));
 
-    // Restore: the peer — still focused — converges back to its canonical
-    // rect; pane A's hidden-pane report admits nothing.
+    // Restore both visible controlling leaves, each on its own frozen attachment.
     assert!(harness.ui.toggle_zoom());
     assert!(!harness.ui.state().zoom_active());
     harness.ui.observe_panes(&[
         (focus_panel.clone(), 0, canonical),
         (peer_panel.clone(), 1, canonical),
     ])?;
-    let ClientMessage::TerminalControl(resize) = harness.carrier.take_obcs()? else {
-        return Err(test_error(
-            "restored observation must Resize the focus pane",
+    for expected_viewer in [attached_viewer_id()?, peer_viewer_id.clone()] {
+        let ClientMessage::TerminalControl(resize) = harness.carrier.take_obcs()? else {
+            return Err(test_error(
+                "restored observation must resize each visible leaf",
+            ));
+        };
+        let TerminalControlAction::Resize {
+            attachment_id,
+            geometry: requested,
+            ..
+        } = resize.action()
+        else {
+            return Err(test_error("restore must be Resize"));
+        };
+        assert_eq!(attachment_id, &expected_viewer);
+        assert_eq!(*requested, canonical);
+        harness
+            .carrier
+            .respond_obcs(ServerMessage::TerminalControlResult(
+                TerminalControlResult::new(
+                    resize.request_id().clone(),
+                    TerminalControlOutcome::Resized {
+                        geometry: canonical,
+                    },
+                ),
+            ))?;
+        assert!(matches!(
+            harness.ui.settle_next(FrameCut::None)?,
+            UiEvent::SetupConfigured { .. }
         ));
-    };
-    let TerminalControlAction::Resize {
-        attachment_id,
-        geometry: requested,
-        ..
-    } = resize.action()
-    else {
-        return Err(test_error(
-            "restored observation must Resize the focus pane",
-        ));
-    };
-    assert_eq!(attachment_id, &peer_viewer_id);
-    assert_eq!(*requested, canonical);
-    harness
-        .carrier
-        .respond_obcs(ServerMessage::TerminalControlResult(
-            TerminalControlResult::new(
-                resize.request_id().clone(),
-                TerminalControlOutcome::Resized {
-                    geometry: canonical,
-                },
-            ),
-        ))?;
-    assert!(matches!(
-        harness.ui.settle_next(FrameCut::None)?,
-        UiEvent::SetupConfigured { .. }
-    ));
+    }
 
     assert_eq!(harness.mailbox.is_closed(), None);
     assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Ready);

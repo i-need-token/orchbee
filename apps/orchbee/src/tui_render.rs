@@ -514,6 +514,7 @@ fn render_native_workbench(
             content_area,
             tab.panel_tree(),
             tab.active_panel(),
+            &|split, first, second| tab.split_ratio(split, first, second),
         );
         for leaf in &projection.leaves {
             render_leaf(
