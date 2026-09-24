@@ -1,0 +1,1005 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "create-with-literal-branch-and-path",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": "00000000000000000000000000000004",
+					"intent": {
+						"kind": "create",
+						"source": {
+							"kind": "directory",
+							"path": "C:/repo"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": false,
+						"branch": "feature/中文",
+						"base": "HEAD~2",
+						"path": "C:/trees/work"
+					}
+				}
+			}
+		},
+		{
+			"name": "read",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "read",
+					"operationId": "00000000000000000000000000000003"
+				}
+			}
+		},
+		{
+			"name": "resume",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "resume",
+					"operationId": "00000000000000000000000000000003",
+					"expectedAttempt": 64
+				}
+			}
+		},
+		{
+			"name": "open",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": "00000000000000000000000000000004",
+					"intent": {
+						"kind": "open",
+						"source": {
+							"kind": "workspace",
+							"workspaceId": "00000000000000000000000000000005"
+						},
+						"selector": {
+							"kind": "branch",
+							"branch": "main"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": true
+					}
+				}
+			}
+		},
+		{
+			"name": "remove",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": "00000000000000000000000000000004",
+					"intent": {
+						"kind": "remove",
+						"workspaceId": "00000000000000000000000000000005",
+						"force": true,
+						"trustRepository": false
+					}
+				}
+			}
+		},
+		{
+			"name": "git-failure-after-workspace-closed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "git",
+							"stage": "mutate",
+							"error": "git-failed",
+							"status": 1,
+							"diagnostics": [0, 10, 27, 255]
+						},
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "closed",
+								"workspaceId": "00000000000000000000000000000005",
+								"closeRequestId": "00000000000000000000000000000006"
+							},
+							"gitEffect": "may-have-changed"
+						},
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "reused",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "opened",
+						"workspaceId": "00000000000000000000000000000005",
+						"checkout": {
+							"repositoryRoot": "C:/repo",
+							"commonDirectory": "C:/repo/.git",
+							"path": "C:/trees/work",
+							"branch": "feature/中文",
+							"dirty": false
+						},
+						"reused": true,
+						"terminalOutcome": null
+					}
+				}
+			}
+		},
+		{
+			"name": "launch-unknown",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "opened",
+						"workspaceId": "00000000000000000000000000000005",
+						"checkout": {
+							"repositoryRoot": "C:/repo",
+							"commonDirectory": "C:/repo/.git",
+							"path": "C:/trees/work",
+							"branch": "feature/中文",
+							"dirty": false
+						},
+						"reused": false,
+						"terminalOutcome": {
+							"kind": "outcome-unknown"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "removing-retains-close-fact",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "pending",
+						"phase": "removing",
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "closed",
+								"workspaceId": "00000000000000000000000000000005",
+								"closeRequestId": "00000000000000000000000000000006"
+							},
+							"gitEffect": "may-have-changed"
+						}
+					}
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "unadmitted-focus-flag",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": "00000000000000000000000000000004",
+					"intent": {
+						"kind": "create",
+						"source": {
+							"kind": "directory",
+							"path": "C:/repo"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": false,
+						"branch": "feature/中文",
+						"base": "HEAD~2",
+						"path": "C:/trees/work",
+						"focus": true
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reference-leading-dash",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": "00000000000000000000000000000004",
+					"intent": {
+						"kind": "create",
+						"source": {
+							"kind": "directory",
+							"path": "C:/repo"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": false,
+						"branch": "-option",
+						"base": "HEAD~2",
+						"path": "C:/trees/work"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reference-control",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": "00000000000000000000000000000004",
+					"intent": {
+						"kind": "create",
+						"source": {
+							"kind": "directory",
+							"path": "C:/repo"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": false,
+						"branch": "x",
+						"base": "HEAD~2",
+						"path": "C:/trees/work"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "reference-utf8-overflow",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": "00000000000000000000000000000004",
+					"intent": {
+						"kind": "create",
+						"source": {
+							"kind": "directory",
+							"path": "C:/repo"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": false,
+						"branch": "界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界",
+						"base": "HEAD~2",
+						"path": "C:/trees/work"
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "zero-attempt",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "resume",
+					"operationId": "00000000000000000000000000000003",
+					"expectedAttempt": 0
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "attempt-overflow",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 65,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "git",
+							"stage": "mutate",
+							"error": "git-failed",
+							"status": 1,
+							"diagnostics": [0, 10, 27, 255]
+						},
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "closed",
+								"workspaceId": "00000000000000000000000000000005",
+								"closeRequestId": "00000000000000000000000000000006"
+							},
+							"gitEffect": "may-have-changed"
+						},
+						"resumable": true
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "non-process-error-with-status",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "git",
+							"stage": "mutate",
+							"error": "dirty",
+							"status": 1,
+							"diagnostics": [0, 10, 27, 255]
+						},
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "closed",
+								"workspaceId": "00000000000000000000000000000005",
+								"closeRequestId": "00000000000000000000000000000006"
+							},
+							"gitEffect": "may-have-changed"
+						},
+						"resumable": true
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "diagnostic-not-byte",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "git",
+							"stage": "mutate",
+							"error": "git-failed",
+							"status": 1,
+							"diagnostics": [256]
+						},
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "closed",
+								"workspaceId": "00000000000000000000000000000005",
+								"closeRequestId": "00000000000000000000000000000006"
+							},
+							"gitEffect": "may-have-changed"
+						},
+						"resumable": true
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "diagnostic-overflow",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "git",
+							"stage": "mutate",
+							"error": "git-failed",
+							"status": 1,
+							"diagnostics": [
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+								0, 0, 0, 0, 0
+							]
+						},
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "closed",
+								"workspaceId": "00000000000000000000000000000005",
+								"closeRequestId": "00000000000000000000000000000006"
+							},
+							"gitEffect": "may-have-changed"
+						},
+						"resumable": true
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "checkout-path-mismatch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "git",
+							"stage": "mutate",
+							"error": "git-failed",
+							"status": 1,
+							"diagnostics": [0, 10, 27, 255]
+						},
+						"progress": {
+							"path": "C:/other",
+							"checkout": {
+								"repositoryRoot": "C:/repo",
+								"commonDirectory": "C:/repo/.git",
+								"path": "C:/trees/work",
+								"branch": "feature/中文",
+								"dirty": false
+							},
+							"workspace": {
+								"kind": "closed",
+								"workspaceId": "00000000000000000000000000000005",
+								"closeRequestId": "00000000000000000000000000000006"
+							},
+							"gitEffect": "may-have-changed"
+						},
+						"resumable": true
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "created-workspace-missing-launch-outcome",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "opened",
+						"workspaceId": "00000000000000000000000000000005",
+						"checkout": {
+							"repositoryRoot": "C:/repo",
+							"commonDirectory": "C:/repo/.git",
+							"path": "C:/trees/work",
+							"branch": "feature/中文",
+							"dirty": false
+						},
+						"reused": false,
+						"terminalOutcome": null
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "explicit-null-branch",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": "00000000000000000000000000000004",
+					"intent": {
+						"kind": "create",
+						"source": {
+							"kind": "directory",
+							"path": "C:/repo"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": false,
+						"branch": null,
+						"base": "HEAD~2",
+						"path": "C:/trees/work"
+					}
+				}
+			}
+		},
+		{
+			"name": "explicit-null-base",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": "00000000000000000000000000000004",
+					"intent": {
+						"kind": "create",
+						"source": {
+							"kind": "directory",
+							"path": "C:/repo"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": false,
+						"branch": "feature/中文",
+						"base": null,
+						"path": "C:/trees/work"
+					}
+				}
+			}
+		},
+		{
+			"name": "explicit-null-path",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": "00000000000000000000000000000004",
+					"intent": {
+						"kind": "create",
+						"source": {
+							"kind": "directory",
+							"path": "C:/repo"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": false,
+						"branch": "feature/中文",
+						"base": "HEAD~2",
+						"path": null
+					}
+				}
+			}
+		},
+		{
+			"name": "explicit-null-label",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "start",
+					"operationId": "00000000000000000000000000000003",
+					"projectId": "00000000000000000000000000000004",
+					"intent": {
+						"kind": "create",
+						"source": {
+							"kind": "directory",
+							"path": "C:/repo"
+						},
+						"geometry": {
+							"columns": 80,
+							"rows": 24,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						},
+						"trustRepository": false,
+						"branch": "feature/中文",
+						"base": "HEAD~2",
+						"path": "C:/trees/work",
+						"label": null
+					}
+				}
+			}
+		},
+		{
+			"name": "missing-progress-path",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "git",
+							"stage": "mutate",
+							"error": "git-failed",
+							"status": 1,
+							"diagnostics": [0, 10, 27, 255]
+						},
+						"progress": {
+							"checkout": null,
+							"workspace": {
+								"kind": "closed",
+								"workspaceId": "00000000000000000000000000000005",
+								"closeRequestId": "00000000000000000000000000000006"
+							},
+							"gitEffect": "may-have-changed"
+						},
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "missing-progress-checkout",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "git",
+							"stage": "mutate",
+							"error": "git-failed",
+							"status": 1,
+							"diagnostics": [0, 10, 27, 255]
+						},
+						"progress": {
+							"path": "C:/trees/work",
+							"workspace": {
+								"kind": "closed",
+								"workspaceId": "00000000000000000000000000000005",
+								"closeRequestId": "00000000000000000000000000000006"
+							},
+							"gitEffect": "may-have-changed"
+						},
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "missing-nullable-branch",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "opened",
+						"workspaceId": "00000000000000000000000000000005",
+						"checkout": {
+							"repositoryRoot": "C:/repo",
+							"commonDirectory": "C:/repo/.git",
+							"path": "C:/trees/work",
+							"dirty": false
+						},
+						"reused": true,
+						"terminalOutcome": null
+					}
+				}
+			}
+		},
+		{
+			"name": "missing-nullable-terminalOutcome",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "opened",
+						"workspaceId": "00000000000000000000000000000005",
+						"checkout": {
+							"repositoryRoot": "C:/repo",
+							"commonDirectory": "C:/repo/.git",
+							"path": "C:/trees/work",
+							"branch": "feature/中文",
+							"dirty": false
+						},
+						"reused": true
+					}
+				}
+			}
+		}
+	],
+	"validJson": [
+		{
+			"name": "integral-decimal-exponent-result",
+			"direction": "response",
+			"json": "{\"kind\":\"workbench.worktree.operation.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000007\",\"operationId\":\"00000000000000000000000000000003\",\"outcome\":{\"kind\":\"available\",\"projectId\":\"00000000000000000000000000000004\",\"attempt\":2e0,\"status\":{\"kind\":\"failed\",\"reason\":{\"kind\":\"git\",\"stage\":\"mutate\",\"error\":\"git-failed\",\"status\":1.0,\"diagnostics\":[-0.0,1e1,27.0,255]},\"progress\":{\"path\":\"C:/trees/work\",\"checkout\":null,\"workspace\":{\"kind\":\"closed\",\"workspaceId\":\"00000000000000000000000000000005\",\"closeRequestId\":\"00000000000000000000000000000006\"},\"gitEffect\":\"may-have-changed\"},\"resumable\":true}}}",
+			"canonical": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "git",
+							"stage": "mutate",
+							"error": "git-failed",
+							"status": 1,
+							"diagnostics": [0, 10, 27, 255]
+						},
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "closed",
+								"workspaceId": "00000000000000000000000000000005",
+								"closeRequestId": "00000000000000000000000000000006"
+							},
+							"gitEffect": "may-have-changed"
+						},
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "integral-resume-attempt",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.worktree.operation\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000001\",\"siteId\":\"00000000000000000000000000000002\",\"action\":{\"kind\":\"resume\",\"operationId\":\"00000000000000000000000000000003\",\"expectedAttempt\":6.4e1}}",
+			"canonical": {
+				"kind": "workbench.worktree.operation",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "resume",
+					"operationId": "00000000000000000000000000000003",
+					"expectedAttempt": 64
+				}
+			}
+		}
+	]
+}

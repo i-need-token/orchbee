@@ -65,9 +65,11 @@ pub(super) fn encode_request(request: &WorktreeMutationRequest) -> Vec<u8> {
                 WorktreeMutation::Open(_) => 2,
                 WorktreeMutation::InspectRemove { .. } => 3,
                 WorktreeMutation::Remove { .. } => 4,
+                WorktreeMutation::InspectSource => 5,
             });
             path(&mut bytes, intent.source());
             match intent.mutation() {
+                WorktreeMutation::InspectSource => {}
                 WorktreeMutation::Create {
                     path: target,
                     branch,
@@ -158,6 +160,7 @@ fn read_intent(reader: &mut PayloadReader<'_>) -> Result<WorktreeMutationIntent,
             expected_common_directory: read_path(reader)?,
             force: read_bool(reader)?,
         },
+        5 => WorktreeMutation::InspectSource,
         _ => return Err(ProtocolError::InvalidPayload),
     };
     WorktreeMutationIntent::new(source, trust, mutation)

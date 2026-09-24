@@ -26,6 +26,12 @@ impl WorkbenchAuthority {
         if let Some(response) = self.command_preflight(command) {
             return Some(response);
         }
+        if self.worktree_removal_active() {
+            return Some(result(
+                command,
+                unavailable(WorkbenchCommandUnavailableReason::TerminalBusy),
+            ));
+        }
         self.directory_target(command).err().map(|failure| {
             result(
                 command,

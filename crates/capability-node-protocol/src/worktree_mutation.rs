@@ -35,6 +35,8 @@ pub enum WorktreeCheckoutSelector {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum WorktreeMutation {
+    /// Read the actual non-bare source checkout, including a source subdirectory.
+    InspectSource,
     Create {
         path: AbsoluteCwd,
         branch: GitReference,
@@ -66,6 +68,7 @@ impl WorktreeMutationIntent {
     ) -> Result<Self, ProtocolError> {
         let fields = source.as_str().len()
             + match &mutation {
+                WorktreeMutation::InspectSource => 0,
                 WorktreeMutation::Create { path, branch, base } => {
                     path.as_str().len() + branch.as_str().len() + base.as_str().len()
                 }

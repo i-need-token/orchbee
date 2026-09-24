@@ -497,14 +497,13 @@ Viewer action tag 12 为 `ReadProcessInfo`，tag 后没有额外字节，使用�
 
 ## Worktree 变更作业契约
 
-这一私有分阶段契约定义 Windows Worker Git 所有者与 Server Worktree 续执行的边界。
-Windows Worker 分派已实现此边界；Server 续执行仍待接入。单靠表示层不完成 CLI
-create/open/remove 流程。Server 拥有 Workspace
+这一私有契约定义 Windows Worker Git 所有者与 Server Worktree 续执行的边界。
+Windows Worker 分派与 Server 续执行均实现此边界。单靠表示层不能证明 CLI 端到端正确性。Server 拥有 Workspace
 关联；Worker 拥有 Git checkout 观测与副作用。不引入新依赖或 Unix 执行能力。
 
 请求携带非零操作 ID、Worker ID 及正 generation。Start 接纳已校验的意图；Poll 和
 Cancel 指向原 Start ID。Create 携带源目录、checkout 路径、分支及 base。Open 携带
-源目录和路径或分支二选一选择器。InspectRemove 观测已登记的 linked checkout 与
+源目录和路径或分支二选一选择器，包括主检出。InspectSource 解析源检出，允许来源为检出子目录。InspectRemove 观测已登记的 linked checkout 与
 脏状态。Remove 携带源目录、checkout、预期公共 Git 目录及 force。每个意图另有明确的
 仓库信任值。这些是语义参数，不是可执行文件、shell 表达式或任意 argv。
 
@@ -533,7 +532,7 @@ Select、CheckBranch、DirtyCheck、Mutate、Verify。副作用标签 0/1 为 No
 
 OBCN 版本 2、kind 21 依次编码操作 ID（16）、Worker ID（16）、generation（u64）及
 action（u8：1 Start、2 Poll、3 Cancel）。Poll/Cancel 增加 Job ID（16）。Start 增加
-trust（严格布尔）、意图标签（1 Create、2 Open、3 InspectRemove、4 Remove）、源目录
+trust（严格布尔）、意图标签（1 Create、2 Open、3 InspectRemove、4 Remove、5 InspectSource）、源目录
 及按上文顺序排列的意图参数。Open 选择器标签 1/2 为路径／分支。Remove 的 force 位于
 预期公共目录之后。字符串与字节字段使用 u16 字节长度，整数为大端。解码运行全部
 UTF-8 校验及受检构造器。不接受未知标签、尾随字节、无效身份、布尔或 option。

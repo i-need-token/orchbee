@@ -443,3 +443,65 @@ fn pre_host_mutation_is_joined_on_explicit_stop_and_server_disconnect() {
         assert!(!ModeCheckedLocalSiteRendezvous::host_runtime_directory(&runtime).exists());
     }
 }
+
+#[test]
+fn source_probe_resolves_subdirectories_and_open_includes_main_checkout() {
+    let fixture = Fixture::new();
+    for selector in [
+        WorktreeCheckoutSelector::Path(fixture.source.clone()),
+        WorktreeCheckoutSelector::Branch(GitReference::new("main").unwrap()),
+    ] {
+        let Completion::Checkout(checkout) = fixture.execute(WorktreeMutation::Open(selector))
+        else {
+            panic!("main checkout must open")
+        };
+        assert_eq!(checkout.path(), &fixture.source);
+        assert_eq!(checkout.repository_root(), &fixture.source);
+    }
+    let linked = fixture.create("probe", "probe", "HEAD");
+    for checkout in [&fixture.source, linked.path()] {
+        let subdirectory = Path::new(checkout.as_str()).join("nested");
+        std::fs::create_dir(&subdirectory).unwrap();
+        let intent = WorktreeMutationIntent::new(
+            canonical_path(&subdirectory).unwrap(),
+            false,
+            WorktreeMutation::InspectSource,
+        )
+        .unwrap();
+        let Completion::Checkout(observed) = run(
+            intent,
+            &AtomicBool::new(false),
+            Instant::now() + Duration::from_secs(30),
+        )
+        .unwrap() else {
+            panic!("source checkout must resolve")
+        };
+        assert_eq!(observed.path(), checkout);
+        assert_eq!(observed.repository_root(), &fixture.source);
+        assert_eq!(observed.common_directory(), linked.common_directory());
+    }
+}
+
+#[test]
+fn successful_hook_cannot_hide_a_different_checked_out_branch() {
+    let fixture = Fixture::new();
+    fixture.git(&["branch", "other"]);
+    std::fs::write(
+        fixture.root.join("hooks/post-checkout"),
+        format!(
+            "#!/bin/sh\nunset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR\ngit -C '{}' symbolic-ref HEAD refs/heads/other\n",
+            fixture.path("changed").as_str().replace('\'', "'\\''")
+        ),
+    )
+    .unwrap();
+    let result = fixture.execute(WorktreeMutation::Create {
+        path: fixture.path("changed"),
+        branch: GitReference::new("requested").unwrap(),
+        base: GitReference::new("HEAD").unwrap(),
+    });
+    assert!(
+        matches!(&result, Completion::Failed(failure) if failure.error == Error::RepositoryChanged && failure.effect == WorktreeMutationEffect::MayHaveChanged),
+        "unexpected completion: {result:?}"
+    );
+    assert!(fixture.root.join("changed/seed.txt").exists());
+}

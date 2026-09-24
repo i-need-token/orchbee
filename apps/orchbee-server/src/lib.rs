@@ -35,4 +35,5 @@ pub use workbench_authority::{
     WorkbenchWorkspaceCloseAdmission, WorkbenchWorkspaceCloseBegin,
     WorkbenchWorkspaceCloseResumeAdmission, WorkbenchWorkspaceCloseResumeBegin,
     WorkbenchWorkspaceCloseResumePreparation, WorktreeListResolution, WorktreeListTarget,
+    WorktreeOperationPlan, WorktreeSourceTarget,
 };

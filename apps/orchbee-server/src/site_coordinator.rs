@@ -73,6 +73,10 @@ impl SiteCoordinator {
         Some(self.workbench.as_ref()?.site_id() == site)
     }
 
+    pub(crate) fn worktree_authority(&mut self) -> Option<&mut WorkbenchAuthority> {
+        self.workbench.as_mut()
+    }
+
     /// Resolves committed Worktree List membership; `Unavailable` covers an
     /// absent authority so callers need no second poisoning path.
     pub(crate) fn worktree_list_target(

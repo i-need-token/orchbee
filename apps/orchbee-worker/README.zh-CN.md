@@ -776,3 +776,5 @@ Herdr 一致。Open 按路径或分支选择一个已登记 checkout。InspectRe
 覆盖重复／冲突 Start、容量、取消、收敛失败及 generation fencing。真实 Git 测试覆盖
 分支创建／复用、打开选择器、脏目录拒绝、强制删除及分支保留。不证明外部写入者排斥、
 Worker 突然死亡恢复或非 Windows 执行。不会仅凭此 Worker 边界推导 CLI 对齐。
+
+InspectSource 解析包含源目录的检出；Open 允许主检出。Create 在 Git 完成后重新观察分支，因此成功 hook 改变 HEAD 时返回 RepositoryChanged 与可能的副作用，不会误报关联成功。Server 通过其保留续执行消费这些观测；物理所有权和清理仍留在 Worker。

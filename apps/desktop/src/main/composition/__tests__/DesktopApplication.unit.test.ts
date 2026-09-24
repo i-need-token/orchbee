@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { mkdir, mkdtemp, readFile, rename, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -56,6 +56,7 @@ import type { WorkbenchDocumentStore } from '../../workbench-document';
 import type { DesktopWindowStateStore } from '../../window-state';
 import {
 	TerminalExitSpillStore,
+	FileTerminalBindingStore,
 	type TerminalExitPublicationLedger,
 	type TerminalExitSpillReason,
 } from '../../recovery';
@@ -1694,6 +1695,7 @@ describe('DesktopApplication', () => {
 
 	it('keeps a real composed exit owned while binding persistence is temporarily unavailable', async () => {
 		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-composition-'));
+		let application: DesktopApplication | undefined;
 		try {
 			const runtime = createRuntime(
 				{ ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: directory, SHELL: '/bin/sh' },
@@ -1706,7 +1708,7 @@ describe('DesktopApplication', () => {
 			);
 			installRealTerminalRuntime(harness);
 			configureRealHost(harness, async () => identity, []);
-			const application = createApplication(harness.dependencies, 'linux', runtime, true);
+			application = createApplication(harness.dependencies, 'linux', runtime, true);
 			await application.start();
 			const bootstrap = rendererBootstrap(harness);
 			const document = bootstrap?.clientSession?.initializationDocument;
@@ -1742,9 +1744,16 @@ describe('DesktopApplication', () => {
 					creationId: CreationIdSchema.parse(createRequest.creationId),
 				},
 			};
+			const bindingStore = new FileTerminalBindingStore(runtime.terminalBindingStorePath);
 			await vi.waitFor(async () => {
-				const stored = await readFile(runtime.terminalBindingStorePath, 'utf8');
-				expect(stored).toContain(createRequest.creationId);
+				const stored = await bindingStore.load();
+				if (stored.kind !== 'available') throw new Error('Binding store is not available.');
+				// Planned and create-requested records precede the final startup write.
+				expect(
+					stored.document.bindings.find(
+						(binding) => binding.creationId === createRequest.creationId,
+					)?.state.kind,
+				).toBe('retained');
 			});
 			const backupPath = `${runtime.terminalBindingStorePath}.backup`;
 			await rename(runtime.terminalBindingStorePath, backupPath);
@@ -1775,8 +1784,8 @@ describe('DesktopApplication', () => {
 						'terminal-exited',
 				).length,
 			).toBe(1);
-			await application.shutdown();
 		} finally {
+			await application?.shutdown();
 			await rm(directory, { recursive: true, force: true });
 		}
 	});

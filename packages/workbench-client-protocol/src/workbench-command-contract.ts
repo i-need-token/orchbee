@@ -1,4 +1,21 @@
 import { z } from 'zod';
+import {
+	WorkbenchTerminalGeometrySchema,
+	type WorkbenchTerminalUnavailableReasonSchema,
+	type WorkbenchTerminalFailureReasonSchema,
+	WorkbenchTerminalOutcomeSchema,
+} from './workbench-terminal-launch-contract';
+export {
+	WorkbenchTerminalGeometrySchema,
+	WorkbenchTerminalUnavailableReasonSchema,
+	WorkbenchTerminalFailureReasonSchema,
+	WorkbenchTerminalOutcomeSchema,
+} from './workbench-terminal-launch-contract';
+import {
+	WorkbenchWorktreeRequestSchema,
+	WorkbenchWorktreeResultSchema,
+	WORKBENCH_MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES,
+} from './workbench-worktree-contract';
 
 import {
 	WorkbenchTabCloseReadSchema,
@@ -41,49 +58,6 @@ import {
 export const WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES =
 	WORKBENCH_MAXIMUM_ENCODED_PROJECTION_BYTES + 1024;
 export const WORKBENCH_MAXIMUM_RESULT_PUBLICATIONS = 64;
-
-const terminalGeometryDimensionSchema = z.number().int().min(1).max(4096);
-const terminalCellPixelDimensionSchema = z.number().int().min(0).max(4096);
-
-export const WorkbenchTerminalGeometrySchema = z
-	.strictObject({
-		columns: terminalGeometryDimensionSchema,
-		rows: terminalGeometryDimensionSchema,
-		cellPixelWidth: terminalCellPixelDimensionSchema,
-		cellPixelHeight: terminalCellPixelDimensionSchema,
-	})
-	.superRefine((geometry, context) => {
-		if ((geometry.cellPixelWidth === 0) !== (geometry.cellPixelHeight === 0)) {
-			context.addIssue({
-				code: 'custom',
-				message:
-					'Workbench terminal cell pixel width and height must be both positive or both zero (pixels unknown)',
-				path: ['cellPixelWidth'],
-			});
-		}
-		if (geometry.columns * geometry.rows > 262_144) {
-			context.addIssue({
-				code: 'custom',
-				message: 'Workbench terminal grid exceeds 262144 cells',
-				path: ['columns'],
-			});
-		}
-		if (geometry.columns * geometry.cellPixelWidth > 65_535) {
-			context.addIssue({
-				code: 'custom',
-				message: 'Workbench terminal pixel width exceeds 65535',
-				path: ['cellPixelWidth'],
-			});
-		}
-		if (geometry.rows * geometry.cellPixelHeight > 65_535) {
-			context.addIssue({
-				code: 'custom',
-				message: 'Workbench terminal pixel height exceeds 65535',
-				path: ['cellPixelHeight'],
-			});
-		}
-	})
-	.readonly();
 
 export const WorkbenchTabMoveDirectionSchema = z.enum(['previous', 'next', 'first', 'last']);
 export const WorkbenchPanelSplitDirectionSchema = z.enum(['above', 'below', 'left', 'right']);
@@ -239,9 +213,14 @@ export const WorkbenchRequestSchema = z
 		WorkbenchPublicationReadIntentSchema,
 		WorkbenchWorkspaceCloseReadSchema,
 		WorkbenchWorkspaceCloseResumeSchema,
+		WorkbenchWorktreeRequestSchema,
 	])
 	.refine(
-		(value) => encodedBytes(value) <= WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES,
+		(value) =>
+			encodedBytes(value) <=
+			(value.kind === 'workbench.worktree.operation'
+				? WORKBENCH_MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES
+				: WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES),
 		'Workbench request exceeds its encoded limit',
 	);
 
@@ -274,31 +253,10 @@ export const WorkbenchCommandUnavailableReasonSchema = z.enum([
 	'directory-unavailable',
 ]);
 export const WorkbenchSnapshotUnavailableReasonSchema = z.enum(['service-unavailable']);
-export const WorkbenchTerminalUnavailableReasonSchema = z.enum([
-	'terminal-runtime-unavailable',
-	'server-busy',
-]);
-export const WorkbenchTerminalFailureReasonSchema = z.enum(['terminal-create-failed']);
 const deniedSchema = z.strictObject({ kind: z.literal('denied') }).readonly();
 const commandUnavailableSchema = z
 	.strictObject({ kind: z.literal('unavailable'), reason: WorkbenchCommandUnavailableReasonSchema })
 	.readonly();
-
-export const WorkbenchTerminalOutcomeSchema = z.discriminatedUnion('kind', [
-	z
-		.strictObject({ kind: z.literal('started'), geometry: WorkbenchTerminalGeometrySchema })
-		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('unavailable'),
-			reason: WorkbenchTerminalUnavailableReasonSchema,
-		})
-		.readonly(),
-	z
-		.strictObject({ kind: z.literal('failed'), reason: WorkbenchTerminalFailureReasonSchema })
-		.readonly(),
-	z.strictObject({ kind: z.literal('outcome-unknown') }).readonly(),
-]);
 
 export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
 	z
@@ -528,6 +486,7 @@ export const WorkbenchResponseSchema = z
 		WorkbenchPublicationResultSchema,
 		WorkbenchWorkspaceCloseReadResultSchema,
 		WorkbenchWorkspaceCloseResumeResultSchema,
+		WorkbenchWorktreeResultSchema,
 	])
 	.superRefine((value, context) => {
 		let maximum = WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES;
@@ -536,6 +495,8 @@ export const WorkbenchResponseSchema = z
 			value.kind === 'workbench.publication.result'
 		) {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES;
+		} else if (value.kind === 'workbench.worktree.operation.result') {
+			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES;
 		} else if (value.kind === 'workbench.workspace-close.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES;
 		}

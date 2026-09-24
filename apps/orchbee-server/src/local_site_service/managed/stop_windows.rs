@@ -137,6 +137,10 @@ fn settle(
     }
     owners
         .terminals
+        .stop_worktrees_before(deadline)
+        .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
+    owners
+        .terminals
         .stop_close_before(deadline)
         .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
     if !*worker_completed {

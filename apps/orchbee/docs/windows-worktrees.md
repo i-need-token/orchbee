@@ -1,0 +1,49 @@
+# Windows Worktree operations
+
+This record owns native CLI Worktree creation, opening, removal and recovery. Git effects belong to the Windows Worker; the Server owns retained operations and canonical Workspace association. The CLI waits for observations and never runs Git itself. `worktree list` keeps its existing registered-directory query contract.
+
+## Commands and defaults
+
+```powershell
+orchbee worktree create --project demo --cwd C:/code/demo --branch feature/example
+orchbee worktree open --project demo --cwd C:/code/demo --branch feature/example
+orchbee worktree remove --workspace example --confirm
+orchbee worktree status <operation-id> --format json
+orchbee worktree resume <operation-id> --generation <attempt> --confirm
+```
+
+Create and Open accept either `--workspace <target>` or `--cwd <absolute-path>`. Without either, a validated caller terminal selects its canonical Workspace; outside Orchbee, the current directory is the source. A partial, stale or invalid caller identity never falls back to cwd. `--project` can be omitted when inferred from the Workspace or when exactly one Project exists. Ambiguous or absent Projects fail before submission; this command does not create a default Project.
+
+Create accepts optional `--branch`, `--base`, `--path` and `--label`. The default branch is `worktree/<full-operation-id>`, base is `HEAD`, and path is `<main-repository-parent>/<main-repository-name>-worktrees/<branch-slug>`. The slug replaces characters outside ASCII letters, digits, `_` and `-` with `-`; an existing path is never overwritten. Existing local branches ignore the base. Open requires exactly one `--path` or `--branch`; ambiguous branches require a path. Both main and linked checkouts may be opened. An existing single Workspace in the same Project is reused; `--label` also renames it. A new association creates a Workspace and launches its first default-shell terminal. The optional four geometry flags follow `tab create`; a committed Workspace with failed or unknown terminal startup remains visible in the result.
+
+Remove requires `--workspace` and `--confirm`. It checks registration, common Git directory and dirty state before closing the Workspace. `--force` explicitly permits Git to discard checkout changes. Main/bare checkouts and checkouts associated with another known Workspace are refused. Successful removal preserves the branch. There is no recursive filesystem deletion fallback.
+
+`--trust-repository` grants command-local Git trust without changing global or repository configuration. Paths are literal absolute drive paths on Windows; no `~` or environment expansion is performed. Source paths may point inside a checkout. Reference operands are nonempty, at most 1024 UTF-8 bytes, and cannot start with `-` or contain ASCII controls. Git validates branch syntax. No command changes Client focus. Mac/Linux mutation execution and Desktop command exposure are outside this Windows implementation.
+
+## Waiting and machine output
+
+Create, Open and Remove accept a caller-provided nonzero 32-lowercase-hex `--request-id` or generate an operation identity before submission. Exchange request IDs are separate. Equal identity and intent observes the retained operation; changed intent conflicts. `--detach` returns the first accepted observation. Default CLI waiting is 120000 ms; `--timeout` accepts 1–3600000 ms. Each exchange is bounded at two seconds and polls are separated by 50 ms. Timeout, Ctrl+C or connection loss stops waiting; accepted Server work continues. The CLI submits Start or Resume once and follows only with Read. An uncertain handoff is never automatically replayed.
+
+`worktree status` is a pure read with a five-second total budget and does not activate the Site or start maintenance. `worktree resume` requires the exact `attempt` from a resumable failed status, supplied as `--generation`, and `--confirm` because the retained intent can remove user work. Attempt numbers range from 1 to 64. Records survive Client disconnection but not Server restart.
+
+The `orchbee.worktree.operation` version-1 envelope is registered in `api schema` catalog version 20 (55 documents). It contains the operation ID, local Site identity when known, a correlated Server reply or explicit unavailable/unknown observation, and a separate nullable waiting disposition. Pending and detached observations exit 0; terminal launch failures retain their own nonzero exit; Git or association failures exit 3, unavailable admission exits 4, lost connection exits 5, internal or inconsistent observation exits 1 while retaining the last reply, timeout exits 7, physical/submission uncertainty exits 8, and cancellation exits 130. Parsing and pre-submission target failures use the existing CLI failure envelope. Raw bounded Git diagnostics remain byte arrays in JSON and are escaped in localized text.
+
+## Retained continuation
+
+| State or event     | Admission and next step                                                                  | Retained truth                                                     |
+| ------------------ | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Start              | Exact Site grant, Project, source and Worker incarnation; one pending operation globally | Intent and operation ID before Worker handoff                      |
+| Create             | Observe source, create with Git, verify checkout and branch, attach Workspace            | Candidate path and possible Git effect survive failed verification |
+| Open               | Observe the selected checkout, reuse or create its Workspace                             | Canonical Workspace identity and terminal launch outcome           |
+| Remove             | Inspect first, commit Workspace Close, wait for known Closed, remove with Git            | Close request ID and Closed fact survive later Git failure         |
+| Resume             | Same intent and Worker incarnation, exact failed attempt, explicit eligibility           | New fenced attempt; old callbacks cannot overwrite it              |
+| Read or disconnect | Read retained state only; disconnect does not cancel continuation                        | No duplicate Git or Workspace creation                             |
+| Site stop          | Stop and join the retained submitter before Close maintenance and Worker freeze          | Cancellation is not rollback; Worker owns physical settlement      |
+
+The Server retains at most 64 operations and permits at most 64 attempts per operation. Worker jobs have their separate retained 64-admission bound. A continuation has a cooperative 120-second work budget; each Git step is bounded at 40 seconds, while the Worker owns its 30-second execution and five-second physical cleanup budgets. Reads and duplicate observations remain available when fresh admission fills. Unknown physical or transport settlement is not resumable. A Create with possible Git effects resumes by observing its retained path and branch rather than issuing another Git add. Remove recovery keeps an already closed Workspace closed and uses the retained repository root after the source checkout has gone.
+
+Registry-to-Site locking protects admission and canonical checks; IPC occurs outside both locks. While Remove is pending, new Workspace launches and primary-directory admissions are reserved globally. Existing associations are rechecked before close and deletion. These checks do not exclude arbitrary external Git/filesystem writers or constitute a filesystem transaction. Terminal outcomes are immutable once published. Maintenance owns its thread and explicitly joins on Site shutdown; Drop only requests cancellation.
+
+## Verification
+
+Maintained tests cover strict grammar and confirmation, caller identity versus cwd, partial outcomes and escaped diagnostics, operation/exchange correlation, no replay after EOF, authorization and capacity, detached reuse, dirty refusal before Close, failed removal after Close and explicit recovery, and cancellation before Site shutdown. Real disposable Windows Git fixtures cover source subdirectories, main-checkout opening, branch reuse, force removal, branch preservation and a successful hook changing the selected branch. Rust and TypeScript consume the same Worktree conformance corpus; JSON Schema covers structural validation and bindings enforce byte bounds and cross-field relationships. These are same-author tests and review; they do not claim independent review or TLA execution.

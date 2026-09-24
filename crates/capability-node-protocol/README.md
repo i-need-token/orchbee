@@ -545,16 +545,14 @@ Viewer action tag 12 is `ReadProcessInfo`, with no bytes after the tag; it uses 
 
 ## Worktree mutation job contract
 
-This private staged contract defines the boundary for the Windows Worker Git owner
-and Server Worktree continuation. Windows Worker dispatch now implements this boundary;
-Server continuation remains pending. The representation alone does not complete the CLI
-create/open/remove workflow. Server owns Workspace association; Worker owns Git
+This private contract defines the boundary for the Windows Worker Git owner
+and Server Worktree continuation. Windows Worker dispatch and Server continuation implement this boundary. The representation alone does not establish end-to-end CLI correctness. Server owns Workspace association; Worker owns Git
 checkout observations and effects. No new dependency or Unix execution is admitted.
 
 The request carries one nonzero operation ID, Worker ID and positive generation.
 Start admits a checked intent; Poll and Cancel address the original Start ID.
 Create carries source directory, checkout path, branch and base. Open carries source
-and exactly one path or branch selector. InspectRemove observes one registered linked
+and exactly one path or branch selector, including the main checkout. InspectSource resolves the source checkout, including a source subdirectory. InspectRemove observes one registered linked
 checkout and its dirty state. Remove carries source, checkout, expected common Git
 directory and force. Every intent also carries explicit repository trust. These are
 semantic operands, never an executable, shell expression or arbitrary argv.
@@ -587,7 +585,7 @@ An interrupted or failed Git mutation is never represented as proven rollback.
 
 OBCN version 2 kind 21 encodes operation ID (16), Worker ID (16), generation (u64),
 and action (u8: 1 Start, 2 Poll, 3 Cancel). Poll/Cancel add Job ID (16). Start adds
-trust (strict boolean), intent tag (1 Create, 2 Open, 3 InspectRemove, 4 Remove),
+trust (strict boolean), intent tag (1 Create, 2 Open, 3 InspectRemove, 4 Remove, 5 InspectSource),
 source and its intent operands in the order above. Open selector tags 1/2 are path/branch.
 Remove force follows its expected common directory. Strings and byte fields use a
 u16 byte length; integers are big-endian. All UTF-8 and checked constructors run on

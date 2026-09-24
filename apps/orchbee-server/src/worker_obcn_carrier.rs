@@ -43,6 +43,7 @@ pub(crate) enum WorkerOperationRequest {
     Viewer(orchbee_capability_node_protocol::TerminalViewerRequest),
     Send(orchbee_capability_node_protocol::TerminalSendRequest),
     WorktreeJob(WorktreeJobRequest),
+    WorktreeMutation(orchbee_capability_node_protocol::WorktreeMutationRequest),
     // The Server drain pump admits drains through admit_agent_drain.
     AgentDrain(orchbee_capability_node_protocol::AgentDrainRequest),
 }
@@ -74,6 +75,7 @@ impl WorkerOperationRequest {
             Self::Viewer(request) => (request.worker_id, request.worker_generation),
             Self::Send(request) => (request.worker_id, request.worker_generation),
             Self::WorktreeJob(request) => (request.worker_id, request.worker_generation),
+            Self::WorktreeMutation(request) => (request.worker_id, request.worker_generation),
             Self::AgentDrain(request) => (request.worker_id, request.worker_generation),
         }
     }
@@ -90,7 +92,8 @@ impl WorkerOperationRequest {
             | Self::Launch(_)
             | Self::Start(_)
             | Self::Send(_)
-            | Self::WorktreeJob(_) => RequestLane::High,
+            | Self::WorktreeJob(_)
+            | Self::WorktreeMutation(_) => RequestLane::High,
         }
     }
 
@@ -111,6 +114,9 @@ impl WorkerOperationRequest {
             Self::Start(request) => CapabilityNodeMessage::AuthorizedTerminalStart(*request),
             Self::Viewer(request) => CapabilityNodeMessage::TerminalViewerRequest(*request),
             Self::Send(request) => CapabilityNodeMessage::TerminalSendRequest(request.clone()),
+            Self::WorktreeMutation(request) => {
+                CapabilityNodeMessage::WorktreeMutationRequest(request.clone())
+            }
             Self::WorktreeJob(request) => {
                 CapabilityNodeMessage::WorktreeJobRequest(request.clone())
             }
@@ -131,6 +137,7 @@ pub(crate) enum WorkerOperationResult {
     Viewer(orchbee_capability_node_protocol::TerminalViewerResult),
     Send(orchbee_capability_node_protocol::TerminalSendResult),
     WorktreeJob(WorktreeJobResult),
+    WorktreeMutation(orchbee_capability_node_protocol::WorktreeMutationResult),
     // Constructed by the Server drain pump's reply path.
     AgentDrain(orchbee_capability_node_protocol::AgentDrainReply),
 }
@@ -1352,6 +1359,43 @@ fn validate_response(
             Ok(WorkerOperationResult::AgentDrain(actual))
         }
         (
+            WorkerOperationRequest::WorktreeMutation(expected),
+            CapabilityNodeMessage::WorktreeMutationResult(actual),
+        ) => {
+            use orchbee_capability_node_protocol::{
+                WorktreeMutationJobAction, WorktreeMutationOutcome,
+            };
+            if actual.operation_id != expected.operation_id {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            let expected_job = match &expected.action {
+                // Start mints the Job identity: the echoed Job ID is the
+                // request's own operation identity.
+                WorktreeMutationJobAction::Start(_) => expected.operation_id,
+                WorktreeMutationJobAction::Poll { job_id }
+                | WorktreeMutationJobAction::Cancel { job_id } => *job_id,
+            };
+            if actual.job_id != expected_job {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            if !matches!(
+                (&expected.action, &actual.outcome),
+                (
+                    WorktreeMutationJobAction::Start(_),
+                    WorktreeMutationOutcome::Start(_)
+                ) | (
+                    WorktreeMutationJobAction::Poll { .. },
+                    WorktreeMutationOutcome::Poll(_)
+                ) | (
+                    WorktreeMutationJobAction::Cancel { .. },
+                    WorktreeMutationOutcome::Cancel(_)
+                )
+            ) {
+                return Err(WorkerResponseFailure::WrongResultKind);
+            }
+            Ok(WorkerOperationResult::WorktreeMutation(actual))
+        }
+        (
             _,
             CapabilityNodeMessage::AuthorizedTerminalLaunch(_)
             | CapabilityNodeMessage::AuthorizedTerminalStart(_)
@@ -1416,7 +1460,8 @@ fn validate_response(
             Err(WorkerResponseFailure::WrongDirection)
         }
         (_, CapabilityNodeMessage::WorktreeJobResult(_))
-        | (WorkerOperationRequest::WorktreeJob(_), _) => {
+        | (WorkerOperationRequest::WorktreeJob(_), _)
+        | (WorkerOperationRequest::WorktreeMutation(_), _) => {
             Err(WorkerResponseFailure::WrongResultKind)
         }
         (

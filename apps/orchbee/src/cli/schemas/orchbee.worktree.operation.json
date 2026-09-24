@@ -1,0 +1,961 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.worktree.operation",
+	"title": "Native Worktree operation observation",
+	"type": "object",
+	"properties": {
+		"schema": {
+			"const": "orchbee.worktree.operation"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "local-worktree"
+				},
+				"siteId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/identity"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["kind", "siteId"],
+			"additionalProperties": false
+		},
+		"result": {
+			"type": "object",
+			"properties": {
+				"operationId": {
+					"$ref": "#/$defs/identity"
+				},
+				"observation": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "server"
+								},
+								"reply": {
+									"$ref": "#/$defs/reply"
+								}
+							},
+							"required": ["kind", "reply"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "unavailable"
+								},
+								"reason": {
+									"enum": [
+										"unsupported-platform",
+										"not-submitted",
+										"session-unavailable",
+										"request-encoding",
+										"request-deadline",
+										"request-not-submitted",
+										"request-write",
+										"response-read",
+										"response-deadline",
+										"response-correlation"
+									]
+								}
+							},
+							"required": ["kind", "reason"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "unknown"
+								},
+								"reason": {
+									"enum": [
+										"unsupported-platform",
+										"not-submitted",
+										"session-unavailable",
+										"request-encoding",
+										"request-deadline",
+										"request-not-submitted",
+										"request-write",
+										"response-read",
+										"response-deadline",
+										"response-correlation"
+									]
+								}
+							},
+							"required": ["kind", "reason"],
+							"additionalProperties": false
+						}
+					]
+				},
+				"wait": {
+					"enum": [
+						null,
+						"detached",
+						"cancelled",
+						"timed-out",
+						"transport-lost",
+						"observation-failed"
+					]
+				}
+			},
+			"required": ["operationId", "observation", "wait"],
+			"additionalProperties": false
+		}
+	},
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"$defs": {
+		"identity": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"label": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 512,
+			"pattern": "^[^]*$"
+		},
+		"directoryPath": {
+			"title": "WorkbenchDirectoryPath",
+			"$comment": "The independent bindings additionally enforce the 4096-byte UTF-8 limit.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 4096,
+			"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$"
+		},
+		"terminalGeometry": {
+			"$comment": "Semantic validation additionally requires columns * rows <= 262144, columns * cellPixelWidth <= 65535, and rows * cellPixelHeight <= 65535. The cellPixelWidth/cellPixelHeight pair must be either both positive (pixels known) or both zero (pixels unknown); a mixed pair is invalid.",
+			"type": "object",
+			"properties": {
+				"columns": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"rows": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"cellPixelWidth": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4096
+				},
+				"cellPixelHeight": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4096
+				}
+			},
+			"required": ["columns", "rows", "cellPixelWidth", "cellPixelHeight"],
+			"additionalProperties": false
+		},
+		"terminalOutcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "started"
+						},
+						"geometry": {
+							"$ref": "#/$defs/terminalGeometry"
+						}
+					},
+					"required": ["kind", "geometry"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"$ref": "#/$defs/terminalUnavailableReason"
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"$ref": "#/$defs/terminalFailureReason"
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "outcome-unknown"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"terminalUnavailableReason": {
+			"enum": ["terminal-runtime-unavailable", "server-busy"]
+		},
+		"terminalFailureReason": {
+			"enum": ["terminal-create-failed"]
+		},
+		"reference": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 1024,
+			"pattern": "^(?!-)[^\\u0000-\\u001f\\u007f]+$",
+			"$comment": "Independent bindings additionally enforce the 1024-byte UTF-8 bound."
+		},
+		"attempt": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 64
+		},
+		"source": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "workspace"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/identity"
+						}
+					},
+					"required": ["kind", "workspaceId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "directory"
+						},
+						"path": {
+							"$ref": "#/$defs/directoryPath"
+						}
+					},
+					"required": ["kind", "path"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"selector": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "path"
+						},
+						"path": {
+							"$ref": "#/$defs/directoryPath"
+						}
+					},
+					"required": ["kind", "path"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "branch"
+						},
+						"branch": {
+							"$ref": "#/$defs/reference"
+						}
+					},
+					"required": ["kind", "branch"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"intent": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "create"
+						},
+						"source": {
+							"$ref": "#/$defs/source"
+						},
+						"label": {
+							"$ref": "#/$defs/label"
+						},
+						"geometry": {
+							"$ref": "#/$defs/terminalGeometry"
+						},
+						"trustRepository": {
+							"type": "boolean"
+						},
+						"branch": {
+							"$ref": "#/$defs/reference"
+						},
+						"base": {
+							"$ref": "#/$defs/reference"
+						},
+						"path": {
+							"$ref": "#/$defs/directoryPath"
+						}
+					},
+					"required": ["kind", "source", "geometry", "trustRepository"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "open"
+						},
+						"source": {
+							"$ref": "#/$defs/source"
+						},
+						"label": {
+							"$ref": "#/$defs/label"
+						},
+						"geometry": {
+							"$ref": "#/$defs/terminalGeometry"
+						},
+						"trustRepository": {
+							"type": "boolean"
+						},
+						"selector": {
+							"$ref": "#/$defs/selector"
+						}
+					},
+					"required": ["kind", "source", "geometry", "trustRepository", "selector"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "remove"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/identity"
+						},
+						"force": {
+							"type": "boolean"
+						},
+						"trustRepository": {
+							"type": "boolean"
+						}
+					},
+					"required": ["kind", "workspaceId", "force", "trustRepository"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"action": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "start"
+						},
+						"operationId": {
+							"$ref": "#/$defs/identity"
+						},
+						"projectId": {
+							"$ref": "#/$defs/identity"
+						},
+						"intent": {
+							"$ref": "#/$defs/intent"
+						}
+					},
+					"required": ["kind", "operationId", "projectId", "intent"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "read"
+						},
+						"operationId": {
+							"$ref": "#/$defs/identity"
+						}
+					},
+					"required": ["kind", "operationId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "resume"
+						},
+						"operationId": {
+							"$ref": "#/$defs/identity"
+						},
+						"expectedAttempt": {
+							"$ref": "#/$defs/attempt"
+						}
+					},
+					"required": ["kind", "operationId", "expectedAttempt"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"checkout": {
+			"type": "object",
+			"properties": {
+				"repositoryRoot": {
+					"$ref": "#/$defs/directoryPath"
+				},
+				"commonDirectory": {
+					"$ref": "#/$defs/directoryPath"
+				},
+				"path": {
+					"$ref": "#/$defs/directoryPath"
+				},
+				"branch": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/reference"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"dirty": {
+					"type": "boolean"
+				}
+			},
+			"required": ["repositoryRoot", "commonDirectory", "path", "branch", "dirty"],
+			"additionalProperties": false
+		},
+		"workspace": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unassociated"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "open"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/identity"
+						}
+					},
+					"required": ["kind", "workspaceId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "closing"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/identity"
+						},
+						"closeRequestId": {
+							"$ref": "#/$defs/identity"
+						}
+					},
+					"required": ["kind", "workspaceId", "closeRequestId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "closed"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/identity"
+						},
+						"closeRequestId": {
+							"$ref": "#/$defs/identity"
+						}
+					},
+					"required": ["kind", "workspaceId", "closeRequestId"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"progress": {
+			"type": "object",
+			"properties": {
+				"path": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/directoryPath"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"checkout": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/checkout"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"workspace": {
+					"$ref": "#/$defs/workspace"
+				},
+				"gitEffect": {
+					"enum": ["none", "may-have-changed", "changed"]
+				}
+			},
+			"required": ["path", "checkout", "workspace", "gitEffect"],
+			"additionalProperties": false,
+			"$comment": "Independent bindings require checkout.path to equal progress.path whenever checkout is present."
+		},
+		"failure": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "git"
+						},
+						"stage": {
+							"enum": ["probe", "select", "check-branch", "dirty-check", "mutate", "verify"]
+						},
+						"error": {
+							"enum": [
+								"git-failed",
+								"spawn-unavailable",
+								"spawn-failed",
+								"invalid-repository",
+								"checkout-not-found",
+								"main-checkout",
+								"dirty",
+								"invalid-reference",
+								"too-large",
+								"timeout",
+								"cancelled",
+								"io",
+								"repository-changed",
+								"ambiguous-checkout"
+							]
+						},
+						"status": {
+							"anyOf": [
+								{
+									"type": "integer",
+									"minimum": -2147483648,
+									"maximum": 2147483647
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"diagnostics": {
+							"type": "array",
+							"maxItems": 2048,
+							"items": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 255
+							}
+						}
+					},
+					"required": ["kind", "stage", "error", "status", "diagnostics"],
+					"additionalProperties": false,
+					"allOf": [
+						{
+							"if": {
+								"properties": {
+									"error": {
+										"not": {
+											"const": "git-failed"
+										}
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"status": {
+										"type": "null"
+									}
+								}
+							}
+						}
+					]
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "worker-unavailable"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "worker-busy"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "worker-capacity"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unsupported"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "transport-unknown"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "physical-unknown"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "source-changed"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "checkout-in-use"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "association-failed"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "close-incomplete"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "site-stopping"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "internal"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"status": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "pending"
+						},
+						"phase": {
+							"enum": [
+								"observing-source",
+								"creating",
+								"opening",
+								"attaching",
+								"inspecting-remove",
+								"closing",
+								"removing"
+							]
+						},
+						"progress": {
+							"$ref": "#/$defs/progress"
+						}
+					},
+					"required": ["kind", "phase", "progress"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "opened"
+						},
+						"checkout": {
+							"$ref": "#/$defs/checkout"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/identity"
+						},
+						"reused": {
+							"type": "boolean"
+						},
+						"terminalOutcome": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/terminalOutcome"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind", "checkout", "workspaceId", "reused", "terminalOutcome"],
+					"additionalProperties": false,
+					"allOf": [
+						{
+							"if": {
+								"properties": {
+									"reused": {
+										"const": true
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"terminalOutcome": {
+										"type": "null"
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"terminalOutcome": {
+										"$ref": "#/$defs/terminalOutcome"
+									}
+								}
+							}
+						}
+					]
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "removed"
+						},
+						"path": {
+							"$ref": "#/$defs/directoryPath"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/identity"
+						}
+					},
+					"required": ["kind", "path", "workspaceId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"$ref": "#/$defs/failure"
+						},
+						"progress": {
+							"$ref": "#/$defs/progress"
+						},
+						"resumable": {
+							"type": "boolean"
+						}
+					},
+					"required": ["kind", "reason", "progress", "resumable"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"outcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "available"
+						},
+						"projectId": {
+							"$ref": "#/$defs/identity"
+						},
+						"attempt": {
+							"$ref": "#/$defs/attempt"
+						},
+						"status": {
+							"$ref": "#/$defs/status"
+						}
+					},
+					"required": ["kind", "projectId", "attempt", "status"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "not-found"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "conflict"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "denied"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"enum": [
+								"busy",
+								"capacity",
+								"worker-unavailable",
+								"source-unavailable",
+								"service-unavailable",
+								"unsupported"
+							]
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"reply": {
+			"type": "object",
+			"properties": {
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/identity"
+				},
+				"operationId": {
+					"$ref": "#/$defs/identity"
+				},
+				"outcome": {
+					"$ref": "#/$defs/outcome"
+				}
+			},
+			"required": ["protocolVersion", "requestId", "operationId", "outcome"],
+			"additionalProperties": false
+		}
+	}
+}

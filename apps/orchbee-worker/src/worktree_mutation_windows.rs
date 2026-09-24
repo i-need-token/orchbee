@@ -57,6 +57,23 @@ fn execute(
         .map_err(|_| context.failure(Error::InvalidRepository, vec![]))?;
     let repository = context.repository(source.as_str())?;
     match intent.mutation() {
+        WorktreeMutation::InspectSource => {
+            let top = context.required(
+                source.as_str(),
+                &["rev-parse", "--show-toplevel"],
+                Stage::Probe,
+                false,
+            )?;
+            let top = std::str::from_utf8(&top)
+                .map_err(|_| context.failure(Error::InvalidRepository, vec![]))?;
+            let path = canonical_path(Path::new(top.trim_end_matches(['\r', '\n'])))
+                .map_err(|_| context.failure(Error::InvalidRepository, vec![]))?;
+            let entry =
+                context.select(&repository, &WorktreeCheckoutSelector::Path(path), false)?;
+            context
+                .observe(&repository, entry)
+                .map(Completion::Checkout)
+        }
         WorktreeMutation::Create { path, branch, base } => {
             let branch_ref = format!("refs/heads/{}", branch.as_str());
             let checked = context.git(
@@ -96,18 +113,29 @@ fn execute(
             if observed.common != repository.common {
                 return Err(context.failure(Error::RepositoryChanged, vec![]));
             }
-            let entry = context.select(&observed, &WorktreeCheckoutSelector::Path(path.clone()))?;
-            context.observe(&observed, entry).map(Completion::Checkout)
+            let entry = context.select(
+                &observed,
+                &WorktreeCheckoutSelector::Path(path.clone()),
+                true,
+            )?;
+            let checkout = context.observe(&observed, entry)?;
+            if checkout.branch() != Some(branch) {
+                return Err(context.failure(Error::RepositoryChanged, vec![]));
+            }
+            Ok(Completion::Checkout(checkout))
         }
         WorktreeMutation::Open(selector) => {
-            let entry = context.select(&repository, selector)?;
+            let entry = context.select(&repository, selector, false)?;
             context
                 .observe(&repository, entry)
                 .map(Completion::Checkout)
         }
         WorktreeMutation::InspectRemove { path } => {
-            let entry =
-                context.select(&repository, &WorktreeCheckoutSelector::Path(path.clone()))?;
+            let entry = context.select(
+                &repository,
+                &WorktreeCheckoutSelector::Path(path.clone()),
+                true,
+            )?;
             context
                 .observe(&repository, entry)
                 .map(Completion::Checkout)
@@ -122,8 +150,11 @@ fn execute(
             if expected != repository.common {
                 return Err(context.failure(Error::RepositoryChanged, vec![]));
             }
-            let entry =
-                context.select(&repository, &WorktreeCheckoutSelector::Path(path.clone()))?;
+            let entry = context.select(
+                &repository,
+                &WorktreeCheckoutSelector::Path(path.clone()),
+                true,
+            )?;
             let checkout = context.observe(&repository, entry)?;
             if checkout.dirty() && !force {
                 return Err(context.failure(Error::Dirty, vec![]));
@@ -200,6 +231,7 @@ impl Context<'_> {
         &mut self,
         repository: &'a Repository,
         selector: &WorktreeCheckoutSelector,
+        linked_only: bool,
     ) -> Result<&'a listing::Entry, Abort> {
         self.stage = if self.changed {
             Stage::Verify
@@ -233,7 +265,7 @@ impl Context<'_> {
         if matching.next().is_some() {
             return Err(self.failure(Error::AmbiguousCheckout, vec![]));
         }
-        if index == 0 || entry.bare {
+        if (linked_only && index == 0) || entry.bare {
             return Err(self.failure(Error::MainCheckout, vec![]));
         }
         Ok(entry)

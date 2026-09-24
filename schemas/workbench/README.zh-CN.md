@@ -322,3 +322,7 @@ implementation。
 ## 原生 Windows 路径细化
 
 线协议中的绝对路径接受 POSIX 前导斜杠，或 ASCII 盘符后跟 `:` 及 `/` 或 `\`；Windows 逐字盘符路径可以带 `\\?\` 前缀。词法规则不依赖解码器所在平台；字节保持原样，不展开、不规范化。本次 Windows 增量不接受反斜杠根路径、盘符相对路径、UNC 或设备路径。既有字节上限和 NUL／Unicode 校验不变。执行方仍须在产生效果前依据本地文件系统验证路径。
+
+## 保留 Worktree 操作
+
+[`workbench-worktree.schema.json`](v1/workbench-worktree.schema.json) 拥有独立的 `workbench.worktree.operation` 请求与 `workbench.worktree.operation.result` 回答。OBWP kind 19/20 对应这两个方向，各有独立 96 KiB 分配前上限。操作 ID 与交换请求 ID 分离；Start 保留 Project 及意图，Read 观察，Resume 约束前次尝试（1–64）。结果独立保留 Git 事实与 Workspace 状态，包括关闭后移除失败。[共享语料](v1/workbench-worktree-conformance-v1.json) 由 Rust 与 TypeScript 双方消费，包含 JSON Schema 结构检查及明确的语义字节／跨字段检查。线协议本身不授予变更权限，也不暗示 Desktop 支持。运行时及 CLI 生命周期归 [Windows Worktree 所有者](../../apps/orchbee/docs/windows-worktrees.zh-CN.md)。

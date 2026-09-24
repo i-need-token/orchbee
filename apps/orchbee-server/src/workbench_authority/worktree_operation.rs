@@ -1,0 +1,492 @@
+//! Retained Worktree intent, publication and canonical Workspace membership.
+use super::{WorkbenchAuthority, WorkbenchGrant};
+use orchbee_workbench_protocol::{
+    ProtocolVersion, WorkbenchProjectId, WorkbenchRequestId, WorkbenchWorkspaceId,
+    WorkbenchWorktreeAction, WorkbenchWorktreeOutcome, WorkbenchWorktreeRequest,
+    WorkbenchWorktreeResult, WorkerId, WorktreeAdmissionFailure, WorktreeCheckoutFacts,
+    WorktreeGitEffect, WorktreeIntent, WorktreeOperationPhase, WorktreeOperationStatus,
+    WorktreeProgress, WorktreeSource, WorktreeWorkspaceDisposition,
+};
+use std::{collections::BTreeMap, num::NonZeroU64};
+
+const MAXIMUM_OPERATIONS: usize = 64;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WorktreeSourceTarget {
+    pub directory_id: Option<orchbee_workbench_protocol::WorkbenchDirectoryId>,
+    pub path: orchbee_workbench_protocol::WorkbenchDirectoryPath,
+    pub worker_id: WorkerId,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WorktreeOperationPlan {
+    pub operation_id: WorkbenchRequestId,
+    pub project_id: WorkbenchProjectId,
+    pub intent: WorktreeIntent,
+    pub source: WorktreeSourceTarget,
+    pub source_workspace_id: Option<WorkbenchWorkspaceId>,
+    pub worker_generation: NonZeroU64,
+    pub attempt: u32,
+    pub phase: WorktreeOperationPhase,
+    pub progress: WorktreeProgress,
+}
+struct Record {
+    plan: WorktreeOperationPlan,
+    status: WorktreeOperationStatus,
+    claimed: bool,
+}
+#[derive(Clone)]
+struct Association {
+    project_id: WorkbenchProjectId,
+    workspace_id: WorkbenchWorkspaceId,
+    worker_id: WorkerId,
+    checkout: WorktreeCheckoutFacts,
+}
+#[derive(Default)]
+pub(super) struct WorktreeOperations {
+    records: BTreeMap<WorkbenchRequestId, Record>,
+    associations: Vec<Association>,
+}
+
+impl WorkbenchAuthority {
+    /// Every request is pure under this gate; the retained owner claims accepted work separately.
+    pub fn execute_worktree_request(
+        &mut self,
+        grant: Option<&WorkbenchGrant>,
+        request: WorkbenchWorktreeRequest,
+        worker: Option<(WorkerId, NonZeroU64)>,
+        owner_available: bool,
+    ) -> WorkbenchWorktreeResult {
+        let id = request.action.operation_id().clone();
+        let permitted = grant.is_some_and(|grant| {
+            grant.site_id == *self.site_id()
+                && request.site_id == *self.site_id()
+                && (matches!(request.action, WorkbenchWorktreeAction::Read { .. })
+                    || (grant.mutate_navigation
+                        && grant.associate_directory
+                        && grant.create_terminal
+                        && grant.close_terminal))
+        });
+        let outcome = if !permitted {
+            WorkbenchWorktreeOutcome::Denied {}
+        } else {
+            self.worktree_action(request.action, worker, owner_available)
+        };
+        WorkbenchWorktreeResult {
+            protocol_version: ProtocolVersion,
+            request_id: request.request_id,
+            operation_id: id,
+            outcome,
+        }
+    }
+
+    fn worktree_action(
+        &mut self,
+        action: WorkbenchWorktreeAction,
+        worker: Option<(WorkerId, NonZeroU64)>,
+        owner_available: bool,
+    ) -> WorkbenchWorktreeOutcome {
+        let unavailable = |reason| WorkbenchWorktreeOutcome::Unavailable { reason };
+        let id = action.operation_id().clone();
+        if let Some(record) = self.worktrees.records.get(&id) {
+            match &action {
+                WorkbenchWorktreeAction::Start {
+                    project_id, intent, ..
+                } if *project_id != record.plan.project_id || *intent != record.plan.intent => {
+                    return WorkbenchWorktreeOutcome::Conflict {};
+                }
+                WorkbenchWorktreeAction::Read { .. } | WorkbenchWorktreeAction::Start { .. } => {
+                    return record.outcome();
+                }
+                WorkbenchWorktreeAction::Resume {
+                    expected_attempt, ..
+                } => {
+                    if *expected_attempt != record.plan.attempt {
+                        return WorkbenchWorktreeOutcome::Conflict {};
+                    }
+                    if !matches!(
+                        record.status,
+                        WorktreeOperationStatus::Failed {
+                            resumable: true,
+                            ..
+                        }
+                    ) {
+                        return record.outcome();
+                    }
+                }
+            }
+        } else if !matches!(action, WorkbenchWorktreeAction::Start { .. }) {
+            return WorkbenchWorktreeOutcome::NotFound {};
+        }
+        if self.retired || !owner_available {
+            return unavailable(WorktreeAdmissionFailure::ServiceUnavailable);
+        }
+        if self
+            .worktrees
+            .records
+            .values()
+            .any(|record| matches!(record.status, WorktreeOperationStatus::Pending { .. }))
+        {
+            return unavailable(WorktreeAdmissionFailure::Busy);
+        }
+        let Some((worker_id, generation)) = worker else {
+            return unavailable(WorktreeAdmissionFailure::WorkerUnavailable);
+        };
+        match action {
+            WorkbenchWorktreeAction::Start {
+                project_id, intent, ..
+            } => {
+                if self.worktrees.records.len() >= MAXIMUM_OPERATIONS {
+                    return unavailable(WorktreeAdmissionFailure::Capacity);
+                }
+                let Some((source, source_workspace_id)) =
+                    self.worktree_source(&project_id, &intent, &worker_id)
+                else {
+                    return unavailable(WorktreeAdmissionFailure::SourceUnavailable);
+                };
+                let phase = initial_phase(&intent);
+                let progress = WorktreeProgress {
+                    path: match &intent {
+                        WorktreeIntent::Create { path, .. } => path.clone(),
+                        WorktreeIntent::Remove { .. } => Some(source.path.clone()),
+                        WorktreeIntent::Open { .. } => None,
+                    },
+                    checkout: None,
+                    workspace: match &intent {
+                        WorktreeIntent::Remove { workspace_id, .. } => {
+                            WorktreeWorkspaceDisposition::Open {
+                                workspace_id: workspace_id.clone(),
+                            }
+                        }
+                        _ => WorktreeWorkspaceDisposition::Unassociated {},
+                    },
+                    git_effect: WorktreeGitEffect::None,
+                };
+                let plan = WorktreeOperationPlan {
+                    operation_id: id.clone(),
+                    project_id,
+                    intent,
+                    source,
+                    source_workspace_id,
+                    worker_generation: generation,
+                    attempt: 1,
+                    phase,
+                    progress: progress.clone(),
+                };
+                let record = Record {
+                    plan,
+                    status: WorktreeOperationStatus::Pending { phase, progress },
+                    claimed: false,
+                };
+                let outcome = record.outcome();
+                self.worktrees.records.insert(id, record);
+                outcome
+            }
+            WorkbenchWorktreeAction::Resume { .. } => {
+                let Some(record) = self.worktrees.records.get_mut(&id) else {
+                    return WorkbenchWorktreeOutcome::NotFound {};
+                };
+                if record.plan.source.worker_id != worker_id
+                    || record.plan.worker_generation != generation
+                {
+                    return unavailable(WorktreeAdmissionFailure::WorkerUnavailable);
+                }
+                if record.plan.attempt
+                    >= orchbee_workbench_protocol::MAXIMUM_WORKTREE_OPERATION_ATTEMPTS
+                {
+                    return unavailable(WorktreeAdmissionFailure::Capacity);
+                }
+                let WorktreeOperationStatus::Failed { progress, .. } = &record.status else {
+                    return record.outcome();
+                };
+                record.plan.progress = progress.clone();
+                record.plan.phase = match &progress.workspace {
+                    WorktreeWorkspaceDisposition::Closed { .. } => {
+                        WorktreeOperationPhase::InspectingRemove
+                    }
+                    WorktreeWorkspaceDisposition::Closing { .. } => WorktreeOperationPhase::Closing,
+                    _ if progress.git_effect != WorktreeGitEffect::None
+                        && progress.path.is_some() =>
+                    {
+                        WorktreeOperationPhase::Opening
+                    }
+                    _ => initial_phase(&record.plan.intent),
+                };
+                record.plan.attempt += 1;
+                record.claimed = false;
+                record.status = WorktreeOperationStatus::Pending {
+                    phase: record.plan.phase,
+                    progress: record.plan.progress.clone(),
+                };
+                record.outcome()
+            }
+            WorkbenchWorktreeAction::Read { .. } => WorkbenchWorktreeOutcome::NotFound {},
+        }
+    }
+
+    fn worktree_source(
+        &self,
+        project_id: &WorkbenchProjectId,
+        intent: &WorktreeIntent,
+        worker_id: &WorkerId,
+    ) -> Option<(WorktreeSourceTarget, Option<WorkbenchWorkspaceId>)> {
+        let project = self
+            .snapshot()
+            .navigation
+            .projects
+            .iter()
+            .find(|project| project.project_id == *project_id)?;
+        let workspace_id = match intent {
+            WorktreeIntent::Create { source, .. } | WorktreeIntent::Open { source, .. } => {
+                match source {
+                    WorktreeSource::Workspace { workspace_id } => workspace_id,
+                    WorktreeSource::Directory { path } => {
+                        return Some((
+                            WorktreeSourceTarget {
+                                directory_id: None,
+                                worker_id: worker_id.clone(),
+                                path: path.clone(),
+                            },
+                            None,
+                        ));
+                    }
+                }
+            }
+            WorktreeIntent::Remove { workspace_id, .. } => workspace_id,
+        };
+        let workspace = project
+            .workspaces
+            .iter()
+            .find(|workspace| workspace.workspace_id == *workspace_id)?;
+        if self.open_close_fences_context(&workspace.terminal_context_id) {
+            return None;
+        }
+        let directory = project.directories.iter().find(|directory| {
+            Some(&directory.directory_id) == workspace.primary_directory_id.as_ref()
+        })?;
+        (directory.worker_id == *worker_id).then(|| {
+            (
+                WorktreeSourceTarget {
+                    directory_id: Some(directory.directory_id.clone()),
+                    path: directory.path.clone(),
+                    worker_id: directory.worker_id.clone(),
+                },
+                Some(workspace_id.clone()),
+            )
+        })
+    }
+
+    pub fn claim_worktree_operation(&mut self) -> Option<WorktreeOperationPlan> {
+        let record = self.worktrees.records.values_mut().find(|record| {
+            !record.claimed && matches!(record.status, WorktreeOperationStatus::Pending { .. })
+        })?;
+        record.claimed = true;
+        Some(record.plan.clone())
+    }
+
+    /// An attempt token cannot settle a newer retry or alter a terminal receipt.
+    pub fn publish_worktree_operation(
+        &mut self,
+        plan: &WorktreeOperationPlan,
+        status: WorktreeOperationStatus,
+    ) -> bool {
+        let Some(record) = self.worktrees.records.get_mut(&plan.operation_id) else {
+            return false;
+        };
+        if record.plan.project_id != plan.project_id
+            || record.plan.intent != plan.intent
+            || record.plan.source != plan.source
+            || record.plan.source_workspace_id != plan.source_workspace_id
+            || record.plan.worker_generation != plan.worker_generation
+        {
+            return false;
+        }
+        if record.plan.attempt != plan.attempt
+            || !record.claimed
+            || !matches!(record.status, WorktreeOperationStatus::Pending { .. })
+        {
+            return false;
+        }
+        let WorktreeOperationStatus::Pending { phase, .. } = &record.status else {
+            return false;
+        };
+        let valid_transition = match &status {
+            WorktreeOperationStatus::Pending { phase: next, .. } => {
+                phase == next
+                    || matches!(
+                        (phase, next),
+                        (
+                            WorktreeOperationPhase::ObservingSource,
+                            WorktreeOperationPhase::Creating
+                        ) | (
+                            WorktreeOperationPhase::Creating | WorktreeOperationPhase::Opening,
+                            WorktreeOperationPhase::Attaching
+                        ) | (
+                            WorktreeOperationPhase::InspectingRemove,
+                            WorktreeOperationPhase::Closing | WorktreeOperationPhase::Removing
+                        ) | (
+                            WorktreeOperationPhase::Closing,
+                            WorktreeOperationPhase::Removing
+                        )
+                    )
+            }
+            WorktreeOperationStatus::Opened { .. } => *phase == WorktreeOperationPhase::Attaching,
+            WorktreeOperationStatus::Removed { .. } => *phase == WorktreeOperationPhase::Removing,
+            WorktreeOperationStatus::Failed { .. } => true,
+        };
+        if !valid_transition {
+            return false;
+        }
+        let result = WorkbenchWorktreeResult {
+            protocol_version: ProtocolVersion,
+            request_id: plan.operation_id.clone(),
+            operation_id: plan.operation_id.clone(),
+            outcome: WorkbenchWorktreeOutcome::Available {
+                project_id: plan.project_id.clone(),
+                attempt: plan.attempt,
+                status: Box::new(status.clone()),
+            },
+        };
+        if result.validate().is_err() {
+            return false;
+        }
+        record.status = status;
+        true
+    }
+
+    pub fn worktree_source_matches(&self, plan: &WorktreeOperationPlan) -> bool {
+        if self.retired {
+            return false;
+        }
+        if matches!(
+            plan.progress.workspace,
+            WorktreeWorkspaceDisposition::Closed { .. }
+        ) {
+            return true;
+        }
+        self.worktree_source(&plan.project_id, &plan.intent, &plan.source.worker_id)
+            .is_some_and(|(directory, workspace)| {
+                directory == plan.source && workspace == plan.source_workspace_id
+            })
+    }
+
+    pub fn checkout_workspaces(
+        &self,
+        path: &orchbee_workbench_protocol::WorkbenchDirectoryPath,
+        worker: &WorkerId,
+    ) -> Vec<(WorkbenchProjectId, WorkbenchWorkspaceId)> {
+        self.snapshot()
+            .navigation
+            .projects
+            .iter()
+            .flat_map(|project| {
+                project.workspaces.iter().filter_map(|workspace| {
+                    let directory = project.directories.iter().find(|directory| {
+                        Some(&directory.directory_id) == workspace.primary_directory_id.as_ref()
+                    })?;
+                    (directory.worker_id == *worker
+                        && same_path(directory.path.as_str(), path.as_str()))
+                    .then(|| (project.project_id.clone(), workspace.workspace_id.clone()))
+                })
+            })
+            .collect()
+    }
+
+    pub fn worktree_workspace_available(
+        &self,
+        project_id: &WorkbenchProjectId,
+        workspace_id: &WorkbenchWorkspaceId,
+    ) -> bool {
+        self.snapshot()
+            .navigation
+            .projects
+            .iter()
+            .find(|project| project.project_id == *project_id)
+            .and_then(|project| {
+                project
+                    .workspaces
+                    .iter()
+                    .find(|workspace| workspace.workspace_id == *workspace_id)
+            })
+            .is_some_and(|workspace| {
+                !self.open_close_fences_context(&workspace.terminal_context_id)
+            })
+    }
+
+    pub(super) fn worktree_removal_active(&self) -> bool {
+        self.worktrees.records.values().any(|record| {
+            matches!(record.plan.intent, WorktreeIntent::Remove { .. })
+                && matches!(record.status, WorktreeOperationStatus::Pending { .. })
+        })
+    }
+
+    pub fn worktree_checkout(
+        &self,
+        workspace_id: &WorkbenchWorkspaceId,
+    ) -> Option<WorktreeCheckoutFacts> {
+        let association = self
+            .worktrees
+            .associations
+            .iter()
+            .find(|entry| entry.workspace_id == *workspace_id)?;
+        self.checkout_workspaces(&association.checkout.path, &association.worker_id)
+            .contains(&(association.project_id.clone(), workspace_id.clone()))
+            .then(|| association.checkout.clone())
+    }
+
+    pub fn associate_worktree(
+        &mut self,
+        plan: &WorktreeOperationPlan,
+        workspace_id: &WorkbenchWorkspaceId,
+        checkout: WorktreeCheckoutFacts,
+    ) -> bool {
+        if !self
+            .checkout_workspaces(&checkout.path, &plan.source.worker_id)
+            .contains(&(plan.project_id.clone(), workspace_id.clone()))
+        {
+            return false;
+        }
+        // Sweep dead associations under the same canonical gate; operation receipts remain retained.
+        let snapshot = self.snapshot().clone();
+        self.worktrees.associations.retain(|association| {
+            snapshot.navigation.projects.iter().any(|project| {
+                project.project_id == association.project_id
+                    && project
+                        .workspaces
+                        .iter()
+                        .any(|workspace| workspace.workspace_id == association.workspace_id)
+            })
+        });
+        self.worktrees
+            .associations
+            .retain(|association| association.workspace_id != *workspace_id);
+        self.worktrees.associations.push(Association {
+            project_id: plan.project_id.clone(),
+            workspace_id: workspace_id.clone(),
+            worker_id: plan.source.worker_id.clone(),
+            checkout,
+        });
+        true
+    }
+}
+impl Record {
+    fn outcome(&self) -> WorkbenchWorktreeOutcome {
+        WorkbenchWorktreeOutcome::Available {
+            project_id: self.plan.project_id.clone(),
+            attempt: self.plan.attempt,
+            status: Box::new(self.status.clone()),
+        }
+    }
+}
+fn initial_phase(intent: &WorktreeIntent) -> WorktreeOperationPhase {
+    match intent {
+        WorktreeIntent::Create { .. } => WorktreeOperationPhase::ObservingSource,
+        WorktreeIntent::Open { .. } => WorktreeOperationPhase::Opening,
+        WorktreeIntent::Remove { .. } => WorktreeOperationPhase::InspectingRemove,
+    }
+}
+fn same_path(left: &str, right: &str) -> bool {
+    // Canonical Worker observations have normalized separators; admitted user paths may not.
+    left.replace('\\', "/")
+        .trim_end_matches('/')
+        .eq_ignore_ascii_case(right.replace('\\', "/").trim_end_matches('/'))
+}

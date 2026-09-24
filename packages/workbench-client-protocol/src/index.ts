@@ -238,3 +238,36 @@ export type {
 	WorkbenchWorkspaceCloseResumeOutcome,
 	WorkbenchWorkspaceCloseResumeResult,
 } from './workbench-workspace-close-contract';
+
+export {
+	WORKBENCH_MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES,
+	WORKBENCH_MAXIMUM_WORKTREE_OPERATION_ATTEMPTS,
+	WorktreeReferenceSchema,
+	WorktreeSourceSchema,
+	WorktreeSelectorSchema,
+	WorktreeIntentSchema,
+	WorkbenchWorktreeActionSchema,
+	WorkbenchWorktreeRequestSchema,
+	WorktreeCheckoutFactsSchema,
+	WorktreeWorkspaceDispositionSchema,
+	WorktreeProgressSchema,
+	WorktreeOperationFailureSchema,
+	WorktreeOperationStatusSchema,
+	WorkbenchWorktreeOutcomeSchema,
+	WorkbenchWorktreeResultSchema,
+} from './workbench-worktree-contract';
+export type {
+	WorktreeReference,
+	WorktreeSource,
+	WorktreeSelector,
+	WorktreeIntent,
+	WorkbenchWorktreeAction,
+	WorkbenchWorktreeRequest,
+	WorktreeCheckoutFacts,
+	WorktreeWorkspaceDisposition,
+	WorktreeProgress,
+	WorktreeOperationFailure,
+	WorktreeOperationStatus,
+	WorkbenchWorktreeOutcome,
+	WorkbenchWorktreeResult,
+} from './workbench-worktree-contract';

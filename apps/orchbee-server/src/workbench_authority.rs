@@ -22,10 +22,12 @@ use crate::workbench_projection::{
 
 mod terminal_membership;
 mod workspace_directory;
+mod worktree_operation;
 pub use terminal_membership::{
     PreparedStandaloneIntent, StandaloneIntentError, StandaloneIntentMetadata,
     WorkbenchTerminalInvariantError, WorkbenchTerminalMembership, WorkbenchTerminalTab,
 };
+pub use worktree_operation::{WorktreeOperationPlan, WorktreeSourceTarget};
 mod terminal_tab_create;
 pub use terminal_tab_create::{
     CommittedWorkbenchTabCreate, CommittedWorkbenchTabCreateMetadata, PendingWorkbenchTabCreate,
@@ -121,7 +123,8 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             | WorkbenchRequest::TabCloseResume(_)
             | WorkbenchRequest::WorkspaceCloseRead(_)
             | WorkbenchRequest::WorkspaceCloseResume(_)
-            | WorkbenchRequest::WorktreeListRead(_)) => Err(request),
+            | WorkbenchRequest::WorktreeListRead(_)
+            | WorkbenchRequest::WorktreeOperation(_)) => Err(request),
         }
     }
 }
@@ -236,6 +239,7 @@ pub struct WorkbenchAuthority {
     /// navigation mutations never touch it.
     catalog_revision: u64,
     retired: bool,
+    worktrees: worktree_operation::WorktreeOperations,
 }
 
 impl WorkbenchAuthority {
@@ -261,6 +265,7 @@ impl WorkbenchAuthority {
             catalog: Vec::new(),
             catalog_revision: 0,
             retired: false,
+            worktrees: worktree_operation::WorktreeOperations::default(),
         })
     }
 

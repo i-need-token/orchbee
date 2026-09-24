@@ -50,7 +50,7 @@ orchbee --help | --version
 
 查询 family 为 `project`、`workspace`、`tab`、`panel`、`terminal`、`worktree`、
 `launch-profile`、`agent`（`list`/`get`，另有
-`terminal read`/`wait-output`；`worktree` 仅提供 `list`，且要求 `--project <target>` 与
+`terminal read`/`wait-output`；`worktree list` 要求 `--project <target>` 与
 `--directory <directory-id>`——严格非零 32 位小写十六进制 Workbench 目录 id，绝非文件系统路径或标签；
 `launch-profile` 提供 `list` 与 `get <selector>`——对运行中 Site 启动配置目录的一次类型化读取，
 由 Server 端解析、CLI 不做本地预读；
@@ -665,3 +665,7 @@ Snapshot read 不重试。Attachment 后仍须完成现有 controller 与 projec
 ## Windows 显式 Site 停止
 
 `site stop --confirm` 结束现有托管 Windows Site 及其终端进程。使用 `--detach` 仅等待准入，保留返回的标识供 `site stop-status <id>` 查询。显式重试必须使用 `--retry --request-id <id> --confirm`。取消或超时不撤销已接受的停止。准确匹配的已停止记录与空闲生命周期锁证明完成；下次 `site start` 消费记录并创建新 Site。详见 [CLI 停止契约](docs/native-cli-query.zh-CN.md#windows-site-停止)。尚未实现 Linux/macOS 停止运行时。
+
+## Windows Worktree 操作
+
+`worktree create/open/remove/status/resume` 使用 Server 保留操作与 Windows Worker Git 执行。[Worktree 契约](docs/windows-worktrees.zh-CN.md) 拥有来源选择、默认值、确认、部分结果与恢复规则。这些命令不激活 Site 或改变 Client 焦点。

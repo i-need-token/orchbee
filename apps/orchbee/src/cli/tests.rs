@@ -290,6 +290,11 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::WorkspaceList,
         CommandPath::WorkspaceRename,
         CommandPath::WorktreeList,
+        CommandPath::WorktreeCreate,
+        CommandPath::WorktreeOpen,
+        CommandPath::WorktreeRemove,
+        CommandPath::WorktreeStatus,
+        CommandPath::WorktreeResume,
     ];
     for command in &commands {
         for locale in [Locale::EnUs, Locale::ZhCn] {
@@ -340,6 +345,10 @@ fn fixed_outputs_are_far_below_the_bound() {
         "move",
         "names",
         "process-info",
+        "open",
+        "remove",
+        "resume",
+        "status",
         "read",
         "prompt",
         "rename",

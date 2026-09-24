@@ -45,6 +45,19 @@ impl WorkbenchService {
 
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         let permitted = match &request {
+            WorkbenchRequest::WorktreeOperation(request) => {
+                if matches!(
+                    request.action,
+                    orchbee_workbench_protocol::WorkbenchWorktreeAction::Read { .. }
+                ) {
+                    self.policy.read
+                } else {
+                    self.policy.manage_navigation
+                        && self.policy.associate_directory
+                        && self.policy.create_terminal
+                        && self.policy.manage_terminal_lifecycle
+                }
+            }
             WorkbenchRequest::SnapshotRead(_)
             | WorkbenchRequest::PublicationRead(_)
             | WorkbenchRequest::TabCloseRead(_)
@@ -93,6 +106,11 @@ impl WorkbenchService {
             return WorkbenchExecution::Response(unavailable_or_denied(request, true));
         }
         match &request {
+            WorkbenchRequest::WorktreeOperation(operation) => {
+                return WorkbenchExecution::Response(WorkbenchResponse::WorktreeOperation(
+                    self.terminals.execute_worktree_operation(operation.clone()),
+                ));
+            }
             WorkbenchRequest::Command(command)
                 if matches!(
                     &command.action,
@@ -262,6 +280,20 @@ impl WorkbenchService {
 
 fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchResponse {
     match request {
+        WorkbenchRequest::WorktreeOperation(request) => {
+            WorkbenchResponse::WorktreeOperation(
+                orchbee_workbench_protocol::WorkbenchWorktreeResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: request.request_id,
+                    operation_id: request.action.operation_id().clone(),
+                    outcome: if denied {
+                        orchbee_workbench_protocol::WorkbenchWorktreeOutcome::Denied {}
+                    } else {
+                        orchbee_workbench_protocol::WorkbenchWorktreeOutcome::Unavailable { reason: orchbee_workbench_protocol::WorktreeAdmissionFailure::ServiceUnavailable }
+                    },
+                },
+            )
+        }
         WorkbenchRequest::WorktreeListRead(read) => {
             WorkbenchResponse::WorktreeList(WorkbenchWorktreeListResult {
                 protocol_version: ProtocolVersion,

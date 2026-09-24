@@ -1,4 +1,13 @@
+mod worktree_operation;
 use std::fmt;
+pub use worktree_operation::{
+    MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES, MAXIMUM_WORKTREE_OPERATION_ATTEMPTS,
+    WorkbenchWorktreeAction, WorkbenchWorktreeOutcome, WorkbenchWorktreeRequest,
+    WorkbenchWorktreeResult, WorktreeAdmissionFailure, WorktreeCheckoutFacts, WorktreeGitEffect,
+    WorktreeGitError, WorktreeGitStage, WorktreeIntent, WorktreeOperationFailure,
+    WorktreeOperationPhase, WorktreeOperationStatus, WorktreeProgress, WorktreeReference,
+    WorktreeSelector, WorktreeSource, WorktreeWorkspaceDisposition,
+};
 
 mod publication;
 pub use publication::{
@@ -541,6 +550,8 @@ pub struct WorkbenchCommand {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchRequest {
+    #[serde(rename = "workbench.worktree.operation")]
+    WorktreeOperation(WorkbenchWorktreeRequest),
     #[serde(rename = "workbench.snapshot.read")]
     SnapshotRead(SnapshotReadIntent),
     #[serde(rename = "workbench.command")]
@@ -840,6 +851,8 @@ pub struct WorkbenchSnapshotResult {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchResponse {
+    #[serde(rename = "workbench.worktree.operation.result")]
+    WorktreeOperation(WorkbenchWorktreeResult),
     #[serde(rename = "workbench.snapshot.result")]
     Snapshot(WorkbenchSnapshotResult),
     #[serde(rename = "workbench.command.result")]
@@ -861,7 +874,7 @@ pub enum WorkbenchResponse {
 }
 
 pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, ContractError> {
-    enforce_encoded_limit(encoded, MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES)?;
+    enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES)?;
     let request: WorkbenchRequest =
         serde_json::from_slice(encoded).map_err(|_error| ContractError::InvalidDocument)?;
     enforce_encoded_limit(encoded, request_byte_limit(&request))?;
@@ -873,6 +886,9 @@ pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, Contr
 /// explicit `launch` and a `profile` selector are mutually exclusive on the
 /// terminal-launch actions.
 fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
+    if let WorkbenchRequest::WorktreeOperation(request) = request {
+        return request.validate();
+    }
     let WorkbenchRequest::Command(command) = request else {
         return Ok(());
     };
@@ -900,6 +916,9 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
 }
 
 fn request_byte_limit(request: &WorkbenchRequest) -> usize {
+    if matches!(request, WorkbenchRequest::WorktreeOperation(_)) {
+        return MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES;
+    }
     if matches!(
         request,
         WorkbenchRequest::Command(WorkbenchCommand {
@@ -940,6 +959,10 @@ pub fn serialize_workbench_response(
 
 fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(), ContractError> {
     match response {
+        WorkbenchResponse::WorktreeOperation(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES)?;
+            result.validate()
+        }
         WorkbenchResponse::Command(_)
         | WorkbenchResponse::TabCloseRead(_)
         | WorkbenchResponse::TabCloseResume(_)

@@ -103,6 +103,7 @@ fn golden_open_request_and_cancel_result_are_independently_encoded() {
 fn every_intent_and_job_action_round_trips_with_strict_prefixes() {
     for trust in [false, true] {
         for mutation in [
+            WorktreeMutation::InspectSource,
             WorktreeMutation::Create {
                 path: path("C:/目录/w"),
                 branch: reference("topic/一"),

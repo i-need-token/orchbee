@@ -358,3 +358,7 @@ implementation.
 ## Native Windows path refinement
 
 Absolute wire paths accept a POSIX leading slash or an ASCII drive letter followed by `:` and `/` or `\`, optionally prefixed by `\\?\` for a Windows verbatim drive path. This lexical rule is independent of the decoder platform; bytes are preserved without expansion or normalization. Backslash-rooted, drive-relative, UNC, and device paths are not admitted by this Windows increment. Existing byte bounds and NUL/Unicode validation remain unchanged. The execution owner still validates the path against its local filesystem before effects.
+
+## Retained Worktree operations
+
+[`workbench-worktree.schema.json`](v1/workbench-worktree.schema.json) owns the separate `workbench.worktree.operation` request and `workbench.worktree.operation.result` reply. OBWP kinds 19/20 carry these directions with independent 96 KiB pre-allocation bounds. Operation IDs remain distinct from exchange request IDs; Start retains Project and intent, Read observes, and Resume fences the prior attempt (1–64). Outcomes preserve Git facts and Workspace disposition independently, including closed-before-remove failures. The [shared corpus](v1/workbench-worktree-conformance-v1.json) is consumed by both Rust and TypeScript, with structural JSON Schema checks and explicit semantic byte/cross-field checks. These wire contracts do not themselves grant mutation authority or imply Desktop support. Runtime and CLI lifecycle belong to the [Windows Worktree owner](../../apps/orchbee/docs/windows-worktrees.md).

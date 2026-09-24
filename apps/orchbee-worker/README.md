@@ -862,3 +862,5 @@ cancellation, failed settlement and generation fencing. Real Git tests cover bra
 creation/reuse, open selectors, dirty refusal, force removal and branch preservation.
 These do not prove external-writer exclusion, abrupt Worker-death recovery or non-Windows
 execution. No CLI parity is inferred from this Worker boundary alone.
+
+InspectSource resolves the checkout containing the source directory; Open permits the main checkout. Create re-observes its branch after Git completes, so a successful hook changing HEAD yields RepositoryChanged with possible effects, not a false successful association. The Server now consumes these observations through its retained continuation; ownership and cleanup remain in this Worker.

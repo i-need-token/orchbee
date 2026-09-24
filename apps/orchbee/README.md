@@ -54,7 +54,7 @@ orchbee --help | --version
 
 Query families are `project`, `workspace`, `tab`, `panel`, `terminal`, `worktree`,
 `launch-profile`, and
-`agent` (`list`/`get`, plus `terminal read`/`wait-output`; `worktree` offers only `list`, which requires
+`agent` (`list`/`get`, plus `terminal read`/`wait-output`; `worktree list` requires
 `--project <target>` and `--directory <directory-id>` — a strict nonzero 32-lowercase-hex
 Workbench directory id, never a filesystem path or label; `launch-profile` offers `list`
 and `get <selector>` — a typed read of the running Site's launch profile catalog, resolved
@@ -745,3 +745,7 @@ Targeted Agent commands also accept `--panel <id|@panel:suffix>` or a positional
 ## Windows explicit Site stop
 
 `site stop --confirm` ends the existing managed Windows Site and its terminal processes. Use `--detach` for admission only and retain the returned ID for `site stop-status <id>`. Explicit retry requires `--retry --request-id <id> --confirm`. Cancellation or timeout does not cancel an accepted stop. A matching stopped record and free lifetime lock prove completion; the next `site start` consumes that record and creates a fresh Site. See the [CLI stop contract](docs/native-cli-query.md#windows-site-stop). No Linux/macOS stop runtime is implemented.
+
+## Windows Worktree operations
+
+`worktree create/open/remove/status/resume` now uses retained Server operations and Windows Worker Git execution. The [Worktree contract](docs/windows-worktrees.md) owns source selection, defaults, confirmation, partial outcomes and recovery. These commands do not activate a Site or change Client focus.

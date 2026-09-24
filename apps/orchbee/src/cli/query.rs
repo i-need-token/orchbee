@@ -57,21 +57,20 @@ use orchbee_terminal_protocol::{AttachmentId, HostEpoch, TerminalTextFrame};
 use orchbee_workbench_protocol::{
     LaunchProfileCatalogOutcome, LaunchProfileSelector, ProtocolVersion, Snapshot,
     SnapshotReadIntent, WorkbenchDirectoryId, WorkbenchLaunchProfileCatalogRead,
-    WorkbenchProjectId, WorkbenchRequestId, WorkbenchSnapshotOutcome,
-    WorkbenchSnapshotUnavailableReason, WorkbenchTabCloseUnavailableReason,
-    WorkbenchWorkspaceCloseRead, WorkbenchWorkspaceCloseReadOutcome, WorkbenchWorkspaceId,
-    WorkbenchWorktreeListOutcome, WorkbenchWorktreeListRead, WorktreeListStage,
-    WorktreeListTooLargeOrigin, WorktreeListUnavailableReason,
+    WorkbenchProjectId, WorkbenchSnapshotOutcome, WorkbenchSnapshotUnavailableReason,
+    WorkbenchTabCloseUnavailableReason, WorkbenchWorkspaceCloseRead,
+    WorkbenchWorkspaceCloseReadOutcome, WorkbenchWorkspaceId, WorkbenchWorktreeListOutcome,
+    WorkbenchWorktreeListRead, WorktreeListStage, WorktreeListTooLargeOrigin,
+    WorktreeListUnavailableReason,
 };
 
 #[cfg(any(target_os = "linux", windows))]
 use super::results::Projection;
 #[cfg(any(target_os = "linux", windows))]
 use super::source::{ArmedSignals, Finish, SignalWatch};
+use super::{Failure, FailureKind};
 #[cfg(any(target_os = "linux", windows))]
-use super::{
-    Failure, FailureKind, SourceFinalization, stage_details, stage_reason_details, target_details,
-};
+use super::{SourceFinalization, stage_details, stage_reason_details, target_details};
 #[cfg(any(target_os = "linux", windows))]
 use crate::invocation::{Resource, Target};
 #[cfg(any(target_os = "linux", windows))]
@@ -2277,7 +2276,6 @@ fn classify_read(error: SnapshotReadError) -> Failure {
 }
 
 /// Sixteen fresh bytes become the canonical 32-lowercase-hex request identity.
-#[cfg(any(target_os = "linux", windows))]
 fn fresh_request_id() -> Result<String, Failure> {
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
@@ -2289,9 +2287,8 @@ fn fresh_request_id() -> Result<String, Failure> {
     Ok(text)
 }
 
-#[cfg(any(target_os = "linux", windows))]
-pub(crate) fn request_id() -> Result<WorkbenchRequestId, Failure> {
-    WorkbenchRequestId::parse(&fresh_request_id()?)
+pub(crate) fn request_id() -> Result<orchbee_workbench_protocol::WorkbenchRequestId, Failure> {
+    orchbee_workbench_protocol::WorkbenchRequestId::parse(&fresh_request_id()?)
         .map_err(|_| Failure::new(FailureKind::InternalFailure))
 }
 

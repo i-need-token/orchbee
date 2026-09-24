@@ -61,7 +61,7 @@ the same lookup. Outside that process, use `panel current --panel <id-or-selecto
 Worker supplies `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID`; the query validates
 their current binding in one snapshot. Missing or stale context is an error, never
 a fallback to client focus. Explicit `--panel` ignores inherited context and cannot
-be combined with `--current`. `api schema` now returns catalog envelope version 19;
+be combined with `--current`. `api schema` now returns catalog envelope version 20;
 the new `orchbee.panel.current` document is version 1.
 
 Use explicit `--forever` on `agent wait` or `agent prompt --wait` for no total deadline; it conflicts with `--timeout`. The default remains 600000 ms and every read stays bounded. `--until blocked` matches fresh needs-attention; `--until done` matches fresh completed outcomes, without an unseen marker. Wait/prompt successes use version 2 with null timeoutMs for infinite mode; infinite read-timeout failures also use version 2. Windows Codex prompts add Right between paste and Enter to clear paste-burst Enter suppression.
@@ -86,3 +86,7 @@ terminal itself. A process may still exit after the preflight; inspect send rece
 ## Windows Site stop
 
 `site stop --confirm --format json` ends the managed Site and its terminal processes. Use `--detach` to return after admission, retain `requestId`, and inspect with `site stop-status <request-id> --format json`. Timeout or Ctrl+C only ends the wait. Repeat with the same `--request-id` to observe the existing attempt; only `--retry --request-id <id> --confirm` retries a failed stop. A matching stopped record is a completion receipt, consumed by a subsequent `site start`; not-recorded does not disprove an earlier stop. Never infer completion from pipe absence. Linux and macOS stop are unsupported.
+
+## Retain Worktree operation identity
+
+On Windows use `worktree create/open/remove` with the flags from command help. Retain the returned operation ID and query `worktree status <id>` after detach, timeout or disconnection. Do not blindly repeat uncertain Git effects. Read both the checkout result and Workspace disposition: a closed Workspace stays closed if later Git removal fails. Resume only an explicitly resumable failure using `worktree resume <id> --generation <attempt> --confirm`. Remove requires `--confirm`; `--force` permits discarding dirty checkout changes. See the [Worktree contract](windows-worktrees.md).

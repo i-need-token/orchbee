@@ -749,3 +749,7 @@ Windows 托管 Site 保留现有内存权威和生命周期锁。它准入当前
 Server 检查准入，释放锁执行 Worker 只读目录探测，再按注册表到 Site 的锁顺序复查请求、修订和精确 Worker 代次。它准备六个结构标识及一份候选投影，预留保留结果与终端准入，然后在一次修订中一起提交工作区、目录、上下文及首个 Tab/Panel/Presentation。准入失败不会发布半成品工作区。终端派发仅在提交后发生；启动待定或失败时保留所有已提交标识，供查询和显式关闭。精确重放绝不再次派发。响应丢失属于结果未知，不得自动重试。
 
 此细化复用 Tab 创建的提交与结算所有者。验证义务包括权限分离、探测期间的陈旧修订及 Worker 代次、容量与标识边界、精确重放、提交后的启动失败，以及 cwd/环境变量的 Windows 进程见证。不宣称持久化重启恢复、Desktop 支持、焦点变更或 TLA 执行。
+
+## Windows 保留 Worktree 续执行
+
+`workbench.worktree.operation` 接纳 Start、纯 Read 与尝试序号约束的 Resume。Workbench 权威最多保留 64 个操作，全局一个 Pending，并拥有规范 Workspace 关联；惰性维护所有者在 Client 断线后继续执行。registry 到 Site 接纳及发布复查来源和精确 Worker 实例；OBCN IPC 在两道门之外运行。Create/Open 观察 Worker 检出事实后才复用或启动 Workspace。Remove 在 Close 前检查脏状态，保留新 Workspace／目录准入，等待已知 Closed 后才提交 Git 移除。失败保留可能的 Git 影响、路径和 Workspace 已关闭事实。显式 Site 停止在 Close 维护及 Worker carrier 冻结前 join 此所有者。界限及恢复见 [CLI／续执行契约](../orchbee/docs/windows-worktrees.zh-CN.md) 与[共享协议](../../schemas/workbench/v1/workbench-worktree.schema.json)。

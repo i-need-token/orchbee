@@ -83,3 +83,7 @@ Windows 的 `agent send-keys` 与 `agent prompt` 会核对实际运行的 provid
 ## Windows Site 停止
 
 `site stop --confirm --format json` 结束托管 Site 及其终端进程。可用 `--detach` 在准入后返回，保留 `requestId`，通过 `site stop-status <request-id> --format json` 查询。超时或 Ctrl+C 只结束等待。使用相同 `--request-id` 重复调用只观察既有尝试；只有 `--retry --request-id <id> --confirm` 才重试失败停止。准确匹配的已停止记录是完成回执，会被后续 `site start` 消费；未记录不能否定先前停止。绝不通过管道不存在推断完成。Linux 和 macOS 尚不支持停止。
+
+## 保留 Worktree 操作身份
+
+Windows 上按命令帮助使用 `worktree create/open/remove`。保留返回的操作 ID，脱离等待、超时或断线后用 `worktree status <id>` 查询；不要盲目重复不确定的 Git 副作用。同时读取检出结果与 Workspace 状态：后续 Git 移除失败时，已关闭的 Workspace 保持关闭。仅对明确可恢复的失败使用 `worktree resume <id> --generation <attempt> --confirm`。Remove 要求 `--confirm`；`--force` 允许丢弃脏检出中的改动。参见 [Worktree 契约](windows-worktrees.zh-CN.md)。

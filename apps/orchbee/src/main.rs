@@ -111,6 +111,9 @@ fn main() -> ExitCode {
             Ok(invocation::Request::SiteStop { command, format }) => {
                 cli::site_stop(&command, format, locale)
             }
+            Ok(invocation::Request::Worktree { command, format }) => {
+                cli::run_worktree(&command, format, locale)
+            }
             Ok(invocation::Request::SiteDiagnose { format }) => cli::site_diagnose(format, locale),
             Ok(invocation::Request::AgentStart { command, format }) => {
                 cli::run_agent_start(&command, format, locale)

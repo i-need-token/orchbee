@@ -35,6 +35,7 @@ mod tab_create;
 mod viewer_session;
 mod workspace_directory;
 mod worktree_list;
+mod worktree_operation;
 
 // One queued plus one in-flight exchange, each with a two-second write and twenty-second read.
 const LEASE_LIFETIME_MILLISECONDS: u64 = 46_000;
@@ -53,6 +54,7 @@ const AGENT_DRAIN_READ_RETRY: Duration = Duration::from_millis(25);
 
 pub(crate) struct LocalTerminalService {
     close_maintenance: close_maintenance::CloseMaintenance,
+    worktree_maintenance: worktree_operation::WorktreeMaintenance,
     standalone_changed: std::sync::Condvar,
     standalone_wait: std::time::Duration,
     workers: Arc<Mutex<WorkerRegistry>>,
@@ -79,6 +81,7 @@ impl LocalTerminalService {
             .and_then(|site| orchbee_server::WorkbenchAuthority::new(site).ok());
         Self {
             close_maintenance: close_maintenance::CloseMaintenance::default(),
+            worktree_maintenance: worktree_operation::WorktreeMaintenance::default(),
             standalone_changed: std::sync::Condvar::new(),
             standalone_wait: std::time::Duration::from_secs(46),
             workers,
@@ -265,7 +268,8 @@ fn submit(handle: &WorkerRequestHandle, message: &CapabilityNodeMessage) -> Comp
             | WorkerOperationResult::Control(_)
             | WorkerOperationResult::Lifecycle(_)
             | WorkerOperationResult::Send(_)
-            | WorkerOperationResult::WorktreeJob(_),
+            | WorkerOperationResult::WorktreeJob(_)
+            | WorkerOperationResult::WorktreeMutation(_),
         ) => Completion::Unknown,
         // The drain variant can never come back from the Launch/Start
         // requests submitted here; it exists for the Agent drain pump.

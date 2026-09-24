@@ -72,6 +72,9 @@ __ORCHBEE_GRAMMAR__
             $allowed = @($command.flags)
             if ($command.words[0] -cne 'tui') { $allowed += '--format' }
             $valid = $true
+            $commandPath = $command.words -join ':'
+            if ($command.words[0] -ceq 'worktree' -and $seen -ccontains '--workspace' -and $seen -ccontains '--cwd') { $valid = $false }
+            if ($commandPath -ceq 'worktree:open' -and $seen -ccontains '--path' -and $seen -ccontains '--branch') { $valid = $false }
             foreach ($flag in $seen) { if ($allowed -cnotcontains $flag) { $valid = $false } }
             if (@($seen | Where-Object { $_ -ceq '--provider' }).Count -gt 1 -and ($command.words -join ':') -cne 'agent:doctor') { $valid = $false }
             $operandLimit = [int]$command.operand
@@ -108,6 +111,8 @@ __ORCHBEE_GRAMMAR__
                 if ($seen -ccontains $flag -and $grammar.repeatable -cnotcontains $flag -and -not ($flag -ceq '--provider' -and ($command.words -join ':') -ceq 'agent:doctor')) { continue }
                 if ($flag -ceq '--arg' -and $seen -cnotcontains '--exec' -and ($command.words -join ':') -cne 'agent:start') { continue }
                 $conflict = $false
+                if ($command.words[0] -ceq 'worktree' -and (($flag -ceq '--workspace' -and $seen -ccontains '--cwd') -or ($flag -ceq '--cwd' -and $seen -ccontains '--workspace'))) { $conflict = $true }
+                if (($command.words -join ':') -ceq 'worktree:open' -and (($flag -ceq '--path' -and $seen -ccontains '--branch') -or ($flag -ceq '--branch' -and $seen -ccontains '--path'))) { $conflict = $true }
                 foreach ($group in @(@('--timeout', '--forever'), @('--session', '--name', '--panel'), @('--panel', '--current'), @('--workspace', '--standalone'), @('--exec', '--profile'), @('--arg', '--profile'), @('--into-tab', '--new-tab'), @('--target-panel', '--into-tab'), @('--target-panel', '--new-tab'), @('--text', '--file', '--stdin', '--key'), @('--key', '--enter'), @('--key', '--paste'), @('--text', '--paste'), @('--match', '--regex'))) {
                     if ($group -ccontains $flag -and @($group | Where-Object { $_ -cne $flag -and $seen -ccontains $_ }).Count -gt 0) { $conflict = $true }
                 }

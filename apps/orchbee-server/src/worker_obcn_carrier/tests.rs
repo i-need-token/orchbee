@@ -13,6 +13,7 @@ use std::{
 };
 
 mod lifecycle;
+mod worktree_mutation;
 
 use orchbee_capability_node_protocol::{
     AbsoluteCwd, AuthorizedTerminalLaunch, AuthorizedTerminalStart, CapabilityNodeMessage,

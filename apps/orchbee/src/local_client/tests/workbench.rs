@@ -8,6 +8,7 @@ mod tab_move;
 mod tab_rename;
 mod workspace_close;
 mod workspace_setup;
+mod worktree_operation;
 use crate::local_client::{
     SystemMonotonicClock,
     workbench::{

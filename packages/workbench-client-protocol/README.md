@@ -134,3 +134,7 @@ pnpm --filter @orchbee/workbench-client-protocol typecheck
 pnpm --filter @orchbee/workbench-client-protocol test
 pnpm --filter @orchbee/workbench-client-protocol test:exports
 ```
+
+## Worktree operation binding
+
+`workbench-worktree-contract.ts` implements the [retained Worktree wire contract](../../schemas/workbench/v1/workbench-worktree.schema.json). Request/response unions include Start/Read/Resume and retained partial outcomes, with their own 96 KiB encoded budget. Strict objects, UTF-8 reference bounds, attempt bounds, checkout/path equality, Git status/diagnostic constraints and reused/launch-outcome agreement match the independent Rust binding. Both consume the [shared corpus](../../schemas/workbench/v1/workbench-worktree-conformance-v1.json). The shared `workbench-terminal-launch-contract.ts` leaf owns terminal geometry and launch outcomes; the command module keeps its existing exports without a cycle. No Desktop runtime command is added by this binding.

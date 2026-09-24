@@ -1,4 +1,6 @@
+mod worktree;
 use std::{ffi::OsString, path::PathBuf};
+pub(crate) use worktree::{WorktreeCommand, WorktreeStartCommand, WorktreeStartKind};
 
 use orchbee_agent_observation_protocol::{
     AgentListCursor, AgentName, AgentSafeInteger, AgentSessionId, DEFAULT_LIST_LIMIT,
@@ -209,6 +211,11 @@ pub(crate) enum CommandPath {
     TerminalWaitOutput,
     TerminalSend,
     WorktreeList,
+    WorktreeCreate,
+    WorktreeOpen,
+    WorktreeRemove,
+    WorktreeStatus,
+    WorktreeResume,
     LaunchProfileList,
     LaunchProfileGet,
     LaunchProfileCreate,
@@ -276,6 +283,11 @@ impl CommandPath {
             Self::TerminalWaitOutput => "terminal wait-output",
             Self::TerminalSend => "terminal send",
             Self::WorktreeList => "worktree list",
+            Self::WorktreeCreate => "worktree create",
+            Self::WorktreeOpen => "worktree open",
+            Self::WorktreeRemove => "worktree remove",
+            Self::WorktreeStatus => "worktree status",
+            Self::WorktreeResume => "worktree resume",
             Self::LaunchProfileList => "launch-profile list",
             Self::LaunchProfileGet => "launch-profile get",
             Self::LaunchProfileCreate => "launch-profile create",
@@ -923,6 +935,10 @@ fn stop_id(
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
+    Worktree {
+        command: WorktreeCommand,
+        format: OutputFormat,
+    },
     SiteStop {
         command: SiteStopCommand,
         format: OutputFormat,
@@ -1006,6 +1022,9 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    WorktreeReference,
+    WorktreeOperationId,
+    WorktreeAttempt,
     Format,
     Label,
     Dimension,
@@ -1209,6 +1228,10 @@ enum Token {
 
 #[derive(Default)]
 struct Options {
+    branch: Option<String>,
+    base: Option<String>,
+    force: bool,
+    trust_repository: bool,
     request_id: Option<String>,
     detach: bool,
     retry: bool,
@@ -1294,6 +1317,8 @@ struct Options {
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
+    "--branch",
+    "--base",
     "--request-id",
     "--adapter-source",
     "--after-revision",
@@ -1624,8 +1649,13 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
             }
             "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
             | "--include-ended" | "--new-tab" | "--paste" | "--unwrap" | "--current"
-            | "--clear" | "--wait" | "--forever" | "--detach" | "--retry" => {
-                let (seen, option) = if token == "--standalone" {
+            | "--clear" | "--wait" | "--forever" | "--detach" | "--retry" | "--force"
+            | "--trust-repository" => {
+                let (seen, option) = if token == "--force" {
+                    (&mut options.force, "--force")
+                } else if token == "--trust-repository" {
+                    (&mut options.trust_repository, "--trust-repository")
+                } else if token == "--standalone" {
                     (&mut options.standalone, "--standalone")
                 } else if token == "--current" {
                     (&mut options.current, "--current")
@@ -1756,6 +1786,8 @@ fn apply_value_flag(
         return Ok(());
     }
     let slot = match option {
+        "--branch" => &mut options.branch,
+        "--base" => &mut options.base,
         "--project" => &mut options.project,
         "--directory" => &mut options.directory,
         "--workspace" => &mut options.workspace,
@@ -2884,6 +2916,22 @@ fn resolve_words(
                 options,
             ))
         }
+        ["worktree", verb @ ("create" | "open" | "remove")] => {
+            worktree::start(verb, options, envelope)
+        }
+        ["worktree", verb @ ("status" | "resume"), id] => {
+            worktree::observe(verb, id, options, envelope)
+        }
+        ["worktree", "status"] => Err(missing_required(
+            UsageContext::Path("worktree status"),
+            "<operation-id>",
+            envelope,
+        )),
+        ["worktree", "resume"] => Err(missing_required(
+            UsageContext::Path("worktree resume"),
+            "<operation-id>",
+            envelope,
+        )),
         ["worktree", "list"] => {
             let context = UsageContext::Path("worktree list");
             check_scope(options, WORKTREE_LIST_SCOPE, context, envelope)?;
@@ -3367,6 +3415,24 @@ fn resolve_words(
             extra,
             envelope,
         )),
+        ["worktree", verb @ ("create" | "open" | "remove"), extra, ..] => Err(unexpected_argument(
+            UsageContext::Path(match *verb {
+                "create" => "worktree create",
+                "open" => "worktree open",
+                _ => "worktree remove",
+            }),
+            extra,
+            envelope,
+        )),
+        ["worktree", verb @ ("status" | "resume"), _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path(if *verb == "status" {
+                "worktree status"
+            } else {
+                "worktree resume"
+            }),
+            extra,
+            envelope,
+        )),
         ["worktree", verb, ..] => Err(unknown_command(
             UsageContext::Path("worktree"),
             verb,
@@ -3571,6 +3637,11 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
 
         ["worktree"] => HelpTopic::Family(Family::Worktree),
         ["worktree", "list"] => HelpTopic::Command(CommandPath::WorktreeList),
+        ["worktree", "create"] => HelpTopic::Command(CommandPath::WorktreeCreate),
+        ["worktree", "open"] => HelpTopic::Command(CommandPath::WorktreeOpen),
+        ["worktree", "remove"] => HelpTopic::Command(CommandPath::WorktreeRemove),
+        ["worktree", "status"] => HelpTopic::Command(CommandPath::WorktreeStatus),
+        ["worktree", "resume"] => HelpTopic::Command(CommandPath::WorktreeResume),
 
         ["launch-profile"] => HelpTopic::Family(Family::LaunchProfile),
         ["launch-profile", "list"] => HelpTopic::Command(CommandPath::LaunchProfileList),
@@ -3608,6 +3679,10 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 /// is only meaningful whole.
 #[derive(Clone, Copy)]
 struct Scope {
+    branch: bool,
+    base: bool,
+    force: bool,
+    trust_repository: bool,
     request_id: bool,
     detach: bool,
     retry: bool,
@@ -3709,6 +3784,10 @@ struct Scope {
 }
 
 const NO_OPTIONS: Scope = Scope {
+    branch: false,
+    base: false,
+    force: false,
+    trust_repository: false,
     request_id: false,
     detach: false,
     retry: false,
@@ -4017,6 +4096,18 @@ fn business_options(options: &Options) -> bool {
 /// The first named option present but outside `scope`, in the fixed `Options`
 /// declaration order — deterministic without any argv-order state.
 fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
+    if options.branch.is_some() && !scope.branch {
+        return Some("--branch");
+    }
+    if options.base.is_some() && !scope.base {
+        return Some("--base");
+    }
+    if options.force && !scope.force {
+        return Some("--force");
+    }
+    if options.trust_repository && !scope.trust_repository {
+        return Some("--trust-repository");
+    }
     if options.request_id.is_some() && !scope.request_id {
         return Some("--request-id");
     }
