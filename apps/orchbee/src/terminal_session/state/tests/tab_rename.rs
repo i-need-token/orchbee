@@ -32,20 +32,21 @@ fn rename_operation_captures_exact_request_intent_and_original_deadline() {
     );
     assert_eq!(copy.deadline(), operation.deadline());
     assert_eq!(copy.draft_token(), operation.draft_token());
-    let expected = crate::local_client::workbench::tab_rename::WorkbenchTabRenameRequest::try_from(
-        orchbee_workbench_protocol::WorkbenchCommand {
-            protocol_version: ProtocolVersion,
-            request_id: workbench_request_id(100),
-            site_id: state.cache().site_id().clone(),
-            expected_revision: WorkbenchRevision::new(1),
-            action: orchbee_workbench_protocol::WorkbenchAction::TabRename {
-                terminal_context_id: state.cache().terminal_context_id().clone(),
-                tab_id: state.tab(0).unwrap().tab_id().clone(),
-                label: WorkbenchLabel::parse(" 雪e\u{301}\t ").unwrap(),
+    let expected =
+        crate::local_client::workbench::label_rename::WorkbenchLabelRenameRequest::try_from(
+            orchbee_workbench_protocol::WorkbenchCommand {
+                protocol_version: ProtocolVersion,
+                request_id: workbench_request_id(100),
+                site_id: state.cache().site_id().clone(),
+                expected_revision: WorkbenchRevision::new(1),
+                action: orchbee_workbench_protocol::WorkbenchAction::TabRename {
+                    terminal_context_id: state.cache().terminal_context_id().clone(),
+                    tab_id: state.tab(0).unwrap().tab_id().clone(),
+                    label: WorkbenchLabel::parse(" 雪e\u{301}\t ").unwrap(),
+                },
             },
-        },
-    )
-    .unwrap();
+        )
+        .unwrap();
     assert_eq!(operation.request(), &expected);
 }
 
@@ -194,7 +195,7 @@ fn rename_preparation_allows_later_overwrite_removal_and_empty_without_cleanup_p
 
 #[test]
 fn rename_preparation_separates_precommit_from_known_projection_unavailability() {
-    use crate::local_client::workbench::tab_rename::WorkbenchTabRenamePrecommit;
+    use crate::local_client::workbench::label_rename::WorkbenchLabelRenamePrecommit;
     let mut state = ready(2);
     let operation = rename_operation(&mut state, "changed");
     assert!(matches!(
@@ -203,9 +204,11 @@ fn rename_preparation_separates_precommit_from_known_projection_unavailability()
     ));
     assert!(matches!(
         operation
-            .prepare(RenameResult::Precommit(WorkbenchTabRenamePrecommit::Denied))
+            .prepare(RenameResult::Precommit(
+                WorkbenchLabelRenamePrecommit::Denied
+            ))
             .result(),
-        RenamePreparation::Precommit(WorkbenchTabRenamePrecommit::Denied)
+        RenamePreparation::Precommit(WorkbenchLabelRenamePrecommit::Denied)
     ));
     let prepared = operation.prepare(RenameResult::Committed {
         revision: WorkbenchRevision::new(2),

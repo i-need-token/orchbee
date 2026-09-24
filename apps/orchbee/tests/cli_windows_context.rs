@@ -88,13 +88,21 @@ fn offline_catalog_is_closed_and_current_panel_schema_is_discoverable() {
     let schemas = document["result"]["schemas"]
         .as_object()
         .expect("dictionary");
-    assert_eq!(document["version"], 27);
-    assert_eq!(schemas.len(), 62);
+    assert_eq!(document["version"], 28);
+    assert_eq!(schemas.len(), 63);
     let validator =
         jsonschema::draft202012::new(&schemas["orchbee.api.schema"]).expect("catalog schema");
     validator.validate(&document).expect("valid catalog");
     for schema in schemas.values() {
         jsonschema::draft202012::new(schema).expect("schema compiles");
+    }
+    for id in ["orchbee.panel.rename", "orchbee.panel.layout"] {
+        let mut missing = document.clone();
+        missing["result"]["schemas"]
+            .as_object_mut()
+            .unwrap()
+            .remove(id);
+        assert!(!validator.is_valid(&missing), "{id} must be required");
     }
     let mut stale = document.clone();
     stale["version"] = serde_json::json!(18);

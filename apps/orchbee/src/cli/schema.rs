@@ -28,10 +28,15 @@ pub(crate) const LAUNCH_PROFILE_FAILURE_ID: &str = "orchbee.cli.failure.launch-p
 /// outcome-unknown request echo — kept off the generic failure schema.
 pub(crate) const CLOSE_FAILURE_ID: &str = "orchbee.cli.failure.close";
 pub(crate) const MUTATION_RESULT_ID: &str = "orchbee.mutation.result";
+pub(crate) const PANEL_RENAME_RESULT_ID: &str = "orchbee.panel.rename";
 pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
+    (
+        PANEL_RENAME_RESULT_ID,
+        include_str!("schemas/orchbee.panel.rename.json"),
+    ),
     (
         "orchbee.panel.layout",
         include_str!("schemas/orchbee.panel.layout.json"),
@@ -344,9 +349,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog envelope v27: Client ratio adjustment extends the embedded
-        // dictionary's shape; business document versions stay untouched.
-        "version": 27,
+        // Catalog v28 adds Panel rename and v2 title-aware Panel/snapshot reads.
+        "version": 28,
         "source": embedded_source(),
         "result": result,
     });

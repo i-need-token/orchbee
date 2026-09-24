@@ -66,6 +66,7 @@ fn panel(panel: u128, presentation: u128, worker: u128, terminal: u128, label: &
         child_presentations: Vec::new(),
         panel_id: panel_id(panel),
         primary_presentation: Presentation {
+            custom_label: None,
             binding: Some(PresentationBinding {
                 terminal_id: terminal_id(terminal),
                 worker_id: worker_id(worker),

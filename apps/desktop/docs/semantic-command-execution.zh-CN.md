@@ -240,6 +240,8 @@ Clock fixture 覆盖剩余 poll budget、发布 admission 前的 connection expi
 sentinel；identity failure fixture 覆盖 missing/mismatched token 与 impersonation failure。Admission
 失败时 byte 不可观察，accept thread 返回时不残留 impersonation。这些有限 cut 细化不变量 11-13，
 不增加 trusted identity，也不替代真实 cross-user test。
+首字节之后过期的 fixture 仅在精确 preread operation 成功完成一个字节后推进时钟；
+发起 pending read 不能在受控 write 之前就使连接过期。
 
 同一 verifier 还运行 `tests/windows_write.c`，以真实 named pipe 验证延迟及分段 response read、
 flush 前后两种 deadline 顺序、peer close、helper creation failure、原始 write budget 耗尽、

@@ -305,6 +305,7 @@ fn strict_membership_rejects_a_non_head_child_presentation_or_unbound_member() {
         };
         if child {
             child_presentations.push(Presentation {
+                custom_label: None,
                 presentation_id: TerminalPresentationId::parse(&identity(8)).unwrap(),
                 label: "child".to_owned(),
                 binding: None,
@@ -346,12 +347,14 @@ fn panel_presentation_visitor_is_depth_first_primary_then_children() {
             PanelSlot {
                 node: PanelNode::Panel {
                     child_presentations: vec![Presentation {
+                        custom_label: None,
                         binding: None,
                         label: "left-child".to_owned(),
                         presentation_id: TerminalPresentationId::parse(&identity(104)).unwrap(),
                     }],
                     panel_id: WorkbenchPanelId::parse(&identity(102)).unwrap(),
                     primary_presentation: Presentation {
+                        custom_label: None,
                         binding: Some(binding()),
                         label: "left-primary".to_owned(),
                         presentation_id: TerminalPresentationId::parse(&identity(103)).unwrap(),
@@ -364,6 +367,7 @@ fn panel_presentation_visitor_is_depth_first_primary_then_children() {
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&identity(106)).unwrap(),
                     primary_presentation: Presentation {
+                        custom_label: None,
                         binding: None,
                         label: "right-primary".to_owned(),
                         presentation_id: TerminalPresentationId::parse(&identity(107)).unwrap(),
@@ -407,6 +411,7 @@ fn tree_membership_collects_split_primary_leaves_but_legacy_context_rejects_them
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&identity(102)).unwrap(),
                     primary_presentation: Presentation {
+                        custom_label: None,
                         binding: Some(binding()),
                         label: "left".to_owned(),
                         presentation_id: TerminalPresentationId::parse(&identity(103)).unwrap(),
@@ -419,6 +424,7 @@ fn tree_membership_collects_split_primary_leaves_but_legacy_context_rejects_them
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&identity(105)).unwrap(),
                     primary_presentation: Presentation {
+                        custom_label: None,
                         binding: Some(PresentationBinding {
                             terminal_id: TerminalId::parse(&identity(82)).unwrap(),
                             worker_id: WorkerId::parse(&identity(72)).unwrap(),
@@ -494,6 +500,7 @@ fn tree_membership_still_rejects_genuine_tree_corruption() {
                         child_presentations: Vec::new(),
                         panel_id: WorkbenchPanelId::parse(&identity(105)).unwrap(),
                         primary_presentation: Presentation {
+                            custom_label: None,
                             binding: Some(PresentationBinding {
                                 terminal_id: TerminalId::parse(&identity(82)).unwrap(),
                                 worker_id: WorkerId::parse(&identity(72)).unwrap(),
@@ -532,6 +539,7 @@ fn tree_membership_still_rejects_genuine_tree_corruption() {
                 match case {
                     "unbound leaf" => primary_presentation.binding = None,
                     _ => child_presentations.push(Presentation {
+                        custom_label: None,
                         presentation_id: TerminalPresentationId::parse(&identity(130)).unwrap(),
                         label: "child".to_owned(),
                         binding: None,

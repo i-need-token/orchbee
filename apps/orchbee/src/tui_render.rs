@@ -741,12 +741,20 @@ fn render_leaf(
     let title = panel.map_or_else(
         || format!(" {} {} ", text.panel_title, panel_index.saturating_add(1)),
         |panel| {
+            if let Some(title) = panel.custom_label() {
+                return format!(
+                    " {} {} {} ",
+                    sanitize_terminal_text(title),
+                    theme.glyphs.middle_dot,
+                    panel_index.saturating_add(1)
+                );
+            }
             format!(
                 " {} {} {} {} ",
                 text.panel_title,
                 panel_index.saturating_add(1),
                 theme.glyphs.middle_dot,
-                sanitize_terminal_text(panel.presentation_label().as_str())
+                sanitize_terminal_text(panel.display_label())
             )
         },
     );

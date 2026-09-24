@@ -360,6 +360,29 @@
 					},
 					"required": ["kind", "terminalContextId", "tabId", "panelId", "destination"],
 					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "panel.rename"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						},
+						"label": {
+							"type": ["string", "null"],
+							"maxLength": 512
+						},
+						"panelId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+						}
+					},
+					"required": ["kind", "terminalContextId", "tabId", "panelId"],
+					"additionalProperties": false
 				}
 			]
 		},

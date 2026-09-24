@@ -395,7 +395,7 @@ The language-neutral request/result authority is
 [the Workbench contract](../../../schemas/workbench/README.md). Workbench uses its own OBWP carrier
 on the same admitted local connection; OBCS remains the terminal-only contract. Same-user OBLC
 admission precedes either protocol. The Server then selects an explicit Site-scoped Workbench grant.
-Development composition grants snapshot and publication reading plus the five pure Workbench
+Development composition grants snapshot and publication reading plus the six pure Workbench
 operations;
 `tab.create` also requires the explicit terminal-create grant. Directory association requires navigation
 and its independent directory-association grant. For externally submitted OBWP reads and commands, the
@@ -406,10 +406,18 @@ they cannot supply new product identities, replace the shared document, or publi
 
 ## Navigation model
 
+`panel.rename` extends the pure metadata owner with the exact context/Tab/leaf primary
+Presentation override. Its [Panel label contract](../../orchbee/docs/native-panel-labels.md)
+keeps the creation fallback immutable and defines bounded normalized set/clear, no-op and
+projection semantics. `WorkbenchNavigationCommit` distinguishes a Tab label from the primary
+Presentation override in the same Tab, including a missing Panel target; `SendPanelSet` and
+`SendPanelClear` exercise both override directions under the existing retained-ledger rules.
+Concrete normalization and the immutable binding/fallback footprint remain refinement tests.
+
 | Field              | Contract                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Problem            | Independent admitted Clients must modify and observe one shared navigation structure without lost updates or duplicate logical effects.                                                                                                                                                                                                                                                                                             |
-| Inputs             | A strict snapshot or publication read intent, or a strict command with request identity, exact Site, expected revision, and one of the five actions below. Labels preserve their exact nonempty text, bounded to 512 Unicode code points. A Tab rename fingerprint includes its context, Tab, label, and base revision.                                                                                                             |
+| Inputs             | A strict snapshot or publication read intent, or a strict command with request identity, exact Site, expected revision, and one of the six actions below. Creation and Tab labels preserve their exact nonempty text, bounded to 512 Unicode code points; Panel overrides normalize bounded nullable updates as defined above. A Tab rename fingerprint includes its context, Tab, label, and base revision.                        |
 | Data               | Active or retired authority, one validated Snapshot, a Server-owned non-reusing identity cursor, and a bounded request/result ledger. The initial revision is zero and the standalone Terminal Context is empty. The adapter obtains a nonzero Site identity from operating-system randomness. The cursor never reuses navigation aggregate identities; unrelated Terminal/operation identity domains retain their existing owners. |
 | Outputs            | Read returns correlated available { snapshot }, denied {}, or unavailable { reason }. Publication read returns current { revision }, published { publications }, denied {}, or unavailable { reason }. Command returns project-created, workspace-created, renamed, unchanged, rejected, denied, or unavailable. Created identities appear only in their corresponding success variants.                                            |
 | Invariants         | Only Server commits shared structure. Every Workspace references exactly one context. Rejection preserves structure, revision and allocation state. A changed candidate advances exactly one revision. An equal rename preserves revision. Tab rename changes only its target `Tab.label`; non-target labels and every other projection fact remain exact. One request identity cannot commit twice.                                |
@@ -420,15 +428,16 @@ they cannot supply new product identities, replace the shared document, or publi
 | Verification       | Schema-authored Rust/TypeScript conformance, deterministic stateful command traces with reduction, bounded TLA concurrency/replay checking, and a real two-Client Server-process witness.                                                                                                                                                                                                                                           |
 | Correctness limits | The model abstracts labels, identity encoding, OS scheduling and JSON. Process evidence is Linux; no persistence, transport retry, restored Site identity after restart, or public Client integration is claimed by this transition group.                                                                                                                                                                                          |
 
-| Action           | Guard                                              | Committed result                                     |
-| ---------------- | -------------------------------------------------- | ---------------------------------------------------- |
-| project.create   | Label and projection capacity accepted             | One new Project with no Workspace                    |
-| project.rename   | Exact Project exists                               | Its label changes; equal text is unchanged           |
-| workspace.create | Exact Project exists and context capacity accepted | One new Workspace and its one empty Terminal Context |
-| workspace.rename | Exact Workspace belongs to the named Project       | Its label changes; equal text is unchanged           |
-| tab.rename       | Exact context contains the exact Tab               | Its Tab label changes; equal text is unchanged       |
+| Action           | Guard                                              | Committed result                                                        |
+| ---------------- | -------------------------------------------------- | ----------------------------------------------------------------------- |
+| project.create   | Label and projection capacity accepted             | One new Project with no Workspace                                       |
+| project.rename   | Exact Project exists                               | Its label changes; equal text is unchanged                              |
+| workspace.create | Exact Project exists and context capacity accepted | One new Workspace and its one empty Terminal Context                    |
+| workspace.rename | Exact Workspace belongs to the named Project       | Its label changes; equal text is unchanged                              |
+| tab.rename       | Exact context contains the exact Tab               | Its Tab label changes; equal text is unchanged                          |
+| panel.rename     | Exact context/Tab contains the Panel               | Primary override changes or clears; equal normalized value is unchanged |
 
-No normalization, optimistic Client commit, automatic conflict retry, focus change or terminal
+Only Panel override updates normalize whitespace. No optimistic Client commit, automatic conflict retry, focus change or terminal
 effect accompanies these operations. Reading does not occupy a command-ledger entry.
 
 ## Commit and replay
@@ -723,7 +732,7 @@ owns Client evidence; installed delivery remains unfinished.
 ### Admission and joint commit
 
 The library classifies a wire request without reading authority state. Its opaque
-`WorkbenchReadOrNavigationRequest` accepts only snapshot reads, publication reads and the five pure Workbench actions;
+`WorkbenchReadOrNavigationRequest` accepts only snapshot reads, publication reads and the six pure Workbench actions;
 `TryFrom<WorkbenchRequest>` returns the complete original owned request when it cannot classify it.
 The service explicitly routes rejected TabCreate and TabMove commands to their Site composition
 paths; any other rejected request receives a definite unavailable response. Rejection never

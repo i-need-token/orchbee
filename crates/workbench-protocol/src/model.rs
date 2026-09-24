@@ -26,8 +26,23 @@ pub struct PresentationBinding {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Presentation {
     pub binding: Option<PresentationBinding>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::panel_label::deserialize_present"
+    )]
+    pub custom_label: Option<crate::PanelCustomLabel>,
     pub label: String,
     pub presentation_id: TerminalPresentationId,
+}
+
+impl Presentation {
+    #[must_use]
+    pub fn display_label(&self) -> &str {
+        self.custom_label
+            .as_ref()
+            .map_or(self.label.as_str(), crate::PanelCustomLabel::as_str)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

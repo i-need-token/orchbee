@@ -6930,3 +6930,45 @@ fn agent_panel_selectors_are_exclusive_and_preserve_following_operands() {
         assert!(parse_request(words.into_iter().map(OsString::from)).is_ok());
     }
 }
+
+#[test]
+fn panel_rename_admits_exact_targets_and_normalizes_only_its_label() {
+    let parse = |words: &[&str]| parse_request(words.iter().map(OsString::from));
+    for (flags, expected) in [
+        (vec!["--label", "  标题\u{85}"], Some("标题")),
+        (vec!["--label="], None),
+        (vec!["--clear"], None),
+    ] {
+        let mut words = vec!["panel", "rename", "@panel:1234"];
+        words.extend(flags);
+        let Request::Mutation {
+            command: MutationCommand::PanelRename { target, label },
+            ..
+        } = parse(&words).unwrap()
+        else {
+            panic!("panel rename")
+        };
+        assert_eq!(target.suffix(), Some("1234"));
+        assert_eq!(label.custom_label().map(|value| value.as_str()), expected);
+    }
+    for words in [
+        vec!["panel", "rename", "@panel:1234"],
+        vec!["panel", "rename", "label", "--clear"],
+        vec!["panel", "rename", "--clear"],
+        vec!["panel", "rename", "@panel:1234", "--clear", "--label=x"],
+        vec!["panel", "rename", "@panel:1234", "--current", "--clear"],
+        vec!["panel", "rename", "@panel:1234", "extra", "--clear"],
+    ] {
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
+    assert!(
+        parse(&[
+            "panel",
+            "rename",
+            "@panel:1234",
+            "--label",
+            &"🐝".repeat(513)
+        ])
+        .is_err()
+    );
+}

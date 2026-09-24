@@ -600,6 +600,7 @@ fn relocate_names_a_stacked_panel_with_panel_not_leaf_instead_of_retiring() {
                     primary_presentation,
                 } if *panel_id == panel_b => {
                     child_presentations.push(Presentation {
+                        custom_label: None,
                         presentation_id: orchbee_workbench_protocol::TerminalPresentationId::parse(
                             &identity(424_242),
                         )
@@ -982,6 +983,7 @@ fn deep_tree(depth: usize, seed: u128) -> PanelNode {
         return PanelNode::Panel {
             panel_id: WorkbenchPanelId::parse(&identity(seed)).unwrap(),
             primary_presentation: Presentation {
+                custom_label: None,
                 presentation_id: orchbee_workbench_protocol::TerminalPresentationId::parse(
                     &identity(seed + 1),
                 )
@@ -1001,6 +1003,7 @@ fn deep_tree(depth: usize, seed: u128) -> PanelNode {
                 node: PanelNode::Panel {
                     panel_id: WorkbenchPanelId::parse(&identity(seed + 2)).unwrap(),
                     primary_presentation: Presentation {
+                        custom_label: None,
                         presentation_id: orchbee_workbench_protocol::TerminalPresentationId::parse(
                             &identity(seed + 3),
                         )

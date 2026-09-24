@@ -291,6 +291,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::TabList,
         CommandPath::TabMove,
         CommandPath::TabRename,
+        CommandPath::PanelRename,
         CommandPath::TerminalGet,
         CommandPath::TerminalList,
         CommandPath::TerminalRead,

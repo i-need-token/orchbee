@@ -195,6 +195,7 @@ pub(crate) struct NativePanel {
     panel_id: WorkbenchPanelId,
     presentation_id: TerminalPresentationId,
     presentation_label: WorkbenchLabel,
+    custom_label: Option<orchbee_workbench_protocol::PanelCustomLabel>,
     binding: NativeTerminalBinding,
 }
 
@@ -211,6 +212,16 @@ impl NativePanel {
 
     pub(crate) fn presentation_label(&self) -> &WorkbenchLabel {
         &self.presentation_label
+    }
+
+    pub(crate) fn custom_label(&self) -> Option<&str> {
+        self.custom_label.as_ref().map(|label| label.as_str())
+    }
+
+    pub(crate) fn display_label(&self) -> &str {
+        self.custom_label
+            .as_ref()
+            .map_or(self.presentation_label.as_str(), |label| label.as_str())
     }
 
     pub(super) fn binding(&self) -> &NativeTerminalBinding {
@@ -1185,6 +1196,7 @@ fn project_panel_tree(
             panels.push(NativePanel {
                 panel_id: panel_id.clone(),
                 presentation_id: primary_presentation.presentation_id.clone(),
+                custom_label: primary_presentation.custom_label.clone(),
                 presentation_label: WorkbenchLabel::parse(&primary_presentation.label)
                     .map_err(|_error| NativeProjectionError)?,
                 binding: NativeTerminalBinding {

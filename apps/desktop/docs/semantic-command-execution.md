@@ -266,6 +266,8 @@ connection expiration before publishing admission, and the existing infinite-tim
 identity failure fixtures cover missing/mismatched tokens and failed impersonation. The byte is
 unobservable on failed admission, and the accept thread returns without impersonation. These finite
 cuts refine invariants 11-13; they do not add trusted identities or replace real cross-user testing.
+The post-byte expiry fixture advances its clock only after the exact preread operation completes
+with one byte; issuing a pending read cannot expire the connection before the controlled write.
 
 The same verifier runs `tests/windows_write.c` with real named pipes to cover delayed and partial
 response reads, both flush-dispatch deadline orderings, peer close, helper creation failure,

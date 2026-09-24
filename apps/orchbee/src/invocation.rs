@@ -225,6 +225,7 @@ pub(crate) enum CommandPath {
     TabGet,
     TabCreate,
     TabRename,
+    PanelRename,
     TabMove,
     TabClose,
     PanelList,
@@ -310,6 +311,7 @@ impl CommandPath {
             Self::TabGet => "tab get",
             Self::TabCreate => "tab create",
             Self::TabRename => "tab rename",
+            Self::PanelRename => "panel rename",
             Self::TabMove => "tab move",
             Self::TabClose => "tab close",
             Self::PanelList => "panel list",
@@ -808,6 +810,10 @@ pub(crate) enum MutationCommand {
         profile: Option<LaunchProfileSelector>,
         options: LaunchOptions,
     },
+    PanelRename {
+        target: Target,
+        label: orchbee_workbench_protocol::PanelLabelUpdate,
+    },
     TabRename {
         target: Target,
         label: WorkbenchLabel,
@@ -1081,6 +1087,7 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    PanelLabel,
     OutputFilePath,
     ClientId,
     ClientOperationId,
@@ -2742,6 +2749,46 @@ fn resolve_words(
                 options,
             ))
         }
+        ["panel", "rename", value] => {
+            let context = UsageContext::Path("panel rename");
+            check_scope(
+                options,
+                Scope {
+                    clear: true,
+                    ..LABEL_SCOPE
+                },
+                context,
+                envelope,
+            )?;
+            reject_conflict(options.clear && options.label.is_some(), context, envelope)?;
+            if !options.clear && options.label.is_none() {
+                return Err(missing_required(
+                    context,
+                    "'--label' or '--clear'",
+                    envelope,
+                ));
+            }
+            let label =
+                orchbee_workbench_protocol::PanelLabelUpdate::parse(options.label.as_deref())
+                    .map_err(|_| {
+                        usage_with(
+                            UsageReason::InvalidValue {
+                                context,
+                                option: "--label",
+                                value: options.label.clone().unwrap_or_default(),
+                                expected: ExpectedValue::PanelLabel,
+                            },
+                            envelope,
+                        )
+                    })?;
+            Ok(mutation(
+                MutationCommand::PanelRename {
+                    target: target((*value).to_owned(), Resource::Panel, envelope)?,
+                    label,
+                },
+                options,
+            ))
+        }
         ["tab", "rename", value] => {
             check_scope(
                 options,
@@ -3713,6 +3760,7 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["tab", "get"] => HelpTopic::Command(CommandPath::TabGet),
         ["tab", "create"] => HelpTopic::Command(CommandPath::TabCreate),
         ["tab", "rename"] => HelpTopic::Command(CommandPath::TabRename),
+        ["panel", "rename"] => HelpTopic::Command(CommandPath::PanelRename),
         ["tab", "move"] => HelpTopic::Command(CommandPath::TabMove),
         ["tab", "close"] => HelpTopic::Command(CommandPath::TabClose),
         ["panel", "list"] => HelpTopic::Command(CommandPath::PanelList),

@@ -3426,7 +3426,7 @@
 				"apps/orchbee/src/client_view.rs",
 				"apps/orchbee/src/tui_render.rs",
 				"apps/orchbee/src/tui_shell.rs",
-				"apps/orchbee/src/local_client/workbench/tab_rename.rs",
+				"apps/orchbee/src/local_client/workbench/label_rename.rs",
 				"apps/orchbee/src/client_view/**",
 				"apps/orchbee/src/tui_render/**",
 				"apps/orchbee/src/tui_shell/**",
@@ -5346,7 +5346,10 @@
 			"workspace": "apps/orchbee-server",
 			"module": "apps/orchbee-server/formal/tla/WorkbenchNavigationCommit.tla",
 			"config": "apps/orchbee-server/formal/tla/WorkbenchNavigationCommit.cfg",
-			"claims": ["apps/orchbee-server/docs/workbench-authority.md"],
+			"claims": [
+				"apps/orchbee-server/docs/workbench-authority.md",
+				"apps/orchbee/docs/native-panel-labels.md"
+			],
 			"triggers": [
 				"apps/orchbee-server/src/lib.rs",
 				"apps/orchbee-server/src/main.rs",
@@ -5367,6 +5370,8 @@
 			],
 			"requiredCoverage": [
 				"Send",
+				"SendPanelSet",
+				"SendPanelClear",
 				"Deny",
 				"Replay",
 				"Conflict",

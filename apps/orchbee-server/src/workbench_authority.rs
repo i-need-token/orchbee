@@ -786,6 +786,37 @@ impl WorkbenchAuthority {
                     candidate.revision = revision;
                     WorkbenchCommandOutcome::Renamed { revision }
                 }
+                PureWorkbenchAction::PanelRename {
+                    terminal_context_id,
+                    tab_id,
+                    panel_id,
+                    label,
+                } => {
+                    let context = candidate
+                        .terminal_contexts
+                        .iter_mut()
+                        .find(|context| context.terminal_context_id == terminal_context_id)
+                        .ok_or(PlanFailure::Rejected(
+                            WorkbenchRejectionReason::TerminalContextUnavailable,
+                        ))?;
+                    let tab = context
+                        .tabs
+                        .iter_mut()
+                        .find(|tab| tab.tab_id == tab_id)
+                        .ok_or(PlanFailure::Rejected(
+                            WorkbenchRejectionReason::TabUnavailable,
+                        ))?;
+                    let presentation = panel_primary_mut(&mut tab.root, &panel_id).ok_or(
+                        PlanFailure::Rejected(WorkbenchRejectionReason::PanelUnavailable),
+                    )?;
+                    if presentation.custom_label.as_ref() == label.custom_label() {
+                        return Ok(self.unchanged());
+                    }
+                    let revision = self.next_revision()?;
+                    presentation.custom_label = label.custom_label().cloned();
+                    candidate.revision = revision;
+                    WorkbenchCommandOutcome::Renamed { revision }
+                }
                 PureWorkbenchAction::LaunchProfileCreate { name, launch } => {
                     if self.catalog.len() >= MAXIMUM_LAUNCH_PROFILE_ENTRIES {
                         return reject(WorkbenchRejectionReason::ResourceLimit);
@@ -922,6 +953,23 @@ impl PreparedCommandCommit<'_> {
         self.response
     }
 }
+fn panel_primary_mut<'a>(
+    node: &'a mut orchbee_workbench_protocol::PanelNode,
+    panel_id: &orchbee_workbench_protocol::WorkbenchPanelId,
+) -> Option<&'a mut orchbee_workbench_protocol::Presentation> {
+    use orchbee_workbench_protocol::PanelNode;
+    match node {
+        PanelNode::Panel {
+            panel_id: candidate,
+            primary_presentation,
+            ..
+        } => (candidate == panel_id).then_some(primary_presentation),
+        PanelNode::Split { children, .. } => children
+            .iter_mut()
+            .find_map(|slot| panel_primary_mut(&mut slot.node, panel_id)),
+    }
+}
+
 enum PlanFailure {
     Rejected(WorkbenchRejectionReason),
     Internal,
@@ -948,6 +996,12 @@ enum PureWorkbenchAction {
         terminal_context_id: WorkbenchTerminalContextId,
         tab_id: WorkbenchTabId,
         label: WorkbenchLabel,
+    },
+    PanelRename {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: orchbee_workbench_protocol::WorkbenchPanelId,
+        label: orchbee_workbench_protocol::PanelLabelUpdate,
     },
     LaunchProfileCreate {
         name: orchbee_workbench_protocol::LaunchProfileName,
@@ -988,6 +1042,17 @@ impl PureWorkbenchAction {
             } => Self::TabRename {
                 terminal_context_id: terminal_context_id.clone(),
                 tab_id: tab_id.clone(),
+                label: label.clone(),
+            },
+            WorkbenchAction::PanelRename {
+                terminal_context_id,
+                tab_id,
+                panel_id,
+                label,
+            } => Self::PanelRename {
+                terminal_context_id: terminal_context_id.clone(),
+                tab_id: tab_id.clone(),
+                panel_id: panel_id.clone(),
                 label: label.clone(),
             },
             WorkbenchAction::LaunchProfileCreate { name, launch } => Self::LaunchProfileCreate {

@@ -441,6 +441,14 @@ pub enum WorkbenchAction {
         tab_id: WorkbenchTabId,
         label: WorkbenchLabel,
     },
+    #[serde(rename = "panel.rename")]
+    PanelRename {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        #[serde(default)]
+        label: crate::PanelLabelUpdate,
+    },
     #[serde(rename = "tab.move")]
     TabMove {
         terminal_context_id: WorkbenchTerminalContextId,

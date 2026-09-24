@@ -56,6 +56,7 @@ import {
 	WorkbenchDirectoryIdSchema,
 	WorkbenchDirectoryPathSchema,
 	WorkbenchLabelSchema,
+	WorkbenchPanelLabelUpdateSchema,
 	WorkbenchPanelIdSchema,
 	WorkbenchPanelSlotIdSchema,
 	WorkbenchProjectIdSchema,
@@ -122,6 +123,15 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 			projectId: WorkbenchProjectIdSchema,
 			workspaceId: WorkbenchWorkspaceIdSchema,
 			path: WorkbenchDirectoryPathSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('panel.rename'),
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			panelId: WorkbenchPanelIdSchema,
+			label: WorkbenchPanelLabelUpdateSchema,
 		})
 		.readonly(),
 	z

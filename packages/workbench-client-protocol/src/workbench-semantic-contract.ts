@@ -65,6 +65,24 @@ export const WorkbenchLabelSchema = z
 		'Label exceeds the Unicode code-point limit',
 	);
 
+const WorkbenchPanelCustomLabelSchema = WorkbenchLabelSchema.refine(
+	(value) => !/^\p{White_Space}|\p{White_Space}$/u.test(value),
+	'Panel custom label must already be trimmed',
+);
+
+export const WorkbenchPanelLabelUpdateSchema = z
+	.string()
+	.refine(
+		(value) => !/[\uD800-\uDFFF]/u.test(value),
+		'Label contains an unpaired Unicode surrogate',
+	)
+	.refine(
+		(value) => [...value].length <= WORKBENCH_MAXIMUM_LABEL_LENGTH,
+		'Label exceeds the Unicode code-point limit',
+	)
+	.nullish()
+	.transform((value) => value?.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, '') || null);
+
 export const WorkbenchDirectoryPathSchema = z
 	.string()
 	.min(1)
@@ -107,6 +125,7 @@ export const WorkbenchPresentationBindingSchema = z
 export const WorkbenchPresentationSchema = z
 	.strictObject({
 		binding: WorkbenchPresentationBindingSchema.nullable(),
+		customLabel: WorkbenchPanelCustomLabelSchema.optional(),
 		label: WorkbenchLabelSchema,
 		presentationId: TerminalPresentationIdSchema,
 	})

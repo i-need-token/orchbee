@@ -42,7 +42,7 @@ impl PanelCloseTarget {
 pub(in crate::terminal_session) struct PanelCloseSelection {
     target: PanelCloseTarget,
     desired: AttachmentKey,
-    panel_label: WorkbenchLabel,
+    panel_label: String,
     tab_label: WorkbenchLabel,
     binding: NativeTerminalBinding,
     dissolves_tab: bool,
@@ -53,7 +53,7 @@ impl PanelCloseSelection {
     const fn new(
         target: PanelCloseTarget,
         desired: AttachmentKey,
-        panel_label: WorkbenchLabel,
+        panel_label: String,
         tab_label: WorkbenchLabel,
         binding: NativeTerminalBinding,
         dissolves_tab: bool,
@@ -206,7 +206,7 @@ impl NativeSessionState {
                 .as_ref()
                 .map(|key| key.anchor().clone())
                 .ok_or(PanelCloseStateError::Busy)?,
-            panel.presentation_label().clone(),
+            panel.display_label().to_owned(),
             tab.tab_label().clone(),
             panel.binding().clone(),
             tab.panel_count() == 1,

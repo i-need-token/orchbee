@@ -1355,6 +1355,7 @@ fn snapshot() -> Snapshot {
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&id(3)).unwrap(),
                     primary_presentation: Presentation {
+                        custom_label: None,
                         binding: Some(PresentationBinding {
                             terminal_id: TerminalId::parse(&id(4)).unwrap(),
                             worker_id: WorkerId::parse(&id(5)).unwrap(),

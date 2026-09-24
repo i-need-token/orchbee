@@ -33,6 +33,7 @@ fn split_fixture(count: u128) -> (WorkbenchAuthority, WorkbenchGrant) {
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&identity(102)).unwrap(),
                     primary_presentation: Presentation {
+                        custom_label: None,
                         binding: Some(binding(700 + count)),
                         label: "right".to_owned(),
                         presentation_id: TerminalPresentationId::parse(&identity(103)).unwrap(),

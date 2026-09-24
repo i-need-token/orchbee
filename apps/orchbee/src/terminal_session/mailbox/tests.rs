@@ -2423,6 +2423,7 @@ fn projected_tabs(tab_count: usize) -> NativeContextTabs {
                             child_presentations: Vec::new(),
                             panel_id: WorkbenchPanelId::parse(&id(5 + offset)).unwrap(),
                             primary_presentation: Presentation {
+                                custom_label: None,
                                 binding: Some(PresentationBinding {
                                     terminal_id: TerminalId::parse(&id(7 + offset)).unwrap(),
                                     worker_id: WorkerId::parse(&id(6 + offset)).unwrap(),

@@ -1,0 +1,86 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.panel.rename",
+	"title": "orchbee panel rename receipt envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.panel.rename"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"$ref": "#/$defs/commandSource"
+		},
+		"result": {
+			"type": "object",
+			"required": [
+				"action",
+				"outcome",
+				"revision",
+				"terminalContextId",
+				"tabId",
+				"panelId",
+				"customLabel"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"action": {
+					"const": "panel.rename"
+				},
+				"outcome": {
+					"enum": ["renamed", "unchanged"]
+				},
+				"revision": {
+					"$ref": "#/$defs/revision"
+				},
+				"terminalContextId": {
+					"$ref": "#/$defs/id"
+				},
+				"tabId": {
+					"$ref": "#/$defs/id"
+				},
+				"panelId": {
+					"$ref": "#/$defs/id"
+				},
+				"customLabel": {
+					"type": ["string", "null"],
+					"minLength": 1,
+					"maxLength": 512
+				}
+			}
+		}
+	},
+	"$defs": {
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"revision": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)$"
+		},
+		"commandSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "requestId", "expectedRevision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench-command"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"requestId": {
+					"$ref": "#/$defs/id"
+				},
+				"expectedRevision": {
+					"$ref": "#/$defs/revision"
+				}
+			}
+		}
+	}
+}

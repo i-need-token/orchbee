@@ -270,6 +270,7 @@ fn available_snapshot(binding: Option<PresentationBinding>) -> WorkbenchSnapshot
                         child_presentations: Vec::new(),
                         panel_id: WorkbenchPanelId::parse(ID).unwrap(),
                         primary_presentation: Presentation {
+                            custom_label: None,
                             binding,
                             label: "terminal".into(),
                             presentation_id: TerminalPresentationId::parse(ID).unwrap(),

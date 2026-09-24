@@ -40,6 +40,7 @@ pub(super) struct Receipt {
     ids: Vec<(&'static str, String)>,
     direction: Option<&'static str>,
     label: Option<String>,
+    custom_label: Option<orchbee_workbench_protocol::PanelLabelUpdate>,
     path: Option<String>,
     terminal: Option<TerminalFact>,
     /// The catalog-private revision a launch-profile command committed —
@@ -87,6 +88,9 @@ impl Receipt {
         if let Some(label) = &self.label {
             result.insert("label".to_owned(), json!(label));
         }
+        if let Some(label) = &self.custom_label {
+            result.insert("customLabel".to_owned(), json!(label));
+        }
         if let Some(path) = &self.path {
             result.insert("path".to_owned(), json!(path));
         }
@@ -110,7 +114,7 @@ impl Receipt {
             // additions; version-3 validators stay behind. `project rename`
             // keeps its dedicated v1 document — the shared action enum stays
             // closed.
-            "version": if self.schema_id == super::schema::PROJECT_RENAME_RESULT_ID {
+            "version": if matches!(self.schema_id, super::schema::PROJECT_RENAME_RESULT_ID | super::schema::PANEL_RENAME_RESULT_ID) {
                 1
             } else {
                 4
@@ -209,6 +213,14 @@ impl Receipt {
         }
         if let Some(label) = &self.label {
             rows.push(("label", label.clone()));
+        }
+        if let Some(label) = &self.custom_label {
+            rows.push((
+                "customLabel",
+                label
+                    .custom_label()
+                    .map_or_else(|| "null".to_owned(), |value| value.as_str().to_owned()),
+            ));
         }
         if let Some(path) = &self.path {
             rows.push(("path", path.clone()));
@@ -322,6 +334,10 @@ mod linux {
         MutationCommand, OutputFormat, PanelMoveDestination, Resource, TabContext, Target,
     };
     use crate::local_client::LocalClient;
+    use crate::local_client::workbench::label_rename::{
+        WorkbenchLabelRenameNotSubmitted, WorkbenchLabelRenameOutcomeUnknownReason,
+        WorkbenchLabelRenamePrecommit, WorkbenchLabelRenameRequest, WorkbenchLabelRenameSubmission,
+    };
     use crate::local_client::workbench::launch_profile::{
         LaunchProfileMutationNotSubmitted, LaunchProfileOutcomeUnknownReason,
         WorkbenchLaunchProfileCreateRequest, WorkbenchLaunchProfileDeleteRequest,
@@ -345,10 +361,6 @@ mod linux {
         WorkbenchPanelSplitCommit, WorkbenchPanelSplitNotSubmitted,
         WorkbenchPanelSplitOutcomeUnknownReason, WorkbenchPanelSplitPrecommit,
         WorkbenchPanelSplitRequest, WorkbenchPanelSplitSubmission,
-    };
-    use crate::local_client::workbench::tab_rename::{
-        WorkbenchTabRenameNotSubmitted, WorkbenchTabRenameOutcomeUnknownReason,
-        WorkbenchTabRenamePrecommit, WorkbenchTabRenameRequest, WorkbenchTabRenameSubmission,
     };
     use crate::local_client::workbench::workspace_setup::{
         WorkbenchSetupCommit, WorkbenchSetupNotSubmitted, WorkbenchSetupOutcomeUnknownReason,
@@ -501,7 +513,7 @@ mod linux {
     submissions! {
         (WorkbenchSetupNotSubmitted, WorkbenchSetupPrecommit, WorkbenchSetupOutcomeUnknownReason);
         (LaunchProfileMutationNotSubmitted, WorkbenchLaunchProfileMutationPrecommit, LaunchProfileOutcomeUnknownReason);
-        (WorkbenchTabRenameNotSubmitted, WorkbenchTabRenamePrecommit, WorkbenchTabRenameOutcomeUnknownReason);
+        (WorkbenchLabelRenameNotSubmitted, WorkbenchLabelRenamePrecommit, WorkbenchLabelRenameOutcomeUnknownReason);
         (WorkbenchTabMoveNotSubmitted, WorkbenchTabMovePrecommit, WorkbenchTabMoveOutcomeUnknownReason);
         (WorkbenchTabCloseNotSubmitted, WorkbenchTabClosePrecommit, WorkbenchTabCloseFailure);
         (WorkbenchPanelCloseNotSubmitted, WorkbenchPanelClosePrecommit, WorkbenchPanelCloseFailure);
@@ -655,6 +667,15 @@ mod linux {
                     launch: launch.clone(),
                     profile: profile.clone(),
                     options: Box::new(options.clone()),
+                })
+            }
+            MutationCommand::PanelRename { target, label } => {
+                let (context, tab, panel_id) = resolve_panel(snapshot, target)?;
+                Ok(WorkbenchAction::PanelRename {
+                    terminal_context_id: context.terminal_context_id.clone(),
+                    tab_id: tab.tab_id.clone(),
+                    panel_id,
+                    label: label.clone(),
                 })
             }
             MutationCommand::TabRename { target, label } => {
@@ -1105,33 +1126,50 @@ mod linux {
                     }
                 }
             }
-            WorkbenchAction::TabRename {
-                terminal_context_id,
-                tab_id,
-                label,
-            } => {
+            WorkbenchAction::TabRename { .. } | WorkbenchAction::PanelRename { .. } => {
                 let request =
-                    WorkbenchTabRenameRequest::try_from(command).map_err(|_| internal())?;
-                let base = receipt(&resolved, "tab.rename", "committed")
-                    .id("terminalContextId", terminal_context_id.as_str())
-                    .id("tabId", tab_id.as_str())
-                    .label(label.as_str());
-                match client.submit_workbench_tab_rename(request, deadline) {
-                    WorkbenchTabRenameSubmission::Committed { revision } => {
+                    WorkbenchLabelRenameRequest::try_from(command).map_err(|_| internal())?;
+                let base = match &resolved.action {
+                    WorkbenchAction::TabRename {
+                        terminal_context_id,
+                        tab_id,
+                        label,
+                    } => receipt(&resolved, "tab.rename", "committed")
+                        .id("terminalContextId", terminal_context_id.as_str())
+                        .id("tabId", tab_id.as_str())
+                        .label(label.as_str()),
+                    WorkbenchAction::PanelRename {
+                        terminal_context_id,
+                        tab_id,
+                        panel_id,
+                        label,
+                    } => {
+                        let mut base = receipt(&resolved, "panel.rename", "renamed")
+                            .schema(super::super::schema::PANEL_RENAME_RESULT_ID)
+                            .id("terminalContextId", terminal_context_id.as_str())
+                            .id("tabId", tab_id.as_str())
+                            .id("panelId", panel_id.as_str());
+                        base.custom_label = Some(label.clone());
+                        base
+                    }
+                    _ => return Err(internal()),
+                };
+                match client.submit_workbench_label_rename(request, deadline) {
+                    WorkbenchLabelRenameSubmission::Committed { revision } => {
                         Ok(base.revision(revision))
                     }
-                    WorkbenchTabRenameSubmission::Unchanged { revision } => Ok(Receipt {
+                    WorkbenchLabelRenameSubmission::Unchanged { revision } => Ok(Receipt {
                         outcome: "unchanged",
                         ..base
                     }
                     .revision(revision)),
-                    WorkbenchTabRenameSubmission::DefinitePrecommit(precommit) => {
+                    WorkbenchLabelRenameSubmission::DefinitePrecommit(precommit) => {
                         Err(precommit_failure(precommit.into(), &resolved.action))
                     }
-                    WorkbenchTabRenameSubmission::DefinitelyNotSubmitted(reason) => {
+                    WorkbenchLabelRenameSubmission::DefinitelyNotSubmitted(reason) => {
                         Err(not_submitted_failure(reason.into()))
                     }
-                    WorkbenchTabRenameSubmission::OutcomeUnknown { request_id, reason } => {
+                    WorkbenchLabelRenameSubmission::OutcomeUnknown { request_id, reason } => {
                         Err(unknown_failure(request_id, reason.reason()))
                     }
                 }
@@ -1594,6 +1632,7 @@ mod linux {
                 ],
                 direction: None,
                 label: None,
+                custom_label: None,
                 path: None,
                 terminal: None,
                 catalog_revision: None,
@@ -1677,6 +1716,7 @@ mod linux {
             ids: Vec::new(),
             direction: None,
             label: None,
+            custom_label: None,
             path: None,
             terminal: None,
             catalog_revision: None,

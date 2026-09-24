@@ -1,13 +1,13 @@
 use super::*;
-use crate::local_client::workbench::tab_rename::{
-    WorkbenchTabRenameNotSubmitted, WorkbenchTabRenameOutcomeUnknownReason,
-    WorkbenchTabRenamePrecommit, WorkbenchTabRenameRequest, WorkbenchTabRenameSubmission,
+use crate::local_client::workbench::label_rename::{
+    WorkbenchLabelRenameNotSubmitted, WorkbenchLabelRenameOutcomeUnknownReason,
+    WorkbenchLabelRenamePrecommit, WorkbenchLabelRenameRequest, WorkbenchLabelRenameSubmission,
 };
 use orchbee_workbench_protocol::WorkbenchTabMoveDirection;
 
 #[test]
 fn opaque_rename_request_rejects_other_actions_unchanged() {
-    assert!(WorkbenchTabRenameRequest::try_from(rename_command(7)).is_ok());
+    assert!(WorkbenchLabelRenameRequest::try_from(rename_command(7)).is_ok());
     for action in [
         WorkbenchAction::ProjectCreate {
             label: workbench_label(),
@@ -38,7 +38,7 @@ fn opaque_rename_request_rejects_other_actions_unchanged() {
     ] {
         let command = workbench_command(FIRST_REQUEST_ID, 7, action);
         assert_eq!(
-            WorkbenchTabRenameRequest::try_from(command.clone()).unwrap_err(),
+            WorkbenchLabelRenameRequest::try_from(command.clone()).unwrap_err(),
             command
         );
     }
@@ -105,29 +105,29 @@ fn rename_preserves_exact_commit_noop_and_compatible_precommit() -> TestResult {
             .map_err(io::Error::other)
         })?;
         let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
-        let actual = client.submit_workbench_tab_rename(
-            WorkbenchTabRenameRequest::try_from(rename_command(baseline)).unwrap(),
+        let actual = client.submit_workbench_label_rename(
+            WorkbenchLabelRenameRequest::try_from(rename_command(baseline)).unwrap(),
             client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
         );
         match (outcome, actual) {
             (
                 WorkbenchCommandOutcome::Unchanged { revision: expected },
-                WorkbenchTabRenameSubmission::Unchanged { revision },
+                WorkbenchLabelRenameSubmission::Unchanged { revision },
             ) => assert_eq!(revision, expected),
             (
                 WorkbenchCommandOutcome::Renamed { revision: expected },
-                WorkbenchTabRenameSubmission::Committed { revision },
+                WorkbenchLabelRenameSubmission::Committed { revision },
             ) => assert_eq!(revision, expected),
             (
                 WorkbenchCommandOutcome::Denied {},
-                WorkbenchTabRenameSubmission::DefinitePrecommit(
-                    WorkbenchTabRenamePrecommit::Denied,
+                WorkbenchLabelRenameSubmission::DefinitePrecommit(
+                    WorkbenchLabelRenamePrecommit::Denied,
                 ),
             ) => {}
             (
                 WorkbenchCommandOutcome::Rejected { revision, reason },
-                WorkbenchTabRenameSubmission::DefinitePrecommit(
-                    WorkbenchTabRenamePrecommit::Rejected {
+                WorkbenchLabelRenameSubmission::DefinitePrecommit(
+                    WorkbenchLabelRenamePrecommit::Rejected {
                         revision: actual,
                         reason: actual_reason,
                     },
@@ -135,8 +135,8 @@ fn rename_preserves_exact_commit_noop_and_compatible_precommit() -> TestResult {
             ) => assert_eq!((actual, actual_reason), (revision, reason)),
             (
                 WorkbenchCommandOutcome::Unavailable { reason },
-                WorkbenchTabRenameSubmission::DefinitePrecommit(
-                    WorkbenchTabRenamePrecommit::Unavailable { reason: actual },
+                WorkbenchLabelRenameSubmission::DefinitePrecommit(
+                    WorkbenchLabelRenamePrecommit::Unavailable { reason: actual },
                 ),
             ) => assert_eq!(actual, reason),
             other => panic!("unexpected rename classification {other:?}"),
@@ -219,7 +219,7 @@ fn rename_retires_impossible_revisions_and_action_results() -> TestResult {
     ] {
         let result = invalid_rename(baseline, command_response(FIRST_REQUEST_ID, outcome))?;
         assert!(
-            matches!(result, WorkbenchTabRenameSubmission::OutcomeUnknown {request_id,..} if request_id.as_str()==FIRST_REQUEST_ID)
+            matches!(result, WorkbenchLabelRenameSubmission::OutcomeUnknown {request_id,..} if request_id.as_str()==FIRST_REQUEST_ID)
         );
     }
     Ok(())
@@ -232,13 +232,13 @@ fn rename_retires_wrong_kind_and_correlation_without_replay() -> TestResult {
             7,
             WorkbenchResponse::Snapshot(snapshot_result(FIRST_REQUEST_ID))
         )?,
-        WorkbenchTabRenameSubmission::OutcomeUnknown {
-            reason: WorkbenchTabRenameOutcomeUnknownReason::UnexpectedResponse,
+        WorkbenchLabelRenameSubmission::OutcomeUnknown {
+            reason: WorkbenchLabelRenameOutcomeUnknownReason::UnexpectedResponse,
             ..
         }
     ));
     assert!(
-        matches!(invalid_rename(7, command_response(SECOND_REQUEST_ID,renamed(8)))?, WorkbenchTabRenameSubmission::OutcomeUnknown {reason: WorkbenchTabRenameOutcomeUnknownReason::CorrelationMismatch {expected,received},..} if expected.as_str()==FIRST_REQUEST_ID && received.as_str()==SECOND_REQUEST_ID)
+        matches!(invalid_rename(7, command_response(SECOND_REQUEST_ID,renamed(8)))?, WorkbenchLabelRenameSubmission::OutcomeUnknown {reason: WorkbenchLabelRenameOutcomeUnknownReason::CorrelationMismatch {expected,received},..} if expected.as_str()==FIRST_REQUEST_ID && received.as_str()==SECOND_REQUEST_ID)
     );
     Ok(())
 }
@@ -261,13 +261,13 @@ fn rename_prewrite_expiry_preserves_carrier_and_sends_no_frame() -> TestResult {
     let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
     let deadline = client.operation_clock().now();
     assert!(
-        matches!(client.submit_workbench_tab_rename(WorkbenchTabRenameRequest::try_from(rename_command(7)).unwrap(),deadline),WorkbenchTabRenameSubmission::DefinitelyNotSubmitted(WorkbenchTabRenameNotSubmitted::RequestNotSubmitted(error)) if error.kind()==io::ErrorKind::TimedOut)
+        matches!(client.submit_workbench_label_rename(WorkbenchLabelRenameRequest::try_from(rename_command(7)).unwrap(),deadline),WorkbenchLabelRenameSubmission::DefinitelyNotSubmitted(WorkbenchLabelRenameNotSubmitted::RequestNotSubmitted(error)) if error.kind()==io::ErrorKind::TimedOut)
     );
     client.set_submission_deadline(Some(client.operation_clock().now()));
-    assert!(matches!(client.submit_workbench_tab_rename(
-        WorkbenchTabRenameRequest::try_from(rename_command(7)).unwrap(),
+    assert!(matches!(client.submit_workbench_label_rename(
+        WorkbenchLabelRenameRequest::try_from(rename_command(7)).unwrap(),
         client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
-    ), WorkbenchTabRenameSubmission::DefinitelyNotSubmitted(WorkbenchTabRenameNotSubmitted::RequestNotSubmitted(error)) if error.kind() == io::ErrorKind::TimedOut));
+    ), WorkbenchLabelRenameSubmission::DefinitelyNotSubmitted(WorkbenchLabelRenameNotSubmitted::RequestNotSubmitted(error)) if error.kind() == io::ErrorKind::TimedOut));
     client.set_submission_deadline(None);
     assert_eq!(
         client.submit_workbench_snapshot_read(snapshot_request(SECOND_REQUEST_ID))?,
@@ -302,7 +302,7 @@ fn rename_partial_write_expiry_is_unknown_and_retires() -> TestResult {
         IoChunkLimits::new(usize::MAX, 1),
     )?;
     assert!(
-        matches!(client.submit_workbench_tab_rename(WorkbenchTabRenameRequest::try_from(rename_command(7)).unwrap(),deadline),WorkbenchTabRenameSubmission::OutcomeUnknown {reason:WorkbenchTabRenameOutcomeUnknownReason::Write(error),..} if error.kind()==io::ErrorKind::TimedOut)
+        matches!(client.submit_workbench_label_rename(WorkbenchLabelRenameRequest::try_from(rename_command(7)).unwrap(),deadline),WorkbenchLabelRenameSubmission::OutcomeUnknown {reason:WorkbenchLabelRenameOutcomeUnknownReason::Write(error),..} if error.kind()==io::ErrorKind::TimedOut)
     );
     assert_eq!(client.generation(), None);
     drop(client);
@@ -344,19 +344,19 @@ fn rename_completed_response_past_caller_or_exchange_budget_retires_without_repl
             Box::new(clock),
             IoChunkLimits::UNBOUNDED,
         )?;
-        assert!(matches!(client.submit_workbench_tab_rename(
-            WorkbenchTabRenameRequest::try_from(rename_command(7)).unwrap(), deadline),
-            WorkbenchTabRenameSubmission::OutcomeUnknown {
-                reason: WorkbenchTabRenameOutcomeUnknownReason::ResponseDeadline(error), ..
+        assert!(matches!(client.submit_workbench_label_rename(
+            WorkbenchLabelRenameRequest::try_from(rename_command(7)).unwrap(), deadline),
+            WorkbenchLabelRenameSubmission::OutcomeUnknown {
+                reason: WorkbenchLabelRenameOutcomeUnknownReason::ResponseDeadline(error), ..
             } if error.kind() == io::ErrorKind::TimedOut));
         assert_eq!(client.generation(), None);
         assert!(matches!(
-            client.submit_workbench_tab_rename(
-                WorkbenchTabRenameRequest::try_from(rename_command(7)).unwrap(),
+            client.submit_workbench_label_rename(
+                WorkbenchLabelRenameRequest::try_from(rename_command(7)).unwrap(),
                 deadline
             ),
-            WorkbenchTabRenameSubmission::DefinitelyNotSubmitted(
-                WorkbenchTabRenameNotSubmitted::SessionUnavailable
+            WorkbenchLabelRenameSubmission::DefinitelyNotSubmitted(
+                WorkbenchLabelRenameNotSubmitted::SessionUnavailable
             )
         ));
         drop(client);
@@ -368,7 +368,7 @@ fn rename_completed_response_past_caller_or_exchange_budget_retires_without_repl
 fn invalid_rename(
     baseline: u64,
     response: WorkbenchResponse,
-) -> Result<WorkbenchTabRenameSubmission, Box<dyn std::error::Error>> {
+) -> Result<WorkbenchLabelRenameSubmission, Box<dyn std::error::Error>> {
     let server = FakeServer::start(move |mut stream| {
         expect_hello(&mut stream, COHORT)?;
         admit(&mut stream, 54)?;
@@ -380,8 +380,8 @@ fn invalid_rename(
         require_retirement(&mut stream)
     })?;
     let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
-    let result = client.submit_workbench_tab_rename(
-        WorkbenchTabRenameRequest::try_from(rename_command(baseline)).unwrap(),
+    let result = client.submit_workbench_label_rename(
+        WorkbenchLabelRenameRequest::try_from(rename_command(baseline)).unwrap(),
         client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
     );
     assert_eq!(client.generation(), None);
@@ -425,8 +425,8 @@ fn rename_retires_close_reasons_acceptance_and_control_envelopes() -> TestResult
     ] {
         assert!(matches!(
             invalid_rename(7, command_response(FIRST_REQUEST_ID, outcome))?,
-            WorkbenchTabRenameSubmission::OutcomeUnknown {
-                reason: WorkbenchTabRenameOutcomeUnknownReason::ActionIncompatible,
+            WorkbenchLabelRenameSubmission::OutcomeUnknown {
+                reason: WorkbenchLabelRenameOutcomeUnknownReason::ActionIncompatible,
                 ..
             }
         ));
@@ -434,8 +434,8 @@ fn rename_retires_close_reasons_acceptance_and_control_envelopes() -> TestResult
     for response in close_control_responses() {
         assert!(matches!(
             invalid_rename(7, response)?,
-            WorkbenchTabRenameSubmission::OutcomeUnknown {
-                reason: WorkbenchTabRenameOutcomeUnknownReason::UnexpectedResponse,
+            WorkbenchLabelRenameSubmission::OutcomeUnknown {
+                reason: WorkbenchLabelRenameOutcomeUnknownReason::UnexpectedResponse,
                 ..
             }
         ));
@@ -465,19 +465,121 @@ fn rename_retires_malformed_or_truncated_response_without_retry() -> TestResult 
         let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
         let deadline = client.operation_clock().now() + SERVER_GUARD_TIMEOUT;
         assert!(
-            matches!(client.submit_workbench_tab_rename(WorkbenchTabRenameRequest::try_from(rename_command(7)).unwrap(), deadline), WorkbenchTabRenameSubmission::OutcomeUnknown { request_id, reason: WorkbenchTabRenameOutcomeUnknownReason::Response(_) } if request_id.as_str() == FIRST_REQUEST_ID)
+            matches!(client.submit_workbench_label_rename(WorkbenchLabelRenameRequest::try_from(rename_command(7)).unwrap(), deadline), WorkbenchLabelRenameSubmission::OutcomeUnknown { request_id, reason: WorkbenchLabelRenameOutcomeUnknownReason::Response(_) } if request_id.as_str() == FIRST_REQUEST_ID)
         );
         assert!(matches!(
-            client.submit_workbench_tab_rename(
-                WorkbenchTabRenameRequest::try_from(rename_command(7)).unwrap(),
+            client.submit_workbench_label_rename(
+                WorkbenchLabelRenameRequest::try_from(rename_command(7)).unwrap(),
                 deadline
             ),
-            WorkbenchTabRenameSubmission::DefinitelyNotSubmitted(
-                WorkbenchTabRenameNotSubmitted::SessionUnavailable
+            WorkbenchLabelRenameSubmission::DefinitelyNotSubmitted(
+                WorkbenchLabelRenameNotSubmitted::SessionUnavailable
             )
         ));
         assert_eq!(client.generation(), None);
         server.finish()?;
     }
+    Ok(())
+}
+
+#[test]
+fn panel_rename_carrier_preserves_exact_target_and_keeps_tab_rejection_scope_closed() -> TestResult
+{
+    for panel in [false, true] {
+        let mut command = rename_command(7);
+        if panel {
+            command.action = WorkbenchAction::PanelRename {
+                terminal_context_id: context_id(30),
+                tab_id: WorkbenchTabId::parse(&id(31)).unwrap(),
+                panel_id: orchbee_workbench_protocol::WorkbenchPanelId::parse(&id(32)).unwrap(),
+                label: orchbee_workbench_protocol::PanelLabelUpdate::default(),
+            };
+        }
+        let sent = command.clone();
+        let server = FakeServer::start(move |mut stream| {
+            expect_hello(&mut stream, COHORT)?;
+            admit(&mut stream, 55)?;
+            assert_eq!(
+                read_workbench_request(&mut stream).map_err(io::Error::other)?,
+                WorkbenchRequest::Command(sent)
+            );
+            write_workbench_response(
+                &mut stream,
+                &command_response(
+                    FIRST_REQUEST_ID,
+                    WorkbenchCommandOutcome::Rejected {
+                        revision: WorkbenchRevision::new(7),
+                        reason: WorkbenchRejectionReason::PanelUnavailable,
+                    },
+                ),
+            )
+            .map_err(io::Error::other)?;
+            require_retirement(&mut stream)
+        })?;
+        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let result = client.submit_workbench_label_rename(
+            WorkbenchLabelRenameRequest::try_from(command).unwrap(),
+            client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
+        );
+        if panel {
+            assert!(matches!(
+                result,
+                WorkbenchLabelRenameSubmission::DefinitePrecommit(
+                    WorkbenchLabelRenamePrecommit::Rejected {
+                        reason: WorkbenchRejectionReason::PanelUnavailable,
+                        ..
+                    }
+                )
+            ));
+            assert!(client.generation().is_some());
+        } else {
+            assert!(matches!(
+                result,
+                WorkbenchLabelRenameSubmission::OutcomeUnknown {
+                    reason: WorkbenchLabelRenameOutcomeUnknownReason::ActionIncompatible,
+                    ..
+                }
+            ));
+            assert!(client.generation().is_none());
+        }
+        drop(client);
+        server.finish()?;
+    }
+    Ok(())
+}
+
+#[test]
+fn panel_rename_lost_reply_retires_without_replay() -> TestResult {
+    let command = workbench_command(
+        FIRST_REQUEST_ID,
+        7,
+        WorkbenchAction::PanelRename {
+            terminal_context_id: context_id(30),
+            tab_id: WorkbenchTabId::parse(&id(31)).unwrap(),
+            panel_id: orchbee_workbench_protocol::WorkbenchPanelId::parse(&id(32)).unwrap(),
+            label: orchbee_workbench_protocol::PanelLabelUpdate::parse(Some("shared title"))
+                .unwrap(),
+        },
+    );
+    let sent = command.clone();
+    let server = FakeServer::start(move |mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 56)?;
+        assert_eq!(
+            read_workbench_request(&mut stream).map_err(io::Error::other)?,
+            WorkbenchRequest::Command(sent)
+        );
+        Ok(()) // Accepted bytes, then the response is lost.
+    })?;
+    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    assert!(matches!(
+        client.submit_workbench_label_rename(
+            WorkbenchLabelRenameRequest::try_from(command).unwrap(),
+            client.operation_clock().now() + SERVER_GUARD_TIMEOUT
+        ),
+        WorkbenchLabelRenameSubmission::OutcomeUnknown { .. }
+    ));
+    assert!(client.generation().is_none());
+    server.finish()?;
     Ok(())
 }

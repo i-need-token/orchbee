@@ -2494,6 +2494,96 @@
 					"reason": "not-resumable"
 				}
 			}
+		},
+		{
+			"name": "panel-rename-set",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.rename",
+					"terminalContextId": "33333333333333333333333333333333",
+					"tabId": "44444444444444444444444444444444",
+					"panelId": "55555555555555555555555555555555",
+					"label": "title"
+				}
+			}
+		},
+		{
+			"name": "panel-rename-clear",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.rename",
+					"terminalContextId": "33333333333333333333333333333333",
+					"tabId": "44444444444444444444444444444444",
+					"panelId": "55555555555555555555555555555555",
+					"label": null
+				}
+			}
+		},
+		{
+			"name": "panel-rename-astral-limit",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.rename",
+					"terminalContextId": "33333333333333333333333333333333",
+					"tabId": "44444444444444444444444444444444",
+					"panelId": "55555555555555555555555555555555",
+					"label": "🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝"
+				}
+			}
+		},
+		{
+			"name": "panel-rename-bom",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.rename",
+					"terminalContextId": "33333333333333333333333333333333",
+					"tabId": "44444444444444444444444444444444",
+					"panelId": "55555555555555555555555555555555",
+					"label": "﻿title"
+				}
+			}
+		},
+		{
+			"name": "panel-rename-inner-newline",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.rename",
+					"terminalContextId": "33333333333333333333333333333333",
+					"tabId": "44444444444444444444444444444444",
+					"panelId": "55555555555555555555555555555555",
+					"label": "a\nb"
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -7929,6 +8019,136 @@
 					"members": []
 				}
 			}
+		},
+		{
+			"name": "panel-rename-long",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.rename",
+					"terminalContextId": "33333333333333333333333333333333",
+					"tabId": "44444444444444444444444444444444",
+					"panelId": "55555555555555555555555555555555",
+					"label": "🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-rename-long-blank",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.rename",
+					"terminalContextId": "33333333333333333333333333333333",
+					"tabId": "44444444444444444444444444444444",
+					"panelId": "55555555555555555555555555555555",
+					"label": "                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 "
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-rename-number",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.rename",
+					"terminalContextId": "33333333333333333333333333333333",
+					"tabId": "44444444444444444444444444444444",
+					"panelId": "55555555555555555555555555555555",
+					"label": 1
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-rename-array",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.rename",
+					"terminalContextId": "33333333333333333333333333333333",
+					"tabId": "44444444444444444444444444444444",
+					"panelId": "55555555555555555555555555555555",
+					"label": []
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-rename-missing-terminalContextId",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.rename",
+					"tabId": "44444444444444444444444444444444",
+					"panelId": "55555555555555555555555555555555",
+					"label": "custom"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-rename-missing-tabId",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.rename",
+					"terminalContextId": "33333333333333333333333333333333",
+					"panelId": "55555555555555555555555555555555",
+					"label": "custom"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "panel-rename-missing-panelId",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.rename",
+					"terminalContextId": "33333333333333333333333333333333",
+					"tabId": "44444444444444444444444444444444",
+					"label": "custom"
+				}
+			},
+			"boundary": "schema"
 		}
 	],
 	"invalidJson": [
@@ -8499,6 +8719,106 @@
 					"tabId": "00000000000000000000000000000005",
 					"panelId": "00000000000000000000000000000006",
 					"targetPanelId": "00000000000000000000000000000007"
+				}
+			}
+		},
+		{
+			"name": "panel-rename-normalizes-missing",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"panel.rename\",\"terminalContextId\":\"33333333333333333333333333333333\",\"tabId\":\"44444444444444444444444444444444\",\"panelId\":\"55555555555555555555555555555555\"}}",
+			"canonicalJson": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"panel.rename\",\"terminalContextId\":\"33333333333333333333333333333333\",\"tabId\":\"44444444444444444444444444444444\",\"panelId\":\"55555555555555555555555555555555\",\"label\":null}}",
+			"canonical": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.rename",
+					"terminalContextId": "33333333333333333333333333333333",
+					"tabId": "44444444444444444444444444444444",
+					"panelId": "55555555555555555555555555555555",
+					"label": null
+				}
+			}
+		},
+		{
+			"name": "panel-rename-normalizes-empty",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"panel.rename\",\"terminalContextId\":\"33333333333333333333333333333333\",\"tabId\":\"44444444444444444444444444444444\",\"panelId\":\"55555555555555555555555555555555\",\"label\":\"\"}}",
+			"canonicalJson": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"panel.rename\",\"terminalContextId\":\"33333333333333333333333333333333\",\"tabId\":\"44444444444444444444444444444444\",\"panelId\":\"55555555555555555555555555555555\",\"label\":null}}",
+			"canonical": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.rename",
+					"terminalContextId": "33333333333333333333333333333333",
+					"tabId": "44444444444444444444444444444444",
+					"panelId": "55555555555555555555555555555555",
+					"label": null
+				}
+			}
+		},
+		{
+			"name": "panel-rename-normalizes-blank",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"panel.rename\",\"terminalContextId\":\"33333333333333333333333333333333\",\"tabId\":\"44444444444444444444444444444444\",\"panelId\":\"55555555555555555555555555555555\",\"label\":\"  　\"}}",
+			"canonicalJson": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"panel.rename\",\"terminalContextId\":\"33333333333333333333333333333333\",\"tabId\":\"44444444444444444444444444444444\",\"panelId\":\"55555555555555555555555555555555\",\"label\":null}}",
+			"canonical": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.rename",
+					"terminalContextId": "33333333333333333333333333333333",
+					"tabId": "44444444444444444444444444444444",
+					"panelId": "55555555555555555555555555555555",
+					"label": null
+				}
+			}
+		},
+		{
+			"name": "panel-rename-normalizes-trim",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"panel.rename\",\"terminalContextId\":\"33333333333333333333333333333333\",\"tabId\":\"44444444444444444444444444444444\",\"panelId\":\"55555555555555555555555555555555\",\"label\":\" 标题 \"}}",
+			"canonicalJson": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"panel.rename\",\"terminalContextId\":\"33333333333333333333333333333333\",\"tabId\":\"44444444444444444444444444444444\",\"panelId\":\"55555555555555555555555555555555\",\"label\":\"标题\"}}",
+			"canonical": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.rename",
+					"terminalContextId": "33333333333333333333333333333333",
+					"tabId": "44444444444444444444444444444444",
+					"panelId": "55555555555555555555555555555555",
+					"label": "标题"
+				}
+			}
+		},
+		{
+			"name": "panel-rename-normalizes-bom-trim",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"panel.rename\",\"terminalContextId\":\"33333333333333333333333333333333\",\"tabId\":\"44444444444444444444444444444444\",\"panelId\":\"55555555555555555555555555555555\",\"label\":\" ﻿x \"}}",
+			"canonicalJson": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"panel.rename\",\"terminalContextId\":\"33333333333333333333333333333333\",\"tabId\":\"44444444444444444444444444444444\",\"panelId\":\"55555555555555555555555555555555\",\"label\":\"﻿x\"}}",
+			"canonical": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "panel.rename",
+					"terminalContextId": "33333333333333333333333333333333",
+					"tabId": "44444444444444444444444444444444",
+					"panelId": "55555555555555555555555555555555",
+					"label": "﻿x"
 				}
 			}
 		}

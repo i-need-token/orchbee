@@ -666,6 +666,7 @@ fn split_snapshot() -> Snapshot {
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&format!("{:032x}", 7_010)).unwrap(),
                     primary_presentation: Presentation {
+                        custom_label: None,
                         binding: Some(PresentationBinding {
                             terminal_id: TerminalId::parse(&format!("{:032x}", 7_012)).unwrap(),
                             worker_id: WorkerId::parse(&format!("{:032x}", 7_011)).unwrap(),
@@ -755,6 +756,7 @@ pub(in crate::terminal_session) fn snapshot(count: usize, revision: u64) -> Snap
                             panel_id: WorkbenchPanelId::parse(&format!("{:032x}", base + 1))
                                 .unwrap(),
                             primary_presentation: Presentation {
+                                custom_label: None,
                                 label: format!("Terminal {index}"),
                                 presentation_id: TerminalPresentationId::parse(&format!(
                                     "{:032x}",

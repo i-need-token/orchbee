@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 27
+			"const": 28
 		},
 		"source": {
 			"type": "object",
@@ -110,7 +110,9 @@
 						"orchbee.client.view",
 						"orchbee.client.control",
 						"orchbee.cli.failure.client-control",
-						"orchbee.cli.failure.schema-export"
+						"orchbee.cli.failure.schema-export",
+						"orchbee.panel.layout",
+						"orchbee.panel.rename"
 					],
 					"propertyNames": {
 						"$ref": "#/$defs/schemaId"
@@ -186,7 +188,8 @@
 				"orchbee.client.control",
 				"orchbee.cli.failure.client-control",
 				"orchbee.cli.failure.schema-export",
-				"orchbee.panel.layout"
+				"orchbee.panel.layout",
+				"orchbee.panel.rename"
 			]
 		}
 	}

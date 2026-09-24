@@ -540,6 +540,7 @@ pub(in crate::terminal_session) fn split_snapshot(revision: u64) -> Snapshot {
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&format!("{:032x}", 3_010)).unwrap(),
                     primary_presentation: Presentation {
+                        custom_label: None,
                         binding: Some(PresentationBinding {
                             terminal_id: TerminalId::parse(&format!("{:032x}", 3_012)).unwrap(),
                             worker_id: WorkerId::parse(&format!("{:032x}", 3_011)).unwrap(),

@@ -187,6 +187,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
             "neighbor",
             "edges",
             "resize",
+            "rename",
         ],
     ),
     ("project", &["create", "get", "list", "rename"]),
@@ -538,6 +539,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         ],
     ),
     ("tab:rename", &["--label"]),
+    ("panel:rename", &["--label", "--clear"]),
     ("tab:move", &["--direction"]),
     ("tab:close", &["--confirm"]),
     ("panel:current", &["--panel", "--current"]),
@@ -754,6 +756,7 @@ const OPERAND_PATHS: &[&str] = &[
     "tab:get",
     "tab:move",
     "tab:rename",
+    "panel:rename",
     "terminal:get",
     "terminal:read",
     "terminal:send",
@@ -822,6 +825,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
             "neighbor",
             "edges",
             "resize",
+            "rename",
         ],
     ),
     ("project", &["create", "get", "list", "rename"]),
@@ -3111,6 +3115,8 @@ fn command_conflict_pairs(
 
 fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] {
     match (command, flag) {
+        ("panel:rename", "--label") => &["--clear"],
+        ("panel:rename", "--clear") => &["--label"],
         ("layout:set-split-ratio", "--tab") => &["--panel", "--current"],
         ("layout:set-split-ratio", "--panel") => &["--tab", "--current"],
         ("layout:set-split-ratio", "--current") => &["--tab", "--panel"],

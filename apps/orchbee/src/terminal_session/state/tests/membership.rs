@@ -30,6 +30,7 @@ fn removal_tab(index: usize) -> Tab {
             child_presentations: Vec::new(),
             panel_id: panel_id(seed + 1),
             primary_presentation: Presentation {
+                custom_label: None,
                 binding: Some(PresentationBinding {
                     terminal_id: terminal_id(seed + 4),
                     worker_id: worker_id(seed + 3),

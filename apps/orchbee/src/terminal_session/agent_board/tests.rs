@@ -607,6 +607,7 @@ fn presentation_index_resolves_only_live_panel_identities() {
                     child_presentations: Vec::new(),
                     panel_id: panel_id(6),
                     primary_presentation: Presentation {
+                        custom_label: None,
                         label: "Terminal".to_owned(),
                         presentation_id: presentation.clone(),
                         binding: Some(PresentationBinding {

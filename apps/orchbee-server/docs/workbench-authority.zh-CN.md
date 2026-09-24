@@ -315,7 +315,7 @@ Projection store 是该权威的私有实现组件，没有公开的整份 snaps
 跨语言请求和结果的权威属于 [Workbench 契约](../../../schemas/workbench/README.zh-CN.md)。
 Workbench 在同一条已准入的本地连接上使用独立 OBWP carrier，OBCS 继续只负责终端契约。
 两种协议之前都须完成 same-user OBLC 准入。Server 随后选择显式的 Site-scoped Workbench
-grant。开发 composition 允许读取 snapshot 与 publication，以及五项纯 Workbench 操作；`tab.create` 还要求显式的
+grant。开发 composition 允许读取 snapshot 与 publication，以及六项纯 Workbench 操作；`tab.create` 还要求显式的
 terminal-create grant。目录关联同时要求 navigation 和独立的 directory-association grant。对于外部提交的 OBWP 读取及命令，
 权威在读取任何状态或 ledger 之前检查 grant。只读及拒绝策略均可表达。缺失或错误 Site 的 grant 返回 typed denied，不泄露
 状态、revision、identity 或 ledger；grant 绝不来自 wire input。Client 提交语义操作与预期
@@ -323,10 +323,17 @@ revision，不能指定新产品身份、替换共享文档或发布 Client delt
 
 ## 导航模型
 
+`panel.rename` 为纯元数据 owner 增加精确 context／Tab／叶子主 Presentation 的覆盖项。
+其 [Panel 标签契约](../../orchbee/docs/native-panel-labels.zh-CN.md) 保持创建时回退标签不可变，
+并定义有界规范化设置／清除、无操作及投影语义。`WorkbenchNavigationCommit` 区分同一 Tab
+的 Tab 标签与主 Presentation 覆盖项，也包含不存在的 Panel 目标；`SendPanelSet` 与
+`SendPanelClear` 在既有保留 ledger 规则下覆盖两种更新方向。具体规范化以及不可变绑定／
+回退标签的修改范围仍由细化测试证明。
+
 | 字段       | 契约                                                                                                                                                                                                                                                                                                                       |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 问题       | 独立准入的 Client 必须修改和观察同一份共享导航结构，避免丢失更新或重复逻辑效果。                                                                                                                                                                                                                                           |
-| 输入       | 严格 snapshot 或 publication 读取 intent，或包含 request identity、确切 Site、预期 revision 及下列五项 action 之一的严格命令。Label 保留原始非空文本，最多 512 个 Unicode code point。Tab rename fingerprint 包含 context、Tab、label 和 base revision。                                                                   |
+| 输入       | 严格 snapshot 或 publication 读取 intent，或包含 request identity、确切 Site、预期 revision 及下列六项 action 之一的严格命令。创建标签与 Tab 标签保留原始非空文本，最多 512 个 Unicode code point；窗格自定义标题按上文规范化有界可空更新。Tab rename fingerprint 包含 context、Tab、label 和 base revision。              |
 | 数据       | Active 或 retired 权威、一份已校验 Snapshot、Server 拥有且不复用的 identity cursor，以及有界 request/result ledger。初始 revision 为零，standalone Terminal Context 为空。Adapter 从操作系统随机源取得非零 Site identity。Cursor 不复用导航聚合内的身份；无关 Terminal/operation 身份域保留现有 owner。                    |
 | 输出       | 读取返回相关联的 available { snapshot }、denied {} 或 unavailable { reason }。Publication 读取返回 current { revision }、published { publications }、denied {} 或 unavailable { reason }。命令返回 project-created、workspace-created、renamed、unchanged、rejected、denied 或 unavailable。新身份仅出现于对应成功变体中。 |
 | 不变量     | 只有 Server 提交共享结构。每个 Workspace 恰好引用一个 context。拒绝保留结构、revision 和分配状态。发生变更时 revision 恰好加一。等值重命名保留 revision。Tab rename 只改变目标 `Tab.label`；非目标标签及所有其他 projection 事实保持精确。一个 request identity 不能提交两次。                                             |
@@ -337,15 +344,16 @@ revision，不能指定新产品身份、替换共享文档或发布 Client delt
 | 验证       | 依据 schema 编写的 Rust/TypeScript conformance、可缩减的确定性有状态命令轨迹、有界 TLA 并发/重放检查，以及真实双 Client Server 进程证据。                                                                                                                                                                                  |
 | 正确性限制 | 模型抽象 label、identity encoding、OS 调度及 JSON。进程证据为 Linux；本组转换不声明持久化、transport retry、重启后恢复 Site identity 或公开 Client 集成。                                                                                                                                                                  |
 
-| Action           | Guard                                  | 提交结果                                     |
-| ---------------- | -------------------------------------- | -------------------------------------------- |
-| project.create   | Label 和 projection 容量被接受         | 一个没有 Workspace 的新 Project              |
-| project.rename   | 确切 Project 存在                      | 修改其 label；等值文本为 unchanged           |
-| workspace.create | 确切 Project 存在且 context 容量被接受 | 一个新 Workspace 及其唯一空 Terminal Context |
-| workspace.rename | 确切 Workspace 属于指定 Project        | 修改其 label；等值文本为 unchanged           |
-| tab.rename       | 确切 context 包含确切 Tab              | 修改其 Tab label；等值文本为 unchanged       |
+| Action           | Guard                                  | 提交结果                                                 |
+| ---------------- | -------------------------------------- | -------------------------------------------------------- |
+| project.create   | Label 和 projection 容量被接受         | 一个没有 Workspace 的新 Project                          |
+| project.rename   | 确切 Project 存在                      | 修改其 label；等值文本为 unchanged                       |
+| workspace.create | 确切 Project 存在且 context 容量被接受 | 一个新 Workspace 及其唯一空 Terminal Context             |
+| workspace.rename | 确切 Workspace 属于指定 Project        | 修改其 label；等值文本为 unchanged                       |
+| tab.rename       | 确切 context 包含确切 Tab              | 修改其 Tab label；等值文本为 unchanged                   |
+| panel.rename     | 精确 context/Tab 包含目标 Panel        | 主 Presentation 自定义标题设置或清除；规范化后相等则不变 |
 
-这些操作不做 normalization、乐观 Client 提交、自动冲突重试、焦点改变或终端效果。
+仅窗格自定义标题更新裁剪空白。这些操作不做乐观 Client 提交、自动冲突重试、焦点改变或终端效果。
 读取不占用 command ledger 条目。
 
 ## 提交与重放
@@ -607,7 +615,7 @@ LocalClientSubmission/Backpressure 边界及运行时 deadline trace 拥有 prog
 ### 接纳与共同提交
 
 库在不读取 authority 状态的情况下分类线请求。不透明的
-`WorkbenchReadOrNavigationRequest` 只接纳快照读取、publication 读取和五个纯 Workbench 操作；
+`WorkbenchReadOrNavigationRequest` 只接纳快照读取、publication 读取和六个纯 Workbench 操作；
 `TryFrom<WorkbenchRequest>` 在无法分类时返回完整的原始请求并转移其所有权。
 服务显式地将被拒绝的 TabCreate 和 TabMove 命令路由到各自的 Site 组合路径；
 其他被拒绝的请求得到明确的不可用响应。分类拒绝不会隐式选择终端创建，

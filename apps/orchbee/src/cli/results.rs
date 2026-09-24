@@ -67,6 +67,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
 /// match detail on a wait — so flag-free output stays byte-identical.
 pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
     match command {
+        QueryCommand::PanelGet(_) | QueryCommand::PanelCurrent(_) | QueryCommand::ApiSnapshot => 2,
         QueryCommand::TerminalGet(_) => 3,
         QueryCommand::AgentWait { .. } | QueryCommand::PanelProcessInfo(_) => 2,
         QueryCommand::TerminalRead { unwrap, lines, .. }
@@ -219,6 +220,8 @@ pub(crate) struct PanelDoc {
 #[derive(Clone, Debug)]
 pub(crate) struct PresentationRow {
     pub(crate) presentation_id: String,
+    pub(crate) custom_label: Option<String>,
+    pub(crate) display_label: String,
     pub(crate) label: String,
     pub(crate) terminal_id: Option<String>,
     pub(crate) worker_id: Option<String>,
@@ -1624,6 +1627,8 @@ fn presentation_json(row: &PresentationRow) -> Value {
     json!({
         "presentationId": row.presentation_id,
         "label": row.label,
+        "customLabel": row.custom_label,
+        "displayLabel": row.display_label,
         "binding": match (&row.terminal_id, &row.worker_id) {
             (Some(terminal_id), Some(worker_id)) => json!({
                 "terminalId": terminal_id,
@@ -2116,6 +2121,11 @@ fn tab_row(tab: &Tab, context: ContextRef) -> TabRow {
 fn presentation_row(presentation: &Presentation) -> PresentationRow {
     PresentationRow {
         presentation_id: presentation.presentation_id.as_str().to_owned(),
+        custom_label: presentation
+            .custom_label
+            .as_ref()
+            .map(|value| value.as_str().to_owned()),
+        display_label: presentation.display_label().to_owned(),
         label: presentation.label.clone(),
         terminal_id: presentation
             .binding

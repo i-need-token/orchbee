@@ -301,6 +301,7 @@ fn split_two_tab_baseline() -> Snapshot {
                     child_presentations: Vec::new(),
                     panel_id: panel_id(1_001),
                     primary_presentation: Presentation {
+                        custom_label: None,
                         binding: Some(PresentationBinding {
                             terminal_id: terminal_id(1_004),
                             worker_id: worker_id(1_003),
@@ -316,6 +317,7 @@ fn split_two_tab_baseline() -> Snapshot {
                     child_presentations: Vec::new(),
                     panel_id: panel_id(3_010),
                     primary_presentation: Presentation {
+                        custom_label: None,
                         binding: Some(PresentationBinding {
                             terminal_id: terminal_id(3_012),
                             worker_id: worker_id(3_011),
@@ -449,6 +451,7 @@ fn split_grafted_snapshot() -> Snapshot {
                                 child_presentations: Vec::new(),
                                 panel_id: panel_id(1_001),
                                 primary_presentation: Presentation {
+                                    custom_label: None,
                                     binding: Some(PresentationBinding {
                                         terminal_id: terminal_id(1_004),
                                         worker_id: worker_id(1_003),
@@ -464,6 +467,7 @@ fn split_grafted_snapshot() -> Snapshot {
                                 child_presentations: Vec::new(),
                                 panel_id: panel_id(90_001),
                                 primary_presentation: Presentation {
+                                    custom_label: None,
                                     binding: Some(PresentationBinding {
                                         terminal_id: terminal_id(90_007),
                                         worker_id: worker_id(90_006),
@@ -485,6 +489,7 @@ fn split_grafted_snapshot() -> Snapshot {
                     child_presentations: Vec::new(),
                     panel_id: panel_id(3_010),
                     primary_presentation: Presentation {
+                        custom_label: None,
                         binding: Some(PresentationBinding {
                             terminal_id: terminal_id(3_012),
                             worker_id: worker_id(3_011),
@@ -514,6 +519,7 @@ fn move_grafted_snapshot() -> Snapshot {
                     child_presentations: Vec::new(),
                     panel_id: panel_id(3_010),
                     primary_presentation: Presentation {
+                        custom_label: None,
                         binding: Some(PresentationBinding {
                             terminal_id: terminal_id(3_012),
                             worker_id: worker_id(3_011),
@@ -529,6 +535,7 @@ fn move_grafted_snapshot() -> Snapshot {
                     child_presentations: Vec::new(),
                     panel_id: panel_id(1_001),
                     primary_presentation: Presentation {
+                        custom_label: None,
                         binding: Some(PresentationBinding {
                             terminal_id: terminal_id(1_004),
                             worker_id: worker_id(1_003),
@@ -555,6 +562,7 @@ fn selected_leaf_lost_snapshot(revision: u64) -> Snapshot {
         child_presentations: Vec::new(),
         panel_id: panel_id(3_010),
         primary_presentation: Presentation {
+            custom_label: None,
             binding: Some(PresentationBinding {
                 terminal_id: terminal_id(3_012),
                 worker_id: worker_id(3_011),
@@ -574,6 +582,7 @@ fn second_leaf_lost_snapshot(revision: u64) -> Snapshot {
         child_presentations: Vec::new(),
         panel_id: panel_id(1_001),
         primary_presentation: Presentation {
+            custom_label: None,
             binding: Some(PresentationBinding {
                 terminal_id: terminal_id(1_004),
                 worker_id: worker_id(1_003),

@@ -2,10 +2,14 @@ use super::*;
 
 const TRACE_SEEDS: u64 = 64;
 const STEPS_PER_TRACE: usize = 38;
-const ACTION_COUNT: usize = 21;
+const ACTION_COUNT: usize = 25;
 
 #[derive(Clone, Copy, Debug)]
 enum Action {
+    SetPanelLabel,
+    ClearPanelLabel,
+    SameRevisionPanelLabel,
+    OlderPanelLabel,
     ExactSameRevision,
     RevisionOnly,
     RenameOne,
@@ -31,6 +35,10 @@ enum Action {
 
 impl Action {
     const ALL: [Self; ACTION_COUNT] = [
+        Self::SetPanelLabel,
+        Self::ClearPanelLabel,
+        Self::SameRevisionPanelLabel,
+        Self::OlderPanelLabel,
         Self::ExactSameRevision,
         Self::RevisionOnly,
         Self::RenameOne,
@@ -57,7 +65,9 @@ impl Action {
     const fn must_be_accepted(self) -> bool {
         matches!(
             self,
-            Self::ExactSameRevision
+            Self::SetPanelLabel
+                | Self::ClearPanelLabel
+                | Self::ExactSameRevision
                 | Self::RevisionOnly
                 | Self::RenameOne
                 | Self::RenameMany
@@ -76,46 +86,66 @@ fn generated_label_evolution_traces_match_the_independent_refinement() {
     let mut coverage = [0_usize; ACTION_COUNT];
     let mut accepted = 0_usize;
     let mut rejected = 0_usize;
-
     for seed in 0..TRACE_SEEDS {
-        let mut random = Random::new(seed);
-        let mut current = projected(2 + random.index(5), 100 + seed * 100);
-        // Deterministic fresh-identity domain: a monotone counter disjoint
-        // from every generated domain — tab seeds (~1k), revision-derived
-        // appended ids (low tens of thousands) and the random rejection
-        // mutations — and never colliding with any live Tab.
-        let mut fresh = 800_000_u128;
-
-        for step in 0..STEPS_PER_TRACE {
-            let action_index = (usize::try_from(seed).unwrap() + step) % ACTION_COUNT;
-            let action = Action::ALL[action_index];
-            coverage[action_index] += 1;
-            let candidate = apply(action, &current, &mut random, &mut fresh);
-            let expected = reference_accepts(&current, &candidate);
-            assert_eq!(
-                expected,
-                action.must_be_accepted(),
-                "generated action failed to realize its class: seed={seed}; step={step}; action={action:?}"
-            );
-            let result = validate_canonical_refresh(&current, candidate.clone());
-
-            assert_eq!(
-                result.is_ok(),
-                expected,
-                "seed={seed}; step={step}; action={action:?}; current={current:?}; candidate={candidate:?}"
-            );
-            if expected {
-                accepted += 1;
-                current = result.unwrap();
-            } else {
-                rejected += 1;
+        let actions = (0..STEPS_PER_TRACE)
+            .map(|step| {
+                let index = (usize::try_from(seed).unwrap() + step) % ACTION_COUNT;
+                coverage[index] += 1;
+                Action::ALL[index]
+            })
+            .collect::<Vec<_>>();
+        match replay(seed, &actions) {
+            Ok((yes, no)) => {
+                accepted += yes;
+                rejected += no;
+            }
+            Err(error) => {
+                let mut reduced = actions;
+                let mut index = 0;
+                while index < reduced.len() {
+                    let mut candidate = reduced.clone();
+                    candidate.remove(index);
+                    if replay(seed, &candidate).is_err() {
+                        reduced = candidate;
+                    } else {
+                        index += 1;
+                    }
+                }
+                panic!(
+                    "seed={seed}; reduced={reduced:?}; original={error}; replay={:?}",
+                    replay(seed, &reduced)
+                );
             }
         }
     }
-
     assert!(coverage.into_iter().all(|count| count > 0));
-    assert!(accepted > 0);
-    assert!(rejected > 0);
+    assert!(accepted > 0 && rejected > 0);
+}
+
+fn replay(seed: u64, actions: &[Action]) -> Result<(usize, usize), String> {
+    let mut random = Random::new(seed);
+    let mut current = projected(2 + random.index(5), 100 + seed * 100);
+    // Disjoint monotone identity domain remains stable under trace reduction.
+    let mut fresh = 800_000_u128;
+    let (mut accepted, mut rejected) = (0, 0);
+    for (step, action) in actions.iter().copied().enumerate() {
+        let candidate = apply(action, &current, &mut random, &mut fresh);
+        let expected = reference_accepts(&current, &candidate);
+        let result = validate_canonical_refresh(&current, candidate.clone());
+        if expected != action.must_be_accepted() || result.is_ok() != expected {
+            return Err(format!(
+                "step={step}; action={action:?}; expected={expected}; current={current:?}; candidate={candidate:?}; result={result:?}"
+            ));
+        }
+        match result {
+            Ok(next) => {
+                accepted += 1;
+                current = next;
+            }
+            Err(_) => rejected += 1,
+        }
+    }
+    Ok((accepted, rejected))
 }
 
 fn apply(
@@ -131,6 +161,18 @@ fn apply(
     let mut candidate = successor(current, 0);
     let first = random.index(current.tabs.len());
     match action {
+        Action::SetPanelLabel | Action::SameRevisionPanelLabel | Action::OlderPanelLabel => {
+            let value = format!("custom-{}", random.next());
+            candidate.tabs[first].panels[0].custom_label =
+                Some(orchbee_workbench_protocol::PanelCustomLabel::parse(&value).unwrap());
+            if matches!(action, Action::SameRevisionPanelLabel) {
+                candidate.revision = current.revision;
+            }
+            if matches!(action, Action::OlderPanelLabel) {
+                candidate.revision = WorkbenchRevision::new(current.revision.value() - 1);
+            }
+        }
+        Action::ClearPanelLabel => candidate.tabs[first].panels[0].custom_label = None,
         Action::ExactSameRevision | Action::RevisionOnly => {}
         Action::RenameOne => rename(&mut candidate, first, random.next()),
         Action::RenameMany => {

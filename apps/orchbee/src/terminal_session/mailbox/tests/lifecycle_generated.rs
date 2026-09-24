@@ -4951,6 +4951,7 @@ impl Authority {
             child_presentations: Vec::new(),
             panel_id: new_panel_id.clone(),
             primary_presentation: Presentation {
+                custom_label: None,
                 binding: Some(PresentationBinding {
                     terminal_id: terminal,
                     worker_id: worker,
@@ -5046,6 +5047,7 @@ fn leaf_node(
         child_presentations: Vec::new(),
         panel_id: panel,
         primary_presentation: Presentation {
+            custom_label: None,
             binding: Some(PresentationBinding {
                 terminal_id: terminal_id(terminal),
                 worker_id: worker_id(worker),

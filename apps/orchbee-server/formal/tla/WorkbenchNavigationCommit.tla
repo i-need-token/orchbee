@@ -9,12 +9,18 @@ ASSUME /\ ExerciseTargetDomain \in BOOLEAN
 Clients == {1, 2}
 Ids == {1, 2, 3}
 Labels == 0..1
-TargetOne == [context |-> 1, tab |-> 1]
-TargetTwo == [context |-> 2, tab |-> 2]
-MissingTarget == [context |-> 1, tab |-> 2]
-NoTarget == [context |-> 0, tab |-> 0]
-ExistingTargets == IF ExerciseTargetDomain THEN {TargetOne, TargetTwo} ELSE {TargetOne}
-Targets == IF ExerciseTargetDomain THEN ExistingTargets \cup {MissingTarget} ELSE ExistingTargets
+(* Panel 0 denotes a Tab title; Panel 1 is a distinct primary Presentation
+override in that same Tab. For that target label 0 means absent/clear and label
+1 means one normalized custom label. Immutable fallbacks/bindings and concrete
+normalization are checked by the protocol and authority refinement tests. *)
+TargetOne == [context |-> 1, tab |-> 1, panel |-> 0]
+TargetTwo == [context |-> 2, tab |-> 2, panel |-> 0]
+PanelTarget == [context |-> 1, tab |-> 1, panel |-> 1]
+MissingTarget == [context |-> 1, tab |-> 2, panel |-> 0]
+MissingPanelTarget == [context |-> 1, tab |-> 1, panel |-> 2]
+NoTarget == [context |-> 0, tab |-> 0, panel |-> 0]
+ExistingTargets == IF ExerciseTargetDomain THEN {TargetOne, TargetTwo, PanelTarget} ELSE {TargetOne}
+Targets == IF ExerciseTargetDomain THEN ExistingTargets \cup {MissingTarget, MissingPanelTarget} ELSE ExistingTargets
 SendIds(client) == IF ExerciseTargetDomain THEN {client} ELSE Ids
 SendBases == IF ExerciseTargetDomain THEN 0..1 ELSE 0..2
 SendGrants == IF ExerciseTargetDomain THEN {TRUE} ELSE BOOLEAN
@@ -247,9 +253,9 @@ Init == /\ m = MoveInitial
         /\ readLabels = [c \in Clients |-> InitialLabels]
         /\ hasRead = [c \in Clients |-> FALSE]
 
-Send == \E c \in Clients:
-          \E id \in SendIds(c), target \in Targets,
-             label \in Labels, base \in SendBases, allowed \in SendGrants:
+SendTo(targets, values) == \E c \in Clients:
+          \E id \in SendIds(c), target \in targets,
+             label \in values, base \in SendBases, allowed \in SendGrants:
         /\ phase[c] = "idle" /\ remaining[c] > 0
         /\ phase' = [phase EXCEPT ![c] = "pending"]
         /\ request' = [request EXCEPT ![c] =
@@ -259,6 +265,10 @@ Send == \E c \in Clients:
         /\ UNCHANGED <<m, ledger, revision, labels, effects, bases, response,
                         responseRevision, observed, observedRevision>>
         /\ UNCHANGED <<m, retired, history, readRevision, readLabels, hasRead>>
+
+Send == SendTo(Targets \ {PanelTarget}, Labels)
+SendPanelSet == ExerciseTargetDomain /\ SendTo({PanelTarget}, {1})
+SendPanelClear == ExerciseTargetDomain /\ SendTo({PanelTarget}, {0})
 
 Pending(c) == phase[c] = "pending"
 Respond(c, result, resultRevision) ==
@@ -387,7 +397,7 @@ ObserveHistoricalReplay == \E c \in Clients:
   /\ ledger[request[c].id].resultRevision < revision
   /\ UNCHANGED vars
 
-Next == Send \/ Deny \/ Replay \/ Conflict \/ Full \/ RejectStale
+Next == Send \/ SendPanelSet \/ SendPanelClear \/ Deny \/ Replay \/ Conflict \/ Full \/ RejectStale
         \/ RejectMissing \/ Unchanged \/ Commit \/ Deliver \/ LoseResponse
         \/ Read \/ DeniedRead \/ RetiredRead \/ Retire \/ Unavailable
         \/ ObserveHistoricalReplay
@@ -404,7 +414,7 @@ TypeOK == /\ phase \in [Clients -> {"idle", "pending", "responded"}]
           /\ request \in [Clients ->
                [id: Ids, target: Targets, label: Labels, base: 0..2]]
           /\ ledger \in [Ids ->
-               [target: ExistingTargets \cup {MissingTarget, NoTarget},
+               [target: ExistingTargets \cup {MissingTarget, MissingPanelTarget, NoTarget},
                 label: Labels, base: 0..2,
                 result: {"empty", "stale", "missing", "unchanged", "applied"},
                 resultRevision: 0..2]]

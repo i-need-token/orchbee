@@ -72,6 +72,7 @@ fn split_root(root: &mut PanelNode, seed: u128) {
                     child_presentations: Vec::new(),
                     panel_id: panel_id(seed + 10),
                     primary_presentation: Presentation {
+                        custom_label: None,
                         binding: Some(PresentationBinding {
                             terminal_id: terminal_id(seed + 12),
                             worker_id: worker_id(seed + 11),

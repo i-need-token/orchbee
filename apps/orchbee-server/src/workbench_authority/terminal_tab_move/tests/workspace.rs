@@ -324,6 +324,7 @@ fn workspace_strict_layout_precedes_missing_target_and_boundary_noop() {
                         primary_presentation.binding = None;
                     } else {
                         child_presentations.push(Presentation {
+                            custom_label: None,
                             presentation_id: TerminalPresentationId::parse(&identity(800)).unwrap(),
                             label: "child".to_owned(),
                             binding: None,

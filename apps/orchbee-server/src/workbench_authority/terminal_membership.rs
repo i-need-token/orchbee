@@ -339,6 +339,7 @@ pub(super) fn append_simple_tab(
         root: PanelNode::Panel {
             panel_id: ids.panel_id.clone(),
             primary_presentation: Presentation {
+                custom_label: None,
                 presentation_id: ids.presentation_id.clone(),
                 label: label.to_owned(),
                 binding: Some(binding),

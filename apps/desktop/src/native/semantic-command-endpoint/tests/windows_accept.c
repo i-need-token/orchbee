@@ -11,6 +11,8 @@ static BOOL omit_identity;
 static BOOL fail_impersonation;
 static BOOL close_before_write;
 static BOOL expire_after_read;
+static LPOVERLAPPED preread_operation;
+static BOOL preread_completed;
 static BOOL scripted_clock;
 static ULONGLONG clock_after_start;
 static unsigned clock_reads;
@@ -22,8 +24,14 @@ static uint32_t connection_budget = 1000;
 
 static BOOL observed_read(HANDLE file, LPVOID buffer, DWORD capacity, LPDWORD read, LPOVERLAPPED overlapped) {
     pipe_reads += 1;
+    preread_operation = overlapped;
     SetEvent(read_started);
     return ReadFile(file, buffer, capacity, read, overlapped);
+}
+static BOOL observed_completion(HANDLE file, LPOVERLAPPED overlapped, LPDWORD transferred, BOOL wait) {
+    const BOOL completed = GetOverlappedResult(file, overlapped, transferred, wait);
+    if (completed && overlapped == preread_operation && *transferred == 1) preread_completed = TRUE;
+    return completed;
 }
 static BOOL observed_equal_sid(PSID left, PSID right) {
     return reject_identity ? FALSE : EqualSid(left, right);
@@ -38,7 +46,7 @@ static BOOL observed_impersonation(HANDLE pipe) {
 }
 ULONGLONG observed_clock(void) {
     if (!scripted_clock) return GetTickCount64();
-    if (expire_after_read && pipe_reads != 0) return 100;
+    if (expire_after_read && preread_completed) return 100;
     return clock_reads++ == 0 ? 0 : clock_after_start;
 }
 static DWORD observed_wait(HANDLE event, DWORD timeout) {
@@ -46,6 +54,7 @@ static DWORD observed_wait(HANDLE event, DWORD timeout) {
     return WaitForSingleObject(event, timeout);
 }
 #define ReadFile observed_read
+#define GetOverlappedResult observed_completion
 #define EqualSid observed_equal_sid
 #define OpenThreadToken observed_thread_token
 #define ImpersonateNamedPipeClient observed_impersonation
@@ -53,6 +62,7 @@ static DWORD observed_wait(HANDLE event, DWORD timeout) {
 #define WaitForSingleObject observed_wait
 #include "../semantic_command_endpoint_windows.c"
 #undef ReadFile
+#undef GetOverlappedResult
 #undef EqualSid
 #undef OpenThreadToken
 #undef ImpersonateNamedPipeClient
@@ -88,6 +98,8 @@ static HANDLE connect_client(const wchar_t *name) {
 static int accept_with_payload(ObSemanticCommandServer *server, HANDLE *client, const wchar_t *name,
     const uint8_t *bytes, DWORD length, BOOL expect_preread) {
     ResetEvent(read_started);
+    preread_operation = NULL;
+    preread_completed = FALSE;
     Accept accept = {.server = server, .done = CreateEventW(NULL, TRUE, FALSE, NULL), .timeout = accept_timeout};
     HANDLE thread = CreateThread(NULL, 0, accept_thread, &accept, 0, NULL);
     if (*client == INVALID_HANDLE_VALUE) {
@@ -220,7 +232,7 @@ int wmain(int argc, wchar_t **argv) {
     pipe_reads = 0;
     client = INVALID_HANDLE_VALUE;
     status = accept_with_payload(server, &client, pipe_name, payload, 1, TRUE);
-    require(status == OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED,
+    require(status == OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED && preread_completed,
         "deadline reached after first byte cannot publish authenticated admission");
     uint8_t expired_byte = 77;
     uint32_t expired_count = 0;

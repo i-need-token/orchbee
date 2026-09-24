@@ -28,6 +28,7 @@ fn panel_focus_switch_keeps_the_tab_and_targets_the_selected_leaf_binding() {
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&super::id(2_010)).unwrap(),
                     primary_presentation: Presentation {
+                        custom_label: None,
                         binding: Some(PresentationBinding {
                             terminal_id: TerminalId::parse(&super::id(2_012)).unwrap(),
                             worker_id: WorkerId::parse(&super::id(2_011)).unwrap(),

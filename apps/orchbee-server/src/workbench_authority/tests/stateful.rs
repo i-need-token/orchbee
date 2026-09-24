@@ -349,6 +349,30 @@ fn run(steps: &[Step]) -> Result<(), String> {
                         "tab rename changed unrelated state",
                     )?;
                 }
+                WorkbenchAction::PanelRename {
+                    terminal_context_id,
+                    tab_id,
+                    panel_id,
+                    label,
+                } => {
+                    let mut expected = before.clone();
+                    expected.revision = after.revision;
+                    let tab = expected
+                        .terminal_contexts
+                        .iter_mut()
+                        .find(|context| context.terminal_context_id == *terminal_context_id)
+                        .and_then(|context| {
+                            context.tabs.iter_mut().find(|tab| tab.tab_id == *tab_id)
+                        })
+                        .ok_or("missing renamed panel tab")?;
+                    super::super::panel_primary_mut(&mut tab.root, panel_id)
+                        .ok_or("missing renamed panel")?
+                        .custom_label = label.custom_label().cloned();
+                    require(
+                        after == expected && authority.last_identity == old_cursor,
+                        "panel rename changed unrelated state",
+                    )?;
+                }
                 WorkbenchAction::WorkspaceLaunch { .. } | WorkbenchAction::TabCreate { .. } => {
                     return Err("pure trace generated tab.create".to_owned());
                 }

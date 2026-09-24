@@ -87,7 +87,7 @@ fn context_text(context: &ContextRef) -> String {
 fn presentation_cells(row: &PresentationRow) -> Vec<String> {
     vec![
         row.presentation_id.clone(),
-        table_label(&row.label),
+        table_label(&row.display_label),
         row.terminal_id.clone().unwrap_or_else(|| "-".to_owned()),
         row.worker_id.clone().unwrap_or_else(|| "-".to_owned()),
     ]

@@ -3,7 +3,10 @@ mod command;
 mod directory;
 mod identity;
 mod model;
+mod panel_label;
 mod validation;
+
+pub use panel_label::{PanelCustomLabel, PanelLabelUpdate};
 
 pub use carrier::{
     WORKBENCH_MAGIC, WorkbenchWireError, read_workbench_request, read_workbench_response,

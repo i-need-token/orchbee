@@ -30,11 +30,11 @@ pub(crate) mod panel_move;
 pub(crate) mod panel_relocate;
 // The typed launch-profile transport is admitted the same way: compiled and tested before the
 // CLI launch-profile surface consumes it.
+pub(crate) mod label_rename;
 #[allow(dead_code)]
 pub(crate) mod launch_profile;
 mod tab_close;
 mod tab_move;
-pub(crate) mod tab_rename;
 mod workspace_close;
 mod workspace_group_close;
 pub(crate) mod workspace_launch;

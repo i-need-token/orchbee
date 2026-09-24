@@ -1,7 +1,7 @@
 use super::rename_draft::{RenameDraftIntent, RenameDraftToken};
 use super::{AttachmentKey, CarrierFailure, NativeContextTabs};
-use crate::local_client::workbench::tab_rename::{
-    WorkbenchTabRenamePrecommit, WorkbenchTabRenameRequest,
+use crate::local_client::workbench::label_rename::{
+    WorkbenchLabelRenamePrecommit, WorkbenchLabelRenameRequest,
 };
 use crate::terminal_session::workbench_projection::renamed::{
     RenamedTabExpectation, ValidatedRenamedProjection, validate_renamed_tab,
@@ -200,7 +200,7 @@ impl super::NativeSessionState {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) struct RenameOperation {
-    request: WorkbenchTabRenameRequest,
+    request: WorkbenchLabelRenameRequest,
     intent: RenameDraftIntent,
     deadline: Instant,
 }
@@ -211,7 +211,7 @@ impl RenameOperation {
         request_id: WorkbenchRequestId,
         deadline: Instant,
     ) -> Result<Self, CarrierFailure> {
-        let request = WorkbenchTabRenameRequest::try_from(WorkbenchCommand {
+        let request = WorkbenchLabelRenameRequest::try_from(WorkbenchCommand {
             protocol_version: ProtocolVersion,
             request_id,
             site_id: intent.baseline().site_id().clone(),
@@ -230,7 +230,7 @@ impl RenameOperation {
         })
     }
 
-    pub(in crate::terminal_session) const fn request(&self) -> &WorkbenchTabRenameRequest {
+    pub(in crate::terminal_session) const fn request(&self) -> &WorkbenchLabelRenameRequest {
         &self.request
     }
     pub(in crate::terminal_session) const fn request_id(&self) -> &WorkbenchRequestId {
@@ -362,7 +362,7 @@ impl PendingRenameCommit {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) enum RenameResult {
     NotSubmitted,
-    Precommit(WorkbenchTabRenamePrecommit),
+    Precommit(WorkbenchLabelRenamePrecommit),
     Unchanged(WorkbenchRevision),
     Committed {
         revision: WorkbenchRevision,
@@ -373,7 +373,7 @@ pub(in crate::terminal_session) enum RenameResult {
 #[derive(Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) enum RenamePreparation {
     NotSubmitted,
-    Precommit(WorkbenchTabRenamePrecommit),
+    Precommit(WorkbenchLabelRenamePrecommit),
     Unchanged,
     Committed {
         known: PendingRenameCommit,

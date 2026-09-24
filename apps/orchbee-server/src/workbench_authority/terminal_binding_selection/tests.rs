@@ -107,6 +107,7 @@ fn exposure_walks_nested_panels_and_checks_primary_and_child_presentations() {
                     PanelSlot {
                         node: PanelNode::Panel {
                             child_presentations: vec![Presentation {
+                                custom_label: None,
                                 binding: Some(child_binding.clone()),
                                 label: "child".to_owned(),
                                 presentation_id: TerminalPresentationId::parse(&identity(104))
@@ -114,6 +115,7 @@ fn exposure_walks_nested_panels_and_checks_primary_and_child_presentations() {
                             }],
                             panel_id: WorkbenchPanelId::parse(&identity(102)).unwrap(),
                             primary_presentation: Presentation {
+                                custom_label: None,
                                 binding: None,
                                 label: "primary".to_owned(),
                                 presentation_id: TerminalPresentationId::parse(&identity(103))
@@ -130,6 +132,7 @@ fn exposure_walks_nested_panels_and_checks_primary_and_child_presentations() {
                                         child_presentations: Vec::new(),
                                         panel_id: WorkbenchPanelId::parse(&identity(108)).unwrap(),
                                         primary_presentation: Presentation {
+                                            custom_label: None,
                                             binding: Some(nested_primary_binding.clone()),
                                             label: "nested".to_owned(),
                                             presentation_id: TerminalPresentationId::parse(
@@ -145,6 +148,7 @@ fn exposure_walks_nested_panels_and_checks_primary_and_child_presentations() {
                                         child_presentations: Vec::new(),
                                         panel_id: WorkbenchPanelId::parse(&identity(111)).unwrap(),
                                         primary_presentation: Presentation {
+                                            custom_label: None,
                                             binding: None,
                                             label: "empty".to_owned(),
                                             presentation_id: TerminalPresentationId::parse(

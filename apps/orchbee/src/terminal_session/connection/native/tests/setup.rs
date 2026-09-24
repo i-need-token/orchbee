@@ -2404,6 +2404,7 @@ pub(super) fn panel_node(
         child_presentations: Vec::new(),
         panel_id: WorkbenchPanelId::parse(&id(panel)).unwrap(),
         primary_presentation: Presentation {
+            custom_label: None,
             binding: Some(PresentationBinding {
                 terminal_id: TerminalId::parse(&id(terminal)).unwrap(),
                 worker_id: WorkerId::parse(&id(worker)).unwrap(),

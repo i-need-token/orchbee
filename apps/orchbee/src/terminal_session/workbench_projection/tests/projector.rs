@@ -104,6 +104,7 @@ fn rejects_groups_and_each_unsupported_member_without_filtering() {
         unreachable!("fixture tab uses one Panel")
     };
     child_presentations.push(Presentation {
+        custom_label: None,
         binding: Some(PresentationBinding {
             terminal_id: terminal_id(42),
             worker_id: worker_id(41),

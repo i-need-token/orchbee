@@ -2193,6 +2193,7 @@ fn commit_edit(
                 child_presentations: Vec::new(),
                 panel_id: new_panel_id.clone(),
                 primary_presentation: Presentation {
+                    custom_label: None,
                     binding: Some(PresentationBinding {
                         terminal_id: terminal_id(next_identity(identity)),
                         worker_id: worker_id(next_identity(identity)),

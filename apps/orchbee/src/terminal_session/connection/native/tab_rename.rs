@@ -1,6 +1,6 @@
 use super::*;
-use crate::local_client::workbench::tab_rename::{
-    WorkbenchTabRenameNotSubmitted, WorkbenchTabRenameSubmission,
+use crate::local_client::workbench::label_rename::{
+    WorkbenchLabelRenameNotSubmitted, WorkbenchLabelRenameSubmission,
 };
 use crate::terminal_session::{
     mailbox::MutationResult,
@@ -28,22 +28,22 @@ impl NativeExecutor {
         self.pending_rename = Some(RenameWorkerEvidence::Unknown(operation.clone()));
         let outcome = match self
             .client
-            .submit_workbench_tab_rename(operation.request().clone(), cutoff)
+            .submit_workbench_label_rename(operation.request().clone(), cutoff)
         {
-            WorkbenchTabRenameSubmission::DefinitelyNotSubmitted(reason) => {
+            WorkbenchLabelRenameSubmission::DefinitelyNotSubmitted(reason) => {
                 self.pending_rename = None;
-                if matches!(reason, WorkbenchTabRenameNotSubmitted::SessionUnavailable)
+                if matches!(reason, WorkbenchLabelRenameNotSubmitted::SessionUnavailable)
                     || self.client.generation().is_none()
                 {
                     return Err(CarrierFailure::Transport);
                 }
                 RenameResult::NotSubmitted
             }
-            WorkbenchTabRenameSubmission::DefinitePrecommit(result) => {
+            WorkbenchLabelRenameSubmission::DefinitePrecommit(result) => {
                 self.pending_rename = None;
                 RenameResult::Precommit(result)
             }
-            WorkbenchTabRenameSubmission::Unchanged { revision } => {
+            WorkbenchLabelRenameSubmission::Unchanged { revision } => {
                 if !matches!(
                     operation
                         .prepare(RenameResult::Unchanged(revision))
@@ -55,14 +55,14 @@ impl NativeExecutor {
                 self.pending_rename = None;
                 RenameResult::Unchanged(revision)
             }
-            WorkbenchTabRenameSubmission::OutcomeUnknown { request_id, .. } => {
+            WorkbenchLabelRenameSubmission::OutcomeUnknown { request_id, .. } => {
                 return Err(if &request_id == operation.request_id() {
                     CarrierFailure::OutcomeUnknown
                 } else {
                     CarrierFailure::Protocol
                 });
             }
-            WorkbenchTabRenameSubmission::Committed { revision } => {
+            WorkbenchLabelRenameSubmission::Committed { revision } => {
                 let known = operation
                     .known_commit(revision)
                     .ok_or(CarrierFailure::AuthorityDivergence)?;

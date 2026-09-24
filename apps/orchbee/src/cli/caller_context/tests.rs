@@ -72,7 +72,7 @@ fn current_binding_follows_primary_child_and_moved_workspace_with_one_read() {
                 .validate(&document)
                 .expect("valid result");
             assert_eq!(document["schema"], "orchbee.panel.current");
-            assert_eq!(document["version"], 1);
+            assert_eq!(document["version"], 2);
             assert_eq!(output.status, 0);
         }
     }

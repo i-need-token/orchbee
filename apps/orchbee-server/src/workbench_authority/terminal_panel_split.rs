@@ -938,6 +938,7 @@ fn replace_panel(node: &mut PanelNode, replacement: &PanelSplitReplacement<'_>) 
                 child_presentations: Vec::new(),
                 panel_id: replacement.new_panel_id.clone(),
                 primary_presentation: Presentation {
+                    custom_label: None,
                     binding: Some(replacement.binding.clone()),
                     label: replacement.label.to_owned(),
                     presentation_id: replacement.presentation_id.clone(),

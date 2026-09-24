@@ -249,6 +249,7 @@ fn canonical_move_a_settlement_then_b_queued_preserves_exact_a_commit_at_retirem
                     panel_id: tab.panel_id().clone(),
                     child_presentations: vec![],
                     primary_presentation: Presentation {
+                        custom_label: None,
                         presentation_id: tab.presentation_id().clone(),
                         label: tab.presentation_label().as_str().to_owned(),
                         binding: Some(PresentationBinding {
