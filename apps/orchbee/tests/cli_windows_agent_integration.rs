@@ -18,7 +18,7 @@ impl Fixture {
             "orchbee-integration-cli-{:032x}",
             u128::from_le_bytes(nonce)
         ));
-        for path in ["用户 & home/.codex", "explicit Codex home", "bin"] {
+        for path in ["用户 & ' $ ` home/.codex", "explicit Codex home", "bin"] {
             fs::create_dir_all(root.join(path)).unwrap();
         }
         let node = std::env::split_paths(&std::env::var_os("PATH").unwrap())
@@ -37,14 +37,14 @@ impl Fixture {
         )
         .unwrap();
         fs::write(
-            root.join("用户 & home/.codex/config.toml"),
+            root.join("用户 & ' $ ` home/.codex/config.toml"),
             b"user_default = 'must remain untouched'\n",
         )
         .unwrap();
         Self(root)
     }
     fn home(&self) -> PathBuf {
-        self.0.join("用户 & home")
+        self.0.join("用户 & ' $ ` home")
     }
     fn config_home(&self) -> PathBuf {
         self.0.join("explicit Codex home")
@@ -57,7 +57,7 @@ impl Fixture {
     }
     fn capsule(&self) -> PathBuf {
         self.home()
-            .join(".orchbee/agent-observation-adapters/0.4.1")
+            .join(".orchbee/agent-observation-adapters/0.4.2")
     }
     fn run(&self, verb: &str, provider: &str, config_home: &Path) -> Output {
         self.run_options(verb, provider, config_home, &[])
@@ -117,6 +117,119 @@ impl Fixture {
     }
     fn calls(&self) -> String {
         fs::read_to_string(self.config_home().join("calls.jsonl")).unwrap_or_default()
+    }
+    fn claude(&self) {
+        let node = std::env::split_paths(&std::env::var_os("PATH").unwrap())
+            .map(|path| path.join("node.exe"))
+            .find(|path| path.is_file())
+            .unwrap();
+        let script = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/windows-integration-claude.mjs");
+        fs::write(
+            self.0.join("bin/claude.cmd"),
+            format!(
+                "@echo off\r\n\"{}\" \"{}\" %*\r\n",
+                node.display(),
+                script.display()
+            ),
+        )
+        .unwrap();
+    }
+    fn claude_calls(&self) -> String {
+        fs::read_to_string(self.config_home().join("claude-calls.jsonl")).unwrap_or_default()
+    }
+}
+
+#[test]
+fn claude_plugin_lifecycle_and_shipped_exec_hooks_work_on_windows() {
+    use std::os::windows::process::CommandExt;
+    let fixture = Fixture::new();
+    fixture.claude();
+    let inspect = |verb| fixture.provider_document(verb, "claude-code", 0);
+    assert_eq!(
+        inspect("explain")["result"]["managementMode"],
+        "managed-local"
+    );
+    assert!(!fixture.capsule().exists());
+    inspect("enable");
+    assert_eq!(inspect("explain")["result"]["state"], "enabled");
+    let calls = fixture.claude_calls();
+    inspect("enable");
+    assert_eq!(fixture.claude_calls(), calls);
+    inspect("disable");
+    assert_eq!(inspect("explain")["result"]["state"], "disabled");
+    let calls = fixture.claude_calls();
+    inspect("disable");
+    assert_eq!(fixture.claude_calls(), calls);
+    inspect("enable");
+    assert_eq!(inspect("explain")["result"]["state"], "enabled");
+    let output = Command::new("node.exe")
+        .arg(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/windows-integration-exec-hook.mjs"),
+        )
+        .arg(fixture.capsule().join("bundle"))
+        .env("USERPROFILE", fixture.home())
+        .stdin(Stdio::null())
+        .creation_flags(0x0800_0000)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let delivery: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(delivery["events"], 4);
+    assert_eq!(delivery["silent"], true);
+    assert!(fixture.calls().is_empty());
+}
+
+#[test]
+fn claude_repairs_owned_old_installations_and_preserves_foreign_or_newer_sources() {
+    let fixture = Fixture::new();
+    fixture.claude();
+    let state_path = fixture.config_home().join("claude-state.json");
+    let state = |source: &Path, version: &str| {
+        serde_json::json!({
+            "source": source, "installed": true, "enabled": true, "version": version
+        })
+        .to_string()
+    };
+    fs::write(
+        &state_path,
+        state(&fixture.capsule().parent().unwrap().join("0.4.1"), "0.4.1"),
+    )
+    .unwrap();
+    assert_eq!(
+        fixture.provider_document("explain", "claude-code", 0)["result"]["state"],
+        "update-required"
+    );
+    fixture.provider_document("enable", "claude-code", 0);
+    assert_eq!(
+        fixture.provider_document("explain", "claude-code", 0)["result"]["state"],
+        "enabled"
+    );
+    for (source, version, expected) in [
+        (fixture.0.join("foreign"), "0.4.2", "conflict"),
+        (
+            fixture.capsule().parent().unwrap().join("9.0.0"),
+            "9.0.0",
+            "stale-side",
+        ),
+        (fixture.capsule(), "9.0.0", "stale-side"),
+    ] {
+        let original = state(&source, version);
+        fs::write(&state_path, &original).unwrap();
+        let calls = fixture.claude_calls();
+        assert_eq!(
+            fixture.provider_document("explain", "claude-code", 0)["result"]["state"],
+            expected
+        );
+        fixture.provider_document("enable", "claude-code", 3);
+        fixture.provider_document("disable", "claude-code", 3);
+        assert_eq!(fs::read_to_string(&state_path).unwrap(), original);
+        assert_eq!(fixture.claude_calls(), calls);
     }
 }
 
@@ -293,8 +406,8 @@ fn foreign_newer_and_invalid_roots_are_refused_without_provider_commands() {
         ),
     ] {
         let content = format!(
-            "[marketplaces.orchbee-local]\nsource_type = 'local'\nsource = '{}'\n[plugins.\"orchbee-agent-observation@orchbee-local\"]\nenabled = true\n",
-            path.display()
+            "[marketplaces.orchbee-local]\nsource_type = 'local'\nsource = {}\n[plugins.\"orchbee-agent-observation@orchbee-local\"]\nenabled = true\n",
+            serde_json::to_string(&path).unwrap()
         );
         fs::write(fixture.config_home().join("config.toml"), &content).unwrap();
         assert_eq!(fixture.document("explain", 0)["result"]["state"], state);
@@ -309,7 +422,7 @@ fn foreign_newer_and_invalid_roots_are_refused_without_provider_commands() {
     let output = fixture.run("enable", "codex", Path::new("relative-invalid"));
     assert!(!output.status.success());
     assert_eq!(fixture.calls(), calls);
-    let output = fixture.run("enable", "claude-code", &fixture.config_home());
+    let output = fixture.run("enable", "grok", &fixture.config_home());
     assert_eq!(output.status.code(), Some(4));
     assert_eq!(fixture.calls(), calls);
 }
@@ -329,8 +442,8 @@ fn outdated_filter_preserves_unknown_and_blocked_inspections_without_effects() {
                     _ => fixture.0.join("foreign"),
                 };
                 format!(
-                    "[marketplaces.orchbee-local]\nsource_type = 'local'\nsource = '{}'\n[plugins.\"orchbee-agent-observation@orchbee-local\"]\nenabled = true\n",
-                    root.display()
+                    "[marketplaces.orchbee-local]\nsource_type = 'local'\nsource = {}\n[plugins.\"orchbee-agent-observation@orchbee-local\"]\nenabled = true\n",
+                    serde_json::to_string(&root).unwrap()
                 )
             }
         };

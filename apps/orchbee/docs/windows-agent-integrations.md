@@ -24,15 +24,14 @@ for ownership, version direction, plans, receipts, and residuals.
 | Evidence       | Windows filesystem tests cover no-replace, Unicode paths, and reparse refusal; process tests cover argument preservation, output limits, cancellation, timeout, and descendants; isolated public CLI tests cover Codex onboarding and configuration isolation.                                                |
 | Limits         | Provider authentication, remote installs, paid Agent tasks, and TUI interaction are outside onboarding evidence. TLA execution is excluded by user instruction. Review is a same-author adversarial pass, not independent evidence.                                                                           |
 
-Windows manages Codex hooks and the existing OpenCode, Pi and OMP JavaScript modules.
+Windows manages Claude Code and Codex hooks and the existing OpenCode, Pi and OMP JavaScript modules.
 The other provider rows retain `manual-only` until their Windows hook execution path
 is supported. Inspection and mutation share the same platform admission policy.
 
 OpenCode uses its ESM entry; the Pi/OMP installed CommonJS bootstrap dynamically imports
 the capsule's **ESM** entry and calls its named registration function. Importing their
 CommonJS wrapper and looking for that named export would silently skip registration.
-This Windows refinement reuses payload 0.4.1 and changes no payload files or non-Windows
-runtime behavior. The deterministic bootstrap bytes and file URL remain the ownership
+The module refinement keeps its existing bootstrap behavior with payload 0.4.2. The deterministic bootstrap bytes and file URL remain the ownership
 proof: changed, foreign or differently versioned entries are refused without replacement.
 Windows doctor derives the capsule root from the full `bundle/<provider>/<entry>` suffix,
 so a healthy installed module is inspected against its capsule manifest instead of the
@@ -62,3 +61,9 @@ action remains outside this cooperative teardown claim.
 Windows `agent integration list --outdated-only` performs the usual bounded local inspection once and shows only update-required entries, including owned installations needing repair. It never installs or downloads. `agent integration enable --provider <id>` remains the explicit guarded update/repair action; conflict and newer entries are not replaced.
 
 Filtered lists use v2 with outdatedOnly true, inspectedCount, unresolvedProviderIds for unknown inspections and blockedProviderIds for conflict/newer entries. Complete is calculated from the entire selected inspection before filtering; an empty list cannot hide inspection failures. Text includes these counts and the same filtered entries. The default list keeps v1 and its existing behavior. The flag has no non-Windows runtime; original 40-second deadline, cancellation, profile isolation and local-only ownership remain. Detailed installed-version reporting and remaining provider Windows hook support are separate obligations.
+
+## Claude exec hooks
+
+Claude Code is also managed on Windows with capsule 0.4.2. Its hook declaration uses the provider's `command` plus `args` exec form: Node receives the plugin script path as a literal argument, including spaces, apostrophes, Unicode, dollar signs and backticks. A fixed dynamic-import guard ignores a removed script; the existing bounded sanitizer and Windows pipe/console transport remain the only observation path. No Bash or PowerShell launcher is required. Node must remain on the provider PATH; if it is absent, Claude reports its non-blocking spawn diagnostic, and no observation is produced. This replaces the old Claude-only promise of silent success without Node. Other providers retain their own launch contracts. The [upstream exec contract](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form) defines argument substitution.
+
+Enable, disable and repair reuse the existing user-scoped plugin commands and bounded Windows process owner. Old owned capsules require explicit repair; current enabled entries are no-ops, and foreign/newer entries remain refused. Isolated provider-command and shipped-hook witnesses cover onboarding and sanitized delivery. They do not establish authenticated Claude task completion. The shared portable hook declaration changes, but this work adds no macOS/Linux workflow or runtime validation.

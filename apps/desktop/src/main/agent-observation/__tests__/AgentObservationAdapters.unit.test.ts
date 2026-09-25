@@ -250,7 +250,7 @@ describe('Agent observation adapter resources', () => {
 	});
 
 	it.runIf(process.platform !== 'win32')(
-		'keeps every persisted POSIX command-hook entry silent when the runtime or Capsule script is absent',
+		'keeps missing scripts silent and distinguishes unavailable exec runtimes',
 		// Secondary guard for the asynchronous reads; the owned bounds are the
 		// monotonic fixture deadline and the per-spawn watchdog below.
 		{ timeout: 35_000 },
@@ -295,20 +295,21 @@ describe('Agent observation adapter resources', () => {
 									killSignal: 'SIGKILL',
 									timeout: Math.min(SPAWN_WATCHDOG_MS, remaining),
 								});
+								const runtimeAbsent = hook.command === 'node' && scenario === 'runtime-absent';
 								expect({
 									label,
 									status: result.status,
 									signal: result.signal,
 									hasError: result.error !== undefined,
 									errorCode: spawnErrorCode(result.error),
-									stderrBytes: result.stderr.length,
-									stdoutBytes: result.stdout.length,
+									stderrBytes: result.stderr?.length ?? 0,
+									stdoutBytes: result.stdout?.length ?? 0,
 								}).toEqual({
 									label,
-									status: 0,
+									status: runtimeAbsent ? null : 0,
 									signal: null,
-									hasError: false,
-									errorCode: null,
+									hasError: runtimeAbsent,
+									errorCode: runtimeAbsent ? 'ENOENT' : null,
 									stderrBytes: 0,
 									stdoutBytes: 0,
 								});

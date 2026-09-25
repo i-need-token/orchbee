@@ -23,12 +23,12 @@
 | 证据       | Windows 文件系统测试覆盖不可覆盖、Unicode 路径和重解析点拒绝；进程测试覆盖参数保真、输出上限、取消、超时和后代；隔离的公开 CLI 测试覆盖 Codex 接入与配置隔离。                                                             |
 | 限制       | Provider 认证、远端安装、付费 Agent 任务和 TUI 交互不在接入证据范围内。按用户要求不执行 TLA。审查为作者自身的对抗性复查，不是独立证据。                                                                                    |
 
-Windows 托管 Codex hooks 以及既有 OpenCode、Pi、OMP JavaScript 模块。其他 provider
+Windows 托管 Claude Code 和 Codex hooks 以及既有 OpenCode、Pi、OMP JavaScript 模块。其他 provider
 在其 Windows hook 执行路径获得支持前保持 `manual-only`。检查与变更共享平台准入规则。
 
 OpenCode 使用 ESM 入口；Pi/OMP 安装的 CommonJS 引导模块动态导入 capsule 的 **ESM**
 入口，再调用具名注册函数。若导入其 CommonJS 包装器并查找同名导出，会静默跳过注册。
-本 Windows 细化复用载荷 0.4.1，不修改载荷文件或非 Windows 运行时行为。确定性的引导
+模块细化在载荷 0.4.2 中保持既有引导行为。确定性的引导
 文件字节与 file URL 仍为归属证明：被修改、外来或指向其他版本的条目会被拒绝，不覆盖。
 Windows doctor 从完整的 `bundle/<provider>/<entry>` 后缀推导 capsule 根目录，
 健康的已安装模块因此对照其 capsule manifest 检查，不再误查 bundle 目录。
@@ -55,3 +55,9 @@ threading 以及 implement/interface 过程宏。过程宏复用现有 syn/quote
 Windows `agent integration list --outdated-only` 只执行一次原有有界本地检查，仅显示 update-required 条目，包括需要修复的自有安装。它不安装、不下载。`agent integration enable --provider <id>` 仍是显式且受保护的更新／修复操作；冲突及更新版本条目不会被替换。
 
 筛选列表使用 v2，包含 outdatedOnly true、inspectedCount、表示检查未知的 unresolvedProviderIds，以及表示冲突／更新版本的 blockedProviderIds。Complete 在筛选前根据全部所选检查计算；空列表不能隐藏检查失败。文本包含这些计数和相同筛选条目。默认列表保持 v1 及既有行为。此参数不新增非 Windows 运行时；原有 40 秒期限、取消、用户目录隔离及仅本地归属保持不变。详细已安装版本报告及其余 provider 的 Windows hook 支持仍是独立义务。
+
+## Claude exec hooks
+
+Windows 也可使用 capsule 0.4.2 托管 Claude Code。Hook 声明使用 provider 的 `command` 加 `args` exec 形式：Node 将插件脚本路径作为原样参数接收，包括空格、单引号、Unicode、美元符和反引号。固定动态导入保护会忽略已删除的脚本；既有有界清洗器及 Windows 管道／控制台传输仍是唯一观察路径。不需要 Bash 或 PowerShell 启动器。Node 必须保留在 provider PATH 中；缺失时 Claude 报告其非阻塞启动诊断，不产生观察。这替代原先仅 Claude 无 Node 时仍静默成功的承诺。其他 provider 保留各自启动契约。[上游 exec 契约](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form) 定义参数替换。
+
+启用、禁用和修复复用既有用户作用域插件命令及有界 Windows 进程所有者。旧版自有 capsule 需要显式修复；当前已启用条目为空操作，外部／更新版本条目仍拒绝。隔离 provider 命令及已发布 hook 见证覆盖配置和清洗后回传，不证明已认证 Claude 任务完成。共享可移植 hook 声明会变化，但本工作不增加 macOS/Linux 工作流或运行时验证。

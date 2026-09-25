@@ -192,7 +192,11 @@ pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode)
     if cfg!(windows)
         && !matches!(
             id,
-            IntegrationId::Codex | IntegrationId::Opencode | IntegrationId::Pi | IntegrationId::Omp
+            IntegrationId::ClaudeCode
+                | IntegrationId::Codex
+                | IntegrationId::Opencode
+                | IntegrationId::Pi
+                | IntegrationId::Omp
         )
     {
         ManagementMode::ManualOnly

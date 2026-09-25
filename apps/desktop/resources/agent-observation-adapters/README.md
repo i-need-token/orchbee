@@ -62,7 +62,7 @@ Use a durable standalone copy of this directory as `<adapter-root>`. Do not pers
 Orchbee application bundle: deleting or replacing the application must not break Agent startup.
 Local Settings first publishes a validated, versioned Capsule under the user's application-data
 directory and points managed CLI integrations at that durable copy. Provider-local module entries
-catch a missing Capsule, command hooks test that their runtime still exists, and Gemini/Qwen entries
+catch a missing Capsule, shell command hooks test that their runtime still exists, and Gemini/Qwen entries
 are self-contained copies. An uninstaller must retain every Capsule still referenced by any
 provider declaration; explicit disable owns removal of the corresponding provider entry.
 
@@ -254,3 +254,9 @@ pnpm --filter @orchbee/desktop test:unit
 ```
 
 The owning runtime and transport contract is documented in the [Desktop guide](../../README.md).
+
+## Claude direct execution
+
+Capsule 0.4.2 replaces Claude's `/bin/sh` hook launcher with `node` plus an explicit argument vector, following the [upstream exec contract](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form). A fixed module expression imports the literal plugin script path through pathToFileURL and catches import failures. Script removal and malformed input remain silent; Node itself must exist on the provider PATH. If Node cannot start, Claude may display its non-blocking diagnostic. The integration never produces a tool permission decision.
+
+This shared declaration allows native Windows onboarding without a shell dependency. Existing events, hook deadlines, input bounds, sanitization and transport ownership are unchanged. The [native Windows contract](../../../orchbee/docs/windows-agent-integrations.md) owns installation and controlled Windows evidence; this change does not establish authenticated Agent task completion or new macOS/Linux workflow support. Old capsules remain immutable and explicit repair installs 0.4.2.

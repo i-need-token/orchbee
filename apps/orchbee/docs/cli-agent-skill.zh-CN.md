@@ -36,7 +36,7 @@
 
 使用 `agent list/get/explain` 获取 canonical session 事实，使用声明了条件、超时及可选 `--after-revision` 的 `agent wait` 等待后续状态。`terminal wait-output` 可能匹配已有保留输出。旧的匹配行或 idle 状态都不能证明新提交的任务完成。使用 `agent prompt <target> <text> --wait` 提交字面 paste 加 Enter，先观察活动，再匹配条件。有待处理请求、状态过期或未知时拒绝。活动停滞、等待超时或取消仍保留已接受回执；再次操作前请检查回执。已在 working 的 Agent 可能结束既有轮次，匹配不保证本次提示自己的轮次完成。`--until` 和 `--timeout` 要求 `--wait`，Windows 默认无总超时；有界自动化应显式设置超时。使用 `agent start alpha --kind codex --panel <id>` 在空闲 Windows 终端启动并等待就绪验证。默认超时 30000 毫秒，允许 3001–300000。未指定 `--panel` 时要求有效调用者上下文。`--` 后参数按字面传递，也可重复使用 `--arg=<value>`。`agent names` 可查看启动预留。超时或取消不会终止进程；保留输入与预留事实，不要盲目重放。
 
-Windows 上可用 `agent doctor` 离线检查本机配置。`agent integration list/explain/enable/disable --provider <id>` 管理 Codex、OpenCode、Pi、OMP（`codex`、`opencode`、`pi`、`omp`）；检查回执后再 list 确认观测状态。其他 provider 仍为 manual-only。Windows `site diagnose` 使用 `orchbee.site.diagnose.windows` v2 报告只读运行时、锁和管道名称事实。其他不支持的操作返回类型化失败；不要用猜测的状态替代失败。
+Windows 上可用 `agent doctor` 离线检查本机配置。`agent integration list/explain/enable/disable --provider <id>` 管理 Claude Code、Codex、OpenCode、Pi、OMP（`claude-code`、`codex`、`opencode`、`pi`、`omp`）；检查回执后再 list 确认观测状态。其他 provider 仍为 manual-only。Windows `site diagnose` 使用 `orchbee.site.diagnose.windows` v2 报告只读运行时、锁和管道名称事实。其他不支持的操作返回类型化失败；不要用猜测的状态替代失败。
 
 破坏性的 close/delete 命令需要 `--confirm`。关闭 Workspace 不会删除其 Git 检出或分支。关闭结果需要恢复时使用 Workspace close-status/close-resume。退出一个 TUI 客户端不等于停止 Site。
 

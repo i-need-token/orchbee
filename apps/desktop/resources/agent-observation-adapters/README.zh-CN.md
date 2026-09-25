@@ -57,7 +57,7 @@ device 上，用户可以通过 Agent 集成设置显式开启或关闭 Orchbee 
 下面用 `<adapter-root>` 表示该目录一份独立、耐久副本的 absolute path。不要把 application bundle
 内部路径持久写进 Agent 配置：删除或替换 Orchbee application 不得破坏 Agent 启动。本地 Settings 会先
 在用户 application-data directory 发布经过校验、带版本的 Capsule，再让 managed CLI integration
-指向这个耐久副本。Provider-local module entry 会捕获 Capsule 缺失；command hook 会先检查 runtime
+指向这个耐久副本。Provider-local module entry 会捕获 Capsule 缺失；Shell command hook 会先检查 runtime
 是否仍存在；Gemini/Qwen entry 则是 self-contained copy。Uninstaller 必须保留仍被任意 provider
 declaration 引用的 Capsule；对应 provider entry 只由显式 disable 移除。
 
@@ -234,3 +234,9 @@ pnpm --filter @orchbee/desktop test:unit
 ```
 
 所属 runtime 与 transport contract 记录在 [Desktop 指南](../../README.zh-CN.md)中。
+
+## Claude 直接执行
+
+Capsule 0.4.2 将 Claude 的 `/bin/sh` hook 启动器替换为 `node` 加显式参数向量，遵循[上游 exec 契约](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)。固定模块表达式通过 pathToFileURL 导入原样插件脚本路径，并捕获导入失败。脚本删除及输入格式错误仍静默处理；Node 本身必须存在于 provider PATH 中。Node 无法启动时，Claude 可能显示其非阻塞诊断。集成从不产生工具权限决定。
+
+此共享声明让原生 Windows 配置不依赖 Shell。既有事件、hook 期限、输入界限、清洗及传输归属不变。[原生 Windows 契约](../../../orchbee/docs/windows-agent-integrations.zh-CN.md) 拥有安装及受控 Windows 证据；此变化不证明已认证 Agent 任务完成，也不增加 macOS/Linux 工作流支持。旧 capsule 保持不可变，显式修复安装 0.4.2。

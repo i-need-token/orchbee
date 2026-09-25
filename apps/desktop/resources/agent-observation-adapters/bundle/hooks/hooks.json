@@ -5,11 +5,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "/bin/sh",
+						"command": "node",
 						"args": [
-							"-c",
-							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
-							"orchbee-agent-observation",
+							"--input-type=module",
+							"-e",
+							"try { await import((await import('node:url')).pathToFileURL(process.argv[1]).href); } catch {}",
 							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
 							"claude-code"
 						],
@@ -23,11 +23,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "/bin/sh",
+						"command": "node",
 						"args": [
-							"-c",
-							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
-							"orchbee-agent-observation",
+							"--input-type=module",
+							"-e",
+							"try { await import((await import('node:url')).pathToFileURL(process.argv[1]).href); } catch {}",
 							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
 							"claude-code"
 						],
@@ -42,11 +42,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "/bin/sh",
+						"command": "node",
 						"args": [
-							"-c",
-							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
-							"orchbee-agent-observation",
+							"--input-type=module",
+							"-e",
+							"try { await import((await import('node:url')).pathToFileURL(process.argv[1]).href); } catch {}",
 							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
 							"claude-code"
 						],
@@ -61,11 +61,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "/bin/sh",
+						"command": "node",
 						"args": [
-							"-c",
-							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
-							"orchbee-agent-observation",
+							"--input-type=module",
+							"-e",
+							"try { await import((await import('node:url')).pathToFileURL(process.argv[1]).href); } catch {}",
 							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
 							"claude-code"
 						],
@@ -80,11 +80,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "/bin/sh",
+						"command": "node",
 						"args": [
-							"-c",
-							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
-							"orchbee-agent-observation",
+							"--input-type=module",
+							"-e",
+							"try { await import((await import('node:url')).pathToFileURL(process.argv[1]).href); } catch {}",
 							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
 							"claude-code"
 						],
@@ -99,11 +99,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "/bin/sh",
+						"command": "node",
 						"args": [
-							"-c",
-							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
-							"orchbee-agent-observation",
+							"--input-type=module",
+							"-e",
+							"try { await import((await import('node:url')).pathToFileURL(process.argv[1]).href); } catch {}",
 							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
 							"claude-code"
 						],
@@ -117,11 +117,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "/bin/sh",
+						"command": "node",
 						"args": [
-							"-c",
-							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
-							"orchbee-agent-observation",
+							"--input-type=module",
+							"-e",
+							"try { await import((await import('node:url')).pathToFileURL(process.argv[1]).href); } catch {}",
 							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
 							"claude-code"
 						],
@@ -135,11 +135,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "/bin/sh",
+						"command": "node",
 						"args": [
-							"-c",
-							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
-							"orchbee-agent-observation",
+							"--input-type=module",
+							"-e",
+							"try { await import((await import('node:url')).pathToFileURL(process.argv[1]).href); } catch {}",
 							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
 							"claude-code"
 						],
@@ -154,11 +154,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "/bin/sh",
+						"command": "node",
 						"args": [
-							"-c",
-							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
-							"orchbee-agent-observation",
+							"--input-type=module",
+							"-e",
+							"try { await import((await import('node:url')).pathToFileURL(process.argv[1]).href); } catch {}",
 							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
 							"claude-code"
 						],
@@ -173,11 +173,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "/bin/sh",
+						"command": "node",
 						"args": [
-							"-c",
-							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
-							"orchbee-agent-observation",
+							"--input-type=module",
+							"-e",
+							"try { await import((await import('node:url')).pathToFileURL(process.argv[1]).href); } catch {}",
 							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
 							"claude-code"
 						],
@@ -191,11 +191,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "/bin/sh",
+						"command": "node",
 						"args": [
-							"-c",
-							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
-							"orchbee-agent-observation",
+							"--input-type=module",
+							"-e",
+							"try { await import((await import('node:url')).pathToFileURL(process.argv[1]).href); } catch {}",
 							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
 							"claude-code"
 						],
@@ -209,11 +209,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "/bin/sh",
+						"command": "node",
 						"args": [
-							"-c",
-							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
-							"orchbee-agent-observation",
+							"--input-type=module",
+							"-e",
+							"try { await import((await import('node:url')).pathToFileURL(process.argv[1]).href); } catch {}",
 							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
 							"claude-code"
 						],
@@ -227,11 +227,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "/bin/sh",
+						"command": "node",
 						"args": [
-							"-c",
-							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
-							"orchbee-agent-observation",
+							"--input-type=module",
+							"-e",
+							"try { await import((await import('node:url')).pathToFileURL(process.argv[1]).href); } catch {}",
 							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
 							"claude-code"
 						],

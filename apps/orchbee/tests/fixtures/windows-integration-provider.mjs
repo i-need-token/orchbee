@@ -32,7 +32,7 @@ fs.appendFileSync(path.join(root, 'calls.jsonl'), `${JSON.stringify(words)}\n`);
 fs.writeFileSync(statePath, JSON.stringify(state));
 let config = "unrelated_user_setting = 'preserve me'\n";
 if (state.source !== null)
-	config += `[marketplaces.orchbee-local]\nsource_type = 'local'\nsource = '${state.source}'\n`;
+	config += `[marketplaces.orchbee-local]\nsource_type = 'local'\nsource = ${JSON.stringify(state.source)}\n`;
 if (state.plugin) config += `[plugins."${id}"]\nenabled = true\n`;
 fs.writeFileSync(path.join(root, 'config.toml'), config);
 process.stdout.write('{}\n');
