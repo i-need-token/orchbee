@@ -1,6 +1,12 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee agent prompt --wait --c", "--client", true),
+    (
+        "orchbee agent prompt --wait --client 11111111111111111111111111111111 --c",
+        "--client",
+        false,
+    ),
     ("orchbee agent wait sess-alpha --c", "--client", true),
     (
         "orchbee agent wait --client 11111111111111111111111111111111 --c",

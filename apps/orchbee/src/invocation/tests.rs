@@ -7468,3 +7468,21 @@ fn agent_changes_grammar_requires_bounded_explicit_continuation() {
         assert!(parse(&arguments).is_err(), "{arguments:?}");
     }
 }
+
+#[test]
+fn prompt_client_selection_requires_wait_and_one_exact_client() {
+    let id = "11111111111111111111111111111111";
+    assert!(
+        matches!(parse(&["agent","prompt","alpha","task","--wait","--client",id]),
+        Ok(Request::Mutation {command:MutationCommand::AgentPrompt {wait:Some(wait), ..}, ..}) if wait.client.as_ref().is_some_and(|client| client.as_str()==id))
+    );
+    for tail in [
+        vec!["--client", id],
+        vec!["--wait", "--client", "bad"],
+        vec!["--wait", "--client", id, "--client", id],
+    ] {
+        let mut args = vec!["agent", "prompt", "alpha", "task"];
+        args.extend(tail);
+        assert!(parse(&args).is_err());
+    }
+}

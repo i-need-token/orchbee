@@ -2983,6 +2983,12 @@ impl Locale {
             (Self::ZhCn, "prompt-stalled") => {
                 Some("输入已接受，但尚未观察到新的 Agent 活动。请检查终端，不要盲目重发。")
             }
+            (Self::EnUs, "client-read-failed") => Some(
+                "The selected Client could not be read. Inspect the failure and any retained input receipt before retrying.",
+            ),
+            (Self::ZhCn, "client-read-failed") => {
+                Some("无法读取所选 Client。重试前请检查失败信息及保留的输入回执。")
+            }
             _ => None,
         }
     }

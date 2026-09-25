@@ -1,5 +1,7 @@
 //! Windows prompt preflight, delivery and activity/condition observation.
 #![cfg(windows)]
+#[path = "cli_windows_agent_prompt/client_wait.rs"]
+mod client_wait;
 #[path = "support/windows_agent_peer.rs"]
 mod peer_support;
 #[path = "cli_windows_agent_prompt/start.rs"]

@@ -989,6 +989,7 @@ pub(crate) enum AgentIntegrationCommand {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct AgentPromptWait {
+    pub(crate) client: Option<WorkbenchClientId>,
     pub(crate) until: Vec<AgentWaitCondition>,
     pub(crate) timeout_ms: Option<u32>,
 }
@@ -2400,6 +2401,7 @@ fn resolve_words(
                 options,
                 Scope {
                     prompt_wait: true,
+                    client: true,
                     forever: true,
                     until: true,
                     timeout: true,
@@ -2440,12 +2442,16 @@ fn resolve_words(
                 ));
             }
             if !options.prompt_wait
-                && (!options.until.is_empty() || options.timeout.is_some() || options.forever)
+                && (!options.until.is_empty()
+                    || options.timeout.is_some()
+                    || options.forever
+                    || options.client.is_some())
             {
                 return Err(missing_required(context, "'--wait'", envelope));
             }
             let wait = if options.prompt_wait {
                 Some(AgentPromptWait {
+                    client: client_control::client_id(options, context, envelope)?,
                     until: agent_until_option(options, context, envelope)?,
                     timeout_ms: agent_wait_timeout_option(options, context, envelope)?,
                 })

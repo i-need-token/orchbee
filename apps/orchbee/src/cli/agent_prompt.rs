@@ -41,7 +41,6 @@ mod active {
     use orchbee_agent_observation_protocol::{
         AgentLifecycle, AgentObservationFreshness, AgentSemanticStatus, AgentSessionDetail,
     };
-    use orchbee_local_ipc::LocalIo;
     use serde_json::{Map, Value, json};
     use std::time::{Duration, Instant};
 
@@ -59,6 +58,8 @@ mod active {
         elapsed_ms: u64,
         timeout_ms: Option<u32>,
         #[cfg(windows)]
+        client: Option<Box<crate::cli::results::AgentClientViewDoc>>,
+        #[cfg(windows)]
         matched_change: Option<(
             orchbee_agent_observation_protocol::ObapRequestId,
             orchbee_agent_observation_protocol::AgentChange,
@@ -72,13 +73,23 @@ mod active {
         format: OutputFormat,
         locale: Locale,
     ) -> Output {
+        #[cfg(not(windows))]
+        if wait.is_some_and(|wait| wait.client.is_some()) {
+            return failure_output(
+                Failure::new(FailureKind::ServiceUnavailable).details(
+                    crate::cli::stage_reason_details("platform", "unsupported-platform"),
+                ),
+                Some(format),
+                locale,
+            );
+        }
         let start = Instant::now();
         let timeout_ms = wait.map_or(Some(5000), |wait| wait.timeout_ms);
         let total = match WaitDeadline::new(start, timeout_ms) {
             Ok(total) => total,
             Err(failure) => return failure_output(failure, Some(format), locale),
         };
-        let armed = match ArmedSignals::arm_interrupts() {
+        let mut armed = match ArmedSignals::arm_interrupts() {
             Ok(armed) => armed,
             Err(_) => {
                 return failure_output(
@@ -89,14 +100,7 @@ mod active {
             }
         };
         // span owns and releases the client before finish or any receipt projection.
-        let attempt = span(
-            target,
-            text,
-            wait,
-            start,
-            total,
-            SignalWatch::poll_fd(&armed),
-        );
+        let attempt = span(target, text, wait, start, total, &mut armed);
         let (cancelled, fault, finalization) = match armed.finish() {
             Ok(Finish::Clear) => (false, false, None),
             Ok(Finish::Cancelled { finalization, .. }) => (true, false, Some(finalization)),
@@ -165,7 +169,7 @@ mod active {
         wait: Option<&AgentPromptWait>,
         start: Instant,
         total: WaitDeadline,
-        wake: Option<LocalIo<'_>>,
+        signals: &mut ArmedSignals,
     ) -> Result<Sent, Failure> {
         let admission = total.step(Instant::now(), READ_BUDGET)?;
         let (mut client, _, snapshot) = query::snapshot_session_until(admission)?;
@@ -183,7 +187,7 @@ mod active {
         #[cfg(windows)]
         if wait.is_some() {
             let (_, changes) = journal
-                .read(&mut client, admission, wake)
+                .read(&mut client, admission, signals.poll_fd())
                 .map_err(|error| journal_failure(error, total, false, admission))?;
             if !changes.is_empty()
                 || journal
@@ -196,9 +200,21 @@ mod active {
                 ));
             }
         }
+        #[cfg(windows)]
+        if let Some(client_id) = wait.and_then(|wait| wait.client.as_ref()) {
+            crate::cli::agent_view::windows::read(
+                &mut client,
+                &snapshot,
+                client_id,
+                &selected.observation.session.snapshot.session_id,
+                admission.min(Instant::now() + Duration::from_secs(2)),
+                signals,
+            )
+            .map_err(|failure| client_failure(failure, client_id, total))?;
+        }
         let before = &selected.observation.session;
         let session_id = before.snapshot.session_id.clone();
-        if query::wait_backoff(wake, Duration::from_millis(1)) {
+        if query::wait_backoff(signals.poll_fd(), Duration::from_millis(1)) {
             return Err(prompt_error(FailureKind::InternalFailure, "interrupted"));
         }
         let codex_boundary = cfg!(windows) && before.snapshot.provider_id.as_str() == "codex";
@@ -218,9 +234,12 @@ mod active {
                     options,
                     start,
                     total,
-                    wake,
+                    signals,
                     #[cfg(windows)]
-                    &mut journal,
+                    WindowsObservation {
+                        snapshot: &snapshot,
+                        journal: &mut journal,
+                    },
                 )
             })
         } else {
@@ -251,15 +270,23 @@ mod active {
         Ok(())
     }
 
+    #[cfg(windows)]
+    struct WindowsObservation<'a> {
+        snapshot: &'a orchbee_workbench_protocol::Snapshot,
+        journal: &'a mut query::AgentJournal,
+    }
+
     fn observe(
         client: &mut crate::local_client::LocalClient,
         before: &AgentSessionDetail,
         options: &AgentPromptWait,
         start: Instant,
         total: WaitDeadline,
-        wake: Option<LocalIo<'_>>,
-        #[cfg(windows)] journal: &mut query::AgentJournal,
+        signals: &mut ArmedSignals,
+        #[cfg(windows)] windows: WindowsObservation<'_>,
     ) -> Result<Matched, Failure> {
+        #[cfg(windows)]
+        let WindowsObservation { snapshot, journal } = windows;
         let effect = total.step(Instant::now(), READ_BUDGET)?;
         let mut active = matches!(before.status, AgentSemanticStatus::Working { .. });
         let mut observations = 0;
@@ -284,7 +311,7 @@ mod active {
             #[cfg(windows)]
             let historical = {
                 let (request_id, changes) = journal
-                    .read(client, limit, wake)
+                    .read(client, limit, signals.poll_fd())
                     .map_err(|error| journal_failure(error, total, !active, effect))?;
                 let mut matched = None;
                 for change in changes {
@@ -332,8 +359,28 @@ mod active {
                 }
                 matched
             };
-            let result =
-                query::read_agent_observation(client, &before.snapshot.session_id, limit, wake);
+            #[cfg(windows)]
+            let attention = if let Some(client_id) = &options.client {
+                Some(
+                    crate::cli::agent_view::windows::read(
+                        client,
+                        snapshot,
+                        client_id,
+                        &before.snapshot.session_id,
+                        limit.min(Instant::now() + Duration::from_secs(2)),
+                        signals,
+                    )
+                    .map_err(|failure| client_failure(failure, client_id, total))?,
+                )
+            } else {
+                None
+            };
+            let result = query::read_agent_observation(
+                client,
+                &before.snapshot.session_id,
+                limit,
+                signals.poll_fd(),
+            );
             let read = result.map_err(|failure| {
                 let reason = if failure.kind == FailureKind::Timeout {
                     if total.expired(Instant::now()) {
@@ -359,6 +406,15 @@ mod active {
                     "wait-read-failed",
                 ));
             }
+            #[cfg(windows)]
+            let client_view = match (attention, options.client.as_ref()) {
+                (Some(attention), Some(client_id)) => Some(Box::new(
+                    attention
+                        .corroborate(client, snapshot, &read, limit, signals)
+                        .map_err(|failure| client_failure(failure, client_id, total))?,
+                )),
+                _ => None,
+            };
             // Never publish a match after the observation budget has elapsed.
             if Instant::now() >= limit {
                 return Err(prompt_error(
@@ -381,6 +437,7 @@ mod active {
                     elapsed_ms: start.elapsed().as_millis() as u64,
                     timeout_ms: options.timeout_ms,
                     matched_change: Some((request_id, change)),
+                    client: client_view,
                 });
             }
             active |= activity_after(before, &read.session);
@@ -388,7 +445,18 @@ mod active {
                 .until
                 .iter()
                 .copied()
-                .filter(|condition| query::condition_matches(*condition, &read.session))
+                .filter(|condition| {
+                    #[cfg(windows)]
+                    if let Some(view) = &client_view
+                        && matches!(
+                            condition,
+                            AgentWaitCondition::Idle | AgentWaitCondition::Done
+                        )
+                    {
+                        return view.status == Some(condition.as_str());
+                    }
+                    query::condition_matches(*condition, &read.session)
+                })
                 .collect();
             if active && !conditions.is_empty() {
                 return Ok(Matched {
@@ -399,6 +467,8 @@ mod active {
                     timeout_ms: options.timeout_ms,
                     #[cfg(windows)]
                     matched_change: None,
+                    #[cfg(windows)]
+                    client: client_view,
                 });
             }
             if read.session.snapshot.lifecycle == AgentLifecycle::Ended {
@@ -409,11 +479,30 @@ mod active {
                 continue;
             }
             let remaining = limit.saturating_duration_since(Instant::now());
-            if query::wait_backoff(wake, backoff.min(remaining)) {
+            if query::wait_backoff(signals.poll_fd(), backoff.min(remaining)) {
                 return Err(prompt_error(FailureKind::InternalFailure, "interrupted"));
             }
             backoff = (backoff * 2).min(Duration::from_millis(500));
         }
+    }
+
+    #[cfg(windows)]
+    fn client_failure(
+        failure: Failure,
+        client_id: &orchbee_workbench_protocol::WorkbenchClientId,
+        total: WaitDeadline,
+    ) -> Failure {
+        let reason = match failure.kind {
+            FailureKind::Timeout if total.expired(Instant::now()) => "wait-deadline",
+            FailureKind::Timeout => "read-deadline",
+            FailureKind::Cancelled => "cancelled",
+            _ => "client-read-failed",
+        };
+        let mut failure = prompt_error(failure.kind, reason);
+        if let Some(details) = &mut failure.details {
+            details.insert("clientId".into(), json!(client_id));
+        }
+        failure
     }
 
     #[cfg(windows)]
@@ -501,6 +590,11 @@ mod active {
         let matched_change = matched.as_ref().and_then(|matched| matched.matched_change.as_ref()).map(|(source,change)| {
             json!({"source":super::super::results::agent_source(source),"change":change})
         });
+        #[cfg(windows)]
+        let client_view = matched
+            .as_ref()
+            .and_then(|matched| matched.client.as_ref())
+            .map(|client| client.document());
         let (observation, wait) = match matched {
             None => (Value::Null, Value::Null),
             Some(matched) => (
@@ -513,6 +607,10 @@ mod active {
         let document = {
             let mut document = document;
             document["result"]["matchedChange"] = json!(matched_change);
+            if let Some(client_view) = client_view {
+                document["version"] = json!(4);
+                document["result"]["client"] = client_view;
+            }
             document
         };
         let encoded = match format {

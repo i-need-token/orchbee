@@ -61,7 +61,8 @@
 								"wait-read-failed",
 								"session-ended",
 								"history-lost",
-								"cursor-invalid"
+								"cursor-invalid",
+								"client-read-failed"
 							]
 						},
 						"sessionId": {
@@ -69,6 +70,9 @@
 						},
 						"submission": {
 							"$ref": "#/$defs/sendReceipt"
+						},
+						"clientId": {
+							"$ref": "#/$defs/hexId"
 						}
 					}
 				}

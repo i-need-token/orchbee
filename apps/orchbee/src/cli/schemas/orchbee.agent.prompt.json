@@ -10,7 +10,7 @@
 			"const": "orchbee.agent.prompt"
 		},
 		"version": {
-			"enum": [2, 3]
+			"enum": [2, 3, 4]
 		},
 		"source": {
 			"$ref": "#/$defs/sendSource"
@@ -113,6 +113,9 @@
 							"additionalProperties": false
 						}
 					]
+				},
+				"client": {
+					"$ref": "#/$defs/clientView"
 				}
 			}
 		}
@@ -899,6 +902,102 @@
 					"$ref": "#/$defs/semanticStatus"
 				}
 			}
+		},
+		"clientView": {
+			"type": "object",
+			"required": [
+				"clientId",
+				"operationId",
+				"phase",
+				"outerFocused",
+				"focused",
+				"attentionRevision",
+				"state",
+				"stateChangeRevision",
+				"seen",
+				"status"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"clientId": {
+					"$ref": "#/$defs/hexId"
+				},
+				"operationId": {
+					"$ref": "#/$defs/hexId"
+				},
+				"phase": {
+					"enum": ["starting", "ready", "busy", "unavailable"]
+				},
+				"outerFocused": {
+					"type": ["boolean", "null"]
+				},
+				"focused": {
+					"type": "boolean"
+				},
+				"attentionRevision": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"state": {
+					"enum": ["current", "missing", "stale"]
+				},
+				"stateChangeRevision": {
+					"anyOf": [
+						{
+							"type": "null"
+						},
+						{
+							"$ref": "#/$defs/safeInteger"
+						}
+					]
+				},
+				"seen": {
+					"type": ["boolean", "null"]
+				},
+				"status": {
+					"enum": [
+						null,
+						"idle",
+						"done",
+						"blocked",
+						"working",
+						"unknown",
+						"ended",
+						"stale",
+						"disconnected"
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"state": {
+								"const": "current"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"seen": {
+								"type": "boolean"
+							},
+							"stateChangeRevision": {
+								"$ref": "#/$defs/safeInteger"
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"seen": {
+								"type": "null"
+							},
+							"stateChangeRevision": {
+								"type": "null"
+							}
+						}
+					}
+				}
+			]
 		}
 	},
 	"allOf": [
@@ -906,7 +1005,7 @@
 			"if": {
 				"properties": {
 					"version": {
-						"const": 3
+						"enum": [3, 4]
 					}
 				}
 			},
@@ -922,6 +1021,31 @@
 					"result": {
 						"not": {
 							"required": ["matchedChange"]
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 4
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"required": ["client"]
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"result": {
+						"not": {
+							"required": ["client"]
 						}
 					}
 				}

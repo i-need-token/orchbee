@@ -488,6 +488,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--session",
             "--panel",
             "--name",
+            "--client",
             "--wait",
             "--until",
             "--timeout",
