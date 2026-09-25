@@ -64,7 +64,7 @@ inventory 通过 provider-specific enablement representation 掩盖仍已安装�
 
 1. 初始化或复用最新的只读 inventory。
 2. 在写入前拒绝不可用的开启请求、manual-only management、conflict 与并发操作。
-3. Preflight 并原子发布 Capsule `0.4.5`，不修改 provider configuration。
+3. Preflight 并原子发布 Capsule `0.4.6`，不修改 provider configuration。
 4. 重新检查 provider-owned state，只执行固定 command vector 或准确 guarded-entry operation；只有
    准确 legacy entry 可以迁移。
 5. 每次 effect 尝试后重新检查所选 adapter。

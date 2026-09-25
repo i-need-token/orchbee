@@ -8,18 +8,15 @@ import { createServer } from 'node:net';
 import path from 'node:path';
 
 const [provider, root, shell] = process.argv.slice(2);
-assert.ok(['claude-code', 'github-copilot', 'grok'].includes(provider));
-const hooks = JSON.parse(
-	fs.readFileSync(
-		path.join(
-			root,
-			provider === 'claude-code'
-				? 'hooks/hooks.json'
-				: `hooks/${provider === 'grok' ? 'grok' : 'copilot'}.json`,
-		),
-		'utf8',
-	),
-).hooks;
+assert.ok(['claude-code', 'github-copilot', 'grok', 'gemini', 'qwen-code'].includes(provider));
+const extensionProvider = provider === 'gemini' || provider === 'qwen-code';
+function hookFile() {
+	if (provider === 'qwen-code') return 'qwen-extension.json';
+	if (provider === 'grok') return 'hooks/grok.json';
+	if (provider === 'github-copilot') return 'hooks/copilot.json';
+	return 'hooks/hooks.json';
+}
+const hooks = JSON.parse(fs.readFileSync(path.join(root, hookFile()), 'utf8')).hooks;
 const pipe = String.raw`\\.\pipe\orchbee-${randomBytes(16).toString('hex')}-observation`;
 const observations = [];
 const connections = new Set();
@@ -51,19 +48,33 @@ await new Promise((resolve, reject) => {
 async function run(hook, input, scriptRoot = root) {
 	let command = process.execPath;
 	let args;
-	if (provider === 'grok') {
-		assert.ok(['powershell.exe', 'pwsh.exe'].includes(shell));
+	if (provider === 'grok' || extensionProvider) {
+		assert.ok(['powershell.exe', 'pwsh.exe', 'cmd.exe'].includes(shell));
 		assert.ok(hook.command.startsWith('node -e "eval(Buffer.from('));
 		command = shell;
-		args = ['-NoProfile', '-NonInteractive', '-Command', hook.command];
+		args =
+			shell === 'cmd.exe'
+				? ['/d', '/s', '/c', hook.command]
+				: ['-NoProfile', '-NonInteractive', '-Command', hook.command];
 	} else {
 		assert.equal(provider === 'claude-code' ? hook.command : hook.exec, 'node');
 		args = hook.args.map((arg) => arg.replace('${CLAUDE_PLUGIN_ROOT}', scriptRoot));
 	}
+	const hookEnvironment = {};
+	for (const [name, value] of Object.entries(hook.env ?? {})) {
+		hookEnvironment[name] = value.replaceAll('${extensionPath}', () => scriptRoot);
+	}
+	if (provider === 'qwen-code') assert.equal(hook.shell, 'powershell');
+	if (extensionProvider) {
+		assert.equal(hookEnvironment.ORCHBEE_AGENT_EXTENSION_ROOT, scriptRoot);
+		assert.ok(!hook.command.includes(scriptRoot));
+	}
 	await new Promise((resolve, reject) => {
 		const child = spawn(command, args, {
 			windowsHide: true,
+			windowsVerbatimArguments: shell === 'cmd.exe',
 			env: {
+				...hookEnvironment,
 				SystemRoot: process.env.SystemRoot,
 				PATHEXT: process.env.PATHEXT,
 				PATH: `${path.dirname(process.execPath)};${process.env.PATH}`,
@@ -99,12 +110,19 @@ async function run(hook, input, scriptRoot = root) {
 const hookFor = (event) =>
 	provider === 'github-copilot' ? hooks[event][0] : hooks[event][0].hooks[0];
 try {
-	for (const event of ['SessionStart', 'UserPromptSubmit', 'Stop', 'SessionEnd']) {
+	const events =
+		provider === 'gemini'
+			? ['SessionStart', 'BeforeAgent', 'AfterAgent', 'SessionEnd']
+			: ['SessionStart', 'UserPromptSubmit', 'Stop', 'SessionEnd'];
+	for (const event of events) {
 		await run(
 			hookFor(event),
 			JSON.stringify({
 				...(provider === 'grok'
 					? { hookEventName: event, sessionId: 'literal-path-session', reason: 'end_turn' }
+					: {}),
+				...(provider === 'qwen-code' && event === 'UserPromptSubmit'
+					? { submitted_prompt: 'PRIVATE_SUBMITTED_PROMPT' }
 					: {}),
 				hook_event_name: event,
 				session_id: 'literal-path-session',

@@ -4,9 +4,12 @@
 			{
 				"hooks": [
 					{
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" gemini >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ2dlbWluaSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
 						"timeout": 2000,
-						"type": "command"
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
 					}
 				]
 			}
@@ -15,9 +18,12 @@
 			{
 				"hooks": [
 					{
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" gemini >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ2dlbWluaSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
 						"timeout": 2000,
-						"type": "command"
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
 					}
 				]
 			}
@@ -27,9 +33,12 @@
 				"matcher": ".*",
 				"hooks": [
 					{
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" gemini >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ2dlbWluaSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
 						"timeout": 2000,
-						"type": "command"
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
 					}
 				]
 			}
@@ -39,9 +48,12 @@
 				"matcher": ".*",
 				"hooks": [
 					{
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" gemini >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ2dlbWluaSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
 						"timeout": 2000,
-						"type": "command"
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
 					}
 				]
 			}
@@ -50,9 +62,12 @@
 			{
 				"hooks": [
 					{
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" gemini >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ2dlbWluaSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
 						"timeout": 2000,
-						"type": "command"
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
 					}
 				]
 			}
@@ -61,9 +76,12 @@
 			{
 				"hooks": [
 					{
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" gemini >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ2dlbWluaSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
 						"timeout": 2000,
-						"type": "command"
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
 					}
 				]
 			}
@@ -72,9 +90,12 @@
 			{
 				"hooks": [
 					{
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" gemini >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ2dlbWluaSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
 						"timeout": 2000,
-						"type": "command"
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
 					}
 				]
 			}
@@ -83,9 +104,12 @@
 			{
 				"hooks": [
 					{
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" gemini >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ2dlbWluaSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
 						"timeout": 1000,
-						"type": "command"
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
 					}
 				]
 			}

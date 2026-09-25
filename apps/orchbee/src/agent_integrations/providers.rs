@@ -218,6 +218,8 @@ pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode)
                 | IntegrationId::Pi
                 | IntegrationId::Omp
                 | IntegrationId::GitHubCopilot
+                | IntegrationId::Gemini
+                | IntegrationId::QwenCode
         )
     {
         ManagementMode::ManualOnly
@@ -266,6 +268,11 @@ pub(crate) fn guarded_target(id: IntegrationId, spec: GuardedSpec, home: &Path) 
     #[cfg(windows)]
     if id == IntegrationId::Kilo {
         let target = crate::agent_configuration_windows::kilo_entry(home)?;
+        return super::files::path_admitted(&target).then_some(target);
+    }
+    #[cfg(windows)]
+    if matches!(id, IntegrationId::Gemini | IntegrationId::QwenCode) {
+        let target = crate::agent_configuration_windows::extension_directory(id.as_str(), home)?;
         return super::files::path_admitted(&target).then_some(target);
     }
     let _ = id;

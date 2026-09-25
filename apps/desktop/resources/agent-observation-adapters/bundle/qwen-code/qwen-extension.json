@@ -8,5 +8,225 @@
 		"zh": "Orchbee Agent 状态观测"
 	},
 	"name": "orchbee-agent-observation",
-	"version": "0.4.5"
+	"version": "0.4.6",
+	"hooks": {
+		"SessionStart": [
+			{
+				"hooks": [
+					{
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ3F3ZW4tY29kZSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
+						"timeout": 2000,
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
+					}
+				]
+			}
+		],
+		"UserPromptSubmit": [
+			{
+				"hooks": [
+					{
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ3F3ZW4tY29kZSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
+						"timeout": 2000,
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
+					}
+				]
+			}
+		],
+		"PreToolUse": [
+			{
+				"matcher": ".*",
+				"hooks": [
+					{
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ3F3ZW4tY29kZSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
+						"timeout": 2000,
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
+					}
+				]
+			}
+		],
+		"PostToolUse": [
+			{
+				"matcher": ".*",
+				"hooks": [
+					{
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ3F3ZW4tY29kZSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
+						"timeout": 2000,
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
+					}
+				]
+			}
+		],
+		"PostToolUseFailure": [
+			{
+				"matcher": ".*",
+				"hooks": [
+					{
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ3F3ZW4tY29kZSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
+						"timeout": 2000,
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
+					}
+				]
+			}
+		],
+		"PermissionRequest": [
+			{
+				"matcher": ".*",
+				"hooks": [
+					{
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ3F3ZW4tY29kZSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
+						"timeout": 2000,
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
+					}
+				]
+			}
+		],
+		"PermissionDenied": [
+			{
+				"matcher": ".*",
+				"hooks": [
+					{
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ3F3ZW4tY29kZSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
+						"timeout": 2000,
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
+					}
+				]
+			}
+		],
+		"Notification": [
+			{
+				"matcher": "permission_prompt|idle_prompt",
+				"hooks": [
+					{
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ3F3ZW4tY29kZSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
+						"timeout": 2000,
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
+					}
+				]
+			}
+		],
+		"PreCompact": [
+			{
+				"hooks": [
+					{
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ3F3ZW4tY29kZSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
+						"timeout": 2000,
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
+					}
+				]
+			}
+		],
+		"PostCompact": [
+			{
+				"hooks": [
+					{
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ3F3ZW4tY29kZSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
+						"timeout": 2000,
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
+					}
+				]
+			}
+		],
+		"SubagentStart": [
+			{
+				"matcher": ".*",
+				"hooks": [
+					{
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ3F3ZW4tY29kZSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
+						"timeout": 2000,
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
+					}
+				]
+			}
+		],
+		"SubagentStop": [
+			{
+				"hooks": [
+					{
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ3F3ZW4tY29kZSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
+						"timeout": 2000,
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
+					}
+				]
+			}
+		],
+		"Stop": [
+			{
+				"hooks": [
+					{
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ3F3ZW4tY29kZSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
+						"timeout": 2000,
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
+					}
+				]
+			}
+		],
+		"StopFailure": [
+			{
+				"matcher": ".*",
+				"hooks": [
+					{
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ3F3ZW4tY29kZSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
+						"timeout": 2000,
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
+					}
+				]
+			}
+		],
+		"SessionEnd": [
+			{
+				"hooks": [
+					{
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3Qgcm9vdD1wcm9jZXNzLmVudi5PUkNIQkVFX0FHRU5UX0VYVEVOU0lPTl9ST09UO2lmKCFyb290fHwhcmVxdWlyZSgnbm9kZTpwYXRoJykuaXNBYnNvbHV0ZShyb290KSlyZXR1cm47Y29uc3QgZmlsZT1yZXF1aXJlKCdub2RlOnBhdGgnKS5qb2luKHJvb3QsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmV4ZWNQYXRoLGZpbGUsJ3F3ZW4tY29kZSddO2F3YWl0IGltcG9ydChyZXF1aXJlKCdub2RlOnVybCcpLnBhdGhUb0ZpbGVVUkwoZmlsZSkuaHJlZil9Y2F0Y2h7fX0pKCk=','base64').toString('utf8'))\"",
+						"timeout": 1000,
+						"type": "command",
+						"env": {
+							"ORCHBEE_AGENT_EXTENSION_ROOT": "${extensionPath}"
+						}
+					}
+				]
+			}
+		]
+	}
 }

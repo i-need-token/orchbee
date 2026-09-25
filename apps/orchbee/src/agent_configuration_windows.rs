@@ -37,3 +37,26 @@ pub(crate) fn kilo_entry(home: &Path) -> Option<PathBuf> {
     root.is_absolute()
         .then(|| root.join("plugin/orchbee-agent-observation.js"))
 }
+
+/// The two extension providers use different override semantics: Gemini's
+/// override replaces the home parent; Qwen's replaces the configuration root.
+pub(crate) fn extension_directory(id: &str, home: &Path) -> Option<PathBuf> {
+    let (variable, fallback, suffix) = match id {
+        "gemini" => (
+            "GEMINI_CLI_HOME",
+            home.to_path_buf(),
+            ".gemini/extensions/orchbee-agent-observation",
+        ),
+        "qwen-code" => (
+            "QWEN_HOME",
+            home.join(".qwen"),
+            "extensions/orchbee-agent-observation",
+        ),
+        _ => return None,
+    };
+    let root = std::env::var_os(variable)
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or(fallback);
+    root.is_absolute().then(|| root.join(suffix))
+}

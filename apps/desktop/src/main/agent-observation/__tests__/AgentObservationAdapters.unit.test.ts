@@ -399,7 +399,7 @@ describe('Agent observation adapter resources', () => {
 				'hooks/grok.json',
 				'hooks/copilot.json',
 				'gemini/hooks/hooks.json',
-				'qwen-code/hooks/hooks.json',
+				'qwen-code/qwen-extension.json',
 			];
 			// Private stdin payload via a regular-file fd: a hook that never
 			// reads stdin cannot break a parent pipe writer that does not exist.

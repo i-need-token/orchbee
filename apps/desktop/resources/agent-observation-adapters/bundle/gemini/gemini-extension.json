@@ -1,5 +1,5 @@
 {
 	"description": "Locally sanitizes Gemini CLI lifecycle hooks for Orchbee Agent status observation",
 	"name": "orchbee-agent-observation",
-	"version": "0.4.5"
+	"version": "0.4.6"
 }

@@ -30,8 +30,8 @@
 			"zhCnSha256": "015d3aa5038f32d4814b61999af41f060dacf1591019f7738d6e97916e336c45"
 		},
 		"apps/desktop/docs/agent-integrations.md": {
-			"englishSha256": "8e6fdbac73bfc67fb8a4b2e9006a6aa4983d6fa23ac0a99de85df0b3c5bdd315",
-			"zhCnSha256": "78df14add965c361624ad2a1d0fd6d61a3450fbb3a8afd09c7124b0b7760a191"
+			"englishSha256": "2845d7179ecb98c1c55eb760d9ca00cac57945728a1dc7c4046852b36c439ef7",
+			"zhCnSha256": "d1ab1cc842b0cf6ac8746732b16aaa575846af54f1c75944fe1187f0ff12c14d"
 		},
 		"apps/desktop/docs/agent-observation-ingress.md": {
 			"englishSha256": "aafc53acea01a94054c57cc8c0b788651bf63a281e5eed2e3fd3c3bf295a781e",
@@ -98,8 +98,8 @@
 			"zhCnSha256": "ebb50bec49d14e4d8f0244e531c71fd5a6a348e25b19b9c9f2432db166964b15"
 		},
 		"apps/desktop/resources/agent-observation-adapters/README.md": {
-			"englishSha256": "8570407378d6a1b28d96f248f32e1d824b7490e5a481f8740763e05365bb829b",
-			"zhCnSha256": "1e71072f577c1c7ef34bcc8658ee34608d21be03e7d7464628f5231e4e7f0647"
+			"englishSha256": "45fe577992395a63dd6f13c09b7355add4cf7641a9a79ffa51fca5bb546527e6",
+			"zhCnSha256": "97cbfcfe7ae94567e3c30d5062bae082602c883696f883d8dd236569c07c510a"
 		},
 		"apps/gateway/README.md": {
 			"englishSha256": "74bffaf8ca9beab1b0c7040b5dce45b9ccbc5529c8b1c2965c83108de9e7d3a0",
@@ -142,28 +142,28 @@
 			"zhCnSha256": "1cfa176de04d501d86657382328f222e49820fe5c92977416a7edf81f23ea2b2"
 		},
 		"apps/orchbee/README.md": {
-			"englishSha256": "f34561be00aace5b57ef2b70e4e0ff8580c777ddb6e397c4ec284d76a3f3b647",
-			"zhCnSha256": "ec846b317e5353b777e67bf0ee9690d8cb59b55a2d65af12b3f7c511c749b6e9"
+			"englishSha256": "d62a12914bab2d83d6506217854c55c00948a6402163339c35589225c5c5504c",
+			"zhCnSha256": "ddb5e9e19eba008848eb0317f11b09fa4c4c83b084f9243b0361bae6f07e91e7"
 		},
 		"apps/orchbee/docs/agent-board.md": {
 			"englishSha256": "03ecefcc2a3a8d56dc554a5d7445040f96fced0ccde2f492c1c81c0ba0c127bb",
 			"zhCnSha256": "04231e59a1ced2fd7928f4c5ccb30fd53560152a17526af7e9f377dadbe91c61"
 		},
 		"apps/orchbee/docs/cli-agent-skill.md": {
-			"englishSha256": "9c437eb2bf056b57b9282f5df6a9b2785fb173109977b9b4743bc2072a3752b9",
-			"zhCnSha256": "5e4a0d94b57c745bd7e164fa7582d8ae065075867c461cded65f5cf20d769b8f"
+			"englishSha256": "875301ece204bfddae3544670426a1ac3c3118e3ab8086a2816e1c4d0837d74c",
+			"zhCnSha256": "66030d950a0f40c5e27d11bd32ff0937ca92b07bbd6c98d47fb7d6e10580cfe8"
 		},
 		"apps/orchbee/docs/cli-workflows.md": {
-			"englishSha256": "1c4667ca711322c04bf402013c536495fc6e3838b52fc870361aaa36f6f921b4",
-			"zhCnSha256": "ef48ac74bc41fd9c917081dae5b70a10e84f08453b57333fc5e3b12f948795b1"
+			"englishSha256": "cb13fac10d7d1ec1a745efe023487f058b0f592bc64fab27bdcc79e979302321",
+			"zhCnSha256": "c92201a12a59716e2b31023348f91ea3cb64377086b2f710261735cfb9fa4bb6"
 		},
 		"apps/orchbee/docs/native-agent-navigation.md": {
 			"englishSha256": "1336ec3448dc6fcfa87a2a22d451fb273d506e23ef01cb5fdc79f8a79c29f352",
 			"zhCnSha256": "9b80d76d4fae2eeb18525e39c7fabf303a57bfc24c3120556c4b5da198b8de95"
 		},
 		"apps/orchbee/docs/native-cli-query.md": {
-			"englishSha256": "48dd13d861dce2734b65963b7b31114ca54f3c2db595743f1608d760deb273a0",
-			"zhCnSha256": "9d05cbfbdbfd9c69de6c625ecdfabe9323f1e37d04e2536c5a2a11941abdda53"
+			"englishSha256": "71d0ded42ba5d68f37cb362925a5ecb8a7200764df963529ccf28f8470ac4d72",
+			"zhCnSha256": "07354243bb7b32803db6470e345451ccd2173da2cd5b2424912c3592d3a9ccd8"
 		},
 		"apps/orchbee/docs/native-cli-wait-model.md": {
 			"englishSha256": "2f847c74877ecd971ab0be6f98d8250d2180a427ad26a21fff90d5a14eeaea69",
@@ -258,8 +258,8 @@
 			"zhCnSha256": "27e73be9de24a7a5a5a98a41582c6a2f4565a96d395c55251f3a88f52f3b97c8"
 		},
 		"apps/orchbee/docs/windows-agent-integrations.md": {
-			"englishSha256": "759a11996deaa190e053bc7d9d1587254a82e437094bcdc2453cb5395a641e26",
-			"zhCnSha256": "7721e0c027df7b860ecb32b61cd3b660e2c69bc3a912b1868a00cad8b1b45f12"
+			"englishSha256": "c4a3ec449bd96428b92ea6aff8c49d5e725def2a9c3a809db0de7318b106701e",
+			"zhCnSha256": "fc0704e08d5e83d429ca76f3ed2d70afe3baa60867bc0ef7274c03256fbb9895"
 		},
 		"apps/orchbee/docs/windows-agent-start.md": {
 			"englishSha256": "8b0a7ec2320e00fe51be41dde0e4ad85c61bf097035dc17c79f38c946fff104e",

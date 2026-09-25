@@ -46,7 +46,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         (
             String::from_utf8(bytes.clone())
                 .unwrap()
-                .replace("/0.4.5/", "/9.0.0/"),
+                .replace("/0.4.6/", "/9.0.0/"),
             "stale-side",
         ),
     ] {
@@ -61,7 +61,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         &obsolete,
         String::from_utf8(bytes.clone())
             .unwrap()
-            .replace("/0.4.5/", "/0.4.2/"),
+            .replace("/0.4.6/", "/0.4.2/"),
     )
     .unwrap();
     assert_eq!(inspect("explain")["result"]["state"], "update-required");
@@ -127,6 +127,168 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
 }
 
 #[test]
+fn windows_extensions_install_upgrade_and_execute_literal_env_hooks() {
+    use sha2::Digest;
+    use std::os::windows::process::CommandExt;
+    let fixture = Fixture::new();
+    let node = std::env::split_paths(&std::env::var_os("PATH").unwrap())
+        .map(|p| p.join("node.exe"))
+        .find(|p| p.is_file())
+        .unwrap();
+    for (provider, executable, relative, variable, configured_relative, manifest) in [
+        (
+            "gemini",
+            "gemini",
+            ".gemini/extensions/orchbee-agent-observation",
+            "GEMINI_CLI_HOME",
+            ".gemini/extensions/orchbee-agent-observation",
+            "gemini-extension.json",
+        ),
+        (
+            "qwen-code",
+            "qwen",
+            ".qwen/extensions/orchbee-agent-observation",
+            "QWEN_HOME",
+            "extensions/orchbee-agent-observation",
+            "qwen-extension.json",
+        ),
+    ] {
+        fs::write(
+            fixture.0.join(format!("bin/{executable}.cmd")),
+            "@exit /b 99\r\n",
+        )
+        .unwrap();
+        let target = fixture.home().join(relative);
+        let inspect = |verb| fixture.provider_document(verb, provider, 0);
+        assert_eq!(
+            inspect("explain")["result"]["managementMode"],
+            "managed-local"
+        );
+        inspect("enable");
+        assert_eq!(
+            inspect("list")["result"]["integrations"][0]["state"],
+            "enabled"
+        );
+        let manifest_path = target.join(manifest);
+        let marker_path = target.join(".orchbee-agent-observation.json");
+        let original_manifest = fs::read(&manifest_path).unwrap();
+        let original_marker = fs::read(&marker_path).unwrap();
+        let set_version = |version: Value, contract| {
+            let mut document: Value = serde_json::from_slice(&original_manifest).unwrap();
+            document["version"] = version;
+            let bytes = document.to_string();
+            fs::write(&manifest_path, &bytes).unwrap();
+            let mut marker: Value = serde_json::from_slice(&original_marker).unwrap();
+            marker["contractVersion"] = Value::from(contract);
+            let hash = format!("{:x}", sha2::Sha256::digest(bytes.as_bytes()));
+            let entry = marker["files"]
+                .as_array_mut()
+                .unwrap()
+                .iter_mut()
+                .find(|v| v["path"] == manifest)
+                .unwrap();
+            entry["sha256"] = Value::from(hash);
+            fs::write(&marker_path, marker.to_string()).unwrap();
+        };
+        set_version(Value::from("0.4.2"), 3);
+        assert_eq!(inspect("explain")["result"]["state"], "update-required");
+        inspect("enable");
+        assert_eq!(fs::read(&manifest_path).unwrap(), original_manifest);
+        set_version(Value::from("9.0.0"), 1);
+        assert_eq!(inspect("explain")["result"]["state"], "stale-side");
+        fixture.provider_document("enable", provider, 3);
+        fixture.provider_document("disable", provider, 3);
+        set_version(Value::Null, 3);
+        assert_eq!(inspect("explain")["result"]["state"], "unknown");
+        fixture.provider_document("enable", provider, 9);
+        fs::write(&manifest_path, &original_manifest).unwrap();
+        fs::write(&marker_path, &original_marker).unwrap();
+        for shell in ["powershell.exe", "pwsh.exe", "cmd.exe"] {
+            let output = Command::new(&node)
+                .arg(
+                    Path::new(env!("CARGO_MANIFEST_DIR"))
+                        .join("tests/fixtures/windows-integration-exec-hook.mjs"),
+                )
+                .args([provider])
+                .arg(&target)
+                .arg(shell)
+                .env("USERPROFILE", fixture.home())
+                .stdin(Stdio::null())
+                .creation_flags(0x0800_0000)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{provider}/{shell}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        fs::write(target.join("user-file"), "retain").unwrap();
+        fixture.provider_document("disable", provider, 3);
+        assert_eq!(
+            fs::read_to_string(target.join("user-file")).unwrap(),
+            "retain"
+        );
+        fs::remove_file(target.join("user-file")).unwrap();
+        inspect("disable");
+        assert!(!target.exists());
+        let configured = fixture.0.join(format!("{provider} config & 数据"));
+        let output = fixture
+            .command("enable", provider, &fixture.config_home(), &[])
+            .env(variable, &configured)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        assert!(
+            configured
+                .join(configured_relative)
+                .join(manifest)
+                .is_file()
+        );
+        assert!(!target.exists());
+        let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+            .args([
+                "agent",
+                "doctor",
+                "--provider",
+                provider,
+                "--format",
+                "json",
+            ])
+            .env("USERPROFILE", fixture.home())
+            .env(variable, &configured)
+            .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET_V3")
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        let document: Value = serde_json::from_slice(&doctor.stdout).unwrap();
+        assert_eq!(
+            document["result"]["providers"][0]["hook"]["state"], "present",
+            "{document}"
+        );
+        let output = fixture
+            .command("enable", provider, &fixture.config_home(), &[])
+            .env(variable, "relative-invalid")
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(9));
+        assert!(!target.exists());
+        let output = fixture
+            .command("disable", provider, &fixture.config_home(), &[])
+            .env(variable, &configured)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        assert!(!configured.join(configured_relative).exists());
+    }
+    assert!(fixture.calls().is_empty());
+}
+
+#[test]
 fn kilo_uses_explicit_config_before_xdg_without_invalid_fallback() {
     let fixture = Fixture::new();
     fs::write(fixture.0.join("bin/kilo.cmd"), "@exit /b 99\r\n").unwrap();
@@ -166,6 +328,8 @@ fn kilo_uses_explicit_config_before_xdg_without_invalid_fallback() {
             .args(["agent", "doctor", "--provider", "kilo", "--format", "json"])
             .env("USERPROFILE", fixture.home())
             .env_remove("KILO_CONFIG_DIR")
+            .env_remove("GEMINI_CLI_HOME")
+            .env_remove("QWEN_HOME")
             .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET_V3")
             .stdin(Stdio::null());
         configure(&mut doctor);
@@ -243,7 +407,7 @@ fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() 
         (fixture.capsule().join("bundle"), Value::Null, "unknown", 9),
         (
             fixture.0.join("foreign/bundle"),
-            Value::from("0.4.5"),
+            Value::from("0.4.6"),
             "conflict",
             3,
         ),
@@ -383,7 +547,7 @@ impl Fixture {
     }
     fn capsule(&self) -> PathBuf {
         self.home()
-            .join(".orchbee/agent-observation-adapters/0.4.5")
+            .join(".orchbee/agent-observation-adapters/0.4.6")
     }
     fn run(&self, verb: &str, provider: &str, config_home: &Path) -> Output {
         self.run_options(verb, provider, config_home, &[])
@@ -416,6 +580,8 @@ impl Fixture {
             .args(extra)
             .env_remove("XDG_CONFIG_HOME")
             .env_remove("KILO_CONFIG_DIR")
+            .env_remove("GEMINI_CLI_HOME")
+            .env_remove("QWEN_HOME")
             .env("USERPROFILE", self.home())
             .env("HOME", self.0.join("wrong-posix-home"))
             .env("CODEX_HOME", config_home)
@@ -630,7 +796,7 @@ fn claude_repairs_owned_old_installations_and_preserves_foreign_or_newer_sources
         "enabled"
     );
     for (source, version, expected) in [
-        (fixture.0.join("foreign"), "0.4.5", "conflict"),
+        (fixture.0.join("foreign"), "0.4.6", "conflict"),
         (
             fixture.capsule().parent().unwrap().join("9.0.0"),
             "9.0.0",
@@ -726,6 +892,8 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
             .env("USERPROFILE", fixture.home())
             .env_remove("XDG_CONFIG_HOME")
             .env_remove("KILO_CONFIG_DIR")
+            .env_remove("GEMINI_CLI_HOME")
+            .env_remove("QWEN_HOME")
             .env(
                 "PATH",
                 std::env::join_paths([fixture.0.join("bin"), node.parent().unwrap().to_path_buf()])
@@ -743,7 +911,7 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
 
         let old = String::from_utf8(original.clone())
             .unwrap()
-            .replace("/0.4.5/", "/0.4.2/");
+            .replace("/0.4.6/", "/0.4.2/");
         fs::write(&target, old).unwrap();
         assert_eq!(
             fixture.provider_document("explain", provider, 0)["result"]["state"],

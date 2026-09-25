@@ -1141,7 +1141,11 @@ pub(crate) fn inspect_guarded_target(
         if !metadata.is_dir() {
             return TargetState::Conflict;
         }
-        return inspect_owned_directory(target, integration_id);
+        let state = inspect_owned_directory(target, integration_id);
+        #[cfg(windows)]
+        return windows::inspect_extension_version(target, integration_id, state, options);
+        #[cfg(unix)]
+        return state;
     }
     if !metadata.is_file() {
         return TargetState::Conflict;
@@ -1328,4 +1332,30 @@ pub(crate) fn guarded_source_ready(
         }
         Err(_) => false,
     }
+}
+
+/// Windows Qwen uses its official per-hook shell selector. Build before the
+/// owned staging tree's fingerprint; this never writes provider configuration.
+#[cfg(windows)]
+pub(crate) fn windows_qwen_manifest(bytes: &[u8]) -> Option<Vec<u8>> {
+    let mut value: Value = serde_json::from_slice(bytes).ok()?;
+    if read_string(&value, "name") != Some("orchbee-agent-observation") {
+        return None;
+    }
+    let hooks = value.get_mut("hooks")?.as_object_mut()?;
+    if hooks.is_empty() {
+        return None;
+    }
+    for groups in hooks.values_mut() {
+        for group in groups.as_array_mut()? {
+            for hook in group.get_mut("hooks")?.as_array_mut()? {
+                let hook = hook.as_object_mut()?;
+                if hook.get("type")?.as_str()? != "command" {
+                    return None;
+                }
+                hook.insert("shell".to_string(), Value::String("powershell".to_string()));
+            }
+        }
+    }
+    serde_json::to_vec(&value).ok()
 }

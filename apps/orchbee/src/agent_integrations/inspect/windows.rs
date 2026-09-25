@@ -264,3 +264,33 @@ pub(super) fn inspect_grok(
     }
     result(grok_activation(&configuration, plugin)?, true)
 }
+
+/// A self-consistent directory marker proves ownership, not the copied payload
+/// version. Refuse a newer payload even when the marker contract is older.
+pub(super) fn inspect_extension_version(
+    target: &Path,
+    id: IntegrationId,
+    state: TargetState,
+    options: &ResourceOptions,
+) -> TargetState {
+    if !matches!(state, TargetState::Current | TargetState::UpdateRequired) {
+        return state;
+    }
+    let name = match id {
+        IntegrationId::Gemini => "gemini-extension.json",
+        IntegrationId::QwenCode => "qwen-extension.json",
+        _ => return TargetState::Unknown,
+    };
+    let Some(value) = super::read_json_record(&target.join(name), 512 * 1024) else {
+        return TargetState::Unknown;
+    };
+    if read_string(&value, "name") != Some("orchbee-agent-observation") {
+        return TargetState::Conflict;
+    }
+    match windows_plugin_version(&value, options) {
+        Some(State::Enabled) => state,
+        Some(State::UpdateRequired) => TargetState::UpdateRequired,
+        Some(State::StaleSide) => TargetState::Newer,
+        _ => TargetState::Unknown,
+    }
+}

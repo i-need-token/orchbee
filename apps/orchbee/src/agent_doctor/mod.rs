@@ -619,6 +619,12 @@ fn probe_codex(
 /// format carries no enablement field.
 #[cfg(any(target_os = "linux", windows))]
 fn probe_guarded(provider: &Provider, home: &Path, budget: &mut Budget) -> HookProbe {
+    #[cfg(windows)]
+    let target = match crate::agent_configuration_windows::extension_directory(provider.id, home) {
+        Some(path) => path,
+        None => return final_verdict(HookState::Unknown, HookReason::NotInspected),
+    };
+    #[cfg(not(windows))]
     let target = home.join(provider.home_target);
     if !fs::path_admitted(&target) {
         return target_too_long(&target);

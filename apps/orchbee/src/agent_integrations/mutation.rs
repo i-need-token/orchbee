@@ -1768,6 +1768,21 @@ fn stage_entry(
         if files::copy_tree(runtime, &entry_path.join("scripts")).is_err() {
             return false;
         }
+        #[cfg(windows)]
+        if id == IntegrationId::QwenCode {
+            let manifest = entry_path.join("qwen-extension.json");
+            let bytes = files::read_bounded(&manifest, 512 * 1024)
+                .ok()
+                .and_then(|bytes| inspect::windows_qwen_manifest(&bytes));
+            let Some(bytes) = bytes else {
+                return false;
+            };
+            if files::remove_owned(&manifest, false) != FsStep::Done
+                || files::write_file_exclusive(&manifest, &bytes).is_err()
+            {
+                return false;
+            }
+        }
         let Some(files) = inspect::fingerprint_directory(entry_path) else {
             return false;
         };
