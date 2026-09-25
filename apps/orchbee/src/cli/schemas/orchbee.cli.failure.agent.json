@@ -10,7 +10,7 @@
 			"const": "orchbee.cli.failure.agent"
 		},
 		"version": {
-			"enum": [1, 2]
+			"enum": [1, 2, 3]
 		},
 		"failure": {
 			"type": "object",
@@ -240,29 +240,55 @@
 						"properties": {
 							"details": {
 								"properties": {
-									"timeoutMs": {
-										"type": "null"
+									"operation": {
+										"const": "management"
 									}
 								},
-								"required": ["timeoutMs"]
+								"required": ["operation"]
 							}
 						},
 						"required": ["details"]
 					}
-				},
-				"required": ["failure"]
+				}
 			},
 			"then": {
 				"properties": {
 					"version": {
-						"const": 2
+						"const": 3
 					}
 				}
 			},
 			"else": {
-				"properties": {
-					"version": {
-						"const": 1
+				"if": {
+					"properties": {
+						"failure": {
+							"properties": {
+								"details": {
+									"properties": {
+										"timeoutMs": {
+											"type": "null"
+										}
+									},
+									"required": ["timeoutMs"]
+								}
+							},
+							"required": ["details"]
+						}
+					},
+					"required": ["failure"]
+				},
+				"then": {
+					"properties": {
+						"version": {
+							"const": 2
+						}
+					}
+				},
+				"else": {
+					"properties": {
+						"version": {
+							"const": 1
+						}
 					}
 				}
 			}
@@ -286,7 +312,7 @@
 			"maximum": 9007199254740991
 		},
 		"operation": {
-			"enum": ["explain", "get", "list", "wait", "changes"]
+			"enum": ["explain", "get", "list", "wait", "changes", "management"]
 		},
 		"statusKind": {
 			"enum": [
@@ -323,7 +349,7 @@
 					"const": "agent-read"
 				},
 				"operation": {
-					"enum": ["explain", "get", "wait"]
+					"enum": ["explain", "get", "wait", "management"]
 				},
 				"sessionId": {
 					"$ref": "#/$defs/opaqueId"
@@ -445,7 +471,7 @@
 					"const": "agent-read"
 				},
 				"operation": {
-					"enum": ["explain", "get", "list", "changes"]
+					"enum": ["explain", "get", "list", "changes", "management"]
 				},
 				"timeoutMs": {
 					"const": 5000

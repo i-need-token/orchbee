@@ -11,6 +11,22 @@ use orchbee_local_ipc::{LocalListener, LocalStream};
 use peer_support::*;
 use serde_json::{Value, json};
 
+fn prompt_preflight(stream: &mut LocalStream, detail: Value) {
+    let accepted = detail["snapshot"]["pendingRequests"]
+        .as_array()
+        .unwrap()
+        .is_empty()
+        && detail["snapshot"]["observation"]["freshness"] == "fresh"
+        && !matches!(
+            detail["status"]["kind"].as_str(),
+            Some("unknown" | "needs-attention")
+        );
+    runtime_preflight(stream, detail);
+    if accepted {
+        management_reply(stream, 2, json!({"phase":"unmanaged"}));
+    }
+}
+
 fn idle() -> Value {
     let mut detail = session_detail("sess-alpha");
     detail["snapshot"]["turn"] = json!({"kind":"idle"});
@@ -147,7 +163,7 @@ fn prompt_rechecks_freshness_and_blockers_after_process_preflight() {
             if !blocked {
                 next["snapshot"]["observation"]["freshness"] = json!("stale");
             }
-            runtime_preflight(&mut stream, next);
+            prompt_preflight(&mut stream, next);
             assert_closed(&mut stream);
         });
         let output = fixture.run(&[
@@ -184,7 +200,7 @@ fn prompt_pastes_literal_text_once_and_keeps_the_terminal_receipt() {
     let text = "private line one\n中文 'quotes' $(literal)";
     let handler = peer(&fixture, listener, move |mut stream| {
         bound_agent_reply(&mut stream, idle());
-        runtime_preflight(&mut stream, idle());
+        prompt_preflight(&mut stream, idle());
         accept_prompt(&mut stream, text);
         assert_closed(&mut stream);
     });
@@ -216,7 +232,7 @@ fn prompt_wait_rejects_old_idle_but_accepts_a_new_completed_turn_when_working_wa
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
         bound_agent_reply(&mut stream, idle());
-        runtime_preflight(&mut stream, idle());
+        prompt_preflight(&mut stream, idle());
         checkpoint(&mut stream);
         accept_prompt(&mut stream, "task");
         checkpoint(&mut stream);
@@ -263,7 +279,7 @@ fn prompt_lost_send_reply_is_unknown_and_a_later_read_loss_keeps_accepted_input(
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
             bound_agent_reply(&mut stream, idle());
-            runtime_preflight(&mut stream, idle());
+            prompt_preflight(&mut stream, idle());
             checkpoint(&mut stream);
             if after_send {
                 accept_prompt(&mut stream, "task");
@@ -318,7 +334,7 @@ fn prompt_deadlines_distinguish_stalled_activity_from_an_earlier_caller_timeout(
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
             bound_agent_reply(&mut stream, idle());
-            runtime_preflight(&mut stream, idle());
+            prompt_preflight(&mut stream, idle());
             checkpoint(&mut stream);
             accept_prompt(&mut stream, "task");
             while let Ok(request) = read_agent_request(&mut stream) {
@@ -375,7 +391,7 @@ fn prompt_partial_delivery_never_starts_waiting_or_resubmits_the_prompt() {
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
         bound_agent_reply(&mut stream, idle());
-        runtime_preflight(&mut stream, idle());
+        prompt_preflight(&mut stream, idle());
         checkpoint(&mut stream);
         let ClientMessage::TerminalSend(request) = read_client_message(&mut stream).unwrap() else {
             panic!("send");
@@ -426,7 +442,7 @@ fn prompt_to_an_already_working_agent_does_not_promise_a_new_turn() {
         detail["snapshot"]["pendingRequests"] = json!([]);
         detail["status"] = json!({"kind":"working", "phase":"working", "activity":"tool"});
         bound_agent_reply(&mut stream, detail.clone());
-        runtime_preflight(&mut stream, detail.clone());
+        prompt_preflight(&mut stream, detail.clone());
         checkpoint(&mut stream);
         accept_prompt(&mut stream, "task");
         checkpoint(&mut stream);
@@ -469,7 +485,7 @@ fn windows_codex_boundary_precedes_enter_and_partial_delivery_is_never_completed
             let mut detail = idle();
             detail["snapshot"]["providerId"] = json!("codex");
             bound_agent_reply(&mut stream, detail.clone());
-            runtime_preflight(&mut stream, detail);
+            prompt_preflight(&mut stream, detail);
             if partial {
                 checkpoint(&mut stream);
             }
@@ -561,7 +577,7 @@ fn panel_prompt_submits_to_the_primary_binding() {
             "get",
             json!({"kind":"found","revision":1,"session":idle()}),
         );
-        runtime_preflight(&mut stream, idle());
+        prompt_preflight(&mut stream, idle());
         accept_prompt(&mut stream, "panel prompt");
         assert_closed(&mut stream);
     });
@@ -639,7 +655,7 @@ fn prompt_history_opens_the_activity_gate_but_completion_must_remain_current() {
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
             bound_agent_reply(&mut stream, idle());
-            runtime_preflight(&mut stream, idle());
+            prompt_preflight(&mut stream, idle());
             checkpoint(&mut stream);
             accept_prompt(&mut stream, "task");
             let (changes, head) = match case {
@@ -774,7 +790,7 @@ fn prompt_checkpoint_failure_prevents_input_and_lost_history_preserves_submissio
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
             bound_agent_reply(&mut stream, idle());
-            runtime_preflight(&mut stream, idle());
+            prompt_preflight(&mut stream, idle());
             if case == "checkpoint-denied" {
                 changes_reply(
                     &mut stream,
@@ -828,5 +844,58 @@ fn prompt_checkpoint_failure_prevents_input_and_lost_history_preserves_submissio
                 "accepted"
             );
         }
+    }
+}
+
+#[test]
+fn prompt_refuses_pending_startup_and_failed_management_reads_before_any_input() {
+    use orchbee_agent_observation_protocol::{
+        AgentRequest, AgentResult, read_agent_request, write_agent_result,
+    };
+    for case in ["pending", "denied", "wrong-session", "behind"] {
+        let fixture = Fixture::new();
+        let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
+        let handler = peer(&fixture, listener, move |mut stream| {
+            bound_agent_reply(&mut stream, idle());
+            runtime_preflight(&mut stream, idle());
+            let AgentRequest::Launch(request) = read_agent_request(&mut stream).unwrap() else {
+                panic!("management before input")
+            };
+            assert_eq!(json!(request)["kind"], "agent.launch.status.request");
+            let outcome = if case == "denied" {
+                json!({"kind":"rejected","reason":"read-denied"})
+            } else {
+                let management = if case == "pending" {
+                    json!({"phase":"pending","blocked":false,"reservation":{
+                        "reservationId":"11111111111111111111111111111111","name":"alpha","providerId":"claude-code","remainingMs":9000,"settleRemainingMs":0,
+                        "binding":{"presentationId":"22222222222222222222222222222222","generation":"33333333333333333333333333333333","hostEpoch":"66666666666666666666666666666666","hostTerminalId":"77777777777777777777777777777777"}
+                    }})
+                } else {
+                    json!({"phase":"unmanaged"})
+                };
+                json!({"kind":"status","sessionId":if case=="wrong-session" {"other"} else {"sess-alpha"},"revision":if case=="behind" {1} else {2},"management":management})
+            };
+            write_agent_result(&mut stream,&AgentResult::Launch(serde_json::from_value(json!({"kind":"agent.launch.status.result","requestId":request.request_id(),"result":{"outcome":outcome}})).unwrap())).unwrap();
+            assert_closed(&mut stream);
+        });
+        let output = fixture.run(&["agent", "prompt", "alpha", "task", "--format=json"]);
+        handler.join().unwrap();
+        assert!(!output.status.success(), "{output:?}");
+        let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+        if case == "pending" {
+            validate(
+                &doc,
+                include_str!("../src/cli/schemas/orchbee.cli.failure.agent-prompt.json"),
+            );
+            assert_eq!(doc["failure"]["details"]["reason"], "agent-launch-pending");
+        } else {
+            validate(
+                &doc,
+                include_str!("../src/cli/schemas/orchbee.cli.failure.agent.json"),
+            );
+            assert_eq!(doc["version"], 3);
+            assert_eq!(doc["failure"]["details"]["operation"], "management");
+        }
+        assert!(doc["failure"]["details"].get("submission").is_none());
     }
 }

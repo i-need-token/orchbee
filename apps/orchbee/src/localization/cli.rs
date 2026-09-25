@@ -1548,6 +1548,32 @@ impl Locale {
             (Self::EnUs, _) => "unknown",
         }
     }
+    pub(crate) fn cli_agent_management(
+        self,
+        state: &orchbee_agent_observation_protocol::AgentManagement,
+    ) -> String {
+        use orchbee_agent_observation_protocol::AgentManagement;
+        match (self, state) {
+            (Self::EnUs, AgentManagement::Unmanaged {}) => "Managed startup: unmanaged\n".into(),
+            (Self::EnUs, AgentManagement::Pending { blocked, .. }) => format!(
+                "Managed startup: {}\n",
+                if *blocked { "blocked" } else { "pending" }
+            ),
+            (Self::EnUs, AgentManagement::Active { .. }) => {
+                "Managed startup: interactive readiness confirmed\n".into()
+            }
+            (Self::ZhCn, AgentManagement::Unmanaged {}) => "托管启动：非托管\n".into(),
+            (Self::ZhCn, AgentManagement::Pending { blocked, .. }) => format!(
+                "托管启动：{}\n",
+                if *blocked {
+                    "等待处理"
+                } else {
+                    "启动中"
+                }
+            ),
+            (Self::ZhCn, AgentManagement::Active { .. }) => "托管启动：已确认交互就绪\n".into(),
+        }
+    }
     pub(crate) fn cli_agent_runtime(self, ready: Option<bool>, reason: Option<&str>) -> String {
         match (self, ready) {
             (Self::EnUs, Some(true)) => "Prompt preflight: ready at this observation\n".into(),
@@ -3017,6 +3043,12 @@ impl Locale {
     #[cfg(any(target_os = "linux", windows))]
     pub(crate) fn cli_prompt_hint(self, reason: &str) -> Option<&'static str> {
         match (self, reason) {
+            (Self::EnUs, "agent-launch-pending") => Some(
+                "The Agent is still starting. Wait for agent start to finish before sending a prompt.",
+            ),
+            (Self::ZhCn, "agent-launch-pending") => {
+                Some("Agent 仍在启动。请等待 agent start 完成后再提交提示。")
+            }
             (Self::EnUs, "agent-blocked") => Some(
                 "Agent needs attention. Resolve its pending request before submitting a prompt.",
             ),

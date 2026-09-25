@@ -10,7 +10,7 @@
 			"const": "orchbee.agent.get"
 		},
 		"version": {
-			"enum": [1, 2, 3, 4]
+			"enum": [1, 2, 3, 4, 5, 6]
 		},
 		"source": {
 			"$ref": "#/$defs/agentReadSource"
@@ -162,6 +162,22 @@
 							"additionalProperties": false
 						}
 					]
+				},
+				"management": {
+					"type": "object",
+					"required": ["source", "revision", "state"],
+					"additionalProperties": false,
+					"properties": {
+						"source": {
+							"$ref": "#/$defs/agentReadSource"
+						},
+						"revision": {
+							"$ref": "#/$defs/safeInteger"
+						},
+						"state": {
+							"$ref": "#/$defs/managed_agentManagement"
+						}
+					}
 				}
 			}
 		}
@@ -857,6 +873,140 @@
 					"$ref": "#/$defs/runtimeProcess_id"
 				}
 			}
+		},
+		"managed_agentManagement": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["phase"],
+					"additionalProperties": false,
+					"properties": {
+						"phase": {
+							"const": "unmanaged"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["phase", "reservation", "blocked"],
+					"additionalProperties": false,
+					"properties": {
+						"phase": {
+							"const": "pending"
+						},
+						"reservation": {
+							"$ref": "#/$defs/managed_launchReservation"
+						},
+						"blocked": {
+							"type": "boolean"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["phase", "reservationId", "providerId", "binding"],
+					"additionalProperties": false,
+					"properties": {
+						"phase": {
+							"const": "active"
+						},
+						"reservationId": {
+							"$ref": "#/$defs/managed_obapRequestId"
+						},
+						"providerId": {
+							"$ref": "#/$defs/managed_providerId"
+						},
+						"binding": {
+							"$ref": "#/$defs/managed_launchBinding"
+						}
+					}
+				}
+			]
+		},
+		"managed_launchReservation": {
+			"type": "object",
+			"required": [
+				"reservationId",
+				"name",
+				"providerId",
+				"binding",
+				"remainingMs",
+				"settleRemainingMs"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"reservationId": {
+					"$ref": "#/$defs/managed_obapRequestId"
+				},
+				"name": {
+					"$ref": "#/$defs/managed_agentName"
+				},
+				"providerId": {
+					"$ref": "#/$defs/managed_providerId"
+				},
+				"binding": {
+					"$ref": "#/$defs/managed_launchBinding"
+				},
+				"remainingMs": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 300000
+				},
+				"settleRemainingMs": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 3000
+				}
+			}
+		},
+		"managed_obapRequestId": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"$comment": "Request identity: exactly 32 lowercase hexadecimal characters and never the zero sentinel; the nonzero rule is a semantic invariant enforced by each binding."
+		},
+		"managed_agentName": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9_-]{0,31}$"
+		},
+		"managed_providerId": {
+			"type": "string",
+			"pattern": "^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$",
+			"maxLength": 64
+		},
+		"managed_launchBinding": {
+			"type": "object",
+			"required": ["presentationId", "generation", "hostEpoch", "hostTerminalId"],
+			"additionalProperties": false,
+			"properties": {
+				"presentationId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"generation": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"hostEpoch": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				},
+				"hostTerminalId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$",
+					"not": {
+						"const": "00000000000000000000000000000000"
+					}
+				}
+			}
 		}
 	},
 	"allOf": [
@@ -864,7 +1014,7 @@
 			"if": {
 				"properties": {
 					"version": {
-						"enum": [2, 4]
+						"enum": [2, 4, 6]
 					}
 				}
 			},
@@ -889,7 +1039,7 @@
 			"if": {
 				"properties": {
 					"version": {
-						"enum": [3, 4]
+						"enum": [3, 4, 5, 6]
 					}
 				}
 			},
@@ -905,6 +1055,31 @@
 					"result": {
 						"not": {
 							"required": ["runtime"]
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"enum": [5, 6]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"required": ["management"]
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"result": {
+						"not": {
+							"required": ["management"]
 						}
 					}
 				}

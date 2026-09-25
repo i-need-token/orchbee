@@ -638,6 +638,7 @@ pub(crate) fn render(
                 text,
                 locale,
             )?;
+            out.push(&locale.cli_agent_management(&doc.management.management))?;
             if let Some(client) = &doc.client {
                 out.push(&locale.cli_agent_client_view(client))?;
             }

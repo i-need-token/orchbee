@@ -80,10 +80,10 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
             client: Some(_), ..
         } => 2,
         #[cfg(windows)]
-        QueryCommand::AgentGet(_) => 3,
+        QueryCommand::AgentGet(_) => 5,
         QueryCommand::AgentClientGet { .. } => {
             if cfg!(windows) {
-                4
+                6
             } else {
                 2
             }
@@ -1097,11 +1097,24 @@ pub(crate) struct AgentClientListDoc {
 }
 
 #[derive(Debug)]
+pub(crate) struct AgentManagementDoc {
+    pub(crate) source: Value,
+    pub(crate) revision: AgentSafeInteger,
+    pub(crate) management: orchbee_agent_observation_protocol::AgentManagement,
+}
+impl AgentManagementDoc {
+    fn document(&self) -> Value {
+        json!({"source":self.source,"revision":self.revision,"state":self.management})
+    }
+}
+
+#[derive(Debug)]
 pub(crate) struct AgentInspectionDoc {
     pub(crate) revision: AgentSafeInteger,
     pub(crate) session: Box<AgentSessionDetail>,
     pub(crate) client: Option<Box<AgentClientViewDoc>>,
     pub(crate) runtime: AgentRuntimeDoc,
+    pub(crate) management: AgentManagementDoc,
 }
 
 #[derive(Debug)]
@@ -1231,7 +1244,7 @@ impl Projection {
             Self::AgentChanges(outcome) => json!(outcome),
             Self::AgentGet(outcome) => json!(outcome),
             Self::AgentInspection(doc) => {
-                let mut result = json!({"kind":"found","revision":doc.revision,"session":doc.session,"runtime":doc.runtime.document()});
+                let mut result = json!({"kind":"found","revision":doc.revision,"session":doc.session,"runtime":doc.runtime.document(),"management":doc.management.document()});
                 if let Some(client) = &doc.client {
                     result["client"] = client.document();
                 }

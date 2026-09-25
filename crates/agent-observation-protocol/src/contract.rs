@@ -332,6 +332,22 @@ fn validate_reservation(value: &AgentLaunchReservation) -> Result<(), AgentContr
 
 fn validate_launch_result(result: &AgentLaunchResult) -> Result<(), AgentContractError> {
     match result.outcome() {
+        AgentLaunchOutcome::Status { management, .. } => {
+            if !matches!(result, AgentLaunchResult::Status { .. }) {
+                return Err(AgentContractError::InvalidDocument);
+            }
+            match management {
+                crate::AgentManagement::Unmanaged {} => Ok(()),
+                crate::AgentManagement::Pending { reservation, .. } => {
+                    validate_reservation(reservation)
+                }
+                crate::AgentManagement::Active { binding, .. } => {
+                    AgentHostEpoch::parse(binding.generation.as_str())
+                        .map(|_| ())
+                        .map_err(|_| AgentContractError::InvalidDocument)
+                }
+            }
+        }
         AgentLaunchOutcome::Reserved { reservation } => {
             if !matches!(result, AgentLaunchResult::Reserve { .. })
                 || &reservation.reservation_id != result.request_id()

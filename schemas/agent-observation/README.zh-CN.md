@@ -71,3 +71,5 @@ list 分页游标是服务端铸造的不透明令牌：`v1.` + 44 字节负载�
 本契约不拥有 canonical Agent 状态、会话生命周期、ingress、变更、wait 或变更流、socket 策
 略、准入、权限、游标密钥、期限、CLI 语法或渲染。Server 拥有 canonical runtime 与读取策
 略；CLI 拥有调用与呈现。
+
+Launch Status 使用只读 kind 25/26、精确会话身份及规范修订。其闭合 management 阶段为 unmanaged、携带原预留及 blocked 标志的 pending，或携带原预留／provider／物理绑定的 active。结果仍限 1,024 字节；只有 status 操作接受 status outcome。[Rust 绑定契约](../../crates/agent-observation-protocol/README.zh-CN.md#托管启动状态) 及 Server 名称所有者定义验证和生命周期。

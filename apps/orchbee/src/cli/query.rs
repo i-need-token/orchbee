@@ -49,6 +49,10 @@ struct WaitSample {
 }
 
 #[cfg(windows)]
+mod agent_management;
+#[cfg(windows)]
+pub(in crate::cli) use agent_management::read_agent_management;
+#[cfg(windows)]
 mod agent_journal;
 #[cfg(windows)]
 pub(crate) use agent_journal::{AgentJournal, JournalError};

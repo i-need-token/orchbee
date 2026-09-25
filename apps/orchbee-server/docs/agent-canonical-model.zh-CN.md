@@ -463,3 +463,9 @@ names 家族还接受 `{kind:"presentation", presentationId}`。解析、分配�
 变更 token 复用 cursor 载荷布局，operation 为 2，flags/target/position 为零，携带启动实例与已观察 revision。其 HMAC 域为 `orchbee.agent.changes.cursor.v1\0`，与 list token 分离。先校验形状、规范编码和常量时间 MAC，再检查语义。现有启动期权威拥有两个域并随服务释放；token 不跨重启。省略 limit 默认 50，接受 1–100；分页前不筛选。协议所有者在分配前将每页限制为 1 MiB，并验证正数连续 revision、尾部/头部/hasMore 一致性、封闭转换种类及会话边界。
 
 消费者先建立检查点，再获取一致会话基线并协调后续变更。Reset 或 cursor-invalid 使连续性及依赖它的确认失效。Client 本地 seen/unseen 不修改 canonical 状态。此扩展要求匹配的开发 cohort；替换 cohort 即可回滚，无持久状态迁移。初始消费者为原生 Windows 传输。协议、游标域/重启/保留边界、canonical corpus 和准备读取失败测试覆盖此边界；实际展示及最终 CLI 验收仍由消费者负责。
+
+## 托管启动状态
+
+只读 `agent.launch.status` 在读取策略准入和 Agent 单元外的一次准备后检查精确 Session。它一起采样规范修订和名称所有者的启动状态：非托管；包含原有精确预留及当前阻塞标志的待启动；或者包含已接受 Complete 的预留身份、provider 和物理绑定的活动状态。Status 不提交、不续期、不重放、不启动。
+
+只有已接受的 launch Complete 才创建活动状态。手动命名不能证明启动就绪；重命名保留已有托管身份。活动记录受已提交名称容量约束，在显式清名、规范结束／移除／销毁、provider 不符或精确原生绑定替换／退役时移除。待启动状态保留原 TTL。活动表示启动已完成，与之后的工作／阻塞／新鲜度、OS 焦点及输入所有权相互独立。现有 CLI 阻塞启动取消策略及重启持久化仍是独立工作流义务。

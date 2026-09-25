@@ -299,6 +299,16 @@ pub(super) fn bound_agent_reply(stream: &mut LocalStream, detail: Value) {
     );
 }
 
+pub(super) fn management_reply(stream: &mut LocalStream, revision: u64, management: Value) {
+    let AgentRequest::Launch(request) = read_agent_request(stream).unwrap() else {
+        panic!("startup status read")
+    };
+    assert_eq!(json!(request)["kind"], "agent.launch.status.request");
+    assert_eq!(json!(request)["sessionId"], "sess-alpha");
+    write_agent_result(stream,&AgentResult::Launch(serde_json::from_value(json!({"kind":"agent.launch.status.result","requestId":request.request_id(),"result":{"outcome":{
+        "kind":"status","sessionId":"sess-alpha","revision":revision,"management":management
+    }}})).unwrap())).unwrap();
+}
 pub(super) fn runtime_preflight(stream: &mut LocalStream, detail: Value) {
     let provider = detail["snapshot"]["providerId"].as_str().unwrap();
     process_reply(stream, vec![process(10, None, &format!("{provider}.exe"))]);

@@ -1,0 +1,71 @@
+//! Bounded reads of Server-owned startup facts, shared by Get and prompt.
+use super::*;
+
+/// Startup ownership is a separate read, with its own sampled revision and source.
+#[cfg(windows)]
+pub(in crate::cli) fn read_agent_management(
+    client: &mut LocalClient,
+    session_id: &AgentSessionId,
+    minimum_revision: AgentSafeInteger,
+    deadline: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<crate::cli::results::AgentManagementDoc, Failure> {
+    use orchbee_agent_observation_protocol::{
+        AgentLaunchOutcome, AgentLaunchRejectionReason, AgentLaunchRequest,
+    };
+    let mut read = || {
+        let operation = AgentReadOperation::Management;
+        let request_id = obap_request_id()?;
+        let result = client
+            .submit_agent_launch_before_cancellable(
+                AgentLaunchRequest::Status {
+                    request_id: request_id.clone(),
+                    session_id: session_id.clone(),
+                },
+                deadline,
+                wake,
+            )
+            .map_err(|error| classify_agent_read(error, operation))?;
+        if Instant::now() >= deadline {
+            return Err(
+                Failure::new(FailureKind::Timeout).details(agent_timeout_details(operation))
+            );
+        }
+        let source = crate::cli::results::agent_source(&request_id);
+        match result.outcome() {
+            AgentLaunchOutcome::Status {
+                session_id: confirmed,
+                revision,
+                management,
+            } if confirmed == session_id && revision.value() >= minimum_revision.value() => {
+                Ok(crate::cli::results::AgentManagementDoc {
+                    source,
+                    revision: *revision,
+                    management: management.clone(),
+                })
+            }
+            AgentLaunchOutcome::Rejected {
+                reason: AgentLaunchRejectionReason::SessionNotFound,
+            } => Err(Failure::new(FailureKind::NotFound)
+                .details(agent_session_details(operation, session_id.as_str()))
+                .source(source)),
+            AgentLaunchOutcome::Rejected {
+                reason: AgentLaunchRejectionReason::ReadDenied,
+            } => Err(Failure::new(FailureKind::Denied)
+                .details(agent_rejection_details(operation, "read-denied"))
+                .source(source)),
+            AgentLaunchOutcome::Unavailable { .. } => {
+                Err(Failure::new(FailureKind::ServiceUnavailable)
+                    .details(agent_unavailable_details(operation))
+                    .source(source))
+            }
+            _ => Err(agent_protocol_invalid(operation)),
+        }
+    };
+    read().map_err(|failure| {
+        let version = if failure.details.is_some() { 3 } else { 1 };
+        failure
+            .version(version)
+            .failure_schema(crate::cli::schema::AGENT_FAILURE_ID)
+    })
+}

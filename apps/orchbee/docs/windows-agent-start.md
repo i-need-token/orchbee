@@ -65,7 +65,7 @@ for any further interpretation it performs internally.
 
 ## Results and recovery
 
-Success is `orchbee.agent.start` v1 with name, provider, session, reservation identity, elapsed
+Success is `orchbee.agent.start` v2 with name, provider, session, reservation identity, elapsed
 time and the original terminal-send receipt. Failure is `orchbee.cli.failure.agent-start` v1
 with independently retained reservation disposition, last observed reservation, bounded upstream cause and input
 receipt or submission failure. Remaining time in the last observation is historical.
@@ -90,3 +90,9 @@ boundaries, parser and completion scope, competing reservations, exact expiry, s
 canonical readiness, interrupted delivery and lost replies. The Windows CLI named-pipe tests
 retain receipts and prove no automatic replay. Real Site/Worker/Host validation checks the
 combined runtime separately. TLA model execution is not required for this Windows slice.
+
+## Inspecting completed startup
+
+Windows Agent Get v5 (v6 with a selected Client) includes `management` with its own read source, sampled canonical revision and `state`. The Server retains active startup identity only after accepted Complete; manual naming remains unmanaged. Active means that launch was confirmed interactive, independently of later work, attention, freshness or OS focus. Name clear, end/removal/disposal, provider mismatch and exact physical-binding retirement/replacement clear the managed record. Renaming preserves it; restart persistence remains separate work.
+
+Pending status carries its original reservation and a current blocked flag. Reads never extend its deadline or complete it. Get marks promptReady false while pending; prompt reads management after its canonical/process preflight and refuses pending startup before sending. The same original admission/total and signal owner apply. Failed Status reads preserve the Agent failure family and operation management in v3. Successful Start v2 adds required interactiveReady true to its existing completion and send evidence; the v1 schema remains available for older callers. This does not change the existing blocked-start cancellation policy or add a screen-recognition rule engine.

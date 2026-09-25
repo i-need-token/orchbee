@@ -51,6 +51,7 @@
 						"reason": {
 							"enum": [
 								"agent-blocked",
+								"agent-launch-pending",
 								"agent-not-ready",
 								"cancelled",
 								"signal-finalization-failed",

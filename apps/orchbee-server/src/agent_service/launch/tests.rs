@@ -24,6 +24,15 @@ fn request(seed: char) -> AgentLaunchRequest {
 fn launch_policy_rejects_before_preparation_and_failed_preparation_never_reserves() {
     for (request, read, manage, reason) in [
         (
+            AgentLaunchRequest::Status {
+                request_id: request('4').request_id().clone(),
+                session_id: AgentSessionId::parse("s1").unwrap(),
+            },
+            false,
+            true,
+            AgentLaunchRejectionReason::ReadDenied,
+        ),
+        (
             request('4'),
             true,
             false,

@@ -131,6 +131,7 @@ fn selected_client_get_joins_only_current_versions_and_keeps_canonical_outcome()
                 "get",
                 json!({"kind":"found","revision":3,"session":completed()}),
             );
+            peer_support::management_reply(&mut stream, 3, json!({"phase":"unmanaged"}));
             assert_closed(&mut stream);
         });
         let output = fixture.run(&[
@@ -149,7 +150,7 @@ fn selected_client_get_joins_only_current_versions_and_keeps_canonical_outcome()
             &doc,
             include_str!("../../src/cli/schemas/orchbee.agent.get.json"),
         );
-        assert_eq!(doc["version"], 4);
+        assert_eq!(doc["version"], 6);
         assert_eq!(doc["result"]["session"]["status"]["kind"], "succeeded");
         let client = &doc["result"]["client"];
         assert_eq!(client["state"], expected_state);
@@ -194,6 +195,7 @@ fn selected_client_get_checks_intervening_changes_and_refuses_foreign_boot() {
                     "get",
                     json!({"kind":"found","revision":4,"session":current}),
                 );
+                peer_support::management_reply(&mut stream, 4, json!({"phase":"unmanaged"}));
                 let AgentRequest::Changes(request) = read_agent_request(&mut stream).unwrap()
                 else {
                     panic!("join continuity proof")

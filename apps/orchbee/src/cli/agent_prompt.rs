@@ -183,6 +183,23 @@ mod active {
         };
         check_ready(&selected.observation)?;
         #[cfg(windows)]
+        {
+            let management = query::read_agent_management(
+                &mut client,
+                &selected.observation.session.snapshot.session_id,
+                selected.observation.revision,
+                admission,
+                signals.poll_fd(),
+            )?;
+            if matches!(
+                management.management,
+                orchbee_agent_observation_protocol::AgentManagement::Pending { .. }
+            ) {
+                return Err(prompt_error(FailureKind::Rejected, "agent-launch-pending")
+                    .source(management.source));
+            }
+        }
+        #[cfg(windows)]
         let mut journal = query::AgentJournal::default();
         #[cfg(windows)]
         if wait.is_some() {

@@ -74,6 +74,12 @@
 		},
 		{
 			"$ref": "#/$defs/sessionChangesResult"
+		},
+		{
+			"$ref": "#/$defs/launchStatusRequest"
+		},
+		{
+			"$ref": "#/$defs/launchStatusResult"
 		}
 	],
 	"$defs": {
@@ -1548,7 +1554,8 @@
 												"already-named",
 												"not-ready",
 												"read-denied",
-												"manage-denied"
+												"manage-denied",
+												"session-not-found"
 											]
 										}
 									}
@@ -1639,7 +1646,8 @@
 												"already-named",
 												"not-ready",
 												"read-denied",
-												"manage-denied"
+												"manage-denied",
+												"session-not-found"
 											]
 										}
 									}
@@ -1729,7 +1737,8 @@
 												"already-named",
 												"not-ready",
 												"read-denied",
-												"manage-denied"
+												"manage-denied",
+												"session-not-found"
 											]
 										}
 									}
@@ -1810,7 +1819,8 @@
 												"already-named",
 												"not-ready",
 												"read-denied",
-												"manage-denied"
+												"manage-denied",
+												"session-not-found"
 											]
 										}
 									}
@@ -2037,6 +2047,143 @@
 				}
 			},
 			"$comment": "Changes have strictly contiguous positive revisions, tail equals observedThroughRevision <= runtimeRevision, and hasMore iff observedThroughRevision < runtimeRevision; bindings enforce these cross-field invariants."
+		},
+		"agentManagement": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["phase"],
+					"additionalProperties": false,
+					"properties": {
+						"phase": {
+							"const": "unmanaged"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["phase", "reservation", "blocked"],
+					"additionalProperties": false,
+					"properties": {
+						"phase": {
+							"const": "pending"
+						},
+						"reservation": {
+							"$ref": "#/$defs/launchReservation"
+						},
+						"blocked": {
+							"type": "boolean"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["phase", "reservationId", "providerId", "binding"],
+					"additionalProperties": false,
+					"properties": {
+						"phase": {
+							"const": "active"
+						},
+						"reservationId": {
+							"$ref": "#/$defs/obapRequestId"
+						},
+						"providerId": {
+							"$ref": "#/$defs/providerId"
+						},
+						"binding": {
+							"$ref": "#/$defs/launchBinding"
+						}
+					}
+				}
+			]
+		},
+		"launchStatusRequest": {
+			"type": "object",
+			"required": ["kind", "requestId", "sessionId"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "agent.launch.status.request"
+				},
+				"requestId": {
+					"$ref": "#/$defs/obapRequestId"
+				},
+				"sessionId": {
+					"$ref": "#/$defs/sessionId"
+				}
+			}
+		},
+		"launchStatusResult": {
+			"type": "object",
+			"required": ["kind", "requestId", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "agent.launch.status.result"
+				},
+				"requestId": {
+					"$ref": "#/$defs/obapRequestId"
+				},
+				"result": {
+					"type": "object",
+					"required": ["outcome"],
+					"additionalProperties": false,
+					"properties": {
+						"outcome": {
+							"oneOf": [
+								{
+									"type": "object",
+									"required": ["kind", "sessionId", "revision", "management"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "status"
+										},
+										"sessionId": {
+											"$ref": "#/$defs/sessionId"
+										},
+										"revision": {
+											"$ref": "#/$defs/safeInteger"
+										},
+										"management": {
+											"$ref": "#/$defs/agentManagement"
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind", "reason"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "rejected"
+										},
+										"reason": {
+											"enum": [
+												"name-in-use",
+												"presentation-busy",
+												"capacity-exceeded",
+												"binding-changed",
+												"reservation-not-found",
+												"candidate-unavailable",
+												"candidate-ambiguous",
+												"already-named",
+												"not-ready",
+												"read-denied",
+												"manage-denied",
+												"session-not-found"
+											]
+										}
+									}
+								},
+								{
+									"$ref": "#/$defs/unavailableOutcome"
+								}
+							]
+						}
+					}
+				}
+			}
 		}
 	}
 }

@@ -519,8 +519,8 @@ impl Workflow<'_> {
     }
 
     fn success(&self, session: &AgentSessionId, format: OutputFormat, locale: Locale) -> Output {
-        let document = json!({"schema":"orchbee.agent.start", "version":1, "result":{
-            "kind":"started", "name":self.command.name, "providerId":self.command.provider,
+        let document = json!({"schema":"orchbee.agent.start", "version":2, "result":{
+            "kind":"started", "interactiveReady":true, "name":self.command.name, "providerId":self.command.provider,
             "sessionId":session, "reservationId":self.reservation, "elapsedMs":self.elapsed(), "submission":self.submission,
         }});
         let bytes = match format {

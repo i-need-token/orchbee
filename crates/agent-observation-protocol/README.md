@@ -12,7 +12,7 @@ the opaque list/change cursor wire shape. Its actual consumers are the native `o
   family (flat closed objects with a nonzero 32-hex `requestId`; `includeEnded`/`limit` defaults
   `false`/`50` applied at parse) plus the `AgentNamesRequest` family
   (`resolve`/`names.list`/`name.assign`/`name.release` over `AgentSessionSelector`) and
-  `AgentLaunchRequest` (`reserve`/`inspect`/`complete`/`cancel`) and `AgentChangesRequest` (`agent.session.changes`).
+  `AgentLaunchRequest` (`reserve`/`inspect`/`complete`/`cancel`/`status`) and `AgentChangesRequest` (`agent.session.changes`).
 - Results: the closed `AgentResult` union — read `outcome` unions
   (`listed`/`found`/`rejected`/`unavailable`) nested under
   `{kind, requestId, result:{outcome}}`; `runtime-unavailable` is the only v1 unavailability
@@ -32,7 +32,7 @@ the opaque list/change cursor wire shape. Its actual consumers are the native `o
 
 All three families are live: native Agent reads, `agent names/resolve/rename` and Windows `agent start` use the
 Server's `application_session` demux and `AgentService`. The published schema covers
-kinds 1–24. Names are runtime-scoped aliases owned by the Server cell; the protocol
+kinds 1–26. Names are runtime-scoped aliases owned by the Server cell; the protocol
 owns only their bounded DTOs and validation. Get/explain/wait resolve names on the same admitted session, then read or poll the pinned session ID. The CLI owns composition and budgets.
 
 Names lists contain live `bindings` and separate `pending` launch reservations sharing a
@@ -71,3 +71,7 @@ commit remain Server responsibilities in the [canonical model](../../apps/orchbe
 Changes uses request/result kinds 23/24 and the usual correlated outcome envelope. Omit cursor to obtain a current-head checkpoint; explicit null is invalid. The page limit defaults to 50 and accepts 1–100. Results are changes/current/reset-required/rejected/unavailable. A page has contiguous positive revisions, a tail equal to observedThroughRevision, a sampled runtimeRevision at least that large, and hasMore exactly when the tail is below the head. Every record contains the canonical journal's session projection, without synthetic attachments or execution location. The result ceiling is 1 MiB before allocation; non-page outcomes remain at most 1,024 bytes.
 
 `AgentChangesCursor` shares the list token's bounded shape but uses operation 2 and a separate Server HMAC domain. Authentication, boot identity and retention checks belong to the Server. A lost-retention token produces reset-required with a new head checkpoint; invalid or prior-boot tokens produce cursor-invalid. Neither is uninterrupted observation. The [Server model](../../apps/orchbee-server/docs/agent-canonical-model.md#native-bounded-change-reads) owns preparation, snapshot/journal coherence and recovery. The extension requires matching cohort binaries and no persistent migration. Native consumer workflows and their final acceptance are separate from codec coverage.
+
+## Managed launch status
+
+Read-only launch Status uses request/result kinds 25/26 and the existing 16 KiB request/1,024-byte result ceilings. The status outcome carries exact sessionId, canonical revision and a closed management phase: unmanaged; pending with a validated reservation and blocked boolean; active with reservationId, providerId and exact launch binding. Only Status results admit this outcome. Session existence and lifecycle, completed startup retention and read authorization belong to the Server names owner. Consumers must correlate the Session and distinguish completed startup from current prompt readiness. This additive native extension requires matching cohort binaries.

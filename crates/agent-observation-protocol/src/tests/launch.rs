@@ -118,3 +118,50 @@ fn maximum_pending_list_fits_its_frame_and_shares_the_committed_name_capacity() 
         json!([{"name":"committed","sessionId":"s1","lifecycle":"live"}]);
     assert!(parse_agent_result(&serde_json::to_vec(&document).unwrap()).is_err());
 }
+
+#[test]
+fn management_status_has_closed_phases_correlated_frames_and_a_small_worst_case() {
+    let request = parse_agent_request(
+        &serde_json::to_vec(
+            &json!({"kind":"agent.launch.status.request","requestId":ID,"sessionId":"s1"}),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let mut bytes = Vec::new();
+    write_agent_request(&mut bytes, &request).unwrap();
+    assert_eq!(bytes[7], 25);
+    assert_eq!(
+        read_agent_request(&mut Cursor::new(bytes)).unwrap(),
+        request
+    );
+    let mut maximum = reservation();
+    maximum["name"] = json!("a".repeat(32));
+    maximum["providerId"] = json!("p".repeat(64));
+    for state in [
+        json!({"phase":"unmanaged"}),
+        json!({"phase":"pending","reservation":maximum,"blocked":false}),
+        json!({"phase":"active","reservationId":ID,"providerId":"codex","binding":reservation()["binding"]}),
+    ] {
+        let document = json!({"kind":"agent.launch.status.result","requestId":ID,"result":{"outcome":{
+            "kind":"status","sessionId":"s".repeat(128),"revision":9007199254740991_u64,"management":state}}});
+        let encoded = serde_json::to_vec(&document).unwrap();
+        assert!(encoded.len() <= MAXIMUM_AGENT_SMALL_OUTCOME_BYTES);
+        let result = parse_agent_result(&encoded).unwrap();
+        let mut bytes = Vec::new();
+        write_agent_result(&mut bytes, &result).unwrap();
+        assert_eq!(bytes[7], 26);
+        assert_eq!(read_agent_result(&mut Cursor::new(bytes)).unwrap(), result);
+        let mut wrong = document.clone();
+        wrong["kind"] = json!("agent.launch.inspect.result");
+        assert!(parse_agent_result(&serde_json::to_vec(&wrong).unwrap()).is_err());
+        let mut extra = document;
+        extra["result"]["outcome"]["management"]["interactiveReady"] = json!(true);
+        assert!(parse_agent_result(&serde_json::to_vec(&extra).unwrap()).is_err());
+    }
+    let mut header = Vec::from(AGENT_MAGIC);
+    header.extend_from_slice(&1_u16.to_be_bytes());
+    header.extend_from_slice(&26_u16.to_be_bytes());
+    header.extend_from_slice(&1025_u32.to_be_bytes());
+    assert!(read_agent_result(&mut Cursor::new(header)).is_err());
+}

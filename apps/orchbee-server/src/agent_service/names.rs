@@ -34,6 +34,7 @@ impl Names {
         if runtime.is_disposed() {
             self.by_name.clear();
             self.by_session.clear();
+            self.reconcile_managed(runtime.snapshot());
             return;
         }
         let snapshot = runtime.snapshot();
@@ -49,6 +50,7 @@ impl Names {
             }
             live
         });
+        self.reconcile_managed(snapshot);
         debug_assert_eq!(self.by_name.len(), self.by_session.len());
     }
 

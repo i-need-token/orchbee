@@ -60,8 +60,22 @@ pub(super) fn run(
             })
             .transpose()?;
         let initial = query::read_agent_observation(&mut client, &id, deadline, signals.poll_fd())?;
-        let (canonical, runtime) =
+        let (canonical, mut runtime) =
             runtime::read(&mut client, &snapshot, initial, deadline, &mut signals)?;
+        let management = query::read_agent_management(
+            &mut client,
+            &id,
+            canonical.revision,
+            deadline,
+            signals.poll_fd(),
+        )?;
+        if matches!(
+            management.management,
+            orchbee_agent_observation_protocol::AgentManagement::Pending { .. }
+        ) && let results::AgentRuntimeDoc::Observed { prompt_ready, .. } = &mut runtime
+        {
+            *prompt_ready = false;
+        }
         let view = attention
             .map(|attention| {
                 attention
@@ -77,6 +91,7 @@ pub(super) fn run(
                 session: canonical.session,
                 client: view,
                 runtime,
+                management,
             })),
         ))
     })();

@@ -10,7 +10,7 @@
 			"const": "orchbee.agent.start"
 		},
 		"version": {
-			"const": 1
+			"enum": [1, 2]
 		},
 		"result": {
 			"type": "object",
@@ -45,6 +45,9 @@
 				},
 				"submission": {
 					"$ref": "#/$defs/sendReceipt"
+				},
+				"interactiveReady": {
+					"const": true
 				}
 			}
 		}
@@ -327,5 +330,32 @@
 			"minimum": 0,
 			"maximum": 9007199254740991
 		}
-	}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 2
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"required": ["interactiveReady"]
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"result": {
+						"not": {
+							"required": ["interactiveReady"]
+						}
+					}
+				}
+			}
+		}
+	]
 }

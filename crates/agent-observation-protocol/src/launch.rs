@@ -34,9 +34,35 @@ pub struct AgentLaunchReservation {
     pub settle_remaining_ms: AgentSafeInteger,
 }
 
+/// Startup ownership is independent of current semantic activity and Client focus.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(
+    tag = "phase",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum AgentManagement {
+    Unmanaged {},
+    Pending {
+        reservation: AgentLaunchReservation,
+        blocked: bool,
+    },
+    Active {
+        reservation_id: ObapRequestId,
+        provider_id: AgentProviderId,
+        binding: AgentLaunchBinding,
+    },
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all_fields = "camelCase", deny_unknown_fields)]
 pub enum AgentLaunchRequest {
+    #[serde(rename = "agent.launch.status.request")]
+    Status {
+        request_id: ObapRequestId,
+        session_id: AgentSessionId,
+    },
     #[serde(rename = "agent.launch.reserve.request")]
     Reserve {
         request_id: ObapRequestId,
@@ -69,7 +95,8 @@ impl AgentLaunchRequest {
     #[must_use]
     pub fn request_id(&self) -> &ObapRequestId {
         match self {
-            Self::Reserve { request_id, .. }
+            Self::Status { request_id, .. }
+            | Self::Reserve { request_id, .. }
             | Self::Inspect { request_id, .. }
             | Self::Complete { request_id, .. }
             | Self::Cancel { request_id, .. } => request_id,
@@ -80,6 +107,7 @@ impl AgentLaunchRequest {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum AgentLaunchRejectionReason {
+    SessionNotFound,
     NameInUse,
     PresentationBusy,
     CapacityExceeded,
@@ -101,6 +129,11 @@ pub enum AgentLaunchRejectionReason {
     deny_unknown_fields
 )]
 pub enum AgentLaunchOutcome {
+    Status {
+        session_id: AgentSessionId,
+        revision: AgentSafeInteger,
+        management: AgentManagement,
+    },
     Reserved {
         reservation: AgentLaunchReservation,
     },
@@ -134,6 +167,11 @@ pub struct AgentLaunchOutcomeEnvelope {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all_fields = "camelCase", deny_unknown_fields)]
 pub enum AgentLaunchResult {
+    #[serde(rename = "agent.launch.status.result")]
+    Status {
+        request_id: ObapRequestId,
+        result: AgentLaunchOutcomeEnvelope,
+    },
     #[serde(rename = "agent.launch.reserve.result")]
     Reserve {
         request_id: ObapRequestId,
@@ -160,7 +198,8 @@ impl AgentLaunchResult {
     #[must_use]
     pub fn request_id(&self) -> &ObapRequestId {
         match self {
-            Self::Reserve { request_id, .. }
+            Self::Status { request_id, .. }
+            | Self::Reserve { request_id, .. }
             | Self::Inspect { request_id, .. }
             | Self::Complete { request_id, .. }
             | Self::Cancel { request_id, .. } => request_id,
@@ -170,7 +209,8 @@ impl AgentLaunchResult {
     #[must_use]
     pub fn outcome(&self) -> &AgentLaunchOutcome {
         match self {
-            Self::Reserve { result, .. }
+            Self::Status { result, .. }
+            | Self::Reserve { result, .. }
             | Self::Inspect { result, .. }
             | Self::Complete { result, .. }
             | Self::Cancel { result, .. } => &result.outcome,

@@ -209,6 +209,7 @@ pub(crate) enum AgentReadOperation {
     Explain,
     Wait,
     Changes,
+    Management,
 }
 
 impl AgentReadOperation {
@@ -235,6 +236,7 @@ impl AgentReadOperation {
             Self::Explain => "explain",
             Self::Wait => "wait",
             Self::Changes => "changes",
+            Self::Management => "management",
         }
     }
 }
@@ -334,6 +336,7 @@ enum Operation {
     NamesList,
     NameAssign,
     NameRelease,
+    LaunchStatus,
     LaunchReserve,
     LaunchInspect,
     LaunchComplete,
@@ -344,6 +347,7 @@ enum Operation {
 fn operation_of_request(request: &AgentRequest) -> Operation {
     match request {
         AgentRequest::Changes(_) => Operation::Changes,
+        AgentRequest::Launch(AgentLaunchRequest::Status { .. }) => Operation::LaunchStatus,
         AgentRequest::Launch(AgentLaunchRequest::Reserve { .. }) => Operation::LaunchReserve,
         AgentRequest::Launch(AgentLaunchRequest::Inspect { .. }) => Operation::LaunchInspect,
         AgentRequest::Launch(AgentLaunchRequest::Complete { .. }) => Operation::LaunchComplete,
@@ -359,6 +363,7 @@ fn operation_of_request(request: &AgentRequest) -> Operation {
 fn operation_of_result(result: &AgentResult) -> Operation {
     match result {
         AgentResult::Changes(_) => Operation::Changes,
+        AgentResult::Launch(AgentLaunchResult::Status { .. }) => Operation::LaunchStatus,
         AgentResult::Launch(AgentLaunchResult::Reserve { .. }) => Operation::LaunchReserve,
         AgentResult::Launch(AgentLaunchResult::Inspect { .. }) => Operation::LaunchInspect,
         AgentResult::Launch(AgentLaunchResult::Complete { .. }) => Operation::LaunchComplete,

@@ -201,6 +201,7 @@ fn named_get_and_explain_share_one_admission_and_publish_only_the_read_source() 
                     "get",
                     json!({"kind":"found","revision":7,"session":session_detail("sess-alpha")}),
                 );
+                management_reply(&mut stream, 7, json!({"phase":"unmanaged"}));
             }
             assert_closed(&mut stream);
         });
@@ -330,6 +331,7 @@ fn explicit_session_bypasses_name_resolution_even_for_a_valid_alias_spelling() {
             "get",
             json!({"kind":"found","revision":7,"session":session_detail("sess-alpha")}),
         );
+        management_reply(&mut stream, 7, json!({"phase":"unmanaged"}));
         assert_closed(&mut stream);
     });
     let output = fixture.run(&[
@@ -889,6 +891,7 @@ fn panel_get_and_wait_share_admission_and_pin_the_primary_presentations_session(
                     "get",
                     json!({"kind":"found","revision":2,"session":detail}),
                 );
+                management_reply(&mut stream, 2, json!({"phase":"unmanaged"}));
             }
             assert_closed(&mut stream);
         });

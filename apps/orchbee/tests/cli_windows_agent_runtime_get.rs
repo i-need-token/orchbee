@@ -23,6 +23,8 @@ fn agent_get_returns_process_facts_and_bounded_prompt_readiness() {
         "blocked",
         "binding-change",
         "unbound",
+        "pending",
+        "active",
     ] {
         let fixture = Fixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
@@ -61,6 +63,17 @@ fn agent_get_returns_process_facts_and_bounded_prompt_readiness() {
                     json!({"kind":"found","revision":2,"session":current}),
                 );
             }
+            let binding = json!({"presentationId":"22222222222222222222222222222222","generation":"33333333333333333333333333333333","hostEpoch":"66666666666666666666666666666666","hostTerminalId":"77777777777777777777777777777777"});
+            let management = match case {
+                "pending" => {
+                    json!({"phase":"pending","blocked":false,"reservation":{"reservationId":"11111111111111111111111111111111","providerId":"claude-code","name":"alpha","binding":binding,"remainingMs":10000,"settleRemainingMs":0}})
+                }
+                "active" => {
+                    json!({"phase":"active","reservationId":"11111111111111111111111111111111","providerId":"claude-code","binding":binding})
+                }
+                _ => json!({"phase":"unmanaged"}),
+            };
+            management_reply(&mut stream, 2, management);
             assert_closed(&mut stream);
         });
         let output = fixture.run(&["agent", "get", "alpha", "--format=json"]);
@@ -71,8 +84,16 @@ fn agent_get_returns_process_facts_and_bounded_prompt_readiness() {
             &doc,
             include_str!("../src/cli/schemas/orchbee.agent.get.json"),
         );
-        assert_eq!(doc["version"], 3);
+        assert_eq!(doc["version"], 5);
         assert!(doc["result"].get("client").is_none());
+        assert_eq!(
+            doc["result"]["management"]["state"]["phase"],
+            match case {
+                "pending" => "pending",
+                "active" => "active",
+                _ => "unmanaged",
+            }
+        );
         let runtime = &doc["result"]["runtime"];
         if matches!(case, "unbound" | "binding-change") {
             assert_eq!(runtime["kind"], "unavailable");
@@ -86,7 +107,7 @@ fn agent_get_returns_process_facts_and_bounded_prompt_readiness() {
             );
         } else {
             assert_eq!(runtime["kind"], "observed");
-            assert_eq!(runtime["promptReady"], case == "ready");
+            assert_eq!(runtime["promptReady"], matches!(case, "ready" | "active"));
             assert_eq!(runtime["source"]["kind"], "terminal-process-query");
             assert_eq!(
                 runtime["processInfo"]["processes"][0]["currentDirectory"],
@@ -94,5 +115,34 @@ fn agent_get_returns_process_facts_and_bounded_prompt_readiness() {
             );
             assert_eq!(runtime["processInfo"]["processes"][0]["pid"], 10);
         }
+    }
+}
+
+#[test]
+fn management_wire_schema_accepts_each_phase_and_rejects_unowned_readiness() {
+    use orchbee_agent_observation_protocol::{parse_agent_request, parse_agent_result};
+    let schema =
+        include_str!("../../../schemas/agent-observation/v1/agent-observation.schema.json");
+    let request = json!({"kind":"agent.launch.status.request","requestId":"11111111111111111111111111111111","sessionId":"sess-alpha"});
+    validate(&request, schema);
+    assert!(parse_agent_request(&serde_json::to_vec(&request).unwrap()).is_ok());
+    let binding = json!({"presentationId":"22222222222222222222222222222222","generation":"33333333333333333333333333333333","hostEpoch":"66666666666666666666666666666666","hostTerminalId":"77777777777777777777777777777777"});
+    for management in [
+        json!({"phase":"unmanaged"}),
+        json!({"phase":"active","reservationId":request["requestId"],"providerId":"codex","binding":binding}),
+        json!({"phase":"pending","blocked":true,"reservation":{"reservationId":request["requestId"],"name":"alpha","providerId":"codex","binding":binding,"remainingMs":5000,"settleRemainingMs":0}}),
+    ] {
+        let doc = json!({"kind":"agent.launch.status.result","requestId":request["requestId"],"result":{"outcome":{"kind":"status","sessionId":"sess-alpha","revision":2,"management":management}}});
+        validate(&doc, schema);
+        assert!(parse_agent_result(&serde_json::to_vec(&doc).unwrap()).is_ok());
+        let mut invalid = doc;
+        invalid["result"]["outcome"]["management"]["interactiveReady"] = json!(true);
+        let schema: Value = serde_json::from_str(schema).unwrap();
+        assert!(
+            !jsonschema::validator_for(&schema)
+                .unwrap()
+                .is_valid(&invalid)
+        );
+        assert!(parse_agent_result(&serde_json::to_vec(&invalid).unwrap()).is_err());
     }
 }

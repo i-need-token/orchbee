@@ -60,7 +60,7 @@ fn prompt_wait_matches_only_the_selected_clients_current_seen_projection() {
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
             bound_agent_reply(&mut stream, idle());
-            runtime_preflight(&mut stream, idle());
+            prompt_preflight(&mut stream, idle());
             checkpoint(&mut stream);
             attention(&mut stream, 2, 11, Some(true));
             accept_prompt(&mut stream, "task");
@@ -133,7 +133,7 @@ fn prompt_client_loss_before_input_or_after_acceptance_never_replays() {
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
             bound_agent_reply(&mut stream, idle());
-            runtime_preflight(&mut stream, idle());
+            prompt_preflight(&mut stream, idle());
             checkpoint(&mut stream);
             if case != "before" {
                 attention(&mut stream, 2, 11, Some(true));

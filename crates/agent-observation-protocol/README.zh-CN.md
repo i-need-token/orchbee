@@ -11,7 +11,7 @@
   32 位十六进制 `requestId` 的扁平封闭对象；`includeEnded`/`limit` 默认值 `false`/`50`
   在解析时应用），外加 `AgentNamesRequest` 家族（经 `AgentSessionSelector` 的
   `resolve`/`names.list`/`name.assign`/`name.release`），以及 `AgentLaunchRequest`
-  （`reserve`/`inspect`/`complete`/`cancel`）与 `AgentChangesRequest`（`agent.session.changes`）。
+  （`reserve`/`inspect`/`complete`/`cancel`/`status`）与 `AgentChangesRequest`（`agent.session.changes`）。
 - 结果：封闭的 `AgentResult` 联合——`{kind, requestId, result:{outcome}}` 下的 read
   `outcome` 联合（`listed`/`found`/`rejected`/`unavailable`）；`runtime-unavailable` 是
   v1 唯一的不可用原因——外加 names 与 launch 结果信封。
@@ -28,7 +28,7 @@
 ## 交付状态
 
 三个家族均已接通：原生 Agent 读取、`agent names/resolve/rename` 与 Windows `agent start` 通过 Server 的
-`application_session` 解复用和 `AgentService` 执行。已发布 schema 覆盖 kind 1–24。
+`application_session` 解复用和 `AgentService` 执行。已发布 schema 覆盖 kind 1–26。
 名称是由 Server 状态单元持有的运行时别名；协议只拥有有界 DTO 与校验。
 get/explain/wait 先在同一已接纳会话上解析名称，再按固定会话 ID 读取或轮询。CLI 拥有组合与预算。
 
@@ -63,3 +63,7 @@ settleRemainingMs 为 0–3000。Inspect 的 candidateSessionId 必须出现且�
 Changes 使用请求/结果 kind 23/24 与惯用的关联 outcome 信封。省略 cursor 获得当前头部检查点；显式 null 无效。分页 limit 默认 50，接受 1–100。结果为 changes/current/reset-required/rejected/unavailable。页内 revision 为正且连续，尾部等于 observedThroughRevision，采样的 runtimeRevision 不小于尾部，只有尾部低于头部时 hasMore 才为真。每条记录包含 canonical 日志的会话投影，不编造附件或执行位置。结果在分配前限为 1 MiB；非分页结果仍最多 1,024 字节。
 
 `AgentChangesCursor` 与 list token 共用有界形状，但使用 operation 2 和独立 Server HMAC 域。认证、启动身份及保留范围校验由 Server 负责。超出保留范围的 token 返回 reset-required 与新头部检查点；无效或先前启动实例的 token 返回 cursor-invalid。两者都不代表连续观察。[Server 模型](../../apps/orchbee-server/docs/agent-canonical-model.zh-CN.md#原生有界变更读取) 拥有准备、快照/日志一致性及恢复语义。此扩展要求匹配的 cohort 二进制，无持久迁移。原生消费流程及最终验收与编解码器覆盖分开处理。
+
+## 托管启动状态
+
+只读 launch Status 使用请求／结果 kind 25/26 及现有 16 KiB 请求／1,024 字节结果上限。status 结果携带精确 sessionId、规范 revision 和闭合的 management 阶段：unmanaged；含已验证预留及 blocked 布尔值的 pending；或含 reservationId、providerId 及精确启动绑定的 active。只有 Status 结果允许此 outcome。会话存在性与生命周期、已完成启动的保留及读取授权属于 Server 名称所有者。消费者必须关联 Session，并区分已完成启动与当前提示就绪。此原生增量扩展需要匹配的 cohort 二进制。

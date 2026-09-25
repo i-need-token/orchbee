@@ -18,7 +18,10 @@ impl AgentService {
         request: AgentLaunchRequest,
         prepare: impl FnOnce() -> Result<AgentRuntimeSnapshot, PreparedUnavailable>,
     ) -> AgentLaunchResult {
-        let inspect = matches!(request, AgentLaunchRequest::Inspect { .. });
+        let inspect = matches!(
+            request,
+            AgentLaunchRequest::Inspect { .. } | AgentLaunchRequest::Status { .. }
+        );
         let allowed = if inspect {
             self.policy.read
         } else {
@@ -58,6 +61,7 @@ impl AgentService {
         let result = AgentLaunchOutcomeEnvelope { outcome };
         let request_id = request.request_id().clone();
         match request {
+            AgentLaunchRequest::Status { .. } => AgentLaunchResult::Status { request_id, result },
             AgentLaunchRequest::Reserve { .. } => AgentLaunchResult::Reserve { request_id, result },
             AgentLaunchRequest::Inspect { .. } => AgentLaunchResult::Inspect { request_id, result },
             AgentLaunchRequest::Complete { .. } => {

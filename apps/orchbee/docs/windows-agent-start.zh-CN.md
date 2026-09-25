@@ -51,7 +51,7 @@ Host 进程样本变化或暂时不可用时，在同一原始期限内重新采
 
 ## 结果与恢复
 
-成功为 `orchbee.agent.start` v1，含名称、提供方、会话、预留身份、耗时及原始终端发送回执。
+成功为 `orchbee.agent.start` v2，含名称、提供方、会话、预留身份、耗时及原始终端发送回执。
 失败为 `orchbee.cli.failure.agent-start` v1，独立保留预留处置、最后观察到的预留、有界上游原因，以及输入
 回执或提交失败。最后观察中的剩余时间是历史事实。已知部分输入保留退出码 9；输入未知
 或变更响应丢失保留退出码 8。已接受输入但清理未确认，不算启动成功。
@@ -72,3 +72,9 @@ Host 进程样本变化或暂时不可用时，在同一原始期限内重新采
 竞争预留、精确到期、旧绑定、canonical 就绪、输入中断及响应丢失。Windows CLI 命名管道测试
 保留回执并证明没有自动重放。真实 Site/Worker/Host 验证单独检查组合运行时。
 本 Windows 切片不要求执行 TLA 模型。
+
+## 检查已完成启动
+
+Windows Agent Get v5（指定 Client 时为 v6）包含 `management`，携带自己的读取来源、采样规范修订及 `state`。Server 仅在接受 Complete 后保留活动启动身份；手动命名仍为非托管。Active 表示该启动已确认交互就绪，与后续工作、待处理事项、新鲜度或 OS 焦点相互独立。清名、结束／移除／销毁、provider 不符及精确物理绑定退役／替换会清除托管记录。重命名保留它；重启持久化仍是独立工作。
+
+Pending 状态携带原始预留及当前 blocked 标志。读取不延长期限、不完成启动。Pending 时 Get 将 promptReady 置为 false；prompt 在规范状态／进程预检后读取 management，并在发送前拒绝待启动状态。沿用原始准入／总期限及信号所有者。Status 读取失败保留 Agent 失败族，并在 v3 中标记 operation management。成功的 Start v2 在现有完成和发送证据上增加必需的 interactiveReady true；v1 schema 仍供旧调用者使用。这不改变现有阻塞启动取消策略，也不增加屏幕识别规则引擎。

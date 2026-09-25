@@ -249,3 +249,78 @@ fn candidate_ambiguity_staleness_and_attention_do_not_manufacture_readiness() {
         }
     ));
 }
+
+#[test]
+fn managed_readiness_requires_completed_launch_and_dies_with_its_ownership() {
+    use orchbee_agent_observation_protocol::AgentManagement;
+    for cause in ["clear", "replace", "provider", "ended", "detach"] {
+        let mut bindings = [binding(1)];
+        let mut snapshot = snapshot(&bindings[0]);
+        let mut names = Names::default();
+        let target = AgentSessionSelector::Session {
+            session_id: AgentSessionId::parse("s1").unwrap(),
+        };
+        let status = AgentLaunchRequest::Status {
+            request_id: id(90),
+            session_id: AgentSessionId::parse("s1").unwrap(),
+        };
+        names.assign(&snapshot, &target, &AgentName::parse("manual").unwrap());
+        assert!(matches!(
+            names.execute_launch(&status, &snapshot, &bindings, 0),
+            Outcome::Status {
+                management: AgentManagement::Unmanaged {},
+                ..
+            }
+        ));
+        names.by_name.clear();
+        names.by_session.clear();
+        names.execute_launch(
+            &reserve(10, "alpha", &bindings[0], 10000),
+            &snapshot,
+            &bindings,
+            0,
+        );
+        assert!(matches!(
+            names.execute_launch(&status, &snapshot, &bindings, 1),
+            Outcome::Status {
+                management: AgentManagement::Pending { blocked: false, .. },
+                ..
+            }
+        ));
+        snapshot.sessions[0].observation.sequence += 1;
+        assert!(matches!(
+            names.execute_launch(&complete(10), &snapshot, &bindings, 3000),
+            Outcome::Completed { .. }
+        ));
+        names.assign(&snapshot, &target, &AgentName::parse("renamed").unwrap());
+        assert!(matches!(
+            names.execute_launch(&status, &snapshot, &bindings, 4000),
+            Outcome::Status {
+                management: AgentManagement::Active { .. },
+                ..
+            }
+        ));
+        match cause {
+            "clear" => {
+                names.by_name.clear();
+                names.by_session.clear();
+            }
+            "replace" => bindings[0] = binding(2),
+            "provider" => {
+                snapshot.sessions[0].provider_id =
+                    crate::agent::AgentProviderId::new("other").unwrap()
+            }
+            "ended" => snapshot.sessions[0].lifecycle = AgentLifecycle::Ended,
+            "detach" => snapshot.sessions[0].presentation_attachments.clear(),
+            _ => unreachable!(),
+        }
+        assert!(matches!(
+            names.execute_launch(&status, &snapshot, &bindings, 4001),
+            Outcome::Status {
+                management: AgentManagement::Unmanaged {},
+                ..
+            }
+        ));
+        assert!(names.launches.active.is_empty());
+    }
+}

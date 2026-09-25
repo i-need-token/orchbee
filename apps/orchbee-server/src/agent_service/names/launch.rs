@@ -20,9 +20,15 @@ use crate::agent_service::canonical_hex32;
 #[derive(Default)]
 pub(super) struct Launches {
     now_ms: u64,
+    active: BTreeMap<AgentSessionId, Managed>,
     entries: BTreeMap<ObapRequestId, Entry>,
 }
 
+struct Managed {
+    reservation_id: ObapRequestId,
+    provider: AgentProviderId,
+    binding: Binding,
+}
 struct Entry {
     id: ObapRequestId,
     name: AgentName,
@@ -31,6 +37,25 @@ struct Entry {
     baseline: BTreeMap<String, (u64, u64)>,
     started_ms: u64,
     expires_ms: u64,
+}
+
+fn launch_binding(binding: &Binding) -> AgentLaunchBinding {
+    AgentLaunchBinding {
+        presentation_id: orchbee_agent_observation_protocol::AgentPresentationId::parse(
+            binding.presentation.as_str(),
+        )
+        .expect("native presentation has the nonzero hex identity profile"),
+        generation: AgentAttachmentGeneration::parse(&canonical_hex32(
+            binding.host.creation_id().as_bytes(),
+        ))
+        .expect("native creation identity fits the attachment profile"),
+        host_epoch: AgentHostEpoch::parse(&canonical_hex32(binding.host.host_epoch().as_bytes()))
+            .expect("native epoch is a nonzero hex identity"),
+        host_terminal_id: AgentHostTerminalId::parse(&canonical_hex32(
+            binding.host.terminal_id().as_bytes(),
+        ))
+        .expect("native Terminal is a nonzero hex identity"),
+    }
 }
 
 fn same_binding(left: &Binding, right: &Binding) -> bool {
@@ -58,24 +83,7 @@ impl Entry {
             reservation_id: self.id.clone(),
             name: self.name.clone(),
             provider_id: self.provider.clone(),
-            binding: AgentLaunchBinding {
-                presentation_id: orchbee_agent_observation_protocol::AgentPresentationId::parse(
-                    self.binding.presentation.as_str(),
-                )
-                .expect("native presentation has the nonzero hex identity profile"),
-                generation: AgentAttachmentGeneration::parse(&canonical_hex32(
-                    self.binding.host.creation_id().as_bytes(),
-                ))
-                .expect("native creation identity fits the attachment profile"),
-                host_epoch: AgentHostEpoch::parse(&canonical_hex32(
-                    self.binding.host.host_epoch().as_bytes(),
-                ))
-                .expect("native epoch is a nonzero hex identity"),
-                host_terminal_id: AgentHostTerminalId::parse(&canonical_hex32(
-                    self.binding.host.terminal_id().as_bytes(),
-                ))
-                .expect("native Terminal is a nonzero hex identity"),
-            },
+            binding: launch_binding(&self.binding),
             remaining_ms: AgentSafeInteger::new(self.expires_ms.saturating_sub(now)),
             settle_remaining_ms: AgentSafeInteger::new(
                 self.started_ms
@@ -110,6 +118,49 @@ impl Entry {
 }
 
 impl Names {
+    pub(super) fn reconcile_managed(&mut self, snapshot: &AgentRuntimeSnapshot) {
+        self.launches.active.retain(|id, managed| {
+            self.by_session.contains_key(id)
+                && snapshot.sessions.iter().any(|session| {
+                    session.session_id.as_str() == id.as_str()
+                        && session.lifecycle == AgentLifecycle::Live
+                        && session.provider_id.as_str() == managed.provider.as_str()
+                        && attached(session, &managed.binding)
+                })
+        });
+    }
+    fn management(&self, snapshot: &AgentRuntimeSnapshot, id: &AgentSessionId) -> Outcome {
+        let Some(session) = snapshot
+            .sessions
+            .iter()
+            .find(|session| session.session_id.as_str() == id.as_str())
+        else {
+            return reject(Rejection::SessionNotFound);
+        };
+        use orchbee_agent_observation_protocol::AgentManagement;
+        let management = if let Some(managed) = self.launches.active.get(id) {
+            AgentManagement::Active {
+                reservation_id: managed.reservation_id.clone(),
+                provider_id: managed.provider.clone(),
+                binding: launch_binding(&managed.binding),
+            }
+        } else if let Some(pending) = self.launches.entries.values().find(|entry| {
+            session.lifecycle == AgentLifecycle::Live && attached(session, &entry.binding)
+        }) {
+            AgentManagement::Pending {
+                reservation: pending.view(self.launches.now_ms),
+                blocked: !session.pending_requests.is_empty(),
+            }
+        } else {
+            AgentManagement::Unmanaged {}
+        };
+        Outcome::Status {
+            session_id: id.clone(),
+            revision: AgentSafeInteger::new(snapshot.revision),
+            management,
+        }
+    }
+
     pub(in crate::agent_service) fn reconcile_launches(
         &mut self,
         bindings: &[Binding],
@@ -118,6 +169,12 @@ impl Names {
     ) {
         self.launches.now_ms = self.launches.now_ms.max(now_ms);
         let now = self.launches.now_ms;
+        self.launches.active.retain(|_, entry| {
+            !disposed
+                && bindings
+                    .iter()
+                    .any(|binding| same_binding(binding, &entry.binding))
+        });
         self.launches.entries.retain(|_, entry| {
             !disposed
                 && now < entry.expires_ms
@@ -182,7 +239,11 @@ impl Names {
         now_ms: u64,
     ) -> Outcome {
         self.reconcile_launches(bindings, now_ms, false);
+        self.reconcile_managed(snapshot);
         let now = self.launches.now_ms;
+        if let AgentLaunchRequest::Status { session_id, .. } = request {
+            return self.management(snapshot, session_id);
+        }
         if let AgentLaunchRequest::Reserve {
             request_id,
             name,
@@ -251,7 +312,9 @@ impl Names {
             AgentLaunchRequest::Inspect { reservation_id, .. }
             | AgentLaunchRequest::Complete { reservation_id, .. }
             | AgentLaunchRequest::Cancel { reservation_id, .. } => reservation_id,
-            AgentLaunchRequest::Reserve { .. } => unreachable!("reserve handled above"),
+            AgentLaunchRequest::Reserve { .. } | AgentLaunchRequest::Status { .. } => {
+                unreachable!("handled above")
+            }
         };
         let Some(entry) = self.launches.entries.get(reservation_id) else {
             return reject(Rejection::ReservationNotFound);
@@ -304,6 +367,14 @@ impl Names {
         let name = entry.name.clone();
         self.by_name.insert(name.clone(), session_id.clone());
         self.by_session.insert(session_id.clone(), name.clone());
+        self.launches.active.insert(
+            session_id.clone(),
+            Managed {
+                reservation_id: reservation_id.clone(),
+                provider: entry.provider.clone(),
+                binding: entry.binding.clone(),
+            },
+        );
         self.launches.entries.remove(reservation_id);
         Outcome::Completed {
             reservation_id: reservation_id.clone(),
