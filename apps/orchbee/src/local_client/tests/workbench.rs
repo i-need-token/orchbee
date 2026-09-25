@@ -1449,3 +1449,48 @@ fn tab_create_retires_close_control_envelopes_as_wrong_response_kind() -> TestRe
     }
     Ok(())
 }
+
+#[test]
+fn tab_create_wake_after_submission_retires_unknown_without_replay() -> TestResult {
+    let (submitted, wait_for_submission) = std::sync::mpsc::channel();
+    let (wake_read, mut wake_write) = UnixStream::pair()?;
+    let server = FakeServer::start(move |mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 51)?;
+        let WorkbenchRequest::Command(command) =
+            read_workbench_request(&mut stream).map_err(io::Error::other)?
+        else {
+            panic!("swap");
+        };
+        assert!(matches!(command.action, WorkbenchAction::TabCreate { .. }));
+        submitted.send(()).map_err(io::Error::other)?;
+        assert_eq!(
+            stream.read(&mut [0])?,
+            0,
+            "wake closes the carrier without replay"
+        );
+        Ok(())
+    })?;
+    let wake = std::thread::spawn(move || -> io::Result<()> {
+        wait_for_submission
+            .recv_timeout(Duration::from_secs(5))
+            .map_err(io::Error::other)?;
+        wake_write.write_all(b"x")
+    });
+    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let command = tab_create_command(FIRST_REQUEST_ID, 7);
+    let answer = client.submit_workbench_tab_create_with_wake(
+        WorkbenchTabCreateRequest::try_from(command).unwrap(),
+        client.operation_clock().now() + Duration::from_secs(5),
+        Some(wake_read.as_local_io()),
+    );
+    assert!(matches!(
+        answer,
+        WorkbenchTabCreateSubmission::OutcomeUnknown { .. }
+    ));
+    assert!(client.generation().is_none());
+    wake.join().unwrap()?;
+    drop(client);
+    server.finish()?;
+    Ok(())
+}

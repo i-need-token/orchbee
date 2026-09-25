@@ -1,4 +1,4 @@
-use super::SiteStopCommand;
+use super::{CreationCommand, CreationKind, SiteStopCommand};
 use std::ffi::OsString;
 
 #[test]
@@ -1388,7 +1388,60 @@ fn rejects_non_unicode_arguments() {
 // ---- mutation commands ------------------------------------------------------
 
 fn mutation(command: MutationCommand, format: OutputFormat) -> Request {
-    Request::Mutation { command, format }
+    let (kind, label, geometry, launch, profile, options) = match command {
+        MutationCommand::TabCreate {
+            context,
+            label,
+            geometry,
+            launch,
+            profile,
+            options,
+        } => (
+            CreationKind::Tab {
+                context: Some(context),
+            },
+            label,
+            geometry,
+            launch,
+            profile,
+            options,
+        ),
+        MutationCommand::PanelSplit {
+            target,
+            direction,
+            label,
+            geometry,
+            launch,
+            profile,
+            options,
+        } => (
+            CreationKind::Split {
+                target: Some(target),
+                direction,
+                ratio: None,
+            },
+            label,
+            geometry,
+            launch,
+            profile,
+            options,
+        ),
+        _ => return Request::Mutation { command, format },
+    };
+    Request::Creation {
+        command: CreationCommand {
+            kind,
+            label: Some(label),
+            geometry,
+            launch,
+            profile,
+            options,
+            client: None,
+            focus: false,
+            timeout_ms: 30_000,
+        },
+        format,
+    }
 }
 
 fn label(value: &str) -> WorkbenchLabel {
@@ -1736,7 +1789,7 @@ fn geometry_bearing_commands_default_the_whole_geometry() {
 }
 
 #[test]
-fn tab_create_admits_exactly_one_context() {
+fn tab_create_admits_at_most_one_explicit_context() {
     let mut workspace = tab_create_args("main");
     workspace.extend(["--label", "t"]);
     workspace.extend(GEOMETRY_ARGS);
@@ -1755,10 +1808,19 @@ fn tab_create_admits_exactly_one_context() {
         ))
     );
 
-    // Neither context nor both contexts are legal.
+    // Omitted context is resolved at runtime; explicit contexts stay exclusive.
     let mut neither = vec!["tab", "create", "--label", "t"];
     neither.extend(GEOMETRY_ARGS);
-    assert_eq!(parse(&neither), Err(usage(FailureEnvelope::Text)));
+    assert!(matches!(
+        parse(&neither),
+        Ok(Request::Creation {
+            command: CreationCommand {
+                kind: CreationKind::Tab { context: None },
+                ..
+            },
+            ..
+        })
+    ));
 
     let mut both = tab_create_args("main");
     both.extend(["--standalone", "--label", "t"]);
@@ -2676,7 +2738,6 @@ fn mutation_required_options_cannot_be_dropped() {
         &["tab", "rename", "t"],
         &["tab", "move", "t"],
         &["panel", "split", ID, "--label", "p"],
-        &["panel", "split", ID, "--direction", "right"],
         &["panel", "move", ID, "--direction", "left"],
         &["panel", "move", ID, "--target-panel", ID2],
     ];
@@ -3692,12 +3753,6 @@ fn usage_failures_carry_their_concrete_reason() {
                 option: "--path",
                 value: "relative/dir".to_owned(),
                 expected: ExpectedValue::DirectoryPath,
-            },
-        ),
-        (
-            &["tab", "create", "--label", "t"],
-            UsageReason::MissingTabContext {
-                context: path("tab create"),
             },
         ),
         (
@@ -6435,24 +6490,15 @@ fn per_launch_options_support_default_explicit_and_profile_launches() {
                 "KEY=literal=值 $()",
                 "--env=EMPTY=",
             ]);
-            let Request::Mutation { command, .. } = parse(&words).unwrap() else {
-                panic!("mutation");
+            let Request::Creation { command, .. } = parse(&words).unwrap() else {
+                panic!("creation");
             };
-            let (options, launch, profile) = match command {
-                MutationCommand::TabCreate {
-                    options,
-                    launch,
-                    profile,
-                    ..
-                }
-                | MutationCommand::PanelSplit {
-                    options,
-                    launch,
-                    profile,
-                    ..
-                } => (options, launch, profile),
-                _ => panic!("launch mutation"),
-            };
+            let CreationCommand {
+                options,
+                launch,
+                profile,
+                ..
+            } = command;
             assert_eq!(options.cwd.unwrap().as_str(), "C:\\代码 space");
             assert_eq!(
                 options.environment.entries(),
@@ -6971,4 +7017,65 @@ fn panel_rename_admits_exact_targets_and_normalizes_only_its_label() {
         ])
         .is_err()
     );
+}
+
+#[test]
+fn creation_optional_targets_focus_and_ratios_are_validated_before_admission() {
+    for args in [
+        vec!["tab", "create"],
+        vec!["panel", "split", "--direction=left"],
+        vec!["panel", "split", "--current", "--direction=above"],
+    ] {
+        let Request::Creation { command, .. } = parse(&args).unwrap() else {
+            panic!("creation");
+        };
+        assert!(command.label.is_none());
+        assert!(!command.focus);
+        assert_eq!(command.timeout_ms, 30_000);
+    }
+    for (input, expected) in [("-10", 0.1), ("0.7", 0.7), ("5", 0.9)] {
+        let Request::Creation { command, .. } = parse(&[
+            "panel",
+            "split",
+            "--panel",
+            ID,
+            "--direction=below",
+            "--ratio",
+            input,
+            "--focus",
+            "--client",
+            ID2,
+            "--timeout=1",
+        ])
+        .unwrap() else {
+            panic!("creation");
+        };
+        assert!(command.focus);
+        assert_eq!(command.client.unwrap().as_str(), ID2);
+        assert_eq!(command.timeout_ms, 1);
+        let CreationKind::Split { target, ratio, .. } = command.kind else {
+            panic!("split");
+        };
+        assert_eq!(target, Some(Target::Id(ID.into())));
+        assert_eq!(serde_json::json!(ratio), expected);
+    }
+    for extra in [
+        vec!["--focus", "--no-focus"],
+        vec!["--focus=true"],
+        vec!["--ratio=NaN"],
+        vec!["--ratio=inf"],
+        vec!["--ratio=1e999"],
+        vec!["--timeout=0"],
+        vec!["--timeout=3600001"],
+        vec!["--current", "--panel", ID],
+        vec![ID, "--current"],
+        vec![ID, "--panel", ID],
+        vec!["--detach"],
+        vec!["--request-id", ID],
+    ] {
+        let mut args = vec!["panel", "split", "--direction=right"];
+        args.extend(extra);
+        assert!(parse(&args).is_err(), "{args:?}");
+    }
+    assert!(parse(&["tab", "create", "--ratio=0.5"]).is_err());
 }

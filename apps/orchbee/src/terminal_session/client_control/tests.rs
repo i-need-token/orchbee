@@ -612,6 +612,7 @@ fn ratio_command(control: &ClientControl, ratio: f64) -> ClientViewControl {
         panic!()
     };
     command.intent = ClientViewIntent::SetSplitRatio {
+        expected_split: None,
         terminal_context_id,
         tab_id,
         path: ClientSplitPath::new(vec![]).unwrap(),
@@ -879,6 +880,7 @@ fn inactive_and_unvisited_ratio_changes_store_without_selection_attachment_or_dr
         let mut command = command(&control, None);
         command.minimum_workbench_revision = snapshot.revision;
         command.intent = ClientViewIntent::SetSplitRatio {
+            expected_split: None,
             terminal_context_id: context.clone(),
             tab_id: target.tab_id.clone(),
             path: ClientSplitPath::new(vec![]).unwrap(),
@@ -979,5 +981,51 @@ fn ratio_paths_require_matching_rendered_and_canonical_split_identity_before_com
         ));
         assert_eq!(native.control_observation(false).unwrap(), before);
         assert!(mailbox.try_recv().unwrap().is_none());
+    }
+}
+
+#[test]
+fn ratio_creation_guard_rejects_each_replaced_identity_before_any_effect() {
+    use crate::terminal_session::ui::publication_hint_tests::split_snapshot;
+    use orchbee_workbench_protocol::{ClientSplitIdentity, PanelNode};
+    for changed in ["splitId", "firstSlotId", "secondSlotId"] {
+        let (mut native, mailbox, clock, _) = ready_split_ui();
+        let poll = mailbox.try_recv().unwrap().unwrap();
+        mailbox.finish_lease(poll).unwrap();
+        let mut control = controller(clock);
+        control.tick(&mut native, false);
+        let before = native.control_observation(false).unwrap();
+        let snapshot = split_snapshot(1);
+        let PanelNode::Split {
+            split_id, children, ..
+        } = &snapshot.terminal_contexts[0].tabs[0].root
+        else {
+            panic!();
+        };
+        let mut identity = serde_json::json!({"splitId":split_id,"firstSlotId":children[0].slot_id,"secondSlotId":children[1].slot_id});
+        identity[changed] = serde_json::json!(format!("{:032x}", 9981));
+        let mut command = ratio_command(&control, 0.7);
+        let ClientViewIntent::SetSplitRatio { expected_split, .. } = &mut command.intent else {
+            panic!();
+        };
+        *expected_split = Some(serde_json::from_value::<ClientSplitIdentity>(identity).unwrap());
+        control
+            .lane
+            .as_ref()
+            .unwrap()
+            .inject_delivery_for_test(lane::Delivery {
+                command,
+                layout_snapshot: Some(snapshot),
+            });
+        assert!(!control.tick(&mut native, false));
+        assert_eq!(
+            completion(&control).unwrap().1.outcome,
+            ClientViewCompletionOutcome::Rejected {
+                reason: Reason::StaleView
+            }
+        );
+        assert_eq!(native.control_observation(false).unwrap(), before);
+        assert!(mailbox.try_recv().unwrap().is_none());
+        assert!(control.pending.is_none());
     }
 }

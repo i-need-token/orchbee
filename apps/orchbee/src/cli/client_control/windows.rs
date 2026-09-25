@@ -185,7 +185,7 @@ fn observe(
     )
 }
 
-pub(super) fn submit_control(
+pub(in crate::cli) fn submit_control(
     client: &mut LocalClient,
     site_id: &SiteId,
     command: ClientViewControl,
@@ -313,7 +313,7 @@ fn monotonic(previous: &WorkbenchClientViewResult, next: &WorkbenchClientViewRes
             _ => previous.status == next.status,
         }
 }
-pub(super) fn exchange(
+pub(in crate::cli) fn exchange(
     client: &mut LocalClient,
     site_id: &SiteId,
     action: ClientViewAction,

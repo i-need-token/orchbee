@@ -612,6 +612,7 @@ fn ratio_receipts_require_exact_owner_target_and_value_and_never_reexecute_on_re
             tab_id = WorkbenchTabId::parse(&format!("{:032x}", 99)).unwrap();
         }
         command.intent = ClientViewIntent::SetSplitRatio {
+            expected_split: None,
             terminal_context_id: terminal_context_id.clone(),
             tab_id: tab_id.clone(),
             path: ClientSplitPath::new(vec![]).unwrap(),

@@ -8,6 +8,24 @@ use crate::{
 };
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
+/// The identity a staged workflow expects at its captured split path.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ClientSplitIdentity {
+    pub split_id: WorkbenchSplitId,
+    pub first_slot_id: WorkbenchPanelSlotId,
+    pub second_slot_id: WorkbenchPanelSlotId,
+}
+impl ClientSplitIdentity {
+    /// Both ordered slots must belong to different child positions.
+    pub fn validate(&self) -> Result<(), ContractError> {
+        if self.first_slot_id == self.second_slot_id {
+            return Err(ContractError::InvalidDocument);
+        }
+        Ok(())
+    }
+}
+
 /// A normalized finite resize magnitude in 0..=0.5.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ClientResizeAmount(f64);

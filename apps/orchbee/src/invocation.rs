@@ -1,4 +1,6 @@
 mod client_control;
+mod creation;
+pub(crate) use creation::{CreationCommand, CreationKind};
 mod schema_export;
 pub(crate) use client_control::{
     ClientCommand, ClientLayoutTarget, ClientNavigationTarget, LayoutQuery, PanelSwapCommand,
@@ -986,6 +988,10 @@ fn stop_id(
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
+    Creation {
+        command: CreationCommand,
+        format: OutputFormat,
+    },
     SchemaExport {
         schema_id: Option<String>,
         path: String,
@@ -1214,10 +1220,6 @@ pub(crate) enum UsageReason {
     },
     /// Missing or invalid Windows caller identity, before runtime discovery.
     CallerContextUnavailable,
-    /// `tab create` with neither `--workspace` nor `--standalone`.
-    MissingTabContext {
-        context: UsageContext,
-    },
     UnexpectedArgument {
         context: UsageContext,
         value: String,
@@ -1306,6 +1308,8 @@ enum Token {
 struct Options {
     output: Option<String>,
     client: Option<String>,
+    focus: bool,
+    no_focus: bool,
     zoom_on: bool,
     zoom_off: bool,
     zoom_toggle: bool,
@@ -1740,8 +1744,12 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
             "--group" | "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
             | "--include-ended" | "--new-tab" | "--paste" | "--unwrap" | "--current"
             | "--clear" | "--wait" | "--forever" | "--detach" | "--retry" | "--force"
-            | "--trust-repository" | "--on" | "--off" | "--toggle" => {
-                let (seen, option) = if token == "--on" {
+            | "--trust-repository" | "--on" | "--off" | "--toggle" | "--focus" | "--no-focus" => {
+                let (seen, option) = if token == "--focus" {
+                    (&mut options.focus, "--focus")
+                } else if token == "--no-focus" {
+                    (&mut options.no_focus, "--no-focus")
+                } else if token == "--on" {
                     (&mut options.zoom_on, "--on")
                 } else if token == "--off" {
                     (&mut options.zoom_off, "--off")
@@ -2717,44 +2725,7 @@ fn resolve_words(
                 options,
             ))
         }
-        ["tab", "create"] => {
-            check_scope(
-                options,
-                TAB_CREATE_SCOPE,
-                UsageContext::Path("tab create"),
-                envelope,
-            )?;
-            reject_conflict(
-                options.standalone && options.workspace.is_some(),
-                UsageContext::Path("tab create"),
-                envelope,
-            )?;
-            reject_launch_profile_conflict(options, UsageContext::Path("tab create"), envelope)?;
-            let context = if options.standalone {
-                TabContext::Standalone
-            } else {
-                let Some(value) = options.workspace.clone() else {
-                    return Err(usage_with(
-                        UsageReason::MissingTabContext {
-                            context: UsageContext::Path("tab create"),
-                        },
-                        envelope,
-                    ));
-                };
-                TabContext::Workspace(target(value, Resource::Workspace, envelope)?)
-            };
-            Ok(mutation(
-                MutationCommand::TabCreate {
-                    context,
-                    label: label_option(options, UsageContext::Path("tab create"), envelope)?,
-                    geometry: geometry_option(options, UsageContext::Path("tab create"), envelope)?,
-                    launch: launch_option(options, UsageContext::Path("tab create"), envelope)?,
-                    profile: profile_option(options, UsageContext::Path("tab create"), envelope)?,
-                    options: launch_options(options, UsageContext::Path("tab create"), envelope)?,
-                },
-                options,
-            ))
-        }
+        ["tab", "create"] => creation::parse(None, options, envelope),
         ["panel", "rename", value] => {
             let context = UsageContext::Path("panel rename");
             check_scope(
@@ -2926,35 +2897,7 @@ fn resolve_words(
                 options,
             ))
         }
-        ["panel", "split", value] => {
-            check_scope(
-                options,
-                PANEL_SPLIT_SCOPE,
-                UsageContext::Path("panel split"),
-                envelope,
-            )?;
-            reject_launch_profile_conflict(options, UsageContext::Path("panel split"), envelope)?;
-            Ok(mutation(
-                MutationCommand::PanelSplit {
-                    target: target((*value).to_owned(), Resource::Panel, envelope)?,
-                    direction: panel_direction(
-                        options,
-                        UsageContext::Path("panel split"),
-                        envelope,
-                    )?,
-                    label: label_option(options, UsageContext::Path("panel split"), envelope)?,
-                    geometry: geometry_option(
-                        options,
-                        UsageContext::Path("panel split"),
-                        envelope,
-                    )?,
-                    launch: launch_option(options, UsageContext::Path("panel split"), envelope)?,
-                    profile: profile_option(options, UsageContext::Path("panel split"), envelope)?,
-                    options: launch_options(options, UsageContext::Path("panel split"), envelope)?,
-                },
-                options,
-            ))
-        }
+        ["panel", "split", rest @ ..] => creation::parse(Some(rest), options, envelope),
         ["panel", "close", value] => {
             check_scope(
                 options,
@@ -3458,16 +3401,6 @@ fn resolve_words(
             extra,
             envelope,
         )),
-        ["panel", "split"] => Err(missing_required(
-            UsageContext::Path("panel split"),
-            "<panel>",
-            envelope,
-        )),
-        ["panel", "split", _, extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("panel split"),
-            extra,
-            envelope,
-        )),
         ["panel", "close"] => Err(missing_required(
             UsageContext::Path("panel close"),
             "<panel>",
@@ -3829,6 +3762,8 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 struct Scope {
     output: bool,
     client: bool,
+    focus: bool,
+    no_focus: bool,
     zoom_on: bool,
     zoom_off: bool,
     zoom_toggle: bool,
@@ -3943,6 +3878,8 @@ struct Scope {
 const NO_OPTIONS: Scope = Scope {
     output: false,
     client: false,
+    focus: false,
+    no_focus: false,
     zoom_on: false,
     zoom_off: false,
     zoom_toggle: false,
@@ -4102,6 +4039,10 @@ const ACCEPT_DIRECTORY_SCOPE: Scope = Scope {
 };
 
 const TAB_CREATE_SCOPE: Scope = Scope {
+    client: true,
+    focus: true,
+    no_focus: true,
+    timeout: true,
     workspace: true,
     standalone: true,
     label: true,
@@ -4145,6 +4086,13 @@ const WORKSPACE_CLOSE_RESUME_SCOPE: Scope = Scope {
 };
 
 const PANEL_SPLIT_SCOPE: Scope = Scope {
+    panel: true,
+    current: true,
+    ratio: true,
+    client: true,
+    focus: true,
+    no_focus: true,
+    timeout: true,
     label: true,
     direction: true,
     geometry: true,
@@ -4216,6 +4164,8 @@ const INTEGRATION_SCOPE: Scope = Scope {
 fn business_options(options: &Options) -> bool {
     options.output.is_some()
         || options.client.is_some()
+        || options.focus
+        || options.no_focus
         || options.zoom_on
         || options.zoom_off
         || options.zoom_toggle
@@ -4294,6 +4244,12 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.client.is_some() && !scope.client {
         return Some("--client");
+    }
+    if options.focus && !scope.focus {
+        return Some("--focus");
+    }
+    if options.no_focus && !scope.no_focus {
+        return Some("--no-focus");
     }
     if options.zoom_on && !scope.zoom_on {
         return Some("--on");

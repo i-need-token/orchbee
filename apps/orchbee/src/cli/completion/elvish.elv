@@ -9,7 +9,7 @@
     [--text --file --stdin --key] [--key --enter] [--key --paste]
     [--text --paste] [--match --regex]
   ]
-  var panel-targets = [panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap]
+  var panel-targets = [panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap panel:split]
   var agent-targets = [agent:get agent:read agent:send-keys agent:prompt agent:explain agent:wait agent:resolve agent:rename]
   fn any {|values choices|
     for choice $choices { if (has-value $values $choice) { put $true; return } }

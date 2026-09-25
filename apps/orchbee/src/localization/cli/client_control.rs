@@ -3,6 +3,92 @@ use crate::cli::escape::escape;
 use serde_json::Value;
 
 impl Locale {
+    pub(crate) fn cli_creation(self, document: &Value) -> String {
+        let (
+            title,
+            complete,
+            incomplete,
+            action,
+            request,
+            context,
+            tab,
+            panel,
+            revision,
+            launch,
+            client,
+            ratio,
+            focus,
+        ) = match self {
+            Self::EnUs => (
+                "Terminal creation",
+                "created",
+                "created; requested Client work incomplete, inspect before retrying",
+                "Action",
+                "Request",
+                "Context",
+                "Tab",
+                "Panel",
+                "Revision",
+                "Launch",
+                "Client",
+                "Ratio observation",
+                "Focus observation",
+            ),
+            Self::ZhCn => (
+                "终端创建",
+                "已创建",
+                "已创建；请求的客户端操作尚未完成，重试前请检查",
+                "操作",
+                "请求",
+                "上下文",
+                "标签页",
+                "窗格",
+                "修订",
+                "启动",
+                "客户端",
+                "比例观测",
+                "聚焦观测",
+            ),
+        };
+        let result = &document["result"];
+        let post = &document["postCreate"];
+        let mut text = format!(
+            "{title}: {}\n",
+            if post["outcome"] == "incomplete" {
+                incomplete
+            } else {
+                complete
+            }
+        );
+        for (name, value) in [
+            (action, &result["action"]),
+            (request, &document["source"]["requestId"]),
+            (context, &result["terminalContextId"]),
+            (tab, &result["tabId"]),
+            (
+                panel,
+                if result["newPanelId"].is_string() {
+                    &result["newPanelId"]
+                } else {
+                    &result["panelId"]
+                },
+            ),
+            (revision, &result["revision"]),
+            (launch, &result["terminal"]["outcome"]),
+            (client, &post["clientId"]),
+        ] {
+            if let Some(value) = value.as_str() {
+                text.push_str(&format!("{name}: {}\n", escape(value)));
+            }
+        }
+        for (name, value) in [(ratio, &post["ratio"]), (focus, &post["focus"])] {
+            if value.is_object() {
+                text.push_str(&format!("{name}:\n{}", self.cli_client_control(value)));
+            }
+        }
+        text
+    }
+
     pub(crate) fn cli_panel_swap(self, document: &Value) -> String {
         let (title, client, source, target, canonical, request, revision, reason) = match self {
             Self::EnUs => (

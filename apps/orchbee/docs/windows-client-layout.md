@@ -60,6 +60,12 @@ The small `layout-adjusted` receipt uses frames 25/26 and carries target context
 
 Deterministic contract, ratio-state and geometry tests cover invalid numbers, paths, identity replacement, capacity, stale snapshots, rounding, minimums and no-op boundaries. Generated hierarchy/state traces retain reduced replay. Controller witnesses cover one commit, inactive purity, draw ordering and interruption. Independent Rust/TypeScript/schema validation and two-Client Windows ConPTY traces connect the boundary to actual terminal dimensions and Client isolation. The Client control model abstracts selected draw, inactive storage and no-op completion; TLA execution remains user-deferred.
 
+An optional `expectedSplit` on the path setter pins the split and both ordered slot identities.
+When present, canonical and rendered resolution must match all three before any write, and the
+`layout-adjusted` receipt must report that identity. Creation workflows use the committed identity
+so a concurrent replacement at the same path cannot receive the requested ratio. Omission keeps
+the ordinary path setter's existing semantics. This adds no global ratio or topology authority.
+
 ## Verification mapping
 
 | Claim                                                                   | Maintained evidence                                                                                                                                   |

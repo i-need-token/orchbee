@@ -63,6 +63,7 @@ impl NativeUi {
                 tab_id,
                 path,
                 ratio,
+                expected_split,
             } => {
                 let canonical = snapshot
                     .terminal_contexts
@@ -72,6 +73,16 @@ impl NativeUi {
                     .ok_or(Reason::TargetUnavailable)?;
                 let canonical_split =
                     canonical_split_at(&canonical.root, path).ok_or(Reason::TargetUnavailable)?;
+                if expected_split.as_ref().is_some_and(|identity| {
+                    canonical_split
+                        != (
+                            &identity.split_id,
+                            &identity.first_slot_id,
+                            &identity.second_slot_id,
+                        )
+                }) {
+                    return Err(Reason::StaleView);
+                }
                 let selected = state.cache().terminal_context_id() == terminal_context_id
                     && state
                         .active()

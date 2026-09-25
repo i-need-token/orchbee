@@ -7,6 +7,8 @@ mod agent_prompt;
 mod agent_start;
 pub(crate) use agent_start::run as run_agent_start;
 mod caller_context;
+mod creation;
+pub(crate) use creation::run as run_creation;
 mod completion;
 pub(crate) mod config;
 pub(crate) mod escape;

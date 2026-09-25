@@ -1,0 +1,151 @@
+//! Optional creation inputs, before any canonical target or Client is resolved.
+use super::{
+    FailureEnvelope, LaunchOptions, LaunchProfileSelector, LaunchSelection, Options, OutputFormat,
+    PANEL_SPLIT_SCOPE, ParseFailure, Request, Resource, TAB_CREATE_SCOPE, TabContext, Target,
+    UsageContext, UsageReason, WorkbenchLabel, WorkbenchPanelSplitDirection,
+    WorkbenchTerminalGeometry, check_scope, client_control, geometry_option, label_option,
+    launch_option, launch_options, panel_direction, profile_option, reject_conflict,
+    reject_launch_profile_conflict, target, unexpected_argument, usage_with, wait_timeout_option,
+};
+use orchbee_workbench_protocol::{ClientSplitRatio, WorkbenchClientId};
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum CreationKind {
+    Tab {
+        context: Option<TabContext>,
+    },
+    Split {
+        target: Option<Target>,
+        direction: WorkbenchPanelSplitDirection,
+        ratio: Option<ClientSplitRatio>,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct CreationCommand {
+    pub(crate) kind: CreationKind,
+    pub(crate) label: Option<WorkbenchLabel>,
+    pub(crate) geometry: WorkbenchTerminalGeometry,
+    pub(crate) launch: Option<LaunchSelection>,
+    pub(crate) profile: Option<LaunchProfileSelector>,
+    pub(crate) options: LaunchOptions,
+    pub(crate) client: Option<WorkbenchClientId>,
+    pub(crate) focus: bool,
+    pub(crate) timeout_ms: u32,
+}
+
+pub(super) fn parse(
+    split_operands: Option<&[&str]>,
+    options: &Options,
+    envelope: FailureEnvelope,
+) -> Result<Request, ParseFailure> {
+    let context = UsageContext::Path(if split_operands.is_some() {
+        "panel split"
+    } else {
+        "tab create"
+    });
+    check_scope(
+        options,
+        if split_operands.is_some() {
+            PANEL_SPLIT_SCOPE
+        } else {
+            TAB_CREATE_SCOPE
+        },
+        context,
+        envelope,
+    )?;
+    if options.focus && options.no_focus {
+        return Err(usage_with(
+            UsageReason::ConflictingOptions {
+                context,
+                first: "--focus",
+                second: "--no-focus",
+            },
+            envelope,
+        ));
+    }
+    reject_launch_profile_conflict(options, context, envelope)?;
+    let kind = if let Some(operands) = split_operands {
+        if let [_, extra, ..] = operands {
+            return Err(unexpected_argument(context, extra, envelope));
+        }
+        let selectors: Vec<_> = [
+            ("panel-id", !operands.is_empty()),
+            ("--panel", options.panel.is_some()),
+            ("--current", options.current),
+        ]
+        .into_iter()
+        .filter(|(_, present)| *present)
+        .map(|(name, _)| name)
+        .collect();
+        if selectors.len() > 1 {
+            return Err(usage_with(
+                UsageReason::ConflictingOptions {
+                    context,
+                    first: selectors[0],
+                    second: selectors[1],
+                },
+                envelope,
+            ));
+        }
+        let target = operands
+            .first()
+            .map(|value| (*value).to_owned())
+            .or_else(|| options.panel.clone())
+            .map(|value| target(value, Resource::Panel, envelope))
+            .transpose()?;
+        let ratio = options
+            .ratio
+            .as_deref()
+            .map(|value| {
+                let number = client_control::finite_number(value, "--ratio", context, envelope)?;
+                Ok(ClientSplitRatio::new(number.clamp(0.1, 0.9)).expect("normalized finite ratio"))
+            })
+            .transpose()?;
+        CreationKind::Split {
+            target,
+            direction: panel_direction(options, context, envelope)?,
+            ratio,
+        }
+    } else {
+        reject_conflict(
+            options.standalone && options.workspace.is_some(),
+            context,
+            envelope,
+        )?;
+        let context = if options.standalone {
+            Some(TabContext::Standalone)
+        } else {
+            options
+                .workspace
+                .clone()
+                .map(|value| {
+                    target(value, Resource::Workspace, envelope).map(TabContext::Workspace)
+                })
+                .transpose()?
+        };
+        CreationKind::Tab { context }
+    };
+    Ok(Request::Creation {
+        command: CreationCommand {
+            kind,
+            label: options
+                .label
+                .as_ref()
+                .map(|_| label_option(options, context, envelope))
+                .transpose()?,
+            geometry: geometry_option(options, context, envelope)?,
+            launch: launch_option(options, context, envelope)?,
+            profile: profile_option(options, context, envelope)?,
+            options: launch_options(options, context, envelope)?,
+            client: client_control::client_id(options, context, envelope)?,
+            focus: options.focus,
+            timeout_ms: if options.timeout.is_some() {
+                wait_timeout_option(options, context, envelope)?
+            } else {
+                30_000
+            },
+        },
+        format: options.format.unwrap_or(OutputFormat::Text),
+    })
+}

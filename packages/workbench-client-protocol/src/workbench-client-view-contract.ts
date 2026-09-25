@@ -14,6 +14,8 @@ import {
 	WorkbenchTerminalContextIdSchema,
 	WorkbenchTabIdSchema,
 	WorkbenchPanelIdSchema,
+	WorkbenchSplitIdSchema,
+	WorkbenchPanelSlotIdSchema,
 	WorkbenchRevisionSchema,
 } from './workbench-semantic-contract';
 
@@ -62,6 +64,14 @@ export const ClientViewRecordSchema = z
 		availability: z.enum(['current', 'stale']),
 	})
 	.readonly();
+const splitIdentity = z
+	.strictObject({
+		splitId: WorkbenchSplitIdSchema,
+		firstSlotId: WorkbenchPanelSlotIdSchema,
+		secondSlotId: WorkbenchPanelSlotIdSchema,
+	})
+	.refine((value) => value.firstSlotId !== value.secondSlotId)
+	.readonly();
 const contextTarget = { terminalContextId: WorkbenchTerminalContextIdSchema };
 const tabTarget = { ...contextTarget, tabId: WorkbenchTabIdSchema };
 const panelTarget = { ...tabTarget, panelId: WorkbenchPanelIdSchema };
@@ -80,6 +90,7 @@ export const ClientViewIntentSchema = z.discriminatedUnion('kind', [
 			...tabTarget,
 			path: ClientSplitPathSchema,
 			ratio: ClientSplitRatioSchema,
+			expectedSplit: splitIdentity.optional(),
 		})
 		.readonly(),
 	z
@@ -224,7 +235,12 @@ export const ClientViewOperationSchema = z
 			let ratioMatches: boolean;
 			if (change.kind === 'no-split') ratioMatches = intent.kind === 'resize';
 			else if (intent.kind === 'set-split-ratio')
-				ratioMatches = change.split.ratio === intent.ratio;
+				ratioMatches =
+					change.split.ratio === intent.ratio &&
+					(intent.expectedSplit === undefined ||
+						(change.split.splitId === intent.expectedSplit.splitId &&
+							change.split.firstSlotId === intent.expectedSplit.firstSlotId &&
+							change.split.secondSlotId === intent.expectedSplit.secondSlotId));
 			else {
 				const signed =
 					intent.direction === 'right' || intent.direction === 'down'

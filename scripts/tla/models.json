@@ -2054,6 +2054,41 @@
 			]
 		},
 		{
+			"id": "native-cli-creation-workflow",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/NativeCliCreationWorkflow.tla",
+			"config": "apps/orchbee/formal/tla/NativeCliCreationWorkflow.cfg",
+			"claims": ["apps/orchbee/docs/native-terminal-creation.md"],
+			"triggers": [
+				"apps/orchbee/docs/native-terminal-creation*",
+				"apps/orchbee/src/cli/creation*",
+				"apps/orchbee/src/cli/creation/**",
+				"apps/orchbee/src/cli/mutation.rs",
+				"apps/orchbee/src/cli/client_control/windows.rs",
+				"apps/orchbee/src/cli/client_control/selection.rs",
+				"apps/orchbee/src/invocation/creation.rs",
+				"apps/orchbee/src/local_client/workbench.rs",
+				"apps/orchbee/src/local_client/workbench/panel_split.rs",
+				"apps/orchbee/src/terminal_session/ui/client_layout/adjustment.rs",
+				"crates/workbench-protocol/src/command/client_view.rs",
+				"apps/orchbee/tests/cli_windows_creation.rs"
+			],
+			"timeoutMilliseconds": 180000,
+			"workers": 1,
+			"requiredCoverage": [
+				"Preflight",
+				"Create",
+				"LoseCreate",
+				"ReplaceTarget",
+				"AdjustRatio",
+				"LoseRatio",
+				"Focus",
+				"LoseFocus",
+				"Stop"
+			]
+		},
+		{
 			"id": "native-cli-wait-settlement",
 			"owner": "orchbee",
 			"workspace": "apps/orchbee",

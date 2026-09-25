@@ -752,19 +752,6 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
         "'--workspace' 不是 'orchbee workspace list' 的有效选项。请运行 ‘orchbee workspace list --help’。\n"
     );
 
-    // The tab-create context requirement localizes its connector.
-    let failure = usage_failure(UsageReason::MissingTabContext {
-        context: UsageContext::Path("tab create"),
-    });
-    assert_eq!(
-        Locale::EnUs.cli_failure(&failure),
-        "'orchbee tab create' requires '--workspace' or '--standalone'. Run 'orchbee tab create --help'.\n"
-    );
-    assert_eq!(
-        Locale::ZhCn.cli_failure(&failure),
-        "'orchbee tab create' 需要 '--workspace' 或 '--standalone'。请运行 ‘orchbee tab create --help’。\n"
-    );
-
     // The argv-envelope reason never echoes argv content.
     let failure = usage_failure(UsageReason::ArgumentEnvelope);
     assert_eq!(

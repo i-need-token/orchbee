@@ -17,7 +17,7 @@ pub(super) fn failure(kind: FailureKind, reason: &'static str, candidates: Vec<S
     failure.failure_schema = Some("orchbee.cli.failure.client-control");
     failure
 }
-pub(super) fn select<'a>(
+pub(in crate::cli) fn select<'a>(
     clients: &'a [ClientViewRecord],
     explicit: Option<&WorkbenchClientId>,
     caller: Option<&Target>,
@@ -63,7 +63,7 @@ pub(super) fn select<'a>(
         )),
     }
 }
-pub(super) fn intent(
+pub(in crate::cli) fn intent(
     target: &ClientNavigationTarget,
     client: &ClientViewRecord,
     caller: Option<&Target>,
@@ -106,6 +106,7 @@ pub(super) fn intent(
                 tab_id,
                 path: path.clone(),
                 ratio: *ratio,
+                expected_split: None,
             })
         }
         ClientNavigationTarget::Workspace(target) => {

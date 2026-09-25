@@ -107,6 +107,9 @@ fn main() -> ExitCode {
             Ok(invocation::Request::Mutation { command, format }) => {
                 cli::mutation(command, format, locale)
             }
+            Ok(invocation::Request::Creation { command, format }) => {
+                cli::run_creation(&command, format, locale)
+            }
             Ok(invocation::Request::SiteStart { format }) => cli::site_start(format, locale),
             Ok(invocation::Request::SiteStop { command, format }) => {
                 cli::site_stop(&command, format, locale)

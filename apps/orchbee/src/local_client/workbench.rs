@@ -346,6 +346,15 @@ impl LocalClient {
         request: WorkbenchTabCreateRequest,
         deadline: Instant,
     ) -> WorkbenchTabCreateSubmission {
+        self.submit_workbench_tab_create_with_wake(request, deadline, None)
+    }
+
+    pub(crate) fn submit_workbench_tab_create_with_wake(
+        &mut self,
+        request: WorkbenchTabCreateRequest,
+        deadline: Instant,
+        wake: Option<orchbee_local_ipc::LocalIo<'_>>,
+    ) -> WorkbenchTabCreateSubmission {
         if self.connection.is_none() {
             return WorkbenchTabCreateSubmission::DefinitelyNotSubmitted(
                 WorkbenchTabCreateNotSubmitted::SessionUnavailable,
@@ -391,7 +400,7 @@ impl LocalClient {
                 &self.clock,
                 deadline,
                 self.io_chunk_limits,
-                None,
+                wake,
                 &frame,
                 |io| read_workbench_response(io),
             )

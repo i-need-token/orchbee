@@ -377,6 +377,25 @@
 						},
 						"ratio": {
 							"$ref": "#/$defs/splitRatio"
+						},
+						"expectedSplit": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["splitId", "firstSlotId", "secondSlotId"],
+							"properties": {
+								"splitId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"firstSlotId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								"secondSlotId": {
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								}
+							}
 						}
 					},
 					"required": ["kind", "terminalContextId", "tabId", "path", "ratio"],

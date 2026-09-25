@@ -452,7 +452,7 @@ fn navigation(
     })
 }
 
-fn finite_number(
+pub(super) fn finite_number(
     value: &str,
     option: &'static str,
     context: UsageContext,
@@ -562,7 +562,7 @@ fn parse_ratio(
     )
 }
 
-fn client_id(
+pub(super) fn client_id(
     options: &Options,
     context: UsageContext,
     envelope: FailureEnvelope,

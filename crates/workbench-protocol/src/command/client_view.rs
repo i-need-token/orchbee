@@ -2,7 +2,8 @@
 use super::{
     client_layout::{ClientPanelDirection, ClientPanelLayout, ClientSplitRatio},
     client_layout_adjustment::{
-        ClientLayoutAdjustment, ClientLayoutChange, ClientResizeAmount, ClientSplitPath,
+        ClientLayoutAdjustment, ClientLayoutChange, ClientResizeAmount, ClientSplitIdentity,
+        ClientSplitPath,
     },
     json_fields::deserialize_nullable,
 };
@@ -124,6 +125,12 @@ pub enum ClientViewIntent {
         tab_id: WorkbenchTabId,
         path: ClientSplitPath,
         ratio: ClientSplitRatio,
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "deserialize_expected_split"
+        )]
+        expected_split: Option<ClientSplitIdentity>,
     },
     FocusDirection {
         terminal_context_id: WorkbenchTerminalContextId,
@@ -298,6 +305,26 @@ pub struct ClientViewControl {
     pub minimum_workbench_revision: WorkbenchRevision,
     pub intent: ClientViewIntent,
 }
+impl ClientViewControl {
+    pub fn validate(&self) -> Result<(), ContractError> {
+        if let ClientViewIntent::SetSplitRatio {
+            expected_split: Some(identity),
+            ..
+        } = &self.intent
+        {
+            identity.validate()?;
+        }
+        Ok(())
+    }
+}
+
+fn deserialize_expected_split<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<ClientSplitIdentity>, D::Error> {
+    let identity = ClientSplitIdentity::deserialize(deserializer)?;
+    identity.validate().map_err(de::Error::custom)?;
+    Ok(Some(identity))
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -394,6 +421,7 @@ pub struct ClientViewOperation {
 }
 impl ClientViewOperation {
     pub fn validate(&self) -> Result<(), ContractError> {
+        self.command.validate()?;
         match &self.status {
             ClientViewControlStatus::LayoutAdjusted { adjustment, view } => {
                 adjustment.validate()?;
@@ -404,10 +432,20 @@ impl ClientViewOperation {
                             terminal_context_id,
                             tab_id,
                             ratio,
+                            expected_split,
                             ..
                         },
                         ClientLayoutChange::Split { split },
-                    ) => (terminal_context_id, tab_id, split.ratio == *ratio),
+                    ) => (
+                        terminal_context_id,
+                        tab_id,
+                        split.ratio == *ratio
+                            && expected_split.as_ref().is_none_or(|identity| {
+                                identity.split_id == split.split_id
+                                    && identity.first_slot_id == split.first_slot_id
+                                    && identity.second_slot_id == split.second_slot_id
+                            }),
+                    ),
                     (
                         ClientViewIntent::Resize {
                             terminal_context_id,
@@ -596,6 +634,9 @@ pub struct WorkbenchClientViewRequest {
 }
 impl WorkbenchClientViewRequest {
     pub fn validate(&self) -> Result<(), ContractError> {
+        if let ClientViewAction::Submit { command } = &self.action {
+            command.validate()?;
+        }
         if let ClientViewAction::Synchronize {
             view, completion, ..
         } = &self.action
@@ -671,6 +712,9 @@ impl WorkbenchClientViewResult {
         match &self.outcome {
             ClientViewOutcome::Synchronized { client, control } => {
                 client.view.validate()?;
+                if let Some(control) = control {
+                    control.validate()?;
+                }
                 if control.as_ref().is_some_and(|control| {
                     control.client_id != client.client_id
                         || control.expected_view_revision != client.view_revision

@@ -52,6 +52,19 @@ pub(super) struct Receipt {
 }
 
 impl Receipt {
+    #[cfg(windows)]
+    pub(super) fn committed_revision(&self) -> Option<WorkbenchRevision> {
+        self.revision
+    }
+
+    #[cfg(windows)]
+    pub(super) fn id_value(&self, name: &str) -> Option<&str> {
+        self.ids
+            .iter()
+            .find(|(key, _)| *key == name)
+            .map(|(_, value)| value.as_str())
+    }
+
     fn source(&self) -> Value {
         self.source_override.clone().unwrap_or_else(|| {
             command_source(
@@ -62,7 +75,7 @@ impl Receipt {
         })
     }
 
-    fn document(&self) -> Value {
+    pub(super) fn document(&self) -> Value {
         let mut result = Map::from_iter([
             ("action".to_owned(), json!(self.action)),
             ("outcome".to_owned(), json!(self.outcome)),
@@ -303,6 +316,9 @@ pub(crate) fn run(command: &MutationCommand, format: OutputFormat, locale: Local
         locale,
     )
 }
+
+#[cfg(windows)]
+pub(super) use linux::submit_creation;
 
 #[cfg(any(target_os = "linux", windows))]
 mod linux {
@@ -908,10 +924,37 @@ mod linux {
 
     /// Submit exactly one command on the admitted session and map the typed
     /// submission into the receipt/failure matrix.
+    #[cfg(windows)]
+    pub(in crate::cli) fn submit_creation(
+        client: &mut LocalClient,
+        snapshot: &Snapshot,
+        command: &MutationCommand,
+        deadline: Instant,
+        wake: Option<orchbee_local_ipc::LocalIo<'_>>,
+    ) -> Result<Receipt, Failure> {
+        let resolved = resolve(command, snapshot)
+            .map_err(|failure| failure.source(results::snapshot_source(snapshot)))?;
+        let source = command_source(
+            resolved.site_id.as_str(),
+            resolved.request_id.as_str(),
+            resolved.expected_revision,
+        );
+        submit_with_wake(client, deadline, resolved, wake).map_err(|failure| failure.source(source))
+    }
+
     fn submit(
         client: &mut LocalClient,
         deadline: Instant,
         resolved: Resolved,
+    ) -> Result<Receipt, Failure> {
+        submit_with_wake(client, deadline, resolved, None)
+    }
+
+    fn submit_with_wake(
+        client: &mut LocalClient,
+        deadline: Instant,
+        resolved: Resolved,
+        wake: Option<orchbee_local_ipc::LocalIo<'_>>,
     ) -> Result<Receipt, Failure> {
         let command = WorkbenchCommand {
             protocol_version: ProtocolVersion,
@@ -1062,7 +1105,7 @@ mod linux {
             WorkbenchAction::TabCreate { .. } => {
                 let request =
                     WorkbenchTabCreateRequest::try_from(command).map_err(|_| internal())?;
-                match client.submit_workbench_tab_create(request, deadline) {
+                match client.submit_workbench_tab_create_with_wake(request, deadline, wake) {
                     WorkbenchTabCreateSubmission::Committed(commit) => {
                         let (
                             revision,
@@ -1273,7 +1316,7 @@ mod linux {
                     .id("panelId", panel_id.as_str())
                     .direction(panel_direction(*direction))
                     .label(label.as_str());
-                match client.submit_workbench_panel_split(request, deadline) {
+                match client.submit_workbench_panel_split_with_wake(request, deadline, wake) {
                     WorkbenchPanelSplitSubmission::Committed(commit) => {
                         let (
                             revision,

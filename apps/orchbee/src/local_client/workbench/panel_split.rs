@@ -17,6 +17,15 @@ impl LocalClient {
         request: WorkbenchPanelSplitRequest,
         deadline: Instant,
     ) -> WorkbenchPanelSplitSubmission {
+        self.submit_workbench_panel_split_with_wake(request, deadline, None)
+    }
+
+    pub(crate) fn submit_workbench_panel_split_with_wake(
+        &mut self,
+        request: WorkbenchPanelSplitRequest,
+        deadline: Instant,
+        wake: Option<orchbee_local_ipc::LocalIo<'_>>,
+    ) -> WorkbenchPanelSplitSubmission {
         if self.connection.is_none() {
             return WorkbenchPanelSplitSubmission::DefinitelyNotSubmitted(
                 WorkbenchPanelSplitNotSubmitted::SessionUnavailable,
@@ -64,7 +73,7 @@ impl LocalClient {
             &self.clock,
             deadline,
             self.io_chunk_limits,
-            None,
+            wake,
             &frame,
             |io| read_workbench_response(io),
         );

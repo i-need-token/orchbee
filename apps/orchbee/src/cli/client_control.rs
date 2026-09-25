@@ -17,15 +17,15 @@ use serde_json::json;
 #[cfg(any(windows, test))]
 mod layout;
 #[cfg(any(windows, test))]
-mod selection;
+pub(super) mod selection;
 #[cfg(windows)]
 mod swap;
 #[cfg(windows)]
-mod windows;
+pub(super) mod windows;
 
 #[cfg(any(windows, test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Wait {
+pub(super) enum Wait {
     Detached,
     TimedOut,
     Cancelled,
@@ -33,11 +33,11 @@ enum Wait {
     ObservationFailed,
 }
 #[cfg(any(windows, test))]
-struct Answer {
+pub(super) struct Answer {
     status_only: bool,
     operation_id: Option<WorkbenchRequestId>,
     site_id: Option<SiteId>,
-    reply: Option<WorkbenchClientViewResult>,
+    pub(super) reply: Option<WorkbenchClientViewResult>,
     unknown: bool,
     wait: Option<Wait>,
 }
@@ -49,7 +49,7 @@ impl Answer {
             ClientViewOutcome::Operation { operation } if operation.status.pending())
         })
     }
-    fn document(&self) -> serde_json::Value {
+    pub(super) fn document(&self) -> serde_json::Value {
         let wait = self.wait.map(|wait| match wait {
             Wait::Detached => "detached",
             Wait::TimedOut => "timed-out",
@@ -67,7 +67,7 @@ impl Answer {
         json!({"schema":"orchbee.client.control","version":1,"siteId":self.site_id,
             "operationId":self.operation_id,"observation":observation,"wait":wait})
     }
-    fn exit_code(&self) -> u8 {
+    pub(super) fn exit_code(&self) -> u8 {
         match self.wait {
             Some(Wait::Cancelled) => return 130,
             Some(Wait::TimedOut) => return 7,

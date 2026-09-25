@@ -1,6 +1,40 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee tab create --f", "--focus", true),
+    ("orchbee tab create --focus --n", "--no-focus", false),
+    ("orchbee tab create --no-focus --f", "--focus", false),
+    ("orchbee --focus tab ", "create", true),
+    ("orchbee tab create --focus --no-focus ", "--client", false),
+    (
+        "orchbee panel split --direction=",
+        "--direction=above",
+        true,
+    ),
+    ("orchbee panel split --ratio=0.7 --f", "--focus", true),
+    ("orchbee panel split --current --p", "--panel", false),
+    (
+        "orchbee panel split 00000000000000000000000000000006 --p",
+        "--panel",
+        false,
+    ),
+    (
+        "orchbee panel split --panel 00000000000000000000000000000006 --c",
+        "--current",
+        false,
+    ),
+    (
+        "orchbee panel split --current 00000000000000000000000000000006 ",
+        "--focus",
+        false,
+    ),
+    ("orchbee panel split --focus=true ", "--ratio", false),
+    (
+        "orchbee panel split --current --profile dev --e",
+        "--exec",
+        false,
+    ),
+    ("orchbee --focus --no-focus panel ", "split", false),
     ("orchbee panel ", "swap", true),
     ("orchbee help panel ", "swap", true),
     ("orchbee panel swap --w", "--with", true),

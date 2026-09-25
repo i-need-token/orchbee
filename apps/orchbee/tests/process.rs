@@ -181,7 +181,7 @@ fn help_flag_ownership_terminator_and_conflicts_stay_usage() -> Result<(), Box<d
         ),
         (
             &["tab", "create", "--cols", "--help"],
-            "'orchbee tab create' requires '--workspace' or '--standalone'. Run 'orchbee tab create --help'.\n",
+            "Invalid value \"--help\" for '--cols' (expected a decimal integer from 0 to 65535). Run 'orchbee tab create --help'.\n",
         ),
         // After `--` every word is literal; "--help" is then an unknown path.
         (

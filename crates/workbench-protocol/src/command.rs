@@ -6,7 +6,7 @@ pub use client_layout::{
 };
 pub use client_layout_adjustment::{
     ClientLayoutAdjustment, ClientLayoutChange, ClientResizeAmount, ClientSplitChange,
-    ClientSplitPath,
+    ClientSplitIdentity, ClientSplitPath,
 };
 mod client_view;
 pub use client_view::{
