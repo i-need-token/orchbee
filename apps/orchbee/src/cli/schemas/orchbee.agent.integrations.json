@@ -35,7 +35,7 @@
 				},
 				"integrations": {
 					"type": "array",
-					"maxItems": 11,
+					"maxItems": 12,
 					"items": {
 						"$ref": "#/$defs/item"
 					}
@@ -50,7 +50,7 @@
 				},
 				"unresolvedProviderIds": {
 					"type": "array",
-					"maxItems": 11,
+					"maxItems": 12,
 					"uniqueItems": true,
 					"items": {
 						"$ref": "#/$defs/item/properties/integrationId"
@@ -58,7 +58,7 @@
 				},
 				"blockedProviderIds": {
 					"type": "array",
-					"maxItems": 11,
+					"maxItems": 12,
 					"uniqueItems": true,
 					"items": {
 						"$ref": "#/$defs/item/properties/integrationId"
@@ -80,6 +80,7 @@
 						"grok",
 						"opencode",
 						"kilo",
+						"cursor",
 						"pi",
 						"omp",
 						"gemini",

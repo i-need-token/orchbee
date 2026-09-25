@@ -25,6 +25,29 @@ const ompEntryUrl = resourceUrl('omp/orchbee-agent-observation.cjs');
 const clineUrl = resourceUrl('cline/orchbee-agent-observation.js');
 
 describe('OpenCode-family observation boundary', () => {
+	it('admits Cursor identity aliases only when every supplied value agrees', async () => {
+		const sanitizers = await import(
+			pathToFileURL(path.join(resourceRoot, 'scripts/hook-sanitizers.mjs')).href
+		);
+		const input = {
+			session_id: 'cursor-session',
+			conversation_id: 'cursor-session',
+			hook_event_name: 'sessionStart',
+			prompt: 'PRIVATE_TEXT',
+			cwd: 'PRIVATE_PATH',
+		};
+		const observation = sanitizers.sanitizeAgentHookInput('cursor', input);
+		expect(observation).toMatchObject({ event: 'session-started', sessionKey: 'cursor-session' });
+		expect(JSON.stringify(observation)).not.toContain('PRIVATE_');
+		for (const changed of [
+			{ conversation_id: 'another-session' },
+			{ session_id: '' },
+			{ hook_event_name: 'stop' },
+			{ hookEventName: 'sessionEnd' },
+		]) {
+			expect(sanitizers.sanitizeAgentHookInput('cursor', { ...input, ...changed })).toBeNull();
+		}
+	});
 	it('accepts real lifecycle versions and refuses conflicting or malformed identities', async () => {
 		const family = await import(resourceUrl('scripts/opencode-family-observation.mjs'));
 		for (const provider of ['opencode', 'kilo']) {

@@ -3,6 +3,21 @@ import { describe, expect, it } from 'vitest';
 import { resolveAgentHookAdapter } from '../resolveAgentHookAdapter';
 
 describe('resolveAgentHookAdapter', () => {
+	it('limits Cursor to its evidenced session identity hook', () => {
+		expect(resolveAgentHookAdapter('cursor', 'session-started')).toEqual({
+			adapterId: 'cursor',
+			capabilities: ['sessionLifecycle'],
+			providerId: 'cursor',
+		});
+		for (const event of [
+			'turn-started',
+			'turn-stopped',
+			'session-idle',
+			'approval-requested',
+		] as const) {
+			expect(resolveAgentHookAdapter('cursor', event)).toBeNull();
+		}
+	});
 	it('grants capabilities from the closed registry instead of adapter input', () => {
 		expect(resolveAgentHookAdapter('codex', 'question-requested')).toMatchObject({
 			adapterId: 'codex',

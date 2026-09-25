@@ -295,6 +295,7 @@ fn is_adapter_id(value: &str) -> bool {
             | "grok"
             | "opencode"
             | "kilo"
+            | "cursor"
             | "pi"
             | "omp"
             | "gemini"
@@ -306,7 +307,7 @@ fn is_adapter_id(value: &str) -> bool {
 
 /// `resolveAgentHookAdapter(adapterId, event)` — the event-aware gate. Returns
 /// `None` for an unknown adapter id or an event the adapter does not accept.
-/// Registry ported verbatim from `resolveAgentHookAdapter.ts` (all eleven
+/// Registry ported verbatim from `resolveAgentHookAdapter.ts` (all twelve
 /// adapters, per-event accepted sets, capabilities, provider ids).
 pub fn resolve_adapter(adapter_id: &str, event: HookObservationEvent) -> Option<AdapterDefinition> {
     use AgentCapability::{
@@ -324,6 +325,7 @@ pub fn resolve_adapter(adapter_id: &str, event: HookObservationEvent) -> Option<
     const CAP_TURN_QA: &[AgentCapability] = &[TurnLifecycle, Questions, Activity];
     let (accepted, capabilities, provider_id): (&[HookObservationEvent], &[AgentCapability], &str) =
         match adapter_id {
+            "cursor" => (&[SessionStarted], &[SessionLifecycle], "cursor"),
             "claude-code" => (
                 &[
                     SessionStarted,

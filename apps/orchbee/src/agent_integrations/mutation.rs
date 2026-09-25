@@ -44,6 +44,9 @@ pub(crate) enum Direction {
     Disable,
 }
 
+#[cfg(windows)]
+mod json_hooks_windows;
+
 impl Direction {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
@@ -105,6 +108,14 @@ impl StepOutcome {
 pub(crate) struct AttemptedStep {
     pub(crate) step: StepKind,
     pub(crate) outcome: StepOutcome,
+}
+
+/// One invocation's effect journal; vectors borrow its records and frontier
+/// together instead of growing independent mutation-output argument lists.
+struct EffectTrace<'a> {
+    attempted: &'a mut Vec<AttemptedStep>,
+    residuals: &'a mut Vec<PathBuf>,
+    begun: &'a mut bool,
 }
 
 /// The canonical `AgentIntegrationMutationAttempt` vocabulary — every
@@ -458,9 +469,11 @@ pub(crate) fn mutate(
             legacy_roots,
             &initial,
             &detail,
-            &mut attempted,
-            &mut residuals,
-            &mut effect_begun,
+            EffectTrace {
+                attempted: &mut attempted,
+                residuals: &mut residuals,
+                begun: &mut effect_begun,
+            },
         ),
         Direction::Disable => disable_vector(
             id,
@@ -468,8 +481,11 @@ pub(crate) fn mutate(
             legacy_roots,
             &initial,
             &detail,
-            &mut attempted,
-            &mut effect_begun,
+            EffectTrace {
+                attempted: &mut attempted,
+                residuals: &mut residuals,
+                begun: &mut effect_begun,
+            },
         ),
     };
 
@@ -521,7 +537,7 @@ pub(crate) fn mutate(
     }
 
     if attempt == Attempt::Attempted {
-        if providers::guarded_spec(id).is_some() {
+        if providers::guarded_spec(id).is_some() || id == IntegrationId::Cursor {
             // A filesystem vector's post-effect observation is a fresh
             // fs scan — no provider commands — while the budget lasts.
             if now() < context.deadline {
@@ -955,21 +971,34 @@ fn vector_inspection(
     }
 }
 
-#[expect(clippy::too_many_arguments)]
 fn enable_vector(
     id: IntegrationId,
     context: &ProviderContext,
     legacy_roots: &[PathBuf],
     initial: &SnapshotItem,
     detail: &providers::InspectionDetail,
-    attempted: &mut Vec<AttemptedStep>,
-    residuals: &mut Vec<PathBuf>,
-    effect: &mut bool,
+    trace: EffectTrace,
 ) -> Attempt {
+    let EffectTrace {
+        attempted,
+        residuals,
+        begun: effect,
+    } = trace;
     let options = providers::resource_options(context, legacy_roots);
     let resource_root = context.capsule_root.to_string_lossy().into_owned();
     let reserve = providers::inspect_slots(id);
     match id {
+        IntegrationId::Cursor => {
+            #[cfg(windows)]
+            {
+                json_hooks_windows::update(context, &options, true, attempted, residuals, effect)
+            }
+            #[cfg(not(windows))]
+            {
+                let _ = residuals;
+                Attempt::Refused(Refusal::ManualActionRequired)
+            }
+        }
         IntegrationId::ClaudeCode => {
             let Some(inspection) = vector_inspection(initial.state, detail) else {
                 return Attempt::Failed(FailureCode::OperationFailed);
@@ -1246,12 +1275,27 @@ fn disable_vector(
     legacy_roots: &[PathBuf],
     initial: &SnapshotItem,
     detail: &providers::InspectionDetail,
-    attempted: &mut Vec<AttemptedStep>,
-    effect: &mut bool,
+    trace: EffectTrace,
 ) -> Attempt {
+    let EffectTrace {
+        attempted,
+        residuals,
+        begun: effect,
+    } = trace;
     let options = providers::resource_options(context, legacy_roots);
     let reserve = providers::inspect_slots(id);
     match id {
+        IntegrationId::Cursor => {
+            #[cfg(windows)]
+            {
+                json_hooks_windows::update(context, &options, false, attempted, residuals, effect)
+            }
+            #[cfg(not(windows))]
+            {
+                let _ = residuals;
+                Attempt::Refused(Refusal::ManualActionRequired)
+            }
+        }
         IntegrationId::ClaudeCode => {
             let Some(inspection) = vector_inspection(initial.state, detail) else {
                 return Attempt::Failed(FailureCode::OperationFailed);
@@ -1954,6 +1998,12 @@ pub(crate) fn plan_enable(
         argv: argv.iter().map(|arg| (*arg).to_owned()).collect(),
     };
     match id {
+        IntegrationId::Cursor => {
+            #[cfg(windows)]
+            if let Some(target) = crate::agent_configuration_windows::cursor_hooks(context.home) {
+                steps.push(PlannedStep::GuardedWrite { target });
+            }
+        }
         IntegrationId::ClaudeCode => {
             let Some(inspection) = vector_inspection(initial.state, detail) else {
                 return steps;

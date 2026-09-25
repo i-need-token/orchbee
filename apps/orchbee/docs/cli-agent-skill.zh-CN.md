@@ -179,3 +179,5 @@ Windows `agent list --client <id>` 在 v2 列表封套中加入所选 TUI 的状
 Windows Agent Get 现在输出 v5（使用 `--client` 时为 v6），增加独立的 `management` 观察，包含来源、修订及 Server 所有的启动状态。Active 记录只来自已完成的启动；手动命名会话仍为非托管。Pending 启动使 promptReady 为 false，`agent prompt` 在输入前拒绝。Status 有界读取共用命令原期限，失败可使用 Agent 读取失败 v3（`operation: management`）；它不重试、不完成启动。`agent start` v2 在现有成功完成后显式报告 interactiveReady。[启动契约](windows-agent-start.zh-CN.md) 拥有生命周期和限制。
 
 Windows `agent integration list --outdated-only` 筛选需要更新或修复的自有条目，并分别报告检查未决和受阻的 provider ID。v2 结果保留筛选前全部检查的完整性。使用 `agent integration enable --provider <id>` 显式执行受保护的修复；筛选列表为空本身不能证明所有 provider 都已成功检查。
+
+Windows provider 选择还支持 `cursor`；接入保留其他 JSON Hook，仅上报有证据的会话身份。

@@ -822,6 +822,7 @@ const PROVIDER_VALUES: &[&str] = &[
     "cline",
     "opencode",
     "kilo",
+    "cursor",
     "pi",
     "omp",
     "qwen-code",

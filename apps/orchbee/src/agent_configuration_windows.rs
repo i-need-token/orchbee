@@ -2,6 +2,14 @@
 //! offline diagnostics. Callers retain their own filesystem admission guards.
 use std::path::{Path, PathBuf};
 
+pub(crate) fn cursor_hooks(home: &Path) -> Option<PathBuf> {
+    let root = std::env::var_os("CURSOR_CONFIG_DIR")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| home.join(".cursor"));
+    root.is_absolute().then(|| root.join("hooks.json"))
+}
+
 pub(crate) struct OpenCodeEntries {
     pub(crate) current: PathBuf,
     pub(crate) obsolete: PathBuf,

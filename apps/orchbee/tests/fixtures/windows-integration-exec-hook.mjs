@@ -8,9 +8,12 @@ import { createServer } from 'node:net';
 import path from 'node:path';
 
 const [provider, root, shell] = process.argv.slice(2);
-assert.ok(['claude-code', 'github-copilot', 'grok', 'gemini', 'qwen-code'].includes(provider));
+assert.ok(
+	['claude-code', 'github-copilot', 'grok', 'gemini', 'qwen-code', 'cursor'].includes(provider),
+);
 const extensionProvider = provider === 'gemini' || provider === 'qwen-code';
 function hookFile() {
+	if (provider === 'cursor') return 'hooks.json';
 	if (provider === 'qwen-code') return 'qwen-extension.json';
 	if (provider === 'grok') return 'hooks/grok.json';
 	if (provider === 'github-copilot') return 'hooks/copilot.json';
@@ -48,9 +51,15 @@ await new Promise((resolve, reject) => {
 async function run(hook, input, scriptRoot = root) {
 	let command = process.execPath;
 	let args;
-	if (provider === 'grok' || extensionProvider) {
+	if (provider === 'grok' || extensionProvider || provider === 'cursor') {
 		assert.ok(['powershell.exe', 'pwsh.exe', 'cmd.exe'].includes(shell));
-		assert.ok(hook.command.startsWith('node -e "eval(Buffer.from('));
+		assert.ok(
+			hook.command.startsWith(
+				provider === 'cursor'
+					? 'powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand '
+					: 'node -e "eval(Buffer.from(',
+			),
+		);
 		command = shell;
 		args =
 			shell === 'cmd.exe'
@@ -72,7 +81,7 @@ async function run(hook, input, scriptRoot = root) {
 	await new Promise((resolve, reject) => {
 		const child = spawn(command, args, {
 			windowsHide: true,
-			windowsVerbatimArguments: shell === 'cmd.exe',
+			windowsVerbatimArguments: shell === 'cmd.exe' && provider !== 'cursor',
 			env: {
 				...hookEnvironment,
 				SystemRoot: process.env.SystemRoot,
@@ -98,7 +107,7 @@ async function run(hook, input, scriptRoot = root) {
 			try {
 				assert.equal(code, 0, Buffer.concat(output).toString());
 				assert.equal(signal, null);
-				assert.equal(Buffer.concat(output).length, 0);
+				assert.equal(Buffer.concat(output).toString().trim(), provider === 'cursor' ? '{}' : '');
 				resolve();
 			} catch (error) {
 				reject(error);
@@ -107,13 +116,19 @@ async function run(hook, input, scriptRoot = root) {
 		child.stdin.end(input);
 	});
 }
-const hookFor = (event) =>
-	provider === 'github-copilot' ? hooks[event][0] : hooks[event][0].hooks[0];
+function hookFor(event) {
+	if (provider === 'cursor')
+		return hooks[event].find((hook) => hook.command.startsWith('powershell.exe -NoLogo'));
+	return provider === 'github-copilot' ? hooks[event][0] : hooks[event][0].hooks[0];
+}
+function eventNames() {
+	if (provider === 'cursor') return ['sessionStart'];
+	return provider === 'gemini'
+		? ['SessionStart', 'BeforeAgent', 'AfterAgent', 'SessionEnd']
+		: ['SessionStart', 'UserPromptSubmit', 'Stop', 'SessionEnd'];
+}
 try {
-	const events =
-		provider === 'gemini'
-			? ['SessionStart', 'BeforeAgent', 'AfterAgent', 'SessionEnd']
-			: ['SessionStart', 'UserPromptSubmit', 'Stop', 'SessionEnd'];
+	const events = eventNames();
 	for (const event of events) {
 		await run(
 			hookFor(event),
@@ -132,10 +147,12 @@ try {
 			}),
 		);
 	}
-	assert.equal(observations.length, 4);
+	assert.equal(observations.length, provider === 'cursor' ? 1 : 4);
 	assert.deepEqual(
 		observations.map((entry) => entry.observation.event),
-		['session-started', 'turn-started', 'turn-stopped', 'session-ended'],
+		provider === 'cursor'
+			? ['session-started']
+			: ['session-started', 'turn-started', 'turn-stopped', 'session-ended'],
 	);
 	for (const envelope of observations) {
 		assert.equal(envelope.adapterId, provider);
@@ -144,9 +161,29 @@ try {
 		assert.equal(envelope.correlations.length, 1);
 		assert.ok(!JSON.stringify(envelope).includes('PRIVATE_'));
 	}
-	await run(hookFor('SessionStart'), '{malformed');
-	await run(hookFor('SessionStart'), '{}', path.join(root, 'missing'));
-	assert.equal(observations.length, 4);
+	await run(hookFor(events[0]), '{malformed');
+	await run(hookFor(events[0]), '{}', path.join(root, 'missing'));
+	if (provider === 'cursor') {
+		const original = hookFor('sessionStart');
+		const encoded = original.command.split(' ').at(-1);
+		const script = Buffer.from(encoded, 'base64')
+			.toString('utf16le')
+			.replace(
+				/\$env:ORCHBEE_AGENT_HOOK_ROOT='[^']*'/u,
+				() =>
+					`$env:ORCHBEE_AGENT_HOOK_ROOT='${Buffer.from(path.join(root, 'missing')).toString('base64')}'`,
+			);
+		const missing = {
+			...original,
+			command: original.command.replace(encoded, Buffer.from(script, 'utf16le').toString('base64')),
+		};
+		await run(
+			missing,
+			JSON.stringify({ session_id: 'missing-runtime-session', hook_event_name: 'sessionStart' }),
+		);
+	}
+
+	assert.equal(observations.length, provider === 'cursor' ? 1 : 4);
 	process.stdout.write(JSON.stringify({ events: observations.length, silent: true }));
 } finally {
 	await Promise.all(

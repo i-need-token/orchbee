@@ -15,6 +15,7 @@ pub(crate) enum IntegrationId {
     Grok,
     Opencode,
     Kilo,
+    Cursor,
     Pi,
     Omp,
     Gemini,
@@ -24,12 +25,13 @@ pub(crate) enum IntegrationId {
 }
 
 impl IntegrationId {
-    pub(crate) const ALL: [Self; 11] = [
+    pub(crate) const ALL: [Self; 12] = [
         Self::ClaudeCode,
         Self::Codex,
         Self::Grok,
         Self::Opencode,
         Self::Kilo,
+        Self::Cursor,
         Self::Pi,
         Self::Omp,
         Self::Gemini,
@@ -45,6 +47,7 @@ impl IntegrationId {
             Self::Grok => "grok",
             Self::Opencode => "opencode",
             Self::Kilo => "kilo",
+            Self::Cursor => "cursor",
             Self::Pi => "pi",
             Self::Omp => "omp",
             Self::Gemini => "gemini",

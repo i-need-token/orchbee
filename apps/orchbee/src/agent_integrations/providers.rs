@@ -64,6 +64,7 @@ enum Kind {
     Codex,
     /// cline's managed-install scan plus the bundle source-readiness fold.
     Cline,
+    JsonHooks,
     /// Guarded filesystem entries (module files and extension directories).
     Guarded(GuardedSpec),
 }
@@ -132,6 +133,11 @@ const fn spec(id: IntegrationId) -> Spec {
                 runtime_relative: None,
             }),
             executable: "kilo",
+            inspect_slots: 0,
+        },
+        IntegrationId::Cursor => Spec {
+            kind: Kind::JsonHooks,
+            executable: "agent",
             inspect_slots: 0,
         },
         IntegrationId::Pi => Spec {
@@ -204,7 +210,7 @@ pub(crate) fn inspect_slots(id: IntegrationId) -> usize {
 /// One platform admission rule for both plans and effects. The JS module
 /// entries use the existing Windows pipe/console transport without a shell.
 pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode) -> ManagementMode {
-    if !cfg!(windows) && matches!(id, IntegrationId::Kilo) {
+    if !cfg!(windows) && matches!(id, IntegrationId::Kilo | IntegrationId::Cursor) {
         return ManagementMode::ManualOnly;
     }
     if cfg!(windows)
@@ -215,6 +221,7 @@ pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode)
                 | IntegrationId::Codex
                 | IntegrationId::Opencode
                 | IntegrationId::Kilo
+                | IntegrationId::Cursor
                 | IntegrationId::Pi
                 | IntegrationId::Omp
                 | IntegrationId::GitHubCopilot
@@ -418,6 +425,13 @@ pub(crate) fn inspect_full(
     };
 
     let (state, inspection_failed, detail) = match spec.kind {
+        Kind::JsonHooks => {
+            #[cfg(windows)]
+            let state = super::json_hooks_windows::inspect(context.home, &options);
+            #[cfg(not(windows))]
+            let state = State::Unknown;
+            (state, state == State::Unknown, InspectionDetail::Plain)
+        }
         Kind::Cli(CliKind::Claude) => {
             let executable = executable.as_deref().expect("gated above");
             let plugin = read_slot(executable, &["plugin", "list", "--json"], context);

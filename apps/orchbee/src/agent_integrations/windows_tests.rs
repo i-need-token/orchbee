@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-struct Fixture(PathBuf);
+pub(super) struct Fixture(pub(super) PathBuf);
 
 #[test]
 fn capsule_copy_budget_includes_the_manifest_beside_the_maximum_payload() {
@@ -27,7 +27,7 @@ fn capsule_copy_budget_includes_the_manifest_beside_the_maximum_payload() {
     assert!(files::copy_tree(&source, &fixture.0.join("over-budget")).is_err());
 }
 impl Fixture {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         let mut nonce = [0; 16];
         getrandom::fill(&mut nonce).unwrap();
         let path = std::env::temp_dir().join(format!(

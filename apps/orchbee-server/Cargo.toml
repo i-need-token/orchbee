@@ -10,7 +10,7 @@ getrandom.workspace = true
 orchbee-local-ipc = { path = "../../crates/local-ipc" }
 orchbee-agent-observation-protocol = { path = "../../crates/agent-observation-protocol" }
 orchbee-local-site-runtime = { path = "../../crates/local-site-runtime" }
-base64 = { version = "=0.22.1", default-features = false, features = ["alloc"] }
+base64.workspace = true
 hmac = { version = "=0.12.1", default-features = false }
 # Admitted dependency-scope delta: the existing pinned JSON parser, required
 # at runtime — not only tests — to execute the accepted production

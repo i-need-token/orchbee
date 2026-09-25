@@ -25,6 +25,7 @@ rust-version = "1.97.0"
 process-wrap = { path = "third-party/process-wrap" }
 
 [workspace.dependencies]
+base64 = { version = "=0.22.1", default-features = false, features = ["alloc"] }
 getrandom = { version = "=0.3.4", default-features = false }
 sha2 = "0.10.9"
 rustix = { version = "1.1.4", default-features = false, features = ["std"] }

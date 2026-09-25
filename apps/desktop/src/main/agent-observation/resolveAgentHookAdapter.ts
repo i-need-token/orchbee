@@ -48,6 +48,12 @@ const CODEX_EVENTS = new Set<AgentHookObservationEvent>([
 ]);
 
 const REGISTRY = {
+	cursor: {
+		acceptedEvents: new Set<AgentHookObservationEvent>(['session-started']),
+		adapterId: 'cursor',
+		capabilities: ['sessionLifecycle'],
+		providerId: AgentProviderIdSchema.parse('cursor'),
+	},
 	'claude-code': {
 		acceptedEvents: CLAUDE_CODE_EVENTS,
 		adapterId: 'claude-code',

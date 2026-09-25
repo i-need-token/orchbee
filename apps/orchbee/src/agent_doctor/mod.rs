@@ -27,6 +27,7 @@ pub(crate) const PROVIDER_IDS: &[&str] = &[
     "cline",
     "opencode",
     "kilo",
+    "cursor",
     "pi",
     "omp",
     "qwen-code",
@@ -511,6 +512,16 @@ fn probe_provider(
     budget: &mut Budget,
 ) -> HookProbe {
     match provider.kind {
+        ProbeKind::JsonHooks => {
+            #[cfg(windows)]
+            {
+                probe_json_hooks(provider, home, recorded, budget)
+            }
+            #[cfg(not(windows))]
+            {
+                final_verdict(HookState::Unsupported, HookReason::NotInspected)
+            }
+        }
         ProbeKind::ProviderCommand => HookProbe::Final {
             state: HookState::Unsupported,
             reason: HookReason::ProviderCommandInspectionRequired,
@@ -523,6 +534,41 @@ fn probe_provider(
         ProbeKind::GuardedDirectory => probe_guarded(provider, home, budget),
         ProbeKind::Bootstrap => probe_bootstrap(provider, home, recorded, budget),
         ProbeKind::Cline => probe_cline(provider, home, budget),
+    }
+}
+
+#[cfg(windows)]
+fn probe_json_hooks(
+    provider: &Provider,
+    home: &Path,
+    recorded: &mut Vec<RootCandidate>,
+    budget: &mut Budget,
+) -> HookProbe {
+    use crate::agent_integrations::{JsonHookScan, scan_json_hooks};
+    let Some(target) = crate::agent_configuration_windows::cursor_hooks(home) else {
+        return final_verdict(HookState::Unknown, HookReason::NotInspected);
+    };
+    let bytes = match fs::read_regular(&target, CODEX_CONFIG_BYTES, budget) {
+        FileRead::Bytes(bytes) => bytes,
+        FileRead::Absent => return final_verdict(HookState::Absent, HookReason::TargetMissing),
+        read => return read_uninspectable(read),
+    };
+    match scan_json_hooks(&bytes) {
+        JsonHookScan::Absent => final_verdict(HookState::Absent, HookReason::TargetMissing),
+        JsonHookScan::Conflict => final_verdict(HookState::Conflict, HookReason::ForeignContent),
+        JsonHookScan::Malformed => final_verdict(HookState::Unknown, HookReason::Malformed),
+        JsonHookScan::Owned(root) => HookProbe::AwaitsRoot {
+            root_index: recorded_root(
+                recorded,
+                provider,
+                "source",
+                root.to_string_lossy().into_owned().into_bytes(),
+            ),
+            consistent: ConsistentOutcome::Present {
+                reason: HookReason::MarkerConsistent,
+            },
+            detail: Map::new(),
+        },
     }
 }
 

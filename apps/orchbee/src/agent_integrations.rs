@@ -23,6 +23,10 @@ mod exec;
 mod files;
 #[cfg(any(unix, windows))]
 mod inspect;
+#[cfg(windows)]
+mod json_hooks_windows;
+#[cfg(windows)]
+pub(crate) use json_hooks_windows::{JsonHookScan, scan_json_hooks};
 /// The closed result vocabularies stay available on every platform — the
 /// parser names them — while platform adapters own filesystem and process effects.
 pub(crate) mod model;

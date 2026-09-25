@@ -12,6 +12,185 @@ use std::{
 struct Fixture(PathBuf);
 
 #[test]
+fn cursor_json_hooks_preserve_user_config_and_execute_on_windows() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use std::os::windows::process::CommandExt;
+    let fixture = Fixture::new();
+    fs::write(fixture.0.join("bin/agent.cmd"), b"@exit /b 99\r\n").unwrap();
+    let target = fixture.home().join(".cursor/hooks.json");
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
+    let user = r#"{"number":123456789012345678901234567890,"theme":"dark","hooks":{"stop":[{"command":"echo user"}],"sessionStart":[{"command":"echo user-start"}]}}"#;
+    fs::write(&target, user).unwrap();
+    let acl = |protect| {
+        let script = if protect {
+            "$acl=Get-Acl -LiteralPath $env:ORCHBEE_TEST_CONFIG; $acl.SetAccessRuleProtection($true,$true); Set-Acl -LiteralPath $env:ORCHBEE_TEST_CONFIG -AclObject $acl; (Get-Acl -LiteralPath $env:ORCHBEE_TEST_CONFIG).Sddl"
+        } else {
+            "(Get-Acl -LiteralPath $env:ORCHBEE_TEST_CONFIG).Sddl"
+        };
+        let result = Command::new("powershell.exe")
+            .args(["-NoProfile", "-NonInteractive", "-Command", script])
+            .env("ORCHBEE_TEST_CONFIG", &target)
+            .env_remove("PSModulePath")
+            .creation_flags(0x0800_0000)
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        String::from_utf8(result.stdout).unwrap().trim().to_owned()
+    };
+    let original_acl = acl(true);
+    let stream = PathBuf::from(format!("{}:orchbee-test", target.display()));
+    fs::write(&stream, b"USER_ALTERNATE_STREAM").unwrap();
+
+    assert_eq!(
+        fixture.provider_document("explain", "cursor", 0)["result"]["state"],
+        "not-installed"
+    );
+    fixture.provider_document("enable", "cursor", 0);
+    let installed = fs::read_to_string(&target).unwrap();
+    assert_eq!(acl(false), original_acl);
+    assert_eq!(fs::read(&stream).unwrap(), b"USER_ALTERNATE_STREAM");
+
+    assert!(installed.contains("123456789012345678901234567890"));
+    assert!(installed.contains("echo user-start") && installed.contains("echo user"));
+    fixture.provider_document("enable", "cursor", 0);
+    assert_eq!(fs::read_to_string(&target).unwrap(), installed);
+    let node = std::env::split_paths(&std::env::var_os("PATH").unwrap())
+        .map(|path| path.join("node.exe"))
+        .find(|path| path.is_file())
+        .unwrap();
+    for shell in ["powershell.exe", "pwsh.exe", "cmd.exe"] {
+        let output = Command::new(&node)
+            .arg(
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("tests/fixtures/windows-integration-exec-hook.mjs"),
+            )
+            .args(["cursor", target.parent().unwrap().to_str().unwrap(), shell])
+            .creation_flags(0x0800_0000)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{} {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(&output.stdout).unwrap()["events"],
+            1
+        );
+    }
+    let doc: Value = serde_json::from_str(&installed).unwrap();
+    let command = doc["hooks"]["sessionStart"][1]["command"].as_str().unwrap();
+    let encoded = command.rsplit(' ').next().unwrap();
+    let bytes = STANDARD.decode(encoded).unwrap();
+    let decoded = String::from_utf16(
+        &bytes
+            .chunks_exact(2)
+            .map(|b| u16::from_le_bytes([b[0], b[1]]))
+            .collect::<Vec<_>>(),
+    )
+    .unwrap();
+    for (version, expected) in [("0.4.2", "update-required"), ("9.0.0", "stale-side")] {
+        let old_root = decoded.lines().nth(1).unwrap().split('\'').nth(1).unwrap();
+        let current_root =
+            PathBuf::from(String::from_utf8(STANDARD.decode(old_root).unwrap()).unwrap());
+        let new_root = STANDARD.encode(current_root.with_file_name(version).to_str().unwrap());
+        let altered = decoded.replace(old_root, &new_root);
+        assert_ne!(altered, decoded);
+        let encoded_new = STANDARD.encode(
+            altered
+                .encode_utf16()
+                .flat_map(u16::to_le_bytes)
+                .collect::<Vec<_>>(),
+        );
+        let modified = installed.replace(encoded, &encoded_new);
+        fs::write(&target, &modified).unwrap();
+        assert_eq!(
+            fixture.provider_document("explain", "cursor", 0)["result"]["state"],
+            expected
+        );
+        if version == "0.4.2" {
+            fixture.provider_document("enable", "cursor", 0);
+            assert_eq!(fs::read_to_string(&target).unwrap(), installed);
+        } else {
+            fixture.provider_document("enable", "cursor", 3);
+            fixture.provider_document("disable", "cursor", 3);
+            assert_eq!(fs::read_to_string(&target).unwrap(), modified);
+        }
+    }
+    fs::write(
+        &target,
+        installed.replace("\"timeout\":10", "\"timeout\":99"),
+    )
+    .unwrap();
+    fixture.provider_document("enable", "cursor", 3);
+    fixture.provider_document("disable", "cursor", 3);
+    fs::write(&target, &installed).unwrap();
+    fixture.provider_document("disable", "cursor", 0);
+    let disabled = fs::read_to_string(&target).unwrap();
+    assert_eq!(acl(false), original_acl);
+    assert_eq!(fs::read(&stream).unwrap(), b"USER_ALTERNATE_STREAM");
+
+    assert!(
+        disabled.contains("123456789012345678901234567890") && disabled.contains("echo user-start")
+    );
+    assert!(!disabled.contains("EncodedCommand"));
+    let configured = fixture.0.join("用户 & independent cursor");
+    let output = fixture
+        .command("enable", "cursor", &fixture.config_home(), &[])
+        .env("CURSOR_CONFIG_DIR", &configured)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    assert!(configured.join("hooks.json").is_file());
+    assert_eq!(fs::read_to_string(&target).unwrap(), disabled);
+    let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+        .args([
+            "agent",
+            "doctor",
+            "--provider",
+            "cursor",
+            "--format",
+            "json",
+        ])
+        .env("USERPROFILE", fixture.home())
+        .env("CURSOR_CONFIG_DIR", &configured)
+        .output()
+        .unwrap();
+    assert!(
+        doctor.status.success(),
+        "{}",
+        String::from_utf8_lossy(&doctor.stdout)
+    );
+    assert_eq!(
+        serde_json::from_slice::<Value>(&doctor.stdout).unwrap()["result"]["providers"][0]["hook"]
+            ["state"],
+        "present"
+    );
+    let invalid = fixture
+        .command("enable", "cursor", &fixture.config_home(), &[])
+        .env("CURSOR_CONFIG_DIR", "relative")
+        .output()
+        .unwrap();
+    assert!(!invalid.status.success());
+    assert_eq!(fs::read_to_string(&target).unwrap(), disabled);
+    let output = fixture
+        .command("disable", "cursor", &fixture.config_home(), &[])
+        .env("CURSOR_CONFIG_DIR", &configured)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+}
+
+#[test]
 fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
     let fixture = Fixture::new();
     fs::write(fixture.0.join("bin/opencode.cmd"), "@exit /b 0\r\n").unwrap();
@@ -46,7 +225,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         (
             String::from_utf8(bytes.clone())
                 .unwrap()
-                .replace("/0.4.6/", "/9.0.0/"),
+                .replace("/0.4.7/", "/9.0.0/"),
             "stale-side",
         ),
     ] {
@@ -61,7 +240,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         &obsolete,
         String::from_utf8(bytes.clone())
             .unwrap()
-            .replace("/0.4.6/", "/0.4.2/"),
+            .replace("/0.4.7/", "/0.4.2/"),
     )
     .unwrap();
     assert_eq!(inspect("explain")["result"]["state"], "update-required");
@@ -330,6 +509,7 @@ fn kilo_uses_explicit_config_before_xdg_without_invalid_fallback() {
             .env_remove("KILO_CONFIG_DIR")
             .env_remove("GEMINI_CLI_HOME")
             .env_remove("QWEN_HOME")
+            .env_remove("CURSOR_CONFIG_DIR")
             .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET_V3")
             .stdin(Stdio::null());
         configure(&mut doctor);
@@ -407,7 +587,7 @@ fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() 
         (fixture.capsule().join("bundle"), Value::Null, "unknown", 9),
         (
             fixture.0.join("foreign/bundle"),
-            Value::from("0.4.6"),
+            Value::from("0.4.7"),
             "conflict",
             3,
         ),
@@ -547,7 +727,7 @@ impl Fixture {
     }
     fn capsule(&self) -> PathBuf {
         self.home()
-            .join(".orchbee/agent-observation-adapters/0.4.6")
+            .join(".orchbee/agent-observation-adapters/0.4.7")
     }
     fn run(&self, verb: &str, provider: &str, config_home: &Path) -> Output {
         self.run_options(verb, provider, config_home, &[])
@@ -796,7 +976,7 @@ fn claude_repairs_owned_old_installations_and_preserves_foreign_or_newer_sources
         "enabled"
     );
     for (source, version, expected) in [
-        (fixture.0.join("foreign"), "0.4.6", "conflict"),
+        (fixture.0.join("foreign"), "0.4.7", "conflict"),
         (
             fixture.capsule().parent().unwrap().join("9.0.0"),
             "9.0.0",
@@ -911,7 +1091,7 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
 
         let old = String::from_utf8(original.clone())
             .unwrap()
-            .replace("/0.4.6/", "/0.4.2/");
+            .replace("/0.4.7/", "/0.4.2/");
         fs::write(&target, old).unwrap();
         assert_eq!(
             fixture.provider_document("explain", provider, 0)["result"]["state"],

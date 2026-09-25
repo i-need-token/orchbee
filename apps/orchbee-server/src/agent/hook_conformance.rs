@@ -501,3 +501,25 @@ fn kilo_hook_boundary_matches_opencode_with_distinct_provider() {
     }
     assert!(resolve_adapter("kilo", HookObservationEvent::SubagentStarted).is_none());
 }
+
+#[test]
+fn cursor_hook_boundary_accepts_only_session_identity() {
+    use super::hook_contract::{HookObservationEvent, resolve_adapter};
+    let mut envelope = test_envelope(0, 0.0);
+    envelope["adapterId"] = json!("cursor");
+    assert!(parse_envelope(&envelope).is_some());
+    assert_eq!(
+        resolve_adapter("cursor", HookObservationEvent::SessionStarted)
+            .unwrap()
+            .provider_id,
+        "cursor"
+    );
+    for event in [
+        HookObservationEvent::TurnStarted,
+        HookObservationEvent::SessionIdle,
+        HookObservationEvent::ApprovalRequested,
+        HookObservationEvent::SessionEnded,
+    ] {
+        assert!(resolve_adapter("cursor", event).is_none());
+    }
+}

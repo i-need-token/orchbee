@@ -125,6 +125,28 @@ pub(super) fn regular_file(path: &Path) -> io::Result<File> {
     Ok(file)
 }
 
+/// Deny in-place writes while allowing the caller's no-replace rename.
+/// This pins bytes, not a pathname: the moved backup must still be compared.
+pub(super) fn read_for_move(path: &Path, maximum: u64) -> io::Result<(File, Vec<u8>)> {
+    let _parents = pin_parent(path)?;
+    let file = OpenOptions::new()
+        .read(true)
+        .share_mode(5)
+        .custom_flags(OPEN_REPARSE)
+        .open(path)?;
+    let metadata = file.metadata()?;
+    if !metadata.is_file() || metadata.file_attributes() & REPARSE != 0 || metadata.len() > maximum
+    {
+        return Err(denied());
+    }
+    let mut bytes = Vec::new();
+    (&file).take(maximum + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > maximum {
+        return Err(denied());
+    }
+    Ok((file, bytes))
+}
+
 pub(super) fn read_bounded(path: &Path, maximum: u64) -> io::Result<Vec<u8>> {
     let file = regular_file(path)?;
     if file.metadata()?.len() > maximum {
@@ -256,6 +278,44 @@ pub(crate) fn move_aside(target: &Path) -> Result<Option<PathBuf>, FsStep> {
 
 pub(crate) fn restore_backup(backup: &Path, target: &Path) -> FsStep {
     move_no_replace(backup, target)
+}
+
+/// Preserve the moved original's DACL, attributes and named streams on the
+/// staged replacement. All three names belong to the private mutation frontier;
+/// the live target is never passed to this replacing API. Failure can be partial.
+pub(super) fn preserve_configuration_metadata(
+    original: &Path,
+    staged: &Path,
+    backup: &Path,
+) -> FsStep {
+    let (Ok(_original), Ok(_staged), Ok(_backup)) =
+        (pin_parent(original), pin_parent(staged), pin_parent(backup))
+    else {
+        return FsStep::Failed;
+    };
+    if fs::symlink_metadata(backup).is_ok() {
+        return FsStep::Conflict;
+    }
+    if regular_file(original).is_err() || regular_file(staged).is_err() {
+        return FsStep::Failed;
+    }
+    let (Some(original), Some(staged), Some(backup)) =
+        (original.to_str(), staged.to_str(), backup.to_str())
+    else {
+        return FsStep::Failed;
+    };
+    if winsafe::ReplaceFile(
+        original,
+        staged,
+        Some(backup),
+        winsafe::co::REPLACEFILE::default(),
+    )
+    .is_ok()
+    {
+        FsStep::Done
+    } else {
+        FsStep::Failed
+    }
 }
 
 pub(crate) fn entry_digest(path: &Path) -> Option<String> {

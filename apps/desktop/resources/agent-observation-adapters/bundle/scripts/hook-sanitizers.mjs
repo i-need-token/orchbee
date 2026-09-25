@@ -3,6 +3,8 @@ const IDENTITY_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/u;
 export function sanitizeAgentHookInput(adapterId, value) {
 	if (!isRecord(value)) return null;
 	switch (adapterId) {
+		case 'cursor':
+			return sanitizeCursorHook(value);
 		case 'claude-code':
 			return sanitizeClaudeCodeHook(value);
 		case 'codex':
@@ -18,6 +20,22 @@ export function sanitizeAgentHookInput(adapterId, value) {
 		default:
 			return null;
 	}
+}
+
+export function sanitizeCursorHook(value) {
+	if (!isRecord(value)) return null;
+	if (value.hook_event_name !== undefined && value.hook_event_name !== 'sessionStart') return null;
+	if (value.hookEventName !== undefined && value.hookEventName !== 'sessionStart') return null;
+	const supplied = [
+		value.session_id,
+		value.sessionId,
+		value.conversation_id,
+		value.conversationId,
+	].filter((entry) => entry !== undefined);
+	if (supplied.length === 0) return null;
+	const sessionKey = identity(supplied[0]);
+	if (sessionKey === null || supplied.some((entry) => identity(entry) !== sessionKey)) return null;
+	return observation(sessionKey, 'session-started');
 }
 
 export function sanitizeClaudeCodeHook(value) {

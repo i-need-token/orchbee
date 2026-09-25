@@ -75,7 +75,7 @@ poison——不存在任何 `into_inner`/`clear_poison`——部分变更永不�
 | `src/agent/targeted.rs`            | `#[cfg(test)]` 具名边界回归测试                                                                                                                                                                            |
 | `src/agent/oracle.rs`              | `#[cfg(test)]` 对已记录 TypeScript oracle 结果断言的具名回归测试                                                                                                                                           |
 | `src/agent/join.rs`                | Desktop `AgentObservationJoinStateMachine` 的纯移植：代际注册/退役、hint/事件 join、TTL 清理、settle 效果、准入边界；`#[cfg(test)]` `reset`                                                                |
-| `src/agent/hook_contract.rs`       | 严格 envelope/关联 hint 边界解析与十一 adapter 事件门注册表（移植 `agent-hook-observation-contract.ts` 与 `resolveAgentHookAdapter.ts`）                                                                     |
+| `src/agent/hook_contract.rs`       | 严格 envelope/关联 hint 边界解析与十二 adapter 事件门注册表（移植 `agent-hook-observation-contract.ts` 与 `resolveAgentHookAdapter.ts`）                                                                     |
 | `src/agent/hook_ingress.rs`        | `AgentHookObservationIngress` 的纯移植，桥切分后不持有运行时：会话绑定、turn/请求/子会话映射、join 命令消费、经注入的 `&mut AgentRuntime` 按序规范派发；`#[cfg(test)]` 语料/trace/f64 settlement/JSON 辅助 |
 | `src/agent/conformance_support.rs` | 与生产 `Instant` 漏斗共享的 `SettlementQueue` 计时原语；`#[cfg(test)]` fixture 形状 JSON 发射器、`DispatchTrace`、语料时钟推进与 `FixtureIngress`                                                          |
 | `src/agent/hook_conformance.rs`    | `#[cfg(test)]`——冻结 join 与 hook 语料的回防线束及原生联合容量检查                                                                                                                                         |
@@ -471,3 +471,5 @@ names 家族还接受 `{kind:"presentation", presentationId}`。解析、分配�
 只有已接受的 launch Complete 才创建活动状态。手动命名不能证明启动就绪；重命名保留已有托管身份。活动记录受已提交名称容量约束，在显式清名、规范结束／移除／销毁、provider 不符或精确原生绑定替换／退役时移除。待启动状态保留原 TTL。活动表示启动已完成，与之后的工作／阻塞／新鲜度、OS 焦点及输入所有权相互独立。现有 CLI 阻塞启动取消策略及重启持久化仍是独立工作流义务。
 
 冻结语料保留原始源码指纹。新增 Kilo 注册表边界由 `kilo_hook_boundary_matches_opencode_with_distinct_provider` 和 Desktop 适配器注册表测试单独检查；不将历史语料改标为已重新生成。
+
+Cursor 增加原生和 Desktop 边界的直接证据，仅支持 session-started 身份；历史语料指纹不变。它授予 sessionLifecycle，不声明回合、活动或权限能力。

@@ -17,7 +17,7 @@ pub(crate) const SUPPORTED_CONTRACT_VERSION: u64 = 3;
 
 /// The capsule payload version the manifest contract requires —
 /// `AGENT_OBSERVATION_CAPSULE_VERSION`.
-pub(crate) const CAPSULE_PAYLOAD_VERSION: &str = "0.4.6";
+pub(crate) const CAPSULE_PAYLOAD_VERSION: &str = "0.4.7";
 
 // ---------------------------------------------------------------------------
 // Provider binding table — the literals of
@@ -39,6 +39,7 @@ pub(crate) enum ProbeKind {
     Bootstrap,
     /// The `~/.cline/plugins` install scan.
     Cline,
+    JsonHooks,
 }
 
 /// The bootstrap template tail a provider's module derives: everything after
@@ -159,6 +160,15 @@ pub(crate) const PROVIDERS: &[Provider] = &[
             suffix: "/bundle/kilo/orchbee-agent-observation.mjs",
             body: OPENCODE_BODY,
         }),
+        manual_command: None,
+    },
+    Provider {
+        id: "cursor",
+        executable: "agent",
+        kind: ProbeKind::JsonHooks,
+        node_applicable: true,
+        home_target: ".cursor/hooks.json",
+        bootstrap: None,
         manual_command: None,
     },
     Provider {
@@ -988,7 +998,7 @@ pub(crate) fn parse_cline_package(bytes: &[u8]) -> ClinePackage {
 // ---------------------------------------------------------------------------
 
 /// The strict capsule manifest check: exactly the three declared keys,
-/// `contractVersion === 3`, `payloadVersion === "0.4.6"`, and a lowercase
+/// `contractVersion === 3`, `payloadVersion === "0.4.7"`, and a lowercase
 /// `payloadSha256` — plus the declared values carried for detail.
 #[derive(Clone, Debug)]
 pub(crate) struct CapsuleManifestScan {
