@@ -823,6 +823,7 @@ const PROVIDER_VALUES: &[&str] = &[
     "opencode",
     "kilo",
     "cursor",
+    "qodercli",
     "pi",
     "omp",
     "qwen-code",

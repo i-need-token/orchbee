@@ -27,6 +27,7 @@ const ADAPTER_IDS = new Set([
 	'opencode',
 	'kilo',
 	'cursor',
+	'qodercli',
 	'pi',
 	'omp',
 	'gemini',

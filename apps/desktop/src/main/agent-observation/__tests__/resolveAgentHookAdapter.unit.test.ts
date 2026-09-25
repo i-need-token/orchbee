@@ -3,6 +3,22 @@ import { describe, expect, it } from 'vitest';
 import { resolveAgentHookAdapter } from '../resolveAgentHookAdapter';
 
 describe('resolveAgentHookAdapter', () => {
+	it('limits Qoder to session identity without legacy or lifecycle claims', () => {
+		expect(resolveAgentHookAdapter('qodercli', 'session-identified')).toEqual({
+			adapterId: 'qodercli',
+			capabilities: ['sessionLifecycle'],
+			providerId: 'qodercli',
+		});
+		for (const event of [
+			'session-started',
+			'session-idle',
+			'turn-started',
+			'approval-requested',
+			'session-ended',
+		] as const) {
+			expect(resolveAgentHookAdapter('qodercli', event)).toBeNull();
+		}
+	});
 	it('limits Cursor to its evidenced session identity hook', () => {
 		expect(resolveAgentHookAdapter('cursor', 'session-identified')).toEqual({
 			adapterId: 'cursor',

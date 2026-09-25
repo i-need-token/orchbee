@@ -505,7 +505,7 @@ connect、绝不创建锁或标记、绝不修复——共享一个在有界文�
 ### Windows Agent 诊断细化
 
 Windows `agent doctor` 拥有相同的有界离线观察流程，输出 `orchbee.agent.doctor`
-版本 3；Linux 保持版本 1，schema 继续保留原版本 2 词汇。Capsule 0.4.8 支持
+版本 3；Linux 保持版本 1，schema 继续保留原版本 2 词汇。Capsule 0.4.9 支持
 原生 Windows Codex hook 传输，但 doctor 不连接命名管道，也不写 Console 关联 hint。
 端点保持 `not-inspected`，原因改为 `windows-endpoint-not-inspected`；配置和胶囊
 完整性不证明事件投递或 Site 存活。`complete` 描述探测覆盖率。
@@ -1889,4 +1889,4 @@ Windows `agent list --client <id>` 在 v2 列表封套中加入所选 TUI 的状
 
 Windows Agent Get 现在输出 v5（使用 `--client` 时为 v6），增加独立的 `management` 观察，包含来源、修订及 Server 所有的启动状态。Active 记录只来自已完成的启动；手动命名会话仍为非托管。Pending 启动使 promptReady 为 false，`agent prompt` 在输入前拒绝。Status 有界读取共用命令原期限，失败可使用 Agent 读取失败 v3（`operation: management`）；它不重试、不完成启动。`agent start` v2 在现有成功完成后显式报告 interactiveReady。[启动契约](windows-agent-start.zh-CN.md) 拥有生命周期和限制。
 
-原生 provider 注册表现有 12 项，包含 Windows Cursor JSON Hook 接入和离线诊断。API 目录版本为 53，schema 与命令路径数量不变。
+原生 provider 注册表现有 13 项，包含 Windows Cursor 和 Qoder JSON Hook 接入和离线诊断。API 目录版本为 54，schema 与命令路径数量不变。

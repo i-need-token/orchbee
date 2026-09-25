@@ -9,11 +9,15 @@ import path from 'node:path';
 
 const [provider, root, shell] = process.argv.slice(2);
 assert.ok(
-	['claude-code', 'github-copilot', 'grok', 'gemini', 'qwen-code', 'cursor'].includes(provider),
+	['claude-code', 'github-copilot', 'grok', 'gemini', 'qwen-code', 'cursor', 'qodercli'].includes(
+		provider,
+	),
 );
 const extensionProvider = provider === 'gemini' || provider === 'qwen-code';
+const jsonProvider = provider === 'cursor' || provider === 'qodercli';
 function hookFile() {
 	if (provider === 'cursor') return 'hooks.json';
+	if (provider === 'qodercli') return 'settings.json';
 	if (provider === 'qwen-code') return 'qwen-extension.json';
 	if (provider === 'grok') return 'hooks/grok.json';
 	if (provider === 'github-copilot') return 'hooks/copilot.json';
@@ -51,11 +55,11 @@ await new Promise((resolve, reject) => {
 async function run(hook, input, scriptRoot = root) {
 	let command = process.execPath;
 	let args;
-	if (provider === 'grok' || extensionProvider || provider === 'cursor') {
+	if (provider === 'grok' || extensionProvider || jsonProvider) {
 		assert.ok(['powershell.exe', 'pwsh.exe', 'cmd.exe'].includes(shell));
 		assert.ok(
 			hook.command.startsWith(
-				provider === 'cursor'
+				jsonProvider
 					? 'powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand '
 					: 'node -e "eval(Buffer.from(',
 			),
@@ -81,7 +85,7 @@ async function run(hook, input, scriptRoot = root) {
 	await new Promise((resolve, reject) => {
 		const child = spawn(command, args, {
 			windowsHide: true,
-			windowsVerbatimArguments: shell === 'cmd.exe' && provider !== 'cursor',
+			windowsVerbatimArguments: shell === 'cmd.exe' && !jsonProvider,
 			env: {
 				...hookEnvironment,
 				SystemRoot: process.env.SystemRoot,
@@ -107,7 +111,7 @@ async function run(hook, input, scriptRoot = root) {
 			try {
 				assert.equal(code, 0, Buffer.concat(output).toString());
 				assert.equal(signal, null);
-				assert.equal(Buffer.concat(output).toString().trim(), provider === 'cursor' ? '{}' : '');
+				assert.equal(Buffer.concat(output).toString().trim(), jsonProvider ? '{}' : '');
 				resolve();
 			} catch (error) {
 				reject(error);
@@ -117,12 +121,19 @@ async function run(hook, input, scriptRoot = root) {
 	});
 }
 function hookFor(event) {
+	if (provider === 'qodercli') {
+		const entry = hooks[event]
+			.flatMap((group) => group.hooks)
+			.find((hook) => hook.command?.startsWith('powershell.exe -NoLogo'));
+		assert.equal(entry.shell, 'powershell');
+		return entry;
+	}
 	if (provider === 'cursor')
 		return hooks[event].find((hook) => hook.command.startsWith('powershell.exe -NoLogo'));
 	return provider === 'github-copilot' ? hooks[event][0] : hooks[event][0].hooks[0];
 }
 function eventNames() {
-	if (provider === 'cursor') return ['sessionStart'];
+	if (jsonProvider) return [provider === 'cursor' ? 'sessionStart' : 'SessionStart'];
 	return provider === 'gemini'
 		? ['SessionStart', 'BeforeAgent', 'AfterAgent', 'SessionEnd']
 		: ['SessionStart', 'UserPromptSubmit', 'Stop', 'SessionEnd'];
@@ -147,10 +158,10 @@ try {
 			}),
 		);
 	}
-	assert.equal(observations.length, provider === 'cursor' ? 1 : 4);
+	assert.equal(observations.length, jsonProvider ? 1 : 4);
 	assert.deepEqual(
 		observations.map((entry) => entry.observation.event),
-		provider === 'cursor'
+		jsonProvider
 			? ['session-identified']
 			: ['session-started', 'turn-started', 'turn-stopped', 'session-ended'],
 	);
@@ -163,8 +174,8 @@ try {
 	}
 	await run(hookFor(events[0]), '{malformed');
 	await run(hookFor(events[0]), '{}', path.join(root, 'missing'));
-	if (provider === 'cursor') {
-		const original = hookFor('sessionStart');
+	if (jsonProvider) {
+		const original = hookFor(events[0]);
 		const encoded = original.command.split(' ').at(-1);
 		const script = Buffer.from(encoded, 'base64')
 			.toString('utf16le')
@@ -179,11 +190,11 @@ try {
 		};
 		await run(
 			missing,
-			JSON.stringify({ session_id: 'missing-runtime-session', hook_event_name: 'sessionStart' }),
+			JSON.stringify({ session_id: 'missing-runtime-session', hook_event_name: events[0] }),
 		);
 	}
 
-	assert.equal(observations.length, provider === 'cursor' ? 1 : 4);
+	assert.equal(observations.length, jsonProvider ? 1 : 4);
 	process.stdout.write(JSON.stringify({ events: observations.length, silent: true }));
 } finally {
 	await Promise.all(

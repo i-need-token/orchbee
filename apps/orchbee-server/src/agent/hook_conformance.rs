@@ -530,3 +530,24 @@ fn cursor_hook_boundary_accepts_only_session_identity() {
         assert!(resolve_adapter("cursor", event).is_none());
     }
 }
+
+#[test]
+fn qoder_hook_boundary_accepts_only_identified_session() {
+    use super::hook_contract::{HookObservationEvent, resolve_adapter};
+    let mut envelope = test_envelope(0, 0.0);
+    envelope["adapterId"] = json!("qodercli");
+    envelope["observation"]["event"] = json!("session-identified");
+    assert!(parse_envelope(&envelope).is_some());
+    let adapter = resolve_adapter("qodercli", HookObservationEvent::SessionIdentified).unwrap();
+    assert_eq!(adapter.provider_id, "qodercli");
+    assert_eq!(adapter.capabilities, ["sessionLifecycle"]);
+    for event in [
+        HookObservationEvent::SessionStarted,
+        HookObservationEvent::TurnStarted,
+        HookObservationEvent::SessionIdle,
+        HookObservationEvent::ApprovalRequested,
+        HookObservationEvent::SessionEnded,
+    ] {
+        assert!(resolve_adapter("qodercli", event).is_none());
+    }
+}

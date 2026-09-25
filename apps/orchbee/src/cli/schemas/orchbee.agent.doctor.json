@@ -32,7 +32,7 @@
 				},
 				"providers": {
 					"type": "array",
-					"maxItems": 12,
+					"maxItems": 13,
 					"items": {
 						"$ref": "#/$defs/providerRow"
 					}
@@ -109,6 +109,7 @@
 				"opencode",
 				"kilo",
 				"cursor",
+				"qodercli",
 				"pi",
 				"omp",
 				"qwen-code"

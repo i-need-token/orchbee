@@ -16,7 +16,7 @@ use sha2::{Digest, Sha256};
 
 /// The payload version this port supports — the compiled counterpart of the
 /// canonical `AGENT_OBSERVATION_CAPSULE_VERSION`.
-pub(crate) const PAYLOAD_VERSION: &str = "0.4.8";
+pub(crate) const PAYLOAD_VERSION: &str = "0.4.9";
 const CAPSULE_CONTRACT_VERSION: u64 = 3;
 const MAX_CAPSULE_ENTRIES: usize = 128;
 const MAX_CAPSULE_DEPTH: usize = 8;

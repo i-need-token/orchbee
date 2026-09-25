@@ -27,6 +27,7 @@ pub(crate) const PROVIDER_IDS: &[&str] = &[
     "cline",
     "opencode",
     "kilo",
+    "qodercli",
     "cursor",
     "pi",
     "omp",
@@ -545,7 +546,7 @@ fn probe_json_hooks(
     budget: &mut Budget,
 ) -> HookProbe {
     use crate::agent_integrations::{JsonHookScan, scan_json_hooks};
-    let Some(target) = crate::agent_configuration_windows::cursor_hooks(home) else {
+    let Some(target) = crate::agent_configuration_windows::json_hooks(provider.id, home) else {
         return final_verdict(HookState::Unknown, HookReason::NotInspected);
     };
     let bytes = match fs::read_regular(&target, CODEX_CONFIG_BYTES, budget) {
@@ -553,7 +554,7 @@ fn probe_json_hooks(
         FileRead::Absent => return final_verdict(HookState::Absent, HookReason::TargetMissing),
         read => return read_uninspectable(read),
     };
-    match scan_json_hooks(&bytes) {
+    match scan_json_hooks(provider.id, &bytes) {
         JsonHookScan::Absent => final_verdict(HookState::Absent, HookReason::TargetMissing),
         JsonHookScan::Conflict => final_verdict(HookState::Conflict, HookReason::ForeignContent),
         JsonHookScan::Malformed => final_verdict(HookState::Unknown, HookReason::Malformed),

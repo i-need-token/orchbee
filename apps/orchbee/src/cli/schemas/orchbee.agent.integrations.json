@@ -35,7 +35,7 @@
 				},
 				"integrations": {
 					"type": "array",
-					"maxItems": 12,
+					"maxItems": 13,
 					"items": {
 						"$ref": "#/$defs/item"
 					}
@@ -50,7 +50,7 @@
 				},
 				"unresolvedProviderIds": {
 					"type": "array",
-					"maxItems": 12,
+					"maxItems": 13,
 					"uniqueItems": true,
 					"items": {
 						"$ref": "#/$defs/item/properties/integrationId"
@@ -58,7 +58,7 @@
 				},
 				"blockedProviderIds": {
 					"type": "array",
-					"maxItems": 12,
+					"maxItems": 13,
 					"uniqueItems": true,
 					"items": {
 						"$ref": "#/$defs/item/properties/integrationId"
@@ -81,6 +81,7 @@
 						"opencode",
 						"kilo",
 						"cursor",
+						"qodercli",
 						"pi",
 						"omp",
 						"gemini",

@@ -20,6 +20,7 @@ const AgentHookAdapterIdSchema = z.enum([
 	'opencode',
 	'kilo',
 	'cursor',
+	'qodercli',
 	'pi',
 	'omp',
 	'gemini',

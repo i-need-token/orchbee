@@ -13,13 +13,45 @@ struct Fixture(PathBuf);
 
 #[test]
 fn cursor_json_hooks_preserve_user_config_and_execute_on_windows() {
+    check_json_hooks("cursor");
+}
+
+#[test]
+fn qoder_json_hooks_preserve_user_config_and_execute_on_windows() {
+    check_json_hooks("qodercli");
+}
+
+fn check_json_hooks(provider: &str) {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
     use std::os::windows::process::CommandExt;
+    let (executable, variable, event, config_relative) = match provider {
+        "cursor" => (
+            "agent",
+            "CURSOR_CONFIG_DIR",
+            "sessionStart",
+            ".cursor/hooks.json",
+        ),
+        "qodercli" => (
+            "qoder",
+            "QODER_CONFIG_DIR",
+            "SessionStart",
+            ".qoder/settings.json",
+        ),
+        _ => panic!("unexpected test provider"),
+    };
     let fixture = Fixture::new();
-    fs::write(fixture.0.join("bin/agent.cmd"), b"@exit /b 99\r\n").unwrap();
-    let target = fixture.home().join(".cursor/hooks.json");
+    fs::write(
+        fixture.0.join(format!("bin/{executable}.cmd")),
+        b"@exit /b 99\r\n",
+    )
+    .unwrap();
+    let target = fixture.home().join(config_relative);
     fs::create_dir_all(target.parent().unwrap()).unwrap();
-    let user = r#"{"number":123456789012345678901234567890,"theme":"dark","hooks":{"stop":[{"command":"echo user"}],"sessionStart":[{"command":"echo user-start"}]}}"#;
+    let user = if provider == "cursor" {
+        r#"{"number":123456789012345678901234567890,"theme":"dark","hooks":{"stop":[{"command":"echo user"}],"sessionStart":[{"command":"echo user-start"}]}}"#
+    } else {
+        r#"{"version":"user-format","number":123456789012345678901234567890,"theme":"dark","hooks":{"Stop":[{"hooks":[{"type":"command","command":"echo user"}]}],"SessionStart":[{"matcher":"resume","hooks":[{"type":"command","command":"echo user-start"}]}]}}"#
+    };
     fs::write(&target, user).unwrap();
     let acl = |protect| {
         let script = if protect {
@@ -46,17 +78,17 @@ fn cursor_json_hooks_preserve_user_config_and_execute_on_windows() {
     fs::write(&stream, b"USER_ALTERNATE_STREAM").unwrap();
 
     assert_eq!(
-        fixture.provider_document("explain", "cursor", 0)["result"]["state"],
+        fixture.provider_document("explain", provider, 0)["result"]["state"],
         "not-installed"
     );
-    fixture.provider_document("enable", "cursor", 0);
+    fixture.provider_document("enable", provider, 0);
     let installed = fs::read_to_string(&target).unwrap();
     assert_eq!(acl(false), original_acl);
     assert_eq!(fs::read(&stream).unwrap(), b"USER_ALTERNATE_STREAM");
 
     assert!(installed.contains("123456789012345678901234567890"));
     assert!(installed.contains("echo user-start") && installed.contains("echo user"));
-    fixture.provider_document("enable", "cursor", 0);
+    fixture.provider_document("enable", provider, 0);
     assert_eq!(fs::read_to_string(&target).unwrap(), installed);
     let node = std::env::split_paths(&std::env::var_os("PATH").unwrap())
         .map(|path| path.join("node.exe"))
@@ -68,7 +100,7 @@ fn cursor_json_hooks_preserve_user_config_and_execute_on_windows() {
                 Path::new(env!("CARGO_MANIFEST_DIR"))
                     .join("tests/fixtures/windows-integration-exec-hook.mjs"),
             )
-            .args(["cursor", target.parent().unwrap().to_str().unwrap(), shell])
+            .args([provider, target.parent().unwrap().to_str().unwrap(), shell])
             .creation_flags(0x0800_0000)
             .output()
             .unwrap();
@@ -84,7 +116,12 @@ fn cursor_json_hooks_preserve_user_config_and_execute_on_windows() {
         );
     }
     let doc: Value = serde_json::from_str(&installed).unwrap();
-    let command = doc["hooks"]["sessionStart"][1]["command"].as_str().unwrap();
+    let entry = if provider == "cursor" {
+        &doc["hooks"][event][1]
+    } else {
+        &doc["hooks"][event][1]["hooks"][0]
+    };
+    let command = entry["command"].as_str().unwrap();
     let encoded = command.rsplit(' ').next().unwrap();
     let bytes = STANDARD.decode(encoded).unwrap();
     let decoded = String::from_utf16(
@@ -110,15 +147,15 @@ fn cursor_json_hooks_preserve_user_config_and_execute_on_windows() {
         let modified = installed.replace(encoded, &encoded_new);
         fs::write(&target, &modified).unwrap();
         assert_eq!(
-            fixture.provider_document("explain", "cursor", 0)["result"]["state"],
+            fixture.provider_document("explain", provider, 0)["result"]["state"],
             expected
         );
         if version == "0.4.2" {
-            fixture.provider_document("enable", "cursor", 0);
+            fixture.provider_document("enable", provider, 0);
             assert_eq!(fs::read_to_string(&target).unwrap(), installed);
         } else {
-            fixture.provider_document("enable", "cursor", 3);
-            fixture.provider_document("disable", "cursor", 3);
+            fixture.provider_document("enable", provider, 3);
+            fixture.provider_document("disable", provider, 3);
             assert_eq!(fs::read_to_string(&target).unwrap(), modified);
         }
     }
@@ -127,10 +164,10 @@ fn cursor_json_hooks_preserve_user_config_and_execute_on_windows() {
         installed.replace("\"timeout\":10", "\"timeout\":99"),
     )
     .unwrap();
-    fixture.provider_document("enable", "cursor", 3);
-    fixture.provider_document("disable", "cursor", 3);
+    fixture.provider_document("enable", provider, 3);
+    fixture.provider_document("disable", provider, 3);
     fs::write(&target, &installed).unwrap();
-    fixture.provider_document("disable", "cursor", 0);
+    fixture.provider_document("disable", provider, 0);
     let disabled = fs::read_to_string(&target).unwrap();
     assert_eq!(acl(false), original_acl);
     assert_eq!(fs::read(&stream).unwrap(), b"USER_ALTERNATE_STREAM");
@@ -141,8 +178,8 @@ fn cursor_json_hooks_preserve_user_config_and_execute_on_windows() {
     assert!(!disabled.contains("EncodedCommand"));
     let configured = fixture.0.join("用户 & independent cursor");
     let output = fixture
-        .command("enable", "cursor", &fixture.config_home(), &[])
-        .env("CURSOR_CONFIG_DIR", &configured)
+        .command("enable", provider, &fixture.config_home(), &[])
+        .env(variable, &configured)
         .output()
         .unwrap();
     assert!(
@@ -150,19 +187,19 @@ fn cursor_json_hooks_preserve_user_config_and_execute_on_windows() {
         "{}",
         String::from_utf8_lossy(&output.stdout)
     );
-    assert!(configured.join("hooks.json").is_file());
+    assert!(configured.join(target.file_name().unwrap()).is_file());
     assert_eq!(fs::read_to_string(&target).unwrap(), disabled);
     let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
         .args([
             "agent",
             "doctor",
             "--provider",
-            "cursor",
+            provider,
             "--format",
             "json",
         ])
         .env("USERPROFILE", fixture.home())
-        .env("CURSOR_CONFIG_DIR", &configured)
+        .env(variable, &configured)
         .output()
         .unwrap();
     assert!(
@@ -176,15 +213,15 @@ fn cursor_json_hooks_preserve_user_config_and_execute_on_windows() {
         "present"
     );
     let invalid = fixture
-        .command("enable", "cursor", &fixture.config_home(), &[])
-        .env("CURSOR_CONFIG_DIR", "relative")
+        .command("enable", provider, &fixture.config_home(), &[])
+        .env(variable, "relative")
         .output()
         .unwrap();
     assert!(!invalid.status.success());
     assert_eq!(fs::read_to_string(&target).unwrap(), disabled);
     let output = fixture
-        .command("disable", "cursor", &fixture.config_home(), &[])
-        .env("CURSOR_CONFIG_DIR", &configured)
+        .command("disable", provider, &fixture.config_home(), &[])
+        .env(variable, &configured)
         .output()
         .unwrap();
     assert!(output.status.success());
@@ -225,7 +262,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         (
             String::from_utf8(bytes.clone())
                 .unwrap()
-                .replace("/0.4.8/", "/9.0.0/"),
+                .replace("/0.4.9/", "/9.0.0/"),
             "stale-side",
         ),
     ] {
@@ -240,7 +277,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         &obsolete,
         String::from_utf8(bytes.clone())
             .unwrap()
-            .replace("/0.4.8/", "/0.4.2/"),
+            .replace("/0.4.9/", "/0.4.2/"),
     )
     .unwrap();
     assert_eq!(inspect("explain")["result"]["state"], "update-required");
@@ -509,6 +546,7 @@ fn kilo_uses_explicit_config_before_xdg_without_invalid_fallback() {
             .env_remove("KILO_CONFIG_DIR")
             .env_remove("GEMINI_CLI_HOME")
             .env_remove("QWEN_HOME")
+            .env_remove("QODER_CONFIG_DIR")
             .env_remove("CURSOR_CONFIG_DIR")
             .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET_V3")
             .stdin(Stdio::null());
@@ -587,7 +625,7 @@ fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() 
         (fixture.capsule().join("bundle"), Value::Null, "unknown", 9),
         (
             fixture.0.join("foreign/bundle"),
-            Value::from("0.4.8"),
+            Value::from("0.4.9"),
             "conflict",
             3,
         ),
@@ -727,7 +765,7 @@ impl Fixture {
     }
     fn capsule(&self) -> PathBuf {
         self.home()
-            .join(".orchbee/agent-observation-adapters/0.4.8")
+            .join(".orchbee/agent-observation-adapters/0.4.9")
     }
     fn run(&self, verb: &str, provider: &str, config_home: &Path) -> Output {
         self.run_options(verb, provider, config_home, &[])
@@ -762,6 +800,8 @@ impl Fixture {
             .env_remove("KILO_CONFIG_DIR")
             .env_remove("GEMINI_CLI_HOME")
             .env_remove("QWEN_HOME")
+            .env_remove("QODER_CONFIG_DIR")
+            .env_remove("CURSOR_CONFIG_DIR")
             .env("USERPROFILE", self.home())
             .env("HOME", self.0.join("wrong-posix-home"))
             .env("CODEX_HOME", config_home)
@@ -976,7 +1016,7 @@ fn claude_repairs_owned_old_installations_and_preserves_foreign_or_newer_sources
         "enabled"
     );
     for (source, version, expected) in [
-        (fixture.0.join("foreign"), "0.4.8", "conflict"),
+        (fixture.0.join("foreign"), "0.4.9", "conflict"),
         (
             fixture.capsule().parent().unwrap().join("9.0.0"),
             "9.0.0",
@@ -1074,6 +1114,8 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
             .env_remove("KILO_CONFIG_DIR")
             .env_remove("GEMINI_CLI_HOME")
             .env_remove("QWEN_HOME")
+            .env_remove("QODER_CONFIG_DIR")
+            .env_remove("CURSOR_CONFIG_DIR")
             .env(
                 "PATH",
                 std::env::join_paths([fixture.0.join("bin"), node.parent().unwrap().to_path_buf()])
@@ -1091,7 +1133,7 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
 
         let old = String::from_utf8(original.clone())
             .unwrap()
-            .replace("/0.4.8/", "/0.4.2/");
+            .replace("/0.4.9/", "/0.4.2/");
         fs::write(&target, old).unwrap();
         assert_eq!(
             fixture.provider_document("explain", provider, 0)["result"]["state"],

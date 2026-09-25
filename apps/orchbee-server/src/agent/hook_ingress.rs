@@ -1371,12 +1371,16 @@ fn clock_adapter_envelope_body() -> Vec<u8> {
 
 #[test]
 fn cursor_identity_join_does_not_infer_idle_for_current_or_legacy_payload() {
-    for event in ["session-identified", "session-started"] {
+    for (adapter, event) in [
+        ("cursor", "session-identified"),
+        ("cursor", "session-started"),
+        ("qodercli", "session-identified"),
+    ] {
         let mut runtime = AgentRuntime::new();
         let mut ingress = AgentHookObservationIngress::new(None, JoinOptions::default());
         seed_clock_adapter_hint(&mut ingress, &mut runtime, 0.0);
         let mut envelope: Value = serde_json::from_slice(&clock_adapter_envelope_body()).unwrap();
-        envelope["adapterId"] = Value::from("cursor");
+        envelope["adapterId"] = Value::from(adapter);
         envelope["observation"]["event"] = Value::from(event);
         envelope["correlations"].as_array_mut().unwrap().truncate(1);
         let body = serde_json::to_vec(&envelope).unwrap();

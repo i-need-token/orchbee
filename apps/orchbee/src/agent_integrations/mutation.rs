@@ -537,7 +537,9 @@ pub(crate) fn mutate(
     }
 
     if attempt == Attempt::Attempted {
-        if providers::guarded_spec(id).is_some() || id == IntegrationId::Cursor {
+        if providers::guarded_spec(id).is_some()
+            || matches!(id, IntegrationId::Cursor | IntegrationId::QoderCli)
+        {
             // A filesystem vector's post-effect observation is a fresh
             // fs scan — no provider commands — while the budget lasts.
             if now() < context.deadline {
@@ -988,10 +990,18 @@ fn enable_vector(
     let resource_root = context.capsule_root.to_string_lossy().into_owned();
     let reserve = providers::inspect_slots(id);
     match id {
-        IntegrationId::Cursor => {
+        IntegrationId::Cursor | IntegrationId::QoderCli => {
             #[cfg(windows)]
             {
-                json_hooks_windows::update(context, &options, true, attempted, residuals, effect)
+                json_hooks_windows::update(
+                    id.as_str(),
+                    context,
+                    &options,
+                    true,
+                    attempted,
+                    residuals,
+                    effect,
+                )
             }
             #[cfg(not(windows))]
             {
@@ -1285,10 +1295,18 @@ fn disable_vector(
     let options = providers::resource_options(context, legacy_roots);
     let reserve = providers::inspect_slots(id);
     match id {
-        IntegrationId::Cursor => {
+        IntegrationId::Cursor | IntegrationId::QoderCli => {
             #[cfg(windows)]
             {
-                json_hooks_windows::update(context, &options, false, attempted, residuals, effect)
+                json_hooks_windows::update(
+                    id.as_str(),
+                    context,
+                    &options,
+                    false,
+                    attempted,
+                    residuals,
+                    effect,
+                )
             }
             #[cfg(not(windows))]
             {
@@ -1998,9 +2016,11 @@ pub(crate) fn plan_enable(
         argv: argv.iter().map(|arg| (*arg).to_owned()).collect(),
     };
     match id {
-        IntegrationId::Cursor => {
+        IntegrationId::Cursor | IntegrationId::QoderCli => {
             #[cfg(windows)]
-            if let Some(target) = crate::agent_configuration_windows::cursor_hooks(context.home) {
+            if let Some(target) =
+                crate::agent_configuration_windows::json_hooks(id.as_str(), context.home)
+            {
                 steps.push(PlannedStep::GuardedWrite { target });
             }
         }

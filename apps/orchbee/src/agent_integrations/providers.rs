@@ -135,6 +135,11 @@ const fn spec(id: IntegrationId) -> Spec {
             executable: "kilo",
             inspect_slots: 0,
         },
+        IntegrationId::QoderCli => Spec {
+            kind: Kind::JsonHooks,
+            executable: "qoder",
+            inspect_slots: 0,
+        },
         IntegrationId::Cursor => Spec {
             kind: Kind::JsonHooks,
             executable: "agent",
@@ -210,7 +215,12 @@ pub(crate) fn inspect_slots(id: IntegrationId) -> usize {
 /// One platform admission rule for both plans and effects. The JS module
 /// entries use the existing Windows pipe/console transport without a shell.
 pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode) -> ManagementMode {
-    if !cfg!(windows) && matches!(id, IntegrationId::Kilo | IntegrationId::Cursor) {
+    if !cfg!(windows)
+        && matches!(
+            id,
+            IntegrationId::Kilo | IntegrationId::Cursor | IntegrationId::QoderCli
+        )
+    {
         return ManagementMode::ManualOnly;
     }
     if cfg!(windows)
@@ -222,6 +232,7 @@ pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode)
                 | IntegrationId::Opencode
                 | IntegrationId::Kilo
                 | IntegrationId::Cursor
+                | IntegrationId::QoderCli
                 | IntegrationId::Pi
                 | IntegrationId::Omp
                 | IntegrationId::GitHubCopilot
@@ -427,7 +438,7 @@ pub(crate) fn inspect_full(
     let (state, inspection_failed, detail) = match spec.kind {
         Kind::JsonHooks => {
             #[cfg(windows)]
-            let state = super::json_hooks_windows::inspect(context.home, &options);
+            let state = super::json_hooks_windows::inspect(id.as_str(), context.home, &options);
             #[cfg(not(windows))]
             let state = State::Unknown;
             (state, state == State::Unknown, InspectionDetail::Plain)

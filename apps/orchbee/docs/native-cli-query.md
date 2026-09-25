@@ -600,7 +600,7 @@ names the concrete fact rows it cites and carries no causal, remedy, or trust cl
 
 Windows `agent doctor` owns the same bounded offline observation workflow. It emits
 `orchbee.agent.doctor` version 3; existing Linux output remains version 1, and the schema
-retains the prior version-2 vocabulary. Capsule 0.4.8 supports native Windows Codex hook
+retains the prior version-2 vocabulary. Capsule 0.4.9 supports native Windows Codex hook
 transport, but doctor never connects to a named pipe or writes console correlation hints.
 Its endpoint remains `not-inspected`, now with reason `windows-endpoint-not-inspected`;
 configuration and capsule integrity are not delivery or Site-liveness evidence. `complete`
@@ -2202,4 +2202,4 @@ Windows `agent list --client <id>` joins the selected TUI status in the v2 list 
 
 Windows Agent Get now emits v5 (v6 with `--client`), adding a separate `management` observation with source, revision and Server-owned startup state. Active records come only from completed startup; manually named sessions remain unmanaged. Pending startup makes promptReady false and `agent prompt` refuses before input. The bounded Status read shares the original command deadline and can fail with Agent read failure v3 (`operation: management`); it never retries or completes a launch. `agent start` v2 explicitly reports interactiveReady after its existing successful completion. The [startup contract](windows-agent-start.md) owns lifecycle and limits.
 
-The native provider registry now has 12 entries, including Windows Cursor JSON hook onboarding and offline diagnosis. The API catalogue is version 53; schema and command-path counts remain unchanged.
+The native provider registry now has 13 entries, including Windows Cursor and Qoder JSON hook onboarding and offline diagnosis. The API catalogue is version 54; schema and command-path counts remain unchanged.

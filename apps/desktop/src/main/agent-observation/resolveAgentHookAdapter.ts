@@ -48,6 +48,12 @@ const CODEX_EVENTS = new Set<AgentHookObservationEvent>([
 ]);
 
 const REGISTRY = {
+	qodercli: {
+		acceptedEvents: new Set<AgentHookObservationEvent>(['session-identified']),
+		adapterId: 'qodercli',
+		capabilities: ['sessionLifecycle'],
+		providerId: AgentProviderIdSchema.parse('qodercli'),
+	},
 	cursor: {
 		acceptedEvents: new Set<AgentHookObservationEvent>(['session-identified', 'session-started']),
 		adapterId: 'cursor',

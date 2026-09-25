@@ -25,6 +25,27 @@ const ompEntryUrl = resourceUrl('omp/orchbee-agent-observation.cjs');
 const clineUrl = resourceUrl('cline/orchbee-agent-observation.js');
 
 describe('OpenCode-family observation boundary', () => {
+	it('limits Qoder to exact SessionStart identity and omits content', async () => {
+		const sanitizers = await import(resourceUrl('scripts/hook-sanitizers.mjs'));
+		const input = {
+			hook_event_name: 'SessionStart',
+			session_id: 'qoder-1',
+			prompt: 'PRIVATE',
+			source: 'compact',
+		};
+		const result = sanitizers.sanitizeAgentHookInput('qodercli', input);
+		expect(result).toMatchObject({ event: 'session-identified', sessionKey: 'qoder-1' });
+		expect(JSON.stringify(result)).not.toContain('PRIVATE');
+		for (const changed of [
+			{ session_id: '' },
+			{ session_id: 3 },
+			{ hook_event_name: 'Stop' },
+			{ hook_event_name: 'sessionStart' },
+			{ hook_event_name: undefined },
+		]) {
+			expect(sanitizers.sanitizeAgentHookInput('qodercli', { ...input, ...changed })).toBeNull();
+		}
+	});
 	it('admits Cursor identity aliases only when every supplied value agrees', async () => {
 		const sanitizers = await import(
 			pathToFileURL(path.join(resourceRoot, 'scripts/hook-sanitizers.mjs')).href

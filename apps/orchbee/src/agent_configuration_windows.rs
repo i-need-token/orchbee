@@ -2,12 +2,17 @@
 //! offline diagnostics. Callers retain their own filesystem admission guards.
 use std::path::{Path, PathBuf};
 
-pub(crate) fn cursor_hooks(home: &Path) -> Option<PathBuf> {
-    let root = std::env::var_os("CURSOR_CONFIG_DIR")
+pub(crate) fn json_hooks(id: &str, home: &Path) -> Option<PathBuf> {
+    let (variable, directory, file) = match id {
+        "cursor" => ("CURSOR_CONFIG_DIR", ".cursor", "hooks.json"),
+        "qodercli" => ("QODER_CONFIG_DIR", ".qoder", "settings.json"),
+        _ => return None,
+    };
+    let root = std::env::var_os(variable)
         .filter(|v| !v.is_empty())
         .map(PathBuf::from)
-        .unwrap_or_else(|| home.join(".cursor"));
-    root.is_absolute().then(|| root.join("hooks.json"))
+        .unwrap_or_else(|| home.join(directory));
+    root.is_absolute().then(|| root.join(file))
 }
 
 pub(crate) struct OpenCodeEntries {

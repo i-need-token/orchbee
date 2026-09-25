@@ -182,7 +182,7 @@ Node and capsule integrity without starting a Site or changing provider setup. I
 document reports endpoint delivery as uninspected; installed configuration is not proof of
 a working Agent connection.
 
-Windows `agent integration list/explain/enable/disable --provider <id>` manages Claude Code, Codex, Grok, GitHub Copilot, OpenCode, Kilo, Pi, OMP, Gemini and Qwen Code. See the [Windows integration contract](docs/windows-agent-integrations.md). Windows `site diagnose` reports read-only runtime, lock and pipe-name facts using `orchbee.site.diagnose.windows` v2. Capsule 0.4.8 supplies Claude Code, Codex, Grok and GitHub Copilot hooks and JavaScript modules using the native observation pipe and console correlation.
+Windows `agent integration list/explain/enable/disable --provider <id>` manages Claude Code, Codex, Grok, GitHub Copilot, OpenCode, Kilo, Pi, OMP, Gemini and Qwen Code. See the [Windows integration contract](docs/windows-agent-integrations.md). Windows `site diagnose` reports read-only runtime, lock and pipe-name facts using `orchbee.site.diagnose.windows` v2. Capsule 0.4.9 supplies Claude Code, Codex, Grok and GitHub Copilot hooks and JavaScript modules using the native observation pipe and console correlation.
 Windows x64 cohorts include the pinned ConPTY runtime needed to preserve that correlation.
 Agent start remains pending; other providers retain their
 existing platform limits. `terminal send --stdin` accepts redirected regular
@@ -831,4 +831,4 @@ Windows host focus reporting is owned by [native Client attention](docs/native-c
 
 Windows `agent changes [--cursor <c>] [--limit <n>]` returns a bounded canonical change page or current-head checkpoint. The default limit is 50 (1–100); reuse the returned cursor. `reset-required` and `cursor-invalid` require explicit baseline recovery. See the [query contract](docs/native-cli-query.md#windows-agent-change-pages). `orchbee.agent.changes` v1 is available in catalog v44 (72 schemas, 86 command paths).
 
-Cursor session identity hooks are also managed on Windows; the command is `agent integration enable --provider cursor`. Existing Cursor hooks and other configuration values are preserved.
+Cursor and Qoder session identity hooks are managed on Windows with `agent integration enable --provider cursor` or `agent integration enable --provider qodercli`. Existing hooks and other configuration values are preserved.
