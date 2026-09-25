@@ -10,7 +10,7 @@
 			"const": "orchbee.agent.prompt"
 		},
 		"version": {
-			"const": 2
+			"enum": [2, 3]
 		},
 		"source": {
 			"$ref": "#/$defs/sendSource"
@@ -91,6 +91,26 @@
 									"const": true
 								}
 							}
+						}
+					]
+				},
+				"matchedChange": {
+					"anyOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "object",
+							"properties": {
+								"source": {
+									"$ref": "#/$defs/agentReadSource"
+								},
+								"change": {
+									"$ref": "#/$defs/change"
+								}
+							},
+							"required": ["source", "change"],
+							"additionalProperties": false
 						}
 					]
 				}
@@ -801,6 +821,111 @@
 				"blocked",
 				"done"
 			]
+		},
+		"change": {
+			"type": "object",
+			"required": ["revision", "transition", "session"],
+			"additionalProperties": false,
+			"properties": {
+				"revision": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 9007199254740991
+				},
+				"transition": {
+					"enum": [
+						"session-observed",
+						"turn-started",
+						"turn-activity-changed",
+						"limited-activity-observed",
+						"attention-requested",
+						"attention-resolved",
+						"turn-finished",
+						"session-idle-observed",
+						"observation-became-stale",
+						"observation-reconnected",
+						"presentation-attached",
+						"presentation-visibility-changed",
+						"presentation-detached",
+						"session-ended"
+					]
+				},
+				"session": {
+					"$ref": "#/$defs/changeSession"
+				}
+			}
+		},
+		"changeSession": {
+			"type": "object",
+			"required": [
+				"lifecycle",
+				"observation",
+				"parentSessionId",
+				"pendingRequestCount",
+				"providerId",
+				"sessionId",
+				"status"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"lifecycle": {
+					"$ref": "#/$defs/lifecycle"
+				},
+				"observation": {
+					"$ref": "#/$defs/observation"
+				},
+				"parentSessionId": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/opaqueId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"pendingRequestCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 128
+				},
+				"providerId": {
+					"$ref": "#/$defs/providerId"
+				},
+				"sessionId": {
+					"$ref": "#/$defs/opaqueId"
+				},
+				"status": {
+					"$ref": "#/$defs/semanticStatus"
+				}
+			}
 		}
-	}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 3
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"required": ["matchedChange"]
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"result": {
+						"not": {
+							"required": ["matchedChange"]
+						}
+					}
+				}
+			}
+		}
+	]
 }

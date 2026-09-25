@@ -36,7 +36,8 @@
 						"service-unavailable",
 						"transport-loss",
 						"protocol-invalid",
-						"internal-failure"
+						"internal-failure",
+						"denied"
 					]
 				},
 				"details": {
@@ -58,7 +59,9 @@
 								"prompt-stalled",
 								"read-deadline",
 								"wait-read-failed",
-								"session-ended"
+								"session-ended",
+								"history-lost",
+								"cursor-invalid"
 							]
 						},
 						"sessionId": {

@@ -58,6 +58,11 @@ mod active {
         observations: u64,
         elapsed_ms: u64,
         timeout_ms: Option<u32>,
+        #[cfg(windows)]
+        matched_change: Option<(
+            orchbee_agent_observation_protocol::ObapRequestId,
+            orchbee_agent_observation_protocol::AgentChange,
+        )>,
     }
 
     pub(super) fn run(
@@ -173,6 +178,24 @@ mod active {
             query::verify_agent_terminal(&mut client, &snapshot, selected, admission)?
         };
         check_ready(&selected.observation)?;
+        #[cfg(windows)]
+        let mut journal = query::AgentJournal::default();
+        #[cfg(windows)]
+        if wait.is_some() {
+            let (_, changes) = journal
+                .read(&mut client, admission, wake)
+                .map_err(|error| journal_failure(error, total, false, admission))?;
+            if !changes.is_empty()
+                || journal
+                    .observed_through()
+                    .is_none_or(|head| head.value() < selected.observation.revision.value())
+            {
+                return Err(prompt_error(
+                    FailureKind::ProtocolInvalid,
+                    "wait-read-failed",
+                ));
+            }
+        }
         let before = &selected.observation.session;
         let session_id = before.snapshot.session_id.clone();
         if query::wait_backoff(wake, Duration::from_millis(1)) {
@@ -188,7 +211,18 @@ mod active {
             admission,
         )?;
         let waited = if receipt.accepted() {
-            wait.map(|options| observe(&mut client, before, options, start, total, wake))
+            wait.map(|options| {
+                observe(
+                    &mut client,
+                    before,
+                    options,
+                    start,
+                    total,
+                    wake,
+                    #[cfg(windows)]
+                    &mut journal,
+                )
+            })
         } else {
             None
         };
@@ -224,6 +258,7 @@ mod active {
         start: Instant,
         total: WaitDeadline,
         wake: Option<LocalIo<'_>>,
+        #[cfg(windows)] journal: &mut query::AgentJournal,
     ) -> Result<Matched, Failure> {
         let effect = total.step(Instant::now(), READ_BUDGET)?;
         let mut active = matches!(before.status, AgentSemanticStatus::Working { .. });
@@ -246,6 +281,57 @@ mod active {
                     },
                 ));
             }
+            #[cfg(windows)]
+            let historical = {
+                let (request_id, changes) = journal
+                    .read(client, limit, wake)
+                    .map_err(|error| journal_failure(error, total, !active, effect))?;
+                let mut matched = None;
+                for change in changes {
+                    if change.session.session_id != before.snapshot.session_id {
+                        continue;
+                    }
+                    let version = &change.session.observation;
+                    let old = &before.snapshot.observation;
+                    let newer = (version.generation.value(), version.sequence.value())
+                        > (old.generation.value(), old.sequence.value());
+                    let gate_was_closed = !active;
+                    active |= version.freshness == AgentObservationFreshness::Fresh && newer
+                        && (matches!(change.session.status, AgentSemanticStatus::Working { .. } | AgentSemanticStatus::NeedsAttention { .. })
+                            || change.transition == orchbee_agent_observation_protocol::AgentChangeTransition::TurnFinished);
+                    if gate_was_closed
+                        && active
+                        && matched.is_none()
+                        && matches!(
+                            change.session.status,
+                            AgentSemanticStatus::Working { .. }
+                                | AgentSemanticStatus::NeedsAttention { .. }
+                        )
+                    {
+                        let conditions: Vec<_> = options
+                            .until
+                            .iter()
+                            .copied()
+                            .filter(|condition| {
+                                matches!(
+                                    condition,
+                                    AgentWaitCondition::Working
+                                        | AgentWaitCondition::Blocked
+                                        | AgentWaitCondition::NeedsAttention
+                                ) && query::status_matches(
+                                    *condition,
+                                    version.freshness,
+                                    &change.session.status,
+                                )
+                            })
+                            .collect();
+                        if !conditions.is_empty() {
+                            matched = Some((request_id.clone(), change, conditions));
+                        }
+                    }
+                }
+                matched
+            };
             let result =
                 query::read_agent_observation(client, &before.snapshot.session_id, limit, wake);
             let read = result.map_err(|failure| {
@@ -263,6 +349,40 @@ mod active {
                 prompt_error(failure.kind, reason)
             })?;
             observations += 1;
+            #[cfg(windows)]
+            if journal
+                .observed_through()
+                .is_some_and(|head| head.value() > read.revision.value())
+            {
+                return Err(prompt_error(
+                    FailureKind::ProtocolInvalid,
+                    "wait-read-failed",
+                ));
+            }
+            // Never publish a match after the observation budget has elapsed.
+            if Instant::now() >= limit {
+                return Err(prompt_error(
+                    FailureKind::Timeout,
+                    if total.expired(Instant::now()) {
+                        "wait-deadline"
+                    } else if !active {
+                        "prompt-stalled"
+                    } else {
+                        "read-deadline"
+                    },
+                ));
+            }
+            #[cfg(windows)]
+            if let Some((request_id, change, conditions)) = historical {
+                return Ok(Matched {
+                    observation: read,
+                    conditions,
+                    observations,
+                    elapsed_ms: start.elapsed().as_millis() as u64,
+                    timeout_ms: options.timeout_ms,
+                    matched_change: Some((request_id, change)),
+                });
+            }
             active |= activity_after(before, &read.session);
             let conditions: Vec<_> = options
                 .until
@@ -277,10 +397,16 @@ mod active {
                     observations,
                     elapsed_ms: start.elapsed().as_millis() as u64,
                     timeout_ms: options.timeout_ms,
+                    #[cfg(windows)]
+                    matched_change: None,
                 });
             }
             if read.session.snapshot.lifecycle == AgentLifecycle::Ended {
                 return Err(prompt_error(FailureKind::NotFound, "session-ended"));
+            }
+            #[cfg(windows)]
+            if journal.has_more() {
+                continue;
             }
             let remaining = limit.saturating_duration_since(Instant::now());
             if query::wait_backoff(wake, backoff.min(remaining)) {
@@ -288,6 +414,43 @@ mod active {
             }
             backoff = (backoff * 2).min(Duration::from_millis(500));
         }
+    }
+
+    #[cfg(windows)]
+    fn journal_failure(
+        error: query::JournalError,
+        total: WaitDeadline,
+        awaiting_activity: bool,
+        effect: Instant,
+    ) -> Failure {
+        let failure = match error {
+            query::JournalError::Exchange(error) => query::classify_agent_read(
+                error,
+                crate::local_client::agent::AgentReadOperation::Changes,
+            ),
+            query::JournalError::Failure(failure) => failure,
+        };
+        let reason = if failure.kind == FailureKind::Timeout {
+            if total.expired(Instant::now()) {
+                "wait-deadline"
+            } else if awaiting_activity && Instant::now() >= effect {
+                "prompt-stalled"
+            } else {
+                "read-deadline"
+            }
+        } else {
+            match failure
+                .details
+                .as_ref()
+                .and_then(|details| details.get("reason"))
+                .and_then(Value::as_str)
+            {
+                Some("history-lost") => "history-lost",
+                Some("cursor-invalid") => "cursor-invalid",
+                _ => "wait-read-failed",
+            }
+        };
+        prompt_error(failure.kind, reason)
     }
 
     fn activity_after(before: &AgentSessionDetail, now: &AgentSessionDetail) -> bool {
@@ -334,6 +497,10 @@ mod active {
         format: OutputFormat,
         locale: Locale,
     ) -> Output {
+        #[cfg(windows)]
+        let matched_change = matched.as_ref().and_then(|matched| matched.matched_change.as_ref()).map(|(source,change)| {
+            json!({"source":super::super::results::agent_source(source),"change":change})
+        });
         let (observation, wait) = match matched {
             None => (Value::Null, Value::Null),
             Some(matched) => (
@@ -341,7 +508,13 @@ mod active {
                 json!({"matchedConditions":matched.conditions.iter().map(|condition| condition.as_str()).collect::<Vec<_>>(), "timeoutMs":matched.timeout_ms, "observations":matched.observations, "elapsedMs":matched.elapsed_ms, "activityObserved":true}),
             ),
         };
-        let document = json!({"schema":"orchbee.agent.prompt", "version":2, "source":receipt["source"], "result":{"sessionId":session_id, "submission":receipt, "observation":observation, "wait":wait}});
+        let document = json!({"schema":"orchbee.agent.prompt", "version":if cfg!(windows) { 3 } else { 2 }, "source":receipt["source"], "result":{"sessionId":session_id, "submission":receipt, "observation":observation, "wait":wait}});
+        #[cfg(windows)]
+        let document = {
+            let mut document = document;
+            document["result"]["matchedChange"] = json!(matched_change);
+            document
+        };
         let encoded = match format {
             OutputFormat::Json => output::encode_document(&document),
             OutputFormat::Text => output::encode_text(&locale.cli_prompt_submitted(

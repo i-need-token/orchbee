@@ -215,16 +215,19 @@ fn prompt_wait_rejects_old_idle_but_accepts_a_new_completed_turn_when_working_wa
     let handler = peer(&fixture, listener, move |mut stream| {
         bound_agent_reply(&mut stream, idle());
         runtime_preflight(&mut stream, idle());
+        checkpoint(&mut stream);
         accept_prompt(&mut stream, "task");
+        checkpoint(&mut stream);
         read_reply(
             &mut stream,
             "get",
-            json!({"kind":"found", "revision":1, "session":idle()}),
+            json!({"kind":"found", "revision":2, "session":idle()}),
         );
+        checkpoint(&mut stream);
         read_reply(
             &mut stream,
             "get",
-            json!({"kind":"found", "revision":2, "session":completed()}),
+            json!({"kind":"found", "revision":3, "session":completed()}),
         );
         assert_closed(&mut stream);
     });
@@ -259,13 +262,14 @@ fn prompt_lost_send_reply_is_unknown_and_a_later_read_loss_keeps_accepted_input(
         let handler = peer(&fixture, listener, move |mut stream| {
             bound_agent_reply(&mut stream, idle());
             runtime_preflight(&mut stream, idle());
+            checkpoint(&mut stream);
             if after_send {
                 accept_prompt(&mut stream, "task");
                 let request =
                     orchbee_agent_observation_protocol::read_agent_request(&mut stream).unwrap();
                 assert!(matches!(
                     request,
-                    orchbee_agent_observation_protocol::AgentRequest::Read(_)
+                    orchbee_agent_observation_protocol::AgentRequest::Changes(_)
                 ));
             } else {
                 assert!(matches!(
@@ -313,13 +317,21 @@ fn prompt_deadlines_distinguish_stalled_activity_from_an_earlier_caller_timeout(
         let handler = peer(&fixture, listener, move |mut stream| {
             bound_agent_reply(&mut stream, idle());
             runtime_preflight(&mut stream, idle());
+            checkpoint(&mut stream);
             accept_prompt(&mut stream, "task");
             while let Ok(request) = read_agent_request(&mut stream) {
+                if let AgentRequest::Changes(request) = &request {
+                    let reply = AgentResult::Changes(serde_json::from_value(json!({"kind":"agent.session.changes.result","requestId":request.request_id(),"result":{"outcome":current_changes()}})).unwrap());
+                    if write_agent_result(&mut stream, &reply).is_err() {
+                        break;
+                    }
+                    continue;
+                }
                 let AgentRequest::Read(request) = request else {
                     panic!("no alias retarget or send replay");
                 };
                 assert_eq!(json!(request)["sessionId"], "sess-alpha");
-                let reply = AgentResult::Read(serde_json::from_value(json!({"kind":"agent.session.get.result", "requestId":request.request_id(), "result":{"outcome":{"kind":"found","revision":1,"session":idle()}}})).unwrap());
+                let reply = AgentResult::Read(serde_json::from_value(json!({"kind":"agent.session.get.result", "requestId":request.request_id(), "result":{"outcome":{"kind":"found","revision":2,"session":idle()}}})).unwrap());
                 if write_agent_result(&mut stream, &reply).is_err() {
                     break;
                 }
@@ -362,6 +374,7 @@ fn prompt_partial_delivery_never_starts_waiting_or_resubmits_the_prompt() {
     let handler = peer(&fixture, listener, move |mut stream| {
         bound_agent_reply(&mut stream, idle());
         runtime_preflight(&mut stream, idle());
+        checkpoint(&mut stream);
         let ClientMessage::TerminalSend(request) = read_client_message(&mut stream).unwrap() else {
             panic!("send");
         };
@@ -412,11 +425,13 @@ fn prompt_to_an_already_working_agent_does_not_promise_a_new_turn() {
         detail["status"] = json!({"kind":"working", "phase":"working", "activity":"tool"});
         bound_agent_reply(&mut stream, detail.clone());
         runtime_preflight(&mut stream, detail.clone());
+        checkpoint(&mut stream);
         accept_prompt(&mut stream, "task");
+        checkpoint(&mut stream);
         read_reply(
             &mut stream,
             "get",
-            json!({"kind":"found", "revision":1, "session":detail}),
+            json!({"kind":"found", "revision":2, "session":detail}),
         );
         assert_closed(&mut stream);
     });
@@ -453,6 +468,9 @@ fn windows_codex_boundary_precedes_enter_and_partial_delivery_is_never_completed
             detail["snapshot"]["providerId"] = json!("codex");
             bound_agent_reply(&mut stream, detail.clone());
             runtime_preflight(&mut stream, detail);
+            if partial {
+                checkpoint(&mut stream);
+            }
             let request = prompt_request(&mut stream, "literal\n中文", true);
             let target = SendTarget::new(
                 std::num::NonZeroU64::MIN,
@@ -570,4 +588,243 @@ fn panel_prompt_submits_to_the_primary_binding() {
         doc["result"]["submission"]["result"]["terminalId"],
         "33333333333333333333333333333333"
     );
+}
+
+fn current_changes() -> Value {
+    json!({"kind":"current","cursor":format!("v1.{}.{}","A".repeat(59),"A".repeat(43)),"revision":2})
+}
+fn changes_reply(stream: &mut LocalStream, outcome: Value) {
+    use orchbee_agent_observation_protocol::{
+        AgentRequest, AgentResult, read_agent_request, write_agent_result,
+    };
+    let AgentRequest::Changes(request) = read_agent_request(stream).unwrap() else {
+        panic!("changes")
+    };
+    write_agent_result(stream,&AgentResult::Changes(serde_json::from_value(json!({"kind":"agent.session.changes.result","requestId":request.request_id(),"result":{"outcome":outcome}})).unwrap())).unwrap();
+}
+fn checkpoint(stream: &mut LocalStream) {
+    changes_reply(stream, current_changes());
+}
+
+fn history_event(revision: u64, sequence: u64, kind: &str, transition: &str) -> Value {
+    let status = match kind {
+        "working" => json!({"kind":"working","activity":null,"phase":"working"}),
+        "needs-attention" => session_detail("sess-alpha")["status"].clone(),
+        _ => json!({"kind":kind}),
+    };
+    let detail = idle();
+    json!({"revision":revision,"transition":transition,"session":{
+        "sessionId":"sess-alpha","providerId":detail["snapshot"]["providerId"],"parentSessionId":null,
+        "pendingRequestCount":if kind=="needs-attention" {1} else {0},"lifecycle":"live",
+        "observation":{"generation":detail["snapshot"]["observation"]["generation"],"sequence":sequence,"freshness":"fresh","fidelity":"rich","source":"native"},"status":status
+    }})
+}
+fn history_page(stream: &mut LocalStream, changes: Value, head: u64) {
+    changes_reply(
+        stream,
+        json!({"kind":"changes","cursor":current_changes()["cursor"],"observedThroughRevision":head,"runtimeRevision":head,"hasMore":false,"changes":changes}),
+    );
+}
+#[test]
+fn prompt_history_opens_the_activity_gate_but_completion_must_remain_current() {
+    for case in [
+        "working-idle",
+        "completed-working",
+        "blocked-working",
+        "metadata-idle",
+    ] {
+        let fixture = Fixture::new();
+        let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
+        let handler = peer(&fixture, listener, move |mut stream| {
+            bound_agent_reply(&mut stream, idle());
+            runtime_preflight(&mut stream, idle());
+            checkpoint(&mut stream);
+            accept_prompt(&mut stream, "task");
+            let (changes, head) = match case {
+                "completed-working" => (
+                    json!([
+                        history_event(3, 12, "working", "turn-started"),
+                        history_event(4, 13, "succeeded", "turn-finished"),
+                        history_event(5, 14, "working", "turn-started")
+                    ]),
+                    5,
+                ),
+                "blocked-working" => (
+                    json!([
+                        history_event(3, 12, "needs-attention", "attention-requested"),
+                        history_event(4, 13, "working", "turn-started")
+                    ]),
+                    4,
+                ),
+                "metadata-idle" => (
+                    json!([history_event(
+                        3,
+                        12,
+                        "idle",
+                        "presentation-visibility-changed"
+                    )]),
+                    3,
+                ),
+                _ => (
+                    json!([
+                        history_event(3, 12, "working", "turn-started"),
+                        history_event(4, 13, "idle", "session-idle-observed")
+                    ]),
+                    4,
+                ),
+            };
+            history_page(&mut stream, changes, head);
+            let mut current = idle();
+            current["snapshot"]["observation"]["sequence"] = json!(head + 9);
+            if matches!(case, "completed-working" | "blocked-working") {
+                current["status"] = json!({"kind":"working","phase":"working","activity":null});
+                current["snapshot"]["turn"] =
+                    session_detail("sess-alpha")["snapshot"]["turn"].clone();
+            }
+            read_reply(
+                &mut stream,
+                "get",
+                json!({"kind":"found","revision":head,"session":current}),
+            );
+            if case == "completed-working" {
+                history_page(
+                    &mut stream,
+                    json!([history_event(6, 15, "succeeded", "turn-finished")]),
+                    6,
+                );
+                let mut current = completed();
+                current["snapshot"]["observation"]["sequence"] = json!(15);
+                read_reply(
+                    &mut stream,
+                    "get",
+                    json!({"kind":"found","revision":6,"session":current}),
+                );
+            } else if case == "metadata-idle" {
+                history_page(
+                    &mut stream,
+                    json!([
+                        history_event(4, 13, "working", "turn-started"),
+                        history_event(5, 14, "idle", "session-idle-observed")
+                    ]),
+                    5,
+                );
+                let mut current = idle();
+                current["snapshot"]["observation"]["sequence"] = json!(14);
+                read_reply(
+                    &mut stream,
+                    "get",
+                    json!({"kind":"found","revision":5,"session":current}),
+                );
+            }
+            assert_closed(&mut stream);
+        });
+        let condition = match case {
+            "completed-working" => "done",
+            "blocked-working" => "blocked",
+            _ => "idle",
+        };
+        let output = fixture.run(&[
+            "agent",
+            "prompt",
+            "alpha",
+            "task",
+            "--wait",
+            "--until",
+            condition,
+            "--timeout",
+            "6000",
+            "--format=json",
+        ]);
+        handler.join().unwrap();
+        assert!(output.status.success(), "{output:?}");
+        let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+        validate(
+            &doc,
+            include_str!("../src/cli/schemas/orchbee.agent.prompt.json"),
+        );
+        assert_eq!(doc["version"], 3);
+        assert_eq!(
+            doc["result"]["wait"]["observations"],
+            if matches!(case, "completed-working" | "metadata-idle") {
+                2
+            } else {
+                1
+            }
+        );
+        if case == "blocked-working" {
+            assert_eq!(
+                doc["result"]["matchedChange"]["change"]["session"]["status"]["kind"],
+                "needs-attention"
+            );
+            assert_eq!(
+                doc["result"]["observation"]["session"]["status"]["kind"],
+                "working"
+            );
+        } else {
+            assert!(doc["result"]["matchedChange"].is_null());
+        }
+    }
+}
+#[test]
+fn prompt_checkpoint_failure_prevents_input_and_lost_history_preserves_submission() {
+    for case in ["checkpoint-denied", "reset", "foreign"] {
+        let fixture = Fixture::new();
+        let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
+        let handler = peer(&fixture, listener, move |mut stream| {
+            bound_agent_reply(&mut stream, idle());
+            runtime_preflight(&mut stream, idle());
+            if case == "checkpoint-denied" {
+                changes_reply(
+                    &mut stream,
+                    json!({"kind":"rejected","reason":"read-denied"}),
+                );
+            } else {
+                checkpoint(&mut stream);
+                accept_prompt(&mut stream, "task");
+                changes_reply(
+                    &mut stream,
+                    if case == "reset" {
+                        json!({"kind":"reset-required","cursor":current_changes()["cursor"],"revision":900})
+                    } else {
+                        json!({"kind":"rejected","reason":"cursor-invalid"})
+                    },
+                );
+            }
+            assert_closed(&mut stream);
+        });
+        let output = fixture.run(&[
+            "agent",
+            "prompt",
+            "alpha",
+            "task",
+            "--wait",
+            "--timeout",
+            "6000",
+            "--format=json",
+        ]);
+        handler.join().unwrap();
+        assert!(!output.status.success());
+        let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+        validate(
+            &doc,
+            include_str!("../src/cli/schemas/orchbee.cli.failure.agent-prompt.json"),
+        );
+        if case == "checkpoint-denied" {
+            assert_eq!(doc["failure"]["kind"], "denied");
+            assert!(doc["failure"]["details"].get("submission").is_none());
+        } else {
+            assert_eq!(
+                doc["failure"]["details"]["reason"],
+                if case == "reset" {
+                    "history-lost"
+                } else {
+                    "cursor-invalid"
+                }
+            );
+            assert_eq!(
+                doc["failure"]["details"]["submission"]["result"]["inputStatus"],
+                "accepted"
+            );
+        }
+    }
 }

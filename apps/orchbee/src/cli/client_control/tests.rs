@@ -177,7 +177,10 @@ fn agent_focus_grammar_requires_one_agent_target_and_reuses_navigation_receipts(
             let help = locale.cli_help(topic);
             assert!(help.contains("orchbee agent focus"));
             assert!(help.contains("30000"));
-            assert!(help.contains("seen/unseen"));
+            assert!(help.contains(match locale {
+                Locale::EnUs => "visible paint",
+                Locale::ZhCn => "成功绘制",
+            }));
         }
     }
 }

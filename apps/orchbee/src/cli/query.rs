@@ -49,6 +49,10 @@ struct WaitSample {
 }
 
 #[cfg(windows)]
+mod agent_journal;
+#[cfg(windows)]
+pub(crate) use agent_journal::{AgentJournal, JournalError};
+#[cfg(windows)]
 mod agent_focus;
 #[cfg(any(target_os = "linux", windows))]
 mod agent_names;
@@ -147,6 +151,8 @@ use crate::termination_signal::{TerminationSignal, TerminationSource};
 
 #[cfg(any(target_os = "linux", windows))]
 mod agent_wait;
+#[cfg(windows)]
+pub(crate) use agent_wait::status_matches;
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) use agent_wait::{agent_wait, condition_matches, wait_backoff};
 
@@ -2945,7 +2951,10 @@ fn wake_marker_failure(error: &std::io::Error) -> Option<Failure> {
 /// and any malformed/correlated violation to protocol-invalid — every
 /// document under the common `agent-read` stage, none with a source.
 #[cfg(any(target_os = "linux", windows))]
-fn classify_agent_read(error: AgentExchangeError, operation: AgentReadOperation) -> Failure {
+pub(in crate::cli) fn classify_agent_read(
+    error: AgentExchangeError,
+    operation: AgentReadOperation,
+) -> Failure {
     match error {
         AgentExchangeError::SessionUnavailable | AgentExchangeError::RequestEncoding(_) => {
             Failure::new(FailureKind::InternalFailure)

@@ -1,42 +1,39 @@
 //! Bounded Windows wait continuity; historical evidence never edits a Get sample.
 use super::*;
+use crate::cli::results::agent_source;
+use crate::local_client::agent::{AgentExchangeError, AgentReadOperation};
 use orchbee_agent_observation_protocol::{
     AgentChange, AgentChangesCursor, AgentChangesOutcome, AgentChangesRejectionReason,
     AgentChangesRequest, AgentChangesResult,
 };
 
 #[derive(Default)]
-pub(super) struct WaitJournal {
+pub(crate) struct AgentJournal {
     cursor: Option<AgentChangesCursor>,
     revision: Option<AgentSafeInteger>,
     has_more: bool,
 }
 
-pub(super) enum JournalError {
+pub(crate) enum JournalError {
     Exchange(AgentExchangeError),
     Failure(Failure),
 }
 
-type HistoricalMatch = (ObapRequestId, AgentChange, Vec<AgentWaitCondition>);
-
-impl WaitJournal {
-    pub(super) fn has_more(&self) -> bool {
+impl AgentJournal {
+    pub(crate) fn has_more(&self) -> bool {
         self.has_more
     }
 
-    pub(super) fn observed_through(&self) -> Option<AgentSafeInteger> {
+    pub(crate) fn observed_through(&self) -> Option<AgentSafeInteger> {
         self.revision
     }
 
-    pub(super) fn read(
+    pub(crate) fn read(
         &mut self,
         client: &mut LocalClient,
-        session: &AgentSessionId,
-        until: &[AgentWaitCondition],
-        after: Option<AgentSafeInteger>,
         deadline: Instant,
         wake: Option<BorrowedFd<'_>>,
-    ) -> Result<Option<HistoricalMatch>, JournalError> {
+    ) -> Result<(ObapRequestId, Vec<AgentChange>), JournalError> {
         let request_id = obap_request_id().map_err(JournalError::Failure)?;
         let AgentChangesResult::Read { result, .. } = client
             .submit_agent_changes_before_cancellable(
@@ -49,20 +46,12 @@ impl WaitJournal {
                 wake,
             )
             .map_err(JournalError::Exchange)?;
-        self.accept(result.outcome, session, until, after)
-            .map(|matched| {
-                matched.map(|(change, conditions)| (request_id.clone(), change, conditions))
-            })
+        self.accept(result.outcome)
+            .map(|changes| (request_id.clone(), changes))
             .map_err(|failure| JournalError::Failure(failure.source(agent_source(&request_id))))
     }
 
-    fn accept(
-        &mut self,
-        outcome: AgentChangesOutcome,
-        session: &AgentSessionId,
-        until: &[AgentWaitCondition],
-        after: Option<AgentSafeInteger>,
-    ) -> Result<Option<(AgentChange, Vec<AgentWaitCondition>)>, Failure> {
+    fn accept(&mut self, outcome: AgentChangesOutcome) -> Result<Vec<AgentChange>, Failure> {
         match outcome {
             AgentChangesOutcome::Current { cursor, revision } => {
                 if self.revision.is_some_and(|previous| previous != revision) {
@@ -71,7 +60,7 @@ impl WaitJournal {
                 self.cursor = Some(cursor);
                 self.revision = Some(revision);
                 self.has_more = false;
-                Ok(None)
+                Ok(vec![])
             }
             AgentChangesOutcome::Changes {
                 changes,
@@ -99,31 +88,13 @@ impl WaitJournal {
                 self.cursor = Some(cursor);
                 self.revision = Some(observed_through_revision);
                 self.has_more = has_more;
-                Ok(changes.into_iter().find_map(|change| {
-                    if change.session.session_id != *session
-                        || after.is_some_and(|fence| change.revision.value() <= fence.value())
-                    {
-                        return None;
-                    }
-                    let conditions: Vec<_> = until
-                        .iter()
-                        .copied()
-                        .filter(|condition| {
-                            status_matches(
-                                *condition,
-                                change.session.observation.freshness,
-                                &change.session.status,
-                            )
-                        })
-                        .collect();
-                    (!conditions.is_empty()).then_some((change, conditions))
-                }))
+                Ok(changes)
             }
-            AgentChangesOutcome::ResetRequired { .. } => {
-                Err(Failure::new(FailureKind::Rejected).details(
-                    super::super::agent_rejection_details(AgentReadOperation::Wait, "history-lost"),
-                ))
-            }
+            AgentChangesOutcome::ResetRequired { .. } => Err(Failure::new(FailureKind::Rejected)
+                .details(super::agent_rejection_details(
+                    AgentReadOperation::Wait,
+                    "history-lost",
+                ))),
             AgentChangesOutcome::Rejected { reason } => Err(Failure::new(
                 if reason == AgentChangesRejectionReason::ReadDenied {
                     FailureKind::Denied
@@ -131,7 +102,7 @@ impl WaitJournal {
                     FailureKind::Rejected
                 },
             )
-            .details(super::super::agent_rejection_details(
+            .details(super::agent_rejection_details(
                 AgentReadOperation::Changes,
                 if reason == AgentChangesRejectionReason::ReadDenied {
                     "read-denied"

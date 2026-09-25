@@ -67,7 +67,7 @@ Windows `panel current` 与 `panel process-info` 共用
 可与 `--client` 同用。不改变焦点。`orchbee.panel.current` 为 v3；查询共用
 一个五秒期限，支持 Ctrl+C。
 
-`agent wait` 或 `agent prompt --wait` 可显式加 `--forever`，与 `--timeout` 互斥；Windows 默认无总超时，条件为 idle/done/blocked；单次读取始终有界。`--until blocked` 对应 fresh needs-attention，`--until done` 对应 fresh 完成结果集合，不表示未读。Windows wait 为版本 3，以可空 matchedChange 单列历史证据；prompt 保持版本 2，两者无限模式的 timeoutMs 为 null；无限等待读取超时失败也为版本 2。Windows Codex 的提示提交在 paste 与 Enter 间加入 Right，以清除 paste-burst 对 Enter 的抑制。
+`agent wait` 或 `agent prompt --wait` 可显式加 `--forever`，与 `--timeout` 互斥；Windows 默认无总超时，条件为 idle/done/blocked；单次读取始终有界。`--until blocked` 对应 fresh needs-attention，`--until done` 对应 fresh 完成结果集合，不表示未读。Windows wait 为版本 3，以可空 matchedChange 单列历史证据；Windows prompt 为版本 3，单列活动门槛历史，两者无限模式的 timeoutMs 为 null；无限等待读取超时失败也为版本 2。Windows Codex 的提示提交在 paste 与 Enter 间加入 Right，以清除 paste-burst 对 Enter 的抑制。
 
 面向单个 Agent 的命令还支持 `--panel <id|@panel:suffix>` 或位置参数 Panel ID。位置参数优先按 Session ID 和名称解析，再回退到 Panel。Panel 选择主终端且要求唯一存活 Agent；等待固定到选定的 Session。
 
@@ -124,16 +124,16 @@ Windows 上，`orchbee api schema [<schema-id>] --output <path>` 将相同 JSON 
 
 Windows `tab create` 和 `panel split` 在创建前解析 `--cwd follow|home|current|workspace|<absolute-path>`；默认 follow 采样已解析来源的根进程目录，v2 回执记录实际目录来源／路径。它们接受可选目标及标签，默认不聚焦；`--focus` 请求创建后聚焦，分屏可带 Client 独立的 `--ratio`。显式目标无需 TUI 即可创建。`orchbee.creation.result` v2 分别报告已提交创建与后续比例／焦点结果；后续失败不能当作未创建而重试。参见[原生终端创建](native-terminal-creation.zh-CN.md)，其目标、总预算、并发保护和恢复规则为这些 Windows 命令的权威。
 
-Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` 设置共享右键策略，不移动焦点。`--current` 要求有效调用者元数据，显式目标绕过它。`panel split --right-click` 随创建提交新 Panel 策略。默认 `orchbee` 将右键保留给 Client；`panel` 允许无修饰键的右键在启用鼠标上报的终端内容内透传。已准入的手势在策略改变后仍保留匹配的松开事件。路由、排队输入复核及失败恢复见[Panel 输入契约](native-panel-input.zh-CN.md)。本功能不新增上下文菜单。`orchbee.panel.input` v1 返回 `configured` 或 `unchanged`；`panel list` v2 与 `panel get/current` v3 提供 `rightClick`，`tab get` v2 和 `api snapshot` v4 接受可选规范字段。目录 v45 含 72 个 schema，原生命令清单含 85 条路径。
+Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` 设置共享右键策略，不移动焦点。`--current` 要求有效调用者元数据，显式目标绕过它。`panel split --right-click` 随创建提交新 Panel 策略。默认 `orchbee` 将右键保留给 Client；`panel` 允许无修饰键的右键在启用鼠标上报的终端内容内透传。已准入的手势在策略改变后仍保留匹配的松开事件。路由、排队输入复核及失败恢复见[Panel 输入契约](native-panel-input.zh-CN.md)。本功能不新增上下文菜单。`orchbee.panel.input` v1 返回 `configured` 或 `unchanged`；`panel list` v2 与 `panel get/current` v3 提供 `rightClick`，`tab get` v2 和 `api snapshot` v4 接受可选规范字段。目录 v46 含 72 个 schema，原生命令清单含 85 条路径。
 
 Windows `tab move <target> --insert-index N` 按原顺序的零基插入边界移动完整 Tab；0 为首位，
 Tab 总数为末尾，源边界及其后一边界无变化，越界拒绝。它与 `--direction` 互斥，不改变焦点或终端。
-成功使用 `orchbee.tab.move` v1，运行时失败使用 `orchbee.cli.failure.tab-move` v1。目录 v45/72，
+成功使用 `orchbee.tab.move` v1，运行时失败使用 `orchbee.cli.failure.tab-move` v1。目录 v46/72，
 原方向封装不变。
 
 ## 自动 Tab 命名
 
-[Tab 标签契约](native-tab-labels.zh-CN.md) 拥有可选 `automaticLabel` 元数据。省略标签的新建 Tab 按当前上下文位置编号；显式数字名称及旧 Tab 保留固定名称。移动或关闭后 CLI 查询、标签选择器和 TUI 显示保持一致，重命名切换为固定名称。原生 `api snapshot` v4 暴露规范元数据；目录 v45 包含 72 份 schema。共享协议需要匹配 cohort。
+[Tab 标签契约](native-tab-labels.zh-CN.md) 拥有可选 `automaticLabel` 元数据。省略标签的新建 Tab 按当前上下文位置编号；显式数字名称及旧 Tab 保留固定名称。移动或关闭后 CLI 查询、标签选择器和 TUI 显示保持一致，重命名切换为固定名称。原生 `api snapshot` v4 暴露规范元数据；目录 v46 包含 72 份 schema。共享协议需要匹配 cohort。
 
 ## 按来源读取终端输出
 
@@ -142,7 +142,7 @@ recent 合并保留历史与实时屏幕；detection 读取最近的一个屏幕
 `--plain` 为管道直接导出文本，默认 recent，与 JSON 互斥。来源模式
 `--lines` 允许零，钳制到 1000，recent 默认 80。它与既有 history/rows/unwrap
 参数互斥，既有行为保持不变。[输出契约](native-terminal-output.zh-CN.md)
-拥有选择、精确样本验证及 `orchbee.terminal.output` v1；目录 v45 共 72 个 schema。
+拥有选择、精确样本验证及 `orchbee.terminal.output` v1；目录 v46 共 72 个 schema。
 
 Windows `terminal wait-output` 接受相同的 `--source` 和 `--lines` 选择，也可用 `--forever`
 明确取消总等待时限。任一参数都会启用来源模式（默认 recent），与 `--rows` 互斥，
@@ -164,7 +164,7 @@ Windows `status server` 在 Client Session 准入前读取实际 Server 构建�
 
 Windows `agent focus <target> [--client <id>]` 在一次客户端控制提交前，将名称、会话或窗格解析为唯一活动的主窗格。显式 `--session`、`--name` 和 `--panel` 使用现有解析器；`--request-id`、`--detach` 和默认 30000 ms 总期限沿用导航恢复契约。未就绪客户端在 Agent 查询前返回 `client-not-ready`。[Agent 导航契约](native-agent-navigation.zh-CN.md) 定义主呈现绑定、歧义、取消和保留操作查询。成功绘制可见窗格后，Client 提示状态所有者可确认已观察的 Agent 版本；已知宿主失焦时禁止确认。`agent attention <target> [--client <id>]` 独立读取该 Client，不标记已读。
 
-Windows 上使用 `agent changes --format json` 建立当前头部 cursor，再用 `agent changes --cursor <cursor> --limit 100 --format json` 读取保留的转换。HasMore 为真时继续读页。这是单页读取，不是订阅。Reset-required 或 cursor-invalid 表示连续性丢失，必须显式重建会话基线。不能将新检查点理解为已交付错过的事件。Catalog v45 包含 72 个 schema 和 85 条命令路径。
+Windows 上使用 `agent changes --format json` 建立当前头部 cursor，再用 `agent changes --cursor <cursor> --limit 100 --format json` 读取保留的转换。HasMore 为真时继续读页。这是单页读取，不是订阅。Reset-required 或 cursor-invalid 表示连续性丢失，必须显式重建会话基线。不能将新检查点理解为已交付错过的事件。Catalog v46 包含 72 个 schema 和 85 条命令路径。
 
 Windows 可用 `agent get <target> --client <id>` 同时查看规范会话事实和精确 Client 的聚焦／已看见及 idle/done 投影。seen 为空表示 Client 观测缺失或过期，不得当作已看见或未看见。读取不确认任何内容。
 

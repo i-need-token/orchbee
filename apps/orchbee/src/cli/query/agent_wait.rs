@@ -42,7 +42,7 @@ const WAIT_POLL_INITIAL: Duration = Duration::from_millis(50);
 const WAIT_POLL_MAXIMUM: Duration = Duration::from_millis(500);
 
 #[cfg(windows)]
-mod journal;
+use super::{AgentJournal, JournalError};
 
 /// `agent wait`: the armed span owns the whole wait — one admitted Client
 /// Session held across every poll, one absolute deadline covering
@@ -232,7 +232,7 @@ fn agent_wait_span(
     let mut backoff = WAIT_POLL_INITIAL;
     let mut first_evaluation = true;
     #[cfg(windows)]
-    let mut journal = journal::WaitJournal::default();
+    let mut journal = AgentJournal::default();
     #[cfg(windows)]
     let historical_until: Vec<_> = until
         .iter()
@@ -265,14 +265,7 @@ fn agent_wait_span(
                 Ok(deadline) => deadline,
                 Err(failure) => break WaitAttempt::Done(Err(failure)),
             };
-            let result = journal.read(
-                &mut client,
-                session_id,
-                &historical_until,
-                after_revision,
-                deadline,
-                signals.poll_fd(),
-            );
+            let result = journal.read(&mut client, deadline, signals.poll_fd());
             if total.expired(Instant::now()) {
                 break wait_timeout(
                     WaitDeadlineReason::Total,
@@ -283,11 +276,30 @@ fn agent_wait_span(
                 );
             }
             match result {
-                Ok(matched) => matched,
-                Err(journal::JournalError::Failure(failure)) => {
+                Ok((source, changes)) => changes.into_iter().find_map(|change| {
+                    if change.session.session_id != *session_id
+                        || after_revision
+                            .is_some_and(|fence| change.revision.value() <= fence.value())
+                    {
+                        return None;
+                    }
+                    let conditions: Vec<_> = historical_until
+                        .iter()
+                        .copied()
+                        .filter(|condition| {
+                            status_matches(
+                                *condition,
+                                change.session.observation.freshness,
+                                &change.session.status,
+                            )
+                        })
+                        .collect();
+                    (!conditions.is_empty()).then_some((source.clone(), change, conditions))
+                }),
+                Err(JournalError::Failure(failure)) => {
                     break WaitAttempt::Done(Err(failure));
                 }
-                Err(journal::JournalError::Exchange(error)) => {
+                Err(JournalError::Exchange(error)) => {
                     if wait_wake_marker(&error) {
                         break WaitAttempt::Wake;
                     }
@@ -681,7 +693,7 @@ pub(crate) fn condition_matches(
     )
 }
 
-fn status_matches(
+pub(crate) fn status_matches(
     condition: AgentWaitCondition,
     freshness: AgentObservationFreshness,
     status: &AgentSemanticStatus,
