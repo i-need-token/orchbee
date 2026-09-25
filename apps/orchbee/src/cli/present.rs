@@ -641,6 +641,18 @@ pub(crate) fn render(
         Projection::AgentList(outcome) => agent_list(out, outcome, text, locale),
         Projection::AgentChanges(outcome) => agent_changes(out, outcome, locale),
         Projection::AgentGet(outcome) => agent_get(out, outcome, text, locale),
+        Projection::AgentClientGet(doc) => {
+            agent_get(
+                out,
+                &AgentGetOutcome::Found {
+                    revision: doc.revision,
+                    session: doc.session.clone(),
+                },
+                text,
+                locale,
+            )?;
+            out.push(&locale.cli_agent_client_view(&doc.client))
+        }
         Projection::AgentExplain(outcome) => agent_explain(out, outcome, text, locale),
         Projection::AgentWait(doc) => agent_wait(out, doc, locale),
     }

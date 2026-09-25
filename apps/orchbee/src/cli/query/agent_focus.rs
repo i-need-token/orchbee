@@ -27,6 +27,17 @@ pub(crate) fn authenticate_attention(
     deadline: Instant,
     wake: Option<BorrowedFd<'_>>,
 ) -> Result<(), Failure> {
+    authenticate_attention_read(client, attention, deadline, wake)
+        .map_err(|failure| failure.failure_schema(super::super::schema::AGENT_FAILURE_ID))
+}
+
+#[cfg(windows)]
+fn authenticate_attention_read(
+    client: &mut LocalClient,
+    attention: &orchbee_workbench_protocol::ClientAgentAttentionSnapshot,
+    deadline: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<(), Failure> {
     use orchbee_agent_observation_protocol::{
         AgentChangesOutcome, AgentChangesRejectionReason, AgentChangesRequest, AgentChangesResult,
     };
@@ -81,6 +92,88 @@ pub(crate) fn authenticate_attention(
     } else {
         Err(agent_protocol_invalid(operation))
     }
+}
+
+/// Equal provider counters cannot fence server-derived freshness changes. Prove
+/// no target event intervened between the authenticated Client checkpoint and Get.
+#[cfg(windows)]
+pub(crate) fn attention_covers_observation(
+    client: &mut LocalClient,
+    attention: &orchbee_workbench_protocol::ClientAgentAttentionSnapshot,
+    canonical: &AgentObservationRead,
+    deadline: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<bool, Failure> {
+    use orchbee_agent_observation_protocol::{
+        AgentChangesOutcome, AgentChangesRequest, AgentChangesResult,
+    };
+    let mut cursor = attention.cursor.clone();
+    let mut observed = attention.revision;
+    if observed.value() > canonical.revision.value() {
+        return Err(agent_protocol_invalid(AgentReadOperation::Changes));
+    }
+    let mut remaining = 512_u64;
+    while observed.value() < canonical.revision.value() {
+        if remaining == 0 {
+            return Ok(false);
+        }
+        let request_id = obap_request_id()?;
+        let AgentChangesResult::Read { result, .. } = client
+            .submit_agent_changes_before_cancellable(
+                AgentChangesRequest::Read {
+                    request_id: request_id.clone(),
+                    cursor: Some(cursor),
+                    limit: AgentSafeInteger::new(remaining.min(100)),
+                },
+                deadline,
+                wake,
+            )
+            .map_err(|error| classify_agent_read(error, AgentReadOperation::Changes))?;
+        if Instant::now() >= deadline {
+            return Err(Failure::new(FailureKind::Timeout));
+        }
+        match result.outcome {
+            AgentChangesOutcome::Changes {
+                changes,
+                cursor: next,
+                observed_through_revision,
+                runtime_revision,
+                ..
+            } => {
+                if changes.first().map(|change| change.revision.value())
+                    != observed.value().checked_add(1)
+                    || runtime_revision.value() < canonical.revision.value()
+                {
+                    return Err(agent_protocol_invalid(AgentReadOperation::Changes));
+                }
+                if changes.iter().any(|change| {
+                    change.revision.value() <= canonical.revision.value()
+                        && change.session.session_id == canonical.session.snapshot.session_id
+                }) {
+                    return Ok(false);
+                }
+                remaining = remaining.saturating_sub(changes.len() as u64);
+                observed = observed_through_revision;
+                cursor = next;
+            }
+            AgentChangesOutcome::ResetRequired { revision, .. }
+                if revision.value() >= canonical.revision.value() =>
+            {
+                return Ok(false);
+            }
+            AgentChangesOutcome::Rejected { reason } => {
+                return Err(Failure::new(if reason == orchbee_agent_observation_protocol::AgentChangesRejectionReason::ReadDenied { FailureKind::Denied } else { FailureKind::Rejected })
+                    .details(agent_rejection_details(AgentReadOperation::Changes,
+                        if reason == orchbee_agent_observation_protocol::AgentChangesRejectionReason::ReadDenied { "read-denied" } else { "cursor-invalid" }))
+                    .source(results::agent_source(&request_id)).failure_schema(super::super::schema::AGENT_FAILURE_ID));
+            }
+            AgentChangesOutcome::Unavailable { .. } => {
+                return Err(Failure::new(FailureKind::ServiceUnavailable));
+            }
+            _ => return Err(agent_protocol_invalid(AgentReadOperation::Changes)),
+        }
+    }
+    Ok(true)
 }
 
 pub(crate) fn agent_focus_target(

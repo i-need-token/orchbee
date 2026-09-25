@@ -730,6 +730,9 @@ pub(super) const CASES: &[(&str, &str, bool)] = &[
     ("orchbee tab move tab-1 --direction ", "left", false),
     ("orchbee tab move tab-1 --direction ", "next", true),
     ("orchbee agent get --n", "--name", true),
+    ("orchbee agent get alpha --cl", "--client", true),
+    ("orchbee agent get --client 11111111111111111111111111111111 --s", "--session", true),
+    ("orchbee agent explain alpha --cl", "--client", false),
     (
         "orchbee agent explain --session sess-1 --n",
         "--name",

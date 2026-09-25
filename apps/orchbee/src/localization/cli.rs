@@ -1512,6 +1512,42 @@ impl Locale {
         }
     }
 
+    pub(crate) fn cli_agent_client_view(
+        self,
+        view: &crate::cli::results::AgentClientViewDoc,
+    ) -> String {
+        let (seen, focused, status) = match self {
+            Self::EnUs => (
+                match view.seen {
+                    Some(true) => "yes",
+                    Some(false) => "no",
+                    None => "unknown",
+                },
+                if view.focused { "yes" } else { "no" },
+                view.status.unwrap_or("not-observed"),
+            ),
+            Self::ZhCn => (
+                match view.seen {
+                    Some(true) => "是",
+                    Some(false) => "否",
+                    None => "未知",
+                },
+                if view.focused { "是" } else { "否" },
+                view.status.unwrap_or("尚未观察"),
+            ),
+        };
+        match self {
+            Self::EnUs => format!(
+                "Client {}: status {status}; seen {seen}; focused {focused}\n",
+                view.client_id
+            ),
+            Self::ZhCn => format!(
+                "Client {}：状态 {status}；已看见 {seen}；聚焦 {focused}\n",
+                view.client_id
+            ),
+        }
+    }
+
     /// The localized text form of one semantic Agent status, including its
     /// structured payload (attention count, active activity, activity hint).
     pub(crate) fn cli_agent_status(
@@ -2391,8 +2427,8 @@ const HELP_AGENT_ZH: &str = "orchbee agent attention|changes|list|get|focus|expl
 const HELP_AGENT_LIST_EN: &str = "orchbee agent list [--include-ended] [--limit <n>] [--cursor <c>] [--format text|json]\n\nList Agent sessions observed by the running local Site. '--include-ended'\nadds ended sessions; '--limit' selects 1-100 rows per page (default 50);\n'--cursor' continues from a previous page's server-minted nextCursor.\n'--format json' emits the orchbee.agent.list envelope.\n";
 const HELP_AGENT_LIST_ZH: &str = "orchbee agent list [--include-ended] [--limit <n>] [--cursor <c>] [--format text|json]\n\n列出运行中的本地 Site 观察到的 Agent 会话。'--include-ended' 包含已结束\n会话；'--limit' 每页 1-100 条（默认 50）；'--cursor' 从上一页服务端铸造\n的 nextCursor 继续。'--format json' 输出 orchbee.agent.list 封套。\n";
 
-const HELP_AGENT_GET_EN: &str = "orchbee agent get <target> [--format text|json]\n\nShow one Agent session by its opaque session identity: lifecycle, semantic\nstatus, observation freshness, location, capabilities, pending requests,\nand presentation attachments. '--format json' emits the\norchbee.agent.get envelope.\nTarget: one positional Session ID/name/Panel ID, --session <id>,\n--name <alias>, or --panel <id|@panel:suffix>. Exact retained Session IDs\nand names precede Panel fallback. Panels select their primary terminal;\nmultiple live Agents are refused. A wait stays pinned to its first Session.\n";
-const HELP_AGENT_GET_ZH: &str = "orchbee agent get <target> [--format text|json]\n\n按会话 ID 或运行时名称显示一个 Agent 会话：生命周期、语义状态、观察新鲜度、\n位置、能力、待处理请求与 Presentation 附着。'--format json' 输出\norchbee.agent.get 封套。\n目标：一个位置参数 Session ID/名称/Panel ID、--session <id>、\n--name <alias> 或 --panel <id|@panel:suffix>。Session ID、名称优先于 Panel。\nPanel 选择主终端，多 Agent 匹配时拒绝；等待固定到首次解析的 Session。\n";
+const HELP_AGENT_GET_EN: &str = "orchbee agent get <target> [--client <id>] [--format text|json]\n\nShow one Agent session by its opaque session identity: lifecycle, semantic\nstatus, observation freshness, location, capabilities, pending requests,\nand presentation attachments. '--format json' emits the\norchbee.agent.get envelope.\nTarget: one positional Session ID/name/Panel ID, --session <id>,\n--name <alias>, or --panel <id|@panel:suffix>. Exact retained Session IDs\nand names precede Panel fallback. Panels select their primary terminal;\nmultiple live Agents are refused. A wait stays pinned to its first Session.\n\nWindows --client adds that exact Client's focused/seen and idle/done projection\nwith version 2. Canonical session status stays unchanged. A missing or lagging\nClient observation has null seen; no read acknowledges or changes focus.\nThe same five-second total includes cursor authentication and version joining.\n";
+const HELP_AGENT_GET_ZH: &str = "orchbee agent get <target> [--client <id>] [--format text|json]\n\n按会话 ID 或运行时名称显示一个 Agent 会话：生命周期、语义状态、观察新鲜度、\n位置、能力、待处理请求与 Presentation 附着。'--format json' 输出\norchbee.agent.get 封套。\n目标：一个位置参数 Session ID/名称/Panel ID、--session <id>、\n--name <alias> 或 --panel <id|@panel:suffix>。Session ID、名称优先于 Panel。\nPanel 选择主终端，多 Agent 匹配时拒绝；等待固定到首次解析的 Session。\n\nWindows --client 以版本 2 附加指定 Client 的聚焦、已看见及 idle/done 投影。\n规范 session 状态保持不变。Client 观测缺失或滞后时 seen 为空；\n读取不确认已看见、不改变焦点。游标认证与版本合并共用五秒总预算。\n";
 
 const HELP_AGENT_EXPLAIN_EN: &str = "orchbee agent explain <target> [--format text|json]\n\nExplain one Agent session's derived view: the canonical status basis,\nfreshness meaning, capability ceiling, observation source and fidelity,\nand the navigate-only action boundary. '--format json' emits the\norchbee.agent.explain envelope.\nTarget: one positional Session ID/name/Panel ID, --session <id>,\n--name <alias>, or --panel <id|@panel:suffix>. Exact retained Session IDs\nand names precede Panel fallback. Panels select their primary terminal;\nmultiple live Agents are refused. A wait stays pinned to its first Session.\n";
 const HELP_AGENT_EXPLAIN_ZH: &str = "orchbee agent explain <target> [--format text|json]\n\n解释一个 Agent 会话的推导视图：规范状态依据、新鲜度含义、能力上限、\n观察来源与保真度，以及仅限导航的操作边界。'--format json' 输出\norchbee.agent.explain 封套。\n目标：一个位置参数 Session ID/名称/Panel ID、--session <id>、\n--name <alias> 或 --panel <id|@panel:suffix>。Session ID、名称优先于 Panel。\nPanel 选择主终端，多 Agent 匹配时拒绝；等待固定到首次解析的 Session。\n";

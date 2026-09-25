@@ -441,7 +441,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ),
     ("agent:list", &["--include-ended", "--limit", "--cursor"]),
     ("agent:changes", &["--limit", "--cursor"]),
-    ("agent:get", &["--session", "--name", "--panel"]),
+    ("agent:get", &["--session", "--name", "--panel", "--client"]),
     (
         "agent:focus",
         &[

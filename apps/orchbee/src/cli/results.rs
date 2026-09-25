@@ -25,7 +25,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
         QueryCommand::Status => "orchbee.status",
         QueryCommand::AgentList { .. } => "orchbee.agent.list",
         QueryCommand::AgentChanges { .. } => "orchbee.agent.changes",
-        QueryCommand::AgentGet(_) => "orchbee.agent.get",
+        QueryCommand::AgentGet(_) | QueryCommand::AgentClientGet { .. } => "orchbee.agent.get",
         QueryCommand::AgentExplain(_) => "orchbee.agent.explain",
         QueryCommand::AgentWait { .. } => "orchbee.agent.wait",
         QueryCommand::AgentDoctor { .. } => "orchbee.agent.doctor",
@@ -71,6 +71,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
 /// match detail on a wait — so flag-free output stays byte-identical.
 pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
     match command {
+        QueryCommand::AgentClientGet { .. } => 2,
         QueryCommand::TerminalSourceWait { .. } => 3,
         QueryCommand::TerminalOutput { ansi: true, .. } => 2,
         QueryCommand::PanelGet(_) | QueryCommand::PanelCurrent(_) => 3,
@@ -1011,6 +1012,7 @@ pub(crate) enum Projection {
     AgentChanges(orchbee_agent_observation_protocol::AgentChangesOutcome),
     /// The typed `found` outcome, verbatim from the wire.
     AgentGet(AgentGetOutcome),
+    AgentClientGet(Box<AgentClientGetDoc>),
     /// The typed `found` outcome carrying session plus explanation.
     AgentExplain(AgentExplainOutcome),
     /// The `agent wait` matched answer: the satisfying session detail
@@ -1064,6 +1066,50 @@ pub(crate) struct AgentWaitDoc {
     pub(crate) elapsed_ms: u64,
 }
 
+#[derive(Debug)]
+pub(crate) struct AgentClientGetDoc {
+    pub(crate) revision: AgentSafeInteger,
+    pub(crate) session: Box<AgentSessionDetail>,
+    pub(crate) client: AgentClientViewDoc,
+}
+
+#[derive(Debug)]
+pub(crate) struct AgentClientViewDoc {
+    pub(crate) client_id: orchbee_workbench_protocol::WorkbenchClientId,
+    pub(crate) operation_id: orchbee_workbench_protocol::WorkbenchRequestId,
+    pub(crate) phase: orchbee_workbench_protocol::ClientViewPhase,
+    pub(crate) outer_focused: Option<bool>,
+    pub(crate) focused: bool,
+    pub(crate) attention_revision: AgentSafeInteger,
+    pub(crate) state: AgentClientVersionMatch,
+    pub(crate) state_change_revision: Option<AgentSafeInteger>,
+    pub(crate) seen: Option<bool>,
+    pub(crate) status: Option<&'static str>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum AgentClientVersionMatch {
+    Current,
+    Missing,
+    Stale,
+}
+
+impl AgentClientViewDoc {
+    pub(crate) fn document(&self) -> Value {
+        let state = match self.state {
+            AgentClientVersionMatch::Current => "current",
+            AgentClientVersionMatch::Missing => "missing",
+            AgentClientVersionMatch::Stale => "stale",
+        };
+        json!({
+            "clientId": self.client_id, "operationId": self.operation_id,
+            "phase": self.phase, "outerFocused": self.outer_focused, "focused": self.focused,
+            "attentionRevision": self.attention_revision, "state": state,
+            "stateChangeRevision": self.state_change_revision, "seen": self.seen, "status": self.status,
+        })
+    }
+}
+
 /// The `worktree list` result body. `path` is the registered Workbench
 /// directory — distinct from each entry's observed `worktreePath`.
 #[derive(Clone, Debug)]
@@ -1099,6 +1145,9 @@ impl Projection {
             Self::AgentList(outcome) => json!(outcome),
             Self::AgentChanges(outcome) => json!(outcome),
             Self::AgentGet(outcome) => json!(outcome),
+            Self::AgentClientGet(doc) => json!({
+                "kind":"found", "revision":doc.revision, "session":doc.session, "client":doc.client.document(),
+            }),
             Self::AgentExplain(outcome) => json!(outcome),
             Self::AgentWait(doc) => {
                 // The wait echo carries every effective parameter the poll
@@ -2044,6 +2093,7 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
         | QueryCommand::AgentList { .. }
         | QueryCommand::AgentChanges { .. }
         | QueryCommand::AgentGet(_)
+        | QueryCommand::AgentClientGet { .. }
         | QueryCommand::AgentRead { .. }
         | QueryCommand::AgentExplain(_)
         | QueryCommand::AgentWait { .. }

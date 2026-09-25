@@ -479,6 +479,10 @@ pub(crate) enum QueryCommand {
         cursor: Option<AgentListCursor>,
     },
     AgentGet(AgentTarget),
+    AgentClientGet {
+        target: AgentTarget,
+        client: WorkbenchClientId,
+    },
     AgentRead {
         target: AgentTarget,
         history: Option<u16>,
@@ -2234,11 +2238,23 @@ fn resolve_words(
             } else {
                 "agent explain"
             });
-            check_scope(options, AGENT_TARGET_SCOPE, context, envelope)?;
+            check_scope(
+                options,
+                Scope {
+                    client: *verb == "get",
+                    ..AGENT_TARGET_SCOPE
+                },
+                context,
+                envelope,
+            )?;
             let target = agent_selector(rest, options, context, envelope)?;
             Ok(query(
                 if *verb == "get" {
-                    QueryCommand::AgentGet(target)
+                    if let Some(client) = client_control::client_id(options, context, envelope)? {
+                        QueryCommand::AgentClientGet { target, client }
+                    } else {
+                        QueryCommand::AgentGet(target)
+                    }
                 } else {
                     QueryCommand::AgentExplain(target)
                 },

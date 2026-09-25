@@ -5,6 +5,7 @@ pub(crate) use client_control::run as run_client_control;
 pub(crate) mod agent_names;
 mod agent_prompt;
 mod agent_start;
+mod agent_view;
 pub(crate) use agent_start::run as run_agent_start;
 mod caller_context;
 mod creation;
@@ -575,6 +576,9 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
         }
         QueryCommand::AgentGet(session_id) => {
             agent_output(query::agent_get(session_id), &command, format, locale)
+        }
+        QueryCommand::AgentClientGet { target, client } => {
+            agent_view::run(&command, target, client, format, locale)
         }
         QueryCommand::AgentExplain(session_id) => {
             agent_output(query::agent_explain(session_id), &command, format, locale)

@@ -15,6 +15,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[path = "cli_windows_agent_focus/client_get.rs"]
+mod client_get;
+
 fn id(n: u64) -> String {
     format!("{n:032x}")
 }

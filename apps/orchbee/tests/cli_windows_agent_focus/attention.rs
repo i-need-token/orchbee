@@ -2,15 +2,15 @@
 use super::*;
 use orchbee_agent_observation_protocol::{AgentResult, write_agent_result};
 
-fn token() -> String {
+pub(super) fn token() -> String {
     format!("v1.{}.{}", "A".repeat(59), "A".repeat(43))
 }
 
-fn observation(state: Value) -> Value {
+pub(super) fn observation(state: Value) -> Value {
     json!({"cursor":token(),"revision":3,"outerFocused":false,"entries":[{"sessionId":"sess-alpha","state":state}]})
 }
 
-fn authenticate(stream: &mut LocalStream, allowed: bool) {
+pub(super) fn authenticate(stream: &mut LocalStream, allowed: bool) {
     let AgentRequest::Changes(request) = read_agent_request(stream).unwrap() else {
         panic!("cursor authentication before exposure")
     };
@@ -105,7 +105,11 @@ fn attention_process_foreign_boot_never_exposes_an_old_seen_flag() {
     server.join().unwrap();
     assert!(!output.status.success(), "{output:?}");
     let doc = document(&output);
-    assert_eq!(doc["schema"], "orchbee.cli.failure");
+    assert_eq!(doc["schema"], "orchbee.cli.failure.agent");
+    validate(
+        &doc,
+        include_str!("../../src/cli/schemas/orchbee.cli.failure.agent.json"),
+    );
     assert!(
         !String::from_utf8(output.stdout)
             .unwrap()
