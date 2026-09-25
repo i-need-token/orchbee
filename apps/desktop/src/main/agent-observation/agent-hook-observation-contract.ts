@@ -18,6 +18,7 @@ const AgentHookAdapterIdSchema = z.enum([
 	'codex',
 	'grok',
 	'opencode',
+	'kilo',
 	'pi',
 	'omp',
 	'gemini',

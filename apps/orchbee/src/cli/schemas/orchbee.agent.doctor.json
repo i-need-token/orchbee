@@ -32,7 +32,7 @@
 				},
 				"providers": {
 					"type": "array",
-					"maxItems": 10,
+					"maxItems": 11,
 					"items": {
 						"$ref": "#/$defs/providerRow"
 					}
@@ -107,6 +107,7 @@
 				"grok",
 				"cline",
 				"opencode",
+				"kilo",
 				"pi",
 				"omp",
 				"qwen-code"

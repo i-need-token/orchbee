@@ -116,6 +116,24 @@ const REGISTRY = {
 		capabilities: ['sessionLifecycle', 'turnLifecycle', 'questions', 'approvals', 'activity'],
 		providerId: AgentProviderIdSchema.parse('opencode'),
 	},
+	kilo: {
+		acceptedEvents: new Set<AgentHookObservationEvent>([
+			'session-started',
+			'session-idle',
+			'turn-started',
+			'tool-started',
+			'tool-finished',
+			'tool-failed',
+			'question-requested',
+			'approval-requested',
+			'attention-resolved',
+			'turn-failed',
+			'session-ended',
+		]),
+		adapterId: 'kilo',
+		capabilities: ['sessionLifecycle', 'turnLifecycle', 'questions', 'approvals', 'activity'],
+		providerId: AgentProviderIdSchema.parse('kilo'),
+	},
 	pi: {
 		acceptedEvents: new Set<AgentHookObservationEvent>([
 			'session-started',

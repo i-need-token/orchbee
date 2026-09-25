@@ -24,6 +24,142 @@ const ompUrl = resourceUrl('omp/orchbee-agent-observation.mjs');
 const ompEntryUrl = resourceUrl('omp/orchbee-agent-observation.cjs');
 const clineUrl = resourceUrl('cline/orchbee-agent-observation.js');
 
+describe('OpenCode-family observation boundary', () => {
+	it('accepts real lifecycle versions and refuses conflicting or malformed identities', async () => {
+		const family = await import(resourceUrl('scripts/opencode-family-observation.mjs'));
+		for (const provider of ['opencode', 'kilo']) {
+			for (const properties of [
+				{ info: { id: 'session-1', title: 'PRIVATE_TITLE' } },
+				{ sessionID: 'session-1', info: { id: 'session-1' } },
+				{ sessionID: 'session-1' },
+			]) {
+				expect(
+					family.sanitizeOpenCodeFamilyEvent(provider, { type: 'session.created', properties }),
+				).toMatchObject({ event: 'session-started', sessionKey: 'session-1' });
+			}
+			for (const properties of [
+				{ sessionID: 'one', info: { id: 'two' } },
+				{ sessionID: null, info: { id: 'valid' } },
+				{ info: { id: 'bad/id' } },
+				{ sessionID: 'valid', info: {} },
+			]) {
+				expect(
+					family.sanitizeOpenCodeFamilyEvent(provider, { type: 'session.deleted', properties }),
+				).toBeNull();
+			}
+			expect(
+				family.sanitizeOpenCodeFamilyEvent(provider, {
+					type: 'session.idle',
+					properties: { info: { id: 'session-1' } },
+				}),
+			).toBeNull();
+		}
+	});
+
+	it('normalizes Kilo status and callback facts without content or permission decisions', async () => {
+		const family = await import(resourceUrl('scripts/opencode-family-observation.mjs'));
+		const results = [];
+		for (const [status, event] of [
+			[{ type: 'busy' }, 'turn-started'],
+			[{ type: 'retry' }, 'tool-started'],
+			[{ type: 'idle' }, 'session-idle'],
+			[
+				{ type: 'offline', requestID: 'question-1', message: 'PRIVATE_MESSAGE' },
+				'question-requested',
+			],
+			['streaming', 'turn-started'],
+			['idle', 'session-idle'],
+		] as const) {
+			const value = family.sanitizeOpenCodeFamilyEvent('kilo', {
+				type: 'session.status',
+				properties: { sessionID: 's', status },
+			});
+			expect(value).toMatchObject({ event, sessionKey: 's' });
+			results.push(value);
+		}
+		for (const status of ['offline', 'unknown', { type: 'offline', requestID: 'bad/id' }]) {
+			expect(
+				family.sanitizeOpenCodeFamilyEvent('kilo', {
+					type: 'session.status',
+					properties: { sessionID: 's', status },
+				}),
+			).toBeNull();
+		}
+		expect(
+			family.sanitizeOpenCodeFamilyEvent('opencode', {
+				type: 'session.status',
+				properties: { sessionID: 's', status: 'busy' },
+			}),
+		).toBeNull();
+		const sent: unknown[] = [];
+		const plugin = family.createOpenCodeObservation('kilo', {
+			send: async (id: string, value: unknown) => {
+				sent.push({ id, value });
+			},
+		});
+		const output = {
+			parts: ['PRIVATE_PROMPT'],
+			args: { command: 'PRIVATE_COMMAND' },
+			status: 'ask',
+		};
+		await plugin['chat.message']({ sessionID: 's' }, output);
+		await plugin['tool.execute.before']({ sessionID: 's', callID: 'call-1', tool: 'bash' }, output);
+		await plugin['tool.execute.after'](
+			{ sessionID: 's', callID: 'call-1', tool: 'bash', args: output.args },
+			output,
+		);
+		await vi.waitFor(() => expect(sent).toHaveLength(3));
+		expect(JSON.stringify({ results, sent })).not.toContain('PRIVATE');
+		expect(output).toEqual({
+			parts: ['PRIVATE_PROMPT'],
+			args: { command: 'PRIVATE_COMMAND' },
+			status: 'ask',
+		});
+		await plugin.dispose();
+	});
+
+	it('bounds pending delivery and stops at overflow or disposal without reopening a dropped lifecycle', async () => {
+		const family = await import(resourceUrl('scripts/opencode-family-observation.mjs'));
+		let release: () => void = () => {
+			throw new Error('fixture was not initialized');
+		};
+		const held = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const sent: string[] = [];
+		const plugin = family.createOpenCodeObservation('kilo', {
+			send: async (_id: string, value: { sessionKey: string }) => {
+				sent.push(value.sessionKey);
+				await held;
+			},
+		});
+		for (let index = 0; index < 65; index++) {
+			await plugin.event({
+				event: { type: 'session.created', properties: { sessionID: `session-${index}` } },
+			});
+		}
+		expect(sent).toEqual(['session-0']);
+		release();
+		await held;
+		await plugin.event({ event: { type: 'session.idle', properties: { sessionID: 'late' } } });
+		expect(sent).toEqual(['session-0']);
+		await plugin.dispose();
+		const delivered: string[] = [];
+		const next = family.createOpenCodeObservation('opencode', {
+			send: async (_id: string, value: { sessionKey: string }) => {
+				delivered.push(value.sessionKey);
+				if (value.sessionKey === 'first') throw new Error('transport failed');
+			},
+		});
+		for (const sessionID of ['first', 'second'])
+			await next.event({ event: { type: 'session.created', properties: { sessionID } } });
+		await vi.waitFor(() => expect(delivered).toEqual(['first', 'second']));
+		await next.dispose();
+		await next.event({ event: { type: 'session.deleted', properties: { sessionID: 'second' } } });
+		expect(delivered).toEqual(['first', 'second']);
+	});
+});
+
 describe('Agent observation adapter resources', () => {
 	it('emits only an allowlisted Claude Code envelope plus one hint per resolved TTY', async () => {
 		const transport = await import(transportUrl);
@@ -298,6 +434,7 @@ describe('Agent observation adapter resources', () => {
 								const runtimeAbsent = hook.command === 'node' && scenario === 'runtime-absent';
 								const shellRuntimeAbsent =
 									hook.command.startsWith('node -e ') && scenario === 'runtime-absent';
+								const shellStatus = shellRuntimeAbsent ? 127 : 0;
 								expect({
 									label,
 									status: result.status,
@@ -308,7 +445,7 @@ describe('Agent observation adapter resources', () => {
 									stdoutBytes: result.stdout?.length ?? 0,
 								}).toEqual({
 									label,
-									status: runtimeAbsent ? null : (shellRuntimeAbsent ? 127 : 0),
+									status: runtimeAbsent ? null : shellStatus,
 									signal: null,
 									hasError: runtimeAbsent,
 									errorCode: runtimeAbsent ? 'ENOENT' : null,

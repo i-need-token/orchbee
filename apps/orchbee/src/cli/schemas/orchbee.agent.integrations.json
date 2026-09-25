@@ -35,7 +35,7 @@
 				},
 				"integrations": {
 					"type": "array",
-					"maxItems": 10,
+					"maxItems": 11,
 					"items": {
 						"$ref": "#/$defs/item"
 					}
@@ -46,11 +46,11 @@
 				"inspectedCount": {
 					"type": "integer",
 					"minimum": 1,
-					"maximum": 10
+					"maximum": 11
 				},
 				"unresolvedProviderIds": {
 					"type": "array",
-					"maxItems": 10,
+					"maxItems": 11,
 					"uniqueItems": true,
 					"items": {
 						"$ref": "#/$defs/item/properties/integrationId"
@@ -58,7 +58,7 @@
 				},
 				"blockedProviderIds": {
 					"type": "array",
-					"maxItems": 10,
+					"maxItems": 11,
 					"uniqueItems": true,
 					"items": {
 						"$ref": "#/$defs/item/properties/integrationId"
@@ -79,6 +79,7 @@
 						"codex",
 						"grok",
 						"opencode",
+						"kilo",
 						"pi",
 						"omp",
 						"gemini",

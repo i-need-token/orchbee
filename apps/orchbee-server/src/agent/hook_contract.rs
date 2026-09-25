@@ -294,6 +294,7 @@ fn is_adapter_id(value: &str) -> bool {
             | "codex"
             | "grok"
             | "opencode"
+            | "kilo"
             | "pi"
             | "omp"
             | "gemini"
@@ -305,7 +306,7 @@ fn is_adapter_id(value: &str) -> bool {
 
 /// `resolveAgentHookAdapter(adapterId, event)` — the event-aware gate. Returns
 /// `None` for an unknown adapter id or an event the adapter does not accept.
-/// Registry ported verbatim from `resolveAgentHookAdapter.ts` (all ten
+/// Registry ported verbatim from `resolveAgentHookAdapter.ts` (all eleven
 /// adapters, per-event accepted sets, capabilities, provider ids).
 pub fn resolve_adapter(adapter_id: &str, event: HookObservationEvent) -> Option<AdapterDefinition> {
     use AgentCapability::{
@@ -390,7 +391,7 @@ pub fn resolve_adapter(adapter_id: &str, event: HookObservationEvent) -> Option<
                 ],
                 "grok",
             ),
-            "opencode" => (
+            "opencode" | "kilo" => (
                 &[
                     SessionStarted,
                     SessionIdle,
@@ -411,7 +412,7 @@ pub fn resolve_adapter(adapter_id: &str, event: HookObservationEvent) -> Option<
                     Approvals,
                     Activity,
                 ],
-                "opencode",
+                adapter_id,
             ),
             "pi" => (
                 &[

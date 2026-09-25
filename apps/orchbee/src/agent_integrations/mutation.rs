@@ -1220,7 +1220,8 @@ fn enable_vector(
             ]);
             run_sequence(&exe, &commands, context, reserve, attempted, effect)
         }
-        IntegrationId::Opencode
+        IntegrationId::Kilo
+        | IntegrationId::Opencode
         | IntegrationId::Pi
         | IntegrationId::Omp
         | IntegrationId::Gemini
@@ -1434,7 +1435,8 @@ fn disable_vector(
                 effect,
             )
         }
-        IntegrationId::Opencode
+        IntegrationId::Kilo
+        | IntegrationId::Opencode
         | IntegrationId::Pi
         | IntegrationId::Omp
         | IntegrationId::Gemini
@@ -2149,7 +2151,8 @@ pub(crate) fn plan_enable(
                 }
             }
         }
-        IntegrationId::Opencode
+        IntegrationId::Kilo
+        | IntegrationId::Opencode
         | IntegrationId::Pi
         | IntegrationId::Omp
         | IntegrationId::Gemini

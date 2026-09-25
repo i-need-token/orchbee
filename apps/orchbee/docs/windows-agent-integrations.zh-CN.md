@@ -23,12 +23,12 @@
 | 证据       | Windows 文件系统测试覆盖不可覆盖、Unicode 路径和重解析点拒绝；进程测试覆盖参数保真、输出上限、取消、超时和后代；隔离的公开 CLI 测试覆盖 Codex 接入与配置隔离。                                                             |
 | 限制       | Provider 认证、远端安装、付费 Agent 任务和 TUI 交互不在接入证据范围内。按用户要求不执行 TLA。审查为作者自身的对抗性复查，不是独立证据。                                                                                    |
 
-Windows 托管 Claude Code、Codex、Grok 和 GitHub Copilot hooks 以及既有 OpenCode、Pi、OMP JavaScript 模块。其他 provider
+Windows 托管 Claude Code、Codex、Grok 和 GitHub Copilot hooks 以及既有 OpenCode、Kilo、Pi、OMP JavaScript 模块。其他 provider
 在其 Windows hook 执行路径获得支持前保持 `manual-only`。检查与变更共享平台准入规则。
 
 OpenCode 使用 ESM 入口；Pi/OMP 安装的 CommonJS 引导模块动态导入 capsule 的 **ESM**
 入口，再调用具名注册函数。若导入其 CommonJS 包装器并查找同名导出，会静默跳过注册。
-模块细化在载荷 0.4.4 中保持既有引导行为。确定性的引导
+模块细化在载荷 0.4.5 中保持既有引导行为。确定性的引导
 文件字节与 file URL 仍为归属证明：被修改、外来或指向其他版本的条目会被拒绝，不覆盖。
 Windows doctor 从完整的 `bundle/<provider>/<entry>` 后缀推导 capsule 根目录，
 健康的已安装模块因此对照其 capsule manifest 检查，不再误查 bundle 目录。
@@ -58,7 +58,7 @@ Windows `agent integration list --outdated-only` 只执行一次原有有界本�
 
 ## Claude exec hooks
 
-Windows 也可使用 capsule 0.4.4 托管 Claude Code。Hook 声明使用 provider 的 `command` 加 `args` exec 形式：Node 将插件脚本路径作为原样参数接收，包括空格、单引号、Unicode、美元符和反引号。固定动态导入保护会忽略已删除的脚本；既有有界清洗器及 Windows 管道／控制台传输仍是唯一观察路径。不需要 Bash 或 PowerShell 启动器。Node 必须保留在 provider PATH 中；缺失时 Claude 报告其非阻塞启动诊断，不产生观察。这替代原先仅 Claude 无 Node 时仍静默成功的承诺。其他 provider 保留各自启动契约。[上游 exec 契约](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form) 定义参数替换。
+Windows 也可使用 capsule 0.4.5 托管 Claude Code。Hook 声明使用 provider 的 `command` 加 `args` exec 形式：Node 将插件脚本路径作为原样参数接收，包括空格、单引号、Unicode、美元符和反引号。固定动态导入保护会忽略已删除的脚本；既有有界清洗器及 Windows 管道／控制台传输仍是唯一观察路径。不需要 Bash 或 PowerShell 启动器。Node 必须保留在 provider PATH 中；缺失时 Claude 报告其非阻塞启动诊断，不产生观察。这替代原先仅 Claude 无 Node 时仍静默成功的承诺。其他 provider 保留各自启动契约。[上游 exec 契约](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form) 定义参数替换。
 
 启用、禁用和修复复用既有用户作用域插件命令及有界 Windows 进程所有者。旧版自有 capsule 需要显式修复；当前已启用条目为空操作，外部／更新版本条目仍拒绝。隔离 provider 命令及已发布 hook 见证覆盖配置和清洗后回传，不证明已认证 Claude 任务完成。共享可移植 hook 声明会变化，但本工作不增加 macOS/Linux 工作流或运行时验证。
 
@@ -66,7 +66,7 @@ Windows 也可使用 capsule 0.4.4 托管 Claude Code。Hook 声明使用 provid
 
 Windows 对齐已用官方 Copilot CLI 1.0.88 验证的插件契约：`plugin list --json` 返回平面数组，插件命令不再接受已移除的 `--kind` 或 `--plugin` 参数。单一固定命令所有者为检查、计划和执行提供参数。检查要求准确的 marketplace、本地安装来源、live 来源及载荷版本；外部、更新版本和格式错误的观察都不能授权修复。Unix adapter 保留原命令和解析契约，不推测性重试变更。
 
-Capsule 0.4.4 使用 Copilot 的 Node exec hook 形式。固定导入保护将 provider 的 COPILOT_PLUGIN_ROOT 环境变量作为路径读取，不进行 Shell 展开，并保留既有 PascalCase 事件输入契约。根目录或脚本缺失静默处理；Node 仍为前提。[插件参考](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference) 和 [hook 参考](https://docs.github.com/en/copilot/reference/hooks-reference) 拥有上游语义。既有本地变更期限、Job Object 回收、不可变发布、回执和无内容观察规则保持不变。受控安装和 hook 回传不证明已认证 Agent 任务完成。
+Capsule 0.4.5 使用 Copilot 的 Node exec hook 形式。固定导入保护将 provider 的 COPILOT_PLUGIN_ROOT 环境变量作为路径读取，不进行 Shell 展开，并保留既有 PascalCase 事件输入契约。根目录或脚本缺失静默处理；Node 仍为前提。[插件参考](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference) 和 [hook 参考](https://docs.github.com/en/copilot/reference/hooks-reference) 拥有上游语义。既有本地变更期限、Job Object 回收、不可变发布、回执和无内容观察规则保持不变。受控安装和 hook 回传不证明已认证 Agent 任务完成。
 
 即使 marketplace 根目录是旧版自有 capsule，Claude 或 Copilot 报告的更新插件版本仍会阻止 Windows 修复。版本数据缺失不能授权替换。
 
@@ -76,7 +76,7 @@ Windows Codex 和 Grok 检查在既有 512 KiB 读取上限内解析完整 UTF-8
 
 Grok 的已安装 JSON 清单不报告启用状态。Windows 将精确归属的 bundle 来源及版本与用户配置关联：非空 GROK_HOME 优先，否则使用 USERPROFILE/.grok。无效覆盖不回退。显式 disabled 条目优先；未列出的用户插件处于禁用状态。这是本地接入配置状态：项目／托管策略及已经运行的会话仍由 provider 管理。启用使用既有 install/trust 或 enable 命令；禁用仅移除来源已证实的插件。即使来源是旧的自有 capsule，报告更新版本的插件仍阻止修复。
 
-Capsule 0.4.4 将固定 Node 引导编码到 Grok 的纯命令 hook 声明中。用户路径和 hook 输入均不成为 Shell 源码。Node 读取 GROK_PLUGIN_ROOT，并通过 pathToFileURL 导入拼接脚本；根目录／脚本缺失静默处理，Node 则是前提。既有输入、事件、传输及 hook 时限保持不变。真实 PowerShell 5.1／7 用例在隔离配置中执行交付命令和重定向 JSON stdin；不代表已认证 Grok 任务或新增 macOS／Linux 流程。
+Capsule 0.4.5 将固定 Node 引导编码到 Grok 的纯命令 hook 声明中。用户路径和 hook 输入均不成为 Shell 源码。Node 读取 GROK_PLUGIN_ROOT，并通过 pathToFileURL 导入拼接脚本；根目录／脚本缺失静默处理，Node 则是前提。既有输入、事件、传输及 hook 时限保持不变。真实 PowerShell 5.1／7 用例在隔离配置中执行交付命令和重定向 JSON stdin；不代表已认证 Grok 任务或新增 macOS／Linux 流程。
 
 ## OpenCode 自动发现
 
@@ -84,4 +84,14 @@ Windows 将受保护的 OpenCode 引导安装为 `plugins/orchbee-agent-observat
 
 检查合并当前 .js 和废弃 .mjs 目标。外来、较新或不可读条目阻止变更；自有废弃条目要求修复。启用先发布并验证当前入口，再重新检查并移除废弃的自有入口。失败或取消保留已提交效果并报告回执，不以补偿为由删除可用的新入口。禁用对两个目标使用相同保护。Explain 从既有检查中报告受保护写入／移除，不再次读取。Doctor 检查可被发现的 .js 入口；仅有旧安装时在此报告缺失，集成查询则要求修复。既有上限及 no-replace 原语不变。隔离的官方 OpenCode 1.18.30 debug-config 用例确认自动发现；此证据不包括认证及付费 Agent 任务。
 
-Windows 普通模块检查按解码后的绝对 file URL 验证完整固定引导，再分类精确的 capsule 根目录及载荷相对后缀。旧的自有模块可以修复；较新模块拒绝降级；修改过的代码及外来根目录仍为冲突。16 KiB 读取器不导入引用模块。此规则适用于既有 OpenCode、Pi 和 OMP 模块所有者；Unix 检查不变。
+Windows 普通模块检查按解码后的绝对 file URL 验证完整固定引导，再分类精确的 capsule 根目录及载荷相对后缀。旧的自有模块可以修复；较新模块拒绝降级；修改过的代码及外来根目录仍为冲突。16 KiB 读取器不导入引用模块。此规则适用于既有 OpenCode、Kilo、Pi 和 OMP 模块所有者；Unix 检查不变。
+
+## Kilo Windows 集成与共享事件模型
+
+Kilo 是 Windows 原生托管集成，沿用 OpenCode 的受保护模块归属、版本方向、截止时间、取消和回执规则。可发现入口是非空绝对 KILO_CONFIG_DIR 下的 plugin/orchbee-agent-observation.js，否则使用 XDG_CONFIG_HOME/kilo，再否则使用 USERPROFILE/.config/kilo。显式根目录无效时拒绝且不回退；doctor 共用此解析。启用发布不可变 capsule 和精确标记的引导文件；禁用仅删除归属已证实的入口。不改变提供方命令、项目配置或认证。Kilo 在其他平台仍为手动管理。本地安装不会覆盖 KILO_PURE，也不代表已完成真实认证任务。
+
+共享 OpenCode 家族规范化器接收不可信的事件/回调对象，仅返回规范观察身份和枚举。创建/删除事件接受 sessionID 或旧版 info.id；提供的身份必须合法且一致。其他事件必须提供 sessionID。当前状态对象映射 busy/retry/idle；Kilo 还接受固定 Herdr 的旧版状态字符串，将 offline 请求映射为问题。聊天和工具回调从不检查或修改输出/参数。未知结构静默忽略。内容、路径、提示词、输出或权限决策均不跨过此边界。
+
+每个插件实例拥有最多 64 个待完成规范观察的 FIFO。发送串行、尽力而为，受现有传输边界约束。溢出后停止接收直到重新加载，并丢弃排队后缀；正在发送的一项可以完成。dispose 使用相同停止规则。不在丢失未知生命周期证据后恢复发送，也不伪造完成。传输失败静默处理，不阻断后续已接收发送。确定性测试覆盖规范化、身份歧义、顺序、溢出、失败和释放；真实 Node 引导文件/Windows 私有管道见证覆盖安装到发送。这些受控见证不证明已完成认证提供方任务。
+
+参考：[Kilo 插件 API](https://github.com/Kilo-Org/kilocode/blob/cb67014ffdb39ffe890e3a47a0a9c35c0e63538b/packages/plugin/src/index.ts)、[Kilo 全局路径](https://github.com/Kilo-Org/kilocode/blob/cb67014ffdb39ffe890e3a47a0a9c35c0e63538b/packages/core/src/global.ts)、[OpenCode 旧版生命周期](https://github.com/anomalyco/opencode/blob/v1.1.25/packages/opencode/src/session/index.ts)和 [OpenCode 当前生命周期](https://github.com/anomalyco/opencode/blob/v1.18.30/packages/schema/src/v1/session.ts)。Capsule 0.4.5 携带共享模块；规范观察注册表新增 Kilo，Desktop 引导安装保留自身提供方边界。

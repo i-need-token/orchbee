@@ -4,7 +4,8 @@
 //! CLI-local members `stale-side` (newer-sibling entries the CLI refuses to
 //! move in either direction) and `capsule-unsupported-version` (the payload's
 //! declared version exceeds the port's compiled support — distinct from the
-//! entry-level `unsupported-version`).
+//! entry-level `unsupported-version`). Kilo extends the native registry with
+//! Windows-only managed onboarding; Desktop management keeps its own registry.
 
 /// Canonical integration ids, in the registry's canonical order.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -13,6 +14,7 @@ pub(crate) enum IntegrationId {
     Codex,
     Grok,
     Opencode,
+    Kilo,
     Pi,
     Omp,
     Gemini,
@@ -22,11 +24,12 @@ pub(crate) enum IntegrationId {
 }
 
 impl IntegrationId {
-    pub(crate) const ALL: [Self; 10] = [
+    pub(crate) const ALL: [Self; 11] = [
         Self::ClaudeCode,
         Self::Codex,
         Self::Grok,
         Self::Opencode,
+        Self::Kilo,
         Self::Pi,
         Self::Omp,
         Self::Gemini,
@@ -41,6 +44,7 @@ impl IntegrationId {
             Self::Codex => "codex",
             Self::Grok => "grok",
             Self::Opencode => "opencode",
+            Self::Kilo => "kilo",
             Self::Pi => "pi",
             Self::Omp => "omp",
             Self::Gemini => "gemini",

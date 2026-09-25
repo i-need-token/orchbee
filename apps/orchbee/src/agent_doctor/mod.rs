@@ -26,6 +26,7 @@ pub(crate) const PROVIDER_IDS: &[&str] = &[
     "grok",
     "cline",
     "opencode",
+    "kilo",
     "pi",
     "omp",
     "qwen-code",
@@ -718,6 +719,11 @@ fn probe_bootstrap(
     let target = if provider.id == "opencode" {
         match crate::agent_configuration_windows::opencode_entries(home) {
             Some(paths) => paths.current,
+            None => return final_verdict(HookState::Unknown, HookReason::NotInspected),
+        }
+    } else if provider.id == "kilo" {
+        match crate::agent_configuration_windows::kilo_entry(home) {
+            Some(path) => path,
             None => return final_verdict(HookState::Unknown, HookReason::NotInspected),
         }
     } else {

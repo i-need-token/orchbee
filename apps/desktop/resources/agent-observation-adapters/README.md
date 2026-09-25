@@ -1,7 +1,7 @@
 # Agent observation adapters
 
-This packaged resource contains ten explicitly installed, provider-bound observation adapters for
-Claude Code, Codex, Grok, OpenCode, Pi, OMP, Gemini CLI, GitHub Copilot CLI, Cline, and Qwen Code.
+This packaged resource contains eleven explicitly installed, provider-bound observation adapters for
+Claude Code, Codex, Grok, OpenCode, Kilo, Pi, OMP, Gemini CLI, GitHub Copilot CLI, Cline, and Qwen Code.
 Each adapter validates its own upstream event contract and emits the same content-free normalized
 facts through Orchbee's shared local socket/pipe plus private-APC correlation transport. Desktop's closed
 registry, not an adapter payload, grants provider identity, accepted events, and maximum
@@ -34,7 +34,8 @@ enable/disable and start/prompt remain separate CLI obligations.
 | Claude Code        | Current documented hook/plugin contract | Command-hook plugin      | Session, Turn, tool, question, approval, compaction, subagent, completion, failure                           |
 | Codex              | `0.150.1` (Unix), `0.155.1` (Windows)   | Command-hook plugin      | Session, Turn, tool, question, approval, compaction, subagent, completion                                    |
 | Grok               | `1.0.5`                                 | Command-hook plugin      | Session, Turn, tool, approval, compaction, subagent, idle, completion, failure, cancellation, interruption   |
-| OpenCode           | `1.18.25`                               | JavaScript plugin events | Session, busy/retry/idle, tool, question, approval, error                                                    |
+| OpenCode           | `1.1.25`, `1.18.30`                               | JavaScript plugin events | Session, busy/retry/idle, tool, question, approval, error                                                    |
+| Kilo | `cb67014f` | JavaScript plugin events | Session, busy/retry/idle/offline question, chat, tool, question, approval, error |
 | Pi                 | `0.84.4`                                | Extension API            | Session, Agent start/settled, blocking UI prompt, tool, compaction                                           |
 | OMP                | `18.0.10`                               | Extension API            | Session, Agent start/end, Ask tool, tool approval, tool, compaction, retry                                   |
 | Gemini CLI         | `0.57.0`                                | Command-hook extension   | Session, Agent start/end, tool, question, permission, compaction, completion                                 |
@@ -263,8 +264,12 @@ This shared declaration allows native Windows onboarding without a shell depende
 
 ## Copilot direct execution
 
-Capsule 0.4.4 uses the [Copilot exec hook contract](https://docs.github.com/en/copilot/reference/hooks-reference) with Node. The fixed import guard reads COPILOT_PLUGIN_ROOT directly from the provider child environment, checks that it is absolute, and passes its joined script path through pathToFileURL. It emits no output when the root or script is absent. Node is a prerequisite; an unavailable executable is a provider launch error, not a delivered observation. PascalCase event names retain the documented VS Code compatible input fields used by the existing sanitizer. No shell interprets the path. Windows onboarding uses the separately verified current plugin command/JSON contract; shared payload compatibility does not promote Desktop CLI parity.
+Capsule 0.4.5 uses the [Copilot exec hook contract](https://docs.github.com/en/copilot/reference/hooks-reference) with Node. The fixed import guard reads COPILOT_PLUGIN_ROOT directly from the provider child environment, checks that it is absolute, and passes its joined script path through pathToFileURL. It emits no output when the root or script is absent. Node is a prerequisite; an unavailable executable is a provider launch error, not a delivered observation. PascalCase event names retain the documented VS Code compatible input fields used by the existing sanitizer. No shell interprets the path. Windows onboarding uses the separately verified current plugin command/JSON contract; shared payload compatibility does not promote Desktop CLI parity.
 
 ### Grok command bootstrap
 
-Capsule 0.4.4 keeps Grok's command-only hook contract with a fixed base64-encoded Node bootstrap. The decoded code reads GROK_PLUGIN_ROOT as data, sets the literal script/provider arguments, and performs a guarded dynamic import; it never inserts a user path into shell syntax. PowerShell 5.1/7 preserve redirected JSON stdin through this command. Node is a prerequisite; missing Node is a provider command error, while missing roots/scripts remain silent. Grok's existing camelCase event inputs, sanitizer, deadlines and observation transport are unchanged. The encoding protects shell quoting, not secrets. Windows local installation state is read separately from the provider-owned TOML configuration; it does not establish effective project policy or an active session's reload.
+Capsule 0.4.5 keeps Grok's command-only hook contract with a fixed base64-encoded Node bootstrap. The decoded code reads GROK_PLUGIN_ROOT as data, sets the literal script/provider arguments, and performs a guarded dynamic import; it never inserts a user path into shell syntax. PowerShell 5.1/7 preserve redirected JSON stdin through this command. Node is a prerequisite; missing Node is a provider command error, while missing roots/scripts remain silent. Grok's existing camelCase event inputs, sanitizer, deadlines and observation transport are unchanged. The encoding protects shell quoting, not secrets. Windows local installation state is read separately from the provider-owned TOML configuration; it does not establish effective project policy or an active session's reload.
+
+## OpenCode-family Windows onboarding
+
+Capsule 0.4.5 adds Kilo and shares its event normalizer with OpenCode. The shared factory admits lifecycle identities from sessionID or legacy info.id, rejecting disagreement. Callback arguments and outputs remain private. Delivery retains at most 64 outstanding sanitized events, in order; overflow/dispose stops new admission and drops the queued suffix until reload, while an in-flight send may finish. Transport failures are silent. Windows native onboarding installs discoverable .js bootstraps and preserves foreign/newer entries. See the [owning Windows model](../../../orchbee/docs/windows-agent-integrations.md#kilo-windows-integration-and-shared-event-model) for paths, transitions and evidence. Desktop onboarding retains its separate provider registry.

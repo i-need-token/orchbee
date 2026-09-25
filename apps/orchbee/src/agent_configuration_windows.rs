@@ -24,3 +24,16 @@ pub(crate) fn opencode_entries(home: &Path) -> Option<OpenCodeEntries> {
         obsolete: root.join("orchbee-agent-observation.mjs"),
     })
 }
+
+/// Kilo's explicit configuration directory supersedes its XDG default.
+pub(crate) fn kilo_entry(home: &Path) -> Option<PathBuf> {
+    let root = if let Some(value) = std::env::var_os("KILO_CONFIG_DIR").filter(|v| !v.is_empty()) {
+        PathBuf::from(value)
+    } else if let Some(value) = std::env::var_os("XDG_CONFIG_HOME").filter(|v| !v.is_empty()) {
+        PathBuf::from(value).join("kilo")
+    } else {
+        home.join(".config/kilo")
+    };
+    root.is_absolute()
+        .then(|| root.join("plugin/orchbee-agent-observation.js"))
+}

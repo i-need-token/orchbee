@@ -7,7 +7,7 @@ import { createServer } from 'node:net';
 import { pathToFileURL } from 'node:url';
 
 const [provider, entry] = process.argv.slice(2);
-assert.ok(['opencode', 'pi', 'omp'].includes(provider));
+assert.ok(['opencode', 'kilo', 'pi', 'omp'].includes(provider));
 assert.equal(typeof entry, 'string');
 const pipe = String.raw`\\.\pipe\orchbee-${randomBytes(16).toString('hex')}-observation`;
 process.env.ORCHBEE_AGENT_OBSERVATION_SOCKET_V3 = pipe;
@@ -53,10 +53,10 @@ await new Promise((resolve, reject) => {
 const timer = setTimeout(() => delivered.reject(new Error('module events timed out')), 5000);
 try {
 	const loaded = await import(pathToFileURL(entry).href);
-	if (provider === 'opencode') {
+	if (provider === 'opencode' || provider === 'kilo') {
 		const plugin = await loaded.OrchbeeAgentObservation();
 		for (const event of [
-			{ type: 'session.created', properties: { sessionID: 'module-session' } },
+			{ type: 'session.created', properties: { info: { id: 'module-session' } } },
 			{
 				type: 'session.status',
 				properties: { sessionID: 'module-session', status: { type: 'busy' } },
@@ -65,7 +65,10 @@ try {
 				type: 'session.status',
 				properties: { sessionID: 'module-session', status: { type: 'idle' } },
 			},
-			{ type: 'session.deleted', properties: { sessionID: 'module-session' } },
+			{
+				type: 'session.deleted',
+				properties: { sessionID: 'module-session', info: { id: 'module-session' } },
+			},
 		])
 			await plugin.event({ event });
 	} else {

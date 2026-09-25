@@ -17,7 +17,7 @@ pub(crate) const SUPPORTED_CONTRACT_VERSION: u64 = 3;
 
 /// The capsule payload version the manifest contract requires —
 /// `AGENT_OBSERVATION_CAPSULE_VERSION`.
-pub(crate) const CAPSULE_PAYLOAD_VERSION: &str = "0.4.4";
+pub(crate) const CAPSULE_PAYLOAD_VERSION: &str = "0.4.5";
 
 // ---------------------------------------------------------------------------
 // Provider binding table — the literals of
@@ -69,7 +69,7 @@ const OPENCODE_BODY: &[u8] = b"export async function OrchbeeAgentObservation(...
 
 const CJS_BODY: &[u8] = b"module.exports = async function orchbeeAgentObservation(api) {\n\ttry {\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\tif (typeof loaded.orchbeeAgentObservation === 'function') {\n\t\t\tawait loaded.orchbeeAgentObservation(api);\n\t\t}\n\t} catch {}\n};\n";
 
-/// The ten canonical providers, in canonical order.
+/// The native diagnostic providers, in canonical order.
 pub(crate) const PROVIDERS: &[Provider] = &[
     Provider {
         id: "claude-code",
@@ -145,6 +145,18 @@ pub(crate) const PROVIDERS: &[Provider] = &[
             } else {
                 "/opencode/orchbee-agent-observation.mjs"
             },
+            body: OPENCODE_BODY,
+        }),
+        manual_command: None,
+    },
+    Provider {
+        id: "kilo",
+        executable: "kilo",
+        kind: ProbeKind::Bootstrap,
+        node_applicable: false,
+        home_target: ".config/kilo/plugin/orchbee-agent-observation.js",
+        bootstrap: Some(BootstrapShape {
+            suffix: "/bundle/kilo/orchbee-agent-observation.mjs",
             body: OPENCODE_BODY,
         }),
         manual_command: None,
@@ -976,7 +988,7 @@ pub(crate) fn parse_cline_package(bytes: &[u8]) -> ClinePackage {
 // ---------------------------------------------------------------------------
 
 /// The strict capsule manifest check: exactly the three declared keys,
-/// `contractVersion === 3`, `payloadVersion === "0.4.4"`, and a lowercase
+/// `contractVersion === 3`, `payloadVersion === "0.4.5"`, and a lowercase
 /// `payloadSha256` — plus the declared values carried for detail.
 #[derive(Clone, Debug)]
 pub(crate) struct CapsuleManifestScan {

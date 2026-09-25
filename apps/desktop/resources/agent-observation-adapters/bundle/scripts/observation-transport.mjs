@@ -25,6 +25,7 @@ const ADAPTER_IDS = new Set([
 	'codex',
 	'grok',
 	'opencode',
+	'kilo',
 	'pi',
 	'omp',
 	'gemini',

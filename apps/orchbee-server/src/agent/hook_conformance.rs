@@ -473,3 +473,31 @@ fn test_envelope(sequence: u64, _now: f64) -> Value {
         "version": 3,
     })
 }
+
+#[test]
+fn kilo_hook_boundary_matches_opencode_with_distinct_provider() {
+    use super::hook_contract::{HookObservationEvent, resolve_adapter};
+    let mut envelope = test_envelope(0, 0.0);
+    envelope["adapterId"] = json!("kilo");
+    assert!(parse_envelope(&envelope).is_some());
+    for event in [
+        HookObservationEvent::SessionStarted,
+        HookObservationEvent::SessionIdle,
+        HookObservationEvent::TurnStarted,
+        HookObservationEvent::ToolStarted,
+        HookObservationEvent::ToolFinished,
+        HookObservationEvent::ToolFailed,
+        HookObservationEvent::QuestionRequested,
+        HookObservationEvent::ApprovalRequested,
+        HookObservationEvent::AttentionResolved,
+        HookObservationEvent::TurnFailed,
+        HookObservationEvent::SessionEnded,
+    ] {
+        let kilo = resolve_adapter("kilo", event).unwrap();
+        let opencode = resolve_adapter("opencode", event).unwrap();
+        assert_eq!(kilo.provider_id, "kilo");
+        assert_eq!(kilo.adapter_id, "kilo");
+        assert_eq!(kilo.capabilities, opencode.capabilities);
+    }
+    assert!(resolve_adapter("kilo", HookObservationEvent::SubagentStarted).is_none());
+}

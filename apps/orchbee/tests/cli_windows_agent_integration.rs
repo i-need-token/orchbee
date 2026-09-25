@@ -46,7 +46,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         (
             String::from_utf8(bytes.clone())
                 .unwrap()
-                .replace("/0.4.4/", "/9.0.0/"),
+                .replace("/0.4.5/", "/9.0.0/"),
             "stale-side",
         ),
     ] {
@@ -61,7 +61,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         &obsolete,
         String::from_utf8(bytes.clone())
             .unwrap()
-            .replace("/0.4.4/", "/0.4.2/"),
+            .replace("/0.4.5/", "/0.4.2/"),
     )
     .unwrap();
     assert_eq!(inspect("explain")["result"]["state"], "update-required");
@@ -127,6 +127,76 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
 }
 
 #[test]
+fn kilo_uses_explicit_config_before_xdg_without_invalid_fallback() {
+    let fixture = Fixture::new();
+    fs::write(fixture.0.join("bin/kilo.cmd"), "@exit /b 99\r\n").unwrap();
+    let xdg = fixture.0.join("Kilo XDG");
+    let explicit = fixture.0.join("Kilo explicit");
+    for use_explicit in [false, true] {
+        let configure = |command: &mut Command| {
+            command.env("XDG_CONFIG_HOME", &xdg);
+            if use_explicit {
+                command.env("KILO_CONFIG_DIR", &explicit);
+            }
+        };
+        let target = if use_explicit {
+            explicit.clone()
+        } else {
+            xdg.join("kilo")
+        }
+        .join("plugin/orchbee-agent-observation.js");
+        let mut command = fixture.command("enable", "kilo", &fixture.config_home(), &[]);
+        configure(&mut command);
+        let output = command.output().unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        assert!(target.is_file());
+        assert!(
+            !fixture
+                .home()
+                .join(".config/kilo/plugin/orchbee-agent-observation.js")
+                .exists()
+        );
+        let bytes = fs::read(&target).unwrap();
+        let mut doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"));
+        doctor
+            .args(["agent", "doctor", "--provider", "kilo", "--format", "json"])
+            .env("USERPROFILE", fixture.home())
+            .env_remove("KILO_CONFIG_DIR")
+            .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET_V3")
+            .stdin(Stdio::null());
+        configure(&mut doctor);
+        let document: Value = serde_json::from_slice(&doctor.output().unwrap().stdout).unwrap();
+        assert_eq!(
+            document["result"]["providers"][0]["hook"]["state"], "present",
+            "{document}"
+        );
+        let output = fixture
+            .command("enable", "kilo", &fixture.config_home(), &[])
+            .env("XDG_CONFIG_HOME", &xdg)
+            .env("KILO_CONFIG_DIR", "relative-invalid")
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(9));
+        assert_eq!(fs::read(&target).unwrap(), bytes);
+        let mut command = fixture.command("disable", "kilo", &fixture.config_home(), &[]);
+        configure(&mut command);
+        assert!(command.output().unwrap().status.success());
+        assert!(!target.exists());
+    }
+    let output = fixture
+        .command("enable", "kilo", &fixture.config_home(), &[])
+        .env("XDG_CONFIG_HOME", "relative-invalid")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(9));
+    assert!(fixture.calls().is_empty());
+}
+
+#[test]
 fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() {
     use std::os::windows::process::CommandExt;
     let fixture = Fixture::new();
@@ -173,7 +243,7 @@ fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() 
         (fixture.capsule().join("bundle"), Value::Null, "unknown", 9),
         (
             fixture.0.join("foreign/bundle"),
-            Value::from("0.4.4"),
+            Value::from("0.4.5"),
             "conflict",
             3,
         ),
@@ -313,7 +383,7 @@ impl Fixture {
     }
     fn capsule(&self) -> PathBuf {
         self.home()
-            .join(".orchbee/agent-observation-adapters/0.4.4")
+            .join(".orchbee/agent-observation-adapters/0.4.5")
     }
     fn run(&self, verb: &str, provider: &str, config_home: &Path) -> Output {
         self.run_options(verb, provider, config_home, &[])
@@ -345,6 +415,7 @@ impl Fixture {
             .arg(self.assets())
             .args(extra)
             .env_remove("XDG_CONFIG_HOME")
+            .env_remove("KILO_CONFIG_DIR")
             .env("USERPROFILE", self.home())
             .env("HOME", self.0.join("wrong-posix-home"))
             .env("CODEX_HOME", config_home)
@@ -559,7 +630,7 @@ fn claude_repairs_owned_old_installations_and_preserves_foreign_or_newer_sources
         "enabled"
     );
     for (source, version, expected) in [
-        (fixture.0.join("foreign"), "0.4.4", "conflict"),
+        (fixture.0.join("foreign"), "0.4.5", "conflict"),
         (
             fixture.capsule().parent().unwrap().join("9.0.0"),
             "9.0.0",
@@ -599,6 +670,7 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
             "opencode",
             ".config/opencode/plugins/orchbee-agent-observation.js",
         ),
+        ("kilo", ".config/kilo/plugin/orchbee-agent-observation.js"),
         ("pi", ".pi/agent/extensions/orchbee-agent-observation.cjs"),
         ("omp", ".omp/agent/extensions/orchbee-agent-observation.cjs"),
     ] {
@@ -653,6 +725,7 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
             ])
             .env("USERPROFILE", fixture.home())
             .env_remove("XDG_CONFIG_HOME")
+            .env_remove("KILO_CONFIG_DIR")
             .env(
                 "PATH",
                 std::env::join_paths([fixture.0.join("bin"), node.parent().unwrap().to_path_buf()])
@@ -670,7 +743,7 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
 
         let old = String::from_utf8(original.clone())
             .unwrap()
-            .replace("/0.4.4/", "/0.4.2/");
+            .replace("/0.4.5/", "/0.4.2/");
         fs::write(&target, old).unwrap();
         assert_eq!(
             fixture.provider_document("explain", provider, 0)["result"]["state"],

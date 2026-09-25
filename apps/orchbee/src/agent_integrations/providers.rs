@@ -1,4 +1,4 @@
-//! The ten-provider registry and the canonical inspection orchestration.
+//! The native provider registry and the canonical inspection orchestration.
 //! Per-provider behavior is the verbatim port of the Desktop adapters'
 //! `inspect()` paths — including which providers gate their state on the
 //! executable being resolvable (the CLI-command adapters) and which inspect
@@ -124,6 +124,16 @@ const fn spec(id: IntegrationId) -> Spec {
             executable: "opencode",
             inspect_slots: 0,
         },
+        IntegrationId::Kilo => Spec {
+            kind: Kind::Guarded(GuardedSpec {
+                kind: BootstrapKind::Opencode,
+                source_relative: "bundle/kilo/orchbee-agent-observation.mjs",
+                target_relative: ".config/kilo/plugin/orchbee-agent-observation.js",
+                runtime_relative: None,
+            }),
+            executable: "kilo",
+            inspect_slots: 0,
+        },
         IntegrationId::Pi => Spec {
             kind: Kind::Guarded(GuardedSpec {
                 kind: BootstrapKind::Pi,
@@ -194,6 +204,9 @@ pub(crate) fn inspect_slots(id: IntegrationId) -> usize {
 /// One platform admission rule for both plans and effects. The JS module
 /// entries use the existing Windows pipe/console transport without a shell.
 pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode) -> ManagementMode {
+    if !cfg!(windows) && matches!(id, IntegrationId::Kilo) {
+        return ManagementMode::ManualOnly;
+    }
     if cfg!(windows)
         && !matches!(
             id,
@@ -201,6 +214,7 @@ pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode)
                 | IntegrationId::Grok
                 | IntegrationId::Codex
                 | IntegrationId::Opencode
+                | IntegrationId::Kilo
                 | IntegrationId::Pi
                 | IntegrationId::Omp
                 | IntegrationId::GitHubCopilot
@@ -247,6 +261,11 @@ pub(crate) fn guarded_target(id: IntegrationId, spec: GuardedSpec, home: &Path) 
         } else {
             paths.current
         };
+        return super::files::path_admitted(&target).then_some(target);
+    }
+    #[cfg(windows)]
+    if id == IntegrationId::Kilo {
+        let target = crate::agent_configuration_windows::kilo_entry(home)?;
         return super::files::path_admitted(&target).then_some(target);
     }
     let _ = id;

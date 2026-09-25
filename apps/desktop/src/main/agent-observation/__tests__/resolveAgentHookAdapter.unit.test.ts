@@ -20,6 +20,10 @@ describe('resolveAgentHookAdapter', () => {
 		expect(resolveAgentHookAdapter('github-copilot', 'approval-requested')).toMatchObject({
 			providerId: 'github-copilot',
 		});
+		expect(resolveAgentHookAdapter('kilo', 'question-requested')).toMatchObject({
+			providerId: 'kilo',
+		});
+		expect(resolveAgentHookAdapter('kilo', 'subagent-started')).toBeNull();
 		expect(resolveAgentHookAdapter('cline', 'approval-requested')).toBeNull();
 		expect(resolveAgentHookAdapter('qwen-code', 'subagent-started')).toMatchObject({
 			providerId: 'qwen-code',
