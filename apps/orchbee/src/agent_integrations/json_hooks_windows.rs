@@ -235,7 +235,7 @@ mod tests {
     #[test]
     fn raw_user_values_survive_enable_repair_and_disable() {
         let input = br#"{"large":123456789012345678901234567890,"nested":{"future":1e999,"duplicate":1,"duplicate":2},"hooks":{"stop":[{"command":"echo user"}],"sessionStart":[{"command":"echo before"}]}}"#;
-        let root = Path::new(r"C:\Users\用户 & ' $ `\.orchbee\agent-observation-adapters\0.4.7");
+        let root = Path::new(r"C:\Users\用户 & ' $ `\.orchbee\agent-observation-adapters\0.4.8");
         let installed = patch(Some(input), root, true).unwrap();
         assert!(matches!(scan_json_hooks(&installed), JsonHookScan::Owned(found) if found == root));
         let repaired = patch(Some(&installed), root, true).unwrap();
@@ -264,7 +264,7 @@ mod tests {
                 JsonHookScan::Malformed
             ));
         }
-        let root = Path::new(r"C:\owned\0.4.7");
+        let root = Path::new(r"C:\owned\0.4.8");
         let bytes = patch(None, root, true).unwrap();
         let mut doc: Value = serde_json::from_slice(&bytes).unwrap();
         doc["hooks"]["sessionStart"][0]["timeout"] = json!(99);

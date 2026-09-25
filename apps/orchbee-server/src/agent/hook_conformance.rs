@@ -509,11 +509,18 @@ fn cursor_hook_boundary_accepts_only_session_identity() {
     envelope["adapterId"] = json!("cursor");
     assert!(parse_envelope(&envelope).is_some());
     assert_eq!(
-        resolve_adapter("cursor", HookObservationEvent::SessionStarted)
+        resolve_adapter("cursor", HookObservationEvent::SessionIdentified)
             .unwrap()
             .provider_id,
         "cursor"
     );
+    envelope["observation"]["event"] = json!("session-identified");
+    assert!(parse_envelope(&envelope).is_some());
+    assert_eq!(
+        resolve_adapter("cursor", HookObservationEvent::SessionStarted),
+        resolve_adapter("cursor", HookObservationEvent::SessionIdentified)
+    );
+    assert!(resolve_adapter("codex", HookObservationEvent::SessionIdentified).is_none());
     for event in [
         HookObservationEvent::TurnStarted,
         HookObservationEvent::SessionIdle,

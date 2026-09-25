@@ -37,7 +37,10 @@ describe('OpenCode-family observation boundary', () => {
 			cwd: 'PRIVATE_PATH',
 		};
 		const observation = sanitizers.sanitizeAgentHookInput('cursor', input);
-		expect(observation).toMatchObject({ event: 'session-started', sessionKey: 'cursor-session' });
+		expect(observation).toMatchObject({
+			event: 'session-identified',
+			sessionKey: 'cursor-session',
+		});
 		expect(JSON.stringify(observation)).not.toContain('PRIVATE_');
 		for (const changed of [
 			{ conversation_id: 'another-session' },

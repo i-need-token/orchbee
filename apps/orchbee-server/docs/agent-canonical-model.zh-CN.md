@@ -472,4 +472,4 @@ names 家族还接受 `{kind:"presentation", presentationId}`。解析、分配�
 
 冻结语料保留原始源码指纹。新增 Kilo 注册表边界由 `kilo_hook_boundary_matches_opencode_with_distinct_provider` 和 Desktop 适配器注册表测试单独检查；不将历史语料改标为已重新生成。
 
-Cursor 增加原生和 Desktop 边界的直接证据，仅支持 session-started 身份；历史语料指纹不变。它授予 sessionLifecycle，不声明回合、活动或权限能力。
+Cursor 增加原生和 Desktop 边界的直接证据，仅支持 session-identified（及旧版 session-started）身份；历史语料指纹不变。它授予 sessionLifecycle，不声明回合、活动或权限能力。

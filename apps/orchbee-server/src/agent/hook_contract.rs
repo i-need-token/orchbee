@@ -20,6 +20,7 @@ const HOOK_IDENTITY_MAX: usize = 128;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum HookObservationEvent {
+    SessionIdentified,
     SessionStarted,
     SessionIdle,
     TurnStarted,
@@ -44,6 +45,7 @@ impl HookObservationEvent {
     #[cfg(test)]
     pub fn as_str(self) -> &'static str {
         match self {
+            Self::SessionIdentified => "session-identified",
             Self::SessionStarted => "session-started",
             Self::SessionIdle => "session-idle",
             Self::TurnStarted => "turn-started",
@@ -67,6 +69,7 @@ impl HookObservationEvent {
 
     fn parse(value: &str) -> Option<Self> {
         Some(match value {
+            "session-identified" => Self::SessionIdentified,
             "session-started" => Self::SessionStarted,
             "session-idle" => Self::SessionIdle,
             "turn-started" => Self::TurnStarted,
@@ -325,7 +328,11 @@ pub fn resolve_adapter(adapter_id: &str, event: HookObservationEvent) -> Option<
     const CAP_TURN_QA: &[AgentCapability] = &[TurnLifecycle, Questions, Activity];
     let (accepted, capabilities, provider_id): (&[HookObservationEvent], &[AgentCapability], &str) =
         match adapter_id {
-            "cursor" => (&[SessionStarted], &[SessionLifecycle], "cursor"),
+            "cursor" => (
+                &[SessionIdentified, SessionStarted],
+                &[SessionLifecycle],
+                "cursor",
+            ),
             "claude-code" => (
                 &[
                     SessionStarted,

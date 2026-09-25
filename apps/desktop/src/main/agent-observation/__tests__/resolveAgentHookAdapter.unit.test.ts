@@ -4,11 +4,15 @@ import { resolveAgentHookAdapter } from '../resolveAgentHookAdapter';
 
 describe('resolveAgentHookAdapter', () => {
 	it('limits Cursor to its evidenced session identity hook', () => {
-		expect(resolveAgentHookAdapter('cursor', 'session-started')).toEqual({
+		expect(resolveAgentHookAdapter('cursor', 'session-identified')).toEqual({
 			adapterId: 'cursor',
 			capabilities: ['sessionLifecycle'],
 			providerId: 'cursor',
 		});
+		expect(resolveAgentHookAdapter('cursor', 'session-started')).toEqual(
+			resolveAgentHookAdapter('cursor', 'session-identified'),
+		);
+		expect(resolveAgentHookAdapter('codex', 'session-identified')).toBeNull();
 		for (const event of [
 			'turn-started',
 			'turn-stopped',

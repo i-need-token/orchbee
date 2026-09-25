@@ -304,8 +304,11 @@ export class AgentHookObservationIngress {
 		this.#attachPresentations(binding, attachments);
 		const eventId = this.#externalEventId(adapter.adapterId, externalEventId);
 		switch (observation.event) {
+			case 'session-identified':
+				break;
 			case 'session-started':
-				this.#observeIdle(binding);
+				// Capsule 0.4.7 Cursor hooks carry identity only.
+				if (adapter.adapterId !== 'cursor') this.#observeIdle(binding);
 				break;
 			case 'session-idle':
 				if (!this.#acceptTurnScopedObservation(binding, observation.turnKey)) break;

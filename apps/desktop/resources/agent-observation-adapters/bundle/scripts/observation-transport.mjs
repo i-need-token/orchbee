@@ -45,6 +45,7 @@ const ACTIVITIES = new Set([
 	'other',
 ]);
 const EVENTS = new Set([
+	'session-identified',
 	'session-started',
 	'session-idle',
 	'turn-started',

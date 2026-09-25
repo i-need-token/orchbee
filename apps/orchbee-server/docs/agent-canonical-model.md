@@ -568,4 +568,4 @@ Only accepted launch Complete creates active state. Manual naming cannot establi
 
 The frozen corpora retain their original source fingerprints. The additive Kilo registry boundary is checked separately by `kilo_hook_boundary_matches_opencode_with_distinct_provider` and the Desktop adapter registry tests; this does not relabel the historical corpus as regenerated.
 
-Cursor adds a direct native and Desktop boundary witness for session-started identity only; historical corpus fingerprints remain unchanged. It grants sessionLifecycle without turn, activity or permission claims.
+Cursor adds a direct native and Desktop boundary witness for session-identified (and legacy session-started) identity only; historical corpus fingerprints remain unchanged. It grants sessionLifecycle without turn, activity or permission claims.

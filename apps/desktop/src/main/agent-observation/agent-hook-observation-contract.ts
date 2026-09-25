@@ -29,6 +29,7 @@ const AgentHookAdapterIdSchema = z.enum([
 ]);
 
 const AgentHookObservationEventSchema = z.enum([
+	'session-identified',
 	'session-started',
 	'session-idle',
 	'turn-started',

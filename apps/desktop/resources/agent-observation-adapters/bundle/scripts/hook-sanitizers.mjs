@@ -35,7 +35,7 @@ export function sanitizeCursorHook(value) {
 	if (supplied.length === 0) return null;
 	const sessionKey = identity(supplied[0]);
 	if (sessionKey === null || supplied.some((entry) => identity(entry) !== sessionKey)) return null;
-	return observation(sessionKey, 'session-started');
+	return observation(sessionKey, 'session-identified');
 }
 
 export function sanitizeClaudeCodeHook(value) {

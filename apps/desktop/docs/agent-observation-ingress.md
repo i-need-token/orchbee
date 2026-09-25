@@ -123,6 +123,22 @@ packaged resolver declares `hidden` only from positive inner-mux evidence and ot
 
 ## Bounds and timing
 
+Identity-only hooks use `session-identified`. After the normal strict envelope, provider event gate
+and exact presentation join, the translator ensures the session and attaches presentations, then
+performs no turn, activity, request or outcome transition. A new session retains its `unknown`
+turn; repeated identity preserves any known state. The canonical runtime owns all such state.
+Cursor emits this event; its legacy `session-started` from capsule `0.4.7` has the same identity-only
+meaning. Other providers retain their existing `session-started` behavior and do not gain admission
+to the new event. Identity never proves readiness or process liveness.
+
+Capsule `0.4.8` ships with matching native and Desktop receivers. Older receivers reject the new
+event without acknowledgment. Cohort rollback restores prior semantics; there is no durable-state
+migration. Direct boundary and native ingress tests cover new/legacy identity, unknown state,
+repetition and unrelated-provider rejection. Translator tests additionally preserve active turns,
+pending requests and outcomes through synthetic adapter input; they are not public admission
+evidence. Historical corpus fingerprints remain unchanged. Authenticated provider execution and
+full Windows workflow acceptance are separate evidence obligations.
+
 Production admits at most 512 pending rich events and 1,024 pending hints. Each half has a 10-second
 join lifetime. The first valid partial match schedules settlement after 25 milliseconds. An applied
 event remains pending until join expiry and then remains replay-fenced for another 60 seconds.

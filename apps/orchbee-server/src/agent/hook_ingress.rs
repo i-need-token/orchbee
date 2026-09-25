@@ -348,7 +348,13 @@ impl AgentHookObservationIngress {
         self.attach_presentations(runtime, &binding_key, &attachments);
         let event_id = external_event_id_for(&adapter.adapter_id, external_event_id);
         match observation.event {
-            HookObservationEvent::SessionStarted => self.observe_idle(runtime, &binding_key),
+            HookObservationEvent::SessionIdentified => {}
+            HookObservationEvent::SessionStarted => {
+                // Capsule 0.4.7 Cursor hooks carry identity only.
+                if adapter.adapter_id != "cursor" {
+                    self.observe_idle(runtime, &binding_key);
+                }
+            }
             HookObservationEvent::SessionIdle => {
                 if !self.accept_turn_scoped(&binding_key, &observation.turn_key) {
                     return;
@@ -1361,4 +1367,102 @@ fn clock_adapter_envelope_body() -> Vec<u8> {
     })
     .to_string()
     .into_bytes()
+}
+
+#[test]
+fn cursor_identity_join_does_not_infer_idle_for_current_or_legacy_payload() {
+    for event in ["session-identified", "session-started"] {
+        let mut runtime = AgentRuntime::new();
+        let mut ingress = AgentHookObservationIngress::new(None, JoinOptions::default());
+        seed_clock_adapter_hint(&mut ingress, &mut runtime, 0.0);
+        let mut envelope: Value = serde_json::from_slice(&clock_adapter_envelope_body()).unwrap();
+        envelope["adapterId"] = Value::from("cursor");
+        envelope["observation"]["event"] = Value::from(event);
+        envelope["correlations"].as_array_mut().unwrap().truncate(1);
+        let body = serde_json::to_vec(&envelope).unwrap();
+        assert!(ingress.admit_envelope(&mut runtime, &body, 0.0));
+        let snapshot = ingress.snapshot_json(&runtime);
+        assert_eq!(snapshot["sessions"][0]["turn"]["kind"], "unknown");
+        assert_eq!(runtime.snapshot().sessions.len(), 1);
+        assert_eq!(
+            runtime.snapshot().sessions[0]
+                .presentation_attachments
+                .len(),
+            1
+        );
+        assert!(ingress.admit_envelope(&mut runtime, &body, 0.0));
+        assert_eq!(ingress.snapshot_json(&runtime), snapshot);
+        envelope["eventId"] = Value::from("event-0000000000000002");
+        envelope["correlations"][0]["correlationId"] = Value::from("correlation-0000000000000002");
+        assert!(ingress.admit_envelope(&mut runtime, &serde_json::to_vec(&envelope).unwrap(), 0.0));
+        ingress.observe_terminal_application_signal(
+            &mut runtime,
+            r#"{"correlationId":"correlation-0000000000000002","eventId":"event-0000000000000002","kind":"correlation","version":3}"#,
+            format!("{:032x}", 1u8),
+            "desktop:presentation:c1".to_owned(),
+            0.0,
+        );
+        assert_eq!(ingress.snapshot_json(&runtime), snapshot);
+    }
+}
+
+// Translator-only seam: capabilities are synthetic. Public Cursor admission
+// continues to reject turn/request events; the test does not widen that gate.
+#[test]
+fn identity_translation_preserves_active_blocked_and_completed_state() {
+    use super::hook_contract::{HookObservation, resolve_adapter};
+    use HookObservationEvent as Event;
+    for identity in [Event::SessionIdentified, Event::SessionStarted] {
+        let mut runtime = AgentRuntime::new();
+        let mut ingress = AgentHookObservationIngress::new(None, JoinOptions::default());
+        let mut adapter = resolve_adapter("codex", Event::TurnStarted).unwrap();
+        adapter.adapter_id = "cursor".to_owned();
+        adapter.provider_id = "cursor".to_owned();
+        let observation = |event| HookObservation {
+            activity: None,
+            agent_key: None,
+            event,
+            operation_key: Some("approval-1".to_owned()),
+            session_key: "identity-session".to_owned(),
+            turn_key: Some("turn-1".to_owned()),
+        };
+        for (step, (event, kind)) in [
+            (Event::TurnStarted, "active"),
+            (Event::ApprovalRequested, "active"),
+            (Event::TurnStopped, "idle"),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            ingress.observe(
+                &mut runtime,
+                adapter.clone(),
+                observation(event),
+                &format!("step-{step}"),
+                vec![],
+            );
+            let before = ingress.snapshot_json(&runtime);
+            assert_eq!(before["sessions"][0]["turn"]["kind"], kind);
+            if event == Event::ApprovalRequested {
+                assert_eq!(
+                    before["sessions"][0]["pendingRequests"]
+                        .as_array()
+                        .unwrap()
+                        .len(),
+                    1
+                );
+            }
+            if event == Event::TurnStopped {
+                assert_eq!(before["sessions"][0]["lastOutcome"]["kind"], "succeeded");
+            }
+            ingress.observe(
+                &mut runtime,
+                adapter.clone(),
+                observation(identity),
+                &format!("identity-{step}"),
+                vec![],
+            );
+            assert_eq!(ingress.snapshot_json(&runtime), before);
+        }
+    }
 }

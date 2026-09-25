@@ -49,7 +49,7 @@ const CODEX_EVENTS = new Set<AgentHookObservationEvent>([
 
 const REGISTRY = {
 	cursor: {
-		acceptedEvents: new Set<AgentHookObservationEvent>(['session-started']),
+		acceptedEvents: new Set<AgentHookObservationEvent>(['session-identified', 'session-started']),
 		adapterId: 'cursor',
 		capabilities: ['sessionLifecycle'],
 		providerId: AgentProviderIdSchema.parse('cursor'),

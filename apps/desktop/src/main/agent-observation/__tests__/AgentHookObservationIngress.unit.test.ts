@@ -29,6 +29,32 @@ describe.runIf(process.platform !== 'win32')('AgentHookObservationIngress POSIX 
 		runtimeDirectory = undefined;
 	});
 
+	it.each(['session-identified', 'session-started'])(
+		'keeps Cursor identity unknown for %s and repeated identities',
+		async (event) => {
+			const runtime = new AgentRuntime();
+			const setup = await startIngress(runtime);
+			const presentation = terminalPresentationId('desktop:presentation:cursor');
+			const generation = CreationIdSchema.parse('11'.repeat(16));
+			setup.ingress.environmentOverlayFor(presentation, generation);
+			for (const sequence of [1, 2]) {
+				await expect(
+					sendEnvelope(setup.socketPath, envelope(sequence, event, [sequence], 'cursor')),
+				).resolves.toBe('{"accepted":true,"version":3}\n');
+				setup.ingress.observeTerminalApplicationSignal(
+					signal(sequence, sequence, generation),
+					presentation,
+				);
+				expect(runtime.getSnapshot().sessions).toHaveLength(1);
+				expect(runtime.getSnapshot().sessions[0]).toMatchObject({
+					turn: { kind: 'unknown' },
+					pendingRequests: [],
+					lastOutcome: null,
+				});
+			}
+		},
+	);
+
 	it('admits rich state only after an exact socket and terminal correlation join', async () => {
 		const runtime = new AgentRuntime();
 		const semanticEvents: AgentSemanticEvent[] = [];

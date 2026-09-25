@@ -151,7 +151,7 @@ try {
 	assert.deepEqual(
 		observations.map((entry) => entry.observation.event),
 		provider === 'cursor'
-			? ['session-started']
+			? ['session-identified']
 			: ['session-started', 'turn-started', 'turn-stopped', 'session-ended'],
 	);
 	for (const envelope of observations) {
