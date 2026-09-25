@@ -19,9 +19,17 @@ characters are refused, and the encoded command must fit 8000 ASCII characters.
 
 The terminal must contain an observed idle cmd, PowerShell or pwsh process. Running commands,
 missing process details and additional processes other than known console infrastructure
-refuse startup. Provider hooks must report readiness. Windows managed installation currently
-covers Codex, OpenCode, Pi and OMP; remaining integrations stay separately scoped. Recognizing an executable
-does not establish hook coverage or verify a provider's own interactive UI.
+refuse startup. Provider hooks must report readiness. [Windows integrations](windows-agent-integrations.md)
+defines managed setup and each provider's identity/state limits. Recognizing an executable does not
+establish hook coverage or verify a provider's own interactive UI.
+
+The fixed Windows launch names for canonical `cursor` and `qodercli` are `agent` and `qoder`, matching
+their current native installations. Historical names remain recognition aliases; startup does not
+fall back to them. An absent current executable follows the existing startup failure workflow.
+Name-based process recognition is heuristic and cannot substitute for the required canonical hook
+observation. Owned Windows subprocess tests exercise both canonical selections with literal arguments;
+they do not establish authenticated provider readiness. References: [Cursor installation](https://cursor.com/docs/cli/installation)
+and [Qoder installation](https://docs.qoder.com/cli/installation).
 
 ## Workflow and invariants
 

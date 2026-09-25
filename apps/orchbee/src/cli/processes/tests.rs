@@ -72,6 +72,8 @@ fn executable_aliases_are_explicit_and_canonical() {
         ("codex", "codex"),
         ("gemini", "gemini"),
         ("cursor-agent", "cursor"),
+        ("agent", "cursor"),
+        ("qoder", "qodercli"),
         ("devin-cli", "devin"),
         ("agy", "antigravity"),
         ("cline", "cline"),

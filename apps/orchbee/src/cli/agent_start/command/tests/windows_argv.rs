@@ -47,6 +47,18 @@ fn actual_windows_programs_receive_literal_arguments() {
         format!("@echo off\r\nnode.exe \"{}\" %*\r\n", script.display()),
     )
     .unwrap();
+    for name in ["agent.cmd", "qoder.cmd"] {
+        fs::copy(&batch, fixture.0.join(name)).unwrap();
+    }
+    // A regression must fail locally, never launch a real historical install.
+    for name in ["cursor-agent.cmd", "qodercli.cmd"] {
+        fs::write(fixture.0.join(name), b"@exit /b 23\r\n").unwrap();
+    }
+    let path = std::env::join_paths(
+        std::iter::once(fixture.0.clone())
+            .chain(std::env::split_paths(&std::env::var_os("PATH").unwrap())),
+    )
+    .unwrap();
     let values: Vec<String> = [
         "",
         "a b",
@@ -69,12 +81,19 @@ fn actual_windows_programs_receive_literal_arguments() {
         ),
         (ps.to_str().unwrap().to_owned(), values.clone()),
         (batch.to_str().unwrap().to_owned(), values.clone()),
+        ("cursor".to_owned(), values.clone()),
+        ("qodercli".to_owned(), values.clone()),
     ] {
-        let text = launch_program(&program, &args).unwrap();
+        let text = if matches!(program.as_str(), "cursor" | "qodercli") {
+            launch(&program, &args).unwrap()
+        } else {
+            launch_program(&program, &args).unwrap()
+        };
         let mut command = Command::new("powershell.exe");
         command
             .args(text.split_whitespace().skip(1))
             .env("ORCHBEE_START_ARGV_FILE", &output)
+            .env("PATH", &path)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());

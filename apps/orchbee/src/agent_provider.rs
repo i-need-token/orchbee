@@ -34,7 +34,7 @@ pub(crate) fn provider(label: &str) -> Option<&'static str> {
         "claude" | "claude-code" => Some("claude-code"),
         "codex" => Some("codex"),
         "gemini" => Some("gemini"),
-        "cursor" | "cursor-agent" => Some("cursor"),
+        "cursor" | "cursor-agent" | "agent" => Some("cursor"),
         "devin" | "devin-cli" | "devin cli" => Some("devin"),
         "agy" | "antigravity" | "antigravity-cli" => Some("antigravity"),
         "cline" | ".cline" => Some("cline"),
@@ -84,7 +84,8 @@ pub(crate) fn executable(canonical: &str) -> Option<&'static str> {
     let id = provider(canonical).filter(|id| *id == canonical)?;
     Some(match id {
         "claude-code" => "claude",
-        "cursor" => "cursor-agent",
+        "cursor" => "agent",
+        "qodercli" => "qoder",
         "antigravity" => "agy",
         "github-copilot" => "copilot",
         "kiro" => "kiro-cli",

@@ -16,8 +16,15 @@ orchbee agent start alpha --kind codex --panel <id> --timeout 30000 --format jso
 
 终端必须有已观察到的空闲 cmd、PowerShell 或 pwsh 进程。运行中的命令、缺失的进程详情，
 或已知控制台基础设施以外的额外进程均拒绝启动。提供方 hook 必须报告就绪。
-Windows 托管安装当前覆盖 Codex、OpenCode、Pi、OMP，其他提供方集成单独界定范围。识别可执行文件不代表
-具有 hook 覆盖，也不验证提供方自身的交互界面。
+[Windows 集成](windows-agent-integrations.zh-CN.md)定义托管安装及各提供方的身份／状态边界。
+识别可执行文件不代表具有 hook 覆盖，也不验证提供方自身的交互界面。
+
+规范 `cursor` 和 `qodercli` 在 Windows 上固定启动 `agent` 和 `qoder`，与当前原生安装一致。
+历史名称保留为识别别名；启动不回退到它们。当前可执行文件缺失时沿用既有启动失败流程。
+基于名称的进程识别只是启发式事实，不能替代所要求的规范 Hook 观察。自有 Windows 子进程测试
+使用字面参数覆盖两个规范选择；不证明经过认证的提供方已经就绪。
+参考：[Cursor 安装](https://cursor.com/docs/cli/installation)和
+[Qoder 安装](https://docs.qoder.com/cli/installation)。
 
 ## 流程与不变量
 
