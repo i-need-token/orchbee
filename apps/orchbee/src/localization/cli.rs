@@ -1088,9 +1088,9 @@ impl Locale {
         {
             return match self {
                 Self::EnUs => {
-                    "The selected TUI Client is not ready; Agent focus was not submitted.\n"
+                    "The selected TUI Client is not ready; retry after it becomes ready.\n"
                 }
-                Self::ZhCn => "所选 TUI 客户端尚未就绪；未提交 Agent 聚焦请求。\n",
+                Self::ZhCn => "所选 TUI 客户端尚未就绪；请在其就绪后重试。\n",
             }
             .to_owned();
         }
@@ -2889,8 +2889,8 @@ impl Locale {
     }
 }
 
-const HELP_PANEL_CURRENT_EN: &str = "orchbee panel current [--panel <panel-id> | --current] [--format text|json]\n\nRead the calling Panel, Tab and Workspace from one running Site snapshot.\nDefault and --current use ORCHBEE_TERMINAL_ID and ORCHBEE_WORKER_ID injected\ninto new Windows terminal processes. --panel accepts a complete typed ID or\n@panel:<suffix> and ignores the environment. The options are exclusive.\nMissing or stale context fails; no fallback to client focus and no activation.\n";
-const HELP_PANEL_CURRENT_ZH: &str = "orchbee panel current [--panel <panel-id> | --current] [--format text|json]\n\n从运行中 Site 的一次快照读取调用者所在 Panel、Tab 与 Workspace。\n默认和 --current 使用新 Windows 终端进程中注入的 ORCHBEE_TERMINAL_ID 与\nORCHBEE_WORKER_ID。--panel 接受完整类型化 ID 或 @panel:<suffix>，忽略环境变量。\n两个选项互斥。上下文缺失或过期时返回错误；不回退到客户端焦点，不激活 Site。\n";
+const HELP_PANEL_CURRENT_EN: &str = "orchbee panel current [--panel <panel-id> | --current] [--client <id>] [--format text|json]\n\nRead a Panel, Tab and Workspace from a running Windows Site.\nAn explicit Panel ID or @panel:<suffix> ignores caller environment and needs no TUI.\nOtherwise use validated ORCHBEE_TERMINAL_ID and ORCHBEE_WORKER_ID. If both are absent,\nuse the only current TUI Client; multiple Clients require --client. --client ignores\ncaller environment and cannot combine with --panel. Partial, invalid or stale caller\nmetadata never falls back. The Client must be ready with a valid selected Panel.\nFive-second total deadline; Ctrl+C cancels. No focus changes or Site activation.\n";
+const HELP_PANEL_CURRENT_ZH: &str = "orchbee panel current [--panel <panel-id> | --current] [--client <id>] [--format text|json]\n\n从运行中的 Windows Site 读取 Panel、Tab 和 Workspace。\n显式 Panel ID 或 @panel:<suffix> 忽略调用者环境，无需 TUI。\n否则校验 ORCHBEE_TERMINAL_ID 与 ORCHBEE_WORKER_ID；两个变量均缺失时，\n使用唯一 current TUI Client，多个 Client 必须用 --client 指定。--client 忽略\n调用者环境，不能与 --panel 同用。部分缺失、无效或过期的调用者信息绝不回退。\nClient 必须已就绪且所选 Panel 仍有效。总期限五秒；Ctrl+C 取消。\n不改变焦点，不激活 Site。\n";
 
 impl Locale {
     #[cfg(any(target_os = "linux", windows))]
@@ -2932,8 +2932,8 @@ impl Locale {
     }
 }
 
-const HELP_PANEL_PROCESS_INFO_EN: &str = "orchbee panel process-info [<panel-id>] [--panel <panel-id> | --current] [--format text|json]\n\nRead the primary Terminal's Windows Job process information. Complete Panel IDs\nand @panel:<suffix> are accepted. Without a target, use the calling Terminal's\nvalidated context. Explicit and positional targets are exclusive. Each sample\nreports owned processes with PID, creation time, image, command line and cwd;\nunavailable optional fields are null. This is a bounded read of the running Site.\n";
-const HELP_PANEL_PROCESS_INFO_ZH: &str = "orchbee panel process-info [<panel-id>] [--panel <panel-id> | --current] [--format text|json]\n\n读取主 Terminal 的 Windows Job 进程信息，接受完整 Panel ID 或 @panel:<suffix>。\n未指定目标时使用经过验证的调用终端上下文；显式选项与位置参数目标互斥。\n样本列出归属进程的 PID、创建时间、映像、命令行和 cwd；不可用的可选字段为 null。\n这是对运行中 Site 的有界读取。\n";
+const HELP_PANEL_PROCESS_INFO_EN: &str = "orchbee panel process-info [<panel-id> | --panel <panel-id> | --current] [--client <id>] [--format text|json]\n\nRead the primary Terminal's Windows Job process information. Complete Panel IDs\nand @panel:<suffix> are accepted. Explicit Panel selectors are exclusive and conflict\nwith --client. Otherwise use validated caller context; only when both caller variables\nare absent, select the only current TUI Client. --client selects a Client and ignores\ncaller environment. Partial, invalid or stale caller metadata never falls back.\nThe Client must be ready with a valid selected Panel. Each sample reports owned\nprocesses with PID, creation time, image, command line and cwd; unavailable optional\nfields are null. Five-second total deadline; Ctrl+C cancels. No focus or input changes.\n";
+const HELP_PANEL_PROCESS_INFO_ZH: &str = "orchbee panel process-info [<panel-id> | --panel <panel-id> | --current] [--client <id>] [--format text|json]\n\n读取主 Terminal 的 Windows Job 进程信息，接受完整 Panel ID 或 @panel:<suffix>。\n显式 Panel 选择器互斥，也不能与 --client 同用。否则使用经校验的调用者上下文；\n仅当两个调用者变量均缺失时，选择唯一 current TUI Client。--client 指定 Client\n并忽略调用者环境。部分缺失、无效或过期的调用者信息绝不回退。Client 必须已就绪\n且所选 Panel 仍有效。样本列出归属进程的 PID、创建时间、映像、命令行和 cwd；\n不可用的可选字段为 null。总期限五秒；Ctrl+C 取消。不改变焦点或输入。\n";
 
 impl Locale {
     pub(crate) const fn cli_process_headers(self) -> [&'static str; 8] {

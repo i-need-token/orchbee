@@ -18,7 +18,7 @@ use orchbee_workbench_protocol::{
 use serde_json::{Map, Value, json};
 
 use super::{Failure, FailureKind, target_details};
-use crate::invocation::{AgentWaitCondition, QueryCommand, Resource, Target};
+use crate::invocation::{AgentWaitCondition, PanelQueryTarget, QueryCommand, Resource, Target};
 
 pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
     match command {
@@ -1974,7 +1974,8 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
             }
             Ok(Projection::PanelList(rows))
         }
-        QueryCommand::PanelGet(target) | QueryCommand::PanelCurrent(Some(target)) => {
+        QueryCommand::PanelGet(target)
+        | QueryCommand::PanelCurrent(PanelQueryTarget::Panel(target)) => {
             // The grammar admits only typed IDs and `@panel:` selectors for
             // panel targets; a label cannot arrive here.
             if let Target::Label(_) = target {
@@ -2023,7 +2024,7 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
         // answered by the OBAP exchange, never a snapshot projection.
         // `launch-profile list`/`get` ride their own typed catalog read.
         QueryCommand::PanelProcessInfo(_)
-        | QueryCommand::PanelCurrent(None)
+        | QueryCommand::PanelCurrent(PanelQueryTarget::Current | PanelQueryTarget::Client(_))
         | QueryCommand::AgentList { .. }
         | QueryCommand::AgentGet(_)
         | QueryCommand::AgentRead { .. }

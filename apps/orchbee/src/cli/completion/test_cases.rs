@@ -1,6 +1,58 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee panel current --c", "--client", true),
+    ("orchbee panel process-info --c", "--client", true),
+    ("orchbee panel current --current --c", "--client", true),
+    ("orchbee panel current --client 123 --c", "--current", true),
+    ("orchbee panel current --client 123 --p", "--panel", false),
+    (
+        "orchbee panel current --panel '@panel:12' --c",
+        "--client",
+        false,
+    ),
+    (
+        "orchbee panel process-info --panel '@panel:12' --c",
+        "--client",
+        false,
+    ),
+    (
+        "orchbee panel process-info '@panel:12' --c",
+        "--client",
+        false,
+    ),
+    (
+        "orchbee panel process-info '@panel:12' --client 123 --f",
+        "--format",
+        false,
+    ),
+    (
+        "orchbee panel process-info --client 123 '@panel:12' --f",
+        "--format",
+        false,
+    ),
+    (
+        "orchbee panel current --client 123 --panel '@panel:12' --f",
+        "--format",
+        false,
+    ),
+    (
+        "orchbee panel process-info --client 123 --current --f",
+        "--format",
+        true,
+    ),
+    (
+        "orchbee panel process-info --client=123 --c",
+        "--client",
+        false,
+    ),
+    (
+        "orchbee panel process-info --client 123 --t",
+        "--timeout",
+        false,
+    ),
+    ("orchbee panel --client 123 c", "current", true),
+    ("orchbee panel --client 123 p", "process-info", true),
     ("orchbee agent f", "focus", true),
     ("orchbee help agent ", "focus", true),
     ("orchbee help agent ", "read", true),

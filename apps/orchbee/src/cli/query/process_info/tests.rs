@@ -137,7 +137,7 @@ fn process_info_machine_contract_preserves_precision_nulls_and_escapes_text() {
             crate::cli::present::render(
                 out,
                 &projection,
-                &QueryCommand::PanelProcessInfo(None),
+                &QueryCommand::PanelProcessInfo(crate::invocation::PanelQueryTarget::Current),
                 locale,
             )
         })

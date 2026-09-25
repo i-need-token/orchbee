@@ -1,4 +1,5 @@
 use super::*;
+use crate::invocation::QueryCommand;
 use crate::{cli::OutputFormat, localization::Locale};
 use orchbee_workbench_protocol::{PanelNode, parse_snapshot};
 use serde_json::json;
@@ -59,7 +60,7 @@ fn current_binding_follows_primary_child_and_moved_workspace_with_one_read() {
             let output = super::super::success_output(
                 projection,
                 source,
-                &QueryCommand::PanelCurrent(None),
+                &QueryCommand::PanelCurrent(crate::invocation::PanelQueryTarget::Current),
                 OutputFormat::Json,
                 Locale::EnUs,
             );

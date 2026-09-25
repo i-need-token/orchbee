@@ -48,10 +48,9 @@ fn creation_checks_caller_metadata_before_runtime_and_explicit_client_bypasses_i
 }
 
 #[test]
-fn missing_and_invalid_context_fail_before_runtime_without_value_echo() {
+fn partial_and_invalid_context_fail_before_runtime_without_value_echo() {
     for verb in ["current", "process-info"] {
         for (terminal, worker) in [
-            (None, None),
             (Some("untrusted-secret-value"), Some("invalid")),
             (Some("00000000000000000000000000000001"), None),
         ] {
@@ -113,7 +112,7 @@ fn offline_catalog_is_closed_and_current_panel_schema_is_discoverable() {
     let schemas = document["result"]["schemas"]
         .as_object()
         .expect("dictionary");
-    assert_eq!(document["version"], 39);
+    assert_eq!(document["version"], 40);
     assert_eq!(schemas.len(), 71);
     let validator =
         jsonschema::draft202012::new(&schemas["orchbee.api.schema"]).expect("catalog schema");

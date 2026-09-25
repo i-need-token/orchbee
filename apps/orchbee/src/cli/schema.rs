@@ -384,8 +384,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog v39 adds the explicit Agent-focus Client readiness refusal.
-        "version": 39,
+        // Catalog v40 adds the bounded current-Panel query failure stage.
+        "version": 40,
         "source": embedded_source(),
         "result": result,
     });

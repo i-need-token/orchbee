@@ -4,10 +4,11 @@
 use std::ffi::OsString;
 
 use orchbee_workbench_protocol::{Snapshot, TerminalId, WorkerId};
+#[cfg(any(not(windows), test))]
 use serde_json::Value;
 
 use super::{Failure, FailureKind, results, stage_details, target_details};
-use crate::invocation::{QueryCommand, Resource, Target, UsageReason};
+use crate::invocation::{Resource, Target, UsageReason};
 
 struct Caller {
     terminal: TerminalId,
@@ -96,6 +97,7 @@ fn invalid_context() -> Failure {
     failure
 }
 
+#[cfg(any(not(windows), test))]
 pub(super) fn read(
     explicit: Option<&Target>,
     environment: impl FnMut(&str) -> Option<OsString>,
@@ -109,9 +111,12 @@ pub(super) fn read(
     let target = caller
         .resolve(&snapshot)
         .map_err(|error| error.source(source.clone()))?;
-    results::project(&QueryCommand::PanelGet(target), &snapshot)
-        .map(|projection| (source.clone(), projection))
-        .map_err(|error| error.source(source))
+    results::project(
+        &crate::invocation::QueryCommand::PanelGet(target),
+        &snapshot,
+    )
+    .map(|projection| (source.clone(), projection))
+    .map_err(|error| error.source(source))
 }
 
 #[cfg(test)]

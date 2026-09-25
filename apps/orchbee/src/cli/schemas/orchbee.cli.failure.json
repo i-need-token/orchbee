@@ -421,6 +421,9 @@
 									},
 									{
 										"$ref": "#/$defs/runtimeStatusStageDetails"
+									},
+									{
+										"$ref": "#/$defs/currentPanelStageDetails"
 									}
 								]
 							}
@@ -457,6 +460,9 @@
 									},
 									{
 										"$ref": "#/$defs/runtimeStatusStageDetails"
+									},
+									{
+										"$ref": "#/$defs/currentPanelStageDetails"
 									}
 								]
 							}
@@ -615,7 +621,7 @@
 			"additionalProperties": false,
 			"properties": {
 				"stage": {
-					"enum": ["admission", "discovery", "launch-read", "snapshot", "viewer"]
+					"enum": ["admission", "discovery", "launch-read", "snapshot", "viewer", "current-panel"]
 				},
 				"matchObserved": {
 					"const": true
@@ -644,7 +650,15 @@
 			"additionalProperties": false,
 			"properties": {
 				"stage": {
-					"enum": ["admission", "command", "launch-read", "send", "snapshot", "viewer"]
+					"enum": [
+						"admission",
+						"command",
+						"launch-read",
+						"send",
+						"snapshot",
+						"viewer",
+						"current-panel"
+					]
 				},
 				"matchObserved": {
 					"const": true
@@ -891,7 +905,7 @@
 			"additionalProperties": false,
 			"properties": {
 				"stage": {
-					"enum": ["admission", "launch-read", "snapshot", "viewer"]
+					"enum": ["admission", "launch-read", "snapshot", "viewer", "current-panel"]
 				},
 				"matchObserved": {
 					"const": true
@@ -1097,6 +1111,16 @@
 			"properties": {
 				"stage": {
 					"const": "runtime-status"
+				}
+			}
+		},
+		"currentPanelStageDetails": {
+			"type": "object",
+			"required": ["stage"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "current-panel"
 				}
 			}
 		}

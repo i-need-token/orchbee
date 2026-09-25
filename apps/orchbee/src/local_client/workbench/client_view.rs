@@ -56,6 +56,12 @@ impl LocalClient {
                 WorkbenchWireError::InvalidHeader | WorkbenchWireError::Contract(_),
             ) => ClientViewExchangeError::Protocol,
             ExchangeAttempt::ReadDeadline(_) => ClientViewExchangeError::Timeout,
+            ExchangeAttempt::ReadFailed(WorkbenchWireError::Io(ref error))
+            | ExchangeAttempt::WriteFailed(ref error)
+                if error.kind() == std::io::ErrorKind::TimedOut =>
+            {
+                ClientViewExchangeError::Timeout
+            }
             ExchangeAttempt::NotSubmitted(_)
             | ExchangeAttempt::WriteFailed(_)
             | ExchangeAttempt::ReadFailed(WorkbenchWireError::Io(_)) => {

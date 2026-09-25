@@ -588,8 +588,8 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ),
     ("tab:move", &["--direction", "--insert-index"]),
     ("tab:close", &["--confirm"]),
-    ("panel:current", &["--panel", "--current"]),
-    ("panel:process-info", &["--panel", "--current"]),
+    ("panel:current", &["--panel", "--current", "--client"]),
+    ("panel:process-info", &["--panel", "--current", "--client"]),
     ("panel:list", &["--tab"]),
     (
         "panel:split",
@@ -1318,6 +1318,8 @@ fn after_flag_cases_bash() -> String {
         .map(|flag| {
             let patterns = flag_admission_patterns(flag, "|", false);
             let mut arm = match *flag {
+                "--client" => format!("                            {patterns}) if [[ $family:$sub == panel:process-info && $state == operand ]]; then done=1; fi ;;"),
+
                 "--project" | "--directory" => format!("                            {patterns}) if [[ $family:$sub == worktree:list ]] && ((seen_workspace || seen_cwd || seen_trust_repository)); then done=1; fi ;;"),
                 "--trust-repository" => format!("                            {patterns}) if [[ $family:$sub == worktree:list ]] && ((seen_project || seen_directory)); then done=1; fi ;;"),
                 "--cwd" => format!("                            {patterns}) if [[ $family == worktree && $seen_workspace == 1 ]] || {{ [[ $family:$sub == worktree:list ]] && ((seen_project || seen_directory)); }}; then done=1; fi ;;"),
@@ -1585,7 +1587,7 @@ fn extras_cases_bash() -> String {
                     };
                     let conflicts = command_flag_conflicts(command, flag).iter().map(|flag| flag_bit(flag)).collect::<Vec<_>>();
                     let cond = if conflicts.is_empty() { cond } else { format!("{cond} || {}", conflicts.join(" || ")) };
-                    if matches!(*command, "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split") && matches!(*flag, "--panel" | "--current") {
+                    if matches!(*command, "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split") && matches!(*flag, "--panel" | "--current") || (*command == "panel:process-info" && *flag == "--client") {
                         format!("                [[ $state != operand ]] && (( !({cond}) )) && extras=\"$extras {flag}\"")
                     } else { format!("                (({cond})) || extras=\"$extras {flag}\"") }
                 })
@@ -1905,7 +1907,7 @@ fn bash() -> String {
             "                        esac ;;\n",
             "                    after)\n",
             "                        case \"$family:$sub\" in\n",
-            "                            panel:process-info|panel:focus|panel:zoom|panel:layout|panel:neighbor|panel:edges|panel:resize|panel:swap|panel:input|panel:split) if ((seen_panel || seen_current)); then done=1; else state=operand; fi ;;\n",
+            "                            panel:process-info|panel:focus|panel:zoom|panel:layout|panel:neighbor|panel:edges|panel:resize|panel:swap|panel:input|panel:split) if ((seen_panel || seen_current)) || [[ $family:$sub == panel:process-info && $seen_client == 1 ]]; then done=1; else state=operand; fi ;;\n",
             "                            {operand_paths}) state=operand ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
@@ -2267,7 +2269,7 @@ fn zsh() -> String {
             "                        esac ;;\n",
             "                    after)\n",
             "                        case \"$family:$sub\" in\n",
-            "                            panel:process-info|panel:focus|panel:zoom|panel:layout|panel:neighbor|panel:edges|panel:resize|panel:swap|panel:input|panel:split) if ((seen_panel || seen_current)); then done=1; else state=operand; fi ;;\n",
+            "                            panel:process-info|panel:focus|panel:zoom|panel:layout|panel:neighbor|panel:edges|panel:resize|panel:swap|panel:input|panel:split) if ((seen_panel || seen_current)) || [[ $family:$sub == panel:process-info && $seen_client == 1 ]]; then done=1; else state=operand; fi ;;\n",
             "                            {operand_paths}) state=operand ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
@@ -2525,6 +2527,8 @@ fn after_flag_cases_fish() -> String {
         .map(|flag| {
             let patterns = flag_admission_patterns(flag, " ", true);
             let mut arm = match *flag {
+                "--client" => format!("                            case {patterns}; if test \"$family:$sub\" = panel:process-info; and test $state = operand; set done 1; end"),
+
                 "--project" | "--directory" => format!("                            case {patterns}; if test \"$family:$sub\" = worktree:list; and test $seen_workspace -eq 1 -o $seen_cwd -eq 1 -o $seen_trust_repository -eq 1; set done 1; end"),
                 "--trust-repository" => format!("                            case {patterns}; if test \"$family:$sub\" = worktree:list; and test $seen_project -eq 1 -o $seen_directory -eq 1; set done 1; end"),
                 "--cwd" => format!("                            case {patterns}; if test $family = worktree; and test $seen_workspace -eq 1; set done 1; end; if test \"$family:$sub\" = worktree:list; and test $seen_project -eq 1 -o $seen_directory -eq 1; set done 1; end"),
@@ -2754,7 +2758,7 @@ fn extras_cases_fish() -> String {
                     };
                     let conflicts = command_flag_conflicts(command, flag).iter().map(|flag| format!("${} -eq 0", flag_bit(flag))).collect::<Vec<_>>();
                     let cond = if conflicts.is_empty() { cond } else { format!("{cond} -a {}", conflicts.join(" -a ")) };
-                    if matches!(*command, "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split") && matches!(*flag, "--panel" | "--current") {
+                    if matches!(*command, "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split") && matches!(*flag, "--panel" | "--current") || (*command == "panel:process-info" && *flag == "--client") {
                         format!("                if test $state != operand; and test {cond}; set -a candidates {flag}; end")
                     } else { format!("                if test {cond}; set -a candidates {flag}; end") }
                 })
@@ -3085,7 +3089,7 @@ fn fish() -> String {
             "                        end\n",
             "                    case after\n",
             "                        switch \"$family:$sub\"\n",
-            "                            case panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap panel:input panel:split; if test $seen_panel -eq 1 -o $seen_current -eq 1; set done 1; else; set state operand; end\n",
+            "                            case panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap panel:input panel:split; if test $seen_panel -eq 1 -o $seen_current -eq 1; or begin; test \"$family:$sub\" = panel:process-info; and test $seen_client -eq 1; end; set done 1; else; set state operand; end\n",
             "                            case {operand_paths}; set state operand\n",
             "                            case '*'; set done 1\n",
             "                        end\n",
@@ -3300,6 +3304,8 @@ fn command_conflict_pairs(
 
 fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] {
     match (command, flag) {
+        ("panel:current" | "panel:process-info", "--panel") => &["--current", "--client"],
+        ("panel:current" | "panel:process-info", "--client" | "--current") => &["--panel"],
         ("terminal:wait-output", "--source" | "--lines") => &["--rows"],
         ("terminal:wait-output", "--forever") => &["--rows", "--timeout"],
         ("terminal:wait-output", "--timeout") => &["--forever"],

@@ -58,7 +58,7 @@ mod agent_target;
 pub(crate) use agent_focus::agent_focus_target;
 #[cfg(any(target_os = "linux", windows))]
 mod process_info;
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(target_os = "linux")]
 pub(crate) use process_info::panel_process_info;
 #[cfg(windows)]
 pub(crate) use process_info::{

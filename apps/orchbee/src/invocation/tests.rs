@@ -1,4 +1,5 @@
 use super::CreationDirectory;
+use super::PanelQueryTarget;
 use super::{CreationCommand, CreationKind, SiteStopCommand};
 use std::ffi::OsString;
 
@@ -6641,7 +6642,7 @@ fn current_panel_grammar_has_explicit_or_caller_modes() {
         assert_eq!(
             parse(&words),
             Ok(Request::Query {
-                command: QueryCommand::PanelCurrent(None),
+                command: QueryCommand::PanelCurrent(crate::invocation::PanelQueryTarget::Current),
                 format: OutputFormat::Text
             })
         );
@@ -6653,7 +6654,9 @@ fn current_panel_grammar_has_explicit_or_caller_modes() {
         assert_eq!(
             parse(&words),
             Ok(Request::Query {
-                command: QueryCommand::PanelCurrent(Some(Target::Selector("@panel:abc".into()))),
+                command: QueryCommand::PanelCurrent(PanelQueryTarget::Panel(Target::Selector(
+                    "@panel:abc".into()
+                ))),
                 format: OutputFormat::Text
             })
         );
@@ -6700,7 +6703,9 @@ fn panel_process_info_grammar_rejects_conflicting_targets_before_effects() {
         assert_eq!(
             parse(&words),
             Ok(Request::Query {
-                command: QueryCommand::PanelProcessInfo(None),
+                command: QueryCommand::PanelProcessInfo(
+                    crate::invocation::PanelQueryTarget::Current
+                ),
                 format: OutputFormat::Text
             })
         );
@@ -6713,7 +6718,7 @@ fn panel_process_info_grammar_rejects_conflicting_targets_before_effects() {
         assert_eq!(
             parse(&words),
             Ok(Request::Query {
-                command: QueryCommand::PanelProcessInfo(Some(Target::Selector(
+                command: QueryCommand::PanelProcessInfo(PanelQueryTarget::Panel(Target::Selector(
                     "@panel:abc".into()
                 ))),
                 format: OutputFormat::Text
@@ -7356,5 +7361,52 @@ fn creation_directory_policies_are_scoped_and_preserve_absolute_overrides() {
         vec!["workspace", "create", "--cwd", "home"],
     ] {
         assert!(parse(&args).is_err(), "{args:?}");
+    }
+}
+
+#[test]
+fn current_panel_queries_accept_explicit_clients_and_refuse_ignored_selectors() {
+    let client = "12345678901234567890123456789012";
+    for verb in ["current", "process-info"] {
+        for words in [
+            vec!["panel", verb, "--client", client],
+            vec!["--client", client, "panel", verb, "--current"],
+        ] {
+            let Ok(Request::Query { command, .. }) = parse(&words) else {
+                panic!("{words:?}")
+            };
+            let (QueryCommand::PanelCurrent(target) | QueryCommand::PanelProcessInfo(target)) =
+                command
+            else {
+                panic!()
+            };
+            assert_eq!(
+                target,
+                PanelQueryTarget::Client(super::WorkbenchClientId::parse(client).unwrap())
+            );
+        }
+        for words in [
+            vec!["panel", verb, "--panel", "@panel:abc", "--client", client],
+            vec!["panel", verb, "--client", client, "--client", client],
+            vec!["panel", verb, "--client", "bad"],
+            vec!["panel", verb, "--client"],
+            vec!["panel", verb, "--client", client, "--timeout", "20"],
+            vec!["panel", verb, "--client", client, "--detach"],
+        ] {
+            assert!(parse(&words).is_err(), "{words:?}");
+        }
+    }
+    assert!(parse(&["panel", "process-info", "@panel:abc", "--client", client]).is_err());
+    for topic in [CommandPath::PanelCurrent, CommandPath::PanelProcessInfo] {
+        for locale in [
+            crate::localization::Locale::EnUs,
+            crate::localization::Locale::ZhCn,
+        ] {
+            assert!(
+                locale
+                    .cli_help(HelpTopic::Command(topic))
+                    .contains("--client")
+            );
+        }
     }
 }

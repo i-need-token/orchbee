@@ -11,7 +11,7 @@ fn view_exchange_correlates_owner_sample_and_site_and_never_replays() -> TestRes
         "../../../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json"
     ))
     .unwrap();
-    for fault in 0..8 {
+    for fault in 0..9 {
         let WorkbenchRequest::ClientView(request) =
             orchbee_workbench_protocol::parse_workbench_request(
                 &serde_json::to_vec(&corpus["valid"][0]["document"]).unwrap(),
@@ -68,7 +68,9 @@ fn view_exchange_correlates_owner_sample_and_site_and_never_replays() -> TestRes
             if fault == 7 {
                 return Ok(());
             }
-            if fault == 6 {
+            if fault == 8 {
+                stream.write_all(b"OBWP")?;
+            } else if fault == 6 {
                 stream.write_all(&[0; 12])?;
             } else {
                 write_workbench_response(&mut stream, &WorkbenchResponse::ClientView(reply))
@@ -83,7 +85,12 @@ fn view_exchange_correlates_owner_sample_and_site_and_never_replays() -> TestRes
             Ok(())
         })?;
         let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
-        let deadline = client.operation_clock().now() + SERVER_GUARD_TIMEOUT;
+        let deadline = client.operation_clock().now()
+            + if fault == 8 {
+                Duration::from_millis(200)
+            } else {
+                SERVER_GUARD_TIMEOUT
+            };
         let result = client.exchange_client_view(request, deadline, None);
         if fault == 0 {
             assert!(result.is_ok());
@@ -93,6 +100,8 @@ fn view_exchange_correlates_owner_sample_and_site_and_never_replays() -> TestRes
                 result,
                 Err(if fault == 7 {
                     ClientViewExchangeError::Transport
+                } else if fault == 8 {
+                    ClientViewExchangeError::Timeout
                 } else {
                     ClientViewExchangeError::Protocol
                 })

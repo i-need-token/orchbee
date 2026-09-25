@@ -41,6 +41,33 @@ fn snapshot() -> Snapshot {
 }
 
 #[test]
+fn current_panel_read_refuses_stale_location_instead_of_following_a_moved_panel() {
+    let mut client = record();
+    let snapshot = snapshot();
+    let target = Target::Id("00000000000000000000000000000006".into());
+    assert_eq!(
+        selection::current_panel(&client, &snapshot).unwrap(),
+        target
+    );
+    client.view.selection.as_mut().unwrap().tab_id = Some(
+        orchbee_workbench_protocol::WorkbenchTabId::parse("00000000000000000000000000000009")
+            .unwrap(),
+    );
+    let error = selection::current_panel(&client, &snapshot).unwrap_err();
+    assert_eq!(error.details.unwrap()["reason"], "client-panel-unavailable");
+    // Navigation may deliberately follow an explicit Panel; observation cannot.
+    assert!(
+        selection::intent(
+            &ClientNavigationTarget::Panel(Some(target)),
+            &client,
+            None,
+            &snapshot
+        )
+        .is_ok()
+    );
+}
+
+#[test]
 fn agent_focus_grammar_requires_one_agent_target_and_reuses_navigation_receipts() {
     let parse = |words: &[&str]| invocation::parse_request(words.iter().map(OsString::from));
     let id = "00000000000000000000000000000007";

@@ -4,7 +4,8 @@ use crate::{
     invocation::{ClientLayoutTarget, ClientNavigationTarget, Resource, Target, ZoomMode},
 };
 use orchbee_workbench_protocol::{
-    ClientViewAvailability, ClientViewIntent, ClientViewRecord, Snapshot, WorkbenchClientId,
+    ClientViewAvailability, ClientViewIntent, ClientViewPhase, ClientViewRecord, Snapshot,
+    WorkbenchClientId,
 };
 use serde_json::{Map, json};
 
@@ -63,6 +64,38 @@ pub(in crate::cli) fn select<'a>(
         )),
     }
 }
+/// A read must not silently follow a moved Panel away from the observed Client location.
+pub(in crate::cli) fn current_panel(
+    client: &ClientViewRecord,
+    snapshot: &Snapshot,
+) -> Result<Target, Failure> {
+    if client.view.phase != ClientViewPhase::Ready {
+        return Err(failure(
+            FailureKind::ServiceUnavailable,
+            "client-not-ready",
+            vec![client.client_id.to_string()],
+        ));
+    }
+    let selected = client.view.selection.as_ref();
+    let panel = selected.and_then(|selected| selected.panel_id.as_ref());
+    if let (Some(selected), Some(panel)) = (selected, panel)
+        && results::panel_entries(snapshot)
+            .into_iter()
+            .any(|(id, context, tab)| {
+                id == panel
+                    && context.terminal_context_id == selected.terminal_context_id
+                    && Some(&tab.tab_id) == selected.tab_id.as_ref()
+            })
+    {
+        return Ok(Target::Id(panel.to_string()));
+    }
+    Err(failure(
+        FailureKind::NotFound,
+        "client-panel-unavailable",
+        vec![client.client_id.to_string()],
+    ))
+}
+
 pub(in crate::cli) fn intent(
     target: &ClientNavigationTarget,
     client: &ClientViewRecord,

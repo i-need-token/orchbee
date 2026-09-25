@@ -45,7 +45,7 @@ Presentation；Session／名称必须在快照中对应恰好一个当前可导�
 
 ## 交付与验证
 
-新增一个命令路径（共 84 个），不新增 schema；内嵌目录保持 v39/71。
+新增一个命令路径（共 84 个），不新增 schema；内嵌目录保持 v40/71。
 共享 `orchbee.client.control` v1 回执及既有 Agent／Client 选择失败保留来源归属。
 人类输出和帮助本地化，JSON 不依赖语言。
 
@@ -55,4 +55,4 @@ Presentation；Session／名称必须在快照中对应恰好一个当前可导�
 之后停止创建的所有 Agent 进程、Site 和控制台。审查由作者完成；不宣称执行 TLA 或
 独立审查。seen/unseen 行为仍是单独、明确的报告义务。
 
-客户端必须已就绪；否则在 Agent 查询前返回现有客户端选择失败文档中的 `client-not-ready`，保留客户端 ID。目录 v39 扩充该 v1 原因集合，不新增 schema。
+客户端必须已就绪；否则在 Agent 查询前返回现有客户端选择失败文档中的 `client-not-ready`，保留客户端 ID。目录 v39 已扩充该 v1 原因集合，不新增 schema。

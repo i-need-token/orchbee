@@ -26,10 +26,10 @@ use orchbee_agent_observation_protocol::{
 };
 use orchbee_workbench_protocol::{
     LaunchEnvironment, LaunchOptions, LaunchProfileName, LaunchProfileSelector, LaunchSelection,
-    WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
-    WorkbenchProjectId, WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration,
-    WorkbenchTabInsertIndex, WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
-    WorkbenchWorkspaceId,
+    WorkbenchClientId, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel,
+    WorkbenchPanelSplitDirection, WorkbenchProjectId, WorkbenchRequestId,
+    WorkbenchTabCloseAttemptGeneration, WorkbenchTabInsertIndex, WorkbenchTabMoveDirection,
+    WorkbenchTerminalGeometry, WorkbenchWorkspaceId,
 };
 
 /// Legacy three-variant invocation consumed by `presentation::present`.
@@ -445,6 +445,13 @@ pub(crate) const DEFAULT_AGENT_WAIT_CONDITIONS: [AgentWaitCondition; 7] = [
 ];
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum PanelQueryTarget {
+    Current,
+    Panel(Target),
+    Client(WorkbenchClientId),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum QueryCommand {
     Status,
     AgentList {
@@ -505,9 +512,9 @@ pub(crate) enum QueryCommand {
     PanelList {
         tab: Option<Target>,
     },
-    PanelCurrent(Option<Target>),
+    PanelCurrent(PanelQueryTarget),
     PanelGet(Target),
-    PanelProcessInfo(Option<Target>),
+    PanelProcessInfo(PanelQueryTarget),
     TerminalList,
     TerminalGet(Target),
     TerminalRead {
@@ -2950,7 +2957,8 @@ fn resolve_words(
                 .or_else(|| options.panel.clone())
                 .map(|value| target(value, Resource::Panel, envelope))
                 .transpose()?;
-            Ok(query(QueryCommand::PanelProcessInfo(panel), options))
+            let target = panel_query_target(panel, options, context, envelope)?;
+            Ok(query(QueryCommand::PanelProcessInfo(target), options))
         }
         ["panel", "current"] => {
             let context = UsageContext::Path("panel current");
@@ -2970,7 +2978,8 @@ fn resolve_words(
                 .clone()
                 .map(|value| target(value, Resource::Panel, envelope))
                 .transpose()?;
-            Ok(query(QueryCommand::PanelCurrent(panel), options))
+            let target = panel_query_target(panel, options, context, envelope)?;
+            Ok(query(QueryCommand::PanelCurrent(target), options))
         }
         ["panel", "current", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("panel current"),
@@ -3861,6 +3870,29 @@ fn query(command: QueryCommand, options: &Options) -> Request {
     }
 }
 
+fn panel_query_target(
+    panel: Option<Target>,
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<PanelQueryTarget, ParseFailure> {
+    if panel.is_some() && options.client.is_some() {
+        return Err(usage_with(
+            UsageReason::ConflictingOptions {
+                context,
+                first: "panel-id/--panel",
+                second: "--client",
+            },
+            envelope,
+        ));
+    }
+    if let Some(panel) = panel {
+        return Ok(PanelQueryTarget::Panel(panel));
+    }
+    Ok(client_control::client_id(options, context, envelope)?
+        .map_or(PanelQueryTarget::Current, PanelQueryTarget::Client))
+}
+
 fn mutation(command: MutationCommand, options: &Options) -> Request {
     Request::Mutation {
         command,
@@ -4125,6 +4157,7 @@ const TAB_LIST_SCOPE: Scope = Scope {
 const PANEL_CURRENT_SCOPE: Scope = Scope {
     panel: true,
     current: true,
+    client: true,
     ..NO_OPTIONS
 };
 

@@ -2,7 +2,9 @@
 //! remain separate from snapshot routing and never grant input authority.
 
 use super::*;
-use crate::cli::{caller_context::PanelTarget, results};
+#[cfg(target_os = "linux")]
+use crate::cli::caller_context::PanelTarget;
+use crate::cli::results;
 use crate::invocation::QueryCommand;
 use orchbee_terminal_protocol::{
     ConnectionControl, MessageRole, PayloadEncoding, ProcessInfoControl, TerminalProcessInfo,
@@ -10,6 +12,7 @@ use orchbee_terminal_protocol::{
 };
 use serde_json::{Value, json};
 
+#[cfg(target_os = "linux")]
 pub(crate) fn panel_process_info(target: Option<&Target>) -> Result<(Value, Projection), Failure> {
     let deadline = deadline_after(NETWORK_BUDGET)?;
     let prepared = PanelTarget::prepare(target, |name| std::env::var_os(name))?;
@@ -20,6 +23,7 @@ pub(crate) fn panel_process_info(target: Option<&Target>) -> Result<(Value, Proj
     outcome.map_err(|error| error.source(snapshot_source))
 }
 
+#[cfg(target_os = "linux")]
 fn read_on_session(
     client: &mut LocalClient,
     deadline: Instant,

@@ -8,6 +8,7 @@ mod agent_start;
 pub(crate) use agent_start::run as run_agent_start;
 mod caller_context;
 mod creation;
+mod current_panel;
 pub(crate) use creation::run as run_creation;
 mod completion;
 pub(crate) mod config;
@@ -680,25 +681,8 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
                 }
             }
         }
-        QueryCommand::PanelProcessInfo(target) => {
-            match query::panel_process_info(target.as_ref()) {
-                Err(failure) => failure_output(failure, Some(format), locale),
-                Ok((source, projection)) => {
-                    success_output(projection, source, &command, format, locale)
-                }
-            }
-        }
-        QueryCommand::PanelCurrent(target) => {
-            match caller_context::read(
-                target.as_ref(),
-                |name| std::env::var_os(name),
-                query::read_snapshot,
-            ) {
-                Err(failure) => failure_output(failure, Some(format), locale),
-                Ok((source, projection)) => {
-                    success_output(projection, source, &command, format, locale)
-                }
-            }
+        QueryCommand::PanelProcessInfo(target) | QueryCommand::PanelCurrent(target) => {
+            current_panel::run(&command, target, format, locale)
         }
         _ => network_query(&command, format, locale),
     }

@@ -96,6 +96,7 @@
         }
         if (and (> $provider-count 1) (not-eq $path agent:doctor)) { set valid = $false }
         var limit = $command[operand]
+        if (and (eq $path panel:process-info) (has-value $seen --client)) { set limit = 0 }
         if (and (has-value $panel-targets $path) (any $seen [--panel --current])) { set limit = 0 }
         if (has-value $agent-targets $path) {
           if (any $seen [--session --name --panel]) { set limit = (- $limit 1) }
@@ -120,6 +121,7 @@
         var allowed = $command[flags]
         if (not-eq $command[words][0] tui) { set allowed = [$@allowed --format] }
         for flag $allowed {
+          if (and (eq $path panel:process-info) (> $n $width) (eq $flag --client)) { continue }
           if (and (has-value $panel-targets $path) (> $n $width) (has-value [--panel --current] $flag)) { continue }
           if (has-value $agent-targets $path) {
             var operands = (- $n $width)
