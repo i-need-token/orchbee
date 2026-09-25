@@ -824,15 +824,16 @@ function commandHooks(value: unknown): CommandHook[] {
 	if (Array.isArray(value)) return value.flatMap(commandHooks);
 	if (typeof value !== 'object' || value === null) return [];
 	const record = value as Record<string, unknown>;
+	const executable = typeof record['exec'] === 'string' ? record['exec'] : record['command'];
 	const own =
-		typeof record['command'] === 'string'
+		typeof executable === 'string'
 			? [
 					{
 						...(Array.isArray(record['args']) &&
 						record['args'].every((argument) => typeof argument === 'string')
 							? { args: record['args'] as string[] }
 							: {}),
-						command: record['command'],
+						command: executable,
 					},
 				]
 			: [];

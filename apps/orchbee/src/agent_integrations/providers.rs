@@ -13,6 +13,7 @@ use std::{
 };
 
 use super::capsule;
+use super::copilot::Command as CopilotCommand;
 use super::exec::{self, CommandResult};
 use super::inspect::{
     self, BootstrapKind, ClinePackage, CodexInspection, Marketplace, PluginInspection,
@@ -197,6 +198,7 @@ pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode)
                 | IntegrationId::Opencode
                 | IntegrationId::Pi
                 | IntegrationId::Omp
+                | IntegrationId::GitHubCopilot
         )
     {
         ManagementMode::ManualOnly
@@ -356,16 +358,12 @@ pub(crate) fn inspect_full(
         }
         Kind::Cli(CliKind::Copilot) => {
             let executable = executable.as_deref().expect("gated above");
-            let plugin = read_slot(
-                executable,
-                &["plugins", "list", "--kind", "plugin", "--json"],
-                context,
-            );
+            let plugin = read_slot(executable, &CopilotCommand::List.arguments(), context);
             let marketplace = match plugin {
                 ReadOutcome::Failed => None,
                 _ => Some(read_slot(
                     executable,
-                    &["plugins", "marketplace", "list", "--json"],
+                    &CopilotCommand::MarketplaceList.arguments(),
                     context,
                 )),
             };

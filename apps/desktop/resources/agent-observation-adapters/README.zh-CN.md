@@ -240,3 +240,7 @@ pnpm --filter @orchbee/desktop test:unit
 Capsule 0.4.2 将 Claude 的 `/bin/sh` hook 启动器替换为 `node` 加显式参数向量，遵循[上游 exec 契约](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)。固定模块表达式通过 pathToFileURL 导入原样插件脚本路径，并捕获导入失败。脚本删除及输入格式错误仍静默处理；Node 本身必须存在于 provider PATH 中。Node 无法启动时，Claude 可能显示其非阻塞诊断。集成从不产生工具权限决定。
 
 此共享声明让原生 Windows 配置不依赖 Shell。既有事件、hook 期限、输入界限、清洗及传输归属不变。[原生 Windows 契约](../../../orchbee/docs/windows-agent-integrations.zh-CN.md) 拥有安装及受控 Windows 证据；此变化不证明已认证 Agent 任务完成，也不增加 macOS/Linux 工作流支持。旧 capsule 保持不可变，显式修复安装 0.4.2。
+
+## Copilot 直接执行
+
+Capsule 0.4.3 使用基于 Node 的 [Copilot exec hook 契约](https://docs.github.com/en/copilot/reference/hooks-reference)。固定导入保护直接从 provider 子进程环境读取 COPILOT_PLUGIN_ROOT，检查其为绝对路径，并将拼接后的脚本路径传给 pathToFileURL。根目录或脚本缺失时不输出内容。Node 为前提；可执行文件不可用属于 provider 启动错误，不是已送达观察。PascalCase 事件名称保留文档所述的 VS Code 兼容输入字段，供既有清洗器使用。没有 Shell 解释路径。Windows 配置使用单独验证的当前插件命令／JSON 契约；共享载荷兼容不提升 Desktop CLI 对齐判定。

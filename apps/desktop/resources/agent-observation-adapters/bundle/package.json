@@ -1,6 +1,6 @@
 {
 	"name": "orchbee-agent-observation",
-	"version": "0.4.2",
+	"version": "0.4.3",
 	"private": true,
 	"description": "Locally sanitizes Cline lifecycle events for Orchbee Agent status observation",
 	"type": "module",

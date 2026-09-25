@@ -57,7 +57,7 @@ impl Fixture {
     }
     fn capsule(&self) -> PathBuf {
         self.home()
-            .join(".orchbee/agent-observation-adapters/0.4.2")
+            .join(".orchbee/agent-observation-adapters/0.4.3")
     }
     fn run(&self, verb: &str, provider: &str, config_home: &Path) -> Output {
         self.run_options(verb, provider, config_home, &[])
@@ -118,17 +118,17 @@ impl Fixture {
     fn calls(&self) -> String {
         fs::read_to_string(self.config_home().join("calls.jsonl")).unwrap_or_default()
     }
-    fn claude(&self) {
+    fn plugin(&self, provider: &str) {
         let node = std::env::split_paths(&std::env::var_os("PATH").unwrap())
             .map(|path| path.join("node.exe"))
             .find(|path| path.is_file())
             .unwrap();
         let script = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/windows-integration-claude.mjs");
+            .join("tests/fixtures/windows-integration-plugin.mjs");
         fs::write(
-            self.0.join("bin/claude.cmd"),
+            self.0.join(format!("bin/{provider}.cmd")),
             format!(
-                "@echo off\r\n\"{}\" \"{}\" %*\r\n",
+                "@echo off\r\n\"{}\" \"{}\" {provider} %*\r\n",
                 node.display(),
                 script.display()
             ),
@@ -141,10 +141,90 @@ impl Fixture {
 }
 
 #[test]
+fn copilot_current_commands_join_exact_origin_and_deliver_exec_hook_events() {
+    use std::os::windows::process::CommandExt;
+    let fixture = Fixture::new();
+    fixture.plugin("copilot");
+    let inspect = |verb| fixture.provider_document(verb, "github-copilot", 0);
+    let calls = || {
+        fs::read_to_string(fixture.config_home().join("copilot-calls.jsonl")).unwrap_or_default()
+    };
+    assert_eq!(inspect("explain")["result"]["state"], "not-installed");
+    inspect("enable");
+    assert_eq!(inspect("explain")["result"]["state"], "enabled");
+    let original_calls = calls();
+    inspect("enable");
+    assert_eq!(calls(), original_calls);
+    inspect("disable");
+    assert_eq!(inspect("explain")["result"]["state"], "disabled");
+    inspect("enable");
+    let state_path = fixture.config_home().join("copilot-state.json");
+    let mut state: Value = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
+    state["version"] = "0.4.2".into();
+    fs::write(&state_path, state.to_string()).unwrap();
+    assert_eq!(inspect("explain")["result"]["state"], "update-required");
+    inspect("enable");
+    assert_eq!(inspect("explain")["result"]["state"], "enabled");
+    let current = fs::read(&state_path).unwrap();
+    for (field, value, expected) in [
+        ("sourceTag", Value::from("cached"), "conflict"),
+        ("marketplace", Value::from("foreign"), "conflict"),
+        ("version", Value::from("9.0.0"), "stale-side"),
+        ("version", Value::Null, "unknown"),
+        (
+            "source",
+            serde_json::json!(fixture.0.join("foreign")),
+            "conflict",
+        ),
+    ] {
+        let mut state: Value = serde_json::from_slice(&current).unwrap();
+        state[field] = value;
+        let bytes = state.to_string();
+        fs::write(&state_path, &bytes).unwrap();
+        assert_eq!(inspect("explain")["result"]["state"], expected);
+        let previous_calls = calls();
+        let refusal_code = if expected == "unknown" { 9 } else { 3 };
+        fixture.provider_document("enable", "github-copilot", refusal_code);
+        fixture.provider_document("disable", "github-copilot", refusal_code);
+        assert_eq!(calls(), previous_calls);
+        assert_eq!(fs::read_to_string(&state_path).unwrap(), bytes);
+    }
+    let mut crossed: Value = serde_json::from_slice(&current).unwrap();
+    crossed["source"] = serde_json::json!(fixture.capsule().parent().unwrap().join("0.4.2"));
+    crossed["version"] = "9.0.0".into();
+    fs::write(&state_path, crossed.to_string()).unwrap();
+    assert_eq!(inspect("explain")["result"]["state"], "stale-side");
+    let previous_calls = calls();
+    fixture.provider_document("enable", "github-copilot", 3);
+    assert_eq!(calls(), previous_calls);
+    fs::write(&state_path, current).unwrap();
+    let output = Command::new("node.exe")
+        .arg(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/windows-integration-exec-hook.mjs"),
+        )
+        .arg("github-copilot")
+        .arg(fixture.capsule().join("bundle"))
+        .env("USERPROFILE", fixture.home())
+        .stdin(Stdio::null())
+        .creation_flags(0x0800_0000)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let delivery: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(delivery["events"], 4);
+    inspect("disable");
+}
+
+#[test]
 fn claude_plugin_lifecycle_and_shipped_exec_hooks_work_on_windows() {
     use std::os::windows::process::CommandExt;
     let fixture = Fixture::new();
-    fixture.claude();
+    fixture.plugin("claude");
     let inspect = |verb| fixture.provider_document(verb, "claude-code", 0);
     assert_eq!(
         inspect("explain")["result"]["managementMode"],
@@ -168,6 +248,7 @@ fn claude_plugin_lifecycle_and_shipped_exec_hooks_work_on_windows() {
             Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join("tests/fixtures/windows-integration-exec-hook.mjs"),
         )
+        .arg("claude-code")
         .arg(fixture.capsule().join("bundle"))
         .env("USERPROFILE", fixture.home())
         .stdin(Stdio::null())
@@ -188,7 +269,7 @@ fn claude_plugin_lifecycle_and_shipped_exec_hooks_work_on_windows() {
 #[test]
 fn claude_repairs_owned_old_installations_and_preserves_foreign_or_newer_sources() {
     let fixture = Fixture::new();
-    fixture.claude();
+    fixture.plugin("claude");
     let state_path = fixture.config_home().join("claude-state.json");
     let state = |source: &Path, version: &str| {
         serde_json::json!({
@@ -211,13 +292,18 @@ fn claude_repairs_owned_old_installations_and_preserves_foreign_or_newer_sources
         "enabled"
     );
     for (source, version, expected) in [
-        (fixture.0.join("foreign"), "0.4.2", "conflict"),
+        (fixture.0.join("foreign"), "0.4.3", "conflict"),
         (
             fixture.capsule().parent().unwrap().join("9.0.0"),
             "9.0.0",
             "stale-side",
         ),
         (fixture.capsule(), "9.0.0", "stale-side"),
+        (
+            fixture.capsule().parent().unwrap().join("0.4.2"),
+            "9.0.0",
+            "stale-side",
+        ),
     ] {
         let original = state(&source, version);
         fs::write(&state_path, &original).unwrap();

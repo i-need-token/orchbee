@@ -505,7 +505,7 @@ connect、绝不创建锁或标记、绝不修复——共享一个在有界文�
 ### Windows Agent 诊断细化
 
 Windows `agent doctor` 拥有相同的有界离线观察流程，输出 `orchbee.agent.doctor`
-版本 3；Linux 保持版本 1，schema 继续保留原版本 2 词汇。Capsule 0.4.2 支持
+版本 3；Linux 保持版本 1，schema 继续保留原版本 2 词汇。Capsule 0.4.3 支持
 原生 Windows Codex hook 传输，但 doctor 不连接命名管道，也不写 Console 关联 hint。
 端点保持 `not-inspected`，原因改为 `windows-endpoint-not-inspected`；配置和胶囊
 完整性不证明事件投递或 Site 存活。`complete` 描述探测覆盖率。

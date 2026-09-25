@@ -3,66 +3,111 @@
 	"hooks": {
 		"SessionStart": [
 			{
-				"command": "command -v node >/dev/null 2>&1 && [ -r \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot >/dev/null 2>&1 || :",
 				"timeoutSec": 2,
-				"type": "command"
+				"type": "command",
+				"exec": "node",
+				"args": [
+					"--input-type=module",
+					"-e",
+					"try { const p = await import('node:path'); const r = process.env.COPILOT_PLUGIN_ROOT; if (typeof r === 'string' && p.isAbsolute(r)) { const s = p.join(r, 'scripts', 'forward-hook.mjs'); process.argv = [process.argv[0], s, 'github-copilot']; await import((await import('node:url')).pathToFileURL(s).href); } } catch {}"
+				]
 			}
 		],
 		"UserPromptSubmit": [
 			{
-				"command": "command -v node >/dev/null 2>&1 && [ -r \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot >/dev/null 2>&1 || :",
 				"timeoutSec": 2,
-				"type": "command"
+				"type": "command",
+				"exec": "node",
+				"args": [
+					"--input-type=module",
+					"-e",
+					"try { const p = await import('node:path'); const r = process.env.COPILOT_PLUGIN_ROOT; if (typeof r === 'string' && p.isAbsolute(r)) { const s = p.join(r, 'scripts', 'forward-hook.mjs'); process.argv = [process.argv[0], s, 'github-copilot']; await import((await import('node:url')).pathToFileURL(s).href); } } catch {}"
+				]
 			}
 		],
 		"PostToolUse": [
 			{
-				"command": "command -v node >/dev/null 2>&1 && [ -r \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot >/dev/null 2>&1 || :",
 				"timeoutSec": 2,
-				"type": "command"
+				"type": "command",
+				"exec": "node",
+				"args": [
+					"--input-type=module",
+					"-e",
+					"try { const p = await import('node:path'); const r = process.env.COPILOT_PLUGIN_ROOT; if (typeof r === 'string' && p.isAbsolute(r)) { const s = p.join(r, 'scripts', 'forward-hook.mjs'); process.argv = [process.argv[0], s, 'github-copilot']; await import((await import('node:url')).pathToFileURL(s).href); } } catch {}"
+				]
 			}
 		],
 		"PostToolUseFailure": [
 			{
-				"command": "command -v node >/dev/null 2>&1 && [ -r \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot >/dev/null 2>&1 || :",
 				"timeoutSec": 2,
-				"type": "command"
+				"type": "command",
+				"exec": "node",
+				"args": [
+					"--input-type=module",
+					"-e",
+					"try { const p = await import('node:path'); const r = process.env.COPILOT_PLUGIN_ROOT; if (typeof r === 'string' && p.isAbsolute(r)) { const s = p.join(r, 'scripts', 'forward-hook.mjs'); process.argv = [process.argv[0], s, 'github-copilot']; await import((await import('node:url')).pathToFileURL(s).href); } } catch {}"
+				]
 			}
 		],
 		"Notification": [
 			{
-				"command": "command -v node >/dev/null 2>&1 && [ -r \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot >/dev/null 2>&1 || :",
 				"matcher": "permission_prompt|elicitation_dialog",
 				"timeoutSec": 2,
-				"type": "command"
+				"type": "command",
+				"exec": "node",
+				"args": [
+					"--input-type=module",
+					"-e",
+					"try { const p = await import('node:path'); const r = process.env.COPILOT_PLUGIN_ROOT; if (typeof r === 'string' && p.isAbsolute(r)) { const s = p.join(r, 'scripts', 'forward-hook.mjs'); process.argv = [process.argv[0], s, 'github-copilot']; await import((await import('node:url')).pathToFileURL(s).href); } } catch {}"
+				]
 			}
 		],
 		"PreCompact": [
 			{
-				"command": "command -v node >/dev/null 2>&1 && [ -r \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot >/dev/null 2>&1 || :",
 				"timeoutSec": 2,
-				"type": "command"
+				"type": "command",
+				"exec": "node",
+				"args": [
+					"--input-type=module",
+					"-e",
+					"try { const p = await import('node:path'); const r = process.env.COPILOT_PLUGIN_ROOT; if (typeof r === 'string' && p.isAbsolute(r)) { const s = p.join(r, 'scripts', 'forward-hook.mjs'); process.argv = [process.argv[0], s, 'github-copilot']; await import((await import('node:url')).pathToFileURL(s).href); } } catch {}"
+				]
 			}
 		],
 		"Stop": [
 			{
-				"command": "command -v node >/dev/null 2>&1 && [ -r \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot >/dev/null 2>&1 || :",
 				"timeoutSec": 2,
-				"type": "command"
+				"type": "command",
+				"exec": "node",
+				"args": [
+					"--input-type=module",
+					"-e",
+					"try { const p = await import('node:path'); const r = process.env.COPILOT_PLUGIN_ROOT; if (typeof r === 'string' && p.isAbsolute(r)) { const s = p.join(r, 'scripts', 'forward-hook.mjs'); process.argv = [process.argv[0], s, 'github-copilot']; await import((await import('node:url')).pathToFileURL(s).href); } } catch {}"
+				]
 			}
 		],
 		"ErrorOccurred": [
 			{
-				"command": "command -v node >/dev/null 2>&1 && [ -r \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot >/dev/null 2>&1 || :",
 				"timeoutSec": 2,
-				"type": "command"
+				"type": "command",
+				"exec": "node",
+				"args": [
+					"--input-type=module",
+					"-e",
+					"try { const p = await import('node:path'); const r = process.env.COPILOT_PLUGIN_ROOT; if (typeof r === 'string' && p.isAbsolute(r)) { const s = p.join(r, 'scripts', 'forward-hook.mjs'); process.argv = [process.argv[0], s, 'github-copilot']; await import((await import('node:url')).pathToFileURL(s).href); } } catch {}"
+				]
 			}
 		],
 		"SessionEnd": [
 			{
-				"command": "command -v node >/dev/null 2>&1 && [ -r \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot >/dev/null 2>&1 || :",
 				"timeoutSec": 1,
-				"type": "command"
+				"type": "command",
+				"exec": "node",
+				"args": [
+					"--input-type=module",
+					"-e",
+					"try { const p = await import('node:path'); const r = process.env.COPILOT_PLUGIN_ROOT; if (typeof r === 'string' && p.isAbsolute(r)) { const s = p.join(r, 'scripts', 'forward-hook.mjs'); process.argv = [process.argv[0], s, 'github-copilot']; await import((await import('node:url')).pathToFileURL(s).href); } } catch {}"
+				]
 			}
 		]
 	}

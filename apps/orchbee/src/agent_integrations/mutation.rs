@@ -17,6 +17,7 @@ use std::{
 };
 
 use super::capsule::{self, CapsuleValidity};
+use super::copilot::Command as CopilotCommand;
 use super::exec::{self, CommandResult, SLOT};
 use super::files::{self, FsStep};
 use super::inspect::{self, BootstrapKind, ClinePackage, Marketplace, TargetState};
@@ -1155,12 +1156,7 @@ fn enable_vector(
                     };
                     run_step(
                         &exe,
-                        &[
-                            "plugins",
-                            "enable",
-                            inspect::GITHUB_COPILOT_PLUGIN_ID,
-                            "--plugin",
-                        ],
+                        &CopilotCommand::Enable.arguments(),
                         context,
                         reserve,
                         attempted,
@@ -1173,34 +1169,16 @@ fn enable_vector(
                     };
                     let mut commands: Vec<Vec<String>> = Vec::new();
                     if inspection.plugin_present {
-                        commands.push(vec![
-                            "plugins".into(),
-                            "remove".into(),
-                            inspect::GITHUB_COPILOT_PLUGIN_ID.into(),
-                            "--plugin".into(),
-                        ]);
+                        commands.push(CopilotCommand::Remove.owned_arguments());
                     }
                     if inspection.marketplace == Marketplace::Legacy {
-                        commands.push(vec![
-                            "plugins".into(),
-                            "marketplace".into(),
-                            "remove".into(),
-                            inspect::MARKETPLACE_NAME.into(),
-                        ]);
+                        commands.push(CopilotCommand::MarketplaceRemove.owned_arguments());
                     }
                     if inspection.marketplace != Marketplace::Current {
-                        commands.push(vec![
-                            "plugins".into(),
-                            "marketplace".into(),
-                            "add".into(),
-                            resource_root.clone(),
-                        ]);
+                        commands
+                            .push(CopilotCommand::MarketplaceAdd(&resource_root).owned_arguments());
                     }
-                    commands.push(vec![
-                        "plugins".into(),
-                        "install".into(),
-                        inspect::GITHUB_COPILOT_PLUGIN_ID.into(),
-                    ]);
+                    commands.push(CopilotCommand::Install.owned_arguments());
                     run_sequence(&exe, &commands, context, reserve, attempted, effect)
                 }
                 _ => Attempt::Failed(FailureCode::OperationFailed),
@@ -1406,12 +1384,7 @@ fn disable_vector(
                     };
                     run_step(
                         &exe,
-                        &[
-                            "plugins",
-                            "disable",
-                            inspect::GITHUB_COPILOT_PLUGIN_ID,
-                            "--plugin",
-                        ],
+                        &CopilotCommand::Disable.arguments(),
                         context,
                         reserve,
                         attempted,
@@ -1424,20 +1397,10 @@ fn disable_vector(
                     };
                     let mut commands: Vec<Vec<String>> = Vec::new();
                     if inspection.plugin_present {
-                        commands.push(vec![
-                            "plugins".into(),
-                            "remove".into(),
-                            inspect::GITHUB_COPILOT_PLUGIN_ID.into(),
-                            "--plugin".into(),
-                        ]);
+                        commands.push(CopilotCommand::Remove.owned_arguments());
                     }
                     if inspection.marketplace == Marketplace::Legacy {
-                        commands.push(vec![
-                            "plugins".into(),
-                            "marketplace".into(),
-                            "remove".into(),
-                            inspect::MARKETPLACE_NAME.into(),
-                        ]);
+                        commands.push(CopilotCommand::MarketplaceRemove.owned_arguments());
                     }
                     if commands.is_empty() {
                         Attempt::Failed(FailureCode::OperationFailed)
@@ -2104,48 +2067,26 @@ pub(crate) fn plan_enable(
                 return steps;
             };
             match inspection.state {
-                State::Disabled => steps.push(command(
-                    "copilot",
-                    &[
-                        "plugins",
-                        "enable",
-                        inspect::GITHUB_COPILOT_PLUGIN_ID,
-                        "--plugin",
-                    ],
-                )),
+                State::Disabled => {
+                    steps.push(command("copilot", &CopilotCommand::Enable.arguments()))
+                }
                 State::NotInstalled | State::UpdateRequired => {
                     if inspection.plugin_present {
-                        steps.push(command(
-                            "copilot",
-                            &[
-                                "plugins",
-                                "remove",
-                                inspect::GITHUB_COPILOT_PLUGIN_ID,
-                                "--plugin",
-                            ],
-                        ));
+                        steps.push(command("copilot", &CopilotCommand::Remove.arguments()));
                     }
                     if inspection.marketplace == Marketplace::Legacy {
                         steps.push(command(
                             "copilot",
-                            &[
-                                "plugins",
-                                "marketplace",
-                                "remove",
-                                inspect::MARKETPLACE_NAME,
-                            ],
+                            &CopilotCommand::MarketplaceRemove.arguments(),
                         ));
                     }
                     if inspection.marketplace != Marketplace::Current {
                         steps.push(command(
                             "copilot",
-                            &["plugins", "marketplace", "add", &resource_root],
+                            &CopilotCommand::MarketplaceAdd(&resource_root).arguments(),
                         ));
                     }
-                    steps.push(command(
-                        "copilot",
-                        &["plugins", "install", inspect::GITHUB_COPILOT_PLUGIN_ID],
-                    ));
+                    steps.push(command("copilot", &CopilotCommand::Install.arguments()));
                 }
                 _ => {}
             }

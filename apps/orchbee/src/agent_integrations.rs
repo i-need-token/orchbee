@@ -14,6 +14,8 @@
 #[cfg(any(unix, windows))]
 mod capsule;
 #[cfg(any(unix, windows))]
+mod copilot;
+#[cfg(any(unix, windows))]
 #[cfg_attr(windows, path = "agent_integrations/exec_windows.rs")]
 mod exec;
 #[cfg(any(unix, windows))]

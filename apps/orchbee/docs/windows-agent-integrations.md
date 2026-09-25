@@ -24,14 +24,14 @@ for ownership, version direction, plans, receipts, and residuals.
 | Evidence       | Windows filesystem tests cover no-replace, Unicode paths, and reparse refusal; process tests cover argument preservation, output limits, cancellation, timeout, and descendants; isolated public CLI tests cover Codex onboarding and configuration isolation.                                                |
 | Limits         | Provider authentication, remote installs, paid Agent tasks, and TUI interaction are outside onboarding evidence. TLA execution is excluded by user instruction. Review is a same-author adversarial pass, not independent evidence.                                                                           |
 
-Windows manages Claude Code and Codex hooks and the existing OpenCode, Pi and OMP JavaScript modules.
+Windows manages Claude Code, Codex and GitHub Copilot hooks and the existing OpenCode, Pi and OMP JavaScript modules.
 The other provider rows retain `manual-only` until their Windows hook execution path
 is supported. Inspection and mutation share the same platform admission policy.
 
 OpenCode uses its ESM entry; the Pi/OMP installed CommonJS bootstrap dynamically imports
 the capsule's **ESM** entry and calls its named registration function. Importing their
 CommonJS wrapper and looking for that named export would silently skip registration.
-The module refinement keeps its existing bootstrap behavior with payload 0.4.2. The deterministic bootstrap bytes and file URL remain the ownership
+The module refinement keeps its existing bootstrap behavior with payload 0.4.3. The deterministic bootstrap bytes and file URL remain the ownership
 proof: changed, foreign or differently versioned entries are refused without replacement.
 Windows doctor derives the capsule root from the full `bundle/<provider>/<entry>` suffix,
 so a healthy installed module is inspected against its capsule manifest instead of the
@@ -64,6 +64,14 @@ Filtered lists use v2 with outdatedOnly true, inspectedCount, unresolvedProvider
 
 ## Claude exec hooks
 
-Claude Code is also managed on Windows with capsule 0.4.2. Its hook declaration uses the provider's `command` plus `args` exec form: Node receives the plugin script path as a literal argument, including spaces, apostrophes, Unicode, dollar signs and backticks. A fixed dynamic-import guard ignores a removed script; the existing bounded sanitizer and Windows pipe/console transport remain the only observation path. No Bash or PowerShell launcher is required. Node must remain on the provider PATH; if it is absent, Claude reports its non-blocking spawn diagnostic, and no observation is produced. This replaces the old Claude-only promise of silent success without Node. Other providers retain their own launch contracts. The [upstream exec contract](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form) defines argument substitution.
+Claude Code is also managed on Windows with capsule 0.4.3. Its hook declaration uses the provider's `command` plus `args` exec form: Node receives the plugin script path as a literal argument, including spaces, apostrophes, Unicode, dollar signs and backticks. A fixed dynamic-import guard ignores a removed script; the existing bounded sanitizer and Windows pipe/console transport remain the only observation path. No Bash or PowerShell launcher is required. Node must remain on the provider PATH; if it is absent, Claude reports its non-blocking spawn diagnostic, and no observation is produced. This replaces the old Claude-only promise of silent success without Node. Other providers retain their own launch contracts. The [upstream exec contract](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form) defines argument substitution.
 
 Enable, disable and repair reuse the existing user-scoped plugin commands and bounded Windows process owner. Old owned capsules require explicit repair; current enabled entries are no-ops, and foreign/newer entries remain refused. Isolated provider-command and shipped-hook witnesses cover onboarding and sanitized delivery. They do not establish authenticated Claude task completion. The shared portable hook declaration changes, but this work adds no macOS/Linux workflow or runtime validation.
+
+## Copilot command compatibility
+
+Windows targets the plugin contract verified with official Copilot CLI 1.0.88: `plugin list --json` returns a flat array, and plugin commands do not accept the retired `--kind` or `--plugin` switches. One fixed command owner supplies inspection, plans and effects. Inspection requires the exact marketplace, local installed origin, live source and payload version; foreign, newer and malformed observations never authorize repair. The Unix adapter retains its earlier command and parsing contract. No speculative mutation retry is performed.
+
+Capsule 0.4.3 uses Copilot's exec hook form with Node. The fixed import guard reads the provider's COPILOT_PLUGIN_ROOT environment variable as a path, with no shell expansion, and keeps the existing PascalCase event input contract. Missing roots or scripts are silent; Node remains a prerequisite. The [plugin reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference) and [hook reference](https://docs.github.com/en/copilot/reference/hooks-reference) own upstream semantics. The existing local mutation budget, Job Object teardown, immutable publication, receipt and content-free observation rules remain. Controlled installation and hook delivery do not establish authenticated Agent task completion.
+
+A newer reported Claude or Copilot plugin version blocks Windows repair even when its marketplace root is an older owned capsule. Missing version data cannot authorize replacement.

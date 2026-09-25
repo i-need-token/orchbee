@@ -600,7 +600,7 @@ names the concrete fact rows it cites and carries no causal, remedy, or trust cl
 
 Windows `agent doctor` owns the same bounded offline observation workflow. It emits
 `orchbee.agent.doctor` version 3; existing Linux output remains version 1, and the schema
-retains the prior version-2 vocabulary. Capsule 0.4.2 supports native Windows Codex hook
+retains the prior version-2 vocabulary. Capsule 0.4.3 supports native Windows Codex hook
 transport, but doctor never connects to a named pipe or writes console correlation hints.
 Its endpoint remains `not-inspected`, now with reason `windows-endpoint-not-inspected`;
 configuration and capsule integrity are not delivery or Site-liveness evidence. `complete`

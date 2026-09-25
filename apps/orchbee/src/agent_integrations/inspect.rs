@@ -257,6 +257,16 @@ pub(crate) fn inspect_claude(
             }
         }
     };
+    #[cfg(windows)]
+    if let Some(plugin) = plugin
+        && windows_plugin_version(plugin, options)? == State::StaleSide
+    {
+        return Some(PluginInspection {
+            marketplace,
+            plugin_present: true,
+            state: State::StaleSide,
+        });
+    }
     if marketplace == Marketplace::Legacy {
         return Some(PluginInspection {
             marketplace,
@@ -305,6 +315,17 @@ fn version_direction_state(observed: &str, expected: &str) -> State {
         (Some(observed_v), Some(expected_v)) if observed_v > expected_v => State::StaleSide,
         _ => State::UpdateRequired,
     }
+}
+
+#[cfg(windows)]
+fn windows_plugin_version(plugin: &Value, options: &ResourceOptions) -> Option<State> {
+    let version = read_string(plugin, "version")?;
+    parse_version(version)?;
+    Some(if version == options.expected_version {
+        State::Enabled
+    } else {
+        version_direction_state(version, options.expected_version)
+    })
 }
 
 /// grok — `grok plugin list --json`, single marketplace-free source field.
@@ -406,20 +427,23 @@ pub(crate) fn inspect_grok(
     }
 }
 
-/// github-copilot — `plugins list --kind plugin --json` yields
-/// `{plugins:[...]}`; entries match by `name === 'orchbee-agent-observation'`
-/// (the canonical parser uses the plugin NAME here, not the qualified id) and
-/// carries no version check.
+/// Windows Copilot 1.0.88 uses a flat plugin array, explicit live marketplace
+/// identity and version. Unix retains its earlier resource-command contract.
+/// Neither path confuses a plugin name with installed source ownership.
 pub(crate) fn inspect_copilot(
     plugin_stdout: &[u8],
     marketplace_stdout: &[u8],
     options: &ResourceOptions,
 ) -> Option<PluginInspection> {
+    #[cfg(unix)]
     let root = serde_json::from_slice::<Value>(plugin_stdout).ok()?;
+    #[cfg(unix)]
     let plugins = match root.get("plugins")?.as_array() {
         Some(entries) if entries.iter().all(|entry| entry.is_object()) => entries.clone(),
         _ => return None,
     };
+    #[cfg(windows)]
+    let plugins = record_array(plugin_stdout)?;
     let marketplaces = record_array(marketplace_stdout)?;
     let plugin_matches: Vec<&Value> = plugins
         .iter()
@@ -485,8 +509,14 @@ pub(crate) fn inspect_copilot(
             },
         });
     };
-    if read_string(plugin, "source") != Some("live-marketplace:orchbee-local")
+    let expected_source = if cfg!(windows) {
+        "live"
+    } else {
+        "live-marketplace:orchbee-local"
+    };
+    if read_string(plugin, "source") != Some(expected_source)
         || read_string(plugin, "installedFrom").is_none()
+        || (cfg!(windows) && read_string(plugin, "marketplace") != Some(MARKETPLACE_NAME))
     {
         return Some(PluginInspection {
             marketplace,
@@ -510,11 +540,29 @@ pub(crate) fn inspect_copilot(
             state: State::StaleSide,
         });
     }
+    #[cfg(windows)]
+    let version_state = windows_plugin_version(plugin, options)?;
+    #[cfg(windows)]
+    if version_state == State::StaleSide {
+        return Some(PluginInspection {
+            marketplace,
+            plugin_present: true,
+            state: version_state,
+        });
+    }
     if ownership == ResourceOwnership::Legacy || marketplace == Marketplace::Legacy {
         return Some(PluginInspection {
             marketplace,
             plugin_present: true,
             state: State::UpdateRequired,
+        });
+    }
+    #[cfg(windows)]
+    if version_state != State::Enabled {
+        return Some(PluginInspection {
+            marketplace,
+            plugin_present: true,
+            state: version_state,
         });
     }
     let enabled = read_boolean(plugin, "enabled")?;
