@@ -25,7 +25,8 @@ use orchbee_workbench_protocol::{
     LaunchEnvironment, LaunchOptions, LaunchProfileName, LaunchProfileSelector, LaunchSelection,
     WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
     WorkbenchProjectId, WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration,
-    WorkbenchTabMoveDirection, WorkbenchTerminalGeometry, WorkbenchWorkspaceId,
+    WorkbenchTabInsertIndex, WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
+    WorkbenchWorkspaceId,
 };
 
 /// Legacy three-variant invocation consumed by `presentation::present`.
@@ -834,6 +835,10 @@ pub(crate) enum MutationCommand {
         target: Target,
         direction: WorkbenchTabMoveDirection,
     },
+    TabMoveIndex {
+        target: Target,
+        insert_index: WorkbenchTabInsertIndex,
+    },
     TabClose {
         target: Target,
     },
@@ -1116,6 +1121,7 @@ pub(crate) enum ExpectedValue {
     Label,
     Dimension,
     TabDirection,
+    TabInsertIndex,
     PanelDirection,
     LayoutDirection,
     FiniteNumber,
@@ -1338,6 +1344,7 @@ struct Options {
     standalone: bool,
     label: Option<String>,
     direction: Option<String>,
+    insert_index: Option<String>,
     amount: Option<String>,
     ratio: Option<String>,
     right_click: Option<String>,
@@ -1430,6 +1437,7 @@ const VALUE_FLAGS: &[&str] = &[
     "--cols",
     "--cursor",
     "--direction",
+    "--insert-index",
     "--amount",
     "--ratio",
     "--right-click",
@@ -1912,6 +1920,7 @@ fn apply_value_flag(
         "--tab" => &mut options.tab,
         "--label" => &mut options.label,
         "--direction" => &mut options.direction,
+        "--insert-index" => &mut options.insert_index,
         "--amount" => &mut options.amount,
         "--ratio" => &mut options.ratio,
         "--right-click" => &mut options.right_click,
@@ -2802,10 +2811,7 @@ fn resolve_words(
                 envelope,
             )?;
             Ok(mutation(
-                MutationCommand::TabMove {
-                    target: target((*value).to_owned(), Resource::Tab, envelope)?,
-                    direction: tab_direction(options, UsageContext::Path("tab move"), envelope)?,
-                },
+                tab_move_command(value, options, envelope)?,
                 options,
             ))
         }
@@ -3798,6 +3804,7 @@ struct Scope {
     standalone: bool,
     label: bool,
     direction: bool,
+    insert_index: bool,
     amount: bool,
     ratio: bool,
     right_click: bool,
@@ -3913,6 +3920,7 @@ const NO_OPTIONS: Scope = Scope {
     standalone: false,
     label: false,
     direction: false,
+    insert_index: false,
     amount: false,
     ratio: false,
     right_click: false,
@@ -4073,6 +4081,7 @@ const TAB_CREATE_SCOPE: Scope = Scope {
 
 const TAB_MOVE_SCOPE: Scope = Scope {
     direction: true,
+    insert_index: true,
     ..NO_OPTIONS
 };
 
@@ -4306,6 +4315,9 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.label.is_some() && !scope.label {
         return Some("--label");
+    }
+    if options.insert_index.is_some() && !scope.insert_index {
+        return Some("--insert-index");
     }
     if options.direction.is_some() && !scope.direction {
         return Some("--direction");
@@ -5562,6 +5574,57 @@ fn doctor_asset_roots_option(
         ));
     }
     Ok(options.asset_roots.clone())
+}
+
+fn tab_move_command(
+    value: &str,
+    options: &Options,
+    envelope: FailureEnvelope,
+) -> Result<MutationCommand, ParseFailure> {
+    let context = UsageContext::Path("tab move");
+    if options.direction.is_some() && options.insert_index.is_some() {
+        return Err(usage_with(
+            UsageReason::ConflictingOptions {
+                context,
+                first: "--direction",
+                second: "--insert-index",
+            },
+            envelope,
+        ));
+    }
+    let target = target(value.to_owned(), Resource::Tab, envelope)?;
+    if let Some(value) = &options.insert_index {
+        let index = (!value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()))
+            .then(|| value.parse::<usize>().ok())
+            .flatten()
+            .and_then(|value| WorkbenchTabInsertIndex::new(value).ok())
+            .ok_or_else(|| {
+                usage_with(
+                    UsageReason::InvalidValue {
+                        context,
+                        option: "--insert-index",
+                        value: value.clone(),
+                        expected: ExpectedValue::TabInsertIndex,
+                    },
+                    envelope,
+                )
+            })?;
+        return Ok(MutationCommand::TabMoveIndex {
+            target,
+            insert_index: index,
+        });
+    }
+    if options.direction.is_none() {
+        return Err(missing_required(
+            context,
+            "'--direction' or '--insert-index'",
+            envelope,
+        ));
+    }
+    Ok(MutationCommand::TabMove {
+        target,
+        direction: tab_direction(options, context, envelope)?,
+    })
 }
 
 fn tab_direction(

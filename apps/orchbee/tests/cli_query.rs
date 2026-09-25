@@ -6168,11 +6168,11 @@ fn api_schema_catalog_is_v26_closed_and_self_consistent() -> TestResult {
     assert_eq!(output.status.code(), Some(0));
     let listed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(listed["schema"], "orchbee.api.schema");
-    assert_eq!(listed["version"], 31, "catalog envelope is v31");
+    assert_eq!(listed["version"], 32, "catalog envelope is v32");
     assert_eq!(listed["source"]["kind"], "embedded");
     assert!(api_schema.is_valid(&listed), "listing self-validates");
     let schemas = listed["result"]["schemas"].as_object().unwrap();
-    assert_eq!(schemas.len(), 66, "closed dictionary has 66 members");
+    assert_eq!(schemas.len(), 68, "closed dictionary has 68 members");
     assert!(
         schemas.contains_key("orchbee.project.rename"),
         "the rename receipt schema is registered"

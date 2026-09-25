@@ -1,0 +1,75 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.tab.move",
+	"title": "orchbee indexed Tab move receipt envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.tab.move"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"$ref": "#/$defs/commandSource"
+		},
+		"result": {
+			"type": "object",
+			"required": ["action", "outcome", "revision", "terminalContextId", "tabId", "insertIndex"],
+			"additionalProperties": false,
+			"properties": {
+				"action": {
+					"const": "tab.move"
+				},
+				"outcome": {
+					"enum": ["committed", "unchanged"]
+				},
+				"revision": {
+					"$ref": "#/$defs/revision"
+				},
+				"terminalContextId": {
+					"$ref": "#/$defs/id"
+				},
+				"tabId": {
+					"$ref": "#/$defs/id"
+				},
+				"insertIndex": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 256
+				}
+			}
+		}
+	},
+	"$defs": {
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"revision": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)$"
+		},
+		"commandSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "requestId", "expectedRevision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench-command"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"requestId": {
+					"$ref": "#/$defs/id"
+				},
+				"expectedRevision": {
+					"$ref": "#/$defs/revision"
+				}
+			}
+		}
+	}
+}

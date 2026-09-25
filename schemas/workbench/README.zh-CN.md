@@ -356,3 +356,14 @@ Panel swap 使用共享结构 placement 权威，在同一 Tab 中原子交换�
 `set-split-ratio` 接受可选 `expectedSplit:{splitId,firstSlotId,secondSlotId}`。提供时三者均必填，两侧槽位必须不同；显式 null 非法。Client 在写入前比较精确身份，`layout-adjusted` 回执也必须匹配三者。省略时保留原路径设置行为。共享语料覆盖替换身份、缺字段及槽位重复；该附加字段要求匹配 cohort，未增加 Desktop CLI 命令。
 
 [Panel 输入契约](../../apps/orchbee/docs/native-panel-input.zh-CN.md) 新增归 Panel 所有的可选 `rightClick`（默认 `orchbee`，或 `panel`）、`panel.input.set` 的必填策略、`panel.split` 的可选策略及 `panel-input-configured` 回执。null 与未知值无效。纯修改保持成员关系；分屏只为新 Panel 设置策略。Rust、TypeScript 和 JSON Schema 消费同一组一致性样例。不增加 Desktop CLI 命令，要求匹配的开发 cohort。
+
+## Tab 插入边界契约
+
+`tab.move-index { terminalContextId, tabId, insertIndex }` 扩展共享规范 Tab 重排；原 `tab.move`
+方向契约不变。`insertIndex` 是 0..256 内的整数，在原始顺序中表示零基插入边界。Server 在精确
+上下文/目标和树成员组合验证后拒绝超过当前 Tab 数量的值，原因是
+`tab-move-index-out-of-bounds`。源边界及其后一边界均无变化；总数量边界表示末尾。
+复用 `tab-moved` 和 `unchanged`、同一 revision、保留结果及原子提交 owner，不引入终端或焦点效果。
+请求指纹包含 action 类型和插入边界。语料覆盖上下界、整数小数表示、缺失/多余/冲突字段、
+负数、分数、字符串、布尔和空值拒绝。匹配实验批次一同发布和回退；不支持混合旧严格解码器，
+无持久化迁移。可执行证据见拥有该行为的 Server/原生 CLI 测试，TLA 模型本次不执行。

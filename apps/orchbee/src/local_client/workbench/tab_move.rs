@@ -23,13 +23,19 @@ impl LocalClient {
         let command = request.0;
         let request_id = command.request_id.clone();
         let expected_revision = command.expected_revision;
-        let WorkbenchAction::TabMove {
+        let index_request = matches!(&command.action, WorkbenchAction::TabMoveIndex { .. });
+        let (WorkbenchAction::TabMove {
             terminal_context_id,
             tab_id,
             ..
-        } = &command.action
+        }
+        | WorkbenchAction::TabMoveIndex {
+            terminal_context_id,
+            tab_id,
+            ..
+        }) = &command.action
         else {
-            unreachable!("opaque tab-move request only admits tab.move")
+            unreachable!("opaque tab-move request only admits Tab move variants")
         };
         let expected_context = terminal_context_id.clone();
         let expected_tab = tab_id.clone();
@@ -108,6 +114,7 @@ impl LocalClient {
             &expected_context,
             &expected_tab,
             result.outcome,
+            index_request,
         ) {
             Ok(submission) => submission,
             Err(reason) => self.retire_with_tab_move_unknown(request_id, reason),
@@ -130,7 +137,10 @@ pub(crate) struct WorkbenchTabMoveRequest(WorkbenchCommand);
 impl TryFrom<WorkbenchCommand> for WorkbenchTabMoveRequest {
     type Error = WorkbenchCommand;
     fn try_from(command: WorkbenchCommand) -> Result<Self, Self::Error> {
-        if matches!(command.action, WorkbenchAction::TabMove { .. }) {
+        if matches!(
+            command.action,
+            WorkbenchAction::TabMove { .. } | WorkbenchAction::TabMoveIndex { .. }
+        ) {
             Ok(Self(command))
         } else {
             Err(command)
@@ -284,6 +294,7 @@ fn classify_outcome(
     expected_context: &WorkbenchTerminalContextId,
     expected_tab: &WorkbenchTabId,
     outcome: WorkbenchCommandOutcome,
+    index_request: bool,
 ) -> Result<WorkbenchTabMoveSubmission, WorkbenchTabMoveOutcomeUnknownReason> {
     match outcome {
         WorkbenchCommandOutcome::Rejected { revision, reason }
@@ -296,7 +307,8 @@ fn classify_outcome(
                     | WorkbenchRejectionReason::ResourceLimit
                     | WorkbenchRejectionReason::RevisionExhausted
                     | WorkbenchRejectionReason::RequestIdentityConflict
-            ) =>
+            ) || (index_request
+                && reason == WorkbenchRejectionReason::TabMoveIndexOutOfBounds) =>
         {
             Ok(WorkbenchTabMoveSubmission::DefinitePrecommit(
                 WorkbenchTabMovePrecommit::Rejected { revision, reason },
@@ -310,7 +322,8 @@ fn classify_outcome(
                 reason,
                 WorkbenchCommandUnavailableReason::RequestLedgerFull
                     | WorkbenchCommandUnavailableReason::ServiceUnavailable
-            ) =>
+            ) || (index_request
+                && reason == WorkbenchCommandUnavailableReason::TerminalBusy) =>
         {
             Ok(WorkbenchTabMoveSubmission::DefinitePrecommit(
                 WorkbenchTabMovePrecommit::Unavailable { reason },

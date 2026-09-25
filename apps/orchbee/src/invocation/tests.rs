@@ -3874,7 +3874,7 @@ fn usage_failures_carry_their_concrete_reason() {
             &["tab", "move", ID],
             UsageReason::MissingRequired {
                 context: path("tab move"),
-                requirement: "'--direction'",
+                requirement: "'--direction' or '--insert-index'",
             },
         ),
         (
@@ -7199,5 +7199,63 @@ fn panel_input_requires_one_selector_and_closed_policy_without_effect_options() 
         assert!(
             matches!(command.kind, CreationKind::Split { right_click, .. } if right_click == expected)
         );
+    }
+}
+
+#[test]
+fn tab_index_grammar_is_bounded_exclusive_and_order_independent() {
+    for (word, expected) in [("0", 0), ("2", 2), ("256", 256), ("002", 2)] {
+        for args in [
+            vec!["tab", "move", ID, "--insert-index", word],
+            vec!["--insert-index", word, "tab", "move", ID],
+        ] {
+            assert_eq!(
+                parse(&args),
+                Ok(mutation(
+                    MutationCommand::TabMoveIndex {
+                        target: Target::Id(ID.into()),
+                        insert_index: orchbee_workbench_protocol::WorkbenchTabInsertIndex::new(
+                            expected
+                        )
+                        .unwrap(),
+                    },
+                    OutputFormat::Text
+                ))
+            );
+        }
+    }
+    for word in [
+        "",
+        "-1",
+        "+1",
+        "257",
+        "1.5",
+        "1e1",
+        "NaN",
+        " 1",
+        "9999999999999999999999999",
+    ] {
+        assert!(
+            parse(&["tab", "move", ID, "--insert-index", word]).is_err(),
+            "{word}"
+        );
+    }
+    for args in [
+        vec!["tab", "move", ID],
+        vec![
+            "tab",
+            "move",
+            ID,
+            "--insert-index",
+            "1",
+            "--direction",
+            "first",
+        ],
+        vec!["--direction=first", "tab", "--insert-index=1", "move", ID],
+        vec!["tab", "move", ID, "--insert-index=1", "--insert-index=2"],
+        vec!["tab", "rename", ID, "--insert-index=1", "--label=x"],
+        vec!["panel", "move", ID, "--insert-index=1"],
+    ] {
+        assert!(parse(&args).is_err(), "{args:?}");
     }
 }

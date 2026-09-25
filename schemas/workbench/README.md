@@ -392,3 +392,17 @@ Panel swap uses the shared structural placement authority for one atomic same-Ta
 `set-split-ratio` accepts optional `expectedSplit:{splitId,firstSlotId,secondSlotId}`. When present all three are required, ordered slots must differ, and explicit null is invalid. The Client compares exact identity before writing; `layout-adjusted` receipts must match all three. Omission retains ordinary path-setter behavior. Shared corpus cases cover replaced identities, missing fields and duplicate slots. This additive field requires a matched cohort and adds no Desktop CLI command.
 
 The [Panel input contract](../../apps/orchbee/docs/native-panel-input.md) adds Panel-owned optional `rightClick` (`orchbee` by default, or `panel`), required policy on `panel.input.set`, optional policy on `panel.split`, and `panel-input-configured` receipt. Null and unknown values are invalid. Pure updates preserve membership; split applies policy only to the new Panel. Rust, TypeScript and JSON Schema consume the same conformance corpus. This adds no Desktop CLI command and requires a coordinated development cohort.
+
+## Tab insertion boundary contract
+
+`tab.move-index { terminalContextId, tabId, insertIndex }` extends shared canonical Tab ordering;
+the original direction `tab.move` contract is unchanged. `insertIndex` is an integer in 0..256 and
+denotes a zero-based boundary in the original order. After exact context/target and tree membership
+composition, the Server rejects a value above its current Tab count as
+`tab-move-index-out-of-bounds`. Source/source+1 boundaries are unchanged; the count boundary appends.
+It reuses `tab-moved` and `unchanged`, the shared revision, retained results and atomic commit owner,
+without terminal or focus effects. The request fingerprint includes the action kind and boundary.
+The corpus covers bounds, decimal integer normalization, missing/extra/conflicting fields and
+negative/fraction/string/boolean/null refusal. Matching experimental cohorts activate and roll back
+together; old strict decoders cannot mix, and no durable migration is added. Executable evidence
+belongs to the Server/native CLI tests; the TLA asset is not executed in this parity work.

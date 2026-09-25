@@ -1,6 +1,36 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee tab move alpha --i", "--insert-index", true),
+    ("orchbee --insert-index 2 tab ", "move", true),
+    ("orchbee --insert-index 2 tab ", "rename", false),
+    (
+        "orchbee tab move --insert-index 2 --d",
+        "--direction",
+        false,
+    ),
+    (
+        "orchbee tab move --direction first --i",
+        "--insert-index",
+        false,
+    ),
+    (
+        "orchbee tab move --insert-index 2 alpha --i",
+        "--insert-index",
+        false,
+    ),
+    (
+        "orchbee tab move --insert-index 2 alpha --direction=",
+        "--direction=first",
+        false,
+    ),
+    (
+        "orchbee --insert-index 2 tab move --direction first ",
+        "--format",
+        false,
+    ),
+    ("orchbee tab move --insert-index ", "first", false),
+    ("orchbee panel --i", "--insert-index", false),
     ("orchbee panel ", "input", true),
     ("orchbee help panel ", "input", true),
     ("orchbee panel input --right-click ", "panel", true),

@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 31
+			"const": 32
 		},
 		"source": {
 			"type": "object",
@@ -115,7 +115,9 @@
 						"orchbee.panel.rename",
 						"orchbee.panel.swap",
 						"orchbee.creation.result",
-						"orchbee.panel.input"
+						"orchbee.panel.input",
+						"orchbee.tab.move",
+						"orchbee.cli.failure.tab-move"
 					],
 					"propertyNames": {
 						"$ref": "#/$defs/schemaId"
@@ -195,7 +197,9 @@
 				"orchbee.panel.rename",
 				"orchbee.panel.swap",
 				"orchbee.creation.result",
-				"orchbee.panel.input"
+				"orchbee.panel.input",
+				"orchbee.tab.move",
+				"orchbee.cli.failure.tab-move"
 			]
 		}
 	}

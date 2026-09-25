@@ -1,4 +1,5 @@
 use super::*;
+mod index;
 mod stateful;
 mod workspace;
 use crate::workbench_authority::terminal_membership::{append_simple_tab, parse_tab_ids};

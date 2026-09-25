@@ -248,6 +248,27 @@
 					"type": "object",
 					"properties": {
 						"kind": {
+							"const": "tab.move-index"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						},
+						"insertIndex": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 256
+						}
+					},
+					"required": ["kind", "terminalContextId", "tabId", "insertIndex"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
 							"const": "tab.close"
 						},
 						"terminalContextId": {
@@ -479,7 +500,8 @@
 				"resource-limit",
 				"identity-exhausted",
 				"revision-exhausted",
-				"request-identity-conflict"
+				"request-identity-conflict",
+				"tab-move-index-out-of-bounds"
 			]
 		},
 		"commandUnavailableReason": {

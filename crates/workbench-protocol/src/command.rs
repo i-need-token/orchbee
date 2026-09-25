@@ -462,6 +462,12 @@ pub enum WorkbenchAction {
         tab_id: WorkbenchTabId,
         direction: WorkbenchTabMoveDirection,
     },
+    #[serde(rename = "tab.move-index")]
+    TabMoveIndex {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        insert_index: WorkbenchTabInsertIndex,
+    },
     #[serde(rename = "tab.close")]
     TabClose {
         terminal_context_id: WorkbenchTerminalContextId,
@@ -581,6 +587,40 @@ pub enum WorkbenchPanelRelocateDestination {
     NewTab { label: WorkbenchLabel },
 }
 
+/// A zero-based insertion boundary in the original Tab order. The syntactic
+/// bound admits the end of a maximum-size context; the authority checks its
+/// current Tab count after exact context and target admission.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WorkbenchTabInsertIndex(usize);
+
+impl WorkbenchTabInsertIndex {
+    pub fn new(value: usize) -> Result<Self, ContractError> {
+        if value > crate::MAXIMUM_TABS_PER_CONTEXT {
+            return Err(ContractError::InvalidDocument);
+        }
+        Ok(Self(value))
+    }
+
+    #[must_use]
+    pub const fn value(self) -> usize {
+        self.0
+    }
+}
+
+impl Serialize for WorkbenchTabInsertIndex {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_u64(self.0 as u64)
+    }
+}
+
+impl<'de> Deserialize<'de> for WorkbenchTabInsertIndex {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = Binary64SafeInteger::deserialize(deserializer)?;
+        let value = usize::try_from(value.0).map_err(de::Error::custom)?;
+        Self::new(value).map_err(de::Error::custom)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum WorkbenchTabMoveDirection {
@@ -652,6 +692,7 @@ pub enum WorkbenchRejectionReason {
     WorkspaceDirectoryConflict,
     TerminalContextUnavailable,
     TabUnavailable,
+    TabMoveIndexOutOfBounds,
     PanelUnavailable,
     ResourceLimit,
     IdentityExhausted,

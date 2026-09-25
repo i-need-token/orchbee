@@ -6165,7 +6165,10 @@
 				"ObserveWorkspaceMoveWithSettledSlot",
 				"ObserveEmptySlot",
 				"ObserveCreatingSlot",
-				"ObserveSettledSlot"
+				"ObserveSettledSlot",
+				"ObserveIndexMove",
+				"ObserveIndexNoop",
+				"ObserveIndexBounds"
 			]
 		},
 		{

@@ -418,6 +418,7 @@ fn run(steps: &[Step]) -> Result<(), String> {
                     return Err("pure trace generated lifecycle close".to_owned());
                 }
                 WorkbenchAction::TabMove { .. }
+                | WorkbenchAction::TabMoveIndex { .. }
                 | WorkbenchAction::PanelMove { .. }
                 | WorkbenchAction::PanelSwap { .. }
                 | WorkbenchAction::PanelRelocate { .. } => {

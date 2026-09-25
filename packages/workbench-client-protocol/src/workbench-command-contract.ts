@@ -181,6 +181,14 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	z
 		.strictObject({
+			kind: z.literal('tab.move-index'),
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			insertIndex: z.number().int().min(0).max(256),
+		})
+		.readonly(),
+	z
+		.strictObject({
 			kind: z.literal('panel.close'),
 			terminalContextId: WorkbenchTerminalContextIdSchema,
 			tabId: WorkbenchTabIdSchema,
@@ -286,6 +294,7 @@ export const WorkbenchRejectionReasonSchema = z.enum([
 	'workspace-directory-conflict',
 	'terminal-context-unavailable',
 	'tab-unavailable',
+	'tab-move-index-out-of-bounds',
 	'panel-unavailable',
 	'panel-not-leaf',
 	'last-panel-in-tab',

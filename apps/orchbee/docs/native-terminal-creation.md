@@ -69,7 +69,7 @@ JSON emits one complete bounded document to stdout. Failed text output goes to s
 known effects. After an incomplete result, inspect the returned identities and current state before
 choosing a follow-up; repeating creation may create another resource. Client control-status can
 observe a submitted Client operation. No durable workflow journal or restart restoration is added.
-The schema catalog is v31 with 66 documents; command-path count remains 79.
+The schema catalog is v32 with 68 documents; command-path count remains 80.
 
 ## Evidence and compatibility
 

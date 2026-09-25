@@ -417,7 +417,7 @@ fn move_workspace_pair(
         .unwrap();
     assert_eq!(before.terminal_contexts[index].tabs.len(), 2);
     let tab_id = before.terminal_contexts[index].tabs[0].tab_id.clone();
-    let request = move_command_for_context(
+    let mut request = move_command_for_context(
         coordinator,
         request,
         before.revision.value(),
@@ -425,6 +425,19 @@ fn move_workspace_pair(
         tab_id.clone(),
         WorkbenchTabMoveDirection::Last,
     );
+    let WorkbenchAction::TabMove {
+        terminal_context_id,
+        tab_id,
+        ..
+    } = request.action
+    else {
+        unreachable!()
+    };
+    request.action = WorkbenchAction::TabMoveIndex {
+        terminal_context_id,
+        tab_id: tab_id.clone(),
+        insert_index: orchbee_workbench_protocol::WorkbenchTabInsertIndex::new(2).unwrap(),
+    };
     let response = coordinator
         .execute_terminal_tab_move(request.clone())
         .unwrap();

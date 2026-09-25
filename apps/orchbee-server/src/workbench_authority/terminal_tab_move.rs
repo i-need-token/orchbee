@@ -5,7 +5,7 @@ use super::{
 use orchbee_workbench_protocol::{
     ContractError, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchCommandResult, WorkbenchCommandUnavailableReason, WorkbenchProtocolDocument,
-    WorkbenchRejectionReason, WorkbenchTabId, WorkbenchTabMoveDirection,
+    WorkbenchRejectionReason, WorkbenchTabId, WorkbenchTabInsertIndex, WorkbenchTabMoveDirection,
     WorkbenchTerminalContextId, serialize_document,
 };
 
@@ -21,7 +21,13 @@ pub struct WorkbenchTabMoveAdmission<'a> {
     terminal_context_id: WorkbenchTerminalContextId,
     membership: Option<WorkbenchTerminalMembership>,
     tab_id: WorkbenchTabId,
-    direction: WorkbenchTabMoveDirection,
+    placement: TabPlacement,
+}
+
+#[derive(Clone, Copy)]
+enum TabPlacement {
+    Direction(WorkbenchTabMoveDirection),
+    InsertIndex(WorkbenchTabInsertIndex),
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -95,11 +101,26 @@ impl<'a> WorkbenchTabMoveAdmission<'a> {
                 WorkbenchRejectionReason::TabUnavailable,
             ))?;
         // Exact target lookup establishes a nonempty vector, bounded by the validated projection.
-        let destination = match self.direction {
-            WorkbenchTabMoveDirection::Previous => source.saturating_sub(1),
-            WorkbenchTabMoveDirection::Next => (source + 1).min(context.tabs.len() - 1),
-            WorkbenchTabMoveDirection::First => 0,
-            WorkbenchTabMoveDirection::Last => context.tabs.len() - 1,
+        let destination = match self.placement {
+            TabPlacement::Direction(direction) => match direction {
+                WorkbenchTabMoveDirection::Previous => source.saturating_sub(1),
+                WorkbenchTabMoveDirection::Next => (source + 1).min(context.tabs.len() - 1),
+                WorkbenchTabMoveDirection::First => 0,
+                WorkbenchTabMoveDirection::Last => context.tabs.len() - 1,
+            },
+            TabPlacement::InsertIndex(index) => {
+                let boundary = index.value();
+                if boundary > context.tabs.len() {
+                    return Err(PlanFailure::Rejected(
+                        WorkbenchRejectionReason::TabMoveIndexOutOfBounds,
+                    ));
+                }
+                if source < boundary {
+                    boundary - 1
+                } else {
+                    boundary
+                }
+            }
         };
         if source == destination {
             return Ok(self.authority.unchanged());
@@ -153,9 +174,11 @@ impl WorkbenchAuthority {
         grant: Option<&WorkbenchGrant>,
         command: WorkbenchCommand,
     ) -> WorkbenchTabMoveBegin<'_> {
-        let authorized = matches!(&command.action, WorkbenchAction::TabMove { .. })
-            && grant
-                .is_some_and(|grant| grant.site_id == *self.site_id() && grant.mutate_navigation);
+        let authorized = matches!(
+            &command.action,
+            WorkbenchAction::TabMove { .. } | WorkbenchAction::TabMoveIndex { .. }
+        ) && grant
+            .is_some_and(|grant| grant.site_id == *self.site_id() && grant.mutate_navigation);
         if !authorized {
             return WorkbenchTabMoveBegin::Ready(result(
                 &command,
@@ -165,16 +188,31 @@ impl WorkbenchAuthority {
         if let Some(result) = self.command_preflight(&command) {
             return WorkbenchTabMoveBegin::Ready(result);
         }
-        let WorkbenchAction::TabMove {
-            terminal_context_id,
-            tab_id,
-            direction,
-        } = command.action.clone()
-        else {
-            return WorkbenchTabMoveBegin::Ready(result(
-                &command,
-                unavailable(WorkbenchCommandUnavailableReason::ServiceUnavailable),
-            ));
+        let (terminal_context_id, tab_id, placement) = match command.action.clone() {
+            WorkbenchAction::TabMove {
+                terminal_context_id,
+                tab_id,
+                direction,
+            } => (
+                terminal_context_id,
+                tab_id,
+                TabPlacement::Direction(direction),
+            ),
+            WorkbenchAction::TabMoveIndex {
+                terminal_context_id,
+                tab_id,
+                insert_index,
+            } => (
+                terminal_context_id,
+                tab_id,
+                TabPlacement::InsertIndex(insert_index),
+            ),
+            _ => {
+                return WorkbenchTabMoveBegin::Ready(result(
+                    &command,
+                    unavailable(WorkbenchCommandUnavailableReason::ServiceUnavailable),
+                ));
+            }
         };
         let snapshot = self.projection.snapshot();
         let rejection = if command.site_id != snapshot.site_id {
@@ -226,7 +264,7 @@ impl WorkbenchAuthority {
             terminal_context_id,
             membership,
             tab_id,
-            direction,
+            placement,
         }))
     }
 }

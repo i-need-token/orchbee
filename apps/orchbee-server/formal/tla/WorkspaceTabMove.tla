@@ -16,6 +16,9 @@ EXTENDS Naturals, FiniteSets, Sequences, TLC
 
 Contexts == {"standalone", "workspace"}
 Directions == {"previous", "next", "first", "last"}
+Direction(value) == [kind |-> "direction", direction |-> value, index |-> 0]
+Index(value) == [kind |-> "index", direction |-> "first", index |-> value]
+Placements == {Direction(d): d \in Directions} \cup {Index(n): n \in 0..4}
 TabIds == 1..3
 RequestLimit == 2
 FullTab(context, id) ==
@@ -24,23 +27,25 @@ FullTab(context, id) ==
 InitialOrders == [c \in Contexts |-> [i \in TabIds |-> FullTab(c, i)]]
 Members(order) == {order[i] : i \in 1..Len(order)}
 Position(order, tab) == CHOOSE i \in 1..Len(order): order[i].id = tab
-Destination(order, tab, direction) ==
+Destination(order, tab, placement) ==
   LET i == Position(order, tab) IN
-    CASE direction = "previous" -> IF i = 1 THEN i ELSE i - 1
-      [] direction = "next" -> IF i = Len(order) THEN i ELSE i + 1
-      [] direction = "first" -> 1
-      [] OTHER -> Len(order)
-Permutation(order, tab, direction) ==
+    IF placement.kind = "index"
+    THEN IF i - 1 < placement.index THEN placement.index ELSE placement.index + 1
+    ELSE CASE placement.direction = "previous" -> IF i = 1 THEN i ELSE i - 1
+           [] placement.direction = "next" -> IF i = Len(order) THEN i ELSE i + 1
+           [] placement.direction = "first" -> 1
+           [] OTHER -> Len(order)
+Permutation(order, tab, placement) ==
   LET source == Position(order, tab)
-      target == Destination(order, tab, direction)
+      target == Destination(order, tab, placement)
   IN [i \in 1..Len(order) |->
        IF i = target THEN order[source]
        ELSE IF target < source /\ i > target /\ i <= source THEN order[i - 1]
        ELSE IF target > source /\ i >= source /\ i < target THEN order[i + 1]
        ELSE order[i]]
-Command(context, tab, direction, base) ==
-  [context |-> context, tab |-> tab, direction |-> direction, base |-> base]
-Commands == [context: Contexts, tab: TabIds, direction: Directions,
+Command(context, tab, placement, base) ==
+  [context |-> context, tab |-> tab, placement |-> placement, base |-> base]
+Commands == [context: Contexts, tab: TabIds, placement: Placements,
              base: 0..RequestLimit]
 Reply(kind, id, command, result, resultRevision) ==
   [kind |-> kind, id |-> id, command |-> command,
@@ -59,18 +64,20 @@ Init ==
   /\ initialSlot \in {"Empty", "Creating", "Settled"}
   /\ standaloneSlot = initialSlot
   /\ terminalEffects = <<>> /\ productCursor = 17
-  /\ response = Reply("none", 1, Command("standalone", 1, "first", 0), "none", 0)
+  /\ response = Reply("none", 1, Command("standalone", 1, Direction("first"), 0), "none", 0)
 
-(* One direct action owns all direction dispatch. Separate direct witnesses
-   below make direction and context coverage visible without action aliases. *)
+(* One direct action owns all placement dispatch. Separate direct witnesses
+   below make placement and context coverage visible without action aliases. *)
 NewMove ==
   /\ Len(ledger) < RequestLimit
-  /\ \E context \in Contexts, tab \in TabIds, direction \in Directions,
+  /\ \E context \in Contexts, tab \in TabIds, placement \in Placements,
         base \in {0, revision}:
-       LET command == Command(context, tab, direction, base)
-           moved == Permutation(orders[context], tab, direction)
-           changed == base = revision /\ moved # orders[context]
+       LET command == Command(context, tab, placement, base)
+           inBounds == IF placement.kind = "direction" THEN TRUE ELSE placement.index <= Len(orders[context])
+           moved == IF inBounds THEN Permutation(orders[context], tab, placement) ELSE orders[context]
+           changed == base = revision /\ inBounds /\ moved # orders[context]
            result == IF base # revision THEN "stale"
+                     ELSE IF ~inBounds THEN "index-out-of-bounds"
                      ELSE IF changed THEN "tab-moved" ELSE "unchanged"
            resultRevision == revision + (IF changed THEN 1 ELSE 0)
        IN /\ orders' = IF changed THEN [orders EXCEPT ![context] = moved] ELSE orders
@@ -103,14 +110,22 @@ CrossContextConflict ==
           IN response' = Reply("conflict", id, command, "conflict", revision)
   /\ UNCHANGED <<domainVars, independentVars>>
 
-ObservePrevious == /\ response.kind = "new" /\ response.command.direction = "previous"
+ObservePrevious == /\ response.kind = "new" /\ response.command.placement = Direction("previous")
                    /\ response.result = "tab-moved" /\ UNCHANGED vars
-ObserveNext == /\ response.kind = "new" /\ response.command.direction = "next"
+ObserveNext == /\ response.kind = "new" /\ response.command.placement = Direction("next")
                /\ response.result = "tab-moved" /\ UNCHANGED vars
-ObserveFirst == /\ response.kind = "new" /\ response.command.direction = "first"
+ObserveFirst == /\ response.kind = "new" /\ response.command.placement = Direction("first")
                 /\ response.result = "tab-moved" /\ UNCHANGED vars
-ObserveLast == /\ response.kind = "new" /\ response.command.direction = "last"
+ObserveLast == /\ response.kind = "new" /\ response.command.placement = Direction("last")
                /\ response.result = "tab-moved" /\ UNCHANGED vars
+ObserveIndexMove == /\ response.kind = "new" /\ response.command.placement.kind = "index"
+                    /\ response.command.placement.index \in 0..3
+                    /\ response.result = "tab-moved" /\ UNCHANGED vars
+ObserveIndexNoop == /\ response.kind = "new" /\ response.command.placement.kind = "index"
+                    /\ response.command.placement.index \in 0..3
+                    /\ response.result = "unchanged" /\ UNCHANGED vars
+ObserveIndexBounds == /\ response.kind = "new" /\ response.result = "index-out-of-bounds"
+                      /\ UNCHANGED vars
 ObserveNoop == /\ response.kind = "new" /\ response.result = "unchanged"
                /\ UNCHANGED vars
 ObserveStale == /\ response.kind = "new" /\ response.result = "stale"
@@ -138,6 +153,7 @@ ObserveWorkspaceMoveWithSettledSlot ==
 
 Next == NewMove \/ Replay \/ HistoricalReplay \/ CrossContextConflict
         \/ ObservePrevious \/ ObserveNext \/ ObserveFirst \/ ObserveLast
+        \/ ObserveIndexMove \/ ObserveIndexNoop \/ ObserveIndexBounds
         \/ ObserveNoop \/ ObserveStale \/ ObserveBothContextsCommitted
         \/ ObserveHistoricalMoveReplay
         \/ ObserveEmptySlot \/ ObserveCreatingSlot \/ ObserveSettledSlot
@@ -148,12 +164,12 @@ Spec == Init /\ [][Next]_vars
 TypeOK ==
   /\ orders \in [Contexts -> Seq({FullTab(c, i): c \in Contexts, i \in TabIds})]
   /\ revision \in 0..RequestLimit /\ commits \in [Contexts -> 0..RequestLimit]
-  /\ ledger \in Seq([command: Commands, result: {"stale", "unchanged", "tab-moved"},
+  /\ ledger \in Seq([command: Commands, result: {"stale", "unchanged", "tab-moved", "index-out-of-bounds"},
                      revision: 0..RequestLimit])
   /\ Len(ledger) <= RequestLimit
   /\ initialSlot \in {"Empty", "Creating", "Settled"}
   /\ response \in [kind: {"none", "new", "replay", "conflict"}, id: 1..RequestLimit,
-                     command: Commands, result: {"none", "stale", "unchanged", "tab-moved", "conflict"},
+                     command: Commands, result: {"none", "stale", "unchanged", "tab-moved", "conflict", "index-out-of-bounds"},
                      revision: 0..RequestLimit]
 WholeTabIdentity == \A c \in Contexts:
   /\ Len(orders[c]) = 3 /\ Members(orders[c]) = Members(InitialOrders[c])
@@ -186,7 +202,7 @@ ConflictPreservesState == [][response'.kind = "conflict" =>
   /\ UNCHANGED domainVars
 ]_vars
 NewNonCommitPreservesOrder == [][
-  response'.kind = "new" /\ response'.result \in {"unchanged", "stale"} =>
+  response'.kind = "new" /\ response'.result \in {"unchanged", "stale", "index-out-of-bounds"} =>
     UNCHANGED <<orders, revision, commits>>
 ]_vars
 LedgerImmutable == [][\A id \in 1..Len(ledger): ledger'[id] = ledger[id]]_vars

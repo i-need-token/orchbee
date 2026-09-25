@@ -1133,6 +1133,7 @@ impl PureWorkbenchAction {
             | WorkbenchAction::PanelSplit { .. }
             | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
             | WorkbenchAction::TabMove { .. }
+            | WorkbenchAction::TabMoveIndex { .. }
             | WorkbenchAction::TabClose { .. }
             | WorkbenchAction::PanelClose { .. }
             | WorkbenchAction::PanelMove { .. }

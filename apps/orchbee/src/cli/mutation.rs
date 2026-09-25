@@ -39,6 +39,7 @@ pub(super) struct Receipt {
     attempt_generation: Option<String>,
     ids: Vec<(&'static str, String)>,
     direction: Option<&'static str>,
+    insert_index: Option<orchbee_workbench_protocol::WorkbenchTabInsertIndex>,
     label: Option<String>,
     custom_label: Option<orchbee_workbench_protocol::PanelLabelUpdate>,
     right_click: Option<orchbee_workbench_protocol::PanelRightClickTarget>,
@@ -96,6 +97,9 @@ impl Receipt {
         for (key, id) in &self.ids {
             result.insert((*key).to_owned(), json!(id));
         }
+        if let Some(index) = self.insert_index {
+            result.insert("insertIndex".to_owned(), json!(index));
+        }
         if let Some(direction) = self.direction {
             result.insert("direction".to_owned(), json!(direction));
         }
@@ -131,7 +135,7 @@ impl Receipt {
             // additions; version-3 validators stay behind. `project rename`
             // keeps its dedicated v1 document — the shared action enum stays
             // closed.
-            "version": if matches!(self.schema_id, super::schema::PROJECT_RENAME_RESULT_ID | super::schema::PANEL_RENAME_RESULT_ID | super::schema::PANEL_INPUT_RESULT_ID) {
+            "version": if matches!(self.schema_id, super::schema::PROJECT_RENAME_RESULT_ID | super::schema::PANEL_RENAME_RESULT_ID | super::schema::PANEL_INPUT_RESULT_ID | super::schema::TAB_MOVE_RESULT_ID) {
                 1
             } else {
                 4
@@ -221,6 +225,9 @@ impl Receipt {
         }
         for (key, id) in &self.ids {
             rows.push((key, id.clone()));
+        }
+        if let Some(index) = self.insert_index {
+            rows.push(("insertIndex", index.value().to_string()));
         }
         if let Some(direction) = self.direction {
             rows.push(("direction", direction.to_owned()));
@@ -557,12 +564,23 @@ mod linux {
 
     pub(super) fn run(command: &MutationCommand, format: OutputFormat, locale: Locale) -> Output {
         match execute(command) {
-            Err(failure) => failure_output(failure, Some(format), locale),
+            Err(failure) => {
+                let failure = if matches!(command, MutationCommand::TabMoveIndex { .. }) {
+                    failure.failure_schema(super::super::schema::TAB_MOVE_FAILURE_ID)
+                } else {
+                    failure
+                };
+                failure_output(failure, Some(format), locale)
+            }
             Ok(receipt) => success_output(&receipt, format, locale),
         }
     }
 
     fn execute(command: &MutationCommand) -> Result<Receipt, Failure> {
+        if matches!(command, MutationCommand::TabMoveIndex { .. }) && !cfg!(windows) {
+            return Err(Failure::new(FailureKind::ServiceUnavailable)
+                .details(stage_reason_details("platform", "unsupported-platform")));
+        }
         // `close-resume` is a retained-lifecycle request, not a Workbench
         // command — it takes its own exchange on the same session
         // discipline: one admission, one submission, never a replay.
@@ -743,6 +761,17 @@ mod linux {
                     terminal_context_id: context.terminal_context_id.clone(),
                     tab_id: tab.tab_id.clone(),
                     label: label.clone(),
+                })
+            }
+            MutationCommand::TabMoveIndex {
+                target,
+                insert_index,
+            } => {
+                let (context, tab) = resolve_tab(snapshot, target)?;
+                Ok(WorkbenchAction::TabMoveIndex {
+                    terminal_context_id: context.terminal_context_id.clone(),
+                    tab_id: tab.tab_id.clone(),
+                    insert_index: *insert_index,
                 })
             }
             MutationCommand::TabMove { target, direction } => {
@@ -1299,13 +1328,27 @@ mod linux {
             WorkbenchAction::TabMove {
                 terminal_context_id,
                 tab_id,
-                direction,
+                ..
+            }
+            | WorkbenchAction::TabMoveIndex {
+                terminal_context_id,
+                tab_id,
+                ..
             } => {
                 let request = WorkbenchTabMoveRequest::try_from(command).map_err(|_| internal())?;
-                let base = receipt(&resolved, "tab.move", "committed")
+                let mut base = receipt(&resolved, "tab.move", "committed")
                     .id("terminalContextId", terminal_context_id.as_str())
-                    .id("tabId", tab_id.as_str())
-                    .direction(tab_direction(*direction));
+                    .id("tabId", tab_id.as_str());
+                match &resolved.action {
+                    WorkbenchAction::TabMove { direction, .. } => {
+                        base = base.direction(tab_direction(*direction));
+                    }
+                    WorkbenchAction::TabMoveIndex { insert_index, .. } => {
+                        base = base.schema(super::super::schema::TAB_MOVE_RESULT_ID);
+                        base.insert_index = Some(*insert_index);
+                    }
+                    _ => unreachable!("Tab move dispatch"),
+                }
                 match client.submit_workbench_tab_move(request, deadline) {
                     WorkbenchTabMoveSubmission::Committed(WorkbenchTabMoveCommit {
                         revision,
@@ -1753,6 +1796,7 @@ mod linux {
                     ("workspaceId", workspace_id.as_str().to_owned()),
                 ],
                 direction: None,
+                insert_index: None,
                 label: None,
                 custom_label: None,
                 right_click: None,
@@ -1838,6 +1882,7 @@ mod linux {
             attempt_generation: None,
             ids: Vec::new(),
             direction: None,
+            insert_index: None,
             label: None,
             custom_label: None,
             right_click: None,
@@ -2001,6 +2046,7 @@ mod linux {
             WorkbenchRejectionReason::WorkspaceDirectoryConflict => "workspace-directory-conflict",
             WorkbenchRejectionReason::TerminalContextUnavailable => "terminal-context-unavailable",
             WorkbenchRejectionReason::TabUnavailable => "tab-unavailable",
+            WorkbenchRejectionReason::TabMoveIndexOutOfBounds => "tab-move-index-out-of-bounds",
             WorkbenchRejectionReason::PanelUnavailable => "panel-unavailable",
             WorkbenchRejectionReason::PanelNotLeaf => "panel-not-leaf",
             WorkbenchRejectionReason::LastPanelInTab => "last-panel-in-tab",

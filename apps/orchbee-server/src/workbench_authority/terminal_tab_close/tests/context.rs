@@ -570,6 +570,24 @@ fn open_context_close_fences_create_move_split_and_member_close() {
             ..
         })
     ));
+    let indexed = command(
+        &authority,
+        10006,
+        WorkbenchAction::TabMoveIndex {
+            terminal_context_id: context_id.clone(),
+            tab_id: member.tab_id().clone(),
+            insert_index: orchbee_workbench_protocol::WorkbenchTabInsertIndex::new(256).unwrap(),
+        },
+    );
+    assert!(matches!(
+        authority.begin_terminal_tab_move(Some(&grant), indexed),
+        WorkbenchTabMoveBegin::Ready(WorkbenchCommandResult {
+            outcome: WorkbenchCommandOutcome::Unavailable {
+                reason: WorkbenchCommandUnavailableReason::TerminalBusy
+            },
+            ..
+        })
+    ));
     let split = command(
         &authority,
         10003,

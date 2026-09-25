@@ -615,6 +615,12 @@ impl Locale {
             (Self::ZhCn, ExpectedValue::Label) => "1–512 个字符的非空标签",
             (Self::EnUs, ExpectedValue::Dimension) => "a decimal integer from 0 to 65535",
             (Self::ZhCn, ExpectedValue::Dimension) => "0–65535 的十进制整数",
+            (Self::EnUs, ExpectedValue::TabInsertIndex) => {
+                "an integer from 0 to 256 (boundary in the original Tab order)"
+            }
+            (Self::ZhCn, ExpectedValue::TabInsertIndex) => {
+                "0 到 256 的整数（原始 Tab 顺序中的插入边界）"
+            }
             (Self::EnUs, ExpectedValue::TabDirection) => "'previous', 'next', 'first', or 'last'",
             (Self::ZhCn, ExpectedValue::TabDirection) => "'previous'、'next'、'first' 或 'last'",
             (Self::EnUs, ExpectedValue::FiniteNumber) => "a finite number",
@@ -2409,8 +2415,8 @@ const HELP_PANEL_RENAME_ZH: &str = "orchbee panel rename <panel-id> (--label <te
 const HELP_TAB_RENAME_EN: &str = "orchbee tab rename <target> --label <label> [--format text|json]\n\nRename one Tab selected by exact ID, @tab:<suffix>, or exact label.\nA committed result\ncarries the new revision; unchanged means the label already matched.\n";
 const HELP_TAB_RENAME_ZH: &str = "orchbee tab rename <target> --label <label> [--format text|json]\n\n重命名一个由精确 ID、@tab:<suffix> 或精确 label 选择的 Tab。committed 结果携带新修\n订；unchanged 表示 label 本已相同。\n";
 
-const HELP_TAB_MOVE_EN: &str = "orchbee tab move <target> --direction <previous|next|first|last> [--format text|json]\n\nMove one Tab within its strip. A committed result carries the new\nrevision; unchanged means the tab was already in position.\n";
-const HELP_TAB_MOVE_ZH: &str = "orchbee tab move <target> --direction <previous|next|first|last> [--format text|json]\n\n在标签条内移动一个 Tab。committed 结果携带新修订；unchanged 表示 Tab\n本已在目标位置。\n";
+const HELP_TAB_MOVE_EN: &str = "orchbee tab move <target> (--direction <previous|next|first|last> | --insert-index <N>) [--format text|json]\n\nMove one Tab within its strip. A committed result carries the new\nrevision; unchanged means the tab was already in position.\nWindows --insert-index uses a boundary in the original order: 0 is first,\nTab count is last; source/source+1 are unchanged. Out of range is refused.\n";
+const HELP_TAB_MOVE_ZH: &str = "orchbee tab move <target> (--direction <previous|next|first|last> | --insert-index <N>) [--format text|json]\n\n在标签条内移动一个 Tab。committed 结果携带新修订；unchanged 表示 Tab\n本已在目标位置。\nWindows --insert-index 使用原顺序的边界：0 为首位，Tab 总数为末尾；\n源位置及其后一边界无变化。超出当前数量会拒绝。\n";
 
 const HELP_TAB_CLOSE_EN: &str = "orchbee tab close <target> --confirm [--format text|json]\n\nClose one Tab selected by exact ID, @tab:<suffix>, or exact label.\n'--confirm' is\nrequired. An accepted result carries the accepted revision and the close\nrequest id; the Site finishes the close asynchronously.\n";
 const HELP_TAB_CLOSE_ZH: &str = "orchbee tab close <target> --confirm [--format text|json]\n\n关闭一个由精确 ID、@tab:<suffix> 或精确 label 选择的 Tab。'--confirm' 为必填。\naccepted 结果携带已接受修订与关闭请求 ID；Site 异步完成关闭。\n";

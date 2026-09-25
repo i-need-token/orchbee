@@ -7,8 +7,30 @@ use std::{
 
 #[test]
 fn real_powershell_completes_scoped_grammar_without_runtime() {
-    let cases = super::super::test_cases::CASES;
-    let json = serde_json::to_string(cases).expect("cases");
+    let mut cases = super::super::test_cases::CASES.to_vec();
+    cases.extend([
+        (
+            "orchbee tab move alpha --insert-index 2 --f",
+            "--format",
+            true,
+        ),
+        (
+            "orchbee tab move alpha --insert-index $x --f",
+            "--format",
+            false,
+        ),
+        (
+            "orchbee tab move alpha --insert-index (1+1) --f",
+            "--format",
+            false,
+        ),
+        (
+            "orchbee tab move alpha --insert-index {2} --f",
+            "--format",
+            false,
+        ),
+    ]);
+    let json = serde_json::to_string(&cases).expect("cases");
     // Windows PowerShell 5.1 only invokes a native argument completer for
     // option prefixes after resolving an actual executable. Use this test
     // executable as a name-only target; completion never runs it.

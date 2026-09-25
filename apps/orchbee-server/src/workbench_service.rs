@@ -263,7 +263,10 @@ impl WorkbenchService {
                     .unwrap_or_else(|| unavailable_or_denied(fallback, false)),
             ),
             Err(WorkbenchRequest::Command(command))
-                if matches!(&command.action, WorkbenchAction::TabMove { .. }) =>
+                if matches!(
+                    &command.action,
+                    WorkbenchAction::TabMove { .. } | WorkbenchAction::TabMoveIndex { .. }
+                ) =>
             {
                 WorkbenchExecution::Response(
                     self.terminals

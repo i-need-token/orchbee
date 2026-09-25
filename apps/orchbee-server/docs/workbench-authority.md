@@ -134,16 +134,39 @@ proven alive.
 
 ## Accepted canonical Tab move model
 
+### Insertion boundary extension
+
+`tab.move-index` carries exact `terminalContextId`, `tabId` and integer `insertIndex` in 0..256.
+The existing scoped Move owner handles both strict action variants; `tab.move` retains its direction
+wire unchanged. For original zero-based source position S and original Tab count L, accept N in
+0..L and choose destination N - 1 when S < N, otherwise N. Boundaries S and S + 1 are no-ops;
+0 moves first and L appends. No clamping or repeated relative commands are permitted. Invalid
+current bounds yield retained `tab-move-index-out-of-bounds` after target/composition validation,
+before no-op/revision allocation, with unchanged order and identity cursor. Exact request replay,
+conflict, capacity, pending creation settlement and context-close fencing use the existing owner.
+Complete records, including nested Panel trees and input policy, move intact. No Client focus,
+terminal attachment, controller, Host input or Worker action belongs to this transition.
+
+`WorkspaceTabMove` includes all four direction selectors, every boundary for three Tabs, and one
+out-of-range boundary. Coverage distinguishes indexed movement, indexed no-op and bound refusal;
+noncommit transitions preserve order/revision and retained results remain immutable. This finite
+asset is maintained without executing TLA during this Windows parity work. Rust permutation-oracle,
+strict cross-language corpus, one-effect named-pipe and actual two-TUI checks supply executable
+evidence; no model-checker proof is claimed. The native CLI consumer and unknown-outcome rules are
+owned by the [native CLI reference](../../orchbee/docs/native-cli-query.md#tab-insertion-boundary).
+The experimental protocol, Server and native binary activate as a matched cohort. Rollback also
+uses a matched cohort; it does not compensate an already committed order or migrate durable data.
+
 ### Workspace context extension
 
 The local Move owner also accepts a Terminal Context referenced by a canonical Workspace.
-It applies the same four directions, exact request fingerprint, shared revision, no-op and retained
+It applies the same four directions or insertion boundary, exact request fingerprint, shared revision, no-op and retained
 result rules below. Context admission accepts the standalone context or an existing Workspace's
 context; an unknown context is `TerminalContextUnavailable`. A Tab belonging to another context
 is `TabUnavailable`. Move does not require a primary Directory, filesystem probe or live Worker.
 
-Both context kinds require the existing simple layout: no groups, pinned/grouped Tabs, splits or
-child presentations, and every primary presentation has a binding. Layout divergence precedes
+Both context kinds accept validated split trees: no groups, pinned/grouped Tabs or child
+presentations, and every leaf primary presentation has a binding. Layout divergence precedes
 target lookup and no-op and retires the authority without permutation. This preserves the current
 local cohort's shape; it does not define pin/group movement or recovery of imported layouts.
 
@@ -184,25 +207,24 @@ strict membership and request/result retention. Site retains only
 `Empty | Creating(reference) | Settled { reference, outcome }`; TerminalCoordinator owns retained
 authorization and execution. Move adds no stored anchor identity/binding, per-Tab Site map, Open
 field, structural identity, terminal plan, Worker IPC, viewer or controller effect. Close/Stop,
-archive/restart, pin/group, splits, persistence, remote operations, Web migration and push remain
+archive/restart, pin/group, split creation, persistence, remote operations, Web migration and push remain
 excluded from Move. Close has the separate local Server integration described above; its native
 integration has separate Linux process evidence; release convergence remains pending.
 No explicit-empty Open result is added.
 
-The `WorkbenchTerminalMembership` returned by `standalone_membership()` is a bounded read-only vector of every strict standalone member
+The `WorkbenchTerminalMembership` returned by `tree_standalone_membership()` is a bounded read-only vector of every strict standalone member
 in canonical order, exposing exact Tab/Panel/Presentation identities and binding. Workbench validates
 the entire context and constructs it; Site never caches it. Empty membership is valid exactly when
 the Site slot is Empty. Nonempty membership requires Creating or Settled with reference R,
 `TerminalCoordinator.retained_authorization(R)`, successful exact conversion to
 `PresentationBinding`, and exactly one matching binding anywhere in the vector. Position never
 identifies bootstrap or completion. Zero/multiple matches, absent/unconvertible authorization,
-duplicate context or pin/group/split/child/missing-binding layout are internal divergence, never
+duplicate context or pin/group/child/missing-binding layout are internal divergence, never
 repaired or returned as `TabUnavailable`.
 
-`standalone_membership()` is the strict-simple projection — one member per Tab — that first/later
-create and Move admission use; a split-bearing tree is divergence for those callers.
-`tree_standalone_membership()` is the strict tree read — every leaf member of the standalone Tab
-tree in canonical order under the same context validation. Open reads the strict tree membership and
+`standalone_membership()` remains the strict-simple projection for callers requiring one member
+per Tab. Create, completion, Move and Open use `tree_standalone_membership()`, the strict tree read:
+every leaf of the standalone Tab tree in canonical order under the same context validation. Site
 applies the same reference-derived anchor relation over its members, so a legal multi-leaf shape is
 never a composition fault; "every member has a retained binding" alone does not prove the slot anchor,
 and missing retained authorization, zero or duplicate anchor matches and every structural violation
@@ -226,21 +248,23 @@ For a syntactically valid Move, the exact precedence is:
 5. exact Site, otherwise `SiteMismatch`;
 6. expected revision, otherwise `RevisionMismatch`;
 7. exact standalone or Workspace context, otherwise `TerminalContextUnavailable`;
-8. complete strict target-context layout;
-9. reference-derived unique-binding Site composition for standalone only;
-10. exact target Tab, otherwise `TabUnavailable`;
-11. semantic no-op, yielding existing `Unchanged { revision }`;
-12. revision exhaustion for an actual permutation;
-13. prebuild/validate complete candidate projection, publication and fixed result;
-14. reserve exact retained request/result bytes;
-15. infallibly commit projection, revision and settled ledger entry.
+8. open context-close fence, otherwise transient `unavailable/terminal-busy`;
+9. complete strict target-context layout;
+10. reference-derived unique-binding Site composition for standalone only;
+11. exact target Tab, otherwise `TabUnavailable`;
+12. insertion boundary not exceeding the current Tab count, otherwise `TabMoveIndexOutOfBounds`;
+13. semantic no-op, yielding existing `Unchanged { revision }`;
+14. revision exhaustion for an actual permutation;
+15. prebuild/validate complete candidate projection, publication and fixed result;
+16. reserve exact retained request/result bytes;
+17. infallibly commit projection, revision and settled ledger entry.
 
 Unsupported layout therefore precedes missing target/no-op; missing context keeps its typed
 rejection. No-op precedes revision exhaustion. Typed rejection/no-op is retained only if the byte
 policy admits it. Entry/byte exhaustion is transient unavailable with no ledger insert,
 order/revision/cursor/Site/terminal change or effect. Exact replay preserves the original result
 revision after later commits. The fingerprint includes Site, base revision, context, target and
-direction. Move neither reads nor advances the structural identity cursor.
+direction or insertion boundary, including action kind. Move neither reads nor advances the structural identity cursor.
 
 Common preflight and full membership yield an opaque borrowed admission; Site validates composition
 before the prepared Move owns its complete publication and fixed ledger insertion. Dropping plans
@@ -395,7 +419,7 @@ The language-neutral request/result authority is
 [the Workbench contract](../../../schemas/workbench/README.md). Workbench uses its own OBWP carrier
 on the same admitted local connection; OBCS remains the terminal-only contract. Same-user OBLC
 admission precedes either protocol. The Server then selects an explicit Site-scoped Workbench grant.
-Development composition grants snapshot and publication reading plus the six pure Workbench
+Development composition grants snapshot and publication reading plus the pure Workbench
 operations;
 `tab.create` also requires the explicit terminal-create grant. Directory association requires navigation
 and its independent directory-association grant. For externally submitted OBWP reads and commands, the
@@ -417,7 +441,7 @@ Concrete normalization and the immutable binding/fallback footprint remain refin
 | Field              | Contract                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Problem            | Independent admitted Clients must modify and observe one shared navigation structure without lost updates or duplicate logical effects.                                                                                                                                                                                                                                                                                             |
-| Inputs             | A strict snapshot or publication read intent, or a strict command with request identity, exact Site, expected revision, and one of the six actions below. Creation and Tab labels preserve their exact nonempty text, bounded to 512 Unicode code points; Panel overrides normalize bounded nullable updates as defined above. A Tab rename fingerprint includes its context, Tab, label, and base revision.                        |
+| Inputs             | A strict snapshot or publication read intent, or a strict command with request identity, exact Site, expected revision, and an admitted pure action. Creation and Tab labels preserve their exact nonempty text, bounded to 512 Unicode code points; Panel overrides normalize bounded nullable updates as defined above. A Tab rename fingerprint includes its context, Tab, label, and base revision.                             |
 | Data               | Active or retired authority, one validated Snapshot, a Server-owned non-reusing identity cursor, and a bounded request/result ledger. The initial revision is zero and the standalone Terminal Context is empty. The adapter obtains a nonzero Site identity from operating-system randomness. The cursor never reuses navigation aggregate identities; unrelated Terminal/operation identity domains retain their existing owners. |
 | Outputs            | Read returns correlated available { snapshot }, denied {}, or unavailable { reason }. Publication read returns current { revision }, published { publications }, denied {}, or unavailable { reason }. Command returns project-created, workspace-created, renamed, unchanged, rejected, denied, or unavailable. Created identities appear only in their corresponding success variants.                                            |
 | Invariants         | Only Server commits shared structure. Every Workspace references exactly one context. Rejection preserves structure, revision and allocation state. A changed candidate advances exactly one revision. An equal rename preserves revision. Tab rename changes only its target `Tab.label`; non-target labels and every other projection fact remain exact. One request identity cannot commit twice.                                |
@@ -732,7 +756,7 @@ owns Client evidence; installed delivery remains unfinished.
 ### Admission and joint commit
 
 The library classifies a wire request without reading authority state. Its opaque
-`WorkbenchReadOrNavigationRequest` accepts only snapshot reads, publication reads and the six pure Workbench actions;
+`WorkbenchReadOrNavigationRequest` accepts only snapshot reads, publication reads and the pure Workbench actions;
 `TryFrom<WorkbenchRequest>` returns the complete original owned request when it cannot classify it.
 The service explicitly routes rejected TabCreate and TabMove commands to their Site composition
 paths; any other rejected request receives a definite unavailable response. Rejection never

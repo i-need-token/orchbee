@@ -103,14 +103,32 @@ fresh graft、化简后两树相等；更晚的规范修订按普通规范规则
 
 ## 已接受的规范 Tab 移动模型
 
+### 插入边界扩展
+
+`tab.move-index` 携带精确 `terminalContextId`、`tabId` 和 0..256 的整数 `insertIndex`。
+现有限定上下文的 Move owner 处理两个严格 action 变体；`tab.move` 保留原方向线协议。
+原始零基源位置为 S、原始 Tab 数为 L 时，接受 0..L 内的 N；S < N 时目标为 N - 1，否则为 N。
+边界 S 和 S + 1 均无变化；0 移到首位，L 追加到末尾。禁止截断和重复相对移动命令。
+当前边界越界在目标/组合验证之后、no-op/revision 分配之前产生保留的
+`tab-move-index-out-of-bounds`，顺序和身份游标不变。精确请求重放、冲突、容量、待完成创建
+结算及上下文关闭围栏沿用现有 owner。完整记录及其嵌套 Panel 树和输入策略原样移动。
+此转换不包含 Client 焦点、终端附着、控制器、Host 输入或 Worker 动作。
+
+`WorkspaceTabMove` 覆盖四种方向、三个 Tab 的每个边界及一个越界边界。覆盖项区分索引移动、
+索引 no-op 和边界拒绝；不提交的转换保留顺序/revision，保留结果不可变。本次 Windows 对齐
+维护此有限模型但不执行 TLA。Rust 置换参考算法、跨语言严格语料、单效果命名管道及实际双 TUI
+检查提供可执行证据；不声明模型检查器证明。原生 CLI 消费方及未知结果规则归属
+[原生 CLI 参考](../../orchbee/docs/native-cli-query.zh-CN.md#tab-插入边界)。实验协议、Server
+和原生二进制作为匹配批次一同启用。回退也使用匹配批次，不补偿已经提交的顺序，不迁移持久数据。
+
 ### Workspace 上下文扩展
 
-本地 Move owner 也接受规范 Workspace 引用的 Terminal Context，沿用下方四种方向、精确请求
+本地 Move owner 也接受规范 Workspace 引用的 Terminal Context，沿用下方四种方向或插入边界、精确请求
 指纹、共享 revision、no-op 和保留结果规则。上下文准入接受 standalone 或已有 Workspace 的
 上下文；未知上下文返回 `TerminalContextUnavailable`，属于其他上下文的 Tab 返回
 `TabUnavailable`。Move 不要求主 Directory、文件系统探测或在线 Worker。
 
-两类上下文均要求既有简单布局：无分组、固定/分组 Tab、拆分或子 presentation，每个主
+两类上下文均接受已验证的拆分树：无分组、固定/分组 Tab 或子 presentation，每个叶节点的主
 presentation 均有绑定。布局分歧先于目标查找和 no-op，使权威退役且不置换。这保留当前本地
 cohort 的形状，不定义固定/分组移动或导入布局恢复。
 
@@ -143,21 +161,21 @@ standalone 槽位状态各自实际发生 Workspace 移动。既有
 Workbench 拥有顺序、修订、严格成员关系和请求/结果保留。Site 仅保留
 `Empty | Creating(reference) | Settled { reference, outcome }`；TerminalCoordinator 拥有保留
 授权和执行。Move 不增加存储的锚身份/绑定、每 Tab 的 Site 映射、Open 字段、结构身份、终端计划、
-Worker IPC、查看器或控制器效果。Close/Stop、归档/重启、固定/分组、拆分、持久化、远程操作、
+Worker IPC、查看器或控制器效果。Close/Stop、归档/重启、固定/分组、创建拆分、持久化、远程操作、
 Web 迁移和推送仍从 Move 排除。Close 已有上方描述的独立本地 Server 集成，原生集成另有
 Linux 进程证据；发布收敛仍待完成。不增加显式空 Open 结果。
 
-`standalone_membership()` 返回的 `WorkbenchTerminalMembership` 是包含全部严格独立成员的
+`tree_standalone_membership()` 返回的 `WorkbenchTerminalMembership` 是包含全部严格独立成员的
 有界只读向量，保持规范顺序，暴露
 精确 Tab/Panel/Presentation 身份及绑定。Workbench 验证完整上下文并构造它；Site 从不缓存。
 空成员关系有效当且仅当 Site 槽位为 Empty。非空成员关系要求 Creating 或 Settled 含引用 R、
 `TerminalCoordinator.retained_authorization(R)` 可用、成功精确转换成 `PresentationBinding`，
 并且向量任意位置恰有一个匹配绑定。位置从不标识引导或完成。零/多个匹配、授权缺失/无法转换、
-重复上下文或固定/分组/拆分/子项/缺失绑定布局属于内部权威分歧，从不修复或返回 `TabUnavailable`。
+重复上下文或固定/分组/子项/缺失绑定布局属于内部权威分歧，从不修复或返回 `TabUnavailable`。
 
-`standalone_membership()` 是严格简单投影——每个 Tab 一个成员——首个/后续 create 和 Move 准入
-使用它；含拆分的树对这些调用方属于分歧。`tree_standalone_membership()` 是严格树读取——在相同的
-上下文验证下，按规范顺序返回独立 Tab 树的每个叶成员。Open 读取严格树成员关系，并对其成员应用同一
+`standalone_membership()` 仍为要求每 Tab 一个成员的调用方提供严格简单投影。
+Create、完成、Move 和 Open 使用 `tree_standalone_membership()`：在相同上下文验证下，按规范
+顺序返回独立 Tab 树的每个叶成员。Site 对这些成员应用同一
 引用派生锚点关系，因此合法的多叶形状绝不是组合分歧；仅凭"全体成员有 retained binding"不能证明
 槽位锚点，授权缺失、零/重复锚点匹配及任何结构性违规仍是失败关闭的分歧。
 
@@ -176,19 +194,21 @@ Linux 进程证据；发布收敛仍待完成。不增加显式空 Open 结果�
 5. 精确 Site，否则 `SiteMismatch`；
 6. 预期修订，否则 `RevisionMismatch`；
 7. 精确 standalone 或 Workspace 上下文，否则 `TerminalContextUnavailable`；
-8. 完整严格目标上下文布局；
-9. 仅 standalone 要求从引用导出的唯一绑定 Site 组合；
-10. 精确目标 Tab，否则 `TabUnavailable`；
-11. 语义无变化，产生现有 `Unchanged { revision }`；
-12. 实际置换时的修订耗尽；
-13. 预构建/验证完整候选投影、发布和固定结果；
-14. 预留精确保留请求/结果字节；
-15. 不会失败地提交投影、修订及已结算账本条目。
+8. 已打开的上下文关闭围栏，否则暂时 `unavailable/terminal-busy`；
+9. 完整严格目标上下文布局；
+10. 仅 standalone 要求从引用导出的唯一绑定 Site 组合；
+11. 精确目标 Tab，否则 `TabUnavailable`；
+12. 插入边界不超过当前 Tab 数，否则 `TabMoveIndexOutOfBounds`；
+13. 语义无变化，产生现有 `Unchanged { revision }`；
+14. 实际置换时的修订耗尽；
+15. 预构建/验证完整候选投影、发布和固定结果；
+16. 预留精确保留请求/结果字节；
+17. 不会失败地提交投影、修订及已结算账本条目。
 
 因此不支持布局优先于目标缺失/无变化；上下文缺失保留类型化拒绝。无变化优先于修订耗尽。
 类型化拒绝/无变化仅在字节策略准入时保留。条目/字节耗尽为暂时 unavailable，不插入账本、不改变
 顺序/修订/游标/Site/终端，也无效果。精确重放在后续提交后保留原结果修订。指纹包含 Site、基础
-修订、上下文、目标和方向。Move 既不读取也不推进结构身份游标。
+修订、上下文、目标和方向或插入边界，以及 action 类型。Move 既不读取也不推进结构身份游标。
 
 公共预检和完整成员关系产生不透明借用准入；Site 验证组合后，预备 Move 才拥有完整发布及固定
 账本插入。丢弃计划无效果。可恢复验证、序列化和发布失败先于修改。OOM、panic 及崩溃原子性仍排除。
@@ -315,7 +335,7 @@ Projection store 是该权威的私有实现组件，没有公开的整份 snaps
 跨语言请求和结果的权威属于 [Workbench 契约](../../../schemas/workbench/README.zh-CN.md)。
 Workbench 在同一条已准入的本地连接上使用独立 OBWP carrier，OBCS 继续只负责终端契约。
 两种协议之前都须完成 same-user OBLC 准入。Server 随后选择显式的 Site-scoped Workbench
-grant。开发 composition 允许读取 snapshot 与 publication，以及六项纯 Workbench 操作；`tab.create` 还要求显式的
+grant。开发 composition 允许读取 snapshot 与 publication，以及纯 Workbench 操作；`tab.create` 还要求显式的
 terminal-create grant。目录关联同时要求 navigation 和独立的 directory-association grant。对于外部提交的 OBWP 读取及命令，
 权威在读取任何状态或 ledger 之前检查 grant。只读及拒绝策略均可表达。缺失或错误 Site 的 grant 返回 typed denied，不泄露
 状态、revision、identity 或 ledger；grant 绝不来自 wire input。Client 提交语义操作与预期
@@ -333,7 +353,7 @@ revision，不能指定新产品身份、替换共享文档或发布 Client delt
 | 字段       | 契约                                                                                                                                                                                                                                                                                                                       |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 问题       | 独立准入的 Client 必须修改和观察同一份共享导航结构，避免丢失更新或重复逻辑效果。                                                                                                                                                                                                                                           |
-| 输入       | 严格 snapshot 或 publication 读取 intent，或包含 request identity、确切 Site、预期 revision 及下列六项 action 之一的严格命令。创建标签与 Tab 标签保留原始非空文本，最多 512 个 Unicode code point；窗格自定义标题按上文规范化有界可空更新。Tab rename fingerprint 包含 context、Tab、label 和 base revision。              |
+| 输入       | 严格 snapshot 或 publication 读取 intent，或包含 request identity、确切 Site、预期 revision 及已准入的纯 action的严格命令。创建标签与 Tab 标签保留原始非空文本，最多 512 个 Unicode code point；窗格自定义标题按上文规范化有界可空更新。Tab rename fingerprint 包含 context、Tab、label 和 base revision。                 |
 | 数据       | Active 或 retired 权威、一份已校验 Snapshot、Server 拥有且不复用的 identity cursor，以及有界 request/result ledger。初始 revision 为零，standalone Terminal Context 为空。Adapter 从操作系统随机源取得非零 Site identity。Cursor 不复用导航聚合内的身份；无关 Terminal/operation 身份域保留现有 owner。                    |
 | 输出       | 读取返回相关联的 available { snapshot }、denied {} 或 unavailable { reason }。Publication 读取返回 current { revision }、published { publications }、denied {} 或 unavailable { reason }。命令返回 project-created、workspace-created、renamed、unchanged、rejected、denied 或 unavailable。新身份仅出现于对应成功变体中。 |
 | 不变量     | 只有 Server 提交共享结构。每个 Workspace 恰好引用一个 context。拒绝保留结构、revision 和分配状态。发生变更时 revision 恰好加一。等值重命名保留 revision。Tab rename 只改变目标 `Tab.label`；非目标标签及所有其他 projection 事实保持精确。一个 request identity 不能提交两次。                                             |
@@ -615,7 +635,7 @@ LocalClientSubmission/Backpressure 边界及运行时 deadline trace 拥有 prog
 ### 接纳与共同提交
 
 库在不读取 authority 状态的情况下分类线请求。不透明的
-`WorkbenchReadOrNavigationRequest` 只接纳快照读取、publication 读取和六个纯 Workbench 操作；
+`WorkbenchReadOrNavigationRequest` 只接纳快照读取、publication 读取和纯 Workbench 操作；
 `TryFrom<WorkbenchRequest>` 在无法分类时返回完整的原始请求并转移其所有权。
 服务显式地将被拒绝的 TabCreate 和 TabMove 命令路由到各自的 Site 组合路径；
 其他被拒绝的请求得到明确的不可用响应。分类拒绝不会隐式选择终端创建，

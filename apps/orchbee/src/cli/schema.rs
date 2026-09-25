@@ -29,11 +29,21 @@ pub(crate) const LAUNCH_PROFILE_FAILURE_ID: &str = "orchbee.cli.failure.launch-p
 pub(crate) const CLOSE_FAILURE_ID: &str = "orchbee.cli.failure.close";
 pub(crate) const MUTATION_RESULT_ID: &str = "orchbee.mutation.result";
 pub(crate) const PANEL_RENAME_RESULT_ID: &str = "orchbee.panel.rename";
+pub(crate) const TAB_MOVE_RESULT_ID: &str = "orchbee.tab.move";
+pub(crate) const TAB_MOVE_FAILURE_ID: &str = "orchbee.cli.failure.tab-move";
 pub(crate) const PANEL_INPUT_RESULT_ID: &str = "orchbee.panel.input";
 pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
+    (
+        TAB_MOVE_RESULT_ID,
+        include_str!("schemas/orchbee.tab.move.json"),
+    ),
+    (
+        TAB_MOVE_FAILURE_ID,
+        include_str!("schemas/orchbee.cli.failure.tab-move.json"),
+    ),
     (
         PANEL_INPUT_RESULT_ID,
         include_str!("schemas/orchbee.panel.input.json"),
@@ -362,8 +372,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog v31 adds shared Panel input policy.
-        "version": 31,
+        // Catalog v32 adds indexed Tab movement and its failure document.
+        "version": 32,
         "source": embedded_source(),
         "result": result,
     });

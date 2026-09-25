@@ -376,3 +376,79 @@ fn workspace_strict_layout_precedes_missing_target_and_boundary_noop() {
         }
     }
 }
+
+#[test]
+fn indexed_workspace_move_preserves_complete_split_records_and_other_contexts() {
+    use orchbee_workbench_protocol::{
+        PanelCustomLabel, PanelRightClickTarget, WorkbenchTabInsertIndex,
+    };
+    for source in 0..3 {
+        for boundary in 0..=3 {
+            let (mut authority, grant) = workspace_authority(3);
+            let mut before = authority.projection.snapshot().clone();
+            let context = &mut before.terminal_contexts[1];
+            let mut sibling = context.tabs[2].root.clone();
+            let PanelNode::Panel {
+                panel_id,
+                primary_presentation,
+                right_click,
+                ..
+            } = &mut sibling
+            else {
+                unreachable!()
+            };
+            *panel_id =
+                orchbee_workbench_protocol::WorkbenchPanelId::parse(&identity(801)).unwrap();
+            primary_presentation.presentation_id =
+                TerminalPresentationId::parse(&identity(802)).unwrap();
+            primary_presentation.binding.as_mut().unwrap().terminal_id =
+                TerminalId::parse(&identity(9999)).unwrap();
+            primary_presentation.custom_label = Some(PanelCustomLabel::parse("保留 😀").unwrap());
+            *right_click = PanelRightClickTarget::Panel;
+            context.tabs[1].root = PanelNode::Split {
+                split_id: WorkbenchSplitId::parse(&identity(800)).unwrap(),
+                orientation: PanelOrientation::Horizontal,
+                children: Box::new([
+                    PanelSlot {
+                        slot_id: WorkbenchPanelSlotId::parse(&identity(803)).unwrap(),
+                        node: context.tabs[1].root.clone(),
+                    },
+                    PanelSlot {
+                        slot_id: WorkbenchPanelSlotId::parse(&identity(804)).unwrap(),
+                        node: sibling,
+                    },
+                ]),
+            };
+            load(&mut authority, before.clone());
+            let request = WorkbenchCommand {
+                protocol_version: orchbee_workbench_protocol::ProtocolVersion,
+                request_id: WorkbenchRequestId::parse(&identity(10)).unwrap(),
+                site_id: before.site_id.clone(),
+                expected_revision: before.revision,
+                action: WorkbenchAction::TabMoveIndex {
+                    terminal_context_id: before.terminal_contexts[1].terminal_context_id.clone(),
+                    tab_id: before.terminal_contexts[1].tabs[source].tab_id.clone(),
+                    insert_index: WorkbenchTabInsertIndex::new(boundary).unwrap(),
+                },
+            };
+            let result = submit(&mut authority, &grant, request.clone());
+            let mut expected = before.clone();
+            let original = &before.terminal_contexts[1].tabs;
+            let mut tabs = Vec::new();
+            for gap in 0..=3 {
+                if gap == boundary {
+                    tabs.push(original[source].clone());
+                }
+                if gap < 3 && gap != source {
+                    tabs.push(original[gap].clone());
+                }
+            }
+            expected.revision =
+                WorkbenchRevision::new(before.revision.value() + u64::from(tabs != *original));
+            expected.terminal_contexts[1].tabs = tabs;
+            assert_eq!(authority.projection.snapshot(), &expected);
+            assert_eq!(authority.last_identity, u128::MAX);
+            assert_eq!(submit(&mut authority, &grant, request), result);
+        }
+    }
+}

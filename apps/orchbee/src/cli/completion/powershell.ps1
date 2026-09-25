@@ -10,6 +10,9 @@ __ORCHBEE_GRAMMAR__
         if ($element.Extent.EndOffset -ge $cursorPosition -and $wordToComplete.Length -gt 0) { break }
         if ($element -is [System.Management.Automation.Language.StringConstantExpressionAst]) {
             $words.Add($element.Value)
+        } elseif ($element -is [System.Management.Automation.Language.ConstantExpressionAst] -and $element.Extent.Text -cmatch '^[0-9]+$') {
+            # Decimal integer literals are syntax, not an expression to evaluate.
+            $words.Add($element.Extent.Text)
         } elseif ($element -is [System.Management.Automation.Language.CommandParameterAst]) {
             $words.Add($element.Extent.Text)
         } else {
