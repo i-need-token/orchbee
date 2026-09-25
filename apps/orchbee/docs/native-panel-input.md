@@ -73,4 +73,4 @@ field or new command, so mixed cohorts are not supported. There is no durable mi
 uses a matched cohort; never erase policy silently to accommodate an old reader. No new macOS or
 Linux runtime is implemented.
 
-Read contracts: `orchbee.panel.list` v2, `orchbee.panel.get/current` v3, `orchbee.tab.get` v2 and `orchbee.api.snapshot` v4; catalog v34 includes 68 schemas. Older versions reject the added field.
+Read contracts: `orchbee.panel.list` v2, `orchbee.panel.get/current` v3, `orchbee.tab.get` v2 and `orchbee.api.snapshot` v4; catalog v36 includes 69 schemas. Older versions reject the added field.

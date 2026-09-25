@@ -37,6 +37,10 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.terminal.output",
+        include_str!("schemas/orchbee.terminal.output.json"),
+    ),
+    (
         TAB_MOVE_RESULT_ID,
         include_str!("schemas/orchbee.tab.move.json"),
     ),
@@ -372,8 +376,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog v34 adds automatic Tab naming metadata in snapshot v4.
-        "version": 34,
+        // Catalog v36 adds source-selected finite/infinite waits.
+        "version": 36,
         "source": embedded_source(),
         "result": result,
     });

@@ -126,14 +126,30 @@ Use `panel layout [<panel>] --client <id> --format json` to inspect cells withou
 
 Windows `tab create` and `panel split` resolve `--cwd follow|home|current|workspace|<absolute-path>` before creation; follow is the default and samples the resolved source root process. Their v2 receipt records the chosen directory source/path. They accept optional targets and labels, with no focus by default; `--focus` requests post-creation focus, and split accepts a Client-local `--ratio`. Explicit targets can create without a TUI. `orchbee.creation.result` v2 separates committed creation from later ratio/focus results; a later failure is not permission to repeat creation. [Native terminal creation](native-terminal-creation.md) owns target selection, total budget, concurrency guards and recovery for these Windows commands.
 
-Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` sets the shared right-button policy without moving focus. `--current` requires validated caller metadata; explicit targets bypass it. `panel split --right-click` commits the new Panel policy with creation. The default `orchbee` reserves right-click to the Client; `panel` permits unmodified right clicks in mouse-reporting terminal content. An admitted gesture retains its matching release after policy changes. See the [Panel input contract](native-panel-input.md) for routing, pending-input rechecks and failure recovery. This does not add a context menu. `orchbee.panel.input` v1 reports `configured` or `unchanged`; `panel list` v2 and `panel get/current` v3 expose `rightClick`. `tab get` v2 and `api snapshot` v4 admit the optional canonical field. Catalog v34 has 68 schemas and the native inventory has 80 command paths.
+Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` sets the shared right-button policy without moving focus. `--current` requires validated caller metadata; explicit targets bypass it. `panel split --right-click` commits the new Panel policy with creation. The default `orchbee` reserves right-click to the Client; `panel` permits unmodified right clicks in mouse-reporting terminal content. An admitted gesture retains its matching release after policy changes. See the [Panel input contract](native-panel-input.md) for routing, pending-input rechecks and failure recovery. This does not add a context menu. `orchbee.panel.input` v1 reports `configured` or `unchanged`; `panel list` v2 and `panel get/current` v3 expose `rightClick`. `tab get` v2 and `api snapshot` v4 admit the optional canonical field. Catalog v36 has 69 schemas and the native inventory has 81 command paths.
 
 Windows `tab move <target> --insert-index N` moves a complete Tab to a zero-based boundary in the
 original order: 0 is first, the Tab count is last, source/source+1 are unchanged, and out-of-range
 values are refused. It excludes `--direction` and preserves focus and terminals. Success uses
-`orchbee.tab.move` v1; runtime failures use `orchbee.cli.failure.tab-move` v1. Catalog v34/68 keeps
+`orchbee.tab.move` v1; runtime failures use `orchbee.cli.failure.tab-move` v1. Catalog v36/69 keeps
 the legacy direction envelope unchanged.
 
 ## Automatic Tab naming
 
-The [Tab label contract](native-tab-labels.md) owns optional `automaticLabel` metadata. New Tabs without a supplied label use their current context position; explicit numeric names and legacy Tabs remain fixed. CLI queries, label selectors and TUI display agree after move or close, and rename chooses a fixed name. Native `api snapshot` v4 exposes canonical metadata; catalog v34 contains 68 schemas. Shared protocol consumers require a matching cohort.
+The [Tab label contract](native-tab-labels.md) owns optional `automaticLabel` metadata. New Tabs without a supplied label use their current context position; explicit numeric names and legacy Tabs remain fixed. CLI queries, label selectors and TUI display agree after move or close, and rename chooses a fixed name. Native `api snapshot` v4 exposes canonical metadata; catalog v36 contains 69 schemas. Shared protocol consumers require a matching cohort.
+
+## Source-selected terminal output
+
+Windows `terminal read` and `agent read` accept `--source visible|recent|recent-unwrapped|detection`.
+Recent combines retained history with the live screen; detection reads the recent screen-height
+range. `--plain` exports text directly for pipes, defaults to recent, and excludes JSON. Source-mode
+`--lines` allows zero, clamps to 1000, and defaults to 80 for recent. It excludes the legacy
+history/rows/unwrap flags, whose behavior stays unchanged. The [output contract](native-terminal-output.md)
+owns selection, exact sample validation and `orchbee.terminal.output` v1; catalog v36 has 69 schemas.
+
+Windows `terminal wait-output` accepts the same `--source` and `--lines` selection, or `--forever`
+for an explicit wait without a total ceiling. Any of these chooses source mode (default recent),
+excludes `--rows`, and emits `orchbee.terminal.wait-output` v3. Without `--forever`, the default
+remains 30000 ms; `--forever` conflicts with `--timeout`, retains five-second I/O bounds and supports
+Ctrl+C. Recent waits join soft wraps; visible/detection match physical lines. Old invocations retain
+v1/v2 output. A match can come from existing output and never proves command completion.

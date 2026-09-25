@@ -2,6 +2,51 @@
 //! are read-only; the names child owns one explicit Agent alias exchange.
 //! Neither path activates a Site, starts a process, or mutates the Workbench.
 
+#[cfg(windows)]
+mod terminal_output;
+#[cfg(windows)]
+pub(crate) use terminal_output::read_output;
+#[cfg(not(windows))]
+pub(crate) fn read_output(
+    _target: &crate::invocation::OutputTarget,
+    _selection: crate::invocation::OutputSelection,
+) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
+    Err(super::Failure::new(super::FailureKind::ServiceUnavailable))
+}
+
+#[cfg(windows)]
+pub(crate) fn wait_source_output(
+    target: &Target,
+    pattern: &crate::invocation::WaitPattern,
+    selection: crate::invocation::OutputSelection,
+    timeout_ms: Option<u32>,
+) -> Result<(serde_json::Value, Projection), Failure> {
+    wait_output_inner(target, pattern, WaitWindow::Source(selection), timeout_ms)
+}
+#[cfg(not(windows))]
+pub(crate) fn wait_source_output(
+    _target: &crate::invocation::Target,
+    _pattern: &crate::invocation::WaitPattern,
+    _selection: crate::invocation::OutputSelection,
+    _timeout_ms: Option<u32>,
+) -> Result<(serde_json::Value, super::results::Projection), Failure> {
+    Err(Failure::new(FailureKind::ServiceUnavailable))
+}
+
+#[cfg(any(target_os = "linux", windows))]
+#[derive(Clone, Copy)]
+enum WaitWindow {
+    Retained(u16),
+    #[cfg(windows)]
+    Source(crate::invocation::OutputSelection),
+}
+#[cfg(any(target_os = "linux", windows))]
+struct WaitSample {
+    observation: super::results::WaitObservation,
+    requested_rows: u16,
+    capacity_omitted: Option<u64>,
+}
+
 #[cfg(any(target_os = "linux", windows))]
 mod agent_names;
 #[cfg(any(target_os = "linux", windows))]
@@ -1612,7 +1657,7 @@ impl WaitClock for SystemWaitClock {
 struct WaitGate<'a> {
     clock: &'a dyn WaitClock,
     signal: &'a dyn TerminationSource,
-    deadline_total: Instant,
+    deadline_total: super::wait_deadline::WaitDeadline,
 }
 
 #[cfg(any(target_os = "linux", windows))]
@@ -1623,7 +1668,7 @@ impl WaitGate<'_> {
         if self.signal.requested() {
             return Err(Failure::new(FailureKind::Cancelled));
         }
-        if self.clock.now() >= self.deadline_total {
+        if self.deadline_total.expired(self.clock.now()) {
             return Err(Failure::new(FailureKind::Timeout));
         }
         Ok(())
@@ -1631,17 +1676,12 @@ impl WaitGate<'_> {
 
     /// The earlier of `allowance` and the remaining total, settled first.
     fn budget(&self, allowance: Duration) -> Result<Instant, Failure> {
-        let now = self.clock.now();
-        now.checked_add(self.remaining()?.min(allowance))
-            .ok_or_else(|| Failure::new(FailureKind::InternalFailure))
-    }
-
-    /// Remaining total time after settling; past the deadline there is none.
-    fn remaining(&self) -> Result<Duration, Failure> {
         self.settle()?;
-        Ok(self
-            .deadline_total
-            .saturating_duration_since(self.clock.now()))
+        self.deadline_total.step(self.clock.now(), allowance)
+    }
+    fn backoff(&self, allowance: Duration) -> Result<Duration, Failure> {
+        self.settle()?;
+        Ok(self.deadline_total.backoff(self.clock.now(), allowance))
     }
 }
 
@@ -1652,7 +1692,7 @@ impl WaitGate<'_> {
 #[cfg(any(target_os = "linux", windows))]
 struct WaitRun<'a> {
     gate: WaitGate<'a>,
-    timeout_ms: u32,
+    timeout_ms: Option<u32>,
     observations: u64,
     next_row_sequence: u64,
     poll_interval: Duration,
@@ -1686,7 +1726,10 @@ impl WaitRun<'_> {
     }
 
     fn timeout(&self) -> Failure {
-        wait_timeout_failure(self.timeout_ms, self.observations)
+        self.timeout_ms.map_or_else(
+            || Failure::new(FailureKind::InternalFailure),
+            |ms| wait_timeout_failure(ms, self.observations),
+        )
     }
 
     fn cancelled(&self) -> Failure {
@@ -1712,9 +1755,9 @@ impl WaitRun<'_> {
         self.check()?;
         let remaining = self
             .gate
-            .remaining()
+            .backoff(self.poll_interval)
             .map_err(|failure| self.map_clock_failure(failure))?;
-        self.gate.clock.sleep(self.poll_interval.min(remaining));
+        self.gate.clock.sleep(remaining);
         self.poll_interval = (self.poll_interval * 2).min(WAIT_POLL_BACKOFF);
         Ok(())
     }
@@ -1725,20 +1768,33 @@ impl WaitRun<'_> {
     }
 }
 
-/// `terminal wait-output`: resolve the binding, attach one read-only viewer
-/// on the admitted session, then observe — poll → project → `FrameApplied`
-/// for every applied frame → one absolute `ReadRows` over the most recent
-/// `--rows` retained window → literal match — until the text appears, the
-/// total deadline expires, or a termination signal cancels the wait. The
-/// deadline starts at command start and is re-checked after every awaited
-/// step; cleanup is an explicit `Detach` inside the remaining budget plus
-/// the session drop, never a new budget.
+/// Resolve and attach one read-only viewer, then poll, project, acknowledge
+/// and match each consistent selected sample. Legacy mode reads the retained
+/// `--rows` window; source mode shares the read command's range and trimming.
+/// Every exchange checks cancellation and the optional total deadline, with
+/// a finite network budget even for `--forever`. Detach uses the same gate;
+/// session drop always releases the connection.
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) fn wait_output(
     target: &Target,
     pattern: &crate::invocation::WaitPattern,
     rows: u16,
     timeout_ms: u32,
+) -> Result<(serde_json::Value, Projection), Failure> {
+    wait_output_inner(
+        target,
+        pattern,
+        WaitWindow::Retained(rows),
+        Some(timeout_ms),
+    )
+}
+
+#[cfg(any(target_os = "linux", windows))]
+fn wait_output_inner(
+    target: &Target,
+    pattern: &crate::invocation::WaitPattern,
+    window: WaitWindow,
+    timeout_ms: Option<u32>,
 ) -> Result<(serde_json::Value, Projection), Failure> {
     // The pattern was already validated — and for `--regex`, compiled —
     // before this command caused any effect; matching reuses it as-is.
@@ -1749,9 +1805,7 @@ pub(crate) fn wait_output(
         crate::invocation::WaitPattern::Regex(regex) => super::results::WaitMatcher::Regex(regex),
     };
     let started = Instant::now();
-    let deadline_total = started
-        .checked_add(Duration::from_millis(u64::from(timeout_ms)))
-        .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
+    let deadline_total = super::wait_deadline::WaitDeadline::new(started, timeout_ms)?;
     let clock = SystemWaitClock;
     let signal =
         TerminationSignal::install().map_err(|_| Failure::new(FailureKind::InternalFailure))?;
@@ -1766,7 +1820,10 @@ pub(crate) fn wait_output(
             return Err(match failure.kind {
                 // The preamble expired or was cancelled before any
                 // observation could run.
-                FailureKind::Timeout => wait_timeout_failure(timeout_ms, 0),
+                FailureKind::Timeout => match timeout_ms {
+                    Some(ms) => wait_timeout_failure(ms, 0),
+                    None => failure,
+                },
                 FailureKind::Cancelled => wait_cancelled_failure(),
                 _ => failure,
             });
@@ -1807,7 +1864,7 @@ pub(crate) fn wait_output(
             &viewer_id,
             projection,
             &matcher,
-            rows,
+            window,
         )
     });
     // Every exit releases the viewer the same way: an explicit `Detach`
@@ -1829,23 +1886,28 @@ pub(crate) fn wait_output(
     let late = run.check().err();
     drop(client);
     match (outcome, detach) {
-        (Ok(observed), Ok(())) if late.is_none() => {
+        (Ok(sample), Ok(())) if late.is_none() => {
             let elapsed_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
-            Ok((
-                source.clone(),
-                Projection::TerminalWaitOutput(super::results::terminal_wait_output_doc(
-                    row,
-                    attachment,
-                    epoch,
-                    observed,
-                    super::results::WaitReport {
-                        observations: run.observations,
-                        requested_rows: rows,
-                        timeout_ms,
-                        elapsed_ms,
-                    },
-                )),
-            ))
+            let mut doc = super::results::terminal_wait_output_doc(
+                row,
+                attachment,
+                epoch,
+                sample.observation,
+                super::results::WaitReport {
+                    observations: run.observations,
+                    requested_rows: sample.requested_rows,
+                    timeout_ms,
+                    elapsed_ms,
+                },
+            );
+            #[cfg(windows)]
+            if let WaitWindow::Source(selection) = window {
+                doc.selection = Some(selection);
+            }
+            if let Some(omitted) = sample.capacity_omitted {
+                doc.window_truncated = omitted > 0;
+            }
+            Ok((source.clone(), Projection::TerminalWaitOutput(doc)))
         }
         // A match without a clean exit: the detach's own typed failure — or
         // the late cancel/expiry after a confirmed one — is the answer,
@@ -1867,8 +1929,9 @@ pub(crate) fn wait_output(
 /// off to 100 ms on consecutive `Empty` answers, reset by any record),
 /// decode every record through the projection, send the real feedback —
 /// including `FrameApplied` for every applied frame — and confirm
-/// `FeedbackAccepted`. After each applied frame, one `ReadRows` pins that
-/// exact revision+generation; a match completes the wait, an aged pin is
+/// `FeedbackAccepted`. Source-visible and empty selections use the frame;
+/// other samples pin one `ReadRows` to that exact revision+generation.
+/// A match completes the wait, an aged pin is
 /// abandoned for a fresh frame, and every awaited step is followed by a
 /// cancel+deadline re-check. No frame is skipped: the Host's single record
 /// slot demands full consumption.
@@ -1879,8 +1942,8 @@ fn wait_observe(
     viewer_id: &ViewerId,
     mut projection: TerminalProjection,
     matcher: &super::results::WaitMatcher<'_>,
-    rows: u16,
-) -> Result<super::results::WaitObservation, Failure> {
+    window: WaitWindow,
+) -> Result<WaitSample, Failure> {
     loop {
         run.check()?;
         let poll = TerminalViewerRequest::new(
@@ -1922,6 +1985,20 @@ fn wait_observe(
                             let frame = projection
                                 .frame()
                                 .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
+                            #[cfg(windows)]
+                            if let WaitWindow::Source(selection) = window {
+                                if let Some(sample) = terminal_output::wait_sample(
+                                    client, run, viewer_id, frame, selection, matcher,
+                                )? {
+                                    return Ok(sample);
+                                }
+                                continue;
+                            }
+                            let rows = match window {
+                                WaitWindow::Retained(rows) => rows,
+                                #[cfg(windows)]
+                                WaitWindow::Source(_) => unreachable!("source handled above"),
+                            };
                             if let Some(window) =
                                 wait_read_window(client, run, viewer_id, frame, rows)?
                             {
@@ -1932,14 +2009,18 @@ fn wait_observe(
                                 let matched = super::results::match_window(&window, matcher);
                                 run.check()?;
                                 if let Some(matched) = matched {
-                                    return Ok(super::results::WaitObservation {
-                                        matched,
-                                        revision: window.revision,
-                                        generation: window.generation.get(),
-                                        window_start: window.start_row,
-                                        window_rows: u64::try_from(window.rows.len())
-                                            .unwrap_or(u64::MAX),
-                                        total_rows: window.total_rows,
+                                    return Ok(WaitSample {
+                                        requested_rows: rows,
+                                        capacity_omitted: None,
+                                        observation: super::results::WaitObservation {
+                                            matched,
+                                            revision: window.revision,
+                                            generation: window.generation.get(),
+                                            window_start: window.start_row,
+                                            window_rows: u64::try_from(window.rows.len())
+                                                .unwrap_or(u64::MAX),
+                                            total_rows: window.total_rows,
+                                        },
                                     });
                                 }
                             }
@@ -3073,9 +3154,16 @@ mod wait_tests {
             gate: WaitGate {
                 clock,
                 signal: flag,
-                deadline_total,
+                deadline_total: super::super::wait_deadline::WaitDeadline::new(
+                    clock.now(),
+                    Some(
+                        u32::try_from(deadline_total.duration_since(clock.now()).as_millis())
+                            .unwrap(),
+                    ),
+                )
+                .unwrap(),
             },
-            timeout_ms: 30_000,
+            timeout_ms: Some(30_000),
             observations: 0,
             next_row_sequence: 1,
             poll_interval: EMPTY_POLL_INTERVAL,
@@ -3090,7 +3178,11 @@ mod wait_tests {
         let gate = WaitGate {
             clock: &clock,
             signal: &flag,
-            deadline_total: deadline,
+            deadline_total: super::super::wait_deadline::WaitDeadline::new(
+                clock.now(),
+                Some(u32::try_from(deadline.duration_since(clock.now()).as_millis()).unwrap()),
+            )
+            .unwrap(),
         };
         assert!(gate.settle().is_ok());
         flag.0.set(true);
@@ -3109,7 +3201,11 @@ mod wait_tests {
         let gate = WaitGate {
             clock: &clock,
             signal: &flag,
-            deadline_total: deadline,
+            deadline_total: super::super::wait_deadline::WaitDeadline::new(
+                clock.now(),
+                Some(u32::try_from(deadline.duration_since(clock.now()).as_millis()).unwrap()),
+            )
+            .unwrap(),
         };
         assert!(gate.settle().is_ok());
         clock.advance(Duration::from_millis(50));
@@ -3124,7 +3220,11 @@ mod wait_tests {
         let gate = WaitGate {
             clock: &clock,
             signal: &flag,
-            deadline_total: deadline,
+            deadline_total: super::super::wait_deadline::WaitDeadline::new(
+                clock.now(),
+                Some(u32::try_from(deadline.duration_since(clock.now()).as_millis()).unwrap()),
+            )
+            .unwrap(),
         };
         let step = gate.budget(NETWORK_BUDGET).expect("budget");
         assert_eq!(step, clock.now() + Duration::from_millis(100));
@@ -3133,6 +3233,38 @@ mod wait_tests {
             gate.budget(NETWORK_BUDGET).unwrap_err().kind,
             FailureKind::Timeout
         );
+    }
+
+    #[test]
+    fn forever_retains_step_budget_backoff_and_cancellation_after_long_elapsed_time() {
+        let clock = FakeWaitClock::new();
+        let flag = FlaggedTermination(Cell::new(false));
+        let mut run = WaitRun {
+            gate: WaitGate {
+                clock: &clock,
+                signal: &flag,
+                deadline_total: super::super::wait_deadline::WaitDeadline::new(clock.now(), None)
+                    .unwrap(),
+            },
+            timeout_ms: None,
+            observations: 0,
+            next_row_sequence: 1,
+            poll_interval: EMPTY_POLL_INTERVAL,
+        };
+        clock.advance(Duration::from_secs(86_400));
+        assert_eq!(run.step_deadline().unwrap(), clock.now() + NETWORK_BUDGET);
+        for _ in 0..10 {
+            run.sleep().unwrap();
+        }
+        assert_eq!(run.poll_interval, WAIT_POLL_BACKOFF);
+        assert_eq!(clock.slept.get(), Duration::from_millis(750));
+        flag.0.set(true);
+        assert_eq!(
+            run.step_deadline().unwrap_err().kind,
+            FailureKind::Cancelled
+        );
+        assert_eq!(run.sleep().unwrap_err().kind, FailureKind::Cancelled);
+        assert_eq!(clock.slept.get(), Duration::from_millis(750));
     }
 
     #[test]

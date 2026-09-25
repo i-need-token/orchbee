@@ -74,7 +74,7 @@
         for entry $grammar[helpLevel3] { if (eq $entry[0] $positionals[1]':'$positionals[2]) { set candidates = $entry[1] } }
       }
     } else {
-      for entry [[--format $grammar[formats]] [--mouse [off on]] [--until $grammar[until]] [--right-click $grammar[rightClick]]] {
+      for entry [[--format $grammar[formats]] [--mouse [off on]] [--until $grammar[until]] [--right-click $grammar[rightClick]] [--source $grammar[outputSources]]] {
         if (and (has-key $values $entry[0]) (not (has-value $entry[1] $values[$entry[0]]))) { return }
       }
       var viable = []
@@ -141,7 +141,7 @@
       }
       if (not-eq $pending '') {
         set candidates = []
-        var enums = [&--format=$grammar[formats] &--mouse=[off on] &--right-click=$grammar[rightClick] &--key=$grammar[keys] &--until=$grammar[until] &--provider=$grammar[providers] &--kind=$grammar[agentKinds]]
+        var enums = [&--format=$grammar[formats] &--mouse=[off on] &--right-click=$grammar[rightClick] &--source=$grammar[outputSources] &--key=$grammar[keys] &--until=$grammar[until] &--provider=$grammar[providers] &--kind=$grammar[agentKinds]]
         if (has-key $enums $pending) {
           for value $enums[$pending] { set candidates = [$@candidates $joined$value] }
         } elif (eq $pending --cwd) {

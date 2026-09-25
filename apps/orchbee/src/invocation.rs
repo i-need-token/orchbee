@@ -3,11 +3,13 @@ mod creation;
 mod panel_input;
 pub(crate) use creation::{CreationCommand, CreationDirectory, CreationKind};
 mod schema_export;
+mod terminal_output;
 mod terminal_run;
 pub(crate) use client_control::{
     ClientCommand, ClientLayoutTarget, ClientNavigationTarget, LayoutQuery, PanelSwapCommand,
     PanelSwapDestination, ZoomMode,
 };
+pub(crate) use terminal_output::{OutputSelection, OutputSource, OutputTarget};
 mod workspace_group_close;
 pub(crate) use workspace_group_close::WorkspaceGroupCloseCommand;
 mod worktree;
@@ -513,6 +515,17 @@ pub(crate) enum QueryCommand {
         /// `--lines <n>`: present only the last n emitted entries — logical
         /// lines under `--unwrap`, physical rows otherwise.
         lines: Option<u16>,
+    },
+    TerminalOutput {
+        target: OutputTarget,
+        selection: OutputSelection,
+        plain: bool,
+    },
+    TerminalSourceWait {
+        target: Target,
+        matcher: WaitPattern,
+        selection: OutputSelection,
+        timeout_ms: Option<u32>,
     },
     TerminalWaitOutput {
         target: Target,
@@ -1143,6 +1156,8 @@ pub(crate) enum ExpectedValue {
     RegexPattern,
     /// The `terminal read --lines` operand: the presentation tail length.
     TailLines,
+    OutputSource,
+    OutputLines,
     WaitTimeout,
     AgentStartTimeout,
     AgentStartProvider,
@@ -1372,6 +1387,8 @@ struct Options {
     unwrap: bool,
     /// `terminal read --lines <n>`: presentation tail over emitted entries.
     lines: Option<String>,
+    output_source: Option<String>,
+    plain: bool,
     path: Option<String>,
     match_text: Option<String>,
     /// `terminal wait-output --regex <pattern>`: the XOR alternative to the
@@ -1458,6 +1475,7 @@ const VALUE_FLAGS: &[&str] = &[
     "--kind",
     "--label",
     "--limit",
+    "--source",
     "--lines",
     "--path",
     "--match",
@@ -1767,9 +1785,12 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
             }
             "--group" | "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
             | "--include-ended" | "--new-tab" | "--paste" | "--unwrap" | "--current"
-            | "--clear" | "--wait" | "--forever" | "--detach" | "--retry" | "--force"
-            | "--trust-repository" | "--on" | "--off" | "--toggle" | "--focus" | "--no-focus" => {
-                let (seen, option) = if token == "--focus" {
+            | "--plain" | "--clear" | "--wait" | "--forever" | "--detach" | "--retry"
+            | "--force" | "--trust-repository" | "--on" | "--off" | "--toggle" | "--focus"
+            | "--no-focus" => {
+                let (seen, option) = if token == "--plain" {
+                    (&mut options.plain, "--plain")
+                } else if token == "--focus" {
                     (&mut options.focus, "--focus")
                 } else if token == "--no-focus" {
                     (&mut options.no_focus, "--no-focus")
@@ -1953,6 +1974,7 @@ fn apply_value_flag(
         "--request-id" => &mut options.request_id,
         "--client" => &mut options.client,
         "--generation" => &mut options.generation,
+        "--source" => &mut options.output_source,
         "--lines" => &mut options.lines,
         "--panel" => &mut options.panel,
         "--target-panel" => &mut options.target_panel,
@@ -2162,6 +2184,14 @@ fn resolve_words(
                 context,
                 envelope,
             )?;
+            if options.output_source.is_some() || options.plain {
+                return terminal_output::request(
+                    OutputTarget::Agent(agent_selector(rest, options, context, envelope)?),
+                    options,
+                    context,
+                    envelope,
+                );
+            }
             let history = match (options.history, options.rows.is_some()) {
                 (true, true) => Some(history_rows_option(options, context, envelope)?),
                 (true, false) => return Err(missing_required(context, "'--rows'", envelope)),
@@ -2981,6 +3011,18 @@ fn resolve_words(
                 envelope,
             )?;
             let context = UsageContext::Path("terminal read");
+            if options.output_source.is_some() || options.plain {
+                return terminal_output::request(
+                    OutputTarget::Terminal(target(
+                        (*value).to_owned(),
+                        Resource::Terminal,
+                        envelope,
+                    )?),
+                    options,
+                    context,
+                    envelope,
+                );
+            }
             // `--history` and `--rows` are admitted as a pair only: each
             // without the other is a missing-requirement, never a default.
             let history = match (options.history, options.rows.is_some()) {
@@ -3011,6 +3053,14 @@ fn resolve_words(
                 envelope,
             )?;
             let context = UsageContext::Path("terminal wait-output");
+            if options.output_source.is_some() || options.lines.is_some() || options.forever {
+                return terminal_output::wait_request(
+                    target((*value).to_owned(), Resource::Terminal, envelope)?,
+                    options,
+                    context,
+                    envelope,
+                );
+            }
             // Exactly one of `--match`/`--regex` is required; `--rows` and
             // `--timeout` carry their documented defaults, and a regex
             // compiles here — everything resolves before any cohort,
@@ -3834,6 +3884,8 @@ struct Scope {
     unwrap: bool,
     /// `terminal read --lines <n>`: admits the presentation tail option.
     lines: bool,
+    output_source: bool,
+    plain: bool,
     /// `workspace accept-directory --path <p>`: admits the literal directory
     /// path value option.
     path: bool,
@@ -3942,6 +3994,8 @@ const NO_OPTIONS: Scope = Scope {
     history: false,
     unwrap: false,
     lines: false,
+    output_source: false,
+    plain: false,
     path: false,
     wait: false,
     regex: false,
@@ -4149,6 +4203,8 @@ const PANEL_MOVE_SCOPE: Scope = Scope {
 /// `terminal read`: the paired history selector plus the two read-only
 /// presentation transforms — logical-line joining and the entry tail.
 const TERMINAL_READ_SCOPE: Scope = Scope {
+    output_source: true,
+    plain: true,
     history: true,
     unwrap: true,
     lines: true,
@@ -4156,6 +4212,9 @@ const TERMINAL_READ_SCOPE: Scope = Scope {
 };
 
 const TERMINAL_WAIT_OUTPUT_SCOPE: Scope = Scope {
+    output_source: true,
+    lines: true,
+    forever: true,
     wait: true,
     regex: true,
     ..NO_OPTIONS
@@ -4222,6 +4281,8 @@ fn business_options(options: &Options) -> bool {
         || options.new_tab
         || options.history
         || options.unwrap
+        || options.output_source.is_some()
+        || options.plain
         || options.lines.is_some()
         || options.path.is_some()
         || options.match_text.is_some()
@@ -4374,6 +4435,12 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.unwrap && !scope.unwrap {
         return Some("--unwrap");
+    }
+    if options.output_source.is_some() && !scope.output_source {
+        return Some("--source");
+    }
+    if options.plain && !scope.plain {
+        return Some("--plain");
     }
     if options.lines.is_some() && !scope.lines {
         return Some("--lines");

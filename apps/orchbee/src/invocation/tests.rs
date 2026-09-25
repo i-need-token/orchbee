@@ -4243,7 +4243,7 @@ fn terminal_read_presentation_grammar() {
             "{arguments:?}"
         );
     }
-    // `--unwrap` and `--lines` are out of scope everywhere else.
+    // `--unwrap` stays read-only; line limits require a supported read/wait.
     for (arguments, context, option) in [
         (
             &["terminal", "get", ID, "--unwrap"][..],
@@ -4251,17 +4251,9 @@ fn terminal_read_presentation_grammar() {
             "--unwrap",
         ),
         (
-            &[
-                "terminal",
-                "wait-output",
-                ID,
-                "--match",
-                "m",
-                "--lines",
-                "3",
-            ][..],
+            &["terminal", "wait-output", ID, "--match", "m", "--unwrap"][..],
             UsageContext::Path("terminal wait-output"),
-            "--lines",
+            "--unwrap",
         ),
         (
             &["terminal", "list", "--lines", "3"][..],

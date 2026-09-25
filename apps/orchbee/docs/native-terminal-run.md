@@ -39,7 +39,7 @@ unknown results and no replay. A staged Windows cohort exercises actual PowerShe
 5.1 and 7 execution while a TUI retains its controller and focus.
 
 Help, all completion adapters, the offline Agent Skill and this reference evolve
-together. The schema catalog remains v34/68 because no document shape changes.
+together. The schema catalog remains v36/69 because no document shape changes.
 Older executables reject the new verb; rollback needs no data migration. Evidence
 is Windows-only and same-author; TLA execution remains deferred. Root verification
 is required before integration.

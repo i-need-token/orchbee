@@ -32,6 +32,10 @@ only when a person is present.
   JSON failure document; under `text` the failure keeps standard output empty.
 - Under `json`, a failure is one failure document on standard output and the localized diagnostic
   on standard error. Under `text`, a failure writes nothing to standard output.
+- An explicitly selected data export may emit the requested UTF-8 content without human quoting
+  or headings. Its owning contract must define selection, byte bounds, encoding, and failure
+  behavior, and distinguish it from ordinary `text`. Such an export cannot simultaneously request
+  a JSON envelope. It preserves payload bytes rather than applying human text rendering rules.
 
 ## Machine documents
 

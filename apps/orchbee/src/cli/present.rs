@@ -329,7 +329,7 @@ fn publication_reason_text(reason: WorkbenchTabClosePublicationReason) -> &'stat
 pub(crate) fn render(
     out: &mut Bounded,
     projection: &Projection,
-    _command: &QueryCommand,
+    command: &QueryCommand,
     locale: Locale,
 ) -> Result<(), TooLarge> {
     let text = locale.cli_labels();
@@ -485,6 +485,21 @@ pub(crate) fn render(
         // line — each escaped the same way as every other user-controlled
         // value, then the localized markers for tail-omitted entries and
         // budget-omitted rows.
+        Projection::TerminalOutput(doc) => {
+            if matches!(command, QueryCommand::TerminalOutput { plain: true, .. }) {
+                return out.push(&doc.text);
+            }
+            for line in doc.text.lines() {
+                out.push(&escape(line))?;
+                out.push("\n")?;
+            }
+            if doc.range.capacity_omitted > 0 {
+                out.push(&locale.cli_read_truncated(
+                    usize::try_from(doc.range.capacity_omitted).unwrap_or(usize::MAX),
+                ))?;
+            }
+            Ok(())
+        }
         Projection::TerminalRead(doc) => {
             match &doc.lines {
                 Some(lines) => {

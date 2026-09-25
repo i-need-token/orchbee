@@ -29,7 +29,7 @@ CLI Tab rows, Workspace Tab references, and all Tab label selectors use the effe
 name. Exact IDs and suffix selectors retain their existing precedence; multiple matching names
 produce the existing ambiguity result. `api snapshot` exposes raw canonical state. Query row
 shapes remain unchanged. `orchbee.api.snapshot` v4 admits the optional metadata; the native schema
-catalog is v34 with 68 documents.
+catalog is v36 with 69 documents.
 
 The native strict projector retains raw text and naming mode. Exact-revision move/split/close
 checks preserve the complete surviving metadata; a rename changes only its target text and

@@ -36,6 +36,7 @@ pub(crate) use worktree_operation::run as run_worktree;
 #[cfg(any(target_os = "linux", windows))]
 #[cfg_attr(windows, path = "cli/source_windows.rs")]
 pub(crate) mod source;
+mod terminal_output;
 mod text;
 #[cfg(any(target_os = "linux", windows))]
 mod wait_deadline;
@@ -583,6 +584,14 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
         ),
         // `terminal read` couples the snapshot to one viewer observation on
         // the same session; its answer arrives already projected.
+        QueryCommand::TerminalOutput {
+            target, selection, ..
+        } => match query::read_output(target, *selection) {
+            Err(failure) => failure_output(failure, Some(format), locale),
+            Ok((source, projection)) => {
+                success_output(projection, source, &command, format, locale)
+            }
+        },
         QueryCommand::TerminalRead {
             target,
             history,
@@ -606,6 +615,17 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
         // `terminal wait-output` couples the snapshot to one bounded
         // read-only observation on the same session; its answer arrives
         // already projected, like `terminal read`.
+        QueryCommand::TerminalSourceWait {
+            target,
+            matcher,
+            selection,
+            timeout_ms,
+        } => match query::wait_source_output(target, matcher, *selection, *timeout_ms) {
+            Err(failure) => failure_output(failure, Some(format), locale),
+            Ok((source, projection)) => {
+                success_output(projection, source, &command, format, locale)
+            }
+        },
         QueryCommand::TerminalWaitOutput {
             target,
             matcher,

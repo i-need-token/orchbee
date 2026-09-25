@@ -267,6 +267,8 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--match",
     "--regex",
     "--unwrap",
+    "--source",
+    "--plain",
     "--lines",
     "--timeout",
     "--text",
@@ -444,6 +446,8 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--rows",
             "--unwrap",
             "--lines",
+            "--source",
+            "--plain",
         ],
     ),
     ("agent:send-keys", &["--session", "--name", "--panel"]),
@@ -608,7 +612,14 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ),
     (
         "terminal:read",
-        &["--history", "--lines", "--rows", "--unwrap"],
+        &[
+            "--history",
+            "--lines",
+            "--rows",
+            "--unwrap",
+            "--source",
+            "--plain",
+        ],
     ),
     (
         "terminal:send",
@@ -616,7 +627,15 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ),
     (
         "terminal:wait-output",
-        &["--match", "--regex", "--rows", "--timeout"],
+        &[
+            "--match",
+            "--regex",
+            "--rows",
+            "--timeout",
+            "--source",
+            "--lines",
+            "--forever",
+        ],
     ),
     (
         "worktree:list",
@@ -702,6 +721,7 @@ const DIRECTION_VALUES: &[(&str, &[&str])] = &[
 /// The closed semantic-key vocabulary `terminal send --key` accepts — the
 /// same names `invocation::TerminalSendKey` parses.
 const CWD_VALUES: &[&str] = &["follow", "home", "current", "workspace"];
+const OUTPUT_SOURCES: &[&str] = &["visible", "recent", "recent-unwrapped", "detection"];
 const RIGHT_CLICK_VALUES: &[&str] = &["orchbee", "panel"];
 
 const KEY_VALUES: &[&str] = &[
@@ -942,6 +962,8 @@ fn flag_bit(flag: &str) -> &'static str {
         "--standalone" => "seen_standalone",
         "--label" => "seen_label",
         "--right-click" => "seen_right_click",
+        "--source" => "seen_output_source",
+        "--plain" => "seen_plain",
         "--direction" => "seen_direction",
         "--insert-index" => "seen_insert_index",
         "--amount" => "seen_amount",
@@ -1004,6 +1026,8 @@ fn flag_value(flag: &str) -> Option<&'static str> {
         "--on" | "--off" | "--toggle" | "--focus" | "--no-focus" => None,
         "--cwd" => Some("cwd"),
         "--right-click" => Some("right_click"),
+        "--source" => Some("output_source"),
+        "--plain" => None,
         "--direction" => Some("direction"),
         "--key" => Some("key"),
         "--until" => Some("until"),
@@ -1576,12 +1600,21 @@ fn joined_offer_cases_bash() -> String {
         .join("\n");
     let cwd = joined("--cwd", CWD_VALUES);
     let right_click = joined("--right-click", RIGHT_CLICK_VALUES);
+    let output_source = joined("--source", OUTPUT_SOURCES);
     let key = joined("--key", KEY_VALUES);
     let until = joined("--until", UNTIL_VALUES);
     let provider = joined("--provider", PROVIDER_VALUES);
     format!(
         concat!(
             "            --cwd) ((!seen_cwd)) && [[ $family:$sub == tab:create || $family:$sub == panel:split ]] && candidates=\"{cwd}\" ;;\n",
+            "            --source)\n",
+            "                if ((!seen_output_source)); then\n",
+            "                    case \"$state\" in\n",
+            "                        verb) candidates=\"{output_source}\" ;;\n",
+            "                        sub) [[ ( $family == terminal || $family == agent ) && ( \" $verbs \" == *\" read \"* || \" $verbs \" == *\" wait-output \"* ) ]] && candidates=\"{output_source}\" ;;\n",
+            "                        after|operand|operand2) [[ $family:$sub == terminal:read || $family:$sub == terminal:wait-output || $family:$sub == agent:read ]] && candidates=\"{output_source}\" ;;\n",
+            "                    esac\n",
+            "                fi ;;\n",
             "            --right-click)\n",
             "                if ((!seen_right_click)); then\n",
             "                    case \"$state\" in\n",
@@ -1633,6 +1666,7 @@ fn joined_offer_cases_bash() -> String {
         direction = direction,
         cwd = cwd,
         right_click = right_click,
+        output_source = output_source,
         key = key,
         until = until,
         provider = provider,
@@ -1700,6 +1734,7 @@ fn bash() -> String {
             "        if [[ -n $value ]]; then\n",
             "            if [[ $value == format && $word != text && $word != json ]]; then done=1; fi\n",
             "            if [[ $value == mouse && $word != off && $word != on ]]; then done=1; fi\n",
+            "            if [[ $value == output_source && $word != visible && $word != recent && $word != recent-unwrapped && $word != detection ]]; then done=1; fi\n",
             "            if [[ $value == right_click && $word != orchbee && $word != panel ]]; then done=1; fi\n",
             "            value=\"\"\n",
             "            continue\n",
@@ -1770,6 +1805,7 @@ fn bash() -> String {
             "                # drives the same state admission and bookkeeping as the\n",
             "                # two-token spelling, and the inline value never claims\n",
             "                # the next word. Booleans and unknown names stay dead.\n",
+            "                if [[ $word == --source=* && $word != --source=visible && $word != --source=recent && $word != --source=recent-unwrapped && $word != --source=detection ]]; then done=1; fi\n",
             "                if [[ $word == --right-click=* && $word != --right-click=orchbee && $word != --right-click=panel ]]; then done=1; fi\n",
             "                flag_name=\"${{word%%=*}}\"\n",
             "                case \"$flag_name\" in\n",
@@ -1897,6 +1933,7 @@ fn bash() -> String {
             "{direction_cases}\n",
             "        esac\n",
             "    elif [[ $value == cwd ]]; then [[ $family:$sub == tab:create || $family:$sub == panel:split ]] && candidates=\"{cwd_values}\"\n",
+            "    elif [[ $value == output_source ]]; then candidates=\"{output_source_values}\"\n",
             "    elif [[ $value == right_click ]]; then candidates=\"{right_click_values}\"\n",
             "    elif [[ $value == key ]]; then candidates=\"{key_values}\"\n",
             "    elif [[ $value == until ]]; then candidates=\"{until_values}\"\n",
@@ -1986,6 +2023,7 @@ fn bash() -> String {
         format_values = FORMAT_VALUES.join(" "),
         cwd_values = CWD_VALUES.join(" "),
         right_click_values = RIGHT_CLICK_VALUES.join(" "),
+        output_source_values = OUTPUT_SOURCES.join(" "),
         key_values = KEY_VALUES.join(" "),
         until_values = UNTIL_VALUES.join(" "),
         provider_values = PROVIDER_VALUES.join(" "),
@@ -2062,6 +2100,7 @@ fn zsh() -> String {
             "        if [[ -n $value ]]; then\n",
             "            if [[ $value == format && $word != text && $word != json ]]; then done=1; fi\n",
             "            if [[ $value == mouse && $word != off && $word != on ]]; then done=1; fi\n",
+            "            if [[ $value == output_source && $word != visible && $word != recent && $word != recent-unwrapped && $word != detection ]]; then done=1; fi\n",
             "            if [[ $value == right_click && $word != orchbee && $word != panel ]]; then done=1; fi\n",
             "            value=\"\"\n",
             "            continue\n",
@@ -2132,6 +2171,7 @@ fn zsh() -> String {
             "                # drives the same state admission and bookkeeping as the\n",
             "                # two-token spelling, and the inline value never claims\n",
             "                # the next word. Booleans and unknown names stay dead.\n",
+            "                if [[ $word == --source=* && $word != --source=visible && $word != --source=recent && $word != --source=recent-unwrapped && $word != --source=detection ]]; then done=1; fi\n",
             "                if [[ $word == --right-click=* && $word != --right-click=orchbee && $word != --right-click=panel ]]; then done=1; fi\n",
             "                flag_name=\"${{word%%=*}}\"\n",
             "                case \"$flag_name\" in\n",
@@ -2249,6 +2289,7 @@ fn zsh() -> String {
             "{direction_cases}\n",
             "        esac\n",
             "    elif [[ $value == cwd ]]; then [[ $family:$sub == tab:create || $family:$sub == panel:split ]] && candidates=\"{cwd_values}\"\n",
+            "    elif [[ $value == output_source ]]; then candidates=\"{output_source_values}\"\n",
             "    elif [[ $value == right_click ]]; then candidates=\"{right_click_values}\"\n",
             "    elif [[ $value == key ]]; then candidates=\"{key_values}\"\n",
             "    elif [[ $value == until ]]; then candidates=\"{until_values}\"\n",
@@ -2334,6 +2375,7 @@ fn zsh() -> String {
         format_values = FORMAT_VALUES.join(" "),
         cwd_values = CWD_VALUES.join(" "),
         right_click_values = RIGHT_CLICK_VALUES.join(" "),
+        output_source_values = OUTPUT_SOURCES.join(" "),
         key_values = KEY_VALUES.join(" "),
         until_values = UNTIL_VALUES.join(" "),
         provider_values = PROVIDER_VALUES.join(" "),
@@ -2759,12 +2801,21 @@ fn joined_offer_cases_fish() -> String {
         .join("\n");
     let cwd = joined("--cwd", CWD_VALUES);
     let right_click = joined("--right-click", RIGHT_CLICK_VALUES);
+    let output_source = joined("--source", OUTPUT_SOURCES);
     let key = joined("--key", KEY_VALUES);
     let until = joined("--until", UNTIL_VALUES);
     let provider = joined("--provider", PROVIDER_VALUES);
     format!(
         concat!(
             "            case '--cwd'; if test $seen_cwd -eq 0; and contains -- \"$family:$sub\" tab:create panel:split; set candidates {cwd}; end\n",
+            "            case '--source'\n",
+            "                if test $seen_output_source -eq 0\n",
+            "                    switch \"$state\"\n",
+            "                        case verb; set candidates {output_source}\n",
+            "                        case sub; if contains -- $family terminal agent; and begin; contains -- read $verbs; or contains -- wait-output $verbs; end; set candidates {output_source}; end\n",
+            "                        case after operand operand2; if contains -- \"$family:$sub\" terminal:read terminal:wait-output agent:read; set candidates {output_source}; end\n",
+            "                    end\n",
+            "                end\n",
             "            case '--right-click'\n",
             "                if test $seen_right_click -eq 0\n",
             "                    switch \"$state\"\n",
@@ -2808,6 +2859,7 @@ fn joined_offer_cases_fish() -> String {
         direction = direction,
         cwd = cwd,
         right_click = right_click,
+        output_source = output_source,
         key = key,
         until = until,
         provider = provider,
@@ -2858,6 +2910,7 @@ fn fish() -> String {
             // comparisons stay split into standalone `test` job chains.
             "            if test \"$value\" = format; and test \"$word\" != text; and test \"$word\" != json; set done 1; end\n",
             "            if test \"$value\" = mouse; and test \"$word\" != off; and test \"$word\" != on; set done 1; end\n",
+            "            if test \"$value\" = output_source; and not contains -- \"$word\" visible recent recent-unwrapped detection; set done 1; end\n",
             "            if test \"$value\" = right_click; and not contains -- \"$word\" orchbee panel; set done 1; end\n",
             "            set value \"\"\n",
             "            continue\n",
@@ -2928,6 +2981,7 @@ fn fish() -> String {
             "                # drives the same state admission and bookkeeping as the\n",
             "                # two-token spelling, and the inline value never claims\n",
             "                # the next word. Booleans and unknown names stay dead.\n",
+            "                if string match -q -- '--source=*' $word; and not contains -- $word --source=visible --source=recent --source=recent-unwrapped --source=detection; set done 1; end\n",
             "                if string match -q -- '--right-click=*' $word; and not contains -- $word --right-click=orchbee --right-click=panel; set done 1; end\n",
             "                set -l flag_name (string split -m1 '=' -- $word)[1]\n",
             "                switch \"$flag_name\"\n",
@@ -3053,6 +3107,7 @@ fn fish() -> String {
             "{direction_cases}\n",
             "        end\n",
             "    else if test \"$value\" = cwd; if contains -- \"$family:$sub\" tab:create panel:split; set candidates {cwd_values}; end\n",
+            "    else if test \"$value\" = output_source; set candidates {output_source_values}\n",
             "    else if test \"$value\" = right_click; set candidates {right_click_values}\n",
             "    else if test \"$value\" = key; set candidates {key_values}\n",
             "    else if test \"$value\" = until; set candidates {until_values}\n",
@@ -3135,6 +3190,7 @@ fn fish() -> String {
         format_values = FORMAT_VALUES.join(" "),
         cwd_values = CWD_VALUES.join(" "),
         right_click_values = RIGHT_CLICK_VALUES.join(" "),
+        output_source_values = OUTPUT_SOURCES.join(" "),
         key_values = KEY_VALUES.join(" "),
         until_values = UNTIL_VALUES.join(" "),
         provider_values = PROVIDER_VALUES.join(" "),
@@ -3212,6 +3268,17 @@ fn command_conflict_pairs(
 
 fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] {
     match (command, flag) {
+        ("terminal:wait-output", "--source" | "--lines") => &["--rows"],
+        ("terminal:wait-output", "--forever") => &["--rows", "--timeout"],
+        ("terminal:wait-output", "--timeout") => &["--forever"],
+        ("terminal:wait-output", "--rows") => &["--source", "--lines", "--forever"],
+
+        ("terminal:read" | "agent:read", "--source" | "--plain") => {
+            &["--history", "--rows", "--unwrap"]
+        }
+        ("terminal:read" | "agent:read", "--history" | "--rows" | "--unwrap") => {
+            &["--source", "--plain"]
+        }
         ("tab:create" | "panel:split", "--focus") => &["--no-focus"],
         ("tab:create" | "panel:split", "--no-focus") => &["--focus"],
         ("tab:create" | "panel:split", "--profile") => &["--exec", "--arg"],

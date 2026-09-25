@@ -1,6 +1,72 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    (
+        "orchbee terminal wait-output target --timeout 1 --f",
+        "--forever",
+        false,
+    ),
+    (
+        "orchbee terminal wait-output target --source ",
+        "visible",
+        true,
+    ),
+    (
+        "orchbee terminal wait-output target --source=r",
+        "--source=recent-unwrapped",
+        true,
+    ),
+    (
+        "orchbee terminal wait-output target --forever --t",
+        "--timeout",
+        false,
+    ),
+    (
+        "orchbee terminal wait-output target --forever --r",
+        "--rows",
+        false,
+    ),
+    (
+        "orchbee terminal wait-output target --lines 5 --r",
+        "--rows",
+        false,
+    ),
+    (
+        "orchbee terminal wait-output target --rows 5 --l",
+        "--lines",
+        false,
+    ),
+    (
+        "orchbee terminal wait-output target --source recent --f",
+        "--forever",
+        true,
+    ),
+    ("orchbee terminal read target --s", "--source", true),
+    (
+        "orchbee terminal read target --source ",
+        "recent-unwrapped",
+        true,
+    ),
+    ("orchbee agent read --source=d", "--source=detection", true),
+    ("orchbee --source visible terminal ", "read", true),
+    ("orchbee --source visible terminal ", "send", false),
+    (
+        "orchbee terminal read target --source bad ",
+        "--plain",
+        false,
+    ),
+    (
+        "orchbee terminal read target --plain --h",
+        "--history",
+        false,
+    ),
+    (
+        "orchbee terminal read target --history --rows 3 --s",
+        "--source",
+        false,
+    ),
+    ("orchbee terminal read target --plain --s", "--source", true),
+    ("orchbee terminal wait-output target --s", "--source", true),
     ("orchbee terminal ", "run", true),
     ("orchbee help terminal ", "run", true),
     (

@@ -1,0 +1,204 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.terminal.output",
+	"title": "Source-selected terminal text envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.terminal.output"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"$ref": "#/$defs/snapshotSource"
+		},
+		"result": {
+			"type": "object",
+			"required": ["terminal", "selection", "observed", "content"],
+			"additionalProperties": false,
+			"properties": {
+				"terminal": {
+					"$ref": "#/$defs/terminal"
+				},
+				"selection": {
+					"type": "object",
+					"required": ["source", "lines"],
+					"additionalProperties": false,
+					"properties": {
+						"source": {
+							"enum": ["visible", "recent", "recent-unwrapped", "detection"]
+						},
+						"lines": {
+							"type": ["integer", "null"],
+							"minimum": 0,
+							"maximum": 1000
+						}
+					}
+				},
+				"observed": {
+					"type": "object",
+					"required": [
+						"revision",
+						"generation",
+						"alternateScreen",
+						"columns",
+						"screenRows",
+						"totalRows",
+						"windowStart",
+						"windowRows",
+						"capacityOmittedRows"
+					],
+					"additionalProperties": false,
+					"properties": {
+						"revision": {
+							"$ref": "#/$defs/decimal"
+						},
+						"generation": {
+							"$ref": "#/$defs/positiveDecimal"
+						},
+						"alternateScreen": {
+							"type": "boolean"
+						},
+						"columns": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 65535
+						},
+						"screenRows": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 65535
+						},
+						"totalRows": {
+							"$ref": "#/$defs/decimal"
+						},
+						"windowStart": {
+							"$ref": "#/$defs/decimal"
+						},
+						"windowRows": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 65535
+						},
+						"capacityOmittedRows": {
+							"$ref": "#/$defs/decimal"
+						}
+					}
+				},
+				"content": {
+					"type": "object",
+					"required": [
+						"text",
+						"physicalRows",
+						"firstRow",
+						"lastRow",
+						"startsMidLine",
+						"endsMidLine"
+					],
+					"additionalProperties": false,
+					"properties": {
+						"text": {
+							"type": "string"
+						},
+						"physicalRows": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"firstRow": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/decimal"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"lastRow": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/decimal"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"startsMidLine": {
+							"type": "boolean"
+						},
+						"endsMidLine": {
+							"type": "boolean"
+						}
+					}
+				}
+			}
+		}
+	},
+	"$defs": {
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"decimal": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)$"
+		},
+		"positiveDecimal": {
+			"type": "string",
+			"pattern": "^[1-9][0-9]*$"
+		},
+		"terminal": {
+			"type": "object",
+			"required": ["terminalId", "workerId", "boundTo"],
+			"additionalProperties": false,
+			"properties": {
+				"terminalId": {
+					"$ref": "#/$defs/id"
+				},
+				"workerId": {
+					"$ref": "#/$defs/id"
+				},
+				"boundTo": {
+					"type": "object",
+					"required": ["presentationId", "panelId", "tabId", "terminalContextId"],
+					"additionalProperties": false,
+					"properties": {
+						"presentationId": {
+							"$ref": "#/$defs/id"
+						},
+						"panelId": {
+							"$ref": "#/$defs/id"
+						},
+						"tabId": {
+							"$ref": "#/$defs/id"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/id"
+						}
+					}
+				}
+			}
+		},
+		"snapshotSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench-snapshot"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"revision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				}
+			}
+		}
+	}
+}

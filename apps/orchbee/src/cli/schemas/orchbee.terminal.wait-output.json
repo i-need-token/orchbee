@@ -6,38 +6,129 @@
 	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
-		"schema": { "const": "orchbee.terminal.wait-output" },
-		"version": { "enum": [1, 2] },
-		"source": { "$ref": "#/$defs/snapshotSource" },
+		"schema": {
+			"const": "orchbee.terminal.wait-output"
+		},
+		"version": {
+			"enum": [1, 2, 3]
+		},
+		"source": {
+			"$ref": "#/$defs/snapshotSource"
+		},
 		"result": {
 			"type": "object",
 			"required": ["terminal", "matched", "match", "observed"],
 			"additionalProperties": false,
 			"properties": {
-				"terminal": { "$ref": "#/$defs/terminal" },
-				"matched": { "const": true },
-				"match": { "$ref": "#/$defs/match" },
-				"observed": { "$ref": "#/$defs/observed" }
+				"terminal": {
+					"$ref": "#/$defs/terminal"
+				},
+				"matched": {
+					"const": true
+				},
+				"match": {
+					"$ref": "#/$defs/match"
+				},
+				"observed": {
+					"$ref": "#/$defs/observed"
+				},
+				"selection": {
+					"type": "object",
+					"required": ["source", "lines"],
+					"additionalProperties": false,
+					"properties": {
+						"source": {
+							"enum": ["visible", "recent", "recent-unwrapped", "detection"]
+						},
+						"lines": {
+							"type": ["integer", "null"],
+							"minimum": 0,
+							"maximum": 1000
+						}
+					}
+				}
 			}
 		}
 	},
 	"allOf": [
 		{
-			"if": { "properties": { "version": { "const": 1 } }, "required": ["version"] },
+			"if": {
+				"properties": {
+					"version": {
+						"const": 1
+					}
+				},
+				"required": ["version"]
+			},
 			"then": {
 				"properties": {
 					"result": {
 						"properties": {
-							"match": { "not": { "required": ["patternKind"] } }
+							"match": {
+								"not": {
+									"required": ["patternKind"]
+								}
+							}
 						}
+					}
+				}
+			},
+			"else": {
+				"if": {
+					"properties": {
+						"version": {
+							"const": 2
+						}
+					},
+					"required": ["version"]
+				},
+				"then": {
+					"properties": {
+						"result": {
+							"properties": {
+								"match": {
+									"required": ["patternKind"]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 3
+					}
+				},
+				"required": ["version"]
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"required": ["selection"]
 					}
 				}
 			},
 			"else": {
 				"properties": {
 					"result": {
+						"not": {
+							"required": ["selection"]
+						},
 						"properties": {
-							"match": { "required": ["patternKind"] }
+							"observed": {
+								"properties": {
+									"timeoutMs": {
+										"type": "integer"
+									},
+									"requestedRows": {
+										"minimum": 1,
+										"maximum": 1000
+									}
+								}
+							}
 						}
 					}
 				}
@@ -45,25 +136,46 @@
 		}
 	],
 	"$defs": {
-		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
-		"decimal": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
-		"positiveDecimal": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"decimal": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)$"
+		},
+		"positiveDecimal": {
+			"type": "string",
+			"pattern": "^[1-9][0-9]*$"
+		},
 		"terminal": {
 			"type": "object",
 			"required": ["terminalId", "workerId", "boundTo"],
 			"additionalProperties": false,
 			"properties": {
-				"terminalId": { "$ref": "#/$defs/id" },
-				"workerId": { "$ref": "#/$defs/id" },
+				"terminalId": {
+					"$ref": "#/$defs/id"
+				},
+				"workerId": {
+					"$ref": "#/$defs/id"
+				},
 				"boundTo": {
 					"type": "object",
 					"required": ["presentationId", "panelId", "tabId", "terminalContextId"],
 					"additionalProperties": false,
 					"properties": {
-						"presentationId": { "$ref": "#/$defs/id" },
-						"panelId": { "$ref": "#/$defs/id" },
-						"tabId": { "$ref": "#/$defs/id" },
-						"terminalContextId": { "$ref": "#/$defs/id" }
+						"presentationId": {
+							"$ref": "#/$defs/id"
+						},
+						"panelId": {
+							"$ref": "#/$defs/id"
+						},
+						"tabId": {
+							"$ref": "#/$defs/id"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/id"
+						}
 					}
 				}
 			}
@@ -82,24 +194,54 @@
 			],
 			"additionalProperties": false,
 			"properties": {
-				"excerpt": { "type": "string" },
-				"excerptTruncated": { "type": "boolean" },
-				"excerptOffset": { "$ref": "#/$defs/decimal" },
-				"matchOffset": { "$ref": "#/$defs/decimal" },
-				"rowStart": { "$ref": "#/$defs/decimal" },
-				"rowEnd": { "$ref": "#/$defs/decimal" },
-				"revision": { "$ref": "#/$defs/decimal" },
-				"generation": { "$ref": "#/$defs/positiveDecimal" },
-				"patternKind": { "const": "regex" },
-				"matchLength": { "$ref": "#/$defs/decimal" },
-				"matched": { "type": "string" },
-				"matchedTruncated": { "type": "boolean" },
-				"startsMidLine": { "type": "boolean" },
-				"endsMidLine": { "type": "boolean" }
+				"excerpt": {
+					"type": "string"
+				},
+				"excerptTruncated": {
+					"type": "boolean"
+				},
+				"excerptOffset": {
+					"$ref": "#/$defs/decimal"
+				},
+				"matchOffset": {
+					"$ref": "#/$defs/decimal"
+				},
+				"rowStart": {
+					"$ref": "#/$defs/decimal"
+				},
+				"rowEnd": {
+					"$ref": "#/$defs/decimal"
+				},
+				"revision": {
+					"$ref": "#/$defs/decimal"
+				},
+				"generation": {
+					"$ref": "#/$defs/positiveDecimal"
+				},
+				"patternKind": {
+					"const": "regex"
+				},
+				"matchLength": {
+					"$ref": "#/$defs/decimal"
+				},
+				"matched": {
+					"type": "string"
+				},
+				"matchedTruncated": {
+					"type": "boolean"
+				},
+				"startsMidLine": {
+					"type": "boolean"
+				},
+				"endsMidLine": {
+					"type": "boolean"
+				}
 			},
 			"allOf": [
 				{
-					"if": { "required": ["patternKind"] },
+					"if": {
+						"required": ["patternKind"]
+					},
 					"then": {
 						"required": [
 							"matchLength",
@@ -112,11 +254,21 @@
 					"else": {
 						"not": {
 							"anyOf": [
-								{ "required": ["matchLength"] },
-								{ "required": ["matched"] },
-								{ "required": ["matchedTruncated"] },
-								{ "required": ["startsMidLine"] },
-								{ "required": ["endsMidLine"] }
+								{
+									"required": ["matchLength"]
+								},
+								{
+									"required": ["matched"]
+								},
+								{
+									"required": ["matchedTruncated"]
+								},
+								{
+									"required": ["startsMidLine"]
+								},
+								{
+									"required": ["endsMidLine"]
+								}
 							]
 						}
 					}
@@ -139,16 +291,42 @@
 			],
 			"additionalProperties": false,
 			"properties": {
-				"attachmentId": { "$ref": "#/$defs/id" },
-				"hostEpoch": { "$ref": "#/$defs/id" },
-				"completedObservations": { "type": "integer", "minimum": 0 },
-				"windowStart": { "$ref": "#/$defs/decimal" },
-				"windowRows": { "$ref": "#/$defs/decimal" },
-				"windowTruncated": { "type": "boolean" },
-				"totalRows": { "$ref": "#/$defs/decimal" },
-				"requestedRows": { "type": "integer", "minimum": 1, "maximum": 1000 },
-				"timeoutMs": { "type": "integer", "minimum": 1, "maximum": 3600000 },
-				"elapsedMs": { "type": "integer", "minimum": 0 }
+				"attachmentId": {
+					"$ref": "#/$defs/id"
+				},
+				"hostEpoch": {
+					"$ref": "#/$defs/id"
+				},
+				"completedObservations": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"windowStart": {
+					"$ref": "#/$defs/decimal"
+				},
+				"windowRows": {
+					"$ref": "#/$defs/decimal"
+				},
+				"windowTruncated": {
+					"type": "boolean"
+				},
+				"totalRows": {
+					"$ref": "#/$defs/decimal"
+				},
+				"requestedRows": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65535
+				},
+				"timeoutMs": {
+					"type": ["integer", "null"],
+					"minimum": 1,
+					"maximum": 3600000
+				},
+				"elapsedMs": {
+					"type": "integer",
+					"minimum": 0
+				}
 			}
 		},
 		"snapshotSource": {
@@ -156,9 +334,16 @@
 			"required": ["kind", "siteId", "revision"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": { "const": "workbench-snapshot" },
-				"siteId": { "$ref": "#/$defs/id" },
-				"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+				"kind": {
+					"const": "workbench-snapshot"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"revision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				}
 			}
 		}
 	}

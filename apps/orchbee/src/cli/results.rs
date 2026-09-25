@@ -48,7 +48,10 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
                 "orchbee.terminal.read"
             }
         }
-        QueryCommand::TerminalWaitOutput { .. } => "orchbee.terminal.wait-output",
+        QueryCommand::TerminalOutput { .. } => "orchbee.terminal.output",
+        QueryCommand::TerminalWaitOutput { .. } | QueryCommand::TerminalSourceWait { .. } => {
+            "orchbee.terminal.wait-output"
+        }
         QueryCommand::WorktreeList { .. } => "orchbee.worktree.list",
         QueryCommand::LaunchProfileList => "orchbee.launch-profile.list",
         QueryCommand::LaunchProfileGet(_) => "orchbee.launch-profile.get",
@@ -67,6 +70,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
 /// match detail on a wait — so flag-free output stays byte-identical.
 pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
     match command {
+        QueryCommand::TerminalSourceWait { .. } => 3,
         QueryCommand::PanelGet(_) | QueryCommand::PanelCurrent(_) => 3,
         QueryCommand::ApiSnapshot => 4,
         QueryCommand::PanelList { .. } | QueryCommand::TabGet(_) => 2,
@@ -681,10 +685,11 @@ pub(crate) struct TerminalWaitOutputDoc {
     pub(crate) window_truncated: bool,
     pub(crate) total_rows: u64,
     pub(crate) requested_rows: u16,
-    /// Successful complete row-window reads that each also completed one
-    /// full match pass.
+    /// Complete validated samples that each completed one match pass,
+    /// including source-visible and zero-line samples without a row read.
     pub(crate) observations: u64,
-    pub(crate) timeout_ms: u32,
+    pub(crate) timeout_ms: Option<u32>,
+    pub(crate) selection: Option<crate::invocation::OutputSelection>,
     pub(crate) elapsed_ms: u64,
 }
 
@@ -707,6 +712,26 @@ pub(crate) fn match_window(
     window: &orchbee_terminal_protocol::TerminalTextRowWindow,
     matcher: &WaitMatcher<'_>,
 ) -> Option<WaitMatch> {
+    match_rows(
+        window.rows.iter().map(|row| {
+            (
+                row.index,
+                row.text.as_ref(),
+                row.wrap_continuation,
+                row.wrap,
+            )
+        }),
+        matcher,
+        true,
+    )
+}
+
+#[cfg(any(unix, windows))]
+pub(super) fn match_rows<'a>(
+    rows: impl IntoIterator<Item = (u64, &'a str, bool, bool)>,
+    matcher: &WaitMatcher<'_>,
+    join_soft_wraps: bool,
+) -> Option<WaitMatch> {
     let mut text = String::new();
     let mut row_start = 0_u64;
     let mut row_end = 0_u64;
@@ -715,8 +740,8 @@ pub(crate) fn match_window(
     // A fragment is accumulating whenever `open` holds — independent of
     // whether the joined text is empty.
     let mut open = false;
-    for row in &window.rows {
-        if open && !row.wrap_continuation {
+    for (index, content, from_previous, into_next) in rows {
+        if open && !(join_soft_wraps && from_previous) {
             // A hard boundary completes the previous logical fragment; it is
             // matched before the new one accumulates.
             if let Some(matched) = match_line(
@@ -735,16 +760,15 @@ pub(crate) fn match_window(
         if !open {
             // A hard boundary — or a window opening mid-line on a
             // continuation fragment — starts the observed fragment here.
-            row_start = row.index;
-            starts_mid_line = row.wrap_continuation;
+            row_start = index;
+            starts_mid_line = from_previous;
             open = true;
         }
-        text.push_str(&row.text);
-        row_end = row.index;
-        // Only the window-final fragment can still continue past its end;
-        // an interior boundary's predecessor never does (adjacent flags
-        // were verified to agree).
-        ends_mid_line = row.wrap;
+        text.push_str(content);
+        row_end = index;
+        // Preserve original edge facts even when physical-source matching
+        // deliberately separates two wrap-compatible rows.
+        ends_mid_line = into_next;
     }
     if open {
         return match_line(
@@ -884,7 +908,7 @@ fn match_excerpt(line: &str, match_start: usize, match_len: usize) -> (String, b
 pub(crate) struct WaitReport {
     pub(crate) observations: u64,
     pub(crate) requested_rows: u16,
-    pub(crate) timeout_ms: u32,
+    pub(crate) timeout_ms: Option<u32>,
     pub(crate) elapsed_ms: u64,
 }
 
@@ -901,6 +925,7 @@ pub(crate) fn terminal_wait_output_doc(
 ) -> TerminalWaitOutputDoc {
     TerminalWaitOutputDoc {
         terminal,
+        selection: None,
         attachment_id: attachment.to_text(),
         host_epoch: epoch.to_text(),
         matched: observed.matched,
@@ -1000,6 +1025,7 @@ pub(crate) enum Projection {
     PanelProcessInfo(PanelProcessInfoDoc),
     TerminalList(Vec<TerminalRow>),
     TerminalGet(TerminalGetDoc),
+    TerminalOutput(super::terminal_output::TerminalOutputDoc),
     TerminalRead(TerminalReadDoc),
     TerminalHistory(TerminalHistoryDoc),
     TerminalWaitOutput(TerminalWaitOutputDoc),
@@ -1270,6 +1296,7 @@ impl Projection {
                 }
                 json!({ "terminal": terminal })
             }
+            Self::TerminalOutput(doc) => doc.result(),
             Self::TerminalRead(doc) => {
                 let mut content = Map::new();
                 // `--unwrap` emits joined `lines` in place of `rows`; both
@@ -1483,7 +1510,7 @@ impl Projection {
                     matched.insert("startsMidLine".to_owned(), json!(regex.starts_mid_line));
                     matched.insert("endsMidLine".to_owned(), json!(regex.ends_mid_line));
                 }
-                json!({
+                let mut result = json!({
                     "terminal": terminal_row_json(&doc.terminal),
                     "matched": true,
                     "match": Value::Object(matched),
@@ -1499,7 +1526,12 @@ impl Projection {
                         "timeoutMs": doc.timeout_ms,
                         "elapsedMs": doc.elapsed_ms,
                     },
-                })
+                });
+                if let Some(selection) = doc.selection {
+                    result["selection"] =
+                        json!({ "source": selection.source.token(), "lines": selection.lines });
+                }
+                result
             }
             Self::WorktreeList(doc) => json!({
                 "projectId": doc.project_id,
@@ -1660,7 +1692,7 @@ pub(crate) fn launch_fact_json(launch: &TerminalLaunchFact) -> Value {
     })
 }
 
-fn terminal_row_json(row: &TerminalRow) -> Value {
+pub(super) fn terminal_row_json(row: &TerminalRow) -> Value {
     json!({
         "terminalId": row.terminal_id,
         "workerId": row.worker_id,
@@ -1998,7 +2030,9 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
         | QueryCommand::AgentWait { .. }
         | QueryCommand::AgentDoctor { .. }
         | QueryCommand::TerminalGet(_)
+        | QueryCommand::TerminalOutput { .. }
         | QueryCommand::TerminalRead { .. }
+        | QueryCommand::TerminalSourceWait { .. }
         | QueryCommand::TerminalWaitOutput { .. }
         | QueryCommand::WorktreeList { .. }
         | QueryCommand::LaunchProfileList
@@ -3754,7 +3788,7 @@ mod tests {
     mod terminal_wait {
         use super::super::{
             MAXIMUM_EXCERPT_BYTES, TerminalRow, WaitMatch, WaitMatcher, WaitObservation,
-            match_window, terminal_wait_output_doc,
+            match_rows, match_window, terminal_wait_output_doc,
         };
         use orchbee_terminal_protocol::{
             AttachmentId, HostEpoch, TerminalRowPromptClass, TerminalTextRowWindow,
@@ -3811,6 +3845,28 @@ mod tests {
             assert!(!hit.excerpt_truncated);
             assert_eq!(hit.match_offset, 13);
             assert_eq!(hit.excerpt_offset, 0);
+        }
+
+        #[test]
+        fn physical_source_does_not_join_wraps_and_keeps_original_edge_facts() {
+            let rows = [(5, "HEAD", false, true), (6, "TAIL", true, false)];
+            let matcher = WaitMatcher::Literal("HEADTAIL");
+            assert!(match_rows(rows, &matcher, false).is_none());
+            let joined = match_rows(rows, &matcher, true).unwrap();
+            assert_eq!((joined.row_start, joined.row_end), (5, 6));
+            let regex = regex::Regex::new("^HEAD$").unwrap();
+            let physical = match_rows(rows, &WaitMatcher::Regex(&regex), false).unwrap();
+            assert_eq!((physical.row_start, physical.row_end), (5, 5));
+            let detail = physical.regex.unwrap();
+            assert!(!detail.starts_mid_line && detail.ends_mid_line);
+            assert!(
+                match_rows(
+                    [],
+                    &WaitMatcher::Regex(&regex::Regex::new("^$").unwrap()),
+                    true
+                )
+                .is_none()
+            );
         }
 
         /// The first matching logical line wins; hard boundaries never join.
@@ -3958,7 +4014,7 @@ mod tests {
                     super::super::WaitReport {
                         observations: 1,
                         requested_rows: requested,
-                        timeout_ms: 30_000,
+                        timeout_ms: Some(30_000),
                         elapsed_ms: 12,
                     },
                 )

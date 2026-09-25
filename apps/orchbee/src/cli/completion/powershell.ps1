@@ -67,7 +67,7 @@ __ORCHBEE_GRAMMAR__
         foreach ($group in @(@('--timeout', '--forever'), @('--session', '--name', '--panel'), @('--panel', '--current'), @('--workspace', '--standalone'), @('--exec', '--profile'), @('--arg', '--profile'), @('--into-tab', '--new-tab'), @('--target-panel', '--into-tab'), @('--target-panel', '--new-tab'), @('--text', '--file', '--stdin', '--key'), @('--key', '--enter'), @('--key', '--paste'), @('--text', '--paste'), @('--match', '--regex'))) {
             if (@($group | Where-Object { $seen -ccontains $_ }).Count -gt 1) { return }
         }
-        foreach ($entry in @(@('--format', $grammar.formats), @('--mouse', @('off', 'on')), @('--until', $grammar.until), @('--right-click', $grammar.rightClick))) {
+        foreach ($entry in @(@('--format', $grammar.formats), @('--mouse', @('off', 'on')), @('--until', $grammar.until), @('--right-click', $grammar.rightClick), @('--source', $grammar.outputSources))) {
             if ($values.ContainsKey($entry[0]) -and $entry[1] -cnotcontains $values[$entry[0]]) { return }
         }
         $viable = @($grammar.commands | Where-Object {
@@ -148,6 +148,7 @@ __ORCHBEE_GRAMMAR__
                 '--cwd' { $viable | ForEach-Object { $_.cwdValues } }
                 '--direction' { $viable | ForEach-Object { $_.directions } }
                 '--right-click' { $grammar.rightClick }
+                '--source' { $grammar.outputSources }
                 '--key' { $grammar.keys }
                 '--until' { $grammar.until }
                 '--provider' { $grammar.providers }

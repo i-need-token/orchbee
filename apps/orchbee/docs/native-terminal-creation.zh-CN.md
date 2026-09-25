@@ -60,8 +60,8 @@ Windows 创建在已知规范提交后输出 `orchbee.creation.result` v2。保�
 
 JSON 向 stdout 输出一个完整有界文档。失败文本写 stderr 并包含已知效果。未完成时先
 检查返回身份与当前状态，再决定后续动作；重复创建可能再创建资源。Client control-status
-可观察已经提交的 Client 操作。不增加持久流程日志或重启恢复。schema 目录为 v34、68
-个文档；命令路径仍为 80 个。
+可观察已经提交的 Client 操作。不增加持久流程日志或重启恢复。schema 目录为 v36、69
+个文档；命令路径仍为 81 个。
 
 ## 证据与兼容性
 
