@@ -10,6 +10,147 @@ use std::{
 };
 
 struct Fixture(PathBuf);
+
+#[test]
+fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() {
+    use std::os::windows::process::CommandExt;
+    let fixture = Fixture::new();
+    fixture.plugin("grok");
+    let inspect = |verb| fixture.provider_document(verb, "grok", 0);
+    let calls =
+        || fs::read_to_string(fixture.config_home().join("grok-calls.jsonl")).unwrap_or_default();
+    assert_eq!(inspect("explain")["result"]["state"], "not-installed");
+    inspect("enable");
+    assert_eq!(inspect("explain")["result"]["state"], "enabled");
+    let before = calls();
+    inspect("enable");
+    assert_eq!(calls(), before);
+    let config = fixture.config_home().join("config.toml");
+    for configuration in [
+        "[plugins]\nenabled = []\ndisabled = []\n",
+        "plugins = { enabled = ['orchbee-agent-observation'], disabled = ['orchbee-agent-observation'] }\n",
+    ] {
+        fs::write(&config, configuration).unwrap();
+        assert_eq!(inspect("explain")["result"]["state"], "disabled");
+        inspect("enable");
+        assert_eq!(inspect("explain")["result"]["state"], "enabled");
+    }
+    for malformed in [
+        "[malformed",
+        "plugins.enabled = true",
+        "plugins.disabled = [42]",
+    ] {
+        fs::write(&config, malformed).unwrap();
+        assert_eq!(inspect("explain")["result"]["state"], "unknown");
+        let before = calls();
+        fixture.provider_document("enable", "grok", 9);
+        assert_eq!(calls(), before);
+        assert_eq!(fs::read_to_string(&config).unwrap(), malformed);
+    }
+    fs::write(
+        &config,
+        "plugins.enabled = ['orchbee-agent-observation'] # comment\n",
+    )
+    .unwrap();
+    let state_path = fixture.config_home().join("grok-state.json");
+    let current = fs::read(&state_path).unwrap();
+    for (source, version, expected, code) in [
+        (fixture.capsule().join("bundle"), Value::Null, "unknown", 9),
+        (
+            fixture.0.join("foreign/bundle"),
+            Value::from("0.4.4"),
+            "conflict",
+            3,
+        ),
+        (
+            fixture.capsule().parent().unwrap().join("0.4.2/bundle"),
+            Value::from("9.0.0"),
+            "stale-side",
+            3,
+        ),
+    ] {
+        let mut state: Value = serde_json::from_slice(&current).unwrap();
+        state["source"] = serde_json::json!(source);
+        state["version"] = version;
+        fs::write(&state_path, state.to_string()).unwrap();
+        assert_eq!(inspect("explain")["result"]["state"], expected);
+        let before = calls();
+        fixture.provider_document("enable", "grok", code);
+        fixture.provider_document("disable", "grok", code);
+        assert_eq!(calls(), before);
+    }
+    let mut old: Value = serde_json::from_slice(&current).unwrap();
+    old["version"] = "0.4.2".into();
+    fs::write(&state_path, old.to_string()).unwrap();
+    assert_eq!(inspect("explain")["result"]["state"], "update-required");
+    inspect("enable");
+    assert_eq!(inspect("explain")["result"]["state"], "enabled");
+    for shell in ["powershell.exe", "pwsh.exe"] {
+        let output = Command::new("node.exe")
+            .arg(
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("tests/fixtures/windows-integration-exec-hook.mjs"),
+            )
+            .arg("grok")
+            .arg(fixture.capsule().join("bundle"))
+            .arg(shell)
+            .env("USERPROFILE", fixture.home())
+            .stdin(Stdio::null())
+            .creation_flags(0x0800_0000)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{shell}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(result["events"], 4);
+        assert_eq!(result["silent"], true);
+    }
+    inspect("disable");
+    assert_eq!(inspect("explain")["result"]["state"], "not-installed");
+    let before = calls();
+    inspect("disable");
+    assert_eq!(calls(), before);
+}
+
+#[test]
+fn windows_codex_inspects_complete_toml_without_rewriting_unrelated_settings() {
+    let fixture = Fixture::new();
+    fixture.document("enable", 0);
+    let path = fixture.config_home().join("config.toml");
+    let source = serde_json::to_string(&fixture.capsule()).unwrap();
+    let configurations = [
+        format!(
+            "[marketplaces.'orchbee-local']\nsource_type = 'local' # comment\nsource = {source}\n[plugins.'orchbee-agent-observation@orchbee-local']\nenabled = true # comment\n"
+        ),
+        format!(
+            "marketplaces.orchbee-local = {{ source_type = 'local', source = {source} }}\nplugins.'orchbee-agent-observation@orchbee-local'.enabled = true\n"
+        ),
+    ];
+    for configuration in configurations {
+        fs::write(&path, &configuration).unwrap();
+        assert_eq!(fixture.document("explain", 0)["result"]["state"], "enabled");
+        let before = fixture.calls();
+        fixture.document("enable", 0);
+        assert_eq!(fixture.calls(), before);
+        assert_eq!(fs::read_to_string(&path).unwrap(), configuration);
+    }
+    for bytes in [
+        b"[unrelated-malformed".as_slice(),
+        b"unrelated = 1\nunrelated = 2",
+        &[0xff, 0xfe],
+    ] {
+        fs::write(&path, bytes).unwrap();
+        assert_eq!(fixture.document("explain", 0)["result"]["state"], "unknown");
+        let before = fixture.calls();
+        fixture.document("enable", 9);
+        fixture.document("disable", 9);
+        assert_eq!(fixture.calls(), before);
+        assert_eq!(fs::read(&path).unwrap(), bytes);
+    }
+}
 impl Fixture {
     fn new() -> Self {
         let mut nonce = [0; 16];
@@ -57,7 +198,7 @@ impl Fixture {
     }
     fn capsule(&self) -> PathBuf {
         self.home()
-            .join(".orchbee/agent-observation-adapters/0.4.3")
+            .join(".orchbee/agent-observation-adapters/0.4.4")
     }
     fn run(&self, verb: &str, provider: &str, config_home: &Path) -> Output {
         self.run_options(verb, provider, config_home, &[])
@@ -85,6 +226,7 @@ impl Fixture {
             .env("USERPROFILE", self.home())
             .env("HOME", self.0.join("wrong-posix-home"))
             .env("CODEX_HOME", config_home)
+            .env("GROK_HOME", config_home)
             .env("PATH", self.0.join("bin"))
             .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")
             .env("LC_ALL", "en-US")
@@ -123,12 +265,16 @@ impl Fixture {
             .map(|path| path.join("node.exe"))
             .find(|path| path.is_file())
             .unwrap();
-        let script = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/windows-integration-plugin.mjs");
+        let (relative, prefix) = if provider == "grok" {
+            ("tests/fixtures/windows-integration-grok.mjs", "")
+        } else {
+            ("tests/fixtures/windows-integration-plugin.mjs", provider)
+        };
+        let script = Path::new(env!("CARGO_MANIFEST_DIR")).join(relative);
         fs::write(
             self.0.join(format!("bin/{provider}.cmd")),
             format!(
-                "@echo off\r\n\"{}\" \"{}\" {provider} %*\r\n",
+                "@echo off\r\n\"{}\" \"{}\" {prefix} %*\r\n",
                 node.display(),
                 script.display()
             ),
@@ -292,7 +438,7 @@ fn claude_repairs_owned_old_installations_and_preserves_foreign_or_newer_sources
         "enabled"
     );
     for (source, version, expected) in [
-        (fixture.0.join("foreign"), "0.4.3", "conflict"),
+        (fixture.0.join("foreign"), "0.4.4", "conflict"),
         (
             fixture.capsule().parent().unwrap().join("9.0.0"),
             "9.0.0",

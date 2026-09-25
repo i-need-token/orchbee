@@ -194,6 +194,7 @@ pub(crate) const fn management_mode(id: IntegrationId, declared: ManagementMode)
         && !matches!(
             id,
             IntegrationId::ClaudeCode
+                | IntegrationId::Grok
                 | IntegrationId::Codex
                 | IntegrationId::Opencode
                 | IntegrationId::Pi
@@ -349,10 +350,14 @@ pub(crate) fn inspect_full(
         Kind::Cli(CliKind::Grok) => {
             let executable = executable.as_deref().expect("gated above");
             match read_slot(executable, &["plugin", "list", "--json"], context) {
-                ReadOutcome::Stdout(stdout) => match inspect::inspect_grok(&stdout, &options) {
-                    Some(inspection) => (inspection.state, false, cli_detail(Some(&inspection))),
-                    None => (State::Unknown, true, cli_detail(None)),
-                },
+                ReadOutcome::Stdout(stdout) => {
+                    match inspect::inspect_grok(&stdout, &options, context.home) {
+                        Some(inspection) => {
+                            (inspection.state, false, cli_detail(Some(&inspection)))
+                        }
+                        None => (State::Unknown, true, cli_detail(None)),
+                    }
+                }
                 _ => (State::Unknown, true, cli_detail(None)),
             }
         }

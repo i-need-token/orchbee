@@ -16,6 +16,9 @@ use sha2::Digest;
 
 use super::model::{IntegrationId, State};
 
+#[cfg(windows)]
+mod windows;
+
 pub(crate) const CLAUDE_PLUGIN_ID: &str = "orchbee-agent-observation@orchbee-local";
 pub(crate) const CODEX_PLUGIN_ID: &str = "orchbee-agent-observation@orchbee-local";
 pub(crate) const GITHUB_COPILOT_PLUGIN_ID: &str = "orchbee-agent-observation@orchbee-local";
@@ -328,10 +331,21 @@ fn windows_plugin_version(plugin: &Value, options: &ResourceOptions) -> Option<S
     })
 }
 
-/// grok — `grok plugin list --json`, single marketplace-free source field.
+#[cfg(windows)]
 pub(crate) fn inspect_grok(
     plugin_stdout: &[u8],
     options: &ResourceOptions,
+    home: &Path,
+) -> Option<PluginInspection> {
+    windows::inspect_grok(plugin_stdout, options, home)
+}
+
+/// Legacy Unix inventory contract.
+#[cfg(unix)]
+pub(crate) fn inspect_grok(
+    plugin_stdout: &[u8],
+    options: &ResourceOptions,
+    _home: &Path,
 ) -> Option<PluginInspection> {
     let entries = record_array(plugin_stdout)?;
     let matches: Vec<&Value> = entries
@@ -588,21 +602,14 @@ pub(crate) struct CodexInspection {
     pub(crate) state: State,
 }
 
+#[cfg(windows)]
 pub(crate) fn inspect_codex(home: &Path, options: &ResourceOptions) -> CodexInspection {
-    #[cfg(unix)]
-    let configuration_path = home.join(".codex").join("config.toml");
-    #[cfg(windows)]
-    let configuration_path =
-        match codex_configuration_path(home, std::env::var_os("CODEX_HOME").as_deref()) {
-            Some(path) => path,
-            None => {
-                return CodexInspection {
-                    marketplace: Marketplace::Absent,
-                    plugin_present: false,
-                    state: State::Unknown,
-                };
-            }
-        };
+    windows::inspect_codex(home, options)
+}
+
+#[cfg(unix)]
+pub(crate) fn inspect_codex(home: &Path, options: &ResourceOptions) -> CodexInspection {
+    let configuration_path = home.join(".codex/config.toml");
     let bytes = match bounded_file_follow(&configuration_path, MAX_CODEX_CONFIGURATION_BYTES) {
         Ok(Some(bytes)) => bytes,
         Ok(None) => {
@@ -623,21 +630,7 @@ pub(crate) fn inspect_codex(home: &Path, options: &ResourceOptions) -> CodexInsp
     parse_codex_configuration(&String::from_utf8_lossy(&bytes), options)
 }
 
-#[cfg(windows)]
-fn codex_configuration_path(
-    home: &Path,
-    override_root: Option<&std::ffi::OsStr>,
-) -> Option<PathBuf> {
-    match override_root.filter(|value| !value.is_empty()) {
-        Some(root) => {
-            let root = Path::new(root);
-            let _pins = super::files::pin_tree(root, false).ok()?;
-            Some(root.join("config.toml"))
-        }
-        None => Some(home.join(".codex/config.toml")),
-    }
-}
-
+#[cfg(unix)]
 fn parse_codex_configuration(value: &str, options: &ResourceOptions) -> CodexInspection {
     enum Section {
         Marketplace,
@@ -793,14 +786,8 @@ fn parse_codex_configuration(value: &str, options: &ResourceOptions) -> CodexIns
     }
 }
 
+#[cfg(unix)]
 fn parse_basic_string(value: &str) -> Option<String> {
-    #[cfg(windows)]
-    if let Some(literal) = value
-        .strip_prefix('\'')
-        .and_then(|text| text.strip_suffix('\''))
-    {
-        return (!literal.contains(['\'', '\r', '\n'])).then(|| literal.to_owned());
-    }
     match serde_json::from_str::<Value>(value).ok()? {
         Value::String(text) => Some(text),
         _ => None,

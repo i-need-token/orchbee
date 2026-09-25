@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { cp, lstat, mkdir, mkdtemp, open, readFile, readdir, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 
-export const AGENT_OBSERVATION_CAPSULE_VERSION = '0.4.3';
+export const AGENT_OBSERVATION_CAPSULE_VERSION = '0.4.4';
 
 const CAPSULE_CONTRACT_VERSION = 3;
 const MAX_CAPSULE_ENTRIES = 128;

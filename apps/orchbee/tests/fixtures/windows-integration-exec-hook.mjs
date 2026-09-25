@@ -7,11 +7,16 @@ import fs from 'node:fs';
 import { createServer } from 'node:net';
 import path from 'node:path';
 
-const [provider, root] = process.argv.slice(2);
-assert.ok(['claude-code', 'github-copilot'].includes(provider));
+const [provider, root, shell] = process.argv.slice(2);
+assert.ok(['claude-code', 'github-copilot', 'grok'].includes(provider));
 const hooks = JSON.parse(
 	fs.readFileSync(
-		path.join(root, provider === 'claude-code' ? 'hooks/hooks.json' : 'hooks/copilot.json'),
+		path.join(
+			root,
+			provider === 'claude-code'
+				? 'hooks/hooks.json'
+				: `hooks/${provider === 'grok' ? 'grok' : 'copilot'}.json`,
+		),
 		'utf8',
 	),
 ).hooks;
@@ -44,13 +49,26 @@ await new Promise((resolve, reject) => {
 	server.listen(pipe, resolve);
 });
 async function run(hook, input, scriptRoot = root) {
-	assert.equal(provider === 'claude-code' ? hook.command : hook.exec, 'node');
-	const args = hook.args.map((arg) => arg.replace('${CLAUDE_PLUGIN_ROOT}', scriptRoot));
+	let command = process.execPath;
+	let args;
+	if (provider === 'grok') {
+		assert.ok(['powershell.exe', 'pwsh.exe'].includes(shell));
+		assert.ok(hook.command.startsWith('node -e "eval(Buffer.from('));
+		command = shell;
+		args = ['-NoProfile', '-NonInteractive', '-Command', hook.command];
+	} else {
+		assert.equal(provider === 'claude-code' ? hook.command : hook.exec, 'node');
+		args = hook.args.map((arg) => arg.replace('${CLAUDE_PLUGIN_ROOT}', scriptRoot));
+	}
 	await new Promise((resolve, reject) => {
-		const child = spawn(process.execPath, args, {
+		const child = spawn(command, args, {
 			windowsHide: true,
 			env: {
+				SystemRoot: process.env.SystemRoot,
+				PATHEXT: process.env.PATHEXT,
+				PATH: `${path.dirname(process.execPath)};${process.env.PATH}`,
 				USERPROFILE: process.env.USERPROFILE,
+				GROK_PLUGIN_ROOT: scriptRoot,
 				COPILOT_PLUGIN_ROOT: scriptRoot,
 				ORCHBEE_AGENT_OBSERVATION_SOCKET_V3: pipe,
 			},
@@ -67,7 +85,7 @@ async function run(hook, input, scriptRoot = root) {
 			clearTimeout(timeout);
 			children.delete(child);
 			try {
-				assert.equal(code, 0);
+				assert.equal(code, 0, Buffer.concat(output).toString());
 				assert.equal(signal, null);
 				assert.equal(Buffer.concat(output).length, 0);
 				resolve();
@@ -79,12 +97,15 @@ async function run(hook, input, scriptRoot = root) {
 	});
 }
 const hookFor = (event) =>
-	provider === 'claude-code' ? hooks[event][0].hooks[0] : hooks[event][0];
+	provider === 'github-copilot' ? hooks[event][0] : hooks[event][0].hooks[0];
 try {
 	for (const event of ['SessionStart', 'UserPromptSubmit', 'Stop', 'SessionEnd']) {
 		await run(
 			hookFor(event),
 			JSON.stringify({
+				...(provider === 'grok'
+					? { hookEventName: event, sessionId: 'literal-path-session', reason: 'end_turn' }
+					: {}),
 				hook_event_name: event,
 				session_id: 'literal-path-session',
 				prompt: 'PRIVATE_PROMPT',

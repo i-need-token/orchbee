@@ -243,4 +243,8 @@ Capsule 0.4.2 将 Claude 的 `/bin/sh` hook 启动器替换为 `node` 加显式�
 
 ## Copilot 直接执行
 
-Capsule 0.4.3 使用基于 Node 的 [Copilot exec hook 契约](https://docs.github.com/en/copilot/reference/hooks-reference)。固定导入保护直接从 provider 子进程环境读取 COPILOT_PLUGIN_ROOT，检查其为绝对路径，并将拼接后的脚本路径传给 pathToFileURL。根目录或脚本缺失时不输出内容。Node 为前提；可执行文件不可用属于 provider 启动错误，不是已送达观察。PascalCase 事件名称保留文档所述的 VS Code 兼容输入字段，供既有清洗器使用。没有 Shell 解释路径。Windows 配置使用单独验证的当前插件命令／JSON 契约；共享载荷兼容不提升 Desktop CLI 对齐判定。
+Capsule 0.4.4 使用基于 Node 的 [Copilot exec hook 契约](https://docs.github.com/en/copilot/reference/hooks-reference)。固定导入保护直接从 provider 子进程环境读取 COPILOT_PLUGIN_ROOT，检查其为绝对路径，并将拼接后的脚本路径传给 pathToFileURL。根目录或脚本缺失时不输出内容。Node 为前提；可执行文件不可用属于 provider 启动错误，不是已送达观察。PascalCase 事件名称保留文档所述的 VS Code 兼容输入字段，供既有清洗器使用。没有 Shell 解释路径。Windows 配置使用单独验证的当前插件命令／JSON 契约；共享载荷兼容不提升 Desktop CLI 对齐判定。
+
+### Grok 命令引导
+
+Capsule 0.4.4 保留 Grok 的纯命令 hook 契约，使用固定的 base64 编码 Node 引导。解码后的代码将 GROK_PLUGIN_ROOT 作为数据读取，设置原样脚本／provider 参数，并执行受保护的动态导入；不把用户路径插入 Shell 语法。PowerShell 5.1／7 在此命令中保留重定向的 JSON stdin。Node 是前提；Node 缺失是 provider 命令错误，根目录／脚本缺失则继续静默处理。Grok 既有 camelCase 事件输入、清洗器、时限和观察传输不变。编码用于保护 Shell 引号，不用于隐藏秘密。Windows 本地安装状态另从 provider 管理的 TOML 配置读取；不证明项目有效策略或活动会话已经重新加载。

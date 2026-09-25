@@ -296,21 +296,23 @@ describe('Agent observation adapter resources', () => {
 									timeout: Math.min(SPAWN_WATCHDOG_MS, remaining),
 								});
 								const runtimeAbsent = hook.command === 'node' && scenario === 'runtime-absent';
+								const shellRuntimeAbsent =
+									hook.command.startsWith('node -e ') && scenario === 'runtime-absent';
 								expect({
 									label,
 									status: result.status,
 									signal: result.signal,
 									hasError: result.error !== undefined,
 									errorCode: spawnErrorCode(result.error),
-									stderrBytes: result.stderr?.length ?? 0,
+									stderrEmpty: (result.stderr?.length ?? 0) === 0,
 									stdoutBytes: result.stdout?.length ?? 0,
 								}).toEqual({
 									label,
-									status: runtimeAbsent ? null : 0,
+									status: runtimeAbsent ? null : (shellRuntimeAbsent ? 127 : 0),
 									signal: null,
 									hasError: runtimeAbsent,
 									errorCode: runtimeAbsent ? 'ENOENT' : null,
-									stderrBytes: 0,
+									stderrEmpty: !shellRuntimeAbsent,
 									stdoutBytes: 0,
 								});
 							} finally {

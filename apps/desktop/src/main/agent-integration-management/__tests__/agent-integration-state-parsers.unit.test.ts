@@ -7,14 +7,14 @@ import {
 } from '../agent-integration-state-parsers';
 
 const resourceOptions = {
-	expectedVersion: '0.4.3',
+	expectedVersion: '0.4.4',
 	legacyResourceRoots: ['/Applications/Orchbee.app/Contents/Resources/agent-observation-adapters'],
-	resourceRoot: '/user-data/agent-observation-adapters/0.4.3',
+	resourceRoot: '/user-data/agent-observation-adapters/0.4.4',
 } as const;
 
 describe('Agent integration state parsers', () => {
 	it('requires the exact Claude plugin, version, and owned marketplace source', () => {
-		const plugin = (version = '0.4.3', enabled = true) =>
+		const plugin = (version = '0.4.4', enabled = true) =>
 			JSON.stringify([
 				{ enabled: true, id: 'other@orchbee-local', version },
 				{ enabled, id: 'orchbee-agent-observation@orchbee-local', version },
@@ -24,7 +24,7 @@ describe('Agent integration state parsers', () => {
 
 		expect(
 			parseClaudeConfiguration(
-				plugin('0.4.3', false),
+				plugin('0.4.4', false),
 				marketplace(resourceOptions.resourceRoot),
 				resourceOptions,
 			),
@@ -55,7 +55,7 @@ describe('Agent integration state parsers', () => {
 	});
 
 	it('classifies only source- and version-proven Grok copies as managed', () => {
-		const entry = (source: string, version = '0.4.3', status = 'installed') =>
+		const entry = (source: string, version = '0.4.4', status = 'installed') =>
 			JSON.stringify([{ name: 'orchbee-agent-observation', source, status, version }]);
 		const currentBundle = `${resourceOptions.resourceRoot}/bundle`;
 
@@ -64,7 +64,7 @@ describe('Agent integration state parsers', () => {
 			state: 'enabled',
 		});
 		expect(
-			parseGrokConfiguration(entry(currentBundle, '0.4.3', 'disabled'), resourceOptions),
+			parseGrokConfiguration(entry(currentBundle, '0.4.4', 'disabled'), resourceOptions),
 		).toEqual({
 			pluginPresent: true,
 			state: 'disabled',

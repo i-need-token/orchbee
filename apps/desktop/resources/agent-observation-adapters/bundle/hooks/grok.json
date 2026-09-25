@@ -5,7 +5,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" grok >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3QgcD1hd2FpdCBpbXBvcnQoJ25vZGU6cGF0aCcpO2NvbnN0IHI9cHJvY2Vzcy5lbnYuR1JPS19QTFVHSU5fUk9PVDtpZih0eXBlb2Ygcj09PSdzdHJpbmcnJiZwLmlzQWJzb2x1dGUocikpe2NvbnN0IHM9cC5qb2luKHIsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmFyZ3ZbMF0scywnZ3JvayddO2F3YWl0IGltcG9ydCgoYXdhaXQgaW1wb3J0KCdub2RlOnVybCcpKS5wYXRoVG9GaWxlVVJMKHMpLmhyZWYpfX1jYXRjaHt9fSkoKQ==','base64').toString('utf8'))\"",
 						"timeout": 2
 					}
 				]
@@ -16,7 +16,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" grok >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3QgcD1hd2FpdCBpbXBvcnQoJ25vZGU6cGF0aCcpO2NvbnN0IHI9cHJvY2Vzcy5lbnYuR1JPS19QTFVHSU5fUk9PVDtpZih0eXBlb2Ygcj09PSdzdHJpbmcnJiZwLmlzQWJzb2x1dGUocikpe2NvbnN0IHM9cC5qb2luKHIsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmFyZ3ZbMF0scywnZ3JvayddO2F3YWl0IGltcG9ydCgoYXdhaXQgaW1wb3J0KCdub2RlOnVybCcpKS5wYXRoVG9GaWxlVVJMKHMpLmhyZWYpfX1jYXRjaHt9fSkoKQ==','base64').toString('utf8'))\"",
 						"timeout": 2
 					}
 				]
@@ -27,7 +27,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" grok >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3QgcD1hd2FpdCBpbXBvcnQoJ25vZGU6cGF0aCcpO2NvbnN0IHI9cHJvY2Vzcy5lbnYuR1JPS19QTFVHSU5fUk9PVDtpZih0eXBlb2Ygcj09PSdzdHJpbmcnJiZwLmlzQWJzb2x1dGUocikpe2NvbnN0IHM9cC5qb2luKHIsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmFyZ3ZbMF0scywnZ3JvayddO2F3YWl0IGltcG9ydCgoYXdhaXQgaW1wb3J0KCdub2RlOnVybCcpKS5wYXRoVG9GaWxlVVJMKHMpLmhyZWYpfX1jYXRjaHt9fSkoKQ==','base64').toString('utf8'))\"",
 						"timeout": 2
 					}
 				]
@@ -38,7 +38,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" grok >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3QgcD1hd2FpdCBpbXBvcnQoJ25vZGU6cGF0aCcpO2NvbnN0IHI9cHJvY2Vzcy5lbnYuR1JPS19QTFVHSU5fUk9PVDtpZih0eXBlb2Ygcj09PSdzdHJpbmcnJiZwLmlzQWJzb2x1dGUocikpe2NvbnN0IHM9cC5qb2luKHIsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmFyZ3ZbMF0scywnZ3JvayddO2F3YWl0IGltcG9ydCgoYXdhaXQgaW1wb3J0KCdub2RlOnVybCcpKS5wYXRoVG9GaWxlVVJMKHMpLmhyZWYpfX1jYXRjaHt9fSkoKQ==','base64').toString('utf8'))\"",
 						"timeout": 2
 					}
 				]
@@ -49,7 +49,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" grok >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3QgcD1hd2FpdCBpbXBvcnQoJ25vZGU6cGF0aCcpO2NvbnN0IHI9cHJvY2Vzcy5lbnYuR1JPS19QTFVHSU5fUk9PVDtpZih0eXBlb2Ygcj09PSdzdHJpbmcnJiZwLmlzQWJzb2x1dGUocikpe2NvbnN0IHM9cC5qb2luKHIsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmFyZ3ZbMF0scywnZ3JvayddO2F3YWl0IGltcG9ydCgoYXdhaXQgaW1wb3J0KCdub2RlOnVybCcpKS5wYXRoVG9GaWxlVVJMKHMpLmhyZWYpfX1jYXRjaHt9fSkoKQ==','base64').toString('utf8'))\"",
 						"timeout": 2
 					}
 				]
@@ -60,7 +60,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" grok >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3QgcD1hd2FpdCBpbXBvcnQoJ25vZGU6cGF0aCcpO2NvbnN0IHI9cHJvY2Vzcy5lbnYuR1JPS19QTFVHSU5fUk9PVDtpZih0eXBlb2Ygcj09PSdzdHJpbmcnJiZwLmlzQWJzb2x1dGUocikpe2NvbnN0IHM9cC5qb2luKHIsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmFyZ3ZbMF0scywnZ3JvayddO2F3YWl0IGltcG9ydCgoYXdhaXQgaW1wb3J0KCdub2RlOnVybCcpKS5wYXRoVG9GaWxlVVJMKHMpLmhyZWYpfX1jYXRjaHt9fSkoKQ==','base64').toString('utf8'))\"",
 						"timeout": 2
 					}
 				]
@@ -72,7 +72,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" grok >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3QgcD1hd2FpdCBpbXBvcnQoJ25vZGU6cGF0aCcpO2NvbnN0IHI9cHJvY2Vzcy5lbnYuR1JPS19QTFVHSU5fUk9PVDtpZih0eXBlb2Ygcj09PSdzdHJpbmcnJiZwLmlzQWJzb2x1dGUocikpe2NvbnN0IHM9cC5qb2luKHIsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmFyZ3ZbMF0scywnZ3JvayddO2F3YWl0IGltcG9ydCgoYXdhaXQgaW1wb3J0KCdub2RlOnVybCcpKS5wYXRoVG9GaWxlVVJMKHMpLmhyZWYpfX1jYXRjaHt9fSkoKQ==','base64').toString('utf8'))\"",
 						"timeout": 2
 					}
 				]
@@ -83,7 +83,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" grok >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3QgcD1hd2FpdCBpbXBvcnQoJ25vZGU6cGF0aCcpO2NvbnN0IHI9cHJvY2Vzcy5lbnYuR1JPS19QTFVHSU5fUk9PVDtpZih0eXBlb2Ygcj09PSdzdHJpbmcnJiZwLmlzQWJzb2x1dGUocikpe2NvbnN0IHM9cC5qb2luKHIsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmFyZ3ZbMF0scywnZ3JvayddO2F3YWl0IGltcG9ydCgoYXdhaXQgaW1wb3J0KCdub2RlOnVybCcpKS5wYXRoVG9GaWxlVVJMKHMpLmhyZWYpfX1jYXRjaHt9fSkoKQ==','base64').toString('utf8'))\"",
 						"timeout": 2
 					}
 				]
@@ -94,7 +94,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" grok >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3QgcD1hd2FpdCBpbXBvcnQoJ25vZGU6cGF0aCcpO2NvbnN0IHI9cHJvY2Vzcy5lbnYuR1JPS19QTFVHSU5fUk9PVDtpZih0eXBlb2Ygcj09PSdzdHJpbmcnJiZwLmlzQWJzb2x1dGUocikpe2NvbnN0IHM9cC5qb2luKHIsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmFyZ3ZbMF0scywnZ3JvayddO2F3YWl0IGltcG9ydCgoYXdhaXQgaW1wb3J0KCdub2RlOnVybCcpKS5wYXRoVG9GaWxlVVJMKHMpLmhyZWYpfX1jYXRjaHt9fSkoKQ==','base64').toString('utf8'))\"",
 						"timeout": 2
 					}
 				]
@@ -105,7 +105,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" grok >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3QgcD1hd2FpdCBpbXBvcnQoJ25vZGU6cGF0aCcpO2NvbnN0IHI9cHJvY2Vzcy5lbnYuR1JPS19QTFVHSU5fUk9PVDtpZih0eXBlb2Ygcj09PSdzdHJpbmcnJiZwLmlzQWJzb2x1dGUocikpe2NvbnN0IHM9cC5qb2luKHIsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmFyZ3ZbMF0scywnZ3JvayddO2F3YWl0IGltcG9ydCgoYXdhaXQgaW1wb3J0KCdub2RlOnVybCcpKS5wYXRoVG9GaWxlVVJMKHMpLmhyZWYpfX1jYXRjaHt9fSkoKQ==','base64').toString('utf8'))\"",
 						"timeout": 2
 					}
 				]
@@ -116,7 +116,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" grok >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3QgcD1hd2FpdCBpbXBvcnQoJ25vZGU6cGF0aCcpO2NvbnN0IHI9cHJvY2Vzcy5lbnYuR1JPS19QTFVHSU5fUk9PVDtpZih0eXBlb2Ygcj09PSdzdHJpbmcnJiZwLmlzQWJzb2x1dGUocikpe2NvbnN0IHM9cC5qb2luKHIsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmFyZ3ZbMF0scywnZ3JvayddO2F3YWl0IGltcG9ydCgoYXdhaXQgaW1wb3J0KCdub2RlOnVybCcpKS5wYXRoVG9GaWxlVVJMKHMpLmhyZWYpfX1jYXRjaHt9fSkoKQ==','base64').toString('utf8'))\"",
 						"timeout": 2
 					}
 				]
@@ -127,7 +127,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" grok >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3QgcD1hd2FpdCBpbXBvcnQoJ25vZGU6cGF0aCcpO2NvbnN0IHI9cHJvY2Vzcy5lbnYuR1JPS19QTFVHSU5fUk9PVDtpZih0eXBlb2Ygcj09PSdzdHJpbmcnJiZwLmlzQWJzb2x1dGUocikpe2NvbnN0IHM9cC5qb2luKHIsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmFyZ3ZbMF0scywnZ3JvayddO2F3YWl0IGltcG9ydCgoYXdhaXQgaW1wb3J0KCdub2RlOnVybCcpKS5wYXRoVG9GaWxlVVJMKHMpLmhyZWYpfX1jYXRjaHt9fSkoKQ==','base64').toString('utf8'))\"",
 						"timeout": 2
 					}
 				]
@@ -138,7 +138,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" grok >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3QgcD1hd2FpdCBpbXBvcnQoJ25vZGU6cGF0aCcpO2NvbnN0IHI9cHJvY2Vzcy5lbnYuR1JPS19QTFVHSU5fUk9PVDtpZih0eXBlb2Ygcj09PSdzdHJpbmcnJiZwLmlzQWJzb2x1dGUocikpe2NvbnN0IHM9cC5qb2luKHIsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmFyZ3ZbMF0scywnZ3JvayddO2F3YWl0IGltcG9ydCgoYXdhaXQgaW1wb3J0KCdub2RlOnVybCcpKS5wYXRoVG9GaWxlVVJMKHMpLmhyZWYpfX1jYXRjaHt9fSkoKQ==','base64').toString('utf8'))\"",
 						"timeout": 2
 					}
 				]
@@ -149,7 +149,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" grok >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3QgcD1hd2FpdCBpbXBvcnQoJ25vZGU6cGF0aCcpO2NvbnN0IHI9cHJvY2Vzcy5lbnYuR1JPS19QTFVHSU5fUk9PVDtpZih0eXBlb2Ygcj09PSdzdHJpbmcnJiZwLmlzQWJzb2x1dGUocikpe2NvbnN0IHM9cC5qb2luKHIsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmFyZ3ZbMF0scywnZ3JvayddO2F3YWl0IGltcG9ydCgoYXdhaXQgaW1wb3J0KCdub2RlOnVybCcpKS5wYXRoVG9GaWxlVVJMKHMpLmhyZWYpfX1jYXRjaHt9fSkoKQ==','base64').toString('utf8'))\"",
 						"timeout": 2
 					}
 				]
@@ -160,7 +160,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "command -v node >/dev/null 2>&1 && [ -r \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${GROK_PLUGIN_ROOT}/scripts/forward-hook.mjs\" grok >/dev/null 2>&1 || :",
+						"command": "node -e \"eval(Buffer.from('KGFzeW5jKCk9Pnt0cnl7Y29uc3QgcD1hd2FpdCBpbXBvcnQoJ25vZGU6cGF0aCcpO2NvbnN0IHI9cHJvY2Vzcy5lbnYuR1JPS19QTFVHSU5fUk9PVDtpZih0eXBlb2Ygcj09PSdzdHJpbmcnJiZwLmlzQWJzb2x1dGUocikpe2NvbnN0IHM9cC5qb2luKHIsJ3NjcmlwdHMnLCdmb3J3YXJkLWhvb2subWpzJyk7cHJvY2Vzcy5hcmd2PVtwcm9jZXNzLmFyZ3ZbMF0scywnZ3JvayddO2F3YWl0IGltcG9ydCgoYXdhaXQgaW1wb3J0KCdub2RlOnVybCcpKS5wYXRoVG9GaWxlVVJMKHMpLmhyZWYpfX1jYXRjaHt9fSkoKQ==','base64').toString('utf8'))\"",
 						"timeout": 2
 					}
 				]
