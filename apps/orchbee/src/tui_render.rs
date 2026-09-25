@@ -341,12 +341,20 @@ pub(crate) fn render_terminal_shell(
         status_draw = status_draw.or(visible.map(|area| (close.token(), area)));
     }
 
-    NativeDrawReceipt::new(prompt, status_draw.map(|(token, _)| token))
+    let receipt = NativeDrawReceipt::new(prompt, status_draw.map(|(token, _)| token))
         .with_help_page(help_page)
         .with_panel_close(panel_prompt)
         .with_rename(rename)
         .with_setup(setup)
-        .with_agent_board(board_draw)
+        .with_agent_board(board_draw);
+    #[cfg(windows)]
+    let receipt = receipt.with_attention(match session.as_ref() {
+        Some(TerminalSessionView::Native(native)) if view.overlay().is_none() => {
+            native.attention_draw(hits.painted_panes())
+        }
+        _ => None,
+    });
+    receipt
 }
 
 fn render_too_small_notice(frame: &mut Frame<'_>, body: Rect, text: ShellText, theme: &Theme) {
@@ -489,13 +497,24 @@ fn render_native_workbench(
 
     let framed = areas.tier.shows_panel_frame();
     let content_area = terminal_area(panel_area, framed);
+    let panel_title = text.panel_title.to_owned();
+    #[cfg(windows)]
+    let panel_title = native
+        .focus_panel_id()
+        .map_or(panel_title.clone(), |panel| {
+            format!(
+                "{}{}",
+                panel_title,
+                locale.agent_unseen_badge(native.panel_unseen_count(panel))
+            )
+        });
     if framed {
         let panel_block = Block::new()
             .borders(Borders::ALL)
             .border_style(theme.style(Role::FrameFocused))
             .border_type(theme.corners)
             .title(Span::styled(
-                format!(" {} ", text.panel_title),
+                format!(" {panel_title} "),
                 theme.style(Role::TextSecondary),
             ));
         frame.render_widget(panel_block, panel_area);
@@ -758,6 +777,14 @@ fn render_leaf(
             )
         },
     );
+    #[cfg(windows)]
+    let title = panel.map_or(title.clone(), |panel| {
+        format!(
+            "{}{}",
+            title,
+            locale.agent_unseen_badge(native.panel_unseen_count(panel.panel_id()))
+        )
+    });
     let title_style = if active {
         theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD)
     } else {

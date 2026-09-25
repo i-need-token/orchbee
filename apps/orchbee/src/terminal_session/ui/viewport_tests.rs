@@ -87,7 +87,7 @@ fn frame(
 /// frame spec `(scrollback_rows, alternate_screen, rows)` and read
 /// watermark the test needs — bypassing the event path for fixtures that
 /// exercise gates rather than the owner seam.
-fn install_projection(
+pub(super) fn install_projection(
     ui: &mut NativeUi,
     frame_spec: Option<(u64, bool, u16)>,
     read_watermark: u64,

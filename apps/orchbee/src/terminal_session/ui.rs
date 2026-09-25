@@ -1,4 +1,6 @@
 #[cfg(windows)]
+mod agent_attention;
+#[cfg(windows)]
 mod client_control;
 #[cfg(windows)]
 mod client_layout;
@@ -215,6 +217,8 @@ pub(crate) struct NativeSessionView<'a> {
     retirement: Option<NativeDisplayRetirement>,
     board: Option<NativeAgentBoardView<'a>>,
     board_summary: Option<AgentBoardSummary>,
+    #[cfg(windows)]
+    attention: Option<&'a super::agent_attention::AgentAttention>,
 }
 
 impl<'a> NativeSessionView<'a> {
@@ -470,6 +474,8 @@ impl<'a> NativeSessionView<'a> {
             retirement: None,
             board: None,
             board_summary: None,
+            #[cfg(windows)]
+            attention: None,
         }
     }
 }
@@ -536,6 +542,8 @@ pub(super) struct NativeUi {
     outer_focused: Option<bool>,
     state: Option<NativeSessionState>,
     board: super::agent_board::AgentBoard,
+    #[cfg(windows)]
+    attention: super::agent_attention::AgentAttention,
     /// `presentation_id → workbench placement` over the freshest observed
     /// canonical snapshot — a pure function of that snapshot, rebuilt
     /// whole on every snapshot-bearing event.
@@ -591,6 +599,8 @@ impl NativeUi {
         Self {
             mailbox: Some(mailbox),
             board: super::agent_board::AgentBoard::new(clock.clone()),
+            #[cfg(windows)]
+            attention: super::agent_attention::AgentAttention::new(clock.clone()),
             agent_index: super::agent_board::PresentationIndex::default(),
             clock,
             state: None,
@@ -640,6 +650,8 @@ impl NativeUi {
             retirement: self.retirement,
             board: self.agent_board_view(),
             board_summary: self.board.summary(),
+            #[cfg(windows)]
+            attention: Some(&self.attention),
         }
     }
 
@@ -831,6 +843,10 @@ impl NativeUi {
             // The board lane and the jump stage machine live on the same
             // fair tick as every other scheduled admission.
             changed |= self.drive_agent_board();
+            #[cfg(windows)]
+            {
+                changed |= self.attention.tick();
+            }
             // Viewport deadline episodes and staged steps advance on the
             // same fair tick as the ordinary schedulers.
             changed |= self.tick_viewports(&mailbox);
@@ -879,6 +895,8 @@ impl NativeUi {
     pub(super) fn observe_focus(&mut self, focused: bool) {
         if self.outer_focused != Some(focused) {
             self.outer_focused = Some(focused);
+            #[cfg(windows)]
+            self.attention.focus_changed();
         }
     }
 

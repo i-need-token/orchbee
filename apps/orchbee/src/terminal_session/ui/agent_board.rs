@@ -25,6 +25,8 @@ impl NativeUi {
         &mut self,
         origin: crate::local_client::LocalClientOrigin,
     ) {
+        #[cfg(windows)]
+        self.attention.set_origin(origin.clone());
         self.board.set_origin(origin);
     }
 
@@ -79,6 +81,8 @@ impl NativeUi {
     /// On non-Linux there is no lane; the call is a no-op.
     pub(in crate::terminal_session) fn release_agent_lane(&mut self) {
         self.board.release_lane();
+        #[cfg(windows)]
+        self.attention.close();
     }
 
     /// One key under board capture. Consumed regardless — the capture

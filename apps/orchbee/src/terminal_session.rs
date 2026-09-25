@@ -23,7 +23,11 @@ use std::{
 #[cfg(test)]
 use std::sync::mpsc::{self, Receiver, SyncSender, TryRecvError};
 
+#[cfg(windows)]
+mod agent_attention;
 mod agent_board;
+#[cfg(any(target_os = "linux", windows))]
+mod agent_read_lane;
 mod connection;
 mod mailbox;
 pub(crate) mod state;

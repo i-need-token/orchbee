@@ -681,6 +681,7 @@ mod lane_outcomes {
         board.apply_list_outcome(
             epoch,
             Ok(lane::ListRound {
+                revision: Some(1),
                 items: vec![summary("s-1", vec![]), summary("s-2", vec![])],
                 complete: false,
             }),
@@ -705,6 +706,7 @@ mod lane_outcomes {
         board.apply_list_outcome(
             board.epoch + 1,
             Ok(lane::ListRound {
+                revision: Some(1),
                 items: vec![summary("s-1", vec![])],
                 complete: true,
             }),
@@ -734,6 +736,7 @@ mod lane_outcomes {
         board.apply_list_outcome(
             epoch,
             Ok(lane::ListRound {
+                revision: Some(1),
                 items: vec![summary("s-1", vec![]), summary("s-2", vec![])],
                 complete: true,
             }),
@@ -755,6 +758,7 @@ mod lane_outcomes {
         board.apply_list_outcome(
             epoch,
             Ok(lane::ListRound {
+                revision: Some(1),
                 items: vec![summary("s-1", vec![])],
                 complete: false,
             }),
@@ -786,6 +790,7 @@ mod lane_outcomes {
         board.apply_list_outcome(
             epoch,
             Ok(lane::ListRound {
+                revision: Some(1),
                 items: vec![
                     summary("s-1", vec![]),
                     summary("s-2", vec![]),
@@ -804,6 +809,7 @@ mod lane_outcomes {
         board.apply_list_outcome(
             epoch,
             Ok(lane::ListRound {
+                revision: Some(1),
                 items: vec![
                     summary("s-1", vec![]),
                     summary("s-4", vec![]),
@@ -969,7 +975,7 @@ mod lane_outcomes {
         let mut board = AgentBoard::new(clock());
         board.open();
         let epoch = board.epoch;
-        board.install_lane_t(AgentBoardLane::for_test(vec![LaneOutcome::Get {
+        board.install_lane_t(AgentReadLane::for_test(vec![LaneOutcome::Get {
             epoch,
             serial: 5,
             result: Ok(AgentGetOutcome::Rejected {
@@ -997,7 +1003,7 @@ mod lane_outcomes {
         // and it releases the credit into the honest Unavailable verdict.
         let mut board = AgentBoard::new(clock());
         board.open();
-        board.install_lane_t(AgentBoardLane::for_test(vec![]));
+        board.install_lane_t(AgentReadLane::for_test(vec![]));
         board.jump = Some(BoardJump {
             serial: 5,
             stage: JumpStage::Checking,
@@ -1020,7 +1026,7 @@ mod lane_outcomes {
         let mut board = AgentBoard::new(clock());
         board.open();
         let epoch = board.epoch;
-        board.install_lane_t(AgentBoardLane::for_test(vec![LaneOutcome::Get {
+        board.install_lane_t(AgentReadLane::for_test(vec![LaneOutcome::Get {
             epoch,
             serial: 4,
             result: Ok(AgentGetOutcome::Unavailable {
@@ -1048,7 +1054,7 @@ mod lane_outcomes {
         // cooldown starts from the witnessed failure.
         let mut board = AgentBoard::new(clock());
         board.open();
-        board.install_lane_t(AgentBoardLane::for_test(vec![]));
+        board.install_lane_t(AgentReadLane::for_test(vec![]));
         board.inflight = Some(BoardInflight::ListRound);
         board.read = AgentBoardRead::InFlight;
         let now = Instant::now();

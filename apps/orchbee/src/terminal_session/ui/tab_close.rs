@@ -35,7 +35,7 @@ impl<T> ModalPresentation<T> {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct NativeDrawReceipt {
     prompt: Option<ModalPresentation<NativeCloseConfirmationToken>>,
     status: Option<NativeCloseStatusToken>,
@@ -50,10 +50,20 @@ pub(crate) struct NativeDrawReceipt {
     /// to the ClientView through the draw receipt so the dispatcher's page
     /// state settles on the clamped value (render never mutates it).
     help_page: Option<usize>,
+    #[cfg(windows)]
+    attention: Option<crate::terminal_session::agent_attention::NativeAgentAttentionDraw>,
 }
 
 impl NativeDrawReceipt {
-    pub(crate) const fn help_page(self) -> Option<usize> {
+    #[cfg(windows)]
+    pub(crate) fn with_attention(
+        mut self,
+        attention: Option<crate::terminal_session::agent_attention::NativeAgentAttentionDraw>,
+    ) -> Self {
+        self.attention = attention;
+        self
+    }
+    pub(crate) const fn help_page(&self) -> Option<usize> {
         self.help_page
     }
     pub(crate) const fn with_help_page(mut self, help_page: Option<usize>) -> Self {
@@ -86,6 +96,8 @@ impl NativeDrawReceipt {
             panel_prompt: None,
             agent_board: None,
             help_page: None,
+            #[cfg(windows)]
+            attention: None,
         }
     }
     pub(crate) const fn with_rename(
@@ -370,6 +382,10 @@ impl NativeUi {
         self.after_rename_draw(receipt.rename);
         self.after_setup_draw(receipt.setup);
         self.after_agent_board_draw(receipt.agent_board);
+        #[cfg(windows)]
+        if let Some(draw) = receipt.attention {
+            self.after_attention_draw(draw);
+        }
     }
     pub(in crate::terminal_session) fn invalidate_close_display(&mut self) {
         if let Some(state) = &mut self.state {

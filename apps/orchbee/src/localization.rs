@@ -795,6 +795,17 @@ impl Locale {
     /// The sidebar's one-line Agent summary: the last *completed* read's
     /// count plus its completeness and age marks — `None` input means no
     /// completed read ever ran and the line must not exist at all.
+    #[cfg(windows)]
+    pub(crate) fn agent_unseen_badge(self, count: usize) -> String {
+        if count == 0 {
+            return String::new();
+        }
+        match self {
+            Self::EnUs => format!(" [{count} unseen]"),
+            Self::ZhCn => format!(" [{count} 未读]"),
+        }
+    }
+
     #[cfg(any(unix, windows))]
     pub(crate) fn agent_sidebar_line(
         self,

@@ -196,6 +196,22 @@ impl HitMapBuilder {
         });
     }
 
+    /// Exact positive-size pane content recorded by this paint pass.
+    #[cfg(windows)]
+    pub(crate) fn painted_panes(&self) -> impl Iterator<Item = &PaneRef> {
+        self.map
+            .regions
+            .iter()
+            .filter_map(|region| match &region.target {
+                HitTarget::Pane { pane, content }
+                    if region.layer == HitLayer::Foreground && !content.is_empty() =>
+                {
+                    Some(pane)
+                }
+                _ => None,
+            })
+    }
+
     pub(crate) fn finish(self) -> FrameHitMap {
         self.map
     }

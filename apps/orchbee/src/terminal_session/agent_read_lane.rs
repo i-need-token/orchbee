@@ -1,4 +1,4 @@
-//! The board's dedicated OBAP read lane: one worker thread holding its own
+//! Shared native OBAP read lane: one worker thread holding its own
 //! admitted Client Session (re-established from `LocalClientOrigin`, the
 //! `status_recovery` precedent). Commands are sequential; a wake pipe lets
 //! `close` interrupt an in-flight exchange, and every outcome is delivered
@@ -38,7 +38,19 @@ use crate::local_client::{
 /// silently truncated listing presented as whole.
 const MAXIMUM_LIST_PAGES: usize = 6;
 
+#[cfg(windows)]
+mod attention;
+#[cfg(windows)]
+pub(super) use attention::AttentionRound;
+
 pub(super) enum LaneCommand {
+    #[cfg(windows)]
+    Attention {
+        epoch: u64,
+        cursor: Option<orchbee_agent_observation_protocol::AgentChangesCursor>,
+        revision: Option<u64>,
+        deadline: Instant,
+    },
     ListRound {
         epoch: u64,
         deadline: Instant,
@@ -52,6 +64,11 @@ pub(super) enum LaneCommand {
 }
 
 pub(super) enum LaneOutcome {
+    #[cfg(windows)]
+    Attention {
+        epoch: u64,
+        result: Result<AttentionRound, LaneFailure>,
+    },
     List {
         epoch: u64,
         result: Result<ListRound, LaneFailure>,
@@ -69,6 +86,7 @@ pub(super) enum LaneOutcome {
 pub(super) struct ListRound {
     pub(super) items: Vec<AgentSessionSummary>,
     pub(super) complete: bool,
+    pub(super) revision: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -85,7 +103,7 @@ pub(super) enum LaneFailure {
 /// pipe's write end, and the thread join for bounded shutdown. The
 /// sender is optional so `close` can drop it (waking `recv`) before
 /// joining — a `Drop` type cannot move fields out otherwise.
-pub(super) struct AgentBoardLane {
+pub(super) struct AgentReadLane {
     commands: Option<Sender<LaneCommand>>,
     outcomes: Receiver<LaneOutcome>,
     wake: OwnedFd,
@@ -93,7 +111,7 @@ pub(super) struct AgentBoardLane {
     join: Option<JoinHandle<()>>,
 }
 
-impl AgentBoardLane {
+impl AgentReadLane {
     pub(super) fn spawn(
         origin: LocalClientOrigin,
         clock: LocalOperationClock,
@@ -185,12 +203,14 @@ impl AgentBoardLane {
     }
 }
 
-impl Drop for AgentBoardLane {
+impl Drop for AgentReadLane {
     fn drop(&mut self) {
         self.shutdown.store(true, Ordering::SeqCst);
         let _ = signal_wake(&self.wake);
-        // The sender may still be alive here; dropping the receiver side
-        // of commands happens when this struct's field is dropped.
+        drop(self.commands.take());
+        if let Some(join) = self.join.take() {
+            let _ = join.join();
+        }
     }
 }
 
@@ -208,6 +228,25 @@ fn run(
             break;
         }
         let outcome = match command {
+            #[cfg(windows)]
+            LaneCommand::Attention {
+                epoch,
+                cursor,
+                revision,
+                deadline,
+            } => LaneOutcome::Attention {
+                epoch,
+                result: attention::read_round(
+                    &origin,
+                    &clock,
+                    &mut client,
+                    cursor,
+                    revision,
+                    deadline,
+                    wake_read.as_local_io(),
+                    &shutdown,
+                ),
+            },
             LaneCommand::ListRound { epoch, deadline } => LaneOutcome::List {
                 epoch,
                 result: list_round(
@@ -293,6 +332,7 @@ fn list_round(
                                 return Ok(ListRound {
                                     items,
                                     complete: false,
+                                    revision,
                                 });
                             }
                             restarted = true;
@@ -306,6 +346,7 @@ fn list_round(
                             return Ok(ListRound {
                                 items,
                                 complete: true,
+                                revision,
                             });
                         }
                     }
@@ -318,6 +359,7 @@ fn list_round(
                         return Ok(ListRound {
                             items,
                             complete: false,
+                            revision,
                         });
                     }
                     restarted = true;
@@ -335,6 +377,7 @@ fn list_round(
         return Ok(ListRound {
             items,
             complete: false,
+            revision,
         });
     }
 }

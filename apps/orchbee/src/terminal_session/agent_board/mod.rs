@@ -19,9 +19,9 @@ use orchbee_agent_observation_protocol::{
 };
 
 #[cfg(any(target_os = "linux", windows))]
-mod lane;
+use super::agent_read_lane as lane;
 #[cfg(any(target_os = "linux", windows))]
-use lane::{AgentBoardLane, LaneCommand, LaneOutcome};
+use lane::{AgentReadLane, LaneCommand, LaneOutcome};
 
 #[cfg(test)]
 mod tests;
@@ -489,13 +489,13 @@ pub(super) struct AgentBoard {
     #[cfg(any(target_os = "linux", windows))]
     lane_origin: Option<crate::local_client::LocalClientOrigin>,
     #[cfg(any(target_os = "linux", windows))]
-    lane: Option<AgentBoardLane>,
+    lane: Option<AgentReadLane>,
     /// Lane handles whose threads are still exiting after a close or a
     /// failed send — kept until `finished` so a spawn never overlaps a
     /// live predecessor and teardown joins whatever remains instead of
     /// leaving a detached thread.
     #[cfg(any(target_os = "linux", windows))]
-    dying_lanes: Vec<AgentBoardLane>,
+    dying_lanes: Vec<AgentReadLane>,
 }
 
 impl AgentBoard {
@@ -745,7 +745,7 @@ impl AgentBoard {
     }
 
     #[cfg(any(target_os = "linux", windows))]
-    fn lane_or_spawn(&mut self) -> Option<&mut AgentBoardLane> {
+    fn lane_or_spawn(&mut self) -> Option<&mut AgentReadLane> {
         if self.lane.is_none() {
             // Release finished predecessors first, then hold the spawn
             // while any predecessor thread is still exiting — at most
@@ -756,7 +756,7 @@ impl AgentBoard {
                 return None;
             }
             let origin = self.lane_origin.clone()?;
-            match AgentBoardLane::spawn(origin, self.clock.clone()) {
+            match AgentReadLane::spawn(origin, self.clock.clone()) {
                 Ok(lane) => self.lane = Some(lane),
                 Err(_) => return None,
             }
@@ -840,9 +840,13 @@ impl AgentBoard {
         mut prefer: impl FnMut(&AgentPresentationAttachment) -> bool,
     ) -> bool {
         let mut changed = false;
-        while let Some(outcome) = self.lane.as_mut().and_then(AgentBoardLane::take_outcome) {
+        while let Some(outcome) = self.lane.as_mut().and_then(AgentReadLane::take_outcome) {
             changed = true;
             match outcome {
+                #[cfg(windows)]
+                LaneOutcome::Attention { .. } => {
+                    self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Transport);
+                }
                 LaneOutcome::List { epoch, result } => {
                     self.apply_list_outcome(epoch, result, now);
                 }
@@ -860,7 +864,7 @@ impl AgentBoard {
         // outcome will ever arrive for a residual credit. Release that
         // credit into the honest failure now — never leave the board
         // waiting on a lane that no longer exists.
-        if self.lane.as_ref().is_some_and(AgentBoardLane::finished)
+        if self.lane.as_ref().is_some_and(AgentReadLane::finished)
             && let Some(lane) = self.lane.take()
         {
             lane.close();
@@ -1105,10 +1109,7 @@ impl AgentBoard {
     /// Test seam: hand the board a prepared lane (queued outcomes or a
     /// real spawned thread) so drains run against it without an origin.
     #[cfg(all(test, any(target_os = "linux", windows)))]
-    pub(in crate::terminal_session::agent_board) fn install_lane_t(
-        &mut self,
-        lane: AgentBoardLane,
-    ) {
+    pub(in crate::terminal_session::agent_board) fn install_lane_t(&mut self, lane: AgentReadLane) {
         self.lane = Some(lane);
     }
 
