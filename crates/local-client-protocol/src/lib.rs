@@ -1,4 +1,10 @@
 mod codec;
+mod server_metadata;
+pub use server_metadata::{
+    MAXIMUM_SERVER_VERSION_BYTES, SERVER_FEATURE_AGENT_OBSERVATION, SERVER_FEATURE_CLIENT_VIEW,
+    SERVER_FEATURE_LIVE_HANDOFF, SERVER_FEATURE_RENDER_ROWS, SERVER_KNOWN_FEATURES, ServerMetadata,
+    ServerMode,
+};
 mod site_stop;
 pub use site_stop::{
     SiteStopRequest, SiteStopResult, SiteStopStatus, StopAction, StopAttempt, StopFailure, StopId,
@@ -19,4 +25,6 @@ pub use connection::{
     ClientSessionConnection, ConnectClientError, UNIX_SOCKET_PATH_CAPACITY, unix_socket_path_fits,
 };
 #[cfg(windows)]
-pub use connection::{SiteStopExchangeError, exchange_site_stop_before};
+pub use connection::{
+    SiteStopExchangeError, exchange_server_metadata_before, exchange_site_stop_before,
+};

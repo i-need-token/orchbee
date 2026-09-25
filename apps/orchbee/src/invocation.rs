@@ -201,6 +201,8 @@ pub(crate) enum CommandPath {
 
     Tui,
     Status,
+    StatusServer,
+    StatusClient,
     AgentList,
     AgentGet,
     AgentRead,
@@ -290,6 +292,8 @@ impl CommandPath {
 
             Self::Tui => "tui",
             Self::Status => "status",
+            Self::StatusServer => "status server",
+            Self::StatusClient => "status client",
             Self::AgentList => "agent list",
             Self::AgentGet => "agent get",
             Self::AgentRead => "agent read",
@@ -1017,8 +1021,18 @@ fn stop_id(
     orchbee_local_client_protocol::StopId::new(bytes).map_err(|_| invalid())
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum RuntimeStatusScope {
+    Server,
+    Client,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
+    RuntimeStatus {
+        scope: RuntimeStatusScope,
+        format: OutputFormat,
+    },
     Creation {
         command: CreationCommand,
         format: OutputFormat,
@@ -2140,6 +2154,18 @@ fn resolve_words(
         ["status"] => {
             reject_filters(options, UsageContext::Path("status"), envelope)?;
             Ok(query(QueryCommand::Status, options))
+        }
+        ["status", scope @ ("server" | "client")] => {
+            let (scope, path) = if *scope == "server" {
+                (RuntimeStatusScope::Server, "status server")
+            } else {
+                (RuntimeStatusScope::Client, "status client")
+            };
+            reject_filters(options, UsageContext::Path(path), envelope)?;
+            Ok(Request::RuntimeStatus {
+                scope,
+                format: options.format.unwrap_or(OutputFormat::Text),
+            })
         }
         ["agent", "list"] => {
             check_scope(
@@ -3727,6 +3753,8 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
 
         ["tui"] => HelpTopic::Command(CommandPath::Tui),
         ["status"] => HelpTopic::Command(CommandPath::Status),
+        ["status", "server"] => HelpTopic::Command(CommandPath::StatusServer),
+        ["status", "client"] => HelpTopic::Command(CommandPath::StatusClient),
         ["agent"] => HelpTopic::Family(Family::Agent),
         ["agent", "list"] => HelpTopic::Command(CommandPath::AgentList),
         ["agent", "get"] => HelpTopic::Command(CommandPath::AgentGet),

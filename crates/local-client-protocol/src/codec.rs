@@ -54,6 +54,8 @@ pub enum LocalClientMessage {
     Rejected { reason: RejectionReason },
     SiteStopRequest(crate::SiteStopRequest),
     SiteStopResult(crate::SiteStopResult),
+    ServerMetadataRequest,
+    ServerMetadata(crate::ServerMetadata),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -205,6 +207,8 @@ pub fn write_message(
 
 fn encode_payload(message: &LocalClientMessage) -> Result<Vec<u8>, ProtocolError> {
     let payload = match message {
+        LocalClientMessage::ServerMetadataRequest => vec![6],
+        LocalClientMessage::ServerMetadata(metadata) => crate::server_metadata::encode(metadata),
         LocalClientMessage::SiteStopRequest(request) => crate::site_stop::encode_request(request),
         LocalClientMessage::SiteStopResult(result) => crate::site_stop::encode_result(result),
         LocalClientMessage::ClientHello(hello) => {
@@ -235,6 +239,8 @@ fn encode_payload(message: &LocalClientMessage) -> Result<Vec<u8>, ProtocolError
 
 fn decode_payload(payload: &[u8]) -> Result<LocalClientMessage, ProtocolError> {
     match payload.first().copied() {
+        Some(6) if payload.len() == 1 => Ok(LocalClientMessage::ServerMetadataRequest),
+        Some(7) => crate::server_metadata::decode(payload).map(LocalClientMessage::ServerMetadata),
         Some(4) => {
             crate::site_stop::decode_request(payload).map(LocalClientMessage::SiteStopRequest)
         }

@@ -418,6 +418,9 @@
 									},
 									{
 										"$ref": "#/$defs/cohortStageDetails"
+									},
+									{
+										"$ref": "#/$defs/runtimeStatusStageDetails"
 									}
 								]
 							}
@@ -451,6 +454,9 @@
 									},
 									{
 										"$ref": "#/$defs/doctorStageDetails"
+									},
+									{
+										"$ref": "#/$defs/runtimeStatusStageDetails"
 									}
 								]
 							}
@@ -1083,6 +1089,16 @@
 					}
 				}
 			]
+		},
+		"runtimeStatusStageDetails": {
+			"type": "object",
+			"required": ["stage"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "runtime-status"
+				}
+			}
 		}
 	}
 }

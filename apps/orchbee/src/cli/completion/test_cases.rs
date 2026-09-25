@@ -1,6 +1,18 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee status ", "client", true),
+    ("orchbee status ", "server", true),
+    ("orchbee status --format json ", "server", true),
+    ("orchbee --format json status ", "client", true),
+    ("orchbee status server --format ", "json", true),
+    ("orchbee status client --f", "--format", true),
+    ("orchbee status server ", "client", false),
+    ("orchbee status client --format json --f", "--format", false),
+    ("orchbee status --project p ", "server", false),
+    ("orchbee help status ", "server", true),
+    ("orchbee help status server ", "client", false),
+    ("orchbee status server --s", "--source", false),
     ("orchbee terminal read target --a", "--ansi", true),
     ("orchbee agent read --name alpha --a", "--ansi", true),
     ("orchbee terminal read target --ansi --p", "--plain", false),

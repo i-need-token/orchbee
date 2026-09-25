@@ -37,6 +37,14 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.status.client",
+        include_str!("schemas/orchbee.status.client.json"),
+    ),
+    (
+        "orchbee.status.server",
+        include_str!("schemas/orchbee.status.server.json"),
+    ),
+    (
         "orchbee.terminal.output",
         include_str!("schemas/orchbee.terminal.output.json"),
     ),
@@ -376,8 +384,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog v37 adds ANSI source exports without changing plain-text v1.
-        "version": 37,
+        // Catalog v38 adds Windows Server/Client runtime metadata.
+        "version": 38,
         "source": embedded_source(),
         "result": result,
     });

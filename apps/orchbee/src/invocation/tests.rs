@@ -3,6 +3,52 @@ use super::{CreationCommand, CreationKind, SiteStopCommand};
 use std::ffi::OsString;
 
 #[test]
+fn runtime_status_scopes_preserve_bare_status_and_closed_options() {
+    for (word, scope) in [
+        ("server", super::RuntimeStatusScope::Server),
+        ("client", super::RuntimeStatusScope::Client),
+    ] {
+        for words in [
+            vec!["status", word, "--format=json"],
+            vec!["--format", "json", "status", word],
+            vec!["--format=json", "--", "status", word],
+        ] {
+            assert_eq!(
+                parse_request(words.into_iter().map(OsString::from)).unwrap(),
+                Request::RuntimeStatus {
+                    scope,
+                    format: OutputFormat::Json
+                }
+            );
+        }
+        for suffix in [
+            vec!["extra"],
+            vec!["--format"],
+            vec!["--format=json", "--format=text"],
+            vec!["--format=csv"],
+            vec!["--current"],
+            vec!["--client=x"],
+            vec!["--timeout=1"],
+            vec!["--format=json", "--help"],
+        ] {
+            assert!(
+                parse_request(
+                    ["status", word]
+                        .into_iter()
+                        .chain(suffix)
+                        .map(OsString::from)
+                )
+                .is_err()
+            );
+        }
+    }
+    assert_eq!(
+        parse_request(["status"].into_iter().map(OsString::from)).unwrap(),
+        query(QueryCommand::Status, OutputFormat::Text)
+    );
+}
+
+#[test]
 fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before_effects() {
     let parse = |words: &[&str]| parse_request(words.iter().map(OsString::from));
     let Request::AgentStart { command, format } = parse(&[

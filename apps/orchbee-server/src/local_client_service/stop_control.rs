@@ -23,6 +23,16 @@ impl Drop for Lease<'_> {
 }
 
 impl<'a> StopControl<'a> {
+    #[cfg(windows)]
+    pub(super) fn metadata_mode(&self) -> orchbee_local_client_protocol::ServerMode {
+        use orchbee_local_client_protocol::ServerMode;
+        match self.shutdown {
+            None => ServerMode::Unmanaged,
+            Some(owner) if owner.stopping() => ServerMode::ManagedStopping,
+            Some(_) => ServerMode::ManagedReady,
+        }
+    }
+
     pub(super) fn unmanaged(agents: &'a AgentService) -> Self {
         Self {
             agents,

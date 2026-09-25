@@ -20,6 +20,17 @@ use crate::{
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 
+/// Observe the same-user Windows Server before exact-cohort Session admission.
+/// The candidate never enters an application phase and is dropped before returning.
+#[cfg(windows)]
+pub fn exchange_server_metadata_before(
+    endpoint: &Path,
+    deadline: std::time::Instant,
+    wake: Option<LocalIo<'_>>,
+) -> Result<crate::ServerMetadata, ConnectClientError> {
+    windows_admission::server_metadata(endpoint, deadline, wake)
+}
+
 /// Retains whether a complete stop control record was submitted before exchange failure.
 #[cfg(windows)]
 #[derive(Debug)]
@@ -117,7 +128,9 @@ impl ClientSessionConnection {
             }
             LocalClientMessage::ClientHello(_)
             | LocalClientMessage::SiteStopRequest(_)
-            | LocalClientMessage::SiteStopResult(_) => {
+            | LocalClientMessage::SiteStopResult(_)
+            | LocalClientMessage::ServerMetadataRequest
+            | LocalClientMessage::ServerMetadata(_) => {
                 return Err(ConnectClientError::UnexpectedResponse);
             }
         };

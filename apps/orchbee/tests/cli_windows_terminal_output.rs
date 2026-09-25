@@ -29,8 +29,8 @@ fn source_export_catalog_and_usage_failure_are_offline_machine_contracts() {
         &document,
         include_str!("../src/cli/schemas/orchbee.api.schema.json"),
     );
-    assert_eq!(document["version"], 37);
-    assert_eq!(document["result"]["schemas"].as_object().unwrap().len(), 69);
+    assert_eq!(document["version"], 38);
+    assert_eq!(document["result"]["schemas"].as_object().unwrap().len(), 71);
     assert_eq!(
         document["result"]["schemas"]["orchbee.terminal.output"]["$id"],
         "orchbee.terminal.output"

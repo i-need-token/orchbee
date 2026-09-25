@@ -1,5 +1,22 @@
 # 本机 Client 协议
 
+## 只读 Windows Server 元数据
+
+OBLC v1 类型 6/7 在不变的 256 字节载荷上限内承载一次元数据请求／答复。请求只有类型 6。
+类型 7 依次为：版本长度（`u8`）、1–64 字节 ASCII 可见版本、cohort 长度（`u8`）、既有
+已验证 ASCII cohort 字节、非零 PID（大端 `u32`）、非零 OBCS 终端版本（`u8`）、模式
+（`0` 非托管、`1` 托管就绪、`2` 托管停止中），以及诊断特性位（大端 `u32`）。已知位为
+render 行读取（1）、Client view 控制（2）、Agent 观察（4）和 live handoff（8）；未知位
+仍是不解释的数据。无效长度／值／模式和尾部字节均解码失败。旧消息编码保持不变。
+
+Windows 时限适配器通过既有命名管道传输验证对端，写入一次请求，读取一个准确答复后
+丢弃候选连接，不发送 Client hello，也不进入应用阶段。调用者拥有五秒总预算和取消仲裁；
+部分进展不延长时限。只有连接失败保留连接前不存在的来源；连接后 EOF 绝不表示不存在。
+Windows Server 在同用户证明之后、cohort 相等及 Session 接纳之前响应，沿用既有候选
+及握手上限。该观察不授予操作能力、不创建 Session，也不改变停止状态。不增加 Linux／
+macOS 运行时适配器。[CLI 状态契约](../../apps/orchbee/docs/native-runtime-status.zh-CN.md)
+拥有公共比较／输出语义和证据，包括旧 Server 不兼容的处理。
+
 ## 托管 Site 停止控制
 
 私有 OBLC v1 在现有 256 字节上限内增加类型 4/5，承载同用户、准确 cohort 的 Site 停止请求和状态响应。
@@ -34,7 +51,7 @@ big-endian payload length，以及最多 256 byte payload。未知 magic、versi
 | `ClientAccepted` | Server 为该确切 transport 分配的非零 process-local Client Session generation。它不授予 terminal 或 Workbench capability。   |
 | `Rejected`       | protocol/cohort 不兼容、超过容量、错误消息、malformed frame 或 timeout。拒绝不会改变任何已准入 Session。                    |
 
-Human Client 与 Worker contract 保持分离。本 crate 不包含 Worker identity、capability
+Human Client 与 Worker contract 保持分离。本 crate 不包含 Worker identity、Worker capability
 advertisement、lease、fence、Host、terminal、renderer、Workspace、Tab、Panel 或 semantic-command
 字段。
 
@@ -107,9 +124,9 @@ event 先于任何同时就绪的 socket readiness 判定。私有观察在边�
 
 ## Server 准入与上限
 
-Server 为每条 accepted connection 分配独立 generation，并最多准入八个 active Client Session。
-它最多保留十六个 Client candidate/session thread，因此 silent handshake 不会制造无界工作；
-超过该 transport bound 的 connection 会被关闭。在 transport bound 内的 candidate 超过八个
+Server 为每条 accepted connection 分配独立 generation，并最多准入三十二个 active Client Session。
+它最多保留四十八个 Client candidate/session thread，因此 silent handshake 不会制造无界工作；
+超过该 transport bound 的 connection 会被关闭。在 transport bound 内的 candidate 超过三十二个
 Session admission limit 后会收到 typed capacity rejection。每条 handshake 都有两秒 read/write
 timeout。
 

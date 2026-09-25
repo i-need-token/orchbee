@@ -28,6 +28,8 @@ pub(crate) mod agent_harness;
 mod application_session;
 #[cfg(windows)]
 mod managed_windows;
+#[cfg(windows)]
+mod metadata;
 mod record_stream;
 mod stop_control;
 #[cfg(windows)]
@@ -221,6 +223,11 @@ fn handle_candidate_control(
             return;
         }
     };
+    #[cfg(windows)]
+    if matches!(message, LocalClientMessage::ServerMetadataRequest) {
+        metadata::respond(&mut stream, expected_cohort, control.metadata_mode());
+        return;
+    }
     if let LocalClientMessage::SiteStopRequest(request) = message {
         if request.hello.cohort() != expected_cohort {
             send_rejection(&mut stream, RejectionReason::IncompatibleCohort);

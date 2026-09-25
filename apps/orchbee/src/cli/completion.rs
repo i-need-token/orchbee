@@ -31,7 +31,7 @@
 //! 3. value set → the word is the flag's value; a `--format` value outside
 //!    {text,json} or a `--mouse` value outside {off,on} makes the parse fail
 //! 4. `--format*` → legal only where options may still appear
-//!    (verb/sub/after/operand, leaf `status`); a second selector or an
+//!    (verb/sub/after/operand, bare `status`); a second selector or an
 //!    invalid value is usage
 //! 5. `--mouse`/`--mouse=off|on` → the `tui`-scoped option: legal at verb
 //!    (only `tui` stays viable afterward) or on the `tui` leaf; a second
@@ -49,7 +49,7 @@
 //! 7. `--help`/`--version` → terminal flags: nothing may follow → done
 //! 8. unknown `-x` → usage → done
 //! 9. other word → positional dispatch:
-//!    - verb: family→sub | `status`→leaf (fails if a business flag or
+//!    - verb: family→sub | `status`→leaf (optional client/server child; fails if a business flag or
 //!      `--mouse` was seen) | `tui`→leaf (fails if a business flag or
 //!      `--format` was seen) | `help`→help / `completion`→completion (both
 //!      fail if any option was seen); families fail if `--mouse` was seen
@@ -194,6 +194,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     ),
     ("project", &["create", "get", "list", "rename"]),
     ("site", &["diagnose", "start", "stop", "stop-status"]),
+    ("status", &["client", "server"]),
     (
         "tab",
         &["close", "create", "focus", "get", "list", "move", "rename"],
@@ -896,6 +897,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     ),
     ("project", &["create", "get", "list", "rename"]),
     ("site", &["diagnose", "start", "stop", "stop-status"]),
+    ("status", &["client", "server"]),
     (
         "tab",
         &["close", "create", "focus", "get", "list", "move", "rename"],
@@ -1889,7 +1891,8 @@ fn bash() -> String {
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
             "                    operand) if [[ $family:$sub == agent:send-keys || $family:$sub == agent:start ]]; then state=operand; elif [[ $family:$sub == terminal:run || $family:$sub == agent:rename || $family:$sub == agent:prompt ]] && ((seen_clear == 0 && seen_name == 0 && seen_session == 0)); then state=operand2; else done=1; fi ;;\n",
-            "                    leaf|operand2|completion) done=1 ;;\n",
+            "                    leaf) if [[ $leaf == status && ( $word == client || $word == server ) ]]; then family=status; sub=$word; state=after; else done=1; fi ;;\n",
+            "                    operand2|completion) done=1 ;;\n",
             "                    help)\n",
             "                        if [[ -z $help_a ]]; then\n",
             "                            case \"$word\" in\n",
@@ -1981,8 +1984,9 @@ fn bash() -> String {
             "        candidates=\"$verbs\"\n",
             "        ((seen_format)) || candidates=\"$candidates --format --format=\"\n",
             "    elif [[ $state == leaf ]]; then\n",
+            "        [[ $leaf == status ]] && candidates=\"client server\"\n",
             "        if [[ $leaf == tui ]]; then ((!seen_mouse)) && candidates=\"--help --mouse\"\n",
-            "        elif ((!seen_format)); then candidates=\"--format --format= --help\"; fi\n",
+            "        elif ((!seen_format)); then candidates=\"$candidates --format --format= --help\"; fi\n",
             "    elif [[ $state == after || $state == operand || $state == operand2 ]]; then\n",
             "        ((seen_format)) || candidates=\"--format --format=\"\n",
             "        case \"$family:$sub\" in\n",
@@ -2249,7 +2253,8 @@ fn zsh() -> String {
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
             "                    operand) if [[ $family:$sub == agent:send-keys || $family:$sub == agent:start ]]; then state=operand; elif [[ $family:$sub == terminal:run || $family:$sub == agent:rename || $family:$sub == agent:prompt ]] && ((seen_clear == 0 && seen_name == 0 && seen_session == 0)); then state=operand2; else done=1; fi ;;\n",
-            "                    leaf|operand2|completion) done=1 ;;\n",
+            "                    leaf) if [[ $leaf == status && ( $word == client || $word == server ) ]]; then family=status; sub=$word; state=after; else done=1; fi ;;\n",
+            "                    operand2|completion) done=1 ;;\n",
             "                    help)\n",
             "                        if [[ -z $help_a ]]; then\n",
             "                            case \"$word\" in\n",
@@ -2337,8 +2342,9 @@ fn zsh() -> String {
             "        candidates=\"$verbs\"\n",
             "        ((seen_format)) || candidates=\"$candidates --format --format=\"\n",
             "    elif [[ $state == leaf ]]; then\n",
+            "        [[ $leaf == status ]] && candidates=\"client server\"\n",
             "        if [[ $leaf == tui ]]; then ((!seen_mouse)) && candidates=\"--help --mouse\"\n",
-            "        elif ((!seen_format)); then candidates=\"--format --format= --help\"; fi\n",
+            "        elif ((!seen_format)); then candidates=\"$candidates --format --format= --help\"; fi\n",
             "    elif [[ $state == after || $state == operand || $state == operand2 ]]; then\n",
             "        ((seen_format)) || candidates=\"--format --format=\"\n",
             "        case \"$family:$sub\" in\n",
@@ -3065,7 +3071,9 @@ fn fish() -> String {
             "                            case '*'; set done 1\n",
             "                        end\n",
             "                    case operand; if contains -- \"$family:$sub\" agent:send-keys agent:start; set state operand; else if contains -- \"$family:$sub\" terminal:run agent:rename agent:prompt; and test $seen_clear -eq 0; and test $seen_name -eq 0; and test $seen_session -eq 0; set state operand2; else; set done 1; end; end\n",
-            "                    case leaf operand2 completion; set done 1\n",
+            "                    case leaf\n",
+            "                        if test \"$leaf\" = status; and contains -- $word client server; set family status; set sub $word; set state after; else; set done 1; end\n",
+            "                    case operand2 completion; set done 1\n",
             "                    case help\n",
             "                        if test -z \"$help_a\"\n",
             "                            switch \"$word\"\n",
@@ -3155,8 +3163,9 @@ fn fish() -> String {
             "        set candidates $verbs\n",
             "        if test $seen_format -eq 0; set -a candidates --format --format=; end\n",
             "    else if test \"$state\" = leaf\n",
+            "        if test \"$leaf\" = status; set candidates client server; end\n",
             "        if test \"$leaf\" = tui -a $seen_mouse -eq 0; set candidates --help --mouse\n",
-            "        else if test $seen_format -eq 0; set candidates --format --format= --help; end\n",
+            "        else if test $seen_format -eq 0; set -a candidates --format --format= --help; end\n",
             "    else if test \"$state\" = after -o \"$state\" = operand\n",
             "        if test $seen_format -eq 0; set candidates --format --format=; end\n",
             "        switch \"$family:$sub\"\n",

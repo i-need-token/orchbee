@@ -85,8 +85,7 @@ impl SiteShutdown {
         }
     }
 
-    #[cfg(test)]
-    fn stopping(&self) -> bool {
+    pub(crate) fn stopping(&self) -> bool {
         self.state
             .lock()
             .unwrap_or_else(|e| e.into_inner())

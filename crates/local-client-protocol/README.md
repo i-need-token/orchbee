@@ -1,5 +1,25 @@
 # Local Client Protocol
 
+## Read-only Windows Server metadata
+
+OBLC v1 kinds 6/7 carry one metadata request/response under the unchanged 256-byte payload bound.
+The request is just kind 6. Kind 7 is: version length (`u8`), 1–64 graphic ASCII version bytes,
+cohort length (`u8`), the existing validated ASCII cohort bytes, nonzero PID (`u32` big-endian),
+nonzero OBCS terminal version (`u8`), mode (`0` unmanaged, `1` managed-ready, `2` managed-stopping),
+then diagnostic feature bits (`u32` big-endian). Known bits are render-row reads (1), Client view
+control (2), Agent observation (4) and live handoff (8); unknown bits remain uninterpreted data.
+Invalid lengths/values/modes and trailing bytes fail decoding. Old message encodings are unchanged.
+
+The Windows deadline adapter verifies the peer through the existing named-pipe transport, writes
+one request, reads one exact response and drops the candidate. It never sends a Client hello or
+enters an application phase. The caller owns the five-second total and cancellation arbitration;
+partial progress never extends its deadline. Only connection failures preserve pre-connect absence
+provenance; EOF after connection is never absence. The Windows Server answers after same-user
+proof and before cohort equality/Session admission, under existing candidate and handshake bounds.
+This observation grants no operation capability, creates no Session and changes no shutdown state.
+No Linux/macOS runtime adapter is added. The [CLI status contract](../../apps/orchbee/docs/native-runtime-status.md)
+owns public comparison/output semantics and evidence, including old-Server incompatibility.
+
 ## Managed Site stop control
 
 Private OBLC v1 additionally carries kinds 4/5 for same-user, exact-cohort Site stop requests and
@@ -40,7 +60,7 @@ is rejected.
 | `Rejected`       | Incompatible protocol/cohort, capacity exceeded, wrong message, malformed frame, or timeout. Rejection changes no admitted Session.         |
 
 Human Client and Worker contracts remain separate. This crate contains no Worker identity,
-capability advertisement, lease, fence, Host, terminal, renderer, Workspace, Tab, Panel, or
+Worker capability advertisement, lease, fence, Host, terminal, renderer, Workspace, Tab, Panel, or
 semantic-command field.
 
 ## Connecting adapter
@@ -117,10 +137,10 @@ decides the outcome, including an unreachable or faulted wake source. `connect` 
 
 ## Server admission and bounds
 
-Server assigns every accepted connection an independent generation and admits up to eight active
-Client Sessions. It reserves at most sixteen total Client candidate/session threads, so silent
+Server assigns every accepted connection an independent generation and admits up to thirty-two active
+Client Sessions. It reserves at most forty-eight total Client candidate/session threads, so silent
 handshakes cannot create unbounded work; a connection beyond that transport bound is closed. A
-candidate within the transport bound receives a typed capacity rejection after the eight-session
+candidate within the transport bound receives a typed capacity rejection after the thirty-two-session
 admission limit. Every handshake has a two-second read/write timeout.
 
 The delivered private Server retains the accepted unbuffered stream as the Session carrier and

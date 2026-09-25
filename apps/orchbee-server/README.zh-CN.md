@@ -1,5 +1,15 @@
 # Rust Orchbee Server
 
+## Windows 运行时元数据
+
+同用户 OBLC 元数据请求读取本进程的编译版本、保留的预期 cohort、PID、终端协议、实现
+特性位和实际托管／停止模式。它在准确 cohort 的 Client 接纳之前执行，不创建 Session
+代次或 Workbench／viewer 状态，不申请停止记录租约，并在一次答复后关闭。既有候选及
+握手上限仍适用，普通 Client 接纳正在停止时亦然。这些是诊断事实，不是操作授权，也不
+证明未来可用性。[运行时状态契约](../orchbee/docs/native-runtime-status.zh-CN.md) 拥有
+CLI 行为和证据；[本机 Client 协议](../../crates/local-client-protocol/README.zh-CN.md)
+拥有帧格式。只有 Windows 分派此新增读取；旧接纳及 Linux／macOS 运行时行为保持不变。
+
 ## 托管 Windows Site 停止
 
 一个停止标识拥有托管 Server 剩余的生命周期。接受它会原子关闭新应用记录准入；已准入操作及结果写入先结束再清理。

@@ -1,5 +1,17 @@
 # Rust Orchbee Server
 
+## Windows runtime metadata
+
+The same-user OBLC metadata request reads this process's compiled version, retained expected
+cohort, PID, terminal protocol, implementation feature bits and actual managed/stopping mode.
+It runs before exact-cohort Client admission, creates no Session generation or Workbench/viewer
+state, acquires no shutdown record lease, and closes after one response. Existing candidate and
+handshake limits still apply, including while ordinary Client admission is stopping. These are
+diagnostic facts, never an operation grant or proof of future availability. The
+[runtime status contract](../orchbee/docs/native-runtime-status.md) owns CLI behavior and evidence;
+the [local Client protocol](../../crates/local-client-protocol/README.md) owns framing. Only Windows
+dispatches this new read; old admission and Linux/macOS runtime behavior remain unchanged.
+
 ## Managed Windows Site shutdown
 
 One stop identity owns the remaining managed Server lifetime. Accepting it atomically closes new

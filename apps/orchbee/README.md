@@ -757,21 +757,21 @@ Targeted Agent commands also accept `--panel <id|@panel:suffix>` or a positional
 
 ## Windows Workspace group Close
 
-`workspace close <target> --group --confirm` closes the captured worktree group, source last, without deleting Git checkouts. Known main Workspaces with associated members require `--group`; linked Workspaces close only themselves. Use `workspace close-status --group --request <operation-id>` after members disappear, and `workspace close-resume --group --request <operation-id> --generation <attempt> --confirm` only for a declared resumable failure. Group mode supports detached/bounded waiting and reports each child Close identity and observed state. See the [owning model](docs/windows-worktrees.md#workspace-group-closure). `api schema` catalog v37 contains 69 documents including `orchbee.workspace.group-close` v1.
+`workspace close <target> --group --confirm` closes the captured worktree group, source last, without deleting Git checkouts. Known main Workspaces with associated members require `--group`; linked Workspaces close only themselves. Use `workspace close-status --group --request <operation-id>` after members disappear, and `workspace close-resume --group --request <operation-id> --generation <attempt> --confirm` only for a declared resumable failure. Group mode supports detached/bounded waiting and reports each child Close identity and observed state. See the [owning model](docs/windows-worktrees.md#workspace-group-closure). `api schema` catalog v38 contains 71 documents including `orchbee.workspace.group-close` v1.
 
 ## Windows Client navigation
 
-[Windows Client view control](docs/windows-client-control.md) owns `client list/get/control-status`, `workspace focus`, `tab focus`, `panel focus` and `panel zoom`. Navigation targets one current TUI via `--client` or unambiguous validated caller context. It submits once and waits for a drawn acknowledgement; timeout or Ctrl+C stops waiting only. Single-panel zoom has an explicit no-op receipt. Catalog v37 includes 69 schemas, adding `orchbee.client.view`, `orchbee.client.control` and `orchbee.cli.failure.client-control`, all v1. No operating-system window activation or Mac/Linux control runtime is added.
+[Windows Client view control](docs/windows-client-control.md) owns `client list/get/control-status`, `workspace focus`, `tab focus`, `panel focus` and `panel zoom`. Navigation targets one current TUI via `--client` or unambiguous validated caller context. It submits once and waits for a drawn acknowledgement; timeout or Ctrl+C stops waiting only. Single-panel zoom has an explicit no-op receipt. Catalog v38 includes 71 schemas, adding `orchbee.client.view`, `orchbee.client.control` and `orchbee.cli.failure.client-control`, all v1. No operating-system window activation or Mac/Linux control runtime is added.
 
 Windows process tests execute the emitted completion in Git for Windows Bash, found relative to `git --exec-path`; that installed Bash is required for this witness. Conflicting flags are checked before and after their command verb without contacting a Site. PowerShell has a separate real-shell grammar witness.
 
 ## Windows schema export
 
-`api schema [<schema-id>] --output <path>` exports the embedded JSON document offline and also emits it on stdout. The destination parent must exist; a complete sibling file replaces an existing regular target. The [export contract](docs/native-cli-query.md#windows-offline-schema-export) owns failure stages, temporary cleanup and post-publication stdout failures. Catalog v37 contains 69 documents, including `orchbee.cli.failure.schema-export` v1.
+`api schema [<schema-id>] --output <path>` exports the embedded JSON document offline and also emits it on stdout. The destination parent must exist; a complete sibling file replaces an existing regular target. The [export contract](docs/native-cli-query.md#windows-offline-schema-export) owns failure stages, temporary cleanup and post-publication stdout failures. Catalog v38 contains 71 documents, including `orchbee.cli.failure.schema-export` v1.
 
 ## Windows Panel layout queries
 
-`panel layout`, `panel neighbor --direction left|right|up|down` and `panel edges` inspect an exact Windows TUI Client. They accept a positional Panel, `--panel` or `--current`, and `--client` when routing is ambiguous. Reads preserve focus and terminal sizes, including inactive or unvisited targets. `orchbee.panel.layout` v1 retains cell geometry, nullable hidden rectangles, unzoomed neighbors, physical-edge results and the operation receipt. See the [geometry contract](docs/windows-client-layout.md). Catalog v37 contains 69 documents; the native command inventory contains 81 paths.
+`panel layout`, `panel neighbor --direction left|right|up|down` and `panel edges` inspect an exact Windows TUI Client. They accept a positional Panel, `--panel` or `--current`, and `--client` when routing is ambiguous. Reads preserve focus and terminal sizes, including inactive or unvisited targets. `orchbee.panel.layout` v1 retains cell geometry, nullable hidden rectangles, unzoomed neighbors, physical-edge results and the operation receipt. See the [geometry contract](docs/windows-client-layout.md). Catalog v38 contains 71 documents; the native command inventory contains 83 paths.
 
 `panel focus [source] --direction left|right|up|down` finds one neighbor in the selected TUI's unzoomed cell layout and preserves zoom. No neighbor returns `direction-unchanged` without activating the source Tab. A found destination is pinned and returns `direction-focused` only after a successful draw. Receipt reads never repeat the movement.
 
@@ -779,23 +779,23 @@ Windows process tests execute the emitted completion in Git for Windows Bash, fo
 
 ## Shared Panel titles
 
-`panel rename <panel-id> --label <text>` sets the shared primary Presentation override; `--clear` (or blank text) restores its creation label. It accepts an exact ID or `@panel:<suffix>`, with no focus or terminal effect. The [Panel label contract](docs/native-panel-labels.md) owns normalization, revision/replay rules and coordinated cohort compatibility. `orchbee.panel.rename` v1 distinguishes `renamed` from `unchanged`; its nullable `customLabel` echoes normalized request metadata. `panel get` and `panel current` v3 expose immutable `label`, nullable `customLabel` and effective `displayLabel`. `api snapshot` v4 preserves the canonical optional override. Catalog v37 contains 69 schemas and the native command inventory contains 81 paths.
+`panel rename <panel-id> --label <text>` sets the shared primary Presentation override; `--clear` (or blank text) restores its creation label. It accepts an exact ID or `@panel:<suffix>`, with no focus or terminal effect. The [Panel label contract](docs/native-panel-labels.md) owns normalization, revision/replay rules and coordinated cohort compatibility. `orchbee.panel.rename` v1 distinguishes `renamed` from `unchanged`; its nullable `customLabel` echoes normalized request metadata. `panel get` and `panel current` v3 expose immutable `label`, nullable `customLabel` and effective `displayLabel`. `api snapshot` v4 preserves the canonical optional override. Catalog v38 contains 71 schemas and the native command inventory contains 83 paths.
 
 Panel swap uses the shared structural placement authority for one atomic same-Tab whole-leaf exchange, preserving Split/slot and terminal identities. The Windows CLI separately acknowledges source focus through the original Client; known canonical commits survive later failure or unknown focus. [Native Panel swap](docs/native-panel-swap.md) owns the workflow, receipt and evidence.
 
 Windows `tab create` and `panel split` resolve `--cwd follow|home|current|workspace|<absolute-path>` before creation; follow is the default and samples the resolved source root process. Their v2 receipt records the chosen directory source/path. They accept optional targets and labels, with no focus by default; `--focus` requests post-creation focus, and split accepts a Client-local `--ratio`. Explicit targets can create without a TUI. `orchbee.creation.result` v2 separates committed creation from later ratio/focus results; a later failure is not permission to repeat creation. [Native terminal creation](docs/native-terminal-creation.md) owns target selection, total budget, concurrency guards and recovery for these Windows commands.
 
-Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` sets the shared right-button policy without moving focus. `--current` requires validated caller metadata; explicit targets bypass it. `panel split --right-click` commits the new Panel policy with creation. The default `orchbee` reserves right-click to the Client; `panel` permits unmodified right clicks in mouse-reporting terminal content. An admitted gesture retains its matching release after policy changes. See the [Panel input contract](docs/native-panel-input.md) for routing, pending-input rechecks and failure recovery. This does not add a context menu. `orchbee.panel.input` v1 reports `configured` or `unchanged`; `panel list` v2 and `panel get/current` v3 expose `rightClick`. `tab get` v2 and `api snapshot` v4 admit the optional canonical field. Catalog v37 has 69 schemas and the native inventory has 81 command paths.
+Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` sets the shared right-button policy without moving focus. `--current` requires validated caller metadata; explicit targets bypass it. `panel split --right-click` commits the new Panel policy with creation. The default `orchbee` reserves right-click to the Client; `panel` permits unmodified right clicks in mouse-reporting terminal content. An admitted gesture retains its matching release after policy changes. See the [Panel input contract](docs/native-panel-input.md) for routing, pending-input rechecks and failure recovery. This does not add a context menu. `orchbee.panel.input` v1 reports `configured` or `unchanged`; `panel list` v2 and `panel get/current` v3 expose `rightClick`. `tab get` v2 and `api snapshot` v4 admit the optional canonical field. Catalog v38 has 71 schemas and the native inventory has 83 command paths.
 
 Windows `tab move <target> --insert-index N` moves a complete Tab to a zero-based boundary in the
 original order: 0 is first, the Tab count is last, source/source+1 are unchanged, and out-of-range
 values are refused. It excludes `--direction` and preserves focus and terminals. Success uses
-`orchbee.tab.move` v1; runtime failures use `orchbee.cli.failure.tab-move` v1. Catalog v37/69 keeps
+`orchbee.tab.move` v1; runtime failures use `orchbee.cli.failure.tab-move` v1. Catalog v38/71 keeps
 the legacy direction envelope unchanged.
 
 ## Automatic Tab naming
 
-The [Tab label contract](docs/native-tab-labels.md) owns optional `automaticLabel` metadata. New Tabs without a supplied label use their current context position; explicit numeric names and legacy Tabs remain fixed. CLI queries, label selectors and TUI display agree after move or close, and rename chooses a fixed name. Native `api snapshot` v4 exposes canonical metadata; catalog v37 contains 69 schemas. Shared protocol consumers require a matching cohort.
+The [Tab label contract](docs/native-tab-labels.md) owns optional `automaticLabel` metadata. New Tabs without a supplied label use their current context position; explicit numeric names and legacy Tabs remain fixed. CLI queries, label selectors and TUI display agree after move or close, and rename chooses a fixed name. Native `api snapshot` v4 exposes canonical metadata; catalog v38 contains 71 schemas. Shared protocol consumers require a matching cohort.
 
 ## Source-selected terminal output
 
@@ -804,7 +804,7 @@ Recent combines retained history with the live screen; detection reads the recen
 range. `--plain` exports text directly for pipes, defaults to recent, and excludes JSON. Source-mode
 `--lines` allows zero, clamps to 1000, and defaults to 80 for recent. It excludes the legacy
 history/rows/unwrap flags, whose behavior stays unchanged. The [output contract](docs/native-terminal-output.md)
-owns selection, exact sample validation and `orchbee.terminal.output` v1; catalog v37 has 69 schemas.
+owns selection, exact sample validation and `orchbee.terminal.output` v1; catalog v38 has 71 schemas.
 
 Windows `terminal wait-output` accepts the same `--source` and `--lines` selection, or `--forever`
 for an explicit wait without a total ceiling. Any of these chooses source mode (default recent),
@@ -820,3 +820,5 @@ and Unicode, uses only generated SGR, and joins verified soft wraps under `recen
 Detection remains plain text. It does not reproduce original PTY bytes, hyperlinks or graphics.
 The render request and prepared output each keep their existing 8 MiB bounds; oversized render
 resources fail without a fallback or retry. See the [output contract](docs/native-terminal-output.md).
+
+Windows `status server` reads actual Server build/protocol/cohort metadata before Client Session admission; `status client` checks this executable offline. Both accept `--format text|json` and never activate a Site. Bare `status` remains a Workbench query. The [runtime status contract](docs/native-runtime-status.md) owns the five-second budget, unknown metadata, compatibility, schemas and failures. Update-channel management remains unavailable.

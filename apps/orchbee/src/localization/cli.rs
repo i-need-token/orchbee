@@ -3,6 +3,7 @@
 
 mod client_control;
 mod client_layout;
+mod runtime_status;
 #[cfg(windows)]
 mod schema_export;
 use super::Locale;
@@ -2116,6 +2117,8 @@ impl Locale {
 
             (Self::EnUs, CommandPath::Tui) => HELP_TUI_EN,
             (Self::ZhCn, CommandPath::Tui) => HELP_TUI_ZH,
+            (_, CommandPath::StatusClient) => runtime_status::help(self, false),
+            (_, CommandPath::StatusServer) => runtime_status::help(self, true),
             (Self::EnUs, CommandPath::Status) => HELP_STATUS_EN,
             (Self::ZhCn, CommandPath::Status) => HELP_STATUS_ZH,
             (Self::EnUs, CommandPath::ProjectList) => HELP_PROJECT_LIST_EN,
@@ -2320,8 +2323,8 @@ const ROOT_HELP_ZH: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui [--mo
 const HELP_TUI_EN: &str = "orchbee tui [--mouse on|off]\n\nOpen the local terminal interface (Windows/Linux development cohort).\nA bare 'orchbee' invocation does the same.\n\n  --mouse on|off   Host pointer capture for pane hit-testing; on by\n                   default. Only the explicit 'tui' route accepts it.\n";
 const HELP_TUI_ZH: &str = "orchbee tui [--mouse on|off]\n\n打开本地终端界面（Windows/Linux 开发 cohort）。\n裸 'orchbee' 调用效果相同。\n\n  --mouse on|off   宿主机指针捕获，用于面板命中；默认开启。\n                   只有显式 'tui' 路由接受该选项。\n";
 
-const HELP_STATUS_EN: &str = "orchbee status\n\nRead a live Workbench snapshot from the running local Site and report\nreachability plus entity counts. The Site is never created, activated, or\nmutated. '--format json' emits the orchbee.status envelope.\n";
-const HELP_STATUS_ZH: &str = "orchbee status\n\n从正在运行的本地 Site 读取实时 Workbench 快照并报告可达性与实体计数。\n绝不创建、激活或修改 Site。'--format json' 输出 orchbee.status 封套。\n";
+const HELP_STATUS_EN: &str = "orchbee status\n\nRead a live Workbench snapshot from the running local Site and report\nreachability plus entity counts. The Site is never created, activated, or\nmutated. '--format json' emits the orchbee.status envelope.\n\nWindows runtime metadata (no Site activation):\n  status server  Query the running Server, protocol and cohort compatibility\n  status client  Inspect this executable and its local cohort offline\n";
+const HELP_STATUS_ZH: &str = "orchbee status\n\n从正在运行的本地 Site 读取实时 Workbench 快照并报告可达性与实体计数。\n绝不创建、激活或修改 Site。'--format json' 输出 orchbee.status 封套。\n\nWindows 运行时元数据（不激活 Site）：\n  status server  查询运行中 Server、协议和 cohort 兼容性\n  status client  离线检查当前程序及本地 cohort\n";
 
 const HELP_PROJECT_EN: &str = "orchbee project list|get|create|rename\n\nQuery and mutate Project resources in the running local Site.\n  project list                       List every Project\n  project get <target>               Show one Project by exact ID, @project:<suffix>, or exact label\n  project create --label <l>         Create one Project\n  project rename <target> --label <l>  Rename one Project\nTargets are case-sensitive; ambiguous labels or suffixes are rejected, never guessed.\nEvery mutation reads one snapshot, then submits exactly one command.\n";
 const HELP_PROJECT_ZH: &str = "orchbee project list|get|create|rename\n\n查询并修改本地 Site 中的 Project 资源。\n  project list                       列出所有 Project\n  project get <target>               按精确 ID、@project:<suffix> 或精确 label 显示一个 Project\n  project create --label <l>         创建一个 Project\n  project rename <target> --label <l>  重命名一个 Project\ntarget 区分大小写；歧义 label 或后缀会被拒绝而非猜测。\n每个修改命令先读取一次快照，然后只提交一个命令。\n";

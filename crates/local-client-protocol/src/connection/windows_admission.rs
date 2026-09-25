@@ -2,6 +2,39 @@ use super::*;
 use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 use std::time::Instant;
 
+pub(super) fn server_metadata(
+    endpoint: &Path,
+    deadline: Instant,
+    wake: Option<LocalIo<'_>>,
+) -> Result<crate::ServerMetadata, ConnectClientError> {
+    let stream = connect_stream(endpoint, deadline, wake)?;
+    let mut transport = Admission {
+        stream,
+        deadline,
+        wake,
+        cancelled: None,
+    };
+    let exchange = (|| {
+        write_message(&mut transport, &LocalClientMessage::ServerMetadataRequest)?;
+        let metadata = match read_message(&mut transport)? {
+            LocalClientMessage::ServerMetadata(metadata) => metadata,
+            LocalClientMessage::Rejected { reason } => {
+                return Err(ConnectClientError::Rejected(reason));
+            }
+            _ => return Err(ConnectClientError::UnexpectedResponse),
+        };
+        check_wake(wake)?;
+        if Instant::now() >= deadline {
+            return Err(ConnectClientError::Io(io::ErrorKind::TimedOut.into()));
+        }
+        Ok(metadata)
+    })();
+    if let Some(cancelled) = transport.cancelled {
+        return Err(cancelled);
+    }
+    exchange
+}
+
 pub(super) fn connect(
     endpoint: &Path,
     hello: ClientHello,
@@ -24,7 +57,9 @@ pub(super) fn connect(
             }
             LocalClientMessage::ClientHello(_)
             | LocalClientMessage::SiteStopRequest(_)
-            | LocalClientMessage::SiteStopResult(_) => {
+            | LocalClientMessage::SiteStopResult(_)
+            | LocalClientMessage::ServerMetadataRequest
+            | LocalClientMessage::ServerMetadata(_) => {
                 return Err(ConnectClientError::UnexpectedResponse);
             }
         };

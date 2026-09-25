@@ -111,6 +111,9 @@ fn main() -> ExitCode {
                 cli::run_creation(&command, format, locale)
             }
             Ok(invocation::Request::SiteStart { format }) => cli::site_start(format, locale),
+            Ok(invocation::Request::RuntimeStatus { scope, format }) => {
+                cli::runtime_status::run(scope, format, locale)
+            }
             Ok(invocation::Request::SiteStop { command, format }) => {
                 cli::site_stop(&command, format, locale)
             }
