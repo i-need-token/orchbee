@@ -47,7 +47,7 @@ Windows Client 拥有最多 512 个 Agent 摘要及其已确认状态版本。�
 
 Workbench 协议复用有界 Agent 协议身份、游标及安全整数 DTO，不依赖运行时。提示状态提交和完成使用上限 64 KiB 的请求类型 29；结果类型 26 已有该上限。Server 回执存储预留提示状态载荷容量，并在发布前验证请求与结果会话完全对应。保留回执不会自行刷新或重复读取。共享 Rust、TypeScript 和 schema 检查覆盖形状、边界、重复、顺序、版本及归属；Windows 进程与双 Client 见证覆盖路由和实际绘制确认。
 
-`agent attention <target> [--client <id>]` 一次解析会话/名称/窗格，读取该 Client 而不聚焦。`--session`、`--name` 和 `--panel` 可显式选择。支持现有 `--request-id`、`--detach`、`--timeout`（默认 30000 ms）及 `--format` 回执生命周期。`client control-status` 也认证提示状态游标。文本报告已读、未读或尚未观察到；JSON 使用 `orchbee.client.control` v1。目录 v44 仍有 72 个 schema，原生命令路径增至 86 个。
+`agent attention <target> [--client <id>]` 一次解析会话/名称/窗格，读取该 Client 而不聚焦。`--session`、`--name` 和 `--panel` 可显式选择。支持现有 `--request-id`、`--detach`、`--timeout`（默认 30000 ms）及 `--format` 回执生命周期。`client control-status` 也认证提示状态游标。文本报告已读、未读或尚未观察到；JSON 使用 `orchbee.client.control` v1。目录 v45 仍有 72 个 schema，原生命令路径增至 86 个。
 
 ## 合并规范 Agent 读取
 
@@ -55,4 +55,4 @@ Windows `agent get <target> --client <id>` 在一个已准入会话及五秒总�
 
 独立的 Client 状态将 fresh idle／完成结果投影为已看见时 idle、未看见时 done；缺失／过期版本使该休息状态为空。Working、blocked、unknown、ended 及 stale/disconnected 新鲜度采用规范事实。聚焦指匹配的主 Panel 在 Ready Client 视图中被选中，且未观察到外层失焦；外层焦点为空时保留已声明的兼容回退，不证明操作系统前台。Busy 时仍可读取，但不声称内容聚焦。读取不确认已看见、不导航、不发送输入。
 
-CLI results 归属持有此投影；Agent Client view 组合负责读取和版本合并。所选 Client 等待是后续消费者。进程／就绪补充仍单独待办。证据覆盖精确 Client／操作关联、generation 与 sequence 滞后、缺失条目、跨启动周期、当前修订、独立焦点及已看见状态，以及原有期限／取消清理。
+CLI results 归属持有此投影；Agent Client view 组合负责读取和版本合并。Windows `agent wait --client <id>` 在 v4 复用此投影：idle/done 要求当前经核实的 Client 版本。规范历史事件不证明过去的 Client 已读确认；这两个条件采用采样，其他条件保留规范变更证据。进程／就绪补充仍单独待办。证据覆盖精确 Client／操作关联、generation 与 sequence 滞后、缺失条目、跨启动周期、当前修订、独立焦点及已看见状态，以及原有期限／取消清理。

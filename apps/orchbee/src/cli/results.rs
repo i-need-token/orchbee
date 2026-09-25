@@ -71,6 +71,10 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
 /// match detail on a wait — so flag-free output stays byte-identical.
 pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
     match command {
+        #[cfg(windows)]
+        QueryCommand::AgentWait {
+            client: Some(_), ..
+        } => 4,
         QueryCommand::AgentClientGet { .. } => 2,
         QueryCommand::TerminalSourceWait { .. } => 3,
         QueryCommand::TerminalOutput { ansi: true, .. } => 2,
@@ -1059,6 +1063,8 @@ pub(crate) struct AgentWaitDoc {
     pub(crate) session: Box<AgentSessionDetail>,
     #[cfg(windows)]
     pub(crate) matched_change: Option<orchbee_agent_observation_protocol::AgentChange>,
+    #[cfg(windows)]
+    pub(crate) client: Option<Box<AgentClientViewDoc>>,
     pub(crate) until: Vec<AgentWaitCondition>,
     pub(crate) after_revision: Option<AgentSafeInteger>,
     pub(crate) timeout_ms: Option<u32>,
@@ -1183,6 +1189,9 @@ impl Projection {
                 let result = {
                     let mut result = result;
                     result["matchedChange"] = json!(doc.matched_change);
+                    if let Some(client) = &doc.client {
+                        result["client"] = client.document();
+                    }
                     result
                 };
                 result

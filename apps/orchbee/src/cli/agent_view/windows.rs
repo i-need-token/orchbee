@@ -28,7 +28,7 @@ pub(super) fn run(
         Ok(signals) => signals,
         Err(_) => {
             return failure_output(
-                Failure::new(FailureKind::InternalFailure),
+                view_failure(FailureKind::InternalFailure),
                 Some(format),
                 locale,
             );
@@ -55,16 +55,9 @@ pub(super) fn run(
         )?;
         let canonical =
             query::read_agent_observation(&mut client, &id, deadline, signals.poll_fd())?;
-        let unchanged = query::attention_covers_observation(
-            &mut client,
-            &attention.attention,
-            &canonical,
-            deadline,
-            signals.poll_fd(),
-        )
-        .map_err(|failure| failure.failure_schema(crate::cli::schema::AGENT_FAILURE_ID))?;
+        let view =
+            attention.corroborate(&mut client, &snapshot, &canonical, deadline, &mut signals)?;
         check(deadline, &mut signals)?;
-        let view = attention.join(&snapshot, &canonical, unchanged)?;
         Ok((
             results::agent_source(&canonical.request_id),
             results::Projection::AgentClientGet(Box::new(results::AgentClientGetDoc {
@@ -81,13 +74,13 @@ pub(super) fn run(
             finalization: owed, ..
         }) => {
             finalization = Some(owed);
-            Err(Failure::new(FailureKind::Cancelled))
+            Err(view_failure(FailureKind::Cancelled))
         }
-        Err(_) => Err(Failure::new(FailureKind::InternalFailure)),
+        Err(_) => Err(view_failure(FailureKind::InternalFailure)),
     };
     let mut output = match result {
         Ok((source, projection)) => success_output(projection, source, command, format, locale),
-        Err(failure) => failure_output(failure, Some(format), locale),
+        Err(failure) => failure_output(classify(failure), Some(format), locale),
     };
     output.finalization = finalization;
     output
@@ -117,19 +110,30 @@ pub(in crate::cli) fn read(
         },
         deadline,
         signals,
-    )?;
+    )
+    .map_err(classify)?;
     check(deadline, signals)?;
     let record = match result.outcome {
         ClientViewOutcome::Found { client } if client.client_id == *selected => client,
-        ClientViewOutcome::NotFound {} => return Err(Failure::new(FailureKind::NotFound)),
-        ClientViewOutcome::Denied {} => return Err(Failure::new(FailureKind::Denied)),
-        ClientViewOutcome::Unavailable { .. } => {
-            return Err(Failure::new(FailureKind::ServiceUnavailable));
+        ClientViewOutcome::NotFound {} => {
+            return Err(crate::cli::client_control::selection::failure(
+                FailureKind::NotFound,
+                "client-not-found",
+                vec![selected.to_string()],
+            ));
         }
-        _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
+        ClientViewOutcome::Denied {} => return Err(view_failure(FailureKind::Denied)),
+        ClientViewOutcome::Unavailable { .. } => {
+            return Err(view_failure(FailureKind::ServiceUnavailable));
+        }
+        _ => return Err(view_failure(FailureKind::ProtocolInvalid)),
     };
     if record.availability != ClientViewAvailability::Current {
-        return Err(Failure::new(FailureKind::ServiceUnavailable));
+        return Err(crate::cli::client_control::selection::failure(
+            FailureKind::ServiceUnavailable,
+            "client-stale",
+            vec![selected.to_string()],
+        ));
     }
     let command = ClientViewControl {
         operation_id: query::request_id()?,
@@ -148,17 +152,18 @@ pub(in crate::cli) fn read(
         command.clone(),
         deadline,
         signals,
-    )?;
+    )
+    .map_err(classify)?;
     check(deadline, signals)?;
     if answer.exit_code() != 0 {
         if let Some(reply) = &answer.reply {
             match reply.outcome {
-                ClientViewOutcome::Denied {} => return Err(Failure::new(FailureKind::Denied)),
-                ClientViewOutcome::NotFound {} => return Err(Failure::new(FailureKind::NotFound)),
+                ClientViewOutcome::Denied {} => return Err(view_failure(FailureKind::Denied)),
+                ClientViewOutcome::NotFound {} => return Err(view_failure(FailureKind::NotFound)),
                 _ => {}
             }
         }
-        return Err(Failure::new(match answer.exit_code() {
+        return Err(view_failure(match answer.exit_code() {
             3 => FailureKind::Rejected,
             4 => FailureKind::ServiceUnavailable,
             5 | 8 => FailureKind::TransportLoss,
@@ -172,10 +177,10 @@ pub(in crate::cli) fn read(
         ..
     }) = answer.reply
     else {
-        return Err(Failure::new(FailureKind::ProtocolInvalid));
+        return Err(view_failure(FailureKind::ProtocolInvalid));
     };
     if operation.command != command {
-        return Err(Failure::new(FailureKind::ProtocolInvalid));
+        return Err(view_failure(FailureKind::ProtocolInvalid));
     }
     match operation.status {
         ClientViewControlStatus::AttentionRead { attention, view } => Ok(ClientAgentRead {
@@ -184,11 +189,31 @@ pub(in crate::cli) fn read(
             view,
             attention: *attention,
         }),
-        _ => Err(Failure::new(FailureKind::ProtocolInvalid)),
+        _ => Err(view_failure(FailureKind::ProtocolInvalid)),
     }
 }
 
 impl ClientAgentRead {
+    pub(in crate::cli) fn corroborate(
+        self,
+        client: &mut crate::local_client::LocalClient,
+        snapshot: &Snapshot,
+        canonical: &query::AgentObservationRead,
+        deadline: Instant,
+        signals: &mut ArmedSignals,
+    ) -> Result<results::AgentClientViewDoc, Failure> {
+        let unchanged = query::attention_covers_observation(
+            client,
+            &self.attention,
+            canonical,
+            deadline,
+            signals.poll_fd(),
+        )
+        .map_err(|failure| failure.failure_schema(crate::cli::schema::AGENT_FAILURE_ID))?;
+        check(deadline, signals)?;
+        self.join(snapshot, canonical, unchanged)
+    }
+
     pub(in crate::cli) fn join(
         self,
         snapshot: &Snapshot,
@@ -197,14 +222,14 @@ impl ClientAgentRead {
     ) -> Result<results::AgentClientViewDoc, Failure> {
         use results::AgentClientVersionMatch;
         if self.attention.revision.value() > canonical.revision.value() {
-            return Err(Failure::new(FailureKind::ProtocolInvalid));
+            return Err(view_failure(FailureKind::ProtocolInvalid));
         }
         let [entry] = self.attention.entries.as_slice() else {
-            return Err(Failure::new(FailureKind::ProtocolInvalid));
+            return Err(view_failure(FailureKind::ProtocolInvalid));
         };
         let agent = &canonical.session;
         if entry.session_id != agent.snapshot.session_id {
-            return Err(Failure::new(FailureKind::ProtocolInvalid));
+            return Err(view_failure(FailureKind::ProtocolInvalid));
         }
         let version = entry.state.as_ref().filter(|state| {
             unchanged
@@ -221,7 +246,7 @@ impl ClientAgentRead {
         let results::Projection::PanelList(panels) =
             results::project(&QueryCommand::PanelList { tab: None }, snapshot)?
         else {
-            return Err(Failure::new(FailureKind::InternalFailure));
+            return Err(view_failure(FailureKind::InternalFailure));
         };
         let focused = agent.snapshot.lifecycle
             == orchbee_agent_observation_protocol::AgentLifecycle::Live
@@ -294,13 +319,29 @@ fn projected_status(
 fn check(deadline: Instant, signals: &mut ArmedSignals) -> Result<(), Failure> {
     if signals
         .take()
-        .map_err(|_| Failure::new(FailureKind::InternalFailure))?
+        .map_err(|_| view_failure(FailureKind::InternalFailure))?
         .is_some()
     {
-        Err(Failure::new(FailureKind::Cancelled))
+        Err(view_failure(FailureKind::Cancelled))
     } else if Instant::now() >= deadline {
-        Err(Failure::new(FailureKind::Timeout))
+        Err(view_failure(FailureKind::Timeout))
     } else {
         Ok(())
     }
+}
+
+// Raw Client exchanges have no Agent source or receipt to publish. Give those
+// failures the composition boundary, preserving any already classified owner.
+fn classify(failure: Failure) -> Failure {
+    if failure.failure_schema.is_none() && failure.details.is_none() && failure.source.is_none() {
+        failure
+            .version(2)
+            .failure_schema("orchbee.cli.failure.client-control")
+            .details(crate::cli::stage_details("client-agent-read"))
+    } else {
+        failure
+    }
+}
+fn view_failure(kind: FailureKind) -> Failure {
+    classify(Failure::new(kind))
 }

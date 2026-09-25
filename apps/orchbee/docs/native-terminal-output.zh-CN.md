@@ -55,7 +55,7 @@ Agent 解析在同一会话的附着前完成。可见或空选择无需行请�
 
 结构化文本保持本地化与转义。JSON 使用 `orchbee.terminal.output` v1，包含规范
 快照来源、终端身份、来源选择、修订/代次、物理范围、
-容量截断、片段边缘和文本。目录为 v44、72 个文档；不增加协议形状或命令路径。
+容量截断、片段边缘和文本。目录为 v45、72 个文档；不增加协议形状或命令路径。
 `--plain` 在相同准备上限内原样输出 JSON 文本成员的 UTF-8 字节；
 文本模式失败保持 stdout 为空。它是
 [CLI 输出标准](../../../docs/zh-CN/cli/output.md) 下明确的数据导出，不是普通人类文本展示。
@@ -91,7 +91,7 @@ detection 在与读取相同的空白行移除及尾部选择后匹配物理行�
 观察字段 `timeoutMs` 仅在显式无限等待时为 null。`requestedRows` 是容量/保留范围钳制前
 的物理来源预算：visible/detection 为屏幕高度，recent 为显式/默认行数。
 `windowTruncated` 只报告容量损失。已完成观察次数统计完成匹配检查的已验证样本，
-包括可见帧样本。版本 1/2 文档及约束保持不变；目录为 v44、72 个文档。
+包括可见帧样本。版本 1/2 文档及约束保持不变；目录为 v45、72 个文档。
 
 固定版本 Herdr 的等待也搜索文本行，将 recent 映射为 recent-unwrapped，并允许无总期限。
 其 raw 开关只传递被读取处理器忽略的剥离字段；没有需要复现的原始 PTY 字节匹配器。
@@ -107,7 +107,7 @@ Windows `terminal read` 和 `agent read` 接受 `--ansi`，用于导出带样式
 这是与纯文本导出相同的显式数据导出例外，不改变普通人类可读文本的转义规则。
 
 ANSI JSON 使用 `orchbee.terminal.output` v2，并包含 `result.encoding:"ansi"`；`content.text`
-承载 ANSI 字符串。text/plain 来源读取保留 v1 及其既有结构。目录为 v44，共 72 份 schema、
+承载 ANSI 字符串。text/plain 来源读取保留 v1 及其既有结构。目录为 v45，共 72 份 schema、
 81 条命令路径。空选择不导出字节。准备及序列化保留既有 8 MiB 输出上限，并在写 stdout 前完成；
 超限结果整体失败。直接导出和 JSON 内容都能容纳时，它们的 UTF-8 字节完全一致。
 

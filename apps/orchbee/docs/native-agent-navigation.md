@@ -50,7 +50,7 @@ re-resolving an Agent name. No rollback or automatic replacement focus is attemp
 
 ## Delivery and verification
 
-This adds one command path (84 total) and no new schema: the embedded catalog remains v44/72.
+This adds one command path (84 total) and no new schema: the embedded catalog remains v45/72.
 The shared `orchbee.client.control` v1 receipt and existing Agent/Client selection failures retain
 their source ownership. Human output and help are localized; JSON is locale independent.
 
@@ -62,4 +62,4 @@ with all created Agent processes, Sites and consoles stopped afterward. Review i
 TLA execution and independent review are not claimed. Seen/unseen behavior remains a separate,
 explicit report obligation.
 
-The Client must be ready; otherwise Agent reads are skipped and the existing Client selection failure reports `client-not-ready` with its Client ID. Catalog v44 extends this v1 reason vocabulary without adding a schema.
+The Client must be ready; otherwise Agent reads are skipped and the existing Client selection failure reports `client-not-ready` with its Client ID. Catalog v45 extends this v1 reason vocabulary without adding a schema.

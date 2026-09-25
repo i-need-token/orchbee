@@ -1,57 +1,118 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.cli.failure.client-control",
-	"title": "Native Client routing failure",
+	"title": "Native Client routing and composed Agent read failures",
 	"type": "object",
 	"properties": {
 		"schema": {
 			"const": "orchbee.cli.failure.client-control"
 		},
 		"version": {
-			"const": 1
+			"enum": [1, 2]
 		},
 		"failure": {
-			"type": "object",
-			"properties": {
-				"kind": {
-					"enum": ["ambiguous", "not-found", "service-unavailable", "rejected"]
-				},
-				"details": {
-					"type": "object",
-					"properties": {
-						"stage": {
-							"const": "client-selection"
-						},
-						"reason": {
-							"enum": [
-								"client-not-found",
-								"client-stale",
-								"client-not-ready",
-								"client-ambiguous",
-								"client-panel-unavailable"
-							]
-						},
-						"candidates": {
-							"type": "array",
-							"maxItems": 32,
-							"uniqueItems": true,
-							"items": {
-								"type": "string",
-								"pattern": "^[0-9a-f]{32}$",
-								"not": {
-									"const": "00000000000000000000000000000000"
-								}
-							}
-						}
-					},
-					"required": ["stage", "reason", "candidates"],
-					"additionalProperties": false
-				}
-			},
-			"required": ["kind", "details"],
-			"additionalProperties": false
+			"type": "object"
 		}
 	},
 	"required": ["schema", "version", "failure"],
-	"additionalProperties": false
+	"additionalProperties": false,
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 1
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"type": "object",
+						"properties": {
+							"kind": {
+								"enum": ["ambiguous", "not-found", "service-unavailable", "rejected"]
+							},
+							"details": {
+								"type": "object",
+								"properties": {
+									"stage": {
+										"const": "client-selection"
+									},
+									"reason": {
+										"enum": [
+											"client-not-found",
+											"client-stale",
+											"client-not-ready",
+											"client-ambiguous",
+											"client-panel-unavailable"
+										]
+									},
+									"candidates": {
+										"type": "array",
+										"maxItems": 32,
+										"uniqueItems": true,
+										"items": {
+											"type": "string",
+											"pattern": "^[0-9a-f]{32}$",
+											"not": {
+												"const": "00000000000000000000000000000000"
+											}
+										}
+									}
+								},
+								"required": ["stage", "reason", "candidates"],
+								"additionalProperties": false
+							}
+						},
+						"required": ["kind", "details"],
+						"additionalProperties": false
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 2
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"type": "object",
+						"properties": {
+							"kind": {
+								"enum": [
+									"not-found",
+									"denied",
+									"rejected",
+									"service-unavailable",
+									"transport-loss",
+									"protocol-invalid",
+									"timeout",
+									"cancelled",
+									"internal-failure"
+								]
+							},
+							"details": {
+								"type": "object",
+								"properties": {
+									"stage": {
+										"const": "client-agent-read"
+									}
+								},
+								"required": ["stage"],
+								"additionalProperties": false
+							}
+						},
+						"required": ["kind", "details"],
+						"additionalProperties": false
+					}
+				}
+			}
+		}
+	]
 }

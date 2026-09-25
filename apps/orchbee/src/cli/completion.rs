@@ -505,6 +505,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         "agent:wait",
         &[
             "--session",
+            "--client",
             "--panel",
             "--name",
             "--until",

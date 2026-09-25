@@ -168,7 +168,7 @@ fn resolved_id(answer: &AgentNamesResult) -> Result<AgentSessionId, Failure> {
     }
 }
 
-fn read_snapshot(
+pub(super) fn read_snapshot(
     client: &mut LocalClient,
     total: Instant,
     wake: Option<BorrowedFd<'_>>,

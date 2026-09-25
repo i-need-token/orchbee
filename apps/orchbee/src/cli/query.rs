@@ -3140,6 +3140,7 @@ pub(crate) fn agent_wait(
     _until: &[crate::invocation::AgentWaitCondition],
     _after_revision: Option<orchbee_agent_observation_protocol::AgentSafeInteger>,
     _timeout_ms: Option<u32>,
+    _client: Option<&orchbee_workbench_protocol::WorkbenchClientId>,
 ) -> Result<(serde_json::Value, super::results::Projection), AgentQueryError> {
     Err(AgentQueryError::Admission(
         super::Failure::new(super::FailureKind::ServiceUnavailable).details(

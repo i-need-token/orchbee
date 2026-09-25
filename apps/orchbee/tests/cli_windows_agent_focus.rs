@@ -17,6 +17,8 @@ use std::{
 
 #[path = "cli_windows_agent_focus/client_get.rs"]
 mod client_get;
+#[path = "cli_windows_agent_focus/client_wait.rs"]
+mod client_wait;
 
 fn id(n: u64) -> String {
     format!("{n:032x}")

@@ -2,7 +2,7 @@
 use super::*;
 use orchbee_agent_observation_protocol::{AgentResult, write_agent_result};
 
-fn selected_reply(stream: &mut LocalStream, busy: bool) -> Value {
+pub(super) fn selected_reply(stream: &mut LocalStream, busy: bool) -> Value {
     let request = view_request(stream);
     assert!(
         matches!(&request.action, ClientViewAction::Get { client_id } if client_id.as_str()==id(7))
@@ -40,7 +40,7 @@ fn attention_reply(
     attention::authenticate(stream, allowed);
 }
 
-fn completed() -> Value {
+pub(super) fn completed() -> Value {
     let mut agent = detail(&[106]);
     agent["snapshot"]["observation"]["generation"] = json!(3);
     agent["snapshot"]["observation"]["sequence"] = json!(11);
@@ -235,5 +235,57 @@ fn selected_client_get_checks_intervening_changes_and_refuses_foreign_boot() {
                 }
             );
         }
+    }
+}
+
+#[test]
+fn selected_client_get_failures_keep_their_declared_contract() {
+    for case in ["missing", "stale", "denied", "wrong-client", "deadline"] {
+        let fixture = Fixture::new();
+        let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
+        let server = peer(&fixture, listener, move |mut stream| {
+            snapshot_reply(&mut stream);
+            let request = view_request(&mut stream);
+            assert!(matches!(request.action, ClientViewAction::Get { .. }));
+            let outcome = match case {
+                "missing" => json!({"kind":"not-found"}),
+                "denied" => json!({"kind":"denied"}),
+                "stale" => {
+                    let mut client = record(7, 6);
+                    client["availability"] = json!("stale");
+                    json!({"kind":"found","client":client})
+                }
+                _ => json!({"kind":"found","client":record(8,6)}),
+            };
+            if case != "deadline" {
+                view_reply(&mut stream, &request, outcome);
+            }
+            assert_closed(&mut stream);
+        });
+        let output = fixture.run(&[
+            "agent",
+            "get",
+            "--session",
+            "sess-alpha",
+            "--client",
+            &id(7),
+            "--format=json",
+        ]);
+        server.join().unwrap();
+        let doc = document(&output);
+        validate(
+            &doc,
+            include_str!("../../src/cli/schemas/orchbee.cli.failure.client-control.json"),
+        );
+        let (kind, version) = match case {
+            "missing" => ("not-found", 1),
+            "stale" => ("service-unavailable", 1),
+            "denied" => ("denied", 2),
+            "deadline" => ("timeout", 2),
+            _ => ("protocol-invalid", 2),
+        };
+        assert!(!output.status.success());
+        assert_eq!(doc["failure"]["kind"], kind);
+        assert_eq!(doc["version"], version);
     }
 }

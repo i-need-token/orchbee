@@ -585,11 +585,18 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
         }
         QueryCommand::AgentWait {
             session,
+            client,
             until,
             after_revision,
             timeout_ms,
         } => agent_output(
-            query::agent_wait(session, until, *after_revision, *timeout_ms),
+            query::agent_wait(
+                session,
+                until,
+                *after_revision,
+                *timeout_ms,
+                client.as_ref(),
+            ),
             &command,
             format,
             locale,

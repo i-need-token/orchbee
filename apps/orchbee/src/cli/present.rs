@@ -681,7 +681,12 @@ fn agent_wait(out: &mut Bounded, doc: &AgentWaitDoc, locale: Locale) -> Result<(
         &conditions,
         revision.value(),
         doc.elapsed_ms,
-    ))
+    ))?;
+    #[cfg(windows)]
+    if let Some(client) = &doc.client {
+        out.push(&locale.cli_agent_client_view(client))?;
+    }
+    Ok(())
 }
 
 /// `agent list`: the SESSION/PROVIDER/STATUS/FRESHNESS/LOCATION table, an

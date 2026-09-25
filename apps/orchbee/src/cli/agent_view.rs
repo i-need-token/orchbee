@@ -7,7 +7,7 @@ use crate::{
 use orchbee_workbench_protocol::WorkbenchClientId;
 
 #[cfg(windows)]
-mod windows;
+pub(in crate::cli) mod windows;
 
 pub(super) fn run(
     command: &QueryCommand,
@@ -24,7 +24,9 @@ pub(super) fn run(
     {
         let _ = (command, target, client);
         failure_output(
-            super::Failure::new(super::FailureKind::ServiceUnavailable),
+            super::Failure::new(super::FailureKind::ServiceUnavailable).details(
+                super::stage_reason_details("platform", "unsupported-platform"),
+            ),
             Some(format),
             locale,
         )

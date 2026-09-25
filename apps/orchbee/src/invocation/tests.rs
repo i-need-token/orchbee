@@ -5341,6 +5341,13 @@ fn agent_read_usage_failures() {
 /// order, the safe-integer revision fence, and the 600000 ms default.
 #[test]
 fn agent_wait_grammar() {
+    let explicit_client = "11111111111111111111111111111111";
+    assert!(
+        matches!(parse(&["agent", "wait", "sess-alpha", "--client", explicit_client]),
+        Ok(Request::Query { command: QueryCommand::AgentWait { client: Some(client), .. }, .. })
+        if client.as_str() == explicit_client)
+    );
+
     use orchbee_agent_observation_protocol::AgentSessionId;
     let session = || AgentSessionId::parse("sess-alpha").expect("valid session id");
     let defaults = crate::invocation::DEFAULT_AGENT_WAIT_CONDITIONS.to_vec();
@@ -5351,6 +5358,7 @@ fn agent_wait_grammar() {
         parse(&["agent", "wait", "sess-alpha"]),
         Ok(query(
             QueryCommand::AgentWait {
+                client: None,
                 session: AgentTarget::Auto { target: session() },
                 until: defaults.clone(),
                 after_revision: None,
@@ -5379,6 +5387,7 @@ fn agent_wait_grammar() {
         ]),
         Ok(query(
             QueryCommand::AgentWait {
+                client: None,
                 session: AgentTarget::Auto { target: session() },
                 until: vec![
                     crate::invocation::AgentWaitCondition::Stale,
@@ -5428,6 +5437,7 @@ fn agent_wait_grammar() {
         assert_eq!(
             command,
             QueryCommand::AgentWait {
+                client: None,
                 session: AgentTarget::Auto { target: session() },
                 until: vec![condition],
                 after_revision: None,
@@ -5442,6 +5452,7 @@ fn agent_wait_grammar() {
             parse(&["agent", "wait", "sess-alpha", "--after-revision", value]),
             Ok(query(
                 QueryCommand::AgentWait {
+                    client: None,
                     session: AgentTarget::Auto { target: session() },
                     until: defaults.clone(),
                     after_revision: Some(
@@ -5461,6 +5472,7 @@ fn agent_wait_grammar() {
             parse(&["agent", "wait", "sess-alpha", "--timeout", value]),
             Ok(query(
                 QueryCommand::AgentWait {
+                    client: None,
                     session: AgentTarget::Auto { target: session() },
                     until: defaults.clone(),
                     after_revision: None,

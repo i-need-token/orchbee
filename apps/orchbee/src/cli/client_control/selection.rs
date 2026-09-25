@@ -9,7 +9,11 @@ use orchbee_workbench_protocol::{
 };
 use serde_json::{Map, json};
 
-pub(super) fn failure(kind: FailureKind, reason: &'static str, candidates: Vec<String>) -> Failure {
+pub(in crate::cli) fn failure(
+    kind: FailureKind,
+    reason: &'static str,
+    candidates: Vec<String>,
+) -> Failure {
     let mut failure = Failure::new(kind).details(Map::from_iter([
         ("stage".into(), json!("client-selection")),
         ("reason".into(), json!(reason)),

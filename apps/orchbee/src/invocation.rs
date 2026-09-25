@@ -495,6 +495,7 @@ pub(crate) enum QueryCommand {
     /// the shared absolute deadline lands.
     AgentWait {
         session: AgentTarget,
+        client: Option<WorkbenchClientId>,
         /// The effective condition list — `DEFAULT_AGENT_WAIT_CONDITIONS`
         /// verbatim when `--until` is absent. Requested order is preserved
         /// for matching and the emitted echo.
@@ -2512,6 +2513,7 @@ fn resolve_words(
             Ok(query(
                 QueryCommand::AgentWait {
                     session: agent_selector(rest, options, context, envelope)?,
+                    client: client_control::client_id(options, context, envelope)?,
                     until: agent_until_option(options, context, envelope)?,
                     after_revision: agent_after_revision_option(options, context, envelope)?,
                     timeout_ms: agent_wait_timeout_option(options, context, envelope)?,
@@ -4188,6 +4190,7 @@ const AGENT_LIST_SCOPE: Scope = Scope {
 /// timeout flag under the canonical wait meaning — the sole Agent scope
 /// that admits `--timeout`.
 const AGENT_WAIT_SCOPE: Scope = Scope {
+    client: true,
     panel: true,
     forever: true,
     name: true,
