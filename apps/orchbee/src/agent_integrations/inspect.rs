@@ -1146,11 +1146,19 @@ pub(crate) fn inspect_guarded_target(
     if !metadata.is_file() {
         return TargetState::Conflict;
     }
-    let expected = module_bootstrap(kind, integration_id, source_path);
-    match bounded_file(target, expected.len() as u64) {
-        Ok(Some(bytes)) if bytes == expected.as_bytes() => TargetState::Current,
-        Ok(_) => TargetState::Conflict,
-        Err(_) => TargetState::Conflict,
+    #[cfg(windows)]
+    {
+        let _ = source_path;
+        windows::inspect_module_target(target, kind, integration_id, source_relative, options)
+    }
+    #[cfg(unix)]
+    {
+        let expected = module_bootstrap(kind, integration_id, source_path);
+        match bounded_file(target, expected.len() as u64) {
+            Ok(Some(bytes)) if bytes == expected.as_bytes() => TargetState::Current,
+            Ok(_) => TargetState::Conflict,
+            Err(_) => TargetState::Conflict,
+        }
     }
 }
 

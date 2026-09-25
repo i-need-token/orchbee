@@ -105,9 +105,11 @@ pub(crate) const PROVIDERS: &[Provider] = &[
         node_applicable: true,
         home_target: "",
         bootstrap: None,
-        manual_command: Some(
-            "copilot plugins list --kind plugin --json; copilot plugins marketplace list --json",
-        ),
+        manual_command: Some(if cfg!(windows) {
+            "copilot plugin list --json; copilot plugin marketplace list --json"
+        } else {
+            "copilot plugins list --kind plugin --json; copilot plugins marketplace list --json"
+        }),
     },
     Provider {
         id: "grok",
@@ -132,7 +134,11 @@ pub(crate) const PROVIDERS: &[Provider] = &[
         executable: "opencode",
         kind: ProbeKind::Bootstrap,
         node_applicable: false,
-        home_target: ".config/opencode/plugins/orchbee-agent-observation.mjs",
+        home_target: if cfg!(windows) {
+            ".config/opencode/plugins/orchbee-agent-observation.js"
+        } else {
+            ".config/opencode/plugins/orchbee-agent-observation.mjs"
+        },
         bootstrap: Some(BootstrapShape {
             suffix: if cfg!(windows) {
                 "/bundle/opencode/orchbee-agent-observation.mjs"

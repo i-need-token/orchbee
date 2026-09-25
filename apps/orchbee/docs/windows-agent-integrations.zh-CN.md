@@ -77,3 +77,11 @@ Windows Codex 和 Grok 检查在既有 512 KiB 读取上限内解析完整 UTF-8
 Grok 的已安装 JSON 清单不报告启用状态。Windows 将精确归属的 bundle 来源及版本与用户配置关联：非空 GROK_HOME 优先，否则使用 USERPROFILE/.grok。无效覆盖不回退。显式 disabled 条目优先；未列出的用户插件处于禁用状态。这是本地接入配置状态：项目／托管策略及已经运行的会话仍由 provider 管理。启用使用既有 install/trust 或 enable 命令；禁用仅移除来源已证实的插件。即使来源是旧的自有 capsule，报告更新版本的插件仍阻止修复。
 
 Capsule 0.4.4 将固定 Node 引导编码到 Grok 的纯命令 hook 声明中。用户路径和 hook 输入均不成为 Shell 源码。Node 读取 GROK_PLUGIN_ROOT，并通过 pathToFileURL 导入拼接脚本；根目录／脚本缺失静默处理，Node 则是前提。既有输入、事件、传输及 hook 时限保持不变。真实 PowerShell 5.1／7 用例在隔离配置中执行交付命令和重定向 JSON stdin；不代表已认证 Grok 任务或新增 macOS／Linux 流程。
+
+## OpenCode 自动发现
+
+Windows 将受保护的 OpenCode 引导安装为 `plugins/orchbee-agent-observation.js`。Provider 的目录加载器扫描 .js／.ts，因此此前通过 Node 直接加载 .mjs 目标并不证明自动发现。Capsule 源码继续使用 .mjs。集成与 doctor 共用一个 Windows 路径所有者：非空且绝对的 XDG_CONFIG_HOME/opencode 优先，否则使用 USERPROFILE/.config/opencode。无效显式根目录不回退。
+
+检查合并当前 .js 和废弃 .mjs 目标。外来、较新或不可读条目阻止变更；自有废弃条目要求修复。启用先发布并验证当前入口，再重新检查并移除废弃的自有入口。失败或取消保留已提交效果并报告回执，不以补偿为由删除可用的新入口。禁用对两个目标使用相同保护。Explain 从既有检查中报告受保护写入／移除，不再次读取。Doctor 检查可被发现的 .js 入口；仅有旧安装时在此报告缺失，集成查询则要求修复。既有上限及 no-replace 原语不变。隔离的官方 OpenCode 1.18.30 debug-config 用例确认自动发现；此证据不包括认证及付费 Agent 任务。
+
+Windows 普通模块检查按解码后的绝对 file URL 验证完整固定引导，再分类精确的 capsule 根目录及载荷相对后缀。旧的自有模块可以修复；较新模块拒绝降级；修改过的代码及外来根目录仍为冲突。16 KiB 读取器不导入引用模块。此规则适用于既有 OpenCode、Pi 和 OMP 模块所有者；Unix 检查不变。

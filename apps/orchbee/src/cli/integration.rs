@@ -334,6 +334,7 @@ fn detail_json(detail: &InspectionDetail) -> Value {
         InspectionDetail::Guarded {
             target_state,
             source_ready,
+            ..
         } => json!({
             "kind": "guarded-filesystem",
             "targetState": target_state.as_str(),
@@ -624,6 +625,7 @@ fn detail_line(detail: &InspectionDetail) -> Option<String> {
         InspectionDetail::Guarded {
             target_state,
             source_ready,
+            ..
         } => Some(format!(
             "target-state: {}  source-ready: {}\n",
             target_state.as_str(),

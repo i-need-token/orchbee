@@ -114,7 +114,11 @@ const fn spec(id: IntegrationId) -> Spec {
             kind: Kind::Guarded(GuardedSpec {
                 kind: BootstrapKind::Opencode,
                 source_relative: "bundle/opencode/orchbee-agent-observation.mjs",
-                target_relative: ".config/opencode/plugins/orchbee-agent-observation.mjs",
+                target_relative: if cfg!(windows) {
+                    ".config/opencode/plugins/orchbee-agent-observation.js"
+                } else {
+                    ".config/opencode/plugins/orchbee-agent-observation.mjs"
+                },
                 runtime_relative: None,
             }),
             executable: "opencode",
@@ -218,6 +222,74 @@ pub(crate) fn guarded_spec(id: IntegrationId) -> Option<GuardedSpec> {
     match spec(id).kind {
         Kind::Guarded(guarded) => Some(guarded),
         _ => None,
+    }
+}
+
+/// The obsolete Windows OpenCode target was never discovered by its loader.
+pub(crate) fn obsolete_guarded_spec(id: IntegrationId) -> Option<GuardedSpec> {
+    #[cfg(windows)]
+    if id == IntegrationId::Opencode {
+        return Some(GuardedSpec {
+            target_relative: ".config/opencode/plugins/orchbee-agent-observation.mjs",
+            ..guarded_spec(id)?
+        });
+    }
+    let _ = id;
+    None
+}
+
+pub(crate) fn guarded_target(id: IntegrationId, spec: GuardedSpec, home: &Path) -> Option<PathBuf> {
+    #[cfg(windows)]
+    if id == IntegrationId::Opencode {
+        let paths = crate::agent_configuration_windows::opencode_entries(home)?;
+        let target = if spec.target_relative.ends_with(".mjs") {
+            paths.obsolete
+        } else {
+            paths.current
+        };
+        return super::files::path_admitted(&target).then_some(target);
+    }
+    let _ = id;
+    Some(home.join(spec.target_relative))
+}
+
+fn inspect_guarded_spec(
+    id: IntegrationId,
+    spec: GuardedSpec,
+    context: &ProviderContext,
+    options: &ResourceOptions,
+) -> TargetState {
+    let Some(target) = guarded_target(id, spec, context.home) else {
+        return TargetState::Unknown;
+    };
+    inspect::inspect_guarded_target(
+        &target,
+        spec.kind,
+        id,
+        &context.capsule_root.join(spec.source_relative),
+        Path::new(spec.source_relative),
+        options,
+    )
+}
+
+fn combine_guarded_targets(current: TargetState, obsolete: Option<TargetState>) -> TargetState {
+    use TargetState::*;
+    let Some(obsolete) = obsolete else {
+        return current;
+    };
+    if current == Newer || obsolete == Newer {
+        return Newer;
+    }
+    if current == Conflict || obsolete == Conflict {
+        return Conflict;
+    }
+    if current == Unknown || obsolete == Unknown {
+        return Unknown;
+    }
+    if obsolete != Missing {
+        UpdateRequired
+    } else {
+        current
     }
 }
 
@@ -414,21 +486,17 @@ pub(crate) fn inspect_full(
             let runtime_source = guarded
                 .runtime_relative
                 .map(|relative| context.capsule_root.join(relative));
-            let target = context.home.join(guarded.target_relative);
             let source_ready = inspect::guarded_source_ready(
                 &source_path,
                 guarded.kind,
                 runtime_source.as_deref(),
             );
-            let target_state = inspect::inspect_guarded_target(
-                &target,
-                guarded.kind,
-                id,
-                &source_path,
-                Path::new(guarded.source_relative),
-                &options,
-            );
-            let state = match target_state {
+            let target_state = inspect_guarded_spec(id, guarded, context, &options);
+            let obsolete_target_state = obsolete_guarded_spec(id)
+                .map(|old| inspect_guarded_spec(id, old, context, &options));
+            let combined_target_state =
+                combine_guarded_targets(target_state, obsolete_target_state);
+            let state = match combined_target_state {
                 TargetState::Missing => State::NotInstalled,
                 TargetState::Legacy | TargetState::UpdateRequired => State::UpdateRequired,
                 TargetState::Current if !source_ready => State::UpdateRequired,
@@ -439,10 +507,11 @@ pub(crate) fn inspect_full(
             };
             (
                 state,
-                target_state == TargetState::Unknown,
+                combined_target_state == TargetState::Unknown,
                 InspectionDetail::Guarded {
                     target_state,
                     source_ready,
+                    obsolete_target_state,
                 },
             )
         }
@@ -516,6 +585,7 @@ pub(crate) enum InspectionDetail {
     Guarded {
         target_state: TargetState,
         source_ready: bool,
+        obsolete_target_state: Option<TargetState>,
     },
     Plain,
 }

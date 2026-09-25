@@ -714,6 +714,16 @@ fn probe_bootstrap(
     let Some(shape) = &provider.bootstrap else {
         return final_verdict(HookState::Unknown, HookReason::NotInspected);
     };
+    #[cfg(windows)]
+    let target = if provider.id == "opencode" {
+        match crate::agent_configuration_windows::opencode_entries(home) {
+            Some(paths) => paths.current,
+            None => return final_verdict(HookState::Unknown, HookReason::NotInspected),
+        }
+    } else {
+        home.join(provider.home_target)
+    };
+    #[cfg(not(windows))]
     let target = home.join(provider.home_target);
     if !fs::path_admitted(&target) {
         return target_too_long(&target);

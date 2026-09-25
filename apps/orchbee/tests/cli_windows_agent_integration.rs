@@ -12,6 +12,121 @@ use std::{
 struct Fixture(PathBuf);
 
 #[test]
+fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
+    let fixture = Fixture::new();
+    fs::write(fixture.0.join("bin/opencode.cmd"), "@exit /b 0\r\n").unwrap();
+    let inspect = |verb| fixture.provider_document(verb, "opencode", 0);
+    inspect("enable");
+    let current = fixture
+        .home()
+        .join(".config/opencode/plugins/orchbee-agent-observation.js");
+    let obsolete = current.with_extension("mjs");
+    let bytes = fs::read(&current).unwrap();
+    fs::rename(&current, &obsolete).unwrap();
+    assert_eq!(inspect("explain")["result"]["state"], "update-required");
+    let plan = inspect("explain").to_string();
+    assert!(
+        plan.contains("guarded-write") && plan.contains("guarded-remove"),
+        "{plan}"
+    );
+    inspect("enable");
+    assert_eq!(fs::read(&current).unwrap(), bytes);
+    assert!(!obsolete.exists());
+    assert_eq!(inspect("explain")["result"]["state"], "enabled");
+    fs::copy(&current, &obsolete).unwrap();
+    let plan = inspect("explain").to_string();
+    assert!(
+        !plan.contains("guarded-write") && plan.contains("guarded-remove"),
+        "{plan}"
+    );
+    inspect("enable");
+    assert!(!obsolete.exists());
+    for (old, expected) in [
+        ("// foreign user module".to_string(), "conflict"),
+        (
+            String::from_utf8(bytes.clone())
+                .unwrap()
+                .replace("/0.4.4/", "/9.0.0/"),
+            "stale-side",
+        ),
+    ] {
+        fs::write(&obsolete, &old).unwrap();
+        assert_eq!(inspect("explain")["result"]["state"], expected);
+        fixture.provider_document("enable", "opencode", 3);
+        fixture.provider_document("disable", "opencode", 3);
+        assert_eq!(fs::read(&current).unwrap(), bytes);
+        assert_eq!(fs::read_to_string(&obsolete).unwrap(), old);
+    }
+    fs::write(
+        &obsolete,
+        String::from_utf8(bytes.clone())
+            .unwrap()
+            .replace("/0.4.4/", "/0.4.2/"),
+    )
+    .unwrap();
+    assert_eq!(inspect("explain")["result"]["state"], "update-required");
+    inspect("enable");
+    assert!(!obsolete.exists());
+    fs::write(&obsolete, vec![b'x'; 16 * 1024 + 1]).unwrap();
+    assert_eq!(inspect("explain")["result"]["state"], "unknown");
+    fixture.provider_document("enable", "opencode", 9);
+    assert_eq!(fs::read(&current).unwrap(), bytes);
+    fs::write(&obsolete, &bytes).unwrap();
+    inspect("disable");
+    assert!(!current.exists() && !obsolete.exists());
+
+    let xdg = fixture.0.join("独立 XDG config");
+    let output = fixture
+        .command("enable", "opencode", &fixture.config_home(), &[])
+        .env("XDG_CONFIG_HOME", &xdg)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let installed = xdg.join("opencode/plugins/orchbee-agent-observation.js");
+    assert!(installed.is_file());
+    assert!(!current.exists());
+    let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+        .args([
+            "agent",
+            "doctor",
+            "--provider",
+            "opencode",
+            "--format",
+            "json",
+        ])
+        .env("USERPROFILE", fixture.home())
+        .env("XDG_CONFIG_HOME", &xdg)
+        .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET_V3")
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    let document: Value = serde_json::from_slice(&doctor.stdout).unwrap();
+    assert_eq!(
+        document["result"]["providers"][0]["hook"]["state"], "present",
+        "{document}"
+    );
+    let output = fixture
+        .command("enable", "opencode", &fixture.config_home(), &[])
+        .env("XDG_CONFIG_HOME", "relative-config")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(9));
+    assert!(!current.exists());
+    assert_eq!(fs::read(&installed).unwrap(), bytes);
+    let output = fixture
+        .command("disable", "opencode", &fixture.config_home(), &[])
+        .env("XDG_CONFIG_HOME", &xdg)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert!(!installed.exists());
+}
+
+#[test]
 fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() {
     use std::os::windows::process::CommandExt;
     let fixture = Fixture::new();
@@ -210,7 +325,13 @@ impl Fixture {
         config_home: &Path,
         extra: &[&str],
     ) -> Output {
-        Command::new(env!("CARGO_BIN_EXE_orchbee"))
+        self.command(verb, provider, config_home, extra)
+            .output()
+            .unwrap()
+    }
+    fn command(&self, verb: &str, provider: &str, config_home: &Path, extra: &[&str]) -> Command {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_orchbee"));
+        command
             .args([
                 "agent",
                 "integration",
@@ -223,6 +344,7 @@ impl Fixture {
             ])
             .arg(self.assets())
             .args(extra)
+            .env_remove("XDG_CONFIG_HOME")
             .env("USERPROFILE", self.home())
             .env("HOME", self.0.join("wrong-posix-home"))
             .env("CODEX_HOME", config_home)
@@ -231,9 +353,8 @@ impl Fixture {
             .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")
             .env("LC_ALL", "en-US")
             .current_dir(&self.0)
-            .stdin(Stdio::null())
-            .output()
-            .unwrap()
+            .stdin(Stdio::null());
+        command
     }
     fn document(&self, verb: &str, code: i32) -> Value {
         self.provider_document(verb, "codex", code)
@@ -476,7 +597,7 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
     for (provider, relative) in [
         (
             "opencode",
-            ".config/opencode/plugins/orchbee-agent-observation.mjs",
+            ".config/opencode/plugins/orchbee-agent-observation.js",
         ),
         ("pi", ".pi/agent/extensions/orchbee-agent-observation.cjs"),
         ("omp", ".omp/agent/extensions/orchbee-agent-observation.cjs"),
@@ -531,6 +652,7 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
                 "json",
             ])
             .env("USERPROFILE", fixture.home())
+            .env_remove("XDG_CONFIG_HOME")
             .env(
                 "PATH",
                 std::env::join_paths([fixture.0.join("bin"), node.parent().unwrap().to_path_buf()])
@@ -546,6 +668,16 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
             "{inspection}"
         );
 
+        let old = String::from_utf8(original.clone())
+            .unwrap()
+            .replace("/0.4.4/", "/0.4.2/");
+        fs::write(&target, old).unwrap();
+        assert_eq!(
+            fixture.provider_document("explain", provider, 0)["result"]["state"],
+            "update-required"
+        );
+        fixture.provider_document("enable", provider, 0);
+        assert_eq!(fs::read(&target).unwrap(), original);
         let changed = [original.as_slice(), b"\n// User edit: preserve it\n"].concat();
         fs::write(&target, &changed).unwrap();
         assert_eq!(

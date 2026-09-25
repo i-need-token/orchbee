@@ -1,4 +1,4 @@
-//! Windows provider-owned TOML reads. Installation state is local configuration,
+//! Windows provider configuration and fixed-bootstrap inspection. Installation state is local,
 //! never a claim about project policy or an already-running provider session.
 use std::path::{Path, PathBuf};
 
@@ -6,12 +6,68 @@ use serde_json::Value;
 use sha2::Digest;
 use toml::Table;
 
+use super::super::model::IntegrationId;
 use super::{
-    CODEX_PLUGIN_ID, CodexInspection, GROK_PLUGIN_NAME, MARKETPLACE_NAME,
-    MAX_CODEX_CONFIGURATION_BYTES, Marketplace, PluginInspection, ResourceOptions,
-    ResourceOwnership, State, bounded_file_follow, classify_resource_root, read_string,
-    record_array, windows_plugin_version,
+    BOOTSTRAP_MARKER_PREFIX, BootstrapKind, CODEX_PLUGIN_ID, CodexInspection, GROK_PLUGIN_NAME,
+    MARKETPLACE_NAME, MAX_CODEX_CONFIGURATION_BYTES, Marketplace, PluginInspection,
+    ResourceOptions, ResourceOwnership, State, TargetState, bounded_file_follow,
+    classify_resource_root, module_bootstrap, read_string, record_array, resource_root_for_source,
+    windows_plugin_version,
 };
+
+pub(super) fn inspect_module_target(
+    target: &Path,
+    kind: BootstrapKind,
+    id: IntegrationId,
+    relative: &Path,
+    options: &ResourceOptions,
+) -> TargetState {
+    let bytes = match bounded_file_follow(target, 16 * 1024) {
+        Ok(Some(bytes)) => bytes,
+        _ => return TargetState::Unknown,
+    };
+    let source = module_source(&bytes, kind, id);
+    let Some(root) = source.and_then(|source| resource_root_for_source(&source, relative)) else {
+        return TargetState::Conflict;
+    };
+    match classify_resource_root(&root.to_string_lossy(), options) {
+        ResourceOwnership::Current => TargetState::Current,
+        ResourceOwnership::Legacy => TargetState::Legacy,
+        ResourceOwnership::Newer => TargetState::Newer,
+        ResourceOwnership::Foreign => TargetState::Conflict,
+    }
+}
+
+fn module_source(bytes: &[u8], kind: BootstrapKind, id: IntegrationId) -> Option<PathBuf> {
+    let text = std::str::from_utf8(bytes).ok()?;
+    let rest = text.strip_prefix(&format!("{BOOTSTRAP_MARKER_PREFIX}{}\n", id.as_str()))?;
+    let assignment = rest
+        .lines()
+        .next()?
+        .strip_prefix("const orchbeeAgentObservationModuleUrl = ")?
+        .strip_suffix(';')?;
+    let url: String = serde_json::from_str(assignment).ok()?;
+    let encoded = url.strip_prefix("file:///")?.as_bytes();
+    let mut decoded = Vec::with_capacity(encoded.len());
+    let mut index = 0;
+    while index < encoded.len() {
+        if encoded[index] == b'%' {
+            let digits = std::str::from_utf8(encoded.get(index + 1..index + 3)?).ok()?;
+            decoded.push(u8::from_str_radix(digits, 16).ok()?);
+            index += 3;
+        } else {
+            decoded.push(encoded[index]);
+            index += 1;
+        }
+    }
+    let source = PathBuf::from(String::from_utf8(decoded).ok()?);
+    if !super::super::files::path_admitted(&source) {
+        return None;
+    }
+    // Round-trip validates canonical URL spelling and every executable byte,
+    // rather than accepting an edited body that happens to carry our marker.
+    (module_bootstrap(kind, id, &source).as_bytes() == bytes).then_some(source)
+}
 
 fn configuration_path(home: &Path, variable: &str, default: &str) -> Option<PathBuf> {
     let configured = std::env::var_os(variable);

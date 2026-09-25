@@ -1228,9 +1228,13 @@ fn enable_vector(
             let Some(spec) = providers::guarded_spec(id) else {
                 return Attempt::Failed(FailureCode::OperationFailed);
             };
-            guarded_enable(
+            let outcome = guarded_enable(
                 id, spec, context, &options, initial, attempted, residuals, effect,
-            )
+            );
+            if !matches!(outcome, Attempt::Attempted) {
+                return outcome;
+            }
+            remove_obsolete_guarded(id, context, &options, attempted, effect)
         }
     }
 }
@@ -1438,7 +1442,11 @@ fn disable_vector(
             let Some(spec) = providers::guarded_spec(id) else {
                 return Attempt::Failed(FailureCode::OperationFailed);
             };
-            guarded_disable(id, spec, context, &options, attempted, effect)
+            let outcome = guarded_disable(id, spec, context, &options, attempted, effect);
+            if !matches!(outcome, Attempt::Attempted) {
+                return outcome;
+            }
+            remove_obsolete_guarded(id, context, &options, attempted, effect)
         }
     }
 }
@@ -1463,7 +1471,9 @@ fn guarded_enable(
     let runtime_source = spec
         .runtime_relative
         .map(|relative| context.capsule_root.join(relative));
-    let target = context.home.join(spec.target_relative);
+    let Some(target) = providers::guarded_target(id, spec, context.home) else {
+        return Attempt::Failed(FailureCode::OperationFailed);
+    };
     if !inspect::guarded_source_ready(&source_path, spec.kind, runtime_source.as_deref()) {
         return Attempt::Failed(FailureCode::OperationFailed);
     }
@@ -1787,6 +1797,25 @@ fn stage_entry(
     }
 }
 
+fn remove_obsolete_guarded(
+    id: IntegrationId,
+    context: &ProviderContext,
+    options: &inspect::ResourceOptions,
+    attempted: &mut Vec<AttemptedStep>,
+    effect: &mut bool,
+) -> Attempt {
+    let Some(old) = providers::obsolete_guarded_spec(id) else {
+        return Attempt::Attempted;
+    };
+    if cancelled(context) {
+        return Attempt::Cancelled;
+    }
+    if now() >= context.deadline {
+        return Attempt::Failed(FailureCode::TimedOut);
+    }
+    guarded_disable(id, old, context, options, attempted, effect)
+}
+
 fn guarded_disable(
     id: IntegrationId,
     spec: providers::GuardedSpec,
@@ -1796,7 +1825,9 @@ fn guarded_disable(
     effect: &mut bool,
 ) -> Attempt {
     let source_path = context.capsule_root.join(spec.source_relative);
-    let target = context.home.join(spec.target_relative);
+    let Some(target) = providers::guarded_target(id, spec, context.home) else {
+        return Attempt::Failed(FailureCode::OperationFailed);
+    };
     #[cfg(all(test, unix))]
     super::inject::boundary("remove-verify-owned", &target);
     let state = inspect::inspect_guarded_target(
@@ -1868,9 +1899,7 @@ pub(crate) enum PlannedStep {
     },
     /// A guarded filesystem effect on the provider-owned target.
     GuardedWrite { target: PathBuf },
-    /// Plan-vocabulary member — the enable vector never removes; the member
-    /// keeps the four-kind plan contract whole for the schema.
-    #[allow(dead_code)]
+    /// Removal of a source-proven obsolete target after current publication.
     GuardedRemove { target: PathBuf },
 }
 
@@ -2128,8 +2157,30 @@ pub(crate) fn plan_enable(
             let Some(spec) = providers::guarded_spec(id) else {
                 return steps;
             };
-            let target = context.home.join(spec.target_relative);
-            steps.push(PlannedStep::GuardedWrite { target });
+            let Some(target) = providers::guarded_target(id, spec, context.home) else {
+                return steps;
+            };
+            if providers::obsolete_guarded_spec(id).is_none()
+                || !matches!(
+                    detail,
+                    providers::InspectionDetail::Guarded {
+                        target_state: TargetState::Current,
+                        ..
+                    }
+                )
+            {
+                steps.push(PlannedStep::GuardedWrite { target });
+            }
+            if let providers::InspectionDetail::Guarded {
+                obsolete_target_state: Some(state),
+                ..
+            } = detail
+                && *state != TargetState::Missing
+                && let Some(old) = providers::obsolete_guarded_spec(id)
+                && let Some(target) = providers::guarded_target(id, old, context.home)
+            {
+                steps.push(PlannedStep::GuardedRemove { target });
+            }
         }
     }
     steps
