@@ -1,5 +1,8 @@
 use std::{error::Error, io};
 
+#[cfg(windows)]
+mod powershell;
+
 #[cfg(unix)]
 use nix::unistd::{Uid, User};
 use orchbee_capability_node_protocol::AbsoluteCwd;
@@ -18,7 +21,7 @@ pub(super) fn resolve(
     selection: Option<&orchbee_capability_node_protocol::LaunchSelection>,
     environment: &orchbee_capability_node_protocol::LaunchEnvironment,
 ) -> Result<ResolvedTerminalLaunchFacts, Box<dyn Error>> {
-    // An authorized selection is adopted verbatim: no PATH search, no shell
+    // An authorized selection keeps its executable: no PATH search, no shell
     // resolution, and no silent fallback to the default launch. The default
     // environment entries are protocol-fixed, so an explicit selection does
     // not depend on a usable shell existing on this Worker.
@@ -32,6 +35,8 @@ pub(super) fn resolve(
             (launch.executable, launch.arguments)
         }
     };
+    #[cfg(windows)]
+    let arguments = powershell::interactive_arguments(&executable, arguments);
     // An explicit authorized path requires no home-directory lookup or translation.
     let cwd = match explicit_cwd {
         Some(cwd) => cwd.clone(),

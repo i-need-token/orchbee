@@ -698,6 +698,7 @@ const DIRECTION_VALUES: &[(&str, &[&str])] = &[
 
 /// The closed semantic-key vocabulary `terminal send --key` accepts — the
 /// same names `invocation::TerminalSendKey` parses.
+const CWD_VALUES: &[&str] = &["follow", "home", "current", "workspace"];
 const RIGHT_CLICK_VALUES: &[&str] = &["orchbee", "panel"];
 
 const KEY_VALUES: &[&str] = &[
@@ -994,6 +995,7 @@ fn flag_bit(flag: &str) -> &'static str {
 fn flag_value(flag: &str) -> Option<&'static str> {
     match flag {
         "--on" | "--off" | "--toggle" | "--focus" | "--no-focus" => None,
+        "--cwd" => Some("cwd"),
         "--right-click" => Some("right_click"),
         "--direction" => Some("direction"),
         "--key" => Some("key"),
@@ -1565,12 +1567,14 @@ fn joined_offer_cases_bash() -> String {
         })
         .collect::<Vec<_>>()
         .join("\n");
+    let cwd = joined("--cwd", CWD_VALUES);
     let right_click = joined("--right-click", RIGHT_CLICK_VALUES);
     let key = joined("--key", KEY_VALUES);
     let until = joined("--until", UNTIL_VALUES);
     let provider = joined("--provider", PROVIDER_VALUES);
     format!(
         concat!(
+            "            --cwd) ((!seen_cwd)) && [[ $family:$sub == tab:create || $family:$sub == panel:split ]] && candidates=\"{cwd}\" ;;\n",
             "            --right-click)\n",
             "                if ((!seen_right_click)); then\n",
             "                    case \"$state\" in\n",
@@ -1620,6 +1624,7 @@ fn joined_offer_cases_bash() -> String {
             "                esac ;;\n",
         ),
         direction = direction,
+        cwd = cwd,
         right_click = right_click,
         key = key,
         until = until,
@@ -1884,6 +1889,7 @@ fn bash() -> String {
             "        case \"$family:$sub\" in\n",
             "{direction_cases}\n",
             "        esac\n",
+            "    elif [[ $value == cwd ]]; then [[ $family:$sub == tab:create || $family:$sub == panel:split ]] && candidates=\"{cwd_values}\"\n",
             "    elif [[ $value == right_click ]]; then candidates=\"{right_click_values}\"\n",
             "    elif [[ $value == key ]]; then candidates=\"{key_values}\"\n",
             "    elif [[ $value == until ]]; then candidates=\"{until_values}\"\n",
@@ -1971,6 +1977,7 @@ fn bash() -> String {
         topic_words = HELP_TOPICS.join(" "),
         help_paths = path_patterns(HELP_CHILDREN),
         format_values = FORMAT_VALUES.join(" "),
+        cwd_values = CWD_VALUES.join(" "),
         right_click_values = RIGHT_CLICK_VALUES.join(" "),
         key_values = KEY_VALUES.join(" "),
         until_values = UNTIL_VALUES.join(" "),
@@ -2234,6 +2241,7 @@ fn zsh() -> String {
             "        case \"$family:$sub\" in\n",
             "{direction_cases}\n",
             "        esac\n",
+            "    elif [[ $value == cwd ]]; then [[ $family:$sub == tab:create || $family:$sub == panel:split ]] && candidates=\"{cwd_values}\"\n",
             "    elif [[ $value == right_click ]]; then candidates=\"{right_click_values}\"\n",
             "    elif [[ $value == key ]]; then candidates=\"{key_values}\"\n",
             "    elif [[ $value == until ]]; then candidates=\"{until_values}\"\n",
@@ -2317,6 +2325,7 @@ fn zsh() -> String {
         topic_words = HELP_TOPICS.join(" "),
         help_paths = path_patterns(HELP_CHILDREN),
         format_values = FORMAT_VALUES.join(" "),
+        cwd_values = CWD_VALUES.join(" "),
         right_click_values = RIGHT_CLICK_VALUES.join(" "),
         key_values = KEY_VALUES.join(" "),
         until_values = UNTIL_VALUES.join(" "),
@@ -2741,12 +2750,14 @@ fn joined_offer_cases_fish() -> String {
         })
         .collect::<Vec<_>>()
         .join("\n");
+    let cwd = joined("--cwd", CWD_VALUES);
     let right_click = joined("--right-click", RIGHT_CLICK_VALUES);
     let key = joined("--key", KEY_VALUES);
     let until = joined("--until", UNTIL_VALUES);
     let provider = joined("--provider", PROVIDER_VALUES);
     format!(
         concat!(
+            "            case '--cwd'; if test $seen_cwd -eq 0; and contains -- \"$family:$sub\" tab:create panel:split; set candidates {cwd}; end\n",
             "            case '--right-click'\n",
             "                if test $seen_right_click -eq 0\n",
             "                    switch \"$state\"\n",
@@ -2788,6 +2799,7 @@ fn joined_offer_cases_fish() -> String {
             "                end\n",
         ),
         direction = direction,
+        cwd = cwd,
         right_click = right_click,
         key = key,
         until = until,
@@ -3033,6 +3045,7 @@ fn fish() -> String {
             "        switch \"$family:$sub\"\n",
             "{direction_cases}\n",
             "        end\n",
+            "    else if test \"$value\" = cwd; if contains -- \"$family:$sub\" tab:create panel:split; set candidates {cwd_values}; end\n",
             "    else if test \"$value\" = right_click; set candidates {right_click_values}\n",
             "    else if test \"$value\" = key; set candidates {key_values}\n",
             "    else if test \"$value\" = until; set candidates {until_values}\n",
@@ -3113,6 +3126,7 @@ fn fish() -> String {
         topics = HELP_TOPICS.join(" "),
         help_paths = path_patterns(HELP_CHILDREN).replace('|', " "),
         format_values = FORMAT_VALUES.join(" "),
+        cwd_values = CWD_VALUES.join(" "),
         right_click_values = RIGHT_CLICK_VALUES.join(" "),
         key_values = KEY_VALUES.join(" "),
         until_values = UNTIL_VALUES.join(" "),

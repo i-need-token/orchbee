@@ -46,8 +46,10 @@ Use `--format json` where declared. Standard output carries one machine document
 
 `tab create` and `panel split` accept `--cwd <absolute-path>` and repeatable `--env NAME=VALUE`,
 with the default shell, an explicit program, or `--profile`. Values are literal; an empty value is
-allowed. An explicit cwd overrides the accepted Workspace directory; without either, Worker home
-is used. The directory must already exist. These options do not modify the stored profile.
+allowed. On Windows, omitted cwd follows the resolved source Panel root process directory; an
+absolute path overrides it. `--cwd home|current|workspace` selects CLI home/current or Server
+Workspace/Worker-home defaults without a terminal read. An absent source retains those defaults.
+The directory must already exist. These options do not modify the stored profile.
 At most 32 environment entries and 1,024 UTF-8 name/value bytes are allowed; names are ASCII
 identifiers, unique ignoring case. Orchbee and terminal identity variables are reserved.
 Inspect the terminal outcome in the result: committed membership alone does not prove a process
@@ -120,12 +122,12 @@ Use `panel layout [<panel>] --client <id> --format json` to inspect cells withou
 
 `panel swap [source] --with <target>` exchanges two Panel positions in one Tab; `--direction left|right|up|down` selects a neighbor instead. It then focuses the source in one selected Windows Client. Use exact IDs or `@panel:<suffix>` and `--client` when routing is ambiguous. Same Panel, cross-Tab and no neighbor leave positions and focus unchanged. The `orchbee.panel.swap` receipt separates canonical commit from focus acknowledgment: a nonzero exit may retain a committed exchange. Inspect the receipt and layout before acting; never blindly repeat the swap. Use the focus operation ID with `client control-status` after interrupted waiting. See the [swap contract](native-panel-swap.md).
 
-Windows `tab create` and `panel split` accept optional targets and labels, with no focus by default; `--focus` requests post-creation focus, and split accepts a Client-local `--ratio`. Explicit targets can create without a TUI. `orchbee.creation.result` v1 separates committed creation from later ratio/focus results; a later failure is not permission to repeat creation. [Native terminal creation](native-terminal-creation.md) owns target selection, total budget, concurrency guards and recovery for these Windows commands.
+Windows `tab create` and `panel split` resolve `--cwd follow|home|current|workspace|<absolute-path>` before creation; follow is the default and samples the resolved source root process. Their v2 receipt records the chosen directory source/path. They accept optional targets and labels, with no focus by default; `--focus` requests post-creation focus, and split accepts a Client-local `--ratio`. Explicit targets can create without a TUI. `orchbee.creation.result` v2 separates committed creation from later ratio/focus results; a later failure is not permission to repeat creation. [Native terminal creation](native-terminal-creation.md) owns target selection, total budget, concurrency guards and recovery for these Windows commands.
 
-Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` sets the shared right-button policy without moving focus. `--current` requires validated caller metadata; explicit targets bypass it. `panel split --right-click` commits the new Panel policy with creation. The default `orchbee` reserves right-click to the Client; `panel` permits unmodified right clicks in mouse-reporting terminal content. An admitted gesture retains its matching release after policy changes. See the [Panel input contract](native-panel-input.md) for routing, pending-input rechecks and failure recovery. This does not add a context menu. `orchbee.panel.input` v1 reports `configured` or `unchanged`; `panel list` v2 and `panel get/current` v3 expose `rightClick`. `tab get` v2 and `api snapshot` v3 admit the optional canonical field. Catalog v32 has 68 schemas and the native inventory has 80 command paths.
+Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` sets the shared right-button policy without moving focus. `--current` requires validated caller metadata; explicit targets bypass it. `panel split --right-click` commits the new Panel policy with creation. The default `orchbee` reserves right-click to the Client; `panel` permits unmodified right clicks in mouse-reporting terminal content. An admitted gesture retains its matching release after policy changes. See the [Panel input contract](native-panel-input.md) for routing, pending-input rechecks and failure recovery. This does not add a context menu. `orchbee.panel.input` v1 reports `configured` or `unchanged`; `panel list` v2 and `panel get/current` v3 expose `rightClick`. `tab get` v2 and `api snapshot` v3 admit the optional canonical field. Catalog v33 has 68 schemas and the native inventory has 80 command paths.
 
 Windows `tab move <target> --insert-index N` moves a complete Tab to a zero-based boundary in the
 original order: 0 is first, the Tab count is last, source/source+1 are unchanged, and out-of-range
 values are refused. It excludes `--direction` and preserves focus and terminals. Success uses
-`orchbee.tab.move` v1; runtime failures use `orchbee.cli.failure.tab-move` v1. Catalog v32/68 keeps
+`orchbee.tab.move` v1; runtime failures use `orchbee.cli.failure.tab-move` v1. Catalog v33/68 keeps
 the legacy direction envelope unchanged.

@@ -77,7 +77,7 @@ pub(super) fn run(command: &CreationCommand, format: OutputFormat, locale: Local
 fn internal() -> Failure {
     Failure::new(FailureKind::InternalFailure)
 }
-fn check(signals: &mut ArmedSignals, deadline: Instant) -> Result<(), Failure> {
+pub(super) fn check(signals: &mut ArmedSignals, deadline: Instant) -> Result<(), Failure> {
     if signals.take().map_err(|_| internal())?.is_some() {
         Err(Failure::new(FailureKind::Cancelled))
     } else if Instant::now() >= deadline {
@@ -132,7 +132,16 @@ fn execute(
     } else {
         None
     };
-    let canonical = targeting::resolve(command, &snapshot, caller.as_ref(), selected.as_ref())?;
+    let mut canonical = targeting::resolve(command, &snapshot, caller.as_ref(), selected.as_ref())?;
+    let directory = super::directory::resolve(
+        command,
+        &mut canonical,
+        &snapshot,
+        (caller.as_ref(), selected.as_ref()),
+        &mut client,
+        deadline,
+        signals,
+    )?;
     check(signals, deadline)?;
     let canonical = mutation::submit_creation(
         &mut client,
@@ -142,6 +151,7 @@ fn execute(
         signals.poll_fd(),
     )?;
     *output = Some(Receipt {
+        directory,
         canonical,
         client_id: selected.as_ref().map(|client| client.client_id.clone()),
         requested_ratio: ratio,

@@ -81,6 +81,19 @@ impl Locale {
                 text.push_str(&format!("{name}: {}\n", escape(value)));
             }
         }
+        let (directory_policy, directory_source, directory_path) = match self {
+            Self::EnUs => ("Directory policy", "Directory source", "Directory"),
+            Self::ZhCn => ("目录策略", "目录来源", "目录"),
+        };
+        for (name, key) in [
+            (directory_policy, "policy"),
+            (directory_source, "source"),
+            (directory_path, "path"),
+        ] {
+            if let Some(value) = document["directory"][key].as_str() {
+                text.push_str(&format!("{name}: {}\n", escape(value)));
+            }
+        }
         for (name, value) in [(ratio, &post["ratio"]), (focus, &post["focus"])] {
             if value.is_object() {
                 text.push_str(&format!("{name}:\n{}", self.cli_client_control(value)));

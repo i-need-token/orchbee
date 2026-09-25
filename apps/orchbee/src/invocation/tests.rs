@@ -1,3 +1,4 @@
+use super::CreationDirectory;
 use super::{CreationCommand, CreationKind, SiteStopCommand};
 use std::ffi::OsString;
 
@@ -1432,6 +1433,11 @@ fn mutation(command: MutationCommand, format: OutputFormat) -> Request {
     };
     Request::Creation {
         command: CreationCommand {
+            directory: if options.cwd.is_some() {
+                CreationDirectory::Explicit
+            } else {
+                CreationDirectory::Default
+            },
             kind,
             label: Some(label),
             geometry,
@@ -7255,6 +7261,49 @@ fn tab_index_grammar_is_bounded_exclusive_and_order_independent() {
         vec!["tab", "move", ID, "--insert-index=1", "--insert-index=2"],
         vec!["tab", "rename", ID, "--insert-index=1", "--label=x"],
         vec!["panel", "move", ID, "--insert-index=1"],
+    ] {
+        assert!(parse(&args).is_err(), "{args:?}");
+    }
+}
+
+#[test]
+fn creation_directory_policies_are_scoped_and_preserve_absolute_overrides() {
+    for (value, expected) in [
+        ("follow", CreationDirectory::Follow),
+        ("home", CreationDirectory::Home),
+        ("current", CreationDirectory::Current),
+        ("workspace", CreationDirectory::Workspace),
+        (r"C:\项目 dir", CreationDirectory::Explicit),
+    ] {
+        for prefix in [
+            vec!["tab", "create"],
+            vec!["panel", "split", "--direction", "right"],
+        ] {
+            let mut args = prefix;
+            args.extend(["--cwd", value]);
+            let Request::Creation { command, .. } = parse(&args).unwrap() else {
+                panic!("creation");
+            };
+            assert_eq!(command.directory, expected);
+            assert_eq!(
+                command
+                    .options
+                    .cwd
+                    .as_ref()
+                    .map(WorkbenchDirectoryPath::as_str),
+                if expected == CreationDirectory::Explicit {
+                    Some(value)
+                } else {
+                    None
+                }
+            );
+        }
+    }
+    for args in [
+        vec!["tab", "create", "--cwd", "Follow"],
+        vec!["tab", "create", "--cwd", "relative"],
+        vec!["tab", "create", "--cwd", "home", "--cwd", "current"],
+        vec!["workspace", "create", "--cwd", "home"],
     ] {
         assert!(parse(&args).is_err(), "{args:?}");
     }

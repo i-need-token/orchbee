@@ -107,7 +107,7 @@ fn unavailable() -> Failure {
     Failure::new(FailureKind::NotFound)
 }
 
-fn panel<'a>(
+pub(super) fn panel<'a>(
     snapshot: &'a Snapshot,
     target: &Target,
 ) -> Result<

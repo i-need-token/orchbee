@@ -18,8 +18,8 @@ or Panel with no Client work remains usable headlessly. Multiple viable Clients 
 Creation labels are optional. The native fallback is the context's Tab count plus one for a Tab,
 or the owning Tab's Panel count plus one for a split, captured from the preflight Snapshot. It is
 a creation label, not a dynamic terminal title or a unique identifier. Existing geometry,
-exec/args, profile, cwd and environment validation retain their owners. Omitted cwd retains the
-native Workspace-directory/Worker-home policy; following an active process's cwd is separate work.
+exec/args, profile and environment validation retain their owners. Windows directory policy is
+resolved before creation as specified below; explicit paths remain per-launch overrides.
 
 `panel split --ratio` supplies the first child's share, independent of split direction. Finite
 numbers clamp to 0.1–0.9. The ratio belongs only to the selected TUI session; other Clients retain
@@ -57,7 +57,7 @@ resize acknowledgment. The canonical terminal launch may still be pending or hav
 
 ## Receipts and recovery
 
-Windows creation emits `orchbee.creation.result` v1 after a known canonical commit. It preserves
+Windows creation emits `orchbee.creation.result` v2 after a known canonical commit. It preserves
 the existing canonical `source` and `result` facts and separately records `postCreate`: requested
 ratio/focus, exact Client when needed, each submitted Client observation, stage and failure.
 Only completion of every requested Client phase is process success; a canonical commit alone does
@@ -69,14 +69,15 @@ JSON emits one complete bounded document to stdout. Failed text output goes to s
 known effects. After an incomplete result, inspect the returned identities and current state before
 choosing a follow-up; repeating creation may create another resource. Client control-status can
 observe a submitted Client operation. No durable workflow journal or restart restoration is added.
-The schema catalog is v32 with 68 documents; command-path count remains 80.
+The schema catalog is v33 with 68 documents; command-path count remains 80.
 
 ## Evidence and compatibility
 
 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` supplies optional current targeting, default
 no-focus, explicit focus/no-focus and split-ratio behavior. Native IDs, Client routing, numeric
-creation labels, cwd policy, f64 normalization and volatile Client ratios remain explicit native
-contracts. Right-click, dynamic naming and cwd-following are not claimed by this slice.
+creation labels, f64 normalization and volatile Client ratios remain explicit native
+contracts. Panel right-click policy is owned separately; dynamic positional naming and persistent
+default settings are not claimed by this contract.
 
 Grammar and completion witnesses cover omission, explicit forms, ambiguity, conflicts and bounds.
 Windows named-pipe process traces fault each phase and assert no replay and known-effect retention.
@@ -90,3 +91,41 @@ The additive Client guard requires a matched development cohort; older strict re
 it. Existing explicit non-Windows creation keeps its former route; new platform runtimes are not
 added. There is no durable migration. Source rollback is coordinated; already created resources
 remain user-owned and are closed only by an explicit later action.
+
+## Windows directory resolution model
+
+`--cwd` accepts an absolute path or `follow`, `home`, `current`, `workspace`. Omission means
+`follow`. An absolute path, the CLI's home/current directory, or `workspace` explicitly bypasses
+source observation; `workspace` retains the existing Server Workspace-directory/Worker-home
+default. The CLI resolves a policy into existing launch options before submitting creation.
+There is no new Server setting or retained directory policy.
+
+Follow uses the exact split source Panel. For a Tab it uses only the validated caller or already
+selected Client's Panel in the destination context. Explicit headless Tab creation does not select
+a Client to invent a source. A read-only viewer samples the exact primary Terminal's Windows Job;
+only the row matching its root PID supplies cwd. It never uses an arbitrary child/Agent process.
+A missing source or known unavailable/unusable root cwd retains launch defaults. Denial, invalid
+protocol, lost transport, interruption and timeout stop before creation. No failed read causes a
+canonical retry. Attachment drop/detach, reads and mutation share the command deadline.
+
+| State     | Permitted transition and evidence                                                                                   |
+| --------- | ------------------------------------------------------------------------------------------------------------------- |
+| Parsed    | Policy syntax is resolved before effect; other creation inputs keep their existing validation.                      |
+| Targeted  | One Snapshot fixes context, Panel and primary Terminal; unrelated Client selection is never used.                   |
+| Observing | One cancellable viewer sample has no controller, focus, resize or terminal input effect.                            |
+| Resolved  | A usable absolute cwd becomes the per-launch override; a known absence retains launch defaults.                     |
+| Creating  | The original Snapshot revision and existing canonical carrier fence the one submission.                             |
+| Finished  | Creation receipt v2 records requested policy, observed source/path and source Panel separately from launch success. |
+
+Process cwd is a point-in-time observation, not a lease; a later process-directory change is allowed.
+Directory existence can change before launch, whose existing typed failure remains authoritative.
+For Windows interactive PowerShell, the Worker-owned prompt integration synchronizes FileSystem
+location into process cwd. It applies only to recognized PowerShell/pwsh launches with no arguments
+or the exact NoLogo/NoProfile/NoExit switches. Existing terminals and arbitrary startup commands
+receive no retrofit; their observable process cwd may differ from a shell's private location.
+
+Core policy/source tests, actual PowerShell 5.1/7 prompt checks, named-pipe cancellation/fault cuts
+and Windows ConPTY creation traces cover this model. Existing phase ordering remains unchanged
+after directory resolution. TLA execution remains deferred. Persistent configurable defaults and
+automatic positional Tab labels are separate contracts. The receipt version requires a matching
+cohort; rollback does not rewrite user profiles or existing terminal processes.

@@ -9,6 +9,7 @@ use orchbee_workbench_protocol::{
 use serde_json::{Value, json};
 
 pub(super) struct Receipt {
+    pub(super) directory: super::directory::Resolution,
     pub(super) canonical: mutation::Receipt,
     pub(super) client_id: Option<WorkbenchClientId>,
     pub(super) requested_ratio: Option<ClientSplitRatio>,
@@ -59,7 +60,8 @@ impl Receipt {
     pub(super) fn document(&self) -> Value {
         let mut document = self.canonical.document();
         document["schema"] = json!("orchbee.creation.result");
-        document["version"] = json!(1);
+        document["version"] = json!(2);
+        document["directory"] = self.directory.document();
         document["postCreate"] = json!({
             "clientId":self.client_id,
             "requested":{"ratio":self.requested_ratio,"focus":self.requested_focus},

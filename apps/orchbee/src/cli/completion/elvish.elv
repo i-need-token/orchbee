@@ -144,6 +144,8 @@
         var enums = [&--format=$grammar[formats] &--mouse=[off on] &--right-click=$grammar[rightClick] &--key=$grammar[keys] &--until=$grammar[until] &--provider=$grammar[providers] &--kind=$grammar[agentKinds]]
         if (has-key $enums $pending) {
           for value $enums[$pending] { set candidates = [$@candidates $joined$value] }
+        } elif (eq $pending --cwd) {
+          for command $viable { for value $command[cwdValues] { set candidates = [$@candidates $joined$value] } }
         } elif (eq $pending --direction) {
           for command $viable { for value $command[directions] { set candidates = [$@candidates $joined$value] } }
         }

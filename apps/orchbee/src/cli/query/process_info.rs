@@ -38,7 +38,18 @@ pub(crate) fn read_terminal_processes(
     snapshot: &Snapshot,
     terminal: &Target,
 ) -> Result<(Value, results::PanelProcessInfoDoc), Failure> {
-    let (row, viewer, attachment, epoch, _) = attach_viewer(client, deadline, snapshot, terminal)?;
+    read_terminal_processes_cancellable(client, deadline, snapshot, terminal, None)
+}
+
+pub(crate) fn read_terminal_processes_cancellable(
+    client: &mut LocalClient,
+    deadline: Instant,
+    snapshot: &Snapshot,
+    terminal: &Target,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<(Value, results::PanelProcessInfoDoc), Failure> {
+    let (row, viewer, attachment, epoch, _) =
+        attach_viewer_cancellable(client, deadline, snapshot, terminal, wake)?;
     // All fallible work after attachment is inside the closure; even request
     // construction failure reaches detach. Dropping the session is the fallback.
     let outcome = (|| {
@@ -50,7 +61,7 @@ pub(crate) fn read_terminal_processes(
             },
         );
         let result = client
-            .submit_terminal_viewer_before(request, deadline)
+            .submit_terminal_viewer_cancellable(request, Some(deadline), wake)
             .map_err(classify_viewer)?;
         if Instant::now() >= deadline {
             return Err(Failure::new(FailureKind::Timeout));
@@ -82,7 +93,18 @@ pub(crate) fn read_terminal_processes(
             },
         ))
     })();
-    detach_viewer(client, deadline, viewer);
+    if let Ok(request_id) = obcs_request_id() {
+        let _ = client.submit_terminal_viewer_cancellable(
+            TerminalViewerRequest::new(
+                request_id,
+                TerminalViewerAction::Detach {
+                    attachment_id: viewer,
+                },
+            ),
+            Some(deadline),
+            wake,
+        );
+    }
     outcome
 }
 

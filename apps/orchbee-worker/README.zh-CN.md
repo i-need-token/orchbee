@@ -192,8 +192,8 @@ bracketed-paste mode；commit 在 Core 二次授权后于独立的 input-admissi
 
 ## 默认交互式 launch 解析
 
-当被准入的 OBCN Launch 携带显式 launch selection 时，request loop 改为逐字采用其 executable
-与 argument vector：不查 `PATH`、不做 shell 解析、不静默回退到默认 shell——spawn 失败即
+当被准入的 OBCN Launch 携带显式 launch selection 时，request loop 采用其 executable
+与 argument vector，仅应用下文 Windows 交互式 PowerShell 的特定调整：不查 `PATH`、不做 shell 解析、不静默回退到默认 shell——spawn 失败即
 Host 的 typed launch failure。该 selection 共享同样的默认 environment 与下述 cwd/profile 组合。
 
 Application-private `default_interactive_launch` module 仅在没有显式 selection 时为运行中的
@@ -782,3 +782,21 @@ InspectSource 解析包含源目录的检出；Open 允许主检出。Create 在
 ## Windows 按来源读取 Worktree
 
 `StartSource` 复用发现所有者及物理槽位。准入仅校验驱动器语法。所属任务规范化目录并准备信任，在启动前复查取消／deadline，再观察 Git 公共目录和检出根，再在同一个五秒 job 预算内列举 porcelain 条目。共享 `git_repository_windows` 清除继承的 `GIT_*` 仓库／配置注入，仅对本命令选定的准确规范仓库应用可选信任；变更也使用相同命令准备。原 Start 字节与行为不变。真实 Git 测试覆盖主／关联检出的子目录、不改动脏文件／配置、准确信任范围及所有者关闭。参见[来源查询契约](../orchbee/docs/windows-worktrees.zh-CN.md#按来源发现-worktree)。
+
+## Windows 交互式 PowerShell 目录模型
+
+启动事实所有者仅在 Windows 识别 `powershell[.exe]` 和 `pwsh[.exe]`，
+参数为空或最多三个完整且忽略大小写的 `-NoLogo`、`-NoProfile`、`-NoExit` 开关。
+保留这些开关，通过 `-NoExit -Command` 添加固定的进程内 prompt 包装。
+未知开关、脚本、命令字符串、其他程序和其他平台均保留原始启动参数。
+
+包装捕获 profile 定义的 prompt，首先调用它，使依赖状态的 prompt 能看到上条命令的成功状态，
+随后将 FileSystem provider 位置同步到 `[Environment]::CurrentDirectory`。
+非文件系统 provider 或赋值失败保留进程目录。每进程只安装一次，不写用户 profile，
+不插入启动数据，输出原 prompt 结果。原生 CLI 创建因而可通过根进程采样观察目录变化，
+无需获取终端输入权。
+
+这属于既有 Host 交接之前的启动准备，不是第二个 Shell／进程，也不表示终端已启动。
+现有终端不会补装。准入单测和实际 Windows PowerShell 5.1／7 prompt 测试覆盖自定义 prompt、
+失败命令、Unicode 目录、非文件系统 provider 和幂等。实际 ConPTY 创建检查 Set-Location 后的
+根进程 cwd。任意自定义启动命令不在集成范围内，不声称其 Shell 私有状态的目录准确性。

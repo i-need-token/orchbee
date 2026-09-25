@@ -1,6 +1,18 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee tab create --cwd ", "follow", true),
+    ("orchbee tab create --cwd h", "home", true),
+    ("orchbee panel split --cwd=current", "--cwd=current", true),
+    ("orchbee panel split --cwd=w", "--cwd=workspace", true),
+    ("orchbee workspace create --cwd ", "follow", false),
+    ("orchbee worktree list --cwd ", "home", false),
+    (
+        "orchbee tab create --cwd follow --cwd=",
+        "--cwd=home",
+        false,
+    ),
+    ("orchbee tab create --cwd follow --f", "--focus", true),
     ("orchbee tab move alpha --i", "--insert-index", true),
     ("orchbee --insert-index 2 tab ", "move", true),
     ("orchbee --insert-index 2 tab ", "rename", false),

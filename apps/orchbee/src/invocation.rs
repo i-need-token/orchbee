@@ -1,7 +1,7 @@
 mod client_control;
 mod creation;
 mod panel_input;
-pub(crate) use creation::{CreationCommand, CreationKind};
+pub(crate) use creation::{CreationCommand, CreationDirectory, CreationKind};
 mod schema_export;
 pub(crate) use client_control::{
     ClientCommand, ClientLayoutTarget, ClientNavigationTarget, LayoutQuery, PanelSwapCommand,
@@ -4516,9 +4516,16 @@ fn launch_options(
     context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<LaunchOptions, ParseFailure> {
-    let cwd = options
-        .cwd
-        .as_deref()
+    launch_options_with_directory(options, options.cwd.as_deref(), context, envelope)
+}
+
+fn launch_options_with_directory(
+    options: &Options,
+    directory: Option<&str>,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<LaunchOptions, ParseFailure> {
+    let cwd = directory
         .map(WorkbenchDirectoryPath::parse)
         .transpose()
         .map_err(|_| {

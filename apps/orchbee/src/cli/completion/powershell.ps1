@@ -145,6 +145,7 @@ __ORCHBEE_GRAMMAR__
             $enum = switch -CaseSensitive ($pending) {
                 '--format' { $grammar.formats }
                 '--mouse' { 'off'; 'on' }
+                '--cwd' { $viable | ForEach-Object { $_.cwdValues } }
                 '--direction' { $viable | ForEach-Object { $_.directions } }
                 '--right-click' { $grammar.rightClick }
                 '--key' { $grammar.keys }

@@ -327,13 +327,19 @@ impl LocalClient {
         request: TerminalViewerRequest,
         deadline: Option<Instant>,
     ) -> Result<TerminalViewerResult, SubmissionError> {
+        self.submit_terminal_viewer_cancellable(request, deadline, None)
+    }
+
+    pub(crate) fn submit_terminal_viewer_cancellable(
+        &mut self,
+        request: TerminalViewerRequest,
+        deadline: Option<Instant>,
+        wake: Option<BorrowedFd<'_>>,
+    ) -> Result<TerminalViewerResult, SubmissionError> {
         let request_id = request.request_id().clone();
         let action = request.action().clone();
         let message = ClientMessage::TerminalViewer(request);
-        let result = match deadline {
-            Some(deadline) => self.exchange_before(message, &request_id, deadline)?,
-            None => self.exchange(message, &request_id)?,
-        };
+        let result = self.exchange_with_wake(message, &request_id, deadline, wake)?;
         let ServerMessage::TerminalViewerResult(result) = result else {
             return self.retire_with_unknown(
                 request_id,
@@ -565,6 +571,16 @@ impl LocalClient {
         request_id: &RequestId,
         caller_deadline: Option<Instant>,
     ) -> Result<ServerMessage, SubmissionError> {
+        self.exchange_with_wake(request, request_id, caller_deadline, None)
+    }
+
+    fn exchange_with_wake(
+        &mut self,
+        request: ClientMessage,
+        request_id: &RequestId,
+        caller_deadline: Option<Instant>,
+        wake: Option<BorrowedFd<'_>>,
+    ) -> Result<ServerMessage, SubmissionError> {
         if self.connection.is_none() {
             return Err(SubmissionError::SessionUnavailable);
         }
@@ -592,7 +608,7 @@ impl LocalClient {
                 &self.clock,
                 deadline,
                 self.io_chunk_limits,
-                None,
+                wake,
                 &frame,
                 |io| read_server_message(io),
             )

@@ -226,7 +226,8 @@ codec/schema/process-test evidence, not model claims.
 ## Default interactive launch resolution
 
 When an admitted OBCN Launch carries an explicit launch selection, the request loop adopts its
-executable and argument vector verbatim instead: no `PATH` search, no shell resolution, and no
+executable and argument vector, with only the Windows interactive PowerShell refinement below:
+no `PATH` search, no shell resolution, and no
 silent fallback to the default shell — a spawn failure is the Host's typed launch failure. The
 selection shares the same default environment and cwd/profile composition below.
 
@@ -868,3 +869,25 @@ InspectSource resolves the checkout containing the source directory; Open permit
 ## Windows source-based Worktree reads
 
 `StartSource` reuses the discovery owner and physical slot. Admission validates drive syntax only. Its owned task canonicalizes the directory and prepares trust, rechecks cancellation/deadline before spawning, and observes common Git directory and checkout root, then lists porcelain entries under one five-second job budget. Shared `git_repository_windows` removes inherited `GIT_*` repository/config injection and applies optional trust to the exact canonical repository for this command only; mutations use the same command preparation. Legacy Start bytes and behavior remain unchanged. Real Git tests cover main/linked subdirectories, untouched dirty files/configuration, exact trust scope and owner shutdown. See the [source-query contract](../orchbee/docs/windows-worktrees.md#source-based-discovery).
+
+## Windows interactive PowerShell directory model
+
+The launch-fact owner recognizes only `powershell[.exe]` and `pwsh[.exe]` on Windows,
+with no arguments or at most three exact case-insensitive `-NoLogo`, `-NoProfile`,
+`-NoExit` switches. It preserves those switches and appends a constant in-process
+prompt wrapper through `-NoExit -Command`. Unknown flags, scripts, command strings,
+other executables and other platforms retain verbatim launch arguments.
+
+The wrapper captures the profile-defined prompt, invokes it first so status-aware prompts
+observe the previous command's success, then synchronizes a FileSystem provider location
+to `[Environment]::CurrentDirectory`. Non-filesystem providers and failed assignments leave
+the process directory unchanged. It installs once per process, never writes a user profile,
+never interpolates launch data, and emits the original prompt result. Root process sampling
+can then observe directory changes for native CLI creation without acquiring terminal input.
+
+This is launch preparation before the existing Host handoff, not a second shell/process or
+an acknowledgment that a terminal launched. Existing terminals receive no retrofit. Unit
+admission cases and actual Windows PowerShell 5.1/7 prompt tests cover custom prompts, failed
+commands, Unicode directories, non-filesystem providers and idempotence. Real ConPTY creation
+checks the root process cwd after Set-Location. Arbitrary custom startup commands remain outside
+this integration; no current-directory accuracy claim is made for their private shell state.

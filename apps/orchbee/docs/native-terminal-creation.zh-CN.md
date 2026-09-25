@@ -16,8 +16,8 @@ Windows `tab create` 和 `panel split` 先创建一个规范资源，再执行�
 
 创建标签可省略。原生默认标签是预检 Snapshot 中上下文的 Tab 数量加一，或分屏所在
 Tab 的 Panel 数量加一。它是创建标签，不是动态终端标题或唯一标识。已有几何、exec/args、
-profile、cwd 和环境变量校验沿用原所有者。省略 cwd 仍采用原生 Workspace 目录／Worker
-主目录策略；跟随活动进程 cwd 属于独立工作。
+profile 和环境变量校验沿用原所有者。Windows 在创建前按下述规则解析目录策略；
+显式路径仍是本次启动覆盖。
 
 `panel split --ratio` 指定第一个子区域的份额，与分屏方向无关。有限数字限制到 0.1–0.9。
 比例仅属于所选 TUI 会话，其他 Client 保留自己的权重。设置比例不隐含聚焦。右键输入
@@ -51,7 +51,7 @@ profile、cwd 和环境变量校验沿用原所有者。省略 cwd 仍采用原�
 
 ## 回执与恢复
 
-Windows 创建在已知规范提交后输出 `orchbee.creation.result` v1。保留已有规范 `source`
+Windows 创建在已知规范提交后输出 `orchbee.creation.result` v2。保留已有规范 `source`
 和 `result` 事实，另以 `postCreate` 记录请求的比例／焦点、必要时的精确 Client、各次
 已提交 Client 观测、阶段与失败。只有全部请求的 Client 阶段完成才是进程成功；单独规范
 提交不代表聚焦成功。无 Client 请求的无界面创建在收到规范回执后完成。已知提交前的
@@ -59,14 +59,15 @@ Windows 创建在已知规范提交后输出 `orchbee.creation.result` v1。保�
 
 JSON 向 stdout 输出一个完整有界文档。失败文本写 stderr 并包含已知效果。未完成时先
 检查返回身份与当前状态，再决定后续动作；重复创建可能再创建资源。Client control-status
-可观察已经提交的 Client 操作。不增加持久流程日志或重启恢复。schema 目录为 v32、68
+可观察已经提交的 Client 操作。不增加持久流程日志或重启恢复。schema 目录为 v33、68
 个文档；命令路径仍为 80 个。
 
 ## 证据与兼容性
 
 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 提供可选当前目标、默认不聚焦、显式
-focus/no-focus 及分屏比例行为。原生 ID、Client 路由、数字创建标签、cwd 策略、f64
-规范化及会话期比例仍是明确的原生契约。本切片不声称完成右键、动态命名及跟随 cwd。
+focus/no-focus 及分屏比例行为。原生 ID、Client 路由、数字创建标签、f64
+规范化及会话期比例仍是明确的原生契约。Panel 右键策略有独立所有者；本契约不声称
+实现动态位置标签及持久默认设置。
 
 语法与补全证据覆盖省略、显式形式、歧义、冲突及边界。Windows 命名管道进程轨迹在各
 阶段注入失败，并断言不重放及已知效果保留。两个规范载体均验证取消唤醒。独立 Rust、
@@ -78,3 +79,35 @@ TypeScript 和 JSON Schema 校验器覆盖可选 split 身份及不匹配回执�
 新增 Client 保护要求匹配的开发 cohort；旧严格读取者可能拒绝。已有显式非 Windows
 创建保留原路径，不新增平台运行时。不涉及持久迁移。源码回退需协调；已创建资源仍属
 用户，只有后续显式操作才能关闭。
+
+## Windows 目录解析模型
+
+`--cwd` 接受绝对路径或 `follow`、`home`、`current`、`workspace`，省略时为 `follow`。
+绝对路径、CLI 的主目录／当前目录或 `workspace` 明确跳过来源观测；`workspace` 保留现有
+Server Workspace 目录／Worker 主目录默认策略。CLI 在提交创建前将策略解析为现有启动选项，
+不新增 Server 设置或持久目录策略。
+
+Follow 使用精确的分屏来源 Panel。创建 Tab 时，只使用目标上下文内已验证的调用者或已选中
+Client 的 Panel。显式无界面 Tab 创建不会另选 Client 来猜测来源。只读 viewer 采样精确主
+Terminal 的 Windows Job，仅根 PID 对应行提供 cwd，不使用任意子进程／Agent 的目录。
+无来源或明确不可用／不可使用的根 cwd 保留启动默认值。拒绝、协议错误、传输丢失、中断和超时
+均在创建前停止，读取失败不会重试规范提交。attachment 释放、读取与变更共用整条命令的截止时间。
+
+| 状态      | 允许的转换及证据                                                                 |
+| --------- | -------------------------------------------------------------------------------- |
+| Parsed    | 效果前解析策略语法；其他创建输入保留原有校验。                                   |
+| Targeted  | 一次 Snapshot 固定上下文、Panel 和主 Terminal，不使用无关 Client 的选择。        |
+| Observing | 一次可取消 viewer 采样，不影响控制权、焦点、尺寸或终端输入。                     |
+| Resolved  | 可用绝对 cwd 成为单次启动覆盖；明确缺失则保留启动默认值。                        |
+| Creating  | 原 Snapshot 修订和既有规范载体约束唯一一次提交。                                 |
+| Finished  | 创建回执 v2 分别记录请求策略、观测来源／路径及来源 Panel，不将其等同于启动成功。 |
+
+进程 cwd 是某一时刻的观测，不是租约；之后改变进程目录是允许的。目录在启动前可能消失，
+启动的既有类型化失败仍为权威。Windows 交互式 PowerShell 通过 Worker 拥有的 prompt 集成
+将 FileSystem 位置同步到进程 cwd。仅识别 PowerShell／pwsh 且无参数或只有完整
+NoLogo／NoProfile／NoExit 开关的启动。不会改造现有终端或任意启动命令；它们可观测的进程 cwd
+可能与 Shell 的私有位置不同。
+
+核心策略／来源测试、实际 PowerShell 5.1／7 prompt 检查、命名管道取消／故障切面及 Windows
+ConPTY 创建轨迹覆盖此模型。目录解析后仍沿用既有阶段顺序。TLA 执行继续延期。持久默认配置和
+Tab 自动位置标签是独立契约。回执版本需要匹配 cohort；回滚不会修改用户 profile 或现有终端进程。

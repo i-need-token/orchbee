@@ -11,7 +11,9 @@ mod process_info;
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) use process_info::panel_process_info;
 #[cfg(windows)]
-pub(crate) use process_info::{primary_terminal, read_terminal_processes};
+pub(crate) use process_info::{
+    primary_terminal, read_terminal_processes, read_terminal_processes_cancellable,
+};
 
 #[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn panel_process_info(
@@ -1290,6 +1292,26 @@ fn attach_viewer(
     ),
     Failure,
 > {
+    attach_viewer_cancellable(client, deadline, snapshot, target, None)
+}
+
+#[cfg(any(target_os = "linux", windows))]
+fn attach_viewer_cancellable(
+    client: &mut LocalClient,
+    deadline: Instant,
+    snapshot: &Snapshot,
+    target: &Target,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<
+    (
+        super::results::TerminalRow,
+        ViewerId,
+        AttachmentId,
+        HostEpoch,
+        TerminalProjection,
+    ),
+    Failure,
+> {
     // Typed IDs and `@terminal:` selectors resolve against the snapshot's
     // complete bound set; the attach request carries the resolved full id.
     let row = super::results::terminal_select(snapshot, target)?;
@@ -1305,7 +1327,7 @@ fn attach_viewer(
         },
     );
     let result = client
-        .submit_terminal_viewer_before(attach, deadline)
+        .submit_terminal_viewer_cancellable(attach, Some(deadline), wake)
         .map_err(classify_viewer)?;
     match result.outcome() {
         TerminalViewerOutcome::Attached {

@@ -30,6 +30,16 @@ pub(super) fn build() -> serde_json::Value {
     );
     commands
         .push(json!({"words": ["tui"], "flags": ["--mouse"], "conflicts": [], "operand": 0, "directions": []}));
+    for command in &mut commands {
+        let words = &command["words"];
+        command["cwdValues"] = json!(if *words == json!(["tab", "create"])
+            || *words == json!(["panel", "split"])
+        {
+            super::CWD_VALUES
+        } else {
+            &[]
+        });
+    }
     let grammar = json!({
         "commands": commands,
         "valueFlags": BUSINESS_FLAGS.iter().copied().filter(|flag| flag_value(flag).is_some()).chain(["--format", "--mouse"]).collect::<Vec<_>>(),

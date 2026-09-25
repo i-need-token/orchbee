@@ -9,6 +9,8 @@ use crate::{
 use orchbee_workbench_protocol::WorkbenchLabel;
 
 #[cfg(windows)]
+mod directory;
+#[cfg(windows)]
 mod receipt;
 #[cfg(windows)]
 mod targeting;
@@ -34,7 +36,11 @@ pub(crate) fn run(command: &CreationCommand, format: OutputFormat, locale: Local
             } => Some((None, Some(target.clone()))),
             _ => None,
         };
-        if !command.focus
+        if matches!(
+            command.directory,
+            crate::invocation::CreationDirectory::Default
+                | crate::invocation::CreationDirectory::Explicit
+        ) && !command.focus
             && command.client.is_none()
             && let (Some((context, target)), Some(label)) = (explicit, &command.label)
         {

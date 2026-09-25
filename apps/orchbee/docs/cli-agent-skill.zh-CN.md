@@ -46,8 +46,9 @@ Windows 上可用 `agent doctor` 离线检查本机配置。`agent integration l
 
 `tab create` 和 `panel split` 接受 `--cwd <absolute-path>` 与可重复的 `--env NAME=VALUE`，
 可配合默认 shell、显式程序或 `--profile`。值逐字保留，允许空值。
-显式 cwd 覆盖已接纳的 Workspace 目录；均未提供时使用 Worker 主目录。
-目录必须已存在。这些选项不修改已存储的配置。
+Windows 省略 cwd 时跟随已解析来源 Panel 的根进程目录；绝对路径直接覆盖。
+`--cwd home|current|workspace` 选择 CLI 主目录／当前目录或 Server Workspace／Worker 主目录默认值，
+无需读取终端。来源缺失则保留这些默认值。目录必须已存在，这些选项不修改已存储的配置。
 环境至多 32 项，名称和值合计不超过 1,024 UTF-8 字节；名称为 ASCII 标识符，
 忽略大小写后必须唯一。Orchbee 和终端身份变量保留。
 检查结果中的终端 outcome：成员关系已提交并不证明进程已启动。
@@ -117,11 +118,11 @@ Windows 上，`orchbee api schema [<schema-id>] --output <path>` 将相同 JSON 
 
 `panel swap [source] --with <target>` 交换同一 Tab 中两个 Panel 的位置；改用 `--direction left|right|up|down` 可选择邻居。随后在选中的 Windows Client 聚焦来源。使用精确 ID 或 `@panel:<suffix>`，路由不明确时指定 `--client`。同一 Panel、跨 Tab 和无邻居保持位置与焦点不变。`orchbee.panel.swap` 回执区分 canonical 提交与聚焦确认：非零退出码仍可能保留已提交交换。继续操作前先检查回执和布局，绝不盲目重试交换。等待中断后可用聚焦操作 ID 调用 `client control-status`。参见[交换契约](native-panel-swap.zh-CN.md)。
 
-Windows `tab create` 和 `panel split` 接受可选目标及标签，默认不聚焦；`--focus` 请求创建后聚焦，分屏可带 Client 独立的 `--ratio`。显式目标无需 TUI 即可创建。`orchbee.creation.result` v1 分别报告已提交创建与后续比例／焦点结果；后续失败不能当作未创建而重试。参见[原生终端创建](native-terminal-creation.zh-CN.md)，其目标、总预算、并发保护和恢复规则为这些 Windows 命令的权威。
+Windows `tab create` 和 `panel split` 在创建前解析 `--cwd follow|home|current|workspace|<absolute-path>`；默认 follow 采样已解析来源的根进程目录，v2 回执记录实际目录来源／路径。它们接受可选目标及标签，默认不聚焦；`--focus` 请求创建后聚焦，分屏可带 Client 独立的 `--ratio`。显式目标无需 TUI 即可创建。`orchbee.creation.result` v2 分别报告已提交创建与后续比例／焦点结果；后续失败不能当作未创建而重试。参见[原生终端创建](native-terminal-creation.zh-CN.md)，其目标、总预算、并发保护和恢复规则为这些 Windows 命令的权威。
 
-Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` 设置共享右键策略，不移动焦点。`--current` 要求有效调用者元数据，显式目标绕过它。`panel split --right-click` 随创建提交新 Panel 策略。默认 `orchbee` 将右键保留给 Client；`panel` 允许无修饰键的右键在启用鼠标上报的终端内容内透传。已准入的手势在策略改变后仍保留匹配的松开事件。路由、排队输入复核及失败恢复见[Panel 输入契约](native-panel-input.zh-CN.md)。本功能不新增上下文菜单。`orchbee.panel.input` v1 返回 `configured` 或 `unchanged`；`panel list` v2 与 `panel get/current` v3 提供 `rightClick`，`tab get` v2 和 `api snapshot` v3 接受可选规范字段。目录 v32 含 68 个 schema，原生命令清单含 80 条路径。
+Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` 设置共享右键策略，不移动焦点。`--current` 要求有效调用者元数据，显式目标绕过它。`panel split --right-click` 随创建提交新 Panel 策略。默认 `orchbee` 将右键保留给 Client；`panel` 允许无修饰键的右键在启用鼠标上报的终端内容内透传。已准入的手势在策略改变后仍保留匹配的松开事件。路由、排队输入复核及失败恢复见[Panel 输入契约](native-panel-input.zh-CN.md)。本功能不新增上下文菜单。`orchbee.panel.input` v1 返回 `configured` 或 `unchanged`；`panel list` v2 与 `panel get/current` v3 提供 `rightClick`，`tab get` v2 和 `api snapshot` v3 接受可选规范字段。目录 v33 含 68 个 schema，原生命令清单含 80 条路径。
 
 Windows `tab move <target> --insert-index N` 按原顺序的零基插入边界移动完整 Tab；0 为首位，
 Tab 总数为末尾，源边界及其后一边界无变化，越界拒绝。它与 `--direction` 互斥，不改变焦点或终端。
-成功使用 `orchbee.tab.move` v1，运行时失败使用 `orchbee.cli.failure.tab-move` v1。目录 v32/68，
+成功使用 `orchbee.tab.move` v1，运行时失败使用 `orchbee.cli.failure.tab-move` v1。目录 v33/68，
 原方向封装不变。

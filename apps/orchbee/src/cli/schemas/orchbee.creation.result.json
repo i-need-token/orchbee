@@ -4,13 +4,13 @@
 	"title": "Windows terminal creation and requested Client effects",
 	"type": "object",
 	"additionalProperties": false,
-	"required": ["schema", "version", "source", "result", "postCreate"],
+	"required": ["schema", "version", "source", "result", "postCreate", "directory"],
 	"properties": {
 		"schema": {
 			"const": "orchbee.creation.result"
 		},
 		"version": {
-			"const": 1
+			"const": 2
 		},
 		"source": {
 			"$ref": "#/$defs/canonical/$defs/commandSource"
@@ -167,6 +167,141 @@
 					"enum": ["not-requested", "completed", "incomplete"]
 				}
 			}
+		},
+		"directory": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["policy", "source", "path", "sourcePanelId"],
+			"properties": {
+				"policy": {
+					"enum": ["follow", "explicit", "home", "current", "workspace"]
+				},
+				"source": {
+					"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
+				},
+				"path": {
+					"type": ["string", "null"],
+					"minLength": 1,
+					"maxLength": 4096
+				},
+				"sourcePanelId": {
+					"anyOf": [
+						{
+							"type": "string",
+							"pattern": "^[0-9a-f]{32}$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"source": {
+								"const": "launch-default"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"path": {
+								"type": "null"
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"path": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"source": {
+								"const": "terminal-process"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"sourcePanelId": {
+								"type": "string",
+								"pattern": "^[0-9a-f]{32}$"
+							}
+						}
+					}
+				}
+			],
+			"oneOf": [
+				{
+					"properties": {
+						"policy": {
+							"const": "follow"
+						},
+						"source": {
+							"enum": ["launch-default", "terminal-process"]
+						}
+					}
+				},
+				{
+					"properties": {
+						"policy": {
+							"const": "explicit"
+						},
+						"source": {
+							"enum": ["argument"]
+						},
+						"sourcePanelId": {
+							"type": "null"
+						}
+					}
+				},
+				{
+					"properties": {
+						"policy": {
+							"const": "home"
+						},
+						"source": {
+							"enum": ["home"]
+						},
+						"sourcePanelId": {
+							"type": "null"
+						}
+					}
+				},
+				{
+					"properties": {
+						"policy": {
+							"const": "current"
+						},
+						"source": {
+							"enum": ["current"]
+						},
+						"sourcePanelId": {
+							"type": "null"
+						}
+					}
+				},
+				{
+					"properties": {
+						"policy": {
+							"const": "workspace"
+						},
+						"source": {
+							"enum": ["launch-default"]
+						},
+						"sourcePanelId": {
+							"type": "null"
+						}
+					}
+				}
+			]
 		}
 	},
 	"$defs": {
