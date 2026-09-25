@@ -1,3 +1,4 @@
+mod runtime;
 use super::*;
 use crate::cli::{
     Failure, FailureKind,
@@ -19,7 +20,7 @@ use std::time::{Duration, Instant};
 pub(super) fn run(
     command: &QueryCommand,
     target: &AgentTarget,
-    selected: &WorkbenchClientId,
+    selected: Option<&WorkbenchClientId>,
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
@@ -45,25 +46,36 @@ pub(super) fn run(
             deadline,
             signals.poll_fd(),
         )?;
-        let attention = read(
-            &mut client,
-            &snapshot,
-            selected,
-            &id,
-            deadline,
-            &mut signals,
-        )?;
-        let canonical =
-            query::read_agent_observation(&mut client, &id, deadline, signals.poll_fd())?;
-        let view =
-            attention.corroborate(&mut client, &snapshot, &canonical, deadline, &mut signals)?;
+        let attention = selected
+            .map(|selected| {
+                read(
+                    &mut client,
+                    &snapshot,
+                    selected,
+                    &id,
+                    deadline,
+                    &mut signals,
+                )
+            })
+            .transpose()?;
+        let initial = query::read_agent_observation(&mut client, &id, deadline, signals.poll_fd())?;
+        let (canonical, runtime) =
+            runtime::read(&mut client, &snapshot, initial, deadline, &mut signals)?;
+        let view = attention
+            .map(|attention| {
+                attention
+                    .corroborate(&mut client, &snapshot, &canonical, deadline, &mut signals)
+                    .map(Box::new)
+            })
+            .transpose()?;
         check(deadline, &mut signals)?;
         Ok((
             results::agent_source(&canonical.request_id),
-            results::Projection::AgentClientGet(Box::new(results::AgentClientGetDoc {
+            results::Projection::AgentInspection(Box::new(results::AgentInspectionDoc {
                 revision: canonical.revision,
                 session: canonical.session,
                 client: view,
+                runtime,
             })),
         ))
     })();

@@ -389,7 +389,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     let document = json!({
         "schema": "orchbee.api.schema",
         // Catalog v42 adds selected Client Agent attention observations.
-        "version": 47,
+        "version": 48,
         "source": embedded_source(),
         "result": result,
     });

@@ -180,6 +180,9 @@ fn named_get_and_explain_share_one_admission_and_publish_only_the_read_source() 
     for verb in ["get", "explain"] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
+            if verb == "get" {
+                bound_snapshot_reply(&mut stream);
+            }
             let resolution = resolve_reply(
                 &mut stream,
                 json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"name"}),
@@ -191,6 +194,14 @@ fn named_get_and_explain_share_one_admission_and_publish_only_the_read_source() 
             }
             let read = read_reply(&mut stream, verb, outcome);
             assert_ne!(resolution, read);
+            if verb == "get" {
+                process_reply(&mut stream, vec![process(10, None, "claude-code.exe")]);
+                read_reply(
+                    &mut stream,
+                    "get",
+                    json!({"kind":"found","revision":7,"session":session_detail("sess-alpha")}),
+                );
+            }
             assert_closed(&mut stream);
         });
         let output = fixture.run(&["agent", verb, "alpha", "--format", "json"]);
@@ -282,6 +293,9 @@ fn unresolved_name_publishes_its_own_failure_without_get_or_wait_poll() {
     for verb in ["get", "explain", "wait"] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
+            if verb == "get" {
+                bound_snapshot_reply(&mut stream);
+            }
             resolve_reply(&mut stream, json!({"kind":"rejected","reason":"not-found"}));
             assert_closed(&mut stream);
         });
@@ -304,6 +318,13 @@ fn explicit_session_bypasses_name_resolution_even_for_a_valid_alias_spelling() {
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
+        bound_snapshot_reply(&mut stream);
+        read_reply(
+            &mut stream,
+            "get",
+            json!({"kind":"found","revision":7,"session":session_detail("sess-alpha")}),
+        );
+        process_reply(&mut stream, vec![process(10, None, "claude-code.exe")]);
         read_reply(
             &mut stream,
             "get",
@@ -329,6 +350,7 @@ fn named_get_resolution_and_read_share_the_original_five_second_deadline() {
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
+        bound_snapshot_reply(&mut stream);
         // Spending most of the command budget on resolution must leave only
         // the remainder for Get; renewing another five seconds would fail.
         let AgentRequest::Names(request) = read_agent_request(&mut stream).unwrap() else {
@@ -854,6 +876,14 @@ fn panel_get_and_wait_share_admission_and_pin_the_primary_presentations_session(
                 if wait {
                     wait::checkpoint(&mut stream, 1);
                 }
+                read_reply(
+                    &mut stream,
+                    "get",
+                    json!({"kind":"found","revision":2,"session":detail}),
+                );
+            }
+            if !wait {
+                process_reply(&mut stream, vec![process(10, None, "claude-code.exe")]);
                 read_reply(
                     &mut stream,
                     "get",

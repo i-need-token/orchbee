@@ -75,7 +75,15 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
         QueryCommand::AgentWait {
             client: Some(_), ..
         } => 4,
-        QueryCommand::AgentClientGet { .. } => 2,
+        #[cfg(windows)]
+        QueryCommand::AgentGet(_) => 3,
+        QueryCommand::AgentClientGet { .. } => {
+            if cfg!(windows) {
+                4
+            } else {
+                2
+            }
+        }
         QueryCommand::TerminalSourceWait { .. } => 3,
         QueryCommand::TerminalOutput { ansi: true, .. } => 2,
         QueryCommand::PanelGet(_) | QueryCommand::PanelCurrent(_) => 3,
@@ -1016,7 +1024,7 @@ pub(crate) enum Projection {
     AgentChanges(orchbee_agent_observation_protocol::AgentChangesOutcome),
     /// The typed `found` outcome, verbatim from the wire.
     AgentGet(AgentGetOutcome),
-    AgentClientGet(Box<AgentClientGetDoc>),
+    AgentInspection(Box<AgentInspectionDoc>),
     /// The typed `found` outcome carrying session plus explanation.
     AgentExplain(AgentExplainOutcome),
     /// The `agent wait` matched answer: the satisfying session detail
@@ -1073,10 +1081,35 @@ pub(crate) struct AgentWaitDoc {
 }
 
 #[derive(Debug)]
-pub(crate) struct AgentClientGetDoc {
+pub(crate) struct AgentInspectionDoc {
     pub(crate) revision: AgentSafeInteger,
     pub(crate) session: Box<AgentSessionDetail>,
-    pub(crate) client: AgentClientViewDoc,
+    pub(crate) client: Option<Box<AgentClientViewDoc>>,
+    pub(crate) runtime: AgentRuntimeDoc,
+}
+
+#[derive(Debug)]
+pub(crate) enum AgentRuntimeDoc {
+    Unavailable(&'static str),
+    Observed {
+        source: Value,
+        processes: Box<PanelProcessInfoDoc>,
+        prompt_ready: bool,
+    },
+}
+impl AgentRuntimeDoc {
+    fn document(&self) -> Value {
+        match self {
+            Self::Unavailable(reason) => json!({"kind":"unavailable","reason":reason}),
+            Self::Observed {
+                source,
+                processes,
+                prompt_ready,
+            } => {
+                json!({"kind":"observed","source":source,"processInfo":panel_process_result(processes),"promptReady":prompt_ready})
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -1142,6 +1175,32 @@ pub(crate) enum LaunchProfileCatalogSelection {
     Profile(LaunchProfileEntry),
 }
 
+fn panel_process_result(doc: &PanelProcessInfoDoc) -> Value {
+    let view = super::processes::interpret(&doc.info);
+    json!({
+        "terminal": terminal_row_json(&doc.terminal),
+        "scope": "windows-job",
+        "rootPid": doc.info.root_pid,
+        "foreground": {
+            "kind": view.foreground.selection.as_str(),
+            "pid": view.foreground.pid,
+            "providerId": view.foreground.provider,
+        },
+        "processes": view.processes.iter().map(|row| {
+            let process = row.facts;
+            json!({
+            "pid": process.pid,
+            "parentPid": process.parent_pid,
+            "creationTime": process.creation_time.to_string(),
+            "image": process.image,
+            "commandLine": process.command_line,
+            "currentDirectory": process.current_directory,
+            "argv": row.argv,
+            "providerId": row.provider,
+        })}).collect::<Vec<_>>(),
+    })
+}
+
 impl Projection {
     /// The `result` member of the machine envelope.
     pub(crate) fn result(&self) -> Value {
@@ -1151,9 +1210,13 @@ impl Projection {
             Self::AgentList(outcome) => json!(outcome),
             Self::AgentChanges(outcome) => json!(outcome),
             Self::AgentGet(outcome) => json!(outcome),
-            Self::AgentClientGet(doc) => json!({
-                "kind":"found", "revision":doc.revision, "session":doc.session, "client":doc.client.document(),
-            }),
+            Self::AgentInspection(doc) => {
+                let mut result = json!({"kind":"found","revision":doc.revision,"session":doc.session,"runtime":doc.runtime.document()});
+                if let Some(client) = &doc.client {
+                    result["client"] = client.document();
+                }
+                result
+            }
             Self::AgentExplain(outcome) => json!(outcome),
             Self::AgentWait(doc) => {
                 // The wait echo carries every effective parameter the poll
@@ -1308,31 +1371,7 @@ impl Projection {
                     })
                     .collect::<Vec<_>>(),
             }),
-            Self::PanelProcessInfo(doc) => {
-                let view = super::processes::interpret(&doc.info);
-                json!({
-                    "terminal": terminal_row_json(&doc.terminal),
-                    "scope": "windows-job",
-                    "rootPid": doc.info.root_pid,
-                    "foreground": {
-                        "kind": view.foreground.selection.as_str(),
-                        "pid": view.foreground.pid,
-                        "providerId": view.foreground.provider,
-                    },
-                    "processes": view.processes.iter().map(|row| {
-                        let process = row.facts;
-                        json!({
-                        "pid": process.pid,
-                        "parentPid": process.parent_pid,
-                        "creationTime": process.creation_time.to_string(),
-                        "image": process.image,
-                        "commandLine": process.command_line,
-                        "currentDirectory": process.current_directory,
-                        "argv": row.argv,
-                        "providerId": row.provider,
-                    })}).collect::<Vec<_>>(),
-                })
-            }
+            Self::PanelProcessInfo(doc) => panel_process_result(doc),
             Self::PanelGet(doc) => json!({
                 "panel": {
                     "panelId": doc.row.panel_id,

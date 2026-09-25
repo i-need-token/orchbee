@@ -84,7 +84,7 @@ durable state or migration is introduced.
 ## Public output and evidence
 
 `orchbee.status.client` and `orchbee.status.server` are v1 documents with local-runtime provenance;
-the catalog becomes v47 with 72 schemas and the native inventory has 86 command paths. Required
+the catalog becomes v48 with 72 schemas and the native inventory has 86 command paths. Required
 discriminated metadata fields distinguish observed Server data, absence and unavailable local
 cohort information. Paths use the existing lossless Windows path representation. Human strings
 and paths are escaped through the common text renderer; JSON bytes do not depend on locale.

@@ -121,6 +121,16 @@ fn selected_client_get_joins_only_current_versions_and_keeps_canonical_outcome()
                 "get",
                 json!({"kind":"found","revision":3,"session":completed()}),
             );
+            peer_support::process_sample_for(
+                &mut stream,
+                Ok(vec![peer_support::process(10, None, "codex.exe")]),
+                &id(206),
+            );
+            read_reply(
+                &mut stream,
+                "get",
+                json!({"kind":"found","revision":3,"session":completed()}),
+            );
             assert_closed(&mut stream);
         });
         let output = fixture.run(&[
@@ -139,7 +149,7 @@ fn selected_client_get_joins_only_current_versions_and_keeps_canonical_outcome()
             &doc,
             include_str!("../../src/cli/schemas/orchbee.agent.get.json"),
         );
-        assert_eq!(doc["version"], 2);
+        assert_eq!(doc["version"], 4);
         assert_eq!(doc["result"]["session"]["status"]["kind"], "succeeded");
         let client = &doc["result"]["client"];
         assert_eq!(client["state"], expected_state);
@@ -169,6 +179,16 @@ fn selected_client_get_checks_intervening_changes_and_refuses_foreign_boot() {
                 if case == "same-session" {
                     current["snapshot"]["observation"]["freshness"] = json!("stale");
                 }
+                read_reply(
+                    &mut stream,
+                    "get",
+                    json!({"kind":"found","revision":4,"session":current}),
+                );
+                peer_support::process_sample_for(
+                    &mut stream,
+                    Ok(vec![peer_support::process(10, None, "codex.exe")]),
+                    &id(206),
+                );
                 read_reply(
                     &mut stream,
                     "get",

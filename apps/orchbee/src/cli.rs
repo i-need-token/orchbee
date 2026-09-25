@@ -575,10 +575,17 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
             }
         }
         QueryCommand::AgentGet(session_id) => {
-            agent_output(query::agent_get(session_id), &command, format, locale)
+            #[cfg(windows)]
+            {
+                agent_view::run(&command, session_id, None, format, locale)
+            }
+            #[cfg(not(windows))]
+            {
+                agent_output(query::agent_get(session_id), &command, format, locale)
+            }
         }
         QueryCommand::AgentClientGet { target, client } => {
-            agent_view::run(&command, target, client, format, locale)
+            agent_view::run(&command, target, Some(client), format, locale)
         }
         QueryCommand::AgentExplain(session_id) => {
             agent_output(query::agent_explain(session_id), &command, format, locale)

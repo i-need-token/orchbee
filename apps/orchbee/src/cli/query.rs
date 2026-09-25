@@ -2749,7 +2749,7 @@ pub(crate) fn agent_list(
 }
 
 /// `agent get`: one OBAP get request, same admission/exchange discipline.
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(target_os = "linux")]
 pub(crate) fn agent_get(
     target: &crate::invocation::AgentTarget,
 ) -> Result<(serde_json::Value, Projection), AgentQueryError> {

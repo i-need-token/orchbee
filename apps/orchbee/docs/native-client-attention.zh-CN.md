@@ -47,14 +47,14 @@ Windows Client 拥有最多 512 个 Agent 摘要及其已确认状态版本。�
 
 Workbench 协议复用有界 Agent 协议身份、游标及安全整数 DTO，不依赖运行时。提示状态提交和完成使用上限 64 KiB 的请求类型 29；结果类型 26 已有该上限。Server 回执存储预留提示状态载荷容量，并在发布前验证请求与结果会话完全对应。保留回执不会自行刷新或重复读取。共享 Rust、TypeScript 和 schema 检查覆盖形状、边界、重复、顺序、版本及归属；Windows 进程与双 Client 见证覆盖路由和实际绘制确认。
 
-`agent attention <target> [--client <id>]` 一次解析会话/名称/窗格，读取该 Client 而不聚焦。`--session`、`--name` 和 `--panel` 可显式选择。支持现有 `--request-id`、`--detach`、`--timeout`（默认 30000 ms）及 `--format` 回执生命周期。`client control-status` 也认证提示状态游标。文本报告已读、未读或尚未观察到；JSON 使用 `orchbee.client.control` v1。目录 v47 仍有 72 个 schema，原生命令路径增至 86 个。
+`agent attention <target> [--client <id>]` 一次解析会话/名称/窗格，读取该 Client 而不聚焦。`--session`、`--name` 和 `--panel` 可显式选择。支持现有 `--request-id`、`--detach`、`--timeout`（默认 30000 ms）及 `--format` 回执生命周期。`client control-status` 也认证提示状态游标。文本报告已读、未读或尚未观察到；JSON 使用 `orchbee.client.control` v1。目录 v48 仍有 72 个 schema，原生命令路径增至 86 个。
 
 ## 合并规范 Agent 读取
 
-Windows `agent get <target> --client <id>` 在一个已准入会话及五秒总预算内，将精确 Client 观测与后续规范 Get 合并。读取仅路由一次保留的 attention 操作，认证游标，再要求规范修订覆盖 attention 头部。只有 generation 与 sequence 均相同，才输出合并后的 seen／状态变更修订。有界变更读取还须证明 Client 检查点与规范样本之间该会话没有变化；相同计数器无法排除新鲜度跃迁。其他会话的变更保留合并结果；历史丢失或目标的任何中间事件都会保守地标记过期。缺失及过期 Client 版本明确标记，seen 为空；不改写规范状态。不带 `--client` 的 Get 保持规范 v1 契约；合并 Get 使用 v2。
+Windows `agent get <target> --client <id>` 在一个已准入会话及五秒总预算内，将精确 Client 观测与后续规范 Get 合并。读取仅路由一次保留的 attention 操作，认证游标，再要求规范修订覆盖 attention 头部。只有 generation 与 sequence 均相同，才输出合并后的 seen／状态变更修订。有界变更读取还须证明 Client 检查点与规范样本之间该会话没有变化；相同计数器无法排除新鲜度跃迁。其他会话的变更保留合并结果；历史丢失或目标的任何中间事件都会保守地标记过期。缺失及过期 Client 版本明确标记，seen 为空；不改写规范状态。不带 `--client` 的 Windows Get 使用带运行时信息的 v3；合并 Get 使用 v4。两者均在同一总预算内，于进程读取后重新核对 Agent 绑定。
 
 独立的 Client 状态将 fresh idle／完成结果投影为已看见时 idle、未看见时 done；缺失／过期版本使该休息状态为空。Working、blocked、unknown、ended 及 stale/disconnected 新鲜度采用规范事实。聚焦指匹配的主 Panel 在 Ready Client 视图中被选中，且未观察到外层失焦；外层焦点为空时保留已声明的兼容回退，不证明操作系统前台。Busy 时仍可读取，但不声称内容聚焦。读取不确认已看见、不导航、不发送输入。
 
-CLI results 归属持有此投影；Agent Client view 组合负责读取和版本合并。Windows `agent wait --client <id>` 在 v4 复用此投影：idle/done 要求当前经核实的 Client 版本。规范历史事件不证明过去的 Client 已读确认；这两个条件采用采样，其他条件保留规范变更证据。进程／就绪补充仍单独待办。证据覆盖精确 Client／操作关联、generation 与 sequence 滞后、缺失条目、跨启动周期、当前修订、独立焦点及已看见状态，以及原有期限／取消清理。
+CLI results 归属持有此投影；Agent Client view 组合负责读取和版本合并。Windows `agent wait --client <id>` 在 v4 复用此投影：idle/done 要求当前经核实的 Client 版本。规范历史事件不证明过去的 Client 已读确认；这两个条件采用采样，其他条件保留规范变更证据。Get 已包含进程与提交预检信息；托管交互就绪仍单独待办。证据覆盖精确 Client／操作关联、generation 与 sequence 滞后、缺失条目、跨启动周期、当前修订、独立焦点及已看见状态，以及原有期限／取消清理。
 
 Windows `agent prompt --wait --client <id>` 也在规范活动门槛后使用此当前投影。发送前预检精确 Client，后续观察失败时保留发送回执，以 v4 输出所选 Client。期限、采样与不重发规则见 [CLI 查询契约](native-cli-query.zh-CN.md)。

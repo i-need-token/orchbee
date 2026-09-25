@@ -12,7 +12,7 @@ pub(in crate::cli) mod windows;
 pub(super) fn run(
     command: &QueryCommand,
     target: &AgentTarget,
-    client: &WorkbenchClientId,
+    client: Option<&WorkbenchClientId>,
     format: OutputFormat,
     locale: Locale,
 ) -> Output {

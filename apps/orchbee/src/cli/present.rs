@@ -443,42 +443,7 @@ pub(crate) fn render(
             ]
         }),
         Projection::PanelGet(doc) => panel_doc(out, doc, text),
-        Projection::PanelProcessInfo(doc) => {
-            let view = super::processes::interpret(&doc.info);
-            field(out, text.terminal, &doc.terminal.terminal_id)?;
-            field(
-                out,
-                locale.cli_process_root(),
-                &doc.info.root_pid.to_string(),
-            )?;
-            field(
-                out,
-                locale.cli_process_foreground(),
-                &format!(
-                    "{} · {} · {}",
-                    view.foreground.selection.as_str(),
-                    view.foreground
-                        .pid
-                        .map_or_else(|| "null".into(), |pid| pid.to_string()),
-                    view.foreground.provider.unwrap_or("null")
-                ),
-            )?;
-            table(out, &locale.cli_process_headers(), &view.processes, |row| {
-                let process = row.facts;
-                vec![
-                    process.pid.to_string(),
-                    process
-                        .parent_pid
-                        .map_or_else(|| "null".to_owned(), |pid| pid.to_string()),
-                    process.creation_time.to_string(),
-                    escape(process.image.as_deref().unwrap_or("null")),
-                    escape(process.command_line.as_deref().unwrap_or("null")),
-                    escape(process.current_directory.as_deref().unwrap_or("null")),
-                    escape(&serde_json::json!(row.argv).to_string()),
-                    row.provider.unwrap_or("null").to_owned(),
-                ]
-            })
-        }
+        Projection::PanelProcessInfo(doc) => panel_process(out, doc, text, locale),
         Projection::TerminalList(rows) => terminal_table(out, text, rows),
         // `terminal read` emits the observed content itself: one output line
         // per emitted grid row — or, under `--unwrap`, per joined logical
@@ -641,7 +606,7 @@ pub(crate) fn render(
         Projection::AgentList(outcome) => agent_list(out, outcome, text, locale),
         Projection::AgentChanges(outcome) => agent_changes(out, outcome, locale),
         Projection::AgentGet(outcome) => agent_get(out, outcome, text, locale),
-        Projection::AgentClientGet(doc) => {
+        Projection::AgentInspection(doc) => {
             agent_get(
                 out,
                 &AgentGetOutcome::Found {
@@ -651,7 +616,22 @@ pub(crate) fn render(
                 text,
                 locale,
             )?;
-            out.push(&locale.cli_agent_client_view(&doc.client))
+            if let Some(client) = &doc.client {
+                out.push(&locale.cli_agent_client_view(client))?;
+            }
+            match &doc.runtime {
+                super::results::AgentRuntimeDoc::Unavailable(reason) => {
+                    out.push(&locale.cli_agent_runtime(None, Some(reason)))
+                }
+                super::results::AgentRuntimeDoc::Observed {
+                    processes,
+                    prompt_ready,
+                    ..
+                } => {
+                    out.push(&locale.cli_agent_runtime(Some(*prompt_ready), None))?;
+                    panel_process(out, processes, text, locale)
+                }
+            }
         }
         Projection::AgentExplain(outcome) => agent_explain(out, outcome, text, locale),
         Projection::AgentWait(doc) => agent_wait(out, doc, locale),
@@ -1302,4 +1282,46 @@ fn agent_changes(
         _ => unreachable!("refusals do not reach successful change projection"),
     };
     out.push(&locale.cli_agent_next_cursor(cursor.as_str()))
+}
+
+fn panel_process(
+    out: &mut Bounded,
+    doc: &super::results::PanelProcessInfoDoc,
+    text: &CliLabels,
+    locale: Locale,
+) -> Result<(), TooLarge> {
+    let view = super::processes::interpret(&doc.info);
+    field(out, text.terminal, &doc.terminal.terminal_id)?;
+    field(
+        out,
+        locale.cli_process_root(),
+        &doc.info.root_pid.to_string(),
+    )?;
+    field(
+        out,
+        locale.cli_process_foreground(),
+        &format!(
+            "{} · {} · {}",
+            view.foreground.selection.as_str(),
+            view.foreground
+                .pid
+                .map_or_else(|| "null".into(), |pid| pid.to_string()),
+            view.foreground.provider.unwrap_or("null")
+        ),
+    )?;
+    table(out, &locale.cli_process_headers(), &view.processes, |row| {
+        let process = row.facts;
+        vec![
+            process.pid.to_string(),
+            process
+                .parent_pid
+                .map_or_else(|| "null".to_owned(), |pid| pid.to_string()),
+            process.creation_time.to_string(),
+            escape(process.image.as_deref().unwrap_or("null")),
+            escape(process.command_line.as_deref().unwrap_or("null")),
+            escape(process.current_directory.as_deref().unwrap_or("null")),
+            escape(&serde_json::json!(row.argv).to_string()),
+            row.provider.unwrap_or("null").to_owned(),
+        ]
+    })
 }

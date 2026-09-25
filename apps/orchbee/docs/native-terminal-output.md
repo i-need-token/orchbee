@@ -57,7 +57,7 @@ fails before stdout. Read cleanup and platform admission retain the existing que
 
 Structured text stays localized and escaped. JSON uses `orchbee.terminal.output` v1 with canonical
 snapshot provenance, terminal identity, source selection, revision/generation, physical range,
-capacity truncation, fragment edges and text. The catalog is v47 with 72 documents; no protocol
+capacity truncation, fragment edges and text. The catalog is v48 with 72 documents; no protocol
 shape or command path is added. `--plain` emits exactly the JSON text member's UTF-8 bytes, under
 the same preparation cap; failures leave text stdout empty. It is an explicit data export under
 the [CLI output standard](../../../docs/cli/output.md), not ordinary human text rendering.
@@ -96,7 +96,7 @@ optional line limit; observed `timeoutMs` is null only for an explicit infinite 
 is the physical source budget before capacity/retained clamps: screen height for visible/detection,
 or the explicit/default recent limit. `windowTruncated` reports capacity loss only. Completed
 observations count validated samples that finished a match pass, including visible-frame samples.
-Version 1/2 documents and their constraints remain unchanged; the catalog is v47 with 72 documents.
+Version 1/2 documents and their constraints remain unchanged; the catalog is v48 with 72 documents.
 
 Pinned Herdr waits also search text lines, map recent to recent-unwrapped, and permit an absent
 total deadline. Its raw switch only forwards a stripping field that the read handler ignores;
@@ -115,7 +115,7 @@ plain output, not a change to ordinary escaped human text.
 
 JSON ANSI output uses `orchbee.terminal.output` v2 with `result.encoding:"ansi"`; `content.text`
 contains the ANSI string. Text/plain source reads retain v1 and their existing shape. The catalog
-is v47 with 72 schemas and 86 command paths. Empty selection exports no bytes. Preparation and
+is v48 with 72 schemas and 86 command paths. Empty selection exports no bytes. Preparation and
 serialization preserve the existing 8 MiB output limit and finish before stdout; an over-budget
 result fails completely. Raw export and JSON content have identical UTF-8 bytes when both fit.
 

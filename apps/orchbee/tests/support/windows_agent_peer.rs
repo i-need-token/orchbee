@@ -335,6 +335,13 @@ pub(super) fn process_sample_reply(
     stream: &mut LocalStream,
     sample: Result<Vec<orchbee_terminal_protocol::TerminalProcess>, &str>,
 ) {
+    process_sample_for(stream, sample, "33333333333333333333333333333333");
+}
+pub(super) fn process_sample_for(
+    stream: &mut LocalStream,
+    sample: Result<Vec<orchbee_terminal_protocol::TerminalProcess>, &str>,
+    expected_terminal: &str,
+) {
     use orchbee_client_server_protocol::{
         ClientMessage, ServerMessage, TerminalViewerAction, TerminalViewerOutcome,
         TerminalViewerResult, ViewerId, read_client_message, write_server_message,
@@ -402,7 +409,7 @@ pub(super) fn process_sample_reply(
         };
         match (stage, request.action()) {
             ("attach", TerminalViewerAction::AttachBinding { terminal_id, .. }) => {
-                assert_eq!(terminal_id.as_str(), "33333333333333333333333333333333")
+                assert_eq!(terminal_id.as_str(), expected_terminal)
             }
             ("query", TerminalViewerAction::ReadProcessInfo { attachment_id })
             | ("detach", TerminalViewerAction::Detach { attachment_id }) => {

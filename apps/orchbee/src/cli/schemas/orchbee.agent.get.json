@@ -10,7 +10,7 @@
 			"const": "orchbee.agent.get"
 		},
 		"version": {
-			"enum": [1, 2]
+			"enum": [1, 2, 3, 4]
 		},
 		"source": {
 			"$ref": "#/$defs/agentReadSource"
@@ -31,6 +31,137 @@
 				},
 				"client": {
 					"$ref": "#/$defs/clientView"
+				},
+				"runtime": {
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "unavailable"
+								},
+								"reason": {
+									"enum": ["session-ended", "unbound", "ambiguous-primary", "binding-changed"]
+								}
+							},
+							"required": ["kind", "reason"],
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "observed"
+								},
+								"source": {
+									"$ref": "#/$defs/runtimeProcess_source"
+								},
+								"processInfo": {
+									"type": "object",
+									"required": ["terminal", "scope", "rootPid", "processes", "foreground"],
+									"additionalProperties": false,
+									"properties": {
+										"terminal": {
+											"$ref": "#/$defs/runtimeProcess_terminal"
+										},
+										"scope": {
+											"const": "windows-job"
+										},
+										"rootPid": {
+											"type": "integer",
+											"minimum": 1,
+											"maximum": 4294967295
+										},
+										"processes": {
+											"type": "array",
+											"maxItems": 64,
+											"items": {
+												"$ref": "#/$defs/runtimeProcess_process"
+											}
+										},
+										"foreground": {
+											"type": "object",
+											"required": ["kind", "pid", "providerId"],
+											"additionalProperties": false,
+											"properties": {
+												"kind": {
+													"enum": ["agent-chain", "root", "ambiguous", "unavailable"]
+												},
+												"pid": {
+													"type": ["integer", "null"],
+													"minimum": 1,
+													"maximum": 4294967295
+												},
+												"providerId": {
+													"type": ["string", "null"],
+													"pattern": "^[0-9A-Za-z._:-]{1,128}$"
+												}
+											},
+											"oneOf": [
+												{
+													"properties": {
+														"kind": {
+															"const": "agent-chain"
+														},
+														"pid": {
+															"type": "integer"
+														},
+														"providerId": {
+															"type": "string"
+														}
+													}
+												},
+												{
+													"properties": {
+														"kind": {
+															"const": "root"
+														},
+														"pid": {
+															"type": "integer"
+														},
+														"providerId": {
+															"type": "null"
+														}
+													}
+												},
+												{
+													"properties": {
+														"kind": {
+															"const": "ambiguous"
+														},
+														"pid": {
+															"type": "null"
+														},
+														"providerId": {
+															"type": "null"
+														}
+													}
+												},
+												{
+													"properties": {
+														"kind": {
+															"const": "unavailable"
+														},
+														"pid": {
+															"type": "null"
+														},
+														"providerId": {
+															"type": "null"
+														}
+													}
+												}
+											]
+										}
+									}
+								},
+								"promptReady": {
+									"type": "boolean"
+								}
+							},
+							"required": ["kind", "source", "processInfo", "promptReady"],
+							"additionalProperties": false
+						}
+					]
 				}
 			}
 		}
@@ -564,6 +695,168 @@
 					}
 				}
 			]
+		},
+		"runtimeProcess_id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"runtimeProcess_positiveDecimal": {
+			"type": "string",
+			"pattern": "^[1-9][0-9]*$"
+		},
+		"runtimeProcess_terminal": {
+			"type": "object",
+			"required": ["terminalId", "workerId", "boundTo"],
+			"additionalProperties": false,
+			"properties": {
+				"terminalId": {
+					"$ref": "#/$defs/runtimeProcess_id"
+				},
+				"workerId": {
+					"$ref": "#/$defs/runtimeProcess_id"
+				},
+				"boundTo": {
+					"type": "object",
+					"required": ["presentationId", "panelId", "tabId", "terminalContextId"],
+					"additionalProperties": false,
+					"properties": {
+						"presentationId": {
+							"$ref": "#/$defs/runtimeProcess_id"
+						},
+						"panelId": {
+							"$ref": "#/$defs/runtimeProcess_id"
+						},
+						"tabId": {
+							"$ref": "#/$defs/runtimeProcess_id"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/runtimeProcess_id"
+						}
+					}
+				}
+			}
+		},
+		"runtimeProcess_snapshotSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench-snapshot"
+				},
+				"siteId": {
+					"$ref": "#/$defs/runtimeProcess_id"
+				},
+				"revision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				}
+			}
+		},
+		"runtimeProcess_process": {
+			"type": "object",
+			"required": [
+				"pid",
+				"parentPid",
+				"creationTime",
+				"image",
+				"commandLine",
+				"currentDirectory",
+				"argv",
+				"providerId"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"pid": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4294967295
+				},
+				"parentPid": {
+					"oneOf": [
+						{
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4294967295
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"creationTime": {
+					"$ref": "#/$defs/runtimeProcess_positiveDecimal"
+				},
+				"image": {
+					"type": ["string", "null"],
+					"maxLength": 4096,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"commandLine": {
+					"type": ["string", "null"],
+					"maxLength": 4096,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"currentDirectory": {
+					"type": ["string", "null"],
+					"maxLength": 4096,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"argv": {
+					"type": ["array", "null"],
+					"maxItems": 4096,
+					"items": {
+						"type": "string",
+						"maxLength": 4096,
+						"pattern": "^[^\\u0000]*$"
+					}
+				},
+				"providerId": {
+					"type": ["string", "null"],
+					"pattern": "^[0-9A-Za-z._:-]{1,128}$"
+				}
+			}
+		},
+		"runtimeProcess_source": {
+			"type": "object",
+			"required": [
+				"kind",
+				"siteId",
+				"snapshotRevision",
+				"requestId",
+				"hostRequestId",
+				"hostEpoch",
+				"attachmentId",
+				"hostTerminalId"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "terminal-process-query"
+				},
+				"siteId": {
+					"$ref": "#/$defs/runtimeProcess_id"
+				},
+				"snapshotRevision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				},
+				"requestId": {
+					"$ref": "#/$defs/runtimeProcess_id"
+				},
+				"hostRequestId": {
+					"$ref": "#/$defs/runtimeProcess_id"
+				},
+				"hostEpoch": {
+					"$ref": "#/$defs/runtimeProcess_id"
+				},
+				"attachmentId": {
+					"$ref": "#/$defs/runtimeProcess_id"
+				},
+				"hostTerminalId": {
+					"$ref": "#/$defs/runtimeProcess_id"
+				}
+			}
 		}
 	},
 	"allOf": [
@@ -571,7 +864,7 @@
 			"if": {
 				"properties": {
 					"version": {
-						"const": 2
+						"enum": [2, 4]
 					}
 				}
 			},
@@ -587,6 +880,31 @@
 					"result": {
 						"not": {
 							"required": ["client"]
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"enum": [3, 4]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"required": ["runtime"]
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"result": {
+						"not": {
+							"required": ["runtime"]
 						}
 					}
 				}
