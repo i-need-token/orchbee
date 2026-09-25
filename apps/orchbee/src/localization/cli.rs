@@ -2242,10 +2242,10 @@ impl Locale {
                 "用法：orchbee agent start <name> --kind <provider> [--panel <id|@panel:suffix>|--current] [--timeout <ms>] [--format text|json] [-- <args>...]\n\nWindows：在空闲终端启动交互式 Agent，确认就绪后绑定名称。\n默认目标为调用者 Panel。超时范围 3001–300000 毫秒，默认 30000。\n可重复使用 --arg=<value> 代替尾随参数。启动输入只提交一次。\n取消或超时在确认后释放名称，但不会终止 Agent。\n提供方 hook 必须能报告就绪；可用 agent integration 和 agent doctor 检查配置。\n"
             }
             (Self::EnUs, CommandPath::AgentPrompt) => {
-                "orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms> | --forever] [--format text|json]\n\nResolve one live Agent, refuse pending attention, and submit literal paste plus Enter.\nTargets: Session ID/name/Panel ID, --session <id>, --name <alias>, or --panel <id|@panel:suffix>. --until/--timeout/--forever require --wait.\nWait first observes activity, then a matching condition; default timeout 600000 ms.\n--forever removes the total timeout and conflicts with --timeout.\nWindows Codex adds a Right key between paste and Enter.\nA wait failure retains the accepted input receipt. Never replay uncertain input.\nA matching state does not identify a prompt-specific turn.\n"
+                "orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms> | --forever] [--format text|json]\n\nResolve one live Agent, refuse pending attention, and submit literal paste plus Enter.\nTargets: Session ID/name/Panel ID, --session <id>, --name <alias>, or --panel <id|@panel:suffix>. --until/--timeout/--forever require --wait.\nWait first observes activity, then a matching condition. Windows defaults to\nidle/done/blocked with no total timeout; Linux retains 600000 ms.\n--forever removes the total timeout and conflicts with --timeout.\nWindows Codex adds a Right key between paste and Enter.\nA wait failure retains the accepted input receipt. Never replay uncertain input.\nA matching state does not identify a prompt-specific turn.\n"
             }
             (Self::ZhCn, CommandPath::AgentPrompt) => {
-                "orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms> | --forever] [--format text|json]\n\n定位存活 Agent，有待处理请求时拒绝，再提交字面 paste 加 Enter。\n目标：Session ID/名称/Panel ID、--session <id>、--name <alias>\n或 --panel <id|@panel:suffix>。Panel 选择主终端。--until/--timeout/--forever 要求 --wait。\n先观察活动再等待条件匹配；默认超时 600000 毫秒。--forever 取消总期限，与 --timeout 互斥。\nWindows Codex 在 paste 和 Enter 之间增加 Right 键。等待失败保留已接受输入回执。\n不重放不确定输入；状态匹配不标识本次提示自己的轮次。\n"
+                "orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms> | --forever] [--format text|json]\n\n定位存活 Agent，有待处理请求时拒绝，再提交字面 paste 加 Enter。\n目标：Session ID/名称/Panel ID、--session <id>、--name <alias>\n或 --panel <id|@panel:suffix>。Panel 选择主终端。--until/--timeout/--forever 要求 --wait。\n先观察活动再等待条件匹配；Windows 默认 idle/done/blocked 且无总超时，Linux 保持 600000 毫秒。--forever 取消总期限，与 --timeout 互斥。\nWindows Codex 在 paste 和 Enter 之间增加 Right 键。等待失败保留已接受输入回执。\n不重放不确定输入；状态匹配不标识本次提示自己的轮次。\n"
             }
             (Self::EnUs, CommandPath::AgentRead) => {
                 "orchbee agent read <target> [--history --rows <n>] [--unwrap] [--lines <n>] [--format text|json]\n\nRead the terminal bound to one live Agent. Target: Session ID/name/Panel ID, --session <id>,\n--name <alias>, or --panel <id|@panel:suffix>. Panel selects its primary terminal;\notherwise exactly one navigable binding is required. Uses terminal\nread/history envelopes; history excludes visible rows.\n\nExplicit sources: --source visible|recent|recent-unwrapped|detection.\nRecent includes history and live screen (default 80 physical rows); detection\nuses one screen height near the cursor, not Agent state. Source-mode --lines\naccepts 0..4294967295 and clamps to 1000. Visible is this viewer's live screen.\n--plain prints UTF-8 text directly and defaults to recent; it conflicts with\n--format json. Source/plain cannot mix with --history, --rows or --unwrap.\nJSON uses orchbee.terminal.output; a stale sample fails without a hidden retry.\n\n--ansi exports styled text directly (default recent); --format json instead\nuses orchbee.terminal.output v2 with encoding: ansi. It conflicts with\n--plain, --history, --rows and --unwrap. Styled blanks remain content;\nrecent-unwrapped joins soft wraps. Detection stays plain text. This is a\nstyled snapshot with SGR, not original PTY bytes or graphics replay.\n"
@@ -2285,8 +2285,20 @@ impl Locale {
             (Self::ZhCn, CommandPath::AgentRename) => {
                 "用法：orchbee agent rename <target> <new-name> [--format text|json]\n      orchbee agent rename <target> --clear\n\n为存活 Agent 命名或原子重命名。名称格式为 [a-z][a-z0-9_-]{0,31}，拒绝重名。--clear 只释放名称。可将 <target> 替换成 --session <id> 或 --name <alias>。会话结束或 Site 停止后名称释放。\n"
             }
-            (Self::EnUs, CommandPath::AgentWait) => HELP_AGENT_WAIT_EN,
-            (Self::ZhCn, CommandPath::AgentWait) => HELP_AGENT_WAIT_ZH,
+            (Self::EnUs, CommandPath::AgentWait) => {
+                if cfg!(windows) {
+                    HELP_AGENT_WAIT_WINDOWS_EN
+                } else {
+                    HELP_AGENT_WAIT_EN
+                }
+            }
+            (Self::ZhCn, CommandPath::AgentWait) => {
+                if cfg!(windows) {
+                    HELP_AGENT_WAIT_WINDOWS_ZH
+                } else {
+                    HELP_AGENT_WAIT_ZH
+                }
+            }
             (Self::EnUs, CommandPath::AgentDoctor) => HELP_AGENT_DOCTOR_EN,
             (Self::ZhCn, CommandPath::AgentDoctor) => HELP_AGENT_DOCTOR_ZH,
             (Self::EnUs, CommandPath::AgentIntegrationList) => HELP_AGENT_INTEGRATION_LIST_EN,
@@ -3208,3 +3220,7 @@ impl Locale {
         }
     }
 }
+
+const HELP_AGENT_WAIT_WINDOWS_EN: &str = "orchbee agent wait <target> [--until <condition>]... [--after-revision <n>] [--timeout <ms> | --forever] [--format text|json]\n\nWait on one pinned Agent, using current samples and retained change pages.\nWindows defaults to idle, done, blocked with no total timeout. --timeout\nsets 1-3600000 ms for the entire operation; --forever is an explicit synonym\nfor no total timeout and conflicts with --timeout. Each read is bounded to\nfive seconds. Ctrl+C ends the wait; no read failure reconnects.\nConditions: blocked, done, needs-attention, failed, succeeded, canceled,\ninterrupted, working, idle, unknown, ended, fresh, stale, disconnected.\nStatus conditions require fresh observations. blocked means needs-attention;\ndone means succeeded/failed/canceled/interrupted, without Client unseen state.\n--after-revision is a global fence, not a turn identity.\nTransient matching changes remain evidence even if the latest state differs.\nVersion 3 JSON separates matchedChange from the current session/revision;\nnull matchedChange means the current sample matched. Lost history or a\nforeign cursor fails explicitly. An ended session without a match is rejected.\nTarget: Session ID/name/Panel ID, --session <id>, --name <alias>, or\n--panel <id|@panel:suffix>. Resolution occurs once, before waiting.\n";
+
+const HELP_AGENT_WAIT_WINDOWS_ZH: &str = "orchbee agent wait <target> [--until <条件>]... [--after-revision <n>] [--timeout <毫秒> | --forever] [--format text|json]\n\n固定一个 Agent，结合当前样本和保留变更页等待。\nWindows 默认 idle、done、blocked，无总超时。--timeout 设置整个操作的\n1-3600000 毫秒期限；--forever 是无总超时的显式同义选项，与 --timeout 互斥。\n每次读取最多五秒；Ctrl+C 结束等待，读取失败不重新连接。\n条件：blocked、done、needs-attention、failed、succeeded、canceled、\ninterrupted、working、idle、unknown、ended、fresh、stale、disconnected。\n状态条件要求 fresh；blocked 表示 needs-attention；done 表示\nsucceeded/failed/canceled/interrupted，尚不合并 Client 未看见状态。\n--after-revision 是全局修订门槛，不代表回合身份。\n即使最新状态不同，短暂命中的变更仍作为证据返回。版本 3 JSON\n将 matchedChange 与当前 session/revision 分开；空 matchedChange 表示\n当前样本命中。历史丢失或游标跨启动周期时明确失败。\n会话已结束且没有条件命中时拒绝。\n目标：Session ID/名称/Panel ID、--session <id>、--name <alias> 或\n--panel <id|@panel:suffix>。等待前只解析一次。\n";

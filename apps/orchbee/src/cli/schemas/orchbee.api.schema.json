@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 42
+			"const": 43
 		},
 		"source": {
 			"type": "object",

@@ -651,6 +651,13 @@ pub(crate) fn render(
 /// elapsed milliseconds. The session detail itself stays in the machine
 /// document; the text surface is the wait's own verdict.
 fn agent_wait(out: &mut Bounded, doc: &AgentWaitDoc, locale: Locale) -> Result<(), TooLarge> {
+    #[cfg(windows)]
+    let revision = doc
+        .matched_change
+        .as_ref()
+        .map_or(doc.revision, |change| change.revision);
+    #[cfg(not(windows))]
+    let revision = doc.revision;
     let conditions = doc
         .matched
         .iter()
@@ -660,7 +667,7 @@ fn agent_wait(out: &mut Bounded, doc: &AgentWaitDoc, locale: Locale) -> Result<(
     out.push(&locale.cli_agent_wait_matched(
         doc.session.snapshot.session_id.as_str(),
         &conditions,
-        doc.revision.value(),
+        revision.value(),
         doc.elapsed_ms,
     ))
 }

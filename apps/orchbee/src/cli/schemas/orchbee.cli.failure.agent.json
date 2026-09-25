@@ -379,6 +379,22 @@
 							"const": "cursor-invalid"
 						}
 					}
+				},
+				{
+					"type": "object",
+					"required": ["stage", "operation", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"stage": {
+							"const": "agent-read"
+						},
+						"operation": {
+							"const": "wait"
+						},
+						"reason": {
+							"enum": ["history-lost", "session-ended"]
+						}
+					}
 				}
 			]
 		},

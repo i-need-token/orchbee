@@ -77,7 +77,11 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
         QueryCommand::ApiSnapshot => 4,
         QueryCommand::PanelList { .. } | QueryCommand::TabGet(_) => 2,
         QueryCommand::TerminalGet(_) => 3,
-        QueryCommand::AgentWait { .. } | QueryCommand::PanelProcessInfo(_) => 2,
+        #[cfg(windows)]
+        QueryCommand::AgentWait { .. } => 3,
+        #[cfg(not(windows))]
+        QueryCommand::AgentWait { .. } => 2,
+        QueryCommand::PanelProcessInfo(_) => 2,
         QueryCommand::TerminalRead { unwrap, lines, .. }
         | QueryCommand::AgentRead { unwrap, lines, .. }
             if *unwrap || lines.is_some() =>
@@ -1051,6 +1055,8 @@ pub(crate) struct AgentWaitDoc {
     pub(crate) matched: Vec<AgentWaitCondition>,
     pub(crate) revision: AgentSafeInteger,
     pub(crate) session: Box<AgentSessionDetail>,
+    #[cfg(windows)]
+    pub(crate) matched_change: Option<orchbee_agent_observation_protocol::AgentChange>,
     pub(crate) until: Vec<AgentWaitCondition>,
     pub(crate) after_revision: Option<AgentSafeInteger>,
     pub(crate) timeout_ms: Option<u32>,
@@ -1114,7 +1120,7 @@ impl Projection {
                 wait.insert("timeoutMs".to_owned(), json!(doc.timeout_ms));
                 wait.insert("observations".to_owned(), json!(doc.observations));
                 wait.insert("elapsedMs".to_owned(), json!(doc.elapsed_ms));
-                json!({
+                let result = json!({
                     "matchedConditions": doc
                         .matched
                         .iter()
@@ -1123,7 +1129,14 @@ impl Projection {
                     "revision": doc.revision,
                     "session": doc.session,
                     "wait": Value::Object(wait),
-                })
+                });
+                #[cfg(windows)]
+                let result = {
+                    let mut result = result;
+                    result["matchedChange"] = json!(doc.matched_change);
+                    result
+                };
+                result
             }
             Self::Status(doc) => json!({
                 "site": {

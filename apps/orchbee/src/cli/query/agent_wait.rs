@@ -7,13 +7,9 @@
 //! before the single `finish` arbitration, and nothing projects to a
 //! `Failure` before that arbitration.
 //!
-//! Honest semantics, never hidden: the wait SAMPLES the current projected
-//! state at each poll. A transition that both begins and ends between two
-//! completed observations is missed — pending requests may clear, turn
-//! outcomes are replaced by later turns, and stale or disconnected
-//! freshness is a property of the sample, not a promise. `--after-revision`
-//! is a caller-supplied global-revision fence, never a turn-scoped causal
-//! identity, and there is no subscribe/changes guarantee behind the poll.
+//! Windows also observes contiguous canonical change pages, preserving a
+//! transient match separately from the latest detail. Linux retains sampled
+//! polling. `--after-revision` is a global fence, not a turn identity.
 
 use orchbee_local_ipc::LocalIo as BorrowedFd;
 use std::time::{Duration, Instant};
@@ -44,6 +40,9 @@ use crate::local_client::{LocalClient, exchange_wake_fault, exchange_wake_ready}
 const WAIT_POLL_INITIAL: Duration = Duration::from_millis(50);
 /// Consecutive quiet polls double the interval up to this ceiling.
 const WAIT_POLL_MAXIMUM: Duration = Duration::from_millis(500);
+
+#[cfg(windows)]
+mod journal;
 
 /// `agent wait`: the armed span owns the whole wait — one admitted Client
 /// Session held across every poll, one absolute deadline covering
@@ -212,6 +211,8 @@ fn agent_wait_span(
     let mut last: Option<WaitObservation> = None;
     let mut backoff = WAIT_POLL_INITIAL;
     let mut first_evaluation = true;
+    #[cfg(windows)]
+    let mut journal = journal::WaitJournal::default();
 
     let outcome = loop {
         // Post-step total settlement before any new step: an expired
@@ -225,6 +226,57 @@ fn agent_wait_span(
                 last.as_ref(),
             );
         }
+        #[cfg(windows)]
+        let historical = {
+            let now = Instant::now();
+            let deadline = match total.step(now, read_budget) {
+                Ok(deadline) => deadline,
+                Err(failure) => break WaitAttempt::Done(Err(failure)),
+            };
+            let result = journal.read(
+                &mut client,
+                session_id,
+                until,
+                after_revision,
+                deadline,
+                wake,
+            );
+            if total.expired(Instant::now()) {
+                break wait_timeout(
+                    WaitDeadlineReason::Total,
+                    timeout_ms,
+                    start,
+                    observations,
+                    last.as_ref(),
+                );
+            }
+            match result {
+                Ok(matched) => matched,
+                Err(journal::JournalError::Failure(failure)) => {
+                    break WaitAttempt::Done(Err(failure));
+                }
+                Err(journal::JournalError::Exchange(error)) => {
+                    if wait_wake_marker(&error) {
+                        break WaitAttempt::Wake;
+                    }
+                    if wait_deadline_elapsed(&error) {
+                        break wait_timeout(
+                            WaitDeadlineReason::Read {
+                                budget_ms: deadline.duration_since(now).as_millis() as u64,
+                            },
+                            timeout_ms,
+                            start,
+                            observations,
+                            last.as_ref(),
+                        );
+                    }
+                    break WaitAttempt::Done(Err(classify_agent_read(
+                        error,
+                        AgentReadOperation::Wait,
+                    )));
+                }
+            }
+        };
         let request_id = match obap_request_id() {
             Ok(request_id) => request_id,
             Err(failure) => break WaitAttempt::Done(Err(failure)),
@@ -276,6 +328,15 @@ fn agent_wait_span(
                 }
                 match result.outcome {
                     AgentGetOutcome::Found { revision, session } => {
+                        #[cfg(windows)]
+                        if journal
+                            .observed_through()
+                            .is_some_and(|head| head.value() > revision.value())
+                        {
+                            break WaitAttempt::Done(Err(agent_protocol_invalid(
+                                AgentReadOperation::Wait,
+                            )));
+                        }
                         if session.snapshot.session_id != *session_id {
                             break WaitAttempt::Done(Err(agent_protocol_invalid(
                                 AgentReadOperation::Wait,
@@ -297,6 +358,28 @@ fn agent_wait_span(
                         }
                         let eligible =
                             after_revision.is_none_or(|fence| revision.value() > fence.value());
+                        #[cfg(windows)]
+                        if let Some((source, change, matched)) = historical {
+                            if revision.value() < change.revision.value() {
+                                break WaitAttempt::Done(Err(agent_protocol_invalid(
+                                    AgentReadOperation::Wait,
+                                )));
+                            }
+                            break WaitAttempt::Done(Ok((
+                                source,
+                                AgentWaitDoc {
+                                    matched,
+                                    revision,
+                                    session,
+                                    matched_change: Some(change),
+                                    until: until.to_vec(),
+                                    after_revision,
+                                    timeout_ms,
+                                    observations,
+                                    elapsed_ms: start.elapsed().as_millis() as u64,
+                                },
+                            )));
+                        }
                         if eligible {
                             // Requested order is preserved: the canonical
                             // conditions.filter keeps the caller's order,
@@ -313,6 +396,8 @@ fn agent_wait_span(
                                         matched,
                                         revision,
                                         session,
+                                        #[cfg(windows)]
+                                        matched_change: None,
                                         until: until.to_vec(),
                                         after_revision,
                                         timeout_ms,
@@ -321,6 +406,18 @@ fn agent_wait_span(
                                     },
                                 )));
                             }
+                        }
+                        #[cfg(windows)]
+                        if !journal.has_more()
+                            && session.snapshot.lifecycle
+                                == orchbee_agent_observation_protocol::AgentLifecycle::Ended
+                        {
+                            break WaitAttempt::Done(Err(Failure::new(FailureKind::Rejected)
+                                .details(super::agent_rejection_details(
+                                    AgentReadOperation::Wait,
+                                    "session-ended",
+                                ))
+                                .source(agent_source(&answered))));
                         }
                     }
                     AgentGetOutcome::Rejected { reason } => {
@@ -387,6 +484,10 @@ fn agent_wait_span(
         // Bounded interruptible backoff: the wake descriptor joins the
         // sleep so a captured signal ends the wait promptly instead of at
         // the next poll boundary.
+        #[cfg(windows)]
+        if journal.has_more() {
+            continue;
+        }
         let remaining = total.backoff(Instant::now(), backoff);
         if !remaining.is_zero() {
             if wait_backoff(wake, backoff.min(remaining)) {
@@ -431,32 +532,38 @@ pub(crate) fn condition_matches(
     condition: AgentWaitCondition,
     session: &AgentSessionDetail,
 ) -> bool {
+    status_matches(
+        condition,
+        session.snapshot.observation.freshness,
+        &session.status,
+    )
+}
+
+fn status_matches(
+    condition: AgentWaitCondition,
+    freshness: AgentObservationFreshness,
+    status: &AgentSemanticStatus,
+) -> bool {
     match condition {
         AgentWaitCondition::Blocked => {
-            condition_matches(AgentWaitCondition::NeedsAttention, session)
+            status_matches(AgentWaitCondition::NeedsAttention, freshness, status)
         }
         AgentWaitCondition::Done => {
-            session.snapshot.observation.freshness == AgentObservationFreshness::Fresh
+            freshness == AgentObservationFreshness::Fresh
                 && matches!(
-                    session.status,
+                    status,
                     AgentSemanticStatus::Succeeded { .. }
                         | AgentSemanticStatus::Failed { .. }
                         | AgentSemanticStatus::Canceled { .. }
                         | AgentSemanticStatus::Interrupted { .. }
                 )
         }
-        AgentWaitCondition::Fresh => {
-            session.snapshot.observation.freshness == AgentObservationFreshness::Fresh
-        }
-        AgentWaitCondition::Stale => {
-            session.snapshot.observation.freshness == AgentObservationFreshness::Stale
-        }
-        AgentWaitCondition::Disconnected => {
-            session.snapshot.observation.freshness == AgentObservationFreshness::Disconnected
-        }
+        AgentWaitCondition::Fresh => freshness == AgentObservationFreshness::Fresh,
+        AgentWaitCondition::Stale => freshness == AgentObservationFreshness::Stale,
+        AgentWaitCondition::Disconnected => freshness == AgentObservationFreshness::Disconnected,
         _ => {
-            session.snapshot.observation.freshness == AgentObservationFreshness::Fresh
-                && status_kind(&session.status) == condition.as_str()
+            freshness == AgentObservationFreshness::Fresh
+                && status_kind(status) == condition.as_str()
         }
     }
 }

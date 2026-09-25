@@ -5354,7 +5354,7 @@ fn agent_wait_grammar() {
                 session: AgentTarget::Auto { target: session() },
                 until: defaults.clone(),
                 after_revision: None,
-                timeout_ms: Some(600_000),
+                timeout_ms: crate::invocation::DEFAULT_AGENT_WAIT_TIMEOUT,
             },
             OutputFormat::Text
         ))
@@ -5431,7 +5431,7 @@ fn agent_wait_grammar() {
                 session: AgentTarget::Auto { target: session() },
                 until: vec![condition],
                 after_revision: None,
-                timeout_ms: Some(600_000),
+                timeout_ms: crate::invocation::DEFAULT_AGENT_WAIT_TIMEOUT,
             },
             "--until {name}"
         );
@@ -5449,7 +5449,7 @@ fn agent_wait_grammar() {
                             value.parse().expect("bound literal")
                         )
                     ),
-                    timeout_ms: Some(600_000),
+                    timeout_ms: crate::invocation::DEFAULT_AGENT_WAIT_TIMEOUT,
                 },
                 OutputFormat::Text
             )),

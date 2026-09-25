@@ -438,6 +438,7 @@ impl AgentWaitCondition {
 
 /// The canonical default condition set `agent wait` applies when `--until`
 /// is absent: the seven conditions, verbatim and in canonical order.
+#[cfg(not(windows))]
 pub(crate) const DEFAULT_AGENT_WAIT_CONDITIONS: [AgentWaitCondition; 7] = [
     AgentWaitCondition::NeedsAttention,
     AgentWaitCondition::Failed,
@@ -447,6 +448,16 @@ pub(crate) const DEFAULT_AGENT_WAIT_CONDITIONS: [AgentWaitCondition; 7] = [
     AgentWaitCondition::Idle,
     AgentWaitCondition::Ended,
 ];
+
+#[cfg(windows)]
+pub(crate) const DEFAULT_AGENT_WAIT_CONDITIONS: [AgentWaitCondition; 3] = [
+    AgentWaitCondition::Idle,
+    AgentWaitCondition::Done,
+    AgentWaitCondition::Blocked,
+];
+
+pub(crate) const DEFAULT_AGENT_WAIT_TIMEOUT: Option<u32> =
+    if cfg!(windows) { None } else { Some(600_000) };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PanelQueryTarget {
@@ -5668,8 +5679,8 @@ fn agent_after_revision_option(
 }
 
 /// `agent wait --timeout`: the total wait budget in milliseconds measured
-/// from command start. 1..=3600000, defaulting to 600000 — the canonical
-/// wait default, never `wait-output`'s 30000.
+/// from command start. Explicit values are 1..=3600000. Windows defaults to
+/// no total timeout; existing non-Windows defaults remain 600000.
 fn agent_wait_timeout_option(
     options: &Options,
     context: UsageContext,
@@ -5689,7 +5700,7 @@ fn agent_wait_timeout_option(
         return Ok(None);
     }
     let Some(value) = options.timeout.clone() else {
-        return Ok(Some(600_000));
+        return Ok(DEFAULT_AGENT_WAIT_TIMEOUT);
     };
     match value.parse::<u32>() {
         Ok(timeout) if (1..=3_600_000).contains(&timeout) => Ok(Some(timeout)),

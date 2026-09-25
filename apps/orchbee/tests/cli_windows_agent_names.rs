@@ -5,6 +5,8 @@
 mod changes;
 #[path = "support/windows_agent_peer.rs"]
 mod peer_support;
+#[path = "cli_windows_agent_names/wait.rs"]
+mod wait;
 use orchbee_agent_observation_protocol::{
     AgentRequest, AgentResult, read_agent_request, write_agent_result,
 };
@@ -231,11 +233,13 @@ fn named_wait_resolves_once_and_keeps_polling_the_original_session() {
         let mut first = session_detail("sess-alpha");
         first["snapshot"]["pendingRequests"] = json!([]);
         first["status"] = json!({"kind":"working","activity":"tool","phase":"working"});
+        wait::checkpoint(&mut stream, 7);
         read_reply(
             &mut stream,
             "get",
             json!({"kind":"found","revision":7,"session":first}),
         );
+        wait::checkpoint(&mut stream, 7);
         read_reply(
             &mut stream,
             "get",
@@ -720,6 +724,7 @@ fn infinite_wait_preserves_condition_names_and_rejects_a_different_session() {
                     json!({"kind":"succeeded", "eventId":"finished", "turnId":"turn-9"});
                 detail["status"] = json!({"kind":"succeeded"});
             }
+            wait::checkpoint(&mut stream, 7);
             read_reply(
                 &mut stream,
                 "get",
@@ -755,7 +760,7 @@ fn infinite_wait_preserves_condition_names_and_rejects_a_different_session() {
                 &document,
                 include_str!("../src/cli/schemas/orchbee.agent.wait.json"),
             );
-            assert_eq!(document["version"], 2);
+            assert_eq!(document["version"], 3);
             assert_eq!(document["result"]["matchedConditions"], json!([condition]));
             assert!(document["result"]["wait"]["timeoutMs"].is_null());
         }
@@ -768,8 +773,8 @@ fn infinite_wait_still_times_out_a_stalled_read_without_reconnecting() {
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
-        let AgentRequest::Read(_) = read_agent_request(&mut stream).unwrap() else {
-            panic!("get");
+        let AgentRequest::Changes(_) = read_agent_request(&mut stream).unwrap() else {
+            panic!("initial checkpoint");
         };
         let started = Instant::now();
         assert_closed(&mut stream);
@@ -833,6 +838,9 @@ fn panel_get_and_wait_share_admission_and_pin_the_primary_presentations_session(
                 json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"presentation"}),
             );
             let mut detail = session_detail("sess-alpha");
+            if wait {
+                wait::checkpoint(&mut stream, 1);
+            }
             read_reply(
                 &mut stream,
                 "get",
@@ -843,6 +851,9 @@ fn panel_get_and_wait_share_admission_and_pin_the_primary_presentations_session(
                 detail["snapshot"]["pendingRequests"] = json!([]);
                 detail["status"] = json!({"kind":"idle"});
                 detail["snapshot"]["observation"]["sequence"] = json!(12);
+                if wait {
+                    wait::checkpoint(&mut stream, 1);
+                }
                 read_reply(
                     &mut stream,
                     "get",

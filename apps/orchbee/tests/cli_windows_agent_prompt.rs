@@ -246,7 +246,7 @@ fn prompt_wait_rejects_old_idle_but_accepts_a_new_completed_turn_when_working_wa
     assert_eq!(document["result"]["wait"]["observations"], 2);
     assert_eq!(
         document["result"]["wait"]["matchedConditions"],
-        json!(["succeeded"])
+        json!(["done"])
     );
 }
 

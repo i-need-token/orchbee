@@ -42,8 +42,9 @@ later phase:
 - Every network step has a deadline owned by the invocation, not by the service. One deadline
   covers admission plus the single read or command; a wait command's deadline is `--timeout` in
   milliseconds with a documented default and upper bound.
-- No invocation waits indefinitely by default. Indefinite waiting, where a command offers it, is an
-  explicit option, and interruption still exits `130`.
+- Defaults are finite unless the owning observation command contract expressly defines an indefinite
+  wait. Every indefinite mode documents its default or explicit option, preserves bounded admission
+  and individual reads, and supports interruption with exit `130`. Ordinary mutations stay bounded.
 - A deadline expiry is reported as its own typed outcome. It never claims that the observed
   operation stopped, failed, or was never delivered.
 - Long-polling and change feeds return a cursor and an explicit reset signal when the caller fell
