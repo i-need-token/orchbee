@@ -7,6 +7,7 @@ mod workspace_setup;
 #[derive(Debug, Eq, PartialEq)]
 enum Call {
     Forward(Vec<u8>),
+    Focus(bool),
     Mode(ModeRequest),
     Action(ClientAction),
     BoardSelect(orchbee_agent_observation_protocol::AgentSessionId),
@@ -49,6 +50,10 @@ fn context_prefix_across_reads_consumes_only_the_navigation_keys() {
 }
 
 impl TerminalInputPort for UnavailablePort {
+    fn observe_focus(&mut self, focused: bool) {
+        self.0.borrow_mut().push(Call::Focus(focused));
+    }
+
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.0.borrow_mut().push(Call::Forward(bytes.to_vec()));
         Ok(())
@@ -1007,4 +1012,34 @@ fn an_open_board_swallows_a_paste_inside_the_armed_prefix() {
         [Call::Action(ClientAction::ToggleAgentBoard)]
     );
     assert!(!view.prefix_active());
+}
+
+#[test]
+fn focus_metadata_preserves_input_order_and_an_armed_prefix() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    for packet in [b"before\x1b[".as_slice(), b"Oafter\x02\x1b[I".as_slice()] {
+        dispatcher
+            .dispatch(
+                &mut view,
+                packet,
+                &mut port,
+                Instant::now(),
+                |_, _| Ok::<(), io::Error>(()),
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+    }
+    assert!(view.prefix_active());
+    assert_eq!(
+        *calls.borrow(),
+        [
+            Call::Forward(b"before".to_vec()),
+            Call::Focus(false),
+            Call::Forward(b"after".to_vec()),
+            Call::Focus(true)
+        ]
+    );
 }

@@ -533,6 +533,7 @@ enum ActionBuildError {
 pub(super) struct NativeUi {
     mailbox: Option<Arc<CommandMailbox>>,
     clock: LocalOperationClock,
+    outer_focused: Option<bool>,
     state: Option<NativeSessionState>,
     board: super::agent_board::AgentBoard,
     /// `presentation_id → workbench placement` over the freshest observed
@@ -593,6 +594,7 @@ impl NativeUi {
             agent_index: super::agent_board::PresentationIndex::default(),
             clock,
             state: None,
+            outer_focused: None,
             projections: Vec::new(),
             pending_draws: Vec::new(),
             poll_cursor: 0,
@@ -871,6 +873,12 @@ impl NativeUi {
                 self.retire(closed.failure());
                 return;
             }
+        }
+    }
+
+    pub(super) fn observe_focus(&mut self, focused: bool) {
+        if self.outer_focused != Some(focused) {
+            self.outer_focused = Some(focused);
         }
     }
 

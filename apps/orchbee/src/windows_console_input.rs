@@ -103,6 +103,8 @@ fn encode(event: Event, output: &mut Vec<u8>) {
             }
             output.append(&mut bytes);
         }
+        Event::FocusGained => output.extend_from_slice(b"\x1b[I"),
+        Event::FocusLost => output.extend_from_slice(b"\x1b[O"),
         Event::Mouse(mouse) => {
             let button = |button| match button {
                 MouseButton::Left => 0,

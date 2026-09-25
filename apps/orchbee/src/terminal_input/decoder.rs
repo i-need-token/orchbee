@@ -63,6 +63,8 @@ pub(crate) enum DecodedKind {
     /// the dispatcher routes them to hit-testing or pane passthrough and
     /// never forwards their raw bytes as pending input.
     Mouse(MouseEvent),
+    /// Host focus metadata, never terminal input or a prefix key.
+    Focus(bool),
     /// A mouse-shaped sequence that failed validation or never completed —
     /// malformed SGR parameters, an X10 body aborted or timed out, an
     /// over-bound `<`-prefixed run. These bytes are the host's pointer
@@ -801,6 +803,11 @@ impl LegacyDecoder {
                 raw: raw.into(),
                 owned,
             }),
+            Csi::Focus(focused) => items.push(DecodedItem {
+                kind: DecodedKind::Focus(focused),
+                raw: raw.into(),
+                owned,
+            }),
             Csi::Ignored => items.push(DecodedItem::ignored(raw, owned)),
             Csi::Nondecision => items.push(DecodedItem::nondecision(raw, owned)),
         }
@@ -936,6 +943,8 @@ enum Csi {
     Paste,
     Key(KeyEvent),
     Mouse(MouseEvent),
+    /// Host focus metadata, never terminal input or a prefix key.
+    Focus(bool),
     /// A complete but malformed mouse report — pointer protocol, dropped.
     Ignored,
     Nondecision,
@@ -951,6 +960,8 @@ fn parse_csi(body: &[u8]) -> Csi {
         };
     }
     match body {
+        b"I" => return Csi::Focus(true),
+        b"O" => return Csi::Focus(false),
         b"A" => return Csi::Key(KeyEvent::press(KeyCode::Up, Modifiers::NONE)),
         b"B" => return Csi::Key(KeyEvent::press(KeyCode::Down, Modifiers::NONE)),
         b"C" => return Csi::Key(KeyEvent::press(KeyCode::Right, Modifiers::NONE)),

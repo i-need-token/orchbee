@@ -13,6 +13,7 @@ struct SetupPort {
     forwarded: Vec<u8>,
     selections: i32,
     fault: bool,
+    focus: Vec<bool>,
     edits: Vec<&'static str>,
 }
 
@@ -29,6 +30,7 @@ impl SetupPort {
             forwarded: Vec::new(),
             selections: 0,
             fault: false,
+            focus: Vec::new(),
             edits: Vec::new(),
         }
     }
@@ -48,6 +50,10 @@ impl SetupPort {
 }
 
 impl TerminalInputPort for SetupPort {
+    fn observe_focus(&mut self, focused: bool) {
+        self.focus.push(focused);
+    }
+
     fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
         self.stage = match action {
             ClientAction::RequestProjectRename => NativeSetupStage::ProjectRename,
@@ -638,4 +644,25 @@ fn a_paste_is_atomic_to_the_draft_and_cannot_escalate_picker_or_commands() {
     // Typed text afterwards is still a separate Append, not part of the paste.
     dispatch(&mut dispatcher, &mut port, b"y", now);
     assert_eq!(port.text, "\x02x\n[ignored]y");
+}
+
+#[test]
+fn focused_host_metadata_reaches_the_client_during_setup_editing() {
+    let mut port = SetupPort::new(NativeSetupStage::ProjectRename);
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    dispatcher
+        .dispatch(
+            &mut view,
+            b"a\x1b[Ob\x1b[I",
+            &mut port,
+            Instant::now(),
+            |_, _| Ok::<(), io::Error>(()),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert_eq!(port.focus, [false, true]);
+    assert_eq!(port.text, "ab");
+    assert!(port.forwarded.is_empty());
+    assert!(port.active);
 }

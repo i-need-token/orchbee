@@ -50,6 +50,7 @@ pub(super) enum ModalInputEvent {
     Clear,
     Fault,
     Completeness(bool),
+    Focus(bool),
     Submit,
     Cancel,
     InputFailure,
@@ -475,9 +476,9 @@ impl ModalDecoder {
                 self.phase = Phase::Paste(paste);
             } else {
                 self.finish_frame(now, events);
-                if self.editing
-                    && !sequence.drain
+                if !sequence.drain
                     && let Some(event) = sequence_edit(&sequence.bytes[..sequence.length])
+                    && (self.editing || matches!(event, ModalInputEvent::Focus(_)))
                 {
                     events.push(event);
                 }
@@ -520,6 +521,8 @@ impl ModalDecoder {
 /// returns `None` so it is consumed whole — never simplified to a plain key.
 fn sequence_edit(bytes: &[u8]) -> Option<ModalInputEvent> {
     Some(match bytes {
+        b"\x1b[I" | b"\x9bI" => ModalInputEvent::Focus(true),
+        b"\x1b[O" | b"\x9bO" => ModalInputEvent::Focus(false),
         b"\x1b[D" | b"\x9bD" | b"\x1bOD" | b"\x8fD" => ModalInputEvent::Left,
         b"\x1b[C" | b"\x9bC" | b"\x1bOC" | b"\x8fC" => ModalInputEvent::Right,
         b"\x1b[H" | b"\x9bH" | b"\x1bOH" | b"\x8fH" | b"\x1b[1~" | b"\x9b1~" | b"\x1b[7~"

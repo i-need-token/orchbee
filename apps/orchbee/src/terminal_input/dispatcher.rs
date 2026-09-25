@@ -224,6 +224,11 @@ impl InputDispatcher {
         after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<(), Error>,
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
+        if let DecodedKind::Focus(focused) = item.kind {
+            self.flush_pending(view, port);
+            port.observe_focus(focused);
+            return Ok(DispatchOutcome::Continue);
+        }
         if item.owned {
             // The item completes a frame that began inside a captured
             // packet: consumed by that capture, never forwarded or decided.
@@ -256,7 +261,7 @@ impl InputDispatcher {
                     return Ok(DispatchOutcome::Continue);
                 }
                 DecodedKind::Mouse(_) => {}
-                DecodedKind::Ignored => {}
+                DecodedKind::Ignored | DecodedKind::Focus(_) => {}
                 DecodedKind::Nondecision => {}
             }
             return self.decide(view, port, now, item, after_layout, mode);
@@ -455,6 +460,10 @@ impl InputDispatcher {
         events: Vec<ModalInputEvent>,
     ) {
         for event in events {
+            if let ModalInputEvent::Focus(focused) = event {
+                port.observe_focus(focused);
+                continue;
+            }
             if event == ModalInputEvent::InputFailure {
                 view.report_terminal_input_unavailable();
                 continue;
@@ -490,7 +499,7 @@ impl InputDispatcher {
                     port.cancel_rename_draft(token);
                     continue;
                 }
-                ModalInputEvent::InputFailure => continue,
+                ModalInputEvent::InputFailure | ModalInputEvent::Focus(_) => continue,
             };
             let _accepted = port.edit_rename_draft(token, edit);
         }
@@ -538,7 +547,7 @@ impl InputDispatcher {
                 port.cancel_setup_draft(token);
                 return;
             }
-            ModalInputEvent::InputFailure => return,
+            ModalInputEvent::InputFailure | ModalInputEvent::Focus(_) => return,
         };
         let selecting = matches!(
             edit,

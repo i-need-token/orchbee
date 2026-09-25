@@ -17,6 +17,8 @@ enum Operation {
     EnablePaste,
     DisablePointer,
     EnablePointer,
+    DisableFocus,
+    EnableFocus,
     DisableRaw,
     EnableRaw,
     EndSynchronizedUpdate,
@@ -71,6 +73,13 @@ impl FakeTerminalModes {
 }
 
 impl TerminalModes for FakeTerminalModes {
+    fn disable_focus_reporting(&self) -> io::Result<()> {
+        self.perform(Operation::DisableFocus)
+    }
+    fn enable_focus_reporting(&self) -> io::Result<()> {
+        self.perform(Operation::EnableFocus)
+    }
+
     fn disable_bracketed_paste(&self) -> io::Result<()> {
         self.perform(Operation::DisablePaste)
     }
@@ -124,6 +133,13 @@ struct SetupBarrierTerminalModes {
 }
 
 impl TerminalModes for SetupBarrierTerminalModes {
+    fn disable_focus_reporting(&self) -> io::Result<()> {
+        self.control.disable_focus_reporting()
+    }
+    fn enable_focus_reporting(&self) -> io::Result<()> {
+        self.control.enable_focus_reporting()
+    }
+
     fn disable_bracketed_paste(&self) -> io::Result<()> {
         self.control.disable_bracketed_paste()
     }
@@ -658,6 +674,15 @@ struct OrderedWireModes {
 }
 
 impl TerminalModes for OrderedWireModes {
+    fn disable_focus_reporting(&self) -> io::Result<()> {
+        self.wire.record("disable-focus-reporting");
+        Ok(())
+    }
+    fn enable_focus_reporting(&self) -> io::Result<()> {
+        self.wire.record("enable-focus-reporting");
+        Ok(())
+    }
+
     fn disable_bracketed_paste(&self) -> io::Result<()> {
         self.wire.record("disable-bracketed-paste");
         Ok(())
@@ -989,5 +1014,84 @@ fn a_failed_end_is_repaid_through_the_control_channel() -> io::Result<()> {
             .any(|event| event.starts_with("frame-bytes:")),
         "no frame bytes follow the discard"
     );
+    Ok(())
+}
+
+#[test]
+fn focus_reporting_partial_enable_retains_exact_restoration_obligation() -> io::Result<()> {
+    let control = FakeTerminalModes::with_failures([(Operation::EnableFocus, 1)]);
+    let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone())?;
+    assert!(guard.set_focus_reporting(true).is_err());
+    assert!(guard.set_focus_reporting(true).is_err());
+    assert_eq!(
+        control
+            .operations()
+            .iter()
+            .filter(|op| **op == Operation::EnableFocus)
+            .count(),
+        1
+    );
+    guard.restore().map_err(io::Error::other)?;
+    let operations = control.operations();
+    let focus = operations
+        .iter()
+        .position(|op| *op == Operation::DisableFocus)
+        .unwrap();
+    let alternate = operations
+        .iter()
+        .position(|op| *op == Operation::LeaveAlternate)
+        .unwrap();
+    assert!(focus < alternate);
+    guard.restore().map_err(io::Error::other)?;
+    assert_eq!(
+        control
+            .operations()
+            .iter()
+            .filter(|op| **op == Operation::DisableFocus)
+            .count(),
+        1
+    );
+    Ok(())
+}
+
+#[test]
+fn focus_reporting_toggle_is_idempotent_and_drop_restores_it() -> io::Result<()> {
+    let control = FakeTerminalModes::default();
+    {
+        let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone())?;
+        guard.set_focus_reporting(true)?;
+        guard.set_focus_reporting(true)?;
+        guard.set_focus_reporting(false)?;
+        guard.set_focus_reporting(false)?;
+        guard.set_focus_reporting(true)?;
+    }
+    let operations = control.operations();
+    assert_eq!(
+        operations
+            .iter()
+            .filter(|op| **op == Operation::EnableFocus)
+            .count(),
+        2
+    );
+    assert_eq!(
+        operations
+            .iter()
+            .filter(|op| **op == Operation::DisableFocus)
+            .count(),
+        2
+    );
+    Ok(())
+}
+
+#[test]
+fn failed_focus_restore_does_not_skip_other_terminal_modes() -> io::Result<()> {
+    let control = FakeTerminalModes::with_failures([(Operation::DisableFocus, 2)]);
+    let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone())?;
+    guard.set_focus_reporting(true)?;
+    let error = guard.restore().unwrap_err();
+    assert!(error.to_string().contains("disable focus reporting"));
+    let operations = control.operations();
+    assert!(operations.contains(&Operation::LeaveAlternate));
+    assert!(operations.contains(&Operation::DisableRaw));
     Ok(())
 }

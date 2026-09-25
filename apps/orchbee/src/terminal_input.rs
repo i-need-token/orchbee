@@ -188,6 +188,9 @@ pub(crate) trait TerminalInputPort {
 
     fn observe_geometry(&mut self, _geometry: Geometry) {}
 
+    /// Host focus is metadata; ports without a native Client consume it.
+    fn observe_focus(&mut self, _focused: bool) {}
+
     fn capture_confirmation_key(&mut self, _key: ClientKey) -> bool {
         false
     }

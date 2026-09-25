@@ -523,3 +523,41 @@ fn paste_emits_one_atomic_event_distinct_from_typed_text() {
         ]
     );
 }
+
+#[test]
+fn focus_metadata_does_not_edit_or_submit_a_modal_field() {
+    let now = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    assert!(decoder.start_with_capacity(ModalCapacity::Scalars512));
+    let events = feed(&mut decoder, b"a\x1b[Ob\x9bIc", now, 512);
+    assert_eq!(appended(&events), "abc");
+    let focus: Vec<_> = events
+        .iter()
+        .filter_map(|event| match event {
+            Event::Focus(value) => Some(*value),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(focus, [false, true]);
+    assert!(
+        !events
+            .iter()
+            .any(|event| matches!(event, Event::Submit | Event::Cancel))
+    );
+    let events = feed(&mut decoder, b"\x1b[200~a\x1b[Ob\x1b[201~", now, 512);
+    assert!(!events.iter().any(|event| matches!(event, Event::Focus(_))));
+}
+
+#[test]
+fn focus_loss_after_modal_submit_survives_the_captured_packet_tail() {
+    let now = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    assert!(decoder.start_with_capacity(ModalCapacity::Scalars512));
+    let events = feed(&mut decoder, b"a\r", now, 512);
+    assert!(events.contains(&Event::Submit));
+    // The dispatcher releases the modal lease after the owner accepts Submit.
+    let _release = decoder.cancel(now);
+    let tail = feed(&mut decoder, b"\x1b[Oignored", now, 512);
+    assert!(tail.contains(&Event::Focus(false)));
+    assert!(appended(&tail).is_empty());
+}

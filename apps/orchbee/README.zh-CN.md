@@ -744,3 +744,5 @@ Windows `status server` 在 Client Session 准入前读取实际 Server 构建�
 ## Agent 导航
 
 Windows `agent focus <target> [--client <id>]` 在一次客户端控制提交前，将名称、会话或窗格解析为唯一活动的主窗格。显式 `--session`、`--name` 和 `--panel` 使用现有解析器；`--request-id`、`--detach` 和默认 30000 ms 总期限沿用导航恢复契约。未就绪客户端在 Agent 查询前返回 `client-not-ready`。[Agent 导航契约](docs/native-agent-navigation.zh-CN.md) 定义主呈现绑定、歧义、取消和保留操作查询。本命令不确认 seen/unseen 状态。
+
+Windows 宿主焦点上报由[原生 Client 提示状态](docs/native-client-attention.zh-CN.md)管理；焦点报告属于 Client 元数据，不是终端文本。提示状态与 CLI 确认的集成仍在开发。

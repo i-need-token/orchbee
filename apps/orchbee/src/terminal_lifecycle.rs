@@ -25,6 +25,22 @@ const RESTORATION_ATTEMPTS_PER_MODE: u8 = 2;
 pub(crate) const SYNCHRONIZED_UPDATE_BEGIN: &[u8] = b"\x1b[?2026h";
 pub(crate) const SYNCHRONIZED_UPDATE_END: &[u8] = b"\x1b[?2026l";
 
+struct FocusReporting(bool);
+
+impl crossterm::Command for FocusReporting {
+    #[cfg(windows)]
+    fn execute_winapi(&self) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
+    #[cfg(windows)]
+    fn is_ansi_code_supported(&self) -> bool {
+        true
+    }
+    fn write_ansi(&self, output: &mut impl fmt::Write) -> fmt::Result {
+        output.write_str(if self.0 { "\x1b[?1004h" } else { "\x1b[?1004l" })
+    }
+}
+
 struct BracketedPaste(bool);
 
 impl crossterm::Command for BracketedPaste {
@@ -87,6 +103,8 @@ impl crossterm::Command for SynchronizedUpdateEnd {
 pub(crate) trait TerminalModes: Send + Sync + 'static {
     fn disable_bracketed_paste(&self) -> io::Result<()>;
     fn enable_bracketed_paste(&self) -> io::Result<()>;
+    fn disable_focus_reporting(&self) -> io::Result<()>;
+    fn enable_focus_reporting(&self) -> io::Result<()>;
     fn disable_pointer_capture(&self) -> io::Result<()>;
     fn enable_pointer_capture(&self) -> io::Result<()>;
     fn disable_raw_mode(&self) -> io::Result<()>;
@@ -102,6 +120,7 @@ pub(crate) trait TerminalModes: Send + Sync + 'static {
 enum RestorationStep {
     DisableBracketedPaste,
     DisablePointerCapture,
+    DisableFocusReporting,
     DisableRaw,
     EndSynchronizedUpdate,
     LeaveAlternate,
@@ -112,6 +131,7 @@ impl fmt::Display for RestorationStep {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::DisableBracketedPaste => formatter.write_str("disable bracketed paste"),
+            Self::DisableFocusReporting => formatter.write_str("disable focus reporting"),
             Self::DisablePointerCapture => formatter.write_str("disable pointer capture"),
             Self::DisableRaw => formatter.write_str("disable raw mode"),
             Self::EndSynchronizedUpdate => formatter.write_str("end synchronized update"),
@@ -237,6 +257,7 @@ impl SynchronizedUpdateLease {
 struct TerminalModeState {
     bracketed_paste: ModeLease,
     pointer_capture: ModeLease,
+    focus_reporting: ModeLease,
     alternate_screen: ModeLease,
     cursor: ModeLease,
     raw_mode: ModeLease,
@@ -248,6 +269,7 @@ impl TerminalModeState {
         Self {
             bracketed_paste: ModeLease::new(),
             pointer_capture: ModeLease::new(),
+            focus_reporting: ModeLease::new(),
             alternate_screen: ModeLease::new(),
             cursor: ModeLease::new(),
             raw_mode: ModeLease::new(),
@@ -259,6 +281,7 @@ impl TerminalModeState {
 pub(crate) struct TerminalModeGuard<C: TerminalModes> {
     bracketed_paste_enabled: bool,
     pointer_capture_enabled: bool,
+    focus_reporting_enabled: bool,
     control: Arc<C>,
     _owner_thread_only: PhantomData<Rc<()>>,
     _panic_registration: Option<PanicRestorationRegistration>,
@@ -290,6 +313,7 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
         let mut guard = Self {
             bracketed_paste_enabled: false,
             pointer_capture_enabled: false,
+            focus_reporting_enabled: false,
             _owner_thread_only: PhantomData,
             _panic_registration: panic_registration,
             control,
@@ -324,6 +348,7 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
     pub(crate) fn restore(&mut self) -> Result<(), TerminalRestoreError> {
         self.bracketed_paste_enabled = false;
         self.pointer_capture_enabled = false;
+        self.focus_reporting_enabled = false;
         restore_modes(self.control.as_ref(), &self.state)
     }
 
@@ -395,6 +420,36 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
         }
     }
 
+    pub(crate) fn set_focus_reporting(&mut self, enabled: bool) -> io::Result<()> {
+        if enabled {
+            if self.focus_reporting_enabled {
+                return Ok(());
+            }
+            if self.state.focus_reporting.restoration_required() {
+                return Err(io::Error::other(
+                    "focus reporting still requires restoration",
+                ));
+            }
+            self.state.focus_reporting.mark_operation_started();
+            self.control.enable_focus_reporting()?;
+            self.focus_reporting_enabled = true;
+            return Ok(());
+        }
+        self.focus_reporting_enabled = false;
+        let mut failures = Vec::new();
+        restore_mode(
+            &self.state.focus_reporting,
+            RestorationStep::DisableFocusReporting,
+            || self.control.disable_focus_reporting(),
+            &mut failures,
+        );
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(io::Error::other(TerminalRestoreError { failures }))
+        }
+    }
+
     fn initialization_failure(&mut self, step: &str, error: io::Error) -> io::Error {
         let kind = error.kind();
         match self.restore() {
@@ -437,6 +492,12 @@ fn restore_modes<C: TerminalModes>(
         &state.pointer_capture,
         RestorationStep::DisablePointerCapture,
         || control.disable_pointer_capture(),
+        &mut failures,
+    );
+    restore_mode(
+        &state.focus_reporting,
+        RestorationStep::DisableFocusReporting,
+        || control.disable_focus_reporting(),
         &mut failures,
     );
     restore_mode(
@@ -517,6 +578,14 @@ impl InheritedTerminalModes {
 }
 
 impl TerminalModes for InheritedTerminalModes {
+    fn disable_focus_reporting(&self) -> io::Result<()> {
+        self.write_command(FocusReporting(false))
+    }
+
+    fn enable_focus_reporting(&self) -> io::Result<()> {
+        self.write_command(FocusReporting(true))
+    }
+
     fn disable_bracketed_paste(&self) -> io::Result<()> {
         self.write_command(BracketedPaste(false))
     }

@@ -251,6 +251,11 @@ fn run_prepared_surface(
         .set_pointer_capture(mouse)
         .map_err(TuiFailure::Runtime)?;
 
+    #[cfg(windows)]
+    modes
+        .set_focus_reporting(true)
+        .map_err(TuiFailure::Runtime)?;
+
     let run_result = run_event_loop_with_modes(
         &mut terminal,
         Chrome {

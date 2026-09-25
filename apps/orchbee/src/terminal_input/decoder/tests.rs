@@ -689,3 +689,25 @@ fn malformed_mouse_bytes_never_swallow_neighboring_keys_or_paste() {
     assert_eq!(text.as_deref(), Some("hi"));
     assert_eq!(items[4].kind, press(KeyCode::Char('c')));
 }
+
+#[test]
+fn focus_reports_survive_every_packet_split_and_paste_keeps_them_as_data() {
+    for bytes in [b"\x1b[I\x1b[O".as_slice(), b"\x9bI\x9bO".as_slice()] {
+        for split in 0..=bytes.len() {
+            let items = decode_split(&bytes[..split], &[&bytes[split..]]);
+            assert_eq!(
+                items.iter().map(|item| &item.kind).collect::<Vec<_>>(),
+                [&DecodedKind::Focus(true), &DecodedKind::Focus(false)]
+            );
+        }
+    }
+    let items = decode(b"\x1b[200~a\x1b[Ob\x1b[Ic\x1b[201~");
+    assert_eq!(items.len(), 1);
+    assert!(matches!(&items[0].kind, DecodedKind::Paste { .. }));
+    assert_eq!(&*items[0].raw, b"\x1b[200~a\x1b[Ob\x1b[Ic\x1b[201~");
+    assert!(
+        decode(b"\x1b[1I\x1b[1O")
+            .iter()
+            .all(|item| !matches!(item.kind, DecodedKind::Focus(_)))
+    );
+}

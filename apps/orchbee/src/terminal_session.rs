@@ -465,6 +465,12 @@ impl TerminalSession {
 }
 
 impl TerminalInputPort for TerminalSession {
+    fn observe_focus(&mut self, focused: bool) {
+        if let Some(native) = self.backend.native_mut() {
+            native.observe_focus(focused);
+        }
+    }
+
     fn setup_input_context(&mut self) -> Option<NativeSetupInputContext> {
         self.backend
             .native_mut()
