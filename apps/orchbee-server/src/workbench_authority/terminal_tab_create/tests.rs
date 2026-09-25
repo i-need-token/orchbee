@@ -328,6 +328,7 @@ fn commit_publishes_exact_simple_tab_and_pending_then_final_replay_is_fixed() {
     assert!(!tab.pinned);
     assert_eq!(tab.group_id, None);
     let PanelNode::Panel {
+        right_click: _,
         panel_id,
         primary_presentation,
         child_presentations,

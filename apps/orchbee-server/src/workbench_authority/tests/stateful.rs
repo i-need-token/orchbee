@@ -373,6 +373,36 @@ fn run(steps: &[Step]) -> Result<(), String> {
                         "panel rename changed unrelated state",
                     )?;
                 }
+                WorkbenchAction::PanelInputSet {
+                    terminal_context_id,
+                    tab_id,
+                    panel_id,
+                    right_click,
+                } => {
+                    let mut expected = before.clone();
+                    expected.revision = after.revision;
+                    let tab = expected
+                        .terminal_contexts
+                        .iter_mut()
+                        .find(|context| context.terminal_context_id == *terminal_context_id)
+                        .and_then(|context| {
+                            context.tabs.iter_mut().find(|tab| tab.tab_id == *tab_id)
+                        })
+                        .ok_or("missing input panel tab")?;
+                    let orchbee_workbench_protocol::PanelNode::Panel {
+                        right_click: policy,
+                        ..
+                    } = super::super::panel_mut(&mut tab.root, panel_id)
+                        .ok_or("missing input panel")?
+                    else {
+                        return Err("not a panel".to_owned());
+                    };
+                    *policy = *right_click;
+                    require(
+                        after == expected && authority.last_identity == old_cursor,
+                        "panel input changed unrelated state",
+                    )?;
+                }
                 WorkbenchAction::WorkspaceLaunch { .. } | WorkbenchAction::TabCreate { .. } => {
                     return Err("pure trace generated tab.create".to_owned());
                 }

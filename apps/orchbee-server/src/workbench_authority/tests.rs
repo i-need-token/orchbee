@@ -5,6 +5,7 @@ use orchbee_workbench_protocol::{
 };
 
 mod launch_profile;
+mod panel_input;
 mod panel_labels;
 mod stateful;
 mod workspace_directory;

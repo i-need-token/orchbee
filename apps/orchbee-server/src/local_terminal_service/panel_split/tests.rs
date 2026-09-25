@@ -211,6 +211,7 @@ fn retargeted_split_completion_notifies_a_parked_bare_open_waiter() -> TestResul
         site_id: committed.site_id.clone(),
         expected_revision: committed.revision,
         action: WorkbenchAction::PanelSplit {
+            right_click: Default::default(),
             terminal_context_id: context.clone(),
             tab_id: tab.clone(),
             panel_id: panel_a.clone(),

@@ -780,6 +780,7 @@ fn peer_panel_split_refresh_preserves_active_panel_identity() {
             },
             PanelSlot {
                 node: PanelNode::Panel {
+                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&id(3_010)).unwrap(),
                     primary_presentation: Presentation {
@@ -825,6 +826,7 @@ fn peer_panel_split_refresh_preserves_active_panel_identity() {
                     children: Box::new([
                         PanelSlot {
                             node: PanelNode::Panel {
+                                right_click: Default::default(),
                                 child_presentations: Vec::new(),
                                 panel_id: WorkbenchPanelId::parse(&id(3_030)).unwrap(),
                                 primary_presentation: Presentation {
@@ -889,6 +891,7 @@ fn split_panel_baseline() -> Snapshot {
             },
             PanelSlot {
                 node: PanelNode::Panel {
+                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&id(3_010)).unwrap(),
                     primary_presentation: Presentation {
@@ -1861,6 +1864,7 @@ fn tab(index: usize) -> Tab {
         label: label.clone(),
         pinned: false,
         root: PanelNode::Panel {
+            right_click: Default::default(),
             child_presentations: Vec::new(),
             panel_id: panel_id(seed + 1),
             primary_presentation: Presentation {

@@ -127,6 +127,15 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	z
 		.strictObject({
+			kind: z.literal('panel.input.set'),
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			panelId: WorkbenchPanelIdSchema,
+			rightClick: z.enum(['orchbee', 'panel']),
+		})
+		.readonly(),
+	z
+		.strictObject({
 			kind: z.literal('panel.rename'),
 			terminalContextId: WorkbenchTerminalContextIdSchema,
 			tabId: WorkbenchTabIdSchema,
@@ -153,6 +162,7 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('panel.split'),
+			rightClick: z.enum(['orchbee', 'panel']).optional(),
 			terminalContextId: WorkbenchTerminalContextIdSchema,
 			tabId: WorkbenchTabIdSchema,
 			panelId: WorkbenchPanelIdSchema,
@@ -335,6 +345,9 @@ export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
 		})
 		.readonly(),
 	z.strictObject({ kind: z.literal('renamed'), revision: WorkbenchRevisionSchema }).readonly(),
+	z
+		.strictObject({ kind: z.literal('panel-input-configured'), revision: WorkbenchRevisionSchema })
+		.readonly(),
 	z.strictObject({ kind: z.literal('unchanged'), revision: WorkbenchRevisionSchema }).readonly(),
 	z
 		.strictObject({

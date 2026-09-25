@@ -89,6 +89,6 @@ integration the change can be reverted as one contract slice; after integration 
 cohort, or clear overrides with that cohort before reverting. Never silently rewrite fallback
 labels or discard canonical overrides to make an older reader accept them.
 
-CLI read envelopes `orchbee.panel.get`, `orchbee.panel.current` and `orchbee.api.snapshot` are version 2. Panel reads keep the creation `label` and add nullable `customLabel` plus effective `displayLabel`; raw snapshots retain the canonical omitted-when-absent override. The schema catalog is v29 with 64 documents.
+CLI read envelopes `orchbee.panel.get`, `orchbee.panel.current` and `orchbee.api.snapshot` are version 3. Panel reads keep the creation `label` and add nullable `customLabel` plus effective `displayLabel`; raw snapshots retain the canonical omitted-when-absent override. The schema catalog is v31 with 66 documents.
 
 In a leaf header, an explicit custom title precedes the ordinal so narrow panes keep user text visible. Uncustomized headers retain their existing localized resource prefix. Both forms use the same sanitization and display-cell truncation.

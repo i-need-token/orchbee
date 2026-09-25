@@ -71,15 +71,32 @@ impl Fixture {
     }
 
     pub(super) fn run(&self, arguments: &[&str]) -> Output {
-        let child = Command::new(self.0.join("orchbee.exe"))
+        self.run_with_caller(arguments, None, None)
+    }
+
+    pub(super) fn run_with_caller(
+        &self,
+        arguments: &[&str],
+        terminal: Option<&str>,
+        worker: Option<&str>,
+    ) -> Output {
+        let mut command = Command::new(self.0.join("orchbee.exe"));
+        command
             .args(arguments)
             .env("ORCHBEE_RUNTIME_BASE", self.0.join("runtime"))
             .env("LC_ALL", "en_US.UTF-8")
+            .env_remove("ORCHBEE_TERMINAL_ID")
+            .env_remove("ORCHBEE_WORKER_ID")
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
+            .stderr(Stdio::piped());
+        if let Some(value) = terminal {
+            command.env("ORCHBEE_TERMINAL_ID", value);
+        }
+        if let Some(value) = worker {
+            command.env("ORCHBEE_WORKER_ID", value);
+        }
+        let child = command.spawn().unwrap();
         if let Some(launched) = self.1.lock().unwrap().take() {
             // The peer may already have accepted before CreateProcess returns.
             let _ = launched.send(Instant::now());

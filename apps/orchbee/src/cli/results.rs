@@ -58,7 +58,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
     }
 }
 
-/// `terminal get` is the one document past `version:1`: v2 added the
+/// `terminal get` v2 added the
 /// `launch` member and a Server-joined source, v3 adds the `launchProfile`
 /// provenance sibling — each a deliberate break older validators reject.
 /// `terminal read`/`--history` and `terminal wait-output` carry a
@@ -67,7 +67,8 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
 /// match detail on a wait — so flag-free output stays byte-identical.
 pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
     match command {
-        QueryCommand::PanelGet(_) | QueryCommand::PanelCurrent(_) | QueryCommand::ApiSnapshot => 2,
+        QueryCommand::PanelGet(_) | QueryCommand::PanelCurrent(_) | QueryCommand::ApiSnapshot => 3,
+        QueryCommand::PanelList { .. } | QueryCommand::TabGet(_) => 2,
         QueryCommand::TerminalGet(_) => 3,
         QueryCommand::AgentWait { .. } | QueryCommand::PanelProcessInfo(_) => 2,
         QueryCommand::TerminalRead { unwrap, lines, .. }
@@ -200,6 +201,7 @@ pub(crate) struct TabDoc {
 
 #[derive(Clone, Debug)]
 pub(crate) struct PanelRow {
+    pub(crate) right_click: orchbee_workbench_protocol::PanelRightClickTarget,
     pub(crate) panel_id: String,
     pub(crate) tab_id: String,
     pub(crate) terminal_context_id: String,
@@ -1194,6 +1196,7 @@ impl Projection {
                     .map(|row| {
                         json!({
                             "panelId": row.panel_id,
+                            "rightClick": row.right_click.as_str(),
                             "tabId": row.tab_id,
                             "terminalContextId": row.terminal_context_id,
                             "primaryPresentationId": row.primary_presentation_id,
@@ -1231,6 +1234,7 @@ impl Projection {
             Self::PanelGet(doc) => json!({
                 "panel": {
                     "panelId": doc.row.panel_id,
+                    "rightClick": doc.row.right_click.as_str(),
                     "tabId": doc.row.tab_id,
                     "context": context_json(&doc.context),
                     "slotPath": doc.slot_path,
@@ -2165,11 +2169,13 @@ fn collect_panels<'a>(
 ) {
     match node {
         PanelNode::Panel {
+            right_click,
             panel_id,
             primary_presentation,
             child_presentations,
         } => visit(
             PanelRow {
+                right_click: *right_click,
                 panel_id: panel_id.as_str().to_owned(),
                 tab_id: tab.tab_id.as_str().to_owned(),
                 terminal_context_id: context.terminal_context_id.as_str().to_owned(),
@@ -2199,6 +2205,7 @@ fn panel_presentations(
 ) -> Option<(PresentationRow, Vec<PresentationRow>)> {
     match node {
         PanelNode::Panel {
+            right_click: _,
             panel_id: id,
             primary_presentation,
             child_presentations,
@@ -2233,6 +2240,7 @@ fn collect_terminal_rows(
 ) {
     match node {
         PanelNode::Panel {
+            right_click: _,
             panel_id,
             primary_presentation,
             child_presentations,

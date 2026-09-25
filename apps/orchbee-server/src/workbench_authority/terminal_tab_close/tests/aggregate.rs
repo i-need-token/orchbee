@@ -30,6 +30,7 @@ fn split_fixture(count: u128) -> (WorkbenchAuthority, WorkbenchGrant) {
             },
             PanelSlot {
                 node: PanelNode::Panel {
+                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&identity(102)).unwrap(),
                     primary_presentation: Presentation {
@@ -424,6 +425,7 @@ fn aggregate_close_fences_same_tab_split_and_move_until_publication() {
         &authority,
         10001,
         WorkbenchAction::PanelSplit {
+            right_click: Default::default(),
             terminal_context_id: context_id.clone(),
             tab_id: closing_tab_id.clone(),
             panel_id: closing_members[0].panel_id().clone(),
@@ -523,6 +525,7 @@ fn aggregate_close_fences_same_tab_split_and_move_until_publication() {
         &authority,
         10003,
         WorkbenchAction::PanelSplit {
+            right_click: Default::default(),
             terminal_context_id: context_id.clone(),
             tab_id: other_tab_id.clone(),
             panel_id: other_members[0].panel_id().clone(),
@@ -638,6 +641,7 @@ fn leaf_close_leaves_same_tab_split_and_move_admissible() {
         &authority,
         10012,
         WorkbenchAction::PanelSplit {
+            right_click: Default::default(),
             terminal_context_id: context_id,
             tab_id: tab_id.clone(),
             panel_id: members[1].panel_id().clone(),

@@ -13,7 +13,7 @@
 mode-lease 机制。
 
 本切片刻意不实现分隔条拖动 resize、历史选择与剪贴板、多击选词/选行、滚动指示器跳转、
-右/中键表面、pixel 格式报告，以及 primary 屏幕滚轮历史回看。这些属于各自的已接受决策。
+右键上下文菜单和中键表面、pixel 格式报告，以及 primary 屏幕滚轮历史回看。这些属于各自的已接受决策。
 
 ## 捕获策略
 
@@ -154,3 +154,7 @@ Modal 输入捕获（draft 或已 arm 的确认）吞掉指针事件而不产生
 | CLI                     | `invocation/tests` `tui --mouse` 值准入、裸调用/其他族拒绝、`--format` 拒绝；`cli/completion` 脚本                                                                                                                                                                                              |
 | 真实 PTY（Legacy 接缝） | `tui_shell/connected_tests::real_tui_routes_pointer_reports_to_the_reporting_pane_and_restores_modes`——记录的 pane-local SGR 字节、pane-local 平移、只读丢弃、pixel 拒绝、滚轮转方向键、捕获切换、模式恢复                                                                                      |
 | 真实 PTY（公开 Native） | `tests/local_startup_process/native_pointer.rs`——真实 PTY 上 spawn 的 `orchbee` 二进制：捕获 arm、X10 与 SGR pane-local 报告、未聚焦 pane 点击聚焦与排队放行、只读拒绝、滚轮转方向键、`Ctrl+B m`、`--mouse off`、退出恢复，以及零像素宿主几何下 cell 寻址报告仍可用、`?1016` 仍获有界不支持通知 |
+
+## 共享右键策略
+
+[Panel 输入策略](native-panel-input.zh-CN.md) 在焦点或透传之前裁决新的右键按下。默认 `orchbee` 将其保留；`panel` 仅允许启用鼠标上报的终端内容内无修饰键按下，并遵循现有控制权与就绪检查。排队右键在任何字节发出前复核策略。已准入手势捕获按钮与精确 Pane 实例，其他按钮不能注入按下或释放它，旧格式通用释放映射到归属按钮。改变策略作用于下一个手势，捕获/焦点/实例取消规则继续生效。本功能不新增上下文菜单。

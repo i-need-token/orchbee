@@ -2401,6 +2401,7 @@ pub(super) fn panel_node(
     label: &str,
 ) -> PanelNode {
     PanelNode::Panel {
+        right_click: Default::default(),
         child_presentations: Vec::new(),
         panel_id: WorkbenchPanelId::parse(&id(panel)).unwrap(),
         primary_presentation: Presentation {

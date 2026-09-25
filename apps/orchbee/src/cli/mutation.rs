@@ -41,6 +41,7 @@ pub(super) struct Receipt {
     direction: Option<&'static str>,
     label: Option<String>,
     custom_label: Option<orchbee_workbench_protocol::PanelLabelUpdate>,
+    right_click: Option<orchbee_workbench_protocol::PanelRightClickTarget>,
     path: Option<String>,
     terminal: Option<TerminalFact>,
     /// The catalog-private revision a launch-profile command committed —
@@ -104,6 +105,9 @@ impl Receipt {
         if let Some(label) = &self.custom_label {
             result.insert("customLabel".to_owned(), json!(label));
         }
+        if let Some(policy) = self.right_click {
+            result.insert("rightClick".to_owned(), json!(policy));
+        }
         if let Some(path) = &self.path {
             result.insert("path".to_owned(), json!(path));
         }
@@ -127,7 +131,7 @@ impl Receipt {
             // additions; version-3 validators stay behind. `project rename`
             // keeps its dedicated v1 document — the shared action enum stays
             // closed.
-            "version": if matches!(self.schema_id, super::schema::PROJECT_RENAME_RESULT_ID | super::schema::PANEL_RENAME_RESULT_ID) {
+            "version": if matches!(self.schema_id, super::schema::PROJECT_RENAME_RESULT_ID | super::schema::PANEL_RENAME_RESULT_ID | super::schema::PANEL_INPUT_RESULT_ID) {
                 1
             } else {
                 4
@@ -234,6 +238,9 @@ impl Receipt {
                     .custom_label()
                     .map_or_else(|| "null".to_owned(), |value| value.as_str().to_owned()),
             ));
+        }
+        if let Some(policy) = self.right_click {
+            rows.push(("rightClick", policy.as_str().to_owned()));
         }
         if let Some(path) = &self.path {
             rows.push(("path", path.clone()));
@@ -362,6 +369,10 @@ mod linux {
     use crate::local_client::workbench::panel_close::{
         WorkbenchPanelCloseAccepted, WorkbenchPanelCloseFailure, WorkbenchPanelCloseNotSubmitted,
         WorkbenchPanelClosePrecommit, WorkbenchPanelCloseRequest, WorkbenchPanelCloseSubmission,
+    };
+    use crate::local_client::workbench::panel_input::{
+        WorkbenchPanelInputNotSubmitted, WorkbenchPanelInputOutcomeUnknownReason,
+        WorkbenchPanelInputPrecommit, WorkbenchPanelInputRequest, WorkbenchPanelInputSubmission,
     };
     use crate::local_client::workbench::panel_placement::{
         WorkbenchPanelPlacementCommit, WorkbenchPanelPlacementNotSubmitted,
@@ -527,6 +538,7 @@ mod linux {
     }
 
     submissions! {
+        (WorkbenchPanelInputNotSubmitted, WorkbenchPanelInputPrecommit, WorkbenchPanelInputOutcomeUnknownReason);
         (WorkbenchSetupNotSubmitted, WorkbenchSetupPrecommit, WorkbenchSetupOutcomeUnknownReason);
         (LaunchProfileMutationNotSubmitted, WorkbenchLaunchProfileMutationPrecommit, LaunchProfileOutcomeUnknownReason);
         (WorkbenchLabelRenameNotSubmitted, WorkbenchLabelRenamePrecommit, WorkbenchLabelRenameOutcomeUnknownReason);
@@ -563,10 +575,26 @@ mod linux {
         {
             return execute_close_resume(project, workspace, request, *generation);
         }
+        let caller = if let MutationCommand::PanelInput { target, .. } = command {
+            if !cfg!(windows) {
+                return Err(Failure::new(FailureKind::ServiceUnavailable)
+                    .details(stage_reason_details("platform", "unsupported-platform")));
+            }
+            Some(super::super::caller_context::PanelTarget::prepare(
+                target.as_ref(),
+                |name| std::env::var_os(name),
+            )?)
+        } else {
+            None
+        };
         // One admitted session plus one bounded snapshot read; a read failure
         // already dropped the session inside `snapshot_session`.
         let (mut client, deadline, snapshot) = snapshot_session()?;
-        let resolved = resolve(command, &snapshot)
+        let mut exact = command.clone();
+        if let (Some(caller), MutationCommand::PanelInput { target, .. }) = (caller, &mut exact) {
+            *target = Some(caller.resolve(&snapshot)?);
+        }
+        let resolved = resolve(&exact, &snapshot)
             .map_err(|failure| failure.source(results::snapshot_source(&snapshot)))?;
         let source = command_source(
             resolved.site_id.as_str(),
@@ -685,6 +713,21 @@ mod linux {
                     options: Box::new(options.clone()),
                 })
             }
+            MutationCommand::PanelInput {
+                target,
+                right_click,
+            } => {
+                let target = target
+                    .as_ref()
+                    .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
+                let (context, tab, panel_id) = resolve_panel(snapshot, target)?;
+                Ok(WorkbenchAction::PanelInputSet {
+                    terminal_context_id: context.terminal_context_id.clone(),
+                    tab_id: tab.tab_id.clone(),
+                    panel_id,
+                    right_click: *right_click,
+                })
+            }
             MutationCommand::PanelRename { target, label } => {
                 let (context, tab, panel_id) = resolve_panel(snapshot, target)?;
                 Ok(WorkbenchAction::PanelRename {
@@ -719,6 +762,7 @@ mod linux {
             }
             MutationCommand::PanelSplit {
                 target,
+                right_click,
                 direction,
                 label,
                 geometry,
@@ -728,6 +772,7 @@ mod linux {
             } => {
                 let (context, tab, panel_id) = resolve_panel(snapshot, target)?;
                 Ok(WorkbenchAction::PanelSplit {
+                    right_click: *right_click,
                     terminal_context_id: context.terminal_context_id.clone(),
                     tab_id: tab.tab_id.clone(),
                     panel_id,
@@ -1165,6 +1210,40 @@ mod linux {
                         Err(not_submitted_failure(reason.into()))
                     }
                     WorkbenchTabCreateSubmission::OutcomeUnknown { request_id, reason } => {
+                        Err(unknown_failure(request_id, reason.reason()))
+                    }
+                }
+            }
+            WorkbenchAction::PanelInputSet {
+                terminal_context_id,
+                tab_id,
+                panel_id,
+                right_click,
+            } => {
+                let mut base = receipt(&resolved, "panel.input", "configured")
+                    .schema(super::super::schema::PANEL_INPUT_RESULT_ID)
+                    .id("terminalContextId", terminal_context_id.as_str())
+                    .id("tabId", tab_id.as_str())
+                    .id("panelId", panel_id.as_str());
+                base.right_click = Some(*right_click);
+                let request =
+                    WorkbenchPanelInputRequest::try_from(command).map_err(|_| internal())?;
+                match client.submit_workbench_panel_input(request, deadline) {
+                    WorkbenchPanelInputSubmission::Committed { revision } => {
+                        Ok(base.revision(revision))
+                    }
+                    WorkbenchPanelInputSubmission::Unchanged { revision } => Ok(Receipt {
+                        outcome: "unchanged",
+                        ..base
+                    }
+                    .revision(revision)),
+                    WorkbenchPanelInputSubmission::DefinitePrecommit(precommit) => {
+                        Err(precommit_failure(precommit.into(), &resolved.action))
+                    }
+                    WorkbenchPanelInputSubmission::DefinitelyNotSubmitted(reason) => {
+                        Err(not_submitted_failure(reason.into()))
+                    }
+                    WorkbenchPanelInputSubmission::OutcomeUnknown { request_id, reason } => {
                         Err(unknown_failure(request_id, reason.reason()))
                     }
                 }
@@ -1676,6 +1755,7 @@ mod linux {
                 direction: None,
                 label: None,
                 custom_label: None,
+                right_click: None,
                 path: None,
                 terminal: None,
                 catalog_revision: None,
@@ -1760,6 +1840,7 @@ mod linux {
             direction: None,
             label: None,
             custom_label: None,
+            right_click: None,
             path: None,
             terminal: None,
             catalog_revision: None,

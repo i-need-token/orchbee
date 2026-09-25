@@ -29,6 +29,7 @@ fn split_command(
         site_id: authority.site_id().clone(),
         expected_revision: WorkbenchRevision::new(1),
         action: WorkbenchAction::PanelSplit {
+            right_click: Default::default(),
             terminal_context_id: WorkbenchTerminalContextId::parse(&identity(1)).unwrap(),
             tab_id,
             panel_id,
@@ -51,14 +52,18 @@ fn panel_split_commits_one_new_leaf_and_retains_the_source_terminal() {
     let source = baseline.members().first().unwrap().clone();
 
     let grant = WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone());
-    let WorkbenchPanelSplitBegin::Admitted(admission) = authority.begin_terminal_panel_split(
-        Some(&grant),
-        split_command(
-            &authority,
-            source.tab_id().clone(),
-            source.panel_id().clone(),
-        ),
-    ) else {
+    let mut request = split_command(
+        &authority,
+        source.tab_id().clone(),
+        source.panel_id().clone(),
+    );
+    let WorkbenchAction::PanelSplit { right_click, .. } = &mut request.action else {
+        panic!("split")
+    };
+    *right_click = orchbee_workbench_protocol::PanelRightClickTarget::Panel;
+    let WorkbenchPanelSplitBegin::Admitted(admission) =
+        authority.begin_terminal_panel_split(Some(&grant), request)
+    else {
         panic!("expected panel split admission");
     };
     let WorkbenchPanelSplitPreparation::Prepared(prepared) = admission.finish(binding(2)) else {
@@ -128,6 +133,19 @@ fn panel_split_commits_one_new_leaf_and_retains_the_source_terminal() {
     };
     assert_eq!(*orientation, PanelOrientation::Horizontal);
     assert_eq!(children.len(), 2);
+    for (index, slot) in children.iter().enumerate() {
+        let PanelNode::Panel { right_click, .. } = &slot.node else {
+            panic!("leaf")
+        };
+        assert_eq!(
+            *right_click,
+            if index == 0 {
+                orchbee_workbench_protocol::PanelRightClickTarget::Orchbee
+            } else {
+                orchbee_workbench_protocol::PanelRightClickTarget::Panel
+            }
+        );
+    }
 
     let prepared = authority
         .prepare_terminal_panel_split_settlement(
@@ -145,4 +163,5 @@ fn panel_split_commits_one_new_leaf_and_retains_the_source_terminal() {
             ..
         }
     ));
+    assert_eq!(authority.projection.snapshot(), &snapshot);
 }

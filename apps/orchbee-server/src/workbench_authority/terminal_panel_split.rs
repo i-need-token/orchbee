@@ -227,6 +227,7 @@ pub struct WorkbenchPanelSplitAdmission<'a> {
     authority: &'a mut WorkbenchAuthority,
     command: WorkbenchCommand,
     label: String,
+    right_click: orchbee_workbench_protocol::PanelRightClickTarget,
     staged: StagedWorkbenchPanelSplitMetadata,
     last_identity: u128,
     profile_use: Option<super::LaunchProfileUse>,
@@ -269,6 +270,7 @@ impl<'a> WorkbenchPanelSplitAdmission<'a> {
             authority,
             command,
             label,
+            right_click,
             staged,
             last_identity,
             profile_use: _,
@@ -297,6 +299,7 @@ impl<'a> WorkbenchPanelSplitAdmission<'a> {
             second_slot_id: &staged.second_slot_id,
             presentation_id: &staged.presentation_id,
             label: &label,
+            right_click,
             binding: binding.clone(),
         };
         if !replace_panel(&mut tab.root, &replacement) {
@@ -621,6 +624,7 @@ impl WorkbenchAuthority {
             tab_id,
             panel_id,
             direction,
+            right_click,
             label,
             geometry,
             launch: _,
@@ -779,6 +783,7 @@ impl WorkbenchAuthority {
             authority: self,
             command,
             label: label.as_str().to_owned(),
+            right_click,
             staged: StagedWorkbenchPanelSplitMetadata {
                 revision,
                 terminal_context_id,
@@ -923,6 +928,7 @@ struct PanelSplitReplacement<'a> {
     second_slot_id: &'a WorkbenchPanelSlotId,
     presentation_id: &'a orchbee_workbench_protocol::TerminalPresentationId,
     label: &'a str,
+    right_click: orchbee_workbench_protocol::PanelRightClickTarget,
     binding: PresentationBinding,
 }
 
@@ -935,6 +941,7 @@ fn replace_panel(node: &mut PanelNode, replacement: &PanelSplitReplacement<'_>) 
         } if panel_id == replacement.target_panel_id && child_presentations.is_empty() => {
             let original = node.clone();
             let new_panel = PanelNode::Panel {
+                right_click: replacement.right_click,
                 child_presentations: Vec::new(),
                 panel_id: replacement.new_panel_id.clone(),
                 primary_presentation: Presentation {

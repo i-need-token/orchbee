@@ -14,7 +14,7 @@ satisfy; [native terminal environment](native-terminal-environment.md) owns the 
 machinery that arming and restoration ride on.
 
 This slice deliberately does not implement divider drag-resize, history selection and clipboard,
-multi-press word/line selection, scroll-indicator jumps, right/middle-press surfaces, pixel-format
+multi-press word/line selection, scroll-indicator jumps, right-button context menus and middle-press surfaces, pixel-format
 reports, or primary-screen wheel history scrolling. Those are separate accepted decisions.
 
 ## Capture policy
@@ -173,3 +173,7 @@ stream so the next notch starts fresh. Primary-screen wheel history scrolling is
 | CLI                       | `invocation/tests` `tui --mouse` value admission, bare/other-family refusal, `--format` refusal; `cli/completion` scripts                                                                                                                                                                                                                                                                      |
 | Real PTY (Legacy seam)    | `tui_shell/connected_tests::real_tui_routes_pointer_reports_to_the_reporting_pane_and_restores_modes` — recorded pane-local SGR bytes, pane-local translation, read-only drop, pixel refusal, wheel→arrows, capture toggle, mode restoration                                                                                                                                                   |
 | Real PTY (public Native)  | `tests/local_startup_process/native_pointer.rs` — the spawned `orchbee` binary on a real PTY: capture arming, X10 and SGR pane-local reports, unfocused-pane click focus and queued flush, read-only rejection, wheel→arrows, `Ctrl+B m`, `--mouse off`, exit restoration, and zero-pixel host geometry keeping cell-addressed reports while `?1016` still gets the bounded unsupported notice |
+
+## Shared right-button policy
+
+The [Panel input policy](native-panel-input.md) gates fresh right presses before focus or passthrough. Default `orchbee` reserves them; `panel` admits only unmodified content presses in a tracking terminal under the existing controller/readiness checks. A pending right press rechecks policy before any bytes. An admitted gesture captures its button and exact Pane incarnation: other buttons cannot inject a press or release it, and generic legacy release maps to its owner. Changing policy affects the next gesture; capture/focus/incarnation cancellation still applies. This does not add a context menu.

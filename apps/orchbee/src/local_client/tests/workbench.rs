@@ -1352,6 +1352,7 @@ fn snapshot() -> Snapshot {
                 label: "tab".into(),
                 pinned: false,
                 root: PanelNode::Panel {
+                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&id(3)).unwrap(),
                     primary_presentation: Presentation {

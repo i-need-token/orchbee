@@ -142,6 +142,8 @@ fn pane_leaf(
     frame_available: bool,
 ) -> PointerPane {
     PointerPane {
+        right_click: Default::default(),
+        right_click_reporting: false,
         record: pane_ref(anchor, tab, panel, incarnation),
         attached,
         controlling,
@@ -1354,4 +1356,137 @@ fn non_live_pending_settlement_consumes_queue() {
     pointer.tick(&mut view, &mut port, now());
     assert!(matches!(pointer.gesture, Gesture::Idle));
     assert!(port.forwarded.is_empty(), "the queued press never replays");
+}
+
+#[test]
+fn right_click_policy_admits_only_unmodified_reporting_content_and_keeps_captured_release() {
+    use orchbee_workbench_protocol::PanelRightClickTarget;
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let mut port = RecordingPort {
+        probe: active_probe(0, 0, 1, 1),
+        ..RecordingPort::default()
+    };
+    port.probe.frame = Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, false));
+    publish_focused_map(&mut pointer, pane_ref(1, 1, 1, 0));
+    let right = event(MouseAction::Press, MouseButton::Right, 3, 4);
+    pointer.event(&mut view, &mut port, now(), right);
+    assert!(port.forwarded.is_empty() && port.actions.is_empty());
+    port.probe.panes[0].right_click = PanelRightClickTarget::Panel;
+    pointer.event(&mut view, &mut port, now(), right);
+    assert!(port.forwarded.is_empty());
+    port.probe.panes[0].right_click_reporting = true;
+    for mods in [
+        Modifiers::NONE.with_shift(),
+        Modifiers::CTRL,
+        Modifiers::NONE.with_alt(),
+    ] {
+        pointer.event(&mut view, &mut port, now(), MouseEvent { mods, ..right });
+        assert!(port.forwarded.is_empty() && port.actions.is_empty());
+    }
+    pointer.event(&mut view, &mut port, now(), right);
+    assert_eq!(port.forwarded.len(), 1);
+    assert!(matches!(pointer.gesture, Gesture::Pane(_)));
+    port.probe.panes[0].right_click = PanelRightClickTarget::Orchbee;
+    pointer.event(
+        &mut view,
+        &mut port,
+        now(),
+        event(MouseAction::Release, MouseButton::Left, 3, 4),
+    );
+    assert_eq!(port.forwarded.len(), 1);
+    assert!(matches!(pointer.gesture, Gesture::Pane(_)));
+    pointer.event(
+        &mut view,
+        &mut port,
+        now(),
+        event(MouseAction::Release, MouseButton::None, 3, 4),
+    );
+    assert_eq!(port.forwarded.len(), 2);
+    assert!(port.forwarded[0].starts_with(b"\x1b[<2;"));
+    assert!(port.forwarded[1].starts_with(b"\x1b[<2;") && port.forwarded[1].ends_with(b"m"));
+    assert!(matches!(pointer.gesture, Gesture::Idle));
+    pointer.event(&mut view, &mut port, now(), right);
+    assert_eq!(port.forwarded.len(), 2);
+}
+
+#[test]
+fn another_button_cannot_bypass_right_click_policy_or_release_a_left_drag() {
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let mut port = RecordingPort {
+        probe: active_probe(0, 0, 1, 1),
+        ..RecordingPort::default()
+    };
+    port.probe.frame = Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, false));
+    publish_focused_map(&mut pointer, pane_ref(1, 1, 1, 0));
+    pointer.event(
+        &mut view,
+        &mut port,
+        now(),
+        event(MouseAction::Press, MouseButton::Left, 3, 4),
+    );
+    for action in [
+        MouseAction::Press,
+        MouseAction::Motion,
+        MouseAction::Release,
+    ] {
+        pointer.event(
+            &mut view,
+            &mut port,
+            now(),
+            event(action, MouseButton::Right, 3, 4),
+        );
+    }
+    assert_eq!(port.forwarded.len(), 1);
+    assert!(matches!(pointer.gesture, Gesture::Pane(_)));
+    pointer.event(
+        &mut view,
+        &mut port,
+        now(),
+        event(MouseAction::Release, MouseButton::Left, 3, 4),
+    );
+    assert_eq!(port.forwarded.len(), 2);
+    assert!(matches!(pointer.gesture, Gesture::Idle));
+}
+
+#[test]
+fn queued_right_press_rechecks_policy_before_any_bytes_and_stops_at_its_release() {
+    use orchbee_workbench_protocol::PanelRightClickTarget;
+    for policy in [PanelRightClickTarget::Orchbee, PanelRightClickTarget::Panel] {
+        let mut pointer = PointerState::default();
+        pointer.set_capture(true);
+        let mut view = ClientView::new(120);
+        let mut port = RecordingPort {
+            probe: active_probe(0, 0, 1, 1),
+            ..RecordingPort::default()
+        };
+        port.probe.panes[0].right_click = policy;
+        port.probe.panes[0].right_click_reporting = true;
+        port.probe.frame = Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, false));
+        pointer.gesture = Gesture::Pending(PendingFocus {
+            button: MouseButton::Right,
+            expected: pane_ref(1, 1, 1, 0),
+            viewport: Rect::new(0, 0, 20, 10),
+            deadline: now() + PENDING_FOCUS_TIMEOUT,
+            queued: VecDeque::from([
+                event(MouseAction::Press, MouseButton::Right, 3, 4),
+                event(MouseAction::Release, MouseButton::Left, 3, 4),
+                event(MouseAction::Release, MouseButton::Right, 3, 4),
+                event(MouseAction::Press, MouseButton::Right, 3, 4),
+            ]),
+        });
+        pointer.tick(&mut view, &mut port, now());
+        assert_eq!(
+            port.forwarded.len(),
+            if policy == PanelRightClickTarget::Panel {
+                2
+            } else {
+                0
+            }
+        );
+        assert!(matches!(pointer.gesture, Gesture::Idle));
+    }
 }

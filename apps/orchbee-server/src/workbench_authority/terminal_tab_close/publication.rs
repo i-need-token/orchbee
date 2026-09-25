@@ -371,6 +371,7 @@ fn leaf_presentation<'a>(
 ) -> Option<&'a Presentation> {
     match node {
         PanelNode::Panel {
+            right_click: _,
             panel_id: identity,
             primary_presentation,
             child_presentations,

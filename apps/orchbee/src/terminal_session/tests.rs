@@ -267,6 +267,7 @@ fn available_snapshot(binding: Option<PresentationBinding>) -> WorkbenchSnapshot
                     label: "standalone".into(),
                     pinned: false,
                     root: PanelNode::Panel {
+                        right_click: Default::default(),
                         child_presentations: Vec::new(),
                         panel_id: WorkbenchPanelId::parse(ID).unwrap(),
                         primary_presentation: Presentation {

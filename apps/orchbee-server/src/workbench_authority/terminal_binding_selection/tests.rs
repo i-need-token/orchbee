@@ -106,6 +106,7 @@ fn exposure_walks_nested_panels_and_checks_primary_and_child_presentations() {
                 children: Box::new([
                     PanelSlot {
                         node: PanelNode::Panel {
+                            right_click: Default::default(),
                             child_presentations: vec![Presentation {
                                 custom_label: None,
                                 binding: Some(child_binding.clone()),
@@ -129,6 +130,7 @@ fn exposure_walks_nested_panels_and_checks_primary_and_child_presentations() {
                             children: Box::new([
                                 PanelSlot {
                                     node: PanelNode::Panel {
+                                        right_click: Default::default(),
                                         child_presentations: Vec::new(),
                                         panel_id: WorkbenchPanelId::parse(&identity(108)).unwrap(),
                                         primary_presentation: Presentation {
@@ -145,6 +147,7 @@ fn exposure_walks_nested_panels_and_checks_primary_and_child_presentations() {
                                 },
                                 PanelSlot {
                                     node: PanelNode::Panel {
+                                        right_click: Default::default(),
                                         child_presentations: Vec::new(),
                                         panel_id: WorkbenchPanelId::parse(&identity(111)).unwrap(),
                                         primary_presentation: Presentation {

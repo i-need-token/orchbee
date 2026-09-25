@@ -272,6 +272,7 @@ struct PaneTarget {
 /// against each probe's live facts; a re-minted record of the same
 /// `(anchor, panel)` fails the equality and orphans the queue.
 struct PendingFocus {
+    button: MouseButton,
     expected: PaneRef,
     viewport: Rect,
     deadline: Instant,
@@ -283,6 +284,7 @@ struct PendingFocus {
 /// encoder state — held button, motion dedup cell, and the once-per-
 /// gesture pixel notice.
 struct PaneGesture {
+    button: MouseButton,
     expected: PaneRef,
     viewport: Rect,
     pressed: bool,
@@ -304,6 +306,25 @@ impl PaneGesture {
                 .any(|pane| pane.record == self.expected && pane.attached)
     }
 
+    fn accepts(&self, event: MouseEvent) -> bool {
+        if matches!(
+            event.button,
+            MouseButton::WheelUp
+                | MouseButton::WheelDown
+                | MouseButton::WheelLeft
+                | MouseButton::WheelRight
+        ) {
+            return event.action == MouseAction::Press;
+        }
+        match event.action {
+            MouseAction::Press => event.button == self.button && !self.pressed,
+            MouseAction::Motion => event.button == self.button,
+            MouseAction::Release => {
+                event.button == self.button || event.button == MouseButton::None
+            }
+        }
+    }
+
     fn forward<Port: TerminalInputPort + ?Sized>(
         &mut self,
         view: &mut ClientView,
@@ -313,7 +334,11 @@ impl PaneGesture {
     ) {
         let local = PaneMouseEvent {
             action: event.action,
-            button: (event.button != MouseButton::None).then_some(event.button),
+            button: if event.action == MouseAction::Release && event.button == MouseButton::None {
+                Some(self.button)
+            } else {
+                (event.button != MouseButton::None).then_some(event.button)
+            },
             mods: event.mods,
             column: i32::from(event.column) - i32::from(self.viewport.x),
             row: i32::from(event.row) - i32::from(self.viewport.y),
@@ -647,6 +672,19 @@ impl PointerState {
         target: PaneTarget,
     ) -> PointerOutcome {
         let PaneTarget { expected, content } = target;
+        if event.button == MouseButton::Right
+            && event.action == MouseAction::Press
+            && (event.mods != crate::client_view::Modifiers::NONE
+                || !contains(content, event.column, event.row)
+                || !probe.panes.iter().any(|pane| {
+                    pane.record == expected
+                        && pane.right_click
+                            == orchbee_workbench_protocol::PanelRightClickTarget::Panel
+                        && pane.right_click_reporting
+                }))
+        {
+            return PointerOutcome::Ignored;
+        }
         if matches!(event.action, MouseAction::Press)
             && matches!(event.button, MouseButton::WheelUp | MouseButton::WheelDown)
         {
@@ -719,6 +757,7 @@ impl PointerState {
             return match pane_owns_pointer(frame.tracking, &event, frame.alternate_screen) {
                 PointerOwner::Pane => {
                     self.gesture = Gesture::Pane(PaneGesture {
+                        button: event.button,
                         expected,
                         viewport: content,
                         pressed: false,
@@ -784,6 +823,7 @@ impl PointerState {
                 let mut queued = VecDeque::new();
                 queued.push_back(event);
                 self.gesture = Gesture::Pending(PendingFocus {
+                    button: event.button,
                     expected,
                     viewport: content,
                     deadline: now + PENDING_FOCUS_TIMEOUT,
@@ -796,6 +836,7 @@ impl PointerState {
                     pane_owns_pointer(frame.tracking, &event, frame.alternate_screen)
             {
                 self.gesture = Gesture::Pane(PaneGesture {
+                    button: event.button,
                     expected,
                     viewport: content,
                     pressed: false,
@@ -816,6 +857,7 @@ impl PointerState {
         let mut queued = VecDeque::new();
         queued.push_back(event);
         self.gesture = Gesture::Pending(PendingFocus {
+            button: event.button,
             expected,
             viewport: content,
             deadline: now + PENDING_FOCUS_TIMEOUT,
@@ -858,6 +900,7 @@ impl PointerState {
         match pane_owns_pointer(frame.tracking, &event, frame.alternate_screen) {
             PointerOwner::Pane if frame.tracking != MouseTracking::None => {
                 let mut gesture = PaneGesture {
+                    button: event.button,
                     expected: target.expected.clone(),
                     viewport: target.content,
                     pressed: false,
@@ -899,6 +942,9 @@ impl PointerState {
         if !gesture.alive(probe) {
             self.gesture = Gesture::Idle;
             return PointerOutcome::Ignored;
+        }
+        if !gesture.accepts(event) {
+            return PointerOutcome::Handled;
         }
         if probe.viewport_non_live {
             // The pane entered history mid-gesture: remaining events are
@@ -1002,6 +1048,11 @@ impl PointerState {
             // No record for the logical pane at all — it is gone.
             return PendingStatus::Orphaned;
         };
+        if pending.button == MouseButton::Right
+            && pane.right_click != orchbee_workbench_protocol::PanelRightClickTarget::Panel
+        {
+            return PendingStatus::Orphaned;
+        }
         if pane.record != pending.expected {
             // The record was re-minted since the paint — a fresh
             // incarnation of the same logical pane is a different target;
@@ -1077,6 +1128,7 @@ impl PointerState {
             return true;
         }
         let mut forwarder = PaneGesture {
+            button: pending.button,
             expected: pending.expected,
             viewport: pending.viewport,
             pressed: false,
@@ -1085,7 +1137,7 @@ impl PointerState {
         };
         let mut released = false;
         for event in pending.queued {
-            if event.mods.shift {
+            if event.mods.shift || !forwarder.accepts(event) {
                 continue;
             }
             match pane_owns_pointer(frame.tracking, &event, frame.alternate_screen) {
@@ -1093,6 +1145,7 @@ impl PointerState {
                     forwarder.forward(view, port, &frame, event);
                     if event.action == MouseAction::Release {
                         released = true;
+                        break;
                     }
                 }
                 PointerOwner::Pane => {

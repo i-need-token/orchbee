@@ -63,6 +63,8 @@ pub(crate) struct PointerTab {
 /// and orphans the gesture rather than substituting the new attachment.
 #[derive(Clone, Debug)]
 pub(crate) struct PointerPane {
+    pub(crate) right_click_reporting: bool,
+    pub(crate) right_click: orchbee_workbench_protocol::PanelRightClickTarget,
     /// The record's exact incarnation (logical pane + incarnation).
     pub(crate) record: crate::terminal_session::state::PaneRef,
     /// The record's attachment is live for this incarnation.

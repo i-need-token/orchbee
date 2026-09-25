@@ -52,6 +52,30 @@ pub enum PanelOrientation {
     Vertical,
 }
 
+/// Shared Panel input routing. It never grants terminal controller authority.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PanelRightClickTarget {
+    #[default]
+    Orchbee,
+    Panel,
+}
+
+impl PanelRightClickTarget {
+    #[must_use]
+    pub const fn is_default(&self) -> bool {
+        matches!(self, Self::Orchbee)
+    }
+
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Orchbee => "orchbee",
+            Self::Panel => "panel",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PanelSlot {
@@ -68,6 +92,8 @@ pub struct PanelSlot {
 )]
 pub enum PanelNode {
     Panel {
+        #[serde(default, skip_serializing_if = "PanelRightClickTarget::is_default")]
+        right_click: PanelRightClickTarget,
         child_presentations: Vec<Presentation>,
         panel_id: WorkbenchPanelId,
         primary_presentation: Presentation,

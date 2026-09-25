@@ -1,6 +1,38 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee panel ", "input", true),
+    ("orchbee help panel ", "input", true),
+    ("orchbee panel input --right-click ", "panel", true),
+    ("orchbee panel input --right-click ", "orchbee", true),
+    ("orchbee panel input --right-click ", "pane", false),
+    (
+        "orchbee panel split --right-click=p",
+        "--right-click=panel",
+        true,
+    ),
+    ("orchbee --right-click panel panel ", "input", true),
+    ("orchbee --right-click panel panel ", "split", true),
+    ("orchbee --right-click panel panel ", "rename", false),
+    ("orchbee panel input --current --p", "--panel", false),
+    ("orchbee panel input @panel:06 --c", "--current", false),
+    (
+        "orchbee panel input --panel @panel:06 extra ",
+        "--right-click",
+        false,
+    ),
+    (
+        "orchbee panel input --right-click pane ",
+        "--current",
+        false,
+    ),
+    ("orchbee panel split --right-click=none ", "--focus", false),
+    (
+        "orchbee panel input --right-click panel --right-click ",
+        "orchbee",
+        false,
+    ),
+    ("orchbee tab create --r", "--right-click", false),
     ("orchbee tab create --f", "--focus", true),
     ("orchbee tab create --focus --n", "--no-focus", false),
     ("orchbee tab create --no-focus --f", "--focus", false),

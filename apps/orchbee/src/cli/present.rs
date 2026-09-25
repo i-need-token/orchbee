@@ -439,6 +439,7 @@ pub(crate) fn render(
                 row.primary_terminal_id
                     .clone()
                     .unwrap_or_else(|| "-".to_owned()),
+                row.right_click.as_str().to_owned(),
             ]
         }),
         Projection::PanelGet(doc) => panel_doc(out, doc, text),
@@ -909,6 +910,7 @@ fn status(out: &mut Bounded, doc: &StatusDoc, text: &CliLabels) -> Result<(), To
 }
 
 fn panel_doc(out: &mut Bounded, doc: &PanelDoc, text: &CliLabels) -> Result<(), TooLarge> {
+    field(out, text.right_click, doc.row.right_click.as_str())?;
     field(out, text.id, &doc.row.panel_id)?;
     field(out, text.tab_id, &doc.row.tab_id)?;
     out.write(format_args!(

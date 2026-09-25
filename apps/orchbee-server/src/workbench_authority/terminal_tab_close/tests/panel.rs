@@ -57,6 +57,7 @@ fn split_fixture(
             authority,
             command_id,
             WorkbenchAction::PanelSplit {
+                right_click: Default::default(),
                 terminal_context_id: membership.terminal_context_id().clone(),
                 tab_id: source.tab_id().clone(),
                 panel_id: source.panel_id().clone(),

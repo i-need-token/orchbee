@@ -25,6 +25,7 @@ fn panel_focus_switch_keeps_the_tab_and_targets_the_selected_leaf_binding() {
             },
             PanelSlot {
                 node: PanelNode::Panel {
+                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&super::id(2_010)).unwrap(),
                     primary_presentation: Presentation {

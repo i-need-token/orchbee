@@ -63,6 +63,7 @@ fn tab(index: usize) -> Tab {
 
 fn panel(panel: u128, presentation: u128, worker: u128, terminal: u128, label: &str) -> PanelNode {
     PanelNode::Panel {
+        right_click: Default::default(),
         child_presentations: Vec::new(),
         panel_id: panel_id(panel),
         primary_presentation: Presentation {

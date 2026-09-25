@@ -348,6 +348,7 @@ fn split_close_uses_the_attached_leaf_binding_for_confirmation_and_submission() 
             },
             PanelSlot {
                 node: PanelNode::Panel {
+                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&super::id(2_010)).unwrap(),
                     primary_presentation: Presentation {

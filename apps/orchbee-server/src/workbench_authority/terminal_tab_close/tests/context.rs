@@ -574,6 +574,7 @@ fn open_context_close_fences_create_move_split_and_member_close() {
         &authority,
         10003,
         WorkbenchAction::PanelSplit {
+            right_click: Default::default(),
             terminal_context_id: context_id.clone(),
             tab_id: member.tab_id().clone(),
             panel_id: member.panel_id().clone(),

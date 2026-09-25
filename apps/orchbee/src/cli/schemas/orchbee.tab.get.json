@@ -7,7 +7,7 @@
 	"additionalProperties": false,
 	"properties": {
 		"schema": { "const": "orchbee.tab.get" },
-		"version": { "const": 1 },
+		"version": { "const": 2 },
 		"source": { "$ref": "#/$defs/snapshotSource" },
 		"result": {
 			"type": "object",
@@ -90,6 +90,7 @@
 				{
 					"properties": {
 						"kind": { "const": "panel" },
+						"rightClick": { "enum": ["orchbee", "panel"] },
 						"panelId": { "$ref": "#/$defs/id" },
 						"primaryPresentation": { "$ref": "#/$defs/presentation" },
 						"childPresentations": {

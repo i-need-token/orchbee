@@ -113,15 +113,19 @@ fn offline_catalog_is_closed_and_current_panel_schema_is_discoverable() {
     let schemas = document["result"]["schemas"]
         .as_object()
         .expect("dictionary");
-    assert_eq!(document["version"], 30);
-    assert_eq!(schemas.len(), 65);
+    assert_eq!(document["version"], 31);
+    assert_eq!(schemas.len(), 66);
     let validator =
         jsonschema::draft202012::new(&schemas["orchbee.api.schema"]).expect("catalog schema");
     validator.validate(&document).expect("valid catalog");
     for schema in schemas.values() {
         jsonschema::draft202012::new(schema).expect("schema compiles");
     }
-    for id in ["orchbee.panel.rename", "orchbee.panel.layout"] {
+    for id in [
+        "orchbee.panel.rename",
+        "orchbee.panel.layout",
+        "orchbee.panel.input",
+    ] {
         let mut missing = document.clone();
         missing["result"]["schemas"]
             .as_object_mut()
@@ -169,6 +173,40 @@ fn offline_catalog_is_closed_and_current_panel_schema_is_discoverable() {
                     .expect("help")
                     .contains("--panel")
             );
+        }
+    }
+}
+
+#[test]
+fn panel_input_current_rejects_untrusted_metadata_before_admission_in_both_locales() {
+    for locale in ["en_US.UTF-8", "zh_CN.UTF-8"] {
+        for (terminal, worker) in [
+            (None, None),
+            (Some("untrusted-secret-value"), Some("bad")),
+            (Some("00000000000000000000000000000001"), None),
+        ] {
+            let result = run(
+                &[
+                    "panel",
+                    "input",
+                    "--current",
+                    "--right-click=panel",
+                    "--format=json",
+                ],
+                terminal,
+                worker,
+                locale,
+            );
+            assert_eq!(result.status.code(), Some(2));
+            let doc: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+            assert_eq!(doc["failure"]["kind"], "invalid-usage");
+            assert!(!String::from_utf8_lossy(&result.stderr).contains("untrusted-secret-value"));
+        }
+        for args in [["help", "panel", "input"], ["panel", "input", "--help"]] {
+            let result = run(&args, None, None, locale);
+            assert!(result.status.success());
+            let text = String::from_utf8(result.stdout).unwrap();
+            assert!(text.contains("--right-click orchbee|panel") && text.contains("--current"));
         }
     }
 }

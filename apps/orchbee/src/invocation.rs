@@ -1,5 +1,6 @@
 mod client_control;
 mod creation;
+mod panel_input;
 pub(crate) use creation::{CreationCommand, CreationKind};
 mod schema_export;
 pub(crate) use client_control::{
@@ -229,6 +230,7 @@ pub(crate) enum CommandPath {
     TabCreate,
     TabRename,
     PanelRename,
+    PanelInput,
     PanelSwap,
     TabMove,
     TabClose,
@@ -316,6 +318,7 @@ impl CommandPath {
             Self::TabCreate => "tab create",
             Self::TabRename => "tab rename",
             Self::PanelRename => "panel rename",
+            Self::PanelInput => "panel input",
             Self::PanelSwap => "panel swap",
             Self::TabMove => "tab move",
             Self::TabClose => "tab close",
@@ -815,6 +818,10 @@ pub(crate) enum MutationCommand {
         profile: Option<LaunchProfileSelector>,
         options: LaunchOptions,
     },
+    PanelInput {
+        target: Option<Target>,
+        right_click: orchbee_workbench_protocol::PanelRightClickTarget,
+    },
     PanelRename {
         target: Target,
         label: orchbee_workbench_protocol::PanelLabelUpdate,
@@ -832,6 +839,7 @@ pub(crate) enum MutationCommand {
     },
     PanelSplit {
         target: Target,
+        right_click: orchbee_workbench_protocol::PanelRightClickTarget,
         direction: WorkbenchPanelSplitDirection,
         label: WorkbenchLabel,
         geometry: WorkbenchTerminalGeometry,
@@ -1096,6 +1104,7 @@ pub(crate) enum UsageContext {
 /// expect; rendered per locale, never serialized.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExpectedValue {
+    RightClick,
     PanelLabel,
     OutputFilePath,
     ClientId,
@@ -1331,6 +1340,7 @@ struct Options {
     direction: Option<String>,
     amount: Option<String>,
     ratio: Option<String>,
+    right_click: Option<String>,
     cols: Option<String>,
     rows: Option<String>,
     cell_width: Option<String>,
@@ -1422,6 +1432,7 @@ const VALUE_FLAGS: &[&str] = &[
     "--direction",
     "--amount",
     "--ratio",
+    "--right-click",
     "--directory",
     "--exec",
     "--cwd",
@@ -1903,6 +1914,7 @@ fn apply_value_flag(
         "--direction" => &mut options.direction,
         "--amount" => &mut options.amount,
         "--ratio" => &mut options.ratio,
+        "--right-click" => &mut options.right_click,
         "--cols" => &mut options.cols,
         "--rows" => &mut options.rows,
         "--cell-width" => &mut options.cell_width,
@@ -2726,6 +2738,7 @@ fn resolve_words(
             ))
         }
         ["tab", "create"] => creation::parse(None, options, envelope),
+        ["panel", "input", operands @ ..] => panel_input::parse(operands, options, envelope),
         ["panel", "rename", value] => {
             let context = UsageContext::Path("panel rename");
             check_scope(
@@ -3700,6 +3713,7 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["tab", "create"] => HelpTopic::Command(CommandPath::TabCreate),
         ["tab", "rename"] => HelpTopic::Command(CommandPath::TabRename),
         ["panel", "rename"] => HelpTopic::Command(CommandPath::PanelRename),
+        ["panel", "input"] => HelpTopic::Command(CommandPath::PanelInput),
         ["panel", "swap"] => HelpTopic::Command(CommandPath::PanelSwap),
         ["tab", "move"] => HelpTopic::Command(CommandPath::TabMove),
         ["tab", "close"] => HelpTopic::Command(CommandPath::TabClose),
@@ -3786,6 +3800,7 @@ struct Scope {
     direction: bool,
     amount: bool,
     ratio: bool,
+    right_click: bool,
     geometry: bool,
     confirm: bool,
     panel: bool,
@@ -3900,6 +3915,7 @@ const NO_OPTIONS: Scope = Scope {
     direction: false,
     amount: false,
     ratio: false,
+    right_click: false,
     geometry: false,
     confirm: false,
     panel: false,
@@ -4086,6 +4102,7 @@ const WORKSPACE_CLOSE_RESUME_SCOPE: Scope = Scope {
 };
 
 const PANEL_SPLIT_SCOPE: Scope = Scope {
+    right_click: true,
     panel: true,
     current: true,
     ratio: true,
@@ -4221,6 +4238,9 @@ fn business_options(options: &Options) -> bool {
 /// The first named option present but outside `scope`, in the fixed `Options`
 /// declaration order — deterministic without any argv-order state.
 fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
+    if options.right_click.is_some() && !scope.right_click {
+        return Some("--right-click");
+    }
     if options.amount.is_some() && !scope.amount {
         return Some("--amount");
     }

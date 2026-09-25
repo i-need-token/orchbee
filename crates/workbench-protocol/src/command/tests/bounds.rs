@@ -172,6 +172,7 @@ fn maximum_legal_launch_commands_fit_the_intent_bound() {
             options: Box::new(options.clone()),
         }),
         maximum_command(WorkbenchAction::PanelSplit {
+            right_click: crate::PanelRightClickTarget::Panel,
             terminal_context_id: context,
             tab_id: WorkbenchTabId::parse("ffffffffffffffffffffffffffffffff").unwrap(),
             panel_id: WorkbenchPanelId::parse("ffffffffffffffffffffffffffffffff").unwrap(),

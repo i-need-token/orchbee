@@ -3,7 +3,8 @@
 use super::{
     BUSINESS_FLAGS, COMMAND_FLAGS, DIRECTION_VALUES, FAMILY_VERBS, FORMAT_VALUES, HELP_CHILDREN,
     HELP_LEVEL3, HELP_TOPICS, INTEGRATION_VERBS, KEY_VALUES, OPERAND_PATHS, PROVIDER_VALUES,
-    REPEATABLE_FLAGS, SHELLS, UNTIL_VALUES, command_flag_conflicts, command_flags, flag_value,
+    REPEATABLE_FLAGS, RIGHT_CLICK_VALUES, SHELLS, UNTIL_VALUES, command_flag_conflicts,
+    command_flags, flag_value,
 };
 use serde_json::json;
 
@@ -39,6 +40,7 @@ pub(super) fn build() -> serde_json::Value {
         "keys": KEY_VALUES,
         "until": UNTIL_VALUES,
         "providers": PROVIDER_VALUES,
+        "rightClick": RIGHT_CLICK_VALUES,
         "agentKinds": crate::agent_provider::CANONICAL_IDS,
         "helpTopics": HELP_TOPICS,
         "helpChildren": HELP_CHILDREN,

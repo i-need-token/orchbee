@@ -1489,6 +1489,25 @@ impl NativeUi {
         probe.panes = state
             .pane_facts()
             .map(|(record, attached, mode)| PointerPane {
+                right_click_reporting: view
+                    .pane_projection(record.pane().panel())
+                    .and_then(|projection| projection.frame())
+                    .is_some_and(|frame| {
+                        frame.interaction.mouse_tracking()
+                            != orchbee_terminal_protocol::MouseTracking::None
+                    }),
+                right_click: (0..view.tab_count())
+                    .filter_map(|index| view.tab(index))
+                    .find(|tab| tab.tab_id() == record.anchor().tab_id())
+                    .and_then(|tab| {
+                        (0..tab.panel_count())
+                            .filter_map(|index| tab.panel(index))
+                            .find(|panel| panel.panel_id() == record.pane().panel())
+                    })
+                    .map_or(
+                        orchbee_workbench_protocol::PanelRightClickTarget::Orchbee,
+                        |panel| panel.right_click(),
+                    ),
                 frame_available: view.pane_projection_status(record.pane().panel())
                     == NativeProjectionStatus::FrameAvailable,
                 record,

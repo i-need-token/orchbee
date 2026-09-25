@@ -79,8 +79,8 @@ pub use identity::{
 };
 pub use model::{
     Delta, DeltaChange, DeltaRejectionReason, Directory, Navigation, PanelNode, PanelOrientation,
-    PanelSlot, Presentation, PresentationBinding, Project, Snapshot, SnapshotReadIntent, Tab,
-    TabGroup, TabGroupColor, TerminalContext, WorkbenchProtocolDocument,
+    PanelRightClickTarget, PanelSlot, Presentation, PresentationBinding, Project, Snapshot,
+    SnapshotReadIntent, Tab, TabGroup, TabGroupColor, TerminalContext, WorkbenchProtocolDocument,
     WorkbenchPublicationDocument, Workspace,
 };
 pub use validation::{

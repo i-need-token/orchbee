@@ -29,10 +29,15 @@ pub(crate) const LAUNCH_PROFILE_FAILURE_ID: &str = "orchbee.cli.failure.launch-p
 pub(crate) const CLOSE_FAILURE_ID: &str = "orchbee.cli.failure.close";
 pub(crate) const MUTATION_RESULT_ID: &str = "orchbee.mutation.result";
 pub(crate) const PANEL_RENAME_RESULT_ID: &str = "orchbee.panel.rename";
+pub(crate) const PANEL_INPUT_RESULT_ID: &str = "orchbee.panel.input";
 pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
+    (
+        PANEL_INPUT_RESULT_ID,
+        include_str!("schemas/orchbee.panel.input.json"),
+    ),
     (
         "orchbee.creation.result",
         include_str!("schemas/orchbee.creation.result.json"),
@@ -357,8 +362,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog v30 adds the staged terminal creation receipt.
-        "version": 30,
+        // Catalog v31 adds shared Panel input policy.
+        "version": 31,
         "source": embedded_source(),
         "result": result,
     });

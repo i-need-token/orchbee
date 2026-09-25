@@ -35,6 +35,7 @@ fn first_membership_commits_exact_shape_and_three_identities_without_a_command_l
     assert_eq!(tab.group_id, None);
     assert!(!tab.pinned);
     let PanelNode::Panel {
+        right_click: _,
         panel_id,
         primary_presentation,
         child_presentations,
@@ -346,6 +347,7 @@ fn panel_presentation_visitor_is_depth_first_primary_then_children() {
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Panel {
+                    right_click: Default::default(),
                     child_presentations: vec![Presentation {
                         custom_label: None,
                         binding: None,
@@ -364,6 +366,7 @@ fn panel_presentation_visitor_is_depth_first_primary_then_children() {
             },
             PanelSlot {
                 node: PanelNode::Panel {
+                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&identity(106)).unwrap(),
                     primary_presentation: Presentation {
@@ -408,6 +411,7 @@ fn tree_membership_collects_split_primary_leaves_but_legacy_context_rejects_them
         children: Box::new([
             PanelSlot {
                 node: PanelNode::Panel {
+                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&identity(102)).unwrap(),
                     primary_presentation: Presentation {
@@ -421,6 +425,7 @@ fn tree_membership_collects_split_primary_leaves_but_legacy_context_rejects_them
             },
             PanelSlot {
                 node: PanelNode::Panel {
+                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&identity(105)).unwrap(),
                     primary_presentation: Presentation {
@@ -489,6 +494,7 @@ fn tree_membership_still_rejects_genuine_tree_corruption() {
             children: Box::new([
                 PanelSlot {
                     node: PanelNode::Panel {
+                        right_click: Default::default(),
                         child_presentations: Vec::new(),
                         panel_id,
                         primary_presentation,
@@ -497,6 +503,7 @@ fn tree_membership_still_rejects_genuine_tree_corruption() {
                 },
                 PanelSlot {
                     node: PanelNode::Panel {
+                        right_click: Default::default(),
                         child_presentations: Vec::new(),
                         panel_id: WorkbenchPanelId::parse(&identity(105)).unwrap(),
                         primary_presentation: Presentation {

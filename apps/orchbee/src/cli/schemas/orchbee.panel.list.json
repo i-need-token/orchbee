@@ -7,7 +7,7 @@
 	"additionalProperties": false,
 	"properties": {
 		"schema": { "const": "orchbee.panel.list" },
-		"version": { "const": 1 },
+		"version": { "const": 2 },
 		"source": { "$ref": "#/$defs/snapshotSource" },
 		"result": {
 			"type": "object",
@@ -20,6 +20,7 @@
 						"type": "object",
 						"required": [
 							"panelId",
+							"rightClick",
 							"tabId",
 							"terminalContextId",
 							"primaryPresentationId",
@@ -29,6 +30,7 @@
 						"additionalProperties": false,
 						"properties": {
 							"panelId": { "$ref": "#/$defs/id" },
+							"rightClick": { "enum": ["orchbee", "panel"] },
 							"tabId": { "$ref": "#/$defs/id" },
 							"terminalContextId": { "$ref": "#/$defs/id" },
 							"primaryPresentationId": { "$ref": "#/$defs/id" },

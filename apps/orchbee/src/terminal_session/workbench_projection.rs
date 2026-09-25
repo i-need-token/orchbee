@@ -192,6 +192,7 @@ impl NativeSimpleTab {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct NativePanel {
+    right_click: orchbee_workbench_protocol::PanelRightClickTarget,
     panel_id: WorkbenchPanelId,
     presentation_id: TerminalPresentationId,
     presentation_label: WorkbenchLabel,
@@ -200,6 +201,10 @@ pub(crate) struct NativePanel {
 }
 
 impl NativePanel {
+    pub(crate) const fn right_click(&self) -> orchbee_workbench_protocol::PanelRightClickTarget {
+        self.right_click
+    }
+
     pub(crate) fn panel_id(&self) -> &WorkbenchPanelId {
         &self.panel_id
     }
@@ -1181,6 +1186,7 @@ fn project_panel_tree(
 ) -> Result<NativePanelTree, NativeProjectionError> {
     match node {
         PanelNode::Panel {
+            right_click,
             child_presentations,
             panel_id,
             primary_presentation,
@@ -1194,6 +1200,7 @@ fn project_panel_tree(
                 .ok_or(NativeProjectionError)?;
             let panel_index = panels.len();
             panels.push(NativePanel {
+                right_click: *right_click,
                 panel_id: panel_id.clone(),
                 presentation_id: primary_presentation.presentation_id.clone(),
                 custom_label: primary_presentation.custom_label.clone(),

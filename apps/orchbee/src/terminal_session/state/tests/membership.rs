@@ -27,6 +27,7 @@ fn removal_tab(index: usize) -> Tab {
         label: label.clone(),
         pinned: false,
         root: PanelNode::Panel {
+            right_click: Default::default(),
             child_presentations: Vec::new(),
             panel_id: panel_id(seed + 1),
             primary_presentation: Presentation {

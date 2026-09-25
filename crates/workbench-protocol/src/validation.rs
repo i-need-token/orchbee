@@ -434,6 +434,7 @@ fn validate_panel_node(
     }
     match node {
         PanelNode::Panel {
+            right_click: _,
             child_presentations,
             panel_id,
             primary_presentation,
@@ -477,6 +478,7 @@ fn validate_panel_node_structure(
     }
     match node {
         PanelNode::Panel {
+            right_click: _,
             child_presentations,
             panel_id: _panel_id,
             primary_presentation,

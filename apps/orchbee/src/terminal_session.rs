@@ -819,6 +819,8 @@ impl LegacySession {
         probe.focus = Some(sentinel.clone());
         probe.desired = Some(sentinel.pane().clone());
         probe.panes = vec![PointerPane {
+            right_click: Default::default(),
+            right_click_reporting: false,
             record: sentinel,
             attached: true,
             controlling,

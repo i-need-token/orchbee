@@ -33,6 +33,7 @@ pub(super) fn split_command(
         site_id: committed.site_id,
         expected_revision: committed.revision,
         action: WorkbenchAction::PanelSplit {
+            right_click: Default::default(),
             terminal_context_id,
             tab_id,
             panel_id,

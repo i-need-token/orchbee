@@ -12,6 +12,7 @@ pub(super) fn visit_panel_presentations(
 ) {
     match node {
         PanelNode::Panel {
+            right_click: _,
             child_presentations,
             panel_id,
             primary_presentation,
@@ -337,6 +338,7 @@ pub(super) fn append_simple_tab(
         group_id: None,
         pinned: false,
         root: PanelNode::Panel {
+            right_click: Default::default(),
             panel_id: ids.panel_id.clone(),
             primary_presentation: Presentation {
                 custom_label: None,
@@ -454,6 +456,7 @@ fn collect_tree_members(
 ) -> Result<(), WorkbenchTerminalInvariantError> {
     match node {
         PanelNode::Panel {
+            right_click: _,
             child_presentations,
             panel_id,
             primary_presentation,

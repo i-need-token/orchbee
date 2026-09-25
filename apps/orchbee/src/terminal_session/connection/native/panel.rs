@@ -58,6 +58,7 @@ impl NativeExecutor {
             } => {
                 let request =
                     WorkbenchPanelSplitRequest::try_from(command(WorkbenchAction::PanelSplit {
+                        right_click: Default::default(),
                         terminal_context_id: baseline.terminal_context_id().clone(),
                         tab_id: operation.target().tab_id().clone(),
                         panel_id: operation.panel_id().clone(),

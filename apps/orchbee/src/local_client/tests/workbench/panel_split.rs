@@ -565,6 +565,7 @@ fn panel_split_command(expected_revision: u64) -> WorkbenchCommand {
         FIRST_REQUEST_ID,
         expected_revision,
         WorkbenchAction::PanelSplit {
+            right_click: Default::default(),
             terminal_context_id: context_id(30),
             tab_id: WorkbenchTabId::parse(&id(31)).unwrap(),
             panel_id: WorkbenchPanelId::parse(&id(32)).unwrap(),

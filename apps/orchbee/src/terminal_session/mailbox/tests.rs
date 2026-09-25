@@ -2420,6 +2420,7 @@ fn projected_tabs(tab_count: usize) -> NativeContextTabs {
                         label: label.clone(),
                         pinned: false,
                         root: PanelNode::Panel {
+                            right_click: Default::default(),
                             child_presentations: Vec::new(),
                             panel_id: WorkbenchPanelId::parse(&id(5 + offset)).unwrap(),
                             primary_presentation: Presentation {

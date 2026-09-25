@@ -663,6 +663,7 @@ fn split_snapshot() -> Snapshot {
             },
             PanelSlot {
                 node: PanelNode::Panel {
+                    right_click: Default::default(),
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&format!("{:032x}", 7_010)).unwrap(),
                     primary_presentation: Presentation {
@@ -752,6 +753,7 @@ pub(in crate::terminal_session) fn snapshot(count: usize, revision: u64) -> Snap
                         label: format!("Tab {index}"),
                         tab_id: WorkbenchTabId::parse(&format!("{base:032x}")).unwrap(),
                         root: PanelNode::Panel {
+                            right_click: Default::default(),
                             child_presentations: Vec::new(),
                             panel_id: WorkbenchPanelId::parse(&format!("{:032x}", base + 1))
                                 .unwrap(),

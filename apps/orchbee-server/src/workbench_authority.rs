@@ -817,6 +817,43 @@ impl WorkbenchAuthority {
                     candidate.revision = revision;
                     WorkbenchCommandOutcome::Renamed { revision }
                 }
+                PureWorkbenchAction::PanelInputSet {
+                    terminal_context_id,
+                    tab_id,
+                    panel_id,
+                    right_click,
+                } => {
+                    let context = candidate
+                        .terminal_contexts
+                        .iter_mut()
+                        .find(|context| context.terminal_context_id == terminal_context_id)
+                        .ok_or(PlanFailure::Rejected(
+                            WorkbenchRejectionReason::TerminalContextUnavailable,
+                        ))?;
+                    let tab = context
+                        .tabs
+                        .iter_mut()
+                        .find(|tab| tab.tab_id == tab_id)
+                        .ok_or(PlanFailure::Rejected(
+                            WorkbenchRejectionReason::TabUnavailable,
+                        ))?;
+                    let orchbee_workbench_protocol::PanelNode::Panel {
+                        right_click: policy,
+                        ..
+                    } = panel_mut(&mut tab.root, &panel_id).ok_or(PlanFailure::Rejected(
+                        WorkbenchRejectionReason::PanelUnavailable,
+                    ))?
+                    else {
+                        return Err(PlanFailure::Internal);
+                    };
+                    if *policy == right_click {
+                        return Ok(self.unchanged());
+                    }
+                    let revision = self.next_revision()?;
+                    *policy = right_click;
+                    candidate.revision = revision;
+                    WorkbenchCommandOutcome::PanelInputConfigured { revision }
+                }
                 PureWorkbenchAction::LaunchProfileCreate { name, launch } => {
                     if self.catalog.len() >= MAXIMUM_LAUNCH_PROFILE_ENTRIES {
                         return reject(WorkbenchRejectionReason::ResourceLimit);
@@ -953,20 +990,32 @@ impl PreparedCommandCommit<'_> {
         self.response
     }
 }
-fn panel_primary_mut<'a>(
+fn panel_mut<'a>(
     node: &'a mut orchbee_workbench_protocol::PanelNode,
     panel_id: &orchbee_workbench_protocol::WorkbenchPanelId,
-) -> Option<&'a mut orchbee_workbench_protocol::Presentation> {
+) -> Option<&'a mut orchbee_workbench_protocol::PanelNode> {
     use orchbee_workbench_protocol::PanelNode;
     match node {
         PanelNode::Panel {
             panel_id: candidate,
-            primary_presentation,
             ..
-        } => (candidate == panel_id).then_some(primary_presentation),
+        } if candidate == panel_id => Some(node),
+        PanelNode::Panel { .. } => None,
         PanelNode::Split { children, .. } => children
             .iter_mut()
-            .find_map(|slot| panel_primary_mut(&mut slot.node, panel_id)),
+            .find_map(|slot| panel_mut(&mut slot.node, panel_id)),
+    }
+}
+fn panel_primary_mut<'a>(
+    node: &'a mut orchbee_workbench_protocol::PanelNode,
+    panel_id: &orchbee_workbench_protocol::WorkbenchPanelId,
+) -> Option<&'a mut orchbee_workbench_protocol::Presentation> {
+    match panel_mut(node, panel_id)? {
+        orchbee_workbench_protocol::PanelNode::Panel {
+            primary_presentation,
+            ..
+        } => Some(primary_presentation),
+        orchbee_workbench_protocol::PanelNode::Split { .. } => None,
     }
 }
 
@@ -1002,6 +1051,12 @@ enum PureWorkbenchAction {
         tab_id: WorkbenchTabId,
         panel_id: orchbee_workbench_protocol::WorkbenchPanelId,
         label: orchbee_workbench_protocol::PanelLabelUpdate,
+    },
+    PanelInputSet {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: orchbee_workbench_protocol::WorkbenchPanelId,
+        right_click: orchbee_workbench_protocol::PanelRightClickTarget,
     },
     LaunchProfileCreate {
         name: orchbee_workbench_protocol::LaunchProfileName,
@@ -1054,6 +1109,17 @@ impl PureWorkbenchAction {
                 tab_id: tab_id.clone(),
                 panel_id: panel_id.clone(),
                 label: label.clone(),
+            },
+            WorkbenchAction::PanelInputSet {
+                terminal_context_id,
+                tab_id,
+                panel_id,
+                right_click,
+            } => Self::PanelInputSet {
+                terminal_context_id: terminal_context_id.clone(),
+                tab_id: tab_id.clone(),
+                panel_id: panel_id.clone(),
+                right_click: *right_click,
             },
             WorkbenchAction::LaunchProfileCreate { name, launch } => Self::LaunchProfileCreate {
                 name: name.clone(),

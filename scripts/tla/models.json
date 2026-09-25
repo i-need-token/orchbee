@@ -3828,6 +3828,40 @@
 			]
 		},
 		{
+			"id": "native-panel-input-ownership",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/NativePanelInputOwnership.tla",
+			"config": "apps/orchbee/formal/tla/NativePanelInputOwnership.cfg",
+			"claims": ["apps/orchbee/docs/native-panel-input.md"],
+			"triggers": [
+				"apps/orchbee/docs/native-panel-input.zh-CN.md",
+				"apps/orchbee/src/tui_pointer.rs",
+				"apps/orchbee/src/tui_pointer/**",
+				"apps/orchbee/src/terminal_input.rs",
+				"apps/orchbee/src/terminal_session/ui.rs",
+				"apps/orchbee/src/terminal_session/workbench_projection.rs",
+				"apps/orchbee/src/invocation/**",
+				"apps/orchbee/src/cli/mutation.rs",
+				"crates/workbench-protocol/src/model.rs",
+				"apps/orchbee-server/src/workbench_authority.rs",
+				"apps/orchbee-server/src/workbench_authority/terminal_panel_split.rs"
+			],
+			"timeoutMilliseconds": 180000,
+			"workers": 1,
+			"requiredCoverage": [
+				"SetOrchbee",
+				"SetPanel",
+				"QueueRight",
+				"AdmitRight",
+				"FlushRight",
+				"DropQueued",
+				"ReleaseRight",
+				"RejectForeignButton",
+				"CancelGesture"
+			]
+		},
+		{
 			"id": "native-tab-switch",
 			"workers": 2,
 			"owner": "orchbee",

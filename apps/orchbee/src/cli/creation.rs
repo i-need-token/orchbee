@@ -67,7 +67,12 @@ fn canonical(
             profile: command.profile.clone(),
             options: command.options.clone(),
         },
-        CreationKind::Split { direction, .. } => MutationCommand::PanelSplit {
+        CreationKind::Split {
+            direction,
+            right_click,
+            ..
+        } => MutationCommand::PanelSplit {
+            right_click: *right_click,
             target: target.expect("creation preflight resolves a Panel"),
             direction: *direction,
             label,

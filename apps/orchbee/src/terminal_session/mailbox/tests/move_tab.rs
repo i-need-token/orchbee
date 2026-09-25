@@ -246,6 +246,7 @@ fn canonical_move_a_settlement_then_b_queued_preserves_exact_a_commit_at_retirem
                 group_id: None,
                 pinned: false,
                 root: PanelNode::Panel {
+                    right_click: Default::default(),
                     panel_id: tab.panel_id().clone(),
                     child_presentations: vec![],
                     primary_presentation: Presentation {

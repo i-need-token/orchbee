@@ -410,6 +410,115 @@
 			"protocolVersion": 1,
 			"revision": "2",
 			"siteId": "11111111111111111111111111111111"
+		},
+		"snapshot-panel-input-r2": {
+			"kind": "workbench.snapshot",
+			"navigation": {
+				"projects": [
+					{
+						"directories": [
+							{
+								"directoryId": "22222222222222222222222222222222",
+								"path": "/work/orchbee",
+								"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+							}
+						],
+						"label": "Orchbee",
+						"projectId": "44444444444444444444444444444444",
+						"workspaces": [
+							{
+								"label": "Main",
+								"primaryDirectoryId": "22222222222222222222222222222222",
+								"terminalContextId": "66666666666666666666666666666666",
+								"workspaceId": "55555555555555555555555555555555"
+							}
+						]
+					}
+				],
+				"standaloneTerminalContextId": "33333333333333333333333333333333"
+			},
+			"protocolVersion": 1,
+			"revision": "2",
+			"siteId": "11111111111111111111111111111111",
+			"terminalContexts": [
+				{
+					"groups": [],
+					"tabs": [
+						{
+							"groupId": null,
+							"label": "Shell",
+							"pinned": true,
+							"root": {
+								"childPresentations": [],
+								"kind": "panel",
+								"panelId": "99999999999999999999999999999999",
+								"primaryPresentation": {
+									"binding": {
+										"terminalId": "cccccccccccccccccccccccccccccccc",
+										"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+									},
+									"label": "Shell",
+									"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+								},
+								"rightClick": "panel"
+							},
+							"tabId": "88888888888888888888888888888888"
+						}
+					],
+					"terminalContextId": "33333333333333333333333333333333"
+				},
+				{
+					"groups": [
+						{
+							"color": "blue",
+							"groupId": "77777777777777777777777777777777",
+							"label": "Development"
+						}
+					],
+					"tabs": [
+						{
+							"groupId": "77777777777777777777777777777777",
+							"label": "Split",
+							"pinned": false,
+							"root": {
+								"children": [
+									{
+										"node": {
+											"childPresentations": [],
+											"kind": "panel",
+											"panelId": "13131313131313131313131313131313",
+											"primaryPresentation": {
+												"binding": null,
+												"label": "Left",
+												"presentationId": "15151515151515151515151515151515"
+											}
+										},
+										"slotId": "ffffffffffffffffffffffffffffffff"
+									},
+									{
+										"node": {
+											"childPresentations": [],
+											"kind": "panel",
+											"panelId": "14141414141414141414141414141414",
+											"primaryPresentation": {
+												"binding": null,
+												"label": "Right",
+												"presentationId": "16161616161616161616161616161616"
+											}
+										},
+										"slotId": "12121212121212121212121212121212"
+									}
+								],
+								"kind": "split",
+								"orientation": "horizontal",
+								"splitId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+							},
+							"tabId": "dddddddddddddddddddddddddddddddd"
+						}
+					],
+					"terminalContextId": "66666666666666666666666666666666"
+				}
+			]
 		}
 	},
 	"validDocuments": [
@@ -428,7 +537,8 @@
 		"delta-base-mismatch",
 		"delta-non-increasing",
 		"delta-duplicate-context-target",
-		"delta-invalid-result"
+		"delta-invalid-result",
+		"snapshot-panel-input-r2"
 	],
 	"invalidDocuments": [
 		{
@@ -775,6 +885,345 @@
 					}
 				]
 			}
+		},
+		{
+			"boundary": "schema",
+			"name": "panel input policy null",
+			"value": {
+				"kind": "workbench.snapshot",
+				"navigation": {
+					"projects": [
+						{
+							"directories": [
+								{
+									"directoryId": "22222222222222222222222222222222",
+									"path": "/work/orchbee",
+									"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+								}
+							],
+							"label": "Orchbee",
+							"projectId": "44444444444444444444444444444444",
+							"workspaces": [
+								{
+									"label": "Main",
+									"primaryDirectoryId": "22222222222222222222222222222222",
+									"terminalContextId": "66666666666666666666666666666666",
+									"workspaceId": "55555555555555555555555555555555"
+								}
+							]
+						}
+					],
+					"standaloneTerminalContextId": "33333333333333333333333333333333"
+				},
+				"protocolVersion": 1,
+				"revision": "2",
+				"siteId": "11111111111111111111111111111111",
+				"terminalContexts": [
+					{
+						"groups": [],
+						"tabs": [
+							{
+								"groupId": null,
+								"label": "Shell",
+								"pinned": true,
+								"root": {
+									"childPresentations": [],
+									"kind": "panel",
+									"panelId": "99999999999999999999999999999999",
+									"primaryPresentation": {
+										"binding": {
+											"terminalId": "cccccccccccccccccccccccccccccccc",
+											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+										},
+										"label": "Shell",
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+									},
+									"rightClick": null
+								},
+								"tabId": "88888888888888888888888888888888"
+							}
+						],
+						"terminalContextId": "33333333333333333333333333333333"
+					},
+					{
+						"groups": [
+							{
+								"color": "blue",
+								"groupId": "77777777777777777777777777777777",
+								"label": "Development"
+							}
+						],
+						"tabs": [
+							{
+								"groupId": "77777777777777777777777777777777",
+								"label": "Split",
+								"pinned": false,
+								"root": {
+									"children": [
+										{
+											"node": {
+												"childPresentations": [],
+												"kind": "panel",
+												"panelId": "13131313131313131313131313131313",
+												"primaryPresentation": {
+													"binding": null,
+													"label": "Left",
+													"presentationId": "15151515151515151515151515151515"
+												}
+											},
+											"slotId": "ffffffffffffffffffffffffffffffff"
+										},
+										{
+											"node": {
+												"childPresentations": [],
+												"kind": "panel",
+												"panelId": "14141414141414141414141414141414",
+												"primaryPresentation": {
+													"binding": null,
+													"label": "Right",
+													"presentationId": "16161616161616161616161616161616"
+												}
+											},
+											"slotId": "12121212121212121212121212121212"
+										}
+									],
+									"kind": "split",
+									"orientation": "horizontal",
+									"splitId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+								},
+								"tabId": "dddddddddddddddddddddddddddddddd"
+							}
+						],
+						"terminalContextId": "66666666666666666666666666666666"
+					}
+				]
+			}
+		},
+		{
+			"boundary": "schema",
+			"name": "panel input policy unknown",
+			"value": {
+				"kind": "workbench.snapshot",
+				"navigation": {
+					"projects": [
+						{
+							"directories": [
+								{
+									"directoryId": "22222222222222222222222222222222",
+									"path": "/work/orchbee",
+									"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+								}
+							],
+							"label": "Orchbee",
+							"projectId": "44444444444444444444444444444444",
+							"workspaces": [
+								{
+									"label": "Main",
+									"primaryDirectoryId": "22222222222222222222222222222222",
+									"terminalContextId": "66666666666666666666666666666666",
+									"workspaceId": "55555555555555555555555555555555"
+								}
+							]
+						}
+					],
+					"standaloneTerminalContextId": "33333333333333333333333333333333"
+				},
+				"protocolVersion": 1,
+				"revision": "2",
+				"siteId": "11111111111111111111111111111111",
+				"terminalContexts": [
+					{
+						"groups": [],
+						"tabs": [
+							{
+								"groupId": null,
+								"label": "Shell",
+								"pinned": true,
+								"root": {
+									"childPresentations": [],
+									"kind": "panel",
+									"panelId": "99999999999999999999999999999999",
+									"primaryPresentation": {
+										"binding": {
+											"terminalId": "cccccccccccccccccccccccccccccccc",
+											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+										},
+										"label": "Shell",
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+									},
+									"rightClick": "pane"
+								},
+								"tabId": "88888888888888888888888888888888"
+							}
+						],
+						"terminalContextId": "33333333333333333333333333333333"
+					},
+					{
+						"groups": [
+							{
+								"color": "blue",
+								"groupId": "77777777777777777777777777777777",
+								"label": "Development"
+							}
+						],
+						"tabs": [
+							{
+								"groupId": "77777777777777777777777777777777",
+								"label": "Split",
+								"pinned": false,
+								"root": {
+									"children": [
+										{
+											"node": {
+												"childPresentations": [],
+												"kind": "panel",
+												"panelId": "13131313131313131313131313131313",
+												"primaryPresentation": {
+													"binding": null,
+													"label": "Left",
+													"presentationId": "15151515151515151515151515151515"
+												}
+											},
+											"slotId": "ffffffffffffffffffffffffffffffff"
+										},
+										{
+											"node": {
+												"childPresentations": [],
+												"kind": "panel",
+												"panelId": "14141414141414141414141414141414",
+												"primaryPresentation": {
+													"binding": null,
+													"label": "Right",
+													"presentationId": "16161616161616161616161616161616"
+												}
+											},
+											"slotId": "12121212121212121212121212121212"
+										}
+									],
+									"kind": "split",
+									"orientation": "horizontal",
+									"splitId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+								},
+								"tabId": "dddddddddddddddddddddddddddddddd"
+							}
+						],
+						"terminalContextId": "66666666666666666666666666666666"
+					}
+				]
+			}
+		},
+		{
+			"boundary": "schema",
+			"name": "panel input policy number",
+			"value": {
+				"kind": "workbench.snapshot",
+				"navigation": {
+					"projects": [
+						{
+							"directories": [
+								{
+									"directoryId": "22222222222222222222222222222222",
+									"path": "/work/orchbee",
+									"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+								}
+							],
+							"label": "Orchbee",
+							"projectId": "44444444444444444444444444444444",
+							"workspaces": [
+								{
+									"label": "Main",
+									"primaryDirectoryId": "22222222222222222222222222222222",
+									"terminalContextId": "66666666666666666666666666666666",
+									"workspaceId": "55555555555555555555555555555555"
+								}
+							]
+						}
+					],
+					"standaloneTerminalContextId": "33333333333333333333333333333333"
+				},
+				"protocolVersion": 1,
+				"revision": "2",
+				"siteId": "11111111111111111111111111111111",
+				"terminalContexts": [
+					{
+						"groups": [],
+						"tabs": [
+							{
+								"groupId": null,
+								"label": "Shell",
+								"pinned": true,
+								"root": {
+									"childPresentations": [],
+									"kind": "panel",
+									"panelId": "99999999999999999999999999999999",
+									"primaryPresentation": {
+										"binding": {
+											"terminalId": "cccccccccccccccccccccccccccccccc",
+											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+										},
+										"label": "Shell",
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+									},
+									"rightClick": 1
+								},
+								"tabId": "88888888888888888888888888888888"
+							}
+						],
+						"terminalContextId": "33333333333333333333333333333333"
+					},
+					{
+						"groups": [
+							{
+								"color": "blue",
+								"groupId": "77777777777777777777777777777777",
+								"label": "Development"
+							}
+						],
+						"tabs": [
+							{
+								"groupId": "77777777777777777777777777777777",
+								"label": "Split",
+								"pinned": false,
+								"root": {
+									"children": [
+										{
+											"node": {
+												"childPresentations": [],
+												"kind": "panel",
+												"panelId": "13131313131313131313131313131313",
+												"primaryPresentation": {
+													"binding": null,
+													"label": "Left",
+													"presentationId": "15151515151515151515151515151515"
+												}
+											},
+											"slotId": "ffffffffffffffffffffffffffffffff"
+										},
+										{
+											"node": {
+												"childPresentations": [],
+												"kind": "panel",
+												"panelId": "14141414141414141414141414141414",
+												"primaryPresentation": {
+													"binding": null,
+													"label": "Right",
+													"presentationId": "16161616161616161616161616161616"
+												}
+											},
+											"slotId": "12121212121212121212121212121212"
+										}
+									],
+									"kind": "split",
+									"orientation": "horizontal",
+									"splitId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+								},
+								"tabId": "dddddddddddddddddddddddddddddddd"
+							}
+						],
+						"terminalContextId": "66666666666666666666666666666666"
+					}
+				]
+			}
 		}
 	],
 	"transitions": [
@@ -782,55 +1231,82 @@
 			"delta": "delta-empty-r1-r2",
 			"initial": "snapshot-empty-r1",
 			"name": "advance-with-no-visible-change",
-			"outcome": { "kind": "applied", "snapshot": "snapshot-empty-r2" }
+			"outcome": {
+				"kind": "applied",
+				"snapshot": "snapshot-empty-r2"
+			}
 		},
 		{
 			"delta": "delta-upsert-r1-r2",
 			"initial": "snapshot-empty-r1",
 			"name": "upsert-complete-terminal-context",
-			"outcome": { "kind": "applied", "snapshot": "snapshot-updated-r2" }
+			"outcome": {
+				"kind": "applied",
+				"snapshot": "snapshot-updated-r2"
+			}
 		},
 		{
 			"delta": "delta-add-workspace-r1-r2",
 			"initial": "snapshot-empty-r1",
 			"name": "apply-unordered-navigation-and-context-addition",
-			"outcome": { "kind": "applied", "snapshot": "snapshot-workspace-r2" }
+			"outcome": {
+				"kind": "applied",
+				"snapshot": "snapshot-workspace-r2"
+			}
 		},
 		{
 			"delta": "delta-remove-workspace-r2-r3",
 			"initial": "snapshot-workspace-r2",
 			"name": "apply-navigation-and-context-removal-atomically",
-			"outcome": { "kind": "applied", "snapshot": "snapshot-empty-r3" }
+			"outcome": {
+				"kind": "applied",
+				"snapshot": "snapshot-empty-r3"
+			}
 		},
 		{
 			"delta": "delta-site-mismatch",
 			"initial": "snapshot-empty-r1",
 			"name": "reject-site-mismatch",
-			"outcome": { "kind": "rejected", "reason": "site-mismatch" }
+			"outcome": {
+				"kind": "rejected",
+				"reason": "site-mismatch"
+			}
 		},
 		{
 			"delta": "delta-base-mismatch",
 			"initial": "snapshot-empty-r1",
 			"name": "reject-base-revision-mismatch",
-			"outcome": { "kind": "rejected", "reason": "base-revision-mismatch" }
+			"outcome": {
+				"kind": "rejected",
+				"reason": "base-revision-mismatch"
+			}
 		},
 		{
 			"delta": "delta-non-increasing",
 			"initial": "snapshot-empty-r1",
 			"name": "reject-non-increasing-revision",
-			"outcome": { "kind": "rejected", "reason": "non-increasing-revision" }
+			"outcome": {
+				"kind": "rejected",
+				"reason": "non-increasing-revision"
+			}
 		},
 		{
 			"delta": "delta-duplicate-context-target",
 			"initial": "snapshot-empty-r1",
 			"name": "reject-duplicate-context-target",
-			"outcome": { "kind": "rejected", "reason": "duplicate-change-target" }
+			"outcome": {
+				"kind": "rejected",
+				"reason": "duplicate-change-target"
+			}
 		},
 		{
 			"delta": "delta-invalid-result",
 			"initial": "snapshot-empty-r1",
 			"name": "reject-invalid-result-atomically",
-			"outcome": { "kind": "rejected", "reason": "invalid-projection" }
+			"outcome": {
+				"kind": "rejected",
+				"reason": "invalid-projection"
+			}
 		}
 	]
 }

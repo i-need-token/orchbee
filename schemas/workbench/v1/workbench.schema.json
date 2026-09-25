@@ -130,6 +130,7 @@
 					"items": { "$ref": "#/$defs/presentation" }
 				},
 				"kind": { "const": "panel" },
+				"rightClick": { "enum": ["orchbee", "panel"] },
 				"panelId": { "$ref": "#/$defs/panelId" },
 				"primaryPresentation": { "$ref": "#/$defs/presentation" }
 			}
