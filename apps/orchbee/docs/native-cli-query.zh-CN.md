@@ -1,5 +1,7 @@
 # 原生 CLI 查询
 
+`orchbee terminal run <terminal-id> "Write-Output ready" --format json` 在一个输入请求中粘贴命令，再发送 Enter。命令须为一个引号字符串；保持原始文本，目标只接受完整 ID 或 `@terminal:<suffix>`。回执确认输入提交，不保证 Shell 已就绪、命令完成或退出状态；部分或未知结果不得重放。 [命令提交契约](native-terminal-run.zh-CN.md).
+
 状态：原生 `orchbee` 命令行的当前实现与正确性契约，覆盖查询、Workbench 修改、
 终端观察与输入、Agent 名称及本地 provider 接入。查询观察已有 Site；Workbench 修改
 遵循下文 mutation 契约。只有显式的 `site start` 和 TUI 启动路径可以激活 Site。

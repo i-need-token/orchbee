@@ -1,6 +1,28 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee terminal ", "run", true),
+    ("orchbee help terminal ", "run", true),
+    (
+        "orchbee terminal run target 'two words' --f",
+        "--format",
+        true,
+    ),
+    (
+        "orchbee terminal run target 'two words' --e",
+        "--enter",
+        false,
+    ),
+    (
+        "orchbee terminal run target 'two words' --t",
+        "--text",
+        false,
+    ),
+    (
+        "orchbee terminal run target 'two words' extra --f",
+        "--format",
+        false,
+    ),
     ("orchbee tab create --cwd ", "follow", true),
     ("orchbee tab create --cwd h", "home", true),
     ("orchbee panel split --cwd=current", "--cwd=current", true),

@@ -1,5 +1,7 @@
 # Orchbee Native Entry
 
+`orchbee terminal run <terminal-id> "Write-Output ready" --format json` pastes one command and sends Enter in one input request. Supply one quoted string; text is preserved, and targets are exact IDs or `@terminal:<suffix>`. The receipt confirms input submission, not Shell readiness, command completion or exit status; never replay partial or unknown delivery. [Command submission contract](docs/native-terminal-run.md).
+
 Experimental, unpackaged native Rust Client. On Windows and Linux, bare invocation connects or activates a
 local Site from a verified development cohort and enters its TUI after the first validated terminal
 projection frame. Native Clients can create, select, move and refresh shared Tabs while keeping independent

@@ -17,7 +17,7 @@ pub(super) fn build() -> serde_json::Value {
                 "words": [family, verb],
                 "flags": command_flags(&path),
                 "conflicts": command_flags(&path).iter().map(|flag| json!({"flag":flag,"with":command_flag_conflicts(&path,flag)})).collect::<Vec<_>>(),
-                "operand": if path == "agent:start" { 65536 } else if path == "agent:send-keys" { 65 } else if matches!(path.as_str(), "agent:rename" | "agent:prompt") { 2 } else { usize::from(OPERAND_PATHS.contains(&path.as_str())) },
+                "operand": if path == "agent:start" { 65536 } else if path == "agent:send-keys" { 65 } else if matches!(path.as_str(), "agent:rename" | "agent:prompt" | "terminal:run") { 2 } else { usize::from(OPERAND_PATHS.contains(&path.as_str())) },
                 "directions": DIRECTION_VALUES.iter().find(|(key, _)| *key == path).map(|(_, values)| *values).unwrap_or(&[]),
             }));
         }

@@ -1,5 +1,7 @@
 # Native CLI Query
 
+`orchbee terminal run <terminal-id> "Write-Output ready" --format json` pastes one command and sends Enter in one input request. Supply one quoted string; text is preserved, and targets are exact IDs or `@terminal:<suffix>`. The receipt confirms input submission, not Shell readiness, command completion or exit status; never replay partial or unknown delivery. [Command submission contract](native-terminal-run.md).
+
 Status: current implementation and correctness contract for the native `orchbee`
 command line, covering queries, Workbench mutations, terminal observation and input,
 Agent names, and local provider onboarding. Queries observe an existing Site; Workbench

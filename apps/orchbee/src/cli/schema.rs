@@ -372,7 +372,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog v33 records resolved creation directories in receipt v2.
+        // Catalog v34 adds automatic Tab naming metadata in snapshot v4.
         "version": 34,
         "source": embedded_source(),
         "result": result,

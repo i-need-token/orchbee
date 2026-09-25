@@ -1,5 +1,7 @@
 # Orchbee 原生入口
 
+`orchbee terminal run <terminal-id> "Write-Output ready" --format json` 在一个输入请求中粘贴命令，再发送 Enter。命令须为一个引号字符串；保持原始文本，目标只接受完整 ID 或 `@terminal:<suffix>`。回执确认输入提交，不保证 Shell 已就绪、命令完成或退出状态；部分或未知结果不得重放。 [命令提交契约](docs/native-terminal-run.zh-CN.md).
+
 实验性、尚未打包发布的原生 Rust Client。在 Windows 和 Linux 上，裸命令从已校验的开发 cohort
 连接或启动本地 Site，取得第一个已校验的终端 projection frame 后进入 TUI。原生 Client 可以创建、
 选择、移动和刷新共享 Tab，同时保持独立选择与保留的终端进程。远程和完整 Workbench 操作尚未接入。

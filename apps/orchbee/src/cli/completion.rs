@@ -198,7 +198,10 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
         "tab",
         &["close", "create", "focus", "get", "list", "move", "rename"],
     ),
-    ("terminal", &["get", "list", "read", "send", "wait-output"]),
+    (
+        "terminal",
+        &["get", "list", "read", "run", "send", "wait-output"],
+    ),
     (
         "workspace",
         &[
@@ -797,6 +800,7 @@ const OPERAND_PATHS: &[&str] = &[
     "terminal:get",
     "terminal:read",
     "terminal:send",
+    "terminal:run",
     "terminal:wait-output",
     "workspace:accept-directory",
     "workspace:close",
@@ -873,7 +877,10 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
         "tab",
         &["close", "create", "focus", "get", "list", "move", "rename"],
     ),
-    ("terminal", &["get", "list", "read", "send", "wait-output"]),
+    (
+        "terminal",
+        &["get", "list", "read", "run", "send", "wait-output"],
+    ),
     (
         "workspace",
         &[
@@ -1841,7 +1848,7 @@ fn bash() -> String {
             "                            {operand_paths}) state=operand ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
-            "                    operand) if [[ $family:$sub == agent:send-keys || $family:$sub == agent:start ]]; then state=operand; elif [[ $family:$sub == agent:rename || $family:$sub == agent:prompt ]] && ((seen_clear == 0 && seen_name == 0 && seen_session == 0)); then state=operand2; else done=1; fi ;;\n",
+            "                    operand) if [[ $family:$sub == agent:send-keys || $family:$sub == agent:start ]]; then state=operand; elif [[ $family:$sub == terminal:run || $family:$sub == agent:rename || $family:$sub == agent:prompt ]] && ((seen_clear == 0 && seen_name == 0 && seen_session == 0)); then state=operand2; else done=1; fi ;;\n",
             "                    leaf|operand2|completion) done=1 ;;\n",
             "                    help)\n",
             "                        if [[ -z $help_a ]]; then\n",
@@ -2197,7 +2204,7 @@ fn zsh() -> String {
             "                            {operand_paths}) state=operand ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
-            "                    operand) if [[ $family:$sub == agent:send-keys || $family:$sub == agent:start ]]; then state=operand; elif [[ $family:$sub == agent:rename || $family:$sub == agent:prompt ]] && ((seen_clear == 0 && seen_name == 0 && seen_session == 0)); then state=operand2; else done=1; fi ;;\n",
+            "                    operand) if [[ $family:$sub == agent:send-keys || $family:$sub == agent:start ]]; then state=operand; elif [[ $family:$sub == terminal:run || $family:$sub == agent:rename || $family:$sub == agent:prompt ]] && ((seen_clear == 0 && seen_name == 0 && seen_session == 0)); then state=operand2; else done=1; fi ;;\n",
             "                    leaf|operand2|completion) done=1 ;;\n",
             "                    help)\n",
             "                        if [[ -z $help_a ]]; then\n",
@@ -2999,7 +3006,7 @@ fn fish() -> String {
             "                            case {operand_paths}; set state operand\n",
             "                            case '*'; set done 1\n",
             "                        end\n",
-            "                    case operand; if contains -- \"$family:$sub\" agent:send-keys agent:start; set state operand; else if contains -- \"$family:$sub\" agent:rename agent:prompt; and test $seen_clear -eq 0; and test $seen_name -eq 0; and test $seen_session -eq 0; set state operand2; else; set done 1; end; end\n",
+            "                    case operand; if contains -- \"$family:$sub\" agent:send-keys agent:start; set state operand; else if contains -- \"$family:$sub\" terminal:run agent:rename agent:prompt; and test $seen_clear -eq 0; and test $seen_name -eq 0; and test $seen_session -eq 0; set state operand2; else; set done 1; end; end\n",
             "                    case leaf operand2 completion; set done 1\n",
             "                    case help\n",
             "                        if test -z \"$help_a\"\n",

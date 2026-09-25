@@ -3,6 +3,7 @@ mod creation;
 mod panel_input;
 pub(crate) use creation::{CreationCommand, CreationDirectory, CreationKind};
 mod schema_export;
+mod terminal_run;
 pub(crate) use client_control::{
     ClientCommand, ClientLayoutTarget, ClientNavigationTarget, LayoutQuery, PanelSwapCommand,
     PanelSwapDestination, ZoomMode,
@@ -247,6 +248,7 @@ pub(crate) enum CommandPath {
     TerminalRead,
     TerminalWaitOutput,
     TerminalSend,
+    TerminalRun,
     WorktreeList,
     WorktreeCreate,
     WorktreeOpen,
@@ -335,6 +337,7 @@ impl CommandPath {
             Self::TerminalRead => "terminal read",
             Self::TerminalWaitOutput => "terminal wait-output",
             Self::TerminalSend => "terminal send",
+            Self::TerminalRun => "terminal run",
             Self::WorktreeList => "worktree list",
             Self::WorktreeCreate => "worktree create",
             Self::WorktreeOpen => "worktree open",
@@ -602,10 +605,10 @@ pub(crate) enum TerminalSendInput {
     /// `--file`/`--stdin` source produced, with `enter` folding one trailing
     /// CR into the same record. The parser never emits this.
     Bytes { bytes: Vec<u8>, enter: bool },
-    /// Materialized-only variant: the opaque content a declared
+    /// Opaque command text from `terminal run`, or materialized content a declared
     /// `--paste --file`/`--stdin` source produced; `enter` is a separate
     /// trailing Enter record the executor appends, never folded into the
-    /// paste content. The parser never emits this.
+    /// paste content.
     Paste { content: Vec<u8>, enter: bool },
 }
 
@@ -1150,6 +1153,7 @@ pub(crate) enum ExpectedValue {
     /// The repeatable `--key` sequence bound: at most 64 values per request.
     SendKeySequence,
     PromptText,
+    CommandText,
     MouseMode,
     Executable,
     LaunchArguments,
@@ -3021,6 +3025,7 @@ fn resolve_words(
                 options,
             ))
         }
+        ["terminal", "run", operands @ ..] => terminal_run::request(operands, options, envelope),
         ["terminal", "send", value] => {
             check_scope(
                 options,
@@ -3736,6 +3741,7 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["terminal", "read"] => HelpTopic::Command(CommandPath::TerminalRead),
         ["terminal", "wait-output"] => HelpTopic::Command(CommandPath::TerminalWaitOutput),
         ["terminal", "send"] => HelpTopic::Command(CommandPath::TerminalSend),
+        ["terminal", "run"] => HelpTopic::Command(CommandPath::TerminalRun),
 
         ["worktree"] => HelpTopic::Family(Family::Worktree),
         ["worktree", "list"] => HelpTopic::Command(CommandPath::WorktreeList),
@@ -4226,6 +4232,7 @@ fn business_options(options: &Options) -> bool {
         || !options.keys.is_empty()
         || options.file.is_some()
         || options.stdin
+        || options.paste
         || options.exec.is_some()
         || !options.args.is_empty()
         || options.include_ended
@@ -4400,6 +4407,9 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.stdin && !scope.stdin {
         return Some("--stdin");
+    }
+    if options.paste && !scope.file && !scope.stdin {
+        return Some("--paste");
     }
     if options.mouse.is_some() && !scope.mouse {
         return Some("--mouse");
