@@ -384,8 +384,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog v38 adds Windows Server/Client runtime metadata.
-        "version": 38,
+        // Catalog v39 adds the explicit Agent-focus Client readiness refusal.
+        "version": 39,
         "source": embedded_source(),
         "result": result,
     });

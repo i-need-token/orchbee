@@ -1,6 +1,27 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee agent f", "focus", true),
+    ("orchbee help agent ", "focus", true),
+    ("orchbee help agent ", "read", true),
+    ("orchbee help agent ", "start", true),
+    ("orchbee help agent ", "prompt", true),
+    ("orchbee help agent ", "send-keys", true),
+    ("orchbee agent focus alpha --c", "--client", true),
+    ("orchbee agent focus alpha --n", "--name", false),
+    ("orchbee agent focus --name alpha --s", "--session", false),
+    (
+        "orchbee agent focus --panel '@panel:12' --r",
+        "--request-id",
+        true,
+    ),
+    ("orchbee agent focus --session sess --d", "--detach", true),
+    ("orchbee agent focus alpha --d", "--direction", false),
+    ("orchbee agent focus alpha --u", "--until", false),
+    ("orchbee agent focus alpha --f", "--forever", false),
+    ("orchbee agent focus alpha --t", "--timeout", true),
+    ("orchbee agent focus alpha --format ", "json", true),
+    ("orchbee agent focus alpha extra ", "--format", false),
     ("orchbee status ", "client", true),
     ("orchbee status ", "server", true),
     ("orchbee status --format json ", "server", true),

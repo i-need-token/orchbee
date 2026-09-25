@@ -70,6 +70,8 @@ pub(in crate::cli) fn intent(
     snapshot: &Snapshot,
 ) -> Result<ClientViewIntent, Failure> {
     match target {
+        // The Windows preflight must resolve Agent observations before pure routing.
+        ClientNavigationTarget::Agent(_) => Err(Failure::new(FailureKind::InternalFailure)),
         ClientNavigationTarget::SetSplitRatio {
             target,
             path,

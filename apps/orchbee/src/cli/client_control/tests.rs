@@ -41,6 +41,90 @@ fn snapshot() -> Snapshot {
 }
 
 #[test]
+fn agent_focus_grammar_requires_one_agent_target_and_reuses_navigation_receipts() {
+    let parse = |words: &[&str]| invocation::parse_request(words.iter().map(OsString::from));
+    let id = "00000000000000000000000000000007";
+    for selector in [
+        vec!["alpha"],
+        vec!["@panel:07"],
+        vec!["--name", "alpha"],
+        vec!["--session", "sess-alpha"],
+        vec!["--panel", id],
+    ] {
+        let mut words = vec!["agent", "focus"];
+        words.extend(selector);
+        let Request::Client {
+            command:
+                ClientCommand::Navigate {
+                    target: ClientNavigationTarget::Agent(_),
+                    timeout_ms,
+                    ..
+                },
+            ..
+        } = parse(&words).unwrap()
+        else {
+            panic!("Agent navigation");
+        };
+        assert_eq!(timeout_ms, 30_000);
+        words.extend([
+            "--client",
+            id,
+            "--request-id",
+            id,
+            "--detach",
+            "--timeout=1",
+            "--format=json",
+        ]);
+        let Request::Client {
+            command:
+                ClientCommand::Navigate {
+                    client,
+                    operation_id,
+                    detach,
+                    timeout_ms,
+                    ..
+                },
+            format,
+        } = parse(&words).unwrap()
+        else {
+            panic!("navigation");
+        };
+        assert_eq!(client.unwrap().as_str(), id);
+        assert_eq!(operation_id.unwrap().as_str(), id);
+        assert!(detach);
+        assert_eq!(timeout_ms, 1);
+        assert_eq!(format, OutputFormat::Json);
+    }
+    for tail in [
+        vec![],
+        vec!["alpha", "beta"],
+        vec!["alpha", "--name", "alpha"],
+        vec!["--name", "alpha", "--panel", id],
+        vec!["--session", "sess-alpha", "--name", "alpha"],
+        vec!["alpha", "--current"],
+        vec!["alpha", "--direction", "left"],
+        vec!["alpha", "--wait"],
+        vec!["alpha", "--timeout=0"],
+        vec!["alpha", "--client=invalid"],
+    ] {
+        let mut words = vec!["agent", "focus"];
+        words.extend(tail);
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
+    for words in [["agent", "focus", "--help"], ["help", "agent", "focus"]] {
+        let Request::Help(topic) = parse(&words).unwrap() else {
+            panic!("help");
+        };
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let help = locale.cli_help(topic);
+            assert!(help.contains("orchbee agent focus"));
+            assert!(help.contains("30000"));
+            assert!(help.contains("seen/unseen"));
+        }
+    }
+}
+
+#[test]
 fn panel_swap_grammar_selects_one_source_and_one_destination_with_one_budget() {
     let parse = |words: &[&str]| invocation::parse_request(words.iter().map(OsString::from));
     let id = "00000000000000000000000000000007";

@@ -28,6 +28,7 @@ pub(crate) enum ClientLayoutTarget {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ClientNavigationTarget {
+    Agent(super::AgentTarget),
     Resize {
         target: Option<Target>,
         direction: ClientPanelDirection,
@@ -103,6 +104,32 @@ pub(super) fn parse(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     let command = match words {
+        ["agent", "focus", rest @ ..] => {
+            let context = UsageContext::Path("agent focus");
+            check_scope(
+                options,
+                Scope {
+                    session: true,
+                    name: true,
+                    panel: true,
+                    client: true,
+                    request_id: true,
+                    detach: true,
+                    timeout: true,
+                    ..NO_OPTIONS
+                },
+                context,
+                envelope,
+            )?;
+            navigation(
+                ClientNavigationTarget::Agent(super::agent_selector(
+                    rest, options, context, envelope,
+                )?),
+                options,
+                context,
+                envelope,
+            )?
+        }
         ["panel", "swap", rest @ ..] => parse_swap(rest, options, envelope)?,
         ["layout", "set-split-ratio"] => parse_ratio(options, envelope)?,
         ["layout"] => {

@@ -48,10 +48,14 @@ struct WaitSample {
     capacity_omitted: Option<u64>,
 }
 
+#[cfg(windows)]
+mod agent_focus;
 #[cfg(any(target_os = "linux", windows))]
 mod agent_names;
 #[cfg(any(target_os = "linux", windows))]
 mod agent_target;
+#[cfg(windows)]
+pub(crate) use agent_focus::agent_focus_target;
 #[cfg(any(target_os = "linux", windows))]
 mod process_info;
 #[cfg(any(target_os = "linux", windows))]

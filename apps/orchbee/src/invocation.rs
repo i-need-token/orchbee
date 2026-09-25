@@ -205,6 +205,7 @@ pub(crate) enum CommandPath {
     StatusClient,
     AgentList,
     AgentGet,
+    AgentFocus,
     AgentRead,
     AgentStart,
     AgentPrompt,
@@ -296,6 +297,7 @@ impl CommandPath {
             Self::StatusClient => "status client",
             Self::AgentList => "agent list",
             Self::AgentGet => "agent get",
+            Self::AgentFocus => "agent focus",
             Self::AgentRead => "agent read",
             Self::AgentStart => "agent start",
             Self::AgentPrompt => "agent prompt",
@@ -2123,6 +2125,7 @@ fn resolve_words(
     match words {
         ["client", ..]
         | ["layout", ..]
+        | ["agent", "focus", ..]
         | ["workspace" | "tab", "focus", ..]
         | [
             "panel",
@@ -3758,6 +3761,7 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["agent"] => HelpTopic::Family(Family::Agent),
         ["agent", "list"] => HelpTopic::Command(CommandPath::AgentList),
         ["agent", "get"] => HelpTopic::Command(CommandPath::AgentGet),
+        ["agent", "focus"] => HelpTopic::Command(CommandPath::AgentFocus),
         ["agent", "read"] => HelpTopic::Command(CommandPath::AgentRead),
         ["agent", "start"] => HelpTopic::Command(CommandPath::AgentStart),
         ["agent", "prompt"] => HelpTopic::Command(CommandPath::AgentPrompt),

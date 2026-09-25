@@ -73,7 +73,7 @@ cohort 一起部署或回退。新增命令与 schema 为增量能力；裸 `sta
 ## 公共输出与证据
 
 `orchbee.status.client` 和 `orchbee.status.server` 为带 local-runtime 来源的 v1 文档；
-目录变为 v38／71 个 schema，原生命令清单为 83 条路径。必需的判别式元数据字段区分
+目录变为 v39／71 个 schema，原生命令清单为 84 条路径。必需的判别式元数据字段区分
 已观察的 Server 数据、不存在和本地 cohort 不可用。路径使用既有无损 Windows 表示。
 人工文本和路径通过公共文本呈现器转义；JSON 字节不受语言影响。无 Server 和完整诊断
 观察退出 0。既有用法、权限、兼容性、协议／传输、超时和取消失败保留现有退出码与封套；

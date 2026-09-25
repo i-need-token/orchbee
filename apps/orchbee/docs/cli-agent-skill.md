@@ -126,17 +126,17 @@ Use `panel layout [<panel>] --client <id> --format json` to inspect cells withou
 
 Windows `tab create` and `panel split` resolve `--cwd follow|home|current|workspace|<absolute-path>` before creation; follow is the default and samples the resolved source root process. Their v2 receipt records the chosen directory source/path. They accept optional targets and labels, with no focus by default; `--focus` requests post-creation focus, and split accepts a Client-local `--ratio`. Explicit targets can create without a TUI. `orchbee.creation.result` v2 separates committed creation from later ratio/focus results; a later failure is not permission to repeat creation. [Native terminal creation](native-terminal-creation.md) owns target selection, total budget, concurrency guards and recovery for these Windows commands.
 
-Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` sets the shared right-button policy without moving focus. `--current` requires validated caller metadata; explicit targets bypass it. `panel split --right-click` commits the new Panel policy with creation. The default `orchbee` reserves right-click to the Client; `panel` permits unmodified right clicks in mouse-reporting terminal content. An admitted gesture retains its matching release after policy changes. See the [Panel input contract](native-panel-input.md) for routing, pending-input rechecks and failure recovery. This does not add a context menu. `orchbee.panel.input` v1 reports `configured` or `unchanged`; `panel list` v2 and `panel get/current` v3 expose `rightClick`. `tab get` v2 and `api snapshot` v4 admit the optional canonical field. Catalog v38 has 71 schemas and the native inventory has 83 command paths.
+Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` sets the shared right-button policy without moving focus. `--current` requires validated caller metadata; explicit targets bypass it. `panel split --right-click` commits the new Panel policy with creation. The default `orchbee` reserves right-click to the Client; `panel` permits unmodified right clicks in mouse-reporting terminal content. An admitted gesture retains its matching release after policy changes. See the [Panel input contract](native-panel-input.md) for routing, pending-input rechecks and failure recovery. This does not add a context menu. `orchbee.panel.input` v1 reports `configured` or `unchanged`; `panel list` v2 and `panel get/current` v3 expose `rightClick`. `tab get` v2 and `api snapshot` v4 admit the optional canonical field. Catalog v39 has 71 schemas and the native inventory has 84 command paths.
 
 Windows `tab move <target> --insert-index N` moves a complete Tab to a zero-based boundary in the
 original order: 0 is first, the Tab count is last, source/source+1 are unchanged, and out-of-range
 values are refused. It excludes `--direction` and preserves focus and terminals. Success uses
-`orchbee.tab.move` v1; runtime failures use `orchbee.cli.failure.tab-move` v1. Catalog v38/71 keeps
+`orchbee.tab.move` v1; runtime failures use `orchbee.cli.failure.tab-move` v1. Catalog v39/71 keeps
 the legacy direction envelope unchanged.
 
 ## Automatic Tab naming
 
-The [Tab label contract](native-tab-labels.md) owns optional `automaticLabel` metadata. New Tabs without a supplied label use their current context position; explicit numeric names and legacy Tabs remain fixed. CLI queries, label selectors and TUI display agree after move or close, and rename chooses a fixed name. Native `api snapshot` v4 exposes canonical metadata; catalog v38 contains 71 schemas. Shared protocol consumers require a matching cohort.
+The [Tab label contract](native-tab-labels.md) owns optional `automaticLabel` metadata. New Tabs without a supplied label use their current context position; explicit numeric names and legacy Tabs remain fixed. CLI queries, label selectors and TUI display agree after move or close, and rename chooses a fixed name. Native `api snapshot` v4 exposes canonical metadata; catalog v39 contains 71 schemas. Shared protocol consumers require a matching cohort.
 
 ## Source-selected terminal output
 
@@ -145,7 +145,7 @@ Recent combines retained history with the live screen; detection reads the recen
 range. `--plain` exports text directly for pipes, defaults to recent, and excludes JSON. Source-mode
 `--lines` allows zero, clamps to 1000, and defaults to 80 for recent. It excludes the legacy
 history/rows/unwrap flags, whose behavior stays unchanged. The [output contract](native-terminal-output.md)
-owns selection, exact sample validation and `orchbee.terminal.output` v1; catalog v38 has 71 schemas.
+owns selection, exact sample validation and `orchbee.terminal.output` v1; catalog v39 has 71 schemas.
 
 Windows `terminal wait-output` accepts the same `--source` and `--lines` selection, or `--forever`
 for an explicit wait without a total ceiling. Any of these chooses source mode (default recent),
@@ -163,3 +163,7 @@ The render request and prepared output each keep their existing 8 MiB bounds; ov
 resources fail without a fallback or retry. See the [output contract](native-terminal-output.md).
 
 Windows `status server` reads actual Server build/protocol/cohort metadata before Client Session admission; `status client` checks this executable offline. Both accept `--format text|json` and never activate a Site. Bare `status` remains a Workbench query. The [runtime status contract](native-runtime-status.md) owns the five-second budget, unknown metadata, compatibility, schemas and failures. Update-channel management remains unavailable.
+
+## Agent navigation
+
+Windows `agent focus <target> [--client <id>]` resolves a name, session or Panel to its unique live primary Panel before one Client control submission. Explicit `--session`, `--name` and `--panel` selectors use the existing resolver; `--request-id`, `--detach` and the 30000 ms total default timeout retain the common navigation recovery contract. An unready Client fails with `client-not-ready` before Agent reads. The [Agent navigation contract](native-agent-navigation.md) defines primary binding, ambiguity, cancellation and retained operation status. It does not acknowledge seen/unseen state.

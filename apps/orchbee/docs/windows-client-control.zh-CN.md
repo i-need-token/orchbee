@@ -77,3 +77,7 @@ TUI 退出时控制通道停止、唤醒阻塞 I/O 并 join。Server Session 清
 两种新完成结果沿用普通有界帧 25/26。Rust、TypeScript 和 JSON Schema 拒绝未知变体和字段；语义校验器拒绝意图不符的方向结果、以来源充当目标、视图不符以及过期的来源版本。Server 保留原始操作，不自行解析几何。TLA 抽象增加没有副作用和绘制的无邻居完成，执行仍延期。维护的控制器和注册表见证覆盖无邻居纯度、固定目标、绘制顺序、打断和回执重放。Windows ConPTY 证据覆盖精确 Client 隔离及非活动来源行为。固定版本 Herdr 的方向聚焦处理器提供无邻居行为参考；Orchbee 保留自己的单元格布局和认证 Client 路由。
 
 `panel resize [panel] --direction left|right|up|down [--amount <number>]` 调整一个符合条件的分割边界，保留焦点和缩放。`layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path root|0.1 --ratio <number>` 设置精确二进制分割路径。两者都路由到一个 Windows TUI，并保留 `layout-adjusted` 回执。当前标签页的变化等待绘制，非活动标签页只保存、不导航。有限比例限制为 0.1–0.9；有限 resize 数量转为绝对值且最多 0.5，默认 0.05。比例归该 TUI 会话所有，重启后不恢复。参见[布局契约](windows-client-layout.zh-CN.md)。
+
+## Agent 导航
+
+Windows `agent focus <target> [--client <id>]` 在一次客户端控制提交前，将名称、会话或窗格解析为唯一活动的主窗格。显式 `--session`、`--name` 和 `--panel` 使用现有解析器；`--request-id`、`--detach` 和默认 30000 ms 总期限沿用导航恢复契约。未就绪客户端在 Agent 查询前返回 `client-not-ready`。[Agent 导航契约](native-agent-navigation.zh-CN.md) 定义主呈现绑定、歧义、取消和保留操作查询。本命令不确认 seen/unseen 状态。

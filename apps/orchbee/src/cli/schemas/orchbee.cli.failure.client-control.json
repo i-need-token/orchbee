@@ -26,6 +26,7 @@
 							"enum": [
 								"client-not-found",
 								"client-stale",
+								"client-not-ready",
 								"client-ambiguous",
 								"client-panel-unavailable"
 							]

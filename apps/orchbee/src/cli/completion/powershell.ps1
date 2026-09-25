@@ -86,7 +86,7 @@ __ORCHBEE_GRAMMAR__
             if (@($seen | Where-Object { $_ -ceq '--provider' }).Count -gt 1 -and ($command.words -join ':') -cne 'agent:doctor') { $valid = $false }
             $operandLimit = [int]$command.operand
             if (($command.words -join ':') -cin @('panel:process-info', 'panel:focus', 'panel:zoom', 'panel:layout', 'panel:neighbor', 'panel:edges', 'panel:resize', 'panel:swap', 'panel:input', 'panel:split') -and ($seen -ccontains '--panel' -or $seen -ccontains '--current')) { $operandLimit = 0 }
-            if (($command.words -join ':') -cin @('agent:get', 'agent:read', 'agent:send-keys', 'agent:prompt', 'agent:explain', 'agent:wait', 'agent:resolve', 'agent:rename')) {
+            if (($command.words -join ':') -cin @('agent:get', 'agent:focus', 'agent:read', 'agent:send-keys', 'agent:prompt', 'agent:explain', 'agent:wait', 'agent:resolve', 'agent:rename')) {
                 if ($seen -ccontains '--session' -or $seen -ccontains '--name' -or $seen -ccontains '--panel') { $operandLimit-- }
                 if ($seen -ccontains '--clear') { $operandLimit-- }
             }
@@ -110,7 +110,7 @@ __ORCHBEE_GRAMMAR__
             if ($command.words[0] -cne 'tui') { $allowed += '--format' }
             foreach ($flag in $allowed) {
                 if (($command.words -join ':') -cin @('panel:process-info', 'panel:focus', 'panel:zoom', 'panel:layout', 'panel:neighbor', 'panel:edges', 'panel:resize', 'panel:swap', 'panel:input', 'panel:split') -and $positionals.Count -gt $command.words.Count -and $flag -cin @('--panel', '--current')) { continue }
-                if (($command.words -join ':') -cin @('agent:get', 'agent:read', 'agent:send-keys', 'agent:prompt', 'agent:explain', 'agent:wait', 'agent:resolve', 'agent:rename')) {
+                if (($command.words -join ':') -cin @('agent:get', 'agent:focus', 'agent:read', 'agent:send-keys', 'agent:prompt', 'agent:explain', 'agent:wait', 'agent:resolve', 'agent:rename')) {
                     $operands = $positionals.Count - $command.words.Count
                     if ($operands -gt 0 -and $flag -cin @('--name', '--session', '--panel')) { continue }
                     if ($flag -ceq '--clear' -and ($operands -gt 1 -or ($operands -gt 0 -and ($seen -ccontains '--name' -or $seen -ccontains '--session' -or $seen -ccontains '--panel')))) { continue }

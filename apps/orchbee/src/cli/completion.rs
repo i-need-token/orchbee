@@ -154,6 +154,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
         &[
             "doctor",
             "explain",
+            "focus",
             "get",
             "list",
             "names",
@@ -438,6 +439,18 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ),
     ("agent:list", &["--include-ended", "--limit", "--cursor"]),
     ("agent:get", &["--session", "--name", "--panel"]),
+    (
+        "agent:focus",
+        &[
+            "--session",
+            "--name",
+            "--panel",
+            "--client",
+            "--request-id",
+            "--detach",
+            "--timeout",
+        ],
+    ),
     (
         "agent:read",
         &[
@@ -800,6 +813,7 @@ const OPERAND_PATHS: &[&str] = &[
     "agent:start",
     "agent:explain",
     "agent:get",
+    "agent:focus",
     "agent:read",
     "agent:send-keys",
     "agent:prompt",
@@ -860,12 +874,17 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
         &[
             "doctor",
             "explain",
+            "focus",
             "get",
             "integration",
             "list",
             "names",
+            "prompt",
+            "read",
             "rename",
             "resolve",
+            "send-keys",
+            "start",
             "wait",
         ],
     ),

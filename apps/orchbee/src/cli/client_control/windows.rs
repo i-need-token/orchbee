@@ -12,7 +12,8 @@ use crate::{
 };
 use orchbee_workbench_protocol::{
     ClientViewAction, ClientViewControl, ClientViewControlStatus, ClientViewOutcome,
-    ProtocolVersion, SiteId, WorkbenchClientViewRequest, WorkbenchClientViewResult,
+    ClientViewPhase, ProtocolVersion, SiteId, WorkbenchClientViewRequest,
+    WorkbenchClientViewResult,
 };
 use std::{
     thread,
@@ -155,6 +156,35 @@ fn observe(
                 _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
             };
             let selected = selection::select(&clients, explicit.as_ref(), caller.as_ref())?;
+            let resolved;
+            let target = if let ClientNavigationTarget::Agent(agent) = target {
+                if selected.view.phase != ClientViewPhase::Ready {
+                    return Err(selection::failure(
+                        FailureKind::ServiceUnavailable,
+                        "client-not-ready",
+                        vec![selected.client_id.to_string()],
+                    ));
+                }
+                if interrupted(answer, signals, deadline)? {
+                    return Ok(());
+                }
+                let result = query::agent_focus_target(
+                    &mut client,
+                    &snapshot,
+                    agent,
+                    deadline,
+                    signals.poll_fd(),
+                );
+                // Resolve/Get faults can carry provisional cancellation or expiry;
+                // the existing signal/deadline owner settles them before projection.
+                if interrupted(answer, signals, deadline)? {
+                    return Ok(());
+                }
+                resolved = ClientNavigationTarget::Panel(Some(result?));
+                &resolved
+            } else {
+                target
+            };
             let intent = selection::intent(target, selected, caller.as_ref(), &snapshot)?;
             let operation_id = answer
                 .operation_id

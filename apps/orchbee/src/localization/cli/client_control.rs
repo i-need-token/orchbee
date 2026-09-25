@@ -2,6 +2,9 @@ use super::Locale;
 use crate::cli::escape::escape;
 use serde_json::Value;
 
+pub(super) const HELP_AGENT_FOCUS_EN: &str = "orchbee agent focus <target> [options]\n\nFocus the live Agent's unique primary Panel in an existing Windows TUI.\nUse one target: positional name/session/Panel, --session <id>, --name <alias>,\nor --panel <id|@panel:suffix>. Child-only or ambiguous bindings are refused.\n\n  --client <id>        Select one Client; otherwise use caller/unique Client.\n  --request-id <id>    Retain identity for client control-status <id>.\n  --detach            Return after submission without waiting for rendering.\n  --timeout <ms>      Total deadline, 1..3600000 (default 30000).\n  --format text|json  Human text or orchbee.client.control v1 receipt.\n\nA timeout or Ctrl+C stops waiting; accepted focus is not rolled back.\nDoes not start an Agent, activate an OS window or acknowledge seen/unseen state.\n";
+pub(super) const HELP_AGENT_FOCUS_ZH: &str = "orchbee agent focus <target> [options]\n\n在现有 Windows TUI 中聚焦活动 Agent 唯一关联的主窗格。\n目标四选一：位置参数名称/会话/窗格、--session <id>、--name <alias>\n或 --panel <id|@panel:suffix>。仅关联子呈现或绑定歧义时拒绝操作。\n\n  --client <id>        指定客户端；否则按调用者或唯一客户端解析。\n  --request-id <id>    保留身份，可用 client control-status <id> 查询。\n  --detach            提交后立即返回，不等待绘制。\n  --timeout <ms>      总期限，1..3600000（默认 30000）。\n  --format text|json  人类文本或 orchbee.client.control v1 回执。\n\n超时或 Ctrl+C 仅停止等待，不撤销已接受的聚焦。\n不启动 Agent、不激活操作系统窗口，也不确认 seen/unseen 状态。\n";
+
 impl Locale {
     pub(crate) fn cli_creation(self, document: &Value) -> String {
         let (
