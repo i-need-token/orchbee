@@ -439,7 +439,10 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         "agent:start",
         &["--kind", "--panel", "--current", "--timeout", "--arg"],
     ),
-    ("agent:list", &["--include-ended", "--limit", "--cursor"]),
+    (
+        "agent:list",
+        &["--include-ended", "--limit", "--cursor", "--client"],
+    ),
     ("agent:changes", &["--limit", "--cursor"]),
     ("agent:get", &["--session", "--name", "--panel", "--client"]),
     (

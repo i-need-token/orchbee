@@ -104,18 +104,39 @@ pub(crate) fn attention_covers_observation(
     deadline: Instant,
     wake: Option<BorrowedFd<'_>>,
 ) -> Result<bool, Failure> {
+    attention_changed_sessions(
+        client,
+        attention,
+        canonical.revision,
+        std::slice::from_ref(&canonical.session.snapshot.session_id),
+        deadline,
+        wake,
+    )
+    .map(|changed| changed.is_some_and(|changed| changed.is_empty()))
+}
+
+#[cfg(windows)]
+pub(crate) fn attention_changed_sessions(
+    client: &mut LocalClient,
+    attention: &orchbee_workbench_protocol::ClientAgentAttentionSnapshot,
+    revision: AgentSafeInteger,
+    targets: &[AgentSessionId],
+    deadline: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<Option<Vec<AgentSessionId>>, Failure> {
     use orchbee_agent_observation_protocol::{
         AgentChangesOutcome, AgentChangesRequest, AgentChangesResult,
     };
+    let mut changed = Vec::new();
     let mut cursor = attention.cursor.clone();
     let mut observed = attention.revision;
-    if observed.value() > canonical.revision.value() {
+    if observed.value() > revision.value() {
         return Err(agent_protocol_invalid(AgentReadOperation::Changes));
     }
     let mut remaining = 512_u64;
-    while observed.value() < canonical.revision.value() {
+    while observed.value() < revision.value() {
         if remaining == 0 {
-            return Ok(false);
+            return Ok(None);
         }
         let request_id = obap_request_id()?;
         let AgentChangesResult::Read { result, .. } = client
@@ -130,7 +151,8 @@ pub(crate) fn attention_covers_observation(
             )
             .map_err(|error| classify_agent_read(error, AgentReadOperation::Changes))?;
         if Instant::now() >= deadline {
-            return Err(Failure::new(FailureKind::Timeout));
+            return Err(Failure::new(FailureKind::Timeout)
+                .details(agent_timeout_details(AgentReadOperation::Changes)));
         }
         match result.outcome {
             AgentChangesOutcome::Changes {
@@ -142,24 +164,32 @@ pub(crate) fn attention_covers_observation(
             } => {
                 if changes.first().map(|change| change.revision.value())
                     != observed.value().checked_add(1)
-                    || runtime_revision.value() < canonical.revision.value()
+                    || runtime_revision.value() < revision.value()
                 {
                     return Err(agent_protocol_invalid(AgentReadOperation::Changes));
                 }
-                if changes.iter().any(|change| {
-                    change.revision.value() <= canonical.revision.value()
-                        && change.session.session_id == canonical.session.snapshot.session_id
-                }) {
-                    return Ok(false);
+                for change in changes
+                    .iter()
+                    .filter(|change| change.revision.value() <= revision.value())
+                {
+                    if targets.contains(&change.session.session_id)
+                        && !changed.contains(&change.session.session_id)
+                    {
+                        changed.push(change.session.session_id.clone());
+                    }
+                }
+                if targets.iter().all(|id| changed.contains(id)) {
+                    return Ok(Some(changed));
                 }
                 remaining = remaining.saturating_sub(changes.len() as u64);
                 observed = observed_through_revision;
                 cursor = next;
             }
-            AgentChangesOutcome::ResetRequired { revision, .. }
-                if revision.value() >= canonical.revision.value() =>
-            {
-                return Ok(false);
+            AgentChangesOutcome::ResetRequired {
+                revision: reset_revision,
+                ..
+            } if reset_revision.value() >= revision.value() => {
+                return Ok(None);
             }
             AgentChangesOutcome::Rejected { reason } => {
                 return Err(Failure::new(if reason == orchbee_agent_observation_protocol::AgentChangesRejectionReason::ReadDenied { FailureKind::Denied } else { FailureKind::Rejected })
@@ -168,12 +198,13 @@ pub(crate) fn attention_covers_observation(
                     .source(results::agent_source(&request_id)).failure_schema(super::super::schema::AGENT_FAILURE_ID));
             }
             AgentChangesOutcome::Unavailable { .. } => {
-                return Err(Failure::new(FailureKind::ServiceUnavailable));
+                return Err(Failure::new(FailureKind::ServiceUnavailable)
+                    .details(agent_unavailable_details(AgentReadOperation::Changes)));
             }
             _ => return Err(agent_protocol_invalid(AgentReadOperation::Changes)),
         }
     }
-    Ok(true)
+    Ok(Some(changed))
 }
 
 pub(crate) fn agent_focus_target(

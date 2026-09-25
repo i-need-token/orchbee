@@ -60,8 +60,8 @@ mod agent_names;
 mod agent_target;
 #[cfg(windows)]
 pub(crate) use agent_focus::{
-    agent_attention_target, agent_focus_target, attention_covers_observation,
-    authenticate_attention,
+    agent_attention_target, agent_focus_target, attention_changed_sessions,
+    attention_covers_observation, authenticate_attention,
 };
 #[cfg(any(target_os = "linux", windows))]
 mod process_info;
@@ -2724,28 +2724,75 @@ pub(crate) fn agent_list(
             AgentReadOperation::List,
         )));
     };
-    let source = super::results::agent_source(&request_id);
-    match result.outcome {
-        AgentListOutcome::Listed { .. } => Ok((source, Projection::AgentList(result.outcome))),
-        AgentListOutcome::Rejected { reason } => Err(AgentQueryError::Read(
-            match reason {
-                orchbee_agent_observation_protocol::AgentListRejectionReason::ReadDenied => {
-                    Failure::new(FailureKind::Denied)
-                }
-                _ => Failure::new(FailureKind::Rejected),
-            }
-            .details(agent_rejection_details(
-                AgentReadOperation::List,
-                rejection_reason_text(&reason),
-            ))
-            .source(source),
-        )),
-        AgentListOutcome::Unavailable { .. } => Err(AgentQueryError::Read(
-            Failure::new(FailureKind::ServiceUnavailable)
-                .details(agent_unavailable_details(AgentReadOperation::List))
-                .source(source),
-        )),
+    let outcome = listed_outcome(result.outcome, &request_id).map_err(AgentQueryError::Read)?;
+    Ok((
+        super::results::agent_source(&request_id),
+        Projection::AgentList(outcome),
+    ))
+}
+
+#[cfg(any(target_os = "linux", windows))]
+fn listed_outcome(
+    outcome: AgentListOutcome,
+    request_id: &ObapRequestId,
+) -> Result<AgentListOutcome, Failure> {
+    let source = super::results::agent_source(request_id);
+    match outcome {
+        AgentListOutcome::Listed { .. } => Ok(outcome),
+        AgentListOutcome::Rejected { reason } => Err(Failure::new(
+            if reason == orchbee_agent_observation_protocol::AgentListRejectionReason::ReadDenied {
+                FailureKind::Denied
+            } else {
+                FailureKind::Rejected
+            },
+        )
+        .details(agent_rejection_details(
+            AgentReadOperation::List,
+            rejection_reason_text(&reason),
+        ))
+        .source(source)),
+        AgentListOutcome::Unavailable { .. } => Err(Failure::new(FailureKind::ServiceUnavailable)
+            .details(agent_unavailable_details(AgentReadOperation::List))
+            .source(source)),
     }
+}
+
+/// Bounded list read for compositions that already own admission and signals.
+#[cfg(windows)]
+pub(in crate::cli) fn read_agent_list(
+    client: &mut LocalClient,
+    include_ended: bool,
+    limit: u64,
+    cursor: Option<orchbee_agent_observation_protocol::AgentListCursor>,
+    deadline: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<(ObapRequestId, AgentListOutcome), Failure> {
+    let read = || {
+        let operation = AgentReadOperation::List;
+        let request_id = obap_request_id()?;
+        let result = client
+            .submit_agent_read_before_cancellable(
+                AgentReadRequest::List {
+                    request_id: request_id.clone(),
+                    include_ended,
+                    limit: AgentSafeInteger::new(limit),
+                    cursor,
+                },
+                deadline,
+                wake,
+            )
+            .map_err(|error| classify_agent_read(error, operation))?;
+        if Instant::now() >= deadline {
+            return Err(
+                Failure::new(FailureKind::Timeout).details(agent_timeout_details(operation))
+            );
+        }
+        let AgentReadResult::List { result, .. } = result else {
+            return Err(agent_protocol_invalid(operation));
+        };
+        listed_outcome(result.outcome, &request_id).map(|outcome| (request_id, outcome))
+    };
+    read().map_err(|failure| failure.failure_schema(super::schema::AGENT_FAILURE_ID))
 }
 
 /// `agent get`: one OBAP get request, same admission/exchange discipline.

@@ -719,6 +719,7 @@ fn wait_stage_failures_keep_the_wait_wording() {
 fn agent_cancellation_emits_agent_envelope_with_finalization() {
     use super::{Failure, FailureKind, SourceFinalization, query};
     let command = QueryCommand::AgentList {
+        client: None,
         include_ended: false,
         limit: 50,
         cursor: None,

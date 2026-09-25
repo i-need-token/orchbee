@@ -1,3 +1,4 @@
+pub(super) mod list;
 mod runtime;
 use super::*;
 use crate::cli::{
@@ -113,6 +114,22 @@ pub(in crate::cli) fn read(
     deadline: Instant,
     signals: &mut ArmedSignals,
 ) -> Result<ClientAgentRead, Failure> {
+    read_many(
+        client,
+        snapshot,
+        selected,
+        std::slice::from_ref(session),
+        deadline,
+        signals,
+    )
+}
+fn current_client(
+    client: &mut crate::local_client::LocalClient,
+    snapshot: &Snapshot,
+    selected: &WorkbenchClientId,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<Box<orchbee_workbench_protocol::ClientViewRecord>, Failure> {
     check(deadline, signals)?;
     let result = exchange(
         client,
@@ -147,13 +164,24 @@ pub(in crate::cli) fn read(
             vec![selected.to_string()],
         ));
     }
+    Ok(record)
+}
+fn read_many(
+    client: &mut crate::local_client::LocalClient,
+    snapshot: &Snapshot,
+    selected: &WorkbenchClientId,
+    sessions: &[AgentSessionId],
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<ClientAgentRead, Failure> {
+    let record = current_client(client, snapshot, selected, deadline, signals)?;
     let command = ClientViewControl {
         operation_id: query::request_id()?,
         client_id: selected.clone(),
         expected_view_revision: record.view_revision,
         minimum_workbench_revision: snapshot.revision,
         intent: ClientViewIntent::AgentAttention {
-            session_ids: vec![session.clone()],
+            session_ids: sessions.to_vec(),
         },
     };
     // This existing owner waits on the retained operation and authenticates the
@@ -232,25 +260,44 @@ impl ClientAgentRead {
         canonical: &query::AgentObservationRead,
         unchanged: bool,
     ) -> Result<results::AgentClientViewDoc, Failure> {
+        if self.attention.entries.len() != 1
+            || self.attention.entries[0].session_id != canonical.session.snapshot.session_id
+        {
+            return Err(view_failure(FailureKind::ProtocolInvalid));
+        }
+        self.project(
+            snapshot,
+            canonical.revision,
+            AgentViewFacts::detail(&canonical.session),
+            unchanged,
+        )
+    }
+    fn project(
+        &self,
+        snapshot: &Snapshot,
+        revision: orchbee_agent_observation_protocol::AgentSafeInteger,
+        facts: AgentViewFacts<'_>,
+        unchanged: bool,
+    ) -> Result<results::AgentClientViewDoc, Failure> {
         use results::AgentClientVersionMatch;
-        if self.attention.revision.value() > canonical.revision.value() {
+        if self.attention.revision.value() > revision.value() {
             return Err(view_failure(FailureKind::ProtocolInvalid));
         }
-        let [entry] = self.attention.entries.as_slice() else {
-            return Err(view_failure(FailureKind::ProtocolInvalid));
-        };
-        let agent = &canonical.session;
-        if entry.session_id != agent.snapshot.session_id {
-            return Err(view_failure(FailureKind::ProtocolInvalid));
-        }
-        let version = entry.state.as_ref().filter(|state| {
-            unchanged
-                && state.generation == agent.snapshot.observation.generation
-                && state.sequence == agent.snapshot.observation.sequence
-        });
+        let entry = self
+            .attention
+            .entries
+            .iter()
+            .find(|entry| &entry.session_id == facts.session_id);
+        let version = entry
+            .and_then(|entry| entry.state.as_ref())
+            .filter(|state| {
+                unchanged
+                    && state.generation == facts.observation.generation
+                    && state.sequence == facts.observation.sequence
+            });
         let state = if version.is_some() {
             AgentClientVersionMatch::Current
-        } else if entry.state.is_none() {
+        } else if entry.is_none_or(|entry| entry.state.is_none()) {
             AgentClientVersionMatch::Missing
         } else {
             AgentClientVersionMatch::Stale
@@ -260,8 +307,7 @@ impl ClientAgentRead {
         else {
             return Err(view_failure(FailureKind::InternalFailure));
         };
-        let focused = agent.snapshot.lifecycle
-            == orchbee_agent_observation_protocol::AgentLifecycle::Live
+        let focused = facts.lifecycle == orchbee_agent_observation_protocol::AgentLifecycle::Live
             && self.view.phase == ClientViewPhase::Ready
             && self.attention.outer_focused != Some(false)
             && self.view.selection.as_ref().is_some_and(|selection| {
@@ -275,20 +321,15 @@ impl ClientAgentRead {
                             .tab_id
                             .as_ref()
                             .is_some_and(|tab| tab.as_str() == panel.tab_id)
-                        && agent
-                            .snapshot
-                            .presentation_attachments
-                            .iter()
-                            .any(|binding| {
-                                binding.navigable
-                                    && binding.presentation_id.as_str()
-                                        == panel.primary_presentation_id
-                            })
+                        && facts.attachments.iter().any(|binding| {
+                            binding.navigable
+                                && binding.presentation_id.as_str() == panel.primary_presentation_id
+                        })
                 })
             });
         Ok(results::AgentClientViewDoc {
-            client_id: self.client_id,
-            operation_id: self.operation_id,
+            client_id: self.client_id.clone(),
+            operation_id: self.operation_id.clone(),
             phase: self.view.phase,
             outer_focused: self.attention.outer_focused,
             focused,
@@ -296,24 +337,50 @@ impl ClientAgentRead {
             state,
             seen: version.map(|state| state.seen),
             state_change_revision: version.map(|state| state.state_change_revision),
-            status: projected_status(agent, version.map(|state| state.seen)),
+            status: projected_status(&facts, version.map(|state| state.seen)),
         })
     }
 }
 
-fn projected_status(
-    agent: &orchbee_agent_observation_protocol::AgentSessionDetail,
-    seen: Option<bool>,
-) -> Option<&'static str> {
-    if matches!(agent.status, AgentSemanticStatus::Ended { .. }) {
+struct AgentViewFacts<'a> {
+    session_id: &'a AgentSessionId,
+    lifecycle: orchbee_agent_observation_protocol::AgentLifecycle,
+    observation: &'a orchbee_agent_observation_protocol::AgentObservation,
+    attachments: &'a [orchbee_agent_observation_protocol::AgentPresentationAttachment],
+    status: &'a AgentSemanticStatus,
+}
+impl<'a> AgentViewFacts<'a> {
+    fn detail(detail: &'a orchbee_agent_observation_protocol::AgentSessionDetail) -> Self {
+        let snapshot = &detail.snapshot;
+        Self {
+            session_id: &snapshot.session_id,
+            lifecycle: snapshot.lifecycle,
+            observation: &snapshot.observation,
+            attachments: &snapshot.presentation_attachments,
+            status: &detail.status,
+        }
+    }
+    fn summary(summary: &'a orchbee_agent_observation_protocol::AgentSessionSummary) -> Self {
+        Self {
+            session_id: &summary.session_id,
+            lifecycle: summary.lifecycle,
+            observation: &summary.observation,
+            attachments: &summary.presentation_attachments,
+            status: &summary.status,
+        }
+    }
+}
+
+fn projected_status(facts: &AgentViewFacts<'_>, seen: Option<bool>) -> Option<&'static str> {
+    if matches!(facts.status, AgentSemanticStatus::Ended { .. }) {
         return Some("ended");
     }
-    match agent.snapshot.observation.freshness {
+    match facts.observation.freshness {
         AgentObservationFreshness::Stale => return Some("stale"),
         AgentObservationFreshness::Disconnected => return Some("disconnected"),
         AgentObservationFreshness::Fresh => {}
     }
-    match agent.status {
+    match facts.status {
         AgentSemanticStatus::Idle { .. }
         | AgentSemanticStatus::Succeeded { .. }
         | AgentSemanticStatus::Failed { .. }

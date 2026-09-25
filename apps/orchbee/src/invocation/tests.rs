@@ -5117,6 +5117,29 @@ fn agent_read_grammar() {
         parse(&["agent", "list"]),
         Ok(query(
             QueryCommand::AgentList {
+                client: None,
+                include_ended: false,
+                limit: 50,
+                cursor: None,
+            },
+            OutputFormat::Text
+        ))
+    );
+    assert_eq!(
+        parse(&[
+            "agent",
+            "list",
+            "--client",
+            "00000000000000000000000000000007"
+        ]),
+        Ok(query(
+            QueryCommand::AgentList {
+                client: Some(
+                    orchbee_workbench_protocol::WorkbenchClientId::parse(
+                        "00000000000000000000000000000007"
+                    )
+                    .unwrap()
+                ),
                 include_ended: false,
                 limit: 50,
                 cursor: None,
@@ -5137,6 +5160,7 @@ fn agent_read_grammar() {
         ]),
         Ok(query(
             QueryCommand::AgentList {
+                client: None,
                 include_ended: true,
                 limit: 25,
                 cursor: Some(cursor()),
@@ -5150,6 +5174,7 @@ fn agent_read_grammar() {
             parse(&["agent", "list", "--limit", value]),
             Ok(query(
                 QueryCommand::AgentList {
+                    client: None,
                     include_ended: false,
                     limit: value.parse().expect("bound literal"),
                     cursor: None,
@@ -5189,6 +5214,7 @@ fn agent_read_grammar() {
         parse(&["agent", "list", "--format", "json"]),
         Ok(query(
             QueryCommand::AgentList {
+                client: None,
                 include_ended: false,
                 limit: 50,
                 cursor: None,

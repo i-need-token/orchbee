@@ -76,6 +76,10 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
             client: Some(_), ..
         } => 4,
         #[cfg(windows)]
+        QueryCommand::AgentList {
+            client: Some(_), ..
+        } => 2,
+        #[cfg(windows)]
         QueryCommand::AgentGet(_) => 3,
         QueryCommand::AgentClientGet { .. } => {
             if cfg!(windows) {
@@ -1021,6 +1025,7 @@ pub(crate) enum Projection {
     Status(StatusDoc),
     /// The typed `listed` outcome, verbatim from the wire.
     AgentList(AgentListOutcome),
+    AgentClientList(Box<AgentClientListDoc>),
     AgentChanges(orchbee_agent_observation_protocol::AgentChangesOutcome),
     /// The typed `found` outcome, verbatim from the wire.
     AgentGet(AgentGetOutcome),
@@ -1078,6 +1083,17 @@ pub(crate) struct AgentWaitDoc {
     pub(crate) timeout_ms: Option<u32>,
     pub(crate) observations: u64,
     pub(crate) elapsed_ms: u64,
+}
+
+#[derive(Debug)]
+pub(crate) struct AgentClientListDoc {
+    pub(crate) client_id: orchbee_workbench_protocol::WorkbenchClientId,
+    pub(crate) revision: AgentSafeInteger,
+    pub(crate) next_cursor: Option<orchbee_agent_observation_protocol::AgentListCursor>,
+    pub(crate) items: Vec<(
+        orchbee_agent_observation_protocol::AgentSessionSummary,
+        AgentClientViewDoc,
+    )>,
 }
 
 #[derive(Debug)]
@@ -1208,6 +1224,10 @@ impl Projection {
             // Agent projections serialize the exact wire outcome object —
             // the typed enum is the single serialization truth.
             Self::AgentList(outcome) => json!(outcome),
+            Self::AgentClientList(doc) => {
+                json!({"kind":"listed","clientId":doc.client_id,"revision":doc.revision,"nextCursor":doc.next_cursor,
+                "items":doc.items.iter().map(|(summary,client)| { let mut row=json!(summary);row["client"]=client.document();row }).collect::<Vec<_>>() })
+            }
             Self::AgentChanges(outcome) => json!(outcome),
             Self::AgentGet(outcome) => json!(outcome),
             Self::AgentInspection(doc) => {

@@ -604,6 +604,28 @@ pub(crate) fn render(
         // Agent text renders only ever see the success outcome — refusals
         // leave the query layer as failures before projection.
         Projection::AgentList(outcome) => agent_list(out, outcome, text, locale),
+        Projection::AgentClientList(doc) => {
+            if doc.items.is_empty() {
+                return out.push(locale.cli_agent_empty());
+            }
+            let mut headers = text.agent_headers.to_vec();
+            headers.extend(locale.cli_agent_list_client_headers());
+            table(out, &headers, &doc.items, |(row, client)| {
+                vec![
+                    row.session_id.to_string(),
+                    row.provider_id.to_string(),
+                    locale.cli_agent_status(&row.status),
+                    locale.cli_agent_freshness(row.observation.freshness).into(),
+                    row.execution_location.execution_location_id.to_string(),
+                    locale.cli_agent_client_status(client.status).into(),
+                    locale.cli_agent_seen(client.seen).into(),
+                ]
+            })?;
+            if let Some(cursor) = &doc.next_cursor {
+                out.push(&locale.cli_agent_next_cursor(cursor.as_str()))?;
+            }
+            Ok(())
+        }
         Projection::AgentChanges(outcome) => agent_changes(out, outcome, locale),
         Projection::AgentGet(outcome) => agent_get(out, outcome, text, locale),
         Projection::AgentInspection(doc) => {

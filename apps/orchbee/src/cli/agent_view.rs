@@ -32,3 +32,21 @@ pub(super) fn run(
         )
     }
 }
+
+pub(super) fn list(command: &QueryCommand, format: OutputFormat, locale: Locale) -> Output {
+    #[cfg(windows)]
+    {
+        windows::list::run(command, format, locale)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = command;
+        failure_output(
+            super::Failure::new(super::FailureKind::ServiceUnavailable).details(
+                super::stage_reason_details("platform", "unsupported-platform"),
+            ),
+            Some(format),
+            locale,
+        )
+    }
+}

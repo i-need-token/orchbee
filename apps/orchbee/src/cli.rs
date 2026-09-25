@@ -545,9 +545,13 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
             locale,
         ),
         QueryCommand::AgentList {
+            client: Some(_), ..
+        } => agent_view::list(&command, format, locale),
+        QueryCommand::AgentList {
             include_ended,
             limit,
             cursor,
+            client: None,
         } => agent_output(
             query::agent_list(*include_ended, *limit, cursor.clone()),
             &command,

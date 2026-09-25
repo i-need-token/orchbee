@@ -474,6 +474,7 @@ pub(crate) enum QueryCommand {
         cursor: Option<orchbee_agent_observation_protocol::AgentChangesCursor>,
     },
     AgentList {
+        client: Option<WorkbenchClientId>,
         include_ended: bool,
         limit: u64,
         cursor: Option<AgentListCursor>,
@@ -2227,6 +2228,7 @@ fn resolve_words(
             let context = UsageContext::Path("agent list");
             Ok(query(
                 QueryCommand::AgentList {
+                    client: client_control::client_id(options, context, envelope)?,
                     include_ended: options.include_ended,
                     limit: agent_limit_option(options, context, envelope)?,
                     cursor: agent_cursor_option(options, context, envelope)?,
@@ -4186,6 +4188,7 @@ const AGENT_CHANGES_SCOPE: Scope = Scope {
 };
 
 const AGENT_LIST_SCOPE: Scope = Scope {
+    client: true,
     include_ended: true,
     limit: true,
     cursor: true,
