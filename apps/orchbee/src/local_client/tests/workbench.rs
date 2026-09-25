@@ -1260,6 +1260,7 @@ fn tab_create_command(request_id: &str, expected_revision: u64) -> WorkbenchComm
         request_id,
         expected_revision,
         WorkbenchAction::TabCreate {
+            automatic_label: false,
             terminal_context_id: context_id(30),
             label: workbench_label(),
             geometry: terminal_geometry(),
@@ -1348,6 +1349,7 @@ fn snapshot() -> Snapshot {
         terminal_contexts: vec![TerminalContext {
             groups: Vec::new(),
             tabs: vec![Tab {
+                automatic_label: false,
                 group_id: None,
                 label: "tab".into(),
                 pinned: false,

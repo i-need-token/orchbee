@@ -778,11 +778,12 @@ impl WorkbenchAuthority {
                         .ok_or(PlanFailure::Rejected(
                             WorkbenchRejectionReason::TabUnavailable,
                         ))?;
-                    if tab.label == label.as_str() {
+                    if !tab.automatic_label && tab.label == label.as_str() {
                         return Ok(self.unchanged());
                     }
                     let revision = self.next_revision()?;
                     tab.label = label.as_str().to_owned();
+                    tab.automatic_label = false;
                     candidate.revision = revision;
                     WorkbenchCommandOutcome::Renamed { revision }
                 }

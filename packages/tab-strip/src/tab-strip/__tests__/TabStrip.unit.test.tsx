@@ -3344,6 +3344,8 @@ describe('TabStrip', () => {
 			configurable: true,
 			value: requestAnimationFrame,
 		});
+		// Keep the exact end-frame assertion independent of fractional wall-clock rounding.
+		const now = vi.spyOn(performance, 'now').mockReturnValue(100);
 		try {
 			const model = new TabModel({
 				tabs: [
@@ -3388,6 +3390,7 @@ describe('TabStrip', () => {
 			expect(document.querySelectorAll('[data-vertical-drag-view="tab"]')).toHaveLength(1);
 			fireEvent.pointerUp(window, { pointerId: 155, clientX: 30, clientY: 220 });
 		} finally {
+			now.mockRestore();
 			if (requestAnimationFrameDescriptor) {
 				Object.defineProperty(window, 'requestAnimationFrame', requestAnimationFrameDescriptor);
 			} else {

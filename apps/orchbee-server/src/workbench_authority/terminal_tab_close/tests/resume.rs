@@ -56,10 +56,13 @@ fn full_ordinary_ledger_does_not_block_resume_receipt_replay_or_replacement() {
                 label: WorkbenchLabel::parse("1").unwrap(),
             },
         );
-        assert!(matches!(
-            submit(&mut authority, &grant, noop).outcome,
-            WorkbenchCommandOutcome::Unchanged { .. }
-        ));
+        let outcome = submit(&mut authority, &grant, noop).outcome;
+        // The first equal-text rename fixes the implicit automatic Tab's name.
+        assert!(if index == 1 {
+            matches!(outcome, WorkbenchCommandOutcome::Renamed { .. })
+        } else {
+            matches!(outcome, WorkbenchCommandOutcome::Unchanged { .. })
+        });
     }
     let bytes = authority.ledger_bytes;
     let revision = authority.projection.snapshot().revision;

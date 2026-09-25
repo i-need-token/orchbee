@@ -2,6 +2,58 @@ use super::super::renamed::{RenamedTabExpectation, validate_renamed_tab};
 use super::*;
 
 #[test]
+fn automatic_equal_text_rename_clears_mode_and_cannot_be_undone_by_a_refresh() {
+    let mut baseline = projected(3, 10);
+    baseline.tabs[1].automatic_label = true;
+    let requested = baseline.tabs[1].tab_label.clone();
+    let expected = expectation(&baseline, 1, 11, requested.as_str());
+    let mut candidate = baseline.clone();
+    candidate.revision = WorkbenchRevision::new(11);
+    assert!(validate_renamed_tab(&baseline, &expected, candidate.clone()).is_err());
+    candidate.tabs[1].automatic_label = false;
+    assert!(validate_renamed_tab(&baseline, &expected, candidate.clone()).is_ok());
+    let mut reversed = candidate.clone();
+    reversed.revision = WorkbenchRevision::new(12);
+    reversed.tabs[1].automatic_label = true;
+    assert!(validate_canonical_refresh(&candidate, reversed).is_err());
+    let mut invented = baseline.clone();
+    invented.revision = WorkbenchRevision::new(11);
+    invented.tabs[1].tab_label = label("different raw text without a rename");
+    assert!(validate_canonical_refresh(&baseline, invented).is_err());
+}
+
+#[test]
+fn automatic_survivors_derive_positions_after_reorder_and_removal_without_metadata_changes() {
+    let mut before = projected(3, 10);
+    before.tabs[0].automatic_label = true;
+    before.tabs[2].automatic_label = true;
+    before.tabs[1].tab_label = label("2");
+    let mut moved = before.clone();
+    moved.tabs.rotate_right(1);
+    moved.revision = WorkbenchRevision::new(11);
+    let moved = validate_canonical_refresh(&before, moved).unwrap();
+    assert_eq!(moved.tabs[0], before.tabs[2]);
+    assert_eq!(moved.tabs[1], before.tabs[0]);
+    assert_eq!(moved.tabs[2], before.tabs[1]);
+    assert_eq!(
+        moved
+            .tabs
+            .iter()
+            .enumerate()
+            .map(|(i, t)| t.display_label(i).into_owned())
+            .collect::<Vec<_>>(),
+        ["1", "2", "2"]
+    );
+    let mut removed = moved.clone();
+    removed.tabs.remove(0);
+    removed.revision = WorkbenchRevision::new(12);
+    let removed = validate_canonical_refresh(&moved, removed).unwrap();
+    assert_eq!(removed.tabs[0], before.tabs[0]);
+    assert_eq!(removed.tabs[0].display_label(0), "1");
+    assert_eq!(removed.tabs[1].display_label(1), "2");
+}
+
+#[test]
 fn exact_rename_preserves_requested_text_and_every_other_member_field() {
     let baseline = projected(3, 10);
     for requested in [

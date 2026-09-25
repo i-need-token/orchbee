@@ -722,7 +722,8 @@ impl super::NativeSessionState {
         );
         let selection = CloseSelection::new(
             target,
-            tab.tab_label().clone(),
+            WorkbenchLabel::parse(&tab.display_label(selected.index()))
+                .map_err(|_| CloseStateError::UnknownTarget)?,
             panel.binding().clone(),
             self.desired.as_ref().map(|key| key.anchor().clone()),
             self.cache.revision(),

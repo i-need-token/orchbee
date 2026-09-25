@@ -244,7 +244,7 @@ impl PresentationIndex {
                         tab_id: tab.tab_id().clone(),
                         panel_id: panel.panel_id().clone(),
                         tab_position: tab_index + 1,
-                        tab_label: tab.tab_label().as_str().to_owned(),
+                        tab_label: tab.display_label(tab_index).into_owned(),
                         panel_label: panel.display_label().to_owned(),
                         project_label: project_label.clone(),
                         workspace_label: workspace_label.clone(),

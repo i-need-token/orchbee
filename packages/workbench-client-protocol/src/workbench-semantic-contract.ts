@@ -206,6 +206,7 @@ export const WorkbenchTabGroupSchema = z
 
 export const WorkbenchTabSchema = z
 	.strictObject({
+		automaticLabel: z.boolean().optional(),
 		groupId: WorkbenchTabGroupIdSchema.nullable(),
 		label: WorkbenchLabelSchema,
 		pinned: z.boolean(),

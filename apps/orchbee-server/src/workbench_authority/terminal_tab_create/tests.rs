@@ -8,6 +8,8 @@ use orchbee_workbench_protocol::{
 };
 use std::collections::BTreeMap;
 
+mod automatic_labels;
+
 fn identity(value: u128) -> String {
     format!("{value:032x}")
 }
@@ -44,6 +46,7 @@ fn command(
         site_id: SiteId::parse(&identity(100)).unwrap(),
         expected_revision: WorkbenchRevision::new(revision),
         action: WorkbenchAction::TabCreate {
+            automatic_label: false,
             terminal_context_id: context,
             label: WorkbenchLabel::parse(label).unwrap(),
             geometry,
@@ -272,6 +275,7 @@ fn simple_tab_capacity_precedes_identity_and_revision_exhaustion_atomically() {
             context,
             &parse_tab_ids(4 + offset * 3).unwrap(),
             "tab",
+            false,
             binding(10_000 + offset),
         );
     }

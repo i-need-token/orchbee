@@ -365,6 +365,7 @@ fn ready_create_ui_at(
 fn rename_created_fixture(candidate: &mut Snapshot, index: usize, label: &str) {
     let created = &mut candidate.terminal_contexts[0].tabs[index];
     created.label = label.to_owned();
+    created.automatic_label = true;
     let PanelNode::Panel {
         primary_presentation,
         ..

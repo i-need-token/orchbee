@@ -53,6 +53,7 @@ fn tab(index: usize) -> Tab {
     let seed = tab_seed(index);
     let label = (index + 1).to_string();
     Tab {
+        automatic_label: false,
         group_id: None,
         label: label.clone(),
         pinned: false,
@@ -112,6 +113,7 @@ fn expectation_for(
         tab.panel_id.clone(),
         tab.presentation_id.clone(),
         label(requested_label),
+        tab.automatic_label,
     )
 }
 

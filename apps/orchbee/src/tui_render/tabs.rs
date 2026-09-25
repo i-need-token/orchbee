@@ -11,11 +11,11 @@ use crate::{
     tui_theme::{Role, Theme},
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(super) struct TabDisplay<'a> {
     pub(super) position: usize,
     pub(super) active: bool,
-    pub(super) label: &'a str,
+    pub(super) label: std::borrow::Cow<'a, str>,
 }
 
 /// Paints the compact tab strip and reports each painted token's
@@ -91,7 +91,7 @@ fn compact_line<'a>(
             used = used.saturating_add(1);
         }
         let remaining = width.saturating_sub(used);
-        let Some((token, token_width)) = compact_token(tab, remaining, theme) else {
+        let Some((token, token_width)) = compact_token(&tab, remaining, theme) else {
             break;
         };
         let token_x = used;
@@ -120,7 +120,7 @@ fn compact_window_start<'a>(
     let Some(active) = tab_at(active_index) else {
         return 0;
     };
-    let active_width = compact_token_width(active);
+    let active_width = compact_token_width(&active);
     if active_width > width {
         return active_index;
     }
@@ -131,7 +131,7 @@ fn compact_window_start<'a>(
         let Some(previous) = tab_at(start - 1) else {
             break;
         };
-        let additional = compact_token_width(previous).saturating_add(1);
+        let additional = compact_token_width(&previous).saturating_add(1);
         if additional > width.saturating_sub(occupied) {
             break;
         }
@@ -175,7 +175,7 @@ fn navigator_lines<'a>(
             break;
         };
         lines.push(Line::from(Span::styled(
-            navigator_row(tab, width, theme),
+            navigator_row(&tab, width, theme),
             navigator_style(tab.active, theme),
         )));
         on_row(index, u16::try_from(offset).unwrap_or(u16::MAX));
@@ -190,8 +190,8 @@ fn navigator_lines<'a>(
     lines
 }
 
-fn compact_token(tab: TabDisplay<'_>, max_width: usize, theme: &Theme) -> Option<(String, usize)> {
-    let safe_label = sanitize_terminal_text(tab.label);
+fn compact_token(tab: &TabDisplay<'_>, max_width: usize, theme: &Theme) -> Option<(String, usize)> {
+    let safe_label = sanitize_terminal_text(&tab.label);
     let marker = if tab.active {
         theme.glyphs.active_marker
     } else {
@@ -220,16 +220,16 @@ fn compact_token(tab: TabDisplay<'_>, max_width: usize, theme: &Theme) -> Option
     (clipped_width > 0).then_some((clipped, clipped_width))
 }
 
-fn compact_token_width(tab: TabDisplay<'_>) -> usize {
-    let safe_label = sanitize_terminal_text(tab.label);
+fn compact_token_width(tab: &TabDisplay<'_>) -> usize {
+    let safe_label = sanitize_terminal_text(&tab.label);
     let prefix_width = tab.position.to_string().len().saturating_add(3);
     prefix_width
         .saturating_add(display_width(safe_label.as_ref()))
         .saturating_add(1)
 }
 
-fn navigator_row(tab: TabDisplay<'_>, width: usize, theme: &Theme) -> String {
-    let safe_label = sanitize_terminal_text(tab.label);
+fn navigator_row(tab: &TabDisplay<'_>, width: usize, theme: &Theme) -> String {
+    let safe_label = sanitize_terminal_text(&tab.label);
     let marker = if tab.active {
         theme.glyphs.active_marker
     } else {

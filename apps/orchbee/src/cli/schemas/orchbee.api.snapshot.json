@@ -7,7 +7,7 @@
 	"additionalProperties": false,
 	"properties": {
 		"schema": { "const": "orchbee.api.snapshot" },
-		"version": { "const": 3 },
+		"version": { "const": 4 },
 		"source": { "$ref": "#/$defs/snapshotSource" },
 		"result": {
 			"type": "object",
@@ -218,7 +218,8 @@
 										"label": { "type": "string" },
 										"pinned": { "type": "boolean" },
 										"root": { "$ref": "#/$defs/panelNode" },
-										"tabId": { "$ref": "#/$defs/id" }
+										"tabId": { "$ref": "#/$defs/id" },
+										"automaticLabel": { "type": "boolean" }
 									}
 								}
 							},

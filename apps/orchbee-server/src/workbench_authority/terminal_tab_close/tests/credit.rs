@@ -67,6 +67,7 @@ fn every_ordinary_writer_preserves_reserved_removal_credit_and_noops_still_settl
                 direction: WorkbenchTabMoveDirection::Last,
             },
             _ => WorkbenchAction::TabCreate {
+                automatic_label: false,
                 terminal_context_id: context.clone(),
                 label: WorkbenchLabel::parse("new").unwrap(),
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
@@ -108,13 +109,31 @@ fn every_ordinary_writer_preserves_reserved_removal_credit_and_noops_still_settl
             ),
             "writer {operation}"
         );
-        let noop = command(
+        let equal_automatic = command(
             &authority,
             10002,
             WorkbenchAction::TabRename {
-                terminal_context_id: context,
+                terminal_context_id: context.clone(),
                 tab_id: member.tab_id().clone(),
                 label: WorkbenchLabel::parse("1").unwrap(),
+            },
+        );
+        assert!(matches!(
+            submit(&mut authority, &grant, equal_automatic).outcome,
+            WorkbenchCommandOutcome::Rejected {
+                reason: WorkbenchRejectionReason::RevisionExhausted,
+                ..
+            }
+        ));
+        let noop = command(
+            &authority,
+            10003,
+            WorkbenchAction::TabRename {
+                terminal_context_id: context,
+                tab_id: authority.standalone_membership().unwrap().members()[1]
+                    .tab_id()
+                    .clone(),
+                label: WorkbenchLabel::parse("tab 1").unwrap(),
             },
         );
         assert!(matches!(

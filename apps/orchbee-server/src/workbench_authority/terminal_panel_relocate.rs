@@ -273,6 +273,7 @@ impl<'a> WorkbenchPanelRelocateAdmission<'a> {
             }
             (RelocateTarget::NewTab { label }, Minted::Tab { tab_id }) => {
                 context.tabs.push(Tab {
+                    automatic_label: false,
                     tab_id: tab_id.clone(),
                     label: label.clone(),
                     group_id: None,

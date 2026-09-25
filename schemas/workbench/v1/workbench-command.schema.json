@@ -181,6 +181,9 @@
 						},
 						"geometry": {
 							"$ref": "#/$defs/terminalGeometry"
+						},
+						"automaticLabel": {
+							"type": "boolean"
 						}
 					},
 					"required": ["kind", "terminalContextId", "label", "geometry"],

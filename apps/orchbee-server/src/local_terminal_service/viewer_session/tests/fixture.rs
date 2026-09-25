@@ -266,6 +266,7 @@ fn add_terminal(service: &LocalTerminalService, index: u8) -> WorkbenchCommand {
         site_id: snapshot.site_id,
         expected_revision: snapshot.revision,
         action: WorkbenchAction::TabCreate {
+            automatic_label: false,
             terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
             label: WorkbenchLabel::parse("viewer routing").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),

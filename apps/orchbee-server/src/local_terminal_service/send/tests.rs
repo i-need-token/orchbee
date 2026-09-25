@@ -102,6 +102,7 @@ impl Fixture {
             site_id: snapshot.site_id.clone(),
             expected_revision: snapshot.revision,
             action: WorkbenchAction::TabCreate {
+                automatic_label: false,
                 terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
                 label: WorkbenchLabel::parse("send routing")?,
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,

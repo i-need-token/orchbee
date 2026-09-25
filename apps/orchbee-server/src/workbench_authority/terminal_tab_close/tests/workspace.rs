@@ -32,6 +32,7 @@ pub(super) fn workspace_fixture(count: u128) -> (WorkbenchAuthority, WorkbenchGr
                 &mut context,
                 &parse_tab_ids(500 + index * 100 + member * 3).unwrap(),
                 &format!("member {member}"),
+                false,
                 binding(3000 + index * 100 + member),
             );
         }
@@ -153,6 +154,7 @@ fn workspace_publication_rebases_move_rename_and_pending_create_then_settles_ori
         &authority,
         10001,
         WorkbenchAction::TabCreate {
+            automatic_label: false,
             terminal_context_id: context_id.clone(),
             label: WorkbenchLabel::parse("pending sibling").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),

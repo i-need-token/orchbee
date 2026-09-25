@@ -1,4 +1,7 @@
 --------------------- MODULE NativeClientRenameLifecycle ---------------------
+(* The same/changed relation compares complete canonical naming metadata.
+Renaming an automatic Tab to equal raw or displayed text is changed because
+the result is fixed mode. Concrete projection tests check this refinement. *)
 EXTENDS Naturals, FiniteSets
 
 CONSTANT InitiallyReady

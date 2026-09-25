@@ -1860,6 +1860,7 @@ fn tab(index: usize) -> Tab {
     let seed = 1_000 + u128::try_from(index).unwrap() * 10;
     let label = (index + 1).to_string();
     Tab {
+        automatic_label: false,
         group_id: None,
         label: label.clone(),
         pinned: false,

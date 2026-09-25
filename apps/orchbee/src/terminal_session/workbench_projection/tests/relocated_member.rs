@@ -81,6 +81,7 @@ fn canonical_refresh_accepts_a_member_relocated_into_a_fresh_tab() {
     let mut candidate_snapshot = two_tab_split_snapshot(11);
     candidate_snapshot.terminal_contexts[0].tabs[0].root = panel(30, 31, 32, 33, "left");
     candidate_snapshot.terminal_contexts[0].tabs.push(Tab {
+        automatic_label: false,
         group_id: None,
         label: "3".into(),
         pinned: false,

@@ -7,6 +7,7 @@ fn selector(value: &str) -> LaunchProfileSelector {
 
 fn tab_create(launch: Option<LaunchSelection>, profile: Option<&str>) -> WorkbenchAction {
     WorkbenchAction::TabCreate {
+        automatic_label: false,
         terminal_context_id: WorkbenchTerminalContextId::parse("33333333333333333333333333333333")
             .unwrap(),
         label: WorkbenchLabel::parse("t").unwrap(),

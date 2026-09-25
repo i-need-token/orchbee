@@ -13,7 +13,7 @@ impl<'a> NativeRenameDraftView<'a> {
     pub(crate) fn token(&self) -> NativeRenameDraftToken {
         NativeRenameDraftToken(self.0.token())
     }
-    pub(crate) fn target_label(&self) -> &'a str {
+    pub(crate) fn target_label(&self) -> std::borrow::Cow<'a, str> {
         self.0.target_label()
     }
     /// Pure display-space projection of the draft inside a

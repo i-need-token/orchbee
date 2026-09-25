@@ -130,11 +130,40 @@ pub struct TabGroup {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Tab {
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub automatic_label: bool,
     pub group_id: Option<WorkbenchTabGroupId>,
     pub label: String,
     pub pinned: bool,
     pub root: PanelNode,
     pub tab_id: WorkbenchTabId,
+}
+
+impl Tab {
+    /// Effective name at a zero-based position in the owning terminal context.
+    #[must_use]
+    pub fn display_label(&self, position: usize) -> std::borrow::Cow<'_, str> {
+        tab_display_label(&self.label, self.automatic_label, position)
+    }
+}
+
+/// Project canonical naming metadata without mutating a Tab or its order.
+/// `position` is a valid zero-based index in its bounded terminal context.
+#[must_use]
+pub fn tab_display_label(
+    label: &str,
+    automatic: bool,
+    position: usize,
+) -> std::borrow::Cow<'_, str> {
+    if automatic {
+        std::borrow::Cow::Owned((position + 1).to_string())
+    } else {
+        std::borrow::Cow::Borrowed(label)
+    }
+}
+
+pub(crate) const fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

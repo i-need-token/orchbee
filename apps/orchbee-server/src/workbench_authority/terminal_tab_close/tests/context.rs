@@ -535,6 +535,7 @@ fn open_context_close_fences_create_move_split_and_member_close() {
         &authority,
         10001,
         WorkbenchAction::TabCreate {
+            automatic_label: false,
             terminal_context_id: context_id.clone(),
             label: WorkbenchLabel::parse("fenced create").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
@@ -645,6 +646,7 @@ fn open_context_close_fences_create_move_split_and_member_close() {
         &authority,
         10005,
         WorkbenchAction::TabCreate {
+            automatic_label: false,
             terminal_context_id: other_context,
             label: WorkbenchLabel::parse("other create").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
@@ -669,6 +671,7 @@ fn pending_create_covers_context_and_blocks_workspace_close_admission() {
         &authority,
         10000,
         WorkbenchAction::TabCreate {
+            automatic_label: false,
             terminal_context_id: context_id.clone(),
             label: WorkbenchLabel::parse("pending sibling").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),

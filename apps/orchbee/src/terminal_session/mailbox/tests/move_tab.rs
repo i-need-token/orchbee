@@ -241,6 +241,7 @@ fn canonical_move_a_settlement_then_b_queued_preserves_exact_a_commit_at_retirem
         .map(|index| {
             let tab = &first.baseline().tabs()[index];
             Tab {
+                automatic_label: false,
                 tab_id: tab.tab_id().clone(),
                 label: tab.tab_label().as_str().to_owned(),
                 group_id: None,

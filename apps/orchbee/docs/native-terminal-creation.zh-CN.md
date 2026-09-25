@@ -15,7 +15,8 @@ Windows `tab create` 和 `panel split` 先创建一个规范资源，再执行�
 多个可选 Client 明确报错。
 
 创建标签可省略。原生默认标签是预检 Snapshot 中上下文的 Tab 数量加一，或分屏所在
-Tab 的 Panel 数量加一。它是创建标签，不是动态终端标题或唯一标识。已有几何、exec/args、
+Tab 的 Panel 数量加一。这是原始创建标签。省略 Tab 标签还请求[自动位置命名](native-tab-labels.zh-CN.md)；
+显式数字名称保持固定，分屏标签仍为创建回退值。已有几何、exec/args、
 profile 和环境变量校验沿用原所有者。Windows 在创建前按下述规则解析目录策略；
 显式路径仍是本次启动覆盖。
 
@@ -59,7 +60,7 @@ Windows 创建在已知规范提交后输出 `orchbee.creation.result` v2。保�
 
 JSON 向 stdout 输出一个完整有界文档。失败文本写 stderr 并包含已知效果。未完成时先
 检查返回身份与当前状态，再决定后续动作；重复创建可能再创建资源。Client control-status
-可观察已经提交的 Client 操作。不增加持久流程日志或重启恢复。schema 目录为 v33、68
+可观察已经提交的 Client 操作。不增加持久流程日志或重启恢复。schema 目录为 v34、68
 个文档；命令路径仍为 80 个。
 
 ## 证据与兼容性
@@ -109,5 +110,5 @@ NoLogo／NoProfile／NoExit 开关的启动。不会改造现有终端或任意�
 可能与 Shell 的私有位置不同。
 
 核心策略／来源测试、实际 PowerShell 5.1／7 prompt 检查、命名管道取消／故障切面及 Windows
-ConPTY 创建轨迹覆盖此模型。目录解析后仍沿用既有阶段顺序。TLA 执行继续延期。持久默认配置和
-Tab 自动位置标签是独立契约。回执版本需要匹配 cohort；回滚不会修改用户 profile 或现有终端进程。
+ConPTY 创建轨迹覆盖此模型。目录解析后仍沿用既有阶段顺序。TLA 执行继续延期。持久默认配置仍是独立工作；
+[Tab 自动位置标签](native-tab-labels.zh-CN.md) 保留原始创建事实。回执版本需要匹配 cohort；回滚不会修改用户 profile 或现有终端进程。

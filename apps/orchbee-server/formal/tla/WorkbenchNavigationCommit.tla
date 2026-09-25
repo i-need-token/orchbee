@@ -1,4 +1,8 @@
 --------------------- MODULE WorkbenchNavigationCommit ---------------------
+(* Tab label atoms abstract the complete (raw text, automatic naming mode) fact.
+Clearing automatic mode with equal text maps to a different atom; only equal
+fixed metadata maps to the unchanged transition. Concrete refinement tests
+check mode encoding and the creation-only automatic-mode admission. *)
 EXTENDS Naturals, FiniteSets, Sequences, TLC
 
 CONSTANTS ExerciseTargetDomain, ExerciseMove, MoveSingleton, MoveByteLimit, MoveRevisionLimit

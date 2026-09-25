@@ -748,6 +748,7 @@ pub(in crate::terminal_session) fn snapshot(count: usize, revision: u64) -> Snap
                 .map(|index| {
                     let base = 1000 + index * 10;
                     Tab {
+                        automatic_label: false,
                         group_id: None,
                         pinned: false,
                         label: format!("Tab {index}"),

@@ -28,6 +28,7 @@ fn workspace_authority(count: usize) -> (WorkbenchAuthority, WorkbenchGrant) {
                 &mut context,
                 &parse_tab_ids(404 + workspace * 100 + index as u128 * 3).unwrap(),
                 &format!("workspace {workspace} tab {index}"),
+                false,
                 PresentationBinding {
                     terminal_id: TerminalId::parse(&identity(
                         3000 + workspace * 100 + index as u128,

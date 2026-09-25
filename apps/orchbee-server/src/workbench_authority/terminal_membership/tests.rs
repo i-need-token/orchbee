@@ -202,6 +202,7 @@ fn standalone_query_allows_multiple_canonical_tabs_but_rejects_noncanonical_shap
         context,
         &parse_tab_ids(7).unwrap(),
         "second",
+        false,
         second_binding,
     );
     candidate.revision = WorkbenchRevision::new(2);
@@ -236,6 +237,7 @@ fn strict_membership_exposes_every_exact_tuple_in_canonical_order_through_the_pr
                 context,
                 &parse_tab_ids(4 + 3 * index as u128).unwrap(),
                 "member",
+                false,
                 PresentationBinding {
                     terminal_id: TerminalId::parse(&identity(1000 + index as u128)).unwrap(),
                     worker_id: WorkerId::parse(&identity(71)).unwrap(),
@@ -290,6 +292,7 @@ fn strict_membership_rejects_a_non_head_child_presentation_or_unbound_member() {
             &mut candidate.terminal_contexts[0],
             &parse_tab_ids(7).unwrap(),
             "second",
+            false,
             PresentationBinding {
                 terminal_id: TerminalId::parse(&identity(82)).unwrap(),
                 worker_id: WorkerId::parse(&identity(71)).unwrap(),
@@ -333,6 +336,7 @@ fn duplicate_bootstrap_binding_is_rejected_before_strict_membership_is_construct
         &mut duplicate.terminal_contexts[0],
         &parse_tab_ids(7).unwrap(),
         "duplicate",
+        false,
         binding(),
     );
     let document = WorkbenchProtocolDocument::Snapshot(duplicate);

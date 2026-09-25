@@ -98,6 +98,7 @@ fn exposure_walks_nested_panels_and_checks_primary_and_child_presentations() {
     snapshot.terminal_contexts[0]
         .tabs
         .push(orchbee_workbench_protocol::Tab {
+            automatic_label: false,
             group_id: None,
             label: "1".to_owned(),
             pinned: false,

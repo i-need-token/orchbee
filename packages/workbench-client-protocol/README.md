@@ -180,3 +180,7 @@ The corpus covers bounds, decimal integer normalization, missing/extra/conflicti
 negative/fraction/string/boolean/null refusal. Matching experimental cohorts activate and roll back
 together; old strict decoders cannot mix, and no durable migration is added. Executable evidence
 belongs to the Server/native CLI tests; the TLA asset is not executed in this parity work.
+
+## Automatic Tab naming
+
+The [Tab label contract](../../apps/orchbee/docs/native-tab-labels.md) owns optional `automaticLabel` metadata. New Tabs without a supplied label use their current context position; explicit numeric names and legacy Tabs remain fixed. CLI queries, label selectors and TUI display agree after move or close, and rename chooses a fixed name. Native `api snapshot` v4 exposes canonical metadata; catalog v34 contains 68 schemas. Shared protocol consumers require a matching cohort.

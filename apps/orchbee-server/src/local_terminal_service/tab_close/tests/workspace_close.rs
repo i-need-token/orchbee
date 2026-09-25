@@ -130,6 +130,7 @@ fn pending_create(
         service,
         request,
         WorkbenchAction::TabCreate {
+            automatic_label: false,
             terminal_context_id: context.clone(),
             label: WorkbenchLabel::parse("workspace terminal").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),

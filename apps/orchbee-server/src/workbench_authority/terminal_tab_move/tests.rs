@@ -21,6 +21,7 @@ fn authority(count: usize) -> (WorkbenchAuthority, WorkbenchGrant) {
             &mut snapshot.terminal_contexts[0],
             &parse_tab_ids(4 + 3 * index as u128).unwrap(),
             &format!("tab {index}"),
+            false,
             PresentationBinding {
                 terminal_id: TerminalId::parse(&identity(1000 + index as u128)).unwrap(),
                 worker_id: WorkerId::parse(&identity(2000)).unwrap(),
@@ -482,6 +483,7 @@ fn move_admission_cannot_use_its_navigation_grant_to_replay_a_terminal_create() 
         WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone());
     let mut create = command(&authority, 10, 0, WorkbenchTabMoveDirection::First);
     create.action = WorkbenchAction::TabCreate {
+        automatic_label: false,
         terminal_context_id: authority
             .projection
             .snapshot()

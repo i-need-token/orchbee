@@ -665,6 +665,7 @@ impl CreateOperationKey {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct CreateOperation {
+    automatic_label: bool,
     origin: CreateOriginKind,
     key: CreateOperationKey,
     site_id: SiteId,
@@ -687,6 +688,7 @@ impl CreateOperation {
     ) -> Self {
         Self {
             origin: CreateOriginKind::Ready,
+            automatic_label: false,
             key,
             site_id,
             expected_revision,
@@ -707,6 +709,11 @@ impl CreateOperation {
 
     pub(super) const fn with_origin(mut self, origin: CreateOriginKind) -> Self {
         self.origin = origin;
+        self
+    }
+
+    pub(super) const fn with_automatic_label(mut self) -> Self {
+        self.automatic_label = true;
         self
     }
 
@@ -815,6 +822,7 @@ impl CommittedTabCreate {
             panel_id,
             presentation_id,
             barrier.operation.label.clone(),
+            barrier.operation.automatic_label,
         );
         Ok(Self {
             operation: barrier.operation,
@@ -3911,8 +3919,8 @@ impl<'a> NativeTabView<'a> {
         self.active
     }
 
-    pub(super) fn tab_label(&self) -> &'a str {
-        self.tab.tab_label().as_str()
+    pub(super) fn tab_label(&self) -> std::borrow::Cow<'a, str> {
+        self.tab.display_label(self.position - 1)
     }
 
     pub(super) fn panel_count(&self) -> usize {

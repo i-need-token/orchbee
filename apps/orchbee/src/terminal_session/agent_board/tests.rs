@@ -599,6 +599,7 @@ fn presentation_index_resolves_only_live_panel_identities() {
             groups: Vec::new(),
             terminal_context_id: context,
             tabs: vec![Tab {
+                automatic_label: false,
                 group_id: None,
                 pinned: false,
                 label: "Tab".into(),

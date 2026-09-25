@@ -475,6 +475,8 @@ pub enum WorkbenchAction {
     },
     #[serde(rename = "tab.create")]
     TabCreate {
+        #[serde(default, skip_serializing_if = "crate::model::is_false")]
+        automatic_label: bool,
         terminal_context_id: WorkbenchTerminalContextId,
         label: WorkbenchLabel,
         geometry: WorkbenchTerminalGeometry,

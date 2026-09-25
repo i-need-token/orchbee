@@ -322,7 +322,7 @@ Project 与 Workspace。创建 Workspace 时只创建一个空 Terminal Context�
 创建目录或选择 Worker。首个独立 Open 还会在启动前提交共享 Tab/Panel/Presentation 成员关系
 及逻辑终端 binding，具体定义见下文。[Workspace 目录契约](workspace-terminal-directory.zh-CN.md)
 增加经 Worker 校验后、具有独立授权的显式目录关联。本地 `tab.create` 在同一个成员关系/终端意图共同提交边界内
-追加简单独立或已配置 Workspace Tab，并支持精确的待处理/最终结果重放。纯 `tab.rename` 只改变规范 Tab 标签，且可在
+追加简单独立或已配置 Workspace Tab，并支持精确的待处理/最终结果重放。纯 `tab.rename` 改变规范 Tab 标签并关闭自动命名，且可在
 该完成仍 pending 时运行。`tab.move` 改变规范位置，也可在该完成仍 pending 时运行。
 其他 Tab/Panel 转换、完整 Client Workbench 渲染、订阅、持久化、
 重启恢复及旧实现迁移仍未完成。
@@ -356,7 +356,7 @@ revision，不能指定新产品身份、替换共享文档或发布 Client delt
 | 输入       | 严格 snapshot 或 publication 读取 intent，或包含 request identity、确切 Site、预期 revision 及已准入的纯 action的严格命令。创建标签与 Tab 标签保留原始非空文本，最多 512 个 Unicode code point；窗格自定义标题按上文规范化有界可空更新。Tab rename fingerprint 包含 context、Tab、label 和 base revision。                 |
 | 数据       | Active 或 retired 权威、一份已校验 Snapshot、Server 拥有且不复用的 identity cursor，以及有界 request/result ledger。初始 revision 为零，standalone Terminal Context 为空。Adapter 从操作系统随机源取得非零 Site identity。Cursor 不复用导航聚合内的身份；无关 Terminal/operation 身份域保留现有 owner。                    |
 | 输出       | 读取返回相关联的 available { snapshot }、denied {} 或 unavailable { reason }。Publication 读取返回 current { revision }、published { publications }、denied {} 或 unavailable { reason }。命令返回 project-created、workspace-created、renamed、unchanged、rejected、denied 或 unavailable。新身份仅出现于对应成功变体中。 |
-| 不变量     | 只有 Server 提交共享结构。每个 Workspace 恰好引用一个 context。拒绝保留结构、revision 和分配状态。发生变更时 revision 恰好加一。等值重命名保留 revision。Tab rename 只改变目标 `Tab.label`；非目标标签及所有其他 projection 事实保持精确。一个 request identity 不能提交两次。                                             |
+| 不变量     | 只有 Server 提交共享结构。每个 Workspace 恰好引用一个 context。拒绝保留结构、revision 和分配状态。发生变更时 revision 恰好加一。固定名称的等值重命名保留 revision。Tab rename 只改变目标 `Tab.label` 和 `Tab.automaticLabel`；非目标标签及所有其他 projection 事实保持精确。一个 request identity 不能提交两次。           |
 | 决策       | 授权先于 retired 状态及 ledger 检查。Active 精确重放先于预期 revision 检查。保留的 request identity 对应内容改变时是冲突。拒绝命令没有结构效果。意外内部 invariant 失败会原子停用权威；后续所有已授权读取和命令（包括重放）都不可用。                                                                                      |
 | 模型       | 对完整 candidate 执行确定性串行转换；网络、时钟、文件系统、随机源及进程效果留在 adapter。                                                                                                                                                                                                                                  |
 | 依赖       | 既有 Workbench snapshot 校验及上限、严格 OBWP framing、已准入本地 Session。这些导航操作不需要 Worker 或 Host。                                                                                                                                                                                                             |
@@ -364,14 +364,14 @@ revision，不能指定新产品身份、替换共享文档或发布 Client delt
 | 验证       | 依据 schema 编写的 Rust/TypeScript conformance、可缩减的确定性有状态命令轨迹、有界 TLA 并发/重放检查，以及真实双 Client Server 进程证据。                                                                                                                                                                                  |
 | 正确性限制 | 模型抽象 label、identity encoding、OS 调度及 JSON。进程证据为 Linux；本组转换不声明持久化、transport retry、重启后恢复 Site identity 或公开 Client 集成。                                                                                                                                                                  |
 
-| Action           | Guard                                  | 提交结果                                                 |
-| ---------------- | -------------------------------------- | -------------------------------------------------------- |
-| project.create   | Label 和 projection 容量被接受         | 一个没有 Workspace 的新 Project                          |
-| project.rename   | 确切 Project 存在                      | 修改其 label；等值文本为 unchanged                       |
-| workspace.create | 确切 Project 存在且 context 容量被接受 | 一个新 Workspace 及其唯一空 Terminal Context             |
-| workspace.rename | 确切 Workspace 属于指定 Project        | 修改其 label；等值文本为 unchanged                       |
-| tab.rename       | 确切 context 包含确切 Tab              | 修改其 Tab label；等值文本为 unchanged                   |
-| panel.rename     | 精确 context/Tab 包含目标 Panel        | 主 Presentation 自定义标题设置或清除；规范化后相等则不变 |
+| Action           | Guard                                  | 提交结果                                                          |
+| ---------------- | -------------------------------------- | ----------------------------------------------------------------- |
+| project.create   | Label 和 projection 容量被接受         | 一个没有 Workspace 的新 Project                                   |
+| project.rename   | 确切 Project 存在                      | 修改其 label；等值文本为 unchanged                                |
+| workspace.create | 确切 Project 存在且 context 容量被接受 | 一个新 Workspace 及其唯一空 Terminal Context                      |
+| workspace.rename | 确切 Workspace 属于指定 Project        | 修改其 label；等值文本为 unchanged                                |
+| tab.rename       | 确切 context 包含确切 Tab              | 修改其 Tab label 并关闭自动命名；仅固定模式的等值文本为 unchanged |
+| panel.rename     | 精确 context/Tab 包含目标 Panel        | 主 Presentation 自定义标题设置或清除；规范化后相等则不变          |
 
 仅窗格自定义标题更新裁剪空白。这些操作不做乐观 Client 提交、自动冲突重试、焦点改变或终端效果。
 读取不占用 command ledger 条目。
@@ -756,3 +756,7 @@ schema、两种绑定及消费它们的二进制作为一个尚未发布的 v1 �
 旧的封闭解码器拒绝扩展。回退恢复整个批次；不声明混合版本发布、持久迁移或跨重启重放。
 
 Panel swap 使用共享结构 placement 权威，在同一 Tab 中原子交换完整叶子，保留 Split／slot 及终端身份。Windows CLI 通过原 Client 单独确认源聚焦；后续失败或聚焦未知不抹去已知 canonical 提交。[原生 Panel 交换](../../orchbee/docs/native-panel-swap.zh-CN.md) 拥有工作流程、回执及证据。
+
+## 自动 Tab 命名
+
+[Tab 标签契约](../../orchbee/docs/native-tab-labels.zh-CN.md) 拥有可选规范模式、兼容性和消费者细化。Server 将 `tab.create` 的 `automaticLabel` 纳入请求指纹，原子提交到 Tab；省略为固定名称，隐式首个独立 Tab 则使用自动模式。移动与关闭保留幸存命名元数据。重命名同时设置文本和固定模式；待处理创建的结算与重放绝不恢复旧模式。抽象标签比较包含文本和模式，因此关闭自动命名即使文本相等也属于 changed。

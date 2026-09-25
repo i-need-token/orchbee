@@ -661,6 +661,7 @@ struct NativeContextTabs {
 struct NativeSimpleTab {
     tab_id: WorkbenchTabId,
     tab_label: WorkbenchLabel,
+    automatic_label: bool,
     panel_id: WorkbenchPanelId,
     presentation_id: TerminalPresentationId,
     presentation_label: WorkbenchLabel,
@@ -700,6 +701,7 @@ struct CreatedTabExpectation {
     panel_id: WorkbenchPanelId,
     presentation_id: TerminalPresentationId,
     requested_label: WorkbenchLabel,
+    automatic_label: bool,
 }
 
 fn project_native_standalone_tabs(
@@ -744,7 +746,7 @@ split、close 与 move 的总和；同一基线到最终快照的比较即可接
 身份重指派、保留结构重塑或伪装成保留的成员丢失均属分歧。最多 256 个 Tab 只需精确扫描，
 不需存储映射。
 
-`CreatedTabExpectation` 归投影层所有，只携带纯验证所需的六项规范事实。会话状态会嵌入或构造
+`CreatedTabExpectation` 归投影层所有，只携带纯验证所需的七项规范事实。会话状态会嵌入或构造
 它；请求身份、终端来源状态、挂接代次和邮箱类型绝不进入投影器。`validate_created_tab` 在投影
 恢复期间保留原始创建前基线。返回的创建 ID 必须在来源覆盖或挂接分配前确认不在该基线中。其已提交
 修订必须等于准入基线的 checked 后继，候选修订至少等于该提交。在任意位置恰好一次找到返回 Tab；
@@ -953,6 +955,7 @@ struct CreateMarker {
     expected_revision: WorkbenchRevision,
     terminal_context_id: WorkbenchTerminalContextId,
     label: WorkbenchLabel,
+    automatic_label: bool,
     geometry: WorkbenchTerminalGeometry,
 }
 
@@ -1471,7 +1474,7 @@ revision 边界，以及写入前与交接后的 deadline 失败。抽象模型�
 
 `workbench_projection::renamed` 根据捕获的规范基线和已知 Rename revision 验证快照。
 精确 context/Tab 必须存在于基线，请求 label 必须不同于其旧 label，提交 revision 必须为
-`checked(baseline + 1)`。在该精确 revision，完整投影向量必须等于仅将目标 Tab label
+`checked(baseline + 1)`。在该精确 revision，完整投影向量必须等于仅将目标 Tab label 和命名模式
 替换为精确请求文本后的基线。其他 label 变化、重排、新增、移除或不可变成员变化均属分歧。
 
 更晚 revision 使用共享的严格规范成员规则。被重命名的 Tab 可以具有后来修改的 label，
@@ -2141,3 +2144,7 @@ action；许可精化为 `PreparedMembershipCandidate` 上有界私有 `context_
 复用 `stage_refresh_membership_cleanup` 与 `detach_anchor_panes`；install 门保持既有
 精确清理与四标志规则。确定性 session-state 测试覆盖各分类路径，retired 入口 UI 测试
 覆盖有界尝试；CLI→TUI 组合旅程属于 workspace-close 集成记录。
+
+## 自动 Tab 命名
+
+[Tab 标签契约](native-tab-labels.zh-CN.md) 细化上述标签事实：投影保留原始文本与命名模式，显示按上下文位置派生。创建提交时验证所请求模式；重排不改元数据。重命名关闭自动模式，所以同文本的自动 Tab 重命名也必须产生提交，只有固定模式的同文本才是无操作。标签栏、重命名草稿、关闭确认及 Agent 面板使用捕获位置的有效名称。

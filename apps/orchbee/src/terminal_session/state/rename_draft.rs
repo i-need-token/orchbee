@@ -62,10 +62,8 @@ impl<'a> RenameDraftView<'a> {
     ) -> Option<NativeFieldWindow<'a>> {
         field_window(&self.draft.editor, field_width)
     }
-    pub(in crate::terminal_session) fn target_label(&self) -> &'a str {
-        self.draft.baseline.tabs()[self.draft.target_index]
-            .tab_label()
-            .as_str()
+    pub(in crate::terminal_session) fn target_label(&self) -> std::borrow::Cow<'a, str> {
+        self.draft.baseline.tabs()[self.draft.target_index].display_label(self.draft.target_index)
     }
     pub(in crate::terminal_session) fn label_valid(&self) -> bool {
         WorkbenchLabel::parse(self.draft.editor.text()).is_ok()
@@ -156,7 +154,7 @@ impl NativeSessionState {
             // Prefill keeps the protocol-legal label byte-exact — including
             // control scalars chrome cannot show — with the cursor at its end.
             editor: LineEditor::new(
-                tab.tab_label().as_str().to_owned(),
+                tab.display_label(target_index).into_owned(),
                 LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH),
             ),
             shown: false,

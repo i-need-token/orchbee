@@ -116,6 +116,7 @@ impl NativeContextTabs {
 pub(super) struct NativeSimpleTab {
     tab_id: WorkbenchTabId,
     tab_label: WorkbenchLabel,
+    automatic_label: bool,
     panel_id: WorkbenchPanelId,
     presentation_id: TerminalPresentationId,
     presentation_label: WorkbenchLabel,
@@ -131,6 +132,18 @@ impl NativeSimpleTab {
 
     pub(super) fn tab_label(&self) -> &WorkbenchLabel {
         &self.tab_label
+    }
+
+    pub(super) const fn automatic_label(&self) -> bool {
+        self.automatic_label
+    }
+
+    pub(super) fn display_label(&self, position: usize) -> std::borrow::Cow<'_, str> {
+        orchbee_workbench_protocol::tab_display_label(
+            self.tab_label.as_str(),
+            self.automatic_label,
+            position,
+        )
     }
 
     #[cfg(test)]
@@ -420,6 +433,7 @@ pub(super) struct CreatedTabExpectation {
     panel_id: WorkbenchPanelId,
     presentation_id: TerminalPresentationId,
     requested_label: WorkbenchLabel,
+    automatic_label: bool,
 }
 
 impl CreatedTabExpectation {
@@ -430,6 +444,7 @@ impl CreatedTabExpectation {
         panel_id: WorkbenchPanelId,
         presentation_id: TerminalPresentationId,
         requested_label: WorkbenchLabel,
+        automatic_label: bool,
     ) -> Self {
         Self {
             committed_revision,
@@ -438,6 +453,7 @@ impl CreatedTabExpectation {
             panel_id,
             presentation_id,
             requested_label,
+            automatic_label,
         }
     }
 
@@ -697,7 +713,8 @@ pub(super) fn validate_created_tab(
         || created.presentation_id != expected.presentation_id
         || created.presentation_label != expected.requested_label
         || (candidate.revision == expected.committed_revision
-            && created.tab_label != expected.requested_label)
+            && (created.tab_label != expected.requested_label
+                || created.automatic_label != expected.automatic_label))
     {
         return Err(NativeProjectionDivergence);
     }
@@ -770,6 +787,7 @@ pub(super) fn validate_split_panel(
         if candidate.tabs.len() != baseline.tabs.len()
             || candidate_tab.tab_id != expected.tab_id
             || candidate_tab.tab_label != baseline_tab.tab_label
+            || candidate_tab.automatic_label != baseline_tab.automatic_label
             || baseline_tab.panel_index(&expected.panel_id).is_none()
             || !split_graft_matches(baseline_tab, candidate_tab, expected)
             || candidate
@@ -809,6 +827,7 @@ pub(super) fn validate_moved_panel(
         if candidate.tabs.len() != baseline.tabs.len()
             || candidate_tab.tab_id != expected.tab_id
             || candidate_tab.tab_label != baseline_tab.tab_label
+            || candidate_tab.automatic_label != baseline_tab.automatic_label
             || baseline_tab.panel_index(&expected.panel_id).is_none()
             || baseline_tab
                 .panel_index(&expected.target_panel_id)
@@ -1171,6 +1190,7 @@ fn project_tab(tab: &Tab) -> Result<NativeSimpleTab, NativeProjectionError> {
     Ok(NativeSimpleTab {
         tab_id: tab.tab_id.clone(),
         tab_label: WorkbenchLabel::parse(&tab.label).map_err(|_error| NativeProjectionError)?,
+        automatic_label: tab.automatic_label,
         panel_id: primary.panel_id.clone(),
         presentation_id: primary.presentation_id.clone(),
         presentation_label: primary.presentation_label.clone(),
@@ -1273,6 +1293,7 @@ pub(super) fn validate_retained_context(
     }
     if candidate.tabs.len() > MAXIMUM_TABS_PER_CONTEXT
         || !unique_structural_ids(&candidate.tabs)
+        || !retained_tab_labels(tabs, &candidate.tabs)
         || !retained_member_tuples(tabs, &candidate.tabs)
         || !retained_structure_tuples(tabs, &candidate.tabs)
     {
@@ -1331,6 +1352,16 @@ fn unique_structural_ids(tabs: &[NativeSimpleTab]) -> bool {
                         .all(|prior_id| slot_ids.iter().all(|id| prior_id != id))
                 }
         })
+    })
+}
+
+fn retained_tab_labels(before: &[NativeSimpleTab], after: &[NativeSimpleTab]) -> bool {
+    after.iter().all(|next| {
+        !next.automatic_label
+            || before
+                .iter()
+                .find(|prior| prior.tab_id == next.tab_id)
+                .is_none_or(|prior| prior.automatic_label && prior.tab_label == next.tab_label)
     })
 }
 

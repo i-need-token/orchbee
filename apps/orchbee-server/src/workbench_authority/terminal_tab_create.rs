@@ -273,7 +273,14 @@ impl<'a> WorkbenchTabCreateAdmission<'a> {
             panel_id: staged.panel_id.clone(),
             presentation_id: staged.presentation_id.clone(),
         };
-        append_simple_tab(context, &ids, &label, binding.clone());
+        let automatic_label = matches!(
+            command.action,
+            WorkbenchAction::TabCreate {
+                automatic_label: true,
+                ..
+            }
+        );
+        append_simple_tab(context, &ids, &label, automatic_label, binding.clone());
         candidate.revision = staged.revision;
         let encoded = match serialize_document(&WorkbenchProtocolDocument::Snapshot(candidate)) {
             Ok(encoded) => encoded,

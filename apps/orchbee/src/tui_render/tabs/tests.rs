@@ -35,7 +35,7 @@ fn rendered(
             tabs.get(index).map(|tab| TabDisplay {
                 position: index.saturating_add(1),
                 active: tab.active,
-                label: tab.label,
+                label: tab.label.into(),
             })
         };
         let area = Rect::new(0, 0, width, height);
@@ -243,7 +243,7 @@ fn rendering_is_bounded_by_its_rect_and_marks_the_active_token_style() {
             tabs.get(index).map(|tab| TabDisplay {
                 position: index + 1,
                 active: tab.active,
-                label: tab.label,
+                label: tab.label.into(),
             })
         };
         render_compact(
@@ -278,12 +278,12 @@ fn token_formatting_is_usize_safe() {
     let tab = TabDisplay {
         position: usize::MAX,
         active: true,
-        label: "label",
+        label: "label".into(),
     };
 
     let (compact, _) =
-        compact_token(tab, usize::MAX, &crate::tui_theme::Theme::rgb_test_dark()).unwrap();
-    let navigator = navigator_row(tab, usize::MAX, &crate::tui_theme::Theme::rgb_test_dark());
+        compact_token(&tab, usize::MAX, &crate::tui_theme::Theme::rgb_test_dark()).unwrap();
+    let navigator = navigator_row(&tab, usize::MAX, &crate::tui_theme::Theme::rgb_test_dark());
 
     assert_eq!(compact, format!("[*{} label]", usize::MAX));
     assert_eq!(navigator, format!("[*{}] label", usize::MAX));

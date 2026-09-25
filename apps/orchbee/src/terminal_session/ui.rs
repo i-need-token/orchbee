@@ -180,7 +180,7 @@ impl<'a> NativeTabView<'a> {
         self.inner.active()
     }
 
-    pub(crate) fn tab_label(&self) -> &'a str {
+    pub(crate) fn tab_label(&self) -> std::borrow::Cow<'a, str> {
         self.inner.tab_label()
     }
 
@@ -2844,6 +2844,7 @@ fn build_create(
         geometry,
         deadlines,
     )
+    .with_automatic_label()
     .with_origin(if state.phase_kind() == SessionPhaseKind::Empty {
         super::state::CreateOriginKind::Empty
     } else {
@@ -2855,6 +2856,7 @@ fn build_create(
         site_id: state.cache().site_id().clone(),
         expected_revision: state.cache().revision(),
         action: WorkbenchAction::TabCreate {
+            automatic_label: true,
             terminal_context_id: state.cache().terminal_context_id().clone(),
             label,
             geometry: workbench_geometry,

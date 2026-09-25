@@ -154,6 +154,7 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('tab.create'),
+			automaticLabel: z.boolean().optional(),
 			terminalContextId: WorkbenchTerminalContextIdSchema,
 			label: WorkbenchLabelSchema,
 			geometry: WorkbenchTerminalGeometrySchema,

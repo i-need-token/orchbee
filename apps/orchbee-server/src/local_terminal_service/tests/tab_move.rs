@@ -31,6 +31,7 @@ fn committed_move_finishes_while_another_owner_holds_the_worker_registry() {
             site_id: snapshot.site_id.clone(),
             expected_revision: WorkbenchRevision::new(index),
             action: WorkbenchAction::TabCreate {
+                automatic_label: false,
                 terminal_context_id: snapshot.navigation.standalone_terminal_context_id.clone(),
                 label: WorkbenchLabel::parse("pending").unwrap(),
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),

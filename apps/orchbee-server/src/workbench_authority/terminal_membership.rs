@@ -265,7 +265,7 @@ impl WorkbenchAuthority {
         let Some(ids) = parse_tab_ids(last_identity) else {
             return self.retire_membership();
         };
-        append_simple_tab(context, &ids, "1", binding.clone());
+        append_simple_tab(context, &ids, "1", true, binding.clone());
         candidate.revision = revision;
         let encoded = match serialize_document(&WorkbenchProtocolDocument::Snapshot(candidate)) {
             Ok(encoded) => encoded,
@@ -330,9 +330,11 @@ pub(super) fn append_simple_tab(
     context: &mut TerminalContext,
     ids: &SimpleTabIds,
     label: &str,
+    automatic_label: bool,
     binding: PresentationBinding,
 ) {
     context.tabs.push(Tab {
+        automatic_label,
         tab_id: ids.tab_id.clone(),
         label: label.to_owned(),
         group_id: None,

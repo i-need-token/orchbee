@@ -17,7 +17,8 @@ or Panel with no Client work remains usable headlessly. Multiple viable Clients 
 
 Creation labels are optional. The native fallback is the context's Tab count plus one for a Tab,
 or the owning Tab's Panel count plus one for a split, captured from the preflight Snapshot. It is
-a creation label, not a dynamic terminal title or a unique identifier. Existing geometry,
+the raw creation label. An omitted Tab label also requests [automatic positional naming](native-tab-labels.md);
+explicit numeric names remain fixed. Split labels remain creation fallbacks. Existing geometry,
 exec/args, profile and environment validation retain their owners. Windows directory policy is
 resolved before creation as specified below; explicit paths remain per-launch overrides.
 
@@ -69,7 +70,7 @@ JSON emits one complete bounded document to stdout. Failed text output goes to s
 known effects. After an incomplete result, inspect the returned identities and current state before
 choosing a follow-up; repeating creation may create another resource. Client control-status can
 observe a submitted Client operation. No durable workflow journal or restart restoration is added.
-The schema catalog is v33 with 68 documents; command-path count remains 80.
+The schema catalog is v34 with 68 documents; command-path count remains 80.
 
 ## Evidence and compatibility
 
@@ -126,6 +127,6 @@ receive no retrofit; their observable process cwd may differ from a shell's priv
 
 Core policy/source tests, actual PowerShell 5.1/7 prompt checks, named-pipe cancellation/fault cuts
 and Windows ConPTY creation traces cover this model. Existing phase ordering remains unchanged
-after directory resolution. TLA execution remains deferred. Persistent configurable defaults and
-automatic positional Tab labels are separate contracts. The receipt version requires a matching
+after directory resolution. TLA execution remains deferred. Persistent configurable defaults remain separate;
+[automatic positional Tab labels](native-tab-labels.md) preserve raw creation facts. The receipt version requires a matching
 cohort; rollback does not rewrite user profiles or existing terminal processes.

@@ -810,6 +810,7 @@ pub(crate) enum MutationCommand {
         generation: WorkbenchTabCloseAttemptGeneration,
     },
     TabCreate {
+        automatic_label: bool,
         context: TabContext,
         label: WorkbenchLabel,
         geometry: WorkbenchTerminalGeometry,

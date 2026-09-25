@@ -207,7 +207,8 @@ impl NativeSessionState {
                 .map(|key| key.anchor().clone())
                 .ok_or(PanelCloseStateError::Busy)?,
             panel.display_label().to_owned(),
-            tab.tab_label().clone(),
+            WorkbenchLabel::parse(&tab.display_label(selected.index()))
+                .map_err(|_| PanelCloseStateError::Busy)?,
             panel.binding().clone(),
             tab.panel_count() == 1,
             self.cache.revision(),

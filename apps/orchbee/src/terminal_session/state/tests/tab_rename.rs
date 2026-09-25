@@ -2,6 +2,35 @@ use super::super::rename_draft::RenameDraftEdit;
 use super::super::tab_rename::{RenameOperation, RenamePreparation, RenameResult};
 use super::*;
 
+#[test]
+fn automatic_rename_prefill_uses_current_position_and_equal_text_is_a_commit() {
+    let mut document = snapshot(2, 1, None);
+    document.terminal_contexts[0].tabs[0].automatic_label = true;
+    document.terminal_contexts[0].tabs[0].label = "old ordinal".into();
+    let mut state = ready_with_cache(project_native_standalone_tabs(&document).unwrap());
+    assert_eq!(state.view().tab(0).unwrap().tab_label(), "1");
+    state.open_rename_draft().unwrap();
+    let draft = state.rename_draft().unwrap();
+    assert_eq!(draft.text(), "1");
+    assert_eq!(draft.target_label(), "1");
+    state.cancel_rename_draft();
+    let same_visible = rename_operation(&mut state, "1");
+    assert!(
+        same_visible
+            .known_commit(WorkbenchRevision::new(2))
+            .is_some()
+    );
+    assert!(matches!(
+        same_visible
+            .prepare(RenameResult::Unchanged(WorkbenchRevision::new(1)))
+            .result(),
+        RenamePreparation::Divergent { known: None }
+    ));
+    state.cancel_rename_draft();
+    let same_raw = rename_operation(&mut state, "old ordinal");
+    assert!(same_raw.known_commit(WorkbenchRevision::new(2)).is_some());
+}
+
 fn rename_operation(state: &mut NativeSessionState, text: &str) -> RenameOperation {
     let token = state.open_rename_draft().unwrap();
     state.edit_rename_draft(token, RenameDraftEdit::Clear);

@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn created_mode_is_pinned_at_commit_but_a_later_rename_may_fix_it() {
+    let current = projected(1, 20);
+    let mut candidate = created_candidate(1, 2, 21, "2");
+    candidate.tabs[1].automatic_label = true;
+    let expected = expectation_for(&candidate, 1, 21, "2");
+    assert!(validate_created_tab(&current, &expected, candidate.clone()).is_ok());
+    candidate.tabs[1].automatic_label = false;
+    assert!(validate_created_tab(&current, &expected, candidate.clone()).is_err());
+    candidate.revision = WorkbenchRevision::new(22);
+    assert!(validate_created_tab(&current, &expected, candidate).is_ok());
+}
+
+#[test]
 fn created_tab_accepts_immediate_member_at_zero_and_256_boundaries() {
     for current_tab_count in [0, MAXIMUM_TABS_PER_CONTEXT - 1] {
         let current = projected(current_tab_count, 20);

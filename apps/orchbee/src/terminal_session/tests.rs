@@ -263,6 +263,7 @@ fn available_snapshot(binding: Option<PresentationBinding>) -> WorkbenchSnapshot
             terminal_contexts: vec![TerminalContext {
                 groups: Vec::new(),
                 tabs: vec![Tab {
+                    automatic_label: false,
                     group_id: None,
                     label: "standalone".into(),
                     pinned: false,

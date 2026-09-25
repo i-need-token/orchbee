@@ -817,6 +817,7 @@ struct NativeContextTabs {
 struct NativeSimpleTab {
     tab_id: WorkbenchTabId,
     tab_label: WorkbenchLabel,
+    automatic_label: bool,
     panel_id: WorkbenchPanelId,
     presentation_id: TerminalPresentationId,
     presentation_label: WorkbenchLabel,
@@ -856,6 +857,7 @@ struct CreatedTabExpectation {
     panel_id: WorkbenchPanelId,
     presentation_id: TerminalPresentationId,
     requested_label: WorkbenchLabel,
+    automatic_label: bool,
 }
 
 fn project_native_standalone_tabs(
@@ -908,7 +910,7 @@ admits the folded result. Any survivor mutation, identity reassignment, retained
 reshaping or member loss disguised as retention is divergence. At most 256 Tabs need only exact
 scans, no stored map.
 
-`CreatedTabExpectation` is projection-owned and carries only the six canonical facts needed for
+`CreatedTabExpectation` is projection-owned and carries only the seven canonical facts needed for
 pure validation. The session state embeds or constructs it; request identity, terminal provenance,
 attachment generation, and mailbox types never enter the projector. `validate_created_tab`
 retains the original pre-create baseline through projection recovery. The returned created ID must
@@ -1158,6 +1160,7 @@ struct CreateMarker {
     expected_revision: WorkbenchRevision,
     terminal_context_id: WorkbenchTerminalContextId,
     label: WorkbenchLabel,
+    automatic_label: bool,
     geometry: WorkbenchTerminalGeometry,
 }
 
@@ -1794,7 +1797,7 @@ alone does not own editor activation, membership installation or attachment clea
 `workbench_projection::renamed` validates a snapshot against a captured canonical baseline and
 known Rename revision. The exact context/Tab must exist in the baseline, the requested label must
 differ from its old label, and the committed revision must be `checked(baseline + 1)`. At that exact
-revision, the complete projected vector must equal the baseline with only the target Tab label
+revision, the complete projected vector must equal the baseline with only the target Tab label and naming mode
 replaced by the exact requested text. Other label changes, reorder, addition, removal or immutable
 member changes are divergent.
 
@@ -2598,3 +2601,7 @@ cleanup reuses `stage_refresh_membership_cleanup` and `detach_anchor_panes` unch
 install gates stay the existing exact-cleanup and four-flag rules. Deterministic session-state
 tests cover each classified path and the retired-entry UI tests cover the bounded attempt; the
 composed CLI-to-TUI journey belongs to the workspace-close integration record.
+
+## Automatic Tab naming
+
+The [Tab label contract](native-tab-labels.md) refines the label facts above: projection retains raw text and naming mode, and display derives from context position. Create checks the requested mode at its commit; reordering preserves metadata. Rename clears automatic mode, so an equal-text automatic rename is a commit and only a fixed equal-text rename is a no-op. The strip, rename draft, close confirmation and Agent board use the effective name at the captured position.

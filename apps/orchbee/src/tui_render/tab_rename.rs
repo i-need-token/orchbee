@@ -25,7 +25,7 @@ pub(super) fn render(
     let mut lines = vec![
         Line::from(locale.rename_title()),
         Line::from(""),
-        Line::from(sanitize_terminal_text(draft.target_label()).into_owned()),
+        Line::from(sanitize_terminal_text(&draft.target_label()).into_owned()),
         Line::from(""),
         Line::from(locale.rename_label()),
         // The field's one visible row is sized like the rest: the windowed

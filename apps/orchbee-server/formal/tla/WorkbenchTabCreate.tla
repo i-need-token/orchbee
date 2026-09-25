@@ -1,4 +1,8 @@
 ------------------------- MODULE WorkbenchTabCreate -------------------------
+(* Tab naming atoms include automatic mode. CreatedLabel to RenamedLabel also
+abstracts fixing an automatic name without changing its raw text. Presentation
+labels retain their creation anchor; move and settlement never rewrite naming
+metadata. Position-derived display is outside this ownership model. *)
 EXTENDS Integers, Naturals, Sequences, FiniteSets, TLC
 
 (*

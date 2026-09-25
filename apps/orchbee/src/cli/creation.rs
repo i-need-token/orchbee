@@ -66,6 +66,7 @@ fn canonical(
 ) -> MutationCommand {
     match &command.kind {
         CreationKind::Tab { .. } => MutationCommand::TabCreate {
+            automatic_label: command.label.is_none(),
             context: context.expect("creation preflight resolves a Tab context"),
             label,
             geometry: command.geometry,

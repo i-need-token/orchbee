@@ -78,6 +78,7 @@ pub(super) fn context_tab_command(
         site_id: workbench.site_id().clone(),
         expected_revision: WorkbenchRevision::new(revision),
         action: WorkbenchAction::TabCreate {
+            automatic_label: false,
             terminal_context_id,
             label: WorkbenchLabel::parse(label).unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
@@ -559,6 +560,7 @@ fn pending_and_final_replay_precede_missing_candidates_worker_and_conflict() {
 
     let mut conflict = command.clone();
     conflict.action = WorkbenchAction::TabCreate {
+        automatic_label: false,
         terminal_context_id: coordinator
             .workbench
             .as_ref()
@@ -753,6 +755,7 @@ fn missing_retired_and_inconsistent_workbench_use_service_unavailable_without_te
         site_id,
         expected_revision: WorkbenchRevision::new(0),
         action: WorkbenchAction::TabCreate {
+            automatic_label: false,
             terminal_context_id: orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(
                 &format!("{:032x}", 1),
             )

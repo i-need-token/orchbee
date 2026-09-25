@@ -186,7 +186,8 @@
 				"label": { "$ref": "#/$defs/label" },
 				"pinned": { "type": "boolean" },
 				"root": { "$ref": "#/$defs/panelNode" },
-				"tabId": { "$ref": "#/$defs/tabId" }
+				"tabId": { "$ref": "#/$defs/tabId" },
+				"automaticLabel": { "type": "boolean" }
 			}
 		},
 		"terminalContext": {

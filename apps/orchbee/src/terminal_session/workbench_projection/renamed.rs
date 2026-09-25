@@ -49,12 +49,15 @@ pub(in crate::terminal_session) fn validate_renamed_tab(
     let target = baseline
         .tab_index(&expected.tab_id)
         .ok_or(NativeProjectionDivergence)?;
-    if baseline.tabs[target].tab_label == expected.requested_label {
+    if !baseline.tabs[target].automatic_label
+        && baseline.tabs[target].tab_label == expected.requested_label
+    {
         return Err(NativeProjectionDivergence);
     }
     if candidate.revision == expected.committed_revision {
         let mut expected_tabs = baseline.tabs.clone();
         expected_tabs[target].tab_label = expected.requested_label.clone();
+        expected_tabs[target].automatic_label = false;
         if candidate.tabs != expected_tabs {
             return Err(NativeProjectionDivergence);
         }

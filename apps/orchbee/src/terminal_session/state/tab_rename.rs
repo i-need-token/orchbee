@@ -258,7 +258,8 @@ impl RenameOperation {
     ) -> Option<PendingRenameCommit> {
         let index = self.baseline().tab_index(self.target().tab_id())?;
         (self.baseline().revision().value().checked_add(1) == Some(revision.value())
-            && self.baseline().tabs()[index].tab_label() != self.label())
+            && (self.baseline().tabs()[index].automatic_label()
+                || self.baseline().tabs()[index].tab_label() != self.label()))
         .then(|| PendingRenameCommit {
             operation: self.clone(),
             revision,
@@ -275,7 +276,8 @@ impl RenameOperation {
                         .baseline()
                         .tab_index(self.target().tab_id())
                         .is_some_and(|index| {
-                            self.baseline().tabs()[index].tab_label() == self.label()
+                            !self.baseline().tabs()[index].automatic_label()
+                                && self.baseline().tabs()[index].tab_label() == self.label()
                         })
                 {
                     RenamePreparation::Unchanged

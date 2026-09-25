@@ -54,6 +54,7 @@ fn handoff_preserves_every_terminal_provenance_and_snapshot_cache() {
                 panel_id(1011),
                 presentation_id(1012),
                 WorkbenchLabel::parse("exact creation label").unwrap(),
+                false,
             ),
         );
         assert_eq!(state.cache(), &cache);

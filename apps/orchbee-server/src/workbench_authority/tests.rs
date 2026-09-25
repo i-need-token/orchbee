@@ -112,6 +112,7 @@ fn install_two_tabs(
         900,
         first.revision().value(),
         WorkbenchAction::TabCreate {
+            automatic_label: false,
             terminal_context_id: first.terminal_context_id().clone(),
             label: WorkbenchLabel::parse("\0duplicate\u{2028}\u{2029}\n").unwrap(),
             geometry,
@@ -314,6 +315,7 @@ fn tab_rename_preserves_every_non_target_fact_and_replays_its_historical_revisio
     let mut expected = before.clone();
     expected.revision = WorkbenchRevision::new(3);
     expected.terminal_contexts[0].tabs[0].label = duplicate_control_label.clone();
+    expected.terminal_contexts[0].tabs[0].automatic_label = false;
     assert_eq!(after_first, expected);
     assert_eq!(
         after_first.terminal_contexts[0].tabs[0].label,

@@ -706,6 +706,7 @@ mod linux {
                 Err(Failure::new(FailureKind::InternalFailure))
             }
             MutationCommand::TabCreate {
+                automatic_label,
                 context,
                 label,
                 geometry,
@@ -723,6 +724,7 @@ mod linux {
                         .clone(),
                 };
                 Ok(WorkbenchAction::TabCreate {
+                    automatic_label: *automatic_label,
                     terminal_context_id,
                     label: label.clone(),
                     geometry: *geometry,
@@ -930,10 +932,13 @@ mod linux {
     ) -> Result<(&'a TerminalContext, &'a Tab), Failure> {
         results::resolve_or_fail(
             snapshot.terminal_contexts.iter().flat_map(|context| {
-                context
-                    .tabs
-                    .iter()
-                    .map(move |tab| (tab.tab_id.as_str(), tab.label.as_str(), (context, tab)))
+                context.tabs.iter().enumerate().map(move |(position, tab)| {
+                    (
+                        tab.tab_id.as_str(),
+                        tab.display_label(position),
+                        (context, tab),
+                    )
+                })
             }),
             target,
             Resource::Tab,
@@ -951,7 +956,8 @@ mod linux {
             context
                 .tabs
                 .iter()
-                .map(|tab| (tab.tab_id.as_str(), tab.label.as_str(), tab)),
+                .enumerate()
+                .map(|(position, tab)| (tab.tab_id.as_str(), tab.display_label(position), tab)),
             target,
             Resource::Tab,
         )

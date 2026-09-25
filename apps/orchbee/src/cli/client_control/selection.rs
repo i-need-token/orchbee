@@ -130,10 +130,13 @@ pub(in crate::cli) fn intent(
         ClientNavigationTarget::Tab(target) => {
             let (context, tab) = results::resolve_or_fail(
                 snapshot.terminal_contexts.iter().flat_map(|context| {
-                    context
-                        .tabs
-                        .iter()
-                        .map(move |tab| (tab.tab_id.as_str(), tab.label.as_str(), (context, tab)))
+                    context.tabs.iter().enumerate().map(move |(position, tab)| {
+                        (
+                            tab.tab_id.as_str(),
+                            tab.display_label(position),
+                            (context, tab),
+                        )
+                    })
                 }),
                 target,
                 Resource::Tab,

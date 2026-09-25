@@ -1391,6 +1391,7 @@ fn rejects_non_unicode_arguments() {
 fn mutation(command: MutationCommand, format: OutputFormat) -> Request {
     let (kind, label, geometry, launch, profile, options) = match command {
         MutationCommand::TabCreate {
+            automatic_label: false,
             context,
             label,
             geometry,
@@ -1632,6 +1633,7 @@ fn geometry_bearing_commands_require_the_whole_geometry() {
         parse(&arguments),
         Ok(mutation(
             MutationCommand::TabCreate {
+                automatic_label: false,
                 context: TabContext::Standalone,
                 label: label("t"),
                 geometry: geometry(),
@@ -1704,6 +1706,7 @@ fn geometry_bearing_commands_default_the_whole_geometry() {
             parse(&arguments),
             Ok(mutation(
                 MutationCommand::TabCreate {
+                    automatic_label: false,
                     context,
                     label: label("t"),
                     geometry: default,
@@ -1762,6 +1765,7 @@ fn geometry_bearing_commands_default_the_whole_geometry() {
         ]),
         Ok(mutation(
             MutationCommand::TabCreate {
+                automatic_label: false,
                 context: TabContext::Standalone,
                 label: label("t"),
                 geometry: default,
@@ -1786,6 +1790,7 @@ fn geometry_bearing_commands_default_the_whole_geometry() {
         ]),
         Ok(mutation(
             MutationCommand::TabCreate {
+                automatic_label: false,
                 context: TabContext::Standalone,
                 label: label("t"),
                 geometry: default,
@@ -1807,6 +1812,7 @@ fn tab_create_admits_at_most_one_explicit_context() {
         parse(&workspace),
         Ok(mutation(
             MutationCommand::TabCreate {
+                automatic_label: false,
                 context: TabContext::Workspace(Target::Label("main".into())),
                 label: label("t"),
                 geometry: geometry(),
@@ -1882,6 +1888,7 @@ fn windows_launch_paths_preserve_arguments_and_reject_ambiguous_roots() {
             tab_create_with(&["--exec", executable, "--arg", "two words", "--arg=中文"]),
             Ok(mutation(
                 MutationCommand::TabCreate {
+                    automatic_label: false,
                     context: TabContext::Standalone,
                     label: label("t"),
                     geometry: geometry(),
@@ -1913,6 +1920,7 @@ fn launch_selection_options_parse_in_every_spelling() {
             tab_create_with(launch_args),
             Ok(mutation(
                 MutationCommand::TabCreate {
+                    automatic_label: false,
                     context: TabContext::Standalone,
                     label: label("t"),
                     geometry: geometry(),
@@ -2502,6 +2510,7 @@ fn profile_option_threads_into_launch_bearing_mutations() {
         parse_request(arguments.iter().map(OsString::from)),
         Ok(mutation(
             MutationCommand::TabCreate {
+                automatic_label: false,
                 context: TabContext::Standalone,
                 label: label("t"),
                 geometry: geometry(),
@@ -2518,6 +2527,7 @@ fn profile_option_threads_into_launch_bearing_mutations() {
         parse_request(arguments.iter().map(OsString::from)),
         Ok(mutation(
             MutationCommand::TabCreate {
+                automatic_label: false,
                 context: TabContext::Standalone,
                 label: label("t"),
                 geometry: geometry(),
@@ -3048,6 +3058,7 @@ fn mutation_values_are_bounded() {
         parse(&arguments),
         Ok(mutation(
             MutationCommand::TabCreate {
+                automatic_label: false,
                 context: TabContext::Standalone,
                 label: label("t"),
                 geometry: WorkbenchTerminalGeometry::new(512, 512, 64, 63)
@@ -3080,6 +3091,7 @@ fn mutation_values_are_bounded() {
         parse(&arguments),
         Ok(mutation(
             MutationCommand::TabCreate {
+                automatic_label: false,
                 context: TabContext::Standalone,
                 label: label("t"),
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 0, 0)

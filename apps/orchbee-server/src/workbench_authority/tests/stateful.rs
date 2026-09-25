@@ -335,15 +335,16 @@ fn run(steps: &[Step]) -> Result<(), String> {
                 } => {
                     let mut expected = before.clone();
                     expected.revision = after.revision;
-                    expected
+                    let renamed = expected
                         .terminal_contexts
                         .iter_mut()
                         .find(|context| context.terminal_context_id == *terminal_context_id)
                         .and_then(|context| {
                             context.tabs.iter_mut().find(|tab| tab.tab_id == *tab_id)
                         })
-                        .ok_or("missing renamed tab")?
-                        .label = label.as_str().to_owned();
+                        .ok_or("missing renamed tab")?;
+                    renamed.label = label.as_str().to_owned();
+                    renamed.automatic_label = false;
                     require(
                         after == expected && authority.last_identity == old_cursor,
                         "tab rename changed unrelated state",

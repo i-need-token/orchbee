@@ -67,7 +67,8 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
 /// match detail on a wait — so flag-free output stays byte-identical.
 pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
     match command {
-        QueryCommand::PanelGet(_) | QueryCommand::PanelCurrent(_) | QueryCommand::ApiSnapshot => 3,
+        QueryCommand::PanelGet(_) | QueryCommand::PanelCurrent(_) => 3,
+        QueryCommand::ApiSnapshot => 4,
         QueryCommand::PanelList { .. } | QueryCommand::TabGet(_) => 2,
         QueryCommand::TerminalGet(_) => 3,
         QueryCommand::AgentWait { .. } | QueryCommand::PanelProcessInfo(_) => 2,
@@ -1710,11 +1711,11 @@ impl<'a> ContextIndex<'a> {
 /// case-sensitive label search. Multi-match arms share one epilogue: zero is
 /// an empty candidate set, one is the answer, several return every matching
 /// id for the bounded ambiguity envelope.
-fn resolve<'a, Item>(
-    mut items: impl Iterator<Item = (&'a str, &'a str, Item)>,
+fn resolve<'a, Item, Label: AsRef<str>>(
+    mut items: impl Iterator<Item = (&'a str, Label, Item)>,
     target: &Target,
 ) -> Result<Item, Vec<&'a str>> {
-    fn settle<'a, Item>(mut matches: Vec<(&'a str, &'a str, Item)>) -> Result<Item, Vec<&'a str>> {
+    fn settle<Item, Label>(mut matches: Vec<(&str, Label, Item)>) -> Result<Item, Vec<&str>> {
         match matches.len() {
             0 => Err(Vec::new()),
             1 => Ok(matches.pop().expect("len checked").2),
@@ -1728,7 +1729,7 @@ fn resolve<'a, Item>(
             .ok_or_else(Vec::new),
         Target::Label(label) => settle(
             items
-                .filter(|(_id, item_label, _item)| *item_label == label.as_str())
+                .filter(|(_id, item_label, _item)| item_label.as_ref() == label.as_str())
                 .collect(),
         ),
         Target::Selector(_) => {
@@ -1761,8 +1762,8 @@ pub(super) fn ambiguous(
     ]))
 }
 
-pub(crate) fn resolve_or_fail<'a, Item>(
-    items: impl Iterator<Item = (&'a str, &'a str, Item)>,
+pub(crate) fn resolve_or_fail<'a, Item, Label: AsRef<str>>(
+    items: impl Iterator<Item = (&'a str, Label, Item)>,
     target: &Target,
     resource: Resource,
 ) -> Result<Item, Failure> {
@@ -1881,24 +1882,28 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
                         context
                             .tabs
                             .iter()
-                            .map(|tab| tab_row(tab, index.reference(context)))
+                            .enumerate()
+                            .map(|(position, tab)| tab_row(tab, position, index.reference(context)))
                     })
                     .collect(),
             ))
         }
         QueryCommand::TabGet(target) => {
-            let (context, tab) = resolve_or_fail(
+            let (context, tab, position) = resolve_or_fail(
                 snapshot.terminal_contexts.iter().flat_map(|context| {
-                    context
-                        .tabs
-                        .iter()
-                        .map(move |tab| (tab.tab_id.as_str(), tab.label.as_str(), (context, tab)))
+                    context.tabs.iter().enumerate().map(move |(position, tab)| {
+                        (
+                            tab.tab_id.as_str(),
+                            tab.display_label(position),
+                            (context, tab, position),
+                        )
+                    })
                 }),
                 target,
                 Resource::Tab,
             )?;
             Ok(Projection::TabGet(TabDoc {
-                row: tab_row(tab, index.reference(context)),
+                row: tab_row(tab, position, index.reference(context)),
                 root: serde_json::to_value(&tab.root)
                     .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
             }))
@@ -1908,8 +1913,12 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
                 Some(target) => {
                     let resolved = resolve_or_fail(
                         snapshot.terminal_contexts.iter().flat_map(|context| {
-                            context.tabs.iter().map(move |tab| {
-                                (tab.tab_id.as_str(), tab.label.as_str(), (context, tab))
+                            context.tabs.iter().enumerate().map(move |(position, tab)| {
+                                (
+                                    tab.tab_id.as_str(),
+                                    tab.display_label(position),
+                                    (context, tab),
+                                )
                             })
                         }),
                         target,
@@ -2104,18 +2113,19 @@ fn workspace_doc(
         tabs: context
             .tabs
             .iter()
-            .map(|tab| TabRef {
+            .enumerate()
+            .map(|(position, tab)| TabRef {
                 tab_id: tab.tab_id.as_str().to_owned(),
-                label: tab.label.clone(),
+                label: tab.display_label(position).into_owned(),
             })
             .collect(),
     })
 }
 
-fn tab_row(tab: &Tab, context: ContextRef) -> TabRow {
+fn tab_row(tab: &Tab, position: usize, context: ContextRef) -> TabRow {
     TabRow {
         tab_id: tab.tab_id.as_str().to_owned(),
-        label: tab.label.clone(),
+        label: tab.display_label(position).into_owned(),
         pinned: tab.pinned,
         group_id: tab.group_id.as_ref().map(|id| id.as_str().to_owned()),
         context,
@@ -2400,6 +2410,52 @@ mod tests {
 
     fn failure(command: &QueryCommand) -> Failure {
         project(command, &snapshot()).expect_err("resolver failure expected")
+    }
+
+    #[test]
+    fn automatic_tab_queries_use_context_position_and_numeric_name_collisions_stay_ambiguous() {
+        let mut state = snapshot();
+        for context in &mut state.terminal_contexts {
+            for tab in &mut context.tabs {
+                tab.automatic_label = true;
+            }
+        }
+        state.terminal_contexts[0].tabs[0].automatic_label = false;
+        state.terminal_contexts[0].tabs[0].label = "2".into();
+        let list = project(
+            &QueryCommand::TabList {
+                workspace: None,
+                standalone: false,
+            },
+            &state,
+        )
+        .unwrap()
+        .result();
+        assert_eq!(list["tabs"][0]["label"], "2");
+        assert_eq!(list["tabs"][1]["label"], "2");
+        assert_eq!(list["tabs"][9]["label"], "1");
+        for name in ["1", "2"] {
+            let error =
+                project(&QueryCommand::TabGet(Target::Label(name.into())), &state).unwrap_err();
+            assert_eq!(error.kind, FailureKind::Ambiguous);
+        }
+        let id = state.terminal_contexts[0].tabs[1].tab_id.to_string();
+        state.terminal_contexts[0].tabs.rotate_left(1);
+        let get = project(&QueryCommand::TabGet(Target::Id(id.clone())), &state)
+            .unwrap()
+            .result();
+        assert_eq!(get["tab"]["label"], "1");
+        assert_eq!(get["tab"]["tabId"], id);
+        let workspace = project(&QueryCommand::WorkspaceGet(Target::Id(hex(0x40))), &state)
+            .unwrap()
+            .result();
+        assert_eq!(workspace["workspace"]["tabs"][0]["label"], "1");
+        assert_eq!(
+            project(&QueryCommand::TabGet(Target::Label("dup".into())), &state)
+                .unwrap_err()
+                .kind,
+            FailureKind::NotFound
+        );
     }
 
     fn details(failure: &Failure) -> &Map<String, Value> {

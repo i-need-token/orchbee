@@ -519,6 +519,44 @@
 					"terminalContextId": "66666666666666666666666666666666"
 				}
 			]
+		},
+		"snapshot-automatic-tab-r2": {
+			"kind": "workbench.snapshot",
+			"navigation": {
+				"projects": [],
+				"standaloneTerminalContextId": "33333333333333333333333333333333"
+			},
+			"protocolVersion": 1,
+			"revision": "2",
+			"siteId": "11111111111111111111111111111111",
+			"terminalContexts": [
+				{
+					"groups": [],
+					"tabs": [
+						{
+							"groupId": null,
+							"label": "Shell",
+							"pinned": true,
+							"root": {
+								"childPresentations": [],
+								"kind": "panel",
+								"panelId": "99999999999999999999999999999999",
+								"primaryPresentation": {
+									"binding": {
+										"terminalId": "cccccccccccccccccccccccccccccccc",
+										"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+									},
+									"label": "Shell",
+									"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+								}
+							},
+							"tabId": "88888888888888888888888888888888",
+							"automaticLabel": true
+						}
+					],
+					"terminalContextId": "33333333333333333333333333333333"
+				}
+			]
 		}
 	},
 	"validDocuments": [
@@ -538,7 +576,8 @@
 		"delta-non-increasing",
 		"delta-duplicate-context-target",
 		"delta-invalid-result",
-		"snapshot-panel-input-r2"
+		"snapshot-panel-input-r2",
+		"snapshot-automatic-tab-r2"
 	],
 	"invalidDocuments": [
 		{
@@ -1221,6 +1260,90 @@
 							}
 						],
 						"terminalContextId": "66666666666666666666666666666666"
+					}
+				]
+			}
+		},
+		{
+			"name": "tab-automatic-label-null",
+			"boundary": "schema",
+			"value": {
+				"kind": "workbench.snapshot",
+				"navigation": {
+					"projects": [],
+					"standaloneTerminalContextId": "33333333333333333333333333333333"
+				},
+				"protocolVersion": 1,
+				"revision": "2",
+				"siteId": "11111111111111111111111111111111",
+				"terminalContexts": [
+					{
+						"groups": [],
+						"tabs": [
+							{
+								"groupId": null,
+								"label": "Shell",
+								"pinned": true,
+								"root": {
+									"childPresentations": [],
+									"kind": "panel",
+									"panelId": "99999999999999999999999999999999",
+									"primaryPresentation": {
+										"binding": {
+											"terminalId": "cccccccccccccccccccccccccccccccc",
+											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+										},
+										"label": "Shell",
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+									}
+								},
+								"tabId": "88888888888888888888888888888888",
+								"automaticLabel": null
+							}
+						],
+						"terminalContextId": "33333333333333333333333333333333"
+					}
+				]
+			}
+		},
+		{
+			"name": "tab-automatic-label-string",
+			"boundary": "schema",
+			"value": {
+				"kind": "workbench.snapshot",
+				"navigation": {
+					"projects": [],
+					"standaloneTerminalContextId": "33333333333333333333333333333333"
+				},
+				"protocolVersion": 1,
+				"revision": "2",
+				"siteId": "11111111111111111111111111111111",
+				"terminalContexts": [
+					{
+						"groups": [],
+						"tabs": [
+							{
+								"groupId": null,
+								"label": "Shell",
+								"pinned": true,
+								"root": {
+									"childPresentations": [],
+									"kind": "panel",
+									"panelId": "99999999999999999999999999999999",
+									"primaryPresentation": {
+										"binding": {
+											"terminalId": "cccccccccccccccccccccccccccccccc",
+											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+										},
+										"label": "Shell",
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+									}
+								},
+								"tabId": "88888888888888888888888888888888",
+								"automaticLabel": "true"
+							}
+						],
+						"terminalContextId": "33333333333333333333333333333333"
 					}
 				]
 			}

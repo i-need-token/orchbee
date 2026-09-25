@@ -4205,6 +4205,7 @@ fn create_marker(
         site_id: session.cache().site_id().clone(),
         expected_revision: session.cache().revision(),
         action: WorkbenchAction::TabCreate {
+            automatic_label: false,
             terminal_context_id: session.cache().terminal_context_id().clone(),
             label: label.clone(),
             geometry: workbench_geometry,
@@ -4794,6 +4795,7 @@ impl Authority {
         let second_slot_id = slot_id(authority.fresh());
         let root_split_id = split_id(authority.fresh());
         authority.tabs.push(Tab {
+            automatic_label: false,
             group_id: None,
             label: "1".to_owned(),
             pinned: false,
@@ -4853,6 +4855,7 @@ impl Authority {
         let root = self.fresh_leaf(&label);
         let new_tab_id = tab_id(self.fresh());
         self.tabs.push(Tab {
+            automatic_label: false,
             group_id: None,
             label,
             pinned: false,

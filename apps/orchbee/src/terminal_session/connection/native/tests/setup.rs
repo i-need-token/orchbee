@@ -914,6 +914,7 @@ impl UiDriver {
                         site_id: site_id.clone(),
                         expected_revision,
                         action: WorkbenchAction::TabCreate {
+                            automatic_label: false,
                             terminal_context_id: terminal_context_id.clone(),
                             label: label.clone(),
                             geometry: workbench_geometry,
@@ -2385,6 +2386,7 @@ fn tab(index: usize) -> Tab {
     let base = 1_000 + u128::try_from(index).unwrap() * 10;
     let label = (index + 1).to_string();
     Tab {
+        automatic_label: false,
         group_id: None,
         label: label.clone(),
         pinned: false,

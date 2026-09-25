@@ -67,6 +67,7 @@ fn panel_snapshot(revision: u64, root: PanelNode) -> Snapshot {
         terminal_contexts: vec![TerminalContext {
             groups: Vec::new(),
             tabs: vec![Tab {
+                automatic_label: false,
                 group_id: None,
                 label: "1".to_owned(),
                 pinned: false,
