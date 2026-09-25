@@ -5,14 +5,11 @@
 //! construction, `snapshot`, `dispose`, `is_disposed`, and `dispatch` —
 //! semantic events ride the returned `AgentTransition` exactly like the
 //! TypeScript runtime's `transition.semanticEvents`. The seed constructor
-//! and change reads stay under `#[cfg(test)]` where only the corpus reaches
-//! them.
+//! stays under `#[cfg(test)]`; bounded change reads serve native observers.
 
 use super::AgentObservationEvent;
 use super::AgentRuntimeSnapshot;
 use super::AgentTransition;
-#[cfg(test)]
-#[cfg(test)]
 use super::changes::{
     AgentChangeReadError, AgentChangeReadInput, AgentRuntimeChangeReadResult,
     read_agent_runtime_changes,
@@ -82,7 +79,6 @@ impl AgentRuntime {
         &self.snapshot
     }
 
-    #[cfg(test)]
     pub fn read_changes(
         &self,
         input: AgentChangeReadInput,

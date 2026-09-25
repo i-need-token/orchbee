@@ -2,8 +2,8 @@
 
 [`schemas/agent-observation/v1`](../../schemas/agent-observation/v1/agent-observation.schema.json)
 所治理的 version-1 Agent 观察契约的独立 Rust 绑定。本 crate 提供有界类型化 wire DTO、严格
-语义校验、OBAP 帧编解码器，以及不透明的 list 分页游标 wire 形状。实际消费方是原生
-`orchbee` CLI 与 `orchbee-server` Agent 服务——消费 read、names 和 launch reservation 三个家族。
+语义校验、OBAP 帧编解码器，以及不透明的 list/change 游标 wire 形状。实际消费方是原生
+`orchbee` CLI 与 `orchbee-server` Agent 服务——消费 read、names 和 launch reservation 家族，并为原生观察者提供有界 changes。
 
 ## 范围
 
@@ -11,14 +11,14 @@
   32 位十六进制 `requestId` 的扁平封闭对象；`includeEnded`/`limit` 默认值 `false`/`50`
   在解析时应用），外加 `AgentNamesRequest` 家族（经 `AgentSessionSelector` 的
   `resolve`/`names.list`/`name.assign`/`name.release`），以及 `AgentLaunchRequest`
-  （`reserve`/`inspect`/`complete`/`cancel`）。
+  （`reserve`/`inspect`/`complete`/`cancel`）与 `AgentChangesRequest`（`agent.session.changes`）。
 - 结果：封闭的 `AgentResult` 联合——`{kind, requestId, result:{outcome}}` 下的 read
   `outcome` 联合（`listed`/`found`/`rejected`/`unavailable`）；`runtime-unavailable` 是
   v1 唯一的不可用原因——外加 names 与 launch 结果信封。
 - 实体与 canonical Agent 模型逐字一致；唯一的 wire 层收窄是原生 `presentationId` 轮廓
   （32 位小写十六进制，非零）。
-- 帧格式：12 字节大端 `OBAP` 帧头，version `1`，请求 kind 为奇数 `1..=21`（read
-  `1/3/5`，names `7/9/11/13`，launch `15/17/19/21`），结果为对应偶数 kind `2..=22`；按 kind 与方向的上限在
+- 帧格式：12 字节大端 `OBAP` 帧头，version `1`，请求 kind 为奇数 `1..=23`（read
+  `1/3/5`，names `7/9/11/13`，launch `15/17/19/21`，changes `23`），结果为对应偶数 kind `2..=24`；按 kind 与方向的上限在
   分配之前执行；帧头/正文 `kind` 一致性在解析后核验；小型 `rejected`/`unavailable` 体在
   类型化构造后限 1,024 字节。
 - 游标：`v1.<59>.<43>` 不透明令牌形状与 44 字节大端负载布局
@@ -28,7 +28,7 @@
 ## 交付状态
 
 三个家族均已接通：原生 Agent 读取、`agent names/resolve/rename` 与 Windows `agent start` 通过 Server 的
-`application_session` 解复用和 `AgentService` 执行。已发布 schema 覆盖 kind 1–22。
+`application_session` 解复用和 `AgentService` 执行。已发布 schema 覆盖 kind 1–24。
 名称是由 Server 状态单元持有的运行时别名；协议只拥有有界 DTO 与校验。
 get/explain/wait 先在同一已接纳会话上解析名称，再按固定会话 ID 读取或轮询。CLI 拥有组合与预算。
 
@@ -57,3 +57,9 @@ settleRemainingMs 为 0–3000。Inspect 的 candidateSessionId 必须出现且�
 成功结果必须匹配对应操作。名称 resolve/assign/release 显式拒绝 launch-pending。
 期限、就绪、观察基线、精确绑定核对和名称原子提交仍由 Server 的
 [canonical 模型](../../apps/orchbee-server/docs/agent-canonical-model.zh-CN.md)负责。
+
+## 有界 changes 契约
+
+Changes 使用请求/结果 kind 23/24 与惯用的关联 outcome 信封。省略 cursor 获得当前头部检查点；显式 null 无效。分页 limit 默认 50，接受 1–100。结果为 changes/current/reset-required/rejected/unavailable。页内 revision 为正且连续，尾部等于 observedThroughRevision，采样的 runtimeRevision 不小于尾部，只有尾部低于头部时 hasMore 才为真。每条记录包含 canonical 日志的会话投影，不编造附件或执行位置。结果在分配前限为 1 MiB；非分页结果仍最多 1,024 字节。
+
+`AgentChangesCursor` 与 list token 共用有界形状，但使用 operation 2 和独立 Server HMAC 域。认证、启动身份及保留范围校验由 Server 负责。超出保留范围的 token 返回 reset-required 与新头部检查点；无效或先前启动实例的 token 返回 cursor-invalid。两者都不代表连续观察。[Server 模型](../../apps/orchbee-server/docs/agent-canonical-model.zh-CN.md#原生有界变更读取) 拥有准备、快照/日志一致性及恢复语义。此扩展要求匹配的 cohort 二进制，无持久迁移。原生消费流程及最终验收与编解码器覆盖分开处理。

@@ -43,7 +43,7 @@ LocalClient 交换负责人将超时 I/O（包括部分 Client 回包）判定�
 路由拒绝保留不带快照来源的 `orchbee.cli.failure.client-control` v1；其他失败保留
 各自负责的 schema。成功结果仍为 `orchbee.panel.current` v3 和
 `orchbee.panel.process-info` v2。通用失败 v1 schema 为取消、超时和 Client 交换失败添加精确的 `current-panel` 阶段。
-目录版本 40 含 71 份文档、84 条命令路径；成功结果形状和命令路径保持不变。
+目录版本 41 含 72 份文档、85 条命令路径；成功结果形状和命令路径保持不变。
 
 ## 细化映射与证据
 

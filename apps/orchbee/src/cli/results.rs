@@ -24,6 +24,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
     match command {
         QueryCommand::Status => "orchbee.status",
         QueryCommand::AgentList { .. } => "orchbee.agent.list",
+        QueryCommand::AgentChanges { .. } => "orchbee.agent.changes",
         QueryCommand::AgentGet(_) => "orchbee.agent.get",
         QueryCommand::AgentExplain(_) => "orchbee.agent.explain",
         QueryCommand::AgentWait { .. } => "orchbee.agent.wait",
@@ -1003,6 +1004,7 @@ pub(crate) enum Projection {
     Status(StatusDoc),
     /// The typed `listed` outcome, verbatim from the wire.
     AgentList(AgentListOutcome),
+    AgentChanges(orchbee_agent_observation_protocol::AgentChangesOutcome),
     /// The typed `found` outcome, verbatim from the wire.
     AgentGet(AgentGetOutcome),
     /// The typed `found` outcome carrying session plus explanation.
@@ -1089,6 +1091,7 @@ impl Projection {
             // Agent projections serialize the exact wire outcome object —
             // the typed enum is the single serialization truth.
             Self::AgentList(outcome) => json!(outcome),
+            Self::AgentChanges(outcome) => json!(outcome),
             Self::AgentGet(outcome) => json!(outcome),
             Self::AgentExplain(outcome) => json!(outcome),
             Self::AgentWait(doc) => {
@@ -2026,6 +2029,7 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
         QueryCommand::PanelProcessInfo(_)
         | QueryCommand::PanelCurrent(PanelQueryTarget::Current | PanelQueryTarget::Client(_))
         | QueryCommand::AgentList { .. }
+        | QueryCommand::AgentChanges { .. }
         | QueryCommand::AgentGet(_)
         | QueryCommand::AgentRead { .. }
         | QueryCommand::AgentExplain(_)

@@ -8,25 +8,14 @@
 use super::AgentObservationEvent;
 use super::AgentSemanticStatus;
 use super::AgentSessionSnapshot;
-#[cfg(test)]
 use super::model::valid_ordered_identity;
 use super::project_agent_session;
 use super::{AgentLifecycle, AgentObservation, AgentProviderId, AgentRuntimeSnapshot, OpaqueId};
 
 pub const AGENT_RUNTIME_CHANGE_RETENTION: usize = 512;
-#[cfg(test)]
 pub const MAX_AGENT_RUNTIME_CHANGE_PAGE_SIZE: u64 = 100;
 
-// The bounded change feed is a canonical state claim: every field is journal
-// payload for the test read API and future remote consumers — the production
-// fold only appends and enforces the bound, never reads the fields.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "canonical change-feed payload; read API is test-only, remote consumers absent"
-    )
-)]
+// The journal payload is shared by the canonical corpus and native change reads.
 #[derive(Clone, Debug)]
 pub struct AgentRuntimeChangeSession {
     pub lifecycle: AgentLifecycle,
@@ -41,36 +30,20 @@ pub struct AgentRuntimeChangeSession {
 #[derive(Clone, Debug)]
 pub struct AgentRuntimeChange {
     pub revision: u64,
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "canonical change-feed payload; read API is test-only, remote consumers absent"
-        )
-    )]
     pub session: AgentRuntimeChangeSession,
     /// `AgentObservationTransitionKind` — one of the fourteen event types.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "canonical change-feed payload; read API is test-only, remote consumers absent"
-        )
-    )]
     pub transition: &'static str,
 }
 
 /// Raw read input: `f64` fields keep the invalid-input path reachable exactly
 /// like the TypeScript `number` schema check.
 #[derive(Clone, Copy, Debug)]
-#[cfg(test)]
 pub struct AgentChangeReadInput {
     pub after_revision: f64,
     pub limit: f64,
 }
 
 #[derive(Clone, Debug)]
-#[cfg(test)]
 pub enum AgentRuntimeChangeReadResult {
     Changes {
         changes: Vec<AgentRuntimeChange>,
@@ -93,17 +66,14 @@ pub enum AgentRuntimeChangeReadResult {
 }
 
 #[derive(Clone, Copy, Debug)]
-#[cfg(test)]
 pub struct AgentChangeReadError(pub &'static str);
 
-#[cfg(test)]
 impl std::fmt::Display for AgentChangeReadError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.0)
     }
 }
 
-#[cfg(test)]
 impl std::error::Error for AgentChangeReadError {}
 
 pub fn create_agent_runtime_change(
@@ -154,7 +124,6 @@ pub fn append_agent_runtime_change(
     }
 }
 
-#[cfg(test)]
 pub fn read_agent_runtime_changes(
     runtime_revision: u64,
     changes: &[AgentRuntimeChange],
@@ -203,13 +172,11 @@ pub fn read_agent_runtime_changes(
     })
 }
 
-#[cfg(test)]
 struct ValidatedReadInput {
     after_revision: u64,
     limit: u64,
 }
 
-#[cfg(test)]
 fn validate_read_input(
     input: AgentChangeReadInput,
 ) -> Result<ValidatedReadInput, AgentChangeReadError> {

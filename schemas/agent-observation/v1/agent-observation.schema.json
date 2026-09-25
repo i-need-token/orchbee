@@ -68,6 +68,12 @@
 		},
 		{
 			"$ref": "#/$defs/launchCancelResult"
+		},
+		{
+			"$ref": "#/$defs/sessionChangesRequest"
+		},
+		{
+			"$ref": "#/$defs/sessionChangesResult"
 		}
 	],
 	"$defs": {
@@ -1817,6 +1823,220 @@
 					}
 				}
 			}
+		},
+		"changesCursor": {
+			"$ref": "#/$defs/cursor",
+			"$comment": "Operation 2 and a separate boot-scoped HMAC domain; list tokens are invalid for changes."
+		},
+		"changeSession": {
+			"type": "object",
+			"required": [
+				"lifecycle",
+				"observation",
+				"parentSessionId",
+				"pendingRequestCount",
+				"providerId",
+				"sessionId",
+				"status"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"lifecycle": {
+					"enum": ["live", "ended"]
+				},
+				"observation": {
+					"$ref": "#/$defs/observation"
+				},
+				"parentSessionId": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/sessionId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"pendingRequestCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 128
+				},
+				"providerId": {
+					"$ref": "#/$defs/providerId"
+				},
+				"sessionId": {
+					"$ref": "#/$defs/sessionId"
+				},
+				"status": {
+					"$ref": "#/$defs/semanticStatus"
+				}
+			}
+		},
+		"change": {
+			"type": "object",
+			"required": ["revision", "transition", "session"],
+			"additionalProperties": false,
+			"properties": {
+				"revision": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 9007199254740991
+				},
+				"transition": {
+					"enum": [
+						"session-observed",
+						"turn-started",
+						"turn-activity-changed",
+						"limited-activity-observed",
+						"attention-requested",
+						"attention-resolved",
+						"turn-finished",
+						"session-idle-observed",
+						"observation-became-stale",
+						"observation-reconnected",
+						"presentation-attached",
+						"presentation-visibility-changed",
+						"presentation-detached",
+						"session-ended"
+					]
+				},
+				"session": {
+					"$ref": "#/$defs/changeSession"
+				}
+			}
+		},
+		"sessionChangesRequest": {
+			"type": "object",
+			"required": ["kind", "requestId"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "agent.session.changes.request"
+				},
+				"requestId": {
+					"$ref": "#/$defs/obapRequestId"
+				},
+				"cursor": {
+					"$ref": "#/$defs/changesCursor"
+				},
+				"limit": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100
+				}
+			},
+			"$comment": "Absent cursor establishes a current-head checkpoint; absent limit defaults to 50; null cursor is invalid."
+		},
+		"sessionChangesResult": {
+			"type": "object",
+			"required": ["kind", "requestId", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "agent.session.changes.result"
+				},
+				"requestId": {
+					"$ref": "#/$defs/obapRequestId"
+				},
+				"result": {
+					"type": "object",
+					"required": ["outcome"],
+					"additionalProperties": false,
+					"properties": {
+						"outcome": {
+							"oneOf": [
+								{
+									"type": "object",
+									"required": [
+										"kind",
+										"changes",
+										"cursor",
+										"observedThroughRevision",
+										"runtimeRevision",
+										"hasMore"
+									],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "changes"
+										},
+										"changes": {
+											"type": "array",
+											"minItems": 1,
+											"maxItems": 100,
+											"items": {
+												"$ref": "#/$defs/change"
+											}
+										},
+										"cursor": {
+											"$ref": "#/$defs/changesCursor"
+										},
+										"observedThroughRevision": {
+											"$ref": "#/$defs/safeInteger"
+										},
+										"runtimeRevision": {
+											"$ref": "#/$defs/safeInteger"
+										},
+										"hasMore": {
+											"type": "boolean"
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind", "cursor", "revision"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "current"
+										},
+										"cursor": {
+											"$ref": "#/$defs/changesCursor"
+										},
+										"revision": {
+											"$ref": "#/$defs/safeInteger"
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind", "cursor", "revision"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "reset-required"
+										},
+										"cursor": {
+											"$ref": "#/$defs/changesCursor"
+										},
+										"revision": {
+											"$ref": "#/$defs/safeInteger"
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind", "reason"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "rejected"
+										},
+										"reason": {
+											"enum": ["cursor-invalid", "read-denied"]
+										}
+									}
+								},
+								{
+									"$ref": "#/$defs/unavailableOutcome"
+								}
+							]
+						}
+					}
+				}
+			},
+			"$comment": "Changes have strictly contiguous positive revisions, tail equals observedThroughRevision <= runtimeRevision, and hasMore iff observedThroughRevision < runtimeRevision; bindings enforce these cross-field invariants."
 		}
 	}
 }

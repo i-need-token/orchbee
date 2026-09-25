@@ -152,6 +152,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     (
         "agent",
         &[
+            "changes",
             "doctor",
             "explain",
             "focus",
@@ -438,6 +439,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         &["--kind", "--panel", "--current", "--timeout", "--arg"],
     ),
     ("agent:list", &["--include-ended", "--limit", "--cursor"]),
+    ("agent:changes", &["--limit", "--cursor"]),
     ("agent:get", &["--session", "--name", "--panel"]),
     (
         "agent:focus",

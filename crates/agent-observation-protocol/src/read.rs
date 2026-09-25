@@ -1,3 +1,4 @@
+use crate::changes::{AgentChangesRequest, AgentChangesResult};
 use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::cursor::AgentListCursor;
@@ -271,6 +272,7 @@ pub enum AgentRequest {
     Read(AgentReadRequest),
     Names(AgentNamesRequest),
     Launch(AgentLaunchRequest),
+    Changes(AgentChangesRequest),
 }
 
 impl AgentRequest {
@@ -280,6 +282,7 @@ impl AgentRequest {
             Self::Read(request) => request.request_id(),
             Self::Names(request) => request.request_id(),
             Self::Launch(request) => request.request_id(),
+            Self::Changes(request) => request.request_id(),
         }
     }
 }
@@ -303,6 +306,7 @@ pub enum AgentResult {
     Read(AgentReadResult),
     Names(AgentNamesResult),
     Launch(AgentLaunchResult),
+    Changes(AgentChangesResult),
 }
 
 impl AgentResult {
@@ -312,6 +316,7 @@ impl AgentResult {
             Self::Read(result) => result.request_id(),
             Self::Names(result) => result.request_id(),
             Self::Launch(result) => result.request_id(),
+            Self::Changes(result) => result.request_id(),
         }
     }
 
@@ -324,6 +329,7 @@ impl AgentResult {
             Self::Read(result) => result.is_small_outcome(),
             Self::Names(result) => result.is_small_outcome(),
             Self::Launch(_) => true,
+            Self::Changes(result) => result.is_small_outcome(),
         }
     }
 }
@@ -348,5 +354,17 @@ impl From<AgentLaunchRequest> for AgentRequest {
 impl From<AgentLaunchResult> for AgentResult {
     fn from(result: AgentLaunchResult) -> Self {
         Self::Launch(result)
+    }
+}
+
+impl From<AgentChangesRequest> for AgentRequest {
+    fn from(value: AgentChangesRequest) -> Self {
+        Self::Changes(value)
+    }
+}
+
+impl From<AgentChangesResult> for AgentResult {
+    fn from(value: AgentChangesResult) -> Self {
+        Self::Changes(value)
     }
 }

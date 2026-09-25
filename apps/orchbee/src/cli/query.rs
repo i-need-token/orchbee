@@ -2446,12 +2446,12 @@ enum AgentAdmissionError {
 /// phase: `Admission` answers the generic document, the rest answer the
 /// agent document.
 #[cfg(any(target_os = "linux", windows))]
-enum AgentAttempt {
+enum AgentAttempt<Response = AgentReadResult> {
     Admission(AgentAdmissionError),
     /// The shared absolute budget expired before or after the exchange.
     Expired,
     /// One OBAP exchange settled to its raw result or typed failure.
-    Exchanged(Result<AgentReadResult, AgentExchangeError>),
+    Exchanged(Result<Response, AgentExchangeError>),
     /// Target resolution failed before any session read was submitted.
     Target(Failure),
 }
@@ -2479,6 +2479,43 @@ impl AgentWatch for ArmedSignals {
     }
 }
 
+#[cfg(any(target_os = "linux", windows))]
+trait AgentReadExchange {
+    type Response;
+    fn exchange(
+        self,
+        client: &mut LocalClient,
+        total: Instant,
+        wake: Option<BorrowedFd<'_>>,
+    ) -> Result<Self::Response, AgentExchangeError>;
+}
+
+#[cfg(any(target_os = "linux", windows))]
+impl AgentReadExchange for AgentReadRequest {
+    type Response = AgentReadResult;
+    fn exchange(
+        self,
+        client: &mut LocalClient,
+        total: Instant,
+        wake: Option<BorrowedFd<'_>>,
+    ) -> Result<Self::Response, AgentExchangeError> {
+        client.submit_agent_read_before_cancellable(self, total, wake)
+    }
+}
+
+#[cfg(windows)]
+impl AgentReadExchange for orchbee_agent_observation_protocol::AgentChangesRequest {
+    type Response = orchbee_agent_observation_protocol::AgentChangesResult;
+    fn exchange(
+        self,
+        client: &mut LocalClient,
+        total: Instant,
+        wake: Option<BorrowedFd<'_>>,
+    ) -> Result<Self::Response, AgentExchangeError> {
+        client.submit_agent_changes_before_cancellable(self, total, wake)
+    }
+}
+
 /// One armed Agent read command: after grammar validation and request
 /// identity, the interruption guard arms before the synchronous preamble
 /// and owns SIGINT/SIGTERM for the whole `T0+5s` span; the borrowed wake
@@ -2487,15 +2524,15 @@ impl AgentWatch for ArmedSignals {
 /// that arbitration once armed. `Clear` hands the raw attempt back for the
 /// normal classification; `Cancelled` answers the typed 130 family.
 #[cfg(any(target_os = "linux", windows))]
-fn agent_armed_run(
+fn agent_armed_run<Request: AgentReadExchange>(
     operation: AgentReadOperation,
     build: impl FnOnce(
         &mut LocalClient,
         ObapRequestId,
         Instant,
         Option<BorrowedFd<'_>>,
-    ) -> Result<AgentReadRequest, Failure>,
-) -> Result<(ObapRequestId, AgentAttempt), AgentQueryError> {
+    ) -> Result<Request, Failure>,
+) -> Result<(ObapRequestId, AgentAttempt<Request::Response>), AgentQueryError> {
     let total = deadline_after(AGENT_TOTAL_BUDGET).map_err(AgentQueryError::Admission)?;
     let request_id = obap_request_id().map_err(AgentQueryError::Admission)?;
     let armed = ArmedSignals::arm_interrupts()
@@ -2516,19 +2553,19 @@ fn agent_armed_run(
 /// does `armed.finish()` read the signal descriptor. Nothing here
 /// classifies.
 #[cfg(any(target_os = "linux", windows))]
-fn agent_armed_finish(
+fn agent_armed_finish<Request: AgentReadExchange>(
     operation: AgentReadOperation,
     build: impl FnOnce(
         &mut LocalClient,
         ObapRequestId,
         Instant,
         Option<BorrowedFd<'_>>,
-    ) -> Result<AgentReadRequest, Failure>,
+    ) -> Result<Request, Failure>,
     total: Instant,
     request_id: ObapRequestId,
     armed: impl AgentWatch,
     acquire: impl FnOnce(Instant, Option<BorrowedFd<'_>>) -> Result<LocalClient, AgentAdmissionError>,
-) -> Result<(ObapRequestId, AgentAttempt), AgentQueryError> {
+) -> Result<(ObapRequestId, AgentAttempt<Request::Response>), AgentQueryError> {
     let attempt = {
         let wake = armed.poll_fd();
         agent_span(total, operation, wake, request_id.clone(), build, acquire)
@@ -2557,7 +2594,7 @@ fn agent_armed_finish(
 /// pre-submission settle, one OBAP exchange, then the session is dropped —
 /// all before the caller's finish arbitration. Nothing here classifies.
 #[cfg(any(target_os = "linux", windows))]
-fn agent_span(
+fn agent_span<Request: AgentReadExchange>(
     total: Instant,
     operation: AgentReadOperation,
     wake: Option<BorrowedFd<'_>>,
@@ -2567,9 +2604,9 @@ fn agent_span(
         ObapRequestId,
         Instant,
         Option<BorrowedFd<'_>>,
-    ) -> Result<AgentReadRequest, Failure>,
+    ) -> Result<Request, Failure>,
     acquire: impl FnOnce(Instant, Option<BorrowedFd<'_>>) -> Result<LocalClient, AgentAdmissionError>,
-) -> AgentAttempt {
+) -> AgentAttempt<Request::Response> {
     let mut client = match acquire(total, wake) {
         Err(error) => return AgentAttempt::Admission(error),
         Ok(client) => client,
@@ -2582,7 +2619,7 @@ fn agent_span(
         Ok(request) => request,
         Err(failure) => return AgentAttempt::Target(failure),
     };
-    let result = client.submit_agent_read_before_cancellable(request, total, wake);
+    let result = request.exchange(&mut client, total, wake);
     // The Client Session is fully dropped before the owner arbitrates.
     drop(client);
     if agent_settle(total, operation).is_err() {
@@ -2632,10 +2669,10 @@ fn agent_settle(total: Instant, operation: AgentReadOperation) -> Result<(), Fai
 /// post-admission classifiers — provisional wake markers left readable
 /// without a captured signal land on `internal-failure`.
 #[cfg(any(target_os = "linux", windows))]
-fn classify_attempt(
-    attempt: AgentAttempt,
+fn classify_attempt<Response>(
+    attempt: AgentAttempt<Response>,
     operation: AgentReadOperation,
-) -> Result<AgentReadResult, AgentQueryError> {
+) -> Result<Response, AgentQueryError> {
     match attempt {
         AgentAttempt::Admission(AgentAdmissionError::Preamble(failure)) => {
             Err(AgentQueryError::Admission(failure))
@@ -3354,4 +3391,65 @@ pub(super) fn names_command(
     _command: &crate::invocation::AgentNamesCommand,
 ) -> super::agent_names::Execution {
     super::agent_names::Execution::failed(Failure::new(FailureKind::ServiceUnavailable))
+}
+
+#[cfg(windows)]
+pub(crate) fn agent_changes(
+    limit: u64,
+    cursor: Option<orchbee_agent_observation_protocol::AgentChangesCursor>,
+) -> Result<(serde_json::Value, Projection), AgentQueryError> {
+    use orchbee_agent_observation_protocol::{
+        AgentChangesOutcome, AgentChangesRejectionReason, AgentChangesRequest, AgentChangesResult,
+    };
+    let operation = AgentReadOperation::Changes;
+    let (request_id, attempt) = agent_armed_run(operation, |_, request_id, _, _| {
+        Ok(AgentChangesRequest::Read {
+            request_id,
+            cursor,
+            limit: AgentSafeInteger::new(limit),
+        })
+    })?;
+    let AgentChangesResult::Read { result, .. } = classify_attempt(attempt, operation)?;
+    let source = super::results::agent_source(&request_id);
+    match result.outcome {
+        AgentChangesOutcome::Changes { .. }
+        | AgentChangesOutcome::Current { .. }
+        | AgentChangesOutcome::ResetRequired { .. } => {
+            Ok((source, Projection::AgentChanges(result.outcome)))
+        }
+        AgentChangesOutcome::Rejected { reason } => Err(AgentQueryError::Read(
+            Failure::new(if reason == AgentChangesRejectionReason::ReadDenied {
+                FailureKind::Denied
+            } else {
+                FailureKind::Rejected
+            })
+            .details(agent_rejection_details(
+                operation,
+                if reason == AgentChangesRejectionReason::ReadDenied {
+                    "read-denied"
+                } else {
+                    "cursor-invalid"
+                },
+            ))
+            .source(source),
+        )),
+        AgentChangesOutcome::Unavailable { .. } => Err(AgentQueryError::Read(
+            Failure::new(FailureKind::ServiceUnavailable)
+                .details(agent_unavailable_details(operation))
+                .source(source),
+        )),
+    }
+}
+
+#[cfg(not(windows))]
+pub(crate) fn agent_changes(
+    _limit: u64,
+    _cursor: Option<orchbee_agent_observation_protocol::AgentChangesCursor>,
+) -> Result<(serde_json::Value, Projection), AgentQueryError> {
+    Err(AgentQueryError::Admission(
+        Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
+            "platform",
+            "unsupported-platform",
+        )),
+    ))
 }

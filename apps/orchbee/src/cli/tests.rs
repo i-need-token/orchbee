@@ -267,6 +267,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::AgentStart,
         CommandPath::AgentSendKeys,
         CommandPath::AgentList,
+        CommandPath::AgentChanges,
         CommandPath::AgentNames,
         CommandPath::AgentRename,
         CommandPath::AgentResolve,
@@ -364,6 +365,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         "worktree",
     ];
     let verbs = [
+        "changes",
         "swap",
         "resize",
         "set-split-ratio",
@@ -820,4 +822,33 @@ fn integration_cancelled_mutation_document_validates_against_schema() {
         !validator.is_valid(&bad),
         "a non-vocabulary outcome must fail the schema"
     );
+}
+
+#[test]
+fn changes_text_localizes_reset_and_keeps_recovery_cursor() {
+    use orchbee_agent_observation_protocol::{
+        AgentChangesCursor, AgentChangesOutcome, AgentSafeInteger,
+    };
+    let token = format!("v1.{}.{}", "A".repeat(59), "A".repeat(43));
+    for (locale, expected) in [(Locale::EnUs, "History lost"), (Locale::ZhCn, "历史已丢失")] {
+        let projection = Projection::AgentChanges(AgentChangesOutcome::ResetRequired {
+            cursor: AgentChangesCursor::parse(&token).unwrap(),
+            revision: AgentSafeInteger::new(77),
+        });
+        let output = super::success_output(
+            projection,
+            json!({"kind":"agent-read","requestId":ID}),
+            &QueryCommand::AgentChanges {
+                limit: 50,
+                cursor: None,
+            },
+            OutputFormat::Text,
+            locale,
+        );
+        assert_eq!(output.status, 0);
+        let rendered = String::from_utf8(output.stdout).unwrap();
+        assert!(rendered.contains(expected));
+        assert!(rendered.contains("77"));
+        assert!(rendered.contains(&token));
+    }
 }

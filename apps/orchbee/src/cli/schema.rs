@@ -37,6 +37,10 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.agent.changes",
+        include_str!("schemas/orchbee.agent.changes.json"),
+    ),
+    (
         "orchbee.status.client",
         include_str!("schemas/orchbee.status.client.json"),
     ),
@@ -384,8 +388,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog v40 adds the bounded current-Panel query failure stage.
-        "version": 40,
+        // Catalog v41 adds bounded Agent change pages.
+        "version": 41,
         "source": embedded_source(),
         "result": result,
     });

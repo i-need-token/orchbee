@@ -286,7 +286,7 @@
 			"maximum": 9007199254740991
 		},
 		"operation": {
-			"enum": ["explain", "get", "list", "wait"]
+			"enum": ["explain", "get", "list", "wait", "changes"]
 		},
 		"statusKind": {
 			"enum": [
@@ -347,20 +347,40 @@
 			}
 		},
 		"rejectedDetails": {
-			"type": "object",
-			"required": ["stage", "operation", "reason"],
-			"additionalProperties": false,
-			"properties": {
-				"stage": {
-					"const": "agent-read"
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["stage", "operation", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"stage": {
+							"const": "agent-read"
+						},
+						"operation": {
+							"const": "list"
+						},
+						"reason": {
+							"enum": ["cursor-invalid", "cursor-stale"]
+						}
+					}
 				},
-				"operation": {
-					"const": "list"
-				},
-				"reason": {
-					"enum": ["cursor-invalid", "cursor-stale"]
+				{
+					"type": "object",
+					"required": ["stage", "operation", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"stage": {
+							"const": "agent-read"
+						},
+						"operation": {
+							"const": "changes"
+						},
+						"reason": {
+							"const": "cursor-invalid"
+						}
+					}
 				}
-			}
+			]
 		},
 		"revisionAheadDetails": {
 			"type": "object",
@@ -409,7 +429,7 @@
 					"const": "agent-read"
 				},
 				"operation": {
-					"enum": ["explain", "get", "list"]
+					"enum": ["explain", "get", "list", "changes"]
 				},
 				"timeoutMs": {
 					"const": 5000

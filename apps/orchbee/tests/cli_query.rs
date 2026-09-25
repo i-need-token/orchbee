@@ -6174,7 +6174,7 @@ fn api_schema_catalog_is_v26_closed_and_self_consistent() -> TestResult {
     assert_eq!(listed["source"]["kind"], "embedded");
     assert!(api_schema.is_valid(&listed), "listing self-validates");
     let schemas = listed["result"]["schemas"].as_object().unwrap();
-    assert_eq!(schemas.len(), 71, "closed dictionary has 71 members");
+    assert_eq!(schemas.len(), 72, "closed dictionary has 72 members");
     assert!(
         schemas.contains_key("orchbee.project.rename"),
         "the rename receipt schema is registered"

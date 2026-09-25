@@ -15,8 +15,8 @@ use std::io;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use hmac::{Hmac, Mac};
 use orchbee_agent_observation_protocol::{
-    AGENT_CURSOR_PAYLOAD_BYTES, AGENT_CURSOR_TAG_BYTES, AgentCursorPayload, AgentListCursor,
-    MAXIMUM_SAFE_INTEGER,
+    AGENT_CURSOR_PAYLOAD_BYTES, AGENT_CURSOR_TAG_BYTES, AgentChangesCursor, AgentCursorPayload,
+    AgentListCursor, MAXIMUM_SAFE_INTEGER,
 };
 use sha2::Sha256;
 
@@ -35,12 +35,12 @@ pub(crate) enum AgentCursorRejection {
 }
 
 /// Owns the boot-scoped HMAC key and instance identity for list cursors.
-pub(crate) struct AgentListCursorAuthority {
+pub(crate) struct AgentCursorAuthority {
     key: [u8; KEY_BYTES],
     instance: u64,
 }
 
-impl AgentListCursorAuthority {
+impl AgentCursorAuthority {
     /// Draws a fresh key and nonzero instance identity from the operating system entropy source.
     pub(crate) fn open() -> io::Result<Self> {
         let mut key = [0_u8; KEY_BYTES];
@@ -147,9 +147,13 @@ impl AgentListCursorAuthority {
     }
 
     fn mac(&self) -> CursorMac {
+        self.mac_for(MAC_DOMAIN)
+    }
+
+    fn mac_for(&self, domain: &[u8]) -> CursorMac {
         let mut mac =
             <CursorMac as Mac>::new_from_slice(&self.key).expect("HMAC accepts keys of any length");
-        mac.update(MAC_DOMAIN);
+        mac.update(domain);
         mac
     }
 
@@ -173,3 +177,60 @@ fn decode_canonical_segment(segment: &str) -> Option<Vec<u8>> {
 
 #[cfg(test)]
 mod tests;
+
+const CHANGES_MAC_DOMAIN: &[u8] = b"orchbee.agent.changes.cursor.v1\0";
+
+impl AgentCursorAuthority {
+    pub(crate) fn mint_changes(&self, revision: u64) -> AgentChangesCursor {
+        let payload = AgentCursorPayload {
+            version: AgentCursorPayload::VERSION,
+            operation: 2,
+            flags: 0,
+            instance: self.instance,
+            target: 0,
+            revision,
+            position: 0,
+        }
+        .encode();
+        let mut mac = self.mac_for(CHANGES_MAC_DOMAIN);
+        mac.update(&payload);
+        AgentChangesCursor::parse(&format!(
+            "v1.{}.{}",
+            URL_SAFE_NO_PAD.encode(payload),
+            URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes())
+        ))
+        .expect("minted change cursor has the canonical shape")
+    }
+
+    pub(crate) fn verify_changes(
+        &self,
+        cursor: &AgentChangesCursor,
+        head: u64,
+    ) -> Result<u64, AgentCursorRejection> {
+        let shape =
+            AgentListCursor::parse(cursor.as_str()).map_err(|_| AgentCursorRejection::Invalid)?;
+        let payload = decode_canonical_segment(shape.payload_segment())
+            .and_then(|bytes| <[u8; AGENT_CURSOR_PAYLOAD_BYTES]>::try_from(bytes.as_slice()).ok())
+            .ok_or(AgentCursorRejection::Invalid)?;
+        let tag = decode_canonical_segment(shape.tag_segment())
+            .and_then(|bytes| <[u8; AGENT_CURSOR_TAG_BYTES]>::try_from(bytes.as_slice()).ok())
+            .ok_or(AgentCursorRejection::Invalid)?;
+        let mut mac = self.mac_for(CHANGES_MAC_DOMAIN);
+        mac.update(&payload);
+        mac.verify_slice(&tag)
+            .map_err(|_| AgentCursorRejection::Invalid)?;
+        let payload = AgentCursorPayload::decode(&payload).ok_or(AgentCursorRejection::Invalid)?;
+        if payload.version != AgentCursorPayload::VERSION
+            || payload.operation != 2
+            || payload.flags != 0
+            || payload.target != 0
+            || payload.position != 0
+            || payload.instance != self.instance
+            || payload.revision > MAXIMUM_SAFE_INTEGER
+            || payload.revision > head
+        {
+            return Err(AgentCursorRejection::Invalid);
+        }
+        Ok(payload.revision)
+    }
+}

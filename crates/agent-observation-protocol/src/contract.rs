@@ -1,3 +1,6 @@
+use crate::changes::{
+    AgentChangesOutcome, AgentChangesRequest, AgentChangesResult, MAXIMUM_CHANGE_ITEMS,
+};
 use std::collections::HashSet;
 use std::fmt;
 
@@ -55,6 +58,8 @@ impl std::error::Error for AgentContractError {}
 pub fn parse_agent_request(encoded: &[u8]) -> Result<AgentRequest, AgentContractError> {
     let request = if let Ok(request) = serde_json::from_slice::<AgentReadRequest>(encoded) {
         AgentRequest::Read(request)
+    } else if let Ok(request) = serde_json::from_slice::<AgentChangesRequest>(encoded) {
+        AgentRequest::Changes(request)
     } else if let Ok(request) = serde_json::from_slice::<AgentNamesRequest>(encoded) {
         AgentRequest::Names(request)
     } else {
@@ -70,6 +75,8 @@ pub fn parse_agent_request(encoded: &[u8]) -> Result<AgentRequest, AgentContract
 pub fn parse_agent_result(encoded: &[u8]) -> Result<AgentResult, AgentContractError> {
     let result = if let Ok(result) = serde_json::from_slice::<AgentReadResult>(encoded) {
         AgentResult::Read(result)
+    } else if let Ok(result) = serde_json::from_slice::<AgentChangesResult>(encoded) {
+        AgentResult::Changes(result)
     } else if let Ok(result) = serde_json::from_slice::<AgentNamesResult>(encoded) {
         AgentResult::Names(result)
     } else {
@@ -88,6 +95,7 @@ pub fn serialize_agent_request(request: &AgentRequest) -> Result<Vec<u8>, AgentC
         AgentRequest::Read(request) => serde_json::to_vec(request),
         AgentRequest::Names(request) => serde_json::to_vec(request),
         AgentRequest::Launch(request) => serde_json::to_vec(request),
+        AgentRequest::Changes(request) => serde_json::to_vec(request),
     };
     encoded.map_err(|_error| AgentContractError::InvalidDocument)
 }
@@ -98,13 +106,15 @@ pub fn serialize_agent_result(result: &AgentResult) -> Result<Vec<u8>, AgentCont
         AgentResult::Read(result) => serde_json::to_vec(result),
         AgentResult::Names(result) => serde_json::to_vec(result),
         AgentResult::Launch(result) => serde_json::to_vec(result),
+        AgentResult::Changes(result) => serde_json::to_vec(result),
     };
     encoded.map_err(|_error| AgentContractError::InvalidDocument)
 }
 
 fn validate_request(request: &AgentRequest) -> Result<(), AgentContractError> {
     match request {
-        AgentRequest::Read(AgentReadRequest::List { limit, .. }) => {
+        AgentRequest::Read(AgentReadRequest::List { limit, .. })
+        | AgentRequest::Changes(AgentChangesRequest::Read { limit, .. }) => {
             if !(1..=MAXIMUM_LIST_LIMIT).contains(&limit.value()) {
                 return Err(AgentContractError::InvalidDocument);
             }
@@ -127,6 +137,7 @@ fn validate_result(result: &AgentResult) -> Result<(), AgentContractError> {
         AgentResult::Read(result) => validate_read_result(result),
         AgentResult::Names(result) => validate_names_result(result),
         AgentResult::Launch(result) => validate_launch_result(result),
+        AgentResult::Changes(result) => validate_changes_result(result),
     }
 }
 
@@ -348,4 +359,36 @@ fn validate_launch_result(result: &AgentLaunchResult) -> Result<(), AgentContrac
         AgentLaunchOutcome::Rejected { .. } | AgentLaunchOutcome::Unavailable { .. } => Ok(()),
         _ => Err(AgentContractError::InvalidDocument),
     }
+}
+
+fn validate_changes_result(result: &AgentChangesResult) -> Result<(), AgentContractError> {
+    let AgentChangesResult::Read { result, .. } = result;
+    let AgentChangesOutcome::Changes {
+        changes,
+        observed_through_revision,
+        runtime_revision,
+        has_more,
+        ..
+    } = &result.outcome
+    else {
+        return Ok(());
+    };
+    if changes.is_empty()
+        || changes.len() > MAXIMUM_CHANGE_ITEMS
+        || observed_through_revision.value() > runtime_revision.value()
+        || *has_more != (observed_through_revision.value() < runtime_revision.value())
+        || changes
+            .last()
+            .is_none_or(|change| change.revision != *observed_through_revision)
+        || changes.iter().any(|change| {
+            change.revision.value() == 0
+                || change.session.pending_request_count.value() > MAXIMUM_PENDING_REQUESTS as u64
+        })
+        || changes
+            .windows(2)
+            .any(|pair| pair[0].revision.value() + 1 != pair[1].revision.value())
+    {
+        return Err(AgentContractError::InvalidDocument);
+    }
+    Ok(())
 }

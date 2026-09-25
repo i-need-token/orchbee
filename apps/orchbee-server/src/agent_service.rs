@@ -12,6 +12,7 @@
 //! disposes the runtime under the same lock so surviving connections
 //! observe `runtime-unavailable` rather than fabricated state.
 
+mod changes;
 mod cursor;
 mod launch;
 mod map;
@@ -154,7 +155,7 @@ fn canonical_hex32(bytes: [u8; 16]) -> String {
     out
 }
 
-use cursor::{AgentCursorRejection, AgentListCursorAuthority};
+use cursor::{AgentCursorAuthority, AgentCursorRejection};
 
 /// Admission-time read capability granted to this listener's local
 /// clients, mirroring `WorkbenchPolicy`.
@@ -307,7 +308,7 @@ pub(crate) struct PreparedUnavailable;
 
 /// Owns the canonical Agent runtime and the private list-cursor authority.
 pub(crate) struct AgentService {
-    cursors: AgentListCursorAuthority,
+    cursors: AgentCursorAuthority,
     policy: AgentPolicy,
     state: Mutex<AgentState>,
 }
@@ -328,7 +329,7 @@ impl AgentService {
         socket_path: Option<String>,
     ) -> io::Result<Self> {
         Ok(Self {
-            cursors: AgentListCursorAuthority::open()?,
+            cursors: AgentCursorAuthority::open()?,
             policy,
             state: Mutex::new(AgentState::open(socket_path)),
         })

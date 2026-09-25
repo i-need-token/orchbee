@@ -105,7 +105,7 @@ fn is_base64url(byte: u8) -> bool {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct AgentCursorPayload {
     pub version: u8,
-    /// `1` = list; `2` is reserved for the deferred changes operation.
+    /// `1` = list; `2` = bounded changes with a separate MAC domain.
     pub operation: u8,
     /// Bit 0 records `includeEnded`; all other bits are reserved and must be
     /// zero in version 1.

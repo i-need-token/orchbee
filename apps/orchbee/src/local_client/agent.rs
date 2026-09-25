@@ -31,7 +31,7 @@ impl LocalClient {
         let request_id = request.request_id().clone();
         match self.submit_agent_before_cancellable(AgentRequest::Read(request), deadline, wake)? {
             AgentResult::Read(result) => Ok(result),
-            AgentResult::Names(_) | AgentResult::Launch(_) => {
+            AgentResult::Names(_) | AgentResult::Launch(_) | AgentResult::Changes(_) => {
                 self.retire_with_agent_failure(request_id, AgentExchangeFailure::UnexpectedResponse)
             }
         }
@@ -49,7 +49,7 @@ impl LocalClient {
         let request_id = request.request_id().clone();
         match self.submit_agent_before_cancellable(AgentRequest::Names(request), deadline, wake)? {
             AgentResult::Names(result) => Ok(result),
-            AgentResult::Read(_) | AgentResult::Launch(_) => {
+            AgentResult::Read(_) | AgentResult::Launch(_) | AgentResult::Changes(_) => {
                 self.retire_with_agent_failure(request_id, AgentExchangeFailure::UnexpectedResponse)
             }
         }
@@ -67,7 +67,54 @@ impl LocalClient {
         let request_id = request.request_id().clone();
         match self.submit_agent_before_cancellable(AgentRequest::Launch(request), deadline, wake)? {
             AgentResult::Launch(result) => Ok(result),
-            AgentResult::Read(_) | AgentResult::Names(_) => {
+            AgentResult::Read(_) | AgentResult::Names(_) | AgentResult::Changes(_) => {
+                self.retire_with_agent_failure(request_id, AgentExchangeFailure::UnexpectedResponse)
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn submit_agent_changes_before_cancellable(
+        &mut self,
+        request: orchbee_agent_observation_protocol::AgentChangesRequest,
+        deadline: Instant,
+        wake: Option<BorrowedFd<'_>>,
+    ) -> Result<orchbee_agent_observation_protocol::AgentChangesResult, AgentExchangeError> {
+        use orchbee_agent_observation_protocol::{
+            AgentChangesOutcome, AgentChangesRequest, AgentChangesResult,
+        };
+        let AgentChangesRequest::Read {
+            request_id,
+            limit,
+            cursor,
+        } = &request;
+        let (request_id, limit, checkpoint) = (request_id.clone(), limit.value(), cursor.is_none());
+        match self.submit_agent_before_cancellable(
+            AgentRequest::Changes(request),
+            deadline,
+            wake,
+        )? {
+            AgentResult::Changes(result) => {
+                let AgentChangesResult::Read {
+                    result: envelope, ..
+                } = &result;
+                let valid = match &envelope.outcome {
+                    AgentChangesOutcome::Changes { changes, .. } => {
+                        !checkpoint && changes.len() as u64 <= limit
+                    }
+                    AgentChangesOutcome::ResetRequired { .. } => !checkpoint,
+                    _ => true,
+                };
+                if valid {
+                    Ok(result)
+                } else {
+                    self.retire_with_agent_failure(
+                        request_id,
+                        AgentExchangeFailure::UnexpectedResponse,
+                    )
+                }
+            }
+            _ => {
                 self.retire_with_agent_failure(request_id, AgentExchangeFailure::UnexpectedResponse)
             }
         }
@@ -161,6 +208,7 @@ pub(crate) enum AgentReadOperation {
     Get,
     Explain,
     Wait,
+    Changes,
 }
 
 impl AgentReadOperation {
@@ -186,6 +234,7 @@ impl AgentReadOperation {
             Self::Get => "get",
             Self::Explain => "explain",
             Self::Wait => "wait",
+            Self::Changes => "changes",
         }
     }
 }
@@ -289,10 +338,12 @@ enum Operation {
     LaunchInspect,
     LaunchComplete,
     LaunchCancel,
+    Changes,
 }
 
 fn operation_of_request(request: &AgentRequest) -> Operation {
     match request {
+        AgentRequest::Changes(_) => Operation::Changes,
         AgentRequest::Launch(AgentLaunchRequest::Reserve { .. }) => Operation::LaunchReserve,
         AgentRequest::Launch(AgentLaunchRequest::Inspect { .. }) => Operation::LaunchInspect,
         AgentRequest::Launch(AgentLaunchRequest::Complete { .. }) => Operation::LaunchComplete,
@@ -307,6 +358,7 @@ fn operation_of_request(request: &AgentRequest) -> Operation {
 
 fn operation_of_result(result: &AgentResult) -> Operation {
     match result {
+        AgentResult::Changes(_) => Operation::Changes,
         AgentResult::Launch(AgentLaunchResult::Reserve { .. }) => Operation::LaunchReserve,
         AgentResult::Launch(AgentLaunchResult::Inspect { .. }) => Operation::LaunchInspect,
         AgentResult::Launch(AgentLaunchResult::Complete { .. }) => Operation::LaunchComplete,

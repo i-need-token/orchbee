@@ -639,6 +639,7 @@ pub(crate) fn render(
         // Agent text renders only ever see the success outcome — refusals
         // leave the query layer as failures before projection.
         Projection::AgentList(outcome) => agent_list(out, outcome, text, locale),
+        Projection::AgentChanges(outcome) => agent_changes(out, outcome, locale),
         Projection::AgentGet(outcome) => agent_get(out, outcome, text, locale),
         Projection::AgentExplain(outcome) => agent_explain(out, outcome, text, locale),
         Projection::AgentWait(doc) => agent_wait(out, doc, locale),
@@ -1234,4 +1235,47 @@ fn doctor_fact(out: &mut Bounded, fact: &Value) -> Result<(), TooLarge> {
         }
     }
     out.push("\n")
+}
+
+fn agent_changes(
+    out: &mut Bounded,
+    outcome: &orchbee_agent_observation_protocol::AgentChangesOutcome,
+    locale: Locale,
+) -> Result<(), TooLarge> {
+    use orchbee_agent_observation_protocol::AgentChangesOutcome;
+    let cursor = match outcome {
+        AgentChangesOutcome::Changes {
+            changes,
+            cursor,
+            observed_through_revision,
+            runtime_revision,
+            ..
+        } => {
+            table(out, &locale.cli_agent_change_headers(), changes, |row| {
+                vec![
+                    row.revision.value().to_string(),
+                    row.session.session_id.as_str().to_owned(),
+                    locale.cli_agent_status(&row.session.status),
+                    locale
+                        .cli_agent_freshness(row.session.observation.freshness)
+                        .to_owned(),
+                ]
+            })?;
+            out.push(&locale.cli_agent_changes_progress(
+                observed_through_revision.value(),
+                runtime_revision.value(),
+            ))?;
+            cursor
+        }
+        AgentChangesOutcome::Current { cursor, revision }
+        | AgentChangesOutcome::ResetRequired { cursor, revision } => {
+            out.push(&locale.cli_agent_changes_checkpoint(
+                revision.value(),
+                matches!(outcome, AgentChangesOutcome::ResetRequired { .. }),
+            ))?;
+            cursor
+        }
+        _ => unreachable!("refusals do not reach successful change projection"),
+    };
+    out.push(&locale.cli_agent_next_cursor(cursor.as_str()))
 }

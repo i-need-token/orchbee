@@ -537,6 +537,12 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
         },
         // Agent reads exchange on their own admitted Client Session; answers
         // arrive already projected with the correlated request identity.
+        QueryCommand::AgentChanges { limit, cursor } => agent_output(
+            query::agent_changes(*limit, cursor.clone()),
+            &command,
+            format,
+            locale,
+        ),
         QueryCommand::AgentList {
             include_ended,
             limit,

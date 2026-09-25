@@ -1,6 +1,8 @@
 //! Windows Agent names and terminal controls over real CLI and named pipes.
 #![cfg(windows)]
 
+#[path = "cli_windows_agent_names/changes.rs"]
+mod changes;
 #[path = "support/windows_agent_peer.rs"]
 mod peer_support;
 use orchbee_agent_observation_protocol::{

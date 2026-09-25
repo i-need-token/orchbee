@@ -412,3 +412,46 @@ pub(super) fn session_explanation(
 pub(super) fn revision(value: u64) -> Result<AgentSafeInteger, AgentReadFault> {
     safe_integer(value)
 }
+
+/// Journal records deliberately contain no reconstructed location or attachments.
+pub(super) fn runtime_change(
+    change: &agent::AgentRuntimeChange,
+) -> Result<orchbee_agent_observation_protocol::AgentChange, AgentReadFault> {
+    use orchbee_agent_observation_protocol::{
+        AgentChange, AgentChangeSession, AgentChangeTransition as T,
+    };
+    let session = &change.session;
+    Ok(AgentChange {
+        revision: safe_integer(change.revision)?,
+        transition: match change.transition {
+            "session-observed" => T::SessionObserved,
+            "turn-started" => T::TurnStarted,
+            "turn-activity-changed" => T::TurnActivityChanged,
+            "limited-activity-observed" => T::LimitedActivityObserved,
+            "attention-requested" => T::AttentionRequested,
+            "attention-resolved" => T::AttentionResolved,
+            "turn-finished" => T::TurnFinished,
+            "session-idle-observed" => T::SessionIdleObserved,
+            "observation-became-stale" => T::ObservationBecameStale,
+            "observation-reconnected" => T::ObservationReconnected,
+            "presentation-attached" => T::PresentationAttached,
+            "presentation-visibility-changed" => T::PresentationVisibilityChanged,
+            "presentation-detached" => T::PresentationDetached,
+            "session-ended" => T::SessionEnded,
+            _ => return Err(fault("unknown canonical change transition")),
+        },
+        session: AgentChangeSession {
+            lifecycle: lifecycle(session.lifecycle)?,
+            observation: observation(&session.observation)?,
+            parent_session_id: session
+                .parent_session_id
+                .as_ref()
+                .map(session_id)
+                .transpose()?,
+            pending_request_count: safe_integer(session.pending_request_count)?,
+            provider_id: provider_id(&session.provider_id)?,
+            session_id: session_id(&session.session_id)?,
+            status: status(&session.status)?,
+        },
+    })
+}

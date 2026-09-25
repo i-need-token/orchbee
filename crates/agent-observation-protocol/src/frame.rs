@@ -16,6 +16,7 @@ const HEADER_BYTES: usize = 12;
 const VERSION: u16 = 1;
 
 pub const MAXIMUM_AGENT_REQUEST_BYTES: usize = 16 * 1024;
+pub const MAXIMUM_AGENT_CHANGES_RESULT_BYTES: usize = 1024 * 1024;
 pub const MAXIMUM_AGENT_LIST_RESULT_BYTES: usize = 1024 * 1024;
 pub const MAXIMUM_AGENT_SESSION_RESULT_BYTES: usize = 128 * 1024;
 /// The names-list envelope: ≤512 bindings of name/identity/lifecycle is far
@@ -107,6 +108,7 @@ pub fn write_agent_result(
                 MAXIMUM_AGENT_NAMES_RESULT_BYTES
             }
             AgentResult::Launch(_) => MAXIMUM_AGENT_SMALL_OUTCOME_BYTES,
+            AgentResult::Changes(_) => MAXIMUM_AGENT_CHANGES_RESULT_BYTES,
             // Every non-small names outcome is the list; the other variants
             // are always small outcomes.
             AgentResult::Names(
@@ -129,6 +131,7 @@ pub fn write_agent_result(
 
 fn request_kind(request: &AgentRequest) -> u16 {
     match request {
+        AgentRequest::Changes(_) => 23,
         AgentRequest::Launch(AgentLaunchRequest::Reserve { .. }) => 15,
         AgentRequest::Launch(AgentLaunchRequest::Inspect { .. }) => 17,
         AgentRequest::Launch(AgentLaunchRequest::Complete { .. }) => 19,
@@ -145,6 +148,7 @@ fn request_kind(request: &AgentRequest) -> u16 {
 
 fn result_kind(result: &AgentResult) -> u16 {
     match result {
+        AgentResult::Changes(_) => 24,
         AgentResult::Launch(AgentLaunchResult::Reserve { .. }) => 16,
         AgentResult::Launch(AgentLaunchResult::Inspect { .. }) => 18,
         AgentResult::Launch(AgentLaunchResult::Complete { .. }) => 20,
@@ -173,8 +177,8 @@ fn read_frame(
     reader.read_exact(&mut header).map_err(AgentWireError::Io)?;
     let kind = u16::from_be_bytes([header[6], header[7]]);
     let kind_valid = match direction {
-        Direction::Request => matches!(kind, 1 | 3 | 5 | 7 | 9 | 11 | 13 | 15 | 17 | 19 | 21),
-        Direction::Result => matches!(kind, 2 | 4 | 6 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 22),
+        Direction::Request => matches!(kind, 1 | 3 | 5 | 7 | 9 | 11 | 13 | 15 | 17 | 19 | 21 | 23),
+        Direction::Result => matches!(kind, 2 | 4 | 6 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 22 | 24),
     };
     if header[..4] != AGENT_MAGIC
         || u16::from_be_bytes([header[4], header[5]]) != VERSION
@@ -190,6 +194,7 @@ fn read_frame(
         Direction::Request => MAXIMUM_AGENT_REQUEST_BYTES,
         Direction::Result => match kind {
             2 => MAXIMUM_AGENT_LIST_RESULT_BYTES,
+            24 => MAXIMUM_AGENT_CHANGES_RESULT_BYTES,
             10 => MAXIMUM_AGENT_NAMES_RESULT_BYTES,
             8 | 12 | 14 | 16 | 18 | 20 | 22 => MAXIMUM_AGENT_SMALL_OUTCOME_BYTES,
             _ => MAXIMUM_AGENT_SESSION_RESULT_BYTES,

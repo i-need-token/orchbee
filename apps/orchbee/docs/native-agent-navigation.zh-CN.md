@@ -45,7 +45,7 @@ Presentation；Session／名称必须在快照中对应恰好一个当前可导�
 
 ## 交付与验证
 
-新增一个命令路径（共 84 个），不新增 schema；内嵌目录保持 v40/71。
+新增一个命令路径（共 84 个），不新增 schema；内嵌目录保持 v41/72。
 共享 `orchbee.client.control` v1 回执及既有 Agent／Client 选择失败保留来源归属。
 人类输出和帮助本地化，JSON 不依赖语言。
 

@@ -286,6 +286,9 @@ fn handle_candidate_control(
         |request| session.execute(request),
         |request| workbench_session.execute(request),
         |request| match request {
+            orchbee_agent_observation_protocol::AgentRequest::Changes(request) => agents
+                .execute_changes_prepared(request, || terminals.prepare_agent_drain_read(agents))
+                .map(orchbee_agent_observation_protocol::AgentResult::Changes),
             orchbee_agent_observation_protocol::AgentRequest::Read(request) => agents
                 .execute_prepared(request, || terminals.prepare_agent_drain_read(agents))
                 .map(orchbee_agent_observation_protocol::AgentResult::Read),

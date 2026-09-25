@@ -7410,3 +7410,49 @@ fn current_panel_queries_accept_explicit_clients_and_refuse_ignored_selectors() 
         }
     }
 }
+
+#[test]
+fn agent_changes_grammar_requires_bounded_explicit_continuation() {
+    assert_eq!(
+        parse(&["agent", "changes"]),
+        Ok(query(
+            QueryCommand::AgentChanges {
+                limit: 50,
+                cursor: None
+            },
+            OutputFormat::Text
+        ))
+    );
+    assert_eq!(
+        parse(&[
+            "agent",
+            "changes",
+            "--cursor",
+            AGENT_CURSOR,
+            "--limit=100",
+            "--format=json"
+        ]),
+        Ok(query(
+            QueryCommand::AgentChanges {
+                limit: 100,
+                cursor: Some(
+                    orchbee_agent_observation_protocol::AgentChangesCursor::parse(AGENT_CURSOR)
+                        .unwrap()
+                )
+            },
+            OutputFormat::Json
+        ))
+    );
+    for arguments in [
+        vec!["agent", "changes", "extra"],
+        vec!["agent", "changes", "--include-ended"],
+        vec!["agent", "changes", "--limit", "0"],
+        vec!["agent", "changes", "--limit", "101"],
+        vec!["agent", "changes", "--limit", "2", "--limit", "2"],
+        vec!["agent", "changes", "--cursor", "bad"],
+        vec!["agent", "changes", "--cursor"],
+        vec!["agent", "changes", "--timeout", "100"],
+    ] {
+        assert!(parse(&arguments).is_err(), "{arguments:?}");
+    }
+}

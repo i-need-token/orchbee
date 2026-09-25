@@ -38,8 +38,7 @@ API、新 crate 或第二份规范状态。
 
 仅测试面保持 `#[cfg(test)]`：种子派发路径（`AgentService::seed`）、语料/JSON
 发射器与 `FixtureIngress`、`DispatchTrace` 记录器、f64 域语料 settlement 推进、
-变更读取面（`read_agent_runtime_changes`、`AgentRuntime::read_changes`）、仅测试
-服务桥缝（`admit_hook_envelope`、`observe_hook_signal`、
+仅测试服务桥缝（`admit_hook_envelope`、`observe_hook_signal`、
 `hook_environment_overlay`、`retire_hook_presentation`、
 `advance_hook_settlement`）、仅测试逐事件原生缝（`native_apply_event`、
 `native_apply_gap`、`native_reconcile_bindings`、
@@ -69,8 +68,8 @@ poison——不存在任何 `into_inner`/`clear_poison`——部分变更永不�
 | `src/agent/model.rs`               | 规范值类型、身份校验、UTF-16 排序、快照不变量；原始构造与校验即生产准入路径                                                                                                                                |
 | `src/agent/events.rs`              | 十四种观察事件与四种语义事件；`#[cfg(test)]` `event_id` 溯源访问器                                                                                                                                         |
 | `src/agent/reducer.rs`             | `transition_agent_runtime` 按类守卫、unchanged/rejected/applied、语义事件顺序；`#[cfg(test)]` transition 访问器                                                                                            |
-| `src/agent/changes.rs`             | 变更记录、保留 512 条且连续的生产追加；`#[cfg(test)]` `read_agent_runtime_changes` 分页类别                                                                                                                |
-| `src/agent/runtime.rs`             | `AgentRuntime`——生产：空快照构造、`snapshot`、`dispose`、`is_disposed`、`dispatch`；`#[cfg(test)]`：seed 与变更读取                                                                                        |
+| `src/agent/changes.rs`             | 变更记录、保留 512 条且连续的生产追加；生产 `read_agent_runtime_changes` 分页类别                                                                                                                          |
+| `src/agent/runtime.rs`             | `AgentRuntime`——生产：空快照构造、`snapshot`、`dispose`、`is_disposed`、`dispatch`；`#[cfg(test)]`：seed；生产变更读取                                                                                     |
 | `src/agent/projection.rs`          | 语义状态、摘要与解释投影；`#[cfg(test)]` 聚合/位置投影与 wait 条件匹配                                                                                                                                     |
 | `src/agent/corpus.rs`              | `#[cfg(test)]` 一致性语料运行器与私有夹具解码器                                                                                                                                                            |
 | `src/agent/targeted.rs`            | `#[cfg(test)]` 具名边界回归测试                                                                                                                                                                            |
@@ -437,7 +436,7 @@ Server 代码的依赖，远端（非托管）路径保持既有行为。被替�
 ## 明确超出范围
 
 持久化/持久状态、远端（非托管）Agent 观察与
-任何远端 Agent 扩展、wait/watch、`changes`、观察 fold 之外的规范模型变更、
+任何远端 Agent 扩展、wait/watch、观察 fold 之外的规范模型变更、
 规范会话删除、TUI 消费者、wire 帧/编解码归属
 （`orchbee-agent-observation-protocol` crate）、游标秘密及其轮换策略
 （`agent_service`）、CLI 语法、渲染与本地化、TypeScript 行为变更，以及监听器/
@@ -445,3 +444,22 @@ wait 并发。面向客户端的读取预算不变；私有泵窗口是服务器
 或对客户端的承诺。新的语义、schema、依赖或归属问题一律回到 Root，不在此裁决。
 
 names 家族还接受 `{kind:"presentation", presentationId}`。解析、分配与释放在同一次 Agent fold 内检查当前 canonical 快照。只匹配存活且具有对应可导航附件的会话，包括隐藏附件；附件 generation 仍由 canonical 模型管理。零匹配拒绝为 not-found（变更为 session-not-found），多个会话拒绝为 ambiguous-target，一个会话以 resolvedBy presentation 解析。重复附件不会把一个会话计数两次。拒绝保持名称绑定不变，结果仍受 1,024 字节上限约束。Workbench Panel ID 与主 presentation 选择属于 CLI 组合，不进入 Agent 状态单元，也不在其锁内读取 socket。相同 cohort 的交付约束新增 wire 词汇；回滚替换 cohort，无持久状态迁移。
+
+## 原生有界变更读取
+
+原生 `agent.session.changes` 家族将现有 canonical 日志提供给 Client 提示状态、等待及增量观察。日志保留 512 个已应用转换，不引入第二份事件存储或 Agent 写入者。每条记录包含 revision、十四种 canonical 转换之一，以及日志的精确会话投影（生命周期、观察、父会话、待处理数量、provider、会话 ID 和语义状态）。附件与执行位置需要一致的会话读取，不编造历史字段。
+
+读取准入先于在 Agent 单元外执行恰好一次调用者拥有的 drain 准备。拒绝读取不运行该 provider。准备失败或 panic 返回关联的 runtime-unavailable。准备成功后，在 Agent 单元内一起读取日志与头部 revision；可以包含更晚的 canonical 事件。已释放或毒化的运行时拒绝读取。Agent 锁内不执行 I/O。
+
+| 输入/状态                                 | 结果与义务                                                                            |
+| ----------------------------------------- | ------------------------------------------------------------------------------------- |
+| 省略 cursor                               | 当前头部检查点；不声称已交付更早的变更。                                              |
+| 位于头部的真实 cursor                     | Current，保持相同已观察 revision，并返回可复用 cursor。                               |
+| 仍在保留范围内的真实 cursor               | 1–100 条连续变更，cursor 位于最后已交付 revision，只有低于采样头部时 hasMore 才为真。 |
+| 早于保留范围的真实 cursor                 | Reset-required 与新头部检查点；消费者必须重读基线并明确连续性丢失。                   |
+| 无效、其他启动实例、错误操作或超前 cursor | Cursor-invalid；消费者必须显式重建基线，不能静默视为 current。                        |
+| 禁止读取、准备失败、运行时已释放/毒化     | 关联拒绝/不可用；不声称交付进度。                                                     |
+
+变更 token 复用 cursor 载荷布局，operation 为 2，flags/target/position 为零，携带启动实例与已观察 revision。其 HMAC 域为 `orchbee.agent.changes.cursor.v1\0`，与 list token 分离。先校验形状、规范编码和常量时间 MAC，再检查语义。现有启动期权威拥有两个域并随服务释放；token 不跨重启。省略 limit 默认 50，接受 1–100；分页前不筛选。协议所有者在分配前将每页限制为 1 MiB，并验证正数连续 revision、尾部/头部/hasMore 一致性、封闭转换种类及会话边界。
+
+消费者先建立检查点，再获取一致会话基线并协调后续变更。Reset 或 cursor-invalid 使连续性及依赖它的确认失效。Client 本地 seen/unseen 不修改 canonical 状态。此扩展要求匹配的开发 cohort；替换 cohort 即可回滚，无持久状态迁移。初始消费者为原生 Windows 传输。协议、游标域/重启/保留边界、canonical corpus 和准备读取失败测试覆盖此边界；实际展示及最终 CLI 验收仍由消费者负责。

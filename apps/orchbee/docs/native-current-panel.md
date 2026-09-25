@@ -48,7 +48,7 @@ the fallback if detach cannot complete. Routing refusals retain the existing
 `orchbee.cli.failure.client-control` v1 schema without a snapshot source; other failures retain
 their owning schemas. Successful results remain `orchbee.panel.current` v3 and
 `orchbee.panel.process-info` v2. The generic failure v1 schema adds the exact `current-panel` stage for cancellation, timeout,
-and Client exchange faults. Catalogue version 40 contains 71 documents and 84 command paths;
+and Client exchange faults. Catalogue version 41 contains 72 documents and 85 command paths;
 result shapes and command paths remain unchanged.
 
 ## Refinement and evidence

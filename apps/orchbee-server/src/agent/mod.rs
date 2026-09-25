@@ -2,12 +2,9 @@
 //! TypeScript `packages/agent` sources (base commit
 //! `0d4b685a1b7db9405ca94908385e0534ddd41dc9`).
 //!
-//! The production surface is the first-read subset only: typed canonical
-//! state, one `AgentRuntime`, and the status/summary/explanation projections
-//! the OBAP `list`/`get`/`explain` adapter consumes. The mutation surface —
-//! events, reducer, change journal, raw construction, and every conformance
-//! harness — stays `#[cfg(test)]`. See `docs/agent-canonical-model.md` for
-//! claims, traceability, and the activation boundary.
+//! The production surface includes canonical state, admitted observation
+//! transitions, projections and bounded change reads. Test-only seeding and
+//! conformance harnesses remain gated. See `docs/agent-canonical-model.md`.
 
 mod model;
 mod projection;
@@ -30,6 +27,8 @@ mod reducer;
 #[cfg(test)]
 mod targeted;
 
+#[cfg_attr(test, allow(unused_imports))]
+pub(crate) use changes::{AgentChangeReadInput, AgentRuntimeChange, AgentRuntimeChangeReadResult};
 pub(crate) use model::AgentModelError;
 pub(crate) use model::{
     ATTENTION_ACTION_PATH, AgentActivity, AgentCapability, AgentFreshness, AgentLifecycle,

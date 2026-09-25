@@ -204,6 +204,7 @@ pub(crate) enum CommandPath {
     StatusServer,
     StatusClient,
     AgentList,
+    AgentChanges,
     AgentGet,
     AgentFocus,
     AgentRead,
@@ -296,6 +297,7 @@ impl CommandPath {
             Self::StatusServer => "status server",
             Self::StatusClient => "status client",
             Self::AgentList => "agent list",
+            Self::AgentChanges => "agent changes",
             Self::AgentGet => "agent get",
             Self::AgentFocus => "agent focus",
             Self::AgentRead => "agent read",
@@ -454,6 +456,10 @@ pub(crate) enum PanelQueryTarget {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum QueryCommand {
     Status,
+    AgentChanges {
+        limit: u64,
+        cursor: Option<orchbee_agent_observation_protocol::AgentChangesCursor>,
+    },
     AgentList {
         include_ended: bool,
         limit: u64,
@@ -2177,6 +2183,21 @@ fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
+        ["agent", "changes"] => {
+            let context = UsageContext::Path("agent changes");
+            check_scope(options, AGENT_CHANGES_SCOPE, context, envelope)?;
+            let cursor = agent_cursor_option(options, context, envelope)?.map(|value| {
+                orchbee_agent_observation_protocol::AgentChangesCursor::parse(value.as_str())
+                    .expect("shared bounded cursor encoding")
+            });
+            Ok(query(
+                QueryCommand::AgentChanges {
+                    limit: agent_limit_option(options, context, envelope)?,
+                    cursor,
+                },
+                options,
+            ))
+        }
         ["agent", "list"] => {
             check_scope(
                 options,
@@ -3308,6 +3329,11 @@ fn resolve_words(
             envelope,
         )),
         ["agent"] => Err(missing_command(UsageContext::Path("agent"), envelope)),
+        ["agent", "changes", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("agent changes"),
+            extra,
+            envelope,
+        )),
         ["agent", "list", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("agent list"),
             extra,
@@ -3769,6 +3795,7 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["status", "client"] => HelpTopic::Command(CommandPath::StatusClient),
         ["agent"] => HelpTopic::Family(Family::Agent),
         ["agent", "list"] => HelpTopic::Command(CommandPath::AgentList),
+        ["agent", "changes"] => HelpTopic::Command(CommandPath::AgentChanges),
         ["agent", "get"] => HelpTopic::Command(CommandPath::AgentGet),
         ["agent", "focus"] => HelpTopic::Command(CommandPath::AgentFocus),
         ["agent", "read"] => HelpTopic::Command(CommandPath::AgentRead),
@@ -4111,6 +4138,12 @@ const AGENT_TARGET_SCOPE: Scope = Scope {
     panel: true,
     name: true,
     session: true,
+    ..NO_OPTIONS
+};
+
+const AGENT_CHANGES_SCOPE: Scope = Scope {
+    limit: true,
+    cursor: true,
     ..NO_OPTIONS
 };
 

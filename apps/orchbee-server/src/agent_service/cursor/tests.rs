@@ -10,8 +10,8 @@ fn test_key() -> [u8; KEY_BYTES] {
     key
 }
 
-fn authority() -> AgentListCursorAuthority {
-    AgentListCursorAuthority::fixed(test_key(), TEST_INSTANCE)
+fn authority() -> AgentCursorAuthority {
+    AgentCursorAuthority::fixed(test_key(), TEST_INSTANCE)
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn minted_cursor_verifies_and_round_trips() {
 
 #[test]
 fn open_produces_working_authority() {
-    let authority = AgentListCursorAuthority::open().expect("urandom available");
+    let authority = AgentCursorAuthority::open().expect("urandom available");
     let cursor = authority.mint(false, 0, 0);
     assert_eq!(authority.verify(cursor.as_str(), false, 0, 1), Ok(0));
 }
@@ -135,14 +135,14 @@ fn filter_mismatch_is_invalid() {
 #[test]
 fn other_instance_and_other_key_are_invalid() {
     let cursor = authority().mint(false, 5, 2).as_str().to_owned();
-    let foreign = AgentListCursorAuthority::fixed(test_key(), TEST_INSTANCE + 1);
+    let foreign = AgentCursorAuthority::fixed(test_key(), TEST_INSTANCE + 1);
     assert_eq!(
         foreign.verify(&cursor, false, 5, 10),
         Err(AgentCursorRejection::Invalid)
     );
     let mut other_key = test_key();
     other_key[0] ^= 0xff;
-    let foreign = AgentListCursorAuthority::fixed(other_key, TEST_INSTANCE);
+    let foreign = AgentCursorAuthority::fixed(other_key, TEST_INSTANCE);
     assert_eq!(
         foreign.verify(&cursor, false, 5, 10),
         Err(AgentCursorRejection::Invalid)
@@ -241,4 +241,34 @@ fn malformed_cursor_is_invalid() {
             "{text:?} must be rejected"
         );
     }
+}
+
+#[test]
+fn changes_cursor_known_answer_boot_domain_and_historical_revision() {
+    let owner = authority();
+    let cursor = owner.mint_changes(42);
+    assert_eq!(
+        cursor.as_str(),
+        "v1.AQIAAAECAwQFBgcIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAqAAAAAAAAAAA.RvXNWP62aTlr20YK8M7G-Fcml8ibGVv6iy-DcItdYWk"
+    );
+    assert_eq!(owner.verify_changes(&cursor, 42), Ok(42));
+    assert_eq!(owner.verify_changes(&cursor, 99), Ok(42));
+    assert_eq!(
+        owner.verify_changes(&cursor, 41),
+        Err(AgentCursorRejection::Invalid)
+    );
+    let list = owner.mint(false, 42, 0);
+    assert_eq!(
+        owner.verify_changes(&AgentChangesCursor::parse(list.as_str()).unwrap(), 42),
+        Err(AgentCursorRejection::Invalid)
+    );
+    assert_eq!(
+        owner.verify(cursor.as_str(), false, 42, 1),
+        Err(AgentCursorRejection::Invalid)
+    );
+    let other = AgentCursorAuthority::fixed([77; KEY_BYTES], TEST_INSTANCE + 1);
+    assert_eq!(
+        other.verify_changes(&cursor, 42),
+        Err(AgentCursorRejection::Invalid)
+    );
 }
