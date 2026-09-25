@@ -5,8 +5,8 @@ Native Move runtime has deterministic integration and Linux cohort process evide
 an unpublished local development path. Native Close has the bounded Linux process evidence below;
 packaging and production recovery remain separate work.
 
-[Native context selection](native-context-selection.md) owns Workspace navigation and the
-current-context projection extension. Its location identity, Empty selection and retained
+[Native context selection](native-context-selection.md) owns Workspace navigation, per-Client Tab/Panel
+selection memory and the current-context projection extension. Its location identity, Empty selection and retained
 provenance rules extend the standalone startup and same-context Tab workflows below.
 [Native Workspace setup](native-workspace-setup.md) owns staged creation and first-directory input,
 sharing this Session's structural admission, carrier and membership settlement.

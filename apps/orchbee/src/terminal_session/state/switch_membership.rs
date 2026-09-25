@@ -180,6 +180,7 @@ impl NativeSessionState {
             | SessionPhase::RetryableAttachUnavailable(_) => None,
             _ => return false,
         };
+        self.remember_current_navigation();
         self.depart_all_panes();
         self.desired = Some(target.selected.key().clone());
         self.install_pane_record(&target);

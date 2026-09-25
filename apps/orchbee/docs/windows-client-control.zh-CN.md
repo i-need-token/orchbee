@@ -2,6 +2,8 @@
 
 本契约拥有原生 CLI 对运行中 Windows TUI Client 的发现与导航。TUI 拥有选择和缩放状态；Server 路由有界请求并保留观测。规范 Workbench 快照、修订和终端控制权不变。路由请求不激活操作系统窗口。
 
+普通 Workspace/Tab focus 共用 [Client 选择记忆](native-context-selection.zh-CN.md)：返回时恢复现存的上次 Tab/Panel；显式 Panel 或 Agent 导航覆盖记忆。历史由所选 Client 私有持有，重启丢弃。
+
 ## 身份与发布
 
 经认证的 Client Session 可发布一个交互视图。Client 身份是已接纳的非零 Session generation，编码为 32 位小写十六进制，作用域为 Site。身份由 Server 分配，generation 在一次 Server 生命周期内不重复。普通 CLI 连接不发布视图。同步不接受调用者指定的 Client 身份，不能确认其他 Session 的操作。

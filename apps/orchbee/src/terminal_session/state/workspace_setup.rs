@@ -257,6 +257,7 @@ impl NativeSessionState {
         })
     }
     pub(in crate::terminal_session) fn begin_setup(&mut self, operation: SetupOperation) {
+        self.remember_current_navigation();
         self.setup.draft = None;
         self.setup.deadlines = Some(operation.deadlines);
         self.pending_refresh = Some(super::PendingRefreshFlight::recovery(operation.generation));

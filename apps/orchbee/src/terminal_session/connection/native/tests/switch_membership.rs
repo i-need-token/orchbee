@@ -89,6 +89,13 @@ fn actual_switch_stages_snapshot_before_detach_and_installs_fresh_survivor_fallb
                 target.selected().key().generation(),
                 intent.key.generation() + 1
             );
+            assert_eq!(
+                harness.ui.state().desired().unwrap().panel(),
+                baseline.tabs()[if remove_target { 0 } else { 1 }]
+                    .panel(0)
+                    .unwrap()
+                    .panel_id(),
+            );
             let key = drive_attach(&mut harness, if remove_target { 0 } else { 1 })?;
             assert_eq!(&key, target.selected().key());
             super::commands::drive_controlling_after_attach(&mut harness, &key, geometry)?;

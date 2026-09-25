@@ -10,8 +10,9 @@ navigation rendering and their correctness evidence.
 
 `Ctrl+B [` and `Ctrl+B ]` select the previous and next location in Server order: standalone,
 then each Project's Workspaces. Selection wraps at either boundary. Labels are presentation;
-Project, Workspace and context IDs establish identity. Entering another location selects its first
-Tab, or Empty when it has none. There is no per-location last-selected-Tab history. Empty can be
+Project, Workspace and context IDs establish identity. Entering another location restores this
+Client's last selected Tab and Panel when those identities still belong there; otherwise it selects
+the first surviving member, or Empty when there are no Tabs. Empty can be
 entered and left without creating a terminal. Existing Tab controls act on the active context;
 explicit `c` uses Server's existing directory admission and never falls back to the home directory.
 Bare startup retains the existing standalone Open and first-frame readiness contract.
@@ -47,6 +48,41 @@ Retained provenance is bounded by the protocol's context and Tab limits and prun
 validated membership evidence. Pending Close work keeps its original exact target and blocks
 location changes until the existing settlement rules permit them. Current-context refresh and
 Create/Move/Rename/Close result handling must not silently return to standalone.
+
+## Client selection memory
+
+`state/navigation_memory.rs` owns volatile, Client-private selection history. Each exact location
+holds its last Tab ID and each visited Tab's last Panel ID. Labels, ordinals and terminal bindings
+are not keys. The Site is fixed by the owning Session; this history is neither Server state nor
+persistent storage. Herdr's Workspace active Tab and Tab layout focus are the reference behavior.
+
+| Input                           | Guard and result                                                                                                                                                                                                     |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Admit Context departure         | Remember the current stable selection after existing busy and target guards pass. Empty adds no invented selection.                                                                                                  |
+| Admit Tab departure             | Remember the logically stable departure, including a Ready frame-proof gap; superseding switches keep the original memory and never record an unvisited switching target.                                            |
+| Resolve ordinary destination    | Validate canonical membership and provenance first; use the remembered Tab and Panel only while each belongs to its exact location and parent Tab. Missing history or removed members fall back to the first member. |
+| Resolve explicit Panel or Agent | The explicit stable target overrides history and keeps existing refusal when absent; memory cannot substitute another Panel.                                                                                         |
+| Install canonical membership    | Prune absent navigation locations, Tabs and Panels. Current-context membership takes precedence over any older retained entry; departed-context history uses retained membership until revalidation.                 |
+| Refuse, supersede or cancel     | Only the previously stable departure may have been remembered; no target is marked visited and no additional command is emitted. Existing cleanup and generation settlement remain authoritative.                    |
+
+Memory is bounded by the protocol's known Context and Tab membership, with at most one Panel ID
+per visited Tab. Local Tab creation and Workspace setup admission also remember the stable
+departure before their existing creation policy selects a new member. Retaining uncertain Create provenance does not retain navigation memory for a
+canonically removed location. Restoration never changes Create permission, chooses another Client,
+resizes a terminal or activates an OS window. Ordinary keyboard, pointer and CLI navigation share
+this Session policy. After Tab switch admission the exact Panel ID is fixed: a reordered candidate
+re-resolves its ordinal. A missing Panel in a surviving Tab fails explicitly; removal of the whole
+Tab retains existing membership fallback to another Tab or Empty. The prepared candidate owns
+the same Panel identity for state installation and mailbox publication. Explicit creation, membership repair and Close keep their existing selection
+rules. Restart discards the memory; cohort rollback requires no migration.
+
+Deterministic traces cover remembered nonfirst members, reorder by identity, removal to first/Empty,
+explicit override, superseded/refused switches, stale retained membership, independent Clients and
+known nonattachable Create provenance. Windows process evidence exercises two live ConPTY Clients
+through CLI Tab/Workspace/Panel focus and checks unchanged peer selection and OS foreground.
+The existing context model has one Tab per nonempty context and abstracts all memory choices to
+that sole member. Its historical TLC result below does not prove multi-Tab/Panel memory or pruning;
+this increment uses deterministic state and process evidence, with TLA execution deferred.
 
 ## Correctness evidence
 

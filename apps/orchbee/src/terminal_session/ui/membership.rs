@@ -97,23 +97,12 @@ impl NativeUi {
                             .ok_or(CarrierFailure::Protocol)?,
                     }
                 }
-                Some(tab) => match cleanup.result() {
-                    // A switch cleanup installs the marker's own pane — the
-                    // candidate's default focus leaf may differ from the pane
-                    // the switch target selected.
-                    MembershipResultKey::Switch(marker) => {
-                        super::super::mailbox::DesiredInstall::Fresh {
-                            tab_id: tab.clone(),
-                            panel: marker.panel().clone(),
-                        }
-                    }
-                    _ => match prepared.focus_panel_id() {
-                        Some(panel) => super::super::mailbox::DesiredInstall::Fresh {
-                            tab_id: tab.clone(),
-                            panel: panel.clone(),
-                        },
-                        None => super::super::mailbox::DesiredInstall::Empty,
+                Some(tab) => match prepared.focus_panel_id() {
+                    Some(panel) => super::super::mailbox::DesiredInstall::Fresh {
+                        tab_id: tab.clone(),
+                        panel: panel.clone(),
                     },
+                    None => super::super::mailbox::DesiredInstall::Empty,
                 },
                 None => super::super::mailbox::DesiredInstall::Empty,
             };

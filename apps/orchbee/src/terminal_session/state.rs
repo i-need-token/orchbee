@@ -24,6 +24,7 @@ pub(crate) use field_window::NativeFieldWindow;
 mod create_membership;
 mod membership;
 mod move_tab;
+mod navigation_memory;
 mod panel;
 mod panel_close;
 pub(super) mod rename_draft;
@@ -1104,6 +1105,7 @@ pub(super) struct NativeSessionState {
     cache: NativeContextTabs,
     context_selection: Option<context_selection::ContextSelection>,
     retained_contexts: Vec<context_selection::RetainedContext>,
+    navigation_memory: navigation_memory::NavigationMemory,
     provenance: Vec<CreateTerminalProvenance>,
     phase: SessionPhase,
     desired: Option<PaneKey>,
@@ -1172,6 +1174,7 @@ impl NativeSessionState {
         let state = Self {
             context_selection: None,
             retained_contexts: Vec::new(),
+            navigation_memory: navigation_memory::NavigationMemory::default(),
             provenance: vec![CreateTerminalProvenance::BindingOnly; cache.tabs().len()],
             cache,
             phase: SessionPhase::Starting(StartingSetup {
@@ -2516,6 +2519,7 @@ impl NativeSessionState {
         {
             return false;
         }
+        self.remember_current_navigation();
         self.phase = SessionPhase::Creating(CreatingBarrier { operation, anchor });
         true
     }
@@ -3146,6 +3150,7 @@ impl NativeSessionState {
         self.provenance = provenance;
         self.cache = candidate;
         self.prune_zoomed_tabs();
+        self.prune_navigation_memory();
         true
     }
 
@@ -3181,10 +3186,14 @@ impl NativeSessionState {
             return None;
         }
         let provenance = self.provenance.get(index)?.clone();
-        let panel = self.cache.tabs().get(index)?.panel(0)?;
+        let tab = self.cache.tabs().get(index)?;
+        let panel_index = self
+            .navigation_memory
+            .panel_index(self.cache.location(), tab);
+        let panel = tab.panel(panel_index)?;
         let pane = PaneKey::new(key, panel.panel_id().clone());
         self.attach_target(
-            SelectedTab::new_panel(pane, index, 0),
+            SelectedTab::new_panel(pane, index, panel_index),
             provenance,
             deadlines,
         )

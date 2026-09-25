@@ -101,6 +101,11 @@ impl PreparedMembershipCandidate {
             .map(|index| self.candidate.tabs()[index].tab_id())
     }
 
+    pub(super) fn selected_tab(&self) -> Option<&super::NativeSimpleTab> {
+        self.selected_index
+            .map(|index| &self.candidate.tabs()[index])
+    }
+
     /// The panel the install will focus — the same resolution the state-side
     /// install applies (`selected_panel`, defaulting to the first leaf). The
     /// mailbox desired-install must name this exact panel or the focus pane
@@ -196,6 +201,7 @@ impl PreparedMembershipInstall<'_> {
         self.state.desired = self.desired.clone();
         self.state.phase = self.replacement_phase;
         self.state.prune_zoomed_tabs();
+        self.state.prune_navigation_memory();
         if let Some(completion) = self.prepared.setup_completion {
             self.state.complete_setup_refresh(*completion);
         }
@@ -450,6 +456,23 @@ impl NativeSessionState {
                     .unwrap_or(CreateTerminalProvenance::BindingOnly)
             })
             .collect();
+        // A Switch retains an exact Panel only while its requested Tab survives.
+        // Resolve the ID against this candidate, never reuse its old ordinal.
+        // A removed Tab keeps the existing fallback to another Tab or Empty.
+        let selected_panel = match (&self.phase, selected_index) {
+            (SessionPhase::Switching(setup), Some(index))
+                if setup.membership.is_some()
+                    && candidate.tabs()[index].tab_id()
+                        == setup.target.selected.key().anchor().tab_id() =>
+            {
+                Some(
+                    candidate.tabs()[index]
+                        .panel_index(setup.target.selected.key().panel())
+                        .ok_or(CarrierFailure::AuthorityDivergence)?,
+                )
+            }
+            _ => None,
+        };
         Ok(PreparedMembershipCandidate {
             retained_contexts: self.prepare_retained_contexts(&candidate, context_removal.as_ref()),
             setup_completion: self.prepare_setup_completion(&candidate),
@@ -458,7 +481,7 @@ impl NativeSessionState {
             candidate,
             provenance,
             selected_index,
-            selected_panel: None,
+            selected_panel,
             context_removal,
         })
     }
@@ -574,32 +597,14 @@ impl NativeSessionState {
         {
             return Err(CarrierFailure::Protocol);
         }
-        let selected_panel_index = if current_switch {
-            match &self.phase {
-                SessionPhase::Switching(setup) => setup.target.selected.panel_index(),
-                _ => return Err(CarrierFailure::Protocol),
-            }
-        } else {
-            prepared.selected_panel.unwrap_or(0)
-        };
-        let desired_pane = match (&desired, current_switch) {
-            (_, true) => match &self.phase {
-                SessionPhase::Switching(setup) => prepared.selected_index.map(|_| {
-                    PaneKey::new(
-                        desired
-                            .clone()
-                            .unwrap_or_else(|| setup.target.selected.key().anchor().clone()),
-                        setup.target.selected.key().panel().clone(),
-                    )
-                }),
-                _ => return Err(CarrierFailure::Protocol),
-            },
-            (Some(anchor), false) => prepared
+        let selected_panel_index = prepared.selected_panel.unwrap_or(0);
+        let desired_pane = match &desired {
+            Some(anchor) => prepared
                 .selected_index
                 .and_then(|index| prepared.candidate.tabs().get(index))
                 .and_then(|tab| tab.panel(selected_panel_index))
                 .map(|panel| PaneKey::new(anchor.clone(), panel.panel_id().clone())),
-            (None, false) => None,
+            None => None,
         };
         let (replacement_phase, decision) = if preserve {
             let mut phase = self.phase.clone();

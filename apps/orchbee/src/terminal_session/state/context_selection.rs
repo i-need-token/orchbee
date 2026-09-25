@@ -119,9 +119,11 @@ impl NativeSessionState {
         } else {
             (position + navigation.len() - 1) % navigation.len()
         };
+        let target = navigation[target_index].location.clone();
+        self.remember_current_navigation();
         self.context_selection = Some(ContextSelection {
             generation,
-            target: navigation[target_index].location.clone(),
+            target,
             deadlines,
         });
         self.pending_refresh = Some(super::PendingRefreshFlight::recovery(generation));
@@ -179,6 +181,7 @@ impl NativeSessionState {
             return false;
         }
         let target = target.location.clone();
+        self.remember_current_navigation();
         self.context_selection = Some(ContextSelection {
             generation,
             target,
@@ -226,11 +229,18 @@ impl NativeSessionState {
                 baseline_revision: self.cache.revision(),
             };
         };
-        match self.prepare_membership_candidate(candidate, None, None, None, None) {
-            Ok(prepared) => PreparedRefresh::Membership {
-                generation,
-                prepared,
-            },
+        let preferred = self.navigation_memory.tab(candidate.location());
+        match self.prepare_membership_candidate(candidate, preferred, None, None, None) {
+            Ok(mut prepared) => {
+                if let Some(tab) = prepared.selected_tab() {
+                    let panel_index = self.navigation_memory.panel_index(&intent.target, tab);
+                    prepared.retarget_selected_panel(panel_index);
+                }
+                PreparedRefresh::Membership {
+                    generation,
+                    prepared,
+                }
+            }
             Err(_) => PreparedRefresh::Divergent { generation },
         }
     }

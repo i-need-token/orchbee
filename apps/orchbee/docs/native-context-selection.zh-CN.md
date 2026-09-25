@@ -9,7 +9,8 @@
 
 `Ctrl+B [` 和 `Ctrl+B ]` 按 Server 顺序选择上一个、下一个位置：独立上下文，然后是每个 Project
 中的 Workspace。边界循环。标签仅用于展示；Project、Workspace 和 context ID 确立身份。
-进入其他位置选择其首个 Tab，没有 Tab 则进入 Empty。不保留各位置上次所选 Tab 的历史。
+进入其他位置恢复本 Client 上次选择的 Tab 和 Panel，前提是这些身份仍属于该位置；
+否则选择首个现存成员，没有 Tab 则进入 Empty。
 进入和离开 Empty 都不会创建终端。已有 Tab 控制作用于当前上下文；显式 `c` 使用 Server
 已有的目录准入，绝不回退到 home 目录。裸命令启动保留既有 standalone Open 和首帧就绪契约。
 
@@ -39,6 +40,37 @@ failed、unavailable 或 outcome-unknown Create 变为 attach 许可。保留的
 context 和 Tab 上限约束，只能依据已验证的成员证据修剪。Pending Close 保留原确切目标，
 并在既有结算规则允许前阻止位置变化。当前上下文的刷新及 Create/Move/Rename/Close 结果
 处理不得悄悄返回 standalone。
+
+## Client 选择记忆
+
+`state/navigation_memory.rs` 拥有易失、Client 私有的选择历史。每个确切位置保存上次 Tab ID，
+每个访问过的 Tab 保存上次 Panel ID。标签、序号和终端 binding 都不是键。Site 由所属 Session
+固定；历史既不是 Server 状态，也不是持久化存储。Herdr 的 Workspace 活动 Tab 和 Tab 布局
+焦点是参考行为。
+
+| 输入                    | 守卫与结果                                                                                                                        |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 准入 Context 离开       | 既有忙碌与目标守卫通过后，记录当前稳定选择。Empty 不添加虚构选择。                                                                |
+| 准入 Tab 离开           | 记录离开时逻辑稳定的选择，即使 Ready 帧证明暂时存在空隙；替代进行中的切换不覆盖原记录，绝不记录未访问的 switching 目标。          |
+| 解析普通目标            | 先验证 canonical 成员与 provenance；仅当记忆中的 Tab 和 Panel 仍属于确切位置及父 Tab 时使用。没有历史或成员已移除则回退首个成员。 |
+| 解析显式 Panel 或 Agent | 显式稳定目标优先于历史；目标不存在时仍按既有规则拒绝，记忆不能替换为其他 Panel。                                                  |
+| 安装 canonical 成员     | 修剪不存在的导航位置、Tab 和 Panel。当前上下文成员优先于旧保留条目；离开上下文的历史使用保留成员，直到重新验证。                  |
+| 拒绝、替代或取消        | 最多记录先前的稳定离开位置；不把目标标记为已访问，不发出额外命令。清理与 generation 收敛仍由既有规则负责。                        |
+
+记忆受协议中已知 Context 和 Tab 成员上限约束，每个访问过的 Tab 最多保存一个 Panel ID。
+本地创建 Tab 或设置 Workspace 的准入也记录原稳定选择，随后仍按既有创建规则选择新成员。
+保留不确定 Create provenance 不会为 canonical 已删除位置保留导航记忆。恢复不能修改 Create
+许可、选择其他 Client、调整终端尺寸或激活 OS 窗口。普通键盘、鼠标及 CLI 导航共用此 Session
+策略。Tab 切换准入后固定目标 Panel ID，候选 snapshot 重排时重新解析序号；
+Tab 存在但目标 Panel 在操作中被删除时明确拒绝；整个 Tab 被删除时仍按既有成员规则回退 Tab 或 Empty。
+准备好的成员候选同时决定状态与 mailbox 的 Panel 身份，避免两处选择不一致。显式创建、成员修复和 Close 保留既有选择规则。重启丢弃记忆；cohort 回滚无需迁移。
+
+确定性轨迹覆盖非首个成员记忆、按身份重排、删除后回退首个成员或 Empty、显式覆盖、被替代或
+拒绝的切换、过期保留成员、独立 Client 和已知不可 attach 的 Create provenance。Windows 进程
+证据通过 CLI Tab/Workspace/Panel focus 驱动两个真实 ConPTY Client，检查其他 Client 选择及
+OS 前台保持不变。既有上下文模型每个非空上下文只有一个 Tab，把全部记忆选择抽象为这个唯一
+成员。下面历史 TLC 结果不能证明多 Tab/Panel 记忆或修剪；此增量采用确定性状态与进程证据，
+暂缓执行 TLA。
 
 ## 正确性证据
 

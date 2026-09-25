@@ -132,7 +132,10 @@ impl NativeUi {
                     let install = match prepared.selected_tab_id() {
                         Some(tab) => DesiredInstall::Fresh {
                             tab_id: tab.clone(),
-                            panel: marker.panel().clone(),
+                            panel: prepared
+                                .focus_panel_id()
+                                .cloned()
+                                .ok_or(CarrierFailure::Protocol)?,
                         },
                         None => DesiredInstall::Empty,
                     };

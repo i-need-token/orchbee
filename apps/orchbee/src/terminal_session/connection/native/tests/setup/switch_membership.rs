@@ -60,10 +60,9 @@ impl UiDriver {
                                 .selected_tab_id()
                                 .map_or(DesiredInstall::Empty, |tab| DesiredInstall::Fresh {
                                     tab_id: tab.clone(),
-                                    panel: state
-                                        .pane_key_for_anchor(&marker)
-                                        .unwrap_or_else(|| pane_key(&marker))
-                                        .panel()
+                                    panel: prepared
+                                        .focus_panel_id()
+                                        .expect("selected Tab has a Panel")
                                         .clone(),
                                 }),
                         )?;
@@ -178,7 +177,10 @@ impl UiDriver {
                             .selected_tab_id()
                             .map_or(DesiredInstall::Empty, |tab| DesiredInstall::Fresh {
                                 tab_id: tab.clone(),
-                                panel: marker.panel().clone(),
+                                panel: prepared
+                                    .focus_panel_id()
+                                    .expect("selected Tab has a Panel")
+                                    .clone(),
                             }),
                     )?;
                     let plan = state.prepare_cleaned_membership_install(

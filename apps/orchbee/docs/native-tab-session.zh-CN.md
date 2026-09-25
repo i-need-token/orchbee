@@ -4,7 +4,7 @@
 原生 Move 运行时已有确定性集成及 Linux cohort 进程证据。这仍是未发布的本地开发链路；
 原生 Close 已有下文限定的 Linux 进程证据；打包和生产恢复仍属于独立工作。
 
-[原生上下文选择](native-context-selection.zh-CN.md) 拥有 Workspace 导航和当前上下文投影扩展。
+[原生上下文选择](native-context-selection.zh-CN.md) 拥有 Workspace 导航、每个 Client 的 Tab/Panel 选择记忆和当前上下文投影扩展。
 其中的位置身份、Empty 选择及保留 provenance 规则扩展下文的独立启动与同上下文 Tab 工作流。
 [原生 Workspace 设置](native-workspace-setup.zh-CN.md) 拥有分步创建和首目录输入，
 复用该 Session 的结构准入、carrier 和成员结算。

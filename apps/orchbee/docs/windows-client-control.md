@@ -2,6 +2,8 @@
 
 This contract owns native CLI discovery and navigation of a live Windows TUI Client. The TUI owns its selection and zoom; Server routes bounded requests and retains observations. Canonical Workbench snapshots, revisions and terminal control ownership are unchanged. A routed request does not activate an operating-system window.
 
+Ordinary Workspace/Tab focus shares [Client selection memory](native-context-selection.md): return restores the last surviving Tab/Panel, while explicit Panel or Agent navigation overrides it. History is private to the selected Client and is discarded on restart.
+
 ## Identity and publication
 
 An authenticated Client Session may publish one interactive view. Its Client identity is the admitted nonzero Session generation encoded as 32 lowercase hexadecimal characters, scoped by Site. Server assigns it; generations never repeat during one Server lifetime. Ordinary CLI connections do not publish views. Synchronization has no caller-supplied Client identity and cannot acknowledge another Session's work.

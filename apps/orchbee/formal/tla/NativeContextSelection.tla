@@ -23,6 +23,9 @@ Provenances == KnownOutcomes \cup {"binding-only", "empty"}
 Members(context) == CASE context = Standalone -> <<"standalone-tab">>
                         [] context = WorkspaceA -> <<"workspace-tab">>
                         [] OTHER -> <<>>
+\* Each nonempty context has exactly one Tab: Client selection memory refines
+\* to this sole member. Multi-Tab/Panel identity memory and its pruning are
+\* outside this bound; deterministic Session traces own that evidence.
 Selected(context) == IF Members(context) = <<>> THEN NoTab ELSE Head(Members(context))
 Navigation(revision) == IF revision = 1
   THEN <<Standalone, WorkspaceA, WorkspaceB>>
