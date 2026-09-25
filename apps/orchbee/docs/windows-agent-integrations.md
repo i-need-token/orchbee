@@ -56,3 +56,9 @@ never calls its blocking wait method. It explicitly terminates the Job on every
 exit path, including normal leader completion; dropping the std wrapper alone
 does not provide kill-on-drop. Abrupt termination of Orchbee by an uncatchable OS
 action remains outside this cooperative teardown claim.
+
+## Maintenance filtering
+
+Windows `agent integration list --outdated-only` performs the usual bounded local inspection once and shows only update-required entries, including owned installations needing repair. It never installs or downloads. `agent integration enable --provider <id>` remains the explicit guarded update/repair action; conflict and newer entries are not replaced.
+
+Filtered lists use v2 with outdatedOnly true, inspectedCount, unresolvedProviderIds for unknown inspections and blockedProviderIds for conflict/newer entries. Complete is calculated from the entire selected inspection before filtering; an empty list cannot hide inspection failures. Text includes these counts and the same filtered entries. The default list keeps v1 and its existing behavior. The flag has no non-Windows runtime; original 40-second deadline, cancellation, profile isolation and local-only ownership remain. Detailed installed-version reporting and remaining provider Windows hook support are separate obligations.

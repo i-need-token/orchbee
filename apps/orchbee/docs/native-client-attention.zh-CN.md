@@ -47,7 +47,7 @@ Windows Client 拥有最多 512 个 Agent 摘要及其已确认状态版本。�
 
 Workbench 协议复用有界 Agent 协议身份、游标及安全整数 DTO，不依赖运行时。提示状态提交和完成使用上限 64 KiB 的请求类型 29；结果类型 26 已有该上限。Server 回执存储预留提示状态载荷容量，并在发布前验证请求与结果会话完全对应。保留回执不会自行刷新或重复读取。共享 Rust、TypeScript 和 schema 检查覆盖形状、边界、重复、顺序、版本及归属；Windows 进程与双 Client 见证覆盖路由和实际绘制确认。
 
-`agent attention <target> [--client <id>]` 一次解析会话/名称/窗格，读取该 Client 而不聚焦。`--session`、`--name` 和 `--panel` 可显式选择。支持现有 `--request-id`、`--detach`、`--timeout`（默认 30000 ms）及 `--format` 回执生命周期。`client control-status` 也认证提示状态游标。文本报告已读、未读或尚未观察到；JSON 使用 `orchbee.client.control` v1。目录 v50 仍有 72 个 schema，原生命令路径增至 86 个。
+`agent attention <target> [--client <id>]` 一次解析会话/名称/窗格，读取该 Client 而不聚焦。`--session`、`--name` 和 `--panel` 可显式选择。支持现有 `--request-id`、`--detach`、`--timeout`（默认 30000 ms）及 `--format` 回执生命周期。`client control-status` 也认证提示状态游标。文本报告已读、未读或尚未观察到；JSON 使用 `orchbee.client.control` v1。目录 v51 仍有 72 个 schema，原生命令路径增至 86 个。
 
 ## 合并规范 Agent 读取
 

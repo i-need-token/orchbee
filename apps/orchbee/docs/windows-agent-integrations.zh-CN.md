@@ -49,3 +49,9 @@ threading 以及 implement/interface 过程宏。过程宏复用现有 syn/quote
 适配器不调用其阻塞 wait 方法。每条退出路径都显式终止 Job，包括主进程正常完成；
 仅丢弃 std 包装器不提供 kill-on-drop。操作系统以不可捕获方式强制终止 Orchbee
 不在此协作式回收承诺内。
+
+## 维护筛选
+
+Windows `agent integration list --outdated-only` 只执行一次原有有界本地检查，仅显示 update-required 条目，包括需要修复的自有安装。它不安装、不下载。`agent integration enable --provider <id>` 仍是显式且受保护的更新／修复操作；冲突及更新版本条目不会被替换。
+
+筛选列表使用 v2，包含 outdatedOnly true、inspectedCount、表示检查未知的 unresolvedProviderIds，以及表示冲突／更新版本的 blockedProviderIds。Complete 在筛选前根据全部所选检查计算；空列表不能隐藏检查失败。文本包含这些计数和相同筛选条目。默认列表保持 v1 及既有行为。此参数不新增非 Windows 运行时；原有 40 秒期限、取消、用户目录隔离及仅本地归属保持不变。详细已安装版本报告及其余 provider 的 Windows hook 支持仍是独立义务。

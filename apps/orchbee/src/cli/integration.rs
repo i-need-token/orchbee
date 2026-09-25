@@ -44,6 +44,17 @@ fn run_local(_command: &AgentIntegrationCommand) -> Result<Prepared, Failure> {
 
 #[cfg(any(unix, windows))]
 pub(super) fn run_local(command: &AgentIntegrationCommand) -> Result<Prepared, Failure> {
+    #[cfg(not(windows))]
+    if matches!(
+        command,
+        AgentIntegrationCommand::List {
+            outdated_only: true,
+            ..
+        }
+    ) {
+        return Err(Failure::new(FailureKind::ServiceUnavailable)
+            .details(stage_reason_details("platform", "unsupported-platform")));
+    }
     let adapter_source = match command {
         AgentIntegrationCommand::List { adapter_source, .. }
         | AgentIntegrationCommand::Explain { adapter_source, .. }
@@ -66,9 +77,17 @@ pub(super) fn run_local(command: &AgentIntegrationCommand) -> Result<Prepared, F
             .details(stage_reason_details("environment", "home-unavailable"))
     })?;
     Ok(match command {
-        AgentIntegrationCommand::List { provider, .. } => {
+        AgentIntegrationCommand::List {
+            provider,
+            outdated_only,
+            ..
+        } => {
             let (items, capsule) = crate::agent_integrations::list(&context, *provider);
-            Prepared::List { items, capsule }
+            Prepared::List {
+                items,
+                capsule,
+                outdated_only: *outdated_only,
+            }
         }
         AgentIntegrationCommand::Explain { provider, .. } => {
             let (item, detail, capsule, plan) =
@@ -97,6 +116,7 @@ pub(super) fn run_local(command: &AgentIntegrationCommand) -> Result<Prepared, F
 #[cfg(any(unix, windows))]
 pub(super) enum Prepared {
     List {
+        outdated_only: bool,
         items: Vec<SnapshotItem>,
         capsule: CapsuleStatus,
     },
@@ -154,11 +174,29 @@ impl Prepared {
     #[cfg(any(unix, windows))]
     fn split(self, locale: Locale) -> (u8, Value, String) {
         match self {
-            Self::List { items, capsule } => {
+            Self::List {
+                mut items,
+                capsule,
+                outdated_only,
+            } => {
                 let complete = items.iter().all(|item| item.state != State::Unknown);
-                let document = json!({
+                let inspected = items.len();
+                let unresolved: Vec<_> = items
+                    .iter()
+                    .filter(|item| item.state == State::Unknown)
+                    .map(|item| item.integration_id.as_str())
+                    .collect();
+                let blocked: Vec<_> = items
+                    .iter()
+                    .filter(|item| matches!(item.state, State::Conflict | State::StaleSide))
+                    .map(|item| item.integration_id.as_str())
+                    .collect();
+                if outdated_only {
+                    items.retain(|item| item.state == State::UpdateRequired);
+                }
+                let mut document = json!({
                     "schema": INTEGRATIONS_SCHEMA,
-                    "version": 1,
+                    "version": if outdated_only {2} else {1},
                     "source": { "kind": "local-inspection" },
                     "result": {
                         "complete": complete,
@@ -166,7 +204,20 @@ impl Prepared {
                         "integrations": items.iter().map(item_json).collect::<Vec<_>>(),
                     },
                 });
-                (0, document, list_text(&items, &capsule, locale))
+                let mut text = list_text(&items, &capsule, locale);
+                if outdated_only {
+                    document["result"]["outdatedOnly"] = json!(true);
+                    document["result"]["inspectedCount"] = json!(inspected);
+                    document["result"]["unresolvedProviderIds"] = json!(unresolved);
+                    document["result"]["blockedProviderIds"] = json!(blocked);
+                    text.push_str(&locale.cli_integration_maintenance(
+                        inspected,
+                        items.len(),
+                        &unresolved,
+                        &blocked,
+                    ));
+                }
+                (0, document, text)
             }
             Self::Explain {
                 item,

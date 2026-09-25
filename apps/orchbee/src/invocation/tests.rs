@@ -5933,6 +5933,7 @@ fn agent_integration_commands_parse() {
     assert_eq!(
         parse(&["agent", "integration", "list"]),
         Ok(integration(AgentIntegrationCommand::List {
+            outdated_only: false,
             provider: None,
             adapter_source: None,
         }))
@@ -5949,12 +5950,41 @@ fn agent_integration_commands_parse() {
         ]),
         Ok(Request::AgentIntegration {
             command: AgentIntegrationCommand::List {
+                outdated_only: false,
                 provider: Some(IntegrationId::Codex),
                 adapter_source: None,
             },
             format: OutputFormat::Json,
         })
     );
+    assert_eq!(
+        parse(&["agent", "integration", "list", "--outdated-only"]),
+        Ok(integration(AgentIntegrationCommand::List {
+            outdated_only: true,
+            provider: None,
+            adapter_source: None
+        }))
+    );
+    for args in [
+        vec![
+            "agent",
+            "integration",
+            "enable",
+            "--provider",
+            "codex",
+            "--outdated-only",
+        ],
+        vec!["agent", "list", "--outdated-only"],
+        vec![
+            "agent",
+            "integration",
+            "list",
+            "--outdated-only",
+            "--outdated-only",
+        ],
+    ] {
+        assert!(parse(&args).is_err(), "{args:?}");
+    }
     for (verb, provider) in [
         ("explain", "claude-code"),
         ("enable", "github-copilot"),

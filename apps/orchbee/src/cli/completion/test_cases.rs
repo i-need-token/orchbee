@@ -1,6 +1,32 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee agent integration --outdated-only ", "list", true),
+    (
+        "orchbee agent integration --outdated-only ",
+        "enable",
+        false,
+    ),
+    (
+        "orchbee agent integration list --o",
+        "--outdated-only",
+        true,
+    ),
+    (
+        "orchbee agent integration list --outdated-only --o",
+        "--outdated-only",
+        false,
+    ),
+    (
+        "orchbee agent integration enable --o",
+        "--outdated-only",
+        false,
+    ),
+    (
+        "orchbee agent integration list --outdated-only --p",
+        "--provider",
+        true,
+    ),
     ("orchbee agent prompt --wait --c", "--client", true),
     (
         "orchbee agent prompt --wait --client 11111111111111111111111111111111 --c",

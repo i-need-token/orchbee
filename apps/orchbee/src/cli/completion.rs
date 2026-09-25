@@ -287,6 +287,7 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--cwd",
     "--env",
     "--arg",
+    "--outdated-only",
     "--include-ended",
     "--limit",
     "--cursor",
@@ -307,7 +308,7 @@ const BUSINESS_FLAGS: &[&str] = &[
 
 /// The business flags every `agent integration <verb>` admits — also the
 /// union scope checked when the `agent integration` sub-family itself lands.
-const INTEGRATION_COMMAND_FLAGS: &[&str] = &["--provider", "--adapter-source"];
+const INTEGRATION_COMMAND_FLAGS: &[&str] = &["--provider", "--adapter-source", "--outdated-only"];
 
 /// `agent integration`'s third-level verbs, offered at the `deep` state.
 const INTEGRATION_VERBS: &[&str] = &["disable", "enable", "explain", "list"];
@@ -518,10 +519,22 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--timeout",
         ],
     ),
-    ("agent:integration:list", INTEGRATION_COMMAND_FLAGS),
-    ("agent:integration:explain", INTEGRATION_COMMAND_FLAGS),
-    ("agent:integration:enable", INTEGRATION_COMMAND_FLAGS),
-    ("agent:integration:disable", INTEGRATION_COMMAND_FLAGS),
+    (
+        "agent:integration:list",
+        &["--provider", "--adapter-source", "--outdated-only"],
+    ),
+    (
+        "agent:integration:explain",
+        &["--provider", "--adapter-source"],
+    ),
+    (
+        "agent:integration:enable",
+        &["--provider", "--adapter-source"],
+    ),
+    (
+        "agent:integration:disable",
+        &["--provider", "--adapter-source"],
+    ),
     ("project:create", &["--label"]),
     ("project:rename", &["--label"]),
     ("workspace:accept-directory", &["--path"]),
@@ -1043,6 +1056,7 @@ fn flag_bit(flag: &str) -> &'static str {
         "--cwd" => "seen_cwd",
         "--env" => "seen_env",
         "--arg" => "seen_arg",
+        "--outdated-only" => "seen_outdated_only",
         "--include-ended" => "seen_include_ended",
         "--limit" => "seen_limit",
         "--cursor" => "seen_cursor",
@@ -1081,10 +1095,9 @@ fn flag_value(flag: &str) -> Option<&'static str> {
         "--until" => Some("until"),
         "--provider" => Some("provider"),
         "--standalone" | "--confirm" | "--new-tab" | "--history" | "--enter" | "--stdin"
-        | "--include-ended" | "--unwrap" | "--paste" | "--current" | "--clear" | "--wait"
-        | "--forever" | "--retry" | "--detach" | "--force" | "--trust-repository" | "--group" => {
-            None
-        }
+        | "--outdated-only" | "--include-ended" | "--unwrap" | "--paste" | "--current"
+        | "--clear" | "--wait" | "--forever" | "--retry" | "--detach" | "--force"
+        | "--trust-repository" | "--group" => None,
         _ => Some("filter"),
     }
 }
@@ -3475,12 +3488,15 @@ mod tests {
                 assert!(BUSINESS_FLAGS.contains(flag), "{command} lists {flag}");
             }
         }
-        // The integration union scope is exactly what each of its verbs
-        // declares.
+        // Every integration verb is contained in its union; only list admits maintenance filtering.
         for verb in INTEGRATION_VERBS {
             assert_eq!(
                 command_flags(&format!("agent:integration:{verb}")),
-                INTEGRATION_COMMAND_FLAGS,
+                if *verb == "list" {
+                    INTEGRATION_COMMAND_FLAGS
+                } else {
+                    &["--provider", "--adapter-source"]
+                },
                 "agent:integration:{verb} scope"
             );
         }

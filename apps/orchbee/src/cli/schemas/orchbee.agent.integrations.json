@@ -6,14 +6,20 @@
 	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
-		"schema": { "const": "orchbee.agent.integrations" },
-		"version": { "const": 1 },
+		"schema": {
+			"const": "orchbee.agent.integrations"
+		},
+		"version": {
+			"enum": [1, 2]
+		},
 		"source": {
 			"type": "object",
 			"required": ["kind"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": { "const": "local-inspection" }
+				"kind": {
+					"const": "local-inspection"
+				}
 			}
 		},
 		"result": {
@@ -21,12 +27,42 @@
 			"required": ["complete", "capsule", "integrations"],
 			"additionalProperties": false,
 			"properties": {
-				"complete": { "type": "boolean" },
-				"capsule": { "$ref": "#/$defs/capsule" },
+				"complete": {
+					"type": "boolean"
+				},
+				"capsule": {
+					"$ref": "#/$defs/capsule"
+				},
 				"integrations": {
 					"type": "array",
 					"maxItems": 10,
-					"items": { "$ref": "#/$defs/item" }
+					"items": {
+						"$ref": "#/$defs/item"
+					}
+				},
+				"outdatedOnly": {
+					"const": true
+				},
+				"inspectedCount": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 10
+				},
+				"unresolvedProviderIds": {
+					"type": "array",
+					"maxItems": 10,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/item/properties/integrationId"
+					}
+				},
+				"blockedProviderIds": {
+					"type": "array",
+					"maxItems": 10,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/item/properties/integrationId"
+					}
 				}
 			}
 		}
@@ -51,8 +87,12 @@
 						"qwen-code"
 					]
 				},
-				"availability": { "enum": ["available", "not-found", "unknown"] },
-				"managementMode": { "enum": ["managed-local", "manual-only"] },
+				"availability": {
+					"enum": ["available", "not-found", "unknown"]
+				},
+				"managementMode": {
+					"enum": ["managed-local", "manual-only"]
+				},
 				"state": {
 					"enum": [
 						"conflict",
@@ -87,13 +127,86 @@
 				"source": {
 					"enum": ["cohort-sidecar", "adapter-source-override", "absent"]
 				},
-				"supportedPayloadVersion": { "type": "string", "minLength": 1 },
-				"declaredPayloadVersion": { "type": "string", "minLength": 1 },
-				"unsupportedPayloadVersion": { "type": "string", "minLength": 1 },
-				"bindingFailure": { "const": true },
-				"rootPath": { "type": "string", "minLength": 1 },
-				"rootPathBytesHex": { "type": "string", "pattern": "^([0-9a-f]{2})+$" }
+				"supportedPayloadVersion": {
+					"type": "string",
+					"minLength": 1
+				},
+				"declaredPayloadVersion": {
+					"type": "string",
+					"minLength": 1
+				},
+				"unsupportedPayloadVersion": {
+					"type": "string",
+					"minLength": 1
+				},
+				"bindingFailure": {
+					"const": true
+				},
+				"rootPath": {
+					"type": "string",
+					"minLength": 1
+				},
+				"rootPathBytesHex": {
+					"type": "string",
+					"pattern": "^([0-9a-f]{2})+$"
+				}
 			}
 		}
-	}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 2
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"required": [
+							"outdatedOnly",
+							"inspectedCount",
+							"unresolvedProviderIds",
+							"blockedProviderIds"
+						],
+						"properties": {
+							"integrations": {
+								"items": {
+									"properties": {
+										"state": {
+											"const": "update-required"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"result": {
+						"not": {
+							"anyOf": [
+								{
+									"required": ["outdatedOnly"]
+								},
+								{
+									"required": ["inspectedCount"]
+								},
+								{
+									"required": ["unresolvedProviderIds"]
+								},
+								{
+									"required": ["blockedProviderIds"]
+								}
+							]
+						}
+					}
+				}
+			}
+		}
+	]
 }

@@ -971,6 +971,7 @@ pub(crate) enum PanelMoveDestination {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum AgentIntegrationCommand {
     List {
+        outdated_only: bool,
         provider: Option<crate::agent_integrations::IntegrationId>,
         adapter_source: Option<PathBuf>,
     },
@@ -1461,6 +1462,7 @@ struct Options {
     cwd: Option<String>,
     environment: Vec<String>,
     args: Vec<String>,
+    outdated_only: bool,
     include_ended: bool,
     limit: Option<String>,
     cursor: Option<String>,
@@ -1835,10 +1837,10 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                 index += 1;
             }
             "--group" | "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
-            | "--include-ended" | "--new-tab" | "--paste" | "--unwrap" | "--current"
-            | "--plain" | "--ansi" | "--clear" | "--wait" | "--forever" | "--detach"
-            | "--retry" | "--force" | "--trust-repository" | "--on" | "--off" | "--toggle"
-            | "--focus" | "--no-focus" => {
+            | "--outdated-only" | "--include-ended" | "--new-tab" | "--paste" | "--unwrap"
+            | "--current" | "--plain" | "--ansi" | "--clear" | "--wait" | "--forever"
+            | "--detach" | "--retry" | "--force" | "--trust-repository" | "--on" | "--off"
+            | "--toggle" | "--focus" | "--no-focus" => {
                 let (seen, option) = if token == "--plain" {
                     (&mut options.plain, "--plain")
                 } else if token == "--ansi" {
@@ -1881,6 +1883,8 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                     (&mut options.stdin, "--stdin")
                 } else if token == "--unwrap" {
                     (&mut options.unwrap, "--unwrap")
+                } else if token == "--outdated-only" {
+                    (&mut options.outdated_only, "--outdated-only")
                 } else if token == "--include-ended" {
                     (&mut options.include_ended, "--include-ended")
                 } else if token == "--new-tab" {
@@ -2592,9 +2596,10 @@ fn resolve_words(
         }
         ["agent", "integration", "list"] => {
             let context = UsageContext::Path("agent integration list");
-            check_scope(options, INTEGRATION_SCOPE, context, envelope)?;
+            check_scope(options, INTEGRATION_LIST_SCOPE, context, envelope)?;
             Ok(Request::AgentIntegration {
                 command: AgentIntegrationCommand::List {
+                    outdated_only: options.outdated_only,
                     provider: provider_option(options, context, envelope)?,
                     adapter_source: adapter_source_option(options, context, envelope)?,
                 },
@@ -4050,6 +4055,7 @@ struct Scope {
     /// `tab create|panel split --arg <v>`: the repeatable launch-argv option.
     args: bool,
     /// `agent list --include-ended`: admits the lifecycle filter flag.
+    outdated_only: bool,
     include_ended: bool,
     /// `agent list --limit <n>`: admits the page-size value option.
     limit: bool,
@@ -4146,6 +4152,7 @@ const NO_OPTIONS: Scope = Scope {
     cwd: false,
     environment: false,
     args: false,
+    outdated_only: false,
     include_ended: false,
     limit: false,
     cursor: false,
@@ -4393,6 +4400,10 @@ const LAUNCH_PROFILE_CREATE_SCOPE: Scope = Scope {
 
 /// `agent integration *`: the provider selector plus the development/test
 /// adapter-source override — the only integration-scoped options.
+const INTEGRATION_LIST_SCOPE: Scope = Scope {
+    outdated_only: true,
+    ..INTEGRATION_SCOPE
+};
 const INTEGRATION_SCOPE: Scope = Scope {
     provider: true,
     adapter_source: true,
@@ -4444,6 +4455,7 @@ fn business_options(options: &Options) -> bool {
         || options.paste
         || options.exec.is_some()
         || !options.args.is_empty()
+        || options.outdated_only
         || options.include_ended
         || options.limit.is_some()
         || options.cursor.is_some()
@@ -4643,6 +4655,9 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if !options.args.is_empty() && !scope.args {
         return Some("--arg");
+    }
+    if options.outdated_only && !scope.outdated_only {
+        return Some("--outdated-only");
     }
     if options.include_ended && !scope.include_ended {
         return Some("--include-ended");

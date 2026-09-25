@@ -60,6 +60,15 @@ impl Fixture {
             .join(".orchbee/agent-observation-adapters/0.4.1")
     }
     fn run(&self, verb: &str, provider: &str, config_home: &Path) -> Output {
+        self.run_options(verb, provider, config_home, &[])
+    }
+    fn run_options(
+        &self,
+        verb: &str,
+        provider: &str,
+        config_home: &Path,
+        extra: &[&str],
+    ) -> Output {
         Command::new(env!("CARGO_BIN_EXE_orchbee"))
             .args([
                 "agent",
@@ -72,6 +81,7 @@ impl Fixture {
                 "--adapter-source",
             ])
             .arg(self.assets())
+            .args(extra)
             .env("USERPROFILE", self.home())
             .env("HOME", self.0.join("wrong-posix-home"))
             .env("CODEX_HOME", config_home)
@@ -302,4 +312,64 @@ fn foreign_newer_and_invalid_roots_are_refused_without_provider_commands() {
     let output = fixture.run("enable", "claude-code", &fixture.config_home());
     assert_eq!(output.status.code(), Some(4));
     assert_eq!(fixture.calls(), calls);
+}
+
+#[test]
+fn outdated_filter_preserves_unknown_and_blocked_inspections_without_effects() {
+    for case in ["absent", "older", "newer", "foreign", "unknown"] {
+        let fixture = Fixture::new();
+        let config = fixture.config_home().join("config.toml");
+        let content = match case {
+            "absent" => "unrelated = true\n".into(),
+            "unknown" => "#".repeat(512 * 1024 + 1),
+            _ => {
+                let root = match case {
+                    "older" => fixture.capsule().parent().unwrap().join("0.3.0"),
+                    "newer" => fixture.capsule().parent().unwrap().join("9.0.0"),
+                    _ => fixture.0.join("foreign"),
+                };
+                format!(
+                    "[marketplaces.orchbee-local]\nsource_type = 'local'\nsource = '{}'\n[plugins.\"orchbee-agent-observation@orchbee-local\"]\nenabled = true\n",
+                    root.display()
+                )
+            }
+        };
+        fs::write(&config, &content).unwrap();
+        let output = fixture.run_options(
+            "list",
+            "codex",
+            &fixture.config_home(),
+            &["--outdated-only"],
+        );
+        assert!(output.status.success(), "{case}: {output:?}");
+        let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+        let schema: Value = serde_json::from_str(include_str!(
+            "../src/cli/schemas/orchbee.agent.integrations.json"
+        ))
+        .unwrap();
+        assert!(
+            jsonschema::validator_for(&schema).unwrap().is_valid(&doc),
+            "{doc}"
+        );
+        assert_eq!(doc["version"], 2);
+        let result = &doc["result"];
+        assert_eq!(result["inspectedCount"], 1);
+        assert_eq!(result["outdatedOnly"], true);
+        assert_eq!(result["complete"], case != "unknown", "{case}: {doc}");
+        assert_eq!(
+            result["integrations"].as_array().unwrap().len(),
+            usize::from(case == "older")
+        );
+        assert_eq!(
+            result["unresolvedProviderIds"].as_array().unwrap().len(),
+            usize::from(case == "unknown")
+        );
+        assert_eq!(
+            result["blockedProviderIds"].as_array().unwrap().len(),
+            usize::from(matches!(case, "newer" | "foreign"))
+        );
+        assert_eq!(fs::read_to_string(config).unwrap(), content);
+        assert!(fixture.calls().is_empty());
+        assert!(!fixture.capsule().exists());
+    }
 }

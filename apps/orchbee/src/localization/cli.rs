@@ -1284,6 +1284,32 @@ impl Locale {
     /// `agent integration list` capsule summary line — the machine capsule
     /// state stays English; only the sentence frame is localized.
     #[cfg(any(unix, windows))]
+    pub(crate) fn cli_integration_maintenance(
+        self,
+        inspected: usize,
+        outdated: usize,
+        unresolved: &[&str],
+        blocked: &[&str],
+    ) -> String {
+        let unresolved = if unresolved.is_empty() {
+            "-".into()
+        } else {
+            unresolved.join(", ")
+        };
+        let blocked = if blocked.is_empty() {
+            "-".into()
+        } else {
+            blocked.join(", ")
+        };
+        match self {
+            Self::EnUs => format!(
+                "Inspected {inspected}; update or repair required: {outdated}.\nUnknown inspections: {unresolved}\nConflicting or newer installations: {blocked}\nUse agent integration explain --provider <id> to inspect the repair plan.\n"
+            ),
+            Self::ZhCn => format!(
+                "已检查 {inspected} 项；需更新或修复 {outdated} 项。\n检查未知：{unresolved}\n冲突或更新版本安装：{blocked}\n使用 agent integration explain --provider <id> 查看修复计划。\n"
+            ),
+        }
+    }
     pub(crate) fn cli_integration_capsule_line(self, summary: &str) -> String {
         match self {
             Self::EnUs => format!("Adapter capsule: {summary}\n"),
@@ -2519,8 +2545,8 @@ const HELP_AGENT_DOCTOR_ZH: &str = "orchbee agent doctor [--provider <id>]... [-
 const HELP_AGENT_INTEGRATION_EN: &str = "orchbee agent integration list|explain|enable|disable\n\nManage the local onboarding of supported agent providers to the Orchbee\nobservation transport. These commands run entirely on the invoking user's\nmachine and PATH — they never contact a Site.\n  agent integration list [--provider <id>]\n                                Inspect every supported provider's local state\n  agent integration explain --provider <id>\n                                Show one provider's state and the plan enable\n                                would run\n  agent integration enable --provider <id>\n                                Install and enable the managed observation\n                                integration\n  agent integration disable --provider <id>\n                                Remove the managed integration\nlist and explain execute each provider's own bounded read commands where\nrequired; enable and disable additionally run bounded, non-interactive\nmutation steps. Provider-internal bookkeeping cannot be guaranteed absent.\n";
 const HELP_AGENT_INTEGRATION_ZH: &str = "orchbee agent integration list|explain|enable|disable\n\n管理受支持的 agent provider 到 Orchbee 观测传输的本地接入。这些命令完全\n在调用用户的机器与 PATH 上运行——不接触 Site。\n  agent integration list [--provider <id>]\n                                检查每个受支持 provider 的本地状态\n  agent integration explain --provider <id>\n                                显示一个 provider 的状态及 enable 将执行的\n                                计划\n  agent integration enable --provider <id>\n                                安装并启用受管观测集成\n  agent integration disable --provider <id>\n                                移除受管集成\nlist 与 explain 在需要时会执行各 provider 自身的有界只读命令；enable 与\ndisable 还会执行有界、非交互的变更步骤。provider 内部记账无法保证不\n发生。\n";
 
-const HELP_AGENT_INTEGRATION_LIST_EN: &str = "orchbee agent integration list [--provider <id>] [--adapter-source <abs>] [--format text|json]\n\nInspect every supported provider's local integration state — or only the\none selected by '--provider'. Reads run the providers' own bounded\ncommands from the ambient PATH where required; nothing is written.\n'--adapter-source' overrides the cohort adapter payload for development\nand tests. '--format json' emits the orchbee.agent.integrations envelope.\n";
-const HELP_AGENT_INTEGRATION_LIST_ZH: &str = "orchbee agent integration list [--provider <id>] [--adapter-source <abs>] [--format text|json]\n\n检查每个受支持 provider 的本地集成状态，或仅检查 '--provider' 所选的一\n个。需要时会执行 provider 自身来自环境 PATH 的有界读命令；不写入任何\n内容。'--adapter-source' 为开发与测试覆盖 cohort adapter 载荷。\n'--format json' 输出 orchbee.agent.integrations 封套。\n";
+const HELP_AGENT_INTEGRATION_LIST_EN: &str = "orchbee agent integration list [--provider <id>] [--outdated-only] [--adapter-source <abs>] [--format text|json]\n\nInspect every supported provider's local integration state — or only the\none selected by '--provider'. Reads run the providers' own bounded\ncommands from the ambient PATH where required; nothing is written.\n'--adapter-source' overrides the cohort adapter payload for development\nand tests. Windows --outdated-only shows owned updates/repairs, preserving\nunknown and blocked provider diagnostics. Use enable to apply a guarded repair.\n'--format json' emits the orchbee.agent.integrations envelope.\n";
+const HELP_AGENT_INTEGRATION_LIST_ZH: &str = "orchbee agent integration list [--provider <id>] [--outdated-only] [--adapter-source <abs>] [--format text|json]\n\n检查每个受支持 provider 的本地集成状态，或仅检查 '--provider' 所选的一\n个。需要时会执行 provider 自身来自环境 PATH 的有界读命令；不写入任何\n内容。'--adapter-source' 为开发与测试覆盖 cohort adapter 载荷。\nWindows --outdated-only 只显示需更新／修复的自有条目，保留未知和冲突诊断。\n使用 enable 显式执行受保护的修复。'--format json' 输出 orchbee.agent.integrations 封套。\n";
 
 const HELP_AGENT_INTEGRATION_EXPLAIN_EN: &str = "orchbee agent integration explain --provider <id> [--adapter-source <abs>] [--format text|json]\n\nExplain one provider's local integration state and the guard-evaluated\nplan 'enable' would run for the observed dimensions. Reads execute the\nprovider's own bounded commands from the ambient PATH where required;\nnothing is written. '--format json' emits the\norchbee.agent.integration.plan envelope.\n";
 const HELP_AGENT_INTEGRATION_EXPLAIN_ZH: &str = "orchbee agent integration explain --provider <id> [--adapter-source <abs>] [--format text|json]\n\n解释一个 provider 的本地集成状态，以及针对观测到的维度 'enable' 将执行\n的、经守卫求值的计划。需要时会执行 provider 自身来自环境 PATH 的有界\n读命令；不写入任何内容。'--format json' 输出\norchbee.agent.integration.plan 封套。\n";
