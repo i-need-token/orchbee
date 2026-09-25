@@ -14,6 +14,7 @@ mod lifecycle;
 mod limits;
 mod message;
 mod process_info;
+mod projection_buffer;
 mod projection_demand;
 mod projection_feedback;
 mod resize;
@@ -101,6 +102,10 @@ pub use process_info::{
     ProcessInfoControl, READ_PROCESS_INFO_KIND, TerminalProcess, TerminalProcessInfo,
     decode_process_info_control, encode_process_info_control,
 };
+pub use projection_buffer::{
+    TerminalProjectionBuffer, TerminalProjectionCell, TerminalProjectionRow,
+    decode_terminal_projection_buffer,
+};
 pub use projection_demand::{
     EncodedProjectionDemandControl, ProjectionBlockReason, ProjectionBlocked, ProjectionDemand,
     ProjectionDemandAccepted, ProjectionDemandControl, SetProjectionDemand,
@@ -120,9 +125,10 @@ pub use row_access::{
     encode_row_access_control,
 };
 pub use row_window::{
-    TERMINAL_ROW_WINDOW_HEADER_BYTES, TerminalRowPromptClass, TerminalRowWindowRoute,
-    TerminalTextCellMapping, TerminalTextRowWindow, TerminalTextWindowRow,
-    decode_terminal_text_row_window, inspect_terminal_row_window_route,
+    TERMINAL_ROW_WINDOW_HEADER_BYTES, TerminalRenderRowWindow, TerminalRowPromptClass,
+    TerminalRowWindowRoute, TerminalTextCellMapping, TerminalTextRowWindow, TerminalTextWindowRow,
+    decode_terminal_render_row_window, decode_terminal_text_row_window,
+    inspect_terminal_row_window_route,
 };
 pub use selection::{
     EncodedSelectionControl, SelectionChanged, SelectionChangedState, SelectionCommand,

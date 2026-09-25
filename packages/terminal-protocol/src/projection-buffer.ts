@@ -845,8 +845,7 @@ export function viewTerminalProjectionBuffer(
 		generation === 0n ||
 		cursorColumn >= columns ||
 		cursorRow >= rows ||
-		cellPixelWidth === 0 ||
-		cellPixelHeight === 0 ||
+		(cellPixelWidth === 0) !== (cellPixelHeight === 0) ||
 		cellPixelWidth > PROTOCOL_LIMITS.maxCellPixelDimension ||
 		cellPixelHeight > PROTOCOL_LIMITS.maxCellPixelDimension ||
 		columns * cellPixelWidth > MAX_UINT16 ||

@@ -67,8 +67,8 @@ pub use send_record::SEND_RECORD_MAGIC;
 pub use viewer::{
     HistoryDemand, MAXIMUM_READ_ROWS, MAXIMUM_READ_ROWS_BYTES, MAXIMUM_VIEWER_RECORD_BYTES,
     MINIMUM_READ_ROWS_BYTES, ProjectionDemand, TerminalViewerAction, TerminalViewerOutcome,
-    TerminalViewerRequest, TerminalViewerResult, ViewerRejectedReason, ViewerRowsRejectedReason,
-    ViewerSnapshotReason, ViewerUnavailableReason, ViewportRowOrigin,
+    TerminalViewerRequest, TerminalViewerResult, ViewerRejectedReason, ViewerRowDetail,
+    ViewerRowsRejectedReason, ViewerSnapshotReason, ViewerUnavailableReason, ViewportRowOrigin,
 };
 pub use working_directory::{
     MAXIMUM_WORKING_DIRECTORY_BYTES, WorkingDirectory, WorkingDirectoryError,

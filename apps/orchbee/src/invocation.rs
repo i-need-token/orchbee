@@ -520,6 +520,7 @@ pub(crate) enum QueryCommand {
         target: OutputTarget,
         selection: OutputSelection,
         plain: bool,
+        ansi: bool,
     },
     TerminalSourceWait {
         target: Target,
@@ -1389,6 +1390,7 @@ struct Options {
     lines: Option<String>,
     output_source: Option<String>,
     plain: bool,
+    ansi: bool,
     path: Option<String>,
     match_text: Option<String>,
     /// `terminal wait-output --regex <pattern>`: the XOR alternative to the
@@ -1785,11 +1787,13 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
             }
             "--group" | "--standalone" | "--confirm" | "--history" | "--enter" | "--stdin"
             | "--include-ended" | "--new-tab" | "--paste" | "--unwrap" | "--current"
-            | "--plain" | "--clear" | "--wait" | "--forever" | "--detach" | "--retry"
-            | "--force" | "--trust-repository" | "--on" | "--off" | "--toggle" | "--focus"
-            | "--no-focus" => {
+            | "--plain" | "--ansi" | "--clear" | "--wait" | "--forever" | "--detach"
+            | "--retry" | "--force" | "--trust-repository" | "--on" | "--off" | "--toggle"
+            | "--focus" | "--no-focus" => {
                 let (seen, option) = if token == "--plain" {
                     (&mut options.plain, "--plain")
+                } else if token == "--ansi" {
+                    (&mut options.ansi, "--ansi")
                 } else if token == "--focus" {
                     (&mut options.focus, "--focus")
                 } else if token == "--no-focus" {
@@ -2184,7 +2188,7 @@ fn resolve_words(
                 context,
                 envelope,
             )?;
-            if options.output_source.is_some() || options.plain {
+            if options.output_source.is_some() || options.plain || options.ansi {
                 return terminal_output::request(
                     OutputTarget::Agent(agent_selector(rest, options, context, envelope)?),
                     options,
@@ -3011,7 +3015,7 @@ fn resolve_words(
                 envelope,
             )?;
             let context = UsageContext::Path("terminal read");
-            if options.output_source.is_some() || options.plain {
+            if options.output_source.is_some() || options.plain || options.ansi {
                 return terminal_output::request(
                     OutputTarget::Terminal(target(
                         (*value).to_owned(),
@@ -3886,6 +3890,7 @@ struct Scope {
     lines: bool,
     output_source: bool,
     plain: bool,
+    ansi: bool,
     /// `workspace accept-directory --path <p>`: admits the literal directory
     /// path value option.
     path: bool,
@@ -3996,6 +4001,7 @@ const NO_OPTIONS: Scope = Scope {
     lines: false,
     output_source: false,
     plain: false,
+    ansi: false,
     path: false,
     wait: false,
     regex: false,
@@ -4205,6 +4211,7 @@ const PANEL_MOVE_SCOPE: Scope = Scope {
 const TERMINAL_READ_SCOPE: Scope = Scope {
     output_source: true,
     plain: true,
+    ansi: true,
     history: true,
     unwrap: true,
     lines: true,
@@ -4283,6 +4290,7 @@ fn business_options(options: &Options) -> bool {
         || options.unwrap
         || options.output_source.is_some()
         || options.plain
+        || options.ansi
         || options.lines.is_some()
         || options.path.is_some()
         || options.match_text.is_some()
@@ -4438,6 +4446,9 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.output_source.is_some() && !scope.output_source {
         return Some("--source");
+    }
+    if options.ansi && !scope.ansi {
+        return Some("--ansi");
     }
     if options.plain && !scope.plain {
         return Some("--plain");

@@ -376,8 +376,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog v36 adds source-selected finite/infinite waits.
-        "version": 36,
+        // Catalog v37 adds ANSI source exports without changing plain-text v1.
+        "version": 37,
         "source": embedded_source(),
         "result": result,
     });

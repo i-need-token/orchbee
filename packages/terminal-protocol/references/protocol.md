@@ -901,3 +901,8 @@ the consumer that owns the modeled state. This package's evidence is intentional
 shape, exact-version handling, safety bounds, deterministic codecs, malformed-input rejection,
 generated fixture integrity, and cross-language conformance. It does not claim process, delivery,
 recovery, scheduling, or product-policy correctness.
+
+Packed OBTF and OBPB geometry preserves unknown cell pixels as `(0, 0)`, matching the Host and
+control geometry contract. Otherwise both dimensions are positive; mixed zero/positive pairs are
+invalid. Grid and pixel-extent bounds remain unchanged. A terminal snapshot never invents pixel
+dimensions merely to export text or styles.

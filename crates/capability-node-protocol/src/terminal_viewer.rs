@@ -11,6 +11,13 @@ pub const MAXIMUM_READ_ROWS: u16 = 4096;
 pub const MINIMUM_READ_ROWS_BYTES: u32 = 112;
 pub const MAXIMUM_READ_ROWS_BYTES: u32 = 8 * 1024 * 1024;
 
+/// Text keeps the original ReadRows action tag; render uses its own tag.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ViewerRowDetail {
+    Text,
+    Render,
+}
+
 /// Projection delivery the Server requests the Worker to set on a viewer
 /// attachment. Binary `demand`: 1 `Active`, 2 `Paused`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -102,6 +109,7 @@ pub enum TerminalViewerAction {
     // The attachment lives on the request envelope; the action does not
     // repeat it. `maximum_bytes` bounds the OBRW payload, not the record.
     ReadRows {
+        detail: ViewerRowDetail,
         start_row: u64,
         row_count: u16,
         revision: u64,

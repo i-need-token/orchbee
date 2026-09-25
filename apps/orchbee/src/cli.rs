@@ -585,8 +585,11 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
         // `terminal read` couples the snapshot to one viewer observation on
         // the same session; its answer arrives already projected.
         QueryCommand::TerminalOutput {
-            target, selection, ..
-        } => match query::read_output(target, *selection) {
+            target,
+            selection,
+            ansi,
+            ..
+        } => match query::read_output(target, *selection, *ansi) {
             Err(failure) => failure_output(failure, Some(format), locale),
             Ok((source, projection)) => {
                 success_output(projection, source, &command, format, locale)

@@ -34,8 +34,10 @@ only when a person is present.
   on standard error. Under `text`, a failure writes nothing to standard output.
 - An explicitly selected data export may emit the requested UTF-8 content without human quoting
   or headings. Its owning contract must define selection, byte bounds, encoding, and failure
-  behavior, and distinguish it from ordinary `text`. Such an export cannot simultaneously request
-  a JSON envelope. It preserves payload bytes rather than applying human text rendering rules.
+  behavior, and distinguish it from ordinary `text`. Raw bytes and a JSON envelope are mutually
+  exclusive output modes. A content-encoding selector may expose the same content in a schema-defined
+  JSON projection; an export-only flag conflicts with JSON. Raw export preserves payload bytes rather
+  than applying human text rendering rules.
 
 ## Machine documents
 

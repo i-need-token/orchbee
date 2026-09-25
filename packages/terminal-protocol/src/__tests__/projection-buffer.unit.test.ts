@@ -6,10 +6,13 @@ import {
 	ActiveScreen,
 	CellWidth,
 	CursorShape,
+	decodeTerminalFrame,
+	encodeTerminalFrame,
 	RowPromptClass,
 	SemanticContent,
 	TerminalColorKind,
 	TerminalFrameKind,
+	TerminalFrameSchema,
 	UnderlineKind,
 } from '../frame';
 import { AttachmentIdSchema } from '../identifiers';
@@ -1036,5 +1039,42 @@ describe('terminal projection buffer', () => {
 		expect(viewTerminalProjectionBuffer(bytes)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
 		);
+	});
+});
+
+describe('unknown cell-pixel geometry across frame and projection boundaries', () => {
+	it('preserves paired zero through schemas, encoders and strict decoders', () => {
+		const unknown = { ...frame, cellPixelWidth: 0, cellPixelHeight: 0 };
+		expect(TerminalFrameSchema.safeParse(unknown).success).toBe(true);
+		const projection = encodeTerminalProjectionBuffer(unknown);
+		const terminal = encodeTerminalFrame(unknown);
+		expect(projection.ok).toBe(true);
+		expect(terminal.ok).toBe(true);
+		if (!projection.ok || !terminal.ok) throw new Error('unknown geometry encoding failed');
+		const packed = decodeTerminalProjectionBuffer(projection.value);
+		const text = decodeTerminalFrame(terminal.value);
+		expect(packed.ok).toBe(true);
+		expect(text.ok).toBe(true);
+		if (!packed.ok || !text.ok) throw new Error('unknown geometry decoding failed');
+		expect([packed.value.cellPixelWidth, packed.value.cellPixelHeight]).toEqual([0, 0]);
+		expect([text.value.cellPixelWidth, text.value.cellPixelHeight]).toEqual([0, 0]);
+		for (const width of [true, false]) {
+			const mixed = { ...unknown, ...(width ? { cellPixelWidth: 8 } : { cellPixelHeight: 16 }) };
+			expect(TerminalFrameSchema.safeParse(mixed).success).toBe(false);
+			for (const [bytes, offset, decode] of [
+				[projection.value, 100, decodeTerminalProjectionBuffer],
+				[terminal.value, 136, decodeTerminalFrame],
+			] as const) {
+				const malformed = bytes.slice();
+				new DataView(malformed.buffer, malformed.byteOffset, malformed.byteLength).setUint16(
+					offset + (width ? 0 : 2),
+					8,
+					true,
+				);
+				expect(decode(malformed)).toEqual(
+					expect.objectContaining({ ok: false, code: ProtocolErrorCode.invalidField }),
+				);
+			}
+		}
 	});
 });

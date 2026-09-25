@@ -613,3 +613,16 @@ Rollback replaces the cohort and migrates no durable protocol data.
 ## Source-based Worktree discovery
 
 Kind 15 additionally admits `StartSource` action tag 4: a bounded absolute UTF-8 directory plus strict 0/1 command-local trust. Legacy Start tag 1 is unchanged. Start result tag 6 means unsupported execution. Poll result tag 13 is `SourceCompleted`: common-directory, source-checkout, listing and stderr bytes share the existing 7936-byte variable-data bound, with four explicit lengths. The Worker owns execution and cleanup; the new read consumes no mutation job receipt. Golden bytes, wrong-direction/trailing/truncated input, strict trust and combined bounds are covered in `tests/worktree_source.rs`.
+
+## Styled buffer reads
+
+`ReadRows` carries a typed text/render detail. Text preserves viewer action tag 6 and its entire
+existing body byte-for-byte. Render uses tag 13 followed by the same start row, row count, revision,
+generation, request sequence and maximum-byte fields. Bounds, result compatibility and correlation
+stay unchanged; unsupported tags are rejected. Worker maps render to the existing Host render
+row-access request, and Server checks the returned detail. Viewport reads remain text.
+
+This private unshipped extension retains the OBCN frame version and 8 MiB row payload limit. It
+adds neither effects nor retry/fallback policy. Matching development cohorts deploy or roll back
+together without persistent migration. Exact old text and new render bytes, malformed bodies and
+unknown tags are checked independently of the runtime forwarding and response-route tests.

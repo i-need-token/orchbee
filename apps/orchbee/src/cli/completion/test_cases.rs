@@ -1,6 +1,28 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee terminal read target --a", "--ansi", true),
+    ("orchbee agent read --name alpha --a", "--ansi", true),
+    ("orchbee terminal read target --ansi --p", "--plain", false),
+    ("orchbee terminal read target --plain --a", "--ansi", false),
+    (
+        "orchbee terminal read target --ansi --h",
+        "--history",
+        false,
+    ),
+    (
+        "orchbee terminal read target --history --rows 3 --a",
+        "--ansi",
+        false,
+    ),
+    (
+        "orchbee terminal read target --ansi --format ",
+        "json",
+        true,
+    ),
+    ("orchbee --ansi terminal ", "read", true),
+    ("orchbee --ansi terminal ", "wait-output", false),
+    ("orchbee terminal read target --ansi --s", "--source", true),
     (
         "orchbee terminal wait-output target --timeout 1 --f",
         "--forever",

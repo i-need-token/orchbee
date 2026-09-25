@@ -41,6 +41,8 @@ pub(super) fn request(
 ) -> Result<Request, ParseFailure> {
     let selector = if options.output_source.is_some() {
         "--source"
+    } else if options.ansi {
+        "--ansi"
     } else {
         "--plain"
     };
@@ -60,6 +62,16 @@ pub(super) fn request(
             ));
         }
     }
+    if options.ansi && options.plain {
+        return Err(usage_with(
+            UsageReason::ConflictingOptions {
+                context,
+                first: "--ansi",
+                second: "--plain",
+            },
+            envelope,
+        ));
+    }
     if options.plain && options.format == Some(OutputFormat::Json) {
         return Err(usage_with(
             UsageReason::ConflictingOptions {
@@ -75,6 +87,7 @@ pub(super) fn request(
             target,
             selection: selection(options, context, envelope)?,
             plain: options.plain,
+            ansi: options.ansi,
         },
         options,
     ))
@@ -183,6 +196,62 @@ mod tests {
     }
 
     #[test]
+    fn ansi_selects_recent_by_default_and_accepts_a_json_envelope() {
+        for words in [
+            vec![
+                "terminal",
+                "read",
+                "11111111111111111111111111111111",
+                "--ansi",
+            ],
+            vec![
+                "agent",
+                "read",
+                "--name",
+                "alpha",
+                "--ansi",
+                "--format=json",
+            ],
+        ] {
+            let Request::Query {
+                command:
+                    QueryCommand::TerminalOutput {
+                        selection,
+                        plain,
+                        ansi,
+                        ..
+                    },
+                ..
+            } = parse(&words).expect("ANSI read")
+            else {
+                panic!("output query")
+            };
+            assert!(ansi && !plain);
+            assert_eq!(
+                selection,
+                OutputSelection {
+                    source: OutputSource::Recent,
+                    lines: None
+                }
+            );
+        }
+        for words in [
+            vec!["status", "--ansi"],
+            vec!["--version", "--ansi"],
+            vec![
+                "terminal",
+                "wait-output",
+                "11111111111111111111111111111111",
+                "--ansi",
+                "--match",
+                "x",
+            ],
+        ] {
+            assert!(parse(&words).is_err(), "{words:?}");
+        }
+    }
+
+    #[test]
     fn source_read_preserves_legacy_mode_and_bounds_new_physical_lines() {
         let id = "11111111111111111111111111111111";
         for (argument, expected) in [("0", 0), ("17", 17), ("4294967295", 1000)] {
@@ -230,7 +299,8 @@ mod tests {
                         source: OutputSource::Recent,
                         lines: None
                     },
-                    plain: true
+                    plain: true,
+                    ansi: false
                 },
                 ..
             })
@@ -241,6 +311,11 @@ mod tests {
     fn invalid_or_mixed_source_forms_fail_before_runtime() {
         let id = "11111111111111111111111111111111";
         for extra in [
+            vec!["--ansi", "--plain"],
+            vec!["--ansi", "--history", "--rows", "1"],
+            vec!["--ansi", "--unwrap"],
+            vec!["--ansi", "--ansi"],
+            vec!["--ansi=yes"],
             vec!["--source", "bad"],
             vec!["--source", "visible", "--unwrap"],
             vec!["--plain", "--rows", "2"],

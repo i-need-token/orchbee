@@ -5,7 +5,7 @@ use crate::{
     CapabilityNodeMessage, MAXIMUM_VIEWER_RECORD_BYTES, OperationId, ProtocolError,
     ReadMessageError, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
     TerminalViewerResult, ViewerHistoryDemand, ViewerProjectionDemand, ViewerRejection,
-    ViewerSnapshotReason, ViewportRowOrigin, WorkerGeneration, WorkerId,
+    ViewerRowDetail, ViewerSnapshotReason, ViewportRowOrigin, WorkerGeneration, WorkerId,
 };
 
 pub(super) fn encode_request(value: TerminalViewerRequest) -> Vec<u8> {
@@ -51,6 +51,7 @@ pub(super) fn encode_request(value: TerminalViewerRequest) -> Vec<u8> {
         }
         TerminalViewerAction::Detach => bytes.push(5),
         TerminalViewerAction::ReadRows {
+            detail,
             start_row,
             row_count,
             revision,
@@ -58,7 +59,10 @@ pub(super) fn encode_request(value: TerminalViewerRequest) -> Vec<u8> {
             request_sequence,
             maximum_bytes,
         } => {
-            bytes.push(6);
+            bytes.push(match detail {
+                ViewerRowDetail::Text => 6,
+                ViewerRowDetail::Render => 13,
+            });
             bytes.extend_from_slice(&start_row.to_be_bytes());
             bytes.extend_from_slice(&row_count.to_be_bytes());
             bytes.extend_from_slice(&revision.to_be_bytes());
@@ -156,7 +160,7 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<TerminalViewerRequest, Prot
             },
         },
         5 => TerminalViewerAction::Detach,
-        6 => {
+        tag @ (6 | 13) => {
             let start_row = reader.read_u64()?;
             let row_count = reader.read_u16()?;
             let revision = reader.read_u64()?;
@@ -171,6 +175,11 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<TerminalViewerRequest, Prot
                 return Err(ProtocolError::InvalidPayload);
             }
             TerminalViewerAction::ReadRows {
+                detail: if tag == 6 {
+                    ViewerRowDetail::Text
+                } else {
+                    ViewerRowDetail::Render
+                },
                 start_row,
                 row_count,
                 revision,

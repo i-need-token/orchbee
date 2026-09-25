@@ -10,6 +10,7 @@ pub(crate) use terminal_output::read_output;
 pub(crate) fn read_output(
     _target: &crate::invocation::OutputTarget,
     _selection: crate::invocation::OutputSelection,
+    _ansi: bool,
 ) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
     Err(super::Failure::new(super::FailureKind::ServiceUnavailable))
 }
@@ -1444,6 +1445,7 @@ fn read_history_window(
     let request = TerminalViewerRequest::new(
         obcs_request_id()?,
         TerminalViewerAction::ReadRows {
+            detail: orchbee_client_server_protocol::ViewerRowDetail::Text,
             attachment_id: viewer_id.clone(),
             start_row,
             row_count,
@@ -2070,6 +2072,7 @@ fn wait_read_window(
     let request = TerminalViewerRequest::new(
         obcs_request_id()?,
         TerminalViewerAction::ReadRows {
+            detail: orchbee_client_server_protocol::ViewerRowDetail::Text,
             attachment_id: viewer_id.clone(),
             start_row,
             row_count,

@@ -19,6 +19,7 @@ fn viewer_controls_round_trip_every_closed_action_and_outcome() -> TestResult {
             revision: 0,
         },
         TerminalViewerAction::ReadRows {
+            detail: orchbee_capability_node_protocol::ViewerRowDetail::Text,
             start_row: 400,
             row_count: 100,
             revision: 7,
@@ -155,6 +156,7 @@ fn read_rows_action_tag_six_layout_is_fixed_and_older_tags_are_unchanged() -> Te
         worker_id: WorkerId::from_bytes([6; 16])?,
         worker_generation: WorkerGeneration::new(NonZeroU64::MIN),
         action: TerminalViewerAction::ReadRows {
+            detail: orchbee_capability_node_protocol::ViewerRowDetail::Text,
             start_row: 0x0102_0304_0506_0708,
             row_count: 4096,
             revision: 0x1112_1314_1516_1718,
@@ -175,6 +177,20 @@ fn read_rows_action_tag_six_layout_is_fixed_and_older_tags_are_unchanged() -> Te
     expected.extend_from_slice(&0x3132_3334_3536_3738_u64.to_be_bytes());
     expected.extend_from_slice(&(8 * 1024 * 1024_u32).to_be_bytes());
     assert_eq!(action, expected.as_slice());
+    let mut render = request;
+    let TerminalViewerAction::ReadRows { detail, .. } = &mut render.action else {
+        unreachable!()
+    };
+    *detail = ViewerRowDetail::Render;
+    let message = CapabilityNodeMessage::TerminalViewerRequest(render);
+    let render_bytes = encode_message(&message)?;
+    let mut expected_render = encoded.clone();
+    expected_render[65] = 13;
+    assert_eq!(render_bytes, expected_render);
+    assert_eq!(decode_message(&render_bytes)?, message);
+    for end in 0..render_bytes.len() {
+        assert!(decode_message(&render_bytes[..end]).is_err());
+    }
     for (tag, action) in [
         (2_u8, TerminalViewerAction::Poll),
         (5_u8, TerminalViewerAction::Detach),
@@ -197,6 +213,7 @@ fn read_rows_action_and_rows_rejected_reject_out_of_bounds_and_unknown_tags() ->
         worker_id: WorkerId::from_bytes([6; 16])?,
         worker_generation: WorkerGeneration::new(NonZeroU64::MIN),
         action: TerminalViewerAction::ReadRows {
+            detail: orchbee_capability_node_protocol::ViewerRowDetail::Text,
             start_row: 0,
             row_count: 1,
             revision: 0,

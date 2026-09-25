@@ -273,8 +273,8 @@ export const TerminalFrameSchema = z
 		activeScreen: z.enum(ActiveScreen),
 		attachmentId: AttachmentIdSchema,
 		baseRevision: uint64Schema.nullable(),
-		cellPixelHeight: z.number().int().min(1).max(PROTOCOL_LIMITS.maxCellPixelDimension),
-		cellPixelWidth: z.number().int().min(1).max(PROTOCOL_LIMITS.maxCellPixelDimension),
+		cellPixelHeight: z.number().int().min(0).max(PROTOCOL_LIMITS.maxCellPixelDimension),
+		cellPixelWidth: z.number().int().min(0).max(PROTOCOL_LIMITS.maxCellPixelDimension),
 		columns: z.number().int().min(1).max(PROTOCOL_LIMITS.maxFrameColumns),
 		cursor: z.strictObject({
 			blinking: z.boolean(),
@@ -324,6 +324,9 @@ export const TerminalFrameSchema = z
 		}
 		if (frame.columns * frame.rows > PROTOCOL_LIMITS.maxFrameCells) {
 			addIssue(context, ['columns'], `Grid exceeds ${PROTOCOL_LIMITS.maxFrameCells} cells`);
+		}
+		if ((frame.cellPixelWidth === 0) !== (frame.cellPixelHeight === 0)) {
+			addIssue(context, ['cellPixelWidth'], 'Cell pixels must be both known or both unknown');
 		}
 		if (frame.columns * frame.cellPixelWidth > MAX_UINT16) {
 			addIssue(context, ['cellPixelWidth'], 'Terminal pixel width exceeds 65535');
@@ -1100,9 +1103,8 @@ function decodeFrameHeader(bytes: Uint8Array): ProtocolResult<FrameHeader> {
 		columns * rows > PROTOCOL_LIMITS.maxFrameCells ||
 		cursorColumn >= columns ||
 		cursorRow >= rows ||
-		cellPixelWidth === 0 ||
+		(cellPixelWidth === 0) !== (cellPixelHeight === 0) ||
 		cellPixelWidth > PROTOCOL_LIMITS.maxCellPixelDimension ||
-		cellPixelHeight === 0 ||
 		cellPixelHeight > PROTOCOL_LIMITS.maxCellPixelDimension ||
 		columns * cellPixelWidth > MAX_UINT16 ||
 		rows * cellPixelHeight > MAX_UINT16

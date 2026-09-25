@@ -557,3 +557,14 @@ PhysicalUnknown；255 为 RejectedFencing。
 ## 按来源发现 Worktree
 
 Kind 15 新增 `StartSource` action tag 4：有界绝对 UTF-8 目录与严格 0/1 的命令局部信任。原 Start tag 1 保持不变。Start result tag 6 表示执行不受支持。Poll result tag 13 为 `SourceCompleted`：公共目录、来源检出、列表及 stderr 字节共享既有 7936 字节可变数据上限，各带独立长度。Worker 拥有执行及清理；该读取不消耗变更 job 回执。`tests/worktree_source.rs` 覆盖黄金字节、错误方向／尾随／截断输入、严格信任值及组合上限。
+
+## 带样式的 buffer 读取
+
+`ReadRows` 携带类型化的 text/render detail。text 逐字节保留查看器动作 tag 6 及完整既有 body。
+render 使用 tag 13，随后为相同的起始行、行数、revision、generation、请求序号和最大字节字段。
+边界、结果兼容及关联均不变，不支持的 tag 明确拒绝。Worker 将 render 映射为既有 Host render
+行访问请求，Server 检查返回的 detail。viewport 读取仍为 text。
+
+此私有未发布扩展保留 OBCN 帧版本及 8 MiB 行负载上限，不增加副作用、重试或回退策略。
+匹配的开发 cohort 一起部署或回退，不涉及持久迁移。精确旧 text 和新 render 字节、非法 body
+及未知 tag 的检查与运行时转发及响应路由测试独立进行。

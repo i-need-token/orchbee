@@ -1,11 +1,14 @@
-//! Bounded OBRW text-detail row-window decoding. Legal render windows complete full
-//! header validation, then fail closed because this decoder interprets text detail only.
+//! Shared bounded OBRW routing with distinct strict text and render decoders.
+//! Each decoder validates the complete record and rejects the other detail.
 use crate::{
     AttachmentId, HostEpoch, MAXIMUM_FRAME_CELLS, MAXIMUM_FRAME_COLUMNS, MAXIMUM_FRAME_ROWS,
     MAXIMUM_ROW_WINDOW_BYTES, MAXIMUM_TEXT_CELL_BYTES, ProtocolError, ProtocolErrorCode,
     RowWindowDetail,
 };
 use std::num::NonZeroU64;
+
+mod render;
+pub use render::{TerminalRenderRowWindow, decode_terminal_render_row_window};
 
 pub const TERMINAL_ROW_WINDOW_HEADER_BYTES: usize = 112;
 
@@ -93,6 +96,7 @@ struct Header {
     host_epoch: HostEpoch,
     attachment_id: AttachmentId,
     ignored_optional_flags: u8,
+    projection_length: u32,
 }
 
 /// Decode one complete text-detail row window, validating the whole structure before
@@ -135,22 +139,27 @@ pub fn decode_terminal_text_row_window(
 pub fn inspect_terminal_row_window_route(
     bytes: &[u8],
 ) -> Result<TerminalRowWindowRoute, ProtocolError> {
-    let header = decode_header(bytes)?;
-    Ok(TerminalRowWindowRoute {
-        attachment_id: header.attachment_id,
-        host_epoch: header.host_epoch,
-        sequence: NonZeroU64::new(header.sequence).ok_or_else(field_error)?,
-        revision: header.revision,
-        generation: NonZeroU64::new(header.generation).ok_or_else(field_error)?,
-        total_rows: header.total_rows,
-        start_row: header.start_row,
-        columns: header.columns,
-        row_count: header.row_count,
-        detail: match header.detail {
-            Detail::Render => RowWindowDetail::Render,
-            Detail::Text => RowWindowDetail::Text,
-        },
-    })
+    decode_header(bytes)?.route()
+}
+
+impl Header {
+    fn route(&self) -> Result<TerminalRowWindowRoute, ProtocolError> {
+        Ok(TerminalRowWindowRoute {
+            attachment_id: self.attachment_id,
+            host_epoch: self.host_epoch,
+            sequence: NonZeroU64::new(self.sequence).ok_or_else(field_error)?,
+            revision: self.revision,
+            generation: NonZeroU64::new(self.generation).ok_or_else(field_error)?,
+            total_rows: self.total_rows,
+            start_row: self.start_row,
+            columns: self.columns,
+            row_count: self.row_count,
+            detail: match self.detail {
+                Detail::Render => RowWindowDetail::Render,
+                Detail::Text => RowWindowDetail::Text,
+            },
+        })
+    }
 }
 
 fn decode_header(bytes: &[u8]) -> Result<Header, ProtocolError> {
@@ -247,6 +256,7 @@ fn decode_header(bytes: &[u8]) -> Result<Header, ProtocolError> {
         host_epoch,
         attachment_id,
         ignored_optional_flags: flags & 0x7f,
+        projection_length,
     })
 }
 
@@ -405,7 +415,7 @@ fn field_error() -> ProtocolError {
 }
 
 fn error(code: ProtocolErrorCode) -> ProtocolError {
-    ProtocolError::new(code, "invalid OBRW text row window")
+    ProtocolError::new(code, "invalid OBRW row window")
 }
 
 struct Reader<'a> {

@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.terminal.output",
-	"title": "Source-selected terminal text envelope",
+	"title": "Source-selected terminal text or ANSI envelope",
 	"type": "object",
 	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
@@ -10,7 +10,7 @@
 			"const": "orchbee.terminal.output"
 		},
 		"version": {
-			"const": 1
+			"enum": [1, 2]
 		},
 		"source": {
 			"$ref": "#/$defs/snapshotSource"
@@ -134,6 +134,9 @@
 							"type": "boolean"
 						}
 					}
+				},
+				"encoding": {
+					"const": "ansi"
 				}
 			}
 		}
@@ -200,5 +203,32 @@
 				}
 			}
 		}
-	}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 2
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"required": ["encoding"]
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"result": {
+						"not": {
+							"required": ["encoding"]
+						}
+					}
+				}
+			}
+		}
+	]
 }

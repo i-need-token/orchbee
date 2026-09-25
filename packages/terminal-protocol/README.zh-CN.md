@@ -10,7 +10,7 @@ OBTP transport envelope，以及 `Hello`、`HelloAccepted`、`ProtocolRejected`�
 `TypedFailure` connection-control payload，以及 kind-10 `ListTerminals` request、`TerminalList`
 response、nested inventory fact、现有 kind 12 到 19 的非创建 lifecycle control、kind 20 到 25
 的 attachment control、kind 30 和 31 的 raw `WriteInput`/`InputAccepted` 交换，以及 kind 32 和 33
-的 `ResizeTerminal`/`ResizeAccepted` control 交换，以及 kind 34 到 38 的 semantic `KeyInput`、
+的 `ResizeTerminal`/`ResizeAccepted` control 交换，以及 kind 34 到 39 的 semantic `KeyInput`、
 `TextInput`、`MouseInput`、`FocusInput`、`PasteInput` 与 `PasteAutoInput` request。本 package、其 reference 与
 fixture 仍是唯一 wire authority。尚未发布的
 [`orchbee-worker`](../../apps/orchbee-worker/README.zh-CN.md) application 消费 Rust envelope、connection、launch/lifecycle、attachment、projection-demand
@@ -26,7 +26,7 @@ header 校验后以 text-only API 之外的语义关闭拒绝。该 binding 还�
 `NeedSnapshot` projection-feedback control、kind 47 到 49 的 projection-demand request、
 acceptance 与 blocked event，以及 kind 51 到 54 的 history-demand、change 与 observation
 control。其 row-access control binding 覆盖 kind-45 `ReadRows` request 与 kind-50 `RowsApplied`
-的两个方向；二进制 kind-46 `RowsSnapshot` 仍不属于 Rust binding。它还覆盖 kind 55 到 58 的
+的两个方向；二进制 kind-46 `RowsSnapshot` 通过独立 text 与 render API 解码。它还覆盖 kind 55 到 58 的
 仅 event `TerminalBell`、`TerminalClipboardWriteRequest`、`TerminalMetadataChanged` 与
 `TerminalApplicationSignal` 表示；所有 audible、clipboard、metadata、application-signal 与
 notification effect 仍在 binding 之外。Rust crate 还覆盖 kind 60 到 62 的四种
@@ -231,3 +231,21 @@ pnpm verify
 ```
 
 仅在有意审核 TypeScript 所有的夹具更改后运行 `pnpm --filter @orchbee/terminal-protocol fixtures:generate`。对于三个原生表面夹具，运行 `pnpm --filter @orchbee/terminal-host surface-fixtures:generate`。各自的一致性检查只比较已跟踪文件，不会重写它们。
+
+## Rust render 行窗口 binding
+
+`decode_terminal_projection_buffer` 严格验证借用的 OBPB 0.0.2 snapshot 与 delta，包括全部
+规范分区、元数据／字符串范围、单元格／样式值及行／宽字符／换行不变量。它使用既有
+`TerminalTextStyle` 颜色和标志暴露不可变的借用行／单元格，不展开重复字符串别名。
+这是完整解码器，不是 TypeScript 可信本地结构视图的快速路径。
+
+`decode_terminal_render_row_window` 共享既有 OBRW 头部所有者，要求 render detail，并验证
+一个完整 OBPB 快照及 OBKG 资源快照。投影身份、序号、revision、generation、几何和行起点
+必须与外层窗口一致。图形像素在有界条件下验证，不复制；即使 CLI 不重放图形，资源身份、
+长度、放置边界和裁剪引用仍必须合法。原 text 解码器继续拒绝 render 负载。两个解码器均不
+执行 VT、不应用状态，也不拥有读取重试。原生 ANSI 快照消费者负责展示；共享 packed 一致性
+语料及 render 夹具仍是跨语言判定依据。不改变 wire 版本或 Host 编码。
+
+OBTF 与 OBPB 的网格几何以 `(0, 0)` 保留未知字符像素尺寸，与 Host 及控制几何契约一致。
+否则两个尺寸都必须为正；零值与正值混合的组合非法。网格及像素范围上限不变。
+终端快照不会为了导出文本或样式而编造像素尺寸。

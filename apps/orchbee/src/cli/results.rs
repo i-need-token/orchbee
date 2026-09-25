@@ -71,6 +71,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
 pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
     match command {
         QueryCommand::TerminalSourceWait { .. } => 3,
+        QueryCommand::TerminalOutput { ansi: true, .. } => 2,
         QueryCommand::PanelGet(_) | QueryCommand::PanelCurrent(_) => 3,
         QueryCommand::ApiSnapshot => 4,
         QueryCommand::PanelList { .. } | QueryCommand::TabGet(_) => 2,

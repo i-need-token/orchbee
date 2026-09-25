@@ -6,6 +6,25 @@ use serde_json::{Value, json};
 use super::{Failure, FailureKind, output, results::TerminalRow};
 use crate::invocation::{OutputSelection, OutputSource};
 
+#[cfg(windows)]
+pub(crate) mod ansi;
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct ContentSpan {
+    pub(crate) physical_rows: usize,
+    pub(crate) first_row: Option<u64>,
+    pub(crate) last_row: Option<u64>,
+    pub(crate) starts_mid_line: bool,
+    pub(crate) ends_mid_line: bool,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct PreparedContent {
+    pub(crate) span: ContentSpan,
+    pub(crate) text: String,
+    pub(crate) ansi: bool,
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct OutputRow {
     pub(crate) index: u64,
@@ -14,31 +33,13 @@ pub(crate) struct OutputRow {
     pub(crate) into_next: bool,
 }
 
-pub(crate) fn frame_rows(frame: &TerminalTextFrame) -> Vec<OutputRow> {
-    frame
-        .rows
-        .iter()
-        .map(|row| {
-            let mut text = String::new();
-            for cell in &row.cells {
-                if cell.width == 2 {
-                    continue;
-                }
-                if cell.width == 3 || cell.text.is_empty() {
-                    text.push(' ');
-                } else {
-                    text.push_str(&cell.text);
-                }
-            }
-            text.truncate(text.trim_end_matches(' ').len());
-            OutputRow {
-                index: frame.scrollback_rows + u64::from(row.index),
-                text,
-                from_previous: row.flags & 2 != 0,
-                into_next: row.flags & 1 != 0,
-            }
-        })
-        .collect()
+mod visible;
+
+pub(crate) fn frame_rows(
+    frame: &TerminalTextFrame,
+    selection: OutputSelection,
+) -> Result<Vec<OutputRow>, Failure> {
+    visible::rows(frame, selection)
 }
 
 pub(crate) fn window_rows(window: &TerminalTextRowWindow) -> Vec<OutputRow> {
@@ -65,7 +66,6 @@ pub(crate) struct SampleRange {
 pub(crate) fn range(
     frame: &TerminalTextFrame,
     selection: OutputSelection,
-    visible: &[OutputRow],
 ) -> Result<SampleRange, Failure> {
     let total = frame
         .scrollback_rows
@@ -80,7 +80,7 @@ pub(crate) fn range(
         total,
         frame.cursor.row,
         frame.alternate_screen,
-        visible,
+        visible::last_content_row(frame),
         capacity,
     ))
 }
@@ -91,19 +91,13 @@ fn select_range(
     total: u64,
     cursor: u16,
     alternate: bool,
-    visible: &[OutputRow],
+    last_content_row: Option<u64>,
     capacity: u64,
 ) -> SampleRange {
     let end = if selection.source == OutputSource::Visible || alternate {
         total
     } else {
-        visible
-            .iter()
-            .rev()
-            .find(|row| !row.text.trim().is_empty())
-            .map_or(total, |row| {
-                row.index.max(scrollback + u64::from(cursor)) + 1
-            })
+        last_content_row.map_or(total, |index| index.max(scrollback + u64::from(cursor)) + 1)
     };
     let wanted = if selection.lines == Some(0) {
         0
@@ -135,8 +129,9 @@ pub(crate) struct TerminalOutputDoc {
     pub(crate) columns: u16,
     pub(crate) screen_rows: u16,
     pub(crate) range: SampleRange,
-    pub(crate) rows: Vec<OutputRow>,
+    pub(crate) span: ContentSpan,
     pub(crate) text: String,
+    pub(crate) ansi: bool,
 }
 
 pub(crate) fn document(
@@ -148,7 +143,33 @@ pub(crate) fn document(
 ) -> Result<TerminalOutputDoc, Failure> {
     prepare_rows(&mut rows, selection);
     let text = join_text(&rows, selection.source == OutputSource::RecentUnwrapped)?;
-    Ok(TerminalOutputDoc {
+    Ok(prepared_document(
+        terminal,
+        frame,
+        selection,
+        range,
+        PreparedContent {
+            text,
+            ansi: false,
+            span: ContentSpan {
+                physical_rows: rows.len(),
+                first_row: rows.first().map(|row| row.index),
+                last_row: rows.last().map(|row| row.index),
+                starts_mid_line: rows.first().is_some_and(|row| row.from_previous),
+                ends_mid_line: rows.last().is_some_and(|row| row.into_next),
+            },
+        },
+    ))
+}
+
+pub(crate) fn prepared_document(
+    terminal: TerminalRow,
+    frame: &TerminalTextFrame,
+    selection: OutputSelection,
+    range: SampleRange,
+    content: PreparedContent,
+) -> TerminalOutputDoc {
+    TerminalOutputDoc {
         terminal,
         selection,
         revision: frame.route.revision,
@@ -157,9 +178,10 @@ pub(crate) fn document(
         columns: frame.geometry.columns,
         screen_rows: frame.geometry.rows,
         range,
-        rows,
-        text,
-    })
+        span: content.span,
+        text: content.text,
+        ansi: content.ansi,
+    }
 }
 
 pub(super) fn prepare_rows(rows: &mut Vec<OutputRow>, selection: OutputSelection) {
@@ -204,19 +226,23 @@ fn join_text(rows: &[OutputRow], unwrap: bool) -> Result<String, Failure> {
 
 impl TerminalOutputDoc {
     pub(crate) fn result(&self) -> Value {
-        json!({
+        let mut result = json!({
             "terminal": super::results::terminal_row_json(&self.terminal),
             "selection": { "source": self.selection.source.token(), "lines": self.selection.lines },
             "observed": { "revision": self.revision.to_string(), "generation": self.generation.to_string(),
                 "alternateScreen": self.alternate, "columns": self.columns, "screenRows": self.screen_rows,
                 "totalRows": self.range.total.to_string(), "windowStart": self.range.start.to_string(),
                 "windowRows": self.range.count, "capacityOmittedRows": self.range.capacity_omitted.to_string() },
-            "content": { "text": self.text, "physicalRows": self.rows.len(),
-                "firstRow": self.rows.first().map(|row| row.index.to_string()),
-                "lastRow": self.rows.last().map(|row| row.index.to_string()),
-                "startsMidLine": self.rows.first().is_some_and(|row| row.from_previous),
-                "endsMidLine": self.rows.last().is_some_and(|row| row.into_next) },
-        })
+            "content": { "text": self.text, "physicalRows": self.span.physical_rows,
+                "firstRow": self.span.first_row.map(|index| index.to_string()),
+                "lastRow": self.span.last_row.map(|index| index.to_string()),
+                "startsMidLine": self.span.starts_mid_line,
+                "endsMidLine": self.span.ends_mid_line },
+        });
+        if self.ansi {
+            result["encoding"] = json!("ansi");
+        }
+        result
     }
 }
 
@@ -249,7 +275,10 @@ mod tests {
                 14,
                 cursor,
                 alternate,
-                rows,
+                rows.iter()
+                    .rev()
+                    .find(|row| !row.text.trim().is_empty())
+                    .map(|row| row.index),
                 capacity,
             )
         };

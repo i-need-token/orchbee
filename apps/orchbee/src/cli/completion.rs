@@ -269,6 +269,7 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--unwrap",
     "--source",
     "--plain",
+    "--ansi",
     "--lines",
     "--timeout",
     "--text",
@@ -448,6 +449,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--lines",
             "--source",
             "--plain",
+            "--ansi",
         ],
     ),
     ("agent:send-keys", &["--session", "--name", "--panel"]),
@@ -619,6 +621,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--unwrap",
             "--source",
             "--plain",
+            "--ansi",
         ],
     ),
     (
@@ -964,6 +967,7 @@ fn flag_bit(flag: &str) -> &'static str {
         "--right-click" => "seen_right_click",
         "--source" => "seen_output_source",
         "--plain" => "seen_plain",
+        "--ansi" => "seen_ansi",
         "--direction" => "seen_direction",
         "--insert-index" => "seen_insert_index",
         "--amount" => "seen_amount",
@@ -1027,7 +1031,7 @@ fn flag_value(flag: &str) -> Option<&'static str> {
         "--cwd" => Some("cwd"),
         "--right-click" => Some("right_click"),
         "--source" => Some("output_source"),
-        "--plain" => None,
+        "--plain" | "--ansi" => None,
         "--direction" => Some("direction"),
         "--key" => Some("key"),
         "--until" => Some("until"),
@@ -3273,11 +3277,15 @@ fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] 
         ("terminal:wait-output", "--timeout") => &["--forever"],
         ("terminal:wait-output", "--rows") => &["--source", "--lines", "--forever"],
 
-        ("terminal:read" | "agent:read", "--source" | "--plain") => {
-            &["--history", "--rows", "--unwrap"]
-        }
+        ("terminal:read" | "agent:read", "--source") => &["--history", "--rows", "--unwrap"],
         ("terminal:read" | "agent:read", "--history" | "--rows" | "--unwrap") => {
-            &["--source", "--plain"]
+            &["--source", "--plain", "--ansi"]
+        }
+        ("terminal:read" | "agent:read", "--plain") => {
+            &["--ansi", "--history", "--rows", "--unwrap"]
+        }
+        ("terminal:read" | "agent:read", "--ansi") => {
+            &["--plain", "--history", "--rows", "--unwrap"]
         }
         ("tab:create" | "panel:split", "--focus") => &["--no-focus"],
         ("tab:create" | "panel:split", "--no-focus") => &["--focus"],

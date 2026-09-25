@@ -4,6 +4,21 @@ use std::num::NonZeroU64;
 
 pub const MAXIMUM_VIEWER_RECORD_BYTES: usize = 64 + 36 * 1024 * 1024;
 
+/// Buffer reads default to text; render retains styles and graphics resources.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ViewerRowDetail {
+    #[default]
+    Text,
+    Render,
+}
+
+impl ViewerRowDetail {
+    const fn is_text(&self) -> bool {
+        matches!(self, Self::Text)
+    }
+}
+
 /// Projection delivery the Client requests for an attached viewer.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -87,6 +102,8 @@ pub enum TerminalViewerAction {
     },
     ReadRows {
         attachment_id: ViewerId,
+        #[serde(default, skip_serializing_if = "ViewerRowDetail::is_text")]
+        detail: ViewerRowDetail,
         #[serde(with = "crate::number::decimal")]
         start_row: u64,
         row_count: u16,

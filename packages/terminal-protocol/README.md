@@ -29,7 +29,7 @@ bidirectional `FrameApplied` and `NeedSnapshot` projection-feedback controls for
 the projection-demand request, acceptance, and blocked event for kinds 47 through 49, and the
 history-demand, change, and observation controls for kinds 51 through 54. Its row-access control
 binding covers the kind-45 `ReadRows` request and both directions of kind-50 `RowsApplied`; binary
-kind-46 `RowsSnapshot` remains outside the Rust binding. It also covers the event-only
+kind-46 `RowsSnapshot` is decoded through the separate text and render APIs. It also covers the event-only
 `TerminalBell`, `TerminalClipboardWriteRequest`, `TerminalMetadataChanged`, and
 `TerminalApplicationSignal` representations for kinds 55 through 58; every audible, clipboard,
 metadata, application-signal, and notification effect remains outside the binding. The Rust crate
@@ -317,3 +317,25 @@ Run `pnpm --filter @orchbee/terminal-protocol fixtures:generate` only after an i
 TypeScript-owned fixture change. For the three native surface fixtures, run
 `pnpm --filter @orchbee/terminal-host surface-fixtures:generate`. Their respective conformance
 checks compare tracked files without rewriting them.
+
+## Rust render row-window binding
+
+`decode_terminal_projection_buffer` strictly validates borrowed OBPB 0.0.2 snapshots and deltas,
+including every canonical section, metadata/string range, cell/style value and row/wide/wrap
+invariant. It exposes immutable borrowed rows/cells using the existing `TerminalTextStyle` colors
+and flags, without expanding repeated string aliases. This is a full decoder, not the trusted local
+TypeScript structural-view fast path.
+
+`decode_terminal_render_row_window` shares the existing OBRW header owner, requires render detail,
+and validates one complete OBPB snapshot and OBKG resource snapshot. Projection identity, sequence,
+revision, generation, geometry and row origin must agree with the outer window. Graphics pixels
+are bounded and validated without copying; resource identity, length, placement bounds and crop
+references must be valid even though the CLI does not replay graphics. The original text decoder
+still rejects render payloads. Neither decoder executes VT, applies state or owns read retries.
+The native ANSI snapshot consumer owns presentation; the shared packed conformance corpus and
+render fixture remain the cross-language oracles. No wire version or Host encoding changes.
+
+Packed OBTF and OBPB geometry preserves unknown cell pixels as `(0, 0)`, matching the Host and
+control geometry contract. Otherwise both dimensions are positive; mixed zero/positive pairs are
+invalid. Grid and pixel-extent bounds remain unchanged. A terminal snapshot never invents pixel
+dimensions merely to export text or styles.

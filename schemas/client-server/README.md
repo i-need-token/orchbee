@@ -378,3 +378,18 @@ The OBSN header is magic `OBSN`, big-endian u16 encoding version `1`, zero u16 r
 | 5 paste | u32 length, nonempty opaque content <=262,144; Host owns bracket encoding                                                        |
 
 Combo bases are named key `(1,1..13)`, Insert `(2,0)`, F1..F12 `(3,1..12)`, Space `(4,0)`, ASCII lowercase letter `(5,97..122)` or digit `(6,48..57)`. Extra flag bits, invalid bases, unknown kinds, truncation and trailing bytes fail closed. Aggregate decoded text (including folded CR), bytes and paste content is at most 1,048,576 bytes; keys carry no decoded payload. The request is not atomic: its result preserves the confirmed prefix and first stopped record. The v2 corpus supplies canonical binary bytes, every key and base kind, mixed records and negative controls independently of the Rust encoder.
+
+## Styled buffer reads
+
+A `read-rows` action optionally carries `detail:"text"|"render"`. Omission means text, and native
+text encoding omits the default member to preserve existing bytes. Unknown details fail closed.
+Every existing bound, exact revision/generation/start-row pin, correlation and one-shot lifecycle
+still applies. Server validates the returned OBRW detail against the request. Render carries the
+Host's existing complete projection plus graphics snapshot; the 8 MiB payload budget is unchanged.
+A render refusal never falls back to text or silently discards graphics. Viewport reads remain text.
+
+This is an additive unpublished OBCS v2 contract with the existing frame version. Client, Server,
+Worker and Host development artifacts roll out or roll back together. Old readers reject the new
+member; no durable state or migration is added. Windows ANSI CLI output is the concrete consumer,
+while the wire remains platform-neutral. JSON-schema and independent Rust cases cover default
+text compatibility, render selection and invalid details; runtime peers verify exact response pins.

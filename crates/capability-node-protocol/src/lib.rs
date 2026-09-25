@@ -17,7 +17,7 @@ pub use terminal_viewer::{
     MAXIMUM_READ_ROWS, MAXIMUM_READ_ROWS_BYTES, MAXIMUM_VIEWER_RECORD_BYTES,
     MINIMUM_READ_ROWS_BYTES, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
     TerminalViewerResult, ViewerHistoryDemand, ViewerProjectionDemand, ViewerRejection,
-    ViewerRowsRejectedReason, ViewerSnapshotReason, ViewportRowOrigin,
+    ViewerRowDetail, ViewerRowsRejectedReason, ViewerSnapshotReason, ViewportRowOrigin,
 };
 
 pub use agent_drain::{

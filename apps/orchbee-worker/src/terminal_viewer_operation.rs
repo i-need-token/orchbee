@@ -4,7 +4,8 @@ use std::{error::Error, io, num::NonZeroU64, time::Duration};
 use orchbee_capability_node_protocol::{
     MAXIMUM_VIEWER_RECORD_BYTES, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerRequest, TerminalViewerResult, ViewerHistoryDemand, ViewerProjectionDemand,
-    ViewerRejection, ViewerRowsRejectedReason, ViewerSnapshotReason, ViewportRowOrigin,
+    ViewerRejection, ViewerRowDetail, ViewerRowsRejectedReason, ViewerSnapshotReason,
+    ViewportRowOrigin,
 };
 use orchbee_local_site_protocol::WorkerId;
 use orchbee_terminal_protocol::{
@@ -191,6 +192,7 @@ fn apply(
             process_info::read(host, server, request.attachment_id, correlation)
         }
         TerminalViewerAction::ReadRows {
+            detail,
             start_row,
             row_count,
             revision,
@@ -204,7 +206,10 @@ fn apply(
             request.attachment_id,
             ReadRows {
                 attachment_id: id,
-                detail: RowWindowDetail::Text,
+                detail: match detail {
+                    ViewerRowDetail::Text => RowWindowDetail::Text,
+                    ViewerRowDetail::Render => RowWindowDetail::Render,
+                },
                 generation,
                 maximum_bytes,
                 origin: RowWindowOrigin::Absolute { row: start_row },

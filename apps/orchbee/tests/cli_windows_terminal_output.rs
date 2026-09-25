@@ -16,6 +16,9 @@ const OBTF: &[u8] =
     include_bytes!("../../../packages/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin");
 const ID: &str = "33333333333333333333333333333333";
 
+#[path = "cli_windows_terminal_output/ansi.rs"]
+mod ansi;
+
 #[test]
 fn source_export_catalog_and_usage_failure_are_offline_machine_contracts() {
     let fixture = Fixture::new();
@@ -26,7 +29,7 @@ fn source_export_catalog_and_usage_failure_are_offline_machine_contracts() {
         &document,
         include_str!("../src/cli/schemas/orchbee.api.schema.json"),
     );
-    assert_eq!(document["version"], 36);
+    assert_eq!(document["version"], 37);
     assert_eq!(document["result"]["schemas"].as_object().unwrap().len(), 69);
     assert_eq!(
         document["result"]["schemas"]["orchbee.terminal.output"]["$id"],
@@ -251,7 +254,7 @@ fn windows_source_read_pins_merged_range_and_reports_exact_text() {
                 (14, 2)
             };
             assert!(
-                matches!(req.action(),Action::ReadRows { attachment_id,start_row,row_count,revision,generation,request_sequence,maximum_bytes }
+                matches!(req.action(),Action::ReadRows { detail: orchbee_client_server_protocol::ViewerRowDetail::Text, attachment_id,start_row,row_count,revision,generation,request_sequence,maximum_bytes }
                 if attachment_id==&viewer && *start_row==start && *row_count==count && *revision==route.revision && *generation==route.generation && request_sequence.get()==1 && *maximum_bytes==obcs::MAXIMUM_READ_ROWS_BYTES)
             );
             let rows = if source == "detection" {

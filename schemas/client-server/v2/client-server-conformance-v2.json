@@ -590,6 +590,11 @@
 			"direction": "client-to-server",
 			"name": "viewer-read-process-info",
 			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-process-info\",\"attachmentId\":\"33333333333333333333333333333333\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-read-render-rows",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"detail\":\"render\",\"startRow\":\"400\",\"rowCount\":100,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"1\",\"maximumBytes\":8388608}}"
 		}
 	],
 	"equivalentMessages": [
@@ -664,6 +669,12 @@
 			"direction": "client-to-server",
 			"name": "empty-launch-options-omitted",
 			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}},\"launch\":null,\"environment\":[]}"
+		},
+		{
+			"canonical": "viewer-read-rows",
+			"direction": "client-to-server",
+			"name": "viewer-read-rows-explicit-text",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"detail\":\"text\",\"startRow\":\"400\",\"rowCount\":100,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"1\",\"maximumBytes\":8388608}}"
 		}
 	],
 	"invalidMessages": [
@@ -2070,6 +2081,24 @@
 			"direction": "client-to-server",
 			"boundary": "schema",
 			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-process-info\",\"attachmentId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-rows-detail-unknown",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"detail\":\"future\",\"startRow\":\"400\",\"rowCount\":100,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"1\",\"maximumBytes\":8388608}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-rows-detail-null",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"detail\":null,\"startRow\":\"400\",\"rowCount\":100,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"1\",\"maximumBytes\":8388608}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-rows-detail-number",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"detail\":1,\"startRow\":\"400\",\"rowCount\":100,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"1\",\"maximumBytes\":8388608}}"
 		}
 	],
 	"workingDirectoryCases": [

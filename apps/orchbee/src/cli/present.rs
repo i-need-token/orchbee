@@ -486,7 +486,11 @@ pub(crate) fn render(
         // value, then the localized markers for tail-omitted entries and
         // budget-omitted rows.
         Projection::TerminalOutput(doc) => {
-            if matches!(command, QueryCommand::TerminalOutput { plain: true, .. }) {
+            if matches!(
+                command,
+                QueryCommand::TerminalOutput { plain: true, .. }
+                    | QueryCommand::TerminalOutput { ansi: true, .. }
+            ) {
                 return out.push(&doc.text);
             }
             for line in doc.text.lines() {

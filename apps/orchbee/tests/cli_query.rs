@@ -4570,6 +4570,7 @@ fn take_read_rows(
     let request = viewer_request(stream);
     let bounds = match request.action() {
         TerminalViewerAction::ReadRows {
+            detail: orchbee_client_server_protocol::ViewerRowDetail::Text,
             attachment_id,
             start_row,
             row_count,
@@ -5305,6 +5306,7 @@ fn take_wait_read_rows(
     let request = viewer_request(stream);
     let bounds = match request.action() {
         TerminalViewerAction::ReadRows {
+            detail: orchbee_client_server_protocol::ViewerRowDetail::Text,
             attachment_id,
             start_row,
             row_count,
@@ -6168,7 +6170,7 @@ fn api_schema_catalog_is_v26_closed_and_self_consistent() -> TestResult {
     assert_eq!(output.status.code(), Some(0));
     let listed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(listed["schema"], "orchbee.api.schema");
-    assert_eq!(listed["version"], 36, "catalog envelope is v36");
+    assert_eq!(listed["version"], 37, "catalog envelope is v37");
     assert_eq!(listed["source"]["kind"], "embedded");
     assert!(api_schema.is_valid(&listed), "listing self-validates");
     let schemas = listed["result"]["schemas"].as_object().unwrap();

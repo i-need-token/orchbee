@@ -4,7 +4,7 @@
 use super::*;
 use orchbee_capability_node_protocol::{
     HostTerminalId, OperationId, TerminalViewerAction, TerminalViewerOutcome,
-    TerminalViewerRequest, WorkerGeneration, WorkerId,
+    TerminalViewerRequest, ViewerRowDetail, WorkerGeneration, WorkerId,
 };
 use orchbee_terminal_protocol::{
     HostEpoch, ReadRows, RowAccessControl, RowWindowOrigin, decode_row_access_control,
@@ -53,13 +53,14 @@ fn attach() -> TestResult<TerminalViewerRequest> {
     })
 }
 
-fn read(maximum_bytes: u32) -> TestResult<TerminalViewerRequest> {
+fn read(maximum_bytes: u32, detail: ViewerRowDetail) -> TestResult<TerminalViewerRequest> {
     Ok(TerminalViewerRequest {
         request_id: OperationId::from_bytes([21; 16])?,
         attachment_id: OperationId::from_bytes([1; 16])?,
         worker_id: WorkerId::from_bytes([3; 16])?,
         worker_generation: WorkerGeneration::new(NonZeroU64::MIN),
         action: TerminalViewerAction::ReadRows {
+            detail,
             start_row: 2,
             row_count: 4,
             revision: 9,
@@ -103,7 +104,7 @@ fn row_window_payload(read: &ReadRows, bytes: usize) -> Vec<u8> {
 fn host_peer(
     mut peer: UnixStream,
     payload_bytes: usize,
-    forwarded: Sender<u32>,
+    forwarded: Sender<(u32, orchbee_terminal_protocol::RowWindowDetail)>,
 ) -> JoinHandle<PeerResult> {
     thread::spawn(move || {
         let mut header = [0_u8; TRANSPORT_ENVELOPE_HEADER_BYTES];
@@ -118,7 +119,7 @@ fn host_peer(
         else {
             panic!("Host received a non-ReadRows request")
         };
-        forwarded.send(read.maximum_bytes)?;
+        forwarded.send((read.maximum_bytes, read.detail))?;
         let payload = row_window_payload(&read, payload_bytes);
         let record = encode_transport_envelope(&Envelope {
             correlation_id: envelope.correlation_id,
@@ -138,10 +139,11 @@ fn host_peer(
 type RowExchangeOutcome = (
     Result<TerminalViewerOutcome, Box<dyn Error>>,
     JoinHandle<PeerResult>,
-    Receiver<u32>,
+    Receiver<(u32, orchbee_terminal_protocol::RowWindowDetail)>,
 );
 
 fn row_exchange(
+    detail: ViewerRowDetail,
     request_maximum: u32,
     negotiated_maximum: u32,
     payload_bytes: usize,
@@ -155,7 +157,7 @@ fn row_exchange(
     let (forwarded, observed) = channel();
     let peer_thread = host_peer(peer, payload_bytes, forwarded);
     let result = crate::terminal_viewer_operation::execute(
-        read(request_maximum)?,
+        read(request_maximum, detail)?,
         orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
         NonZeroU64::MIN,
         &host,
@@ -167,7 +169,8 @@ fn row_exchange(
 
 #[test]
 fn row_read_response_at_the_effective_budget_is_delivered() -> TestResult {
-    let (result, peer_thread, observed) = row_exchange(8 * 1024 * 1024, 4096, 4096)?;
+    let (result, peer_thread, observed) =
+        row_exchange(ViewerRowDetail::Text, 8 * 1024 * 1024, 4096, 4096)?;
     let TerminalViewerOutcome::Record(record) = result? else {
         panic!("an exact-budget row window must be delivered")
     };
@@ -179,13 +182,17 @@ fn row_read_response_at_the_effective_budget_is_delivered() -> TestResult {
         .join()
         .unwrap()
         .map_err(|error| -> Box<dyn Error> { error })?;
-    assert_eq!(observed.recv()?, 4096);
+    assert_eq!(
+        observed.recv()?,
+        (4096, orchbee_terminal_protocol::RowWindowDetail::Text)
+    );
     Ok(())
 }
 
 #[test]
 fn row_read_request_budget_below_negotiation_is_the_effective_maximum() -> TestResult {
-    let (result, peer_thread, observed) = row_exchange(2048, 65_536, 2048 + 1)?;
+    let (result, peer_thread, observed) =
+        row_exchange(ViewerRowDetail::Text, 2048, 65_536, 2048 + 1)?;
     let error = result.expect_err("a row window past its budget must be rejected");
     assert!(
         error.to_string().contains("byte budget"),
@@ -195,13 +202,17 @@ fn row_read_request_budget_below_negotiation_is_the_effective_maximum() -> TestR
         .join()
         .unwrap()
         .map_err(|error| -> Box<dyn Error> { error })?;
-    assert_eq!(observed.recv()?, 2048);
+    assert_eq!(
+        observed.recv()?,
+        (2048, orchbee_terminal_protocol::RowWindowDetail::Text)
+    );
     Ok(())
 }
 
 #[test]
 fn row_read_response_one_byte_over_the_effective_budget_is_rejected() -> TestResult {
-    let (result, peer_thread, observed) = row_exchange(8 * 1024 * 1024, 4096, 4096 + 1)?;
+    let (result, peer_thread, observed) =
+        row_exchange(ViewerRowDetail::Text, 8 * 1024 * 1024, 4096, 4096 + 1)?;
     let error = result.expect_err("a row window past its budget must be rejected");
     assert!(
         error.to_string().contains("byte budget"),
@@ -213,6 +224,24 @@ fn row_read_response_one_byte_over_the_effective_budget_is_rejected() -> TestRes
         .map_err(|error| -> Box<dyn Error> { error })?;
     // The forwarded request proves the effective budget is the negotiated
     // limit, the smallest of request, negotiation, and carrier capacity.
-    assert_eq!(observed.recv()?, 4096);
+    assert_eq!(
+        observed.recv()?,
+        (4096, orchbee_terminal_protocol::RowWindowDetail::Text)
+    );
+    Ok(())
+}
+
+#[test]
+fn render_row_read_reaches_host_with_the_same_negotiated_budget() -> TestResult {
+    let (result, peer, observed) =
+        row_exchange(ViewerRowDetail::Render, 8 * 1024 * 1024, 4096, 4096)?;
+    assert!(matches!(result?, TerminalViewerOutcome::Record(_)));
+    peer.join()
+        .unwrap()
+        .map_err(|error| -> Box<dyn Error> { error })?;
+    assert_eq!(
+        observed.recv()?,
+        (4096, orchbee_terminal_protocol::RowWindowDetail::Render)
+    );
     Ok(())
 }

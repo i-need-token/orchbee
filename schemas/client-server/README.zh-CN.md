@@ -346,3 +346,16 @@ OBSN header 为 magic `OBSN`、big-endian u16 encoding version `1`、零 u16 res
 | 5 paste | u32 length、非空 opaque content <=262,144；Host 拥有 bracket encoding                                                          |
 
 Combo base 为 named key `(1,1..13)`、Insert `(2,0)`、F1..F12 `(3,1..12)`、Space `(4,0)`、ASCII 小写字母 `(5,97..122)` 或数字 `(6,48..57)`。额外 flag bit、无效 base、未知 kind、truncation 与 trailing byte 均拒绝。Decoded text（含折叠 CR）、bytes 与 paste content 聚合最多 1,048,576 bytes；key 不携带 decoded payload。请求不具备原子性：result 保留已确认前缀和首个停止 record。v2 corpus 独立于 Rust encoder 提供 canonical binary bytes、每个 key 和 base kind、混合 record 与 negative control。
+
+## 带样式的 buffer 读取
+
+`read-rows` 动作可带 `detail:"text"|"render"`。省略时为 text，原生 text 编码省略默认成员，
+保留既有字节。未知 detail 明确拒绝。原有边界、精确 revision/generation/start-row 固定、
+关联及单次生命周期全部保留。Server 按请求验证返回的 OBRW detail。render 携带 Host 既有的
+完整投影及图形快照，8 MiB 负载预算不变。render 被拒绝时不得退回 text 或静默丢弃图形。
+viewport 读取仍为 text。
+
+这是增量的未发布 OBCS v2 契约，保留现有帧版本。Client、Server、Worker 与 Host 开发产物
+必须一起部署或回退。旧读取端拒绝新成员，不新增持久状态或迁移。Windows ANSI CLI 输出是
+具体消费者，wire 保持平台无关。JSON schema 及独立 Rust 用例覆盖默认 text 兼容、render
+选择和非法 detail；运行时 peer 验证精确响应固定。

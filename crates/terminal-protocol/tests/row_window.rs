@@ -2,7 +2,10 @@ use orchbee_terminal_protocol::{
     MAXIMUM_ROW_WINDOW_BYTES, ProtocolErrorCode, TERMINAL_ROW_WINDOW_HEADER_BYTES,
     TerminalRowPromptClass, decode_terminal_text_row_window,
 };
-use std::{error::Error, io};
+use std::error::Error;
+#[path = "support/encoded_fixture.rs"]
+mod encoded_fixture;
+use encoded_fixture::base64;
 
 const WINDOW: &[u8] =
     include_bytes!("../../../packages/terminal-protocol/fixtures/terminal-row-window-v0.0.3.bin");
@@ -334,25 +337,4 @@ fn assembled_render_window(projection_length: u32, graphics_length: u32) -> Vec<
     bytes[101..105].copy_from_slice(&projection_length.to_le_bytes());
     bytes[105..109].copy_from_slice(&graphics_length.to_le_bytes());
     bytes
-}
-
-fn base64(value: &str) -> io::Result<Vec<u8>> {
-    let alphabet = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut bits = 0_u32;
-    let mut count = 0;
-    let mut out = Vec::new();
-    for byte in value.bytes().take_while(|b| *b != b'=') {
-        let value = alphabet
-            .iter()
-            .position(|x| *x == byte)
-            .ok_or_else(|| io::Error::other("invalid fixture base64"))? as u32;
-        bits = (bits << 6) | value;
-        count += 6;
-        if count >= 8 {
-            count -= 8;
-            out.push((bits >> count) as u8);
-            bits &= (1 << count) - 1;
-        }
-    }
-    Ok(out)
 }

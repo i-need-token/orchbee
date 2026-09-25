@@ -140,8 +140,13 @@ fn worker_loss_after_attachment_installation_is_observed_on_next_poll() {
 // A self-consistent OBRW text-detail window of exactly `bytes` length that
 // echoes every routing field the read request pinned, wrapped in a kind-46
 // RowWindow record correlated to the Server-issued operation.
-fn rows_record(request: &WorkerRequest, bytes: usize) -> Vec<u8> {
+fn rows_record(
+    request: &WorkerRequest,
+    bytes: usize,
+    reply_detail: Option<orchbee_capability_node_protocol::ViewerRowDetail>,
+) -> Vec<u8> {
     let WorkerAction::ReadRows {
+        detail,
         start_row,
         row_count,
         revision,
@@ -152,6 +157,12 @@ fn rows_record(request: &WorkerRequest, bytes: usize) -> Vec<u8> {
     else {
         panic!("a row record requires a ReadRows request")
     };
+    if reply_detail.is_some() {
+        assert_eq!(
+            detail,
+            orchbee_capability_node_protocol::ViewerRowDetail::Render
+        );
+    }
     let mut payload = vec![0_u8; bytes];
     payload[..4].copy_from_slice(b"OBRW");
     payload[6] = 2;
@@ -168,6 +179,12 @@ fn rows_record(request: &WorkerRequest, bytes: usize) -> Vec<u8> {
     payload[88..90].copy_from_slice(&row_count.to_le_bytes());
     payload[96..100].copy_from_slice(&((bytes - 112) as u32).to_le_bytes());
     payload[100] = 3;
+    if reply_detail.unwrap_or(detail) == orchbee_capability_node_protocol::ViewerRowDetail::Render {
+        payload[6] = 1;
+        payload[92..96].copy_from_slice(&(u32::from(row_count) * 80).to_le_bytes());
+        payload[101..105].copy_from_slice(&((bytes - 152) as u32).to_le_bytes());
+        payload[105..109].copy_from_slice(&40_u32.to_le_bytes());
+    }
     encode_transport_envelope(&Envelope {
         correlation_id: Some(CorrelationId::from_bytes(request.request_id.as_bytes()).unwrap()),
         host_epoch: Some(HostEpoch::from_bytes([3; 16]).unwrap()),
@@ -183,7 +200,12 @@ fn rows_record(request: &WorkerRequest, bytes: usize) -> Vec<u8> {
 
 // The scripted Worker answers every ReadRows with a valid kind-46 record whose
 // OBRW payload is exactly `payload_bytes`, reporting the record it sent.
-fn rows_peer(mut peer: UnixStream, payload_bytes: usize, sent: Sender<Vec<u8>>) {
+fn rows_peer(
+    mut peer: UnixStream,
+    payload_bytes: usize,
+    sent: Sender<Vec<u8>>,
+    reply_detail: Option<orchbee_capability_node_protocol::ViewerRowDetail>,
+) {
     loop {
         let message = match read_message(&mut peer) {
             Ok(message) => message,
@@ -194,7 +216,7 @@ fn rows_peer(mut peer: UnixStream, payload_bytes: usize, sent: Sender<Vec<u8>>) 
         };
         let outcome = match request.action {
             WorkerAction::ReadRows { .. } => {
-                let record = rows_record(&request, payload_bytes);
+                let record = rows_record(&request, payload_bytes, reply_detail);
                 let _ = sent.send(record.clone());
                 WorkerOutcome::Record(record)
             }
@@ -221,7 +243,10 @@ type RowsSession = (
     UnixStream,
 );
 
-fn rows_session(payload_bytes: usize) -> RowsSession {
+fn rows_session(
+    payload_bytes: usize,
+    reply_detail: Option<orchbee_capability_node_protocol::ViewerRowDetail>,
+) -> RowsSession {
     let service = service();
     let carrier = create_worker_carrier(WORKER_ID, NonZeroU64::MIN);
     let handle = carrier.request_handle();
@@ -237,12 +262,13 @@ fn rows_session(payload_bytes: usize) -> RowsSession {
     let stop = server.try_clone().unwrap();
     let owner = thread::spawn(move || owner.run(server));
     let (sent, received) = channel();
-    let peer = thread::spawn(move || rows_peer(peer, payload_bytes, sent));
+    let peer = thread::spawn(move || rows_peer(peer, payload_bytes, sent, reply_detail));
     (service, handle, received, owner, peer, stop)
 }
 
 fn read_rows() -> Action {
     Action::ReadRows {
+        detail: orchbee_client_server_protocol::ViewerRowDetail::Text,
         attachment_id: ViewerId::parse(&format!("{:032x}", u128::from_be_bytes([2; 16]))).unwrap(),
         start_row: 2,
         row_count: 4,
@@ -255,7 +281,7 @@ fn read_rows() -> Action {
 
 #[test]
 fn read_rows_record_at_the_requested_budget_is_delivered() {
-    let (service, handle, received, owner, peer, stop) = rows_session(4096);
+    let (service, handle, received, owner, peer, stop) = rows_session(4096, None);
     let mut session = service.session();
     let candidate = viewer(&service, handle);
     assert!(matches!(
@@ -557,7 +583,7 @@ fn history_observed_acknowledgement_leaves_the_frame_flight_untouched() {
 
 #[test]
 fn read_rows_record_one_byte_over_budget_is_rejected_before_delivery() {
-    let (service, handle, _received, owner, peer, stop) = rows_session(4096 + 1);
+    let (service, handle, _received, owner, peer, stop) = rows_session(4096 + 1, None);
     let mut session = service.session();
     let candidate = viewer(&service, handle);
     assert!(matches!(
@@ -588,3 +614,39 @@ fn read_rows_record_one_byte_over_budget_is_rejected_before_delivery() {
 mod fixture;
 mod process_info;
 mod stateful;
+
+#[test]
+fn render_row_read_forwards_detail_and_rejects_a_text_reply() {
+    use orchbee_capability_node_protocol::ViewerRowDetail as WorkerDetail;
+    use orchbee_client_server_protocol::ViewerRowDetail;
+    for reply_detail in [WorkerDetail::Render, WorkerDetail::Text] {
+        let (service, handle, received, owner, peer, stop) = rows_session(4096, Some(reply_detail));
+        let mut session = service.session();
+        assert!(matches!(
+            session.publish_attach(viewer(&service, handle), attached_result()),
+            Outcome::Attached { .. }
+        ));
+        let mut action = read_rows();
+        let Action::ReadRows { detail, .. } = &mut action else {
+            unreachable!()
+        };
+        *detail = ViewerRowDetail::Render;
+        let ServerMessage::TerminalViewerResult(result) =
+            session.execute(ClientMessage::TerminalViewer(TerminalViewerRequest::new(
+                RequestId::parse("88888888888888888888888888888888").unwrap(),
+                action,
+            )))
+        else {
+            panic!("viewer result")
+        };
+        assert_eq!(
+            matches!(result.outcome(), Outcome::Record(_)),
+            reply_detail == WorkerDetail::Render
+        );
+        received.recv().unwrap();
+        drop(session);
+        let _ = stop.shutdown(std::net::Shutdown::Both);
+        let _ = owner.join();
+        peer.join().unwrap();
+    }
+}

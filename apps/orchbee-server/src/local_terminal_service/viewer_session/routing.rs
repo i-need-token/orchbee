@@ -6,12 +6,12 @@ use super::{
 };
 use orchbee_capability_node_protocol::{
     OperationId, ViewerHistoryDemand as WorkerHistoryDemand,
-    ViewerProjectionDemand as WorkerProjectionDemand,
+    ViewerProjectionDemand as WorkerProjectionDemand, ViewerRowDetail as WorkerRowDetail,
     ViewerRowsRejectedReason as WorkerRowsRejectedReason,
     ViewportRowOrigin as WorkerViewportRowOrigin,
 };
 use orchbee_client_server_protocol::{
-    HistoryDemand, ProjectionDemand, ViewerRowsRejectedReason, ViewportRowOrigin,
+    HistoryDemand, ProjectionDemand, ViewerRowDetail, ViewerRowsRejectedReason, ViewportRowOrigin,
 };
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, CorrelationId, HistoryControl, MessageRole, PayloadEncoding,
@@ -122,6 +122,7 @@ impl LocalTerminalSession<'_> {
             },
             Action::ReadProcessInfo { .. } => WorkerAction::ReadProcessInfo,
             Action::ReadRows {
+                detail,
                 start_row,
                 row_count,
                 revision,
@@ -130,6 +131,10 @@ impl LocalTerminalSession<'_> {
                 maximum_bytes,
                 ..
             } => WorkerAction::ReadRows {
+                detail: match detail {
+                    ViewerRowDetail::Text => WorkerRowDetail::Text,
+                    ViewerRowDetail::Render => WorkerRowDetail::Render,
+                },
                 start_row: *start_row,
                 row_count: *row_count,
                 revision: *revision,
@@ -373,6 +378,7 @@ fn valid_rows_record(
     record: &[u8],
 ) -> bool {
     let Action::ReadRows {
+        detail,
         start_row,
         row_count,
         revision,
@@ -391,7 +397,7 @@ fn valid_rows_record(
         return false;
     };
     // `decode_transport_envelope` already proved kind 46 is the only
-    // RowWindow-encoded response; a render detail is not this read's answer.
+    // RowWindow-encoded response; the requested detail must match exactly.
     if envelope.protocol != CURRENT_PROTOCOL_VERSION
         || envelope.role != MessageRole::Response
         || envelope.correlation_id != Some(correlation)
@@ -412,7 +418,11 @@ fn valid_rows_record(
         && route.generation == *generation
         && route.start_row == *start_row
         && route.row_count == *row_count
-        && route.detail == RowWindowDetail::Text
+        && route.detail
+            == match detail {
+                ViewerRowDetail::Text => RowWindowDetail::Text,
+                ViewerRowDetail::Render => RowWindowDetail::Render,
+            }
 }
 
 /// A viewport-read record is accepted on the same envelope, correlation, and
