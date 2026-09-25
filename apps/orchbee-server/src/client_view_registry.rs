@@ -4,7 +4,8 @@ use orchbee_workbench_protocol::{
     ClientViewControl, ClientViewControlReason, ClientViewControlStatus, ClientViewIntent,
     ClientViewObservation, ClientViewOperation, ClientViewOutcome, ClientViewPhase,
     ClientViewRecord, ClientViewSequence, ClientViewUnavailable, MAXIMUM_CLIENT_VIEWS,
-    MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES, WorkbenchClientId, WorkbenchRequestId,
+    MAXIMUM_ENCODED_CLIENT_ATTENTION_BYTES, MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES, WorkbenchClientId,
+    WorkbenchRequestId,
 };
 use std::{
     collections::BTreeMap,
@@ -16,7 +17,7 @@ const FRESHNESS: Duration = Duration::from_secs(5);
 const QUEUE_LIFETIME: Duration = Duration::from_secs(5);
 const RECEIPT_RETENTION: Duration = Duration::from_secs(60);
 const MAXIMUM_RECEIPTS: usize = 256;
-const MAXIMUM_LAYOUT_RESERVATION: usize = 16 * MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES;
+const MAXIMUM_PAYLOAD_RESERVATION: usize = 16 * MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES;
 
 struct PublishedView {
     record: ClientViewRecord,
@@ -37,11 +38,17 @@ struct Receipt {
     operation: ClientViewOperation,
     submitted_at: Instant,
     completed_at: Option<Instant>,
-    layout_reservation: usize,
+    payload_reservation: usize,
 }
 impl Receipt {
     fn settle(&mut self, status: ClientViewControlStatus, now: Instant) {
-        self.layout_reservation = match &status {
+        self.payload_reservation = match &status {
+            ClientViewControlStatus::AttentionRead { attention, .. } => {
+                serde_json::to_vec(attention)
+                    .map_or(MAXIMUM_ENCODED_CLIENT_ATTENTION_BYTES, |encoded| {
+                        encoded.len()
+                    })
+            }
             ClientViewControlStatus::LayoutRead { layout, .. } => serde_json::to_vec(layout)
                 .map_or(MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES, |encoded| encoded.len()),
             _ => 0,
@@ -163,7 +170,9 @@ impl ClientViewRegistry {
         else {
             return unavailable(ClientViewUnavailable::ClientUnavailable);
         };
-        let layout_reservation = if matches!(command.intent, ClientViewIntent::Layout { .. }) {
+        let payload_reservation = if command.intent.is_attention_read() {
+            MAXIMUM_ENCODED_CLIENT_ATTENTION_BYTES
+        } else if matches!(command.intent, ClientViewIntent::Layout { .. }) {
             MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES
         } else {
             0
@@ -171,10 +180,10 @@ impl ClientViewRegistry {
         let reserved: usize = self
             .receipts
             .values()
-            .map(|receipt| receipt.layout_reservation)
+            .map(|receipt| receipt.payload_reservation)
             .sum();
         if self.receipts.len() >= MAXIMUM_RECEIPTS
-            || reserved.saturating_add(layout_reservation) > MAXIMUM_LAYOUT_RESERVATION
+            || reserved.saturating_add(payload_reservation) > MAXIMUM_PAYLOAD_RESERVATION
         {
             return unavailable(ClientViewUnavailable::ReceiptCapacity);
         }
@@ -185,10 +194,12 @@ impl ClientViewRegistry {
         } else if self.receipts.values().any(|receipt| {
             receipt.operation.command.client_id == command.client_id
                 && receipt.operation.status.pending()
-        }) || matches!(
-            client.view.phase,
-            ClientViewPhase::Starting | ClientViewPhase::Busy
-        ) {
+        }) || (!command.intent.is_attention_read()
+            && matches!(
+                client.view.phase,
+                ClientViewPhase::Starting | ClientViewPhase::Busy
+            ))
+        {
             Some(ClientViewControlReason::Busy)
         } else {
             None
@@ -205,8 +216,8 @@ impl ClientViewRegistry {
                 operation,
                 submitted_at: now,
                 completed_at,
-                layout_reservation: if completed_at.is_none() {
-                    layout_reservation
+                payload_reservation: if completed_at.is_none() {
+                    payload_reservation
                 } else {
                     0
                 },
@@ -255,6 +266,12 @@ impl ClientViewRegistry {
                 return ClientViewOutcome::Conflict {};
             }
             let status = match &completion.outcome {
+                ClientViewCompletionOutcome::AttentionRead { attention } => {
+                    ClientViewControlStatus::AttentionRead {
+                        attention: attention.clone(),
+                        view: view.clone(),
+                    }
+                }
                 ClientViewCompletionOutcome::LayoutAdjusted { adjustment } => {
                     ClientViewControlStatus::LayoutAdjusted {
                         adjustment: adjustment.clone(),
@@ -345,10 +362,12 @@ impl ClientViewRegistry {
                 || client.view_revision != receipt.operation.command.expected_view_revision
             {
                 Some(ClientViewControlReason::StaleView)
-            } else if matches!(
-                client.view.phase,
-                ClientViewPhase::Starting | ClientViewPhase::Busy
-            ) {
+            } else if !receipt.operation.command.intent.is_attention_read()
+                && matches!(
+                    client.view.phase,
+                    ClientViewPhase::Starting | ClientViewPhase::Busy
+                )
+            {
                 Some(ClientViewControlReason::Busy)
             } else {
                 None

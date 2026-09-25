@@ -38,12 +38,21 @@ pub(super) struct AgentAttention {
 }
 
 impl AgentAttention {
+    pub(super) fn read(
+        &self,
+        sessions: &[orchbee_agent_observation_protocol::AgentSessionId],
+        focused: Option<bool>,
+    ) -> Option<orchbee_workbench_protocol::ClientAgentAttentionSnapshot> {
+        self.state.snapshot(self.cursor.clone()?, focused, sessions)
+    }
     #[cfg(test)]
     pub(in crate::terminal_session) fn publish_for_test(
         &mut self,
         round: &super::agent_read_lane::AttentionRound,
     ) {
         self.state.publish(round).unwrap();
+        self.cursor = Some(round.cursor.clone());
+        self.revision = Some(round.revision);
     }
     pub(super) fn new(clock: LocalOperationClock) -> Self {
         Self {

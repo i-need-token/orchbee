@@ -8,7 +8,8 @@ Windows `agent focus` 将存活 Agent 解析为一个可导航的主 Panel，并
 `--format text|json` 沿用 Client 控制契约。默认总时限为 30000 毫秒。帮助、补全和解析
 保持离线。不增加 macOS 或 Linux 运行时。
 
-该命令改变 Client 选择，不确认 Herdr 风格的 seen/unseen 状态；此对齐义务仍保留。
+该命令改变 Client 选择。[Client 提示状态所有者](native-client-attention.zh-CN.md)
+只在成功绘制可见窗格后确认精确 Agent 版本，已知失焦时禁止确认。
 规范 Agent 生命周期、语义状态和新鲜度是观测，不由聚焦操作重写。
 
 ## 模型与归属
@@ -45,7 +46,7 @@ Presentation；Session／名称必须在快照中对应恰好一个当前可导�
 
 ## 交付与验证
 
-新增一个命令路径（共 84 个），不新增 schema；内嵌目录保持 v41/72。
+新增一个命令路径（共 84 个），不新增 schema；内嵌目录保持 v42/72。
 共享 `orchbee.client.control` v1 回执及既有 Agent／Client 选择失败保留来源归属。
 人类输出和帮助本地化，JSON 不依赖语言。
 

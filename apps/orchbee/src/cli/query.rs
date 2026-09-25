@@ -55,7 +55,7 @@ mod agent_names;
 #[cfg(any(target_os = "linux", windows))]
 mod agent_target;
 #[cfg(windows)]
-pub(crate) use agent_focus::agent_focus_target;
+pub(crate) use agent_focus::{agent_attention_target, agent_focus_target, authenticate_attention};
 #[cfg(any(target_os = "linux", windows))]
 mod process_info;
 #[cfg(target_os = "linux")]

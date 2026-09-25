@@ -349,6 +349,8 @@ export {
 	ClientViewIntentSchema,
 	type ClientViewIntent,
 	ClientViewControlSchema,
+	ClientAgentAttentionSnapshotSchema,
+	WORKBENCH_MAXIMUM_ENCODED_CLIENT_ATTENTION_BYTES,
 	type ClientViewControl,
 	ClientViewControlReasonSchema,
 	type ClientViewControlReason,

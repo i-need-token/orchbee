@@ -47,6 +47,42 @@ pub(super) struct AttentionState {
 }
 
 impl AttentionState {
+    pub(super) fn snapshot(
+        &self,
+        cursor: orchbee_agent_observation_protocol::AgentChangesCursor,
+        outer_focused: Option<bool>,
+        sessions: &[AgentSessionId],
+    ) -> Option<orchbee_workbench_protocol::ClientAgentAttentionSnapshot> {
+        use orchbee_workbench_protocol::{
+            ClientAgentAttentionEntry, ClientAgentAttentionSnapshot, ClientAgentAttentionVersion,
+        };
+        if !self.readable {
+            return None;
+        }
+        let snapshot = ClientAgentAttentionSnapshot {
+            cursor,
+            revision: AgentSafeInteger::new(self.revision?),
+            outer_focused,
+            entries: sessions
+                .iter()
+                .map(|session_id| ClientAgentAttentionEntry {
+                    session_id: session_id.clone(),
+                    state: self
+                        .entries
+                        .get(session_id)
+                        .map(|entry| ClientAgentAttentionVersion {
+                            generation: entry.summary.observation.generation,
+                            sequence: entry.summary.observation.sequence,
+                            state_change_revision: AgentSafeInteger::new(entry.version),
+                            seen: entry.seen(),
+                        }),
+                })
+                .collect(),
+        };
+        snapshot.validate().ok()?;
+        Some(snapshot)
+    }
+
     pub(super) fn unavailable(&mut self) -> bool {
         std::mem::replace(&mut self.readable, false)
     }

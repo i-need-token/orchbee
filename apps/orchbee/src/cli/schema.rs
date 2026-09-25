@@ -388,8 +388,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog v41 adds bounded Agent change pages.
-        "version": 41,
+        // Catalog v42 adds selected Client Agent attention observations.
+        "version": 42,
         "source": embedded_source(),
         "result": result,
     });

@@ -185,7 +185,23 @@ fn observe(
             } else {
                 target
             };
-            let intent = selection::intent(target, selected, caller.as_ref(), &snapshot)?;
+            let intent = if let ClientNavigationTarget::AgentAttention(agent) = target {
+                let result = query::agent_attention_target(
+                    &mut client,
+                    &snapshot,
+                    agent,
+                    deadline,
+                    signals.poll_fd(),
+                );
+                if interrupted(answer, signals, deadline)? {
+                    return Ok(());
+                }
+                orchbee_workbench_protocol::ClientViewIntent::AgentAttention {
+                    session_ids: vec![result?],
+                }
+            } else {
+                selection::intent(target, selected, caller.as_ref(), &snapshot)?
+            };
             let operation_id = answer
                 .operation_id
                 .clone()
@@ -264,7 +280,10 @@ fn exchange_and_wait(
     // Every subsequent exchange is a retained Read. A lost Submit is never replayed.
     let submitted = matches!(action, ClientViewAction::Submit { .. });
     match exchange(client, site_id, action, deadline, signals) {
-        Ok(reply) => answer.reply = Some(reply),
+        Ok(reply) => {
+            verify_attention(client, &reply, deadline, signals)?;
+            answer.reply = Some(reply);
+        }
         Err(error) if submitted => {
             answer.unknown = true;
             let _ = error;
@@ -308,6 +327,10 @@ fn exchange_and_wait(
                     .as_ref()
                     .is_some_and(|previous| monotonic(previous, &reply)) =>
             {
+                if let Err(error) = verify_attention(client, &reply, deadline, signals) {
+                    answer.reply = None;
+                    return Err(error);
+                }
                 answer.reply = Some(reply)
             }
             Ok(_) => {
@@ -321,6 +344,19 @@ fn exchange_and_wait(
                 return Ok(());
             }
         }
+    }
+    Ok(())
+}
+fn verify_attention(
+    client: &mut LocalClient,
+    reply: &WorkbenchClientViewResult,
+    deadline: Instant,
+    signals: &ArmedSignals,
+) -> Result<(), Failure> {
+    if let ClientViewOutcome::Operation { operation } = &reply.outcome
+        && let ClientViewControlStatus::AttentionRead { attention, .. } = &operation.status
+    {
+        query::authenticate_attention(client, attention, deadline, signals.poll_fd())?;
     }
     Ok(())
 }

@@ -68,6 +68,12 @@ impl NativeSessionView<'_> {
 }
 
 impl NativeUi {
+    pub(in crate::terminal_session) fn read_agent_attention(
+        &self,
+        sessions: &[orchbee_agent_observation_protocol::AgentSessionId],
+    ) -> Option<orchbee_workbench_protocol::ClientAgentAttentionSnapshot> {
+        self.attention.read(sessions, self.outer_focused)
+    }
     pub(super) fn after_attention_draw(&mut self, draw: NativeAgentAttentionDraw) {
         let view = self.view();
         if !view.attention_uncovered() {

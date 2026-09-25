@@ -92,3 +92,22 @@ fn attention_hidden_history_overlay_and_changed_pane_reject_receipts() {
     ui.after_close_draw(draw(&ui, 120, 40, &shell));
     assert_eq!(ui.view().panel_unseen_count(pane.pane().panel()), 1);
 }
+
+#[test]
+fn attention_query_preserves_unseen_state_and_distinguishes_missing_sessions() {
+    use orchbee_agent_observation_protocol::AgentSessionId;
+    let (mut ui, pane) = fixture();
+    let sessions = [
+        AgentSessionId::parse("missing").unwrap(),
+        AgentSessionId::parse("agent-1").unwrap(),
+    ];
+    ui.board.open();
+    let snapshot = ui.read_agent_attention(&sessions).unwrap();
+    assert!(snapshot.answers(&sessions));
+    assert_eq!(snapshot.outer_focused, None);
+    assert_eq!(snapshot.entries[0].state, None);
+    assert!(!snapshot.entries[1].state.as_ref().unwrap().seen);
+    assert_eq!(ui.view().panel_unseen_count(pane.pane().panel()), 1);
+    ui.attention.close();
+    assert!(ui.read_agent_attention(&sessions).is_none());
+}

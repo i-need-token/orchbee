@@ -9,9 +9,9 @@ target, `--session`, `--name` or `--panel`, with the existing precedence and mut
 Client control contract. The default total timeout is 30000 ms. Help, completion and parsing
 remain offline. There is no new macOS or Linux runtime.
 
-The command changes Client selection. It does not acknowledge Herdr-style seen/unseen state;
-that parity obligation remains open. Canonical Agent lifecycle, semantic status and freshness
-are observations, not state that a focus operation may rewrite.
+The command changes Client selection. The [Client attention owner](native-client-attention.md)
+acknowledges exact Agent versions only after successful visible paint, unless known unfocused.
+Canonical Agent lifecycle, semantic status and freshness remain Server observations.
 
 ## Model and owners
 
@@ -50,7 +50,7 @@ re-resolving an Agent name. No rollback or automatic replacement focus is attemp
 
 ## Delivery and verification
 
-This adds one command path (84 total) and no new schema: the embedded catalog remains v41/72.
+This adds one command path (84 total) and no new schema: the embedded catalog remains v42/72.
 The shared `orchbee.client.control` v1 receipt and existing Agent/Client selection failures retain
 their source ownership. Human output and help are localized; JSON is locale independent.
 
@@ -62,4 +62,4 @@ with all created Agent processes, Sites and consoles stopped afterward. Review i
 TLA execution and independent review are not claimed. Seen/unseen behavior remains a separate,
 explicit report obligation.
 
-The Client must be ready; otherwise Agent reads are skipped and the existing Client selection failure reports `client-not-ready` with its Client ID. Catalog v41 extends this v1 reason vocabulary without adding a schema.
+The Client must be ready; otherwise Agent reads are skipped and the existing Client selection failure reports `client-not-ready` with its Client ID. Catalog v42 extends this v1 reason vocabulary without adding a schema.

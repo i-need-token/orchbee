@@ -1,3 +1,8 @@
+mod client_attention;
+pub use client_attention::{
+    ClientAgentAttentionEntry, ClientAgentAttentionSnapshot, ClientAgentAttentionVersion,
+    MAXIMUM_CLIENT_ATTENTION_SESSIONS, MAXIMUM_ENCODED_CLIENT_ATTENTION_BYTES,
+};
 mod client_layout;
 mod client_layout_adjustment;
 pub use client_layout::{
@@ -1050,6 +1055,9 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
 }
 
 fn request_byte_limit(request: &WorkbenchRequest) -> usize {
+    if matches!(request, WorkbenchRequest::ClientView(request) if request.carries_attention()) {
+        return MAXIMUM_ENCODED_CLIENT_ATTENTION_BYTES;
+    }
     if matches!(
         request,
         WorkbenchRequest::ClientView(WorkbenchClientViewRequest {

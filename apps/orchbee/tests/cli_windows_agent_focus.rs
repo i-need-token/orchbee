@@ -324,3 +324,6 @@ fn partial_agent_reply_expires_without_submission_and_uses_total_navigation_dead
     assert!(started.elapsed() < Duration::from_secs(8));
     receipt(&document(&output));
 }
+
+#[path = "cli_windows_agent_focus/attention.rs"]
+mod attention;

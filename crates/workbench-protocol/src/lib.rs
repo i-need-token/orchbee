@@ -13,6 +13,7 @@ pub use carrier::{
     write_workbench_request, write_workbench_response,
 };
 pub use command::{
+    ClientAgentAttentionEntry, ClientAgentAttentionSnapshot, ClientAgentAttentionVersion,
     ClientCellRect, ClientLayoutAdjustment, ClientLayoutChange, ClientPanelArea,
     ClientPanelDirection, ClientPanelLayout, ClientPanelNeighbors, ClientResizeAmount,
     ClientSplitArea, ClientSplitChange, ClientSplitIdentity, ClientSplitPath, ClientSplitRatio,
@@ -21,7 +22,8 @@ pub use command::{
     ClientViewObservation, ClientViewOperation, ClientViewOutcome, ClientViewPhase,
     ClientViewRecord, ClientViewSelection, ClientViewSequence, ClientViewUnavailable,
     LaunchProfileCatalogOutcome, LaunchProfileCatalogRevision, LaunchProfileEntry, LaunchProfileId,
-    LaunchProfileName, LaunchProfileSelector, LaunchSelection, MAXIMUM_CLIENT_VIEWS,
+    LaunchProfileName, LaunchProfileSelector, LaunchSelection, MAXIMUM_CLIENT_ATTENTION_SESSIONS,
+    MAXIMUM_CLIENT_VIEWS, MAXIMUM_ENCODED_CLIENT_ATTENTION_BYTES,
     MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES, MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES,
     MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES, MAXIMUM_ENCODED_LAUNCH_PROFILE_CATALOG_RESULT_BYTES,
     MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES, MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES,

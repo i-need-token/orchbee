@@ -2,8 +2,11 @@ use super::Locale;
 use crate::cli::escape::escape;
 use serde_json::Value;
 
-pub(super) const HELP_AGENT_FOCUS_EN: &str = "orchbee agent focus <target> [options]\n\nFocus the live Agent's unique primary Panel in an existing Windows TUI.\nUse one target: positional name/session/Panel, --session <id>, --name <alias>,\nor --panel <id|@panel:suffix>. Child-only or ambiguous bindings are refused.\n\n  --client <id>        Select one Client; otherwise use caller/unique Client.\n  --request-id <id>    Retain identity for client control-status <id>.\n  --detach            Return after submission without waiting for rendering.\n  --timeout <ms>      Total deadline, 1..3600000 (default 30000).\n  --format text|json  Human text or orchbee.client.control v1 receipt.\n\nA timeout or Ctrl+C stops waiting; accepted focus is not rolled back.\nDoes not start an Agent, activate an OS window or acknowledge seen/unseen state.\n";
-pub(super) const HELP_AGENT_FOCUS_ZH: &str = "orchbee agent focus <target> [options]\n\n在现有 Windows TUI 中聚焦活动 Agent 唯一关联的主窗格。\n目标四选一：位置参数名称/会话/窗格、--session <id>、--name <alias>\n或 --panel <id|@panel:suffix>。仅关联子呈现或绑定歧义时拒绝操作。\n\n  --client <id>        指定客户端；否则按调用者或唯一客户端解析。\n  --request-id <id>    保留身份，可用 client control-status <id> 查询。\n  --detach            提交后立即返回，不等待绘制。\n  --timeout <ms>      总期限，1..3600000（默认 30000）。\n  --format text|json  人类文本或 orchbee.client.control v1 回执。\n\n超时或 Ctrl+C 仅停止等待，不撤销已接受的聚焦。\n不启动 Agent、不激活操作系统窗口，也不确认 seen/unseen 状态。\n";
+pub(super) const HELP_AGENT_FOCUS_EN: &str = "orchbee agent focus <target> [options]\n\nFocus the live Agent's unique primary Panel in an existing Windows TUI.\nUse one target: positional name/session/Panel, --session <id>, --name <alias>,\nor --panel <id|@panel:suffix>. Child-only or ambiguous bindings are refused.\n\n  --client <id>        Select one Client; otherwise use caller/unique Client.\n  --request-id <id>    Retain identity for client control-status <id>.\n  --detach            Return after submission without waiting for rendering.\n  --timeout <ms>      Total deadline, 1..3600000 (default 30000).\n  --format text|json  Human text or orchbee.client.control v1 receipt.\n\nA timeout or Ctrl+C stops waiting; accepted focus is not rolled back.\nDoes not start an Agent or activate an OS window. Successful visible paint\nacknowledges this Client's observed Agent state unless known unfocused.\n";
+pub(super) const HELP_AGENT_FOCUS_ZH: &str = "orchbee agent focus <target> [options]\n\n在现有 Windows TUI 中聚焦活动 Agent 唯一关联的主窗格。\n目标四选一：位置参数名称/会话/窗格、--session <id>、--name <alias>\n或 --panel <id|@panel:suffix>。仅关联子呈现或绑定歧义时拒绝操作。\n\n  --client <id>        指定客户端；否则按调用者或唯一客户端解析。\n  --request-id <id>    保留身份，可用 client control-status <id> 查询。\n  --detach            提交后立即返回，不等待绘制。\n  --timeout <ms>      总期限，1..3600000（默认 30000）。\n  --format text|json  人类文本或 orchbee.client.control v1 回执。\n\n超时或 Ctrl+C 仅停止等待，不撤销已接受的聚焦。\n不启动 Agent、不激活操作系统窗口。成功绘制可见窗格会确认此 Client\n观察到的 Agent 状态，但已知失焦时不确认。\n";
+
+pub(super) const HELP_AGENT_ATTENTION_EN: &str = "orchbee agent attention <target> [options]\n\nRead one Windows TUI Client's Agent seen/unseen observation.\nUse a positional session/name/Panel or --session, --name, --panel.\n  --client <id>        Select a Client; otherwise caller/unique Client.\n  --request-id <id>    Retain a read receipt for client control-status.\n  --detach            Return after submission without waiting.\n  --timeout <ms>      Total deadline (default 30000, max 3600000).\n  --format text|json  Text or orchbee.client.control v1.\n\nDoes not focus a window or mark an Agent seen. Missing and unavailable\nobservations remain distinct. Each Client has its own acknowledgement.\n";
+pub(super) const HELP_AGENT_ATTENTION_ZH: &str = "orchbee agent attention <target> [options]\n\n读取一个 Windows TUI Client 的 Agent 已读/未读观察。\n使用位置参数会话/名称/窗格，或 --session、--name、--panel。\n  --client <id>        指定 Client；否则按调用者或唯一 Client 解析。\n  --request-id <id>    保留读取回执，供 client control-status 查询。\n  --detach            提交后返回，不等待读取完成。\n  --timeout <ms>      总期限（默认 30000，最大 3600000）。\n  --format text|json  文本或 orchbee.client.control v1。\n\n不聚焦窗口，不标记 Agent 已读。不存在与观察不可用明确区分。\n每个 Client 独立保存确认。\n";
 
 impl Locale {
     pub(crate) fn cli_creation(self, document: &Value) -> String {
@@ -275,6 +278,26 @@ impl Locale {
                 text.push_str(&format!("{}: {}\n", labels[0], escape(id)));
             }
             self.client_selection_text(&mut text, &status["view"]["selection"], &labels);
+            if state == "attention-read" {
+                for entry in status["attention"]["entries"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                {
+                    let label = match (self, entry["state"]["seen"].as_bool()) {
+                        (Self::EnUs, Some(true)) => "seen",
+                        (Self::EnUs, Some(false)) => "unseen",
+                        (Self::EnUs, None) => "not observed",
+                        (Self::ZhCn, Some(true)) => "已读",
+                        (Self::ZhCn, Some(false)) => "未读",
+                        (Self::ZhCn, None) => "尚未观察到",
+                    };
+                    text.push_str(&format!(
+                        "{}: {label}\n",
+                        escape(entry["sessionId"].as_str().unwrap_or(""))
+                    ));
+                }
+            }
             if state == "layout-adjusted" {
                 self.client_adjustment_text(&mut text, &status["adjustment"]);
             }
@@ -363,6 +386,8 @@ impl Locale {
     }
     fn client_control_state(self, value: &str) -> &'static str {
         match (self, value) {
+            (Self::EnUs, "attention-read") => "Client Agent observation",
+            (Self::ZhCn, "attention-read") => "客户端 Agent 观察",
             (Self::EnUs, "current") => "Current",
             (Self::ZhCn, "current") => "当前有效",
             (Self::EnUs, "stale" | "stale-view") => "Stale view",

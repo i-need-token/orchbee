@@ -932,6 +932,9 @@ importers:
 
   packages/workbench-client-protocol:
     dependencies:
+      '@orchbee/agent':
+        specifier: workspace:^
+        version: link:../agent
       '@orchbee/terminal-protocol':
         specifier: workspace:^
         version: link:../terminal-protocol

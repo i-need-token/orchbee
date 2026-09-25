@@ -6,6 +6,83 @@ use crate::{
 };
 use orchbee_agent_observation_protocol::{AgentLifecycle, AgentSessionDetail};
 
+#[cfg(windows)]
+pub(crate) fn agent_attention_target(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    target: &AgentTarget,
+    deadline: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<AgentSessionId, Failure> {
+    agent_target::resolve_on_session(client, target, Some(snapshot), deadline, wake)
+        .map(|resolved| resolved.session_id)
+}
+
+/// The Client observation is not a Server-authoritative boot identity. Authenticate
+/// its opaque checkpoint on this admitted Server before publishing seen/unseen.
+#[cfg(windows)]
+pub(crate) fn authenticate_attention(
+    client: &mut LocalClient,
+    attention: &orchbee_workbench_protocol::ClientAgentAttentionSnapshot,
+    deadline: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<(), Failure> {
+    use orchbee_agent_observation_protocol::{
+        AgentChangesOutcome, AgentChangesRejectionReason, AgentChangesRequest, AgentChangesResult,
+    };
+    let operation = AgentReadOperation::Changes;
+    let request_id = obap_request_id()?;
+    let AgentChangesResult::Read { result, .. } = client
+        .submit_agent_changes_before_cancellable(
+            AgentChangesRequest::Read {
+                request_id: request_id.clone(),
+                cursor: Some(attention.cursor.clone()),
+                limit: AgentSafeInteger::new(1),
+            },
+            deadline.min(Instant::now() + AGENT_TOTAL_BUDGET),
+            wake,
+        )
+        .map_err(|error| classify_agent_read(error, operation))?;
+    let valid = match result.outcome {
+        AgentChangesOutcome::Current { revision, .. } => revision == attention.revision,
+        AgentChangesOutcome::Changes { changes, .. } => {
+            changes.first().map(|change| change.revision.value())
+                == attention.revision.value().checked_add(1)
+        }
+        AgentChangesOutcome::ResetRequired { revision, .. } => {
+            revision.value() >= attention.revision.value()
+        }
+        AgentChangesOutcome::Rejected { reason } => {
+            return Err(
+                Failure::new(if reason == AgentChangesRejectionReason::ReadDenied {
+                    FailureKind::Denied
+                } else {
+                    FailureKind::Rejected
+                })
+                .details(agent_rejection_details(
+                    operation,
+                    if reason == AgentChangesRejectionReason::ReadDenied {
+                        "read-denied"
+                    } else {
+                        "cursor-invalid"
+                    },
+                ))
+                .source(results::agent_source(&request_id)),
+            );
+        }
+        AgentChangesOutcome::Unavailable { .. } => {
+            return Err(Failure::new(FailureKind::ServiceUnavailable)
+                .details(agent_unavailable_details(operation))
+                .source(results::agent_source(&request_id)));
+        }
+    };
+    if valid {
+        Ok(())
+    } else {
+        Err(agent_protocol_invalid(operation))
+    }
+}
+
 pub(crate) fn agent_focus_target(
     client: &mut LocalClient,
     snapshot: &Snapshot,

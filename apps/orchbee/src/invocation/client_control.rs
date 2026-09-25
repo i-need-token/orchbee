@@ -29,6 +29,7 @@ pub(crate) enum ClientLayoutTarget {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ClientNavigationTarget {
     Agent(super::AgentTarget),
+    AgentAttention(super::AgentTarget),
     Resize {
         target: Option<Target>,
         direction: ClientPanelDirection,
@@ -104,8 +105,12 @@ pub(super) fn parse(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     let command = match words {
-        ["agent", "focus", rest @ ..] => {
-            let context = UsageContext::Path("agent focus");
+        ["agent", verb @ ("focus" | "attention"), rest @ ..] => {
+            let context = UsageContext::Path(if *verb == "focus" {
+                "agent focus"
+            } else {
+                "agent attention"
+            });
             check_scope(
                 options,
                 Scope {
@@ -122,9 +127,15 @@ pub(super) fn parse(
                 envelope,
             )?;
             navigation(
-                ClientNavigationTarget::Agent(super::agent_selector(
-                    rest, options, context, envelope,
-                )?),
+                if *verb == "focus" {
+                    ClientNavigationTarget::Agent(super::agent_selector(
+                        rest, options, context, envelope,
+                    )?)
+                } else {
+                    ClientNavigationTarget::AgentAttention(super::agent_selector(
+                        rest, options, context, envelope,
+                    )?)
+                },
                 options,
                 context,
                 envelope,

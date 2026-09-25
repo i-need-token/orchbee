@@ -131,3 +131,5 @@ Panel swap 使用共享结构 placement 权威，在同一 Tab 中原子交换�
 ## 自动 Tab 命名
 
 [Tab 标签契约](../../apps/orchbee/docs/native-tab-labels.zh-CN.md) 拥有可选 `automaticLabel` 元数据。省略标签的新建 Tab 按当前上下文位置编号；显式数字名称及旧 Tab 保留固定名称。移动或关闭后 CLI 查询、标签选择器和 TUI 显示保持一致，重命名切换为固定名称。原生 `api snapshot` v4 暴露规范元数据；目录 v34 包含 68 份 schema。共享协议需要匹配 cohort。
+
+Client 提示状态快照复用 `@orchbee/agent` 会话身份校验。严格形状与语义保留可空焦点/缺失状态、有序唯一批次、有界版本及精确意图对应。这些线 DTO 描述 Client 观察，不把确认转移到规范 Workbench 或 Agent 状态。

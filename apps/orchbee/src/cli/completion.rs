@@ -152,6 +152,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     (
         "agent",
         &[
+            "attention",
             "changes",
             "doctor",
             "explain",
@@ -443,6 +444,18 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("agent:get", &["--session", "--name", "--panel"]),
     (
         "agent:focus",
+        &[
+            "--session",
+            "--name",
+            "--panel",
+            "--client",
+            "--request-id",
+            "--detach",
+            "--timeout",
+        ],
+    ),
+    (
+        "agent:attention",
         &[
             "--session",
             "--name",
@@ -816,6 +829,7 @@ const OPERAND_PATHS: &[&str] = &[
     "agent:explain",
     "agent:get",
     "agent:focus",
+    "agent:attention",
     "agent:read",
     "agent:send-keys",
     "agent:prompt",
@@ -874,6 +888,8 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     (
         "agent",
         &[
+            "attention",
+            "changes",
             "doctor",
             "explain",
             "focus",

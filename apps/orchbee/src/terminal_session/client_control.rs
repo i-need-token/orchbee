@@ -196,10 +196,12 @@ impl ClientControl {
             }
             let reason = if command.expected_view_revision != sample.revision {
                 Some(Reason::StaleView)
-            } else if matches!(
-                sample.view.phase,
-                ClientViewPhase::Starting | ClientViewPhase::Busy
-            ) {
+            } else if !command.intent.is_attention_read()
+                && matches!(
+                    sample.view.phase,
+                    ClientViewPhase::Starting | ClientViewPhase::Busy
+                )
+            {
                 Some(Reason::Busy)
             } else {
                 None
@@ -390,6 +392,16 @@ fn prepare_control(
     snapshot: Option<&orchbee_workbench_protocol::Snapshot>,
     viewport: Option<(ratatui::layout::Rect, crate::client_view::SidebarSurface)>,
 ) -> Result<ClientViewControl, Box<ClientViewCompletionOutcome>> {
+    if let ClientViewIntent::AgentAttention { session_ids } = &command.intent {
+        return Err(Box::new(native.read_agent_attention(session_ids).map_or(
+            ClientViewCompletionOutcome::Rejected {
+                reason: Reason::ProjectionUnavailable,
+            },
+            |attention| ClientViewCompletionOutcome::AttentionRead {
+                attention: Box::new(attention),
+            },
+        )));
+    }
     if !matches!(
         command.intent,
         ClientViewIntent::Layout { .. } | ClientViewIntent::FocusDirection { .. }

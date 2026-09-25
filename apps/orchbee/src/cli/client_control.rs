@@ -94,6 +94,7 @@ fn outcome_exit(outcome: &ClientViewOutcome) -> u8 {
             | ClientViewControlStatus::DirectionFocused { .. }
             | ClientViewControlStatus::DirectionUnchanged { .. }
             | ClientViewControlStatus::LayoutRead { .. }
+            | ClientViewControlStatus::AttentionRead { .. }
             | ClientViewControlStatus::Applied { .. }
             | ClientViewControlStatus::ZoomUnchanged { .. }
             | ClientViewControlStatus::ZoomToggled { .. } => 0,

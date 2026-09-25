@@ -916,6 +916,7 @@ dependencies = [
 name = "orchbee-workbench-protocol"
 version = "0.1.0"
 dependencies = [
+ "orchbee-agent-observation-protocol",
  "serde",
  "serde_json",
 ]

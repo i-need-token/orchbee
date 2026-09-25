@@ -1,4 +1,5 @@
 //! Ephemeral Client-owned selection and connection-scoped, acknowledged navigation.
+use super::client_attention::{ClientAgentAttentionSnapshot, validate_sessions};
 use super::{
     client_layout::{ClientPanelDirection, ClientPanelLayout, ClientSplitRatio},
     client_layout_adjustment::{
@@ -12,6 +13,7 @@ use crate::{
     ContractError, ProtocolVersion, SiteId, WorkbenchPanelId, WorkbenchRequestId,
     WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId,
 };
+use orchbee_agent_observation_protocol::AgentSessionId;
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use std::{collections::BTreeSet, num::NonZeroU64};
 
@@ -113,6 +115,9 @@ pub struct ClientViewRecord {
     deny_unknown_fields
 )]
 pub enum ClientViewIntent {
+    AgentAttention {
+        session_ids: Vec<AgentSessionId>,
+    },
     Resize {
         terminal_context_id: WorkbenchTerminalContextId,
         tab_id: WorkbenchTabId,
@@ -168,6 +173,10 @@ pub enum ClientViewIntent {
     },
 }
 impl ClientViewIntent {
+    #[must_use]
+    pub fn is_attention_read(&self) -> bool {
+        matches!(self, Self::AgentAttention { .. })
+    }
     /// Pin one previously resolved directional neighbor as an exact navigation target.
     #[must_use]
     pub fn directional_target(&self, destination: &WorkbenchPanelId) -> Option<Self> {
@@ -257,7 +266,8 @@ impl ClientViewIntent {
             return false;
         };
         match self {
-            Self::ToggleZoom { .. }
+            Self::AgentAttention { .. }
+            | Self::ToggleZoom { .. }
             | Self::Layout { .. }
             | Self::FocusDirection { .. }
             | Self::Resize { .. }
@@ -307,6 +317,9 @@ pub struct ClientViewControl {
 }
 impl ClientViewControl {
     pub fn validate(&self) -> Result<(), ContractError> {
+        if let ClientViewIntent::AgentAttention { session_ids } = &self.intent {
+            validate_sessions(session_ids)?;
+        }
         if let ClientViewIntent::SetSplitRatio {
             expected_split: Some(identity),
             ..
@@ -346,15 +359,32 @@ pub enum ClientViewControlReason {
     deny_unknown_fields
 )]
 pub enum ClientViewCompletionOutcome {
-    LayoutAdjusted { adjustment: ClientLayoutAdjustment },
-    DirectionFocused { panel_id: WorkbenchPanelId },
-    DirectionUnchanged { layout_revision: WorkbenchRevision },
-    LayoutRead { layout: Box<ClientPanelLayout> },
+    AttentionRead {
+        attention: Box<ClientAgentAttentionSnapshot>,
+    },
+    LayoutAdjusted {
+        adjustment: ClientLayoutAdjustment,
+    },
+    DirectionFocused {
+        panel_id: WorkbenchPanelId,
+    },
+    DirectionUnchanged {
+        layout_revision: WorkbenchRevision,
+    },
+    LayoutRead {
+        layout: Box<ClientPanelLayout>,
+    },
     Applied {},
     ZoomUnchanged {},
-    ZoomToggled { previously_zoomed: bool },
-    Rejected { reason: ClientViewControlReason },
-    Incomplete { reason: ClientViewControlReason },
+    ZoomToggled {
+        previously_zoomed: bool,
+    },
+    Rejected {
+        reason: ClientViewControlReason,
+    },
+    Incomplete {
+        reason: ClientViewControlReason,
+    },
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -370,6 +400,10 @@ pub struct ClientViewCompletion {
     deny_unknown_fields
 )]
 pub enum ClientViewControlStatus {
+    AttentionRead {
+        attention: Box<ClientAgentAttentionSnapshot>,
+        view: ClientViewObservation,
+    },
     LayoutAdjusted {
         adjustment: ClientLayoutAdjustment,
         view: ClientViewObservation,
@@ -423,6 +457,15 @@ impl ClientViewOperation {
     pub fn validate(&self) -> Result<(), ContractError> {
         self.command.validate()?;
         match &self.status {
+            ClientViewControlStatus::AttentionRead { attention, view } => {
+                view.validate()?;
+                let ClientViewIntent::AgentAttention { session_ids } = &self.command.intent else {
+                    return Err(ContractError::InvalidDocument);
+                };
+                if !attention.answers(session_ids) {
+                    return Err(ContractError::InvalidDocument);
+                }
+            }
             ClientViewControlStatus::LayoutAdjusted { adjustment, view } => {
                 adjustment.validate()?;
                 view.validate()?;
@@ -633,6 +676,19 @@ pub struct WorkbenchClientViewRequest {
     pub action: ClientViewAction,
 }
 impl WorkbenchClientViewRequest {
+    pub(crate) fn carries_attention(&self) -> bool {
+        matches!(&self.action, ClientViewAction::Submit { command } if command.intent.is_attention_read())
+            || matches!(
+                &self.action,
+                ClientViewAction::Synchronize {
+                    completion: Some(ClientViewCompletion {
+                        outcome: ClientViewCompletionOutcome::AttentionRead { .. },
+                        ..
+                    }),
+                    ..
+                }
+            )
+    }
     pub fn validate(&self) -> Result<(), ContractError> {
         if let ClientViewAction::Submit { command } = &self.action {
             command.validate()?;
@@ -642,6 +698,13 @@ impl WorkbenchClientViewRequest {
         } = &self.action
         {
             view.validate()?;
+            if let Some(ClientViewCompletion {
+                outcome: ClientViewCompletionOutcome::AttentionRead { attention },
+                ..
+            }) = completion
+            {
+                attention.validate()?;
+            }
             if let Some(ClientViewCompletion {
                 outcome: ClientViewCompletionOutcome::LayoutRead { layout },
                 ..

@@ -68,6 +68,37 @@ fn current_panel_read_refuses_stale_location_instead_of_following_a_moved_panel(
 }
 
 #[test]
+fn agent_attention_grammar_selects_read_only_client_query() {
+    let parse = |words: &[&str]| invocation::parse_request(words.iter().map(OsString::from));
+    assert!(matches!(
+        parse(&[
+            "agent",
+            "attention",
+            "--session",
+            "agent-1",
+            "--client",
+            "00000000000000000000000000000007",
+            "--format=json"
+        ]),
+        Ok(Request::Client {
+            command: ClientCommand::Navigate {
+                target: ClientNavigationTarget::AgentAttention(_),
+                ..
+            },
+            ..
+        })
+    ));
+    for words in [
+        vec!["agent", "attention"],
+        vec!["agent", "attention", "one", "two"],
+        vec!["agent", "attention", "--name", "one", "--session", "two"],
+        vec!["agent", "attention", "one", "--until", "done"],
+    ] {
+        assert!(parse(&words).is_err(), "{words:?}");
+    }
+}
+
+#[test]
 fn agent_focus_grammar_requires_one_agent_target_and_reuses_navigation_receipts() {
     let parse = |words: &[&str]| invocation::parse_request(words.iter().map(OsString::from));
     let id = "00000000000000000000000000000007";

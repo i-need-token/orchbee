@@ -7,6 +7,7 @@ import {
 	ClientPanelLayoutSchema,
 } from './workbench-client-layout-contract';
 import { z } from 'zod';
+import { AgentSessionIdSchema } from '@orchbee/agent';
 import {
 	SiteIdSchema,
 	WORKBENCH_PROTOCOL_VERSION,
@@ -75,7 +76,48 @@ const splitIdentity = z
 const contextTarget = { terminalContextId: WorkbenchTerminalContextIdSchema };
 const tabTarget = { ...contextTarget, tabId: WorkbenchTabIdSchema };
 const panelTarget = { ...tabTarget, panelId: WorkbenchPanelIdSchema };
+export const WORKBENCH_MAXIMUM_ENCODED_CLIENT_ATTENTION_BYTES = 64 * 1024;
+const attentionSessions = z
+	.array(AgentSessionIdSchema)
+	.min(1)
+	.max(100)
+	.refine((sessions) => new Set(sessions).size === sessions.length);
+const agentInteger = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+export const ClientAgentAttentionSnapshotSchema = z
+	.strictObject({
+		cursor: z.string().regex(/^v1\.[A-Za-z0-9_-]{59}\.[A-Za-z0-9_-]{43}$/u),
+		revision: agentInteger,
+		outerFocused: z.boolean().nullable(),
+		entries: z
+			.array(
+				z.strictObject({
+					sessionId: AgentSessionIdSchema,
+					state: z
+						.strictObject({
+							generation: agentInteger,
+							sequence: agentInteger,
+							stateChangeRevision: agentInteger,
+							seen: z.boolean(),
+						})
+						.nullable(),
+				}),
+			)
+			.min(1)
+			.max(100),
+	})
+	.superRefine((snapshot, context) => {
+		if (
+			new Set(snapshot.entries.map((entry) => entry.sessionId)).size !== snapshot.entries.length ||
+			snapshot.entries.some(
+				(entry) => entry.state !== null && entry.state.stateChangeRevision > snapshot.revision,
+			)
+		) {
+			context.addIssue({ code: 'custom', message: 'Invalid Client attention snapshot' });
+		}
+	})
+	.readonly();
 export const ClientViewIntentSchema = z.discriminatedUnion('kind', [
+	z.strictObject({ kind: z.literal('agent-attention'), sessionIds: attentionSessions }).readonly(),
 	z
 		.strictObject({
 			kind: z.literal('resize'),
@@ -132,6 +174,12 @@ export const ClientViewCompletionSchema = z
 		outcome: z.discriminatedUnion('kind', [
 			z
 				.strictObject({
+					kind: z.literal('attention-read'),
+					attention: ClientAgentAttentionSnapshotSchema,
+				})
+				.readonly(),
+			z
+				.strictObject({
 					kind: z.literal('layout-adjusted'),
 					adjustment: ClientLayoutAdjustmentSchema,
 				})
@@ -160,6 +208,13 @@ export const ClientViewCompletionSchema = z
 	})
 	.readonly();
 export const ClientViewControlStatusSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('attention-read'),
+			attention: ClientAgentAttentionSnapshotSchema,
+			view: ClientViewObservationSchema,
+		})
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('layout-adjusted'),
@@ -300,6 +355,22 @@ export const ClientViewOperationSchema = z
 				});
 			return;
 		}
+		if (status.kind === 'attention-read') {
+			const intent = command.intent;
+			if (
+				intent.kind !== 'agent-attention' ||
+				status.attention.entries.length !== intent.sessionIds.length ||
+				status.attention.entries.some(
+					(entry, index) => entry.sessionId !== intent.sessionIds[index],
+				)
+			) {
+				context.addIssue({
+					code: 'custom',
+					message: 'Attention receipt does not match requested sessions',
+				});
+			}
+			return;
+		}
 		if (status.kind === 'layout-read') {
 			const { layout, view } = status;
 			const { intent } = command;
@@ -364,6 +435,10 @@ export const ClientViewOperationSchema = z
 				break;
 		}
 
+		if (intent.kind === 'agent-attention') {
+			context.addIssue({ code: 'custom', message: 'Attention read cannot acknowledge navigation' });
+			return;
+		}
 		const observed =
 			BigInt(view.workbenchRevision) >= BigInt(command.minimumWorkbenchRevision) &&
 			view.phase !== 'starting' &&

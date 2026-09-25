@@ -85,6 +85,7 @@ pub fn write_workbench_response(
 
 fn request_kind(request: &WorkbenchRequest) -> u16 {
     match request {
+        WorkbenchRequest::ClientView(request) if request.carries_attention() => 29,
         WorkbenchRequest::ClientView(request)
             if matches!(
                 request.action,
@@ -151,7 +152,7 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
         || (request
             && !matches!(
                 kind,
-                1 | 2 | 5 | 7 | 9 | 11 | 13 | 15 | 17 | 19 | 21 | 23 | 25 | 27
+                1 | 2 | 5 | 7 | 9 | 11 | 13 | 15 | 17 | 19 | 21 | 23 | 25 | 27 | 29
             ))
         || (!request
             && !matches!(
@@ -171,6 +172,8 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
         crate::MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES
     } else if matches!(kind, 27 | 28) {
         crate::MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES
+    } else if kind == 29 {
+        crate::MAXIMUM_ENCODED_CLIENT_ATTENTION_BYTES
     } else if kind == 26 {
         crate::MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES
     } else if kind == 24 {

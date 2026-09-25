@@ -115,6 +115,100 @@ fn acknowledge(id: u64) -> ClientViewAction {
 }
 
 #[test]
+fn attention_read_is_allowed_while_busy_and_exact_owner_and_sessions_are_required() {
+    let now = Instant::now();
+    let mut registry = ClientViewRegistry::default();
+    let mut busy = sample();
+    let ClientViewAction::Synchronize { view, .. } = &mut busy else {
+        panic!("sample")
+    };
+    view.phase = ClientViewPhase::Busy;
+    execute(&mut registry, 1, busy.clone(), now);
+    let mut target = command(901, 1);
+    target.intent = ClientViewIntent::AgentAttention {
+        session_ids: vec![
+            orchbee_agent_observation_protocol::AgentSessionId::parse("agent-1").unwrap(),
+        ],
+    };
+    assert!(matches!(
+        status(execute(
+            &mut registry,
+            20,
+            ClientViewAction::Submit {
+                command: Box::new(target)
+            },
+            now
+        )),
+        ClientViewControlStatus::Queued {}
+    ));
+    assert!(matches!(
+        execute(&mut registry, 1, busy.clone(), now),
+        ClientViewOutcome::Synchronized {
+            control: Some(_),
+            ..
+        }
+    ));
+    let attention = orchbee_workbench_protocol::ClientAgentAttentionSnapshot {
+        cursor: orchbee_agent_observation_protocol::AgentChangesCursor::parse(&format!(
+            "v1.{}.{}",
+            "A".repeat(59),
+            "A".repeat(43)
+        ))
+        .unwrap(),
+        revision: orchbee_agent_observation_protocol::AgentSafeInteger::new(3),
+        outer_focused: Some(false),
+        entries: vec![orchbee_workbench_protocol::ClientAgentAttentionEntry {
+            session_id: orchbee_agent_observation_protocol::AgentSessionId::parse("wrong").unwrap(),
+            state: None,
+        }],
+    };
+    let ClientViewAction::Synchronize {
+        completion,
+        heartbeat,
+        ..
+    } = &mut busy
+    else {
+        panic!("sample")
+    };
+    *heartbeat = ClientViewSequence::new(2).unwrap();
+    *completion = Some(ClientViewCompletion {
+        operation_id: operation_id(901),
+        outcome: ClientViewCompletionOutcome::AttentionRead {
+            attention: Box::new(attention),
+        },
+    });
+    assert!(matches!(
+        execute(&mut registry, 1, busy.clone(), now),
+        ClientViewOutcome::Conflict {}
+    ));
+    let ClientViewAction::Synchronize {
+        completion: Some(completion),
+        ..
+    } = &mut busy
+    else {
+        panic!("completion")
+    };
+    let ClientViewCompletionOutcome::AttentionRead { attention } = &mut completion.outcome else {
+        panic!("attention")
+    };
+    attention.entries[0].session_id =
+        orchbee_agent_observation_protocol::AgentSessionId::parse("agent-1").unwrap();
+    assert!(matches!(
+        execute(&mut registry, 2, busy.clone(), now),
+        ClientViewOutcome::Conflict {}
+    ));
+    assert!(matches!(
+        execute(&mut registry, 1, busy, now),
+        ClientViewOutcome::Synchronized { .. }
+    ));
+    assert!(matches!(
+        status(read(&mut registry, 901, now)),
+        ClientViewControlStatus::AttentionRead { .. }
+    ));
+    assert!(registry.receipts[&operation_id(901)].payload_reservation > 0);
+}
+
+#[test]
 fn exact_owner_receives_once_and_only_observed_completion_settles() {
     let now = Instant::now();
     let mut registry = ClientViewRegistry::default();
@@ -355,7 +449,7 @@ fn queued_expiry_and_view_capacity_have_exact_boundaries() {
 mod traces;
 
 #[test]
-fn layout_reservations_bound_pending_payloads_and_shrink_after_valid_completion() {
+fn payload_reservations_bound_pending_payloads_and_shrink_after_valid_completion() {
     let now = Instant::now();
     let mut registry = ClientViewRegistry::default();
     let layout_command = |id, target| {
@@ -404,9 +498,9 @@ fn layout_reservations_bound_pending_payloads_and_shrink_after_valid_completion(
         registry
             .receipts
             .values()
-            .map(|receipt| receipt.layout_reservation)
+            .map(|receipt| receipt.payload_reservation)
             .sum::<usize>(),
-        MAXIMUM_LAYOUT_RESERVATION
+        MAXIMUM_PAYLOAD_RESERVATION
     );
     assert!(matches!(
         execute(&mut registry, 1, sample(), now),
@@ -445,7 +539,7 @@ fn layout_reservations_bound_pending_payloads_and_shrink_after_valid_completion(
         execute(&mut registry, 1, request.action, now),
         ClientViewOutcome::Synchronized { .. }
     ));
-    let retained = registry.receipts[&operation_id(101)].layout_reservation;
+    let retained = registry.receipts[&operation_id(101)].payload_reservation;
     assert!(retained > 0 && retained < MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES);
     assert!(matches!(
         status(read(&mut registry, 101, now)),
@@ -469,7 +563,7 @@ fn layout_reservations_bound_pending_payloads_and_shrink_after_valid_completion(
     let reserved = registry
         .receipts
         .values()
-        .map(|receipt| receipt.layout_reservation)
+        .map(|receipt| receipt.payload_reservation)
         .sum::<usize>();
     assert!(matches!(
         status(query(&mut registry, 101, 1)),
@@ -479,15 +573,15 @@ fn layout_reservations_bound_pending_payloads_and_shrink_after_valid_completion(
         registry
             .receipts
             .values()
-            .map(|receipt| receipt.layout_reservation)
+            .map(|receipt| receipt.payload_reservation)
             .sum::<usize>(),
         reserved
     );
     registry.disconnect(owner(2), now);
-    assert_eq!(registry.receipts[&operation_id(102)].layout_reservation, 0);
+    assert_eq!(registry.receipts[&operation_id(102)].payload_reservation, 0);
     registry.disconnect(owner(1), now);
     assert_eq!(
-        registry.receipts[&operation_id(101)].layout_reservation,
+        registry.receipts[&operation_id(101)].payload_reservation,
         retained
     );
     assert!(matches!(
@@ -498,7 +592,7 @@ fn layout_reservations_bound_pending_payloads_and_shrink_after_valid_completion(
         registry
             .receipts
             .values()
-            .map(|receipt| receipt.layout_reservation)
+            .map(|receipt| receipt.payload_reservation)
             .sum::<usize>(),
         0
     );

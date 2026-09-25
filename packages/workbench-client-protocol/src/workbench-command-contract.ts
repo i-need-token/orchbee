@@ -1,3 +1,4 @@
+import { WORKBENCH_MAXIMUM_ENCODED_CLIENT_ATTENTION_BYTES } from './workbench-client-view-contract';
 import { WORKBENCH_MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES } from './workbench-client-layout-contract';
 import {
 	WorkbenchClientViewRequestSchema,
@@ -274,6 +275,13 @@ export const WorkbenchRequestSchema = z
 	])
 	.refine((value) => {
 		let maximum = WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES;
+		if (
+			value.kind === 'workbench.client-view' &&
+			((value.action.kind === 'submit' && value.action.command.intent.kind === 'agent-attention') ||
+				(value.action.kind === 'synchronize' &&
+					value.action.completion?.outcome.kind === 'attention-read'))
+		)
+			maximum = WORKBENCH_MAXIMUM_ENCODED_CLIENT_ATTENTION_BYTES;
 		if (value.kind === 'workbench.worktree.operation')
 			maximum = WORKBENCH_MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES;
 		if (

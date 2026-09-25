@@ -128,7 +128,8 @@ impl NativeUi {
             return ControlStep::ZoomUnchanged;
         }
         let (context_id, tab_id, panel_id) = match &command.intent {
-            ClientViewIntent::Layout { .. }
+            ClientViewIntent::AgentAttention { .. }
+            | ClientViewIntent::Layout { .. }
             | ClientViewIntent::FocusDirection { .. }
             | ClientViewIntent::Resize { .. }
             | ClientViewIntent::SetSplitRatio { .. } => {
