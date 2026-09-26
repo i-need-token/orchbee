@@ -304,14 +304,25 @@ impl Driver<'_> {
                     workspace_id: workspace_id.clone(),
                 },
             };
-            coordinator
+            let result = coordinator
                 .execute_workspace_close(
                     command,
                     placement(Some(&handle)),
                     self.service.close_maintenance.available(),
                     Instant::now(),
                 )
-                .ok_or(Failure::CloseIncomplete {})?
+                .ok_or(Failure::CloseIncomplete {})?;
+            if let WorkbenchCommandOutcome::WorkspaceCloseAccepted {
+                close_request_id, ..
+            } = &result.outcome
+                && !coordinator
+                    .worktree_authority()
+                    .ok_or(Failure::Internal {})?
+                    .hold_worktree_close(self.plan, close_request_id)
+            {
+                return Err(Failure::Internal {});
+            }
+            result
         };
         self.service.close_maintenance.notify();
         let WorkbenchCommandOutcome::WorkspaceCloseAccepted {
@@ -326,7 +337,13 @@ impl Driver<'_> {
         };
         Ok(())
     }
-    pub(super) fn wait_close(&mut self) -> Result<(), Failure> {
+    pub(super) fn wait_close(&mut self, quiesce: bool) -> Result<(), Failure> {
+        if matches!(
+            self.plan.progress.workspace,
+            WorktreeWorkspaceDisposition::Closed { .. }
+        ) {
+            return Ok(());
+        }
         let WorktreeWorkspaceDisposition::Closing {
             workspace_id,
             close_request_id,
@@ -368,6 +385,18 @@ impl Driver<'_> {
             if observed != close_request_id {
                 return Err(Failure::CloseIncomplete {});
             }
+            if quiesce
+                && self
+                    .service
+                    .coordinator
+                    .lock()
+                    .map_err(|_| Failure::Internal {})?
+                    .worktree_authority()
+                    .ok_or(Failure::Internal {})?
+                    .worktree_close_quiesced(self.plan, &close_request_id)
+            {
+                return Ok(());
+            }
             match status {
                 WorkbenchTabCloseStatus::Closed { .. } => {
                     self.plan.progress.workspace = WorktreeWorkspaceDisposition::Closed {
@@ -376,7 +405,12 @@ impl Driver<'_> {
                     };
                     return Ok(());
                 }
-                WorkbenchTabCloseStatus::Closing { .. } => thread::sleep(Duration::from_millis(50)),
+                WorkbenchTabCloseStatus::Closing { .. }
+                | WorkbenchTabCloseStatus::DisposedAwaitingPublication {
+                    reason:
+                        orchbee_workbench_protocol::WorkbenchTabClosePublicationReason::Preparing,
+                    ..
+                } => thread::sleep(Duration::from_millis(50)),
                 WorkbenchTabCloseStatus::CleanupBlocked {
                     resumable: true, ..
                 }

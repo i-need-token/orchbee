@@ -236,6 +236,13 @@ impl<'a> WorkbenchWorkspaceCloseAdmission<'a> {
                 // A completed Context Close cannot coexist with the projected scope.
                 return WorkbenchTabCloseResolution::Ready(self.authority.retire(&self.command));
             }
+            let close_id = record.command.request_id.clone();
+            if !self.authority.worktree_close_join_allowed(&close_id) {
+                return WorkbenchTabCloseResolution::Ready(result(
+                    &self.command,
+                    unavailable(WorkbenchCommandUnavailableReason::TerminalBusy),
+                ));
+            }
             let same_action = std::mem::discriminant(&record.command.action)
                 == std::mem::discriminant(&self.command.action);
             if same_action {
@@ -248,7 +255,11 @@ impl<'a> WorkbenchWorkspaceCloseAdmission<'a> {
                 };
                 return WorkbenchTabCloseResolution::Ready(
                     match self.authority.prepare_command_commit(self.command, plan) {
-                        Ok(prepared) => prepared.commit(),
+                        Ok(prepared) => {
+                            let result = prepared.commit();
+                            self.authority.release_failed_worktree_close(&close_id);
+                            result
+                        }
                         Err(response) => *response,
                     },
                 );

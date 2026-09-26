@@ -15,6 +15,8 @@ canonical projection and strict standalone membership.
 
 ## User outcome and lifetime authority
 
+Worktree Remove can hold canonical Workspace Close publication while the existing continuation disposes every captured terminal and finishes local cleanup. The Worktree owner installs the exact operation/Close association under the same gate as Close admission. Both scheduled and direct publication refuse the hold; only exact publication-ready evidence permits Git removal. A known Git failure retains the Workspace structure and its Close fences. After a failed Worktree, an explicitly accepted ordinary Workspace Close may release the hold without Git; a competing Close during a pending Worktree is busy. Reads and failed Close admission never release it. Successful Git deletion retains a monotonic completion marker before releasing publication, so a later Worktree Resume only finishes canonical Close. This boundary preserves layout for restoration; it does not restart shells. The [CLI Worktree model](../../orchbee/docs/windows-worktrees.md) owns the user-visible partial outcome and recovery.
+
 ### Workspace lifetime extension
 
 The local Server accepts Close for a simple Terminal Context owned by a canonical Workspace,

@@ -70,6 +70,7 @@ impl Fixture {
             .unwrap();
         let plan = WorktreeOperationPlan {
             operation_id: id(40),
+            removal_complete: false,
             project_id: self.project.clone(),
             intent: WorktreeIntent::Create {
                 source: WorktreeSource::Workspace {

@@ -28,11 +28,14 @@ pub struct WorktreeOperationPlan {
     pub attempt: u32,
     pub phase: WorktreeOperationPhase,
     pub progress: WorktreeProgress,
+    /// Known Git deletion survives a later canonical publication failure.
+    pub removal_complete: bool,
 }
 struct Record {
     plan: WorktreeOperationPlan,
     status: WorktreeOperationStatus,
     claimed: bool,
+    close_hold: Option<WorkbenchRequestId>,
 }
 #[derive(Default)]
 pub(super) struct WorktreeOperations {
@@ -166,11 +169,13 @@ impl WorkbenchAuthority {
                     attempt: 1,
                     phase,
                     progress: progress.clone(),
+                    removal_complete: false,
                 };
                 let record = Record {
                     plan,
                     status: WorktreeOperationStatus::Pending { phase, progress },
                     claimed: false,
+                    close_hold: None,
                 };
                 let outcome = record.outcome();
                 self.worktrees.records.insert(id, record);
@@ -194,17 +199,28 @@ impl WorkbenchAuthority {
                     return record.outcome();
                 };
                 record.plan.progress = progress.clone();
-                record.plan.phase = match &progress.workspace {
-                    WorktreeWorkspaceDisposition::Closed { .. } => {
-                        WorktreeOperationPhase::InspectingRemove
+                record.plan.phase = if record.plan.removal_complete {
+                    WorktreeOperationPhase::Removing
+                } else {
+                    match &progress.workspace {
+                        WorktreeWorkspaceDisposition::Closed { .. } => {
+                            WorktreeOperationPhase::InspectingRemove
+                        }
+                        WorktreeWorkspaceDisposition::Closing { .. }
+                            if matches!(record.plan.intent, WorktreeIntent::Remove { .. }) =>
+                        {
+                            WorktreeOperationPhase::InspectingRemove
+                        }
+                        WorktreeWorkspaceDisposition::Closing { .. } => {
+                            WorktreeOperationPhase::Closing
+                        }
+                        _ if progress.git_effect != WorktreeGitEffect::None
+                            && progress.path.is_some() =>
+                        {
+                            WorktreeOperationPhase::Opening
+                        }
+                        _ => initial_phase(&record.plan.intent),
                     }
-                    WorktreeWorkspaceDisposition::Closing { .. } => WorktreeOperationPhase::Closing,
-                    _ if progress.git_effect != WorktreeGitEffect::None
-                        && progress.path.is_some() =>
-                    {
-                        WorktreeOperationPhase::Opening
-                    }
-                    _ => initial_phase(&record.plan.intent),
                 };
                 record.plan.attempt += 1;
                 record.claimed = false;
@@ -348,6 +364,92 @@ impl WorkbenchAuthority {
         true
     }
 
+    /// Called before releasing the same Site guard that admitted this exact Close.
+    pub fn hold_worktree_close(
+        &mut self,
+        plan: &WorktreeOperationPlan,
+        close: &WorkbenchRequestId,
+    ) -> bool {
+        let WorktreeIntent::Remove { workspace_id, .. } = &plan.intent else {
+            return false;
+        };
+        if !self.terminal_close_matches_workspace(close, &plan.project_id, workspace_id) {
+            return false;
+        }
+        let Some(record) = self.worktrees.records.get_mut(&plan.operation_id) else {
+            return false;
+        };
+        if !record.matches_attempt(plan)
+            || record.plan.removal_complete
+            || record.close_hold.as_ref().is_some_and(|held| held != close)
+        {
+            return false;
+        }
+        record.close_hold = Some(close.clone());
+        true
+    }
+
+    pub(super) fn worktree_holds_close(&self, close: &WorkbenchRequestId) -> bool {
+        self.worktrees
+            .records
+            .values()
+            .any(|record| record.close_hold.as_ref() == Some(close))
+    }
+
+    pub(super) fn worktree_close_join_allowed(&self, close: &WorkbenchRequestId) -> bool {
+        self.worktrees.records.values().all(|record| {
+            record.close_hold.as_ref() != Some(close)
+                || matches!(record.status, WorktreeOperationStatus::Failed { .. })
+        })
+    }
+
+    /// A committed explicit Workspace Close can release a failed operation's hold without Git.
+    pub(super) fn release_failed_worktree_close(&mut self, close: &WorkbenchRequestId) {
+        for record in self.worktrees.records.values_mut() {
+            if record.close_hold.as_ref() == Some(close)
+                && matches!(record.status, WorktreeOperationStatus::Failed { .. })
+            {
+                record.close_hold = None;
+            }
+        }
+    }
+
+    pub fn worktree_close_quiesced(
+        &self,
+        plan: &WorktreeOperationPlan,
+        close: &WorkbenchRequestId,
+    ) -> bool {
+        let Some(record) = self.worktrees.records.get(&plan.operation_id) else {
+            return false;
+        };
+        record.matches_attempt(plan)
+            && record.close_hold.as_ref() == Some(close)
+            && self.terminal_close_publication_ready(close)
+    }
+
+    /// The retained driver supplies known successful Git completion; never inferred from a failed job.
+    pub fn complete_worktree_removal(&mut self, plan: &mut WorktreeOperationPlan) -> bool {
+        let Some(record) = self.worktrees.records.get_mut(&plan.operation_id) else {
+            return false;
+        };
+        if !record.matches_attempt(plan)
+            || !matches!(plan.intent, WorktreeIntent::Remove { .. })
+            || !matches!(
+                record.status,
+                WorktreeOperationStatus::Pending {
+                    phase: WorktreeOperationPhase::Removing,
+                    ..
+                }
+            )
+        {
+            return false;
+        }
+        record.plan.removal_complete = true;
+        record.close_hold = None;
+        plan.removal_complete = true;
+        true
+    }
+
     pub fn worktree_source_matches(&self, plan: &WorktreeOperationPlan) -> bool {
         if self.retired {
             return false;
@@ -393,6 +495,17 @@ impl WorkbenchAuthority {
     }
 }
 impl Record {
+    fn matches_attempt(&self, plan: &WorktreeOperationPlan) -> bool {
+        self.claimed
+            && matches!(self.status, WorktreeOperationStatus::Pending { .. })
+            && self.plan.operation_id == plan.operation_id
+            && self.plan.attempt == plan.attempt
+            && self.plan.project_id == plan.project_id
+            && self.plan.intent == plan.intent
+            && self.plan.source == plan.source
+            && self.plan.source_workspace_id == plan.source_workspace_id
+            && self.plan.worker_generation == plan.worker_generation
+    }
     fn outcome(&self) -> WorkbenchWorktreeOutcome {
         WorkbenchWorktreeOutcome::Available {
             project_id: self.plan.project_id.clone(),

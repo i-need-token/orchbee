@@ -331,8 +331,9 @@ fn dirty_remove_is_rejected_before_workspace_close() {
     );
 }
 #[test]
-fn failed_git_remove_keeps_closed_workspace_truth_and_resume_uses_repository_root() {
+fn failed_git_remove_keeps_workspace_structure_and_resume_uses_repository_root() {
     let mut fixture = Fixture::new();
+    let before = snapshot(&fixture.service);
     fixture.start(WorktreeIntent::Remove {
         workspace_id: fixture.workspace.clone(),
         force: true,
@@ -353,13 +354,9 @@ fn failed_git_remove_keeps_closed_workspace_truth_and_resume_uses_repository_roo
         matches!(remove.action, WorktreeMutationJobAction::Start(intent) if matches!(intent.mutation(), WorktreeMutation::Remove { force: true, .. }) && intent.source().as_str() == "C:/repo")
     );
     assert!(
-        matches!(fixture.settled(), Status::Failed { progress, resumable: true, .. } if matches!(progress.workspace, WorktreeWorkspaceDisposition::Closed { .. }))
+        matches!(fixture.settled(), Status::Failed { progress, resumable: true, .. } if matches!(progress.workspace, WorktreeWorkspaceDisposition::Closing { .. }))
     );
-    assert!(
-        snapshot(&fixture.service).navigation.projects[0]
-            .workspaces
-            .is_empty()
-    );
+    assert_eq!(snapshot(&fixture.service), before);
     assert!(matches!(
         fixture.apply(Action::Resume {
             operation_id: id(40),
@@ -374,9 +371,130 @@ fn failed_git_remove_keeps_closed_workspace_truth_and_resume_uses_repository_roo
     fixture.finish_job(Completion::Removed {
         path: AbsoluteCwd::new("C:/w").unwrap(),
     });
+    let settled = fixture.settled();
     assert!(
-        matches!(fixture.settled(), Status::Removed { workspace_id, .. } if workspace_id == fixture.workspace)
+        matches!(&settled, Status::Removed { workspace_id, .. } if *workspace_id == fixture.workspace),
+        "{settled:?}"
     );
+}
+
+#[test]
+fn failed_remove_can_close_explicitly_without_repeating_git_and_pending_close_is_busy() {
+    let mut fixture = Fixture::new();
+    let before = snapshot(&fixture.service);
+    fixture.start(WorktreeIntent::Remove {
+        workspace_id: fixture.workspace.clone(),
+        force: true,
+        trust_repository: false,
+    });
+    fixture.finish_job(checkout(false));
+    let remove = fixture.receive();
+    assert!(matches!(remove.action, WorktreeMutationJobAction::Start(_)));
+    let close = |request| {
+        let state = snapshot(&fixture.service);
+        fixture
+            .service
+            .execute_workspace_close(WorkbenchCommand {
+                protocol_version: ProtocolVersion,
+                request_id: id(request),
+                site_id: state.site_id,
+                expected_revision: state.revision,
+                action: WorkbenchAction::WorkspaceClose {
+                    project_id: fixture.project.clone(),
+                    workspace_id: fixture.workspace.clone(),
+                },
+            })
+            .unwrap()
+    };
+    assert!(matches!(
+        close(900).outcome,
+        WorkbenchCommandOutcome::Unavailable {
+            reason: orchbee_workbench_protocol::WorkbenchCommandUnavailableReason::TerminalBusy
+        }
+    ));
+    fixture.reply(
+        &remove,
+        WorktreeMutationOutcome::Start(WorktreeMutationStartOutcome::Accepted),
+    );
+    let poll = fixture.receive();
+    fixture.reply(
+        &poll,
+        WorktreeMutationOutcome::Poll(WorktreeMutationPollOutcome::Completed(Completion::Failed(
+            WorktreeMutationFailure::new(
+                WorktreeMutationStage::Mutate,
+                WorktreeMutationEffect::MayHaveChanged,
+                WorktreeMutationError::GitFailed(Some(128)),
+                b"locked".to_vec(),
+            )
+            .unwrap(),
+        ))),
+    );
+    let failed = fixture.settled();
+    assert!(matches!(failed, Status::Failed { .. }));
+    assert_eq!(snapshot(&fixture.service), before);
+    let state = snapshot(&fixture.service);
+    assert!(matches!(
+        fixture
+            .service
+            .execute_workspace_close(WorkbenchCommand {
+                protocol_version: ProtocolVersion,
+                request_id: id(901),
+                site_id: state.site_id,
+                expected_revision: state.revision,
+                action: WorkbenchAction::WorkspaceClose {
+                    project_id: fixture.project.clone(),
+                    workspace_id: fixture.workspace.clone()
+                }
+            })
+            .unwrap()
+            .outcome,
+        WorkbenchCommandOutcome::WorkspaceCloseAccepted { .. }
+    ));
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while !snapshot(&fixture.service).navigation.projects[0]
+        .workspaces
+        .is_empty()
+    {
+        assert!(Instant::now() < deadline);
+        thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(
+        fixture.settled(),
+        failed,
+        "manual Close does not rewrite the Git failure receipt"
+    );
+    fixture
+        .peer
+        .set_read_timeout(Some(Duration::from_millis(40)))
+        .unwrap();
+    assert!(
+        read_message(&mut fixture.peer).is_err(),
+        "manual Close must not submit Git"
+    );
+}
+
+#[test]
+fn mismatched_removed_path_is_unknown_and_keeps_the_workspace() {
+    let mut fixture = Fixture::new();
+    let before = snapshot(&fixture.service);
+    fixture.start(WorktreeIntent::Remove {
+        workspace_id: fixture.workspace.clone(),
+        force: true,
+        trust_repository: false,
+    });
+    fixture.finish_job(checkout(false));
+    fixture.finish_job(Completion::Removed {
+        path: AbsoluteCwd::new("C:/other").unwrap(),
+    });
+    assert!(matches!(
+        fixture.settled(),
+        Status::Failed {
+            reason: Failure::PhysicalUnknown {},
+            resumable: false,
+            ..
+        }
+    ));
+    assert_eq!(snapshot(&fixture.service), before);
 }
 
 #[test]

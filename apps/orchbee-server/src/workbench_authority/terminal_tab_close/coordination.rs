@@ -16,6 +16,23 @@ use super::{
 };
 
 impl WorkbenchAuthority {
+    pub(in crate::workbench_authority) fn terminal_close_matches_workspace(
+        &self,
+        close: &WorkbenchRequestId,
+        project: &orchbee_workbench_protocol::WorkbenchProjectId,
+        workspace: &orchbee_workbench_protocol::WorkbenchWorkspaceId,
+    ) -> bool {
+        self.close_record(close).is_some_and(|record| {
+            !record.is_closed() && record.matches_context_scope(project, workspace)
+        })
+    }
+    pub(in crate::workbench_authority) fn terminal_close_publication_ready(
+        &self,
+        close: &WorkbenchRequestId,
+    ) -> bool {
+        self.close_record(close)
+            .is_some_and(|record| !record.is_closed() && record.publication_ready())
+    }
     /// Product identities are never reused; retained tombstones also fence new target effects.
     #[must_use]
     pub fn has_terminal_tab_close(
@@ -113,10 +130,15 @@ impl WorkbenchAuthority {
         close_request_id: &WorkbenchRequestId,
         now: Instant,
     ) -> Result<WorkbenchTabCloseStepTarget, CloseStepTokenMismatch> {
-        Ok(self
+        let held = self.worktree_holds_close(close_request_id);
+        let mut step = self
             .close_record_mut(close_request_id)
             .ok_or(CloseStepTokenMismatch)?
-            .next_step(now))
+            .next_step(now);
+        if held && step.next() == CloseContinuationNext::Publication {
+            step.next = CloseContinuationNext::Parked;
+        }
+        Ok(step)
     }
 
     pub fn reserve_terminal_tab_close_step(

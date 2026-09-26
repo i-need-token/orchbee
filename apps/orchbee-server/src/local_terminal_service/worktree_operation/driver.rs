@@ -157,16 +157,36 @@ impl Driver<'_> {
                         WorktreeWorkspaceDisposition::Closed { .. }
                     ) {
                         self.advance(Phase::Removing)?;
+                    } else if matches!(
+                        self.plan.progress.workspace,
+                        WorktreeWorkspaceDisposition::Closing { .. }
+                    ) {
+                        self.advance(Phase::Closing)?;
                     } else {
                         self.begin_close()?;
                         self.advance(Phase::Closing)?;
                     }
                 }
                 Phase::Closing => {
-                    self.wait_close()?;
+                    self.wait_close(true)?;
                     self.advance(Phase::Removing)?;
                 }
                 Phase::Removing => {
+                    if self.plan.removal_complete {
+                        self.wait_close(false)?;
+                        let WorktreeIntent::Remove { workspace_id, .. } = &self.plan.intent else {
+                            return Err(Failure::Internal {});
+                        };
+                        return Ok(Status::Removed {
+                            path: self
+                                .plan
+                                .progress
+                                .path
+                                .clone()
+                                .ok_or(Failure::Internal {})?,
+                            workspace_id: workspace_id.clone(),
+                        });
+                    }
                     self.require_exclusive_checkout()?;
                     let checkout = self
                         .plan
@@ -192,11 +212,27 @@ impl Driver<'_> {
                         orchbee_capability_node_protocol::WorktreeMutationCompletion::Removed {
                             path,
                         } => {
-                            return Ok(Status::Removed {
-                                path: WorkbenchDirectoryPath::parse(path.as_str())
-                                    .map_err(|_| Failure::Internal {})?,
-                                workspace_id,
-                            });
+                            let path = WorkbenchDirectoryPath::parse(path.as_str())
+                                .map_err(|_| Failure::Internal {})?;
+                            if path != checkout.path {
+                                self.plan.progress.git_effect = WorktreeGitEffect::MayHaveChanged;
+                                return Err(Failure::PhysicalUnknown {});
+                            }
+                            self.plan.progress.git_effect = WorktreeGitEffect::Changed;
+                            if !self
+                                .service
+                                .coordinator
+                                .lock()
+                                .map_err(|_| Failure::Internal {})?
+                                .worktree_authority()
+                                .ok_or(Failure::Internal {})?
+                                .complete_worktree_removal(self.plan)
+                            {
+                                return Err(Failure::Internal {});
+                            }
+                            self.service.close_maintenance.notify();
+                            self.wait_close(false)?;
+                            return Ok(Status::Removed { path, workspace_id });
                         }
                         _ => return Err(Failure::Internal {}),
                     }

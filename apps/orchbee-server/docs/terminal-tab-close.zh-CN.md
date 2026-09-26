@@ -12,6 +12,8 @@ Close 到 Empty、手动 Create 及保留 shell 重入的进程用例。这些�
 
 ## 用户结果与生命周期授权
 
+Worktree Remove 可以暂缓规范 Workspace Close 发布，同时由已有续执行释放所有捕获的终端并完成本地清理。Worktree 所有者在 Close 准入的同一把锁内记录精确操作／Close 关联。调度和直接发布入口均拒绝绕过保留；只有精确的可发布证据才允许 Git 删除。已知 Git 失败保留 Workspace 结构及 Close 栅栏。Worktree 失败后，显式接纳的普通 Workspace Close 可以不执行 Git 而释放保留；Worktree pending 期间的竞争 Close 返回 busy。读取和失败的 Close 准入从不释放保留。Git 删除成功后，先保留单调完成标记再释放发布，因此后续 Worktree Resume 仅完成规范 Close。该边界为恢复保留布局，但不重启 shell。[CLI Worktree 模型](../../orchbee/docs/windows-worktrees.zh-CN.md) 拥有用户可见的部分结果和恢复契约。
+
 ### Workspace 生命周期扩展
 
 本地 Server 接受规范 Workspace 所有的简单 Terminal Context 中的 Close，沿用 standalone 的

@@ -10,7 +10,7 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_workbench_protocol::{
     WorkbenchDirectoryPath, WorktreeCheckoutFacts, WorktreeGitEffect, WorktreeIntent,
-    WorktreeOperationFailure as Failure, WorktreeReference, WorktreeWorkspaceDisposition,
+    WorktreeOperationFailure as Failure, WorktreeReference,
 };
 use std::{
     sync::atomic::Ordering,
@@ -58,17 +58,10 @@ impl Driver<'_> {
                 trust_repository, ..
             } => *trust_repository,
         };
-        let source = if matches!(
-            self.plan.progress.workspace,
-            WorktreeWorkspaceDisposition::Closed { .. }
-        ) {
-            &self
-                .plan
-                .progress
-                .checkout
-                .as_ref()
-                .ok_or(Failure::Internal {})?
-                .repository_root
+        let source = if matches!(self.plan.intent, WorktreeIntent::Remove { .. })
+            && let Some(checkout) = self.plan.progress.checkout.as_ref()
+        {
+            &checkout.repository_root
         } else {
             &self.plan.source.path
         };

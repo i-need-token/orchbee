@@ -85,6 +85,9 @@ impl WorkbenchAuthority {
         close_request_id: &WorkbenchRequestId,
         now: Instant,
     ) -> Result<PreparedWorkbenchTabClosePublication<'_>, WorkbenchTabClosePublicationError> {
+        if self.worktree_holds_close(close_request_id) {
+            return Err(WorkbenchTabClosePublicationError::NotReady);
+        }
         let Some(record) = self.close_record_mut(close_request_id) else {
             return Err(WorkbenchTabClosePublicationError::OperationUnavailable);
         };
