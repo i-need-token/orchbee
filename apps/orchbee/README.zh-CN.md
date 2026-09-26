@@ -673,7 +673,7 @@ Windows 省略时先尝试跟随已解析来源的根进程目录；`--cwd works
 
 ## Windows Worktree 操作
 
-`worktree create/open/remove/status/resume` 使用 Server 保留操作与 Windows Worker Git 执行。[Worktree 契约](docs/windows-worktrees.zh-CN.md) 拥有来源选择、默认值、确认、部分结果与恢复规则。这些命令不激活 Site 或改变 Client 焦点。
+`worktree create/open/remove/status/resume` 使用 Server 保留操作与 Windows Worker Git 执行。[Worktree 契约](docs/windows-worktrees.zh-CN.md) 拥有来源选择、默认值、确认、部分结果与恢复规则。这些命令不激活 Site。Create／Open 接受可选 `--focus` 与精确 `--client`；默认 `--no-focus` 保持视图。省略来源时 List／Create／Open 跟随经校验的调用者或所选 TUI 上下文。
 
 ## Windows Workspace 组关闭
 

@@ -44,35 +44,19 @@ fn source_grammar_is_disjoint_from_registered_directory_and_mutation_flags() {
 }
 
 #[test]
-fn directory_source_needs_no_project_and_invalid_caller_never_falls_back() {
+fn directory_source_needs_no_project() {
     let snapshot = orchbee_workbench_protocol::parse_snapshot(&serde_json::to_vec(&json!({
         "kind":"workbench.snapshot", "protocolVersion":1, "siteId":"00000000000000000000000000000001", "revision":"1",
         "navigation":{"standaloneTerminalContextId":"00000000000000000000000000000002", "projects":[]},
         "terminalContexts":[{"terminalContextId":"00000000000000000000000000000002", "groups":[], "tabs":[]}]
     })).unwrap()).unwrap();
-    let (project, source) = crate::cli::worktree_source::resolve(
-        &None,
-        &None,
-        &None,
-        &snapshot,
-        false,
-        |_| None,
-        || Ok(PathBuf::from("C:/repo/sub")),
-    )
-    .unwrap();
+    let (project, source) =
+        crate::cli::worktree_source::resolve(&None, &None, &None, &snapshot, false, || {
+            Ok(PathBuf::from("C:/repo/sub"))
+        })
+        .unwrap();
     assert!(project.is_none());
     assert!(matches!(source, WorktreeSource::Directory {path} if path.as_str() == "C:/repo/sub"));
-    let failure = crate::cli::worktree_source::resolve(
-        &None,
-        &None,
-        &None,
-        &snapshot,
-        false,
-        |key| (key == "ORCHBEE_TERMINAL_ID").then(|| OsString::from("invalid")),
-        || panic!("invalid caller must not inspect cwd"),
-    )
-    .unwrap_err();
-    assert_eq!(failure.kind, FailureKind::InvalidUsage);
 }
 
 #[test]

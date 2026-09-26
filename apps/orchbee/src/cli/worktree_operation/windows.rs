@@ -4,7 +4,7 @@ use crate::{
         Failure, FailureKind, Output, failure_output, query,
         source::{ArmedSignals, Finish, SignalWatch},
     },
-    invocation::{OutputFormat, WorktreeCommand},
+    invocation::{OutputFormat, WorktreeCommand, WorktreeStartKind},
     localization::Locale,
 };
 use orchbee_workbench_protocol::{
@@ -37,6 +37,8 @@ pub(super) fn run(
             reason: "not-submitted",
         },
         wait: None,
+        post_open: matches!(command, WorktreeCommand::Start(start) if start.focus)
+            .then(super::post_open::Receipt::new),
     };
     let mut site_id = None;
     let result = observe(command, &mut answer, &mut site_id, &mut signals);
@@ -47,7 +49,11 @@ pub(super) fn run(
             finalization: owed, ..
         }) => {
             finalization = Some(owed);
-            if result.is_err()
+            if answer
+                .post_open
+                .as_ref()
+                .is_some_and(|receipt| !receipt.complete())
+                || result.is_err()
                 || answer.pending()
                 || matches!(
                     answer.observation,
@@ -100,14 +106,38 @@ fn observe(
     if interrupted(answer, signals, deadline)? {
         return Ok(());
     }
+    let mut selected = None;
     let action = match command {
         WorktreeCommand::Start(start) => {
-            let (project_id, intent) = super::selection::intent(
-                start,
-                &snapshot,
-                |key| std::env::var_os(key),
-                std::env::current_dir,
-            )?;
+            let (project_id, intent) = if matches!(start.kind, WorktreeStartKind::Remove { .. }) {
+                super::selection::intent(start, &snapshot, std::env::current_dir)?
+            } else {
+                let prepared = crate::cli::worktree_source::windows::prepare(
+                    crate::cli::worktree_source::windows::Request {
+                        project: &start.project,
+                        workspace: &start.workspace,
+                        cwd: &start.cwd,
+                        client: start.client.as_ref(),
+                        focus: start.focus,
+                        require_project: true,
+                    },
+                    &mut client,
+                    &snapshot,
+                    deadline,
+                    signals,
+                )?;
+                selected = prepared.client;
+                if let Some(receipt) = &mut answer.post_open {
+                    receipt.client_id = selected.as_ref().map(|client| client.client_id.clone());
+                }
+                super::selection::intent_from_source(
+                    start,
+                    prepared
+                        .project
+                        .ok_or_else(|| Failure::new(FailureKind::ProtocolInvalid))?,
+                    prepared.source,
+                )?
+            };
             WorkbenchWorktreeAction::Start {
                 operation_id: answer.operation_id.clone(),
                 project_id,
@@ -153,10 +183,10 @@ fn observe(
             return Ok(());
         }
     }
-    if read || !answer.pending() {
+    if read {
         return Ok(());
     }
-    if detached {
+    if detached && answer.pending() {
         answer.wait = Some(Wait::Detached);
         return Ok(());
     }
@@ -196,6 +226,21 @@ fn observe(
                 }
                 return Ok(());
             }
+        }
+    }
+    if let (Some(receipt), Some(selected)) = (&mut answer.post_open, selected.as_ref())
+        && let Some((project, workspace)) = super::post_open::opened(&answer.observation)
+    {
+        receipt.stage = "focus-observation";
+        if let Err(failure) = super::focus_windows::execute(
+            &mut client,
+            &snapshot,
+            (project, workspace),
+            selected,
+            (deadline, signals),
+            receipt,
+        ) {
+            receipt.failure = Some(failure.kind);
         }
     }
     Ok(())

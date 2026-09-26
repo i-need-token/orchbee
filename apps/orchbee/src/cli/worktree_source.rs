@@ -1,10 +1,15 @@
 //! Shared source selection; a directory query never requires a Project.
-use super::{Failure, FailureKind, caller_context::PanelTarget, results, target_details};
+use super::{Failure, FailureKind, results, target_details};
 use crate::invocation::{Resource, Target};
 use orchbee_workbench_protocol::{
     Project, Snapshot, WorkbenchDirectoryPath, WorkbenchProjectId, WorktreeSource,
 };
-use std::{ffi::OsString, path::PathBuf};
+use std::path::PathBuf;
+
+#[cfg(any(windows, test))]
+mod context;
+#[cfg(windows)]
+pub(super) mod windows;
 
 pub(super) fn resolve(
     project_target: &Option<Target>,
@@ -12,7 +17,6 @@ pub(super) fn resolve(
     cwd_path: &Option<WorkbenchDirectoryPath>,
     snapshot: &Snapshot,
     require_project: bool,
-    mut environment: impl FnMut(&str) -> Option<OsString>,
     cwd: impl FnOnce() -> std::io::Result<PathBuf>,
 ) -> Result<(Option<WorkbenchProjectId>, WorktreeSource), Failure> {
     let projects = &snapshot.navigation.projects;
@@ -41,38 +45,6 @@ pub(super) fn resolve(
             target,
             Resource::Workspace,
         )?)
-    } else if cwd_path.is_none()
-        && (environment("ORCHBEE_TERMINAL_ID").is_some()
-            || environment("ORCHBEE_WORKER_ID").is_some())
-    {
-        let panel = PanelTarget::prepare(None, &mut environment)?.resolve(snapshot)?;
-        let Target::Id(panel) = panel else {
-            return Err(Failure::new(FailureKind::ProtocolInvalid));
-        };
-        let rows = results::terminal_rows(snapshot);
-        let row = rows
-            .iter()
-            .find(|row| row.panel_id == panel)
-            .ok_or_else(|| {
-                Failure::new(FailureKind::NotFound).details(target_details(Resource::Panel, &panel))
-            })?;
-        let mut found = projects
-            .iter()
-            .flat_map(|p| p.workspaces.iter().map(move |w| (p, w)))
-            .filter(|(_, w)| w.terminal_context_id.as_str() == row.terminal_context_id);
-        let selected = found.next().ok_or_else(|| {
-            Failure::new(FailureKind::NotFound).details(target_details(Resource::Workspace, ""))
-        })?;
-        if found.next().is_some() {
-            return Err(Failure::new(FailureKind::ProtocolInvalid));
-        }
-        if project.is_some_and(|p| p.project_id != selected.0.project_id) {
-            return Err(Failure::new(FailureKind::NotFound).details(target_details(
-                Resource::Workspace,
-                selected.1.workspace_id.as_str(),
-            )));
-        }
-        Some(selected)
     } else {
         None
     };

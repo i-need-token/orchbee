@@ -1,6 +1,12 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(super) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee worktree create --f", "--focus", true),
+    ("orchbee worktree create --detach --f", "--focus", false),
+    ("orchbee worktree open --focus --d", "--detach", false),
+    ("orchbee worktree open --no-focus --f", "--focus", false),
+    ("orchbee worktree list --client abc --p", "--project", false),
+    ("orchbee worktree list --project p --c", "--client", false),
     ("orchbee agent integration --outdated-only ", "list", true),
     (
         "orchbee agent integration --outdated-only ",

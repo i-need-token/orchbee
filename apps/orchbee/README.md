@@ -753,7 +753,7 @@ Targeted Agent commands also accept `--panel <id|@panel:suffix>` or a positional
 
 ## Windows Worktree operations
 
-`worktree create/open/remove/status/resume` now uses retained Server operations and Windows Worker Git execution. The [Worktree contract](docs/windows-worktrees.md) owns source selection, defaults, confirmation, partial outcomes and recovery. These commands do not activate a Site or change Client focus.
+`worktree create/open/remove/status/resume` now uses retained Server operations and Windows Worker Git execution. The [Worktree contract](docs/windows-worktrees.md) owns source selection, defaults, confirmation, partial outcomes and recovery. These commands do not activate a Site. Create/Open accept optional `--focus` and exact `--client`; default `--no-focus` keeps the view. List/Create/Open follow the validated caller or selected TUI context when source is omitted.
 
 ## Windows Workspace group Close
 

@@ -52,20 +52,25 @@ fn observe(
     check(signals, deadline)?;
     let (mut client, _, snapshot) = query::snapshot_session_until(deadline)?;
     check(signals, deadline)?;
-    let (_, source) = worktree_source::resolve(
-        &None,
-        &command.workspace,
-        &command.cwd,
+    let prepared = worktree_source::windows::prepare(
+        worktree_source::windows::Request {
+            project: &None,
+            workspace: &command.workspace,
+            cwd: &command.cwd,
+            client: command.client.as_ref(),
+            focus: false,
+            require_project: false,
+        },
+        &mut client,
         &snapshot,
-        false,
-        |key| std::env::var_os(key),
-        std::env::current_dir,
+        deadline,
+        signals,
     )?;
     let request = WorkbenchWorktreeQuery {
         protocol_version: snapshot.protocol_version,
         request_id: query::request_id()?,
         site_id: snapshot.site_id,
-        source,
+        source: prepared.source,
         trust_repository: command.trust_repository,
     };
     check(signals, deadline)?;

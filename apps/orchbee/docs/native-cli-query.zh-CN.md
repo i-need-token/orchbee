@@ -1769,9 +1769,9 @@ Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界�
 
 ## Windows 保留 Worktree 操作
 
-[Worktree 契约](windows-worktrees.zh-CN.md) 拥有 `worktree create/open/remove/status/resume`、来源／Project 推导、各命令 flag、操作身份、确认、等待、输出与恢复规则。它扩展本记录早先仅 list 的语法：Create/Open 接受可选标签和终端尺寸、源 Workspace 或 cwd，以及路径／分支选择器；Create 另接受 base。Remove 接受 force，要求 Workspace 及确认；Resume 要求操作 ID、generation 及确认。五条均接受 text/JSON；只有修改命令按该契约接受请求身份、信任与等待。`orchbee.worktree.operation` 封套列入目录 v51（72 个文档）。
+[Worktree 契约](windows-worktrees.zh-CN.md) 拥有 `worktree create/open/remove/status/resume`、来源／Project 推导、各命令 flag、操作身份、确认、等待、输出与恢复规则。它扩展本记录早先仅 list 的语法：Create/Open 接受可选 --client、--focus／--no-focus、标签和终端尺寸、源 Workspace 或 cwd，以及路径／分支选择器；Create 另接受 base。Remove 接受 force，要求 Workspace 及确认；Resume 要求操作 ID、generation 及确认。五条均接受 text/JSON；只有修改命令按该契约接受请求身份、信任与等待。`orchbee.worktree.operation` v1（不聚焦）／v2（显式聚焦）封套列入目录 v62（72 个文档）。
 
-Windows `worktree list` 额外接受来源 Workspace/cwd 与可选命令局部信任，默认采用调用者上下文／当前目录，无需 Project。本记录前面的已注册目录语法及封套仅适用于原 `--project/--directory` 形式。[来源发现契约](windows-worktrees.zh-CN.md#按来源发现-worktree) 拥有独立的 `orchbee.worktree.query` 结果（目录 v51/72）、互斥规则、总 deadline、失败退出码及已知 Workspace 关联。
+Windows `worktree list` 额外接受来源 Workspace/cwd 与可选命令局部信任，默认采用已验证调用者／所选 Client，均无时才使用 cwd，无需 Project。本记录前面的已注册目录语法及封套仅适用于原 `--project/--directory` 形式。[来源发现契约](windows-worktrees.zh-CN.md#按来源发现-worktree) 拥有独立的 `orchbee.worktree.query` 结果（目录 v62/72）、互斥规则、总 deadline、失败退出码及已知 Workspace 关联。
 
 ## Workspace 组关闭投影
 
@@ -1889,7 +1889,7 @@ Windows `agent list --client <id>` 在 v2 列表封套中加入所选 TUI 的状
 
 Windows Agent Get 现在输出 v5（使用 `--client` 时为 v6），增加独立的 `management` 观察，包含来源、修订及 Server 所有的启动状态。Active 记录只来自已完成的启动；手动命名会话仍为非托管。Pending 启动使 promptReady 为 false，`agent prompt` 在输入前拒绝。Status 有界读取共用命令原期限，失败可使用 Agent 读取失败 v3（`operation: management`）；它不重试、不完成启动。`agent start` v2 在现有成功完成后显式报告 interactiveReady。[启动契约](windows-agent-start.zh-CN.md) 拥有生命周期和限制。
 
-原生 provider 注册表现有 20 项，包含 Windows Cursor、Qoder 和 Antigravity JSON Hook 接入和离线诊断。API 目录版本为 61，schema 与命令路径数量不变。
+原生 provider 注册表现有 20 项，包含 Windows Cursor、Qoder 和 Antigravity JSON Hook 接入和离线诊断。API 目录版本为 62，schema 与命令路径数量不变。
 
 Mastracode 新增 Windows 扁平 Hook 接入、不完整安装修复、离线诊断及带运行标识的生命周期观察。
 

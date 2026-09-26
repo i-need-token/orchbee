@@ -4,7 +4,7 @@ use super::{
     WorkbenchRequestId, WorkbenchTerminalGeometry, check_scope, geometry_option, label_option,
     missing_required, target, usage_with, wait_timeout_option,
 };
-use orchbee_workbench_protocol::{WorktreeReference, WorktreeSelector};
+use orchbee_workbench_protocol::{WorkbenchClientId, WorktreeReference, WorktreeSelector};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WorktreeStartKind {
     Create {
@@ -24,11 +24,13 @@ pub(crate) struct WorktreeStartCommand {
     pub(crate) project: Option<Target>,
     pub(crate) workspace: Option<Target>,
     pub(crate) cwd: Option<WorkbenchDirectoryPath>,
+    pub(crate) client: Option<WorkbenchClientId>,
     pub(crate) kind: WorktreeStartKind,
     pub(crate) label: Option<WorkbenchLabel>,
     pub(crate) geometry: WorkbenchTerminalGeometry,
     pub(crate) trust_repository: bool,
     pub(crate) operation_id: Option<WorkbenchRequestId>,
+    pub(crate) focus: bool,
     pub(crate) detach: bool,
     pub(crate) timeout_ms: u32,
 }
@@ -62,6 +64,9 @@ pub(super) fn start(
             project: true,
             workspace: true,
             cwd: !remove,
+            client: !remove,
+            focus: !remove,
+            no_focus: !remove,
             label: !remove,
             geometry: !remove,
             branch: !remove,
@@ -90,6 +95,21 @@ pub(super) fn start(
             },
             envelope,
         ));
+    }
+    for (conflict, second) in [
+        (options.focus && options.no_focus, "--no-focus"),
+        (options.focus && options.detach, "--detach"),
+    ] {
+        if conflict {
+            return Err(usage_with(
+                UsageReason::ConflictingOptions {
+                    context,
+                    first: "--focus",
+                    second,
+                },
+                envelope,
+            ));
+        }
     }
     let workspace = options
         .workspace
@@ -168,6 +188,8 @@ pub(super) fn start(
             .map(|value| worktree_path(value, context, "--cwd", envelope))
             .transpose()?,
         kind,
+        client: super::client_control::client_id(options, context, envelope)?,
+        focus: options.focus,
         label: options
             .label
             .as_ref()
@@ -297,6 +319,7 @@ fn invalid(
 pub(crate) struct WorktreeQueryCommand {
     pub(crate) workspace: Option<Target>,
     pub(crate) cwd: Option<WorkbenchDirectoryPath>,
+    pub(crate) client: Option<WorkbenchClientId>,
     pub(crate) trust_repository: bool,
 }
 
@@ -321,6 +344,7 @@ pub(super) fn list(options: &Options, envelope: FailureEnvelope) -> Result<Reque
         Scope {
             workspace: true,
             cwd: true,
+            client: true,
             trust_repository: true,
             ..NO_OPTIONS
         },
@@ -339,6 +363,7 @@ pub(super) fn list(options: &Options, envelope: FailureEnvelope) -> Result<Reque
     }
     Ok(Request::WorktreeQuery {
         command: WorktreeQueryCommand {
+            client: super::client_control::client_id(options, context, envelope)?,
             workspace: options
                 .workspace
                 .as_ref()

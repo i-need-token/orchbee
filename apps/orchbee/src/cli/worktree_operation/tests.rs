@@ -43,6 +43,22 @@ fn grammar_rejects_destructive_or_conflicting_intents_before_runtime_access() {
         vec!["worktree", "create", "--branch=-bad"],
         vec!["worktree", "create", "--branch=bad\nref"],
         vec!["worktree", "create", "--force"],
+        vec!["worktree", "create", "--focus", "--no-focus"],
+        vec!["worktree", "create", "--focus", "--detach"],
+        vec![
+            "worktree",
+            "remove",
+            "--workspace=w",
+            "--confirm",
+            "--focus",
+        ],
+        vec![
+            "worktree",
+            "remove",
+            "--workspace=w",
+            "--confirm",
+            "--client=00000000000000000000000000000001",
+        ],
         vec!["project", "list", "--trust-repository"],
         vec!["worktree", "create", "extra"],
         vec!["worktree", "status", "bad"],
@@ -94,16 +110,11 @@ fn grammar_rejects_destructive_or_conflicting_intents_before_runtime_access() {
 }
 
 #[test]
-fn implicit_source_is_the_validated_caller_and_explicit_cwd_ignores_environment() {
+fn canonical_source_preserves_project_and_explicit_operands_do_not_read_cwd() {
     let snapshot = snapshot();
-    let create = start(&["worktree", "create"]);
-    let environment = |name: &str| match name {
-        "ORCHBEE_TERMINAL_ID" => Some(id(9).into()),
-        "ORCHBEE_WORKER_ID" => Some(id(10).into()),
-        _ => None,
-    };
-    let (project, intent) = selection::intent(&create, &snapshot, environment, || {
-        panic!("caller source must not read cwd")
+    let explicit = start(&["worktree", "create", "--workspace=work"]);
+    let (project, intent) = selection::intent(&explicit, &snapshot, || {
+        panic!("explicit Workspace must not read cwd")
     })
     .unwrap();
     assert_eq!(project.as_str(), id(3));
@@ -111,50 +122,33 @@ fn implicit_source_is_the_validated_caller_and_explicit_cwd_ignores_environment(
         matches!(intent,WorktreeIntent::Create {source:WorktreeSource::Workspace {workspace_id},..} if workspace_id.as_str()==id(4))
     );
     let explicit = start(&["worktree", "create", "--cwd=C:/explicit"]);
-    let (_, intent) = selection::intent(
-        &explicit,
-        &snapshot,
-        |_| panic!("explicit source must not read caller environment"),
-        || panic!("explicit source must not read cwd"),
-    )
+    let (_, intent) = selection::intent(&explicit, &snapshot, || {
+        panic!("explicit directory must not read cwd")
+    })
     .unwrap();
     assert!(
         matches!(intent,WorktreeIntent::Create {source:WorktreeSource::Directory {path},..} if path.as_str()=="C:/explicit")
     );
-    let failure = selection::intent(
-        &create,
-        &snapshot,
-        |name| {
-            if name == "ORCHBEE_TERMINAL_ID" {
-                Some(id(9).into())
-            } else {
-                Some(id(11).into())
-            }
-        },
-        || panic!("stale caller must not fall back to cwd"),
-    )
-    .unwrap_err();
-    assert_eq!(failure.kind, FailureKind::NotFound);
-    let (_, intent) =
-        selection::intent(&create, &snapshot, |_| None, || Ok("C:/external".into())).unwrap();
-    assert!(
-        matches!(intent,WorktreeIntent::Create {source:WorktreeSource::Directory {path},..} if path.as_str()=="C:/external")
-    );
     let mut multiple = snapshot.clone();
     let mut other = multiple.navigation.projects[0].clone();
     other.project_id = WorkbenchProjectId::parse(&id(11)).unwrap();
+    other.label = "other".to_owned();
     other.workspaces.clear();
     multiple.navigation.projects.push(other);
     assert_eq!(
-        selection::intent(
-            &create,
-            &multiple,
-            |_| None,
-            || panic!("ambiguous Project before cwd")
-        )
+        selection::intent(&explicit, &multiple, || panic!(
+            "ambiguous Project before cwd"
+        ))
         .unwrap_err()
         .kind,
         FailureKind::Ambiguous
+    );
+    let wrong_project = start(&["worktree", "create", "--workspace=work", "--project=other"]);
+    assert_eq!(
+        selection::intent(&wrong_project, &multiple, || panic!())
+            .unwrap_err()
+            .kind,
+        FailureKind::NotFound
     );
 }
 
@@ -162,6 +156,7 @@ fn answer(status: WorktreeOperationStatus) -> Answer {
     Answer {
         operation_id: WorkbenchRequestId::parse(&id(12)).unwrap(),
         wait: None,
+        post_open: None,
         observation: Observation::Server {
             reply: WorkbenchWorktreeResult {
                 protocol_version: ProtocolVersion,
@@ -257,5 +252,9 @@ fn opening_a_workspace_does_not_turn_a_failed_terminal_launch_into_success() {
             terminal_outcome: Some(terminal_outcome),
         });
         assert_eq!(opened.exit_code(), expected);
+        assert_eq!(
+            post_open::opened(&opened.observation).is_some(),
+            expected == 0
+        );
     }
 }

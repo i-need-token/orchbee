@@ -10,6 +10,9 @@ use orchbee_workbench_protocol::{
 };
 use serde_json::json;
 
+#[cfg(windows)]
+mod focus_windows;
+mod post_open;
 #[cfg(any(windows, test))]
 mod selection;
 #[cfg(windows)]
@@ -29,11 +32,11 @@ enum Wait {
     TransportLost,
     ObservationFailed,
 }
-#[derive(Debug)]
 struct Answer {
     operation_id: WorkbenchRequestId,
     observation: Observation,
     wait: Option<Wait>,
+    post_open: Option<post_open::Receipt>,
 }
 impl Answer {
     fn document(&self) -> serde_json::Value {
@@ -49,13 +52,28 @@ impl Answer {
             Wait::TransportLost => "transport-lost",
             Wait::ObservationFailed => "observation-failed",
         });
-        json!({"operationId":self.operation_id,"observation":observation,"wait":wait})
+        let mut result =
+            json!({"operationId":self.operation_id,"observation":observation,"wait":wait});
+        if let Some(receipt) = &self.post_open {
+            result["postOpen"] = receipt.document();
+        }
+        result
     }
     fn pending(&self) -> bool {
         matches!(&self.observation, Observation::Server { reply } if matches!(&reply.outcome,
             WorkbenchWorktreeOutcome::Available {status, ..} if matches!(status.as_ref(), WorktreeOperationStatus::Pending {..})))
     }
     fn exit_code(&self) -> u8 {
+        let canonical = self.canonical_exit_code();
+        if canonical != 0 {
+            canonical
+        } else {
+            self.post_open
+                .as_ref()
+                .map_or(0, post_open::Receipt::exit_code)
+        }
+    }
+    fn canonical_exit_code(&self) -> u8 {
         match self.wait {
             Some(Wait::Cancelled) => return 130,
             Some(Wait::TimedOut) => return 7,
@@ -130,6 +148,8 @@ pub(crate) fn run(command: &WorktreeCommand, format: OutputFormat, locale: Local
                     reason: "unsupported-platform",
                 },
                 wait: None,
+                post_open: matches!(command, WorktreeCommand::Start(start) if start.focus)
+                    .then(post_open::Receipt::new),
             },
             format,
             locale,
@@ -141,10 +161,10 @@ fn emit(site_id: Option<&SiteId>, answer: Answer, format: OutputFormat, locale: 
     let status = answer.exit_code();
     let result = answer.document();
     let encoded = match format {
-        OutputFormat::Json => {
-            output::encode_document(&json!({"schema":"orchbee.worktree.operation","version":1,
-            "source":{"kind":"local-worktree","siteId":site_id},"result":result}))
-        }
+        OutputFormat::Json => output::encode_document(
+            &json!({"schema":"orchbee.worktree.operation","version":if answer.post_open.is_some() {2} else {1},
+            "source":{"kind":"local-worktree","siteId":site_id},"result":result}),
+        ),
         OutputFormat::Text => output::encode_text(&locale.cli_worktree_result(&result)),
     };
     match encoded {

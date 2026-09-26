@@ -1,15 +1,14 @@
-//! Resolve the caller against one validated snapshot before any Git submission.
+//! Resolve canonical Project/source operands, then build the retained Git intent.
 use crate::{
     cli::{Failure, FailureKind},
     invocation::{WorktreeStartCommand, WorktreeStartKind},
 };
 use orchbee_workbench_protocol::{Snapshot, WorkbenchProjectId, WorktreeIntent, WorktreeSource};
-use std::{ffi::OsString, path::PathBuf};
+use std::path::PathBuf;
 
 pub(super) fn intent(
     command: &WorktreeStartCommand,
     snapshot: &Snapshot,
-    environment: impl FnMut(&str) -> Option<OsString>,
     cwd: impl FnOnce() -> std::io::Result<PathBuf>,
 ) -> Result<(WorkbenchProjectId, WorktreeIntent), Failure> {
     let (project, source) = crate::cli::worktree_source::resolve(
@@ -18,10 +17,17 @@ pub(super) fn intent(
         &command.cwd,
         snapshot,
         true,
-        environment,
         cwd,
     )?;
     let project = project.ok_or_else(|| Failure::new(FailureKind::ProtocolInvalid))?;
+    intent_from_source(command, project, source)
+}
+
+pub(super) fn intent_from_source(
+    command: &WorktreeStartCommand,
+    project: WorkbenchProjectId,
+    source: WorktreeSource,
+) -> Result<(WorkbenchProjectId, WorktreeIntent), Failure> {
     let intent = match &command.kind {
         WorktreeStartKind::Create { branch, base, path } => WorktreeIntent::Create {
             source,

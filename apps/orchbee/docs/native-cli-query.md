@@ -2077,9 +2077,9 @@ Expected Host refusals use `orchbee.cli.failure.process-info` v1 with the bounde
 
 ## Windows retained Worktree operations
 
-The [Worktree contract](windows-worktrees.md) owns `worktree create/open/remove/status/resume`, their source/Project inference, per-command flags, operation identity, confirmation, waiting, output and recovery. It extends this record's earlier list-only grammar: Create/Open admit optional label and terminal geometry, source Workspace or cwd, and path/branch selectors; Create also admits base. Remove admits force and requires Workspace plus confirmation; Resume requires operation ID, generation and confirmation. All five admit text/JSON; only mutation commands admit request identity, trust and waiting as documented there. The `orchbee.worktree.operation` envelope is included in catalog v51 (72 documents).
+The [Worktree contract](windows-worktrees.md) owns `worktree create/open/remove/status/resume`, their source/Project inference, per-command flags, operation identity, confirmation, waiting, output and recovery. It extends this record's earlier list-only grammar: Create/Open admit optional --client, --focus/--no-focus, label and terminal geometry, source Workspace or cwd, and path/branch selectors; Create also admits base. Remove admits force and requires Workspace plus confirmation; Resume requires operation ID, generation and confirmation. All five admit text/JSON; only mutation commands admit request identity, trust and waiting as documented there. The `orchbee.worktree.operation` v1 (no focus) / v2 (explicit focus) envelope is included in catalog v62 (72 documents).
 
-Windows `worktree list` additionally accepts a source Workspace/cwd and optional command-local trust, with caller-context/current-directory defaults and no Project requirement. The earlier registered-directory grammar and envelope in this record apply only to the legacy `--project/--directory` form. The [source discovery contract](windows-worktrees.md#source-based-discovery) owns the separate `orchbee.worktree.query` result (catalog v51/72), mutual exclusions, total deadline, failure exits and known Workspace associations.
+Windows `worktree list` additionally accepts a source Workspace/cwd and optional command-local trust, with validated caller/selected-Client defaults and cwd only when both are absent and no Project requirement. The earlier registered-directory grammar and envelope in this record apply only to the legacy `--project/--directory` form. The [source discovery contract](windows-worktrees.md#source-based-discovery) owns the separate `orchbee.worktree.query` result (catalog v62/72), mutual exclusions, total deadline, failure exits and known Workspace associations.
 
 ## Workspace group Close projection
 
@@ -2202,7 +2202,7 @@ Windows `agent list --client <id>` joins the selected TUI status in the v2 list 
 
 Windows Agent Get now emits v5 (v6 with `--client`), adding a separate `management` observation with source, revision and Server-owned startup state. Active records come only from completed startup; manually named sessions remain unmanaged. Pending startup makes promptReady false and `agent prompt` refuses before input. The bounded Status read shares the original command deadline and can fail with Agent read failure v3 (`operation: management`); it never retries or completes a launch. `agent start` v2 explicitly reports interactiveReady after its existing successful completion. The [startup contract](windows-agent-start.md) owns lifecycle and limits.
 
-The native provider registry now has 20 entries, including Windows Cursor, Qoder and Antigravity JSON hook onboarding and offline diagnosis. The API catalogue is version 61; schema and command-path counts remain unchanged.
+The native provider registry now has 20 entries, including Windows Cursor, Qoder and Antigravity JSON hook onboarding and offline diagnosis. The API catalogue is version 62; schema and command-path counts remain unchanged.
 
 Mastracode adds Windows flat hook onboarding, partial-install repair, offline diagnosis and keyed lifecycle observations.
 
