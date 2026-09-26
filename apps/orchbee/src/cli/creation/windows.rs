@@ -27,6 +27,14 @@ use std::{
 };
 
 pub(super) fn run(command: &CreationCommand, format: OutputFormat, locale: Locale) -> Output {
+    let settings = match crate::cli::configuration::load() {
+        Ok(settings) => settings,
+        Err(error) => return failure_output(error.failure(), Some(format), locale),
+    };
+    let mut configured = command.clone();
+    settings.apply_directory(&mut configured.directory, &mut configured.options);
+    let command = &configured;
+
     let deadline = Instant::now() + Duration::from_millis(u64::from(command.timeout_ms));
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(signals) => signals,

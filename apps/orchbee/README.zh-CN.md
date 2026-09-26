@@ -677,21 +677,21 @@ Windows 省略时先尝试跟随已解析来源的根进程目录；`--cwd works
 
 ## Windows Workspace 组关闭
 
-`workspace close <target> --group --confirm` 关闭捕获的 worktree 组，源工作区最后关闭，不删除 Git checkout。已知主 Workspace 若有关联成员就必须带 `--group`；关联 Workspace 只关闭自身。成员消失后使用 `workspace close-status --group --request <operation-id>`；只有明确可恢复失败才使用 `workspace close-resume --group --request <operation-id> --generation <attempt> --confirm`。组模式支持分离/有界等待，报告每个子 Close 的身份及已观测状态。参见[归属模型](docs/windows-worktrees.zh-CN.md#workspace-组关闭)。`api schema` v44 目录包含 73 份文档，其中 `orchbee.workspace.group-close` 为 v1。
+`workspace close <target> --group --confirm` 关闭捕获的 worktree 组，源工作区最后关闭，不删除 Git checkout。已知主 Workspace 若有关联成员就必须带 `--group`；关联 Workspace 只关闭自身。成员消失后使用 `workspace close-status --group --request <operation-id>`；只有明确可恢复失败才使用 `workspace close-resume --group --request <operation-id> --generation <attempt> --confirm`。组模式支持分离/有界等待，报告每个子 Close 的身份及已观测状态。参见[归属模型](docs/windows-worktrees.zh-CN.md#workspace-组关闭)。`api schema` v44 目录包含 74 份文档，其中 `orchbee.workspace.group-close` 为 v1。
 
 ## Windows Client 导航
 
-[Windows Client 视图控制](docs/windows-client-control.zh-CN.md) 拥有 `client list/get/control-status`、`workspace focus`、`tab focus`、`panel focus` 和 `panel zoom`。导航通过 `--client` 或无歧义且已校验的调用者上下文定位一个 current TUI。只提交一次，并等待绘制确认；超时或 Ctrl+C 仅停止等待。单 Panel 缩放有明确无操作回执。目录 v64 包含 73 个 schema，新增均为 v1 的 `orchbee.client.view`、`orchbee.client.control` 和 `orchbee.cli.failure.client-control`。未增加操作系统窗口激活或 Mac/Linux 控制运行时。
+[Windows Client 视图控制](docs/windows-client-control.zh-CN.md) 拥有 `client list/get/control-status`、`workspace focus`、`tab focus`、`panel focus` 和 `panel zoom`。导航通过 `--client` 或无歧义且已校验的调用者上下文定位一个 current TUI。只提交一次，并等待绘制确认；超时或 Ctrl+C 仅停止等待。单 Panel 缩放有明确无操作回执。目录 v65 包含 74 个 schema，新增均为 v1 的 `orchbee.client.view`、`orchbee.client.control` 和 `orchbee.cli.failure.client-control`。未增加操作系统窗口激活或 Mac/Linux 控制运行时。
 
 Windows 进程测试在 Git for Windows Bash 中执行输出的补全，通过 `git --exec-path` 定位；该见证要求已安装此 Bash。检查命令动词前后的互斥选项，不连接 Site。PowerShell 另有真实 Shell 语法见证。
 
 ## Windows schema 导出
 
-`api schema [<schema-id>] --output <path>` 离线导出内嵌 JSON 文档，同时将其输出到 stdout。目标父目录必须存在；完整的同目录文件替换已有普通目标文件。[导出契约](docs/native-cli-query.zh-CN.md#windows-离线-schema-导出) 拥有失败阶段、临时文件清理以及发布后的 stdout 失败。目录 v64 包含 73 份文档，包括 `orchbee.cli.failure.schema-export` v1。
+`api schema [<schema-id>] --output <path>` 离线导出内嵌 JSON 文档，同时将其输出到 stdout。目标父目录必须存在；完整的同目录文件替换已有普通目标文件。[导出契约](docs/native-cli-query.zh-CN.md#windows-离线-schema-导出) 拥有失败阶段、临时文件清理以及发布后的 stdout 失败。目录 v65 包含 74 份文档，包括 `orchbee.cli.failure.schema-export` v1。
 
 ## Windows Panel 布局查询
 
-`panel layout`、`panel neighbor --direction left|right|up|down` 和 `panel edges` 检查精确的 Windows TUI Client。它们接受位置参数 Panel、`--panel` 或 `--current`，路由有歧义时使用 `--client`。读取保持焦点和终端尺寸，支持非活动或未访问目标。`orchbee.panel.layout` v1 保留单元格几何、可为 null 的隐藏矩形、未缩放邻居、物理边缘结果及操作回执。参见[几何契约](docs/windows-client-layout.zh-CN.md)。目录 v64 包含 73 份文档；原生命令清单包含 86 条路径。
+`panel layout`、`panel neighbor --direction left|right|up|down` 和 `panel edges` 检查精确的 Windows TUI Client。它们接受位置参数 Panel、`--panel` 或 `--current`，路由有歧义时使用 `--client`。读取保持焦点和终端尺寸，支持非活动或未访问目标。`orchbee.panel.layout` v1 保留单元格几何、可为 null 的隐藏矩形、未缩放邻居、物理边缘结果及操作回执。参见[几何契约](docs/windows-client-layout.zh-CN.md)。目录 v65 包含 74 份文档；原生命令清单包含 86 条路径。
 
 `panel focus [source] --direction left|right|up|down` 在指定 TUI 的未缩放单元格布局中查找一个邻居，保留缩放；无邻居返回 `direction-unchanged`，不切换到来源 Tab。找到邻居后固定目标，仅在绘制成功后返回 `direction-focused`。回执查询不重复移动。
 
@@ -699,22 +699,22 @@ Windows 进程测试在 Git for Windows Bash 中执行输出的补全，通过 `
 
 ## 共享窗格标题
 
-`panel rename <panel-id> --label <text>` 设置共享主 Presentation 的自定义标题；`--clear`（或空白文本）恢复创建时的标签。接受精确 ID 或 `@panel:<suffix>`，不改变焦点或终端。[窗格标题契约](docs/native-panel-labels.zh-CN.md) 负责规范化、修订与重放规则以及匹配 cohort 的兼容边界。`orchbee.panel.rename` v1 区分 `renamed` 与 `unchanged`，可空 `customLabel` 回显规范化后的请求元数据。`panel get` 与 `panel current` v3 提供不变的 `label`、可空 `customLabel` 及实际显示的 `displayLabel`。`api snapshot` v4 保留规范的可选自定义标题。目录 v64 包含 73 份 schema，原生命令清单包含 86 条路径。
+`panel rename <panel-id> --label <text>` 设置共享主 Presentation 的自定义标题；`--clear`（或空白文本）恢复创建时的标签。接受精确 ID 或 `@panel:<suffix>`，不改变焦点或终端。[窗格标题契约](docs/native-panel-labels.zh-CN.md) 负责规范化、修订与重放规则以及匹配 cohort 的兼容边界。`orchbee.panel.rename` v1 区分 `renamed` 与 `unchanged`，可空 `customLabel` 回显规范化后的请求元数据。`panel get` 与 `panel current` v3 提供不变的 `label`、可空 `customLabel` 及实际显示的 `displayLabel`。`api snapshot` v4 保留规范的可选自定义标题。目录 v65 包含 74 份 schema，原生命令清单包含 86 条路径。
 
 Panel swap 使用共享结构 placement 权威，在同一 Tab 中原子交换完整叶子，保留 Split／slot 及终端身份。Windows CLI 通过原 Client 单独确认源聚焦；后续失败或聚焦未知不抹去已知 canonical 提交。[原生 Panel 交换](docs/native-panel-swap.zh-CN.md) 拥有工作流程、回执及证据。
 
 Windows `tab create` 和 `panel split` 在创建前解析 `--cwd follow|home|current|workspace|<absolute-path>`；默认 follow 采样已解析来源的根进程目录，v2 回执记录实际目录来源／路径。它们接受可选目标及标签，默认不聚焦；`--focus` 请求创建后聚焦，分屏可带 Client 独立的 `--ratio`。显式目标无需 TUI 即可创建。`orchbee.creation.result` v2 分别报告已提交创建与后续比例／焦点结果；后续失败不能当作未创建而重试。参见[原生终端创建](docs/native-terminal-creation.zh-CN.md)，其目标、总预算、并发保护和恢复规则为这些 Windows 命令的权威。
 
-Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` 设置共享右键策略，不移动焦点。`--current` 要求有效调用者元数据，显式目标绕过它。`panel split --right-click` 随创建提交新 Panel 策略。默认 `orchbee` 将右键保留给 Client；`panel` 允许无修饰键的右键在启用鼠标上报的终端内容内透传。已准入的手势在策略改变后仍保留匹配的松开事件。路由、排队输入复核及失败恢复见[Panel 输入契约](docs/native-panel-input.zh-CN.md)。本功能不新增上下文菜单。`orchbee.panel.input` v1 返回 `configured` 或 `unchanged`；`panel list` v2 与 `panel get/current` v3 提供 `rightClick`，`tab get` v2 和 `api snapshot` v4 接受可选规范字段。目录 v64 含 73 个 schema，原生命令清单含 86 条路径。
+Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` 设置共享右键策略，不移动焦点。`--current` 要求有效调用者元数据，显式目标绕过它。`panel split --right-click` 随创建提交新 Panel 策略。默认 `orchbee` 将右键保留给 Client；`panel` 允许无修饰键的右键在启用鼠标上报的终端内容内透传。已准入的手势在策略改变后仍保留匹配的松开事件。路由、排队输入复核及失败恢复见[Panel 输入契约](docs/native-panel-input.zh-CN.md)。本功能不新增上下文菜单。`orchbee.panel.input` v1 返回 `configured` 或 `unchanged`；`panel list` v2 与 `panel get/current` v3 提供 `rightClick`，`tab get` v2 和 `api snapshot` v4 接受可选规范字段。目录 v65 含 74 个 schema，原生命令清单含 86 条路径。
 
 Windows `tab move <target> --insert-index N` 按原顺序的零基插入边界移动完整 Tab；0 为首位，
 Tab 总数为末尾，源边界及其后一边界无变化，越界拒绝。它与 `--direction` 互斥，不改变焦点或终端。
-成功使用 `orchbee.tab.move` v1，运行时失败使用 `orchbee.cli.failure.tab-move` v1。目录 v64/73，
+成功使用 `orchbee.tab.move` v1，运行时失败使用 `orchbee.cli.failure.tab-move` v1。目录 v65/74，
 原方向封装不变。
 
 ## 自动 Tab 命名
 
-[Tab 标签契约](docs/native-tab-labels.zh-CN.md) 拥有可选 `automaticLabel` 元数据。省略标签的新建 Tab 按当前上下文位置编号；显式数字名称及旧 Tab 保留固定名称。移动或关闭后 CLI 查询、标签选择器和 TUI 显示保持一致，重命名切换为固定名称。原生 `api snapshot` v4 暴露规范元数据；目录 v64 包含 73 份 schema。共享协议需要匹配 cohort。
+[Tab 标签契约](docs/native-tab-labels.zh-CN.md) 拥有可选 `automaticLabel` 元数据。省略标签的新建 Tab 按当前上下文位置编号；显式数字名称及旧 Tab 保留固定名称。移动或关闭后 CLI 查询、标签选择器和 TUI 显示保持一致，重命名切换为固定名称。原生 `api snapshot` v4 暴露规范元数据；目录 v65 包含 74 份 schema。共享协议需要匹配 cohort。
 
 ## 按来源读取终端输出
 
@@ -723,7 +723,7 @@ recent 合并保留历史与实时屏幕；detection 读取最近的一个屏幕
 `--plain` 为管道直接导出文本，默认 recent，与 JSON 互斥。来源模式
 `--lines` 允许零，钳制到 1000，recent 默认 80。它与既有 history/rows/unwrap
 参数互斥，既有行为保持不变。[输出契约](docs/native-terminal-output.zh-CN.md)
-拥有选择、精确样本验证及 `orchbee.terminal.output` v1；目录 v64 共 73 个 schema。
+拥有选择、精确样本验证及 `orchbee.terminal.output` v1；目录 v65 共 74 个 schema。
 
 Windows `terminal wait-output` 接受相同的 `--source` 和 `--lines` 选择，也可用 `--forever`
 明确取消总等待时限。任一参数都会启用来源模式（默认 recent），与 `--rows` 互斥，
@@ -747,7 +747,7 @@ Windows `agent focus <target> [--client <id>]` 在一次客户端控制提交前
 
 Windows 宿主焦点上报由[原生 Client 提示状态](docs/native-client-attention.zh-CN.md)管理；焦点报告属于 Client 元数据，不是终端文本。提示状态与 CLI 确认的集成仍在开发。
 
-Windows `agent changes [--cursor <c>] [--limit <n>]` 返回有界 canonical 变更页或当前头部检查点。默认 limit 为 50（1–100），后续复用返回的 cursor。`reset-required` 与 `cursor-invalid` 要求显式重建基线。参见[查询契约](docs/native-cli-query.zh-CN.md#windows-agent-变更页)。Catalog v64 提供 `orchbee.agent.changes` v1，共 73 个 schema、85 条命令路径。
+Windows `agent changes [--cursor <c>] [--limit <n>]` 返回有界 canonical 变更页或当前头部检查点。默认 limit 为 50（1–100），后续复用返回的 cursor。`reset-required` 与 `cursor-invalid` 要求显式重建基线。参见[查询契约](docs/native-cli-query.zh-CN.md#windows-agent-变更页)。Catalog v65 提供 `orchbee.agent.changes` v1，共 74 个 schema、85 条命令路径。
 
 Windows 支持通过 `agent integration enable --provider cursor`、`agent integration enable --provider qodercli` 或 `agent integration enable --provider antigravity-cli` 管理 Cursor、Qoder 和 Antigravity 会话身份 Hook，保留既有 Hook 和其他配置值。
 
@@ -763,4 +763,8 @@ Windows `agent integration enable --provider devin` 管理 APPDATA/devin/config.
 
 Windows `agent integration enable --provider hermes` 发布两个自有 Python 插件入口，并通过提供方 CLI 启用；停用保留插件及其缓存。
 
-Windows `workspace create` 可省略项目、名称和目录；按来源终端／工作区／主目录解析默认值，零项目时先创建默认项目，可用 `--focus` 聚焦现有 TUI。旧显式空工作区命令保持兼容。项目、工作区和聚焦分别返回回执；Worktree Create／Open 共用首次项目创建。详见[工作区创建契约](docs/windows-workspace-creation.zh-CN.md)。当前 API 目录 v64，73 个 schema，86 条命令路径。
+Windows `workspace create` 可省略项目、名称和目录；按来源终端／工作区／主目录解析默认值，零项目时先创建默认项目，可用 `--focus` 聚焦现有 TUI。旧显式空工作区命令保持兼容。项目、工作区和聚焦分别返回回执；Worktree Create／Open 共用首次项目创建。详见[工作区创建契约](docs/windows-workspace-creation.zh-CN.md)。当前 API 目录 v65，74 个 schema，86 条命令路径。
+
+## Windows CLI 配置
+
+`config check` 还会校验 `APPDATA/Orchbee/config.toml`，可通过绝对路径 `ORCHBEE_CONFIG_FILE` 覆盖。`[terminal] new_cwd` 设置创建 cwd 默认值；`[worktrees] directory` 选择检出根目录。显式命令参数覆盖有效配置。参阅[配置与优先级](docs/windows-cli-configuration.zh-CN.md)。Windows CLI 每次调用读取，TUI 直接创建及 Server 重载是独立能力。

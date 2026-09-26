@@ -1,0 +1,354 @@
+//! Persistent configuration through real Windows CLI processes and scripted IPC.
+#![cfg(windows)]
+#[allow(dead_code)]
+#[path = "support/windows_agent_peer.rs"]
+mod support;
+use orchbee_local_ipc::{LocalListener, LocalStream};
+use orchbee_workbench_protocol::*;
+use serde_json::{Value, json};
+use support::{Fixture, assert_closed, peer, validate};
+
+fn id(n: u64) -> String {
+    format!("{n:032x}")
+}
+fn document(output: std::process::Output) -> Value {
+    serde_json::from_slice(&output.stdout).unwrap_or_else(|_| {
+        panic!(
+            "{} {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        )
+    })
+}
+fn snapshot(stream: &mut LocalStream, project: bool) {
+    let WorkbenchRequest::SnapshotRead(request) = read_workbench_request(stream).unwrap() else {
+        panic!("snapshot");
+    };
+    let snapshot: Snapshot = serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12","navigation":{"standaloneTerminalContextId":id(10),"projects":if project {vec![json!({"projectId":id(3),"label":"project","directories":[{"directoryId":id(11),"workerId":id(9),"path":"C:/repo"}],"workspaces":[{"workspaceId":id(4),"label":"source","primaryDirectoryId":id(11),"terminalContextId":id(5)}]})]} else {vec![]}},"terminalContexts":if project {vec![json!({"terminalContextId":id(5),"groups":[],"tabs":[{"tabId":id(6),"label":"shell","pinned":false,"groupId":null,"root":{"kind":"panel","panelId":id(7),"primaryPresentation":{"presentationId":id(8),"label":"shell","binding":null},"childPresentations":[]}}]}),json!({"terminalContextId":id(10),"groups":[],"tabs":[]})]} else {vec![json!({"terminalContextId":id(10),"groups":[],"tabs":[]})]}})).unwrap();
+    write_workbench_response(
+        stream,
+        &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+            protocol_version: ProtocolVersion,
+            request_id: request.request_id,
+            outcome: WorkbenchSnapshotOutcome::Available { snapshot },
+        }),
+    )
+    .unwrap();
+}
+
+#[test]
+fn malformed_or_missing_explicit_configuration_stops_every_creation_before_ipc() {
+    let fixture = Fixture::new();
+    let config = fixture.0.join("config.toml");
+    let schema = include_str!("../src/cli/schemas/orchbee.cli.failure.configuration.json");
+    for (bytes, reason) in [
+        (b"unknown = 'DO-NOT-ECHO'".to_vec(), "unknown-key"),
+        (vec![b'a'; 65537], "too-large"),
+        (vec![0xff], "invalid-utf8"),
+        (b"[terminal]\nnew_cwd=1".to_vec(), "wrong-type"),
+        (
+            b"[terminal]\nnew_cwd='home'\nnew_cwd='follow'".to_vec(),
+            "invalid-toml",
+        ),
+    ] {
+        std::fs::write(&config, bytes).unwrap();
+        for args in [
+            vec!["workspace", "create", "--cwd=C:/explicit", "--format=json"],
+            vec!["tab", "create", "--standalone", "--format=json"],
+            vec![
+                "panel",
+                "split",
+                "--direction=right",
+                "--panel",
+                "00000000000000000000000000000007",
+                "--format=json",
+            ],
+            vec!["worktree", "create", "--cwd=C:/repo", "--format=json"],
+        ] {
+            let output = fixture.run_with_env(
+                &args,
+                None,
+                None,
+                &[("ORCHBEE_CONFIG_FILE", config.as_os_str())],
+            );
+            assert_eq!(
+                output.status.code(),
+                Some(1),
+                "{args:?}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(!String::from_utf8_lossy(&output.stderr).contains("DO-NOT-ECHO"));
+            let doc = document(output);
+            validate(&doc, schema);
+            assert_eq!(doc["failure"]["details"]["reason"], reason);
+        }
+    }
+    std::fs::remove_file(&config).unwrap();
+    let doc = document(fixture.run_with_env(
+        &["workspace", "create", "--format=json"],
+        None,
+        None,
+        &[("ORCHBEE_CONFIG_FILE", config.as_os_str())],
+    ));
+    validate(&doc, schema);
+    assert_eq!(doc["failure"]["details"]["reason"], "missing");
+    assert!(!config.exists());
+}
+
+#[test]
+fn config_check_reports_the_actual_file_without_creating_it() {
+    let fixture = Fixture::new();
+    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    let schema = include_str!("../src/cli/schemas/orchbee.config.check.json");
+    let doc = document(fixture.run(&["config", "check", "--format=json"]));
+    validate(&doc, schema);
+    let validator =
+        jsonschema::validator_for(&serde_json::from_str::<Value>(schema).unwrap()).unwrap();
+    let mut old = doc.clone();
+    old["version"] = json!(1);
+    assert!(!validator.is_valid(&old), "v1 cannot contain a sixth check");
+    old["result"]["checks"].as_array_mut().unwrap().pop();
+    assert!(
+        validator.is_valid(&old),
+        "legacy five-check v1 remains valid"
+    );
+    old["version"] = json!(2);
+    assert!(
+        !validator.is_valid(&old),
+        "v2 must not silently omit user configuration"
+    );
+    assert_eq!(doc["version"], 2);
+    assert_eq!(doc["result"]["checks"][5]["details"]["exists"], false);
+    assert!(!config.exists());
+    std::fs::create_dir_all(config.parent().unwrap()).unwrap();
+    std::fs::write(
+        &config,
+        "[terminal]\nnew_cwd='home'\n[worktrees]\ndirectory='../trees'",
+    )
+    .unwrap();
+    let doc = document(fixture.run(&["config", "check", "--format=json"]));
+    validate(&doc, schema);
+    let check = &doc["result"]["checks"][5];
+    assert_eq!(check["status"], "pass");
+    assert_eq!(check["details"]["newCwd"], "home");
+    assert_eq!(
+        std::path::Path::new(check["details"]["worktreeDirectory"].as_str().unwrap()),
+        fixture.0.join("appdata/Orchbee/../trees")
+    );
+    std::fs::write(&config, "[worktrees]\ndirectory=3").unwrap();
+    let doc = document(fixture.run(&["config", "check", "--format=json"]));
+    validate(&doc, schema);
+    assert_eq!(doc["result"]["checks"][5]["status"], "fail");
+}
+
+#[test]
+fn workspace_tab_and_panel_creation_apply_persistent_cwd_and_allow_override() {
+    for (args, expected) in [
+        (
+            vec!["workspace", "create", "--format=json"],
+            "C:/configured",
+        ),
+        (
+            vec!["tab", "create", "--workspace=source", "--format=json"],
+            "C:/configured",
+        ),
+        (
+            vec![
+                "panel",
+                "split",
+                "--direction=right",
+                "--panel",
+                "00000000000000000000000000000007",
+                "--format=json",
+            ],
+            "C:/configured",
+        ),
+        (
+            vec!["workspace", "create", "--cwd=C:/explicit", "--format=json"],
+            "C:/explicit",
+        ),
+    ] {
+        let fixture = Fixture::new();
+        let config = fixture.0.join("config.toml");
+        std::fs::write(&config, "[terminal]\nnew_cwd='C:/configured'").unwrap();
+        let rendezvous = fixture.rendezvous();
+        let handler = peer(
+            &fixture,
+            LocalListener::bind(rendezvous.client_socket_path()).unwrap(),
+            move |mut stream| {
+                snapshot(&mut stream, true);
+                let WorkbenchRequest::Command(request) =
+                    read_workbench_request(&mut stream).unwrap()
+                else {
+                    panic!("one canonical creation, no cwd query");
+                };
+                let action = json!(request.action);
+                assert_eq!(
+                    std::path::Path::new(action["options"]["cwd"].as_str().unwrap()),
+                    std::path::Path::new(expected)
+                );
+                write_workbench_response(
+                    &mut stream,
+                    &WorkbenchResponse::Command(WorkbenchCommandResult {
+                        protocol_version: ProtocolVersion,
+                        request_id: request.request_id,
+                        outcome: WorkbenchCommandOutcome::Rejected {
+                            revision: WorkbenchRevision::new(12),
+                            reason: WorkbenchRejectionReason::RevisionMismatch,
+                        },
+                    }),
+                )
+                .unwrap();
+                assert_closed(&mut stream);
+            },
+        );
+        let output = fixture.run_with_env(
+            &args,
+            None,
+            None,
+            &[("ORCHBEE_CONFIG_FILE", config.as_os_str())],
+        );
+        assert!(
+            handler.join().is_ok(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(output.status.code(), Some(3));
+    }
+}
+
+#[test]
+fn configured_checkout_query_precedes_setup_and_explicit_path_skips_it() {
+    for mode in ["configured", "generated", "explicit", "query-failed"] {
+        let fixture = Fixture::new();
+        let config = fixture.0.join("config.toml");
+        std::fs::write(&config, "[worktrees]\ndirectory='C:/configured'").unwrap();
+        let rendezvous = fixture.rendezvous();
+        let handler = peer(
+            &fixture,
+            LocalListener::bind(rendezvous.client_socket_path()).unwrap(),
+            move |mut stream| {
+                snapshot(&mut stream, mode != "query-failed");
+                if mode != "explicit" {
+                    let WorkbenchRequest::WorktreeQuery(request) =
+                        read_workbench_request(&mut stream).unwrap()
+                    else {
+                        panic!("repository query before any Project/Git mutation");
+                    };
+                    assert_eq!(
+                        json!(request.source),
+                        json!({"kind":"directory","path":"C:/repo"})
+                    );
+                    assert!(request.trust_repository);
+                    let outcome = if mode == "query-failed" {
+                        json!({"kind":"failed","reason":{"kind":"not-found"}})
+                    } else {
+                        json!({"kind":"found","siteId":id(2),"workbenchRevision":"12","workerId":id(9),"source":{"requestedPath":"C:/repo","repositoryRoot":"C:/repo","commonDirectory":"C:/repo/.git","checkoutPath":"C:/repo","workspaceId":null},"entries":[{"checkout":{"worktreePath":"C:/repo","head":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","branch":"refs/heads/main","bare":false,"detached":false,"locked":false,"prunable":false},"linked":false,"workspaces":[]}]})
+                    };
+                    write_workbench_response(
+                        &mut stream,
+                        &WorkbenchResponse::WorktreeQuery(WorkbenchWorktreeQueryResult {
+                            protocol_version: ProtocolVersion,
+                            request_id: request.request_id,
+                            outcome: serde_json::from_value(outcome).unwrap(),
+                        }),
+                    )
+                    .unwrap();
+                    if mode == "query-failed" {
+                        assert_closed(&mut stream);
+                        return;
+                    }
+                }
+                let WorkbenchRequest::WorktreeOperation(request) =
+                    read_workbench_request(&mut stream).unwrap()
+                else {
+                    panic!("single worktree operation");
+                };
+                let WorkbenchWorktreeAction::Start {
+                    operation_id,
+                    intent,
+                    ..
+                } = request.action
+                else {
+                    panic!("Start");
+                };
+                let WorktreeIntent::Create {
+                    path: Some(path),
+                    branch: Some(branch),
+                    ..
+                } = intent
+                else {
+                    panic!("fixed path and branch");
+                };
+                let expected = match mode {
+                    "explicit" => "C:/explicit".to_owned(),
+                    "generated" => format!("C:/configured/repo/worktree-{operation_id}"),
+                    _ => "C:/configured/repo/feature-one".to_owned(),
+                };
+                assert_eq!(
+                    std::path::Path::new(path.as_str()),
+                    std::path::Path::new(&expected)
+                );
+                assert_eq!(
+                    branch.as_str(),
+                    if mode == "generated" {
+                        format!("worktree/{operation_id}")
+                    } else {
+                        "Feature/One".to_owned()
+                    }
+                );
+                write_workbench_response(
+                    &mut stream,
+                    &WorkbenchResponse::WorktreeOperation(WorkbenchWorktreeResult {
+                        protocol_version: ProtocolVersion,
+                        request_id: request.request_id,
+                        operation_id,
+                        outcome: WorkbenchWorktreeOutcome::Unavailable {
+                            reason: WorktreeAdmissionFailure::Busy,
+                        },
+                    }),
+                )
+                .unwrap();
+                assert_closed(&mut stream);
+            },
+        );
+        let mut args = vec![
+            "worktree",
+            "create",
+            "--cwd=C:/repo",
+            "--trust-repository",
+            "--format=json",
+        ];
+        if mode != "generated" {
+            args.push("--branch=Feature/One");
+        }
+        if mode == "explicit" {
+            args.push("--path=C:/explicit");
+        }
+        let output = fixture.run_with_env(
+            &args,
+            None,
+            None,
+            &[("ORCHBEE_CONFIG_FILE", config.as_os_str())],
+        );
+        assert!(
+            handler.join().is_ok(),
+            "{} {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let doc = document(output);
+        if mode == "query-failed" {
+            validate(
+                &doc,
+                include_str!("../src/cli/schemas/orchbee.cli.failure.configuration.json"),
+            );
+            assert_eq!(doc["failure"]["details"]["reason"], "source-query-failed");
+        } else {
+            validate(
+                &doc,
+                include_str!("../src/cli/schemas/orchbee.worktree.operation.json"),
+            );
+        }
+    }
+}

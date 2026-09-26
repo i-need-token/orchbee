@@ -1,0 +1,65 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.cli.failure.configuration",
+	"title": "Windows CLI configuration preparation failure",
+	"type": "object",
+	"required": ["schema", "version", "failure"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.cli.failure.configuration"
+		},
+		"version": {
+			"const": 1
+		},
+		"failure": {
+			"type": "object",
+			"required": ["kind", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": [
+						"check-failed",
+						"timeout",
+						"cancelled",
+						"transport-loss",
+						"internal-failure",
+						"protocol-invalid",
+						"service-unavailable"
+					]
+				},
+				"details": {
+					"type": "object",
+					"required": ["field", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"field": {
+							"enum": [
+								"file",
+								"ORCHBEE_CONFIG_FILE",
+								"APPDATA",
+								"terminal.new_cwd",
+								"worktrees.directory"
+							]
+						},
+						"reason": {
+							"enum": [
+								"invalid-path",
+								"missing",
+								"io-error",
+								"not-file",
+								"too-large",
+								"invalid-utf8",
+								"invalid-toml",
+								"unknown-key",
+								"wrong-type",
+								"source-query-failed",
+								"source-query-interrupted"
+							]
+						}
+					}
+				}
+			}
+		}
+	}
+}

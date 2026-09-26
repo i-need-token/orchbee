@@ -7,7 +7,7 @@
 	"additionalProperties": false,
 	"properties": {
 		"schema": { "const": "orchbee.config.check" },
-		"version": { "const": 1 },
+		"version": { "enum": [1, 2] },
 		"source": {
 			"type": "object",
 			"required": ["kind"],
@@ -25,13 +25,14 @@
 				"checks": {
 					"type": "array",
 					"minItems": 5,
-					"maxItems": 5,
+					"maxItems": 6,
 					"prefixItems": [
 						{ "$ref": "#/$defs/runtimeBaseCheck" },
 						{ "$ref": "#/$defs/runtimeDirectoryCheck" },
 						{ "$ref": "#/$defs/cohortCheck" },
 						{ "$ref": "#/$defs/localeCheck" },
-						{ "$ref": "#/$defs/socketsCheck" }
+						{ "$ref": "#/$defs/socketsCheck" },
+						{ "$ref": "#/$defs/userConfigCheck" }
 					],
 					"items": false
 				}
@@ -72,7 +73,90 @@
 			]
 		}
 	},
+	"allOf": [
+		{
+			"if": { "properties": { "version": { "const": 1 } } },
+			"then": {
+				"properties": { "result": { "properties": { "checks": { "minItems": 5, "maxItems": 5 } } } }
+			}
+		},
+		{
+			"if": { "properties": { "version": { "const": 2 } } },
+			"then": {
+				"properties": { "result": { "properties": { "checks": { "minItems": 6, "maxItems": 6 } } } }
+			}
+		}
+	],
 	"$defs": {
+		"userConfigCheck": {
+			"type": "object",
+			"required": ["name", "status", "details"],
+			"additionalProperties": false,
+			"properties": {
+				"name": { "const": "user-config" },
+				"status": { "enum": ["pass", "fail"] },
+				"details": { "type": "object" }
+			},
+			"allOf": [
+				{
+					"if": { "properties": { "status": { "const": "pass" } } },
+					"then": {
+						"properties": {
+							"details": {
+								"type": "object",
+								"required": ["path", "exists", "newCwd", "worktreeDirectory"],
+								"additionalProperties": false,
+								"properties": {
+									"path": { "type": ["string", "null"], "minLength": 1, "maxLength": 4096 },
+									"exists": { "type": "boolean" },
+									"newCwd": { "type": "string", "minLength": 1, "maxLength": 4096 },
+									"worktreeDirectory": {
+										"type": ["string", "null"],
+										"minLength": 1,
+										"maxLength": 4096
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"details": {
+								"type": "object",
+								"required": ["field", "reason"],
+								"additionalProperties": false,
+								"properties": {
+									"field": {
+										"enum": [
+											"file",
+											"ORCHBEE_CONFIG_FILE",
+											"APPDATA",
+											"terminal.new_cwd",
+											"worktrees.directory"
+										]
+									},
+									"reason": {
+										"enum": [
+											"invalid-path",
+											"missing",
+											"io-error",
+											"not-file",
+											"too-large",
+											"invalid-utf8",
+											"invalid-toml",
+											"unknown-key",
+											"wrong-type",
+											"source-query-failed",
+											"source-query-interrupted"
+										]
+									}
+								}
+							}
+						}
+					}
+				}
+			]
+		},
 		"path": {
 			"oneOf": [
 				{ "required": ["path"], "properties": { "path": { "type": "string", "minLength": 1 } } },

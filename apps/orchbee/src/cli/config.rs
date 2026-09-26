@@ -127,7 +127,7 @@ pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
                 OutputFormat::Json => {
                     let document = json!({
                         "schema": "orchbee.config.check",
-                        "version": 1,
+                        "version": if cfg!(windows) { 2 } else { 1 },
                         "source": local_runtime_source(),
                         "result": result,
                     });
@@ -192,6 +192,17 @@ fn run_checks() -> Result<Vec<CheckReport>, Failure> {
 
     checks.push(locale_check());
     checks.push(socket_checks(&site, &scope_directory));
+    #[cfg(windows)]
+    checks.push(match super::configuration::load() {
+        Ok(settings) => pass("user-config", settings.check_details()),
+        Err(error) => fail(
+            "user-config",
+            Map::from_iter([
+                ("field".into(), json!(error.field)),
+                ("reason".into(), json!(error.reason)),
+            ]),
+        ),
+    });
     Ok(checks)
 }
 

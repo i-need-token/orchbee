@@ -118,6 +118,12 @@ fn observe(
     if interrupted(answer, signals, deadline)? {
         return Ok(());
     }
+    let settings = if matches!(command, WorktreeCommand::Start(start) if matches!(start.kind, WorktreeStartKind::Create { .. }))
+    {
+        Some(crate::cli::configuration::load().map_err(crate::cli::configuration::Error::failure)?)
+    } else {
+        None
+    };
     let (mut client, _, mut snapshot) = query::snapshot_session_until(deadline)?;
     *site_id = Some(snapshot.site_id.clone());
     if interrupted(answer, signals, deadline)? {
@@ -147,6 +153,25 @@ fn observe(
                 if let Some(receipt) = &mut answer.post_open {
                     receipt.client_id = selected.as_ref().map(|client| client.client_id.clone());
                 }
+                let mut configured = start.as_ref().clone();
+                if let Some(root) = settings
+                    .as_ref()
+                    .and_then(|settings| settings.worktree_root.as_ref())
+                {
+                    super::configured_path::Source {
+                        client: &mut client,
+                        snapshot: &snapshot,
+                        deadline,
+                        signals,
+                    }
+                    .prepare(
+                        &mut configured,
+                        &prepared.source,
+                        &answer.operation_id,
+                        root,
+                    )?;
+                }
+                let start = &configured;
                 let project = match crate::cli::default_project::select(
                     &snapshot,
                     start.project.as_ref(),

@@ -65,6 +65,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.panel.input.json"),
     ),
     (
+        "orchbee.cli.failure.configuration",
+        include_str!("schemas/orchbee.cli.failure.configuration.json"),
+    ),
+    (
         "orchbee.workspace.creation",
         include_str!("schemas/orchbee.workspace.creation.json"),
     ),
@@ -393,7 +397,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     let document = json!({
         "schema": "orchbee.api.schema",
         // Workspace creation and optional first-Project receipts share this closed catalog.
-        "version": 64,
+        "version": 65,
         "source": embedded_source(),
         "result": result,
     });

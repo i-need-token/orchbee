@@ -11,6 +11,8 @@ use orchbee_workbench_protocol::{
 use serde_json::json;
 
 #[cfg(windows)]
+mod configured_path;
+#[cfg(windows)]
 mod focus_windows;
 mod post_open;
 #[cfg(any(windows, test))]

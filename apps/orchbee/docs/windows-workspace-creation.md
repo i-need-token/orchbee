@@ -27,7 +27,7 @@ Explicit path, `home` and `current` directory policies ignore unrelated caller/s
 | No source Project, multiple Projects                                       | Refuse ambiguity; never select by label or create another default                        |
 | No explicit label                                                          | Use a bounded directory basename; a root directory uses the localized Workspace fallback |
 
-The Default Project has an ordinary stable Project ID. Its label is not a role, lookup key or singleton lock. A competing creation changes the revision and makes the stale attempt fail; CLI does not retry or silently adopt a different Project. Persistent directory policy, arbitrary custom-shell cwd tracking and dynamic Git-derived Workspace names are separate contracts.
+The Default Project has an ordinary stable Project ID. Its label is not a role, lookup key or singleton lock. A competing creation changes the revision and makes the stale attempt fail; CLI does not retry or silently adopt a different Project. [Windows CLI configuration](windows-cli-configuration.md) owns persistent directory defaults. Arbitrary custom-shell cwd tracking and dynamic Git-derived Workspace names are separate contracts.
 
 ## Commit and focus model
 
@@ -61,6 +61,6 @@ The deterministic evidence covers legacy/enhanced grammar, path redaction, zero/
 
 Reference semantics are Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, WorkspaceCreate and the focused-pane/seed/home creation policy. Orchbee's explicit Project ambiguity, exact Client routing and retained partial receipts remain visible adaptations. These are bounded same-author checks; full two-TUI acceptance is separate and TLA is deferred. The matched cohort rolls out together; rollback does not undo already committed user Projects or Workspaces.
 
-Composite failure observations preserve `kind`, nullable `details`, nullable `source`, original `schema` and `version`. This nested record belongs to the composite schema; local guards without details do not pretend to be standalone failure envelopes requiring details. API catalog v64 contains 73 schemas; command paths remain 86.
+Composite failure observations preserve `kind`, nullable `details`, nullable `source`, original `schema` and `version`. This nested record belongs to the composite schema; local guards without details do not pretend to be standalone failure envelopes requiring details. API catalog v65 contains 74 schemas; command paths remain 86.
 
 Creation preparation errors without more specific details use generic `orchbee.cli.failure` v2, restricted to the `workspace-creation` stage and missing/unavailable/protocol/transport/timeout/cancelled kinds. The existing v1 failure matrix is unchanged. Nested failure observations validate each producer's exact detail/source constraints; local guards without details must also lack a source.

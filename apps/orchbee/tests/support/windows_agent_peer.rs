@@ -80,11 +80,23 @@ impl Fixture {
         terminal: Option<&str>,
         worker: Option<&str>,
     ) -> Output {
+        self.run_with_env(arguments, terminal, worker, &[])
+    }
+
+    pub(super) fn run_with_env(
+        &self,
+        arguments: &[&str],
+        terminal: Option<&str>,
+        worker: Option<&str>,
+        environment: &[(&str, &std::ffi::OsStr)],
+    ) -> Output {
         let mut command = Command::new(self.0.join("orchbee.exe"));
         command
             .args(arguments)
             .env("ORCHBEE_RUNTIME_BASE", self.0.join("runtime"))
             .env("LC_ALL", "en_US.UTF-8")
+            .env("APPDATA", self.0.join("appdata"))
+            .env_remove("ORCHBEE_CONFIG_FILE")
             .env_remove("ORCHBEE_TERMINAL_ID")
             .env_remove("ORCHBEE_WORKER_ID")
             .stdin(Stdio::null())
@@ -96,6 +108,7 @@ impl Fixture {
         if let Some(value) = worker {
             command.env("ORCHBEE_WORKER_ID", value);
         }
+        command.envs(environment.iter().copied());
         let child = command.spawn().unwrap();
         if let Some(launched) = self.1.lock().unwrap().take() {
             // The peer may already have accepted before CreateProcess returns.
