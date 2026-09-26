@@ -119,11 +119,11 @@ Visibility merge 只使用 socket 声明的值：`hidden` 优先；两个 `visib
 
 仅识别身份的 hook 使用 `session-identified`。通过严格信封、provider 事件门禁和精确展示关联后，
 转换器确保会话存在并附加展示，随后不改变回合、活动、请求或结果。新会话保持 `unknown` 回合；
-重复身份保留所有已知状态。这些状态均由规范运行时持有。Cursor、Qoder、Antigravity 和 Mastracode 发出此事件；胶囊 `0.4.7` 的旧
+重复身份保留所有已知状态。这些状态均由规范运行时持有。Cursor、Qoder、Antigravity、Mastracode 和 Droid 发出此事件；胶囊 `0.4.7` 的旧
 `session-started` 对 Cursor 具有相同的仅识别身份含义。其他 provider 保持原有的
 `session-started` 行为，也不会获得新事件的准入权限。身份不证明就绪或进程存活。
 
-胶囊 `0.4.11` 与匹配的原生和 Desktop 接收器一起发布。旧接收器拒绝新事件且不确认接收。
+胶囊 `0.4.12` 与匹配的原生和 Desktop 接收器一起发布。旧接收器拒绝新事件且不确认接收。
 回滚整组运行时会恢复旧语义；无需持久状态迁移。直接边界与原生入口测试覆盖新旧身份、未知状态、
 重复上报及其他 provider 拒绝。转换器测试另外通过合成 adapter 输入验证活动回合、待处理请求和
 结果的保留；这不是公开准入证据。历史语料指纹保持不变。经过认证的 provider 执行和完整 Windows

@@ -48,6 +48,12 @@ const CODEX_EVENTS = new Set<AgentHookObservationEvent>([
 ]);
 
 const REGISTRY = {
+	droid: {
+		acceptedEvents: new Set<AgentHookObservationEvent>(['session-identified']),
+		adapterId: 'droid',
+		capabilities: ['sessionLifecycle'],
+		providerId: AgentProviderIdSchema.parse('droid'),
+	},
 	mastracode: {
 		acceptedEvents: new Set<AgentHookObservationEvent>([
 			'session-identified',

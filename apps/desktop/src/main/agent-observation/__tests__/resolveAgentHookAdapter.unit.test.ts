@@ -34,6 +34,22 @@ describe('resolveAgentHookAdapter', () => {
 			expect(resolveAgentHookAdapter('antigravity-cli', event)).toBeNull();
 		}
 	});
+	it('limits Droid to session identity without legacy or lifecycle claims', () => {
+		expect(resolveAgentHookAdapter('droid', 'session-identified')).toEqual({
+			adapterId: 'droid',
+			capabilities: ['sessionLifecycle'],
+			providerId: 'droid',
+		});
+		for (const event of [
+			'session-started',
+			'session-idle',
+			'turn-started',
+			'approval-requested',
+			'session-ended',
+		] as const) {
+			expect(resolveAgentHookAdapter('droid', event)).toBeNull();
+		}
+	});
 	it('limits Qoder to session identity without legacy or lifecycle claims', () => {
 		expect(resolveAgentHookAdapter('qodercli', 'session-identified')).toEqual({
 			adapterId: 'qodercli',

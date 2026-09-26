@@ -1376,6 +1376,7 @@ fn cursor_identity_join_does_not_infer_idle_for_current_or_legacy_payload() {
         ("cursor", "session-started"),
         ("qodercli", "session-identified"),
         ("antigravity-cli", "session-identified"),
+        ("droid", "session-identified"),
     ] {
         let mut runtime = AgentRuntime::new();
         let mut ingress = AgentHookObservationIngress::new(None, JoinOptions::default());

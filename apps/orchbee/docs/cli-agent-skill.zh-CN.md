@@ -183,3 +183,5 @@ Windows `agent integration list --outdated-only` 筛选需要更新或修复的�
 Windows provider 选择还支持 `cursor`、`qodercli` 和 `antigravity-cli`；接入保留其他 JSON Hook，仅上报有证据的会话身份。
 
 `mastracode` provider 支持 Windows 托管生命周期 Hook 和离线诊断。使用 enable 修复缺少的自有事件条目。
+
+`droid` provider 支持 Windows 会话身份接入和离线来源优先级诊断。

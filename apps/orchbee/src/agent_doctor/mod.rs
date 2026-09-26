@@ -28,6 +28,7 @@ pub(crate) const PROVIDER_IDS: &[&str] = &[
     "opencode",
     "kilo",
     "mastracode",
+    "droid",
     "antigravity-cli",
     "qodercli",
     "cursor",
@@ -554,15 +555,26 @@ fn probe_json_hooks(
     budget: &mut Budget,
 ) -> HookProbe {
     use crate::agent_integrations::{JsonHookScan, scan_json_hooks};
-    let Some(target) = crate::agent_configuration_windows::json_hooks(provider.id, home) else {
+    let Some(candidates) =
+        crate::agent_configuration_windows::json_hook_candidates(provider.id, home)
+    else {
         return final_verdict(HookState::Unknown, HookReason::NotInspected);
     };
-    let bytes = match fs::read_regular(&target, CODEX_CONFIG_BYTES, budget) {
-        FileRead::Bytes(bytes) => bytes,
-        FileRead::Absent => return final_verdict(HookState::Absent, HookReason::TargetMissing),
-        read => return read_uninspectable(read),
+    let mut selected = None;
+    for target in candidates {
+        match fs::read_regular(&target.path, CODEX_CONFIG_BYTES, budget) {
+            FileRead::Bytes(bytes) => {
+                selected = Some((target.kind, bytes));
+                break;
+            }
+            FileRead::Absent => {}
+            read => return read_uninspectable(read),
+        }
+    }
+    let Some((kind, bytes)) = selected else {
+        return final_verdict(HookState::Absent, HookReason::TargetMissing);
     };
-    let scan = scan_json_hooks(provider.id, &bytes);
+    let scan = scan_json_hooks(kind, &bytes);
     let disabled = matches!(&scan, JsonHookScan::Disabled(_));
     let incomplete = matches!(&scan, JsonHookScan::Incomplete(_));
     match scan {

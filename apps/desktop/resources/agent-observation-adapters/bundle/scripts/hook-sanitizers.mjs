@@ -12,6 +12,7 @@ export function sanitizeAgentHookInput(adapterId, value) {
 			const sessionKey = identity(value.conversationId);
 			return sessionKey === null ? null : observation(sessionKey, 'session-identified');
 		}
+		case 'droid':
 		case 'qodercli': {
 			const sessionKey = identity(value.session_id);
 			return value.hook_event_name === 'SessionStart' && sessionKey !== null

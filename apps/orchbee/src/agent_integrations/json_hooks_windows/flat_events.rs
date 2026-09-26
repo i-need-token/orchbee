@@ -96,7 +96,7 @@ mod tests {
     use serde_json::{Value, json};
     #[test]
     fn complete_partial_conflicting_and_foreign_flat_hooks() {
-        let root = Path::new(r"C:\owned\0.4.11");
+        let root = Path::new(r"C:\owned\0.4.12");
         let input=br#"{"future":{"huge":1e999},"SessionStart":[{"type":"command","command":"echo foreign"}]}"#;
         let installed = patch(Some(input), root, true).unwrap();
         assert!(matches!(scan(&installed),JsonHookScan::Owned(found) if found==root));

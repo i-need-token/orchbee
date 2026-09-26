@@ -534,7 +534,11 @@ fn cursor_hook_boundary_accepts_only_session_identity() {
 #[test]
 fn qoder_hook_boundary_accepts_only_identified_session() {
     use super::hook_contract::{HookObservationEvent, resolve_adapter};
-    for (id, provider) in [("qodercli", "qodercli"), ("antigravity-cli", "antigravity")] {
+    for (id, provider) in [
+        ("qodercli", "qodercli"),
+        ("antigravity-cli", "antigravity"),
+        ("droid", "droid"),
+    ] {
         let mut envelope = test_envelope(0, 0.0);
         envelope["adapterId"] = json!(id);
         envelope["observation"]["event"] = json!("session-identified");

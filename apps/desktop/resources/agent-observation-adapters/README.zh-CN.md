@@ -1,7 +1,7 @@
 # Agent observation adapter
 
-该打包资源包含十五个需要显式安装、与 provider 绑定的 observation adapter，分别用于 Claude Code、
-Codex、Grok、OpenCode、Kilo、Cursor、Qoder CLI、Antigravity CLI、Mastracode、Pi、OMP、Gemini CLI、GitHub Copilot CLI、Cline 与 Qwen Code。每个 adapter
+该打包资源包含十六个需要显式安装、与 provider 绑定的 observation adapter，分别用于 Claude Code、
+Codex、Grok、OpenCode、Kilo、Cursor、Qoder CLI、Antigravity CLI、Mastracode、Droid、Pi、OMP、Gemini CLI、GitHub Copilot CLI、Cline 与 Qwen Code。每个 adapter
 校验自己的 upstream event contract，再通过 Orchbee 共享的本地 socket／管道加 private APC correlation
 transport 发出同一组不含内容的 normalized fact。Provider identity、accepted event 与 maximum
 capability 由 Desktop 的 closed registry 授予，而不是由 adapter payload 声明。
@@ -244,19 +244,19 @@ Capsule 0.4.2 将 Claude 的 `/bin/sh` hook 启动器替换为 `node` 加显式�
 
 ## Copilot 直接执行
 
-Capsule 0.4.11 使用基于 Node 的 [Copilot exec hook 契约](https://docs.github.com/en/copilot/reference/hooks-reference)。固定导入保护直接从 provider 子进程环境读取 COPILOT_PLUGIN_ROOT，检查其为绝对路径，并将拼接后的脚本路径传给 pathToFileURL。根目录或脚本缺失时不输出内容。Node 为前提；可执行文件不可用属于 provider 启动错误，不是已送达观察。PascalCase 事件名称保留文档所述的 VS Code 兼容输入字段，供既有清洗器使用。没有 Shell 解释路径。Windows 配置使用单独验证的当前插件命令／JSON 契约；共享载荷兼容不提升 Desktop CLI 对齐判定。
+Capsule 0.4.12 使用基于 Node 的 [Copilot exec hook 契约](https://docs.github.com/en/copilot/reference/hooks-reference)。固定导入保护直接从 provider 子进程环境读取 COPILOT_PLUGIN_ROOT，检查其为绝对路径，并将拼接后的脚本路径传给 pathToFileURL。根目录或脚本缺失时不输出内容。Node 为前提；可执行文件不可用属于 provider 启动错误，不是已送达观察。PascalCase 事件名称保留文档所述的 VS Code 兼容输入字段，供既有清洗器使用。没有 Shell 解释路径。Windows 配置使用单独验证的当前插件命令／JSON 契约；共享载荷兼容不提升 Desktop CLI 对齐判定。
 
 ### Grok 命令引导
 
-Capsule 0.4.11 保留 Grok 的纯命令 hook 契约，使用固定的 base64 编码 Node 引导。解码后的代码将 GROK_PLUGIN_ROOT 作为数据读取，设置原样脚本／provider 参数，并执行受保护的动态导入；不把用户路径插入 Shell 语法。PowerShell 5.1／7 在此命令中保留重定向的 JSON stdin。Node 是前提；Node 缺失是 provider 命令错误，根目录／脚本缺失则继续静默处理。Grok 既有 camelCase 事件输入、清洗器、时限和观察传输不变。编码用于保护 Shell 引号，不用于隐藏秘密。Windows 本地安装状态另从 provider 管理的 TOML 配置读取；不证明项目有效策略或活动会话已经重新加载。
+Capsule 0.4.12 保留 Grok 的纯命令 hook 契约，使用固定的 base64 编码 Node 引导。解码后的代码将 GROK_PLUGIN_ROOT 作为数据读取，设置原样脚本／provider 参数，并执行受保护的动态导入；不把用户路径插入 Shell 语法。PowerShell 5.1／7 在此命令中保留重定向的 JSON stdin。Node 是前提；Node 缺失是 provider 命令错误，根目录／脚本缺失则继续静默处理。Grok 既有 camelCase 事件输入、清洗器、时限和观察传输不变。编码用于保护 Shell 引号，不用于隐藏秘密。Windows 本地安装状态另从 provider 管理的 TOML 配置读取；不证明项目有效策略或活动会话已经重新加载。
 
 ## OpenCode 家族 Windows 引导安装
 
-Capsule 0.4.11 新增 Kilo，并与 OpenCode 共用事件规范化器。共享工厂接受 sessionID 或旧版 info.id 生命周期身份，不一致时拒绝。回调参数与输出保持私有。发送按顺序保留最多 64 个待完成清洗事件；溢出/dispose 后停止接收并丢弃排队后缀，直到重新加载；正在发送的一项可以完成。传输失败静默处理。Windows 原生引导安装可发现的 .js 入口，保留外来/更新版本入口。路径、转移与证据见[归属 Windows 模型](../../../orchbee/docs/windows-agent-integrations.zh-CN.md#kilo-windows-集成与共享事件模型)。Desktop 引导安装保留独立提供方注册表。
+Capsule 0.4.12 新增 Kilo，并与 OpenCode 共用事件规范化器。共享工厂接受 sessionID 或旧版 info.id 生命周期身份，不一致时拒绝。回调参数与输出保持私有。发送按顺序保留最多 64 个待完成清洗事件；溢出/dispose 后停止接收并丢弃排队后缀，直到重新加载；正在发送的一项可以完成。传输失败静默处理。Windows 原生引导安装可发现的 .js 入口，保留外来/更新版本入口。路径、转移与证据见[归属 Windows 模型](../../../orchbee/docs/windows-agent-integrations.zh-CN.md#kilo-windows-集成与共享事件模型)。Desktop 引导安装保留独立提供方注册表。
 
 ## Gemini 与 Qwen 命令根目录
 
-Capsule 0.4.11 使用提供方各 Hook 环境中的 ORCHBEE_AGENT_EXTENSION_ROOT 执行固定 Node 保护入口。Gemini 通过递归替换外部 Hook 文件提供该值；Qwen 通过递归替换 qwen-extension.json 中的内联 hooks 提供该值。替换作用于环境值，从不作用于命令源码。两个入口导入其自包含脚本，保留现有不携带内容的事件/传输边界。Windows 原生引导安装与 doctor 共用提供方特定目录覆盖规则，拒绝无效显式根目录。Windows 目录归属检查包含载荷版本方向，旧入口需要修复，新入口拒绝降级。参见 [Windows 扩展模型](../../../orchbee/docs/windows-agent-integrations.zh-CN.md#gemini-与-qwen-windows-扩展)。
+Capsule 0.4.12 使用提供方各 Hook 环境中的 ORCHBEE_AGENT_EXTENSION_ROOT 执行固定 Node 保护入口。Gemini 通过递归替换外部 Hook 文件提供该值；Qwen 通过递归替换 qwen-extension.json 中的内联 hooks 提供该值。替换作用于环境值，从不作用于命令源码。两个入口导入其自包含脚本，保留现有不携带内容的事件/传输边界。Windows 原生引导安装与 doctor 共用提供方特定目录覆盖规则，拒绝无效显式根目录。Windows 目录归属检查包含载荷版本方向，旧入口需要修复，新入口拒绝降级。参见 [Windows 扩展模型](../../../orchbee/docs/windows-agent-integrations.zh-CN.md#gemini-与-qwen-windows-扩展)。
 
 Cursor 适配器仅从一致的 session/conversation 身份别名发出 session-identified，不推导工作、空闲状态或权限决定。原生 Windows JSON 接入安装固定编码启动器，不代表已执行认证后的 provider 任务。
 
@@ -265,3 +265,5 @@ Qoder CLI 对精确的 SessionStart/session_id 输入使用 qodercli 的仅识�
 Antigravity CLI 仅把 PreInvocation 中的 conversationId 准入为 session-identified；适配器 ID 为 antigravity-cli，规范 provider 为 antigravity。Windows 命名 Hook 返回空 JSON 对象，不声明生命周期或权限。
 
 Mastracode 从十种选定 Hook 准入不含内容的运行、工具、批准及子 Agent 事实。只有 AgentEnd 决定终止结果，suspended 不表示完成。参见 [Windows 契约](../../../orchbee/docs/windows-agent-integrations.zh-CN.md#mastracode-windows-生命周期-hook)。
+
+Droid 仅将 SessionStart/session_id 准入为 session-identified，包括恢复与压缩。Windows 管理器编辑活动配置来源；适配器不推断空闲或就绪。

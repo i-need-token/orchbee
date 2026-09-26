@@ -544,6 +544,7 @@ pub(crate) fn mutate(
                     | IntegrationId::QoderCli
                     | IntegrationId::AntigravityCli
                     | IntegrationId::Mastracode
+                    | IntegrationId::Droid
             )
         {
             // A filesystem vector's post-effect observation is a fresh
@@ -999,7 +1000,8 @@ fn enable_vector(
         IntegrationId::Cursor
         | IntegrationId::QoderCli
         | IntegrationId::AntigravityCli
-        | IntegrationId::Mastracode => {
+        | IntegrationId::Mastracode
+        | IntegrationId::Droid => {
             #[cfg(windows)]
             {
                 json_hooks_windows::update(
@@ -1307,7 +1309,8 @@ fn disable_vector(
         IntegrationId::Cursor
         | IntegrationId::QoderCli
         | IntegrationId::AntigravityCli
-        | IntegrationId::Mastracode => {
+        | IntegrationId::Mastracode
+        | IntegrationId::Droid => {
             #[cfg(windows)]
             {
                 json_hooks_windows::update(
@@ -2031,12 +2034,13 @@ pub(crate) fn plan_enable(
         IntegrationId::Cursor
         | IntegrationId::QoderCli
         | IntegrationId::AntigravityCli
-        | IntegrationId::Mastracode => {
+        | IntegrationId::Mastracode
+        | IntegrationId::Droid => {
             #[cfg(windows)]
-            if let Some(target) =
-                crate::agent_configuration_windows::json_hooks(id.as_str(), context.home)
-            {
-                steps.push(PlannedStep::GuardedWrite { target });
+            if let Ok((target, _)) = super::json_hooks_windows::load(id.as_str(), context.home) {
+                steps.push(PlannedStep::GuardedWrite {
+                    target: target.path,
+                });
             }
         }
         IntegrationId::ClaudeCode => {

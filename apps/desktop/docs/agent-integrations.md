@@ -68,7 +68,7 @@ One process-wide controller serializes mutation. An explicit request follows thi
 1. Initialize or reuse the latest read-only inventory.
 2. Reject unavailable enable, manual-only management, conflicts, and concurrent work before a
    write.
-3. Preflight and atomically publish Capsule `0.4.11` without changing provider configuration.
+3. Preflight and atomically publish Capsule `0.4.12` without changing provider configuration.
 4. Re-inspect provider-owned state and execute only fixed command vectors or an exact guarded-entry
    operation; only exact legacy entries are eligible for migration.
 5. Re-inspect the selected adapter after every attempted effect.
@@ -221,3 +221,5 @@ pnpm --filter @orchbee/web test
 The shared observation boundary additionally accepts Cursor, Qoder and Antigravity session-identified identities, plus legacy Cursor session-started. Native Windows owns JSON onboarding; the Desktop management registry remains separate.
 
 The observation registry also admits Mastracode lifecycle facts. Windows native management owns its hook configuration; Desktop management remains separate.
+
+Droid session identity is accepted at the shared observation boundary. Native Windows owns configuration management; Desktop management remains separate.

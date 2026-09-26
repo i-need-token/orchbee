@@ -188,3 +188,5 @@ Windows `agent integration list --outdated-only` selects owned entries requiring
 Windows provider selection additionally admits `cursor`, `qodercli` and `antigravity-cli`; onboarding preserves unrelated JSON hooks and reports only evidenced session identity.
 
 The `mastracode` provider supports managed Windows lifecycle hooks and offline diagnostics. Use enable to repair missing owned event entries.
+
+The `droid` provider supports Windows session identity onboarding and offline source-priority diagnostics.

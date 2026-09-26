@@ -302,6 +302,7 @@ fn is_adapter_id(value: &str) -> bool {
             | "qodercli"
             | "antigravity-cli"
             | "mastracode"
+            | "droid"
             | "pi"
             | "omp"
             | "gemini"
@@ -357,6 +358,7 @@ pub fn resolve_adapter(adapter_id: &str, event: HookObservationEvent) -> Option<
                 "mastracode",
             ),
             "antigravity-cli" => (&[SessionIdentified], &[SessionLifecycle], "antigravity"),
+            "droid" => (&[SessionIdentified], &[SessionLifecycle], "droid"),
             "qodercli" => (&[SessionIdentified], &[SessionLifecycle], "qodercli"),
             "cursor" => (
                 &[SessionIdentified, SessionStarted],

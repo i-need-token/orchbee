@@ -20,6 +20,7 @@ use super::{
 };
 
 mod flat_events;
+use crate::agent_configuration_windows::{JsonHookKind, JsonHookTarget, json_hook_candidates};
 
 pub(super) const LIMIT: u64 = 512 * 1024;
 const PREFIX: &str = "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand ";
@@ -132,7 +133,7 @@ fn entry_root(id: &str, entry: &RawValue) -> Result<Option<PathBuf>, ()> {
 fn event_name(id: &str) -> Option<&'static str> {
     match id {
         "cursor" => Some("sessionStart"),
-        "qodercli" => Some("SessionStart"),
+        "qodercli" | "droid" => Some("SessionStart"),
         "antigravity-cli" => Some("PreInvocation"),
         _ => None,
     }
@@ -243,19 +244,43 @@ struct Document {
     owned: Option<(usize, PathBuf)>,
 }
 
-fn parse(id: &str, bytes: &[u8]) -> Result<Document, JsonHookScan> {
+fn parse(kind: JsonHookKind, bytes: &[u8]) -> Result<Document, JsonHookScan> {
+    let id = kind.id();
     let own_event = event_name(id).ok_or(JsonHookScan::Malformed)?;
-    let object: Object = serde_json::from_slice(bytes).map_err(|_| JsonHookScan::Malformed)?;
+    let mut object: Object = serde_json::from_slice(bytes).map_err(|_| JsonHookScan::Malformed)?;
     if id == "cursor" && object.0.get("version").is_some_and(|v| v.get() != "1") {
         return Err(JsonHookScan::Malformed);
     }
-    let hooks: Object = match object.0.get("hooks") {
-        Some(value) => serde_json::from_str(value.get()).map_err(|_| JsonHookScan::Malformed)?,
-        None => Object::default(),
+    let hooks: Object = if kind == JsonHookKind::DroidStandalone {
+        std::mem::take(&mut object)
+    } else {
+        match object.0.get("hooks") {
+            Some(value) => {
+                serde_json::from_str(value.get()).map_err(|_| JsonHookScan::Malformed)?
+            }
+            None => Object::default(),
+        }
     };
     let mut entries = Vec::new();
     let mut owned = None;
     for (event, raw) in &hooks.0 {
+        if id == "droid"
+            && ![
+                "PreToolUse",
+                "PostToolUse",
+                "UserPromptSubmit",
+                "Notification",
+                "Stop",
+                "SubagentStop",
+                "PreCompact",
+                "SessionStart",
+                "SessionEnd",
+            ]
+            .contains(&event.as_str())
+        {
+            continue;
+        }
+
         let values: Vec<Box<RawValue>> =
             serde_json::from_str(raw.get()).map_err(|_| JsonHookScan::Malformed)?;
         for (index, value) in values.iter().enumerate() {
@@ -279,14 +304,15 @@ fn parse(id: &str, bytes: &[u8]) -> Result<Document, JsonHookScan> {
 }
 
 /// Budgeted doctor and onboarding share the same pure ownership classifier.
-pub(crate) fn scan_json_hooks(id: &str, bytes: &[u8]) -> JsonHookScan {
+pub(crate) fn scan_json_hooks(kind: JsonHookKind, bytes: &[u8]) -> JsonHookScan {
+    let id = kind.id();
     if id == "mastracode" {
         return flat_events::scan(bytes);
     }
     if id == "antigravity-cli" {
         return scan_named(bytes);
     }
-    match parse(id, bytes) {
+    match parse(kind, bytes) {
         Ok(document) => match document.owned {
             Some((_, root)) => JsonHookScan::Owned(root),
             None => JsonHookScan::Absent,
@@ -303,11 +329,11 @@ pub(super) fn read(path: &Path) -> Result<Option<Vec<u8>>, io::Error> {
     }
 }
 
-pub(super) fn state(id: &str, bytes: Option<&[u8]>, options: &ResourceOptions) -> State {
+pub(super) fn state(kind: JsonHookKind, bytes: Option<&[u8]>, options: &ResourceOptions) -> State {
     let Some(bytes) = bytes else {
         return State::NotInstalled;
     };
-    let scan = scan_json_hooks(id, bytes);
+    let scan = scan_json_hooks(kind, bytes);
     let disabled = matches!(&scan, JsonHookScan::Disabled(_));
     let incomplete = matches!(&scan, JsonHookScan::Incomplete(_));
     match scan {
@@ -335,30 +361,52 @@ pub(super) fn state(id: &str, bytes: Option<&[u8]>, options: &ResourceOptions) -
     }
 }
 
+/// Bounded source selection. If all candidates are absent, create the preferred target;
+/// an unsafe/unreadable earlier candidate stops discovery instead of being skipped.
+pub(super) fn load(id: &str, home: &Path) -> io::Result<(JsonHookTarget, Option<Vec<u8>>)> {
+    let candidates = json_hook_candidates(id, home)
+        .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
+    let first = candidates
+        .first()
+        .cloned()
+        .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
+    for target in candidates {
+        if let Some(bytes) = read(&target.path)? {
+            return Ok((target, Some(bytes)));
+        }
+    }
+    Ok((first, None))
+}
 pub(super) fn inspect(id: &str, home: &Path, options: &ResourceOptions) -> State {
-    let Some(path) = crate::agent_configuration_windows::json_hooks(id, home) else {
-        return State::Unknown;
-    };
-    match read(&path) {
-        Ok(bytes) => state(id, bytes.as_deref(), options),
+    match load(id, home) {
+        Ok((target, bytes)) => state(target.kind, bytes.as_deref(), options),
         Err(_) => State::Unknown,
     }
 }
 
-pub(super) fn patch(id: &str, bytes: Option<&[u8]>, root: &Path, enable: bool) -> Option<Vec<u8>> {
+pub(super) fn patch(
+    kind: JsonHookKind,
+    bytes: Option<&[u8]>,
+    root: &Path,
+    enable: bool,
+) -> Option<Vec<u8>> {
+    let id = kind.id();
     if id == "mastracode" {
         return flat_events::patch(bytes, root, enable);
     }
     if id == "antigravity-cli" {
         return patch_named(bytes, root, enable);
     }
-    let mut doc = parse(id, bytes.unwrap_or(b"{}")).ok()?;
+    let mut doc = parse(kind, bytes.unwrap_or(b"{}")).ok()?;
     if let Some((index, _)) = doc.owned {
         doc.entries.remove(index);
     }
     if enable {
         let entry = declaration(id, root)?;
-        let item = if id == "qodercli" {
+        let item = if matches!(
+            kind,
+            JsonHookKind::Qoder | JsonHookKind::DroidStandalone | JsonHookKind::DroidSettings
+        ) {
             json!({"hooks":[entry]})
         } else {
             entry
@@ -367,6 +415,10 @@ pub(super) fn patch(id: &str, bytes: Option<&[u8]>, root: &Path, enable: bool) -
             .push(serde_json::value::to_raw_value(&item).ok()?);
     }
     doc.hooks.set(event_name(id)?, doc.entries)?;
+    if kind == JsonHookKind::DroidStandalone {
+        let bytes = doc.hooks.bytes()?;
+        return (bytes.len() as u64 <= LIMIT).then_some(bytes);
+    }
     doc.object.set("hooks", doc.hooks.0)?;
     if id == "cursor" && !doc.object.0.contains_key("version") {
         doc.object.set("version", 1)?;
@@ -381,14 +433,14 @@ mod tests {
     #[test]
     fn raw_user_values_survive_enable_repair_and_disable() {
         let input = br#"{"large":123456789012345678901234567890,"nested":{"future":1e999,"duplicate":1,"duplicate":2},"hooks":{"stop":[{"command":"echo user"}],"sessionStart":[{"command":"echo before"}]}}"#;
-        let root = Path::new(r"C:\Users\用户 & ' $ `\.orchbee\agent-observation-adapters\0.4.11");
-        let installed = patch("cursor", Some(input), root, true).unwrap();
+        let root = Path::new(r"C:\Users\用户 & ' $ `\.orchbee\agent-observation-adapters\0.4.12");
+        let installed = patch(JsonHookKind::Cursor, Some(input), root, true).unwrap();
         assert!(
-            matches!(scan_json_hooks("cursor", &installed), JsonHookScan::Owned(found) if found == root)
+            matches!(scan_json_hooks(JsonHookKind::Cursor, &installed), JsonHookScan::Owned(found) if found == root)
         );
-        let repaired = patch("cursor", Some(&installed), root, true).unwrap();
+        let repaired = patch(JsonHookKind::Cursor, Some(&installed), root, true).unwrap();
         assert_eq!(repaired, installed);
-        let disabled = patch("cursor", Some(&installed), root, false).unwrap();
+        let disabled = patch(JsonHookKind::Cursor, Some(&installed), root, false).unwrap();
         let document: Object = serde_json::from_slice(&disabled).unwrap();
         let original: Object = serde_json::from_slice(input).unwrap();
         for key in ["large", "nested"] {
@@ -398,7 +450,7 @@ mod tests {
         assert_eq!(hooks["sessionStart"], json!([{"command":"echo before"}]));
         assert_eq!(hooks["stop"], json!([{"command":"echo user"}]));
         assert!(matches!(
-            scan_json_hooks("cursor", &disabled),
+            scan_json_hooks(JsonHookKind::Cursor, &disabled),
             JsonHookScan::Absent
         ));
     }
@@ -411,16 +463,16 @@ mod tests {
             r#"{"hooks":{"sessionStart":null}}"#,
         ] {
             assert!(matches!(
-                scan_json_hooks("cursor", input.as_bytes()),
+                scan_json_hooks(JsonHookKind::Cursor, input.as_bytes()),
                 JsonHookScan::Malformed
             ));
         }
-        let root = Path::new(r"C:\owned\0.4.11");
-        let bytes = patch("cursor", None, root, true).unwrap();
+        let root = Path::new(r"C:\owned\0.4.12");
+        let bytes = patch(JsonHookKind::Cursor, None, root, true).unwrap();
         let mut doc: Value = serde_json::from_slice(&bytes).unwrap();
         doc["hooks"]["sessionStart"][0]["timeout"] = json!(99);
         assert!(matches!(
-            scan_json_hooks("cursor", &serde_json::to_vec(&doc).unwrap()),
+            scan_json_hooks(JsonHookKind::Cursor, &serde_json::to_vec(&doc).unwrap()),
             JsonHookScan::Conflict
         ));
         let entry = declaration("cursor", root).unwrap();
@@ -430,7 +482,7 @@ mod tests {
         ] {
             assert!(matches!(
                 scan_json_hooks(
-                    "cursor",
+                    JsonHookKind::Cursor,
                     &serde_json::to_vec(&json!({"hooks":hooks})).unwrap()
                 ),
                 JsonHookScan::Conflict
@@ -441,21 +493,21 @@ mod tests {
 
 #[test]
 fn qoder_groups_keep_foreign_raw_values_and_refuse_edited_or_misplaced_ownership() {
-    let root = Path::new(r"C:\owned\0.4.11");
+    let root = Path::new(r"C:\owned\0.4.12");
     let input = br#"{"version":1e999,"hooks":{"SessionStart":[{"matcher":"resume","hooks":[{"type":"prompt","prompt":"keep","future":123456789012345678901234567890}]}]}}"#;
-    let installed = patch("qodercli", Some(input), root, true).unwrap();
+    let installed = patch(JsonHookKind::Qoder, Some(input), root, true).unwrap();
     assert!(
-        matches!(scan_json_hooks("qodercli", &installed), JsonHookScan::Owned(found) if found == root)
+        matches!(scan_json_hooks(JsonHookKind::Qoder, &installed), JsonHookScan::Owned(found) if found == root)
     );
     let text = std::str::from_utf8(&installed).unwrap();
     assert!(text.contains("1e999") && text.contains("123456789012345678901234567890"));
     assert_eq!(
-        patch("qodercli", Some(&installed), root, true).unwrap(),
+        patch(JsonHookKind::Qoder, Some(&installed), root, true).unwrap(),
         installed
     );
-    let disabled = patch("qodercli", Some(&installed), root, false).unwrap();
+    let disabled = patch(JsonHookKind::Qoder, Some(&installed), root, false).unwrap();
     assert!(matches!(
-        scan_json_hooks("qodercli", &disabled),
+        scan_json_hooks(JsonHookKind::Qoder, &disabled),
         JsonHookScan::Absent
     ));
     assert!(std::str::from_utf8(&disabled).unwrap().contains("1e999"));
@@ -476,31 +528,31 @@ fn qoder_groups_keep_foreign_raw_values_and_refuse_edited_or_misplaced_ownership
     ] {
         let bytes = serde_json::to_vec(&json!({"hooks":hooks})).unwrap();
         assert!(matches!(
-            scan_json_hooks("qodercli", &bytes),
+            scan_json_hooks(JsonHookKind::Qoder, &bytes),
             JsonHookScan::Conflict
         ));
-        assert!(patch("qodercli", Some(&bytes), root, false).is_none());
+        assert!(patch(JsonHookKind::Qoder, Some(&bytes), root, false).is_none());
     }
     for input in [
         r#"{"hooks":{"SessionStart":[],"SessionStart":[]}}"#,
         r#"{"hooks":{"SessionStart":[{"hooks":[],"hooks":[]}]}}"#,
         r#"{"hooks":{"SessionStart":false}}"#,
     ] {
-        assert!(patch("qodercli", Some(input.as_bytes()), root, true).is_none());
+        assert!(patch(JsonHookKind::Qoder, Some(input.as_bytes()), root, true).is_none());
     }
 }
 
 #[test]
 fn antigravity_named_blocks_preserve_foreign_values_and_validate_disabled_ownership() {
-    let id = "antigravity-cli";
-    let root = Path::new(r"C:\owned\0.4.11");
+    let id = JsonHookKind::Antigravity;
+    let root = Path::new(r"C:\owned\0.4.12");
     let options = ResourceOptions {
         resource_root: root,
-        expected_version: "0.4.11",
+        expected_version: "0.4.12",
         legacy_roots: &[],
     };
     for (version, expected) in [
-        ("0.4.11", State::Disabled),
+        ("0.4.12", State::Disabled),
         ("0.4.9", State::UpdateRequired),
         ("9.0.0", State::StaleSide),
     ] {
@@ -538,5 +590,28 @@ fn antigravity_named_blocks_preserve_foreign_values_and_validate_disabled_owners
         r#"{"orchbee-agent-observation":{},"orchbee-agent-observation":{}}"#,
     ] {
         assert!(patch(id, Some(input.as_bytes()), root, true).is_none());
+    }
+}
+
+#[test]
+fn droid_document_shapes_preserve_foreign_data_and_own_only_session_group() {
+    let root = Path::new(r"C:\owned\0.4.12");
+    for (kind,input) in [
+        (JsonHookKind::DroidStandalone,br#"{"SessionStart":[{"matcher":"resume","hooks":[{"type":"command","command":"echo user"}]}],"future":{"big":1e999}}"#.as_slice()),
+        (JsonHookKind::DroidSettings,br#"{"hooks":{"SessionStart":[{"matcher":"resume","hooks":[{"type":"command","command":"echo user"}]}]},"future":{"big":1e999}}"#.as_slice()),
+    ] {
+        let installed=patch(kind,Some(input),root,true).unwrap();
+        assert!(matches!(scan_json_hooks(kind,&installed),JsonHookScan::Owned(found) if found==root));
+        assert_eq!(installed,patch(kind,Some(&installed),root,true).unwrap());
+        let disabled=patch(kind,Some(&installed),root,false).unwrap();
+        let original:Object=serde_json::from_slice(input).unwrap();
+        let restored:Object=serde_json::from_slice(&disabled).unwrap();
+        assert_eq!(restored.0["future"].get(),original.0["future"].get());
+        assert!(matches!(scan_json_hooks(kind,&disabled),JsonHookScan::Absent));
+        let mut owned:Value=serde_json::from_slice(&patch(kind,None,root,true).unwrap()).unwrap();
+        let hooks=if kind==JsonHookKind::DroidSettings {&mut owned["hooks"]} else {&mut owned};
+        let entry=hooks["SessionStart"][0].clone();
+        hooks["Stop"]=json!([entry]);
+        assert!(matches!(scan_json_hooks(kind,&serde_json::to_vec(&owned).unwrap()),JsonHookScan::Conflict));
     }
 }

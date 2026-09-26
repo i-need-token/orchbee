@@ -118,6 +118,27 @@ describe('OpenCode-family observation boundary', () => {
 			).toBeNull();
 		}
 	});
+	it('limits Droid to exact SessionStart identity and omits content', async () => {
+		const sanitizers = await import(resourceUrl('scripts/hook-sanitizers.mjs'));
+		const input = {
+			hook_event_name: 'SessionStart',
+			session_id: 'droid-1',
+			prompt: 'PRIVATE',
+			source: 'compact',
+		};
+		const result = sanitizers.sanitizeAgentHookInput('droid', input);
+		expect(result).toMatchObject({ event: 'session-identified', sessionKey: 'droid-1' });
+		expect(JSON.stringify(result)).not.toContain('PRIVATE');
+		for (const changed of [
+			{ session_id: '' },
+			{ session_id: 3 },
+			{ hook_event_name: 'Stop' },
+			{ hook_event_name: 'sessionStart' },
+			{ hook_event_name: undefined },
+		]) {
+			expect(sanitizers.sanitizeAgentHookInput('droid', { ...input, ...changed })).toBeNull();
+		}
+	});
 	it('limits Qoder to exact SessionStart identity and omits content', async () => {
 		const sanitizers = await import(resourceUrl('scripts/hook-sanitizers.mjs'));
 		const input = {

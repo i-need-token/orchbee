@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import { createServer } from 'node:net';
 import path from 'node:path';
 
-const [provider, root, shell] = process.argv.slice(2);
+const [provider, root, shell, configurationFile] = process.argv.slice(2);
 assert.ok(
 	[
 		'claude-code',
@@ -19,11 +19,15 @@ assert.ok(
 		'qodercli',
 		'antigravity-cli',
 		'mastracode',
+		'droid',
 	].includes(provider),
 );
 const extensionProvider = provider === 'gemini' || provider === 'qwen-code';
-const jsonProvider = ['cursor', 'qodercli', 'antigravity-cli', 'mastracode'].includes(provider);
+const jsonProvider = ['cursor', 'qodercli', 'antigravity-cli', 'mastracode', 'droid'].includes(
+	provider,
+);
 function hookFile() {
+	if (provider === 'droid') return configurationFile;
 	if (provider === 'cursor' || provider === 'antigravity-cli' || provider === 'mastracode')
 		return 'hooks.json';
 	if (provider === 'qodercli') return 'settings.json';
@@ -34,6 +38,8 @@ function hookFile() {
 }
 const document = JSON.parse(fs.readFileSync(path.join(root, hookFile()), 'utf8'));
 function selectedHooks() {
+	if (provider === 'droid')
+		return configurationFile === 'settings.json' ? document.hooks : document;
 	if (provider === 'antigravity-cli') return document['orchbee-agent-observation'];
 	if (provider === 'mastracode') return document;
 	return document.hooks;

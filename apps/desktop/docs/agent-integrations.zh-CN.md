@@ -64,7 +64,7 @@ inventory 通过 provider-specific enablement representation 掩盖仍已安装�
 
 1. 初始化或复用最新的只读 inventory。
 2. 在写入前拒绝不可用的开启请求、manual-only management、conflict 与并发操作。
-3. Preflight 并原子发布 Capsule `0.4.11`，不修改 provider configuration。
+3. Preflight 并原子发布 Capsule `0.4.12`，不修改 provider configuration。
 4. 重新检查 provider-owned state，只执行固定 command vector 或准确 guarded-entry operation；只有
    准确 legacy entry 可以迁移。
 5. 每次 effect 尝试后重新检查所选 adapter。
@@ -197,3 +197,5 @@ pnpm --filter @orchbee/web test
 共享观测边界还接受 Cursor、Qoder 和 Antigravity 的 session-identified 身份事件，以及旧版 Cursor 的 session-started。JSON 接入由原生 Windows 负责，Desktop 管理注册表保持独立。
 
 观察注册表还准入 Mastracode 生命周期事实。Windows 原生管理负责其 Hook 配置；Desktop 管理保持独立。
+
+共享观察边界准入 Droid 会话身份。配置管理由原生 Windows 负责；Desktop 管理保持独立。

@@ -8,6 +8,7 @@ use super::{
     Attempt, AttemptedStep, EffectTrace, FailureCode, FsStep, StepKind, cancelled, now,
     step_outcome,
 };
+use crate::agent_configuration_windows::JsonHookKind;
 use std::{
     fs::File,
     io,
@@ -23,12 +24,12 @@ pub(super) fn update(
     residuals: &mut Vec<PathBuf>,
     effect: &mut bool,
 ) -> Attempt {
-    let Some(target) = crate::agent_configuration_windows::json_hooks(id, context.home) else {
+    let Ok((target, _)) = hooks::load(id, context.home) else {
         return Attempt::Failed(FailureCode::OperationFailed);
     };
     update_observed(
-        id,
-        &target,
+        target.kind,
+        &target.path,
         context,
         options,
         enable,
@@ -42,7 +43,7 @@ pub(super) fn update(
 }
 
 fn update_observed(
-    id: &str,
+    kind: JsonHookKind,
     target: &Path,
     context: &ProviderContext,
     options: &ResourceOptions,
@@ -60,12 +61,12 @@ fn update_observed(
         Err(_) => return Attempt::Failed(FailureCode::OperationFailed),
     };
     if !matches!(
-        hooks::state(id, expected.as_deref(), options),
+        hooks::state(kind, expected.as_deref(), options),
         State::NotInstalled | State::Enabled | State::Disabled | State::UpdateRequired
     ) {
         return Attempt::Conflict;
     }
-    let Some(replacement) = hooks::patch(id, expected.as_deref(), context.capsule_root, enable)
+    let Some(replacement) = hooks::patch(kind, expected.as_deref(), context.capsule_root, enable)
     else {
         return Attempt::Failed(FailureCode::OperationFailed);
     };
@@ -284,7 +285,7 @@ mod tests {
             let original = br#"{"user":"original","hooks":{}}"#;
             let foreign = br#"{"user":"newer","hooks":{}}"#;
             fs::write(&target, original).unwrap();
-            let capsule = fixture.0.join("capsules/0.4.11");
+            let capsule = fixture.0.join("capsules/0.4.12");
             let cancel = Cancel(Cell::new(false));
             let context = ProviderContext {
                 home: &fixture.0,
@@ -296,7 +297,7 @@ mod tests {
                 management_mode: ManagementMode::ManagedLocal,
             };
             let options = ResourceOptions {
-                expected_version: "0.4.11",
+                expected_version: "0.4.12",
                 legacy_roots: &[],
                 resource_root: &capsule,
             };
@@ -304,7 +305,7 @@ mod tests {
             let mut residuals = Vec::new();
             let mut effect = false;
             let result = update_observed(
-                "cursor",
+                JsonHookKind::Cursor,
                 &target,
                 &context,
                 &options,

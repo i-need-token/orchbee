@@ -2,7 +2,70 @@
 //! offline diagnostics. Callers retain their own filesystem admission guards.
 use std::path::{Path, PathBuf};
 
-pub(crate) fn json_hooks(id: &str, home: &Path) -> Option<PathBuf> {
+/// The actual provider document shape; both Droid origins share one adapter identity.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum JsonHookKind {
+    Cursor,
+    Qoder,
+    Antigravity,
+    Mastracode,
+    DroidStandalone,
+    DroidSettings,
+}
+impl JsonHookKind {
+    /// Canonical observation and integration identity independent of file representation.
+    pub(crate) const fn id(self) -> &'static str {
+        match self {
+            Self::Cursor => "cursor",
+            Self::Qoder => "qodercli",
+            Self::Antigravity => "antigravity-cli",
+            Self::Mastracode => "mastracode",
+            Self::DroidStandalone | Self::DroidSettings => "droid",
+        }
+    }
+}
+/// One candidate configuration. Callers own reads, budgets and failure handling.
+#[derive(Clone)]
+pub(crate) struct JsonHookTarget {
+    pub(crate) path: PathBuf,
+    pub(crate) kind: JsonHookKind,
+}
+/// Priority is authoritative; errors at an earlier candidate never admit fallback.
+/// When no candidate exists, use the first one for a new declaration.
+pub(crate) fn json_hook_candidates(id: &str, home: &Path) -> Option<Vec<JsonHookTarget>> {
+    if id == "droid" {
+        if !home.is_absolute() {
+            return None;
+        }
+        return Some(vec![
+            JsonHookTarget {
+                path: home.join(".factory/hooks.json"),
+                kind: JsonHookKind::DroidStandalone,
+            },
+            JsonHookTarget {
+                path: home.join(".factory/hooks/hooks.json"),
+                kind: JsonHookKind::DroidStandalone,
+            },
+            JsonHookTarget {
+                path: home.join(".factory/settings.json"),
+                kind: JsonHookKind::DroidSettings,
+            },
+        ]);
+    }
+    let kind = match id {
+        "cursor" => JsonHookKind::Cursor,
+        "qodercli" => JsonHookKind::Qoder,
+        "antigravity-cli" => JsonHookKind::Antigravity,
+        "mastracode" => JsonHookKind::Mastracode,
+        _ => return None,
+    };
+    Some(vec![JsonHookTarget {
+        path: single_json_hooks(id, home)?,
+        kind,
+    }])
+}
+
+fn single_json_hooks(id: &str, home: &Path) -> Option<PathBuf> {
     if id == "mastracode" {
         return home
             .is_absolute()

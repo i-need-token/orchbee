@@ -575,3 +575,5 @@ Qoder admits only session-identified with sessionLifecycle. Direct native regist
 Antigravity CLI shares the identity-only boundary witness and maps adapter antigravity-cli to canonical provider antigravity. Its PreInvocation does not establish turn state or readiness.
 
 Mastracode grants session/turn lifecycle, activity, approvals and subagents through the closed observation registry. Direct joined-ingress evidence covers identity, one keyed run, attention request/resolution and completion. Historical corpus fingerprints remain unchanged.
+
+Droid joins the identity-only registry and native ingress witnesses, preserving unknown or existing turn state on SessionStart.

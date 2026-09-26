@@ -479,3 +479,5 @@ Qoder 仅准入具有 sessionLifecycle 的 session-identified。原生注册表�
 Antigravity CLI 复用仅识别身份的边界证据，将适配器 antigravity-cli 映射为规范 provider antigravity。PreInvocation 不建立回合状态或就绪事实。
 
 Mastracode 通过封闭观察注册表授予会话／回合生命周期、活动、批准及子 Agent 能力。直接关联入口证据覆盖身份、一个带标识的运行、提示请求／解除及完成；历史语料指纹不变。
+
+Droid 加入仅识别身份的注册表和原生入口见证，在 SessionStart 时保留未知或已有回合状态。

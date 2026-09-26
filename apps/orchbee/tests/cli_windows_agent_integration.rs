@@ -215,7 +215,12 @@ fn exercise_installed_json_hooks(provider: &str, target: &Path) {
                 Path::new(env!("CARGO_MANIFEST_DIR"))
                     .join("tests/fixtures/windows-integration-exec-hook.mjs"),
             )
-            .args([provider, target.parent().unwrap().to_str().unwrap(), shell])
+            .args([
+                provider,
+                target.parent().unwrap().to_str().unwrap(),
+                shell,
+                target.file_name().unwrap().to_str().unwrap(),
+            ])
             .creation_flags(0x0800_0000)
             .output()
             .unwrap();
@@ -322,7 +327,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         (
             String::from_utf8(bytes.clone())
                 .unwrap()
-                .replace("/0.4.11/", "/9.0.0/"),
+                .replace("/0.4.12/", "/9.0.0/"),
             "stale-side",
         ),
     ] {
@@ -337,7 +342,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         &obsolete,
         String::from_utf8(bytes.clone())
             .unwrap()
-            .replace("/0.4.11/", "/0.4.2/"),
+            .replace("/0.4.12/", "/0.4.2/"),
     )
     .unwrap();
     assert_eq!(inspect("explain")["result"]["state"], "update-required");
@@ -685,7 +690,7 @@ fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() 
         (fixture.capsule().join("bundle"), Value::Null, "unknown", 9),
         (
             fixture.0.join("foreign/bundle"),
-            Value::from("0.4.11"),
+            Value::from("0.4.12"),
             "conflict",
             3,
         ),
@@ -825,7 +830,7 @@ impl Fixture {
     }
     fn capsule(&self) -> PathBuf {
         self.home()
-            .join(".orchbee/agent-observation-adapters/0.4.11")
+            .join(".orchbee/agent-observation-adapters/0.4.12")
     }
     fn run(&self, verb: &str, provider: &str, config_home: &Path) -> Output {
         self.run_options(verb, provider, config_home, &[])
@@ -1076,7 +1081,7 @@ fn claude_repairs_owned_old_installations_and_preserves_foreign_or_newer_sources
         "enabled"
     );
     for (source, version, expected) in [
-        (fixture.0.join("foreign"), "0.4.11", "conflict"),
+        (fixture.0.join("foreign"), "0.4.12", "conflict"),
         (
             fixture.capsule().parent().unwrap().join("9.0.0"),
             "9.0.0",
@@ -1193,7 +1198,7 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
 
         let old = String::from_utf8(original.clone())
             .unwrap()
-            .replace("/0.4.11/", "/0.4.2/");
+            .replace("/0.4.12/", "/0.4.2/");
         fs::write(&target, old).unwrap();
         assert_eq!(
             fixture.provider_document("explain", provider, 0)["result"]["state"],
@@ -1437,5 +1442,91 @@ fn mastracode_flat_hooks_repair_missing_entries_and_execute_on_windows() {
     );
     for (key, value) in original {
         assert_eq!(restored[&key].get(), value.get());
+    }
+}
+
+#[test]
+fn droid_uses_the_effective_configuration_without_shadowing_fallback_hooks() {
+    for origin in ["new", "preferred", "legacy", "settings"] {
+        let fixture = Fixture::new();
+        fs::write(fixture.0.join("bin/droid.cmd"), b"@exit /b 99\r\n").unwrap();
+        let preferred = fixture.home().join(".factory/hooks.json");
+        let legacy = fixture.home().join(".factory/hooks/hooks.json");
+        let settings = fixture.home().join(".factory/settings.json");
+        let target = match origin {
+            "legacy" => &legacy,
+            "settings" => &settings,
+            _ => &preferred,
+        };
+        let original = if origin == "settings" {
+            r#"{"hooks":{"SessionStart":[{"hooks":[{"command":"echo user","type":"command"}],"matcher":"resume"}]},"future":{"big":123456789012345678901234567890}}"#
+        } else {
+            r#"{"SessionStart":[{"hooks":[{"command":"echo user","type":"command"}],"matcher":"resume"}],"future":{"big":123456789012345678901234567890}}"#
+        };
+        if origin != "new" {
+            fs::create_dir_all(target.parent().unwrap()).unwrap();
+            fs::write(target, original).unwrap();
+        }
+        let inactive = match origin {
+            "preferred" => vec![&legacy, &settings],
+            "legacy" => vec![&settings],
+            _ => vec![],
+        };
+        for file in &inactive {
+            fs::create_dir_all(file.parent().unwrap()).unwrap();
+            fs::write(file, b"{\"inactive\":\"foreign\"}").unwrap();
+        }
+        fixture.provider_document("enable", "droid", 0);
+        assert!(target.is_file());
+        if origin == "legacy" || origin == "settings" {
+            assert!(!preferred.exists());
+        }
+        if origin == "settings" {
+            assert!(!legacy.exists());
+        }
+        let installed = fs::read_to_string(target).unwrap();
+        assert_eq!(
+            fixture.provider_document("explain", "droid", 0)["result"]["state"],
+            "enabled"
+        );
+        fixture.provider_document("enable", "droid", 0);
+        assert_eq!(fs::read_to_string(target).unwrap(), installed);
+        if origin == "new" {
+            exercise_installed_json_hooks("droid", target);
+        }
+        let doctor = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+            .env("USERPROFILE", fixture.home())
+            .args(["agent", "doctor", "--provider", "droid", "--format", "json"])
+            .output()
+            .unwrap();
+        assert!(doctor.status.success());
+        let doc: Value = serde_json::from_slice(&doctor.stdout).unwrap();
+        assert_eq!(
+            doc["result"]["providers"][0]["hook"]["state"], "present",
+            "{doc}"
+        );
+        if origin == "legacy" || origin == "settings" {
+            // An unsafe higher-priority path also stops source selection.
+            fs::create_dir(&preferred).unwrap();
+            fixture.provider_document("enable", "droid", 9);
+            assert_eq!(fs::read_to_string(target).unwrap(), installed);
+            fs::remove_dir(&preferred).unwrap();
+            // A malformed higher-priority file cannot authorize edits to the fallback.
+            fs::write(&preferred, b"{malformed").unwrap();
+            fixture.provider_document("enable", "droid", 9);
+            fixture.provider_document("disable", "droid", 9);
+            assert_eq!(fs::read_to_string(target).unwrap(), installed);
+            fs::remove_file(&preferred).unwrap();
+        }
+        fixture.provider_document("disable", "droid", 0);
+        for file in &inactive {
+            assert_eq!(fs::read(file).unwrap(), b"{\"inactive\":\"foreign\"}");
+        }
+        let removed = fs::read_to_string(target).unwrap();
+        assert!(!removed.contains("powershell.exe"));
+        if origin != "new" {
+            assert!(removed.contains("123456789012345678901234567890"));
+            assert!(removed.contains("echo user"));
+        }
     }
 }
