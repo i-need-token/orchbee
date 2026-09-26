@@ -94,12 +94,40 @@ impl NativeSessionState {
         origin: &RetiredMembershipOrigin,
         candidate: NativeContextTabs,
     ) -> Result<PreparedMembershipCandidate, CarrierFailure> {
-        if !self.retired_membership_origin_matches(origin)
-            || candidate
-                .tab_index(origin.evidence.poll.pane().anchor().tab_id())
-                .is_some()
-        {
+        if !self.retired_membership_origin_matches(origin) {
             return Err(CarrierFailure::AuthorityDivergence);
+        }
+        let tab_id = origin.evidence.poll.pane().anchor().tab_id();
+        if let Some(index) = candidate.tab_index(tab_id) {
+            let panel_id = origin.evidence.poll.pane().panel();
+            let before = origin
+                .baseline
+                .tabs()
+                .get(origin.ordinal)
+                .and_then(|tab| tab.panel_index(panel_id).and_then(|index| tab.panel(index)))
+                .ok_or(CarrierFailure::AuthorityDivergence)?;
+            let tab = &candidate.tabs()[index];
+            let panel_index = tab
+                .panel_index(panel_id)
+                .ok_or(CarrierFailure::AuthorityDivergence)?;
+            let after = tab
+                .panel(panel_index)
+                .ok_or(CarrierFailure::AuthorityDivergence)?;
+            if before.presentation_id() == after.presentation_id()
+                || before.binding() == after.binding()
+            {
+                return Err(CarrierFailure::AuthorityDivergence);
+            }
+            // Canonical membership validation below proves fresh Workspace identities and same Worker.
+            let mut prepared = self.prepare_membership_candidate(
+                candidate,
+                Some(tab_id),
+                Some(origin.ordinal),
+                None,
+                None,
+            )?;
+            prepared.retarget_selected_panel(panel_index);
+            return Ok(prepared);
         }
         self.prepare_membership_candidate(candidate, None, Some(origin.ordinal), None, None)
     }

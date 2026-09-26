@@ -11,6 +11,9 @@ use std::{collections::BTreeMap, num::NonZeroU64};
 
 const MAXIMUM_OPERATIONS: usize = 64;
 
+mod restoration;
+pub use restoration::{PreparedWorktreeRebind, WorktreeRebindError};
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WorktreeSourceTarget {
     pub directory_id: Option<orchbee_workbench_protocol::WorkbenchDirectoryId>,
@@ -158,6 +161,7 @@ impl WorkbenchAuthority {
                         _ => WorktreeWorkspaceDisposition::Unassociated {},
                     },
                     git_effect: WorktreeGitEffect::None,
+                    restoration: None,
                 };
                 let plan = WorktreeOperationPlan {
                     operation_id: id.clone(),
@@ -214,6 +218,9 @@ impl WorkbenchAuthority {
                         WorktreeWorkspaceDisposition::Closing { .. } => {
                             WorktreeOperationPhase::Closing
                         }
+                        _ if matches!(record.plan.intent, WorktreeIntent::Remove { .. }) => {
+                            WorktreeOperationPhase::InspectingRemove
+                        }
                         _ if progress.git_effect != WorktreeGitEffect::None
                             && progress.path.is_some() =>
                         {
@@ -222,6 +229,7 @@ impl WorkbenchAuthority {
                         _ => initial_phase(&record.plan.intent),
                     }
                 };
+                record.plan.progress.restoration = None;
                 record.plan.attempt += 1;
                 record.claimed = false;
                 record.status = WorktreeOperationStatus::Pending {

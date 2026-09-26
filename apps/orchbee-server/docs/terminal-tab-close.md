@@ -681,6 +681,49 @@ eligible Resume preserve truthful recovery; persistence across Server restart, p
 failure recovery, changed-epoch adoption, remote operations, packaging and universal eventual cleanup
 remain excluded. Model and process results must state these limits rather than claim an unbounded proof.
 
+## Retaining a Workspace after failed Worktree removal
+
+The Worktree owner may cancel canonical removal only for its exact held, quiescent
+Workspace Close. All captured terminal targets must already have completed disposal
+and local cleanup. Cancellation does not undo either effect: the retained Close
+reports `disposed-awaiting-publication` with nonresumable `workspace-retained`,
+keeps every old binding tombstone, and leaves the canonical Workspace in place.
+It cannot publish removal or resume. It no longer fences Context structure or
+participates in new Workspace/Tab/Panel Close lookup. A later ordinary Close
+captures current membership and has its own identity.
+
+Existing native Close membership excludes child presentations and grouped/pinned
+Tabs before effects; recovery inherits that admission boundary.
+
+While the hold is active, the claimed Worktree attempt may prepare a replacement
+binding for one exact captured presentation. The original Context, Tab, Panel,
+order, labels and split ratios remain unchanged. Each replacement mints a fresh
+Presentation identity as well as a fresh terminal binding; a surviving Presentation
+never changes its binding. Rebinding requires
+the exact current old binding, a fresh binding on the same Worker, a quiescent
+Close, and the retained operation/attempt. Preparation validates the entire new
+projection before commit. A stale attempt, an already replaced slot, a duplicate
+terminal binding, or an unrelated Close cannot mutate the projection. Site
+composition commits this projection together with the new TerminalCoordinator
+Create reservation before dispatching the default-shell launch.
+
+The integrated recovery owner verifies the original checkout after a known Git
+failure before launching any shell. It uses the verified checkout directory,
+default shell, empty custom environment and initial 80×24 geometry; later Client
+resize remains authoritative. It never replays the old Agent or program. Returned
+Git failure, verification failure, each fresh launch result and partial recovery
+are separate facts. Unknown deletion does not start recovery; an unknown launch
+is retained and never automatically repeated. Cancelling the old Close does not
+prove every replacement shell started. The Worktree receipt owns that distinction.
+
+Core witnesses cover empty and populated quiescent scopes, pending cleanup,
+stale/foreign ownership, duplicate bindings, repeated replacement/cancellation,
+unchanged layout identities, old-binding fences, direct publication and Resume
+refusal, and a fresh ordinary Close after cancellation. Site and Windows driver
+witnesses additionally establish reserve-before-dispatch, generation fencing,
+known-failure verification, partial launches and retry behavior. These are bounded
+tests; TLA+ and full acceptance remain deferred by the active task authorization.
+
 ## Failed launch removal
 
 A Tab, Panel or Workspace containing a definitively failed Create remains closable. Under the Site gate, TerminalCoordinator resolves every captured binding before Close admission. Exactly one binding in `Unavailable(None)` with a retained failed/unavailable Create outcome proves no Host terminal was committed; absence of an identity alone is insufficient. Host Create failures occur before its infallible terminal commit. Start and lifecycle failures do not establish this fact.

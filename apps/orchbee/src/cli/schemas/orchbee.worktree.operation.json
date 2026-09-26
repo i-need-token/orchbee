@@ -8,7 +8,7 @@
 			"const": "orchbee.worktree.operation"
 		},
 		"version": {
-			"enum": [1, 2, 3]
+			"enum": [1, 2, 3, 4]
 		},
 		"source": {
 			"type": "object",
@@ -631,6 +631,9 @@
 				},
 				"gitEffect": {
 					"enum": ["none", "may-have-changed", "changed"]
+				},
+				"restoration": {
+					"$ref": "#/$defs/restoration"
 				}
 			},
 			"required": ["path", "checkout", "workspace", "gitEffect"],
@@ -5135,6 +5138,48 @@
 					}
 				}
 			]
+		},
+		"restoration": {
+			"type": "object",
+			"properties": {
+				"total": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4096
+				},
+				"attempted": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4096
+				},
+				"started": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4096
+				},
+				"failed": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4096
+				},
+				"unknown": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4096
+				},
+				"failure": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/failure"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["total", "attempted", "started", "failed", "unknown", "failure"],
+			"additionalProperties": false
 		}
 	},
 	"allOf": [
@@ -5188,10 +5233,90 @@
 				}
 			},
 			"else": {
+				"if": {
+					"properties": {
+						"version": {
+							"enum": [1, 2]
+						}
+					}
+				},
+				"then": {
+					"properties": {
+						"result": {
+							"not": {
+								"required": ["setup"]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 4
+					}
+				}
+			},
+			"then": {
 				"properties": {
 					"result": {
-						"not": {
-							"required": ["setup"]
+						"properties": {
+							"observation": {
+								"properties": {
+									"reply": {
+										"properties": {
+											"outcome": {
+												"properties": {
+													"status": {
+														"properties": {
+															"progress": {
+																"required": ["restoration"]
+															}
+														},
+														"required": ["progress"]
+													}
+												},
+												"required": ["status"]
+											}
+										},
+										"required": ["outcome"]
+									}
+								},
+								"required": ["reply"]
+							}
+						},
+						"required": ["observation"]
+					}
+				},
+				"required": ["result"]
+			},
+			"else": {
+				"properties": {
+					"result": {
+						"properties": {
+							"observation": {
+								"properties": {
+									"reply": {
+										"properties": {
+											"outcome": {
+												"properties": {
+													"status": {
+														"properties": {
+															"progress": {
+																"not": {
+																	"required": ["restoration"]
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
 						}
 					}
 				}

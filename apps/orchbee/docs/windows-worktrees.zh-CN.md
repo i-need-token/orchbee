@@ -28,7 +28,7 @@ Create、Open、Remove 接受非零 32 位小写十六进制 `--request-id`，�
 
 `worktree status` 为总预算五秒的纯读取，不激活 Site 或启动维护线程。`worktree resume` 要求通过 `--generation` 提供可恢复失败状态的精确 `attempt`，并要求 `--confirm`，因为保留意图可能删除用户工作。尝试序号范围为 1–64。记录可跨 Client 断线保留，但不跨 Server 重启。
 
-`orchbee.worktree.operation` 版本 1（不聚焦）和版本 2（显式聚焦）封套注册于 `api schema` 版本 65（74 个文档）。它包含操作 ID、已知时的本地 Site 身份、相关联的 Server 回答或明确的不可用／不确定观测，以及独立且可空的等待状态。Pending 与 detached 观测退出 0；终端启动失败保留自身非零退出码；Git 或关联失败退出 3，接纳不可用退出 4，观测断线退出 5，内部或不一致观测退出 1 且保留最近回答，超时退出 7，物理／提交不确定退出 8，取消退出 130。解析与提交前目标失败使用既有 CLI 失败封套。有界 Git 原始诊断在 JSON 中保留为字节数组，本地化文本中进行转义。
+`orchbee.worktree.operation` 版本 1（不聚焦）和版本 2（显式聚焦）封套注册于 `api schema` 版本 66（74 个文档）。它包含操作 ID、已知时的本地 Site 身份、相关联的 Server 回答或明确的不可用／不确定观测，以及独立且可空的等待状态。Pending 与 detached 观测退出 0；终端启动失败保留自身非零退出码；Git 或关联失败退出 3，接纳不可用退出 4，观测断线退出 5，内部或不一致观测退出 1 且保留最近回答，超时退出 7，物理／提交不确定退出 8，取消退出 130。解析与提交前目标失败使用既有 CLI 失败封套。有界 Git 原始诊断在 JSON 中保留为字节数组，本地化文本中进行转义。
 
 ## 来源与打开后聚焦模型
 
@@ -47,23 +47,31 @@ Create 和 Open 接受互斥的 `--focus` 与 `--no-focus`（默认）。聚焦�
 | 聚焦交接不确定                              | 保留 Client 回执，绝不自动重提                                                   |
 | 未要求聚焦                                  | 保留版本 1 输出与规范等待行为                                                    |
 
-语义选择指上下文、Tab、Panel 与缩放身份；派生面板数和普通版本刷新不表示导航变化。聚焦共用调用截止时间及有界交换。显式聚焦使用 `orchbee.worktree.operation` 版本 2，附独立 `postOpen` 回执：Client ID、阶段、聚焦回执、失败和完成／未完成结果。聚焦失败保留规范成功并返回非零退出码。这不是 Git／界面原子事务。Server 工作可跨 CLI 断线继续；聚焦归本次调用所有，`worktree resume` 不恢复聚焦。目录版本 65 包含 74 个文档。
+语义选择指上下文、Tab、Panel 与缩放身份；派生面板数和普通版本刷新不表示导航变化。聚焦共用调用截止时间及有界交换。显式聚焦使用 `orchbee.worktree.operation` 版本 2，附独立 `postOpen` 回执：Client ID、阶段、聚焦回执、失败和完成／未完成结果。聚焦失败保留规范成功并返回非零退出码。这不是 Git／界面原子事务。Server 工作可跨 CLI 断线继续；聚焦归本次调用所有，`worktree resume` 不恢复聚焦。目录版本 66 包含 74 个文档。
 
 确定性来源／守卫用例、语法冲突、版本化 Schema 和 Windows 脚本 IPC 轨迹覆盖优先级、缺失 cwd、歧义／过期选择、视图变化、提交后不确定性及部分结果。可释放的真实 Windows Git 查询覆盖未变的 Worker 边界。完整双 TUI 验收独立进行；有界同作者检查不证明所有实时竞态。参考：Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` Worktree 来源／聚焦语义。
 
 ## 保留续执行
 
-| 状态或事件  | 准入与下一步                                                         | 保留事实                                           |
-| ----------- | -------------------------------------------------------------------- | -------------------------------------------------- |
-| Start       | 精确 Site 授权、Project、来源与 Worker 实例；全局仅一个 Pending 操作 | Worker 交接前保留意图与操作 ID                     |
-| Create      | 观察来源、通过 Git 创建、验证检出与分支、关联 Workspace              | 验证失败时保留候选路径与可能的 Git 影响            |
-| Open        | 观察选择的检出，复用或创建 Workspace                                 | 规范 Workspace 身份及终端启动结果                  |
-| Remove      | 先检查、保留 Workspace 发布、释放终端、通过 Git 移除、再发布 Close   | Git 失败后保留关闭请求 ID 与规范布局；shell 已释放 |
-| Resume      | 相同意图及 Worker 实例、精确失败尝试、明确可恢复资格                 | 新的受限尝试；旧回调不能覆盖它                     |
-| Read 或断线 | 只读保留状态；断线不取消续执行                                       | 不重复 Git 或 Workspace 创建                       |
-| Site stop   | Close 维护及 Worker 冻结前停止并 join 保留提交者                     | 取消不等于回滚；Worker 拥有物理收尾                |
+| 状态或事件  | 准入与下一步                                                         | 保留事实                                         |
+| ----------- | -------------------------------------------------------------------- | ------------------------------------------------ |
+| Start       | 精确 Site 授权、Project、来源与 Worker 实例；全局仅一个 Pending 操作 | Worker 交接前保留意图与操作 ID                   |
+| Create      | 观察来源、通过 Git 创建、验证检出与分支、关联 Workspace              | 验证失败时保留候选路径与可能的 Git 影响          |
+| Open        | 观察选择的检出，复用或创建 Workspace                                 | 规范 Workspace 身份及终端启动结果                |
+| Remove      | 先检查、保留 Workspace 发布、释放终端、通过 Git 移除、再发布 Close   | Git 失败保留规范布局；验证后恢复全新的默认 shell |
+| Resume      | 相同意图及 Worker 实例、精确失败尝试、明确可恢复资格                 | 新的受限尝试；旧回调不能覆盖它                   |
+| Read 或断线 | 只读保留状态；断线不取消续执行                                       | 不重复 Git 或 Workspace 创建                     |
+| Site stop   | Close 维护及 Worker 冻结前停止并 join 保留提交者                     | 取消不等于回滚；Worker 拥有物理收尾              |
 
-Server 最多保留 64 个操作，每个操作至多 64 次尝试。Worker 作业另有独立的 64 次保留准入上限。续执行的协作式工作预算为 120 秒，每个 Git 步骤上限 40 秒；Worker 拥有自己的 30 秒执行及五秒物理清理预算。新准入满时仍可读取和重复观察。不确定的物理或传输收尾不允许恢复。可能已有 Git 副作用的 Create 通过观察保留路径及分支恢复，而不是再次 Git add。Remove 在已知 Git 成功前保留规范布局。终端释放并完成清理后，保留精确 Close 发布；Git 失败或不确定时保持保留及已有结构栅栏。已知失败的 Resume 从保留仓库根目录重新检查，并复用同一 Close。Worktree 失败后，显式普通 Workspace Close 可不执行 Git 而释放保留；pending 时返回 busy。已知 Git 删除成功先保留再释放发布，因此最终 Close 的重试不会重复 Git。此阶段保留 Workspace、Tab 和 Panel 结构；自动重建 shell 尚未实现。
+Server 最多保留 64 个操作，每个操作至多 64 次尝试。Worker 作业另有独立的 64 次保留准入上限。续执行的协作式工作预算为 120 秒，每个 Git 步骤上限 40 秒；Worker 拥有自己的 30 秒执行及五秒物理清理预算。新准入满时仍可读取和重复观察。不确定的物理或传输收尾不允许恢复。可能已有 Git 副作用的 Create 通过观察保留路径及分支恢复，而不是再次 Git add。Remove 在已知 Git 成功前保留规范布局。终端释放并完成清理后，保留精确 Close 发布；删除结果未知时保持保留及已有结构栅栏。已知 Git 失败会启动下述 shell 恢复。Resume 从保留仓库根目录重新检查；复用仍保留的 Close，或在 shell 恢复后捕获新的 Close。Worktree 失败后，显式普通 Workspace Close 可不执行 Git 而释放保留；pending 时返回 busy。已知 Git 删除成功先保留再释放发布，因此最终 Close 的重试不会重复 Git。恢复保留 Workspace、Tab 和 Panel 身份，同时替换 Presentation 和物理终端身份。
+
+## 移除失败后的 shell 恢复
+
+收到 Git 移除失败后，只读检查必须证明原 checkout 路径、公共 Git 目录和仓库根仍一致。验证失败时保留已关闭的终端绑定和发布保留，不启动 shell。验证成功后，Server 为每个捕获的原生主 presentation 恢复新的默认 shell 绑定，使用 checkout cwd、空自定义环境和初始 80×24 尺寸。既有布局、标签和导航身份不变。旧 Agent 命令、自定义程序和启动配置绝不重跑。既有原生 Close 仍在效果前拒绝子 presentation 和分组／固定 Tab；恢复不会扩大该成员契约。
+
+每个替换在 IPC 前同时预留规范投影和 TerminalCoordinator。串行启动收尾期间，旧 Close 继续限制结构。完成时记录已知成功、已知失败或不确定结果，不重复启动。随后旧 Close 以不可恢复的 `workspace-retained` 结束：旧绑定墓碑仍保留，当前结构恢复可用，新的 Close 捕获新绑定。部分恢复可能留下未尝试的已释放绑定或启动失败的新 shell。未知启动禁止 Remove Resume。其他符合资格的失败可显式重试删除，并先关闭已恢复的 shell。Site 停止保留部分事实，不会复活已释放的进程。
+
+含恢复信息的进度观测使用 `orchbee.worktree.operation` v4；没有恢复信息的文档仍使用 v1/v2/v3。独立的 `progress.restoration` 回执包含 `total`、`attempted`、`started`、`failed`、`unknown`（各为 0–4096）和可空 `failure`。已完成计数之和不得超过 attempted，attempted 不得超过 total，串行启动至多一个未完成。最终回执不得存在未完成启动。原 Git 错误仍为操作失败原因；验证或准备失败留在恢复回执内。每个 presentation 的精确绑定及 Create 结果从规范查询和终端查询取得，不复制到这个有界 96 KiB 操作文档。中英文文本输出均展示全部计数和额外失败。恢复启动存在未知结果时退出码为 8；已知 Git 失败仍为 3。
 
 registry 到 Site 的锁顺序保护接纳与规范事实检查；IPC 在两把锁之外执行。Remove Pending 期间，全局保留新的 Workspace 启动及主目录接纳。在关闭和删除前复查现有关联。这些检查不能排除任意外部 Git／文件系统写入者，也不构成文件系统事务。终态结果一经发布即不可变。维护所有者拥有线程，并在 Site 关闭时显式 join；Drop 仅请求取消。
 
@@ -71,7 +79,7 @@ registry 到 Site 的锁顺序保护接纳与规范事实检查；IPC 在两把�
 
 `worktree list --workspace <target>` 与 `worktree list --cwd <path>` 选择一个来源，可附加 `--trust-repository`。两者均省略时遵循上述 Client／调用者规则；也接受精确 `--client`。无效调用者身份绝不回退。查询无需默认 Project，不创建 Workspace，也不改变焦点。原有 `--project <target> --directory <id>` 形式保持原请求及结果契约；来源形式使用 `orchbee.worktree.query`。
 
-来源查询采用五秒 CLI 总预算，不激活 Site，绝不重放交换。来源选择器与旧选择器组互斥。JSON 从目录 v65/74 输出 `{schema:"orchbee.worktree.query",version:1,result:<typed-reply>}`；Server 失败保留类型化回答。Found 退出 0，来源不存在／拒绝／变化或 Git 失败退出 3，不支持／不可用退出 4，传输／列表无效退出 5，超时退出 7，I/O／启动／输出上限失败退出 1。准入前／传输失败使用通用 CLI 失败 Schema；Ctrl+C 在释放信号所有者后退出 130。人类文本转义不可信路径／标签，并标示主／关联检出、分离／裸仓库、锁定／可清理状态及 Workspace 身份。
+来源查询采用五秒 CLI 总预算，不激活 Site，绝不重放交换。来源选择器与旧选择器组互斥。JSON 从目录 v66/74 输出 `{schema:"orchbee.worktree.query",version:1,result:<typed-reply>}`；Server 失败保留类型化回答。Found 退出 0，来源不存在／拒绝／变化或 Git 失败退出 3，不支持／不可用退出 4，传输／列表无效退出 5，超时退出 7，I/O／启动／输出上限失败退出 1。准入前／传输失败使用通用 CLI 失败 Schema；Ctrl+C 在释放信号所有者后退出 130。人类文本转义不可信路径／标签，并标示主／关联检出、分离／裸仓库、锁定／可清理状态及 Workspace 身份。
 
 Server 解析来源及存活 Worker 代际，在 Git IPC 期间释放所有锁，发布前再核对两者。单个只读 Worker 任务观测 Git 公共目录、来源检出根与 porcelain 列表。命令内信任仅作用于所选规范仓库，不持久化配置。准入只检查驱动器路径语法。文件系统规范化与信任准备在所属任务内执行，并在创建子进程前复查取消／deadline；目录不存在返回类型化准备失败。OS 文件系统调用为协作式，不会被强制抢占。只读 owner 保持五秒预算、一个物理槽位、有界输出及六十秒回执；不消耗修改操作容量。Windows Git 盘符路径使用与其他 Worktree 条目相同的绝对路径校验。
 
@@ -89,7 +97,7 @@ Server 解析来源及存活 Worker 代际，在 Git IPC 期间释放所有锁�
 
 ## 验证
 
-维护中的测试覆盖严格语法与确认、调用者身份与 cwd、部分结果及诊断转义、操作／交换关联、EOF 后不重放、授权及容量、脱离等待后的复用、Close 前拒绝脏目录、移除失败时保留布局、显式重试与手动 Close，以及 Site 关闭前取消。真实可丢弃的 Windows Git 夹具覆盖来源子目录、主检出打开、分支复用、强制移除、分支保留和成功 hook 改变所选分支。Rust 与 TypeScript 消费同一 Worktree 一致性语料；JSON Schema 覆盖结构校验，绑定实现字节限制与跨字段关系。这些是同作者测试和复查，不宣称独立审查或 TLA 执行。
+维护中的测试覆盖严格语法与确认、调用者身份与 cwd、部分结果及诊断转义、操作／交换关联、EOF 后不重放、授权及容量、脱离等待后的复用、Close 前拒绝脏目录、移除失败时保留布局、验证后重建默认 shell、已知／未知启动结果、显式重试与手动 Close，以及 Site 关闭前取消。真实可丢弃的 Windows Git 夹具覆盖来源子目录、主检出打开、分支复用、强制移除、分支保留和成功 hook 改变所选分支。Rust 与 TypeScript 消费同一 Worktree 一致性语料；JSON Schema 覆盖结构校验，绑定实现字节限制与跨字段关系。这些是同作者测试和复查，不宣称独立审查或 TLA 执行。
 
 Windows 路径适配器是对显式环境与当前目录输入的有界纯转换。固定 Herdr e0507237 的常见路径向量覆盖相对路径拼接、波浪号分隔符及主目录优先级；严格拒绝无效上下文是有意的差异。测试覆盖未使用环境／cwd 隔离、UTF-8 和 4096 字节上限、歧义根路径、不探测文件系统，以及访问运行时前隐去环境值的解析错误。实际 Windows Git 查询／创建／打开覆盖相对及波浪号操作数。这是有界对齐证据，不代表验证了所有 Windows 文件系统别名。
 

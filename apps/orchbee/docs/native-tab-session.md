@@ -334,6 +334,26 @@ several terminals. Genuine removal plus entirely fresh identities is allowed. Th
 floor is a conservative consumer boundary, not a completeness claim over every reachable producer
 history — a step-legal exchange that moves all of a Tab's members elsewhere is still rejected.
 This compares two snapshots only and adds no registry of every previously removed identity.
+Workspace shell recovery is an explicit exception for the Panel slot only: at a higher
+revision the same Panel and Worker may carry both a fresh Presentation ID and a fresh
+Terminal ID, with unchanged Presentation label. Neither fresh identity may alias a
+member in the compared current or retained Context. Surviving Presentation/Terminal
+identities still require their complete original tuple; changing only a binding or
+moving an old Presentation into another Panel is rejected. Standalone Contexts retain
+the original rule. This preserves the user's layout while keeping Presentation binding
+identity immutable. Site allocators, rather than this two-snapshot comparison, own
+lifetime non-reuse.
+
+Replacement of any Panel in the active Tab uses the existing whole-anchor membership
+cleanup and install path, retaining the selected Panel and zoom while minting a new
+attachment generation. Old Viewer and
+controller effects finish or are disposal-proven before attaching the fresh binding.
+Replacement clears old Tab launch provenance; failed or unknown old startup never
+becomes the new shell's startup state. Replacement in another Tab updates its canonical binding without detaching the active
+Tab; selection later attaches the new binding. Tests must cover live and retained-context
+refresh, fresh attachment selection, stale generations, simultaneous old/new identity
+alias rejection and unchanged-Presentation binding refusal.
+
 Exact Create and Move commit revisions retain their original strict expectations. At a later
 revision the committed target may be absent, represented by an optional validated target index;
 its historical commit is never erased. A projection-owned `ClosedTabExpectation` checks exact
@@ -2406,9 +2426,14 @@ requires another explicit action after the previous carrier has closed and joine
 
 Before installation the only request is SnapshotRead. The full candidate must preserve Site/context,
 nondecreasing revision, exact same-revision membership and every immutable retained identity tuple.
-The old unavailable Tab must be absent. A still-present target, unavailable Snapshot or invalid
-candidate leaves the old canonical state and origin parked, with no Attach. Absence is membership
-knowledge, not cleanup evidence. Bootstrap, Open, activation, Create, Start and Close are not part
+The old unavailable Tab must be absent, or its selected Workspace Panel must now carry both
+a fresh Presentation and a fresh terminal binding under the replacement rule above. A surviving
+old physical identity, unavailable Snapshot or invalid candidate leaves the old canonical state
+and origin parked, with no Attach. Valid replacement keeps the selected Tab and Panel, mints a
+fresh attachment generation and clears old launch provenance. Absence or replacement is membership
+knowledge, not cleanup evidence. The existing explicit `Ctrl+B w` entry also covers this replacement;
+it does not reconnect automatically. Deterministic UI tests cover the replacement branch; the
+retired-recovery model results below predate it and do not establish that extension. Bootstrap, Open, activation, Create, Start and Close are not part
 of this observation entry.
 
 While an armed attempt owns the mailbox and before any candidate installs, the session

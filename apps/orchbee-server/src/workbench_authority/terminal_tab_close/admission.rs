@@ -477,6 +477,7 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
             publication_attempted: false,
             parked_publication: None,
             closed_revision: None,
+            workspace_retained: false,
         });
         let Some(reserved_bytes) = super::reservation::entry_reservation(
             &record.command,

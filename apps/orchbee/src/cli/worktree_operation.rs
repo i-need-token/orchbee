@@ -70,6 +70,11 @@ impl Answer {
         }
         result
     }
+    fn has_restoration(&self) -> bool {
+        matches!(&self.observation, Observation::Server { reply } if matches!(&reply.outcome,
+            WorkbenchWorktreeOutcome::Available { status, .. } if matches!(status.as_ref(),
+                WorktreeOperationStatus::Pending { progress, .. } | WorktreeOperationStatus::Failed { progress, .. } if progress.restoration.is_some())))
+    }
     fn pending(&self) -> bool {
         matches!(&self.observation, Observation::Server { reply } if matches!(&reply.outcome,
             WorkbenchWorktreeOutcome::Available {status, ..} if matches!(status.as_ref(), WorktreeOperationStatus::Pending {..})))
@@ -112,7 +117,16 @@ impl Answer {
                     },
                     WorktreeOperationStatus::Pending { .. }
                     | WorktreeOperationStatus::Removed { .. } => 0,
-                    WorktreeOperationStatus::Failed { reason, .. } => {
+                    WorktreeOperationStatus::Failed {
+                        reason, progress, ..
+                    } => {
+                        if progress
+                            .restoration
+                            .as_ref()
+                            .is_some_and(|receipt| receipt.unknown > 0)
+                        {
+                            return 8;
+                        }
                         use orchbee_workbench_protocol::WorktreeOperationFailure as F;
                         match reason {
                             F::PhysicalUnknown {} | F::TransportUnknown {} => 8,
@@ -179,7 +193,7 @@ fn emit(site_id: Option<&SiteId>, answer: Answer, format: OutputFormat, locale: 
     let result = answer.document();
     let encoded = match format {
         OutputFormat::Json => output::encode_document(
-            &json!({"schema":"orchbee.worktree.operation","version":if answer.setup.is_some() {3} else if answer.post_open.is_some() {2} else {1},
+            &json!({"schema":"orchbee.worktree.operation","version":if answer.has_restoration() {4} else if answer.setup.is_some() {3} else if answer.post_open.is_some() {2} else {1},
             "source":{"kind":"local-worktree","siteId":site_id},"result":result}),
         ),
         OutputFormat::Text => output::encode_text(&locale.cli_worktree_result(&result)),

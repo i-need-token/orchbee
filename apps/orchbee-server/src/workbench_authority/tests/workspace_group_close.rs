@@ -93,6 +93,7 @@ impl Fixture {
                 checkout: None,
                 workspace: WorktreeWorkspaceDisposition::Unassociated {},
                 git_effect: WorktreeGitEffect::None,
+                restoration: None,
             },
         };
         assert!(self.authority.associate_worktree_source(

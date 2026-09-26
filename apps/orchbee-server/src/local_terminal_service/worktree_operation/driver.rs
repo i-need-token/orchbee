@@ -14,6 +14,7 @@ use std::{
     time::{Duration, Instant},
 };
 mod git;
+mod restoration;
 mod workspace;
 
 pub(super) fn run(
@@ -30,14 +31,20 @@ pub(super) fn run(
     match driver.execute() {
         Ok(status) => status,
         Err(reason) => {
-            let resumable = !matches!(
-                reason,
-                Failure::TransportUnknown {}
-                    | Failure::PhysicalUnknown {}
-                    | Failure::SiteStopping {}
-                    | Failure::Internal {}
-                    | Failure::SourceChanged {}
-            );
+            let resumable = driver
+                .plan
+                .progress
+                .restoration
+                .as_ref()
+                .is_none_or(|receipt| receipt.unknown == 0)
+                && !matches!(
+                    reason,
+                    Failure::TransportUnknown {}
+                        | Failure::PhysicalUnknown {}
+                        | Failure::SiteStopping {}
+                        | Failure::Internal {}
+                        | Failure::SourceChanged {}
+                );
             Status::Failed {
                 reason,
                 progress: driver.plan.progress.clone(),
@@ -208,7 +215,16 @@ impl Driver<'_> {
                         expected_common_directory: absolute(&checkout.common_directory)?,
                         force: *force,
                     };
-                    match self.job(mutation)? {
+                    let removed = match self.job(mutation) {
+                        Ok(completion) => completion,
+                        Err(reason) => {
+                            if matches!(reason, Failure::Git { .. }) {
+                                self.restore_failed_remove();
+                            }
+                            return Err(reason);
+                        }
+                    };
+                    match removed {
                         orchbee_capability_node_protocol::WorktreeMutationCompletion::Removed {
                             path,
                         } => {

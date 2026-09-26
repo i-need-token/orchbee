@@ -117,6 +117,7 @@ fn opened_after_wait(stream: &mut LocalStream, expected_source: Value, pending: 
                             path: None,
                             checkout: None,
                             git_effect: WorktreeGitEffect::None,
+                            restoration: None,
                             workspace: WorktreeWorkspaceDisposition::Unassociated {},
                         },
                     }),

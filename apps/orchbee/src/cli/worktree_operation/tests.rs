@@ -187,6 +187,7 @@ fn partial_git_failure_keeps_closed_truth_escapes_diagnostics_and_matches_schema
             path: Some(WorkbenchDirectoryPath::parse("C:/trees/work").unwrap()),
             checkout: None,
             git_effect: WorktreeGitEffect::MayHaveChanged,
+            restoration: None,
             workspace: WorktreeWorkspaceDisposition::Closed {
                 workspace_id: WorkbenchWorkspaceId::parse(&id(4)).unwrap(),
                 close_request_id: WorkbenchRequestId::parse(&id(15)).unwrap(),
@@ -256,6 +257,87 @@ fn opening_a_workspace_does_not_turn_a_failed_terminal_launch_into_success() {
         assert_eq!(
             post_open::opened(&opened.observation).is_some(),
             expected == 0
+        );
+    }
+}
+
+#[test]
+fn restoration_receipt_has_v4_schema_and_localized_counts_without_losing_git_failure() {
+    let status = WorktreeOperationStatus::Failed {
+        reason: WorktreeOperationFailure::Git {
+            stage: WorktreeGitStage::Mutate,
+            error: WorktreeGitError::GitFailed,
+            status: Some(128),
+            diagnostics: b"locked".to_vec(),
+        },
+        resumable: false,
+        progress: WorktreeProgress {
+            path: Some(WorkbenchDirectoryPath::parse("C:/trees/work").unwrap()),
+            checkout: None,
+            git_effect: WorktreeGitEffect::MayHaveChanged,
+            workspace: WorktreeWorkspaceDisposition::Open {
+                workspace_id: WorkbenchWorkspaceId::parse(&id(4)).unwrap(),
+            },
+            restoration: Some(orchbee_workbench_protocol::WorktreeShellRestoration {
+                total: 4,
+                attempted: 3,
+                started: 1,
+                failed: 1,
+                unknown: 1,
+                failure: Some(WorktreeOperationFailure::WorkerUnavailable {}),
+            }),
+        },
+    };
+    let output = emit(
+        None,
+        answer(status.clone()),
+        OutputFormat::Json,
+        Locale::EnUs,
+    );
+    assert_eq!(output.status, 8);
+    let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(doc["version"], 4);
+    assert_eq!(
+        doc["result"]["observation"]["reply"]["outcome"]["status"]["reason"]["status"],
+        128
+    );
+    let schema: Value =
+        serde_json::from_str(include_str!("../schemas/orchbee.worktree.operation.json")).unwrap();
+    let validator = jsonschema::draft202012::new(&schema).unwrap();
+    validator.validate(&doc).unwrap();
+    for version in 1..=3 {
+        let mut old = doc.clone();
+        old["version"] = serde_json::json!(version);
+        assert!(
+            !validator.is_valid(&old),
+            "old envelopes cannot silently gain recovery fields"
+        );
+    }
+    let mut missing = doc.clone();
+    missing["result"]["observation"]["reply"]["outcome"]["status"]["progress"]
+        .as_object_mut()
+        .unwrap()
+        .remove("restoration");
+    assert!(!validator.is_valid(&missing));
+    for (locale, expected) in [
+        (
+            Locale::EnUs,
+            "Shell restoration: 1/4 started; 1 failed; 1 unknown; 0 pending; 1 unattempted",
+        ),
+        (
+            Locale::ZhCn,
+            "shell 恢复：已启动 1/4；失败 1；未知 1；进行中 0；未尝试 1",
+        ),
+    ] {
+        let text = String::from_utf8(
+            emit(None, answer(status.clone()), OutputFormat::Text, locale).stdout,
+        )
+        .unwrap();
+        assert!(text.contains(expected), "{text}");
+        assert!(text.contains("worker-unavailable"));
+        assert!(
+            !text.contains("--generation"),
+            "unknown launch has no Resume recommendation"
         );
     }
 }

@@ -109,6 +109,32 @@ impl Locale {
                 ));
             }
         }
+        let restoration = &status["progress"]["restoration"];
+        if let Some(total) = restoration["total"].as_u64() {
+            let attempted = restoration["attempted"].as_u64().expect("attempted shells");
+            let started = restoration["started"].as_u64().expect("started shells");
+            let failed = restoration["failed"].as_u64().expect("failed shells");
+            let unknown = restoration["unknown"].as_u64().expect("unknown shells");
+            let pending = attempted - started - failed - unknown;
+            text.push_str(&match self {
+                Self::EnUs => format!("Shell restoration: {started}/{total} started; {failed} failed; {unknown} unknown; {pending} pending; {} unattempted\n", total - attempted),
+                Self::ZhCn => format!("shell 恢复：已启动 {started}/{total}；失败 {failed}；未知 {unknown}；进行中 {pending}；未尝试 {}\n", total - attempted),
+            });
+            if let Some(reason) = restoration["failure"]["error"]
+                .as_str()
+                .or_else(|| restoration["failure"]["kind"].as_str())
+            {
+                text.push_str(&format!(
+                    "{}: {}\n",
+                    if self == Self::EnUs {
+                        "Restoration failure"
+                    } else {
+                        "恢复失败"
+                    },
+                    escape(reason)
+                ));
+            }
+        }
         if let Some(bytes) = status["reason"]["diagnostics"].as_array() {
             let bytes: Vec<u8> = bytes
                 .iter()
@@ -191,22 +217,22 @@ impl Locale {
                 "orchbee worktree open (--path <路径>|--branch <名称>) [--project <target>] [--workspace <target>|--cwd <路径>] [--label <标签>] [--trust-repository] [--request-id <id>] [--detach] [--timeout <毫秒>] [--format text|json] [--client <id>] [--focus|--no-focus]\n\nWindows：检查已有检出目录，复用或创建其 Workspace；不会新建 Git 检出目录。\n支持主检出及关联检出；分支选择有歧义时须使用 --path。\n来源、项目默认值、绝对／相对／~ 路径、终端尺寸和等待方式与 worktree create 一致。\n--focus 在打开后切换已有 TUI；默认 --no-focus，聚焦不可与 --detach 混用。\n--label 同样会重命名复用的 Workspace；请检查结果中的终端启动状态。\n"
             }
             (Self::EnUs, CommandPath::WorktreeRemove) => {
-                "orchbee worktree remove --workspace <target> --confirm [--project <target>] [--force] [--trust-repository] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json]\n\nWindows: inspect the linked checkout, close its Workspace, then remove it through Git.\nDirty worktrees are refused before closing unless --force explicitly permits discarding changes.\nMain/bare checkouts and checkouts used by another Workspace are refused. Branches are preserved.\nA later Git failure retains the closed Workspace fact; status shows whether an explicit resume is possible.\nTimeout defaults to 120000 ms. Ctrl+C stops waiting; it does not undo accepted work.\n"
+                "orchbee worktree remove --workspace <target> --confirm [--project <target>] [--force] [--trust-repository] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json]\n\nWindows: inspect the linked checkout, dispose its terminals, remove it through Git, then close the Workspace.\nDirty worktrees are refused before closing unless --force explicitly permits discarding changes.\nMain/bare checkouts and checkouts used by another Workspace are refused. Branches are preserved.\nKnown Git failure verifies the checkout and restores default shells in the original panels. Unknown deletion starts no shells. JSON v4 retains separate restoration counts and failures; unknown launches cannot be replayed.\nTimeout defaults to 120000 ms. Ctrl+C stops waiting; it does not undo accepted work.\n"
             }
             (Self::ZhCn, CommandPath::WorktreeRemove) => {
-                "orchbee worktree remove --workspace <target> --confirm [--project <target>] [--force] [--trust-repository] [--request-id <id>] [--detach] [--timeout <毫秒>] [--format text|json]\n\nWindows：检查关联检出目录，关闭其 Workspace，再通过 Git 移除目录。\n脏目录会在关闭前拒绝；--force 明确允许丢弃改动。\n拒绝主检出、裸仓库及其他 Workspace 占用的目录；保留分支。\n后续 Git 失败会保留 Workspace 已关闭的事实；status 显示能否显式恢复。\n默认超时 120000 毫秒。Ctrl+C 停止等待，不撤销已接受的操作。\n"
+                "orchbee worktree remove --workspace <target> --confirm [--project <target>] [--force] [--trust-repository] [--request-id <id>] [--detach] [--timeout <毫秒>] [--format text|json]\n\nWindows：检查关联检出目录，释放终端，通过 Git 移除目录，最后关闭 Workspace。\n脏目录会在关闭前拒绝；--force 明确允许丢弃改动。\n拒绝主检出、裸仓库及其他 Workspace 占用的目录；保留分支。\n已知 Git 失败会验证 checkout，并在原面板恢复默认 shell。删除结果未知时不启动 shell。JSON v4 独立保留恢复计数和失败，未知启动不可重放。\n默认超时 120000 毫秒。Ctrl+C 停止等待，不撤销已接受的操作。\n"
             }
             (Self::EnUs, CommandPath::WorktreeStatus) => {
-                "orchbee worktree status <operation-id> [--format text|json]\n\nRead a retained operation without mutation or Site activation. IDs survive CLI disconnection, not Server restart.\nThe result includes attempt, Git effects, Workspace state and recovery eligibility.\n"
+                "orchbee worktree status <operation-id> [--format text|json]\n\nRead a retained operation without mutation or Site activation. IDs survive CLI disconnection, not Server restart.\nThe result includes attempt, Git effects, Workspace state, shell restoration counts/failure and recovery eligibility.\n"
             }
             (Self::ZhCn, CommandPath::WorktreeStatus) => {
-                "orchbee worktree status <操作标识> [--format text|json]\n\n只读查询保留的操作，不执行变更或激活 Site。记录可跨 CLI 断线保留，但不跨 Server 重启。\n结果包含尝试序号、Git 影响、Workspace 状态及能否恢复。\n"
+                "orchbee worktree status <操作标识> [--format text|json]\n\n只读查询保留的操作，不执行变更或激活 Site。记录可跨 CLI 断线保留，但不跨 Server 重启。\n结果包含尝试序号、Git 影响、Workspace 状态、shell 恢复计数／失败及能否恢复。\n"
             }
             (Self::EnUs, _) => {
-                "orchbee worktree resume <operation-id> --generation <attempt> --confirm [--detach] [--timeout <ms>] [--format text|json]\n\nExplicitly resume a known, resumable failed operation using the attempt from status.\nA changed attempt, Worker incarnation or unproven process settlement is refused.\nGit creation is observed before any recovery; an already closed Workspace stays closed.\nConfirmation is required because the retained operation can remove user work.\n"
+                "orchbee worktree resume <operation-id> --generation <attempt> --confirm [--detach] [--timeout <ms>] [--format text|json]\n\nExplicitly resume a known, resumable failed operation using the attempt from status.\nA changed attempt, Worker incarnation or unproven process settlement is refused.\nGit creation is observed before recovery; Remove may close restored shells before retrying deletion. An already closed Workspace stays closed.\nConfirmation is required because the retained operation can remove user work.\n"
             }
             (Self::ZhCn, _) => {
-                "orchbee worktree resume <操作标识> --generation <尝试序号> --confirm [--detach] [--timeout <毫秒>] [--format text|json]\n\n使用 status 返回的尝试序号，显式恢复已知且可恢复的失败操作。\n尝试序号、Worker 实例已变化或进程收尾无法证明时拒绝恢复。\n恢复前先观察 Git 创建结果；已关闭的 Workspace 保持关闭。\n保留的操作可能删除用户工作，因此必须确认。\n"
+                "orchbee worktree resume <操作标识> --generation <尝试序号> --confirm [--detach] [--timeout <毫秒>] [--format text|json]\n\n使用 status 返回的尝试序号，显式恢复已知且可恢复的失败操作。\n尝试序号、Worker 实例已变化或进程收尾无法证明时拒绝恢复。\n恢复前先观察 Git 创建结果；Remove 重试删除前可能先关闭已恢复的 shell。已关闭的 Workspace 保持关闭。\n保留的操作可能删除用户工作，因此必须确认。\n"
             }
         }
     }

@@ -451,7 +451,7 @@ impl NativeSessionState {
                 }
                 baseline
                     .as_ref()
-                    .and_then(|history| history.for_tab(tab.tab_id()))
+                    .and_then(|history| history.for_tab(tab))
                     .cloned()
                     .unwrap_or(CreateTerminalProvenance::BindingOnly)
             })

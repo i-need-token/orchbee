@@ -106,6 +106,7 @@ pub enum WorkbenchTabClosePublicationReason {
     Preparing,
     PreparationFailed,
     AuthorityRetired,
+    WorkspaceRetained,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

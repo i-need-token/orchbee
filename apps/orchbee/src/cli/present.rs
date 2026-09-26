@@ -323,6 +323,7 @@ fn publication_reason_text(reason: WorkbenchTabClosePublicationReason) -> &'stat
         WorkbenchTabClosePublicationReason::Preparing => "preparing",
         WorkbenchTabClosePublicationReason::PreparationFailed => "preparation-failed",
         WorkbenchTabClosePublicationReason::AuthorityRetired => "authority-retired",
+        WorkbenchTabClosePublicationReason::WorkspaceRetained => "workspace-retained",
     }
 }
 

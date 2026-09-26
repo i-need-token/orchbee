@@ -63,6 +63,7 @@ fn progress() -> WorktreeProgress {
         checkout: None,
         workspace: WorktreeWorkspaceDisposition::Unassociated {},
         git_effect: WorktreeGitEffect::None,
+        restoration: None,
     }
 }
 fn response(status: WorktreeOperationStatus) -> WorkbenchResponse {
@@ -181,6 +182,7 @@ fn result_failures_preserve_raw_diagnostics_without_accepting_invalid_combinatio
         },
         progress: WorktreeProgress {
             git_effect: WorktreeGitEffect::MayHaveChanged,
+            restoration: None,
             ..progress()
         },
         resumable: true,

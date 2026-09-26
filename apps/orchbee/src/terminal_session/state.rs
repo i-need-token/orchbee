@@ -3081,18 +3081,25 @@ impl NativeSessionState {
         active: &SelectedTab,
     ) -> Option<usize> {
         let index = candidate.tab_index(active.key.anchor().tab_id())?;
-        let panel_id = self
+        let previous = self
             .cache
             .tabs()
-            .get(active.index)
-            .and_then(|tab| tab.panel(active.panel_index()))
-            .map(|panel| panel.panel_id())?;
+            .get(active.index)?
+            .panel(active.panel_index())?;
         let tab = candidate.tabs().get(index)?;
-        tab.panel_index(panel_id).is_none().then(|| {
-            active
-                .panel_index()
-                .min(tab.panel_count().saturating_sub(1))
-        })
+        match tab.panel_index(previous.panel_id()) {
+            Some(index) => {
+                // A sibling Viewer shares this anchor and Panel-keyed records cannot be rebound.
+                // Clean the complete anchor before installing any replacement in the active Tab.
+                tab.has_replaced_terminals_from(self.cache.tabs().get(active.index)?)
+                    .then_some(index)
+            }
+            None => Some(
+                active
+                    .panel_index()
+                    .min(tab.panel_count().saturating_sub(1)),
+            ),
+        }
     }
 
     fn merge_projection(&mut self, candidate: NativeContextTabs) -> bool {
@@ -3141,6 +3148,7 @@ impl NativeSessionState {
             .map(|tab| {
                 self.cache
                     .tab_index(tab.tab_id())
+                    .filter(|index| !tab.has_replaced_terminals_from(&self.cache.tabs()[*index]))
                     .map_or(CreateTerminalProvenance::BindingOnly, |index| {
                         self.provenance[index].clone()
                     })

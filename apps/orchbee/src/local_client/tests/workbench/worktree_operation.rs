@@ -45,6 +45,7 @@ fn pending(request: &R) -> Reply {
                     path: None,
                     checkout: None,
                     git_effect: WorktreeGitEffect::None,
+                    restoration: None,
                     workspace: WorktreeWorkspaceDisposition::Unassociated {},
                 },
             }),

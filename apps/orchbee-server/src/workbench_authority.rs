@@ -31,7 +31,9 @@ pub use terminal_membership::{
     PreparedStandaloneIntent, StandaloneIntentError, StandaloneIntentMetadata,
     WorkbenchTerminalInvariantError, WorkbenchTerminalMembership, WorkbenchTerminalTab,
 };
-pub use worktree_operation::{WorktreeOperationPlan, WorktreeSourceTarget};
+pub use worktree_operation::{
+    PreparedWorktreeRebind, WorktreeOperationPlan, WorktreeRebindError, WorktreeSourceTarget,
+};
 mod terminal_tab_create;
 pub use terminal_tab_create::{
     CommittedWorkbenchTabCreate, CommittedWorkbenchTabCreateMetadata, PendingWorkbenchTabCreate,

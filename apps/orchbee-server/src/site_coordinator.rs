@@ -31,6 +31,7 @@ pub(crate) use panel_split::PendingTerminalPanelSplit;
 pub(crate) use panel_split::PreparedTerminalPanelSplit;
 mod terminal_selection;
 mod workspace_directory;
+mod worktree_restore;
 pub(crate) use terminal_selection::{
     BindingViewerPreparationError, PreparedBindingViewer, PreparedSendTarget,
 };

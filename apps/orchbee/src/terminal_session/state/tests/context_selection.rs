@@ -345,3 +345,195 @@ fn intermediate_context_switch_cannot_prune_known_facts_when_context_id_changes_
         assert_eq!(state.view().active_context_position(), Some(1));
     }
 }
+
+fn restored_workspace(revision: u64) -> Snapshot {
+    let mut snapshot = contexts(1, revision);
+    let PanelNode::Panel {
+        primary_presentation,
+        ..
+    } = &mut snapshot.terminal_contexts[1].tabs[0].root
+    else {
+        panic!("workspace panel")
+    };
+    primary_presentation.presentation_id =
+        orchbee_workbench_protocol::TerminalPresentationId::parse(&id(9000)).unwrap();
+    primary_presentation.binding.as_mut().unwrap().terminal_id = terminal_id(9001);
+    snapshot
+}
+
+#[test]
+fn restored_workspace_selected_panel_requires_cleanup_then_fresh_attachment_without_old_provenance()
+{
+    let mut state = context_state(1);
+    assert!(state.start_context_selection(1, true, deadlines()));
+    finish_selection(&mut state, contexts(1, 1), 1);
+    let old = state.attached_key().unwrap().clone();
+    let panel = state.cache().tabs()[0].panel(0).unwrap().panel_id().clone();
+    assert!(state.start_pending_refresh(7));
+    let PreparedRefresh::Membership { prepared, .. } = state.prepare_refresh(
+        7,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: restored_workspace(2),
+        },
+    ) else {
+        panic!("replacement requires membership cleanup")
+    };
+    assert!(!prepared.preserves_selection());
+    assert_eq!(prepared.focus_panel_id(), Some(&panel));
+    let desired = AttachmentKey::new(100, prepared.selected_tab_id().unwrap().clone());
+    let cleanup = state
+        .stage_refresh_membership_cleanup(7, prepared, deadlines())
+        .unwrap();
+    assert_eq!(cleanup.old(), &old);
+    assert_eq!(
+        state.cache().revision(),
+        WorkbenchRevision::new(1),
+        "old projection until cleanup proof"
+    );
+    let prepared = state
+        .prepare_cleaned_membership_candidate(&cleanup, old.anchor())
+        .unwrap();
+    let MembershipInstallDecision::Attach(target) = state
+        .prepare_cleaned_membership_install(&cleanup, prepared, Some(desired))
+        .unwrap()
+        .commit()
+    else {
+        panic!("attach replacement")
+    };
+    assert_eq!(target.binding().terminal_id(), &terminal_id(9001));
+    assert_eq!(target.provenance(), &CreateTerminalProvenance::BindingOnly);
+    assert_ne!(target.selected().key(), &old);
+    assert_eq!(state.cache().tabs()[0].panel(0).unwrap().panel_id(), &panel);
+    assert!(
+        !state.install_projection_t(&old),
+        "old attachment generation cannot regain the pane"
+    );
+    assert!(state.install_projection_t(target.selected().key()));
+    assert!(state.invariant_holds());
+}
+
+#[test]
+fn restored_workspace_reentry_does_not_inherit_failed_launch_from_retained_context() {
+    let mut state = context_state(1);
+    assert!(state.start_context_selection(1, true, deadlines()));
+    finish_selection(&mut state, contexts(1, 1), 1);
+    state.provenance[0] =
+        CreateTerminalProvenance::Failed(WorkbenchTerminalFailureReason::TerminalCreateFailed);
+    assert!(state.start_context_selection(2, false, deadlines()));
+    finish_selection(&mut state, contexts(1, 1), 2);
+    assert!(state.start_context_selection(3, true, deadlines()));
+    finish_selection(&mut state, restored_workspace(2), 3);
+    assert_eq!(state.provenance[0], CreateTerminalProvenance::BindingOnly);
+    assert_eq!(
+        state.cache().tabs()[0]
+            .panel(0)
+            .unwrap()
+            .binding()
+            .terminal_id(),
+        &terminal_id(9001)
+    );
+    assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
+}
+
+#[test]
+fn restored_workspace_background_tab_drops_old_launch_failure_without_detaching_selection() {
+    let mut state = context_state(2);
+    assert!(state.start_context_selection(1, true, deadlines()));
+    finish_selection(&mut state, contexts(2, 1), 1);
+    let old_key = state.attached_key().unwrap().clone();
+    state.provenance[1] =
+        CreateTerminalProvenance::Failed(WorkbenchTerminalFailureReason::TerminalCreateFailed);
+    let mut snapshot = contexts(2, 2);
+    let PanelNode::Panel {
+        primary_presentation,
+        ..
+    } = &mut snapshot.terminal_contexts[1].tabs[1].root
+    else {
+        panic!("panel")
+    };
+    primary_presentation.presentation_id =
+        orchbee_workbench_protocol::TerminalPresentationId::parse(&id(9000)).unwrap();
+    primary_presentation.binding.as_mut().unwrap().terminal_id = terminal_id(9001);
+    assert!(state.start_pending_refresh(7));
+    let prepared = state.prepare_refresh(7, WorkbenchSnapshotOutcome::Available { snapshot });
+    assert_eq!(
+        state.apply_prepared_refresh(prepared, Instant::now()),
+        RefreshDecision::Continue,
+    );
+    assert_eq!(state.attached_key(), Some(&old_key));
+    assert_eq!(state.provenance[1], CreateTerminalProvenance::BindingOnly);
+    let tab = state.cache().tabs()[1].tab_id().clone();
+    let target = state
+        .target_for_switch(1, AttachmentKey::new(100, tab), deadlines())
+        .unwrap();
+    assert_eq!(target.binding().terminal_id(), &terminal_id(9001));
+    assert_eq!(target.provenance(), &CreateTerminalProvenance::BindingOnly);
+    assert!(state.invariant_holds());
+}
+
+#[test]
+fn restored_workspace_unselected_split_replaces_anchor_before_reusing_panel_slot() {
+    let mut snapshot = contexts(1, 1);
+    snapshot.terminal_contexts[0].tabs.remove(0);
+    snapshot.terminal_contexts[1].tabs[0].root = split_panel_baseline().terminal_contexts[0].tabs
+        [0]
+    .root
+    .clone();
+    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    assert!(state.start_context_selection(1, true, deadlines()));
+    finish_selection(&mut state, snapshot.clone(), 1);
+    let old = state.attached_key().unwrap().clone();
+    let leaves: Vec<_> = state
+        .tab(0)
+        .unwrap()
+        .leaf_panel_ids()
+        .into_iter()
+        .enumerate()
+        .map(|(index, panel)| (panel, index, geometry(80)))
+        .collect();
+    assert!(state.sync_pane_set(&leaves, Instant::now()));
+    let old_peer = state.pane_by_panel(&leaves[1].0).unwrap().pane_ref();
+    snapshot.revision = WorkbenchRevision::new(2);
+    let PanelNode::Split { children, .. } = &mut snapshot.terminal_contexts[1].tabs[0].root else {
+        panic!("split")
+    };
+    let PanelNode::Panel {
+        primary_presentation,
+        ..
+    } = &mut children[1].node
+    else {
+        panic!("peer panel")
+    };
+    primary_presentation.presentation_id =
+        orchbee_workbench_protocol::TerminalPresentationId::parse(&id(9000)).unwrap();
+    primary_presentation.binding.as_mut().unwrap().terminal_id = terminal_id(9001);
+    assert!(state.start_pending_refresh(7));
+    let PreparedRefresh::Membership { prepared, .. } =
+        state.prepare_refresh(7, WorkbenchSnapshotOutcome::Available { snapshot })
+    else {
+        panic!("unselected split replacement requires anchor cleanup")
+    };
+    assert_eq!(prepared.focus_panel_id(), Some(old.panel()));
+    let desired = AttachmentKey::new(100, prepared.selected_tab_id().unwrap().clone());
+    let cleanup = state
+        .stage_refresh_membership_cleanup(7, prepared, deadlines())
+        .unwrap();
+    let prepared = state
+        .prepare_cleaned_membership_candidate(&cleanup, old.anchor())
+        .unwrap();
+    let MembershipInstallDecision::Attach(target) = state
+        .prepare_cleaned_membership_install(&cleanup, prepared, Some(desired))
+        .unwrap()
+        .commit()
+    else {
+        panic!("fresh anchor")
+    };
+    assert_eq!(target.selected().key().panel(), old.panel());
+    assert_ne!(target.selected().key().anchor(), old.anchor());
+    assert!(state.live_pane_record(&old_peer).is_none());
+    assert!(state.sync_pane_set(&leaves, Instant::now()));
+    let peer = state.pane_by_panel(&leaves[1].0).unwrap();
+    assert_eq!(peer.binding.terminal_id(), &terminal_id(9001));
+    assert_ne!(peer.pane_ref(), old_peer);
+    assert!(state.invariant_holds());
+}

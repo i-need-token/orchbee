@@ -126,6 +126,17 @@ pub(super) struct NativeSimpleTab {
 }
 
 impl NativeSimpleTab {
+    pub(super) fn has_replaced_terminals_from(&self, prior: &Self) -> bool {
+        self.panels.iter().any(|panel| {
+            prior
+                .panels
+                .iter()
+                .find(|old| old.panel_id == panel.panel_id)
+                .is_some_and(|old| {
+                    old.presentation_id != panel.presentation_id || old.binding != panel.binding
+                })
+        })
+    }
     pub(super) fn tab_id(&self) -> &WorkbenchTabId {
         &self.tab_id
     }
@@ -1294,7 +1305,11 @@ pub(super) fn validate_retained_context(
     if candidate.tabs.len() > MAXIMUM_TABS_PER_CONTEXT
         || !unique_structural_ids(&candidate.tabs)
         || !retained_tab_labels(tabs, &candidate.tabs)
-        || !retained_member_tuples(tabs, &candidate.tabs)
+        || !retained_member_tuples(
+            tabs,
+            &candidate.tabs,
+            matches!(location, NativeContextLocation::Workspace { .. }),
+        )
         || !retained_structure_tuples(tabs, &candidate.tabs)
     {
         return Err(NativeProjectionDivergence);
@@ -1399,8 +1414,9 @@ fn member_tuples(tab: &NativeSimpleTab) -> impl Iterator<Item = MemberTuple<'_>>
     }))
 }
 
-/// Every current member identity still present in the candidate must carry the original
-/// Panel, Presentation, label, and complete binding fields; the owning Tab field may differ
+/// Surviving Presentation and Terminal identities retain their Panel, label and binding.
+/// A Workspace Panel may instead acquire a fresh Presentation and Terminal on the same Worker;
+/// standalone Panels retain the original complete tuple. The owning Tab field may differ
 /// — exactly the authorized same-context relocation delta, expressed per member identity
 /// rather than per Tab roster. A Tab whose identity survives must still own at least one of
 /// its own original members inside that same Tab: genuinely removed members and entirely
@@ -1408,7 +1424,21 @@ fn member_tuples(tab: &NativeSimpleTab) -> impl Iterator<Item = MemberTuple<'_>>
 /// boundary, not a complete characterization of every reachable producer history — a folded
 /// history that relocates all of a Tab's members elsewhere (for example a two-Tab full member
 /// exchange, which legal command steps can produce) is still rejected as divergence.
-fn retained_member_tuples(current: &[NativeSimpleTab], candidate: &[NativeSimpleTab]) -> bool {
+fn retained_member_tuples(
+    current: &[NativeSimpleTab],
+    candidate: &[NativeSimpleTab],
+    allow_replacement: bool,
+) -> bool {
+    let current_presentations: std::collections::HashSet<_> = current
+        .iter()
+        .flat_map(member_tuples)
+        .map(|member| member.2)
+        .collect();
+    let current_terminals: std::collections::HashSet<_> = current
+        .iter()
+        .flat_map(member_tuples)
+        .map(|member| &member.4.terminal_id)
+        .collect();
     let mut panels: HashMap<&WorkbenchPanelId, Vec<MemberTuple>> = HashMap::new();
     let mut presentations: HashMap<&TerminalPresentationId, Vec<MemberTuple>> = HashMap::new();
     let mut terminals: HashMap<&TerminalId, Vec<MemberTuple>> = HashMap::new();
@@ -1436,8 +1466,17 @@ fn retained_member_tuples(current: &[NativeSimpleTab], candidate: &[NativeSimple
                 .chain(presentations.get(member.2).into_iter().flatten())
                 .chain(terminals.get(&member.4.terminal_id).into_iter().flatten())
             {
-                if hit.1 != member.1 || hit.2 != member.2 || hit.3 != member.3 || hit.4 != member.4
-                {
+                let exact = hit.1 == member.1
+                    && hit.2 == member.2
+                    && hit.3 == member.3
+                    && hit.4 == member.4;
+                let replacement = allow_replacement
+                    && hit.1 == member.1
+                    && hit.3 == member.3
+                    && hit.4.worker_id == member.4.worker_id
+                    && !current_presentations.contains(hit.2)
+                    && !current_terminals.contains(&hit.4.terminal_id);
+                if !exact && !replacement {
                     return false;
                 }
                 retains_member = retains_member || hit.0 == member.0;

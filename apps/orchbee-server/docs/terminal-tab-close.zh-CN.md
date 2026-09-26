@@ -559,6 +559,38 @@ Create/navigation 模块及其所有变体保持不变，继续作为条件切�
 Host/平台失败恢复、改变 epoch 后接管、远程操作、打包及普遍最终清理仍排除。模型及进程结果
 必须声明这些限制，不得声称无界证明。
 
+## Worktree 移除失败后保留 Workspace
+
+Worktree 所有者只能取消自身精确持有且已静止的 Workspace Close 的规范移除。
+全部捕获的终端目标必须已经完成销毁和本地清理。取消不会撤销这些效果：保留的 Close
+以不可恢复的 `workspace-retained` 原因报告 `disposed-awaiting-publication`，
+保留全部旧绑定墓碑，并使规范 Workspace 留在原处。它不能发布移除或恢复执行，
+也不再限制 Context 结构或参与新的 Workspace/Tab/Panel Close 查找。
+后续普通 Close 捕获当前成员，并拥有独立身份。
+
+既有原生 Close 成员契约在效果前排除子 presentation 及分组／固定 Tab；恢复继承该准入边界。
+
+持有期间，已领取的 Worktree 尝试可以为一个精确捕获的 presentation 准备替换绑定。
+原 Context、Tab、Panel、顺序、标签和分割比例保持不变。每次替换同时生成全新的
+Presentation 身份和终端绑定，存活 Presentation 绝不改变其绑定。
+重新绑定要求当前旧绑定完全一致、新绑定位于同一 Worker、Close 已静止，
+且保留的操作和尝试匹配。准备阶段在提交前验证完整的新投影。
+过期尝试、已替换的槽位、重复终端绑定或无关 Close 均不能修改投影。
+Site 组合在派发默认 shell 启动之前，将此投影与新的 TerminalCoordinator Create 预留一起提交。
+
+集成恢复所有者在已知 Git 失败后，先验证原 checkout，再启动任何 shell。
+它使用已验证的 checkout 目录、默认 shell、空自定义环境和初始 80×24 几何尺寸；
+后续 Client 调整尺寸仍为权威。它不会重跑旧 Agent 或程序。
+已返回的 Git 失败、验证失败、每个新启动结果和部分恢复是独立事实。
+删除结果未知时不启动恢复；启动结果未知时保留该事实，绝不自动重复启动。
+取消旧 Close 不代表每个替换 shell 都已启动，这一区别由 Worktree 回执负责表达。
+
+核心证据覆盖空与非空静止范围、清理未完成、过期或外部所有权、重复绑定、
+重复替换与取消、布局身份不变、旧绑定限制、直接发布和 Resume 拒绝，
+以及取消后的全新普通 Close。Site 和 Windows 驱动证据进一步验证预留先于派发、
+代际限制、已知失败后的验证、部分启动和重试行为。这些是有界测试；
+根据当前任务授权，TLA+ 与全量验收仍暂缓。
+
 ## 启动失败后的移除
 
 包含已确认 Create 失败成员的 Tab、Panel 或 Workspace 仍可关闭。TerminalCoordinator 在 Site gate 内、Close 准入前解析全部捕获的 binding。恰好一个 binding 处于 `Unavailable(None)` 且保留 failed/unavailable Create outcome，才能证明没有提交 Host terminal；仅缺少 identity 不足以证明。Host Create failure 发生在不可失败的 terminal commit 之前。Start 和 lifecycle failure 不构成该事实。

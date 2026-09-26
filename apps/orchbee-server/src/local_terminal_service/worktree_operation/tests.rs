@@ -1,3 +1,4 @@
+mod restoration;
 use super::LocalTerminalService;
 use crate::{
     worker_obcn_carrier::{WorkerWireExit, create_worker_carrier},
@@ -353,8 +354,9 @@ fn failed_git_remove_keeps_workspace_structure_and_resume_uses_repository_root()
     assert!(
         matches!(remove.action, WorktreeMutationJobAction::Start(intent) if matches!(intent.mutation(), WorktreeMutation::Remove { force: true, .. }) && intent.source().as_str() == "C:/repo")
     );
+    fixture.finish_job(checkout(true));
     assert!(
-        matches!(fixture.settled(), Status::Failed { progress, resumable: true, .. } if matches!(progress.workspace, WorktreeWorkspaceDisposition::Closing { .. }))
+        matches!(fixture.settled(), Status::Failed { progress, resumable: true, .. } if matches!(progress.workspace, WorktreeWorkspaceDisposition::Open { .. }) && progress.restoration.as_ref().is_some_and(|receipt| receipt.total == 0 && receipt.failure.is_none()))
     );
     assert_eq!(snapshot(&fixture.service), before);
     assert!(matches!(
@@ -429,6 +431,7 @@ fn failed_remove_can_close_explicitly_without_repeating_git_and_pending_close_is
             .unwrap(),
         ))),
     );
+    fixture.finish_job(checkout(false));
     let failed = fixture.settled();
     assert!(matches!(failed, Status::Failed { .. }));
     assert_eq!(snapshot(&fixture.service), before);

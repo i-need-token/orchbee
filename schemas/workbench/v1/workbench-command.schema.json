@@ -1250,7 +1250,13 @@
 			"enum": ["transport-lost", "deadline", "invalid-response"]
 		},
 		"tabClosePublicationReason": {
-			"enum": ["target-cleanup-pending", "preparing", "preparation-failed", "authority-retired"]
+			"enum": [
+				"target-cleanup-pending",
+				"preparing",
+				"preparation-failed",
+				"authority-retired",
+				"workspace-retained"
+			]
 		},
 		"tabCloseUnavailableReason": {
 			"enum": ["server-busy"]

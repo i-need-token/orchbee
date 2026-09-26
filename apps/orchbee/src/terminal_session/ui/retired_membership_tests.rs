@@ -15,6 +15,16 @@ use std::sync::atomic::{AtomicU64, Ordering};
 fn ready(
     elapsed: Arc<AtomicU64>,
 ) -> (NativeUi, Arc<CommandMailbox>, CommandLease, UnavailablePoll) {
+    ready_with_cache(
+        elapsed,
+        project_native_standalone_tabs(&snapshot(3, 1)).unwrap(),
+    )
+}
+
+fn ready_with_cache(
+    elapsed: Arc<AtomicU64>,
+    cache: crate::terminal_session::workbench_projection::NativeContextTabs,
+) -> (NativeUi, Arc<CommandMailbox>, CommandLease, UnavailablePoll) {
     let clock = adjustable_operation_clock(elapsed);
     let mailbox = Arc::new(CommandMailbox::new(
         800,
@@ -23,9 +33,7 @@ fn ready(
     let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
     let wait = mailbox
         .publish_event_before(
-            WorkerEvent::Bootstrap {
-                cache: project_native_standalone_tabs(&snapshot(3, 1)).unwrap(),
-            },
+            WorkerEvent::Bootstrap { cache },
             EventDeadline::Startup(clock.now() + super::super::state::OPERATION_TOTAL),
             &clock,
         )
@@ -953,4 +961,108 @@ fn status_only_carrier_suppresses_ordinary_reconcile_until_install() {
         "ordinary admission must resume after the atomic install"
     );
     ui.retire(CarrierFailure::Closed);
+}
+
+#[test]
+fn retired_workspace_replacement_attaches_same_panel_only_with_fresh_physical_identity() {
+    use crate::terminal_session::workbench_projection::{
+        NativeContextLocation, project_native_context_tabs,
+    };
+    use orchbee_workbench_protocol::{
+        Project, TerminalContext, TerminalId, TerminalPresentationId, WorkbenchProjectId,
+        WorkbenchWorkspaceId, Workspace,
+    };
+    for replace_presentation in [true, false] {
+        let mut baseline = snapshot(3, 1);
+        let workspace_context = baseline.navigation.standalone_terminal_context_id.clone();
+        let standalone = WorkbenchTerminalContextId::parse(&format!("{:032x}", 90)).unwrap();
+        let project_id = WorkbenchProjectId::parse(&format!("{:032x}", 91)).unwrap();
+        let workspace_id = WorkbenchWorkspaceId::parse(&format!("{:032x}", 92)).unwrap();
+        baseline.navigation.standalone_terminal_context_id = standalone.clone();
+        baseline.terminal_contexts.push(TerminalContext {
+            groups: Vec::new(),
+            tabs: Vec::new(),
+            terminal_context_id: standalone,
+        });
+        baseline.navigation.projects.push(Project {
+            project_id: project_id.clone(),
+            label: "project".into(),
+            directories: Vec::new(),
+            workspaces: vec![Workspace {
+                workspace_id: workspace_id.clone(),
+                label: "workspace".into(),
+                primary_directory_id: None,
+                terminal_context_id: workspace_context.clone(),
+            }],
+        });
+        let location = NativeContextLocation::Workspace {
+            project_id,
+            workspace_id,
+            terminal_context_id: workspace_context,
+        };
+        let cache = project_native_context_tabs(&baseline, &location).unwrap();
+        let (mut ui, _old, _lease, evidence) =
+            ready_with_cache(Arc::new(AtomicU64::new(0)), cache.clone());
+        let old_key = evidence.poll.attachment().clone();
+        let old_panel = evidence.poll.pane().panel().clone();
+        retire(&mut ui, Some(evidence), true);
+        let (mailbox, clock, cutoff) = ui.begin_retired_membership_recovery().unwrap();
+        let lease = mailbox.try_recv().unwrap().unwrap();
+        let QueuedCommand::Refresh(marker) = lease.record() else {
+            panic!("refresh")
+        };
+        let generation = marker.generation();
+        mailbox.mark_refresh_in_flight(generation).unwrap();
+        baseline.revision = orchbee_workbench_protocol::WorkbenchRevision::new(2);
+        let PanelNode::Panel {
+            primary_presentation,
+            ..
+        } = &mut baseline.terminal_contexts[0].tabs[0].root
+        else {
+            panic!("panel")
+        };
+        if replace_presentation {
+            primary_presentation.presentation_id =
+                TerminalPresentationId::parse(&format!("{:032x}", 9000)).unwrap();
+        }
+        let new_terminal = TerminalId::parse(&format!("{:032x}", 9001)).unwrap();
+        primary_presentation.binding.as_mut().unwrap().terminal_id = new_terminal.clone();
+        let wait = mailbox
+            .publish_refresh_result_before(
+                generation,
+                WorkbenchSnapshotOutcome::Available { snapshot: baseline },
+                cutoff,
+                &clock,
+            )
+            .unwrap();
+        ui.tick();
+        if replace_presentation {
+            let UiReply::Refresh(reply) = mailbox.take_deposited_reply(&wait).unwrap().unwrap()
+            else {
+                panic!("refresh reply")
+            };
+            let RefreshDecision::AttachRecovered(target) = reply.decision() else {
+                panic!("replacement attach")
+            };
+            assert_eq!(target.binding().terminal_id(), &new_terminal);
+            assert_eq!(target.selected().key().panel(), &old_panel);
+            assert_eq!(
+                target.selected().key().generation(),
+                old_key.generation() + 1
+            );
+            assert!(ui.retired_peer.is_none());
+            assert!(ui.retirement_failure.is_none());
+            assert!(ui.state.as_ref().unwrap().invariant_holds());
+            mailbox.finish_lease(lease).unwrap();
+        } else {
+            assert_eq!(
+                ui.retirement_failure,
+                Some(CarrierFailure::AuthorityDivergence)
+            );
+            assert_eq!(ui.state.as_ref().unwrap().cache(), &cache);
+            assert!(ui.retired_peer.is_some());
+            assert!(mailbox.finish_lease(lease).is_err());
+        }
+        ui.retire(CarrierFailure::Closed);
+    }
 }

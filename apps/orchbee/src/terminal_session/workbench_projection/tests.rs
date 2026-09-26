@@ -20,6 +20,7 @@ mod projector;
 mod relocated_member;
 mod renamed_tab;
 mod reorder;
+mod workspace_replacement;
 
 const SITE_VALUE: u128 = 1;
 const STANDALONE_CONTEXT_VALUE: u128 = 2;

@@ -118,18 +118,6 @@ export const WorktreeWorkspaceDispositionSchema = z.discriminatedUnion('kind', [
 		})
 		.readonly(),
 ]);
-export const WorktreeProgressSchema = z
-	.strictObject({
-		path: WorkbenchDirectoryPathSchema.nullable(),
-		checkout: WorktreeCheckoutFactsSchema.nullable(),
-		workspace: WorktreeWorkspaceDispositionSchema,
-		gitEffect: z.enum(['none', 'may-have-changed', 'changed']),
-	})
-	.refine(
-		(progress) => progress.checkout === null || progress.checkout.path === progress.path,
-		'Checkout facts must match the retained path',
-	)
-	.readonly();
 export const WorktreeOperationFailureSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
@@ -194,6 +182,43 @@ export const WorktreeOperationFailureSchema = z.discriminatedUnion('kind', [
 		})
 		.readonly(),
 ]);
+const shellCountSchema = z
+	.number()
+	.int()
+	.min(0)
+	.max(4096)
+	.transform((value) => (value === 0 ? 0 : value));
+export const WorktreeShellRestorationSchema = z
+	.strictObject({
+		total: shellCountSchema,
+		attempted: shellCountSchema,
+		started: shellCountSchema,
+		failed: shellCountSchema,
+		unknown: shellCountSchema,
+		failure: WorktreeOperationFailureSchema.nullable(),
+	})
+	.refine((value) => {
+		const completed = value.started + value.failed + value.unknown;
+		return (
+			completed <= value.attempted &&
+			value.attempted <= value.total &&
+			value.attempted - completed <= 1
+		);
+	}, 'Restoration counts must describe one serial launch prefix')
+	.readonly();
+export const WorktreeProgressSchema = z
+	.strictObject({
+		path: WorkbenchDirectoryPathSchema.nullable(),
+		checkout: WorktreeCheckoutFactsSchema.nullable(),
+		workspace: WorktreeWorkspaceDispositionSchema,
+		gitEffect: z.enum(['none', 'may-have-changed', 'changed']),
+		restoration: WorktreeShellRestorationSchema.optional(),
+	})
+	.refine(
+		(progress) => progress.checkout === null || progress.checkout.path === progress.path,
+		'Checkout facts must match the retained path',
+	)
+	.readonly();
 export const WorktreeOperationStatusSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
@@ -237,6 +262,14 @@ export const WorktreeOperationStatusSchema = z.discriminatedUnion('kind', [
 			progress: WorktreeProgressSchema,
 			resumable: z.boolean(),
 		})
+		.refine((status) => {
+			const recovery = status.progress.restoration;
+			return (
+				recovery === undefined ||
+				(recovery.attempted === recovery.started + recovery.failed + recovery.unknown &&
+					(recovery.unknown === 0 || !status.resumable))
+			);
+		}, 'Final recovery has no pending launch and unknown launch is not resumable')
 		.readonly(),
 ]);
 export const WorkbenchWorktreeOutcomeSchema = z.discriminatedUnion('kind', [
@@ -286,3 +319,5 @@ export type WorktreeOperationFailure = z.infer<typeof WorktreeOperationFailureSc
 export type WorktreeOperationStatus = z.infer<typeof WorktreeOperationStatusSchema>;
 export type WorkbenchWorktreeOutcome = z.infer<typeof WorkbenchWorktreeOutcomeSchema>;
 export type WorkbenchWorktreeResult = z.infer<typeof WorkbenchWorktreeResultSchema>;
+
+export type WorktreeShellRestoration = z.infer<typeof WorktreeShellRestorationSchema>;

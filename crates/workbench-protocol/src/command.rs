@@ -45,7 +45,7 @@ pub use worktree_operation::{
     WorkbenchWorktreeResult, WorktreeAdmissionFailure, WorktreeCheckoutFacts, WorktreeGitEffect,
     WorktreeGitError, WorktreeGitStage, WorktreeIntent, WorktreeOperationFailure,
     WorktreeOperationPhase, WorktreeOperationStatus, WorktreeProgress, WorktreeReference,
-    WorktreeSelector, WorktreeSource, WorktreeWorkspaceDisposition,
+    WorktreeSelector, WorktreeShellRestoration, WorktreeSource, WorktreeWorkspaceDisposition,
 };
 
 mod publication;

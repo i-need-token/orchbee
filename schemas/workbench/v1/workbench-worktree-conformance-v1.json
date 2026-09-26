@@ -238,6 +238,49 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "failed-remove-partial-shell-restoration",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "git",
+							"stage": "mutate",
+							"error": "git-failed",
+							"status": 1,
+							"diagnostics": [0, 10, 27, 255]
+						},
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "open",
+								"workspaceId": "00000000000000000000000000000005"
+							},
+							"gitEffect": "may-have-changed",
+							"restoration": {
+								"total": 3,
+								"attempted": 3,
+								"started": 1,
+								"failed": 1,
+								"unknown": 1,
+								"failure": null
+							}
+						},
+						"resumable": false
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -945,6 +988,263 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "restoration-overflow",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "git",
+							"stage": "mutate",
+							"error": "git-failed",
+							"status": 1,
+							"diagnostics": [0, 10, 27, 255]
+						},
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "open",
+								"workspaceId": "00000000000000000000000000000005"
+							},
+							"gitEffect": "may-have-changed",
+							"restoration": {
+								"total": 4097,
+								"attempted": 3,
+								"started": 1,
+								"failed": 1,
+								"unknown": 1,
+								"failure": null
+							}
+						},
+						"resumable": false
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "restoration-fraction",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "git",
+							"stage": "mutate",
+							"error": "git-failed",
+							"status": 1,
+							"diagnostics": [0, 10, 27, 255]
+						},
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "open",
+								"workspaceId": "00000000000000000000000000000005"
+							},
+							"gitEffect": "may-have-changed",
+							"restoration": {
+								"total": 3,
+								"attempted": 1.5,
+								"started": 1,
+								"failed": 1,
+								"unknown": 1,
+								"failure": null
+							}
+						},
+						"resumable": false
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "restoration-null",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "git",
+							"stage": "mutate",
+							"error": "git-failed",
+							"status": 1,
+							"diagnostics": [0, 10, 27, 255]
+						},
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "open",
+								"workspaceId": "00000000000000000000000000000005"
+							},
+							"gitEffect": "may-have-changed",
+							"restoration": null
+						},
+						"resumable": false
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "restoration-count-order",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "git",
+							"stage": "mutate",
+							"error": "git-failed",
+							"status": 1,
+							"diagnostics": [0, 10, 27, 255]
+						},
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "open",
+								"workspaceId": "00000000000000000000000000000005"
+							},
+							"gitEffect": "may-have-changed",
+							"restoration": {
+								"total": 3,
+								"attempted": 2,
+								"started": 1,
+								"failed": 1,
+								"unknown": 1,
+								"failure": null
+							}
+						},
+						"resumable": false
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "restoration-too-many-pending",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "git",
+							"stage": "mutate",
+							"error": "git-failed",
+							"status": 1,
+							"diagnostics": [0, 10, 27, 255]
+						},
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "open",
+								"workspaceId": "00000000000000000000000000000005"
+							},
+							"gitEffect": "may-have-changed",
+							"restoration": {
+								"total": 3,
+								"attempted": 3,
+								"started": 0,
+								"failed": 0,
+								"unknown": 0,
+								"failure": null
+							}
+						},
+						"resumable": false
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "unknown-restored-shell-cannot-resume",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.worktree.operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000007",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"projectId": "00000000000000000000000000000004",
+					"attempt": 2,
+					"status": {
+						"kind": "failed",
+						"reason": {
+							"kind": "git",
+							"stage": "mutate",
+							"error": "git-failed",
+							"status": 1,
+							"diagnostics": [0, 10, 27, 255]
+						},
+						"progress": {
+							"path": "C:/trees/work",
+							"checkout": null,
+							"workspace": {
+								"kind": "open",
+								"workspaceId": "00000000000000000000000000000005"
+							},
+							"gitEffect": "may-have-changed",
+							"restoration": {
+								"total": 3,
+								"attempted": 3,
+								"started": 1,
+								"failed": 1,
+								"unknown": 1,
+								"failure": null
+							}
+						},
+						"resumable": true
+					}
+				}
+			},
+			"boundary": "semantic"
 		}
 	],
 	"validJson": [

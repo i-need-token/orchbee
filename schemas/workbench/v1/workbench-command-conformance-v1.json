@@ -2782,6 +2782,27 @@
 					"automaticLabel": true
 				}
 			}
+		},
+		{
+			"name": "tab-close-workspace-retained",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "disposed-awaiting-publication",
+						"reason": "workspace-retained",
+						"resumable": false
+					}
+				}
+			}
 		}
 	],
 	"invalid": [

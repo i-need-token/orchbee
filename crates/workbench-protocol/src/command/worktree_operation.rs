@@ -207,6 +207,30 @@ pub struct WorktreeProgress {
     pub checkout: Option<WorktreeCheckoutFacts>,
     pub workspace: WorktreeWorkspaceDisposition,
     pub git_effect: WorktreeGitEffect,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present"
+    )]
+    pub restoration: Option<WorktreeShellRestoration>,
+}
+
+/// Aggregate recovery receipt; exact bindings and Create outcomes retain their existing owners.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorktreeShellRestoration {
+    #[serde(deserialize_with = "deserialize_shell_count")]
+    pub total: u32,
+    #[serde(deserialize_with = "deserialize_shell_count")]
+    pub attempted: u32,
+    #[serde(deserialize_with = "deserialize_shell_count")]
+    pub started: u32,
+    #[serde(deserialize_with = "deserialize_shell_count")]
+    pub failed: u32,
+    #[serde(deserialize_with = "deserialize_shell_count")]
+    pub unknown: u32,
+    #[serde(deserialize_with = "deserialize_nullable")]
+    pub failure: Option<WorktreeOperationFailure>,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -354,9 +378,17 @@ impl WorkbenchWorktreeResult {
             match status.as_ref() {
                 WorktreeOperationStatus::Pending { progress, .. } => validate_progress(progress)?,
                 WorktreeOperationStatus::Failed {
-                    reason, progress, ..
+                    reason,
+                    progress,
+                    resumable,
                 } => {
                     validate_progress(progress)?;
+                    if let Some(receipt) = &progress.restoration
+                        && (receipt.attempted != receipt.started + receipt.failed + receipt.unknown
+                            || (receipt.unknown > 0 && *resumable))
+                    {
+                        return Err(ContractError::InvalidDocument);
+                    }
                     if let WorktreeOperationFailure::Git {
                         error,
                         status,
@@ -414,12 +446,43 @@ fn deserialize_diagnostics<'de, D: Deserializer<'de>>(
     Ok(values.into_iter().map(|value| value as u8).collect())
 }
 fn validate_progress(progress: &WorktreeProgress) -> Result<(), ContractError> {
+    if let Some(recovery) = &progress.restoration {
+        let finished =
+            u64::from(recovery.started) + u64::from(recovery.failed) + u64::from(recovery.unknown);
+        if recovery.total > 4096
+            || recovery.attempted > recovery.total
+            || finished > u64::from(recovery.attempted)
+            || u64::from(recovery.attempted) - finished > 1
+        {
+            return Err(ContractError::InvalidDocument);
+        }
+        if let Some(WorktreeOperationFailure::Git {
+            error,
+            status,
+            diagnostics,
+            ..
+        }) = &recovery.failure
+            && (diagnostics.len() > 2048
+                || (*error != WorktreeGitError::GitFailed && status.is_some()))
+        {
+            return Err(ContractError::InvalidDocument);
+        }
+    }
     if let Some(checkout) = &progress.checkout
         && progress.path.as_ref() != Some(&checkout.path)
     {
         return Err(ContractError::InvalidDocument);
     }
     Ok(())
+}
+
+fn deserialize_shell_count<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u32, D::Error> {
+    let value = f64::deserialize(deserializer)?;
+    if integral(value, 0.0, 4096.0) {
+        Ok(value as u32)
+    } else {
+        Err(de::Error::custom("invalid restored shell count"))
+    }
 }
 
 fn deserialize_present<'de, D: Deserializer<'de>, T: Deserialize<'de>>(

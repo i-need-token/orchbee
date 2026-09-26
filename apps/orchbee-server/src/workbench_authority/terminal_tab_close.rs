@@ -206,6 +206,7 @@ pub(super) struct CloseRecord {
     /// `(reason, resumable)` truth a member continuation would carry.
     parked_publication: Option<(WorkbenchTabClosePublicationReason, bool)>,
     closed_revision: Option<WorkbenchRevision>,
+    workspace_retained: bool,
 }
 
 pub(super) enum AcceptedResumeReceipt {
@@ -222,6 +223,10 @@ pub(super) enum AcceptedResumeReceipt {
 impl CloseRecord {
     fn is_closed(&self) -> bool {
         self.closed_revision.is_some()
+    }
+
+    fn is_finished(&self) -> bool {
+        self.is_closed() || self.workspace_retained
     }
 
     fn target_count(&self) -> usize {
@@ -291,7 +296,8 @@ impl CloseRecord {
         context_id: &WorkbenchTerminalContextId,
         tab_id: &WorkbenchTabId,
     ) -> bool {
-        !self.targets.is_empty()
+        !self.workspace_retained
+            && !self.targets.is_empty()
             && self.targets().all(|target| {
                 target.terminal_context_id() == context_id && target.member().tab_id() == tab_id
             })
@@ -305,13 +311,14 @@ impl CloseRecord {
         project_id: &WorkbenchProjectId,
         workspace_id: &WorkbenchWorkspaceId,
     ) -> bool {
-        matches!(
-            &self.scope,
-            CloseScope::Context {
-                project_id: project,
-                workspace_id: workspace,
-            } if project == project_id && workspace == workspace_id
-        )
+        !self.workspace_retained
+            && matches!(
+                &self.scope,
+                CloseScope::Context {
+                    project_id: project,
+                    workspace_id: workspace,
+                } if project == project_id && workspace == workspace_id
+            )
     }
 
     /// An open aggregate Close fences same-Tab structural admission: its publication
@@ -324,7 +331,7 @@ impl CloseRecord {
         context_id: &WorkbenchTerminalContextId,
         tab_id: &WorkbenchTabId,
     ) -> bool {
-        if self.is_closed() {
+        if self.is_finished() {
             return false;
         }
         match self.scope {
@@ -338,14 +345,14 @@ impl CloseRecord {
     /// its Terminal Context — including `tab.create`, which appends a member
     /// no aggregate-Tab fence would see.
     fn fences_context_structure(&self, context_id: &WorkbenchTerminalContextId) -> bool {
-        !self.is_closed()
+        !self.is_finished()
             && matches!(self.scope, CloseScope::Context { .. })
             && self.matches_context(context_id)
     }
 
     /// An open or settled Close covers this exact leaf member.
     fn covers_member(&self, member: &WorkbenchTerminalTab) -> bool {
-        self.members().any(|existing| existing == member)
+        !self.workspace_retained && self.members().any(|existing| existing == member)
     }
 
     /// An unsettled Close — either scope — covers this exact leaf member. A
@@ -355,7 +362,7 @@ impl CloseRecord {
     /// for completeness even though `aggregate_close_fences_tab` already
     /// fences them.
     fn open_covers_member(&self, member: &WorkbenchTerminalTab) -> bool {
-        !self.is_closed() && self.covers_member(member)
+        !self.is_finished() && self.covers_member(member)
     }
 
     fn matches_members(&self, members: &[WorkbenchTerminalTab]) -> bool {
@@ -363,6 +370,12 @@ impl CloseRecord {
     }
 
     fn status(&self) -> WorkbenchTabCloseStatus {
+        if self.workspace_retained {
+            return WorkbenchTabCloseStatus::DisposedAwaitingPublication {
+                reason: WorkbenchTabClosePublicationReason::WorkspaceRetained,
+                resumable: false,
+            };
+        }
         if let Some(revision) = self.closed_revision {
             return WorkbenchTabCloseStatus::Closed { revision };
         }
@@ -489,6 +502,12 @@ impl CloseRecord {
     }
 
     fn next_step(&mut self, now: Instant) -> WorkbenchTabCloseStepTarget {
+        if self.workspace_retained {
+            return WorkbenchTabCloseStepTarget {
+                target: None,
+                next: CloseContinuationNext::Parked,
+            };
+        }
         if self.is_closed() {
             return WorkbenchTabCloseStepTarget {
                 target: None,
@@ -628,6 +647,7 @@ impl CloseRecord {
                 !matches!(
                     reason,
                     orchbee_workbench_protocol::WorkbenchTabClosePublicationReason::AuthorityRetired
+                        | orchbee_workbench_protocol::WorkbenchTabClosePublicationReason::WorkspaceRetained
                 ),
             ));
         }
@@ -683,7 +703,7 @@ impl WorkbenchAuthority {
             .ledger
             .values()
             .filter(
-                |entry| matches!(entry, RetainedRequest::TabClose(record) if !record.is_closed()),
+                |entry| matches!(entry, RetainedRequest::TabClose(record) if !record.is_finished()),
             )
             .count();
         u64::try_from(count).map_err(|_error| PlanFailure::Internal)

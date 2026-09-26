@@ -63,9 +63,10 @@ pub use command::{
     WorktreeGitEffect, WorktreeGitError, WorktreeGitStage, WorktreeIntent, WorktreeListStage,
     WorktreeListTooLargeOrigin, WorktreeListUnavailableReason, WorktreeOperationFailure,
     WorktreeOperationPhase, WorktreeOperationStatus, WorktreeProgress, WorktreeQueryEntry,
-    WorktreeQueryFailure, WorktreeQuerySource, WorktreeReference, WorktreeSelector, WorktreeSource,
-    WorktreeWorkspaceAssociation, WorktreeWorkspaceDisposition, parse_workbench_request,
-    parse_workbench_response, serialize_workbench_request, serialize_workbench_response,
+    WorktreeQueryFailure, WorktreeQuerySource, WorktreeReference, WorktreeSelector,
+    WorktreeShellRestoration, WorktreeSource, WorktreeWorkspaceAssociation,
+    WorktreeWorkspaceDisposition, parse_workbench_request, parse_workbench_response,
+    serialize_workbench_request, serialize_workbench_response,
 };
 
 pub use directory::{

@@ -16,6 +16,13 @@ use super::{
 };
 
 impl WorkbenchAuthority {
+    pub(in crate::workbench_authority) fn terminal_close_captured_members(
+        &self,
+        close: &WorkbenchRequestId,
+    ) -> Option<Vec<super::super::WorkbenchTerminalTab>> {
+        self.close_record(close)
+            .map(|record| record.members().cloned().collect())
+    }
     pub(in crate::workbench_authority) fn terminal_close_matches_workspace(
         &self,
         close: &WorkbenchRequestId,
@@ -23,7 +30,7 @@ impl WorkbenchAuthority {
         workspace: &orchbee_workbench_protocol::WorkbenchWorkspaceId,
     ) -> bool {
         self.close_record(close).is_some_and(|record| {
-            !record.is_closed() && record.matches_context_scope(project, workspace)
+            !record.is_finished() && record.matches_context_scope(project, workspace)
         })
     }
     pub(in crate::workbench_authority) fn terminal_close_publication_ready(
@@ -31,8 +38,28 @@ impl WorkbenchAuthority {
         close: &WorkbenchRequestId,
     ) -> bool {
         self.close_record(close)
-            .is_some_and(|record| !record.is_closed() && record.publication_ready())
+            .is_some_and(|record| !record.is_finished() && record.publication_ready())
     }
+    pub(in crate::workbench_authority) fn retain_quiescent_workspace(
+        &mut self,
+        close: &WorkbenchRequestId,
+    ) -> bool {
+        let Some(record) = self.close_record_mut(close) else {
+            return false;
+        };
+        if record.is_finished()
+            || !record.publication_ready()
+            || !matches!(record.scope, super::CloseScope::Context { .. })
+        {
+            return false;
+        }
+        record.publication_failed(
+            orchbee_workbench_protocol::WorkbenchTabClosePublicationReason::WorkspaceRetained,
+        );
+        record.workspace_retained = true;
+        true
+    }
+
     /// Product identities are never reused; retained tombstones also fence new target effects.
     #[must_use]
     pub fn has_terminal_tab_close(
@@ -72,7 +99,7 @@ impl WorkbenchAuthority {
         self.ledger
             .iter()
             .filter_map(|(request_id, entry)| match entry {
-                RetainedRequest::TabClose(record) if !record.is_closed() => Some(request_id),
+                RetainedRequest::TabClose(record) if !record.is_finished() => Some(request_id),
                 _ => None,
             })
     }

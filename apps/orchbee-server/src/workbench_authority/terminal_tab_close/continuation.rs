@@ -671,7 +671,10 @@ impl CloseContinuation {
                 stage,
                 parked: Some((
                     reason,
-                    !matches!(reason, PublicationReason::AuthorityRetired),
+                    !matches!(
+                        reason,
+                        PublicationReason::AuthorityRetired | PublicationReason::WorkspaceRetained
+                    ),
                 )),
             };
         }

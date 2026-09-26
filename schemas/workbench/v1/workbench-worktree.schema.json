@@ -477,6 +477,9 @@
 				},
 				"gitEffect": {
 					"enum": ["none", "may-have-changed", "changed"]
+				},
+				"restoration": {
+					"$ref": "#/$defs/restoration"
 				}
 			},
 			"required": ["path", "checkout", "workspace", "gitEffect"],
@@ -886,6 +889,48 @@
 				}
 			},
 			"required": ["protocolVersion", "requestId", "operationId", "outcome"],
+			"additionalProperties": false
+		},
+		"restoration": {
+			"type": "object",
+			"properties": {
+				"total": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4096
+				},
+				"attempted": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4096
+				},
+				"started": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4096
+				},
+				"failed": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4096
+				},
+				"unknown": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4096
+				},
+				"failure": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/failure"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["total", "attempted", "started", "failed", "unknown", "failure"],
 			"additionalProperties": false
 		}
 	}

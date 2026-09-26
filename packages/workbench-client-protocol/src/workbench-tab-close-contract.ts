@@ -48,6 +48,7 @@ export const WorkbenchTabClosePublicationReasonSchema = z.enum([
 	'preparing',
 	'preparation-failed',
 	'authority-retired',
+	'workspace-retained',
 ]);
 export const WorkbenchTabCloseUnavailableReasonSchema = z.enum(['server-busy']);
 export const WorkbenchTabCloseResumeRejectionReasonSchema = z.enum([

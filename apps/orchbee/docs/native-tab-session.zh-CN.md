@@ -271,6 +271,20 @@ Worker/terminal binding——而 owning Tab 是唯一获授权的差量：member
 可以拥有多个 terminal。允许真正移除并使用全新 identity 新增。该 surviving-Tab floor 是保守的
 consumer 边界，不是对全部可达 producer 历史的完备刻画——把某个 Tab 的成员全部换走的逐步合法交换
 仍会被拒绝。这里只比较相邻两个 snapshot，不维护所有历史已移除 identity 的 registry。
+Workspace shell 恢复仅对 Panel 槽位提供明确例外：在更高修订中，同一个 Panel 和 Worker
+可以同时承载全新的 Presentation ID 与 Terminal ID，Presentation 标签不变。
+两种新身份均不得与比较中的当前或保留 Context 成员重合。存活 Presentation／Terminal
+身份仍要求完整原元组；只改变绑定或将旧 Presentation 移入另一 Panel 均拒绝。
+Standalone Context 保持原规则。这既保留用户布局，也保持 Presentation 绑定身份不可变。
+全生命周期不复用由 Site 分配器负责，不能归功于相邻快照比较。
+
+活动 Tab 内任一 Panel 被替换时，使用既有的整个 anchor 成员清理与安装路径，
+保留当前 Panel 选择和缩放，并生成新的 attachment 代际。旧 Viewer 与 controller 效果完成或通过销毁证明后，才附着新绑定。
+替换会清除旧 Tab 启动来源事实；旧启动失败或未知不能变成新 shell 的启动状态。
+其他 Tab 中的替换更新其规范绑定，不断开活动 Tab；之后选中时附着新绑定。
+测试须覆盖实时及保留 Context 刷新、
+新 attachment 选择、过时代际、新旧身份同时重合拒绝，以及 Presentation 未改变时的改绑拒绝。
+
 精确 Create 与 Move commit revision 保留原有严格期望。更晚 revision 可以缺少已提交目标，
 由可选的已校验 target index 表达；绝不抹去其历史 commit。投影所有的 `ClosedTabExpectation`
 检查精确 Site/context/Tab、最低 Closed revision 以及目标缺失；它只证明 membership。
@@ -1983,9 +1997,12 @@ Viewer 或 controller lease。旧远端引用仍可能存在并占用容量；�
 join，且用户执行另一次显式动作。
 
 安装前唯一请求是 SnapshotRead。完整候选必须保留 Site/context、非递减 revision、相同
-revision 下的精确成员，以及所有保留 identity 的不可变元组。原不可用 Tab 必须缺失。
-目标仍在、Snapshot 不可用或候选无效时，保留旧规范状态与来源并停放，不执行 Attach。
-缺失属于成员知识，不是清理证据。此观察入口不包含 bootstrap、Open、activation、Create、
+revision 下的精确成员，以及所有保留 identity 的不可变元组。原不可用 Tab 必须缺失，
+或其选中的 Workspace Panel 按上述替换规则同时具有新的 Presentation 和终端绑定。
+旧物理身份仍在、Snapshot 不可用或候选无效时，保留旧规范状态与来源并停放，不执行 Attach。
+合法替换保留所选 Tab 和 Panel，分配新 attachment 代次并清除旧启动来源。缺失或替换属于
+成员知识，不是清理证据。既有显式 `Ctrl+B w` 入口也覆盖这种替换，不会自动重连。
+确定性 UI 测试覆盖替换分支；下文退役恢复模型结果早于本次扩展，不构成该扩展的证据。此观察入口不包含 bootstrap、Open、activation、Create、
 Start 或 Close。
 
 当已武装的尝试持有 mailbox 且尚无候选安装时，会话不针对恢复 mailbox 准入任何普通

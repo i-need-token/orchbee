@@ -333,7 +333,8 @@
 																															"target-cleanup-pending",
 																															"preparing",
 																															"preparation-failed",
-																															"authority-retired"
+																															"authority-retired",
+																															"workspace-retained"
 																														]
 																													},
 																													"resumable": {

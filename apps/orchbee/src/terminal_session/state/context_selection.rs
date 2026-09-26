@@ -45,13 +45,11 @@ pub(super) struct ContextProvenance<'a> {
 }
 
 impl ContextProvenance<'_> {
-    pub(super) fn for_tab(
-        &self,
-        tab_id: &orchbee_workbench_protocol::WorkbenchTabId,
-    ) -> Option<&CreateTerminalProvenance> {
+    pub(super) fn for_tab(&self, candidate: &NativeSimpleTab) -> Option<&CreateTerminalProvenance> {
         self.tabs
             .iter()
-            .position(|tab| tab.tab_id() == tab_id)
+            .position(|tab| tab.tab_id() == candidate.tab_id())
+            .filter(|index| !candidate.has_replaced_terminals_from(&self.tabs[*index]))
             .map(|index| &self.provenance[index])
     }
 }
